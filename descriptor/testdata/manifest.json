@@ -557,6 +557,60 @@
           }
         },
         {
+          "name": "AGG_DISTINCT_SUM",
+          "category": "aggregator",
+          "description": "Sum the field once per distinct key named by distinct_by. A key seen on N records contributes its value once, not N times; the first value observed for a key wins.",
+          "params": [
+            {
+              "name": "distinct_by",
+              "type": "string",
+              "required": true,
+              "description": "Schema field whose value is the distinct key. Required — an absent or empty distinct_by is refused, never defaulted to the aggregation's own field. Rows with a null key or a null value contribute nothing and register no key."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_bool",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (sum over distinct keys)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum",
+                "type": "float64",
+                "description": "Sum of the first value observed for each distinct key."
+              },
+              {
+                "name": "distinct_count",
+                "type": "int",
+                "description": "Number of distinct keys that contributed to the sum."
+              }
+            ],
+            "mergeability": "partial"
+          }
+        },
+        {
           "name": "AGG_FREQUENCY",
           "category": "aggregator",
           "description": "Per-distinct-value count of the field (returned as map in Details).",
@@ -4959,7 +5013,7 @@
         ]
       }
     ],
-    "error_codes_count": 208,
+    "error_codes_count": 211,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5005,6 +5059,9 @@
       "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS",
       "PULSE_CROSSTAB_EMPTY_COLUMNS",
       "PULSE_CROSSTAB_EMPTY_ROWS",
+      "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL",
+      "PULSE_CROSSTAB_MARGIN_AGG_INVALID",
+      "PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED",
       "PULSE_CROSSTAB_MISSING_CELL",
       "PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE",
       "PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE",
@@ -5275,6 +5332,7 @@
           "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
@@ -5348,6 +5406,7 @@
           "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
@@ -5421,6 +5480,7 @@
           "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
@@ -5494,6 +5554,7 @@
           "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
@@ -5567,6 +5628,7 @@
           "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
@@ -5640,6 +5702,7 @@
           "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
@@ -5718,6 +5781,7 @@
           "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
@@ -5795,6 +5859,7 @@
           "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
@@ -6283,6 +6348,10 @@
       {
         "name": "op-agg-distinct-count",
         "description": "Count distinct non-null values across the input set."
+      },
+      {
+        "name": "op-agg-distinct-sum",
+        "description": "Sum a value field once per distinct key."
       },
       {
         "name": "op-agg-frequency",
@@ -7101,7 +7170,7 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 164,
+    "examples_count": 165,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -7317,7 +7386,6 @@
       ],
       "summable_aggregators": [
         "AGG_COUNT",
-        "AGG_DISTINCT_COUNT",
         "AGG_FREQUENCY",
         "AGG_NULL_COUNT",
         "AGG_SET_CARDINALITY_SUM",
@@ -7331,6 +7399,10 @@
         "AGG_RATIO",
         "AGG_SET_CARDINALITY_AVG",
         "AGG_WEIGHTED_MEAN"
+      ],
+      "independent_aggregators": [
+        "AGG_DISTINCT_COUNT",
+        "AGG_DISTINCT_SUM"
       ],
       "recompute_aggregators": [
         "AGG_CI_LOWER",
@@ -7371,6 +7443,12 @@
         "normalize_within must be in [0, len(other-axis)-1] where other-axis is columns when normalize=row and rows when normalize=column (PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE)",
         "normalize_within requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS)",
         "normalize_within cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE)"
+      ],
+      "supports_margin_aggregations": true,
+      "margin_aggregation_rules": [
+        "every margin_aggregations entry needs an aggregation type; null entries are refused (PULSE_CROSSTAB_MARGIN_AGG_INVALID)",
+        "margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
+        "auxiliary figures are emitted only where the margin is DISPLAYED (margins.rows / margins.columns / margins.grand), matching the emission rule the cell aggregator's own margin counts and components follow; declaring margin_aggregations on a section that displays no margin computes them into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) — and a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator"
       ],
       "map_valued_cell_aggregators": [
         "AGG_SET_FREQUENCY",
@@ -8210,6 +8288,31 @@
               "name": "cardinality",
               "type": "int",
               "description": "Number of distinct non-null values observed."
+            }
+          ],
+          "mergeability": "partial"
+        },
+        "AGG_DISTINCT_SUM": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Sum of the first value observed for each distinct key."
+            },
+            {
+              "name": "distinct_count",
+              "type": "int",
+              "description": "Number of distinct keys that contributed to the sum."
             }
           ],
           "mergeability": "partial"
@@ -9404,4 +9507,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 12b170487a6d17f9d566493069cb13c154db896b7597ab39b0fc950aa56c8faa
+// golden-hash: 44480744bd0f8adbcc2651a16732286e6caab3e8e15f8dad2e40a414bcfdabd3

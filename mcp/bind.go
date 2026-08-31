@@ -546,6 +546,21 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"required":             []string{"type", "field"},
 				"additionalProperties": true,
 			},
+			"margin_aggregations": map[string]any{
+				"type":        "array",
+				"description": "Auxiliary MARGIN-ONLY aggregations: evaluated into the row / column / grand margin accumulators and never into a cell. Use it to carry a second figure — canonically an unweighted respondent base beside a weighted cell metric — without a second scan of the cohort. Effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's, because margin components are keyed by label (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL). Declaring it on a section that displays no margin warns PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED — the figures have nowhere to land; a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator. Figures surface on Response.Components.Crosstab as row_margin_aggregations / column_margin_aggregations / grand_total_aggregations, one map per margin slot keyed by effective label, each {value, present, components}; a slot that admitted no record carries present:false and NO value. An auxiliary sees the same record admission as the CELL — a record contributes only if it contributed to a cell — so a null cell field and an Include-excluded axis key are absent from it while the cell's own margins still count them.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"type":   map[string]any{"type": "string", "enum": aggTypes},
+						"field":  enumStringField(c.AllFields, "Field the auxiliary margin aggregation reads. AGG_COUNT may name any field."),
+						"label":  map[string]any{"type": "string"},
+						"params": map[string]any{},
+					},
+					"required":             []string{"type", "field"},
+					"additionalProperties": true,
+				},
+			},
 			"margins": map[string]any{
 				"type": "object",
 				"properties": map[string]any{

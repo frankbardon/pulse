@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -419,5 +420,52 @@ func TestMCPSchemaBinding_NilSchema(t *testing.T) {
 	}
 	if bound != nil {
 		t.Errorf("Bind(nil) = %v, want nil map", bound)
+	}
+}
+
+// TestMCPSchemaBinding_CrosstabMarginAggregations verifies the bound
+// process schema exposes Crosstab.margin_aggregations as an array whose
+// items carry the same aggregation shape as the cell slot. An agent that
+// cannot see the slot cannot use it.
+func TestMCPSchemaBinding_CrosstabMarginAggregations(t *testing.T) {
+	schemas, err := Bind(makeBindSchema())
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	req := decodeBoundRequest(t, schemas[toolmeta.ToolProcess])
+	props, _ := req["properties"].(map[string]any)
+	cross, _ := props["crosstab"].(map[string]any)
+	if cross == nil {
+		t.Fatal("crosstab schema missing from request")
+	}
+	cprops, _ := cross["properties"].(map[string]any)
+	slot, _ := cprops["margin_aggregations"].(map[string]any)
+	if slot == nil {
+		t.Fatal("crosstab.margin_aggregations property missing")
+	}
+	if typ, _ := slot["type"].(string); typ != "array" {
+		t.Errorf("margin_aggregations.type = %q, want array", typ)
+	}
+	if desc, _ := slot["description"].(string); desc == "" {
+		t.Error("margin_aggregations.description should be non-empty")
+	}
+	items, _ := slot["items"].(map[string]any)
+	if items == nil {
+		t.Fatal("margin_aggregations.items missing")
+	}
+	iprops, _ := items["properties"].(map[string]any)
+	for _, key := range []string{"type", "field", "label", "params"} {
+		if _, ok := iprops[key]; !ok {
+			t.Errorf("margin_aggregations.items.properties.%s missing", key)
+		}
+	}
+	// The item enum must be the live aggregator registry, exactly as
+	// the cell slot's is — a hardcoded list here would drift silently.
+	cell, _ := cprops["cell"].(map[string]any)
+	cellProps, _ := cell["properties"].(map[string]any)
+	cellType, _ := cellProps["type"].(map[string]any)
+	itemType, _ := iprops["type"].(map[string]any)
+	if !reflect.DeepEqual(cellType["enum"], itemType["enum"]) {
+		t.Error("margin_aggregations item type enum diverges from the cell slot's")
 	}
 }

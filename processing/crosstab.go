@@ -657,6 +657,35 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		}
 	}
 
+	// Auxiliary margin-only aggregations (spec.MarginAggregations).
+	// Evaluated here, immediately after the cell aggregator's own three
+	// margin blocks, because these are margins too — the difference is
+	// WHICH records reach them, not where they sit. See
+	// crosstab_margin_agg.go for the admission rule, and for why the
+	// blocks above deliberately do NOT share it.
+	//
+	// Placed AHEAD of the partial-depth and cross-axis margin work below
+	// on purpose: those exist solely as normalization denominators for
+	// the cell, and an auxiliary is never a denominator, so neither gets
+	// one — on either path.
+	//
+	// THE FIGURES REACH THE WIRE through the components block below:
+	// auxMargins.components() normalises this path's carrier into the one
+	// emission shape populateCrosstabComponents projects, and the fused
+	// path normalises its live accumulators into the same shape.
+	//
+	// Computed HERE rather than inside that block, i.e. OUTSIDE the
+	// disableComponents gate, because this call is also what refuses an
+	// auxiliary naming an operator no registry knows — which the fused
+	// arm refuses at construction, unconditionally. Moving it inside the
+	// gate would make that refusal depend on whether components happened
+	// to be enabled
+	// (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused).
+	auxMargins, err := p.computeAuxMargins(spec, filtered, rowPart, colPart)
+	if err != nil {
+		return nil, err
+	}
+
 	mode := spec.NormalizeOrDefault()
 
 	// Partial-depth normalization. When spec.NormalizeLevel selects a
@@ -943,7 +972,8 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 			colMarginCountsSlot, colMarginComponentsSlot,
 			grandMarginCountSlot, grandMarginComponentsSlot, spec.Margins.Grand,
 			includedRecords, excludedRecords,
-			rowKeyComponents, colKeyComponents)
+			rowKeyComponents, colKeyComponents,
+			auxMargins.components(spec.Margins))
 	}
 
 	// Tier-2 post-tests run over the materialized cell rows. Margin rows
@@ -1325,6 +1355,13 @@ func buildLongRows(spec *types.CrosstabSpec,
 // requested with zero count" from "grand margin not requested"; the
 // other margins use the nil-map sentinel because per-axis maps are
 // allocated only when display is on.
+//
+// aux carries the AUXILIARY margin-only aggregation figures
+// (CrosstabSpec.MarginAggregations), already normalised out of whichever
+// path produced them. Nil means the request declared no auxiliary, which
+// is what keeps such a request's response byte-identical to the
+// pre-auxiliary wire form — no slice header, no map, no JSON key. A nil
+// map INSIDE it means that particular margin slot is not emitted.
 func populateCrosstabComponents(resp *types.Response,
 	rowKeys, colKeys []string,
 	cellCounts map[crosstabCellKey]int,
@@ -1339,6 +1376,7 @@ func populateCrosstabComponents(resp *types.Response,
 	includedRecords, excludedRecords int,
 	rowKeyComponents []map[string]any,
 	columnKeyComponents []map[string]any,
+	aux *crosstabAuxComponents,
 ) {
 	if resp == nil {
 		return
@@ -1440,6 +1478,42 @@ func populateCrosstabComponents(resp *types.Response,
 		ct.GrandTotalCount = grandMarginCount
 		ct.GrandTotalComponents = grandMarginComponents
 	}
+	// Auxiliary margin-only aggregation figures, projected onto the same
+	// sorted axis-key order every other margin vector uses so a consumer
+	// dereferences RowMarginAggregations[r] with the r it already used
+	// for RowMarginCounts[r] and MatrixPayload.RowKeys[r]. An axis key
+	// with no entry (the slot admitted no record, so computeAuxMargins /
+	// finalizeAuxMargins wrote nothing for it) leaves nil in its
+	// position, matching RowMarginComponents' own missing-entry rule.
+	//
+	// The whole block is skipped when aux is nil, which is the
+	// undeclared-request case and the reason a response for a request
+	// with no margin_aggregations is byte-identical to one built before
+	// the slot existed.
+	if aux != nil {
+		if aux.Rows != nil && len(rowKeys) > 0 {
+			figs := make([]map[string]types.MarginAggregationFigure, len(rowKeys))
+			for i, rk := range rowKeys {
+				if m, ok := aux.Rows[rk]; ok {
+					figs[i] = m
+				}
+			}
+			ct.RowMarginAggregations = figs
+		}
+		if aux.Cols != nil && len(colKeys) > 0 {
+			figs := make([]map[string]types.MarginAggregationFigure, len(colKeys))
+			for i, ck := range colKeys {
+				if m, ok := aux.Cols[ck]; ok {
+					figs[i] = m
+				}
+			}
+			ct.ColumnMarginAggregations = figs
+		}
+		if len(aux.Grand) > 0 {
+			ct.GrandTotalAggregations = aux.Grand
+		}
+	}
+
 	// Per-axis grouper components projected onto sorted axis-key
 	// order. Single-axis crosstabs surface the bucket map directly; multi-
 	// axis crosstabs wrap each axis position's bucket in an "axes" slice
@@ -1685,18 +1759,54 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 			}
 		}
 	}
+	// Auxiliary margin-only aggregations. Detection is shared with
+	// predict via types.CrosstabSpec.MarginAggregationFaults so the two
+	// validators cannot drift on WHICH specs they refuse; only the
+	// coded rendering differs. First fault wins — execution returns one
+	// error, where predict accumulates them all onto the envelope.
+	for _, fault := range spec.MarginAggregationFaults() {
+		return errors.NewCodedErrorWithDetails(
+			marginAggregationFaultCode(fault.Kind), fault.Message, fault.Details)
+	}
 	// Internal guard: every aggregator must carry a reducibility
 	// classification. The default branch returns MarginRecompute, so
 	// reaching unclassified means a new aggregator was added without
 	// updating AggregationType.MarginReducibility — fail fast so the
-	// missing classification is fixed.
-	switch spec.Cell.Type.MarginReducibility() {
-	case types.MarginSummable, types.MarginMeanReducible, types.MarginRecompute:
-		// classified
-	default:
-		return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_AGG_UNCLASSIFIED,
-			"crosstab cell aggregator has no MarginReducibility classification",
-			map[string]any{"aggregation": string(spec.Cell.Type)})
+	// missing classification is fixed. Applied to the cell aggregator
+	// and to every auxiliary margin aggregation alike: an auxiliary
+	// lands in the same margin accumulators, so an unclassified one is
+	// the same defect in the same place.
+	for _, agg := range append([]*types.Aggregation{spec.Cell}, spec.MarginAggregations...) {
+		switch agg.Type.MarginReducibility() {
+		case types.MarginSummable, types.MarginMeanReducible,
+			types.MarginIndependent, types.MarginRecompute:
+			// classified
+		default:
+			slot := "cell"
+			if agg != spec.Cell {
+				slot = "margin_aggregations"
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_AGG_UNCLASSIFIED,
+				"crosstab "+slot+" aggregator has no MarginReducibility classification",
+				map[string]any{"aggregation": string(agg.Type), "slot": slot})
+		}
 	}
 	return nil
+}
+
+// marginAggregationFaultCode maps a shared structural fault kind onto
+// this package's coded surface. descriptor/crosstab.go holds the
+// predict-side twin; keeping the MAPPING separate from the DETECTION is
+// what lets one report an envelope entry and the other a CodedError
+// without either owning the rules.
+func marginAggregationFaultCode(kind types.MarginAggregationFaultKind) errors.Code {
+	switch kind {
+	case types.MarginAggregationFaultDuplicateLabel:
+		return errors.PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL
+	default:
+		// Nil entry, missing type, and any kind added later without a
+		// dedicated code: all are "this entry is not a usable
+		// aggregation", which is exactly what _INVALID says.
+		return errors.PULSE_CROSSTAB_MARGIN_AGG_INVALID
+	}
 }

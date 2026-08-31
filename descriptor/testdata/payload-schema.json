@@ -52,6 +52,7 @@
         "AGG_CI_UPPER",
         "AGG_COUNT",
         "AGG_DISTINCT_COUNT",
+        "AGG_DISTINCT_SUM",
         "AGG_FREQUENCY",
         "AGG_KURTOSIS",
         "AGG_MAX",
@@ -436,6 +437,18 @@
             "null"
           ]
         },
+        "column_margin_aggregations": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/MarginAggregationFigure"
+            },
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "column_margin_components": {
           "items": {
             "additionalProperties": true,
@@ -458,6 +471,12 @@
         "excluded_records": {
           "type": "integer"
         },
+        "grand_total_aggregations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MarginAggregationFigure"
+          },
+          "type": "object"
+        },
         "grand_total_components": {
           "additionalProperties": true,
           "type": "object"
@@ -471,6 +490,18 @@
         "row_key_components": {
           "items": {
             "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "row_margin_aggregations": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/$defs/MarginAggregationFigure"
+            },
             "type": "object"
           },
           "type": [
@@ -539,6 +570,15 @@
         "columns": {
           "items": {
             "$ref": "#/$defs/Group"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "margin_aggregations": {
+          "items": {
+            "$ref": "#/$defs/Aggregation"
           },
           "type": [
             "array",
@@ -1213,6 +1253,23 @@
       },
       "required": [
         "rows"
+      ],
+      "type": "object"
+    },
+    "MarginAggregationFigure": {
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "value": true
+      },
+      "required": [
+        "present"
       ],
       "type": "object"
     },
@@ -2566,4 +2623,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 28be7b3834dacd0b6815df8179e1bbba429e47d35d958f8f41ab51b9fbcff222
+// golden-hash: 683bb68d0129d2d447e267657baccffaa97642caee42acecb9a0adcb2ec536ca

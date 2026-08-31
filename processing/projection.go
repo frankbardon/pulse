@@ -138,6 +138,17 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 			addKnown(c.Field)
 			addAggParamFields(out, c, known)
 		}
+		// Auxiliary margin-only aggregations read source records
+		// exactly as the cell does, so they contribute to the
+		// projection exactly as the cell does. Omitting them leaves
+		// the operator reading fields no Record carries.
+		for _, a := range req.Crosstab.MarginAggregations {
+			if a == nil {
+				continue
+			}
+			addKnown(a.Field)
+			addAggParamFields(out, a, known)
+		}
 	}
 
 	for _, b := range req.Labels {
@@ -277,6 +288,22 @@ func NeededFields(req *types.Request, schema *encoding.Schema, ext *ExtensionReg
 				addAllKnown(inputs)
 			}
 		}
+		if req.Crosstab != nil {
+			for _, a := range req.Crosstab.MarginAggregations {
+				if a == nil {
+					continue
+				}
+				if _, custom := ext.Aggregators[a.Type]; !custom {
+					continue
+				}
+				inputs, ok := ext.FieldInputsFor("aggregator", string(a.Type), a.Params)
+				if !ok {
+					out.Widen()
+					return out
+				}
+				addAllKnown(inputs)
+			}
+		}
 		for _, a := range req.Attributes {
 			if a == nil {
 				continue
@@ -377,8 +404,16 @@ func (v *exprIdentVisitor) Visit(node *exprast.Node) {
 // references that don't live on the Aggregation struct itself. Today
 // that is the cohort-analytics family:
 //
+//   - AGG_DISTINCT_SUM:  Params.distinct_by
 //   - AGG_WEIGHTED_MEAN: Params.weight_field
 //   - AGG_RATIO:         Params.numerator_field, Params.denominator_field
+//
+// A field named ONLY here and not projected is decoded onto no Record,
+// so Record.NumericValue answers ok=false for it on every row and the
+// operator reads that as a missing input rather than as a broken
+// request — a confident, silent zero with n_null equal to the full
+// admitted count. Any future built-in whose Params name a schema field
+// belongs in this switch on the same day it is added.
 //
 // Extension aggregators take a separate code path that defers to the
 // registered FieldInputs hook; this helper handles only the built-ins.
@@ -387,6 +422,14 @@ func addAggParamFields(out FieldSet, a *types.Aggregation, known map[string]stru
 		return
 	}
 	switch a.Type {
+	case types.AGG_DISTINCT_SUM:
+		// The distinct KEY. The summed VALUE rides a.Field and is
+		// projected by the caller.
+		if name, ok := jsonStringField(a.Params, "distinct_by"); ok {
+			if _, in := known[name]; in {
+				out.Add(name)
+			}
+		}
 	case types.AGG_WEIGHTED_MEAN:
 		if name, ok := jsonStringField(a.Params, "weight_field"); ok {
 			if _, in := known[name]; in {

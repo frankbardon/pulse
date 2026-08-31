@@ -1592,6 +1592,7 @@ func TestCrosstab_AllAggregatorsClassified(t *testing.T) {
 	classes := map[types.MarginReducibility]struct{}{
 		types.MarginSummable:      {},
 		types.MarginMeanReducible: {},
+		types.MarginIndependent:   {},
 		types.MarginRecompute:     {},
 	}
 	for _, agg := range types.AllAggregationTypes() {

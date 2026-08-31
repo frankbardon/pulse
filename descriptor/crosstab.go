@@ -177,6 +177,85 @@ func validateCrosstab(env *Envelope, req *types.Request, schema *encoding.Schema
 				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
 		}
 	}
+
+	validateCrosstabMarginAggregations(env, spec, schema, checkField, opts)
+}
+
+// validateCrosstabMarginAggregations walks the auxiliary margin-only
+// aggregation slot. Structural defects are DETECTED by
+// types.CrosstabSpec.MarginAggregationFaults — the same call
+// processing.validateCrosstabSpec makes — so predict and execution
+// cannot drift on which specs they refuse; only the rendering differs
+// (an envelope entry per fault here, the first fault as a CodedError
+// there). Field references and the numeric-on-categorical advisory ride
+// the same surfaces the Cell slot already uses.
+func validateCrosstabMarginAggregations(
+	env *Envelope,
+	spec *types.CrosstabSpec,
+	schema *encoding.Schema,
+	checkField func(field, role string),
+	opts *PredictOptions,
+) {
+	if !spec.HasMarginAggregations() {
+		return
+	}
+
+	for _, fault := range spec.MarginAggregationFaults() {
+		env.AddError(string(marginAggregationFaultCode(fault.Kind)), fault.Message, fault.Details)
+	}
+
+	for _, agg := range spec.MarginAggregations {
+		if agg == nil {
+			continue
+		}
+		checkField(agg.Field, "margin aggregation")
+		if f := schema.Field(agg.Field); f != nil && f.Type.IsCategorical() && numericAggregations[agg.Type] {
+			entry := &EnvelopeEntry{
+				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
+				Message: "numeric aggregation " + string(agg.Type) + " is not meaningful for categorical field " + agg.Field,
+				Details: map[string]any{"field": agg.Field, "aggregation": string(agg.Type), "slot": "margin_aggregations"},
+			}
+			if opts.Strict {
+				env.Errors = append(env.Errors, entry)
+			} else {
+				env.Warnings = append(env.Warnings, entry)
+			}
+		}
+	}
+
+	// Auxiliary aggregations land in the margin accumulators only, so a
+	// section that DISPLAYS no margin computes them into nowhere and
+	// returns nothing that says so. Advisory rather than a refusal: the
+	// request is structurally legal and runs unchanged.
+	//
+	// A normalize direction does NOT satisfy this, even though it makes
+	// its margin required: that margin is a denominator, an auxiliary is
+	// never a denominator, and the Components emission gate is the
+	// display flag. Both execution paths still accumulate the auxiliary
+	// in that shape, so the warning is also the only notice that the
+	// work is being paid for and discarded.
+	if !spec.MarginAggregationsObserved() {
+		env.AddWarning(string(errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED),
+			"crosstab margin_aggregations were declared but the section displays no margin (margins.rows / margins.columns / margins.grand are all false) — the auxiliary figures have nowhere to land. A normalize direction does not carry them: it computes its margin as a denominator, and an auxiliary is never a denominator",
+			map[string]any{"margin_aggregations": len(spec.MarginAggregations)})
+	}
+}
+
+// marginAggregationFaultCode maps a shared structural fault kind onto
+// the predict-side coded surface. processing/crosstab.go holds the
+// execution-side twin; keeping the MAPPING separate from the DETECTION
+// is what lets one report an envelope entry and the other a CodedError
+// without either owning the rules.
+func marginAggregationFaultCode(kind types.MarginAggregationFaultKind) errors.Code {
+	switch kind {
+	case types.MarginAggregationFaultDuplicateLabel:
+		return errors.PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL
+	default:
+		// Nil entry, missing type, and any kind added later without a
+		// dedicated code: all are "this entry is not a usable
+		// aggregation", which is exactly what _INVALID says.
+		return errors.PULSE_CROSSTAB_MARGIN_AGG_INVALID
+	}
 }
 
 // crosstabStreamableReasons reports why a Crosstab request cannot stream.

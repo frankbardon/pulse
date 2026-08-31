@@ -231,10 +231,11 @@ func TestFusedCrosstab_FanOutBreadthMatchesBuffered(t *testing.T) {
 // TestFusedCrosstab_FanOutCellAggregatorBreadth walks the cell
 // aggregators the fusion gate admits beyond the SUM / COUNT / AVERAGE
 // trio the E2-S3 matrix uses. Admission = Mergeable() AND a
-// MarginReducibility of MarginSummable or MarginMeanReducible, so the
-// families here are the counting ones, the mean-reducible ones, and the
-// set-family ones — including two that fold a SET field inside a cell
-// whose axis is itself fanning on a set field.
+// MarginReducibility of MarginSummable, MarginMeanReducible, or
+// MarginIndependent, so the families here are the counting ones, the
+// mean-reducible ones, the distinct ones (own margin accumulator), and
+// the set-family ones — including two that fold a SET field inside a
+// cell whose axis is itself fanning on a set field.
 func TestFusedCrosstab_FanOutCellAggregatorBreadth(t *testing.T) {
 	cases := []struct {
 		name string

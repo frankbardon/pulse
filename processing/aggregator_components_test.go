@@ -435,6 +435,7 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		// Composite ops use the cohort schema (value + weight + num + den).
 		types.AGG_WEIGHTED_MEAN: coh(json.RawMessage(`{"weight_field":"weight"}`)),
 		types.AGG_RATIO:         coh(json.RawMessage(`{"numerator_field":"num","denominator_field":"den"}`)),
+		types.AGG_DISTINCT_SUM:  coh(json.RawMessage(`{"distinct_by":"num"}`)),
 
 		// Set ops use the set_u8 dictionary cohort.
 		types.AGG_SET_UNION:           set(),

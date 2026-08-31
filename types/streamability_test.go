@@ -20,6 +20,7 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_SKEWNESS:       true,
 		AGG_KURTOSIS:       true,
 		AGG_DISTINCT_COUNT: true,
+		AGG_DISTINCT_SUM:   true,
 		AGG_MEDIAN:         false,
 		AGG_PERCENTILE:     false,
 		AGG_ZSCORE:         false,
@@ -49,6 +50,91 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 	}
 	if len(expected) != len(AllAggregationTypes()) {
 		t.Fatalf("streamability table size mismatch: %d entries, %d types", len(expected), len(AllAggregationTypes()))
+	}
+}
+
+// TestStreamability_MarginReducibilityKnown asserts every aggregation
+// type returns the documented MarginReducibility class. It is the
+// exhaustiveness gate for the four-class set: adding an aggregation type
+// (or a fifth class) requires extending the switch in streamability.go
+// AND this table.
+//
+// The class is not cosmetic — processing.CanFuseCrosstab reads it as a
+// GATE TOKEN. MarginSummable / MarginMeanReducible / MarginIndependent
+// are admitted onto the fused single-pass path; MarginRecompute forces
+// the buffered path, which produces IDENTICAL numbers at several times
+// the peak heap. A wrong entry here is therefore silent in every
+// observable output.
+func TestStreamability_MarginReducibilityKnown(t *testing.T) {
+	expected := map[AggregationType]MarginReducibility{
+		AGG_COUNT:      MarginSummable,
+		AGG_SUM:        MarginSummable,
+		AGG_NULL_COUNT: MarginSummable,
+		AGG_FREQUENCY:  MarginSummable,
+
+		AGG_AVERAGE:       MarginMeanReducible,
+		AGG_WEIGHTED_MEAN: MarginMeanReducible,
+		AGG_RATIO:         MarginMeanReducible,
+
+		// Set-valued state: the margin is the UNION across cells, never
+		// their sum, and both crosstab paths already accumulate it
+		// independently. See the MarginIndependent doc comment.
+		AGG_DISTINCT_COUNT: MarginIndependent,
+		AGG_DISTINCT_SUM:   MarginIndependent,
+
+		AGG_MIN:        MarginRecompute,
+		AGG_MAX:        MarginRecompute,
+		AGG_RANGE:      MarginRecompute,
+		AGG_STDDEV:     MarginRecompute,
+		AGG_VARIANCE:   MarginRecompute,
+		AGG_MEDIAN:     MarginRecompute,
+		AGG_PERCENTILE: MarginRecompute,
+		AGG_MODE:       MarginRecompute,
+		AGG_ZSCORE:     MarginRecompute,
+		AGG_SKEWNESS:   MarginRecompute,
+		AGG_KURTOSIS:   MarginRecompute,
+		AGG_CI_LOWER:   MarginRecompute,
+		AGG_CI_UPPER:   MarginRecompute,
+		AGG_WELFORD:    MarginRecompute,
+
+		AGG_SET_UNION:           MarginSummable,
+		AGG_SET_FREQUENCY:       MarginSummable,
+		AGG_SET_CARDINALITY_SUM: MarginSummable,
+		AGG_SET_DISTINCT_VALUES: MarginSummable,
+		AGG_SET_CARDINALITY_AVG: MarginMeanReducible,
+		AGG_SET_INTERSECTION:    MarginRecompute,
+	}
+	for _, agg := range AllAggregationTypes() {
+		want, ok := expected[agg]
+		if !ok {
+			t.Fatalf("aggregation %s missing from margin-reducibility table — declare it in types/streamability.go and add an entry here", agg)
+		}
+		if got := agg.MarginReducibility(); got != want {
+			t.Errorf("%s.MarginReducibility() = %q, want %q", agg, got, want)
+		}
+	}
+	if len(expected) != len(AllAggregationTypes()) {
+		t.Fatalf("margin-reducibility table size mismatch: %d entries, %d types", len(expected), len(AllAggregationTypes()))
+	}
+}
+
+// TestMarginReducibility_ClassSpellings pins the wire strings of the
+// four classes. They surface in the manifest capability block
+// (crosstab.{summable,mean_reducible,independent,recompute}_aggregators),
+// so a rename is a wire break for every manifest consumer.
+func TestMarginReducibility_ClassSpellings(t *testing.T) {
+	for _, tc := range []struct {
+		class MarginReducibility
+		want  string
+	}{
+		{MarginSummable, "summable"},
+		{MarginMeanReducible, "mean_reducible"},
+		{MarginIndependent, "independent"},
+		{MarginRecompute, "recompute"},
+	} {
+		if string(tc.class) != tc.want {
+			t.Errorf("MarginReducibility %q, want %q", string(tc.class), tc.want)
+		}
 	}
 }
 

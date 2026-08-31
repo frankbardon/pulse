@@ -428,3 +428,139 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
+
+// TestNeededFields_AggregationParamsDistinctBy pins the FIRST of the two
+// projection holes E2-S7 closes: params.distinct_by names a schema field
+// that lives nowhere on the Aggregation struct, so a projection that does
+// not read it never decodes the key half of the (key, value) pair and
+// AGG_DISTINCT_SUM folds every record as "missing" — a confident, silent 0.
+//
+// Deliberately a TOP-LEVEL aggregation with no crosstab at all: this arm
+// must stay red when only the distinct_by lookup is reverted and green
+// when only the MarginAggregations walk is reverted, so the two halves of
+// the fix are independently mutation-proved.
+func TestNeededFields_AggregationParamsDistinctBy(t *testing.T) {
+	schema := mkSchema("weight", "respondent", "unused")
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{
+			Type:   types.AGG_DISTINCT_SUM,
+			Field:  "weight",
+			Params: json.RawMessage(`{"distinct_by":"respondent"}`),
+		}},
+	}
+	got := NeededFields(req, schema, nil)
+	if got.IsWide() {
+		t.Fatalf("expected narrow set, got wide")
+	}
+	want := []string{"respondent", "weight"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v (params.distinct_by must be projected)", g, want)
+	}
+}
+
+// TestNeededFields_CrosstabCellParamsDistinctBy is the same hole reached
+// through Crosstab.Cell, which already calls addAggParamFields — so this
+// arm too only reddens when the distinct_by lookup itself is missing.
+func TestNeededFields_CrosstabCellParamsDistinctBy(t *testing.T) {
+	schema := mkSchema("region", "segment", "weight", "respondent", "unused")
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell: &types.Aggregation{
+				Type:   types.AGG_DISTINCT_SUM,
+				Field:  "weight",
+				Params: json.RawMessage(`{"distinct_by":"respondent"}`),
+			},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"region", "respondent", "segment", "weight"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+// TestNeededFields_CrosstabMarginAggregations pins the SECOND hole: the
+// req.Crosstab block walked Rows, Columns and Cell and stopped, so an
+// auxiliary margin aggregation contributed NOTHING to the projection —
+// not even its own Field.
+//
+// The cell deliberately names `respondent`, so `respondent` is projected
+// via the cell whether or not distinct_by is read. `weight` is reachable
+// ONLY through the MarginAggregations walk, which is what makes this arm
+// red for the walk alone and green for the distinct_by lookup alone.
+func TestNeededFields_CrosstabMarginAggregations(t *testing.T) {
+	schema := mkSchema("brand", "audience", "respondent", "weight", "unused")
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "brand"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "audience"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "respondent"},
+			MarginAggregations: []*types.Aggregation{{
+				Type:   types.AGG_DISTINCT_SUM,
+				Field:  "weight",
+				Params: json.RawMessage(`{"distinct_by":"respondent"}`),
+				Label:  "weighted_base",
+			}},
+			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	if got.IsWide() {
+		t.Fatalf("expected narrow set, got wide")
+	}
+	want := []string{"audience", "brand", "respondent", "weight"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v (margin_aggregations must contribute Field and params)", g, want)
+	}
+}
+
+// TestNeededFields_CrosstabMarginAggregationsNilEntryTolerated mirrors the
+// nil-skip every other slot loop performs. Validation refuses a nil entry
+// later; the projection must not panic on the way there.
+func TestNeededFields_CrosstabMarginAggregationsNilEntryTolerated(t *testing.T) {
+	schema := mkSchema("brand", "audience", "respondent", "weight")
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:               []*types.Group{{Type: types.GROUP_CATEGORY, Field: "brand"}},
+			Columns:            []*types.Group{{Type: types.GROUP_CATEGORY, Field: "audience"}},
+			Cell:               &types.Aggregation{Type: types.AGG_COUNT, Field: "respondent"},
+			MarginAggregations: []*types.Aggregation{nil},
+		},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"audience", "brand", "respondent"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+// TestNeededFields_CrosstabMarginAggregationUnknownExtensionWidens closes
+// the same defect class one level up: an extension aggregator with no
+// FieldInputs hook is opaque, and reading it as a margin auxiliary must
+// widen exactly as it does in Aggregations and Crosstab.Cell. Without
+// this the fused path would run on a projection that provably cannot
+// cover what the operator reads.
+func TestNeededFields_CrosstabMarginAggregationUnknownExtensionWidens(t *testing.T) {
+	schema := mkSchema("brand", "audience", "respondent", "weight")
+	ext := &ExtensionRegistry{
+		Aggregators: map[types.AggregationType]AggregatorFactory{
+			types.AggregationType("AGG_CUSTOM_AUX"): nil,
+		},
+		// No FieldInputs registered for AGG_CUSTOM_AUX.
+	}
+	req := &types.Request{
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "brand"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "audience"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "respondent"},
+			MarginAggregations: []*types.Aggregation{
+				{Type: types.AggregationType("AGG_CUSTOM_AUX"), Field: "weight"},
+			},
+		},
+	}
+	if !NeededFields(req, schema, ext).IsWide() {
+		t.Errorf("an opaque extension aggregator in margin_aggregations must widen the projection")
+	}
+}

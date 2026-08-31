@@ -148,6 +148,50 @@ type FusedCrosstabState struct {
 	colMargins  []OnlineAggregator
 	grandMargin OnlineAggregator
 
+	// Auxiliary margin-only aggregation wiring
+	// (types.CrosstabSpec.MarginAggregations). auxAggs is the declared
+	// set in declaration order and auxFactories the matching
+	// constructors, both resolved once at construction; auxPresent is
+	// the per-record null-probe scratch, one entry per auxiliary, so a
+	// record is probed once per auxiliary field rather than once per
+	// (auxiliary, margin slot) pair. All three stay nil when the spec
+	// declares no auxiliary, which is what keeps every loop below a
+	// zero-iteration walk and costs an undeclared request nothing.
+	auxAggs      []*types.Aggregation
+	auxFactories []AggregatorFactory
+	auxPresent   []bool
+
+	// auxRowSlot / auxColSlot / auxGrandSlot mirror NeedsRowMargin /
+	// NeedsColumnMargin / NeedsGrandMargin ANDed with "an auxiliary was
+	// declared at all", resolved once so the interner growth path and
+	// the per-record accumulation branch on a bool rather than
+	// re-deriving the spec's margin requirements per key and per record.
+	// An auxiliary is only observable where a margin is emitted (see
+	// types.CrosstabSpec.MarginAggregationsObserved), so a slot the spec
+	// does not ask for allocates nothing.
+	auxRowSlot   bool
+	auxColSlot   bool
+	auxGrandSlot bool
+
+	// Auxiliary margin accumulators. rowMarginAux[rowIdx][k] /
+	// colMarginAux[colIdx][k] hold auxiliary k's state in that axis
+	// slot; grandMarginAux[k] is the single grand slot. The outer
+	// slices grow in lockstep with rowMargins / colMargins through the
+	// interner, so an auxiliary slot is addressable by the same rowIdx /
+	// colIdx the cell margins use.
+	//
+	// THESE DO NOT SEE THE SAME RECORDS THE CELL MARGINS BESIDE THEM DO.
+	// See updateAuxMargins for the admission rule and why it differs.
+	//
+	// Memory: one accumulator instance per (declared auxiliary, occupied
+	// margin slot), the same order of growth as the cell's own margins.
+	// An AGG_DISTINCT_SUM auxiliary additionally keeps an
+	// insertion-ordered key slice per instance for float64 determinism,
+	// so its per-slot cost scales with the distinct keys that slot sees.
+	rowMarginAux   [][]auxMarginAccumulator
+	colMarginAux   [][]auxMarginAccumulator
+	grandMarginAux []auxMarginAccumulator
+
 	// Per-margin record-count + null-input bookkeeping. Tracked
 	// alongside each rowMargins / colMargins / grandMargin UpdateRow
 	// call so the Finalize-time CrosstabComponents.RowMarginCounts /
@@ -203,6 +247,23 @@ type FusedCrosstabState struct {
 	// Row counters.
 	totalRows    int64
 	filteredRows int64
+}
+
+// auxMarginAccumulator is one auxiliary margin-only aggregation's state
+// in one margin slot: the online instance plus the universal-floor
+// counters over the records ADMITTED to that slot.
+//
+// agg is constructed lazily, on the first record admitted to this slot,
+// so an interned axis key that never admits a record costs one zero
+// struct rather than an aggregator instance. n / nNull tile the admitted
+// record count for this auxiliary's own Field — the same split
+// buildCellComponentMap merges under {n, n_null} for the cell margins —
+// and are accumulated here because the fused walk is the only place that
+// information exists; nothing re-scans records at Finalize.
+type auxMarginAccumulator struct {
+	agg   OnlineAggregator
+	n     int
+	nNull int
 }
 
 // NewFusedCrosstabState constructs a FusedCrosstabState. Validates the
@@ -301,6 +362,44 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 		st.grandMargin, err = newOnlineCell(cellFactory, spec.Cell, schema)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// Auxiliary margin-only aggregations. Resolved and probe-constructed
+	// here for the same reason the cell aggregator is: the fused walk
+	// drives every accumulator through UpdateRow, so an auxiliary that
+	// is not an OnlineAggregator cannot ride this path at all and must
+	// fail with a typed error at construction rather than mid-scan.
+	// CanFuseCrosstab declines such a request up front so it reaches the
+	// buffered path instead; this is the defensive twin for a gate that
+	// drifted.
+	//
+	// Entries are known non-nil and typed by this point —
+	// validateCrosstabSpec ran above and refuses both with a coded error.
+	if spec.HasMarginAggregations() {
+		st.auxAggs = spec.MarginAggregations
+		st.auxFactories = make([]AggregatorFactory, len(spec.MarginAggregations))
+		st.auxPresent = make([]bool, len(spec.MarginAggregations))
+		for i, aux := range spec.MarginAggregations {
+			factory, ok := ext.LookupAggregator(aux.Type)
+			if !ok {
+				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					fmt.Sprintf("unknown crosstab margin aggregation type: %s", aux.Type),
+					map[string]any{"aggregation": string(aux.Type), "slot": "margin_aggregations"})
+			}
+			// newOnlineCell probe-constructs and asserts the interface in
+			// one step; the instance is discarded because every slot
+			// builds its own on first admission.
+			if _, err := newOnlineCell(factory, aux, schema); err != nil {
+				return nil, err
+			}
+			st.auxFactories[i] = factory
+		}
+		st.auxRowSlot = spec.NeedsRowMargin()
+		st.auxColSlot = spec.NeedsColumnMargin()
+		st.auxGrandSlot = spec.NeedsGrandMargin()
+		if st.auxGrandSlot {
+			st.grandMarginAux = make([]auxMarginAccumulator, len(spec.MarginAggregations))
 		}
 	}
 
@@ -634,6 +733,14 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 		s.rowMarginCount = append(s.rowMarginCount, 0)
 		s.rowMarginNNull = append(s.rowMarginNNull, 0)
 	}
+	// Auxiliary row slot, grown in lockstep so rowMarginAux[rowIdx] is
+	// addressable by the same index as rowMargins[rowIdx]. The inner
+	// slice is one zero accumulator per declared auxiliary; the
+	// aggregator instances themselves are built on first admission, so
+	// a row key that never admits a record costs no accumulator.
+	if s.auxRowSlot {
+		s.rowMarginAux = append(s.rowMarginAux, make([]auxMarginAccumulator, len(s.auxAggs)))
+	}
 	return idx
 }
 
@@ -674,6 +781,10 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 		// Per-column count + null bookkeeping in lockstep.
 		s.colMarginCount = append(s.colMarginCount, 0)
 		s.colMarginNNull = append(s.colMarginNNull, 0)
+	}
+	// Auxiliary column slot — mirror of the row-axis growth above.
+	if s.auxColSlot {
+		s.colMarginAux = append(s.colMarginAux, make([]auxMarginAccumulator, len(s.auxAggs)))
 	}
 	return idx
 }
@@ -989,6 +1100,15 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		}
 	}
 
+	// AUXILIARY MARGIN ACCUMULATION. Sits here, immediately after the
+	// cell block, because its admission rule is read off exactly the
+	// condition that block is guarded by.
+	if len(s.auxAggs) > 0 {
+		if err := s.updateAuxMargins(rec, cellValuePresent); err != nil {
+			return err
+		}
+	}
+
 	// Cross-axis (normalize_within) margin. Buffered
 	// processing/crosstab.go::crossActive partitions filtered records by
 	// spec.Rows[:rowDepth+1] ++ spec.Columns[:colDepth+1] and only buckets
@@ -1021,6 +1141,109 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 					}
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// updateAuxMargins folds one record into every auxiliary margin-only
+// accumulator it is ADMITTED to.
+//
+// THE ADMISSION RULE. An auxiliary margin aggregation observes the SAME
+// record admission as the cell aggregator: a record contributes to an
+// auxiliary accumulator only if it contributed to a cell. Three
+// exclusions follow from that, and all three are present in the fixture
+// TestFusedCrosstab_AuxMarginObservesCellAdmission drives:
+//
+//   - a record whose CELL FIELD IS NULL — it occupies a cell slot and is
+//     counted in that cell's n_null, but it contributes no value, so it
+//     is no part of the base the auxiliary reports;
+//   - a record whose ROW AXIS KEY did not resolve — including a key a
+//     grouper Include excluded, which surfaces here as an unresolved
+//     position (categoryGrouper returns ErrGrouperKeyNull for an
+//     excluded key) and therefore as an empty rowIdxBuf;
+//   - a record whose COLUMN AXIS KEY did not resolve, by the same rule.
+//
+// THIS IS DELIBERATELY NOT HOW THE CELL AGGREGATOR'S OWN MARGINS BEHAVE,
+// and the difference was measured rather than assumed. A column margin
+// counts every filter-passing record routed to that column whatever
+// happened on the other axis: a rows=[brand] crosstab returns
+// byte-identical column margins with a two-brand Include and with none
+// at all. Reusing that behaviour for an auxiliary would make the figure
+// cohort-wide and metric-agnostic — a "sample size" describing every
+// respondent in the cohort rather than the respondents who could
+// actually contribute to a cell beside it.
+//
+// GETTING IT WRONG IS COMPLETELY SILENT. Every number still renders, the
+// base is merely wrong, and nothing throws or warns. The existing margin
+// counters are left exactly as they were; do not "align" the two.
+//
+// The grand slot updates ONCE per admitted record and is never
+// multiplied by a fan-out, mirroring the cell's own grand margin. The
+// row and column slots update once per distinct interned key the record
+// fanned into, mirroring the cell's own leaf margins — so an auxiliary
+// inherits the same deliberate non-additivity a fanning axis produces.
+func (s *FusedCrosstabState) updateAuxMargins(rec *Record, cellValuePresent bool) error {
+	// "Reached a cell" is exactly the guard on the cell-update block:
+	// both axes interned at least one key, and the cell field carried a
+	// value. Expressed against the index buffers rather than re-derived
+	// so the two cannot drift.
+	if !cellValuePresent || len(s.rowIdxBuf) == 0 || len(s.colIdxBuf) == 0 {
+		return nil
+	}
+	// One null probe per auxiliary FIELD per record, hoisted out of the
+	// per-slot walk below for the same reason the cell's probe is
+	// hoisted out of the fan-out: the value is a property of the record,
+	// not of the slot it routes into.
+	for i, aux := range s.auxAggs {
+		_, ok := rec.NumericValue(aux.Field)
+		s.auxPresent[i] = ok
+	}
+
+	if s.grandMarginAux != nil {
+		if err := s.foldAuxSlot(s.grandMarginAux, rec); err != nil {
+			return err
+		}
+	}
+	if s.rowMarginAux != nil {
+		for _, rowIdx := range s.rowIdxBuf {
+			if err := s.foldAuxSlot(s.rowMarginAux[rowIdx], rec); err != nil {
+				return err
+			}
+		}
+	}
+	if s.colMarginAux != nil {
+		for _, colIdx := range s.colIdxBuf {
+			if err := s.foldAuxSlot(s.colMarginAux[colIdx], rec); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// foldAuxSlot folds rec into every auxiliary accumulator of one margin
+// slot, constructing each instance on its first admitted record.
+// auxPresent must already hold this record's per-auxiliary null probe.
+func (s *FusedCrosstabState) foldAuxSlot(slot []auxMarginAccumulator, rec *Record) error {
+	for i := range slot {
+		acc := &slot[i]
+		if acc.agg == nil {
+			instance, err := newOnlineCell(s.auxFactories[i], s.auxAggs[i], s.schema)
+			if err != nil {
+				return err
+			}
+			acc.agg = instance
+		}
+		if err := acc.agg.UpdateRow(rec, s.auxAggs[i].Field); err != nil {
+			return err
+		}
+		// Universal floor over the ADMITTED records only, which is what
+		// makes n + n_null the admitted count rather than the routed one.
+		if s.auxPresent[i] {
+			acc.n++
+		} else {
+			acc.nNull++
 		}
 	}
 	return nil
@@ -1757,13 +1980,18 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		}
 		rowKeyComponents := projectAxisKeyComponents(s.spec.Rows, rowPart.Tuples, rowAxisComponents)
 		colKeyComponents := projectAxisKeyComponents(s.spec.Columns, colPart.Tuples, colAxisComponents)
+		auxComponents, err := s.finalizeAuxMargins()
+		if err != nil {
+			return nil, err
+		}
 		populateCrosstabComponents(resp, rowKeys, colKeys,
 			cellCountsMap, cellComponentsMap,
 			rowMarginCountsSlot, rowMarginComponentsSlot,
 			colMarginCountsSlot, colMarginComponentsSlot,
 			grandMarginCountSlot, grandMarginComponentsSlot, s.spec.Margins.Grand,
 			s.includedRecords, excludedRecords,
-			rowKeyComponents, colKeyComponents)
+			rowKeyComponents, colKeyComponents,
+			auxComponents)
 	}
 
 	return resp, nil
@@ -1942,6 +2170,110 @@ func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bo
 		components[key] = compMap
 	}
 	return values, present, counts, components, nil
+}
+
+// finalizeAuxMargins normalises the live auxiliary margin accumulators
+// into the one emission shape populateCrosstabComponents projects — the
+// fused counterpart of crosstabAuxMargins.components on the buffered
+// path.
+//
+// Returns nil when no auxiliary was declared, which is what keeps such a
+// request's response byte-identical to the pre-auxiliary wire form. A
+// margin slot the spec did not ask for allocated no accumulator slice at
+// all, so its map stays nil and no JSON key is emitted for it.
+//
+// EMISSION additionally honours the DISPLAY flag, matching the cell
+// aggregator's own margin counts and components: a margin accumulated
+// only because a normalization mode needed it is not one the caller
+// asked to see, and an auxiliary is never a denominator, so nothing
+// downstream reads a withheld one.
+//
+// AN ACCUMULATOR THAT WAS NEVER CONSTRUCTED IS NOT A ZERO. foldAuxSlot
+// builds an instance on a slot's first ADMITTED record, so a nil agg
+// means the slot admitted nothing — and it is emitted as Present false
+// with no Value rather than as a finalised zero, because an aggregator
+// over an empty set has no defined output and a fabricated 0 is
+// indistinguishable on the wire from a real one. Its components carry
+// the floor alone, whose n = 0 is a true statement about the slot. The
+// buffered path's auxFiguresFor takes the identical decision from the
+// other direction (an empty admitted set), which is what makes the two
+// arms agree here.
+//
+// Unlike finalizeRowMargins, an unreached slot is still WRITTEN rather
+// than dropped: a row key present in the interner has a position in the
+// emitted vector either way, and leaving the label out of that
+// position's map would make "this auxiliary was not requested" and "this
+// auxiliary saw nothing" the same absence.
+func (s *FusedCrosstabState) finalizeAuxMargins() (*crosstabAuxComponents, error) {
+	if len(s.auxAggs) == 0 {
+		return nil, nil
+	}
+	labels := s.spec.MarginAggregationLabels()
+
+	slot := func(accs []auxMarginAccumulator) (map[string]types.MarginAggregationFigure, error) {
+		out := make(map[string]types.MarginAggregationFigure, len(accs))
+		for i, acc := range accs {
+			if i >= len(labels) {
+				break
+			}
+			fig := types.MarginAggregationFigure{}
+			if acc.agg != nil {
+				scalar, err := acc.agg.Finalize()
+				if err != nil {
+					return nil, err
+				}
+				// The same rich/scalar dispatch the cell margins go
+				// through, so a map-valued auxiliary lands in the shape
+				// it would on the buffered path's runCellAggregation.
+				v, err := dispatchAggregatorCellResult(acc.agg, scalar)
+				if err != nil {
+					return nil, err
+				}
+				fig.Value = v
+				fig.Present = true
+			}
+			// buildCellComponentMap tolerates a nil instance, returning
+			// the floor alone — which is exactly the unreached-slot
+			// payload.
+			comps, err := buildCellComponentMap(acc.agg, acc.n, acc.nNull)
+			if err != nil {
+				return nil, err
+			}
+			fig.Components = comps
+			out[labels[i]] = fig
+		}
+		return out, nil
+	}
+
+	out := &crosstabAuxComponents{}
+	if s.rowMarginAux != nil && s.spec.Margins.Rows {
+		out.Rows = make(map[string]map[string]types.MarginAggregationFigure, len(s.rowMarginAux))
+		for i, accs := range s.rowMarginAux {
+			figs, err := slot(accs)
+			if err != nil {
+				return nil, err
+			}
+			out.Rows[s.rowKeys[i]] = figs
+		}
+	}
+	if s.colMarginAux != nil && s.spec.Margins.Columns {
+		out.Cols = make(map[string]map[string]types.MarginAggregationFigure, len(s.colMarginAux))
+		for i, accs := range s.colMarginAux {
+			figs, err := slot(accs)
+			if err != nil {
+				return nil, err
+			}
+			out.Cols[s.colKeys[i]] = figs
+		}
+	}
+	if s.grandMarginAux != nil && s.spec.Margins.Grand {
+		figs, err := slot(s.grandMarginAux)
+		if err != nil {
+			return nil, err
+		}
+		out.Grand = figs
+	}
+	return out, nil
 }
 
 // finalizePartialRowMargins is the scalar-only variant for partial-

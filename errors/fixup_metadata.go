@@ -1241,6 +1241,39 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_CROSSTAB_MARGIN_AGG_INVALID: {
+		Message: "An entry in the Crosstab section's margin_aggregations slot is structurally malformed: either a null element or an entry with no aggregation type. Auxiliary margin aggregations carry the same shape as the cell aggregation (type + field, optional label + params).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "MarginAggregations", "*", "Type"},
+				Hint:     "Give every margin_aggregations entry an aggregation type, or drop the entry. The canonical auxiliary base is AGG_DISTINCT_COUNT over the respondent key beside a weighted cell metric; AGG_COUNT and AGG_SUM are the other common choices.",
+				Examples: []any{"AGG_DISTINCT_COUNT", "AGG_COUNT", "AGG_SUM"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL: {
+		Message: "Two margin_aggregations entries resolve to the same effective label, or one collides with the cell aggregation's label. The effective label is Label when set and TYPE_field otherwise; margin components are keyed by it, so the duplicate would overwrite the figure beside it.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "MarginAggregations", "*", "Label"},
+				Hint:     "Set an explicit, distinct Label on each margin_aggregations entry. Two entries of the same type over the same field are indistinguishable without one, and the cell aggregation's own label is already taken.",
+				Examples: []any{"unweighted_base", "weighted_base"},
+			},
+		},
+	},
+	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED: {
+		Message: "margin_aggregations were declared on a Crosstab section that displays no margin (margins.rows / margins.columns / margins.grand are all false). Auxiliary aggregations are evaluated into the row / column / grand margin accumulators only, and are emitted only where that margin is displayed, so nothing carries them back. A normalize direction does not carry them either: the margin it requires is a normalization denominator, and an auxiliary is never a denominator. The request is legal and runs; the figures are accumulated and then discarded.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Crosstab", "Margins"},
+				Hint:     "Turn on the margin that should carry the auxiliary figure (margins.rows / margins.columns / margins.grand), or drop margin_aggregations. Setting a normalize direction is NOT enough — it computes its implied margin as a denominator and emits no auxiliary figure there.",
+				Examples: []any{map[string]any{"columns": true}, map[string]any{"rows": true, "grand": true}},
+			},
+		},
+	},
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED: {
 		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (AGG_SET_FREQUENCY emits map[string]int per cell). Dividing one map by another is undefined; the normalize directive cannot be applied.",
 		Fixups: []Fixup{

@@ -31,6 +31,12 @@ type CrosstabCapability struct {
 	// MeanReducibleAggregators lists aggregators whose margin is
 	// derivable when each cell also carries its count.
 	MeanReducibleAggregators []string `json:"mean_reducible_aggregators"`
+	// IndependentAggregators lists aggregators that maintain their own
+	// margin accumulator — the margin is neither a sum of cells nor a
+	// re-scan (distinct_count, distinct_sum). Both crosstab paths feed
+	// every record into independent row / column / grand accumulators,
+	// so the margin is exact after one pass.
+	IndependentAggregators []string `json:"independent_aggregators"`
 	// RecomputeAggregators lists aggregators whose margin cannot be
 	// derived from cells and must be recomputed over the raw filter-
 	// passing rows.
@@ -66,6 +72,18 @@ type CrosstabCapability struct {
 	// NormalizeWithinRules names the rejection rules specific to the
 	// NormalizeWithin slot.
 	NormalizeWithinRules []string `json:"normalize_within_rules"`
+
+	// SupportsMarginAggregations reports whether the engine honors
+	// CrosstabSpec.MarginAggregations — the auxiliary aggregations
+	// evaluated into the row / column / grand margin accumulators only
+	// and never into a cell. The canonical use is a respondent base
+	// riding alongside a weighted metric without a second scan.
+	SupportsMarginAggregations bool `json:"supports_margin_aggregations"`
+
+	// MarginAggregationRules names the rejection rules specific to the
+	// MarginAggregations slot, plus the advisory that fires when the
+	// section emits no margin to carry the auxiliary figures.
+	MarginAggregationRules []string `json:"margin_aggregation_rules"`
 
 	// MapValuedCellAggregators is the alphabetized list of aggregator
 	// names whose Crosstab Cell output is map-valued (rich payload
@@ -117,15 +135,28 @@ func crosstabCapability() CrosstabCapability {
 			"normalize_within requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS)",
 			"normalize_within cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE)",
 		},
+		SupportsMarginAggregations: true,
+		MarginAggregationRules: []string{
+			"every margin_aggregations entry needs an aggregation type; null entries are refused (PULSE_CROSSTAB_MARGIN_AGG_INVALID)",
+			"margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
+			"auxiliary figures are emitted only where the margin is DISPLAYED (margins.rows / margins.columns / margins.grand), matching the emission rule the cell aggregator's own margin counts and components follow; declaring margin_aggregations on a section that displays no margin computes them into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) — and a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator",
+		},
 	}
 	cap.RejectionRules = append(cap.RejectionRules,
 		"map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)")
 	for _, t := range types.AllAggregationTypes() {
+		// One arm per MarginReducibility class, deliberately with NO
+		// default: an unhandled class would fall out of every list
+		// silently. TestManifest_CrosstabCapabilityPopulated totals the
+		// four lists against len(AllAggregationTypes()) and is what
+		// reddens if a fifth class arrives without an arm here.
 		switch t.MarginReducibility() {
 		case types.MarginSummable:
 			cap.SummableAggregators = append(cap.SummableAggregators, string(t))
 		case types.MarginMeanReducible:
 			cap.MeanReducibleAggregators = append(cap.MeanReducibleAggregators, string(t))
+		case types.MarginIndependent:
+			cap.IndependentAggregators = append(cap.IndependentAggregators, string(t))
 		case types.MarginRecompute:
 			cap.RecomputeAggregators = append(cap.RecomputeAggregators, string(t))
 		}
@@ -135,6 +166,7 @@ func crosstabCapability() CrosstabCapability {
 	}
 	sort.Strings(cap.SummableAggregators)
 	sort.Strings(cap.MeanReducibleAggregators)
+	sort.Strings(cap.IndependentAggregators)
 	sort.Strings(cap.RecomputeAggregators)
 	sort.Strings(cap.MapValuedCellAggregators)
 	return cap

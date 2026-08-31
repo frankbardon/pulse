@@ -42,6 +42,24 @@ const (
 	// Streamable + mergeable via weighted Chan-Welford.
 	AGG_WEIGHTED_MEAN AggregationType = "AGG_WEIGHTED_MEAN"
 
+	// AGG_DISTINCT_SUM sums the target field ONCE PER DISTINCT KEY.
+	// Params: `distinct_by` (string, required) names the key field;
+	// the Aggregation's own Field names the value summed. A key seen
+	// on N records contributes its value once, not N times — the
+	// motivating shape is a survey weight that repeats across every
+	// row a respondent produced.
+	//
+	// FIRST VALUE WINS: when one key carries conflicting values across
+	// its records, the first value observed is the one summed and every
+	// later value for that key is ignored. See the aggregator's own doc
+	// comment in processing/aggregator_distinct_sum.go.
+	//
+	// Components() additionally emits the DISTINCT COUNT alongside the
+	// sum, so one operator yields both figures from one scan and the
+	// two can never come from different passes over the data.
+	// Streamable + mergeable (per-key maps union).
+	AGG_DISTINCT_SUM AggregationType = "AGG_DISTINCT_SUM"
+
 	// AGG_RATIO emits sum(numerator_field) / sum(denominator_field) at
 	// finalize. Params: `numerator_field` + `denominator_field`. The
 	// Aggregation's own Field is ignored. Streamable + mergeable (two
@@ -117,6 +135,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_DISTINCT_COUNT, AGG_PERCENTILE,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
+		AGG_DISTINCT_SUM,
 		AGG_CI_LOWER, AGG_CI_UPPER,
 		AGG_WELFORD,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,

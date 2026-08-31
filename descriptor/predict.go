@@ -14,18 +14,24 @@ import (
 
 // numericAggregations are aggregation types that only make sense on numeric fields.
 var numericAggregations = map[types.AggregationType]bool{
-	types.AGG_SUM:        true,
-	types.AGG_AVERAGE:    true,
-	types.AGG_MIN:        true,
-	types.AGG_MAX:        true,
-	types.AGG_STDDEV:     true,
-	types.AGG_RANGE:      true,
-	types.AGG_ZSCORE:     true,
-	types.AGG_MEDIAN:     true,
-	types.AGG_VARIANCE:   true,
-	types.AGG_SKEWNESS:   true,
-	types.AGG_KURTOSIS:   true,
-	types.AGG_PERCENTILE: true,
+	types.AGG_SUM: true,
+	// AGG_DISTINCT_SUM sums its own Field once per distinct key; the
+	// summed value is numeric even though the key named by
+	// params.distinct_by is frequently categorical. Only Field is
+	// checked here, so a categorical VALUE column is the meaningless
+	// case this flags — the same reason AGG_SUM is listed.
+	types.AGG_DISTINCT_SUM: true,
+	types.AGG_AVERAGE:      true,
+	types.AGG_MIN:          true,
+	types.AGG_MAX:          true,
+	types.AGG_STDDEV:       true,
+	types.AGG_RANGE:        true,
+	types.AGG_ZSCORE:       true,
+	types.AGG_MEDIAN:       true,
+	types.AGG_VARIANCE:     true,
+	types.AGG_SKEWNESS:     true,
+	types.AGG_KURTOSIS:     true,
+	types.AGG_PERCENTILE:   true,
 }
 
 // CategoricalAggregationIssues returns one EnvelopeEntry per

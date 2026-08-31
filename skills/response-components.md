@@ -15,9 +15,11 @@ and required for extension-registered operators (probe-validation rejects an
 emitter without a matching `ComponentSchema`). The shape is additive
 omitempty — `Response.Components` itself is `*ResponseComponents` so a run that
 produces nothing components-shaped marshals to no `components` key at all,
-byte-identical to the pre-Components wire form. `format_version` stays at
-`"1.0"` because the slot is additive — only renames/removals bump per the
-Output Format Contract in CLAUDE.md.
+byte-identical to the pre-Components wire form. Adding the slot did not
+move `format_version` because it is additive — only renames/removals bump
+per the Output Format Contract in CLAUDE.md, which is the single source
+for the current value (`"1.1"` today, moved by the Compose facade lift,
+not by anything in this file).
 
 This is the single source of truth for the universal contract; the per-category
 skills (`aggregation-design.md`, `grouper-design.md`, `crosstab-guide.md`,
@@ -94,6 +96,68 @@ type ResponseComponents struct {
   as the aggregator's sample size. The same split holds on the margin
   counterparts. See `skills/crosstab-guide.md` for the full indexing
   contract.
+
+  **Auxiliary margin figures.** When the Request declared
+  `crosstab.margin_aggregations`, the block additionally carries
+  `RowMarginAggregations[r]` / `ColumnMarginAggregations[c]` /
+  `GrandTotalAggregations` — one map per margin slot, keyed by each
+  auxiliary's effective label (`label`, else `TYPE_field`; the validators
+  force them unique across the slot and distinct from the cell's, so a
+  label addresses exactly one figure). They sit BESIDE the margin
+  components rather than inside them because they are not the same
+  figure: `RowMarginComponents[r]` describes the CELL aggregator's own
+  margin, which counts every filter-passing record routed to that row,
+  while an auxiliary observes the cell's ADMISSION instead.
+
+  **The admission rule, stated in full — it is the least guessable
+  property of this surface.** A record contributes to an auxiliary
+  margin ONLY IF IT CONTRIBUTED TO A CELL. Two exclusions follow, and
+  they are the entire difference from the margin components beside it:
+  a record whose CELL FIELD IS NULL, and a record whose AXIS KEY A
+  GROUPER `Include` EXCLUDED. The cell's own margins count both. That is
+  deliberate and there is no knob: an auxiliary exists to be a base the
+  cells beside it are read against, so it has to see the records they
+  saw — a cohort-wide base would answer a different question while
+  looking identical. Reading `n` off an auxiliary's `components` as a
+  cohort count is therefore wrong, and wrong SILENTLY: every figure
+  still renders and only the base is off. Both execution arms implement
+  the same rule and must agree, because dispatch picks fused or buffered
+  on request SHAPE and nothing in `Response` reports which one ran.
+
+  Each entry is a `MarginAggregationFigure{value, present, components}`.
+  `components` is the universal floor `{n, n_null}` over the ADMITTED
+  records merged with that aggregator's own `ComponentSchema` keys — so
+  an `AGG_DISTINCT_SUM` auxiliary surfaces its `distinct_count` per
+  margin slot alongside the scalar sum in `value`, which is what lets one
+  operator serve two rendered figures off one scan.
+
+  **`present` is load-bearing and is not a zero.** A slot that admitted
+  no record carries `present: false` and NO `value` key: an aggregator
+  over an empty set has no defined output, and a fabricated `0` is
+  indistinguishable on the wire from a real one. Its `components` still
+  carry the floor, whose `n = 0` is a true statement about the slot. The
+  three keys are `omitempty` and are emitted only when the matching
+  margin is DISPLAYED (`margins.rows` / `.columns` / `.grand`), matching
+  the emission rule the cell's own margin counts and components follow —
+  a margin computed only as a normalize denominator stays off the wire on
+  both. A request declaring no auxiliary emits none of the three, so the
+  wire form is byte-identical to the pre-slot baseline and
+  `format_version` does not move.
+
+  **Allocation is wider than emission, and the gap is warned rather
+  than closed.** Both paths ALLOCATE auxiliary accumulators on
+  `NeedsRowMargin` / `NeedsColumnMargin` / `NeedsGrandMargin` — display
+  OR normalize — while emission rides the display flag alone. So a spec
+  with every margin flag false, a normalize direction set and an
+  auxiliary declared accumulates every figure and emits not one of them.
+  `pulse predict` warns `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` on
+  exactly that shape: its predicate
+  (`types.CrosstabSpec.MarginAggregationsObserved`) reads the display
+  flags directly and deliberately NOT the `Needs*Margin` trio, which
+  answers the CELL's question. An auxiliary is never a denominator, so a
+  normalize direction is not a landing site for one. If you are looking
+  for auxiliary figures and the block is absent, check the display flag
+  before checking anything else.
 
 - **`Filterers []FiltererComponents`** — one entry per `Request.Filterers`
   slot in matching declared order. Slot identity rides on `Label`. Universal
@@ -210,7 +274,7 @@ parallel-shard partitions:
 | Constant | Wire value | Semantics | Canonical operators |
 |---|---|---|---|
 | `Mergeable` | `"mergeable"` | Components fold via the same associative/commutative path as the scalar value. Constant-space `MergeOnline` works across chunks. Safe to emit per-chunk and merge online. | AGG_SUM, AGG_COUNT, AGG_WELFORD, AGG_WEIGHTED_MEAN, AGG_RATIO, AGG_SET_UNION, AGG_SET_CARDINALITY_SUM |
-| `Partial` | `"partial"` | Components fold across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. Orchestrator may stage merge at terminal flush. | AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT, AGG_SET_FREQUENCY |
+| `Partial` | `"partial"` | Components fold across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. Orchestrator may stage merge at terminal flush. | AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM, AGG_SET_FREQUENCY |
 | `None` | `"none"` | Components cannot be computed from a per-chunk partial — the operator needs a sorted view (or equivalent) of the full input. Streaming chunks omit components; emission lands only on the terminal buffered flush. | AGG_MEDIAN, AGG_PERCENTILE, GROUP_QUANTILE |
 
 Predict surfaces a per-slot `BufferedComponents` flag that is
@@ -231,7 +295,7 @@ alongside the chunk's row payload. Behaviour by mergeability class:
   result.
 
 - **Partial-merge aggregators (`AGG_FREQUENCY`, `AGG_MODE`,
-  `AGG_DISTINCT_COUNT`, `AGG_SET_FREQUENCY`)** — chunks 1..N-1 carry the
+  `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY`)** — chunks 1..N-1 carry the
   per-chunk partial maps. The terminal chunk carries the merged final.
   Consumer-side merge of per-chunk maps is supported (associative union)
   but optional — the terminal chunk is authoritative.

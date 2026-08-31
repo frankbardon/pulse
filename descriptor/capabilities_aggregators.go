@@ -353,6 +353,26 @@ func aggregatorCapabilities() []Operator {
 			),
 		},
 		{
+			Name:        string(types.AGG_DISTINCT_SUM),
+			Category:    "aggregator",
+			Description: "Sum the field once per distinct key named by distinct_by. A key seen on N records contributes its value once, not N times; the first value observed for a key wins.",
+			Params: []Param{
+				{
+					Name:        "distinct_by",
+					Type:        "string",
+					Required:    true,
+					Description: "Schema field whose value is the distinct key. Required — an absent or empty distinct_by is refused, never defaulted to the aggregation's own field. Rows with a null key or a null value contribute nothing and register no key.",
+				},
+			},
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+			EmitsTypeNote: "scalar float64 (sum over distinct keys)",
+			Streamable:    true,
+			ComponentSchema: aggSchema(Partial,
+				ComponentKey{Name: "sum", Type: "float64", Description: "Sum of the first value observed for each distinct key."},
+				ComponentKey{Name: "distinct_count", Type: "int", Description: "Number of distinct keys that contributed to the sum."},
+			),
+		},
+		{
 			Name:        string(types.AGG_PERCENTILE),
 			Category:    "aggregator",
 			Description: "Configurable percentile of the field; requires sorting the full value set.",

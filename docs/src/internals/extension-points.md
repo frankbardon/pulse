@@ -308,7 +308,7 @@ single aggregator:
 | Value | Meaning | Examples |
 |---|---|---|
 | `Mergeable` | Stream-safe. State composes through the same `MergeOnline` path as the scalar value. Streaming chunks carry `ComponentsDelta`; consumers reconcile. | Welford-family (sums, sums-of-squares), running counts, set masks, weighted accumulators. |
-| `Partial` | Unions across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. The orchestrator may stage the merge at terminal flush. | `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`. |
+| `Partial` | Unions across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. The orchestrator may stage the merge at terminal flush. | `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`. |
 | `None` | Terminal-only. Needs sorted full input. Streaming chunks omit components entirely; only the terminal buffered flush emits. Predict declares the slot buffered-components-only. | `AGG_MEDIAN`, `AGG_PERCENTILE`. |
 
 Choose the axis that matches the math, not the convenience of the
@@ -520,6 +520,29 @@ identifiers for `ATTR_FORMULA` / `FILTER_EXPRESSION`). Custom
 operators registered through this surface are opaque by default —
 without a `FieldInputs` hook, the projection extractor widens the
 retained set to "every field" so the runtime stays correct.
+
+A built-in whose **`Params` name a schema field** is the one shape
+introspection does not get for free, because the name lives nowhere on
+the operator's own struct. `addAggParamFields` is the built-in
+counterpart of `FieldInputs` and must gain an arm on the same day such
+an operator does — `AGG_DISTINCT_SUM`'s `distinct_by`,
+`AGG_WEIGHTED_MEAN`'s `weight_field`, `AGG_RATIO`'s
+`numerator_field` / `denominator_field`, `FEAT_TRAIN_TEST_SPLIT`'s
+`stratify` and `FEAT_TARGET_ENCODE`'s `target` are the whole set
+today. **Forgetting one fails silently, not loudly:** the field is
+decoded onto no `Record`, `Record.NumericValue` answers `ok=false` for
+it on every row, and the operator reads that as a missing input rather
+than as a broken request — so the request succeeds and publishes a
+confident zero, with `n_null` equal to the full admitted record count
+as the only signature.
+
+`NeededFields` must also walk **every request slot that can carry an
+operator**, not merely the well-known ones. `Crosstab.MarginAggregations`
+is the slot that has been missed once: auxiliary margin-only
+aggregations read source records exactly as `Crosstab.Cell` does and
+contribute to the projection exactly as it does, both their own `Field`
+and their `Params` fields, and an opaque extension aggregator sitting
+there widens the set exactly as one sitting in `Crosstab.Cell` would.
 
 To let projection narrow past your custom operator (instead of
 widening to "every field"), register `FieldInputs` and return every

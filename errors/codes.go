@@ -722,6 +722,34 @@ const (
 	// normalize=row or normalize=column.
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE Code = "PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE"
 
+	// PULSE_CROSSTAB_MARGIN_AGG_INVALID indicates an entry in the
+	// Crosstab section's margin_aggregations slot is structurally
+	// malformed — a null element, or an entry carrying no aggregation
+	// type. There is no default auxiliary aggregator, so the entry is
+	// refused rather than dropped: silently skipping it would return a
+	// margin with the requested figure missing and nothing saying so.
+	PULSE_CROSSTAB_MARGIN_AGG_INVALID Code = "PULSE_CROSSTAB_MARGIN_AGG_INVALID"
+
+	// PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL indicates two
+	// margin_aggregations entries resolve to the same effective label
+	// (Label when set, otherwise TYPE_field), or one collides with the
+	// cell aggregation's label. Margin components are keyed by label,
+	// so the second figure would overwrite the first.
+	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL Code = "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL"
+
+	// PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED indicates margin_aggregations
+	// were declared on a Crosstab section that DISPLAYS no margin
+	// (margins.rows / .columns / .grand all false). Auxiliary
+	// aggregations land in the row / column / grand accumulators only
+	// and are emitted only where that margin is displayed, so nothing
+	// carries them back. A normalize direction does not satisfy it: the
+	// margin it requires is a denominator, and an auxiliary is never a
+	// denominator — both execution paths still accumulate it in that
+	// shape, so this warning is also the only notice that the work is
+	// paid for and discarded. Surfaced as a predict WARNING — the
+	// request is structurally legal and runs — never as an error.
+	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED Code = "PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED"
+
 	// PULSE_REQUEST_UNKNOWN_FIELD indicates a request JSON carried a
 	// top-level key that is not a recognised Request slot. JSON
 	// decoding silently ignores unknown keys, so the offending slot
@@ -2261,6 +2289,9 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE,
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS,
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE,
+	PULSE_CROSSTAB_MARGIN_AGG_INVALID,
+	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL,
+	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED,
 	PULSE_REQUEST_UNKNOWN_FIELD,
 	PULSE_OVERLAY_KIND_UNKNOWN,
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,

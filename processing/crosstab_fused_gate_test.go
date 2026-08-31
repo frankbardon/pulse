@@ -527,3 +527,60 @@ func TestCanFuseCrosstab_ExtensionGrouperOnAxisWithoutFieldInputs(t *testing.T) 
 		t.Fatalf("unexpected reason %q", reason)
 	}
 }
+
+// TestCanFuseCrosstab_IndependentMarginCellAccepted is the guard that
+// keeps MarginIndependent an ADMITTED class on the fused gate.
+//
+// AGG_DISTINCT_COUNT and AGG_DISTINCT_SUM keep their own margin
+// accumulators — FusedCrosstabState allocates independent
+// OnlineAggregator instances for rowMargins / colMargins / grandMargin
+// and routes every record into them — so the true margin (the union)
+// falls out of the single fused pass. Re-labelling them MarginRecompute
+// because "a distinct count is not a sum of cells" would be a PURE
+// REGRESSION: the numbers would be unchanged and every distinct-count
+// crosstab would silently move to the buffered path at several times
+// the peak heap. This test fails the moment the gate stops admitting
+// the class, which is the only observable symptom that failure has.
+func TestCanFuseCrosstab_IndependentMarginCellAccepted(t *testing.T) {
+	schema := crosstabFusedGateSchema()
+	cases := []struct {
+		agg    types.AggregationType
+		params json.RawMessage
+	}{
+		{types.AGG_DISTINCT_COUNT, nil},
+		{types.AGG_DISTINCT_SUM, json.RawMessage(`{"distinct_by":"brand"}`)},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.agg), func(t *testing.T) {
+			if got := tc.agg.MarginReducibility(); got != types.MarginIndependent {
+				t.Fatalf("%s.MarginReducibility() = %q, want %q", tc.agg, got, types.MarginIndependent)
+			}
+			req := happyPathCrosstabRequest()
+			req.Crosstab.Cell = &types.Aggregation{Type: tc.agg, Field: "score", Params: tc.params}
+			ok, reason := CanFuseCrosstab(req, schema, nil)
+			if !ok {
+				t.Fatalf("%s cell declined fusion: %q — MarginIndependent must stay in the admitted set in processing/crosstab_fused_gate.go", tc.agg, reason)
+			}
+		})
+	}
+}
+
+// TestCanFuseCrosstab_DistinctSumCell asserts a crosstab celled on
+// AGG_DISTINCT_SUM is fused-eligible. Both halves of the requirement are
+// in types/streamability.go and BOTH default to the restrictive branch,
+// so an operator that forgets to opt in loses fusion SILENTLY — identical
+// numbers, no warning, several times the peak heap. This is the assertion
+// that reddens if either declaration is dropped.
+func TestCanFuseCrosstab_DistinctSumCell(t *testing.T) {
+	schema := crosstabFusedGateSchema()
+	req := happyPathCrosstabRequest()
+	req.Crosstab.Cell = &types.Aggregation{
+		Type:   types.AGG_DISTINCT_SUM,
+		Field:  "score",
+		Params: json.RawMessage(`{"distinct_by":"brand"}`),
+	}
+	ok, reason := CanFuseCrosstab(req, schema, nil)
+	if !ok {
+		t.Fatalf("AGG_DISTINCT_SUM cell declined fusion: %q — check Mergeable() and MarginReducibility() in types/streamability.go", reason)
+	}
+}

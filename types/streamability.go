@@ -27,8 +27,8 @@ const (
 	// ComponentsPartial signals that the components map merges across
 	// chunks but at non-trivial allocation cost — map / set unions
 	// where the fold is associative but not constant-space.
-	// AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT, and
-	// AGG_SET_FREQUENCY are partial. The orchestrator may stage the
+	// AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+	// AGG_DISTINCT_SUM, and AGG_SET_FREQUENCY are partial. The orchestrator may stage the
 	// merge at terminal flush.
 	ComponentsPartial ComponentsMergeability = "partial"
 
@@ -57,7 +57,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_STDDEV, AGG_VARIANCE, AGG_RANGE,
 		AGG_FREQUENCY, AGG_MODE,
 		AGG_SKEWNESS, AGG_KURTOSIS,
-		AGG_DISTINCT_COUNT,
+		AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
@@ -93,6 +93,7 @@ func (t AggregationType) Mergeable() bool {
 	case AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX,
 		AGG_RANGE, AGG_VARIANCE, AGG_STDDEV,
 		AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+		AGG_DISTINCT_SUM,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
@@ -108,7 +109,7 @@ func (t AggregationType) Mergeable() bool {
 }
 
 // MarginReducibility classifies how a crosstab margin for this
-// aggregator can be computed. Three classes:
+// aggregator can be computed. Four classes:
 //
 //   - MarginSummable — margin = sum of cells (e.g. AGG_COUNT, AGG_SUM,
 //     AGG_NULL_COUNT). The reshape pass can derive the margin cheaply
@@ -118,6 +119,12 @@ func (t AggregationType) Mergeable() bool {
 //     / ΣcellN). Pulse does not yet emit per-cell counts in long form,
 //     so v1 routes these through the recompute path; the classification
 //     is preserved for future optimization.
+//   - MarginIndependent — the operator maintains its OWN margin
+//     accumulator: the margin is neither a sum of cells nor a re-scan.
+//     Both crosstab paths already feed every record into independent
+//     row / column / grand accumulators, so the true margin falls out of
+//     one pass (AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM — set-valued state
+//     whose union across cells is NOT their sum).
 //   - MarginRecompute — margin cannot be derived from cells and must be
 //     recomputed over the raw rows (every order- or distribution-
 //     dependent aggregator: AGG_MEDIAN, AGG_PERCENTILE, AGG_STDDEV,
@@ -135,7 +142,18 @@ func (t AggregationType) Mergeable() bool {
 // drives the manifest capability block and future fast-path work.
 func (t AggregationType) MarginReducibility() MarginReducibility {
 	switch t {
-	case AGG_COUNT, AGG_SUM, AGG_NULL_COUNT, AGG_DISTINCT_COUNT,
+	case AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM:
+		// Set-valued state. Summing per-cell distinct counts double-
+		// counts every key present in more than one cell, so the margin
+		// is emphatically NOT a sum of cells — but it is not a re-scan
+		// either: both crosstab paths route each record into independent
+		// row / column / grand accumulators, so the union falls out of
+		// the same single pass. Declared MarginIndependent so the fused
+		// gate keeps admitting them (MarginRecompute would be the
+		// honest-sounding label and a pure regression — it would force
+		// every distinct-count crosstab onto the buffered path).
+		return MarginIndependent
+	case AGG_COUNT, AGG_SUM, AGG_NULL_COUNT,
 		AGG_FREQUENCY,
 		// Set unions, popcount sums, and per-element frequency
 		// histograms all reduce by addition across cells.
@@ -190,11 +208,16 @@ type MarginReducibility string
 
 const (
 	// MarginSummable means the margin equals the sum of cell values
-	// (count, sum, null_count, distinct_count, frequency).
+	// (count, sum, null_count, frequency).
 	MarginSummable MarginReducibility = "summable"
 	// MarginMeanReducible means the margin is derivable only when each
 	// cell also carries its observation count (average, ratio).
 	MarginMeanReducible MarginReducibility = "mean_reducible"
+	// MarginIndependent means the operator maintains its own margin
+	// accumulator — the margin is neither a sum of cells nor a re-scan
+	// (distinct_count, distinct_sum). Admitted by the fused gate: the
+	// margin is already exact after one pass.
+	MarginIndependent MarginReducibility = "independent"
 	// MarginRecompute means the margin cannot be derived from cells and
 	// must be recomputed over the raw filter-passing rows (median,
 	// stddev, percentile, mode, ...).

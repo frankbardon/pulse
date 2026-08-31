@@ -31,7 +31,23 @@ Defaults: `shape: matrix`, `normalize: none`. Result: `Response.Crosstab.Matrix`
 
 ## Margins recompute from raw rows
 
-Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. Manifest: `crosstab.{summable,mean_reducible,recompute}_aggregators`.
+Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. `AGG_DISTINCT_COUNT` / `AGG_DISTINCT_SUM` margins are the **union**, never the sum of cells — a respondent in two rows counts once. Manifest: `crosstab.{summable,mean_reducible,independent,recompute}_aggregators`; `independent` means the operator keeps its own margin accumulator, so it fuses.
+
+## Auxiliary margin-only aggregations
+
+`margin_aggregations` (optional, additive) carries zero or more extra `Aggregation`s evaluated into the row / column / grand margin accumulators **only, never into a cell**. `cell` is a single aggregation, so this is how a second figure — canonically an unweighted respondent base beside a weighted metric — rides the same request instead of costing a whole second scan.
+
+Effective label = `label`, else `TYPE_field`. Must be unique across the slot **and** distinct from the cell's, because margin components are keyed by label. Rejections: `PULSE_CROSSTAB_MARGIN_AGG_INVALID` (null entry / no type), `PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL`. Declared on a section that DISPLAYS no margin ⇒ `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` **warning** — the figures have nowhere to land; the request still runs. A normalize direction does **not** satisfy it: the margin it requires is a denominator, an auxiliary is never a denominator, and both paths accumulate the auxiliary in that shape and then emit none of it.
+
+Admission contract: an auxiliary observes the **same record admission as the cell aggregator** — a record contributes only if it contributed to a cell. Deliberately unlike the cell's own margins, which see every filter-passing record with a non-null axis key; it is what makes an auxiliary base reconcilable against the cells beside it. No knob.
+
+So a null cell field, and an axis key an `Include` excluded, are both absent from every auxiliary slot while the cell's own margins still count them. Accumulators are allocated per declared auxiliary per REQUESTED margin slot (`NeedsRowMargin` and friends — display OR normalize), while EMISSION rides the display flag alone; an undeclared slot costs nothing. So the normalize-only shape accumulates every auxiliary and emits none, which is exactly what `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` exists to tell you.
+
+**Both execution paths implement it, and they must agree.** Dispatch picks fused or buffered on request SHAPE and nothing in `Response` reports which ran, so an auxiliary present on one arm only would move a sample-size figure for reasons a caller cannot see. Fused folds each admitted record into a live accumulator during the walk; buffered narrows each margin slot's routed bucket to the admitted records and aggregates it in one shot — `admitted = resolved on the OTHER axis AND cell field non-null`, resolved from the two axis partitions ONCE rather than from the cell buckets, which would count a record once per (row, column) pair and so multiply a row auxiliary by the fan factor under `GROUP_SET_PER_ELEMENT`. A slot that admits no record carries no figure on either arm (never a fabricated 0). An auxiliary naming an unknown operator is refused on both.
+
+**Where the figures land.** `Response.Components.Crosstab` gains `row_margin_aggregations[r]` / `column_margin_aggregations[c]` / `grand_total_aggregations` — one map per margin slot, keyed by effective label, indexed in `RowKeys` / `ColumnKeys` order like every other margin vector. Each entry is `{value, present, components}`, where `components` is the floor `{n, n_null}` over the ADMITTED records merged with the operator's own `ComponentSchema` keys — so `AGG_DISTINCT_SUM` surfaces `distinct_count` per slot beside the scalar sum, which is what makes two rendered figures one scan. They sit BESIDE `row_margin_components`, never inside it: that describes the CELL aggregator's own margin, on a different admission. `present: false` with no `value` is an admitted-nothing slot, never a `0`. All three keys are `omitempty` and ride the DISPLAY flag (`margins.*`), so a margin computed only as a normalize denominator emits none, and an undeclared request is byte-identical to the pre-slot wire form. Suppressed entirely by `DisableComponents`, like every other components block.
+
+Manifest: `crosstab.supports_margin_aggregations` + `crosstab.margin_aggregation_rules`.
 
 ## Normalize
 
@@ -52,7 +68,7 @@ Buffered when `shape: matrix`, any `margins`, non-`none` `normalize`, or nested 
 
 When the cell aggregator is mergeable + non-recompute AND every axis grouper implements a per-record keying interface — `StreamableGrouper.KeyFor`, or `MultiKeyStreamingGrouper.KeysForRow` (`GROUP_SET_PER_ELEMENT` fan-out, admitted at ANY position, on either or both axes) — records fold into per-cell / per-margin online state in one decode pass. Memory `O(records) → O(cells + margins)`: ~30–47% faster, peak heap 8.8–20.8× lower across 25k→400k rows.
 
-`Request.Overlays` does NOT disqualify — `RunCrosstabFused` folds layers after `Finalize()` through the same `applyOverlaysToResponse` hook the buffered exit uses, so cells, components, layers and warnings are byte-identical across paths. Other disqualifiers: non-mergeable / recompute cell (incl. `AGG_WELFORD`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 cell, opaque extension (no `FieldInputs`).
+`Request.Overlays` does NOT disqualify — `RunCrosstabFused` folds layers after `Finalize()` through the same `applyOverlaysToResponse` hook the buffered exit uses, so cells, components, layers and warnings are byte-identical across paths. Other disqualifiers: non-mergeable / recompute cell (incl. `AGG_WELFORD`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 cell, opaque extension (no `FieldInputs`), a non-mergeable or decimal128 `margin_aggregations` entry (an auxiliary rides the same `UpdateRow` walk; its `MarginReducibility` is NOT consulted — it has no cells to reduce from).
 
 Margins still recompute from raw rows, and under a fan-out axis are non-additive on BOTH paths — a 3-label record counts 3× across row margins, once in the grand total.
 
