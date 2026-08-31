@@ -210,7 +210,7 @@ parallel-shard partitions:
 | Constant | Wire value | Semantics | Canonical operators |
 |---|---|---|---|
 | `Mergeable` | `"mergeable"` | Components fold via the same associative/commutative path as the scalar value. Constant-space `MergeOnline` works across chunks. Safe to emit per-chunk and merge online. | AGG_SUM, AGG_COUNT, AGG_WELFORD, AGG_WEIGHTED_MEAN, AGG_RATIO, AGG_SET_UNION, AGG_SET_CARDINALITY_SUM |
-| `Partial` | `"partial"` | Components fold across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. Orchestrator may stage merge at terminal flush. | AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT, AGG_SET_FREQUENCY |
+| `Partial` | `"partial"` | Components fold across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. Orchestrator may stage merge at terminal flush. | AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM, AGG_SET_FREQUENCY |
 | `None` | `"none"` | Components cannot be computed from a per-chunk partial — the operator needs a sorted view (or equivalent) of the full input. Streaming chunks omit components; emission lands only on the terminal buffered flush. | AGG_MEDIAN, AGG_PERCENTILE, GROUP_QUANTILE |
 
 Predict surfaces a per-slot `BufferedComponents` flag that is
@@ -231,7 +231,7 @@ alongside the chunk's row payload. Behaviour by mergeability class:
   result.
 
 - **Partial-merge aggregators (`AGG_FREQUENCY`, `AGG_MODE`,
-  `AGG_DISTINCT_COUNT`, `AGG_SET_FREQUENCY`)** — chunks 1..N-1 carry the
+  `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY`)** — chunks 1..N-1 carry the
   per-chunk partial maps. The terminal chunk carries the merged final.
   Consumer-side merge of per-chunk maps is supported (associative union)
   but optional — the terminal chunk is authoritative.

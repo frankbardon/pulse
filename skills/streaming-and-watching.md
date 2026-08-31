@@ -44,7 +44,7 @@ Variants: `ProcessStreamResult` wraps `ProcessStream`; `SynthStream` wraps `synt
 Projection respects per-operator `ComponentsMergeability` from `descriptor.Manifest.ComponentsSchemas`:
 
 - **Mergeable** (`AGG_SUM/COUNT/AVERAGE`, Welford-family, `AGG_MIN/MAX/RANGE`, `AGG_RATIO`, `AGG_CI_LOWER/UPPER`, set-family, every grouper except `GROUP_QUANTILE`) — `Operator` map carries running state on every chunk. Mid-stream render safe; terminal authoritative.
-- **Partial** (`AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_SET_FREQUENCY`) — folds like mergeable, non-trivial allocation; consumer merges via the same union semantics the orchestrator uses.
+- **Partial** (`AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY`) — folds like mergeable, non-trivial allocation; consumer merges via the same union semantics the orchestrator uses.
 - **Non-mergeable** (`AGG_MEDIAN`, `AGG_PERCENTILE`, `GROUP_QUANTILE`) — non-terminal chunks omit per-operator keys (`Operator` nil); floor preserved (`n`, `n_null` aggregator-side; `field`, `label`, `total_n`, `n_null` grouper-side). MUST NOT merge non-terminal chunks.
 
 Identity: terminal chunk's `Components` is `DeepEqual` to the buffered `Process` call's `Response.Components`. See `response-components`.

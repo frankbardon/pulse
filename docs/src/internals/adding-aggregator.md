@@ -104,7 +104,7 @@ with one of three mergeability classes:
 | Class | Wire value | When to use |
 |---|---|---|
 | `Mergeable` | `"mergeable"` | Components fold via the same associative / commutative path as the scalar value. Constant-space online merge works across streaming chunks and parallel shards. Used by `AGG_SUM`, `AGG_COUNT`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_WELFORD`. |
-| `Partial` | `"partial"` | Components fold across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. The orchestrator may stage the merge at terminal flush. Used by `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`. |
+| `Partial` | `"partial"` | Components fold across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. The orchestrator may stage the merge at terminal flush. Used by `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`. |
 | `None` | `"none"` | Components cannot be computed from a per-chunk partial. The operator needs a sorted view of the full input. Streaming chunks omit components; emission lands only on the terminal buffered flush. Used by `AGG_MEDIAN`, `AGG_PERCENTILE`. |
 
 The `aggSchema` helper in `capabilities_aggregators.go` prepends the

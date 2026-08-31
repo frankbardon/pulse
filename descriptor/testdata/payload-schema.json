@@ -52,6 +52,7 @@
         "AGG_CI_UPPER",
         "AGG_COUNT",
         "AGG_DISTINCT_COUNT",
+        "AGG_DISTINCT_SUM",
         "AGG_FREQUENCY",
         "AGG_KURTOSIS",
         "AGG_MAX",
@@ -2566,4 +2567,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 28be7b3834dacd0b6815df8179e1bbba429e47d35d958f8f41ab51b9fbcff222
+// golden-hash: c598f0af875271ee209b0fef165e10592f2d1da9692c9980433409713d2cddd9

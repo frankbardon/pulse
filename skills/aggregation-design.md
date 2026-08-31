@@ -54,7 +54,7 @@ Operator-specific keys ride inside `Operator map[string]any`. Authoritative key 
 Every aggregator declares one mergeability classification:
 
 - **`Mergeable`** — folds across chunks via the same `MergeOnline` path as the scalar. Streaming chunks carry `ComponentsDelta`. Welford family, sums / counts / extrema, CI bounds, weighted-mean, ratio, mergeable set-* ops.
-- **`Partial`** — map / set merges; orchestrator stages merge at terminal flush. `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_SET_FREQUENCY`.
+- **`Partial`** — map / set merges staged at terminal flush. `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY`.
 - **`None`** — non-mergeable; components emit only on terminal buffered flush. `AGG_MEDIAN`, `AGG_PERCENTILE`. Predict surfaces `BufferedComponents=true`.
 
 Three examples of the same floor surfacing different `Operator` payloads:

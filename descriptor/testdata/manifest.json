@@ -6347,6 +6347,10 @@
         "description": "Count distinct non-null values across the input set."
       },
       {
+        "name": "op-agg-distinct-sum",
+        "description": "Sum a value field once per distinct key."
+      },
+      {
         "name": "op-agg-frequency",
         "description": "Per-distinct-value count of the field; returned as map[string]int64."
       },
@@ -7163,7 +7167,7 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 164,
+    "examples_count": 165,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -9494,4 +9498,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 38080229cf57944f1ab971cea26f66a959ebd651e3ff1b0960dfa3028d7765a0
+// golden-hash: 52370df07a64bebb0353606899528b5f800baaf4f500f32057c7a484e2c0221d

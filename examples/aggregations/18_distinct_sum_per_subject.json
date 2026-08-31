@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "AGG_DISTINCT_SUM on repeated_measures.pulse, where every subject contributes one row per condition. Params.distinct_by=subject_id sums the metric ONCE PER SUBJECT (first value observed for a subject wins), against a plain AGG_SUM that adds all three rows per subject. AGG_DISTINCT_COUNT on the same key shows the denominator behind it — the same figure AGG_DISTINCT_SUM publishes as its distinct_count component from one scan.",
+    "name": "distinct_sum_per_subject",
+    "operators": [
+      "AGG_DISTINCT_COUNT",
+      "AGG_DISTINCT_SUM",
+      "AGG_SUM"
+    ],
+    "tags": [
+      "cardinality-analysis",
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "metric",
+      "label": "metric_all_rows"
+    },
+    {
+      "type": "AGG_DISTINCT_SUM",
+      "field": "metric",
+      "label": "metric_per_subject",
+      "params": {
+        "distinct_by": "subject_id"
+      }
+    },
+    {
+      "type": "AGG_DISTINCT_COUNT",
+      "field": "subject_id",
+      "label": "subjects"
+    }
+  ],
+  "cohort": {
+    "filename": "repeated_measures.pulse",
+    "data_dir": ".data"
+  }
+}
