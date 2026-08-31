@@ -31,7 +31,7 @@ Defaults: `shape: matrix`, `normalize: none`. Result: `Response.Crosstab.Matrix`
 
 ## Margins recompute from raw rows
 
-Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. Manifest: `crosstab.{summable,mean_reducible,recompute}_aggregators`.
+Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. `AGG_DISTINCT_COUNT` / `AGG_DISTINCT_SUM` margins are the **union**, never the sum of cells — a respondent in two rows counts once. Manifest: `crosstab.{summable,mean_reducible,independent,recompute}_aggregators`; `independent` means the operator keeps its own margin accumulator, so it fuses.
 
 ## Normalize
 

@@ -238,7 +238,13 @@ func TestManifest_CrosstabCapabilityPopulated(t *testing.T) {
 		t.Errorf("shapes = %d, want 2", len(m.Crosstab.Shapes))
 	}
 	// Spot-check membership.
-	total := len(m.Crosstab.SummableAggregators) + len(m.Crosstab.MeanReducibleAggregators) + len(m.Crosstab.RecomputeAggregators)
+	// Every aggregator lands in exactly one MarginReducibility bucket.
+	// crosstabCapability()'s switch has no default arm, so this total is
+	// the gate that reddens when a new class is added without a bucket.
+	total := len(m.Crosstab.SummableAggregators) +
+		len(m.Crosstab.MeanReducibleAggregators) +
+		len(m.Crosstab.IndependentAggregators) +
+		len(m.Crosstab.RecomputeAggregators)
 	if total != len(types.AllAggregationTypes()) {
 		t.Errorf("classified %d aggregators, want %d", total, len(types.AllAggregationTypes()))
 	}

@@ -7379,8 +7379,6 @@
       ],
       "summable_aggregators": [
         "AGG_COUNT",
-        "AGG_DISTINCT_COUNT",
-        "AGG_DISTINCT_SUM",
         "AGG_FREQUENCY",
         "AGG_NULL_COUNT",
         "AGG_SET_CARDINALITY_SUM",
@@ -7394,6 +7392,10 @@
         "AGG_RATIO",
         "AGG_SET_CARDINALITY_AVG",
         "AGG_WEIGHTED_MEAN"
+      ],
+      "independent_aggregators": [
+        "AGG_DISTINCT_COUNT",
+        "AGG_DISTINCT_SUM"
       ],
       "recompute_aggregators": [
         "AGG_CI_LOWER",
@@ -9492,4 +9494,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8a277e79a0a9b65606a4482289aa65fcd4af232bf2f5626a48f42f5af1afd5d8
+// golden-hash: 38080229cf57944f1ab971cea26f66a959ebd651e3ff1b0960dfa3028d7765a0

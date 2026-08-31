@@ -27,11 +27,15 @@ import (
 //     mergeable aggregators (median/percentile/zscore/skewness/kurtosis)
 //     need a finalize-time sorted view that the fused walk cannot
 //     provide.
-//   - The cell aggregator's MarginReducibility is MarginSummable or
-//     MarginMeanReducible. MarginRecompute aggregators force a re-scan
-//     of raw rows for margin derivation, which defeats the fused path
-//     by construction. The two non-recompute classes overlap exactly
-//     with the set of mergeable, scalar, cell-derived aggregators.
+//   - The cell aggregator's MarginReducibility is MarginSummable,
+//     MarginMeanReducible, or MarginIndependent. MarginRecompute
+//     aggregators force a re-scan of raw rows for margin derivation,
+//     which defeats the fused path by construction. The three non-
+//     recompute classes are exactly the aggregators whose margins the
+//     fused walk can satisfy in one pass — the first two because the
+//     margin follows from the cells, MarginIndependent because the
+//     operator keeps its own row / column / grand accumulators, which
+//     FusedCrosstabState already feeds record-by-record.
 //   - Every grouper on req.Crosstab.Rows ∪ req.Crosstab.Columns is
 //     constructable and the resulting instance implements ONE of the
 //     two per-record keying interfaces: StreamableGrouper (a per-record
@@ -99,8 +103,11 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 		return false, fmt.Sprintf("non-mergeable cell aggregator (%s)", cell.Type)
 	}
 	switch cell.Type.MarginReducibility() {
-	case types.MarginSummable, types.MarginMeanReducible:
-		// fused-eligible.
+	case types.MarginSummable, types.MarginMeanReducible, types.MarginIndependent:
+		// fused-eligible. MarginIndependent operators (AGG_DISTINCT_COUNT,
+		// AGG_DISTINCT_SUM) are admitted because the fused walk already
+		// routes every record into independent margin accumulators — the
+		// margin is exact after one pass, so there is nothing to re-scan.
 	default:
 		// MarginRecompute aggregators force a raw-row rescan for margin
 		// derivation — the fused path can't satisfy that without

@@ -1691,7 +1691,8 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 	// updating AggregationType.MarginReducibility — fail fast so the
 	// missing classification is fixed.
 	switch spec.Cell.Type.MarginReducibility() {
-	case types.MarginSummable, types.MarginMeanReducible, types.MarginRecompute:
+	case types.MarginSummable, types.MarginMeanReducible,
+		types.MarginIndependent, types.MarginRecompute:
 		// classified
 	default:
 		return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_AGG_UNCLASSIFIED,

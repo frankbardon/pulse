@@ -31,6 +31,12 @@ type CrosstabCapability struct {
 	// MeanReducibleAggregators lists aggregators whose margin is
 	// derivable when each cell also carries its count.
 	MeanReducibleAggregators []string `json:"mean_reducible_aggregators"`
+	// IndependentAggregators lists aggregators that maintain their own
+	// margin accumulator — the margin is neither a sum of cells nor a
+	// re-scan (distinct_count, distinct_sum). Both crosstab paths feed
+	// every record into independent row / column / grand accumulators,
+	// so the margin is exact after one pass.
+	IndependentAggregators []string `json:"independent_aggregators"`
 	// RecomputeAggregators lists aggregators whose margin cannot be
 	// derived from cells and must be recomputed over the raw filter-
 	// passing rows.
@@ -121,11 +127,18 @@ func crosstabCapability() CrosstabCapability {
 	cap.RejectionRules = append(cap.RejectionRules,
 		"map-valued cell aggregators (AGG_SET_FREQUENCY) cannot pair with normalize=row/column/total (PULSE_CROSSTAB_NORMALIZE_MAP_VALUED)")
 	for _, t := range types.AllAggregationTypes() {
+		// One arm per MarginReducibility class, deliberately with NO
+		// default: an unhandled class would fall out of every list
+		// silently. TestManifest_CrosstabCapabilityPopulated totals the
+		// four lists against len(AllAggregationTypes()) and is what
+		// reddens if a fifth class arrives without an arm here.
 		switch t.MarginReducibility() {
 		case types.MarginSummable:
 			cap.SummableAggregators = append(cap.SummableAggregators, string(t))
 		case types.MarginMeanReducible:
 			cap.MeanReducibleAggregators = append(cap.MeanReducibleAggregators, string(t))
+		case types.MarginIndependent:
+			cap.IndependentAggregators = append(cap.IndependentAggregators, string(t))
 		case types.MarginRecompute:
 			cap.RecomputeAggregators = append(cap.RecomputeAggregators, string(t))
 		}
@@ -135,6 +148,7 @@ func crosstabCapability() CrosstabCapability {
 	}
 	sort.Strings(cap.SummableAggregators)
 	sort.Strings(cap.MeanReducibleAggregators)
+	sort.Strings(cap.IndependentAggregators)
 	sort.Strings(cap.RecomputeAggregators)
 	sort.Strings(cap.MapValuedCellAggregators)
 	return cap
