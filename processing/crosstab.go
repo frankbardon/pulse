@@ -657,6 +657,33 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		}
 	}
 
+	// Auxiliary margin-only aggregations (spec.MarginAggregations).
+	// Evaluated here, immediately after the cell aggregator's own three
+	// margin blocks, because these are margins too — the difference is
+	// WHICH records reach them, not where they sit. See
+	// crosstab_margin_agg.go for the admission rule, and for why the
+	// blocks above deliberately do NOT share it.
+	//
+	// Placed AHEAD of the partial-depth and cross-axis margin work below
+	// on purpose: those exist solely as normalization denominators for
+	// the cell, and an auxiliary is never a denominator, so neither gets
+	// one — on either path.
+	//
+	// THE FIGURES ARE ACCUMULATED AND HELD. Nothing reaches the wire on
+	// either dispatch arm yet — E2-S5 widens populateCrosstabComponents,
+	// and the blank assignment below is the single line it replaces with
+	// the call that carries auxMargins into the components block. Until
+	// then this call site is still LIVE rather than dead: it is what
+	// refuses an auxiliary naming an operator no registry knows, which
+	// the fused arm refuses at construction, so both arms answer that
+	// request the same way
+	// (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused).
+	auxMargins, err := p.computeAuxMargins(spec, filtered, rowPart, colPart)
+	if err != nil {
+		return nil, err
+	}
+	_ = auxMargins
+
 	mode := spec.NormalizeOrDefault()
 
 	// Partial-depth normalization. When spec.NormalizeLevel selects a

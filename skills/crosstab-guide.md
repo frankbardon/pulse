@@ -43,6 +43,8 @@ Admission contract: an auxiliary observes the **same record admission as the cel
 
 So a null cell field, and an axis key an `Include` excluded, are both absent from every auxiliary slot while the cell's own margins still count them. Accumulators are allocated per declared auxiliary per REQUESTED margin slot; an undeclared slot costs nothing.
 
+**Both execution paths implement it, and they must agree.** Dispatch picks fused or buffered on request SHAPE and nothing in `Response` reports which ran, so an auxiliary present on one arm only would move a sample-size figure for reasons a caller cannot see. Fused folds each admitted record into a live accumulator during the walk; buffered narrows each margin slot's routed bucket to the admitted records and aggregates it in one shot — `admitted = resolved on the OTHER axis AND cell field non-null`, resolved from the two axis partitions ONCE rather than from the cell buckets, which would count a record once per (row, column) pair and so multiply a row auxiliary by the fan factor under `GROUP_SET_PER_ELEMENT`. A slot that admits no record carries no figure on either arm (never a fabricated 0). An auxiliary naming an unknown operator is refused on both.
+
 Manifest: `crosstab.supports_margin_aggregations` + `crosstab.margin_aggregation_rules`.
 
 ## Normalize
