@@ -13,7 +13,7 @@ require (
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0
-	golang.org/x/text v0.38.0
+	golang.org/x/text v0.41.0
 	gonum.org/v1/gonum v0.17.0
 )
 
