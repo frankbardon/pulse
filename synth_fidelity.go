@@ -16,8 +16,12 @@ import (
 // writeSynthFidelityReport re-reads the just-written output cohort at
 // path, drives synth.BuildFidelityReport against its records (TEST_KS
 // for numeric fields, TEST_CHISQ for categorical, both compared
-// against synth.SyntheticFieldName), and writes the resulting JSON
-// document to reportPath.
+// against synth.SyntheticFieldName), folds in synth.BuildPairwise's
+// numeric-numeric correlation-delta section for pairs (typically
+// spec.Correlations — see synth.PairwiseFidelity) plus any
+// fidelityWarnings (typically Options.FidelityWarnings, itself
+// typically Profile.Warnings), and writes the resulting JSON document
+// to reportPath.
 //
 // This bridge lives at the pulse facade level rather than inside
 // synth/ because synth cannot import processing directly without
@@ -25,8 +29,12 @@ import (
 // distribution registry, and processing's own internal test files
 // import descriptor — synth importing processing back would close
 // that loop. pulse.go already imports both packages, so the bridge —
-// and the only implementation of synth.TestRunner — lives here.
-func writeSynthFidelityReport(fs afero.Fs, path, reportPath string) error {
+// and the only implementation of synth.TestRunner — lives here. The
+// pairwise section itself needs no processing/ import at all — it is
+// pure statistics over already-decoded numeric slices — but stays in
+// this same bridge so the one JSON document is assembled and written
+// in one place.
+func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, pairs []synth.CorrelationSpec, fidelityWarnings []string) error {
 	data, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading synth output for fidelity report")
@@ -43,6 +51,7 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string) error {
 
 	sourceRows, syntheticRows := countSyntheticPartitions(schema, records)
 	report := synth.BuildFidelityReport(schema, records, sourceRows, syntheticRows, runFidelityTest)
+	synth.BuildPairwise(report, schema, records, pairs, fidelityWarnings)
 
 	out, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

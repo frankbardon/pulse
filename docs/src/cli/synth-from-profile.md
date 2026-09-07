@@ -79,6 +79,12 @@ Shape:
   "fields": [
     {"field": "score", "test": "TEST_KS", "result": {"type": "TEST_KS", "statistic": 0.04, "p_value": 0.87, "alpha": 0.05, "reject_null": false}},
     {"field": "country", "test": "TEST_CHISQ", "result": {"type": "TEST_CHISQ", "statistic": 1.2, "df": 2, "p_value": 0.55, "alpha": 0.05, "reject_null": false}}
+  ],
+  "pairwise": [
+    {"a": "income", "b": "spend", "source_rho": 0.80, "synthetic_rho": 0.79, "delta": 0.01, "n": 20000}
+  ],
+  "warnings": [
+    "thin numeric pair income x spend: only 12 supporting observation(s) (below 30) — reconstructed correlation may be unstable"
   ]
 }
 ```
@@ -88,12 +94,31 @@ one distinct value in one partition) gets `"error"` instead of
 `"result"` — that single field's failure never blocks the report for
 every other field, nor the generated cohort itself.
 
-The `fields` section is the whole report today. A later epic adds a
-`pairwise` key for conditional-structure deltas; it is entirely absent
-from the JSON until that lands, not an empty placeholder — check for
-its presence rather than assuming a fixed shape. Omitting
-`--fidelity-report` writes no report at all and changes no other
-behavior. The flag only has an effect on the tagged top-up path
+`pairwise` reports, for every numeric-numeric correlation the profile
+captured (`--conditional`'s `Conditional.NumericPairs`, or the plain
+`--include-correlations` stats as a fallback — whichever
+`SpecFromProfile` used to populate `spec.Correlations`), the delta
+between that pair's captured/target correlation (`source_rho` — the
+same figure the copula reconstruction targeted) and its REALIZED
+Pearson correlation over just the newly generated rows
+(`synthetic_rho`); `delta` is `abs(source_rho - synthetic_rho)`. A pair
+whose synthetic partition cannot produce a defined correlation (fewer
+than two co-occurring non-null observations) gets `"error"` instead of
+`synthetic_rho`/`delta`, following the same non-fatal-per-entry
+contract as `fields`. `pairwise` is entirely absent — never an empty
+array — when the spec carried no correlations at all (e.g. neither
+`--conditional` nor `--include-correlations` was passed at profile
+time).
+
+`warnings` mirrors any thin-pair warnings the source profile carried
+(`Profile.Warnings` — see [`pulse profile
+create`](profile-create.md)'s `--conditional` section) verbatim,
+letting a reader see "how well did it match" (`pairwise`) and "which
+parts were built on thin data" (`warnings`) in the one document.
+Absent, not an empty array, when the profile carried no warnings.
+
+Omitting `--fidelity-report` writes no report at all and changes no
+other behavior. The flag only has an effect on the tagged top-up path
 (`--source` set); it is a no-op on plain `synth from-schema` (see
 [`pulse synth from-schema`](synth-from-schema.md)), which has no
 `_synthetic` partition to compare against.

@@ -125,6 +125,7 @@ func synthFromProfileCmd() *cli.Command {
 				Seed:               int64(seed),
 				SourceCohort:       source,
 				FidelityReportPath: fidelityReport,
+				FidelityWarnings:   prof.Warnings,
 			})
 			if err != nil {
 				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())

@@ -1006,16 +1006,23 @@ func (p *Pulse) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includeF
 // completes: a per-field marginal comparison between the source and
 // generated partitions of output, driven through TEST_KS (numeric
 // fields) / TEST_CHISQ (categorical fields) against the tagged
-// _synthetic column rather than new comparison math. Ignored when
-// SourceCohort is empty — the plain synthesis path has no _synthetic
-// partition to compare against.
+// _synthetic column rather than new comparison math, plus — when spec
+// carries any Correlations — a pairwise numeric-numeric correlation
+// delta section comparing each pair's captured/target rho against its
+// realized rho in the newly generated partition (synth.PairwiseFidelity).
+// opts.FidelityWarnings, when set, is copied verbatim onto the report's
+// Warnings slot — the mechanism `synth from-profile` uses to surface
+// Profile.Warnings (e.g. a thin numeric-pair warning) beside the
+// pairwise deltas they qualify. Ignored when SourceCohort is empty —
+// the plain synthesis path has no _synthetic partition to compare
+// against.
 func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
 	res, err := synth.Synth(p.fsys, spec, output, opts)
 	if err != nil {
 		return nil, err
 	}
 	if opts.SourceCohort != "" && opts.FidelityReportPath != "" {
-		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath); err != nil {
+		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath, spec.Correlations, opts.FidelityWarnings); err != nil {
 			return nil, err
 		}
 		res.FidelityReportPath = opts.FidelityReportPath

@@ -88,6 +88,20 @@ type Options struct {
 	// path (SourceCohort empty) has no _synthetic partition to compare
 	// against and ignores this field entirely.
 	FidelityReportPath string
+
+	// FidelityWarnings, when non-empty, are copied verbatim onto the
+	// written FidelityReport's own Warnings slot — the mechanism that
+	// surfaces thin-pair warnings (e.g. Profile.Warnings from a
+	// `profile create --conditional` capture) beside the pairwise
+	// correlation deltas they qualify in the same document (FR-18),
+	// rather than requiring a caller to cross-reference the profile
+	// file separately. This package has no Profile type of its own to
+	// read Warnings from directly — the caller (internal/cli's `synth
+	// from-profile`, or any programmatic caller building Options from a
+	// Profile it already has in hand) is expected to populate this.
+	// Ignored when FidelityReportPath is empty, exactly like every
+	// other Fidelity* field.
+	FidelityWarnings []string
 }
 
 // Result is what the writer reports after a successful Synth call.
