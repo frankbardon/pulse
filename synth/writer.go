@@ -154,9 +154,11 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	if err != nil {
 		return 0, 0, nil, err
 	}
+	catPairSamplers := buildCategoricalPairSamplers(s.CategoricalPairs)
+	catNumPairSamplers := buildCategoricalNumericPairSamplers(s.CategoricalNumericPairs)
 
 	for rowsGenerated < s.RowCount {
-		if err := drawRow(rng, wfs, row, rowNullMask, corr); err != nil {
+		if err := drawRow(rng, wfs, row, rowNullMask, corr, catPairSamplers, catNumPairSamplers); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
 		ok, evalErr := cons.evaluate(row)
@@ -188,7 +190,17 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	return rowsGenerated, rowsRejected, warnings, nil
 }
 
-func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask map[string]bool, corr *correlator) error {
+// drawRow draws one row: every field's own independent sampler first,
+// then a fixed chain of conditional post-processing steps that each
+// overwrite an already-drawn field's value in place — categorical joint
+// structure (categorical-categorical, then categorical-numeric) applied
+// before the numeric-numeric correlator, so a numeric field's final
+// value reflects whichever categorical value it ends up conditioned on
+// before any requested Pearson correlation is layered on top. Each step
+// is a no-op (nil/empty slice) unless the profile that produced this Spec
+// actually captured that structure — see Spec.CategoricalPairs /
+// CategoricalNumericPairs / Correlations doc comments.
+func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask map[string]bool, corr *correlator, catPairs []*categoricalPairSampler, catNumPairs []*categoricalNumericPairSampler) error {
 	for k := range row {
 		delete(row, k)
 	}
@@ -201,6 +213,12 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 		if isNull {
 			nullMask[wf.spec.Name] = true
 		}
+	}
+	for _, cp := range catPairs {
+		cp.transform(rng, row)
+	}
+	for _, cnp := range catNumPairs {
+		cnp.transform(rng, row)
 	}
 	if corr != nil {
 		corr.transform(rng, row)

@@ -30,6 +30,79 @@ type Spec struct {
 	// fields by name with a target Pearson correlation in [-1, 1]. Only
 	// numeric fields can participate.
 	Correlations []CorrelationSpec `json:"correlations,omitempty"`
+
+	// CategoricalPairs lists optional categorical-categorical joint
+	// structure to reproduce during generation: for each pair, field B
+	// is resampled conditioned on field A's independently-drawn value
+	// using the captured contingency cells, instead of being drawn from
+	// its own unconditional marginal. Populated by SpecFromProfile from
+	// ConditionalProfile.CategoricalPairs (`profile create --conditional`)
+	// when present; absent (nil, the zero value) reproduces today's
+	// independent-marginal behavior exactly — every pre-existing spec,
+	// hand-authored or profile-derived, has no such key.
+	CategoricalPairs []CategoricalPairSpec `json:"categorical_pairs,omitempty"`
+
+	// CategoricalNumericPairs lists optional categorical-numeric
+	// conditional structure to reproduce during generation: for each
+	// pair, numeric field B is resampled from Normal(mean, std)
+	// parameterized by categorical field A's drawn value, using the
+	// captured per-category conditional mean/std, instead of being drawn
+	// from its own unconditional normal. Populated by SpecFromProfile
+	// from ConditionalProfile.CategoricalNumericPairs when present;
+	// absent (nil) reproduces today's independent-marginal behavior
+	// exactly.
+	CategoricalNumericPairs []CategoricalNumericPairSpec `json:"categorical_numeric_pairs,omitempty"`
+}
+
+// CategoricalPairSpec is one categorical-categorical pair's generation-time
+// reconstruction input — the Spec-facing counterpart of
+// CategoricalPairProfile, carrying only what a conditional resample needs
+// (the cells; N is capture-time provenance and is not needed here).
+type CategoricalPairSpec struct {
+	A     string                    `json:"a"`
+	B     string                    `json:"b"`
+	Cells []CategoricalPairCellSpec `json:"cells"`
+}
+
+// CategoricalPairCellSpec is one observed (a_value, b_value) co-occurrence
+// count — the Spec-facing counterpart of ContingencyCell.
+type CategoricalPairCellSpec struct {
+	AValue string `json:"a_value"`
+	BValue string `json:"b_value"`
+	Count  int    `json:"count"`
+}
+
+// CategoricalNumericPairSpec is one categorical-numeric pair's
+// generation-time reconstruction input — the Spec-facing counterpart of
+// CategoricalNumericPairProfile, carrying only what a conditional resample
+// needs (each category's mean/std, plus the numeric field's own overall
+// min/max so the conditional draw clamps exactly as the field's
+// unconditional `normal` reconstruction already does; N is capture-time
+// provenance and is not needed here).
+type CategoricalNumericPairSpec struct {
+	A          string                            `json:"a"`
+	B          string                            `json:"b"`
+	Categories []CategoricalNumericCategorySpec `json:"categories"`
+	// Min/Max clamp the conditional draw exactly as field B's own
+	// unconditional normal reconstruction clamps to its observed range
+	// (see SpecFromProfile). HasClamp distinguishes "clamp to [0,0]"
+	// (rare, but a legitimate observed range for a constant field) from
+	// "no clamp was declared" — a hand-authored from-schema spec that
+	// omits Min/Max gets no clamping, exactly as normal's own optional
+	// min/max params behave when absent.
+	Min      float64 `json:"min,omitempty"`
+	Max      float64 `json:"max,omitempty"`
+	HasClamp bool    `json:"has_clamp,omitempty"`
+}
+
+// CategoricalNumericCategorySpec is the numeric field's conditional
+// mean/std for one observed category value (or the "other" catch-all) of
+// the paired categorical field — the Spec-facing counterpart of
+// CategoricalNumericCategoryStat.
+type CategoricalNumericCategorySpec struct {
+	Category string  `json:"category"`
+	Mean     float64 `json:"mean"`
+	Std      float64 `json:"std"`
 }
 
 // FieldSpec is a single column declaration.
@@ -174,6 +247,38 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"correlation references unknown field",
 				map[string]any{"a": c.A, "b": c.B})
+		}
+	}
+	for _, cp := range s.CategoricalPairs {
+		if cp.A == cp.B {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"categorical pair a and b must differ", map[string]any{"a": cp.A})
+		}
+		if !seen[cp.A] || !seen[cp.B] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"categorical pair references unknown field",
+				map[string]any{"a": cp.A, "b": cp.B})
+		}
+		if len(cp.Cells) == 0 {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"categorical pair must declare at least one cell",
+				map[string]any{"a": cp.A, "b": cp.B})
+		}
+	}
+	for _, cnp := range s.CategoricalNumericPairs {
+		if cnp.A == cnp.B {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"categorical-numeric pair a and b must differ", map[string]any{"a": cnp.A})
+		}
+		if !seen[cnp.A] || !seen[cnp.B] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"categorical-numeric pair references unknown field",
+				map[string]any{"a": cnp.A, "b": cnp.B})
+		}
+		if len(cnp.Categories) == 0 {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"categorical-numeric pair must declare at least one category",
+				map[string]any{"a": cnp.A, "b": cnp.B})
 		}
 	}
 	if s.MaxRejectionRate < 0 || s.MaxRejectionRate >= 1 {

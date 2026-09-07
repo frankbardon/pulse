@@ -1212,5 +1212,55 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 			addCorrelation(c.A, c.B, c.Rho)
 		}
 	}
+
+	// Categorical-categorical and categorical-numeric joint structure:
+	// analogous wiring to the numeric-numeric correlation above, but with
+	// no Pairwise-style fallback — CategoricalPairs/CategoricalNumericPairs
+	// only ever exist under ConditionalProfile, captured by --conditional.
+	// Both drop unless BOTH sides of the pair reconstructed to the
+	// expected distribution kind (weighted_categorical for a categorical
+	// axis, normal for a numeric axis) in THIS spec — defensive against a
+	// field the profiler could not summarize (falls back to `constant` in
+	// the switch above) still being named in a stale/foreign profile
+	// document's Conditional section.
+	if p.Conditional != nil {
+		numericMoments := make(map[string]NumericProfile, len(p.Fields))
+		for _, fp := range p.Fields {
+			if fp.Numeric != nil {
+				numericMoments[fp.Name] = *fp.Numeric
+			}
+		}
+		distOf := make(map[string]string, len(s.Fields))
+		for _, fs := range s.Fields {
+			distOf[fs.Name] = fs.Distribution
+		}
+		for _, cp := range p.Conditional.CategoricalPairs {
+			if distOf[cp.A] != DistWeightedCategorical || distOf[cp.B] != DistWeightedCategorical {
+				continue
+			}
+			cells := make([]CategoricalPairCellSpec, len(cp.Cells))
+			for i, c := range cp.Cells {
+				cells[i] = CategoricalPairCellSpec(c)
+			}
+			s.CategoricalPairs = append(s.CategoricalPairs, CategoricalPairSpec{A: cp.A, B: cp.B, Cells: cells})
+		}
+		for _, cnp := range p.Conditional.CategoricalNumericPairs {
+			if distOf[cnp.A] != DistWeightedCategorical || distOf[cnp.B] != DistNormal {
+				continue
+			}
+			num, ok := numericMoments[cnp.B]
+			if !ok {
+				continue
+			}
+			cats := make([]CategoricalNumericCategorySpec, len(cnp.Categories))
+			for i, c := range cnp.Categories {
+				cats[i] = CategoricalNumericCategorySpec{Category: c.Category, Mean: c.Mean, Std: c.Std}
+			}
+			s.CategoricalNumericPairs = append(s.CategoricalNumericPairs, CategoricalNumericPairSpec{
+				A: cnp.A, B: cnp.B, Categories: cats,
+				Min: num.Min, Max: num.Max, HasClamp: true,
+			})
+		}
+	}
 	return s
 }
