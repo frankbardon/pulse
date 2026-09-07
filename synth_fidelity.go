@@ -15,18 +15,22 @@ import (
 
 // writeSynthFidelityReport re-reads the just-written output cohort at
 // path, drives synth.BuildFidelityReport against its records (TEST_KS
-// for numeric fields, TEST_CHISQ for categorical, both compared
-// against synth.SyntheticFieldName), folds in synth.BuildPairwise's
+// for numeric fields, TEST_CHISQ for categorical, a direct per-option
+// frequency comparison for set_* fields, all compared against
+// synth.SyntheticFieldName), folds in synth.BuildPairwise's
 // numeric-numeric correlation-delta section for spec.Correlations (see
 // synth.PairwiseFidelity) plus synth.BuildCategoricalPairwise /
 // synth.BuildCategoricalNumericPairwise's categorical-categorical
 // contingency-delta and categorical-numeric conditional-mean/std-delta
 // sections for spec.CategoricalPairs / spec.CategoricalNumericPairs
 // (E3-S4; see CategoricalPairFidelity / CategoricalNumericPairFidelity),
-// plus any fidelityWarnings (typically Options.FidelityWarnings, itself
-// typically Profile.Warnings, covering all three pair kinds through the
-// same shared shape), and writes the resulting JSON document to
-// reportPath.
+// plus synth.BuildSetCategoricalPairwise / BuildSetNumericPairwise /
+// BuildSetSetPairwise's three set_* joint-structure delta sections for
+// spec.SetCategoricalPairs / spec.SetNumericPairs / spec.SetSetPairs
+// (E5-S4), plus any fidelityWarnings (typically Options.
+// FidelityWarnings, itself typically Profile.Warnings, covering every
+// pair kind through the same shared shape), and writes the resulting
+// JSON document to reportPath.
 //
 // This bridge lives at the pulse facade level rather than inside
 // synth/ because synth cannot import processing directly without
@@ -59,6 +63,9 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	synth.BuildPairwise(report, schema, records, spec.Correlations, fidelityWarnings)
 	synth.BuildCategoricalPairwise(report, schema, records, spec.CategoricalPairs)
 	synth.BuildCategoricalNumericPairwise(report, schema, records, spec.CategoricalNumericPairs)
+	synth.BuildSetCategoricalPairwise(report, schema, records, spec.SetCategoricalPairs)
+	synth.BuildSetNumericPairwise(report, schema, records, spec.SetNumericPairs)
+	synth.BuildSetSetPairwise(report, schema, records, spec.SetSetPairs)
 
 	out, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

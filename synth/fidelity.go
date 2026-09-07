@@ -141,6 +141,113 @@ type CategoricalNumericCategoryFidelity struct {
 	Error string `json:"error,omitempty"`
 }
 
+// SetFieldFidelity is one row of FidelityReport.SetFields: the
+// per-option marginal frequency comparison for a set_* (multi-select
+// bitmask) field, extending E1-S2's per-field marginal section to
+// set_* fields (E5-S4). It deliberately does NOT reuse TEST_KS/
+// TEST_CHISQ the way FieldFidelity does — driving each option through
+// the ordinary Process pipeline would need a presentation schema
+// widening every option into its own pseudo-categorical field, purely
+// to satisfy TEST_CHISQ's Rows/Cols contract (the same trick
+// SyntheticAsCategoricalSchema plays for _synthetic itself, multiplied
+// by option count). A direct frequency comparison is simpler, equally
+// rigorous for a Bernoulli marginal (E5-S1's own representation), and
+// composes with the same per-option addressing SetProfile.Options and
+// ConditionalProfile's three set-pair kinds already use — see
+// computeSetFieldFidelity.
+type SetFieldFidelity struct {
+	Field   string               `json:"field"`
+	Options []*SetOptionFidelity `json:"options,omitempty"`
+}
+
+// SetOptionFidelity is one dictionary entry (bit position)'s realized
+// selection-frequency comparison between the source (_synthetic=false)
+// and synthetic (_synthetic=true) partitions of the output cohort —
+// the set_* analogue of FieldFidelity, one entry per option rather than
+// one entry per field, mirroring CategoricalNumericCategoryFidelity's
+// per-category breakout for the same reason: a set_* field reconstructs
+// one independent Bernoulli marginal per option rather than a single
+// scalar.
+type SetOptionFidelity struct {
+	Value string `json:"value"`
+	// SourceFrequency/SyntheticFrequency are P(bit set) over each
+	// partition's non-null rows of Field. Delta is
+	// abs(SourceFrequency - SyntheticFrequency). SyntheticFrequency and
+	// Delta are zero-valued and meaningless when Error is set.
+	SourceFrequency    float64 `json:"source_frequency"`
+	SyntheticFrequency float64 `json:"synthetic_frequency,omitempty"`
+	Delta              float64 `json:"delta,omitempty"`
+	// N is the number of _synthetic=true rows with a non-null Field —
+	// the realized synthetic partition's own denominator for this
+	// option's frequency, shared across every option of the same field.
+	N int `json:"n"`
+	// Error is set instead of SyntheticFrequency/Delta when the
+	// synthetic partition has no non-null observation of Field at all —
+	// mirrors every other Fidelity entry kind's non-fatal per-entry
+	// contract.
+	Error string `json:"error,omitempty"`
+}
+
+// SetCategoricalPairFidelity is one row of
+// FidelityReport.SetCategoricalPairwise: the delta between a captured
+// set-option x categorical pair's source contingency table
+// (SetCategoricalPairSpec.Cells) and that pair's REALIZED contingency
+// table over the _synthetic=true partition of the output cohort —
+// the set-option analogue of CategoricalPairFidelity, with the A axis
+// fixed to the option's {"selected","not_selected"} Bernoulli domain
+// instead of an arbitrary categorical value set. Delta reuses
+// categoricalTVD verbatim (SetCategoricalPairSpec.Cells is the same
+// []CategoricalPairCellSpec shape CategoricalPairSpec.Cells is).
+type SetCategoricalPairFidelity struct {
+	Set         string  `json:"set"`
+	Option      string  `json:"option"`
+	Categorical string  `json:"categorical"`
+	Delta       float64 `json:"delta,omitempty"`
+	// N is the number of _synthetic=true rows with both the set field
+	// and the categorical field simultaneously non-null — the realized
+	// pair's own co-occurrence count.
+	N int `json:"n"`
+	// Error is set instead of Delta when the synthetic partition
+	// produced no co-occurring observation at all for this pair —
+	// mirrors CategoricalPairFidelity's own per-pair contract.
+	Error string `json:"error,omitempty"`
+}
+
+// SetNumericPairFidelity is one row of
+// FidelityReport.SetNumericPairwise: the per-bucket delta between a
+// captured set-option x numeric pair's source conditional mean/std
+// (SetNumericPairSpec.Categories, keyed "selected"/"not_selected") and
+// that bucket's REALIZED conditional mean/std over the _synthetic=true
+// partition — the set-option analogue of CategoricalNumericPairFidelity.
+type SetNumericPairFidelity struct {
+	Set        string                                `json:"set"`
+	Option     string                                `json:"option"`
+	Numeric    string                                `json:"numeric"`
+	Categories []*CategoricalNumericCategoryFidelity `json:"categories,omitempty"`
+}
+
+// SetSetPairFidelity is one row of FidelityReport.SetSetPairwise: the
+// delta between a captured option x option pair's source 2x2
+// contingency table (SetSetPairSpec.Cells) between two DIFFERENT set_*
+// fields, and that pair's REALIZED 2x2 contingency table over the
+// _synthetic=true partition — the cross-field-option analogue of
+// CategoricalPairFidelity, with both axes fixed to their own option's
+// {"selected","not_selected"} domain.
+type SetSetPairFidelity struct {
+	SetA    string  `json:"set_a"`
+	OptionA string  `json:"option_a"`
+	SetB    string  `json:"set_b"`
+	OptionB string  `json:"option_b"`
+	Delta   float64 `json:"delta,omitempty"`
+	// N is the number of _synthetic=true rows with both set fields
+	// simultaneously non-null — the realized pair's own co-occurrence
+	// count.
+	N int `json:"n"`
+	// Error is set instead of Delta when the synthetic partition
+	// produced no co-occurring observation at all for this pair.
+	Error string `json:"error,omitempty"`
+}
+
 // FidelityReport is the JSON document written to
 // Options.FidelityReportPath, comparing the freshly generated rows
 // against the source cohort's rows inside the one combined output.
@@ -148,16 +255,19 @@ type CategoricalNumericCategoryFidelity struct {
 // numeric-numeric correlation-delta section (E2-S3); CategoricalPairwise
 // and CategoricalNumericPairwise are the categorical-categorical
 // contingency-delta and categorical-numeric conditional-mean/std-delta
-// sections (E3-S4) — all three populated only when the spec carried at
-// least one entry of the matching kind — absent (omitempty), never an
-// empty placeholder array, on every plain synthesis and every
-// from-profile run with no captured structure of that kind. Warnings
-// mirrors any thin-pair/thin-cell warnings the caller supplied (see
-// Options.FidelityWarnings) — typically Profile.Warnings from a
-// --conditional capture, covering all three pair kinds through the same
-// shared shape — so a reader sees "how well did it match" (the three
-// pairwise sections) and "which parts were built on thin data"
-// (Warnings) in one document (FR-18).
+// sections (E3-S4); SetFields is the set_* per-option marginal
+// frequency-delta section, and SetCategoricalPairwise /
+// SetNumericPairwise / SetSetPairwise are the three set_*
+// joint-structure delta sections (E5-S4) — all populated only when the
+// spec/schema carried at least one entry of the matching kind — absent
+// (omitempty), never an empty placeholder array, on every plain
+// synthesis and every from-profile run with no captured structure of
+// that kind. Warnings mirrors any thin-pair/thin-cell warnings the
+// caller supplied (see Options.FidelityWarnings) — typically
+// Profile.Warnings from a --conditional capture, covering every pair
+// kind through the same shared shape — so a reader sees "how well did
+// it match" (the pairwise sections) and "which parts were built on thin
+// data" (Warnings) in one document (FR-18).
 type FidelityReport struct {
 	SourceRows                 int                               `json:"source_rows"`
 	SyntheticRows              int                               `json:"synthetic_rows"`
@@ -165,6 +275,10 @@ type FidelityReport struct {
 	Pairwise                   []*PairwiseFidelity               `json:"pairwise,omitempty"`
 	CategoricalPairwise        []*CategoricalPairFidelity        `json:"categorical_pairwise,omitempty"`
 	CategoricalNumericPairwise []*CategoricalNumericPairFidelity `json:"categorical_numeric_pairwise,omitempty"`
+	SetFields                  []*SetFieldFidelity               `json:"set_fields,omitempty"`
+	SetCategoricalPairwise     []*SetCategoricalPairFidelity     `json:"set_categorical_pairwise,omitempty"`
+	SetNumericPairwise         []*SetNumericPairFidelity         `json:"set_numeric_pairwise,omitempty"`
+	SetSetPairwise             []*SetSetPairFidelity             `json:"set_set_pairwise,omitempty"`
 	Warnings                   []string                          `json:"warnings,omitempty"`
 }
 
@@ -194,10 +308,14 @@ type TestRunner func(physicalSchema, presentedSchema *encoding.Schema, records [
 // BuildFidelityReport compares every eligible field of mergedSchema
 // (skipping SyntheticFieldName itself) between the _synthetic=false
 // and _synthetic=true partitions of records: TEST_KS for numeric
-// fields, TEST_CHISQ for categorical fields, both driven through run.
-// Fields of any other on-wire type (date, datetime, packed_bool, u4,
-// set_*) are out of scope for this section; later stories may widen
-// coverage.
+// fields, TEST_CHISQ for categorical fields, both driven through run;
+// a direct per-option frequency comparison (computeSetFieldFidelity,
+// no run/TestRunner involved) for set_* fields, appended onto
+// report.SetFields instead of report.Fields (E5-S4 — see
+// SetFieldFidelity for why this section does not reuse TEST_KS/
+// TEST_CHISQ). Fields of any other on-wire type (date, datetime,
+// packed_bool, u4) are out of scope for both sections; later stories
+// may widen coverage.
 //
 // A single field's failing test (entry.Error set, entry.Result nil)
 // never aborts the rest of the report — run is called once per field
@@ -209,6 +327,11 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 	for i := range mergedSchema.Fields {
 		f := &mergedSchema.Fields[i]
 		if f.Name == SyntheticFieldName {
+			continue
+		}
+
+		if f.Type.IsSet() {
+			report.SetFields = append(report.SetFields, computeSetFieldFidelity(mergedSchema, records, f.Name))
 			continue
 		}
 
@@ -232,6 +355,84 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 		report.Fields = append(report.Fields, entry)
 	}
 	return report
+}
+
+// computeSetFieldFidelity computes fieldName's per-option marginal
+// selection-frequency comparison directly (no TestRunner) between the
+// _synthetic=false (source) and _synthetic=true (synthetic) partitions
+// of mergedSchema's records, in a single decode pass — the same
+// wide[fieldName].(uint64) mask-reading discipline
+// synth/profile.go's marginal/joint capture already uses. Every
+// dictionary entry within fieldName's type's MaxSetEntries bound gets
+// an entry, in bit/dictionary order, mirroring SetProfile.Options'
+// own ordering contract.
+func computeSetFieldFidelity(mergedSchema *encoding.Schema, records []byte, fieldName string) *SetFieldFidelity {
+	entry := &SetFieldFidelity{Field: fieldName}
+	f := mergedSchema.Field(fieldName)
+	if f == nil || f.Dictionary == nil {
+		return entry
+	}
+	n := f.Dictionary.Count()
+	if max := int(f.Type.MaxSetEntries()); n > max {
+		n = max
+	}
+	names := make([]string, n)
+	for i := 0; i < n; i++ {
+		names[i] = f.Dictionary.Resolve(uint32(i))
+	}
+
+	srcSel := make([]int, n)
+	synSel := make([]int, n)
+	var srcN, synN int
+
+	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
+	values := make(map[string]float64, len(mergedSchema.Fields))
+	nulls := make(map[string]bool, len(mergedSchema.Fields))
+	wide := make(map[string]any, len(mergedSchema.Fields))
+	for {
+		if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
+			break
+		}
+		if nulls[fieldName] {
+			continue
+		}
+		synthetic := values[SyntheticFieldName] != 0
+		if synthetic {
+			synN++
+		} else {
+			srcN++
+		}
+		mask, _ := wide[fieldName].(uint64)
+		for i := 0; i < n; i++ {
+			if mask&(uint64(1)<<uint(i)) == 0 {
+				continue
+			}
+			if synthetic {
+				synSel[i]++
+			} else {
+				srcSel[i]++
+			}
+		}
+	}
+
+	for i, name := range names {
+		if name == "" {
+			continue
+		}
+		opt := &SetOptionFidelity{Value: name}
+		if srcN > 0 {
+			opt.SourceFrequency = float64(srcSel[i]) / float64(srcN)
+		}
+		if synN == 0 {
+			opt.Error = fmt.Sprintf("synthetic partition has no non-null observations of %s", fieldName)
+		} else {
+			opt.SyntheticFrequency = float64(synSel[i]) / float64(synN)
+			opt.Delta = math.Abs(opt.SourceFrequency - opt.SyntheticFrequency)
+			opt.N = synN
+		}
+		entry.Options = append(entry.Options, opt)
+	}
+	return entry
 }
 
 // SyntheticAsCategoricalSchema returns a copy of schema whose
@@ -560,4 +761,277 @@ func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, records [
 		out[catVal] = categoricalNumericMoment{mean: mean, std: math.Sqrt(variance), n: a.count}
 	}
 	return out, total
+}
+
+// BuildSetCategoricalPairwise computes each set-option x categorical
+// pair's contingency-table delta (categoricalTVD, reused verbatim from
+// BuildCategoricalPairwise — SetCategoricalPairSpec.Cells is the same
+// []CategoricalPairCellSpec shape) and appends the resulting
+// SetCategoricalPairFidelity entries onto report.SetCategoricalPairwise
+// (E5-S4). mergedSchema/records must be the same physical schema and
+// record buffer BuildFidelityReport was given.
+//
+// pairs is typically Spec.SetCategoricalPairs — the source's captured
+// contingency cells synth/conditional_sample.go's
+// setCategoricalPairSampler was built from. A pair whose synthetic
+// partition produced no co-occurring observation at all gets an Error
+// entry rather than aborting the rest of the pairs or the report — the
+// same non-fatal contract BuildCategoricalPairwise's own per-pair
+// entries follow.
+func BuildSetCategoricalPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []SetCategoricalPairSpec) {
+	for _, p := range pairs {
+		entry := &SetCategoricalPairFidelity{Set: p.Set, Option: p.Option, Categorical: p.Categorical}
+		counts, n := computeSyntheticSetOptionCategoricalJoint(mergedSchema, records, p.Set, p.Option, p.Categorical)
+		entry.N = n
+		if n == 0 {
+			entry.Error = fmt.Sprintf(
+				"synthetic partition has no co-occurring non-null observations for %s[%s] x %s", p.Set, p.Option, p.Categorical)
+		} else {
+			sourceN := 0
+			for _, c := range p.Cells {
+				sourceN += c.Count
+			}
+			entry.Delta = categoricalTVD(p.Cells, sourceN, counts, n)
+		}
+		report.SetCategoricalPairwise = append(report.SetCategoricalPairwise, entry)
+	}
+}
+
+// computeSyntheticSetOptionCategoricalJoint decodes mergedSchema's
+// records once, building the realized joint frequency table of set
+// field setField's option (bit position) — expressed as
+// "selected"/"not_selected" — against categorical field catField's
+// resolved value, over exactly the rows where _synthetic is true
+// (non-zero) and both fields are simultaneously non-null and
+// dictionary-resolvable. Mirrors computeSyntheticCategoricalJoint's
+// discipline, applied to a set-option axis instead of an arbitrary
+// categorical field. Returns n=0 (and no counts) when setField carries
+// no dictionary entry named option.
+func computeSyntheticSetOptionCategoricalJoint(mergedSchema *encoding.Schema, records []byte, setField, option, catField string) (counts map[[2]string]int, n int) {
+	counts = make(map[[2]string]int)
+	fs := mergedSchema.Field(setField)
+	fc := mergedSchema.Field(catField)
+	if fs == nil || fs.Dictionary == nil || fc == nil || fc.Dictionary == nil {
+		return counts, 0
+	}
+	optIdx, ok := fs.Dictionary.IDFor(option)
+	if !ok {
+		return counts, 0
+	}
+	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
+	values := make(map[string]float64, len(mergedSchema.Fields))
+	nulls := make(map[string]bool, len(mergedSchema.Fields))
+	wide := make(map[string]any, len(mergedSchema.Fields))
+	for {
+		if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
+			break
+		}
+		if values[SyntheticFieldName] == 0 {
+			continue
+		}
+		if nulls[setField] || nulls[catField] {
+			continue
+		}
+		cv := fc.Dictionary.Resolve(uint32(values[catField]))
+		if cv == "" {
+			continue
+		}
+		mask, _ := wide[setField].(uint64)
+		sel := "not_selected"
+		if mask&(uint64(1)<<optIdx) != 0 {
+			sel = "selected"
+		}
+		counts[[2]string{sel, cv}]++
+		n++
+	}
+	return counts, n
+}
+
+// BuildSetNumericPairwise computes each set-option x numeric pair's
+// per-bucket conditional mean/std delta and appends the resulting
+// SetNumericPairFidelity entries onto report.SetNumericPairwise
+// (E5-S4). mergedSchema/records must be the same physical schema and
+// record buffer BuildFidelityReport was given.
+//
+// pairs is typically Spec.SetNumericPairs. A bucket with no realized
+// synthetic observation gets an Error entry rather than aborting the
+// rest of that pair's categories or the report — the same non-fatal
+// contract BuildCategoricalNumericPairwise's own entries follow.
+func BuildSetNumericPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []SetNumericPairSpec) {
+	for _, p := range pairs {
+		perBucket, _ := computeSyntheticSetOptionConditionalNumeric(mergedSchema, records, p.Set, p.Option, p.Numeric)
+		entry := &SetNumericPairFidelity{Set: p.Set, Option: p.Option, Numeric: p.Numeric}
+		for _, c := range p.Categories {
+			catEntry := &CategoricalNumericCategoryFidelity{
+				Category:   c.Category,
+				SourceMean: c.Mean,
+				SourceStd:  c.Std,
+			}
+			mom, ok := perBucket[c.Category]
+			if !ok || mom.n == 0 {
+				catEntry.Error = fmt.Sprintf(
+					"synthetic partition has no observations of %s[%s]=%s for %s", p.Set, p.Option, c.Category, p.Numeric)
+			} else {
+				catEntry.SyntheticMean = mom.mean
+				catEntry.SyntheticStd = mom.std
+				catEntry.MeanDelta = math.Abs(mom.mean - c.Mean)
+				catEntry.StdDelta = math.Abs(mom.std - c.Std)
+				catEntry.N = mom.n
+			}
+			entry.Categories = append(entry.Categories, catEntry)
+		}
+		report.SetNumericPairwise = append(report.SetNumericPairwise, entry)
+	}
+}
+
+// computeSyntheticSetOptionConditionalNumeric decodes mergedSchema's
+// records once, computing the realized conditional mean/std of numeric
+// field numField, bucketed by whether set field setField's option (bit
+// position) was selected — keyed "selected"/"not_selected", mirroring
+// SetNumericPairProfile.Categories' own bucket keys — over exactly the
+// rows where _synthetic is true (non-zero) and both fields are
+// simultaneously non-null. Mirrors computeSyntheticConditionalNumeric's
+// discipline, applied to a set-option axis instead of an arbitrary
+// categorical field. Returns no buckets when setField carries no
+// dictionary entry named option.
+func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, records []byte, setField, option, numField string) (map[string]categoricalNumericMoment, int) {
+	out := make(map[string]categoricalNumericMoment)
+	fs := mergedSchema.Field(setField)
+	if fs == nil || fs.Dictionary == nil {
+		return out, 0
+	}
+	optIdx, ok := fs.Dictionary.IDFor(option)
+	if !ok {
+		return out, 0
+	}
+	type acc struct {
+		count      int
+		sum, sumSq float64
+	}
+	accs := make(map[string]*acc, 2)
+	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
+	values := make(map[string]float64, len(mergedSchema.Fields))
+	nulls := make(map[string]bool, len(mergedSchema.Fields))
+	wide := make(map[string]any, len(mergedSchema.Fields))
+	total := 0
+	for {
+		if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
+			break
+		}
+		if values[SyntheticFieldName] == 0 {
+			continue
+		}
+		if nulls[setField] || nulls[numField] {
+			continue
+		}
+		mask, _ := wide[setField].(uint64)
+		sel := "not_selected"
+		if mask&(uint64(1)<<optIdx) != 0 {
+			sel = "selected"
+		}
+		a := accs[sel]
+		if a == nil {
+			a = &acc{}
+			accs[sel] = a
+		}
+		v := values[numField]
+		a.count++
+		a.sum += v
+		a.sumSq += v * v
+		total++
+	}
+	for sel, a := range accs {
+		mean := a.sum / float64(a.count)
+		var variance float64
+		if a.count > 1 {
+			variance = (a.sumSq - mean*a.sum) / float64(a.count-1)
+		}
+		if variance < 0 {
+			variance = 0
+		}
+		out[sel] = categoricalNumericMoment{mean: mean, std: math.Sqrt(variance), n: a.count}
+	}
+	return out, total
+}
+
+// BuildSetSetPairwise computes each option x option pair's 2x2
+// contingency-table delta between two DIFFERENT set_* fields
+// (categoricalTVD, reused verbatim — SetSetPairSpec.Cells is the same
+// []CategoricalPairCellSpec shape) and appends the resulting
+// SetSetPairFidelity entries onto report.SetSetPairwise (E5-S4).
+// mergedSchema/records must be the same physical schema and record
+// buffer BuildFidelityReport was given.
+//
+// pairs is typically Spec.SetSetPairs. A pair whose synthetic partition
+// produced no co-occurring observation at all gets an Error entry
+// rather than aborting the rest of the pairs or the report.
+func BuildSetSetPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []SetSetPairSpec) {
+	for _, p := range pairs {
+		entry := &SetSetPairFidelity{SetA: p.SetA, OptionA: p.OptionA, SetB: p.SetB, OptionB: p.OptionB}
+		counts, n := computeSyntheticSetSetJoint(mergedSchema, records, p.SetA, p.OptionA, p.SetB, p.OptionB)
+		entry.N = n
+		if n == 0 {
+			entry.Error = fmt.Sprintf(
+				"synthetic partition has no co-occurring non-null observations for %s[%s] x %s[%s]", p.SetA, p.OptionA, p.SetB, p.OptionB)
+		} else {
+			sourceN := 0
+			for _, c := range p.Cells {
+				sourceN += c.Count
+			}
+			entry.Delta = categoricalTVD(p.Cells, sourceN, counts, n)
+		}
+		report.SetSetPairwise = append(report.SetSetPairwise, entry)
+	}
+}
+
+// computeSyntheticSetSetJoint decodes mergedSchema's records once,
+// building the realized 2x2 joint frequency table of setA's optionA and
+// setB's optionB — each expressed as "selected"/"not_selected" — over
+// exactly the rows where _synthetic is true (non-zero) and both set
+// fields are simultaneously non-null. Returns n=0 (and no counts) when
+// either field carries no dictionary entry named for its declared
+// option.
+func computeSyntheticSetSetJoint(mergedSchema *encoding.Schema, records []byte, setA, optionA, setB, optionB string) (counts map[[2]string]int, n int) {
+	counts = make(map[[2]string]int)
+	fa := mergedSchema.Field(setA)
+	fb := mergedSchema.Field(setB)
+	if fa == nil || fa.Dictionary == nil || fb == nil || fb.Dictionary == nil {
+		return counts, 0
+	}
+	optIdxA, ok := fa.Dictionary.IDFor(optionA)
+	if !ok {
+		return counts, 0
+	}
+	optIdxB, ok := fb.Dictionary.IDFor(optionB)
+	if !ok {
+		return counts, 0
+	}
+	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
+	values := make(map[string]float64, len(mergedSchema.Fields))
+	nulls := make(map[string]bool, len(mergedSchema.Fields))
+	wide := make(map[string]any, len(mergedSchema.Fields))
+	for {
+		if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
+			break
+		}
+		if values[SyntheticFieldName] == 0 {
+			continue
+		}
+		if nulls[setA] || nulls[setB] {
+			continue
+		}
+		maskA, _ := wide[setA].(uint64)
+		maskB, _ := wide[setB].(uint64)
+		selA := "not_selected"
+		if maskA&(uint64(1)<<optIdxA) != 0 {
+			selA = "selected"
+		}
+		selB := "not_selected"
+		if maskB&(uint64(1)<<optIdxB) != 0 {
+			selB = "selected"
+		}
+		counts[[2]string{selA, selB}]++
+		n++
+	}
+	return counts, n
 }
