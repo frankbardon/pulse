@@ -31,7 +31,7 @@ pulse profile create --input PATH --output PATH
 | `--include-stats`        |      | bool   | true       | Include percentile / std stats |
 | `--include-correlations` |      | bool   | false      | Capture pairwise numeric correlations |
 | `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
-| `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`) for exact correlation reconstruction |
+| `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`) plus categorical-categorical contingency tables (`conditional.categorical_pairs`) for exact reconstruction |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
 
@@ -72,6 +72,32 @@ shipped — never refused — but appends a warning to `warnings` naming the
 pair. The section is entirely absent (not empty) when `--conditional`
 is not passed, and profiles captured before this flag existed remain
 valid `synth from-profile` input.
+
+## `--conditional`: categorical-categorical contingency capture
+
+`--conditional` also builds a bounded contingency table for every
+categorical-categorical field pair, written to
+`conditional.categorical_pairs`: each entry is `{a, b, cells, n}`, where
+`cells` is a list of `{a_value, b_value, count}` co-occurrences and `n`
+is the pair's true co-occurrence count (rows where both fields were
+simultaneously non-null). Two caps compose to keep the table bounded
+regardless of either field's raw cardinality: each field's own
+`--top-k` cap (default 32) first collapses any value outside that
+field's top-K into `"other"`, then `synth.ContingencyCellCap` (128)
+bounds the resulting joint table itself — a pair of two 50+-category
+fields can still produce over a thousand joint combinations after the
+per-field collapse, and the joint cap is what keeps that bounded. When
+the raw cell count exceeds the cap, the top `ContingencyCellCap - 1`
+cells by co-occurrence count are kept and everything else — the ranked
+tail plus any pre-existing `("other","other")` cell from the per-field
+collapse — folds into one merged `("other","other")` catch-all cell,
+never a second competing entry, so the table always saturates to
+exactly the cap (never more, and never silently fewer) whenever the
+raw cardinality exceeds it. A cell whose count falls below **30**
+(`synth.MinPairObservations`) still ships — never dropped — but appends
+the same thin-pair warning numeric pairs use, to `warnings`. This story
+only captures the contingency table; `synth from-profile` does not yet
+sample from it (a later addition).
 
 ## Output
 

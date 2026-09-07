@@ -34,6 +34,32 @@ const conditionalJointCap = 10000
 // downstream of profile capture knows the figure may be unstable.
 const MinPairObservations = 30
 
+// otherCategoryLabel marks a category value collapsed into a catch-all
+// bucket by categorical-categorical contingency capture. The same
+// sentinel serves two independent collapse points —
+// ProfileOptions.TopK's existing per-field cap (a value outside a
+// field's own top-K becomes "other" before the joint table is built)
+// and ContingencyCellCap's joint-cell cap (a cell outside the top
+// ContingencyCellCap-1 co-occurrence counts is folded into one
+// ("other","other") catch-all cell) — so a caller reading the document
+// sees one "other" concept, not two differently-spelled ones. See
+// collapseCells.
+const otherCategoryLabel = "other"
+
+// ContingencyCellCap bounds the number of distinct (a_value, b_value)
+// cells CategoricalPairProfile.Cells retains per categorical-categorical
+// pair. A pair of two 50-plus category fields can still produce
+// thousands of joint combinations even after each field's own
+// ProfileOptions.TopK collapse (e.g. two fields each capped at the
+// default TopK=32 allow up to 33*33=1089 joint cells) — this second,
+// joint-cardinality cap keeps the profile document bounded regardless
+// of either field's own cardinality. 128 was chosen as generous enough
+// to preserve real structure for the common case while still bounding
+// a pathological high-cardinality pair; every cell beyond the cap
+// collapses into one ("other","other") catch-all cell rather than
+// being dropped silently.
+const ContingencyCellCap = 128
+
 // thinPairWarning returns a warning string when n falls below
 // threshold, or "" when the pair has enough support. kind names the
 // pair type in the message (e.g. "numeric" today; "categorical" / "set"
@@ -102,10 +128,10 @@ type Profile struct {
 
 // ConditionalProfile carries the joint reconstruction structure
 // `profile create --conditional` captures beyond independent per-field
-// marginals. v1 (this story) covers numeric-numeric pairs only;
-// categorical and set_* pairs are later-epic additions to this same
-// struct, not a new top-level section, so the same nil-check keeps
-// gating all of them.
+// marginals. E2-S1 covers numeric-numeric pairs; this story (E3-S1)
+// adds categorical-categorical pairs to the same struct rather than a
+// new top-level section, so the same nil-check keeps gating all of
+// them. set_* pairs are a later-epic addition on this same struct.
 type ConditionalProfile struct {
 	// NumericPairs lists the numeric-numeric pairs captured: the
 	// row-aligned Pearson correlation and the count of rows where both
@@ -114,6 +140,13 @@ type ConditionalProfile struct {
 	// ProfileOptions.CorrelationTopK strongest |rho| pairs, same
 	// convention as Profile.Pairwise.
 	NumericPairs []NumericPairProfile `json:"numeric_pairs,omitempty"`
+	// CategoricalPairs lists the categorical-categorical pairs
+	// captured: a bounded contingency table of observed
+	// (a_value, b_value) co-occurrence counts per pair. See
+	// CategoricalPairProfile for the two composed collapse points
+	// (per-field top-K, then joint-cell ContingencyCellCap) that keep
+	// this section bounded regardless of either field's cardinality.
+	CategoricalPairs []CategoricalPairProfile `json:"categorical_pairs,omitempty"`
 }
 
 // NumericPairProfile is one captured numeric-numeric pair's
@@ -128,6 +161,40 @@ type NumericPairProfile struct {
 	// capped reservoirs that can drift out of alignment once either
 	// field has nulls).
 	N int `json:"n"`
+}
+
+// CategoricalPairProfile is one captured categorical-categorical pair's
+// reconstruction input: a bounded contingency table of observed
+// (a_value, b_value) co-occurrence counts. Values already reflect each
+// field's own per-field top-K cap (ProfileOptions.TopK, via each
+// field's own FieldProfile.Categorical.Top) — any category outside a
+// field's own top-K collapses to "other" before the joint table is
+// built — and the table is further bounded to at most
+// ContingencyCellCap cells by co-occurrence count, with everything past
+// that cut folded into one ("other","other") catch-all cell. The two
+// caps compose: the existing per-field cap is an input bound to this
+// story's new joint-cell cap, never replaced by it.
+type CategoricalPairProfile struct {
+	A     string            `json:"a"`
+	B     string            `json:"b"`
+	Cells []ContingencyCell `json:"cells"`
+	// N is the number of rows in the capture where both A and B were
+	// simultaneously non-null — the pair's true co-occurrence count,
+	// summed across every cell (the cells kept plus whatever is folded
+	// into the "other"/"other" catch-all).
+	N int `json:"n"`
+}
+
+// ContingencyCell is one observed (a_value, b_value) combination and
+// its co-occurrence count, as captured by --conditional's
+// categorical-categorical contingency table. AValue/BValue read
+// "other" (otherCategoryLabel) when the underlying value fell outside
+// its field's own top-K, or when the cell itself fell outside the
+// pair's ContingencyCellCap.
+type ContingencyCell struct {
+	AValue string `json:"a_value"`
+	BValue string `json:"b_value"`
+	Count  int    `json:"count"`
 }
 
 // FieldProfile holds per-field summary statistics. Exactly one of
@@ -263,12 +330,25 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	var jointRows [][]float64
 	var jointNulls [][]bool
 
+	// jointCatFieldNames, jointCatRows and jointCatNulls mirror
+	// jointFieldNames/jointRows/jointNulls above, but for categorical
+	// fields: a row-aligned snapshot of every categorical field's
+	// (resolved value, isNull) on each captured row, used by
+	// computeConditionalCategoricalPairs to build each pair's true
+	// co-occurrence contingency table (E3-S1).
+	var jointCatFieldNames []string
+	var jointCatRows [][]string
+	var jointCatNulls [][]bool
+
 	for _, f := range schema.Fields {
 		switch {
 		case f.Type == encoding.FieldTypeDate:
 			dateAccs[f.Name] = &dateAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
 		case f.Type.IsCategorical():
 			catAccs[f.Name] = &catAcc{hist: make(map[string]int)}
+			if opts.IncludeConditional {
+				jointCatFieldNames = append(jointCatFieldNames, f.Name)
+			}
 		default:
 			numAccs[f.Name] = &numAcc{
 				min: math.Inf(1), max: math.Inf(-1),
@@ -279,10 +359,13 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			}
 		}
 	}
+	trackCatJoint := len(jointCatFieldNames) >= 2
 
 	values := make(map[string]float64, len(schema.Fields))
 	nulls := make(map[string]bool, len(schema.Fields))
 	wide := make(map[string]any, len(schema.Fields))
+	catRowValues := make(map[string]string, len(jointCatFieldNames))
+	catRowNulls := make(map[string]bool, len(jointCatFieldNames))
 
 	rowCount := 0
 	for {
@@ -320,16 +403,28 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				ca := catAccs[f.Name]
 				if isNull {
 					ca.nulls++
+					if trackCatJoint {
+						catRowNulls[f.Name] = true
+					}
 					continue
 				}
 				id := uint32(values[f.Name])
 				if f.Dictionary != nil {
 					name := f.Dictionary.Resolve(id)
 					if name == "" {
+						if trackCatJoint {
+							catRowNulls[f.Name] = true
+						}
 						continue
 					}
 					ca.hist[name]++
 					ca.count++
+					if trackCatJoint {
+						catRowNulls[f.Name] = false
+						catRowValues[f.Name] = name
+					}
+				} else if trackCatJoint {
+					catRowNulls[f.Name] = true
 				}
 			default:
 				na := numAccs[f.Name]
@@ -366,6 +461,18 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			}
 			jointRows = append(jointRows, rowVals)
 			jointNulls = append(jointNulls, rowNulls)
+		}
+		if trackCatJoint && len(jointCatRows) < conditionalJointCap {
+			rowVals := make([]string, len(jointCatFieldNames))
+			rowNulls := make([]bool, len(jointCatFieldNames))
+			for idx, name := range jointCatFieldNames {
+				rowNulls[idx] = catRowNulls[name]
+				if !rowNulls[idx] {
+					rowVals[idx] = catRowValues[name]
+				}
+			}
+			jointCatRows = append(jointCatRows, rowVals)
+			jointCatNulls = append(jointCatNulls, rowNulls)
 		}
 	}
 
@@ -444,8 +551,27 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	}
 
 	if opts.IncludeConditional {
-		pf.Conditional = computeConditionalNumericPairs(
+		numericPairs := computeConditionalNumericPairs(
 			jointFieldNames, jointRows, jointNulls, opts.CorrelationTopK, &warnings)
+		topKByField := make(map[string]map[string]bool, len(jointCatFieldNames))
+		for _, fp := range pf.Fields {
+			if fp.Categorical == nil {
+				continue
+			}
+			set := make(map[string]bool, len(fp.Categorical.Top))
+			for _, hit := range fp.Categorical.Top {
+				set[hit.Value] = true
+			}
+			topKByField[fp.Name] = set
+		}
+		categoricalPairs := computeConditionalCategoricalPairs(
+			jointCatFieldNames, jointCatRows, jointCatNulls, topKByField, &warnings)
+		if len(numericPairs) > 0 || len(categoricalPairs) > 0 {
+			pf.Conditional = &ConditionalProfile{
+				NumericPairs:     numericPairs,
+				CategoricalPairs: categoricalPairs,
+			}
+		}
 	}
 
 	if len(warnings) > 0 {
@@ -615,7 +741,7 @@ func pearson(a, b []float64) float64 {
 // correlation (fewer than two co-occurring observations). Pairs below
 // MinPairObservations still ship — appended as a warning to *warnings,
 // never dropped.
-func computeConditionalNumericPairs(fields []string, rows [][]float64, nulls [][]bool, topK int, warnings *[]string) *ConditionalProfile {
+func computeConditionalNumericPairs(fields []string, rows [][]float64, nulls [][]bool, topK int, warnings *[]string) []NumericPairProfile {
 	n := len(fields)
 	if n < 2 {
 		return nil
@@ -652,7 +778,147 @@ func computeConditionalNumericPairs(fields []string, rows [][]float64, nulls [][
 			*warnings = append(*warnings, w)
 		}
 	}
-	return &ConditionalProfile{NumericPairs: pairs}
+	return pairs
+}
+
+// computeConditionalCategoricalPairs derives a bounded contingency
+// table for every categorical-categorical pair from row-aligned joint
+// samples — rows[r][i]/nulls[r][i] is field fields[i]'s resolved
+// category name / null-flag on captured row r, built the same way
+// jointCatRows/jointCatNulls were built during the streaming pass, in
+// the same co-occurrence discipline computeConditionalNumericPairs
+// applies to numeric fields: only rows where BOTH fields of a pair
+// were simultaneously non-null count toward that pair's table.
+//
+// topKByField supplies each field's own already-computed top-K set
+// (FieldProfile.Categorical.Top, itself bounded by ProfileOptions.TopK)
+// — any value not in that set collapses to otherCategoryLabel before
+// the joint table is built, composing the existing per-field cap with
+// this story's new joint-cell cap (collapseCells) rather than
+// replacing it. A field absent from topKByField (e.g. entirely null)
+// collapses every one of its values to "other", which is harmless
+// because such a field never contributes a non-null row to any pair.
+//
+// Returns nil when no categorical-categorical pair produced any
+// co-occurring observation. Every returned pair's Cells respects
+// ContingencyCellCap; cells below MinPairObservations still ship
+// (never dropped) but are recorded via the same thinPairWarning helper
+// E2-S1 introduced for numeric pairs — no second, divergent warning
+// mechanism.
+func computeConditionalCategoricalPairs(fields []string, rows [][]string, nulls [][]bool, topKByField map[string]map[string]bool, warnings *[]string) []CategoricalPairProfile {
+	n := len(fields)
+	if n < 2 {
+		return nil
+	}
+	var pairs []CategoricalPairProfile
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			allowedA := topKByField[fields[i]]
+			allowedB := topKByField[fields[j]]
+			counts := make(map[[2]string]int)
+			total := 0
+			for r := range rows {
+				if nulls[r][i] || nulls[r][j] {
+					continue
+				}
+				a := rows[r][i]
+				if !allowedA[a] {
+					a = otherCategoryLabel
+				}
+				b := rows[r][j]
+				if !allowedB[b] {
+					b = otherCategoryLabel
+				}
+				counts[[2]string{a, b}]++
+				total++
+			}
+			if total == 0 {
+				continue
+			}
+			cells := collapseCells(counts, ContingencyCellCap)
+			for _, c := range cells {
+				aLabel := fmt.Sprintf("%s=%s", fields[i], c.AValue)
+				bLabel := fmt.Sprintf("%s=%s", fields[j], c.BValue)
+				if w := thinPairWarning("categorical", aLabel, bLabel, c.Count, MinPairObservations); w != "" {
+					*warnings = append(*warnings, w)
+				}
+			}
+			pairs = append(pairs, CategoricalPairProfile{A: fields[i], B: fields[j], Cells: cells, N: total})
+		}
+	}
+	return pairs
+}
+
+// collapseCells bounds counts — a raw (a_value, b_value) -> count
+// contingency map — to at most cap cells, sorted by count descending
+// (ties broken lexicographically for determinism). When the raw map
+// already fits within cap it is returned unchanged, in cap-sized
+// (count desc) order.
+//
+// Otherwise a pre-existing ("other","other") cell — the caller's own
+// per-field top-K collapse already folds every excluded category into
+// that combination, so it is frequently the single largest cell in the
+// raw map — is pulled out of ranking contention first, rather than
+// competing for one of the kept "real" slots on the same basis as any
+// other cell. The top cap-1 REMAINING (non-"other","other") cells are
+// kept as-is; every cell excluded from that top cap-1 — the ranked
+// tail plus the pulled-out pre-existing ("other","other") cell, if any
+// — is folded into exactly one merged ("other","other") catch-all.
+// This is deliberate, not incidental: a cell that already represents
+// "value excluded by the per-field cap" is definitionally catch-all
+// mass, not a competing observation, so it must never occupy a kept
+// slot only to have the joint cap's own tail merge into it in place
+// (which would waste a slot and make the output land at cap-1 instead
+// of cap). Folding it out first instead guarantees the result
+// saturates to EXACTLY cap cells whenever the raw distinct cell count
+// exceeds the cap — deterministic regardless of where the pre-existing
+// cell would otherwise have ranked.
+func collapseCells(counts map[[2]string]int, cellCap int) []ContingencyCell {
+	if cellCap < 1 {
+		cellCap = 1
+	}
+	cells := make([]ContingencyCell, 0, len(counts))
+	for k, v := range counts {
+		cells = append(cells, ContingencyCell{AValue: k[0], BValue: k[1], Count: v})
+	}
+	sort.Slice(cells, func(i, j int) bool {
+		if cells[i].Count != cells[j].Count {
+			return cells[i].Count > cells[j].Count
+		}
+		if cells[i].AValue != cells[j].AValue {
+			return cells[i].AValue < cells[j].AValue
+		}
+		return cells[i].BValue < cells[j].BValue
+	})
+	if len(cells) <= cellCap {
+		return cells
+	}
+
+	preOtherCount := 0
+	real := make([]ContingencyCell, 0, len(cells))
+	for _, c := range cells {
+		if c.AValue == otherCategoryLabel && c.BValue == otherCategoryLabel {
+			preOtherCount = c.Count
+			continue
+		}
+		real = append(real, c)
+	}
+
+	keepN := cellCap - 1
+	if keepN > len(real) {
+		keepN = len(real)
+	}
+	kept := real[:keepN]
+	tail := real[keepN:]
+
+	otherCount := preOtherCount
+	for _, c := range tail {
+		otherCount += c.Count
+	}
+
+	out := make([]ContingencyCell, len(kept), len(kept)+1)
+	copy(out, kept)
+	return append(out, ContingencyCell{AValue: otherCategoryLabel, BValue: otherCategoryLabel, Count: otherCount})
 }
 
 // SpecFromProfile builds a Spec the synth pipeline can execute. Numeric
