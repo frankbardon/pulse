@@ -151,6 +151,142 @@ func TestSynth_WeightedCategoricalRespectsWeights(t *testing.T) {
 	}
 }
 
+// TestSynth_MixtureReproducesBimodalShape is the E4-S1 fidelity gate: a
+// mixture with two well-separated components must visibly produce two
+// histogram peaks with a valley between them, not collapse into a single
+// normal-shaped hump. This is a real statistical check on the sampled
+// output, not a smoke test that generation merely runs without error.
+func TestSynth_MixtureReproducesBimodalShape(t *testing.T) {
+	const (
+		mean1, std1 = -10.0, 1.5
+		mean2, std2 = 10.0, 1.5
+	)
+	spec := &synth.Spec{
+		RowCount: 8000,
+		Fields: []synth.FieldSpec{
+			{Name: "v", Type: "f64", Distribution: synth.DistMixture,
+				Params: map[string]any{
+					"means":   []any{mean1, mean2},
+					"stds":    []any{std1, std2},
+					"weights": []any{0.5, 0.5},
+				}},
+		},
+	}
+	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 11})
+	if err != nil {
+		t.Fatalf("synth: %v", err)
+	}
+	values := readF64Field(t, data, "v")
+
+	const (
+		binWidth = 1.0
+		lo       = mean1 - 6*std1
+		hi       = mean2 + 6*std2
+	)
+	nBins := int((hi-lo)/binWidth) + 1
+	hist := make([]int, nBins)
+	binOf := func(x float64) int {
+		idx := int((x - lo) / binWidth)
+		if idx < 0 {
+			idx = 0
+		}
+		if idx >= nBins {
+			idx = nBins - 1
+		}
+		return idx
+	}
+	for _, v := range values {
+		hist[binOf(v)]++
+	}
+
+	// Locate the tallest peak, then mask a window around it (wide enough to
+	// cover one whole component) and locate the second-tallest remaining
+	// peak — the standard two-pass approach for detecting two modes in a
+	// histogram without assuming their exact bin locations.
+	maskRadius := int(4 * std1 / binWidth)
+	argmax := func(h []int) int {
+		best := 0
+		for i, c := range h {
+			if c > h[best] {
+				best = i
+			}
+		}
+		return best
+	}
+	peak1 := argmax(hist)
+	masked := append([]int(nil), hist...)
+	for i := peak1 - maskRadius; i <= peak1+maskRadius; i++ {
+		if i >= 0 && i < len(masked) {
+			masked[i] = 0
+		}
+	}
+	peak2 := argmax(masked)
+
+	if peak1 == peak2 {
+		t.Fatalf("only one peak detected — sample collapsed to a single mode (bin %d)", peak1)
+	}
+	lowIdx, highIdx := peak1, peak2
+	if lowIdx > highIdx {
+		lowIdx, highIdx = highIdx, lowIdx
+	}
+	peakX1 := lo + float64(lowIdx)*binWidth
+	peakX2 := lo + float64(highIdx)*binWidth
+	if peakX2-peakX1 < (mean2-mean1)*0.5 {
+		t.Fatalf("detected peaks too close together (%.1f, %.1f) — expected separation near %.1f",
+			peakX1, peakX2, mean2-mean1)
+	}
+
+	valley := hist[lowIdx]
+	for i := lowIdx + 1; i < highIdx; i++ {
+		if hist[i] < valley {
+			valley = hist[i]
+		}
+	}
+	smallerPeak := hist[lowIdx]
+	if hist[highIdx] < smallerPeak {
+		smallerPeak = hist[highIdx]
+	}
+	if float64(valley) >= 0.5*float64(smallerPeak) {
+		t.Fatalf("no valley between modes: valley count=%d, peaks=(%d,%d) — shape looks unimodal",
+			valley, hist[lowIdx], hist[highIdx])
+	}
+}
+
+// TestSynth_MixtureValidatesParams asserts malformed mixture params fail
+// spec parsing with SERVICE_VALIDATION rather than silently degenerating.
+func TestSynth_MixtureValidatesParams(t *testing.T) {
+	cases := []struct {
+		name   string
+		params map[string]any
+	}{
+		{"single mean", map[string]any{"means": []any{1.0}, "stds": []any{1.0}}},
+		{"stds length mismatch", map[string]any{"means": []any{1.0, 2.0}, "stds": []any{1.0}}},
+		{"non-positive std", map[string]any{"means": []any{1.0, 2.0}, "stds": []any{1.0, 0.0}}},
+		{"weights length mismatch", map[string]any{
+			"means": []any{1.0, 2.0}, "stds": []any{1.0, 1.0}, "weights": []any{1.0},
+		}},
+		{"negative weight", map[string]any{
+			"means": []any{1.0, 2.0}, "stds": []any{1.0, 1.0}, "weights": []any{-1.0, 1.0},
+		}},
+		{"zero-sum weights", map[string]any{
+			"means": []any{1.0, 2.0}, "stds": []any{1.0, 1.0}, "weights": []any{0.0, 0.0},
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := &synth.Spec{
+				RowCount: 10,
+				Fields: []synth.FieldSpec{
+					{Name: "v", Type: "f64", Distribution: synth.DistMixture, Params: tc.params},
+				},
+			}
+			if _, _, err := synth.SynthBytes(spec, synth.Options{Seed: 1}); err == nil {
+				t.Fatal("expected SERVICE_VALIDATION, got nil")
+			}
+		})
+	}
+}
+
 // TestSynth_ConstraintSatisfiedEveryRow verifies all rows satisfy declared
 // constraints when generation succeeds.
 func TestSynth_ConstraintSatisfiedEveryRow(t *testing.T) {

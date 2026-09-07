@@ -42,7 +42,7 @@ Verify with `pulse_inspect`.
 
 ### Distribution registry
 
-Twelve kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` skills. Registry: `synth.AllDistributions()`.
+Thirteen kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` skills. Registry: `synth.AllDistributions()`.
 
 - `uniform` — closed-open `[min, max)`.
 - `normal` — `mean`, `std`, optional `min`/`max` clamp.
@@ -53,6 +53,7 @@ Twelve kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` skil
 - `bernoulli` — `p`; pairs with `packed_bool` or uint.
 - `monotonic_from` — `start`, `step`; deterministic, ignores RNG. Primary keys.
 - `weighted_categorical` — `values`, optional `weights`; uniform when absent.
+- `mixture` — `means`, `stds`, optional `weights` (parallel lists, `>= 2` components); reproduces bimodal/multimodal or skewed shapes a single `normal` collapses to.
 - `uniform_date` — `start`, `end` (YYYY-MM-DD); inclusive.
 - `regex` — `pattern`, `max_repeat`; walks `regexp/syntax` AST.
 - `constant` — `value`; sentinel fields.

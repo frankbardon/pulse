@@ -26,6 +26,7 @@ const (
 	DistUniformDate         = "uniform_date"
 	DistRegex               = "regex"
 	DistConstant            = "constant"
+	DistMixture             = "mixture"
 )
 
 // AllDistributions returns the registered kind names in sorted order.
@@ -33,7 +34,7 @@ const (
 func AllDistributions() []string {
 	out := []string{
 		DistBernoulli, DistConstant, DistExponential, DistLogNormal,
-		DistMonotonicFrom, DistNormal, DistPareto, DistPoisson,
+		DistMixture, DistMonotonicFrom, DistNormal, DistPareto, DistPoisson,
 		DistRegex, DistUniform, DistUniformDate, DistWeightedCategorical,
 	}
 	sort.Strings(out)
@@ -89,6 +90,8 @@ func buildBaseSampler(f FieldSpec) (sampler, error) {
 		return newMonotonicSampler(f)
 	case DistWeightedCategorical:
 		return newWeightedCategoricalSampler(f)
+	case DistMixture:
+		return newMixtureSampler(f)
 	case DistUniformDate:
 		return newUniformDateSampler(f)
 	case DistRegex:
@@ -412,6 +415,90 @@ func (w *weightedCategoricalSampler) next(rng *rand.Rand) (any, bool) {
 		idx = len(w.values) - 1
 	}
 	return w.values[idx], false
+}
+
+// mixtureSampler draws from a mixture of Gaussian components: pick a
+// component index by weight (identical cumulative-weight scheme to
+// weightedCategoricalSampler), then draw N(means[i], stds[i]^2). This is
+// the shape-fitting technique chosen for E4-S1 over KDE because its
+// per-component parameters (mean, std, weight) are the same closed-form
+// shape SpecFromProfile already reconstructs for a single normal — a
+// captured bimodal/skewed profile can hand this sampler two or more
+// component summaries directly, with no kernel or bandwidth machinery.
+// Component count is a schema-mode declaration in v1 (len(means)); an
+// automatic count-selection heuristic (e.g. BIC-driven EM) is deferred to
+// the profile-capture story that fits mixtures from real data.
+type mixtureSampler struct {
+	means, stds []float64
+	cum         []float64
+	total       float64
+}
+
+func newMixtureSampler(f FieldSpec) (sampler, error) {
+	means, ok, err := paramFloatSlice(f.Name, f.Params, "means")
+	if err != nil {
+		return nil, err
+	}
+	if !ok || len(means) < 2 {
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: mixture requires at least 2 means", f.Name), nil)
+	}
+	stds, ok, err := paramFloatSlice(f.Name, f.Params, "stds")
+	if err != nil {
+		return nil, err
+	}
+	if !ok || len(stds) != len(means) {
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: mixture stds length must match means", f.Name),
+			map[string]any{"means": len(means), "stds": len(stds)})
+	}
+	for i, s := range stds {
+		if s <= 0 {
+			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				fmt.Sprintf("field %q: mixture std must be > 0", f.Name),
+				map[string]any{"index": i, "value": s})
+		}
+	}
+	weights, hasW, err := paramFloatSlice(f.Name, f.Params, "weights")
+	if err != nil {
+		return nil, err
+	}
+	if !hasW {
+		weights = make([]float64, len(means))
+		for i := range weights {
+			weights[i] = 1
+		}
+	}
+	if len(weights) != len(means) {
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: mixture weights length must match means", f.Name),
+			map[string]any{"means": len(means), "weights": len(weights)})
+	}
+	cum := make([]float64, len(weights))
+	total := 0.0
+	for i, w := range weights {
+		if w < 0 {
+			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				fmt.Sprintf("field %q: negative mixture weight", f.Name),
+				map[string]any{"index": i, "value": w})
+		}
+		total += w
+		cum[i] = total
+	}
+	if total <= 0 {
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: mixture weights sum must be > 0", f.Name), nil)
+	}
+	return &mixtureSampler{means: means, stds: stds, cum: cum, total: total}, nil
+}
+
+func (m *mixtureSampler) next(rng *rand.Rand) (any, bool) {
+	x := rng.Float64() * m.total
+	idx := sort.SearchFloat64s(m.cum, x)
+	if idx >= len(m.means) {
+		idx = len(m.means) - 1
+	}
+	return m.means[idx] + rng.NormFloat64()*m.stds[idx], false
 }
 
 // EpochDate is the epoch used by the .pulse Date type. Days are stored

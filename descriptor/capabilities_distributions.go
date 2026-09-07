@@ -88,6 +88,16 @@ func distributionCapabilities() []DistributionMeta {
 			},
 		},
 		{
+			Name:        synth.DistMixture,
+			Description: "Mixture-of-normals samples; a component is drawn by weight, then a Gaussian sample from that component — reproduces bimodal/multimodal or skewed shapes a single normal cannot.",
+			AppliesTo:   []string{"numeric"},
+			Params: []Param{
+				{Name: "means", Type: "list", Required: true, Description: "Per-component means; length sets the component count (>= 2)."},
+				{Name: "stds", Type: "list", Required: true, Description: "Per-component standard deviations (> 0); length must match means."},
+				{Name: "weights", Type: "list", Required: false, Description: "Optional per-component mixing weight; length must match means. Uniform when absent."},
+			},
+		},
+		{
 			Name:        synth.DistUniformDate,
 			Description: "Uniform date samples in [start, end] (days-since-epoch internally).",
 			AppliesTo:   []string{"date"},

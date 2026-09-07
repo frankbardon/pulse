@@ -4836,6 +4836,33 @@
         ]
       },
       {
+        "name": "mixture",
+        "description": "Mixture-of-normals samples; a component is drawn by weight, then a Gaussian sample from that component — reproduces bimodal/multimodal or skewed shapes a single normal cannot.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "means",
+            "type": "list",
+            "required": true,
+            "description": "Per-component means; length sets the component count (\u003e= 2)."
+          },
+          {
+            "name": "stds",
+            "type": "list",
+            "required": true,
+            "description": "Per-component standard deviations (\u003e 0); length must match means."
+          },
+          {
+            "name": "weights",
+            "type": "list",
+            "required": false,
+            "description": "Optional per-component mixing weight; length must match means. Uniform when absent."
+          }
+        ]
+      },
+      {
         "name": "monotonic_from",
         "description": "Strictly increasing or decreasing integer counter; useful for synthetic primary keys.",
         "applies_to": [
@@ -6813,6 +6840,10 @@
       {
         "name": "op-synth-lognormal",
         "description": "Log-normal samples parameterised by log-space mu and sigma; output strictly positive."
+      },
+      {
+        "name": "op-synth-mixture",
+        "description": "Mixture-of-normals samples — per-row component draw by weight, then a Gaussian from that component; reproduces bimodal/multimodal shapes."
       },
       {
         "name": "op-synth-monotonic-from",
@@ -9512,4 +9543,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 164a37dd5eeb9696ce1503c09da495b0c1ce05382a0a361b27b11bee46ba2f5c
+// golden-hash: 5a23888d517760fbcbcba5ee8660a2b907f8785b50f16051b27eca12d5aebc98
