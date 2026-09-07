@@ -17,11 +17,16 @@ import (
 // path, drives synth.BuildFidelityReport against its records (TEST_KS
 // for numeric fields, TEST_CHISQ for categorical, both compared
 // against synth.SyntheticFieldName), folds in synth.BuildPairwise's
-// numeric-numeric correlation-delta section for pairs (typically
-// spec.Correlations — see synth.PairwiseFidelity) plus any
-// fidelityWarnings (typically Options.FidelityWarnings, itself
-// typically Profile.Warnings), and writes the resulting JSON document
-// to reportPath.
+// numeric-numeric correlation-delta section for spec.Correlations (see
+// synth.PairwiseFidelity) plus synth.BuildCategoricalPairwise /
+// synth.BuildCategoricalNumericPairwise's categorical-categorical
+// contingency-delta and categorical-numeric conditional-mean/std-delta
+// sections for spec.CategoricalPairs / spec.CategoricalNumericPairs
+// (E3-S4; see CategoricalPairFidelity / CategoricalNumericPairFidelity),
+// plus any fidelityWarnings (typically Options.FidelityWarnings, itself
+// typically Profile.Warnings, covering all three pair kinds through the
+// same shared shape), and writes the resulting JSON document to
+// reportPath.
 //
 // This bridge lives at the pulse facade level rather than inside
 // synth/ because synth cannot import processing directly without
@@ -29,12 +34,12 @@ import (
 // distribution registry, and processing's own internal test files
 // import descriptor — synth importing processing back would close
 // that loop. pulse.go already imports both packages, so the bridge —
-// and the only implementation of synth.TestRunner — lives here. The
-// pairwise section itself needs no processing/ import at all — it is
-// pure statistics over already-decoded numeric slices — but stays in
-// this same bridge so the one JSON document is assembled and written
-// in one place.
-func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, pairs []synth.CorrelationSpec, fidelityWarnings []string) error {
+// and the only implementation of synth.TestRunner — lives here. Every
+// pairwise section needs no processing/ import at all — each is pure
+// statistics over already-decoded record values — but stays in this
+// same bridge so the one JSON document is assembled and written in one
+// place.
+func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.Spec, fidelityWarnings []string) error {
 	data, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading synth output for fidelity report")
@@ -51,7 +56,9 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, pairs []synt
 
 	sourceRows, syntheticRows := countSyntheticPartitions(schema, records)
 	report := synth.BuildFidelityReport(schema, records, sourceRows, syntheticRows, runFidelityTest)
-	synth.BuildPairwise(report, schema, records, pairs, fidelityWarnings)
+	synth.BuildPairwise(report, schema, records, spec.Correlations, fidelityWarnings)
+	synth.BuildCategoricalPairwise(report, schema, records, spec.CategoricalPairs)
+	synth.BuildCategoricalNumericPairwise(report, schema, records, spec.CategoricalNumericPairs)
 
 	out, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
