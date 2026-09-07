@@ -4975,6 +4975,28 @@
         ]
       },
       {
+        "name": "set_bernoulli",
+        "description": "Multi-select set_* bitmask: one independent Bernoulli(frequency) draw per declared option, or a joint-structure resample when the spec declares a matching set-categorical/set-numeric/set-set pair.",
+        "applies_to": [
+          "set"
+        ],
+        "params": [
+          {
+            "name": "options",
+            "type": "list",
+            "required": true,
+            "description": "Dictionary entries in bit order; also pre-registers the field's dictionary at schema-build time."
+          },
+          {
+            "name": "frequencies",
+            "type": "list",
+            "required": false,
+            "default": 0.5,
+            "description": "Per-option P(bit set); length must match options. Defaults to 0.5 per option when absent."
+          }
+        ]
+      },
+      {
         "name": "uniform",
         "description": "Uniform real-valued samples in [min, max).",
         "applies_to": [
@@ -6864,6 +6886,10 @@
       {
         "name": "op-synth-regex",
         "description": "String samples generated from a Perl/RE2 regex pattern; walks regexp/syntax AST with bounded repetition."
+      },
+      {
+        "name": "op-synth-set-bernoulli",
+        "description": "Multi-select set_* bitmask generation — independent per-option Bernoulli draws, or a joint-structure resample when a paired field is declared."
       },
       {
         "name": "op-synth-uniform",
@@ -9543,4 +9569,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5a23888d517760fbcbcba5ee8660a2b907f8785b50f16051b27eca12d5aebc98
+// golden-hash: 2305214cd8419c8f4e8752b407bca10a3b278c0c239c7f2d81441a2552c9a5ac

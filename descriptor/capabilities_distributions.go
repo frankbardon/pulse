@@ -122,5 +122,14 @@ func distributionCapabilities() []DistributionMeta {
 				{Name: "value", Type: "any", Required: true, Description: "Value to emit on every row (interpreted by field type)."},
 			},
 		},
+		{
+			Name:        synth.DistSetBernoulli,
+			Description: "Multi-select set_* bitmask: one independent Bernoulli(frequency) draw per declared option, or a joint-structure resample when the spec declares a matching set-categorical/set-numeric/set-set pair.",
+			AppliesTo:   []string{"set"},
+			Params: []Param{
+				{Name: "options", Type: "list", Required: true, Description: "Dictionary entries in bit order; also pre-registers the field's dictionary at schema-build time."},
+				{Name: "frequencies", Type: "list", Required: false, Default: 0.5, Description: "Per-option P(bit set); length must match options. Defaults to 0.5 per option when absent."},
+			},
+		},
 	}
 }

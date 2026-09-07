@@ -42,6 +42,14 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 		return encoding.FieldTypeCategoricalU32, true
 	case "decimal128":
 		return encoding.FieldTypeDecimal128, true
+	case "set_u8":
+		return encoding.FieldTypeSetU8, true
+	case "set_u16":
+		return encoding.FieldTypeSetU16, true
+	case "set_u32":
+		return encoding.FieldTypeSetU32, true
+	case "set_u64":
+		return encoding.FieldTypeSetU64, true
 	}
 	return 0, false
 }
@@ -101,6 +109,39 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		if ft.IsCategorical() {
 			field.Dictionary = encoding.NewDictionary()
 		}
+		if ft.IsSet() {
+			// set_* dictionaries are pre-populated HERE, once, in the
+			// field spec's own declared params.options order — never
+			// lazily via first-touch during row generation. A
+			// set_bernoulli sampler's row value is a map[string]bool
+			// (synth/distributions.go), and Go map iteration order is
+			// randomized per process; if bit IDs were assigned by
+			// first-encounter order while encoding that map,
+			// "same spec + same seed -> byte-identical output" (the
+			// Determinism contract, skills/synthetic-data.md) would
+			// break. Pre-registering in a fixed, spec-declared order
+			// means writeFieldValueForField only ever needs an ID
+			// LOOKUP against an already-complete dictionary, so the
+			// order in which map entries happen to be visited while
+			// building a row's mask can never affect the result.
+			options, ok, perr := paramStringSlice(fs.Name, fs.Params, "options")
+			if perr != nil {
+				return nil, nil, perr
+			}
+			if !ok || len(options) == 0 {
+				return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					fmt.Sprintf("field %q: set field requires non-empty params.options", fs.Name), nil)
+			}
+			dict := encoding.NewDictionary()
+			maxEntries := ft.MaxSetEntries()
+			for _, opt := range options {
+				if _, derr := dict.AddWithLimit(opt, maxEntries); derr != nil {
+					return nil, nil, errors.WrapCodedError(derr, errors.PULSE_IMPORT_SET_OVERFLOW,
+						fmt.Sprintf("field %q: registering set options", fs.Name))
+				}
+			}
+			field.Dictionary = dict
+		}
 		if ft.IsDecimal() {
 			prec := fs.Precision
 			scale := fs.Scale
@@ -156,9 +197,13 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	}
 	catPairSamplers := buildCategoricalPairSamplers(s.CategoricalPairs)
 	catNumPairSamplers := buildCategoricalNumericPairSamplers(s.CategoricalNumericPairs)
+	setCatPairSamplers := buildSetCategoricalPairSamplers(s.SetCategoricalPairs)
+	setNumPairSamplers := buildSetNumericPairSamplers(s.SetNumericPairs)
+	setSetPairSamplers := buildSetSetPairSamplers(s.SetSetPairs)
 
 	for rowsGenerated < s.RowCount {
-		if err := drawRow(rng, wfs, row, rowNullMask, corr, catPairSamplers, catNumPairSamplers); err != nil {
+		if err := drawRow(rng, wfs, row, rowNullMask, corr, catPairSamplers, catNumPairSamplers,
+			setCatPairSamplers, setNumPairSamplers, setSetPairSamplers); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
 		ok, evalErr := cons.evaluate(row)
@@ -194,13 +239,21 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 // then a fixed chain of conditional post-processing steps that each
 // overwrite an already-drawn field's value in place — categorical joint
 // structure (categorical-categorical, then categorical-numeric) applied
-// before the numeric-numeric correlator, so a numeric field's final
-// value reflects whichever categorical value it ends up conditioned on
-// before any requested Pearson correlation is layered on top. Each step
-// is a no-op (nil/empty slice) unless the profile that produced this Spec
-// actually captured that structure — see Spec.CategoricalPairs /
-// CategoricalNumericPairs / Correlations doc comments.
-func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask map[string]bool, corr *correlator, catPairs []*categoricalPairSampler, catNumPairs []*categoricalNumericPairSampler) error {
+// before set-field joint structure (set-set, then set-categorical, then
+// set-numeric), before the numeric-numeric correlator, so a numeric or
+// set field's final value reflects whichever categorical/set value it
+// ends up conditioned on before any requested Pearson correlation is
+// layered on top. set-set runs before set-categorical/set-numeric so a
+// set option's OWN state — potentially itself resampled from another
+// set field's option — is settled before it is used as the conditioning
+// input for a numeric resample. Each step is a no-op (nil/empty slice)
+// unless the profile that produced this Spec actually captured that
+// structure — see Spec.CategoricalPairs / CategoricalNumericPairs /
+// SetCategoricalPairs / SetNumericPairs / SetSetPairs / Correlations doc
+// comments.
+func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask map[string]bool, corr *correlator,
+	catPairs []*categoricalPairSampler, catNumPairs []*categoricalNumericPairSampler,
+	setCatPairs []*setCategoricalPairSampler, setNumPairs []*setNumericPairSampler, setSetPairs []*setSetPairSampler) error {
 	for k := range row {
 		delete(row, k)
 	}
@@ -219,6 +272,15 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	}
 	for _, cnp := range catNumPairs {
 		cnp.transform(rng, row)
+	}
+	for _, ssp := range setSetPairs {
+		ssp.transform(rng, row)
+	}
+	for _, scp := range setCatPairs {
+		scp.transform(rng, row)
+	}
+	for _, snp := range setNumPairs {
+		snp.transform(rng, row)
 	}
 	if corr != nil {
 		corr.transform(rng, row)
@@ -331,6 +393,51 @@ func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, 
 			return err
 		}
 		return encoding.WriteFieldValue(buf, ft, uint64(id))
+	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
+		if field.Dictionary == nil {
+			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+				fmt.Sprintf("field %q: set field missing dictionary", field.Name), nil)
+		}
+		var mask uint64
+		switch sel := val.(type) {
+		case map[string]bool:
+			// Iterate the dictionary's OWN fixed order (never a Go map
+			// range) so bit assignment cannot depend on map iteration
+			// randomization — see buildSchema's pre-registration
+			// comment for the full determinism rationale.
+			for _, opt := range field.Dictionary.Values() {
+				if !sel[opt] {
+					continue
+				}
+				id, ok := field.Dictionary.IDFor(opt)
+				if !ok {
+					continue
+				}
+				mask |= uint64(1) << id
+			}
+		case []string:
+			// The re-encode (AugmentFromProfile) path: a decoded row's
+			// currently-selected labels, already ordered by the source
+			// dictionary's own ascending bit order (see
+			// decodedFieldValue in augment.go). AddWithLimit is a no-op
+			// lookup for every label the merged dictionary was already
+			// pre-populated with at buildMergedSchema time.
+			for _, opt := range sel {
+				id, aerr := field.Dictionary.AddWithLimit(opt, ft.MaxSetEntries())
+				if aerr != nil {
+					return errors.WrapCodedError(aerr, errors.PULSE_IMPORT_SET_OVERFLOW,
+						fmt.Sprintf("field %q: encoding set value", field.Name))
+				}
+				mask |= uint64(1) << id
+			}
+		default:
+			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+				fmt.Sprintf("field %q: set value must be map[string]bool or []string", field.Name), nil)
+		}
+		return encoding.WriteFieldValue(buf, ft, mask)
 	case encoding.FieldTypeDecimal128:
 		if isNull {
 			return encoding.WriteDecimal128(buf, encoding.ZeroDecimal128())

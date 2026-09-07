@@ -1828,6 +1828,20 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 			Scale:       fp.Scale,
 		}
 		switch {
+		case fp.Set != nil:
+			// E5-S3: each dictionary entry's per-option marginal
+			// Bernoulli frequency (E5-S1) becomes one entry of the
+			// set_bernoulli sampler's parallel options/frequencies
+			// params — every option drawn independently unless a
+			// captured joint pair (below) overrides one option's draw.
+			options := make([]any, len(fp.Set.Options))
+			freqs := make([]any, len(fp.Set.Options))
+			for i, o := range fp.Set.Options {
+				options[i] = o.Value
+				freqs[i] = o.Frequency
+			}
+			fs.Distribution = DistSetBernoulli
+			fs.Params = map[string]any{"options": options, "frequencies": freqs}
 		case fp.Date != nil:
 			fs.Distribution = DistUniformDate
 			fs.Params = map[string]any{
@@ -1979,6 +1993,51 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 			s.CategoricalNumericPairs = append(s.CategoricalNumericPairs, CategoricalNumericPairSpec{
 				A: cnp.A, B: cnp.B, Categories: cats,
 				Min: num.Min, Max: num.Max, HasClamp: true,
+			})
+		}
+
+		// Set-option joint structure (E5-S3): the same "both sides must
+		// have reconstructed to the expected distribution kind" guard,
+		// with the set axis fixed to DistSetBernoulli.
+		for _, scp := range p.Conditional.SetCategoricalPairs {
+			if distOf[scp.Set] != DistSetBernoulli || distOf[scp.Categorical] != DistWeightedCategorical {
+				continue
+			}
+			cells := make([]CategoricalPairCellSpec, len(scp.Cells))
+			for i, c := range scp.Cells {
+				cells[i] = CategoricalPairCellSpec(c)
+			}
+			s.SetCategoricalPairs = append(s.SetCategoricalPairs, SetCategoricalPairSpec{
+				Set: scp.Set, Option: scp.Option, Categorical: scp.Categorical, Cells: cells,
+			})
+		}
+		for _, snp := range p.Conditional.SetNumericPairs {
+			if distOf[snp.Set] != DistSetBernoulli || distOf[snp.Numeric] != DistNormal {
+				continue
+			}
+			num, ok := numericMoments[snp.Numeric]
+			if !ok {
+				continue
+			}
+			cats := make([]CategoricalNumericCategorySpec, len(snp.Categories))
+			for i, c := range snp.Categories {
+				cats[i] = CategoricalNumericCategorySpec{Category: c.Category, Mean: c.Mean, Std: c.Std}
+			}
+			s.SetNumericPairs = append(s.SetNumericPairs, SetNumericPairSpec{
+				Set: snp.Set, Option: snp.Option, Numeric: snp.Numeric, Categories: cats,
+				Min: num.Min, Max: num.Max, HasClamp: true,
+			})
+		}
+		for _, ssp := range p.Conditional.SetSetPairs {
+			if distOf[ssp.SetA] != DistSetBernoulli || distOf[ssp.SetB] != DistSetBernoulli {
+				continue
+			}
+			cells := make([]CategoricalPairCellSpec, len(ssp.Cells))
+			for i, c := range ssp.Cells {
+				cells[i] = CategoricalPairCellSpec(c)
+			}
+			s.SetSetPairs = append(s.SetSetPairs, SetSetPairSpec{
+				SetA: ssp.SetA, OptionA: ssp.OptionA, SetB: ssp.SetB, OptionB: ssp.OptionB, Cells: cells,
 			})
 		}
 	}

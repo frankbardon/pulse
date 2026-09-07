@@ -52,6 +52,78 @@ type Spec struct {
 	// absent (nil) reproduces today's independent-marginal behavior
 	// exactly.
 	CategoricalNumericPairs []CategoricalNumericPairSpec `json:"categorical_numeric_pairs,omitempty"`
+
+	// SetCategoricalPairs lists optional set-option x categorical joint
+	// structure to reproduce during generation (E5-S3): for each pair,
+	// the set field's declared Option (bit) is resampled from
+	// Bernoulli(P(selected | categorical field's drawn value)) using the
+	// captured contingency cells, instead of the option's own
+	// independent marginal frequency. Populated by SpecFromProfile from
+	// ConditionalProfile.SetCategoricalPairs when present; absent (nil)
+	// reproduces the independent per-option marginal behavior exactly.
+	SetCategoricalPairs []SetCategoricalPairSpec `json:"set_categorical_pairs,omitempty"`
+
+	// SetNumericPairs lists optional set-option x numeric joint
+	// structure to reproduce during generation (E5-S3): for each pair,
+	// numeric field B is resampled from Normal(mean, std) conditioned on
+	// whether the set field's declared Option (bit) was independently
+	// drawn selected, using the captured per-bucket conditional
+	// mean/std. Populated by SpecFromProfile from
+	// ConditionalProfile.SetNumericPairs when present; absent (nil)
+	// reproduces today's independent-marginal behavior exactly.
+	SetNumericPairs []SetNumericPairSpec `json:"set_numeric_pairs,omitempty"`
+
+	// SetSetPairs lists optional option x option joint structure between
+	// two DIFFERENT set_* fields to reproduce during generation (E5-S3):
+	// for each pair, set B's declared OptionB (bit) is resampled from
+	// Bernoulli(P(selected | set A's OptionA drawn state)) using the
+	// captured 2x2 contingency cells. Populated by SpecFromProfile from
+	// ConditionalProfile.SetSetPairs when present; absent (nil)
+	// reproduces the independent per-option marginal behavior exactly.
+	SetSetPairs []SetSetPairSpec `json:"set_set_pairs,omitempty"`
+}
+
+// SetCategoricalPairSpec is one set-option x categorical pair's
+// generation-time reconstruction input — the Spec-facing counterpart of
+// SetCategoricalPairProfile. Cells reuse CategoricalPairCellSpec
+// verbatim: AValue is always "selected"/"not_selected" (the set
+// option's own fixed two-value domain), BValue is the categorical
+// field's observed value.
+type SetCategoricalPairSpec struct {
+	Set         string                    `json:"set"`
+	Option      string                    `json:"option"`
+	Categorical string                    `json:"categorical"`
+	Cells       []CategoricalPairCellSpec `json:"cells"`
+}
+
+// SetNumericPairSpec is one set-option x numeric pair's generation-time
+// reconstruction input — the Spec-facing counterpart of
+// SetNumericPairProfile. Categories carries at most two entries keyed
+// "selected" / "not_selected", reusing CategoricalNumericCategorySpec
+// verbatim. Min/Max/HasClamp mirror CategoricalNumericPairSpec: the
+// numeric field's own observed range, applied identically regardless of
+// which bucket the conditional draw lands in.
+type SetNumericPairSpec struct {
+	Set        string                           `json:"set"`
+	Option     string                           `json:"option"`
+	Numeric    string                           `json:"numeric"`
+	Categories []CategoricalNumericCategorySpec `json:"categories"`
+	Min        float64                          `json:"min,omitempty"`
+	Max        float64                          `json:"max,omitempty"`
+	HasClamp   bool                             `json:"has_clamp,omitempty"`
+}
+
+// SetSetPairSpec is one option x option pair's generation-time
+// reconstruction input between two DIFFERENT set_* fields — the
+// Spec-facing counterpart of SetSetPairProfile. Cells reuse
+// CategoricalPairCellSpec verbatim: AValue is SetA's OptionA state
+// ("selected"/"not_selected"), BValue is SetB's OptionB state.
+type SetSetPairSpec struct {
+	SetA    string                    `json:"set_a"`
+	OptionA string                    `json:"option_a"`
+	SetB    string                    `json:"set_b"`
+	OptionB string                    `json:"option_b"`
+	Cells   []CategoricalPairCellSpec `json:"cells"`
 }
 
 // CategoricalPairSpec is one categorical-categorical pair's generation-time
@@ -80,8 +152,8 @@ type CategoricalPairCellSpec struct {
 // unconditional `normal` reconstruction already does; N is capture-time
 // provenance and is not needed here).
 type CategoricalNumericPairSpec struct {
-	A          string                            `json:"a"`
-	B          string                            `json:"b"`
+	A          string                           `json:"a"`
+	B          string                           `json:"b"`
 	Categories []CategoricalNumericCategorySpec `json:"categories"`
 	// Min/Max clamp the conditional draw exactly as field B's own
 	// unconditional normal reconstruction clamps to its observed range
@@ -279,6 +351,46 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"categorical-numeric pair must declare at least one category",
 				map[string]any{"a": cnp.A, "b": cnp.B})
+		}
+	}
+	for _, scp := range s.SetCategoricalPairs {
+		if !seen[scp.Set] || !seen[scp.Categorical] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"set-categorical pair references unknown field",
+				map[string]any{"set": scp.Set, "categorical": scp.Categorical})
+		}
+		if len(scp.Cells) == 0 {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"set-categorical pair must declare at least one cell",
+				map[string]any{"set": scp.Set, "categorical": scp.Categorical})
+		}
+	}
+	for _, snp := range s.SetNumericPairs {
+		if !seen[snp.Set] || !seen[snp.Numeric] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"set-numeric pair references unknown field",
+				map[string]any{"set": snp.Set, "numeric": snp.Numeric})
+		}
+		if len(snp.Categories) == 0 {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"set-numeric pair must declare at least one category",
+				map[string]any{"set": snp.Set, "numeric": snp.Numeric})
+		}
+	}
+	for _, ssp := range s.SetSetPairs {
+		if ssp.SetA == ssp.SetB {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"set-set pair set_a and set_b must differ", map[string]any{"set_a": ssp.SetA})
+		}
+		if !seen[ssp.SetA] || !seen[ssp.SetB] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"set-set pair references unknown field",
+				map[string]any{"set_a": ssp.SetA, "set_b": ssp.SetB})
+		}
+		if len(ssp.Cells) == 0 {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"set-set pair must declare at least one cell",
+				map[string]any{"set_a": ssp.SetA, "set_b": ssp.SetB})
 		}
 	}
 	if s.MaxRejectionRate < 0 || s.MaxRejectionRate >= 1 {

@@ -2,6 +2,7 @@ package synth
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -136,6 +137,23 @@ func samePath(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
+// stringSlicesEqual reports whether a and b hold the same strings in the
+// same order — used by buildMergedSchema to confirm a set_* field's
+// profile-derived and source dictionaries name the identical option
+// universe in the identical bit order before trusting either side's
+// bitmasks against the other.
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // buildMergedSchema lays out the combined output schema: every field of
 // src, in order, followed by the appended _synthetic packed_bool field.
 // gen (the schema buildSchema produced from the profile-derived spec)
@@ -178,6 +196,19 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 					"source_precision": sf.Precision, "source_scale": sf.Scale,
 					"profile_precision": gf.Precision, "profile_scale": gf.Scale})
 		}
+		if sf.Type.IsSet() {
+			// Both sides' dictionaries must name the exact same option
+			// universe, in the exact same bit order — the merged
+			// dictionary below is pre-populated from src's order alone,
+			// so a mismatch here would silently misinterpret one side's
+			// bits as the other's rather than refusing loudly.
+			if sf.Dictionary == nil || gf.Dictionary == nil ||
+				!stringSlicesEqual(sf.Dictionary.Values(), gf.Dictionary.Values()) {
+				return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH,
+					"profile-derived set field dictionary does not match source cohort field",
+					map[string]any{"name": sf.Name})
+			}
+		}
 
 		f := encoding.Field{
 			Name:         sf.Name,
@@ -188,7 +219,23 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 			Precision:    sf.Precision,
 			Scale:        sf.Scale,
 		}
-		if sf.Type.HasDictionary() {
+		if sf.Type.IsSet() {
+			// Pre-populate from src's own dictionary order (validated
+			// identical to gf's above) rather than an empty
+			// NewDictionary() — writeFieldValueForField's set case
+			// looks IDs up rather than assigning them by encounter
+			// order, exactly as the plain generation path pre-registers
+			// from Spec params.options (see buildSchema).
+			dict := encoding.NewDictionary()
+			maxEntries := sf.Type.MaxSetEntries()
+			for _, opt := range sf.Dictionary.Values() {
+				if _, derr := dict.AddWithLimit(opt, maxEntries); derr != nil {
+					return nil, errors.WrapCodedError(derr, errors.PULSE_IMPORT_SET_OVERFLOW,
+						fmt.Sprintf("field %q: registering merged set options", sf.Name))
+				}
+			}
+			f.Dictionary = dict
+		} else if sf.Type.HasDictionary() {
 			f.Dictionary = encoding.NewDictionary()
 		}
 		f.ByteOffset, f.BitPosition = nextFieldLayout(sf.Type, &byteOffset, &bitCursor)
@@ -261,8 +308,9 @@ func reencodeRecords(r io.Reader, from, to *encoding.Schema, synthetic bool, out
 // decodedFieldValue converts one field's decoded (values/nulls/wide)
 // entry back into the same value shape writeFieldValueForField's sampler
 // path already accepts (float64 for numeric/date, string for
-// categorical, encoding.Decimal128 for decimal128) — so re-encoding a
-// real row reuses exactly the same encode switch as generation.
+// categorical, encoding.Decimal128 for decimal128, []string for set_*)
+// — so re-encoding a real row reuses exactly the same encode switch as
+// generation.
 func decodedFieldValue(f *encoding.Field, values map[string]float64, nulls map[string]bool, wide map[string]any) (val any, isNull bool) {
 	if nulls[f.Name] {
 		return nil, true
@@ -274,6 +322,25 @@ func decodedFieldValue(f *encoding.Field, values map[string]float64, nulls map[s
 			name = f.Dictionary.Resolve(uint32(values[f.Name]))
 		}
 		return name, false
+	case f.Type.IsSet():
+		// wide[f.Name] carries the raw uint64 bitmask
+		// (encoding.decodeSetMask via RecordReader.ReadRecordWithWide).
+		// Resolved to the SELECTED labels only, walked in ascending bit
+		// order off f.Dictionary.Values() — a deterministic slice, so
+		// this never depends on Go map iteration order the way a
+		// map[string]bool built here would. writeFieldValueForField's
+		// []string arm re-adds each label to the merged (pre-populated)
+		// dictionary via a no-op AddWithLimit lookup.
+		mask, _ := wide[f.Name].(uint64)
+		var selected []string
+		if f.Dictionary != nil {
+			for i, opt := range f.Dictionary.Values() {
+				if mask&(uint64(1)<<uint(i)) != 0 {
+					selected = append(selected, opt)
+				}
+			}
+		}
+		return selected, false
 	case f.Type == encoding.FieldTypeDecimal128:
 		if d, ok := wide[f.Name].(encoding.Decimal128); ok {
 			return d, false
