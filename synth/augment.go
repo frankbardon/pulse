@@ -115,6 +115,12 @@ func AugmentFromProfile(fs afero.Fs, spec *Spec, sourcePath, output string, opts
 		return nil, errors.WrapCodedError(err, errors.CLI_OUTPUT, "writing synth output")
 	}
 
+	// The fidelity report itself (Options.FidelityReportPath) is built
+	// by the pulse facade, not here: it drives TEST_KS/TEST_CHISQ via
+	// processing.NewProcessor, and this package cannot import
+	// processing without an import cycle (descriptor imports synth for
+	// the distribution registry; processing's own test files import
+	// descriptor). See synth_fidelity.go at the module root.
 	return &Result{
 		RowsGenerated: rowsGenerated,
 		RowsRejected:  rowsRejected,

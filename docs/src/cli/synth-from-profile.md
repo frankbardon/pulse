@@ -17,7 +17,7 @@ from the source; only summary statistics drive generation.
 
 ```
 pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
-                         [--seed N] [--json]
+                         [--seed N] [--fidelity-report FILE] [--json]
 ```
 
 ## Flags
@@ -29,6 +29,7 @@ pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
 | `--output`  | `-o` | string | (required) | Output `.pulse` file path — must be a distinct path from `--source` |
 | `--rows`    |      | int    | (required) | Number of **new** rows to generate |
 | `--seed`    |      | int    | 0          | Deterministic RNG seed |
+| `--fidelity-report` | | string | (none) | Write a JSON fidelity report to this path after generation completes |
 | `--json`    |      | bool   | false      | Emit the standard envelope |
 
 `--rows` is required (unlike `from-schema`, which can pull it from
@@ -56,6 +57,46 @@ modification time are unchanged by a run.
 
 Same `(profile, source, seed, rows)` tuple → byte-identical output.
 Seeds are `int64`; default `0`.
+
+## Fidelity report
+
+`--fidelity-report <path.json>` writes a JSON document after
+generation completes, comparing the newly generated rows against the
+source cohort's rows inside the one tagged output. It reuses the
+existing statistical-test operators rather than new comparison math:
+every **numeric** field is compared with `TEST_KS` (`split_by:
+_synthetic`), and every **categorical** field with `TEST_CHISQ`
+(contingency against `_synthetic`). Fields of any other on-wire type
+(`date`, `datetime`, `packed_bool`, `u4`, `set_*`) are out of scope for
+this section today.
+
+Shape:
+
+```json
+{
+  "source_rows": 200,
+  "synthetic_rows": 500,
+  "fields": [
+    {"field": "score", "test": "TEST_KS", "result": {"type": "TEST_KS", "statistic": 0.04, "p_value": 0.87, "alpha": 0.05, "reject_null": false}},
+    {"field": "country", "test": "TEST_CHISQ", "result": {"type": "TEST_CHISQ", "statistic": 1.2, "df": 2, "p_value": 0.55, "alpha": 0.05, "reject_null": false}}
+  ]
+}
+```
+
+A field whose test could not run (e.g. a categorical column with only
+one distinct value in one partition) gets `"error"` instead of
+`"result"` — that single field's failure never blocks the report for
+every other field, nor the generated cohort itself.
+
+The `fields` section is the whole report today. A later epic adds a
+`pairwise` key for conditional-structure deltas; it is entirely absent
+from the JSON until that lands, not an empty placeholder — check for
+its presence rather than assuming a fixed shape. Omitting
+`--fidelity-report` writes no report at all and changes no other
+behavior. The flag only has an effect on the tagged top-up path
+(`--source` set); it is a no-op on plain `synth from-schema` (see
+[`pulse synth from-schema`](synth-from-schema.md)), which has no
+`_synthetic` partition to compare against.
 
 ## Profile shape
 
@@ -102,6 +143,9 @@ pulse profile create --input sales.pulse --output sales.profile.json
 # Top up with different seeds — sales.pulse is read but never written
 pulse synth from-profile --profile sales.profile.json --source sales.pulse --output sales.s42.pulse --rows 10000 --seed 42
 pulse synth from-profile --profile sales.profile.json --source sales.pulse --output sales.s43.pulse --rows 10000 --seed 43
+
+# Also write a per-field marginal fidelity report
+pulse synth from-profile --profile sales.profile.json --source sales.pulse --output sales.s42.pulse --rows 10000 --seed 42 --fidelity-report sales.s42.fidelity.json
 ```
 
 ## Limitations

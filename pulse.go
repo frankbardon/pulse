@@ -1000,8 +1000,27 @@ func (p *Pulse) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includeF
 // and SourceCohort itself is never opened for write. Leaving
 // SourceCohort empty (the default) is unchanged plain synthesis, used by
 // `synth from-schema` and any caller that built the Spec directly.
+//
+// Setting opts.FidelityReportPath alongside opts.SourceCohort
+// additionally writes a JSON fidelity report after generation
+// completes: a per-field marginal comparison between the source and
+// generated partitions of output, driven through TEST_KS (numeric
+// fields) / TEST_CHISQ (categorical fields) against the tagged
+// _synthetic column rather than new comparison math. Ignored when
+// SourceCohort is empty — the plain synthesis path has no _synthetic
+// partition to compare against.
 func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
-	return synth.Synth(p.fsys, spec, output, opts)
+	res, err := synth.Synth(p.fsys, spec, output, opts)
+	if err != nil {
+		return nil, err
+	}
+	if opts.SourceCohort != "" && opts.FidelityReportPath != "" {
+		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath); err != nil {
+			return nil, err
+		}
+		res.FidelityReportPath = opts.FidelityReportPath
+	}
+	return res, nil
 }
 
 // Profile reads a .pulse file at path and returns a statistical summary

@@ -94,6 +94,7 @@ func synthFromProfileCmd() *cli.Command {
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path — must differ from --source", Required: true},
 			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
+			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -102,6 +103,7 @@ func synthFromProfileCmd() *cli.Command {
 			output := cmd.String("output")
 			rows := int(cmd.Int("rows"))
 			seed := cmd.Int("seed")
+			fidelityReport := cmd.String("fidelity-report")
 			jsonOut := cmd.Bool("json")
 
 			fs := afero.NewOsFs()
@@ -120,8 +122,9 @@ func synthFromProfileCmd() *cli.Command {
 				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
 			}
 			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{
-				Seed:         int64(seed),
-				SourceCohort: source,
+				Seed:               int64(seed),
+				SourceCohort:       source,
+				FidelityReportPath: fidelityReport,
 			})
 			if err != nil {
 				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())
@@ -131,6 +134,9 @@ func synthFromProfileCmd() *cli.Command {
 			}
 			writeText(cmd.Writer, "Generated %d rows -> %s (rejected %d)\n",
 				res.RowsGenerated, res.OutputPath, res.RowsRejected)
+			if res.FidelityReportPath != "" {
+				writeText(cmd.Writer, "Fidelity report -> %s\n", res.FidelityReportPath)
+			}
 			return nil
 		},
 	}

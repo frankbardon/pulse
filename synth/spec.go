@@ -77,6 +77,17 @@ type Options struct {
 	// today's behavior exactly — a plain synthesis with no tag column,
 	// used by synth from-schema and any caller building a Spec directly.
 	SourceCohort string
+
+	// FidelityReportPath activates the post-generation fidelity report
+	// (`synth from-profile --fidelity-report`) when non-empty: after
+	// generation completes, AugmentFromProfile drives TEST_KS (numeric
+	// fields, SplitBy=_synthetic) / TEST_CHISQ (categorical fields,
+	// contingency against _synthetic) against the tagged output cohort
+	// and writes the resulting FidelityReport JSON document to this
+	// path. Only meaningful alongside SourceCohort — the plain Synth
+	// path (SourceCohort empty) has no _synthetic partition to compare
+	// against and ignores this field entirely.
+	FidelityReportPath string
 }
 
 // Result is what the writer reports after a successful Synth call.
@@ -85,6 +96,11 @@ type Result struct {
 	RowsRejected  int      `json:"rows_rejected"`
 	OutputPath    string   `json:"output_path"`
 	Warnings      []string `json:"warnings,omitempty"`
+
+	// FidelityReportPath echoes Options.FidelityReportPath when a
+	// fidelity report was written alongside the output cohort. Empty
+	// when the flag was not set.
+	FidelityReportPath string `json:"fidelity_report_path,omitempty"`
 }
 
 // ParseSpec parses Spec JSON. Returns SERVICE_VALIDATION if shape is wrong.
