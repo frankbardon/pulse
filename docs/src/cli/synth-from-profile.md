@@ -104,7 +104,10 @@ The profile is a `synth.Profile` JSON object produced by
 `pulse profile create`. It carries per-field type, descriptive
 statistics, top-K categorical entries (default K = 32), optional
 pairwise correlations (when `--include-correlations` was passed at
-profile-creation time), and a row count.
+profile-creation time), an optional row-aligned `conditional` section
+(when `--conditional` was passed — preferred over the plain pairwise
+stats when both are present, since its `n` is the true co-occurrence
+count rather than an approximation), and a row count.
 
 See [`pulse profile create`](profile-create.md) for how to capture
 one, and `synth/` for the underlying Go types.
@@ -153,8 +156,12 @@ pulse synth from-profile --profile sales.profile.json --source sales.pulse --out
 - Categorical tails: anything past the captured top-K is replaced
   with a sentinel "other" bucket sized to its observed weight.
 - Correlations: pairwise only, and only between numeric fields. The
-  profile capture flag `--include-correlations` opts in; without it,
-  fields are generated independently.
+  profile capture flag `--include-correlations` (or the more accurate
+  `--conditional`) opts in; without either, fields are generated
+  independently. Reconstruction uses a conditional-Gaussian
+  construction (`synth/copula.go`) that exactly targets the captured
+  Pearson `rho` for jointly-normal fields — see
+  `skills/synthetic-data.md` for the technique and its trade-offs.
 - Decimal and geo fields: regenerated within the same type family
   but with synthetic value distributions; downstream uses that
   depend on exact field values (e.g. joinable identifiers) need

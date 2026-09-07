@@ -355,6 +355,14 @@ Stored parameterised JSON that renders into a **validated typed request**. `temp
 
 Env var: `PULSE_TEMPLATES_DIR` — see "Build / Env". Detail: `skills/request-templating.md` + `docs/src/library/request-templating.md`.
 
+## Synthetic data: conditional pair capture
+
+`pulse profile create --conditional` (`synth.ProfileOptions.IncludeConditional`) adds an additive `conditional` section to the profile JSON: for numeric-numeric field pairs, a row-aligned `{a, b, rho, n}` capture where `n` is the true co-occurrence count (both fields non-null on the same row) — more accurate than the plain `--include-correlations` `pairwise` stats, whose independently-capped per-field reservoirs can drift out of alignment once either field has nulls. `SpecFromProfile` prefers `conditional.numeric_pairs` over `pairwise` when both are present; its absence (including every profile document from before this flag existed) is unaffected — `SpecFromProfile` falls back to `pairwise` exactly as before, so no existing profile document is invalidated.
+
+**Thin-pair warning (generic mechanism).** A pair whose supporting observation count `n` falls below **`synth.MinPairObservations` (30)** is never refused — it still ships — but appends a warning to `Profile.Warnings` naming the pair. This mechanism (`thinPairWarning` in `synth/profile.go`) is deliberately generic across pair *kind*, not numeric-specific: later epics reuse the same threshold and helper for categorical and `set_*` pairs rather than inventing their own.
+
+**Correlation reconstruction.** `synth/copula.go` induces the requested correlation via a conditional-Gaussian construction (correlated standard-normal vector via Cholesky, then `value = mean + std*u` per field, clamped for `normal` fields with declared `min`/`max`) — exact for jointly-`normal` pairs, which is what `SpecFromProfile` always reconstructs for numeric fields. This replaces a removed v1 approximation that blended only ±5%·std of the correlated draw into the original value and shipped with no test asserting how much of the requested correlation actually survived. `TestSynth_CorrelationReconstructionWithinTolerance` (`synth/conditional_test.go`) is the build-failing gate on that fidelity now. Detail: `skills/synthetic-data.md` (Pairwise correlations, Profile mode).
+
 ## Skill Pack
 
 The pack under `skills/` is the LLM surface, embedded via `//go:embed *.md`. Two skill shapes — **atomic** (one file per registered surface) and **topical** (one file per cross-cutting design topic).

@@ -17,6 +17,7 @@ individual rows from the source.**
 pulse profile create --input PATH --output PATH
                      [--top-k N] [--include-stats]
                      [--include-correlations] [--correlation-top-k N]
+                     [--conditional]
                      [--sample-limit N] [--json]
 ```
 
@@ -30,6 +31,7 @@ pulse profile create --input PATH --output PATH
 | `--include-stats`        |      | bool   | true       | Include percentile / std stats |
 | `--include-correlations` |      | bool   | false      | Capture pairwise numeric correlations |
 | `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
+| `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`) for exact correlation reconstruction |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
 
@@ -46,10 +48,30 @@ pulse profile create --input PATH --output PATH
 
 - Individual rows.
 - The full categorical dictionary beyond `--top-k`.
-- Correlations unless `--include-correlations` is set.
+- Correlations unless `--include-correlations` or `--conditional` is set.
 
 This is by design — profiles are intended to be safe to share with
 parties who shouldn't see the underlying data.
+
+## `--conditional`: row-aligned pair reconstruction
+
+`--include-correlations` computes each numeric field's `Pairwise` entry
+from independently-capped per-field reservoirs; once any field carries
+nulls those reservoirs can drift out of row alignment, and the reported
+observation count is only an approximation of true co-occurrence.
+`--conditional` instead keeps a row-aligned joint snapshot (capped at
+10,000 rows) and writes a `conditional.numeric_pairs` section: each
+entry's `rho` and `n` are computed only from rows where BOTH fields were
+simultaneously non-null. `synth.SpecFromProfile` prefers
+`conditional.numeric_pairs` over `pairwise` when both are present, and
+`synth/copula.go`'s conditional-Gaussian construction (the mechanism
+that actually reconstructs the requested correlation, replacing the old
+approximate ±5%·std blend) consumes either shape identically. A pair
+whose `n` falls below **30** (`synth.MinPairObservations`) is still
+shipped — never refused — but appends a warning to `warnings` naming the
+pair. The section is entirely absent (not empty) when `--conditional`
+is not passed, and profiles captured before this flag existed remain
+valid `synth from-profile` input.
 
 ## Output
 

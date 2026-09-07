@@ -65,7 +65,7 @@ All 17 `.pulse` field types reachable. `decimal128` requires `params.scale` matc
 
 ### Pairwise correlations
 
-`correlations` is a list of `{a, b, rho}` triples; engine applies Gaussian-copula post-processing on the row stream. Both fields must be numeric. Correlations chain transitively only by accident — specify the pairs you care about. `|rho| ≥ 1` rejected at validation.
+`correlations` is a list of `{a, b, rho}` triples. The engine draws a correlated standard-normal vector via Cholesky, then sets each field to `mean + std*u` (clamped if `normal` with declared `min`/`max`); `mean`/`std` are closed-form for `normal`/`uniform`/`lognormal`/`exponential` only — any other distribution named in `correlations` refuses with `SERVICE_VALIDATION`. Exact for jointly-`normal` pairs (what `SpecFromProfile` always reconstructs); preserves mean/std but not skew for non-normal marginals. `|rho| ≥ 1` rejected at validation. Chosen over rank-based copula because schema-mode specs have no historical samples to rank against — replaces a removed v1 blend (±5%·std nudge, untested fidelity); see `TestSynth_CorrelationReconstructionWithinTolerance`.
 
 ## Profile mode
 
@@ -75,8 +75,9 @@ Capture via `pulse_profile_create`; synth via `pulse_synth_from_profile`. Profil
 - Categorical: top-K values + frequencies, cardinality, null-rate.
 - Date: observed range, weekday histogram, null-rate.
 - Pairwise: strongest `|rho|` correlations (capped by `--correlation-top-k`).
+- Conditional (`--conditional`, additive/omitempty): `conditional.numeric_pairs`, row-aligned `{a, b, rho, n}` where `n` is the true co-occurrence count (both non-null, same row) — more accurate than Pairwise's independently-capped reservoirs. `SpecFromProfile` prefers it over `pairwise` when present; absent (old or plain-`--include-correlations` documents) falls back unchanged. `n < 30` (`synth.MinPairObservations`) still ships, never refused — appends a warning naming the pair; the mechanism is generic across pair kind for later categorical/set_* reuse.
 
-`synth.SpecFromProfile` reconstructs a Spec: numeric → `normal` clamped to observed min/max, categorical → `weighted_categorical`, date → `uniform_date`. Captured correlations become Gaussian-copula post-processing. Unsupported types → `PULSE_PROFILE_FIELD_UNSUPPORTED`; drop to schema mode for those.
+`synth.SpecFromProfile` reconstructs a Spec: numeric → `normal` clamped to observed min/max, categorical → `weighted_categorical`, date → `uniform_date`. Captured correlations become the conditional-Gaussian reconstruction described above. Unsupported types → `PULSE_PROFILE_FIELD_UNSUPPORTED`; drop to schema mode for those.
 
 ### Tagged top-up contract
 
@@ -97,7 +98,8 @@ Seed splitting uses a 64-bit avalanche; seeds differing by 1 produce uncorrelate
 ## Gotchas
 
 - Constraints + `monotonic_from`: monotonic ignores RNG, so a rejected row still increments the counter.
-- Correlations + clamping: heavy-clamped `normal` distorts the copula target — `|rho|_actual < |rho|_requested`.
+- Correlations + clamping: heavy-clamped `normal` distorts the target — `|rho|_actual < |rho|_requested`.
+- Correlations + non-normal marginal: a schema-mode `lognormal`/`uniform`/`exponential` field named in `correlations` keeps its mean/std but loses its shape (pulled toward Gaussian) once correlated.
 - `weighted_categorical` weights normalize at sample time; absent weights default to uniform.
 - `uniform_date` is inclusive both ends.
 - `regex` is restricted: literal / charclass / fixed-repeat / alternation / bounded `*+{m,n}`. No backreferences.
