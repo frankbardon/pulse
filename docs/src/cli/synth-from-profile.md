@@ -132,7 +132,14 @@ pairwise correlations (when `--include-correlations` was passed at
 profile-creation time), an optional row-aligned `conditional` section
 (when `--conditional` was passed — preferred over the plain pairwise
 stats when both are present, since its `n` is the true co-occurrence
-count rather than an approximation), and a row count.
+count rather than an approximation), an optional per-numeric-field
+`shape` (when `--fit-shape` was passed AND that field's fit was a
+genuine improvement over normal — see
+[`pulse profile create`](profile-create.md)'s `--fit-shape` section),
+and a row count. A field carrying `shape` regenerates via the
+`mixture` distribution instead of `normal` — no separate flag here
+selects that; it is decided entirely by the profile document's own
+contents.
 
 See [`pulse profile create`](profile-create.md) for how to capture
 one, and `synth/` for the underlying Go types.
@@ -191,6 +198,11 @@ pulse synth from-profile --profile sales.profile.json --source sales.pulse --out
   but with synthetic value distributions; downstream uses that
   depend on exact field values (e.g. joinable identifiers) need
   the schema-driven path instead.
+- Shape fitting (`--fit-shape` at profile-creation time): fixed at
+  exactly 2 mixture components, no min/max clamp, and a field carrying
+  a captured `shape` does not participate in `--conditional`'s
+  categorical-numeric conditioning even when both were captured for it
+  — see `pulse profile create`'s `--fit-shape` section.
 
 ## Related
 

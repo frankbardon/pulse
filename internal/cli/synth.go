@@ -155,6 +155,7 @@ func profileCreateCmd() *cli.Command {
 			&cli.BoolFlag{Name: "include-correlations", Usage: "Capture pairwise numeric correlations"},
 			&cli.IntFlag{Name: "correlation-top-k", Usage: "Cap on retained correlation pairs", Value: 16},
 			&cli.BoolFlag{Name: "conditional", Usage: "Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse"},
+			&cli.BoolFlag{Name: "fit-shape", Usage: "Fit a 2-component Gaussian mixture per numeric field and keep it only when it's a genuine BIC improvement over the plain normal (see skills/synthetic-data.md); a near-normal field is left as normal"},
 			&cli.IntFlag{Name: "sample-limit", Usage: "Cap rows ingested for the profile (0 = unlimited)"},
 			&cli.BoolFlag{Name: "json", Usage: "Print envelope to stdout as well"},
 		},
@@ -166,6 +167,7 @@ func profileCreateCmd() *cli.Command {
 			includeCorrelations := cmd.Bool("include-correlations")
 			corrTopK := int(cmd.Int("correlation-top-k"))
 			conditional := cmd.Bool("conditional")
+			fitShape := cmd.Bool("fit-shape")
 			sampleLimit := int(cmd.Int("sample-limit"))
 			jsonOut := cmd.Bool("json")
 
@@ -179,6 +181,7 @@ func profileCreateCmd() *cli.Command {
 				IncludeCorrelations: includeCorrelations,
 				CorrelationTopK:     corrTopK,
 				IncludeConditional:  conditional,
+				FitShape:            fitShape,
 				SampleLimit:         sampleLimit,
 			})
 			if err != nil {

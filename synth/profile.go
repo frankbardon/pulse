@@ -106,6 +106,20 @@ type ProfileOptions struct {
 	// SampleLimit caps the number of records ingested for the profile.
 	// Zero = unlimited.
 	SampleLimit int
+	// FitShape enables shape-fitting for numeric fields
+	// (`profile create --fit-shape`, E4-S2): instead of always
+	// summarizing a numeric field as a single normal(mean, std),
+	// attempt a 2-component Gaussian mixture fit and keep it — as
+	// FieldProfile.Numeric.Shape — only when it is a genuine
+	// improvement over the plain normal by BIC (see fitNumericShape in
+	// shape.go for the full selection rule and its documented
+	// limitations). Off by default; a field whose fit is not kept (not
+	// enough data, or the source is already close to normal) carries no
+	// Shape, and SpecFromProfile reconstructs it exactly as it always
+	// has. Forces sample retention (as if IncludeStats were also set)
+	// for numeric fields so there is something to fit against, even
+	// when IncludeStats itself is false.
+	FitShape bool
 }
 
 // Profile is a serialization-friendly statistical summary of a cohort.
@@ -283,6 +297,28 @@ type NumericProfile struct {
 	// Percentiles holds {p1, p5, p25, p50, p75, p95, p99} when
 	// IncludeStats was on; nil otherwise.
 	Percentiles []float64 `json:"percentiles,omitempty"`
+	// Shape carries a fitted 2-component Gaussian mixture, captured
+	// only when ProfileOptions.FitShape was set AND the mixture is a
+	// genuine improvement over the plain Mean/Std normal above (BIC
+	// selection — see fitNumericShape in shape.go). Additive +
+	// omitempty: absent from every profile document captured without
+	// --fit-shape (including every pre-existing document), and absent
+	// for any numeric field whose observed distribution is already
+	// close to normal — SpecFromProfile falls back to the ordinary
+	// Mean/Std/Min/Max normal reconstruction whenever this is nil,
+	// exactly as it always has.
+	Shape *ShapeProfile `json:"shape,omitempty"`
+}
+
+// ShapeProfile is a fitted 2-component Gaussian mixture: parallel
+// means/stds/weights, directly usable as the "mixture" distribution's
+// (synth.DistMixture, E4-S1) own "means"/"stds"/"weights" params with
+// no translation needed at generation time. See fitNumericShape in
+// shape.go for how and when this gets populated.
+type ShapeProfile struct {
+	Means   []float64 `json:"means"`
+	Stds    []float64 `json:"stds"`
+	Weights []float64 `json:"weights"`
 }
 
 // CategoricalProfile holds the top-K observed values and the total
@@ -413,7 +449,11 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 		default:
 			numAccs[f.Name] = &numAcc{
 				min: math.Inf(1), max: math.Inf(-1),
-				reservoirOn: includeStats,
+				// FitShape needs the same reservoir sample the
+				// percentile computation below uses, even when
+				// IncludeStats itself is off — there is nothing to fit
+				// a shape against otherwise.
+				reservoirOn: includeStats || opts.FitShape,
 			}
 			if opts.IncludeConditional {
 				jointFieldNames = append(jointFieldNames, f.Name)
@@ -650,6 +690,9 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				if includeStats && len(na.samples) > 0 {
 					num.Percentiles = computePercentiles(na.samples,
 						[]float64{0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99})
+				}
+				if opts.FitShape && len(na.samples) > 0 {
+					num.Shape = fitNumericShape(na.samples, mean, num.Std)
 				}
 				fp.Numeric = num
 			}
@@ -1164,6 +1207,35 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 			}
 			fs.Distribution = DistWeightedCategorical
 			fs.Params = map[string]any{"values": vals, "weights": weights}
+		case fp.Numeric != nil && fp.Numeric.Shape != nil:
+			// Captured shape (--fit-shape, E4-S2) takes precedence over
+			// the plain normal reconstruction below — it exists
+			// precisely because BIC judged it a genuine improvement at
+			// capture time (fitNumericShape). Reuses DistMixture (E4-S1)
+			// verbatim: no new sampling logic, just the captured
+			// means/stds/weights handed straight through as its params.
+			// NOTE: DistMixture has no min/max clamp support (unlike
+			// DistNormal above), and a categorical-numeric conditional
+			// pair (Conditional.CategoricalNumericPairs) targeting this
+			// field will not wire up below — that wiring only fires
+			// when the reconstructed distribution is DistNormal, so a
+			// field that both shape-fits AND was profiled with
+			// --conditional silently keeps its independent shape-fitted
+			// marginal instead of the conditional one. Deliberate for
+			// v1: shape-fitting and categorical-numeric conditioning
+			// have not been asked to compose, and silently favoring the
+			// (arguably more informative) shape fit over dropping it is
+			// safer than crashing or reconciling the two by guesswork.
+			means := make([]any, len(fp.Numeric.Shape.Means))
+			stds := make([]any, len(fp.Numeric.Shape.Stds))
+			weights := make([]any, len(fp.Numeric.Shape.Weights))
+			for i := range fp.Numeric.Shape.Means {
+				means[i] = fp.Numeric.Shape.Means[i]
+				stds[i] = fp.Numeric.Shape.Stds[i]
+				weights[i] = fp.Numeric.Shape.Weights[i]
+			}
+			fs.Distribution = DistMixture
+			fs.Params = map[string]any{"means": means, "stds": stds, "weights": weights}
 		case fp.Numeric != nil:
 			fs.Distribution = DistNormal
 			fs.Params = map[string]any{
@@ -1194,11 +1266,26 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 	// applies identically either way, so this choice affects only
 	// which Rho/pair-set gets used, never how it is reconstructed.
 	typeOf := make(map[string]string, len(s.Fields))
+	distOf := make(map[string]string, len(s.Fields))
 	for _, fs := range s.Fields {
 		typeOf[fs.Name] = fs.Type
+		distOf[fs.Name] = fs.Distribution
 	}
 	addCorrelation := func(a, b string, rho float64) {
 		if !isNumericFieldType(typeOf[a]) || !isNumericFieldType(typeOf[b]) {
+			return
+		}
+		// synth/copula.go only knows a closed-form (mean, std) for
+		// normal/uniform/lognormal/exponential marginals — naming any
+		// other distribution in Correlations is a hard SERVICE_VALIDATION
+		// at generation time, not a silent drop. A --fit-shape field that
+		// reconstructed to DistMixture (E4-S2) is exactly such a case, so
+		// it is excluded here defensively rather than surfacing that
+		// refusal: shape-fitting and numeric-numeric correlation
+		// reconstruction have not been asked to compose, and dropping the
+		// correlation for that one pair is safer than a hard failure on
+		// the whole from-profile run.
+		if distOf[a] == DistMixture || distOf[b] == DistMixture {
 			return
 		}
 		s.Correlations = append(s.Correlations, CorrelationSpec{A: a, B: b, Correlation: rho})
@@ -1230,10 +1317,8 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 				numericMoments[fp.Name] = *fp.Numeric
 			}
 		}
-		distOf := make(map[string]string, len(s.Fields))
-		for _, fs := range s.Fields {
-			distOf[fs.Name] = fs.Distribution
-		}
+		// distOf was already built above (numeric-numeric correlation
+		// wiring) — reused here rather than rebuilt.
 		for _, cp := range p.Conditional.CategoricalPairs {
 			if distOf[cp.A] != DistWeightedCategorical || distOf[cp.B] != DistWeightedCategorical {
 				continue

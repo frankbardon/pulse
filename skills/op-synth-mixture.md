@@ -36,7 +36,7 @@ Per-row `float64` sample from the selected component's Gaussian. No `min`/`max` 
 - Fewer than 2 `means` → `SERVICE_VALIDATION` (use `normal` for one component).
 - `stds`/`weights` length mismatch with `means` → `SERVICE_VALIDATION`.
 - Any `std <= 0`, or negative/all-zero `weights` → `SERVICE_VALIDATION`.
-- v1 component count is a schema-mode declaration only — no automatic component-count fitting from a captured profile yet.
+- `profile create --fit-shape` (E4-S2) fits and emits `mixture` automatically from a captured cohort, but fixed at 2 components via BIC-vs-normal selection (`synth/shape.go`) — no sweep over component count. Hand-written specs remain the only way to declare 3+ components.
 - Not one of the closed-form marginals `correlations` supports (`normal`/`uniform`/`lognormal`/`exponential`) — naming `mixture` there refuses with `SERVICE_VALIDATION`.
 
 ## See

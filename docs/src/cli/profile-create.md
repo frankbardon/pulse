@@ -17,7 +17,7 @@ individual rows from the source.**
 pulse profile create --input PATH --output PATH
                      [--top-k N] [--include-stats]
                      [--include-correlations] [--correlation-top-k N]
-                     [--conditional]
+                     [--conditional] [--fit-shape]
                      [--sample-limit N] [--json]
 ```
 
@@ -32,6 +32,7 @@ pulse profile create --input PATH --output PATH
 | `--include-correlations` |      | bool   | false      | Capture pairwise numeric correlations |
 | `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
 | `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`) plus categorical-categorical contingency tables (`conditional.categorical_pairs`) for exact reconstruction |
+| `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
 
@@ -98,6 +99,44 @@ raw cardinality exceeds it. A cell whose count falls below **30**
 the same thin-pair warning numeric pairs use, to `warnings`. This story
 only captures the contingency table; `synth from-profile` does not yet
 sample from it (a later addition).
+
+## `--fit-shape`: mixture-of-normals shape fitting for numeric fields
+
+By default every numeric field is summarized as a single normal
+(`mean`, `std`, `min`, `max`) regardless of its actual shape — a
+strongly bimodal or skewed source distribution collapses to that one
+bell curve. `--fit-shape` attempts, for every numeric field, a
+2-component Gaussian mixture fit (reusing the `mixture` distribution
+registered by `synth.DistMixture`) and keeps it — written as
+`numeric.shape: {means, stds, weights}` — only when it is a genuine
+improvement over the plain normal, decided by comparing **BIC**
+(Bayesian Information Criterion) between the two models: a 2-component
+mixture can always fit the training sample at least as well as a single
+normal in raw likelihood terms, so BIC's extra-parameter penalty
+(`3*log(n)` more free parameters) is what keeps a field that is already
+close to normal from being force-fit into a needlessly complex shape. A
+second guard rejects a fit whose two components are not meaningfully
+separated (at least 0.75 combined-std apart) even when BIC alone would
+accept it, since GMM likelihood surfaces have spurious local optima
+near the single-component case.
+
+`numeric.shape` is additive and `omitempty`: absent from every profile
+document captured without `--fit-shape`, and absent for any individual
+numeric field whose fit was not kept — `synth.SpecFromProfile` falls
+back to the ordinary normal reconstruction for that field either way.
+No new flag is needed at `synth from-profile` time — whether a field
+regenerates from `normal` or `mixture` is decided entirely by whether
+the profile document carries a captured shape for it.
+
+Limitations (see `synth/shape.go` for the full algorithm and its
+documented trade-offs): fixed at exactly 2 components (no component-
+count search); a single deterministic EM run per field, not
+multi-start, so a genuinely trimodal source fits a 2-component
+approximation rather than an optimal one. A field's captured shape
+takes priority over `--conditional`'s categorical-numeric conditional
+structure for that same field — the two have not been asked to compose,
+and the (usually more informative) shape fit silently wins rather than
+either crashing or being reconciled by guesswork.
 
 ## Output
 
