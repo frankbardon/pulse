@@ -273,7 +273,8 @@ type condCatNumAcc struct {
 }
 
 // FieldProfile holds per-field summary statistics. Exactly one of
-// Numeric, Categorical, or Date is populated based on the field's type.
+// Numeric, Categorical, Date, or Set is populated based on the field's
+// type.
 type FieldProfile struct {
 	Name        string              `json:"name"`
 	Type        string              `json:"type"`
@@ -282,6 +283,11 @@ type FieldProfile struct {
 	Numeric     *NumericProfile     `json:"numeric,omitempty"`
 	Categorical *CategoricalProfile `json:"categorical,omitempty"`
 	Date        *DateProfile        `json:"date,omitempty"`
+	// Set carries per-option marginal selection-frequency stats for a
+	// set_* (multi-select bitmask) field (E5-S1). Populated instead of
+	// Numeric/Categorical/Date — exactly one of the four is non-nil per
+	// field, based on the field's schema type.
+	Set *SetProfile `json:"set,omitempty"`
 	// Precision/Scale carry decimal128 metadata so synth-from-profile can
 	// reconstruct the original field shape.
 	Precision uint8 `json:"precision,omitempty"`
@@ -349,6 +355,47 @@ type CorrelationStat struct {
 	Rho float64 `json:"rho"`
 }
 
+// SetProfile holds per-option (marginal) selection-frequency statistics
+// for a set_* (multi-select bitmask) field. E5-S1's design decision:
+// each dictionary entry (bit position) is profiled as an independent
+// Bernoulli-selected sub-field — Frequency is P(bit i set | field
+// non-null) — matching "select all that apply" semantics, where each
+// option genuinely is its own independent yes/no question a respondent
+// answers. This is deliberately NOT "whole mask as one categorical"
+// (which would treat every distinct combination as an arbitrary,
+// combinatorially exploding category) nor "N fully independent binaries
+// with no shared identity" (which would drop the fact that every option
+// rides one bounded, shared dictionary — the same per-option addressing
+// E5-S2's joint/conditional capture reuses). Full rationale:
+// skills/synthetic-data.md ("Set (multi-select) field profiling").
+//
+// This section is marginal-only: joint/conditional structure between
+// options, or between a set_* field and another field, is E5-S2's job.
+type SetProfile struct {
+	// N is the number of non-null rows Options' frequencies are computed
+	// over — the same denominator FieldProfile.NullRate already implies,
+	// surfaced here so a caller reading only the Set block can interpret
+	// Count as a rate without cross-referencing NullRate.
+	N int `json:"n"`
+	// Options lists EVERY dictionary entry in bit/dictionary order (bit i
+	// first) — NOT sorted by frequency like CategoricalProfile.Top — so
+	// two profiles of the same schema are directly comparable
+	// position-for-position regardless of which option happens to be
+	// more popular.
+	Options []SetOptionStat `json:"options"`
+}
+
+// SetOptionStat is one dictionary entry (bit position)'s observed
+// marginal selection frequency within a set_* field's non-null rows.
+type SetOptionStat struct {
+	Value string `json:"value"`
+	// Count is the number of non-null rows with this option's bit set.
+	Count int `json:"count"`
+	// Frequency is Count / SetProfile.N — P(bit set), the per-option
+	// marginal Bernoulli rate.
+	Frequency float64 `json:"frequency"`
+}
+
 // internal accumulators used by profileRecords. Lifted to package scope
 // so computeCorrelations can take them by name.
 type numAcc struct {
@@ -370,6 +417,17 @@ type dateAcc struct {
 	minDays  int64
 	maxDays  int64
 	weekdays [7]int
+}
+
+// setAcc accumulates a set_* field's per-option (bit-position) selection
+// counts. selected[i] counts non-null rows with bit i set; its length is
+// the field's dictionary size (capped at the type's MaxSetEntries), the
+// same bit-index-to-dictionary-entry mapping resolveSetLabels-style
+// helpers elsewhere in the codebase use.
+type setAcc struct {
+	count    int
+	nulls    int
+	selected []int
 }
 
 // ProfileBytes summarizes a .pulse file given its raw bytes.
@@ -415,6 +473,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	numAccs := make(map[string]*numAcc)
 	catAccs := make(map[string]*catAcc)
 	dateAccs := make(map[string]*dateAcc)
+	setAccs := make(map[string]*setAcc)
 	warnings := []string{}
 
 	// jointFieldNames, jointRows and jointNulls back
@@ -446,6 +505,21 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			if opts.IncludeConditional {
 				jointCatFieldNames = append(jointCatFieldNames, f.Name)
 			}
+		case f.Type.IsSet():
+			// A set_* field is NOT categorical (encoding.FieldType.IsSet()
+			// and IsCategorical() are separate, non-overlapping checks) and
+			// must never fall into the numeric default branch below — its
+			// on-wire value is a bitmask, not a scalar, and averaging raw
+			// masks as floats produces a nonsense mean/std silently. See
+			// setAcc and the marginal build-out below.
+			n := 0
+			if f.Dictionary != nil {
+				n = f.Dictionary.Count()
+			}
+			if max := int(f.Type.MaxSetEntries()); n > max {
+				n = max
+			}
+			setAccs[f.Name] = &setAcc{selected: make([]int, n)}
 		default:
 			numAccs[f.Name] = &numAcc{
 				min: math.Inf(1), max: math.Inf(-1),
@@ -553,6 +627,27 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 					}
 				} else if needCatRow {
 					catRowNulls[f.Name] = true
+				}
+			case f.Type.IsSet():
+				sa := setAccs[f.Name]
+				if sa == nil {
+					continue
+				}
+				if isNull {
+					sa.nulls++
+					continue
+				}
+				sa.count++
+				// wide[f.Name] carries the exact uint64 mask (see
+				// encoding.RecordReader.readRecord) — required for
+				// set_u64, whose bits can exceed float64's 2^53 exact-
+				// integer range; values[f.Name]'s float64 echo is not
+				// used here for that reason.
+				mask, _ := wide[f.Name].(uint64)
+				for i := range sa.selected {
+					if mask&(uint64(1)<<uint(i)) != 0 {
+						sa.selected[i]++
+					}
 				}
 			default:
 				na := numAccs[f.Name]
@@ -662,6 +757,30 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 					Cardinality: len(ca.hist),
 					Top:         topNCategorical(ca.hist, opts.TopK),
 				}
+			}
+		case f.Type.IsSet():
+			sa := setAccs[f.Name]
+			if sa == nil {
+				break
+			}
+			total := sa.count + sa.nulls
+			if total > 0 {
+				fp.NullRate = float64(sa.nulls) / float64(total)
+			}
+			if sa.count > 0 && f.Dictionary != nil {
+				setOpts := make([]SetOptionStat, 0, len(sa.selected))
+				for i, c := range sa.selected {
+					label := f.Dictionary.Resolve(uint32(i))
+					if label == "" {
+						continue
+					}
+					setOpts = append(setOpts, SetOptionStat{
+						Value:     label,
+						Count:     c,
+						Frequency: float64(c) / float64(sa.count),
+					})
+				}
+				fp.Set = &SetProfile{N: sa.count, Options: setOpts}
 			}
 		default:
 			na := numAccs[f.Name]
