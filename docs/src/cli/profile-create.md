@@ -31,7 +31,7 @@ pulse profile create --input PATH --output PATH
 | `--include-stats`        |      | bool   | true       | Include percentile / std stats |
 | `--include-correlations` |      | bool   | false      | Capture pairwise numeric correlations |
 | `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
-| `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`) plus categorical-categorical contingency tables (`conditional.categorical_pairs`) for exact reconstruction |
+| `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`), categorical-categorical contingency tables (`conditional.categorical_pairs`), categorical-numeric conditional means (`conditional.categorical_numeric_pairs`), and — per option of any `set_*` field — the same three pair kinds against categorical/numeric/other-set fields (`conditional.set_categorical_pairs`, `conditional.set_numeric_pairs`, `conditional.set_set_pairs`) |
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
@@ -99,6 +99,41 @@ raw cardinality exceeds it. A cell whose count falls below **30**
 the same thin-pair warning numeric pairs use, to `warnings`. This story
 only captures the contingency table; `synth from-profile` does not yet
 sample from it (a later addition).
+
+## `--conditional`: set_* pair capture (set-categorical / set-numeric / set-set)
+
+Every `set_*` field is profiled marginally as N independent Bernoulli
+sub-fields, one per dictionary option (bit position) — see
+`skills/synthetic-data.md` ("Set (multi-select) field profiling").
+`--conditional` extends the pair-reconstruction sections above to any
+pair involving a `set_*` field by running the SAME machinery once PER
+OPTION rather than once per field:
+
+- `conditional.set_categorical_pairs`: one `{set, option, categorical,
+  cells, n}` entry per (option, categorical field) combination — `cells`
+  is the same `{a_value, b_value, count}` shape as
+  `conditional.categorical_pairs`, with `a_value` always
+  `"selected"`/`"not_selected"` and `b_value` the categorical field's
+  value (subject to that field's own `--top-k` collapse). The same
+  `ContingencyCellCap` (128) bounds each option's cell table.
+- `conditional.set_numeric_pairs`: one `{set, option, numeric,
+  categories, n}` entry per (option, numeric field) combination —
+  `categories` holds the numeric field's conditional mean/std for
+  `"selected"` and `"not_selected"` rows, the same shape
+  `conditional.categorical_numeric_pairs` uses per category.
+- `conditional.set_set_pairs`: one `{set_a, option_a, set_b, option_b,
+  cells, n}` entry per option pair between two DIFFERENT `set_*`
+  fields — a bounded 2x2 contingency table. Never captured between two
+  options of the same field.
+
+Cardinality stays bounded without a new, separate cap: a set field's
+option count is capped by its own type (8/16/32/64 for
+`set_u8`/`u16`/`u32`/`u64`), and `ContingencyCellCap` still bounds every
+individual cell table exactly as it does for two plain categorical
+fields. Thin combinations (`n` below `synth.MinPairObservations`, 30)
+still ship — never dropped — appending the same warning shape every
+other pair kind uses. `synth from-profile` does not yet sample from any
+of these three sections — a later addition.
 
 ## `--fit-shape`: mixture-of-normals shape fitting for numeric fields
 

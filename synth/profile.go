@@ -143,10 +143,16 @@ type Profile struct {
 // ConditionalProfile carries the joint reconstruction structure
 // `profile create --conditional` captures beyond independent per-field
 // marginals. E2-S1 covers numeric-numeric pairs; E3-S1 adds
-// categorical-categorical pairs; this story (E3-S2) adds
-// categorical-numeric pairs — all to the same struct rather than a new
-// top-level section, so the same nil-check keeps gating all of them.
-// set_* pairs are a later-epic addition on this same struct.
+// categorical-categorical pairs; E3-S2 adds categorical-numeric pairs
+// — all to the same struct rather than a new top-level section, so the
+// same nil-check keeps gating all of them. E5-S2 extends this to pairs
+// involving a set_* field: SetCategoricalPairs, SetNumericPairs and
+// SetSetPairs, one entry PER OPTION (bit position) rather than per
+// field — E5-S1's design decision that each dictionary entry is its
+// own independent Bernoulli sub-field composes directly with E3's
+// pairwise machinery by running it once per option, reusing
+// ContingencyCell / ContingencyCellCap / condCatNumAcc verbatim rather
+// than inventing a parallel mechanism for set_* fields.
 type ConditionalProfile struct {
 	// NumericPairs lists the numeric-numeric pairs captured: the
 	// row-aligned Pearson correlation and the count of rows where both
@@ -171,6 +177,22 @@ type ConditionalProfile struct {
 	// because a conditional numeric summary is one row per already-capped
 	// category rather than a joint cell per pair of categories.
 	CategoricalNumericPairs []CategoricalNumericPairProfile `json:"categorical_numeric_pairs,omitempty"`
+	// SetCategoricalPairs lists the set-option x categorical pairs
+	// captured (E5-S2): one bounded contingency table per (set field,
+	// option, categorical field) combination, the set-option axis fixed
+	// to the two-value {"selected","not_selected"} Bernoulli domain. See
+	// SetCategoricalPairProfile.
+	SetCategoricalPairs []SetCategoricalPairProfile `json:"set_categorical_pairs,omitempty"`
+	// SetNumericPairs lists the set-option x numeric pairs captured
+	// (E5-S2): one conditional mean/std pair (selected vs. not_selected)
+	// per (set field, option, numeric field) combination. See
+	// SetNumericPairProfile.
+	SetNumericPairs []SetNumericPairProfile `json:"set_numeric_pairs,omitempty"`
+	// SetSetPairs lists the option x option pairs captured between two
+	// DIFFERENT set_* fields (E5-S2): a 2x2 contingency table per
+	// (fieldA option, fieldB option) combination. Never captured between
+	// two options of the same field. See SetSetPairProfile.
+	SetSetPairs []SetSetPairProfile `json:"set_set_pairs,omitempty"`
 }
 
 // NumericPairProfile is one captured numeric-numeric pair's
@@ -257,6 +279,89 @@ type CategoricalNumericCategoryStat struct {
 	// MinPairObservations, exactly as NumericPairProfile.N and each
 	// ContingencyCell.Count already do for the other two pair kinds.
 	N int `json:"n"`
+}
+
+// SetCategoricalPairProfile is one captured set-option x categorical
+// pair's reconstruction input (E5-S2): the bounded contingency table
+// between one dictionary option (bit position) of a set_* field —
+// treated as its own two-valued "selected"/"not_selected" Bernoulli
+// sub-field, per E5-S1's per-option representation — and a categorical
+// field's observed values. Reuses the exact same ContingencyCell /
+// ContingencyCellCap / otherCategoryLabel machinery
+// CategoricalPairProfile already established for two categorical
+// fields; the only difference is the A axis is always the fixed
+// two-value domain {"selected","not_selected"} rather than an
+// arbitrary categorical value set, so it needs no per-field top-K
+// collapse of its own — only B's (the categorical field's) values are
+// collapsed, exactly as CategoricalPairProfile already does for either
+// of its two axes.
+type SetCategoricalPairProfile struct {
+	Set         string            `json:"set"`
+	Option      string            `json:"option"`
+	Categorical string            `json:"categorical"`
+	Cells       []ContingencyCell `json:"cells"`
+	// N is the number of rows where both the set field and the
+	// categorical field were simultaneously non-null — this option's
+	// true co-occurrence count, mirroring CategoricalPairProfile.N.
+	N int `json:"n"`
+}
+
+// SetNumericPairProfile is one captured set-option x numeric pair's
+// reconstruction input (E5-S2): the numeric field's conditional
+// mean/std broken out by whether the set field's option (bit position)
+// was selected — the set-field analogue of
+// CategoricalNumericPairProfile, with the categorical axis fixed to the
+// two-value {"selected","not_selected"} domain instead of an arbitrary
+// category set.
+type SetNumericPairProfile struct {
+	Set     string `json:"set"`
+	Option  string `json:"option"`
+	Numeric string `json:"numeric"`
+	// Categories carries at most two entries, keyed "selected" /
+	// "not_selected" — reuses CategoricalNumericCategoryStat verbatim
+	// rather than a bespoke two-field struct, so a caller already
+	// handling CategoricalNumericPairProfile.Categories needs no second
+	// shape to learn.
+	Categories []CategoricalNumericCategoryStat `json:"categories"`
+	// N mirrors CategoricalNumericPairProfile.N: the total non-null
+	// co-occurrence count summed across both categories.
+	N int `json:"n"`
+}
+
+// SetSetPairProfile is one captured option x option pair's
+// reconstruction input between two DIFFERENT set_* fields (E5-S2): a
+// bounded 2x2-cell contingency table of
+// {"selected","not_selected"} x {"selected","not_selected"}
+// co-occurrence counts for one option of each field. Never captured
+// between two options of the SAME set field — E5-S2's scope is
+// cross-field option association only, per the PRD's "do two different
+// set_* fields' option selections correlate with each other?" framing.
+type SetSetPairProfile struct {
+	SetA    string            `json:"set_a"`
+	OptionA string            `json:"option_a"`
+	SetB    string            `json:"set_b"`
+	OptionB string            `json:"option_b"`
+	Cells   []ContingencyCell `json:"cells"`
+	// N is the number of rows where both fields were simultaneously
+	// non-null — this option pair's true co-occurrence count.
+	N int `json:"n"`
+}
+
+// setPairCellAcc accumulates a two-way {"selected","not_selected"} x
+// value contingency table online, exactly as
+// computeConditionalCategoricalPairs' raw counts map does for two
+// arbitrary categorical fields — the only difference is one axis (the
+// set option) is fixed to the two-value Bernoulli domain rather than an
+// arbitrary categorical value set. Shared by both set x categorical
+// (value = the categorical field's raw category) and set x set
+// (value = the other set field's own "selected"/"not_selected")
+// capture.
+type setPairCellAcc struct {
+	counts map[[2]string]int
+}
+
+func newSetPairCellAcc() *setPairCellAcc {
+	return &setPairCellAcc{counts: make(map[[2]string]int)}
 }
 
 // condCatNumAcc accumulates a numeric field's count/sum/sumSq
@@ -496,6 +601,23 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	var jointCatRows [][]string
 	var jointCatNulls [][]bool
 
+	// jointSetFieldNames and setOptionNames back
+	// ProfileOptions.IncludeConditional's set_* pair capture (E5-S2).
+	// setOptionNames[f.Name] lists field f's dictionary entries in
+	// bit/dictionary order (bit i first) — the exact same ordering
+	// SetProfile.Options already uses for marginals — so every set x
+	// categorical / set x numeric / set x set capture below addresses
+	// options the same way a caller reading FieldProfile.Set already
+	// does. No row-aligned reservoir snapshot is needed for set fields:
+	// unlike numeric/categorical joint capture, the online per-row
+	// accumulators below read directly from the current row's `nulls`/
+	// `wide` maps (still populated with this row's decode when this
+	// block runs), so set-involving pairs are captured EXACTLY (no
+	// conditionalJointCap reservoir bound), the same online discipline
+	// catNumAccs below already uses for categorical-numeric pairs.
+	var jointSetFieldNames []string
+	setOptionNames := make(map[string][]string)
+
 	for _, f := range schema.Fields {
 		switch {
 		case f.Type == encoding.FieldTypeDate:
@@ -520,6 +642,14 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				n = max
 			}
 			setAccs[f.Name] = &setAcc{selected: make([]int, n)}
+			if opts.IncludeConditional && n > 0 {
+				names := make([]string, n)
+				for i := 0; i < n; i++ {
+					names[i] = f.Dictionary.Resolve(uint32(i))
+				}
+				jointSetFieldNames = append(jointSetFieldNames, f.Name)
+				setOptionNames[f.Name] = names
+			}
 		default:
 			numAccs[f.Name] = &numAcc{
 				min: math.Inf(1), max: math.Inf(-1),
@@ -542,7 +672,19 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// is the union of both row-snapshot consumers so catRowValues /
 	// catRowNulls populate whenever either capture needs them.
 	trackCatNumJoint := opts.IncludeConditional && len(jointCatFieldNames) >= 1 && len(jointFieldNames) >= 1
-	needCatRow := trackCatJoint || trackCatNumJoint
+	// trackSetCatJoint / trackSetNumJoint / trackSetSetJoint gate E5-S2's
+	// three set_*-involving pair kinds. Each needs only ONE set field
+	// (the per-option Bernoulli axis) plus one field of the paired kind
+	// — set x set additionally needs a SECOND, DIFFERENT set field
+	// (jointSetFieldNames >= 2), mirroring trackCatJoint's >=2
+	// requirement for two categorical axes. trackSetCatJoint folds into
+	// needCatRow below because it, like trackCatJoint/trackCatNumJoint,
+	// consumes catRowValues/catRowNulls for the categorical side of the
+	// pair.
+	trackSetCatJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 1 && len(jointCatFieldNames) >= 1
+	trackSetNumJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 1 && len(jointFieldNames) >= 1
+	trackSetSetJoint := opts.IncludeConditional && len(jointSetFieldNames) >= 2
+	needCatRow := trackCatJoint || trackCatNumJoint || trackSetCatJoint
 
 	// catNumAccs accumulates condCatNumAcc keyed
 	// [categorical field name][numeric field name][raw category value] —
@@ -560,6 +702,91 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				perNum[nf] = make(map[string]*condCatNumAcc)
 			}
 			catNumAccs[cf] = perNum
+		}
+	}
+
+	// setCatAccs[setField][option][catField] accumulates the online
+	// {"selected","not_selected"} x raw-category-value contingency
+	// counts for set x categorical capture (E5-S2). Populated only when
+	// trackSetCatJoint is true.
+	var setCatAccs map[string]map[string]map[string]*setPairCellAcc
+	if trackSetCatJoint {
+		setCatAccs = make(map[string]map[string]map[string]*setPairCellAcc, len(jointSetFieldNames))
+		for _, sf := range jointSetFieldNames {
+			perOpt := make(map[string]map[string]*setPairCellAcc, len(setOptionNames[sf]))
+			for _, opt := range setOptionNames[sf] {
+				if opt == "" {
+					continue
+				}
+				perCat := make(map[string]*setPairCellAcc, len(jointCatFieldNames))
+				for _, cf := range jointCatFieldNames {
+					perCat[cf] = newSetPairCellAcc()
+				}
+				perOpt[opt] = perCat
+			}
+			setCatAccs[sf] = perOpt
+		}
+	}
+
+	// setNumAccs[setField][option][numField]["selected"|"not_selected"]
+	// accumulates the online conditional mean/std inputs for set x
+	// numeric capture (E5-S2), reusing condCatNumAcc verbatim — the
+	// categorical axis is just fixed to the two-value Bernoulli domain.
+	var setNumAccs map[string]map[string]map[string]map[string]*condCatNumAcc
+	if trackSetNumJoint {
+		setNumAccs = make(map[string]map[string]map[string]map[string]*condCatNumAcc, len(jointSetFieldNames))
+		for _, sf := range jointSetFieldNames {
+			perOpt := make(map[string]map[string]map[string]*condCatNumAcc, len(setOptionNames[sf]))
+			for _, opt := range setOptionNames[sf] {
+				if opt == "" {
+					continue
+				}
+				perNum := make(map[string]map[string]*condCatNumAcc, len(jointFieldNames))
+				for _, nf := range jointFieldNames {
+					perNum[nf] = map[string]*condCatNumAcc{
+						"selected":     {},
+						"not_selected": {},
+					}
+				}
+				perOpt[opt] = perNum
+			}
+			setNumAccs[sf] = perOpt
+		}
+	}
+
+	// setSetAccs[fieldA][optionA][fieldB][optionB] accumulates the
+	// online 2x2 contingency counts for set x set capture (E5-S2). Only
+	// built for (fieldA, fieldB) pairs where fieldA precedes fieldB in
+	// jointSetFieldNames, so each unordered field pair is captured
+	// exactly once.
+	var setSetAccs map[string]map[string]map[string]map[string]*setPairCellAcc
+	if trackSetSetJoint {
+		setSetAccs = make(map[string]map[string]map[string]map[string]*setPairCellAcc, len(jointSetFieldNames))
+		for ai := 0; ai < len(jointSetFieldNames); ai++ {
+			sfA := jointSetFieldNames[ai]
+			perOptA := make(map[string]map[string]map[string]*setPairCellAcc, len(setOptionNames[sfA]))
+			for bi := ai + 1; bi < len(jointSetFieldNames); bi++ {
+				sfB := jointSetFieldNames[bi]
+				for _, optA := range setOptionNames[sfA] {
+					if optA == "" {
+						continue
+					}
+					perFieldB := perOptA[optA]
+					if perFieldB == nil {
+						perFieldB = make(map[string]map[string]*setPairCellAcc)
+						perOptA[optA] = perFieldB
+					}
+					perOptB := make(map[string]*setPairCellAcc, len(setOptionNames[sfB]))
+					for _, optB := range setOptionNames[sfB] {
+						if optB == "" {
+							continue
+						}
+						perOptB[optB] = newSetPairCellAcc()
+					}
+					perFieldB[sfB] = perOptB
+				}
+			}
+			setSetAccs[sfA] = perOptA
 		}
 	}
 
@@ -720,6 +947,99 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				}
 			}
 		}
+		if trackSetCatJoint {
+			for _, sf := range jointSetFieldNames {
+				if nulls[sf] {
+					continue
+				}
+				mask, _ := wide[sf].(uint64)
+				perOpt := setCatAccs[sf]
+				for i, opt := range setOptionNames[sf] {
+					if opt == "" {
+						continue
+					}
+					sel := "not_selected"
+					if mask&(uint64(1)<<uint(i)) != 0 {
+						sel = "selected"
+					}
+					perCat := perOpt[opt]
+					for _, cf := range jointCatFieldNames {
+						if catRowNulls[cf] {
+							continue
+						}
+						acc := perCat[cf]
+						acc.counts[[2]string{sel, catRowValues[cf]}]++
+					}
+				}
+			}
+		}
+		if trackSetNumJoint {
+			for _, sf := range jointSetFieldNames {
+				if nulls[sf] {
+					continue
+				}
+				mask, _ := wide[sf].(uint64)
+				perOpt := setNumAccs[sf]
+				for i, opt := range setOptionNames[sf] {
+					if opt == "" {
+						continue
+					}
+					sel := "not_selected"
+					if mask&(uint64(1)<<uint(i)) != 0 {
+						sel = "selected"
+					}
+					perNum := perOpt[opt]
+					for _, nf := range jointFieldNames {
+						if nulls[nf] {
+							continue
+						}
+						v := values[nf]
+						acc := perNum[nf][sel]
+						acc.count++
+						acc.sum += v
+						acc.sumSq += v * v
+					}
+				}
+			}
+		}
+		if trackSetSetJoint {
+			for ai := 0; ai < len(jointSetFieldNames); ai++ {
+				sfA := jointSetFieldNames[ai]
+				if nulls[sfA] {
+					continue
+				}
+				maskA, _ := wide[sfA].(uint64)
+				perOptA := setSetAccs[sfA]
+				for bi := ai + 1; bi < len(jointSetFieldNames); bi++ {
+					sfB := jointSetFieldNames[bi]
+					if nulls[sfB] {
+						continue
+					}
+					maskB, _ := wide[sfB].(uint64)
+					for oi, optA := range setOptionNames[sfA] {
+						if optA == "" {
+							continue
+						}
+						selA := "not_selected"
+						if maskA&(uint64(1)<<uint(oi)) != 0 {
+							selA = "selected"
+						}
+						perFieldB := perOptA[optA][sfB]
+						for oj, optB := range setOptionNames[sfB] {
+							if optB == "" {
+								continue
+							}
+							selB := "not_selected"
+							if maskB&(uint64(1)<<uint(oj)) != 0 {
+								selB = "selected"
+							}
+							acc := perFieldB[optB]
+							acc.counts[[2]string{selA, selB}]++
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Build the field profiles in declaration order.
@@ -841,11 +1161,21 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			jointCatFieldNames, jointCatRows, jointCatNulls, topKByField, &warnings)
 		catNumericPairs := computeConditionalCategoricalNumericPairs(
 			jointCatFieldNames, jointFieldNames, catNumAccs, topKByField, &warnings)
-		if len(numericPairs) > 0 || len(categoricalPairs) > 0 || len(catNumericPairs) > 0 {
+		setCategoricalPairs := computeSetCategoricalPairs(
+			jointSetFieldNames, setOptionNames, setCatAccs, jointCatFieldNames, topKByField, &warnings)
+		setNumericPairs := computeSetNumericPairs(
+			jointSetFieldNames, setOptionNames, setNumAccs, jointFieldNames, &warnings)
+		setSetPairs := computeSetSetPairs(
+			jointSetFieldNames, setOptionNames, setSetAccs, &warnings)
+		if len(numericPairs) > 0 || len(categoricalPairs) > 0 || len(catNumericPairs) > 0 ||
+			len(setCategoricalPairs) > 0 || len(setNumericPairs) > 0 || len(setSetPairs) > 0 {
 			pf.Conditional = &ConditionalProfile{
 				NumericPairs:            numericPairs,
 				CategoricalPairs:        categoricalPairs,
 				CategoricalNumericPairs: catNumericPairs,
+				SetCategoricalPairs:     setCategoricalPairs,
+				SetNumericPairs:         setNumericPairs,
+				SetSetPairs:             setSetPairs,
 			}
 		}
 	}
@@ -1219,6 +1549,192 @@ func computeConditionalCategoricalNumericPairs(catFields, numFields []string, ca
 				}
 			}
 			pairs = append(pairs, CategoricalNumericPairProfile{A: cf, B: nf, Categories: cats, N: total})
+		}
+	}
+	return pairs
+}
+
+// computeSetCategoricalPairs derives a bounded contingency table for
+// every (set field option) x categorical field combination from the
+// online setCatAccs accumulators (E5-S2) — one entry per option, per
+// E5-S1's per-option Bernoulli representation, reusing the exact
+// ContingencyCellCap / otherCategoryLabel collapse
+// computeConditionalCategoricalPairs already applies to two arbitrary
+// categorical fields. topKByField supplies the categorical field's own
+// already-computed top-K set — a raw category value outside it
+// collapses to otherCategoryLabel before the table is built, exactly as
+// the categorical-categorical path does on its B axis. The set-option
+// axis itself never needs a top-K collapse: it is always the fixed
+// two-value {"selected","not_selected"} domain.
+//
+// Returns nil when no set field or no categorical field is present.
+// Every returned pair's Cells respects ContingencyCellCap; cells below
+// MinPairObservations still ship (never dropped) but are recorded via
+// the same thinPairWarning helper every other pair kind uses.
+func computeSetCategoricalPairs(setFields []string, setOptionNames map[string][]string, accs map[string]map[string]map[string]*setPairCellAcc, catFields []string, topKByField map[string]map[string]bool, warnings *[]string) []SetCategoricalPairProfile {
+	if len(setFields) == 0 || len(catFields) == 0 {
+		return nil
+	}
+	var pairs []SetCategoricalPairProfile
+	for _, sf := range setFields {
+		for _, opt := range setOptionNames[sf] {
+			if opt == "" {
+				continue
+			}
+			for _, cf := range catFields {
+				acc := accs[sf][opt][cf]
+				if acc == nil || len(acc.counts) == 0 {
+					continue
+				}
+				allowed := topKByField[cf]
+				collapsed := make(map[[2]string]int, len(acc.counts))
+				total := 0
+				for k, v := range acc.counts {
+					catVal := k[1]
+					if !allowed[catVal] {
+						catVal = otherCategoryLabel
+					}
+					collapsed[[2]string{k[0], catVal}] += v
+					total += v
+				}
+				if total == 0 {
+					continue
+				}
+				cells := collapseCells(collapsed, ContingencyCellCap)
+				for _, c := range cells {
+					aLabel := fmt.Sprintf("%s[%s]=%s", sf, opt, c.AValue)
+					bLabel := fmt.Sprintf("%s=%s", cf, c.BValue)
+					if w := thinPairWarning("set-categorical", aLabel, bLabel, c.Count, MinPairObservations); w != "" {
+						*warnings = append(*warnings, w)
+					}
+				}
+				pairs = append(pairs, SetCategoricalPairProfile{
+					Set: sf, Option: opt, Categorical: cf, Cells: cells, N: total,
+				})
+			}
+		}
+	}
+	return pairs
+}
+
+// computeSetNumericPairs derives the numeric field's conditional
+// mean/std (selected vs. not_selected) for every (set field option) x
+// numeric field combination, from the online setNumAccs accumulators
+// (E5-S2) — the set-field analogue of
+// computeConditionalCategoricalNumericPairs, with the categorical axis
+// fixed to the two-value {"selected","not_selected"} domain rather than
+// an arbitrary category set, so no per-field top-K collapse is needed.
+//
+// Returns nil when no set field or no numeric field is present. A
+// bucket (selected or not_selected) whose N falls below
+// MinPairObservations still ships — never dropped — but is recorded via
+// the same thinPairWarning helper every other pair kind uses.
+func computeSetNumericPairs(setFields []string, setOptionNames map[string][]string, accs map[string]map[string]map[string]map[string]*condCatNumAcc, numFields []string, warnings *[]string) []SetNumericPairProfile {
+	if len(setFields) == 0 || len(numFields) == 0 {
+		return nil
+	}
+	var pairs []SetNumericPairProfile
+	for _, sf := range setFields {
+		for _, opt := range setOptionNames[sf] {
+			if opt == "" {
+				continue
+			}
+			for _, nf := range numFields {
+				buckets := accs[sf][opt][nf]
+				if buckets == nil {
+					continue
+				}
+				total := 0
+				var cats []CategoricalNumericCategoryStat
+				for _, key := range [2]string{"selected", "not_selected"} {
+					acc := buckets[key]
+					if acc == nil || acc.count == 0 {
+						continue
+					}
+					mean := acc.sum / float64(acc.count)
+					var variance float64
+					if acc.count > 1 {
+						variance = (acc.sumSq - mean*acc.sum) / float64(acc.count-1)
+					}
+					if variance < 0 {
+						variance = 0
+					}
+					cats = append(cats, CategoricalNumericCategoryStat{
+						Category: key, Mean: mean, Std: math.Sqrt(variance), N: acc.count,
+					})
+					total += acc.count
+				}
+				if total == 0 {
+					continue
+				}
+				for _, c := range cats {
+					label := fmt.Sprintf("%s[%s]=%s", sf, opt, c.Category)
+					if w := thinPairWarning("set-numeric", label, nf, c.N, MinPairObservations); w != "" {
+						*warnings = append(*warnings, w)
+					}
+				}
+				pairs = append(pairs, SetNumericPairProfile{
+					Set: sf, Option: opt, Numeric: nf, Categories: cats, N: total,
+				})
+			}
+		}
+	}
+	return pairs
+}
+
+// computeSetSetPairs derives a bounded 2x2 contingency table for every
+// option x option combination between two DIFFERENT set_* fields, from
+// the online setSetAccs accumulators (E5-S2) — reuses collapseCells /
+// ContingencyCellCap for consistency with the other pair kinds, though
+// a 2x2 table never actually reaches the cap in practice since both
+// axes are the fixed two-value {"selected","not_selected"} domain.
+//
+// Returns nil when fewer than two set fields are present. Every cell
+// below MinPairObservations still ships — never dropped — but is
+// recorded via the same thinPairWarning helper every other pair kind
+// uses.
+func computeSetSetPairs(setFields []string, setOptionNames map[string][]string, accs map[string]map[string]map[string]map[string]*setPairCellAcc, warnings *[]string) []SetSetPairProfile {
+	n := len(setFields)
+	if n < 2 {
+		return nil
+	}
+	var pairs []SetSetPairProfile
+	for ai := 0; ai < n; ai++ {
+		sfA := setFields[ai]
+		for bi := ai + 1; bi < n; bi++ {
+			sfB := setFields[bi]
+			for _, optA := range setOptionNames[sfA] {
+				if optA == "" {
+					continue
+				}
+				for _, optB := range setOptionNames[sfB] {
+					if optB == "" {
+						continue
+					}
+					acc := accs[sfA][optA][sfB][optB]
+					if acc == nil || len(acc.counts) == 0 {
+						continue
+					}
+					total := 0
+					for _, v := range acc.counts {
+						total += v
+					}
+					if total == 0 {
+						continue
+					}
+					cells := collapseCells(acc.counts, ContingencyCellCap)
+					for _, c := range cells {
+						aLabel := fmt.Sprintf("%s[%s]=%s", sfA, optA, c.AValue)
+						bLabel := fmt.Sprintf("%s[%s]=%s", sfB, optB, c.BValue)
+						if w := thinPairWarning("set-set", aLabel, bLabel, c.Count, MinPairObservations); w != "" {
+							*warnings = append(*warnings, w)
+						}
+					}
+					pairs = append(pairs, SetSetPairProfile{
+						SetA: sfA, OptionA: optA, SetB: sfB, OptionB: optB, Cells: cells, N: total,
+					})
+				}
+			}
 		}
 	}
 	return pairs
