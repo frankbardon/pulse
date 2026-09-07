@@ -128,10 +128,11 @@ type Profile struct {
 
 // ConditionalProfile carries the joint reconstruction structure
 // `profile create --conditional` captures beyond independent per-field
-// marginals. E2-S1 covers numeric-numeric pairs; this story (E3-S1)
-// adds categorical-categorical pairs to the same struct rather than a
-// new top-level section, so the same nil-check keeps gating all of
-// them. set_* pairs are a later-epic addition on this same struct.
+// marginals. E2-S1 covers numeric-numeric pairs; E3-S1 adds
+// categorical-categorical pairs; this story (E3-S2) adds
+// categorical-numeric pairs — all to the same struct rather than a new
+// top-level section, so the same nil-check keeps gating all of them.
+// set_* pairs are a later-epic addition on this same struct.
 type ConditionalProfile struct {
 	// NumericPairs lists the numeric-numeric pairs captured: the
 	// row-aligned Pearson correlation and the count of rows where both
@@ -147,6 +148,15 @@ type ConditionalProfile struct {
 	// (per-field top-K, then joint-cell ContingencyCellCap) that keep
 	// this section bounded regardless of either field's cardinality.
 	CategoricalPairs []CategoricalPairProfile `json:"categorical_pairs,omitempty"`
+	// CategoricalNumericPairs lists the categorical-numeric pairs
+	// captured: the numeric field's conditional mean/std broken out per
+	// observed category of the categorical field. See
+	// CategoricalNumericPairProfile for the single collapse point
+	// (per-field top-K) that keeps this section bounded — no separate
+	// joint-cardinality cap is needed here, unlike CategoricalPairs,
+	// because a conditional numeric summary is one row per already-capped
+	// category rather than a joint cell per pair of categories.
+	CategoricalNumericPairs []CategoricalNumericPairProfile `json:"categorical_numeric_pairs,omitempty"`
 }
 
 // NumericPairProfile is one captured numeric-numeric pair's
@@ -195,6 +205,57 @@ type ContingencyCell struct {
 	AValue string `json:"a_value"`
 	BValue string `json:"b_value"`
 	Count  int    `json:"count"`
+}
+
+// CategoricalNumericPairProfile is one captured categorical-numeric
+// pair's reconstruction input: the numeric field B's conditional
+// mean/std, broken out per observed category of the categorical field
+// A. Categories already reflect A's own per-field top-K cap
+// (ProfileOptions.TopK, via FieldProfile.Categorical.Top) — any
+// category outside A's own top-K collapses into one otherCategoryLabel
+// bucket before its conditional numeric summary is computed, the same
+// per-field collapse CategoricalPairProfile applies on each of its own
+// axes. Unlike CategoricalPairProfile there is no second, joint-cell
+// cap: the number of retained Categories entries is already bounded by
+// ProfileOptions.TopK (plus one "other" bucket), since this section
+// captures one numeric summary per category rather than a joint table
+// over two categorical axes.
+type CategoricalNumericPairProfile struct {
+	A          string                           `json:"a"` // categorical field name
+	B          string                           `json:"b"` // numeric field name
+	Categories []CategoricalNumericCategoryStat `json:"categories"`
+	// N is the number of rows in the capture where both A and B were
+	// simultaneously non-null, summed across every category (including
+	// "other") — the pair's true co-occurrence count, mirroring
+	// CategoricalPairProfile.N and NumericPairProfile.N.
+	N int `json:"n"`
+}
+
+// CategoricalNumericCategoryStat is the numeric field's conditional
+// mean/std/observation-count for one observed category value (or the
+// otherCategoryLabel catch-all) of the paired categorical field.
+type CategoricalNumericCategoryStat struct {
+	Category string  `json:"category"`
+	Mean     float64 `json:"mean"`
+	Std      float64 `json:"std"`
+	// N is the number of non-null B observations conditioned on this
+	// category — the input thinPairWarning checks against
+	// MinPairObservations, exactly as NumericPairProfile.N and each
+	// ContingencyCell.Count already do for the other two pair kinds.
+	N int `json:"n"`
+}
+
+// condCatNumAcc accumulates a numeric field's count/sum/sumSq
+// conditioned on one observed (raw, uncapped) category value of a
+// paired categorical field during the streaming pass. Collapsed to the
+// categorical field's own top-K (as computed for its marginal
+// CategoricalProfile) plus otherCategoryLabel afterward, in
+// computeConditionalCategoricalNumericPairs — the same two-phase
+// discipline computeConditionalCategoricalPairs applies to raw
+// (a_value, b_value) contingency counts.
+type condCatNumAcc struct {
+	count      int
+	sum, sumSq float64
 }
 
 // FieldProfile holds per-field summary statistics. Exactly one of
@@ -360,6 +421,33 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 		}
 	}
 	trackCatJoint := len(jointCatFieldNames) >= 2
+	// trackCatNumJoint gates the categorical-numeric conditional capture
+	// this story (E3-S2) adds: it needs only ONE categorical field and
+	// ONE numeric field (unlike trackCatJoint's >=2 categorical fields,
+	// which builds a joint table over two categorical axes). needCatRow
+	// is the union of both row-snapshot consumers so catRowValues /
+	// catRowNulls populate whenever either capture needs them.
+	trackCatNumJoint := opts.IncludeConditional && len(jointCatFieldNames) >= 1 && len(jointFieldNames) >= 1
+	needCatRow := trackCatJoint || trackCatNumJoint
+
+	// catNumAccs accumulates condCatNumAcc keyed
+	// [categorical field name][numeric field name][raw category value] —
+	// only populated when trackCatNumJoint is true. Unlike jointRows'
+	// reservoir cap, this is an exact online accumulation over every
+	// admitted row (bounded in practice by observed category
+	// cardinality, the same unbounded-until-output-time discipline
+	// catAcc.hist already uses for the plain per-field top-K).
+	var catNumAccs map[string]map[string]map[string]*condCatNumAcc
+	if trackCatNumJoint {
+		catNumAccs = make(map[string]map[string]map[string]*condCatNumAcc, len(jointCatFieldNames))
+		for _, cf := range jointCatFieldNames {
+			perNum := make(map[string]map[string]*condCatNumAcc, len(jointFieldNames))
+			for _, nf := range jointFieldNames {
+				perNum[nf] = make(map[string]*condCatNumAcc)
+			}
+			catNumAccs[cf] = perNum
+		}
+	}
 
 	values := make(map[string]float64, len(schema.Fields))
 	nulls := make(map[string]bool, len(schema.Fields))
@@ -403,7 +491,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				ca := catAccs[f.Name]
 				if isNull {
 					ca.nulls++
-					if trackCatJoint {
+					if needCatRow {
 						catRowNulls[f.Name] = true
 					}
 					continue
@@ -412,18 +500,18 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				if f.Dictionary != nil {
 					name := f.Dictionary.Resolve(id)
 					if name == "" {
-						if trackCatJoint {
+						if needCatRow {
 							catRowNulls[f.Name] = true
 						}
 						continue
 					}
 					ca.hist[name]++
 					ca.count++
-					if trackCatJoint {
+					if needCatRow {
 						catRowNulls[f.Name] = false
 						catRowValues[f.Name] = name
 					}
-				} else if trackCatJoint {
+				} else if needCatRow {
 					catRowNulls[f.Name] = true
 				}
 			default:
@@ -473,6 +561,29 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			}
 			jointCatRows = append(jointCatRows, rowVals)
 			jointCatNulls = append(jointCatNulls, rowNulls)
+		}
+		if trackCatNumJoint {
+			for _, cf := range jointCatFieldNames {
+				if catRowNulls[cf] {
+					continue
+				}
+				catVal := catRowValues[cf]
+				perNum := catNumAccs[cf]
+				for _, nf := range jointFieldNames {
+					if nulls[nf] {
+						continue
+					}
+					v := values[nf]
+					acc := perNum[nf][catVal]
+					if acc == nil {
+						acc = &condCatNumAcc{}
+						perNum[nf][catVal] = acc
+					}
+					acc.count++
+					acc.sum += v
+					acc.sumSq += v * v
+				}
+			}
 		}
 	}
 
@@ -566,10 +677,13 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 		}
 		categoricalPairs := computeConditionalCategoricalPairs(
 			jointCatFieldNames, jointCatRows, jointCatNulls, topKByField, &warnings)
-		if len(numericPairs) > 0 || len(categoricalPairs) > 0 {
+		catNumericPairs := computeConditionalCategoricalNumericPairs(
+			jointCatFieldNames, jointFieldNames, catNumAccs, topKByField, &warnings)
+		if len(numericPairs) > 0 || len(categoricalPairs) > 0 || len(catNumericPairs) > 0 {
 			pf.Conditional = &ConditionalProfile{
-				NumericPairs:     numericPairs,
-				CategoricalPairs: categoricalPairs,
+				NumericPairs:            numericPairs,
+				CategoricalPairs:        categoricalPairs,
+				CategoricalNumericPairs: catNumericPairs,
 			}
 		}
 	}
@@ -844,6 +958,105 @@ func computeConditionalCategoricalPairs(fields []string, rows [][]string, nulls 
 				}
 			}
 			pairs = append(pairs, CategoricalPairProfile{A: fields[i], B: fields[j], Cells: cells, N: total})
+		}
+	}
+	return pairs
+}
+
+// computeConditionalCategoricalNumericPairs derives the numeric field's
+// conditional mean/std per observed category, for every
+// categorical-numeric pair, from the online condCatNumAcc accumulators
+// built during the streaming pass (catNumAccs[catField][numField]
+// [rawCategoryValue]) — unlike the row-aligned snapshots
+// computeConditionalNumericPairs and computeConditionalCategoricalPairs
+// consume, this needs no such snapshot: a running (count, sum, sumSq)
+// per raw category value is sufficient to derive a conditional mean/std
+// exactly, with no reservoir cap on the underlying observation count.
+//
+// topKByField supplies each categorical field's own already-computed
+// top-K set (FieldProfile.Categorical.Top) — a raw category value not
+// in that set has its accumulator folded into one otherCategoryLabel
+// bucket before the conditional mean/std is computed, the same
+// per-field collapse computeConditionalCategoricalPairs applies. A
+// field absent from topKByField (e.g. entirely null) collapses every
+// value to "other", harmless because such a field never contributes an
+// accumulator entry.
+//
+// Returns nil when no categorical-numeric pair produced any
+// co-occurring observation. A category (or "other") whose N falls below
+// MinPairObservations still ships — never dropped — but is recorded via
+// the same thinPairWarning helper E2-S1/E3-S1 already use, so this
+// third pair kind carries no separate warning mechanism.
+func computeConditionalCategoricalNumericPairs(catFields, numFields []string, catNumAccs map[string]map[string]map[string]*condCatNumAcc, topKByField map[string]map[string]bool, warnings *[]string) []CategoricalNumericPairProfile {
+	if len(catFields) == 0 || len(numFields) == 0 {
+		return nil
+	}
+	var pairs []CategoricalNumericPairProfile
+	for _, cf := range catFields {
+		perNum := catNumAccs[cf]
+		allowed := topKByField[cf]
+		for _, nf := range numFields {
+			raw := perNum[nf]
+			if len(raw) == 0 {
+				continue
+			}
+			// Collapse raw (uncapped) category values into the field's
+			// own top-K plus one "other" bucket, mirroring the
+			// per-field collapse computeConditionalCategoricalPairs
+			// applies before building its joint table.
+			collapsed := make(map[string]*condCatNumAcc)
+			for catVal, acc := range raw {
+				key := catVal
+				if !allowed[catVal] {
+					key = otherCategoryLabel
+				}
+				dst := collapsed[key]
+				if dst == nil {
+					dst = &condCatNumAcc{}
+					collapsed[key] = dst
+				}
+				dst.count += acc.count
+				dst.sum += acc.sum
+				dst.sumSq += acc.sumSq
+			}
+			total := 0
+			cats := make([]CategoricalNumericCategoryStat, 0, len(collapsed))
+			for catVal, acc := range collapsed {
+				if acc.count == 0 {
+					continue
+				}
+				mean := acc.sum / float64(acc.count)
+				var variance float64
+				if acc.count > 1 {
+					variance = (acc.sumSq - mean*acc.sum) / float64(acc.count-1)
+				}
+				if variance < 0 {
+					variance = 0
+				}
+				cats = append(cats, CategoricalNumericCategoryStat{
+					Category: catVal,
+					Mean:     mean,
+					Std:      math.Sqrt(variance),
+					N:        acc.count,
+				})
+				total += acc.count
+			}
+			if total == 0 {
+				continue
+			}
+			sort.Slice(cats, func(i, j int) bool {
+				if cats[i].N != cats[j].N {
+					return cats[i].N > cats[j].N
+				}
+				return cats[i].Category < cats[j].Category
+			})
+			for _, c := range cats {
+				label := fmt.Sprintf("%s=%s", cf, c.Category)
+				if w := thinPairWarning("categorical-numeric", label, nf, c.N, MinPairObservations); w != "" {
+					*warnings = append(*warnings, w)
+				}
+			}
+			pairs = append(pairs, CategoricalNumericPairProfile{A: cf, B: nf, Categories: cats, N: total})
 		}
 	}
 	return pairs
