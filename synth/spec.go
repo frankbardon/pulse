@@ -68,6 +68,15 @@ type Options struct {
 	// Seed makes the output deterministic. Same spec + same seed must
 	// produce a byte-identical .pulse file.
 	Seed int64
+
+	// SourceCohort activates the tagged top-up path (AugmentFromProfile)
+	// when non-empty: real rows from this cohort are copied into the
+	// output tagged _synthetic=false, spec.RowCount new rows are
+	// generated and tagged _synthetic=true, and the source is never
+	// opened for write. Leaving it empty (the default) reproduces
+	// today's behavior exactly — a plain synthesis with no tag column,
+	// used by synth from-schema and any caller building a Spec directly.
+	SourceCohort string
 }
 
 // Result is what the writer reports after a successful Synth call.

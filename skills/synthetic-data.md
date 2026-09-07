@@ -18,7 +18,7 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file; Compone
 | Mode | Input | When |
 |---|---|---|
 | `pulse_synth_from_schema` | hand-written JSON spec | caller knows desired shape — fixtures, CI seeds, demos |
-| `pulse_synth_from_profile` | profile JSON captured from a real cohort | marginals must match a real cohort without leaking values |
+| `pulse_synth_from_profile` | profile JSON + the source cohort it was captured from | tagged top-up: add rows matching a real cohort's marginals, source untouched |
 
 **Privacy.** Synth does NOT preserve privacy on its own. A profile without DP noise leaks the empirical distribution — top-K categoricals reveal rare values, percentiles reveal ranges, pairwise correlations expose structure. Add a calibrated noise mechanism if the source is sensitive.
 
@@ -77,6 +77,10 @@ Capture via `pulse_profile_create`; synth via `pulse_synth_from_profile`. Profil
 - Pairwise: strongest `|rho|` correlations (capped by `--correlation-top-k`).
 
 `synth.SpecFromProfile` reconstructs a Spec: numeric → `normal` clamped to observed min/max, categorical → `weighted_categorical`, date → `uniform_date`. Captured correlations become Gaussian-copula post-processing. Unsupported types → `PULSE_PROFILE_FIELD_UNSUPPORTED`; drop to schema mode for those.
+
+### Tagged top-up contract
+
+`synth from-profile` (`SynthOptions.SourceCohort` / `--source`) always: (1) appends one `_synthetic` `packed_bool` field to the output schema — `false` on every row copied from the source, `true` on every newly generated row; (2) writes to a **new** output path, distinct from `--source` — the source cohort is opened read-only and never mutated; (3) treats `--rows`/`RowCount` as an explicit count of *new* rows, never "top up to N total" (`--rows 500` against a 200-row source → 700-row output). `SourceCohort` empty (`pulse.Pulse.Synth` / `synth from-schema`'s default) is the unmodified plain path — no tag column, output may equal any path. Refusals: `PULSE_SYNTH_SOURCE_REQUIRED`, `PULSE_SYNTH_OUTPUT_REQUIRED`, `PULSE_SYNTH_OUTPUT_COLLISION` (output == source), `PULSE_SYNTH_ALREADY_TAGGED` (source already carries `_synthetic`), `PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH` (profile's fields don't line up with the source's own schema).
 
 ## Determinism contract
 

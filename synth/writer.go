@@ -52,7 +52,25 @@ type writerField struct {
 	spec    FieldSpec
 	field   *encoding.Field
 	sampler sampler
-	dict    *encoding.Dictionary
+}
+
+// nextFieldLayout advances the running (byteOffset, bitCursor) cursor by
+// one field of type ft and returns that field's own (byteOffset,
+// bitPosition). Bit-packed types (u4, packed_bool) each consume one whole
+// fresh byte — the same simplified convention buildSchema has always used
+// (matches io/import.go's WriteByte path) — rather than sharing a byte
+// across neighbouring bit-packed fields. Shared by buildSchema and
+// augment.go's buildMergedSchema so both lay out fields identically.
+func nextFieldLayout(ft encoding.FieldType, byteOffset, bitCursor *int) (offset, bitPosition int) {
+	offset = *byteOffset
+	if ft.IsBitPacked() {
+		bitPosition = *bitCursor % 8
+		*byteOffset++
+		*bitCursor = 8
+	} else {
+		*byteOffset += ft.ByteSize()
+	}
+	return offset, bitPosition
 }
 
 // buildSchema returns the encoding.Schema and per-field samplers laid
@@ -97,16 +115,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			field.Precision = prec
 			field.Scale = scale
 		}
-		field.ByteOffset = byteOffset
-		// Bit-packed types use the bit position field; consume a fresh
-		// byte for simplicity (matches io/import.go).
-		if ft.IsBitPacked() {
-			field.BitPosition = bitCursor % 8
-			byteOffset += 1
-			bitCursor = 8
-		} else {
-			byteOffset += ft.ByteSize()
-		}
+		field.ByteOffset, field.BitPosition = nextFieldLayout(ft, &byteOffset, &bitCursor)
 
 		smp, err := buildSampler(fs)
 		if err != nil {
@@ -120,9 +129,6 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	schema := &encoding.Schema{Fields: fields}
 	for i := range wfs {
 		wfs[i].field = &schema.Fields[i]
-		if schema.Fields[i].Dictionary != nil {
-			wfs[i].dict = schema.Fields[i].Dictionary
-		}
 	}
 	return schema, wfs, nil
 }
@@ -228,7 +234,18 @@ func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMa
 }
 
 func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) error {
-	ft := wf.field.Type
+	return writeFieldValueForField(buf, wf.field, val, isNull)
+}
+
+// writeFieldValueForField encodes a single field's value into buf per
+// field.Type, using field.Dictionary for categorical AddWithLimit. It is
+// the field-shaped twin of writeFieldValue (which threads through a
+// spec-bound *writerField); both funnel through here so the merge/augment
+// path (synth/augment.go, which re-encodes decoded records rather than
+// sampler-drawn values) shares exactly one encode implementation with
+// ordinary spec-driven generation.
+func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, isNull bool) error {
+	ft := field.Type
 	switch ft {
 	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
 		if isNull {
@@ -289,9 +306,9 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 		s, ok := val.(string)
 		if !ok {
 			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
-				fmt.Sprintf("field %q: categorical sampler must return string", wf.spec.Name), nil)
+				fmt.Sprintf("field %q: categorical value must be a string", field.Name), nil)
 		}
-		id, err := wf.dict.AddWithLimit(s, ft.MaxCategoricalEntries())
+		id, err := field.Dictionary.AddWithLimit(s, ft.MaxCategoricalEntries())
 		if err != nil {
 			return err
 		}
@@ -300,15 +317,22 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 		if isNull {
 			return encoding.WriteDecimal128(buf, encoding.ZeroDecimal128())
 		}
-		dec, err := decimalFromValue(val, wf.field.Scale)
+		// A decoded record carries the exact Decimal128 already (see
+		// synth/augment.go's decodedFieldValue) — write it straight
+		// through rather than round-tripping via decimalFromValue's
+		// string/float paths, which would risk precision loss.
+		if dec, ok := val.(encoding.Decimal128); ok {
+			return encoding.WriteDecimal128(buf, dec)
+		}
+		dec, err := decimalFromValue(val, field.Scale)
 		if err != nil {
 			return errors.WrapCodedError(err, errors.PULSE_DECIMAL_OVERFLOW,
-				fmt.Sprintf("field %q: encoding decimal", wf.spec.Name))
+				fmt.Sprintf("field %q: encoding decimal", field.Name))
 		}
 		return encoding.WriteDecimal128(buf, dec)
 	}
 	return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
-		fmt.Sprintf("field %q: cannot encode type %s", wf.spec.Name, ft), nil)
+		fmt.Sprintf("field %q: cannot encode type %s", field.Name, ft), nil)
 }
 
 func toFloat64(v any) float64 {

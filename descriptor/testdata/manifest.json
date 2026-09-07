@@ -5013,7 +5013,7 @@
         ]
       }
     ],
-    "error_codes_count": 211,
+    "error_codes_count": 216,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5200,8 +5200,13 @@
       "PULSE_SPSS_WIDTH_OVERFLOW",
       "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
       "PULSE_SPSS_ZSAV_INVALID",
+      "PULSE_SYNTH_ALREADY_TAGGED",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
+      "PULSE_SYNTH_OUTPUT_COLLISION",
+      "PULSE_SYNTH_OUTPUT_REQUIRED",
+      "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
+      "PULSE_SYNTH_SOURCE_REQUIRED",
       "PULSE_TEMPLATE_INVALID",
       "PULSE_TEMPLATE_NOT_FOUND",
       "PULSE_TEMPLATE_RENDER_INVALID",
@@ -9507,4 +9512,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 44480744bd0f8adbcc2651a16732286e6caab3e8e15f8dad2e40a414bcfdabd3
+// golden-hash: 164a37dd5eeb9696ce1503c09da495b0c1ce05382a0a361b27b11bee46ba2f5c

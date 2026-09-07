@@ -992,6 +992,14 @@ func (p *Pulse) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includeF
 // Synth materializes a synthetic .pulse file at output from spec. The
 // generator is deterministic for a given (spec, opts.Seed) pair: same
 // seed produces a byte-identical file.
+//
+// Setting opts.SourceCohort activates the tagged top-up path used by
+// `synth from-profile`: output becomes source's real rows (tagged
+// _synthetic=false) plus spec.RowCount newly generated rows (tagged
+// _synthetic=true), output must be a path distinct from SourceCohort,
+// and SourceCohort itself is never opened for write. Leaving
+// SourceCohort empty (the default) is unchanged plain synthesis, used by
+// `synth from-schema` and any caller that built the Spec directly.
 func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
 	return synth.Synth(p.fsys, spec, output, opts)
 }

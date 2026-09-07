@@ -12,7 +12,17 @@ import (
 // Synth materializes a synthetic .pulse file from a Spec into the given
 // path on the provided filesystem. It is the package-level entry point;
 // pulse.Pulse.Synth wraps it.
+//
+// When opts.SourceCohort is non-empty, this delegates to
+// AugmentFromProfile instead: the source cohort's real rows are copied
+// into output tagged _synthetic=false, spec.RowCount new rows are
+// generated and tagged _synthetic=true, and the source is never opened
+// for write. opts.SourceCohort empty (the default) reproduces the
+// unmodified plain-synthesis behavior below, byte-for-byte.
 func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error) {
+	if opts.SourceCohort != "" {
+		return AugmentFromProfile(fs, spec, opts.SourceCohort, output, opts)
+	}
 	if fs == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: fs is required")
 	}

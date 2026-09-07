@@ -87,16 +87,18 @@ func synthFromSchemaCmd() *cli.Command {
 func synthFromProfileCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "from-profile",
-		Usage: "Generate a synthetic .pulse file from a previously-captured profile",
+		Usage: "Top up a source cohort with rows generated from a previously-captured profile",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "profile", Aliases: []string{"p"}, Usage: "Profile JSON path", Required: true},
-			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
-			&cli.IntFlag{Name: "rows", Usage: "Number of rows to generate", Required: true},
+			&cli.StringFlag{Name: "source", Usage: "Source .pulse cohort the profile was captured from — copied into the output tagged _synthetic=false; never opened for write", Required: true},
+			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path — must differ from --source", Required: true},
+			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			profPath := cmd.String("profile")
+			source := cmd.String("source")
 			output := cmd.String("output")
 			rows := int(cmd.Int("rows"))
 			seed := cmd.Int("seed")
@@ -117,7 +119,10 @@ func synthFromProfileCmd() *cli.Command {
 			if err != nil {
 				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
 			}
-			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{Seed: int64(seed)})
+			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{
+				Seed:         int64(seed),
+				SourceCohort: source,
+			})
 			if err != nil {
 				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())
 			}

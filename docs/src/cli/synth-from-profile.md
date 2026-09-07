@@ -1,22 +1,22 @@
 # pulse synth from-profile
 
-**Audience:** CLI users generating a synthetic `.pulse` cohort whose
-distributions match a real cohort — typically to share a sanitised
-replica without exposing the underlying rows.
+**Audience:** CLI users topping up a real cohort with synthetic rows
+whose per-field distributions match it — a tagged, source-preserving
+augmentation, not a full anonymised replica.
 
 `pulse synth from-profile` reads a profile JSON captured by
-[`pulse profile create`](profile-create.md) and writes a synthetic
-`.pulse` file whose per-field distributions and (optional) pairwise
-correlations follow the profile. The profile retains **no individual
-rows** from the source; only summary statistics.
+[`pulse profile create`](profile-create.md), reads the `--source`
+cohort the profile was captured from, and writes a **new** `.pulse`
+file combining every real row from `--source` with `--rows` newly
+generated rows. The profile itself retains **no individual rows**
+from the source; only summary statistics drive generation.
 
-> **LLM agents using MCP:** see the `pulse_synth_from_profile` MCP
-> tool and the `synthetic-data` skill.
+> **LLM agents using MCP:** see the `synthetic-data` skill.
 
 ## Synopsis
 
 ```
-pulse synth from-profile --profile FILE --output FILE --rows N
+pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
                          [--seed N] [--json]
 ```
 
@@ -25,19 +25,37 @@ pulse synth from-profile --profile FILE --output FILE --rows N
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
 | `--profile` | `-p` | string | (required) | Profile JSON path |
-| `--output`  | `-o` | string | (required) | Output `.pulse` file path |
-| `--rows`    |      | int    | (required) | Rows to generate |
+| `--source`  |      | string | (required) | Source `.pulse` cohort the profile was captured from — copied into the output, never opened for write |
+| `--output`  | `-o` | string | (required) | Output `.pulse` file path — must be a distinct path from `--source` |
+| `--rows`    |      | int    | (required) | Number of **new** rows to generate |
 | `--seed`    |      | int    | 0          | Deterministic RNG seed |
 | `--json`    |      | bool   | false      | Emit the standard envelope |
 
 `--rows` is required (unlike `from-schema`, which can pull it from
 the spec) because the profile does not carry a generation count of
-its own.
+its own. **`--rows` is always an explicit count of new rows to
+generate, never a "top up to N total" target** — `--rows 500` against
+a 200-row `--source` cohort produces a 700-row output (200 real +
+500 synthetic), not a 500-row output.
+
+## Provenance tagging and the new-file-only contract
+
+Every output cohort gains one appended field, `_synthetic`
+(`packed_bool`): `false` on every row copied from `--source`, `true`
+on every newly generated row. This is the only schema difference
+between `--source` and the output — every other field is carried
+through unchanged, in order.
+
+`--output` must always be a path distinct from `--source`.
+`synth from-profile` never opens `--source` for write and never
+mutates it in place — an `--output` that resolves to the same file
+as `--source` is refused outright, and the source cohort's bytes and
+modification time are unchanged by a run.
 
 ## Determinism
 
-Same `(profile, seed, rows)` triple → byte-identical output. Seeds
-are `int64`; default `0`.
+Same `(profile, source, seed, rows)` tuple → byte-identical output.
+Seeds are `int64`; default `0`.
 
 ## Profile shape
 
@@ -68,7 +86,12 @@ Same envelope shape as
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | Profile parse error, infeasible constraints, or output write failure |
+| 1 | Profile parse error, infeasible constraints, missing/colliding `--source`/`--output`, or output write failure |
+
+See `pulse errors lookup PULSE_SYNTH_SOURCE_REQUIRED` /
+`PULSE_SYNTH_OUTPUT_REQUIRED` / `PULSE_SYNTH_OUTPUT_COLLISION` /
+`PULSE_SYNTH_ALREADY_TAGGED` / `PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH`
+for the specific top-up refusal codes.
 
 ## Examples
 
@@ -76,9 +99,9 @@ Same envelope shape as
 # Capture once
 pulse profile create --input sales.pulse --output sales.profile.json
 
-# Re-generate any number of times with different seeds
-pulse synth from-profile --profile sales.profile.json --output sales.s42.pulse --rows 10000 --seed 42
-pulse synth from-profile --profile sales.profile.json --output sales.s43.pulse --rows 10000 --seed 43
+# Top up with different seeds — sales.pulse is read but never written
+pulse synth from-profile --profile sales.profile.json --source sales.pulse --output sales.s42.pulse --rows 10000 --seed 42
+pulse synth from-profile --profile sales.profile.json --source sales.pulse --output sales.s43.pulse --rows 10000 --seed 43
 ```
 
 ## Limitations

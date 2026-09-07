@@ -502,6 +502,41 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_SOURCE_REQUIRED: {
+		Message: "A tagged synthetic top-up call (synth from-profile) needs a source cohort path to copy real rows from; none was given.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Hint:   "Pass the original cohort's path as the source (--source on the CLI, or the SourceCohort field on SynthOptions).",
+			},
+		},
+	},
+	PULSE_SYNTH_OUTPUT_REQUIRED: {
+		Message: "Synthesis never writes in place; an output path distinct from the source cohort is always required.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Hint:   "Pass a new .pulse output path (--output on the CLI, or the output argument to Pulse.Synth).",
+			},
+		},
+	},
+	PULSE_SYNTH_OUTPUT_COLLISION: {
+		Message:            "The output path resolves to the same file as the source cohort; refused so the source is never opened for write or mutated.",
+		FixupNotApplicable: true,
+	},
+	PULSE_SYNTH_ALREADY_TAGGED: {
+		Message:            "The source cohort already declares a _synthetic field, so a tagged top-up run would produce an ambiguous second provenance column.",
+		FixupNotApplicable: true,
+	},
+	PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH: {
+		Message: "The profile-derived spec's fields don't line up (name/type/decimal precision-scale, in order) with the source cohort's own schema.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-run `profile create` against the exact source cohort being topped up, then retry synth from-profile with the fresh profile.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{
