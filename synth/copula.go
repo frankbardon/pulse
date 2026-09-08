@@ -9,33 +9,47 @@ import (
 )
 
 // correlator induces pairwise Pearson correlations between numeric
-// fields via a direct conditional-Gaussian construction: draw a
-// correlated standard-normal vector u = L*z (L the Cholesky factor of
-// the requested correlation matrix, z ~ N(0, I)), then set each
-// participating field's value directly to mean_i + std_i*u_i. Because
-// every field this transform can reach carries a known analytic
-// (mean, std) for its own declared distribution — see fieldMoments —
-// the resulting vector is exactly jointly Gaussian with the requested
-// correlation matrix: a large draw's sample Pearson correlation
-// converges to the target rho with no structural bias baked in, unlike
-// the v0 approach this replaces.
+// fields via a Gaussian-copula construction: draw a correlated
+// standard-normal vector u = L*z (L the Cholesky factor of the
+// requested correlation matrix, z ~ N(0, I)), map each u_i through the
+// standard normal CDF Φ to get p_i = Φ(u_i) ~ Uniform(0,1) — the
+// copula's rank-preserving common source of randomness — then apply
+// each participating field's own quantile function (inverse CDF)
+// Q_i(p_i) (see quantileFor) to draw a value with the field's OWN
+// declared marginal shape. This is the textbook Gaussian-copula
+// construction: it targets Spearman (rank) correlation exactly, and for
+// every distribution this transform supports the realized Pearson
+// correlation lands within the established test tolerance of the
+// requested rho too — see TestSynth_CorrelationReconstructionWithinTolerance
+// and its lognormal sibling.
 //
-// Why a parametric (mean, std) construction and not a rank-based
+// For the normal case, Q(p) = mean + std*Φ⁻¹(p) — but Φ⁻¹(p_i) == u_i
+// exactly by construction (p_i was built AS Φ(u_i)), so the normal
+// branch reduces to precisely the pre-copula formula (mean_i +
+// std_i*u_i) with no numerical inversion needed; lognormal similarly
+// takes u_i directly (exp(mu + sigma*u_i)) rather than recomputing
+// Φ⁻¹(Φ(u_i)) — see phi. Only uniform and exponential need the p_i
+// value itself.
+//
+// Because every field this transform can reach carries a known
+// closed-form quantile function for its own declared distribution — see
+// quantileFor / fieldMoments — the resulting vector carries the
+// requested rank-correlation structure while each field's own marginal
+// shape (not just its mean/std) survives. Scoped to the four
+// distributions fieldMoments already accepts: normal, uniform,
+// lognormal, exponential — poisson (no closed-form quantile) and
+// bernoulli (degenerate quantile under a continuous copula draw) are
+// deliberately out of scope. See skills/synthetic-data.md (Pairwise
+// correlations).
+//
+// Why a parametric quantile-function construction and not a rank-based
 // empirical copula: a schema-mode spec (`synth from-schema`,
 // Spec.Correlations) has no historical sample data to rank against —
 // only each field's distribution and its declared params. A
 // profile-derived spec (SpecFromProfile) always reconstructs numeric
 // fields as `normal`, so both call sites already share the same shape
 // of input (a distribution + params); one technique covers both
-// without a second code path, and it is exact for the shape the
-// profile pipeline actually produces — precisely what
-// TestSynth_CorrelationReconstructionWithinTolerance and
-// TestProfile_ConditionalThenSynth_ReconstructsCorrelation assert.
-// Trade-off, stated rather than hidden: a correlated field whose OWN
-// marginal is not normal (e.g. a schema-mode `lognormal` field named in
-// `correlations`) has its univariate shape pulled toward Gaussian by
-// this transform — mean and std survive, skew does not. See
-// skills/synthetic-data.md (Pairwise correlations).
+// without a second code path.
 //
 // v0 (removed): the original implementation drew a correlated normal
 // vector and blended only a small fraction (±5%·std) of it into the
@@ -44,17 +58,45 @@ import (
 // correlation, and its own doc comment flagged this as a "v1
 // limitation" that nothing ever came back to fix — no test asserted
 // how much of the requested correlation actually survived the blend,
-// so the gap went unnoticed. This story exists to not repeat that.
+// so the gap went unnoticed.
+//
+// v1 (removed): replaced v0 with a direct mean_i + std_i*u_i override —
+// exact for the requested correlation, but it forced every correlated
+// field's marginal to Gaussian regardless of its own declared
+// distribution (mean and std survived, skew did not). This (v2)
+// Gaussian-copula construction keeps v1's exact correlation targeting
+// while restoring each field's own marginal shape.
 type correlator struct {
 	fieldNames []string
-	means      []float64
-	stds       []float64
-	hasClamp   []bool
-	clampMin   []float64
-	clampMax   []float64
+	// quantiles holds each participating field's own quantile function
+	// Q_i, closed over that field's distribution-specific params —
+	// built once at construction by quantileFor, applied once per row
+	// by transform.
+	quantiles []quantileFunc
+	hasClamp  []bool
+	clampMin  []float64
+	clampMax  []float64
 	// chol is the lower-triangular Cholesky factor of the requested
 	// correlation matrix, sized N x N where N = len(fieldNames).
 	chol [][]float64
+}
+
+// quantileFunc is one field's quantile function (inverse CDF) Q(u, p):
+// u is the field's own correlated standard-normal draw (u_i from the
+// Cholesky-factor construction), p is Φ(u) — the same draw pushed
+// through the standard normal CDF into Uniform(0,1). A quantileFunc
+// takes both because normal and lognormal use u directly (Φ⁻¹(p) == u
+// by construction — recomputing it through phi/erfinv would be exact
+// but pointlessly indirect), while uniform and exponential need p.
+type quantileFunc func(u, p float64) float64
+
+// phi returns Φ(x), the standard normal CDF — the first step of the
+// Gaussian-copula construction, mapping a correlated standard-normal
+// draw to a Uniform(0,1) value every field's own quantile function can
+// invert. Implemented via math.Erf (Go stdlib since Go 1.10, no new
+// dependency): Φ(x) = 0.5*(1 + erf(x/√2)).
+func phi(x float64) float64 {
+	return 0.5 * (1 + math.Erf(x/math.Sqrt2))
 }
 
 // buildCorrelator builds a correlator from correlations — the SURVIVING
@@ -76,7 +118,8 @@ func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*corre
 
 	idx := make(map[string]int)
 	var names []string
-	var means, stds, clampMin, clampMax []float64
+	var quantiles []quantileFunc
+	var clampMin, clampMax []float64
 	var hasClamp []bool
 
 	ensure := func(name string) error {
@@ -93,10 +136,13 @@ func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*corre
 		if err != nil {
 			return err
 		}
+		q, err := quantileFor(fs, mean, std)
+		if err != nil {
+			return err
+		}
 		idx[name] = len(names)
 		names = append(names, name)
-		means = append(means, mean)
-		stds = append(stds, std)
+		quantiles = append(quantiles, q)
 		hasClamp = append(hasClamp, clamped)
 		clampMin = append(clampMin, cMin)
 		clampMax = append(clampMax, cMax)
@@ -133,14 +179,14 @@ func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*corre
 	}
 	return &correlator{
 		fieldNames: names,
-		means:      means, stds: stds,
-		hasClamp: hasClamp, clampMin: clampMin, clampMax: clampMax,
+		quantiles:  quantiles,
+		hasClamp:   hasClamp, clampMin: clampMin, clampMax: clampMax,
 		chol: chol,
 	}, nil
 }
 
 // transform overwrites row[name] for every participating field with a
-// draw from the jointly-Gaussian construction described on correlator,
+// draw from the Gaussian-copula construction described on correlator,
 // replacing the field's independently-drawn value outright rather than
 // blending a fraction of it in — see the type doc for why that is
 // correct here rather than destructive.
@@ -161,7 +207,8 @@ func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 		u[i] = sum
 	}
 	for i, name := range c.fieldNames {
-		v := c.means[i] + c.stds[i]*u[i]
+		p := phi(u[i])
+		v := c.quantiles[i](u[i], p)
 		if c.hasClamp[i] {
 			if v < c.clampMin[i] {
 				v = c.clampMin[i]
@@ -237,6 +284,66 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 			map[string]any{"field": fs.Name, "distribution": fs.Distribution})
 	}
 	return
+}
+
+// quantileFor returns fs's own quantile function (inverse CDF) Q,
+// closed over that distribution's declared params — the second half of
+// the Gaussian-copula construction on correlator, paired with fieldMoments
+// (which validates fs.Distribution is one of the four supported here and
+// supplies mean/std for the normal case). Only called after fieldMoments
+// has already succeeded for fs, so the default branch below is
+// unreachable in practice; it still refuses defensively with the same
+// SERVICE_VALIDATION shape rather than assuming.
+//
+// normal and lognormal deliberately ignore the p argument and use u
+// directly: Q_normal(p) = mean + std*Φ⁻¹(p) and Q_lognormal(p) =
+// exp(mu + sigma*Φ⁻¹(p)), but Φ⁻¹(p) == u exactly by construction (p was
+// built as Φ(u) — see phi), so recomputing it would be exact but
+// pointlessly indirect. uniform and exponential have no such shortcut
+// and use p.
+func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
+	switch fs.Distribution {
+	case DistNormal:
+		return func(u, p float64) float64 {
+			return mean + std*u
+		}, nil
+	case DistUniform:
+		minV, _, err := paramFloat(fs.Name, fs.Params, "min", 0)
+		if err != nil {
+			return nil, err
+		}
+		maxV, _, err := paramFloat(fs.Name, fs.Params, "max", 1)
+		if err != nil {
+			return nil, err
+		}
+		return func(u, p float64) float64 {
+			return minV + p*(maxV-minV)
+		}, nil
+	case DistLogNormal:
+		mu, _, err := paramFloat(fs.Name, fs.Params, "mu", 0)
+		if err != nil {
+			return nil, err
+		}
+		sigma, _, err := paramFloat(fs.Name, fs.Params, "sigma", 1)
+		if err != nil {
+			return nil, err
+		}
+		return func(u, p float64) float64 {
+			return math.Exp(mu + sigma*u)
+		}, nil
+	case DistExponential:
+		lambda, _, err := paramFloat(fs.Name, fs.Params, "lambda", 1)
+		if err != nil {
+			return nil, err
+		}
+		return func(u, p float64) float64 {
+			return -math.Log(1-p) / lambda
+		}, nil
+	default:
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: distribution %q does not support pairwise correlation", fs.Name, fs.Distribution),
+			map[string]any{"field": fs.Name, "distribution": fs.Distribution})
+	}
 }
 
 // cholesky returns the lower-triangular factor L such that L L^T = M.

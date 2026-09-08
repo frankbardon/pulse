@@ -67,7 +67,7 @@ All 17 `.pulse` field types reachable. `decimal128` requires `params.scale` matc
 
 ### Pairwise correlations
 
-`correlations` is a list of `{a, b, rho}` triples. The engine draws a correlated standard-normal vector via Cholesky, then sets each field to `mean + std*u` (clamped if `normal` with declared `min`/`max`); `mean`/`std` are closed-form for `normal`/`uniform`/`lognormal`/`exponential` only — any other distribution named in `correlations` refuses with `SERVICE_VALIDATION`. Exact for jointly-`normal` pairs (what `SpecFromProfile` always reconstructs); preserves mean/std but not skew for non-normal marginals. `|rho| ≥ 1` rejected at validation. Chosen over rank-based copula because schema-mode specs have no historical samples to rank against — replaces a removed v1 blend (±5%·std nudge, untested fidelity); see `TestSynth_CorrelationReconstructionWithinTolerance`.
+`correlations` is a list of `{a, b, rho}` triples. Gaussian-copula construction (`synth/copula.go`): draw a correlated standard-normal vector `u` via Cholesky, map each `u_i` through the standard normal CDF Φ (`math.Erf`) to `p_i = Φ(u_i) ~ Uniform(0,1)`, then apply each field's OWN quantile function `Q_i(p_i)` (clamped if `normal` with declared `min`/`max`) — `normal`/`uniform`/`lognormal`/`exponential` only (`fieldMoments`/`quantileFor`); any other distribution named in `correlations` refuses with `SERVICE_VALIDATION`. `normal` reduces exactly to `mean + std*u` since `Φ⁻¹(p_i) == u_i` by construction. Preserves each field's OWN marginal shape (mean, std, AND skew), not just mean/std — the copula targets Spearman (rank) correlation exactly; realized Pearson lands within test tolerance for the supported distributions, closer to exact as the non-normal field's variance shrinks (see `TestSynth_CopulaPreservesLognormalMarginal`). `|rho| ≥ 1` rejected at validation. Chosen over a rank-based empirical copula because schema-mode specs have no historical samples to rank against — replaces a removed v0 blend (±5%·std nudge, untested fidelity) and a removed v1 direct `mean + std*u` override (exact rho, Gaussian-forced marginal); see `TestSynth_CorrelationReconstructionWithinTolerance`.
 
 ## Profile mode
 
@@ -124,7 +124,7 @@ Seed splitting uses a 64-bit avalanche; seeds differing by 1 produce uncorrelate
 
 - Constraints + `monotonic_from`: monotonic ignores RNG, so a rejected row still increments the counter.
 - Correlations + clamping: heavy-clamped `normal` distorts the target — `|rho|_actual < |rho|_requested`.
-- Correlations + non-normal marginal: a schema-mode `lognormal`/`uniform`/`exponential` field named in `correlations` keeps its mean/std but loses its shape (pulled toward Gaussian) once correlated.
+- Correlations + non-normal marginal: the Gaussian-copula construction preserves a `lognormal`/`uniform`/`exponential` field's own marginal shape once correlated (not just mean/std), but the REALIZED Pearson correlation is attenuated relative to the requested rho for a wide-variance non-normal marginal (a known copula effect, not a bug) — keep sigma/spread modest for a non-normal correlated field if the realized Pearson must land tightly on the requested rho.
 - `weighted_categorical` weights normalize at sample time; absent weights default to uniform.
 - `uniform_date` is inclusive both ends.
 - `regex` is restricted: literal / charclass / fixed-repeat / alternation / bounded `*+{m,n}`. No backreferences.
