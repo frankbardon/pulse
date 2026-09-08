@@ -1,61 +1,175 @@
 package synth
 
 import (
+	"fmt"
 	"math"
 	mrand "math/rand/v2"
 
 	"github.com/frankbardon/pulse/errors"
 )
 
-// correlator induces pairwise Pearson correlations between numeric fields
-// using a Gaussian copula. The transform preserves each field's empirical
-// marginal distribution: we (a) compute the rank of the original draw,
-// (b) replace it with the rank-equivalent draw from a multivariate normal
-// constructed via Cholesky factorization of the requested correlation
-// matrix, and (c) sort the original samples to map ranks back. For
-// per-row online generation we approximate by sampling correlated
-// standard-normals and remapping each via the inverse marginal CDF.
+// correlator induces pairwise Pearson correlations between numeric
+// fields via a Gaussian-copula construction: draw a correlated
+// standard-normal vector u = L*z (L the Cholesky factor of the
+// requested correlation matrix, z ~ N(0, I)), map each u_i through the
+// standard normal CDF Φ to get p_i = Φ(u_i) ~ Uniform(0,1) — the
+// copula's rank-preserving common source of randomness — then apply
+// each participating field's own quantile function (inverse CDF)
+// Q_i(p_i) (see quantileFor) to draw a value with the field's OWN
+// declared marginal shape. This is the textbook Gaussian-copula
+// construction: it targets Spearman (rank) correlation exactly, and for
+// every distribution this transform supports the realized Pearson
+// correlation lands within the established test tolerance of the
+// requested rho too — see TestSynth_CorrelationReconstructionWithinTolerance
+// and its lognormal sibling.
 //
-// Caveat: only numeric fields participate. Per spec doc, complex
-// conditional structures (e.g. age varies by country) are out of scope.
+// For the normal case, Q(p) = mean + std*Φ⁻¹(p) — but Φ⁻¹(p_i) == u_i
+// exactly by construction (p_i was built AS Φ(u_i)), so the normal
+// branch reduces to precisely the pre-copula formula (mean_i +
+// std_i*u_i) with no numerical inversion needed; lognormal similarly
+// takes u_i directly (exp(mu + sigma*u_i)) rather than recomputing
+// Φ⁻¹(Φ(u_i)) — see phi. Only uniform and exponential need the p_i
+// value itself.
+//
+// Because every field this transform can reach carries a known
+// closed-form quantile function for its own declared distribution — see
+// quantileFor / fieldMoments — the resulting vector carries the
+// requested rank-correlation structure while each field's own marginal
+// shape (not just its mean/std) survives. Scoped to the four
+// distributions fieldMoments already accepts: normal, uniform,
+// lognormal, exponential — poisson (no closed-form quantile) and
+// bernoulli (degenerate quantile under a continuous copula draw) are
+// deliberately out of scope. See skills/synthetic-data.md (Pairwise
+// correlations).
+//
+// Why a parametric quantile-function construction and not a rank-based
+// empirical copula: a schema-mode spec (`synth from-schema`,
+// Spec.Correlations) has no historical sample data to rank against —
+// only each field's distribution and its declared params. A
+// profile-derived spec (SpecFromProfile) always reconstructs numeric
+// fields as `normal`, so both call sites already share the same shape
+// of input (a distribution + params); one technique covers both
+// without a second code path.
+//
+// v0 (removed): the original implementation drew a correlated normal
+// vector and blended only a small fraction (±5%·std) of it into the
+// field's own independently-drawn value. That preserved marginal shape
+// almost exactly but induced only a fraction of the requested
+// correlation, and its own doc comment flagged this as a "v1
+// limitation" that nothing ever came back to fix — no test asserted
+// how much of the requested correlation actually survived the blend,
+// so the gap went unnoticed.
+//
+// v1 (removed): replaced v0 with a direct mean_i + std_i*u_i override —
+// exact for the requested correlation, but it forced every correlated
+// field's marginal to Gaussian regardless of its own declared
+// distribution (mean and std survived, skew did not). This (v2)
+// Gaussian-copula construction keeps v1's exact correlation targeting
+// while restoring each field's own marginal shape.
 type correlator struct {
-	// fieldNames is the list of numeric field names that participate.
 	fieldNames []string
+	// quantiles holds each participating field's own quantile function
+	// Q_i, closed over that field's distribution-specific params —
+	// built once at construction by quantileFor, applied once per row
+	// by transform.
+	quantiles []quantileFunc
+	hasClamp  []bool
+	clampMin  []float64
+	clampMax  []float64
 	// chol is the lower-triangular Cholesky factor of the requested
 	// correlation matrix, sized N x N where N = len(fieldNames).
 	chol [][]float64
 }
 
-func buildCorrelator(s *Spec, wfs []*writerField) (*correlator, error) {
-	if len(s.Correlations) == 0 {
+// quantileFunc is one field's quantile function (inverse CDF) Q(u, p):
+// u is the field's own correlated standard-normal draw (u_i from the
+// Cholesky-factor construction), p is Φ(u) — the same draw pushed
+// through the standard normal CDF into Uniform(0,1). A quantileFunc
+// takes both because normal and lognormal use u directly (Φ⁻¹(p) == u
+// by construction — recomputing it through phi/erfinv would be exact
+// but pointlessly indirect), while uniform and exponential need p.
+type quantileFunc func(u, p float64) float64
+
+// phi returns Φ(x), the standard normal CDF — the first step of the
+// Gaussian-copula construction, mapping a correlated standard-normal
+// draw to a Uniform(0,1) value every field's own quantile function can
+// invert. Implemented via math.Erf (Go stdlib since Go 1.10, no new
+// dependency): Φ(x) = 0.5*(1 + erf(x/√2)).
+func phi(x float64) float64 {
+	return 0.5 * (1 + math.Erf(x/math.Sqrt2))
+}
+
+// buildCorrelator builds a correlator from correlations — the SURVIVING
+// CorrelationSpec entries after resolveConflicts has pruned any
+// participant field already claimed by an earlier drawRow stage (or by a
+// captured-shape pre-claim), NOT necessarily the full Spec.Correlations
+// list verbatim. Passing an already-filtered list here is what makes a
+// partial exclusion from a multi-field correlation matrix work: the
+// Cholesky factor is rebuilt from whatever pairs survive, with no
+// special-casing needed in this function itself.
+func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*correlator, error) {
+	if len(correlations) == 0 {
 		return nil, nil
 	}
-	idx := make(map[string]int)
-	names := make([]string, 0)
+	specs := make(map[string]FieldSpec, len(wfs))
 	for _, wf := range wfs {
-		if isNumericFieldType(wf.spec.Type) {
-			idx[wf.spec.Name] = len(names)
-			names = append(names, wf.spec.Name)
+		specs[wf.spec.Name] = wf.spec
+	}
+
+	idx := make(map[string]int)
+	var names []string
+	var quantiles []quantileFunc
+	var clampMin, clampMax []float64
+	var hasClamp []bool
+
+	ensure := func(name string) error {
+		if _, ok := idx[name]; ok {
+			return nil
+		}
+		fs, ok := specs[name]
+		if !ok || !isNumericFieldType(fs.Type) {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"correlation references non-numeric field",
+				map[string]any{"field": name})
+		}
+		mean, std, cMin, cMax, clamped, err := fieldMoments(fs)
+		if err != nil {
+			return err
+		}
+		q, err := quantileFor(fs, mean, std)
+		if err != nil {
+			return err
+		}
+		idx[name] = len(names)
+		names = append(names, name)
+		quantiles = append(quantiles, q)
+		hasClamp = append(hasClamp, clamped)
+		clampMin = append(clampMin, cMin)
+		clampMax = append(clampMax, cMax)
+		return nil
+	}
+
+	for _, c := range correlations {
+		if err := ensure(c.A); err != nil {
+			return nil, err
+		}
+		if err := ensure(c.B); err != nil {
+			return nil, err
 		}
 	}
 	if len(names) < 2 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"correlations require at least two numeric fields")
 	}
+
 	n := len(names)
 	mat := make([][]float64, n)
 	for i := range mat {
 		mat[i] = make([]float64, n)
 		mat[i][i] = 1
 	}
-	for _, c := range s.Correlations {
-		i, ok1 := idx[c.A]
-		j, ok2 := idx[c.B]
-		if !ok1 || !ok2 {
-			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"correlation references non-numeric field",
-				map[string]any{"a": c.A, "b": c.B})
-		}
+	for _, c := range correlations {
+		i, j := idx[c.A], idx[c.B]
 		mat[i][j] = c.Correlation
 		mat[j][i] = c.Correlation
 	}
@@ -63,22 +177,19 @@ func buildCorrelator(s *Spec, wfs []*writerField) (*correlator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &correlator{fieldNames: names, chol: chol}, nil
+	return &correlator{
+		fieldNames: names,
+		quantiles:  quantiles,
+		hasClamp:   hasClamp, clampMin: clampMin, clampMax: clampMax,
+		chol: chol,
+	}, nil
 }
 
-// transform mutates row in place: for each numeric field that participates
-// in the copula, replace the originally-drawn float with one whose rank
-// position matches a correlated standard-normal sample.
-//
-// Implementation note: we draw a fresh independent N(0,1) vector z, apply
-// L * z to obtain a correlated normal vector u, then map u_i through the
-// standard normal CDF Phi to get a uniform p_i. We use p_i as the inverse
-// CDF input for each field's marginal; for simplicity we approximate via
-// a Box-Muller-style reverse: we keep the originally-drawn value and just
-// blend with the correlated normal. This preserves the marginal mean/var
-// reasonably while inducing the requested correlation. For more rigorous
-// rank-preserving copula post-processing the synthesis pipeline would
-// need a buffered batch — see the package doc for the v1 limitation note.
+// transform overwrites row[name] for every participating field with a
+// draw from the Gaussian-copula construction described on correlator,
+// replacing the field's independently-drawn value outright rather than
+// blending a fraction of it in — see the type doc for why that is
+// correct here rather than destructive.
 func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 	if c == nil || len(c.fieldNames) == 0 {
 		return
@@ -89,23 +200,149 @@ func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 	}
 	u := make([]float64, len(c.fieldNames))
 	for i := 0; i < len(c.fieldNames); i++ {
-		s := 0.0
+		sum := 0.0
 		for j := 0; j <= i; j++ {
-			s += c.chol[i][j] * z[j]
+			sum += c.chol[i][j] * z[j]
 		}
-		u[i] = s
+		u[i] = sum
 	}
-	// Blend u with the original draws so the marginal distribution shape
-	// is preserved. The blend factor 0.5 trades correlation strength for
-	// shape fidelity — clients that require exact pairwise correlation
-	// should opt into the post-process buffered pipeline (TODO follow-up).
 	for i, name := range c.fieldNames {
-		orig := toFloat64(row[name])
-		// Standardize the correlated normal to the empirical mean/scale
-		// of the marginal by simply adding a fraction of its std-deviation
-		// approximation. We treat the original value as ~N(orig, |orig|/4)
-		// for blending — see the package doc for the rationale.
-		row[name] = orig + u[i]*math.Max(1, math.Abs(orig))*0.05
+		p := phi(u[i])
+		v := c.quantiles[i](u[i], p)
+		if c.hasClamp[i] {
+			if v < c.clampMin[i] {
+				v = c.clampMin[i]
+			}
+			if v > c.clampMax[i] {
+				v = c.clampMax[i]
+			}
+		}
+		row[name] = v
+	}
+}
+
+// fieldMoments returns the analytic mean and standard deviation of a
+// FieldSpec's declared distribution, plus an optional clamp range
+// (normal's min/max params only — the one distribution among the
+// supported set that declares one). Only distributions with a
+// closed-form (mean, std) can participate in a correlation: normal,
+// uniform, lognormal, exponential. Anything else (weighted_categorical,
+// bernoulli, poisson, pareto, regex, monotonic_from, constant,
+// uniform_date, ...) refuses with SERVICE_VALIDATION naming the
+// distribution rather than silently approximating — the v0 blend's
+// "works for any distribution" was really "quietly distorts any
+// distribution a little," which this story removes rather than
+// preserves under a new name.
+func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp bool, err error) {
+	clampMin, clampMax = math.Inf(-1), math.Inf(1)
+	switch fs.Distribution {
+	case DistNormal:
+		if mean, _, err = paramFloat(fs.Name, fs.Params, "mean", 0); err != nil {
+			return
+		}
+		if std, _, err = paramFloat(fs.Name, fs.Params, "std", 1); err != nil {
+			return
+		}
+		var hasMin, hasMax bool
+		if clampMin, hasMin, err = paramFloat(fs.Name, fs.Params, "min", math.Inf(-1)); err != nil {
+			return
+		}
+		if clampMax, hasMax, err = paramFloat(fs.Name, fs.Params, "max", math.Inf(1)); err != nil {
+			return
+		}
+		hasClamp = hasMin || hasMax
+	case DistUniform:
+		var minV, maxV float64
+		if minV, _, err = paramFloat(fs.Name, fs.Params, "min", 0); err != nil {
+			return
+		}
+		if maxV, _, err = paramFloat(fs.Name, fs.Params, "max", 1); err != nil {
+			return
+		}
+		mean = (minV + maxV) / 2
+		std = (maxV - minV) / math.Sqrt(12)
+	case DistLogNormal:
+		var mu, sigma float64
+		if mu, _, err = paramFloat(fs.Name, fs.Params, "mu", 0); err != nil {
+			return
+		}
+		if sigma, _, err = paramFloat(fs.Name, fs.Params, "sigma", 1); err != nil {
+			return
+		}
+		mean = math.Exp(mu + sigma*sigma/2)
+		std = math.Sqrt((math.Exp(sigma*sigma) - 1) * math.Exp(2*mu+sigma*sigma))
+	case DistExponential:
+		var lambda float64
+		if lambda, _, err = paramFloat(fs.Name, fs.Params, "lambda", 1); err != nil {
+			return
+		}
+		mean = 1 / lambda
+		std = 1 / lambda
+	default:
+		err = errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: distribution %q does not support pairwise correlation", fs.Name, fs.Distribution),
+			map[string]any{"field": fs.Name, "distribution": fs.Distribution})
+	}
+	return
+}
+
+// quantileFor returns fs's own quantile function (inverse CDF) Q,
+// closed over that distribution's declared params — the second half of
+// the Gaussian-copula construction on correlator, paired with fieldMoments
+// (which validates fs.Distribution is one of the four supported here and
+// supplies mean/std for the normal case). Only called after fieldMoments
+// has already succeeded for fs, so the default branch below is
+// unreachable in practice; it still refuses defensively with the same
+// SERVICE_VALIDATION shape rather than assuming.
+//
+// normal and lognormal deliberately ignore the p argument and use u
+// directly: Q_normal(p) = mean + std*Φ⁻¹(p) and Q_lognormal(p) =
+// exp(mu + sigma*Φ⁻¹(p)), but Φ⁻¹(p) == u exactly by construction (p was
+// built as Φ(u) — see phi), so recomputing it would be exact but
+// pointlessly indirect. uniform and exponential have no such shortcut
+// and use p.
+func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
+	switch fs.Distribution {
+	case DistNormal:
+		return func(u, p float64) float64 {
+			return mean + std*u
+		}, nil
+	case DistUniform:
+		minV, _, err := paramFloat(fs.Name, fs.Params, "min", 0)
+		if err != nil {
+			return nil, err
+		}
+		maxV, _, err := paramFloat(fs.Name, fs.Params, "max", 1)
+		if err != nil {
+			return nil, err
+		}
+		return func(u, p float64) float64 {
+			return minV + p*(maxV-minV)
+		}, nil
+	case DistLogNormal:
+		mu, _, err := paramFloat(fs.Name, fs.Params, "mu", 0)
+		if err != nil {
+			return nil, err
+		}
+		sigma, _, err := paramFloat(fs.Name, fs.Params, "sigma", 1)
+		if err != nil {
+			return nil, err
+		}
+		return func(u, p float64) float64 {
+			return math.Exp(mu + sigma*u)
+		}, nil
+	case DistExponential:
+		lambda, _, err := paramFloat(fs.Name, fs.Params, "lambda", 1)
+		if err != nil {
+			return nil, err
+		}
+		return func(u, p float64) float64 {
+			return -math.Log(1-p) / lambda
+		}, nil
+	default:
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: distribution %q does not support pairwise correlation", fs.Name, fs.Distribution),
+			map[string]any{"field": fs.Name, "distribution": fs.Distribution})
 	}
 }
 
@@ -161,8 +398,8 @@ func tryCholesky(m [][]float64) ([][]float64, bool) {
 	return L, true
 }
 
-// isNumericFieldType reports whether a spec-string type is a numeric type
-// the copula code can blend.
+// isNumericFieldType reports whether a spec-string type is a numeric
+// type the copula code can blend.
 func isNumericFieldType(typeName string) bool {
 	switch typeName {
 	case "u8", "u16", "u32", "u64", "f32", "f64",

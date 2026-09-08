@@ -42,6 +42,14 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 		return encoding.FieldTypeCategoricalU32, true
 	case "decimal128":
 		return encoding.FieldTypeDecimal128, true
+	case "set_u8":
+		return encoding.FieldTypeSetU8, true
+	case "set_u16":
+		return encoding.FieldTypeSetU16, true
+	case "set_u32":
+		return encoding.FieldTypeSetU32, true
+	case "set_u64":
+		return encoding.FieldTypeSetU64, true
 	}
 	return 0, false
 }
@@ -52,7 +60,25 @@ type writerField struct {
 	spec    FieldSpec
 	field   *encoding.Field
 	sampler sampler
-	dict    *encoding.Dictionary
+}
+
+// nextFieldLayout advances the running (byteOffset, bitCursor) cursor by
+// one field of type ft and returns that field's own (byteOffset,
+// bitPosition). Bit-packed types (u4, packed_bool) each consume one whole
+// fresh byte — the same simplified convention buildSchema has always used
+// (matches io/import.go's WriteByte path) — rather than sharing a byte
+// across neighbouring bit-packed fields. Shared by buildSchema and
+// augment.go's buildMergedSchema so both lay out fields identically.
+func nextFieldLayout(ft encoding.FieldType, byteOffset, bitCursor *int) (offset, bitPosition int) {
+	offset = *byteOffset
+	if ft.IsBitPacked() {
+		bitPosition = *bitCursor % 8
+		*byteOffset++
+		*bitCursor = 8
+	} else {
+		*byteOffset += ft.ByteSize()
+	}
+	return offset, bitPosition
 }
 
 // buildSchema returns the encoding.Schema and per-field samplers laid
@@ -83,6 +109,39 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		if ft.IsCategorical() {
 			field.Dictionary = encoding.NewDictionary()
 		}
+		if ft.IsSet() {
+			// set_* dictionaries are pre-populated HERE, once, in the
+			// field spec's own declared params.options order — never
+			// lazily via first-touch during row generation. A
+			// set_bernoulli sampler's row value is a map[string]bool
+			// (synth/distributions.go), and Go map iteration order is
+			// randomized per process; if bit IDs were assigned by
+			// first-encounter order while encoding that map,
+			// "same spec + same seed -> byte-identical output" (the
+			// Determinism contract, skills/synthetic-data.md) would
+			// break. Pre-registering in a fixed, spec-declared order
+			// means writeFieldValueForField only ever needs an ID
+			// LOOKUP against an already-complete dictionary, so the
+			// order in which map entries happen to be visited while
+			// building a row's mask can never affect the result.
+			options, ok, perr := paramStringSlice(fs.Name, fs.Params, "options")
+			if perr != nil {
+				return nil, nil, perr
+			}
+			if !ok || len(options) == 0 {
+				return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					fmt.Sprintf("field %q: set field requires non-empty params.options", fs.Name), nil)
+			}
+			dict := encoding.NewDictionary()
+			maxEntries := ft.MaxSetEntries()
+			for _, opt := range options {
+				if _, derr := dict.AddWithLimit(opt, maxEntries); derr != nil {
+					return nil, nil, errors.WrapCodedError(derr, errors.PULSE_IMPORT_SET_OVERFLOW,
+						fmt.Sprintf("field %q: registering set options", fs.Name))
+				}
+			}
+			field.Dictionary = dict
+		}
 		if ft.IsDecimal() {
 			prec := fs.Precision
 			scale := fs.Scale
@@ -97,16 +156,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			field.Precision = prec
 			field.Scale = scale
 		}
-		field.ByteOffset = byteOffset
-		// Bit-packed types use the bit position field; consume a fresh
-		// byte for simplicity (matches io/import.go).
-		if ft.IsBitPacked() {
-			field.BitPosition = bitCursor % 8
-			byteOffset += 1
-			bitCursor = 8
-		} else {
-			byteOffset += ft.ByteSize()
-		}
+		field.ByteOffset, field.BitPosition = nextFieldLayout(ft, &byteOffset, &bitCursor)
 
 		smp, err := buildSampler(fs)
 		if err != nil {
@@ -120,9 +170,6 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	schema := &encoding.Schema{Fields: fields}
 	for i := range wfs {
 		wfs[i].field = &schema.Fields[i]
-		if schema.Fields[i].Dictionary != nil {
-			wfs[i].dict = schema.Fields[i].Dictionary
-		}
 	}
 	return schema, wfs, nil
 }
@@ -144,13 +191,29 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		return 0, 0, nil, err
 	}
 
-	corr, err := buildCorrelator(s, wfs)
+	// resolveConflicts runs once per Spec, not per row — conflicts among
+	// the conditional-pairing relationships below are static for a given
+	// spec, so per-row detection would be pure waste. It walks the exact
+	// priority order the stage sequence below already implies and prunes
+	// any later claimant whose target an earlier stage already claimed,
+	// producing one warning per exclusion instead of drawRow's previous
+	// silent last-write-wins. See synth/conflict.go.
+	conflicts := resolveConflicts(s)
+	warnings = conflicts.warnings
+
+	corr, err := buildCorrelator(conflicts.correlations, wfs)
 	if err != nil {
 		return 0, 0, nil, err
 	}
+	catPairSamplers := buildCategoricalPairSamplers(conflicts.catPairs)
+	catNumPairSamplers := buildCategoricalNumericPairSamplers(conflicts.catNumPairs)
+	setCatPairSamplers := buildSetCategoricalPairSamplers(conflicts.setCatPairs)
+	setNumPairSamplers := buildSetNumericPairSamplers(conflicts.setNumPairs)
+	setSetPairSamplers := buildSetSetPairSamplers(conflicts.setSetPairs)
 
 	for rowsGenerated < s.RowCount {
-		if err := drawRow(rng, wfs, row, rowNullMask, corr); err != nil {
+		if err := drawRow(rng, wfs, row, rowNullMask, corr, catPairSamplers, catNumPairSamplers,
+			setCatPairSamplers, setNumPairSamplers, setSetPairSamplers); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
 		ok, evalErr := cons.evaluate(row)
@@ -182,7 +245,25 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	return rowsGenerated, rowsRejected, warnings, nil
 }
 
-func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask map[string]bool, corr *correlator) error {
+// drawRow draws one row: every field's own independent sampler first,
+// then a fixed chain of conditional post-processing steps that each
+// overwrite an already-drawn field's value in place — categorical joint
+// structure (categorical-categorical, then categorical-numeric) applied
+// before set-field joint structure (set-set, then set-categorical, then
+// set-numeric), before the numeric-numeric correlator, so a numeric or
+// set field's final value reflects whichever categorical/set value it
+// ends up conditioned on before any requested Pearson correlation is
+// layered on top. set-set runs before set-categorical/set-numeric so a
+// set option's OWN state — potentially itself resampled from another
+// set field's option — is settled before it is used as the conditioning
+// input for a numeric resample. Each step is a no-op (nil/empty slice)
+// unless the profile that produced this Spec actually captured that
+// structure — see Spec.CategoricalPairs / CategoricalNumericPairs /
+// SetCategoricalPairs / SetNumericPairs / SetSetPairs / Correlations doc
+// comments.
+func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask map[string]bool, corr *correlator,
+	catPairs []*categoricalPairSampler, catNumPairs []*categoricalNumericPairSampler,
+	setCatPairs []*setCategoricalPairSampler, setNumPairs []*setNumericPairSampler, setSetPairs []*setSetPairSampler) error {
 	for k := range row {
 		delete(row, k)
 	}
@@ -195,6 +276,21 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 		if isNull {
 			nullMask[wf.spec.Name] = true
 		}
+	}
+	for _, cp := range catPairs {
+		cp.transform(rng, row)
+	}
+	for _, cnp := range catNumPairs {
+		cnp.transform(rng, row)
+	}
+	for _, ssp := range setSetPairs {
+		ssp.transform(rng, row)
+	}
+	for _, scp := range setCatPairs {
+		scp.transform(rng, row)
+	}
+	for _, snp := range setNumPairs {
+		snp.transform(rng, row)
 	}
 	if corr != nil {
 		corr.transform(rng, row)
@@ -228,7 +324,18 @@ func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMa
 }
 
 func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) error {
-	ft := wf.field.Type
+	return writeFieldValueForField(buf, wf.field, val, isNull)
+}
+
+// writeFieldValueForField encodes a single field's value into buf per
+// field.Type, using field.Dictionary for categorical AddWithLimit. It is
+// the field-shaped twin of writeFieldValue (which threads through a
+// spec-bound *writerField); both funnel through here so the merge/augment
+// path (synth/augment.go, which re-encodes decoded records rather than
+// sampler-drawn values) shares exactly one encode implementation with
+// ordinary spec-driven generation.
+func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, isNull bool) error {
+	ft := field.Type
 	switch ft {
 	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
 		if isNull {
@@ -289,26 +396,78 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 		s, ok := val.(string)
 		if !ok {
 			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
-				fmt.Sprintf("field %q: categorical sampler must return string", wf.spec.Name), nil)
+				fmt.Sprintf("field %q: categorical value must be a string", field.Name), nil)
 		}
-		id, err := wf.dict.AddWithLimit(s, ft.MaxCategoricalEntries())
+		id, err := field.Dictionary.AddWithLimit(s, ft.MaxCategoricalEntries())
 		if err != nil {
 			return err
 		}
 		return encoding.WriteFieldValue(buf, ft, uint64(id))
+	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
+		if isNull {
+			return encoding.WriteFieldValue(buf, ft, 0)
+		}
+		if field.Dictionary == nil {
+			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+				fmt.Sprintf("field %q: set field missing dictionary", field.Name), nil)
+		}
+		var mask uint64
+		switch sel := val.(type) {
+		case map[string]bool:
+			// Iterate the dictionary's OWN fixed order (never a Go map
+			// range) so bit assignment cannot depend on map iteration
+			// randomization — see buildSchema's pre-registration
+			// comment for the full determinism rationale.
+			for _, opt := range field.Dictionary.Values() {
+				if !sel[opt] {
+					continue
+				}
+				id, ok := field.Dictionary.IDFor(opt)
+				if !ok {
+					continue
+				}
+				mask |= uint64(1) << id
+			}
+		case []string:
+			// The re-encode (AugmentFromProfile) path: a decoded row's
+			// currently-selected labels, already ordered by the source
+			// dictionary's own ascending bit order (see
+			// decodedFieldValue in augment.go). AddWithLimit is a no-op
+			// lookup for every label the merged dictionary was already
+			// pre-populated with at buildMergedSchema time.
+			for _, opt := range sel {
+				id, aerr := field.Dictionary.AddWithLimit(opt, ft.MaxSetEntries())
+				if aerr != nil {
+					return errors.WrapCodedError(aerr, errors.PULSE_IMPORT_SET_OVERFLOW,
+						fmt.Sprintf("field %q: encoding set value", field.Name))
+				}
+				mask |= uint64(1) << id
+			}
+		default:
+			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+				fmt.Sprintf("field %q: set value must be map[string]bool or []string", field.Name), nil)
+		}
+		return encoding.WriteFieldValue(buf, ft, mask)
 	case encoding.FieldTypeDecimal128:
 		if isNull {
 			return encoding.WriteDecimal128(buf, encoding.ZeroDecimal128())
 		}
-		dec, err := decimalFromValue(val, wf.field.Scale)
+		// A decoded record carries the exact Decimal128 already (see
+		// synth/augment.go's decodedFieldValue) — write it straight
+		// through rather than round-tripping via decimalFromValue's
+		// string/float paths, which would risk precision loss.
+		if dec, ok := val.(encoding.Decimal128); ok {
+			return encoding.WriteDecimal128(buf, dec)
+		}
+		dec, err := decimalFromValue(val, field.Scale)
 		if err != nil {
 			return errors.WrapCodedError(err, errors.PULSE_DECIMAL_OVERFLOW,
-				fmt.Sprintf("field %q: encoding decimal", wf.spec.Name))
+				fmt.Sprintf("field %q: encoding decimal", field.Name))
 		}
 		return encoding.WriteDecimal128(buf, dec)
 	}
 	return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
-		fmt.Sprintf("field %q: cannot encode type %s", wf.spec.Name, ft), nil)
+		fmt.Sprintf("field %q: cannot encode type %s", field.Name, ft), nil)
 }
 
 func toFloat64(v any) float64 {

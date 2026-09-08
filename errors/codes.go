@@ -234,6 +234,33 @@ const (
 	// or truncated output.
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 
+	// PULSE_SYNTH_SOURCE_REQUIRED indicates a `synth from-profile`-style
+	// tagged top-up call was made with no source cohort path — the call
+	// that copies real rows into the augmented output has nothing to copy.
+	PULSE_SYNTH_SOURCE_REQUIRED Code = "PULSE_SYNTH_SOURCE_REQUIRED"
+
+	// PULSE_SYNTH_OUTPUT_REQUIRED indicates a tagged top-up call was made
+	// with no output path — synthesis never writes in place, so an
+	// output path is always mandatory.
+	PULSE_SYNTH_OUTPUT_REQUIRED Code = "PULSE_SYNTH_OUTPUT_REQUIRED"
+
+	// PULSE_SYNTH_OUTPUT_COLLISION indicates a tagged top-up call's
+	// output path resolves to the same file as its source cohort path —
+	// refused so the source is never opened for write or mutated.
+	PULSE_SYNTH_OUTPUT_COLLISION Code = "PULSE_SYNTH_OUTPUT_COLLISION"
+
+	// PULSE_SYNTH_ALREADY_TAGGED indicates the source cohort passed to a
+	// tagged top-up call already declares a `_synthetic` field, so
+	// appending a second provenance column would be ambiguous.
+	PULSE_SYNTH_ALREADY_TAGGED Code = "PULSE_SYNTH_ALREADY_TAGGED"
+
+	// PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH indicates the profile-derived
+	// spec's field shape (name/type/decimal precision-scale, in order)
+	// does not line up with the source cohort's own schema — the profile
+	// was not captured from this source, or the source has since changed
+	// shape.
+	PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH Code = "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -2213,6 +2240,11 @@ var allCodes = []Code{
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
 	PULSE_SYNTH_CONSTRAINT_INFEASIBLE,
+	PULSE_SYNTH_SOURCE_REQUIRED,
+	PULSE_SYNTH_OUTPUT_REQUIRED,
+	PULSE_SYNTH_OUTPUT_COLLISION,
+	PULSE_SYNTH_ALREADY_TAGGED,
+	PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

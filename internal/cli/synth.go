@@ -87,19 +87,23 @@ func synthFromSchemaCmd() *cli.Command {
 func synthFromProfileCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "from-profile",
-		Usage: "Generate a synthetic .pulse file from a previously-captured profile",
+		Usage: "Top up a source cohort with rows generated from a previously-captured profile",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "profile", Aliases: []string{"p"}, Usage: "Profile JSON path", Required: true},
-			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
-			&cli.IntFlag{Name: "rows", Usage: "Number of rows to generate", Required: true},
+			&cli.StringFlag{Name: "source", Usage: "Source .pulse cohort the profile was captured from — copied into the output tagged _synthetic=false; never opened for write", Required: true},
+			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path — must differ from --source", Required: true},
+			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
+			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			profPath := cmd.String("profile")
+			source := cmd.String("source")
 			output := cmd.String("output")
 			rows := int(cmd.Int("rows"))
 			seed := cmd.Int("seed")
+			fidelityReport := cmd.String("fidelity-report")
 			jsonOut := cmd.Bool("json")
 
 			fs := afero.NewOsFs()
@@ -112,12 +116,25 @@ func synthFromProfileCmd() *cli.Command {
 				return cliError(cmd, jsonOut, "CLI_ERROR", fmt.Sprintf("parsing profile: %v", err))
 			}
 
-			spec := synth.SpecFromProfile(&prof, rows)
+			spec, conflictWarnings := synth.SpecFromProfile(&prof, rows)
 			p, err := newPulse()
 			if err != nil {
 				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
 			}
-			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{Seed: int64(seed)})
+			// Capture-time thin-cell warnings (prof.Warnings, written to
+			// the profile document at `profile create` time) and
+			// synth-time conditional-relationship conflict warnings
+			// (conflictWarnings, computed just now against the composed
+			// Spec — see SpecFromProfile) share one channel into the
+			// fidelity report: FidelityWarnings. Capture-time first,
+			// synth-time second, matching the order each was produced.
+			fidelityWarnings := append(append([]string{}, prof.Warnings...), conflictWarnings...)
+			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{
+				Seed:               int64(seed),
+				SourceCohort:       source,
+				FidelityReportPath: fidelityReport,
+				FidelityWarnings:   fidelityWarnings,
+			})
 			if err != nil {
 				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())
 			}
@@ -126,6 +143,9 @@ func synthFromProfileCmd() *cli.Command {
 			}
 			writeText(cmd.Writer, "Generated %d rows -> %s (rejected %d)\n",
 				res.RowsGenerated, res.OutputPath, res.RowsRejected)
+			if res.FidelityReportPath != "" {
+				writeText(cmd.Writer, "Fidelity report -> %s\n", res.FidelityReportPath)
+			}
 			return nil
 		},
 	}
@@ -142,7 +162,10 @@ func profileCreateCmd() *cli.Command {
 			&cli.BoolFlag{Name: "include-stats", Usage: "Include percentile / std stats", Value: true},
 			&cli.BoolFlag{Name: "include-correlations", Usage: "Capture pairwise numeric correlations"},
 			&cli.IntFlag{Name: "correlation-top-k", Usage: "Cap on retained correlation pairs", Value: 16},
+			&cli.BoolFlag{Name: "conditional", Usage: "Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse"},
+			&cli.BoolFlag{Name: "fit-shape", Usage: "Fit a 2-component Gaussian mixture per numeric field and keep it only when it's a genuine BIC improvement over the plain normal (see skills/synthetic-data.md); a near-normal field is left as normal"},
 			&cli.IntFlag{Name: "sample-limit", Usage: "Cap rows ingested for the profile (0 = unlimited)"},
+			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed for --conditional's categorical-categorical reservoir sampling", Value: 0},
 			&cli.BoolFlag{Name: "json", Usage: "Print envelope to stdout as well"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -152,7 +175,10 @@ func profileCreateCmd() *cli.Command {
 			includeStats := cmd.Bool("include-stats")
 			includeCorrelations := cmd.Bool("include-correlations")
 			corrTopK := int(cmd.Int("correlation-top-k"))
+			conditional := cmd.Bool("conditional")
+			fitShape := cmd.Bool("fit-shape")
 			sampleLimit := int(cmd.Int("sample-limit"))
+			seed := cmd.Int("seed")
 			jsonOut := cmd.Bool("json")
 
 			p, err := newPulse()
@@ -164,7 +190,10 @@ func profileCreateCmd() *cli.Command {
 				IncludeStats:        includeStats,
 				IncludeCorrelations: includeCorrelations,
 				CorrelationTopK:     corrTopK,
+				IncludeConditional:  conditional,
+				FitShape:            fitShape,
 				SampleLimit:         sampleLimit,
+				Seed:                int64(seed),
 			})
 			if err != nil {
 				return cliError(cmd, jsonOut, "PROFILE_ERROR", err.Error())

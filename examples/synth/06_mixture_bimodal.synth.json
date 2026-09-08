@@ -1,0 +1,15 @@
+{
+  "row_count": 5000,
+  "fields": [
+    {
+      "name": "session_length_seconds",
+      "type": "f64",
+      "distribution": "mixture",
+      "params": {
+        "means": [30, 600],
+        "stds": [10, 90],
+        "weights": [0.65, 0.35]
+      }
+    }
+  ]
+}

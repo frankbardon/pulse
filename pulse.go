@@ -992,8 +992,46 @@ func (p *Pulse) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includeF
 // Synth materializes a synthetic .pulse file at output from spec. The
 // generator is deterministic for a given (spec, opts.Seed) pair: same
 // seed produces a byte-identical file.
+//
+// Setting opts.SourceCohort activates the tagged top-up path used by
+// `synth from-profile`: output becomes source's real rows (tagged
+// _synthetic=false) plus spec.RowCount newly generated rows (tagged
+// _synthetic=true), output must be a path distinct from SourceCohort,
+// and SourceCohort itself is never opened for write. Leaving
+// SourceCohort empty (the default) is unchanged plain synthesis, used by
+// `synth from-schema` and any caller that built the Spec directly.
+//
+// Setting opts.FidelityReportPath alongside opts.SourceCohort
+// additionally writes a JSON fidelity report after generation
+// completes: a per-field marginal comparison between the source and
+// generated partitions of output, driven through TEST_KS (numeric
+// fields) / TEST_CHISQ (categorical fields) against the tagged
+// _synthetic column rather than new comparison math, plus — when spec
+// carries any Correlations — a pairwise numeric-numeric correlation
+// delta section comparing each pair's captured/target rho against its
+// realized rho in the newly generated partition (synth.PairwiseFidelity),
+// plus — when spec carries any CategoricalPairs / CategoricalNumericPairs
+// — the categorical-categorical contingency-table delta and
+// categorical-numeric conditional-mean/std delta sections
+// (synth.CategoricalPairFidelity / synth.CategoricalNumericPairFidelity,
+// E3-S4). opts.FidelityWarnings, when set, is copied verbatim onto the
+// report's Warnings slot — the mechanism `synth from-profile` uses to
+// surface Profile.Warnings (e.g. a thin numeric/categorical-pair
+// warning) beside the pairwise deltas they qualify, across all three
+// pair kinds. Ignored when SourceCohort is empty — the plain synthesis
+// path has no _synthetic partition to compare against.
 func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
-	return synth.Synth(p.fsys, spec, output, opts)
+	res, err := synth.Synth(p.fsys, spec, output, opts)
+	if err != nil {
+		return nil, err
+	}
+	if opts.SourceCohort != "" && opts.FidelityReportPath != "" {
+		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath, spec, opts.FidelityWarnings); err != nil {
+			return nil, err
+		}
+		res.FidelityReportPath = opts.FidelityReportPath
+	}
+	return res, nil
 }
 
 // Profile reads a .pulse file at path and returns a statistical summary

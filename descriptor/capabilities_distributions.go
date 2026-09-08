@@ -88,6 +88,16 @@ func distributionCapabilities() []DistributionMeta {
 			},
 		},
 		{
+			Name:        synth.DistMixture,
+			Description: "Mixture-of-normals samples; a component is drawn by weight, then a Gaussian sample from that component — reproduces bimodal/multimodal or skewed shapes a single normal cannot.",
+			AppliesTo:   []string{"numeric"},
+			Params: []Param{
+				{Name: "means", Type: "list", Required: true, Description: "Per-component means; length sets the component count (>= 2)."},
+				{Name: "stds", Type: "list", Required: true, Description: "Per-component standard deviations (> 0); length must match means."},
+				{Name: "weights", Type: "list", Required: false, Description: "Optional per-component mixing weight; length must match means. Uniform when absent."},
+			},
+		},
+		{
 			Name:        synth.DistUniformDate,
 			Description: "Uniform date samples in [start, end] (days-since-epoch internally).",
 			AppliesTo:   []string{"date"},
@@ -110,6 +120,15 @@ func distributionCapabilities() []DistributionMeta {
 			AppliesTo:   []string{"any"},
 			Params: []Param{
 				{Name: "value", Type: "any", Required: true, Description: "Value to emit on every row (interpreted by field type)."},
+			},
+		},
+		{
+			Name:        synth.DistSetBernoulli,
+			Description: "Multi-select set_* bitmask: one independent Bernoulli(frequency) draw per declared option, or a joint-structure resample when the spec declares a matching set-categorical/set-numeric/set-set pair.",
+			AppliesTo:   []string{"set"},
+			Params: []Param{
+				{Name: "options", Type: "list", Required: true, Description: "Dictionary entries in bit order; also pre-registers the field's dictionary at schema-build time."},
+				{Name: "frequencies", Type: "list", Required: false, Default: 0.5, Description: "Per-option P(bit set); length must match options. Defaults to 0.5 per option when absent."},
 			},
 		},
 	}

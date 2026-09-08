@@ -4836,6 +4836,33 @@
         ]
       },
       {
+        "name": "mixture",
+        "description": "Mixture-of-normals samples; a component is drawn by weight, then a Gaussian sample from that component — reproduces bimodal/multimodal or skewed shapes a single normal cannot.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "means",
+            "type": "list",
+            "required": true,
+            "description": "Per-component means; length sets the component count (\u003e= 2)."
+          },
+          {
+            "name": "stds",
+            "type": "list",
+            "required": true,
+            "description": "Per-component standard deviations (\u003e 0); length must match means."
+          },
+          {
+            "name": "weights",
+            "type": "list",
+            "required": false,
+            "description": "Optional per-component mixing weight; length must match means. Uniform when absent."
+          }
+        ]
+      },
+      {
         "name": "monotonic_from",
         "description": "Strictly increasing or decreasing integer counter; useful for synthetic primary keys.",
         "applies_to": [
@@ -4948,6 +4975,28 @@
         ]
       },
       {
+        "name": "set_bernoulli",
+        "description": "Multi-select set_* bitmask: one independent Bernoulli(frequency) draw per declared option, or a joint-structure resample when the spec declares a matching set-categorical/set-numeric/set-set pair.",
+        "applies_to": [
+          "set"
+        ],
+        "params": [
+          {
+            "name": "options",
+            "type": "list",
+            "required": true,
+            "description": "Dictionary entries in bit order; also pre-registers the field's dictionary at schema-build time."
+          },
+          {
+            "name": "frequencies",
+            "type": "list",
+            "required": false,
+            "default": 0.5,
+            "description": "Per-option P(bit set); length must match options. Defaults to 0.5 per option when absent."
+          }
+        ]
+      },
+      {
         "name": "uniform",
         "description": "Uniform real-valued samples in [min, max).",
         "applies_to": [
@@ -5013,7 +5062,7 @@
         ]
       }
     ],
-    "error_codes_count": 211,
+    "error_codes_count": 216,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5200,8 +5249,13 @@
       "PULSE_SPSS_WIDTH_OVERFLOW",
       "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
       "PULSE_SPSS_ZSAV_INVALID",
+      "PULSE_SYNTH_ALREADY_TAGGED",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
+      "PULSE_SYNTH_OUTPUT_COLLISION",
+      "PULSE_SYNTH_OUTPUT_REQUIRED",
+      "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
+      "PULSE_SYNTH_SOURCE_REQUIRED",
       "PULSE_TEMPLATE_INVALID",
       "PULSE_TEMPLATE_NOT_FOUND",
       "PULSE_TEMPLATE_RENDER_INVALID",
@@ -6810,6 +6864,10 @@
         "description": "Log-normal samples parameterised by log-space mu and sigma; output strictly positive."
       },
       {
+        "name": "op-synth-mixture",
+        "description": "Mixture-of-normals samples — per-row component draw by weight, then a Gaussian from that component; reproduces bimodal/multimodal shapes."
+      },
+      {
         "name": "op-synth-monotonic-from",
         "description": "Strictly increasing or decreasing integer counter; deterministic per row, ignores RNG. Synthetic primary keys."
       },
@@ -6828,6 +6886,10 @@
       {
         "name": "op-synth-regex",
         "description": "String samples generated from a Perl/RE2 regex pattern; walks regexp/syntax AST with bounded repetition."
+      },
+      {
+        "name": "op-synth-set-bernoulli",
+        "description": "Multi-select set_* bitmask generation — independent per-option Bernoulli draws, or a joint-structure resample when a paired field is declared."
       },
       {
         "name": "op-synth-uniform",
@@ -9507,4 +9569,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 44480744bd0f8adbcc2651a16732286e6caab3e8e15f8dad2e40a414bcfdabd3
+// golden-hash: 2305214cd8419c8f4e8752b407bca10a3b278c0c239c7f2d81441a2552c9a5ac
