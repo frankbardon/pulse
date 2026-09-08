@@ -107,6 +107,44 @@ the same thin-pair warning numeric pairs use, to `warnings`. This story
 only captures the contingency table; `synth from-profile` does not yet
 sample from it (a later addition).
 
+## `--conditional`: categorical-numeric conditional-mean capture
+
+`--conditional` also captures, for every categorical-numeric field
+pair, the numeric field's conditional mean/std broken out per observed
+category of the categorical field, written to
+`conditional.categorical_numeric_pairs`: each entry is `{a, b,
+categories, n}`, where `a` is the categorical field, `b` the numeric
+field, `categories` a list of `{category, mean, std, n}` per-category
+summaries, and `n` the pair's true co-occurrence count (rows where both
+fields were simultaneously non-null) summed across every category.
+Unlike `conditional.numeric_pairs` and `conditional.categorical_pairs`,
+this section is computed **online** from an exact running sum /
+sum-of-squares per category as the cohort streams past — no row-aligned
+10,000-row reservoir snapshot and no dependency on `--seed`, because a
+conditional mean/std needs one pass of running statistics, not a stored
+sample.
+
+Only **one** cap applies here, unlike categorical-categorical's two:
+the categorical field's own `--top-k` (default 32) collapses any value
+outside its top-K into `"other"` before that category's conditional
+mean/std is computed. There is no second, joint-cardinality cap the way
+`conditional.categorical_pairs` layers `synth.ContingencyCellCap` on
+top of the per-field top-K — this section emits one numeric summary
+per already-capped category rather than a joint table over two
+categorical axes, so the retained `categories` count is already
+bounded by `--top-k` (plus one `"other"` bucket) with nothing further
+to saturate.
+
+A category whose `n` falls below **30** (`synth.MinPairObservations`)
+still ships — never dropped — but appends the same thin-pair warning
+the other two pair kinds use, to `warnings`. The section is entirely
+absent (not empty) when `--conditional` is not passed.
+`synth.SpecFromProfile` consumes it into `Spec.CategoricalNumericPairs`;
+at generation time, numeric field B is resampled from `Normal(mean,
+std)` parameterized by categorical field A's already-drawn value,
+clamped to B's own observed `[min, max]` exactly as B's unconditional
+`normal` reconstruction clamps.
+
 ## `--conditional`: set_* pair capture (set-categorical / set-numeric / set-set)
 
 Every `set_*` field is profiled marginally as N independent Bernoulli
@@ -174,11 +212,26 @@ Limitations (see `synth/shape.go` for the full algorithm and its
 documented trade-offs): fixed at exactly 2 components (no component-
 count search); a single deterministic EM run per field, not
 multi-start, so a genuinely trimodal source fits a 2-component
-approximation rather than an optimal one. A field's captured shape
-takes priority over `--conditional`'s categorical-numeric conditional
-structure for that same field — the two have not been asked to compose,
-and the (usually more informative) shape fit silently wins rather than
-either crashing or being reconciled by guesswork.
+approximation rather than an optimal one. A field's captured shape and
+`--conditional`'s categorical-numeric conditional structure (or a
+numeric-numeric correlation) for that same field have not been asked
+to compose, but the conflict is no longer resolved silently: at
+`synth from-profile` generation time a `--fit-shape`-captured field is
+pre-claimed under `"captured shape (--fit-shape)"` before any
+conditional-pairing or correlation stage runs
+(`synth.resolveConflicts`, `synth/conflict.go`), so the shape fit
+always wins that field — but the excluded relationship (the dropped
+categorical-numeric pair, or that field's exclusion from a correlation
+whose other participants still correlate) is reported as one warning
+naming both the field and which relationship lost. That warning lands
+on `synth.Result.Warnings` (`data.warnings` under `--json`) for every
+`synth from-schema` / `synth from-profile` run, and additionally folds
+into `--fidelity-report`'s own `warnings` array for a `synth
+from-profile` run, alongside `profile create`'s own capture-time
+thin-pair warnings. The same priority-ordered claim mechanism resolves
+every other conditional-relationship collision too (e.g. two
+categorical-numeric pairs both naming the same numeric field) — a
+shape fit is simply the highest-priority claimant, not a special case.
 
 ## Output
 
