@@ -14,12 +14,17 @@ import (
 	"github.com/spf13/afero"
 )
 
-// conditionalJointCap bounds the number of row-aligned numeric
-// snapshots ProfileOptions.IncludeConditional retains for pairwise
-// reconstruction. Mirrors the existing 10000-sample reservoir cap used
+// conditionalJointCap bounds the number of row-aligned snapshots
+// ProfileOptions.IncludeConditional retains for pairwise reconstruction
+// — both jointRows (numeric-numeric) and jointCatRows
+// (categorical-categorical). Mirrors the existing 10000-sample cap used
 // elsewhere in this file (percentiles, the plain Pairwise correlation
 // stats) so profile size stays bounded regardless of source cohort
-// size.
+// size. The categorical-categorical arm (jointCatRows) fills this cap
+// via genuine Algorithm R reservoir sampling (E7-S2), so the captured
+// contingency table is unbiased regardless of source row ordering; the
+// numeric-numeric arm (jointRows) is unchanged first-N truncation and
+// was not in this story's scope.
 const conditionalJointCap = 10000
 
 // MinPairObservations is the minimum number of co-occurring, non-null
@@ -120,6 +125,17 @@ type ProfileOptions struct {
 	// for numeric fields so there is something to fit against, even
 	// when IncludeStats itself is false.
 	FitShape bool
+	// Seed drives the reservoir-sampling RNG used by
+	// IncludeConditional's categorical-categorical contingency capture
+	// (E7-S2) once the source cohort exceeds conditionalJointCap rows.
+	// Zero (the default) is itself a valid, deterministic seed — same
+	// as synth.Options.Seed's convention — so two profile runs against
+	// the same source with the same Seed (including the unset zero
+	// value) produce byte-identical captured output. It does not affect
+	// any other capture path: every other section in this file is
+	// either an exact online accumulation or a first-N reservoir with
+	// no random draws.
+	Seed int64
 }
 
 // Profile is a serialization-friendly statistical summary of a cohort.
@@ -796,6 +812,16 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	catRowValues := make(map[string]string, len(jointCatFieldNames))
 	catRowNulls := make(map[string]bool, len(jointCatFieldNames))
 
+	// catReservoirRNG and catJointSeen drive Algorithm R reservoir
+	// sampling for jointCatRows/jointCatNulls below (E7-S2). Built
+	// unconditionally (cheap, no draws consumed until actually used) so
+	// there is no conditional-declaration dance when trackCatJoint is
+	// false. catJointSeen is the 0-indexed count of rows OFFERED to the
+	// reservoir so far — distinct from rowCount, since a row is only
+	// offered when trackCatJoint gates it on.
+	catReservoirRNG := newRng(opts.Seed)
+	catJointSeen := 0
+
 	rowCount := 0
 	for {
 		err := rr.ReadRecordWithWide(values, nulls, wide)
@@ -912,7 +938,20 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			jointRows = append(jointRows, rowVals)
 			jointNulls = append(jointNulls, rowNulls)
 		}
-		if trackCatJoint && len(jointCatRows) < conditionalJointCap {
+		if trackCatJoint {
+			// Genuine Algorithm R reservoir sampling, not first-N
+			// truncation (E7-S2 — the prior `len(jointCatRows) <
+			// conditionalJointCap` gate here silently favored whichever
+			// block of a block-ordered source cohort, e.g. one sorted
+			// by region, was read first). The first conditionalJointCap
+			// rows fill the reservoir directly (no draw — matches the
+			// classic algorithm, which never rejects while the
+			// reservoir is still filling). Every row after that is
+			// offered a uniformly-random reservoir slot with
+			// probability conditionalJointCap/(catJointSeen+1) — drawn
+			// via catReservoirRNG, seeded from ProfileOptions.Seed so
+			// the same (source, seed) still produces byte-identical
+			// captured output.
 			rowVals := make([]string, len(jointCatFieldNames))
 			rowNulls := make([]bool, len(jointCatFieldNames))
 			for idx, name := range jointCatFieldNames {
@@ -921,8 +960,14 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 					rowVals[idx] = catRowValues[name]
 				}
 			}
-			jointCatRows = append(jointCatRows, rowVals)
-			jointCatNulls = append(jointCatNulls, rowNulls)
+			if len(jointCatRows) < conditionalJointCap {
+				jointCatRows = append(jointCatRows, rowVals)
+				jointCatNulls = append(jointCatNulls, rowNulls)
+			} else if j := catReservoirRNG.IntN(catJointSeen + 1); j < conditionalJointCap {
+				jointCatRows[j] = rowVals
+				jointCatNulls[j] = rowNulls
+			}
+			catJointSeen++
 		}
 		if trackCatNumJoint {
 			for _, cf := range jointCatFieldNames {

@@ -165,6 +165,7 @@ func profileCreateCmd() *cli.Command {
 			&cli.BoolFlag{Name: "conditional", Usage: "Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse"},
 			&cli.BoolFlag{Name: "fit-shape", Usage: "Fit a 2-component Gaussian mixture per numeric field and keep it only when it's a genuine BIC improvement over the plain normal (see skills/synthetic-data.md); a near-normal field is left as normal"},
 			&cli.IntFlag{Name: "sample-limit", Usage: "Cap rows ingested for the profile (0 = unlimited)"},
+			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed for --conditional's categorical-categorical reservoir sampling", Value: 0},
 			&cli.BoolFlag{Name: "json", Usage: "Print envelope to stdout as well"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -177,6 +178,7 @@ func profileCreateCmd() *cli.Command {
 			conditional := cmd.Bool("conditional")
 			fitShape := cmd.Bool("fit-shape")
 			sampleLimit := int(cmd.Int("sample-limit"))
+			seed := cmd.Int("seed")
 			jsonOut := cmd.Bool("json")
 
 			p, err := newPulse()
@@ -191,6 +193,7 @@ func profileCreateCmd() *cli.Command {
 				IncludeConditional:  conditional,
 				FitShape:            fitShape,
 				SampleLimit:         sampleLimit,
+				Seed:                int64(seed),
 			})
 			if err != nil {
 				return cliError(cmd, jsonOut, "PROFILE_ERROR", err.Error())

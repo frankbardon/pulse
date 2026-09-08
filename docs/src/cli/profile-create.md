@@ -18,7 +18,7 @@ pulse profile create --input PATH --output PATH
                      [--top-k N] [--include-stats]
                      [--include-correlations] [--correlation-top-k N]
                      [--conditional] [--fit-shape]
-                     [--sample-limit N] [--json]
+                     [--sample-limit N] [--seed N] [--json]
 ```
 
 ## Flags
@@ -34,6 +34,7 @@ pulse profile create --input PATH --output PATH
 | `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`), categorical-categorical contingency tables (`conditional.categorical_pairs`), categorical-numeric conditional means (`conditional.categorical_numeric_pairs`), and — per option of any `set_*` field — the same three pair kinds against categorical/numeric/other-set fields (`conditional.set_categorical_pairs`, `conditional.set_numeric_pairs`, `conditional.set_set_pairs`) |
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
+| `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling (see below); same `(--input, --seed)` produces byte-identical captured output |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
 
 ## What the profile captures
@@ -81,8 +82,14 @@ categorical-categorical field pair, written to
 `conditional.categorical_pairs`: each entry is `{a, b, cells, n}`, where
 `cells` is a list of `{a_value, b_value, count}` co-occurrences and `n`
 is the pair's true co-occurrence count (rows where both fields were
-simultaneously non-null). Two caps compose to keep the table bounded
-regardless of either field's raw cardinality: each field's own
+simultaneously non-null), capped at 10,000 captured rows the same way
+`conditional.numeric_pairs`' row-aligned snapshot is. A source cohort
+over that cap is captured via genuine Algorithm R reservoir sampling
+(`--seed`, above) rather than the first 10,000 rows, so a cohort sorted
+or otherwise ordered by block (e.g. by region) does not bias the
+captured table toward whichever block was read first. Two caps compose
+to keep the table bounded regardless of either field's raw cardinality:
+each field's own
 `--top-k` cap (default 32) first collapses any value outside that
 field's top-K into `"other"`, then `synth.ContingencyCellCap` (128)
 bounds the resulting joint table itself — a pair of two 50+-category
