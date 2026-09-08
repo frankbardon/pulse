@@ -17,50 +17,59 @@ import (
 // cohort mirroring the headline "select all that apply" marketing
 // survey use case the whole synth-from-sample effort was scoped
 // around: a set_* field ("channels": email/sms/push) with real
-// per-option variation, correlated with a categorical field ("region")
-// and a numeric field ("spend"), plus a genuinely bimodal, otherwise-
-// unrelated numeric field ("loyalty_score") for ProfileOptions.FitShape
-// (E4) to engage on.
+// per-option variation, correlated with a categorical field ("region"),
+// plus a genuinely bimodal, otherwise-unrelated numeric field
+// ("loyalty_score") for ProfileOptions.FitShape (E4) to engage on.
 //
-// Associations, all deterministic (row%N patterns) except the two
-// numeric fields' own within-bucket noise, mirroring
+// Associations, all deterministic (row%N patterns) except
+// loyalty_score's own within-bucket noise, mirroring
 // buildSetCategoricalCohort's "exact rational, not a statistical
 // approximation" discipline for every non-numeric axis:
-//   - channels[email]: flat 70% selection, independent of region/spend.
+//   - channels[email]: flat 70% selection, independent of region.
 //   - channels[sms]: region-dependent — 90% selected in eu, 10% in us
 //     (the set-categorical pairing under test).
-//   - channels[push]: flat 50% selection, independent of region — the
-//     axis spend's mean is conditioned on (the set-numeric pairing
-//     under test). The mean gap (45 vs 35, std 15) is deliberately mild
-//     — gap/avgStd = 0.67, under shapeFitMinSeparationStds (0.75) — so
-//     --fit-shape does NOT reclassify spend as a mixture, which would
-//     drop it from ConditionalProfile.SetNumericPairs entirely
-//     (SpecFromProfile requires DistNormal on the numeric side of a
-//     set-numeric pair).
+//   - channels[push]: flat 50% selection, independent of region —
+//     included only for the marginal-delta assertion below; it has no
+//     conditioned numeric partner in THIS cohort (see buildPushSpendCohort).
 //   - loyalty_score: a clearly-separated two-component mixture (means
 //     10/90, std 5 each — gap/avgStd = 16, far past
 //     shapeFitMinSeparationStds), unrelated to every other field, so
-//     --fit-shape has a genuine shape to find without touching spend's
-//     classification.
+//     --fit-shape has a genuine shape to find.
 //
-// Deliberately only ONE set_* field: drawRow (synth/writer.go) applies
-// each captured joint-structure kind as a fixed, unconditional
-// post-processing stage that OVERWRITES an already-drawn field/bit in
-// place, with no per-field "already resampled by an earlier stage,
-// skip" guard. Two set_* fields sharing a marginal against the SAME
-// categorical/numeric field — inevitable once BOTH set fields coexist
-// with e.g. "region", since --conditional captures every (set field,
-// option) x (categorical/numeric field) combination unconditionally —
-// would have that field/bit's FINAL value decided by whichever stage
-// runs LAST (set-categorical, in drawRow's fixed stage order), silently
-// discarding any earlier stage's effect on the same target. That is
-// real, observed production behavior (not a bug this story's scope
-// covers), and it is why this fixture's set-categorical and set-numeric
-// pairings are proven here, on ONE set field with no second set field
-// to collide with, while the set-set pairing is proven separately in
-// TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance's
-// second half on a deliberately isolated two-set-field, no-categorical,
-// no-numeric cohort — see buildCrossSellCohort.
+// Deliberately no numeric field conditioned by a set_* option here
+// (that pairing — channels[push] -> spend — is proven on its own
+// isolated cohort, buildPushSpendCohort), and only ONE set_* field
+// (the set-set pairing is proven separately on buildCrossSellCohort).
+// Both exclusions guard against the SAME class of problem, at two
+// different layers:
+//
+//   - drawRow (synth/writer.go) applies each captured joint-structure
+//     kind as a fixed post-processing stage over a shared per-Spec
+//     priority order (E6-S1, synth/conflict.go): when two DIFFERENT
+//     relationships each target the SAME field, only the
+//     higher-priority one survives — the other is dropped with a
+//     warning rather than silently overwritten (the pre-E6-S1 bug).
+//     That is correct, deterministic behavior, not a bug this fixture
+//     works around; it is precisely why a numeric field must not be
+//     given TWO competing conditioning relationships if the intent is
+//     to prove BOTH.
+//   - A categorical field and a numeric field coexisting in the same
+//     cohort unconditionally yields a captured (categorical -> numeric)
+//     pairing regardless of correlation strength (computeConditional-
+//     CategoricalNumericPairs has no significance gate), and
+//     catNumPairs runs before setNumPairs in drawRow's stage order — so
+//     "region" coexisting with a push-conditioned "spend" would have
+//     the (region -> spend) pairing (real signal: none) win the claim
+//     over (channels[push] -> spend) (real signal: the one under test),
+//     silently defeating the very relationship this fixture exists to
+//     prove. Isolating "spend" onto its own cohort with no coexisting
+//     categorical field sidesteps the collision entirely, the same way
+//     isolating the second set_* field sidesteps the set-set collision.
+//
+// See TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance's
+// three parts: this cohort proves marginal + set-categorical,
+// buildPushSpendCohort proves set-numeric, and buildCrossSellCohort
+// proves set-set.
 func buildMarketingSurveyCohort(t *testing.T, seed int64) (data []byte, rowCount int) {
 	t.Helper()
 	regionOpts := []string{"us", "eu"}
@@ -82,8 +91,7 @@ func buildMarketingSurveyCohort(t *testing.T, seed int64) (data []byte, rowCount
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 0, Dictionary: regionDict},
 		{Name: "channels", Type: encoding.FieldTypeSetU8, ByteOffset: 1, Dictionary: channelDict},
-		{Name: "spend", Type: encoding.FieldTypeF64, ByteOffset: 2},
-		{Name: "loyalty_score", Type: encoding.FieldTypeF64, ByteOffset: 10},
+		{Name: "loyalty_score", Type: encoding.FieldTypeF64, ByteOffset: 2},
 	}}
 
 	const rowsPerRegion = 3000
@@ -124,12 +132,6 @@ func buildMarketingSurveyCohort(t *testing.T, seed int64) (data []byte, rowCount
 		}
 		pushSel := localIdx%2 == 0 // flat 50%, independent
 
-		spendMean := 35.0
-		if pushSel {
-			spendMean = 45.0
-		}
-		spend := rng.NormFloat64()*15.0 + spendMean
-
 		var loyalty float64
 		if r%2 == 0 {
 			loyalty = rng.NormFloat64()*5.0 + 10.0
@@ -151,8 +153,70 @@ func buildMarketingSurveyCohort(t *testing.T, seed int64) (data []byte, rowCount
 
 		buf.WriteByte(byte(regionID))
 		buf.WriteByte(channelMask)
-		writeF64(spend)
 		writeF64(loyalty)
+	}
+	return buf.Bytes(), rowCount
+}
+
+// buildPushSpendCohort writes a minimal valid single-file .pulse cohort
+// with exactly one set_u8 field ("channels", single option "push") and
+// one numeric field ("spend") and NOTHING else — no categorical field
+// for the profiler to also (unconditionally) pair "spend" against. See
+// buildMarketingSurveyCohort's doc comment for why this isolation is
+// required to observe the set-numeric joint-structure kind's own
+// reconstruction, uncontaminated by a higher-priority
+// categorical-numeric pairing (E6-S1, synth/conflict.go) claiming the
+// same target field. channels[push] selection is flat 50%, independent
+// of anything else; spend's mean is conditioned on it (45 vs 35, std
+// 15) — the relationship under test.
+func buildPushSpendCohort(t *testing.T, seed int64) (data []byte, rowCount int) {
+	t.Helper()
+	channelDict := encoding.NewDictionary()
+	if _, err := channelDict.Add("push"); err != nil {
+		t.Fatalf("channelDict.Add: %v", err)
+	}
+
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "channels", Type: encoding.FieldTypeSetU8, ByteOffset: 0, Dictionary: channelDict},
+		{Name: "spend", Type: encoding.FieldTypeF64, ByteOffset: 1},
+	}}
+
+	rowCount = 6000
+	rng := rand.New(rand.NewSource(seed))
+
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+
+	writeF64 := func(v float64) {
+		bits := math.Float64bits(v)
+		var b [8]byte
+		for i := 0; i < 8; i++ {
+			b[i] = byte(bits >> (8 * i))
+		}
+		buf.Write(b[:])
+	}
+
+	for r := 0; r < rowCount; r++ {
+		pushSel := r%2 == 0 // flat 50%, independent
+
+		spendMean := 35.0
+		if pushSel {
+			spendMean = 45.0
+		}
+		spend := rng.NormFloat64()*15.0 + spendMean
+
+		var channelMask byte
+		if pushSel {
+			channelMask |= 1 << 0
+		}
+
+		buf.WriteByte(channelMask)
+		writeF64(spend)
 	}
 	return buf.Bytes(), rowCount
 }
@@ -219,17 +283,20 @@ func buildCrossSellCohort(t *testing.T, rowCount, flipEvery int) []byte {
 // deltas, BOTH the per-option marginal section and the joint-structure
 // pairwise sections, land within tolerance.
 //
-// The test has two halves, run through two independent full pipeline
-// executions: the first proves marginal + set-categorical + set-numeric
-// together on the marketing-survey cohort (buildMarketingSurveyCohort);
-// the second proves set-set on an isolated two-set-field cohort
-// (buildCrossSellCohort) — see buildMarketingSurveyCohort's doc comment
-// for why set-set cannot be proven correctly reconstructed in the SAME
-// cohort as a set-categorical pairing (drawRow's fixed, unconditional
-// per-stage overwrite semantics mean a set field exposed to BOTH a
-// set-set AND a set-categorical pairing has its final bit decided
-// entirely by whichever stage runs last, discarding the other). Both
-// halves exercise the exact same production entry points
+// The test has three parts, run through three independent full pipeline
+// executions: the first proves marginal + set-categorical on the
+// marketing-survey cohort (buildMarketingSurveyCohort); the second
+// proves set-numeric on an isolated single-set-field, no-categorical
+// cohort (buildPushSpendCohort); the third proves set-set on an
+// isolated two-set-field cohort (buildCrossSellCohort) — see
+// buildMarketingSurveyCohort's doc comment for why set-numeric and
+// set-set each need their own isolated cohort rather than sharing one
+// with a set-categorical pairing and a coexisting categorical field
+// (drawRow's fixed per-Spec claim-priority order, E6-S1, means a target
+// field named by two competing relationships has only the
+// higher-priority one survive — correct, but fatal to proving BOTH
+// relationships on one shared target within a single cohort). All
+// three parts exercise the exact same production entry points
 // (p.Profile/synth.SpecFromProfile/p.Synth) and the exact same
 // BuildFidelityReport/BuildSet*Pairwise machinery this story adds, so
 // together they are the proof that every epic in this effort — E1
@@ -245,8 +312,8 @@ func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing
 	const setSetTolerance = 0.05
 	const newRows = 20000
 
-	// --- Half 1: marketing-survey cohort — marginal + set-categorical +
-	// set-numeric, all in one pipeline run. ---
+	// --- Part 1: marketing-survey cohort — marginal + set-categorical,
+	// in one pipeline run. ---
 	srcData, rowCount := buildMarketingSurveyCohort(t, 101)
 
 	fs := afero.NewMemMapFs()
@@ -292,30 +359,19 @@ func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing
 		t.Error("expected --fit-shape to keep a mixture Shape for the clearly bimodal loyalty_score field")
 	}
 
-	var foundSetCategorical, foundSetNumeric bool
+	var foundSetCategorical bool
 	for _, scp := range prof.Conditional.SetCategoricalPairs {
 		if scp.Set == "channels" && scp.Option == "sms" && scp.Categorical == "region" {
 			foundSetCategorical = true
 		}
 	}
-	for _, snp := range prof.Conditional.SetNumericPairs {
-		if snp.Set == "channels" && snp.Option == "push" && snp.Numeric == "spend" {
-			foundSetNumeric = true
-		}
-	}
 	if !foundSetCategorical {
 		t.Fatalf("expected a captured set-categorical pair channels[sms] x region, got %+v", prof.Conditional.SetCategoricalPairs)
-	}
-	if !foundSetNumeric {
-		t.Fatalf("expected a captured set-numeric pair channels[push] x spend, got %+v", prof.Conditional.SetNumericPairs)
 	}
 
 	spec := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetCategoricalPairs) == 0 {
 		t.Fatal("expected SpecFromProfile to populate at least one set-categorical pair")
-	}
-	if len(spec.SetNumericPairs) == 0 {
-		t.Fatal("expected SpecFromProfile to populate at least one set-numeric pair")
 	}
 
 	// synth from-profile --rows N --fidelity-report
@@ -369,9 +425,9 @@ func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing
 		}
 	}
 
-	// Pairwise section: set-categorical and set-numeric (E5-S4
-	// acceptance criterion 2, two of the three kinds — the third,
-	// set-set, is proven in Half 2 below).
+	// Pairwise section: set-categorical (E5-S4 acceptance criterion 2,
+	// one of the three kinds — the other two, set-numeric and set-set,
+	// are proven in Parts 2 and 3 below).
 	var scPair *synth.SetCategoricalPairFidelity
 	for _, pr := range report.SetCategoricalPairwise {
 		if pr.Set == "channels" && pr.Option == "sms" && pr.Categorical == "region" {
@@ -391,14 +447,78 @@ func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing
 		t.Errorf("set-categorical pair: Delta = %.4f, want <= %.2f", scPair.Delta, categoricalTolerance)
 	}
 
+	// --- Part 2: isolated push-spend cohort — set-numeric, the second
+	// joint-structure kind (E5-S4 acceptance criterion 2). Isolated onto
+	// its own cohort with no coexisting categorical field: see
+	// buildMarketingSurveyCohort's doc comment for why a categorical
+	// field paired against the same numeric target ("spend") would win
+	// the E6-S1 claim-priority ordering and silently defeat this proof.
+	psFS := afero.NewMemMapFs()
+	pPS, err := New(Options{FS: psFS})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	psSrc, psRowCount := buildPushSpendCohort(t, 105)
+	if err := afero.WriteFile(psFS, "/source.pulse", psSrc, 0o644); err != nil {
+		t.Fatalf("write push-spend source: %v", err)
+	}
+
+	psProf, err := pPS.Profile(context.Background(), "/source.pulse", ProfileOptions{IncludeConditional: true})
+	if err != nil {
+		t.Fatalf("push-spend profile: %v", err)
+	}
+	if psProf.Conditional == nil {
+		t.Fatal("expected a captured Conditional section with --conditional")
+	}
+
+	var foundSetNumeric bool
+	for _, snp := range psProf.Conditional.SetNumericPairs {
+		if snp.Set == "channels" && snp.Option == "push" && snp.Numeric == "spend" {
+			foundSetNumeric = true
+		}
+	}
+	if !foundSetNumeric {
+		t.Fatalf("expected a captured set-numeric pair channels[push] x spend, got %+v", psProf.Conditional.SetNumericPairs)
+	}
+
+	psSpec := synth.SpecFromProfile(psProf, newRows)
+	if len(psSpec.SetNumericPairs) == 0 {
+		t.Fatal("expected SpecFromProfile to populate at least one set-numeric pair")
+	}
+
+	psRes, err := pPS.Synth(context.Background(), psSpec, "/augmented.pulse", SynthOptions{
+		Seed:               106,
+		SourceCohort:       "/source.pulse",
+		FidelityReportPath: "/report.json",
+		FidelityWarnings:   psProf.Warnings,
+	})
+	if err != nil {
+		t.Fatalf("push-spend augment synth: %v", err)
+	}
+	if psRes.FidelityReportPath != "/report.json" {
+		t.Fatalf("FidelityReportPath = %q, want /report.json", psRes.FidelityReportPath)
+	}
+
+	psRaw, err := afero.ReadFile(psFS, "/report.json")
+	if err != nil {
+		t.Fatalf("read push-spend report: %v", err)
+	}
+	var psReport synth.FidelityReport
+	if err := json.Unmarshal(psRaw, &psReport); err != nil {
+		t.Fatalf("unmarshal push-spend report: %v", err)
+	}
+	if psReport.SourceRows != psRowCount || psReport.SyntheticRows != newRows {
+		t.Errorf("push-spend SourceRows/SyntheticRows = %d/%d, want %d/%d", psReport.SourceRows, psReport.SyntheticRows, psRowCount, newRows)
+	}
+
 	var snPair *synth.SetNumericPairFidelity
-	for _, pr := range report.SetNumericPairwise {
+	for _, pr := range psReport.SetNumericPairwise {
 		if pr.Set == "channels" && pr.Option == "push" && pr.Numeric == "spend" {
 			snPair = pr
 		}
 	}
 	if snPair == nil {
-		t.Fatalf("expected a SetNumericPairwise entry for channels[push] x spend, got %+v", report.SetNumericPairwise)
+		t.Fatalf("expected a SetNumericPairwise entry for channels[push] x spend, got %+v", psReport.SetNumericPairwise)
 	}
 	if len(snPair.Categories) == 0 {
 		t.Fatal("set-numeric pair: expected at least one bucket entry")
@@ -420,7 +540,7 @@ func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing
 		}
 	}
 
-	// --- Half 2: isolated cross-sell cohort — set-set, the third
+	// --- Part 3: isolated cross-sell cohort — set-set, the third
 	// joint-structure kind (E5-S4 acceptance criterion 2). ---
 	crossFS := afero.NewMemMapFs()
 	pCross, err := New(Options{FS: crossFS})

@@ -57,8 +57,16 @@ type correlator struct {
 	chol [][]float64
 }
 
-func buildCorrelator(s *Spec, wfs []*writerField) (*correlator, error) {
-	if len(s.Correlations) == 0 {
+// buildCorrelator builds a correlator from correlations — the SURVIVING
+// CorrelationSpec entries after resolveConflicts has pruned any
+// participant field already claimed by an earlier drawRow stage (or by a
+// captured-shape pre-claim), NOT necessarily the full Spec.Correlations
+// list verbatim. Passing an already-filtered list here is what makes a
+// partial exclusion from a multi-field correlation matrix work: the
+// Cholesky factor is rebuilt from whatever pairs survive, with no
+// special-casing needed in this function itself.
+func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*correlator, error) {
+	if len(correlations) == 0 {
 		return nil, nil
 	}
 	specs := make(map[string]FieldSpec, len(wfs))
@@ -95,7 +103,7 @@ func buildCorrelator(s *Spec, wfs []*writerField) (*correlator, error) {
 		return nil
 	}
 
-	for _, c := range s.Correlations {
+	for _, c := range correlations {
 		if err := ensure(c.A); err != nil {
 			return nil, err
 		}
@@ -114,7 +122,7 @@ func buildCorrelator(s *Spec, wfs []*writerField) (*correlator, error) {
 		mat[i] = make([]float64, n)
 		mat[i][i] = 1
 	}
-	for _, c := range s.Correlations {
+	for _, c := range correlations {
 		i, j := idx[c.A], idx[c.B]
 		mat[i][j] = c.Correlation
 		mat[j][i] = c.Correlation

@@ -1924,19 +1924,19 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 		if !isNumericFieldType(typeOf[a]) || !isNumericFieldType(typeOf[b]) {
 			return
 		}
-		// synth/copula.go only knows a closed-form (mean, std) for
-		// normal/uniform/lognormal/exponential marginals — naming any
-		// other distribution in Correlations is a hard SERVICE_VALIDATION
-		// at generation time, not a silent drop. A --fit-shape field that
-		// reconstructed to DistMixture (E4-S2) is exactly such a case, so
-		// it is excluded here defensively rather than surfacing that
-		// refusal: shape-fitting and numeric-numeric correlation
-		// reconstruction have not been asked to compose, and dropping the
-		// correlation for that one pair is safer than a hard failure on
-		// the whole from-profile run.
-		if distOf[a] == DistMixture || distOf[b] == DistMixture {
-			return
-		}
+		// A --fit-shape field that reconstructed to DistMixture (E4-S2)
+		// has no closed-form (mean, std) synth/copula.go's fieldMoments
+		// can hand a correlator — shape-fitting and numeric-numeric
+		// correlation reconstruction have not been asked to compose. This
+		// used to be excluded here directly (a silent drop); it is added
+		// unconditionally now and left to resolveConflicts (E6-S1,
+		// synth/conflict.go) at generate() setup time — a shape-fit field
+		// is pre-claimed there under "captured shape (--fit-shape)" before
+		// any correlation stage runs, so the outcome (the correlation
+		// still excludes that field, the rest of the matrix still
+		// correlates) is unchanged, but it now surfaces as a warning
+		// through generate()'s shared conflict-detection mechanism instead
+		// of vanishing without a trace.
 		s.Correlations = append(s.Correlations, CorrelationSpec{A: a, B: b, Correlation: rho})
 	}
 	if p.Conditional != nil && len(p.Conditional.NumericPairs) > 0 {
@@ -1979,7 +1979,26 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 			s.CategoricalPairs = append(s.CategoricalPairs, CategoricalPairSpec{A: cp.A, B: cp.B, Cells: cells})
 		}
 		for _, cnp := range p.Conditional.CategoricalNumericPairs {
-			if distOf[cnp.A] != DistWeightedCategorical || distOf[cnp.B] != DistNormal {
+			// distOf[cnp.B] == DistMixture (a --fit-shape reconstruction,
+			// E4-S2) is deliberately ALLOWED through here rather than
+			// filtered out — categoricalNumericPairSampler.transform
+			// (synth/conditional_sample.go) overwrites row[B] outright
+			// with its own captured per-category moments regardless of
+			// what B's independent sampler would have drawn, so it has no
+			// functional need for B's own distribution to be normal.
+			// Whether this pair actually gets to run is decided uniformly
+			// by resolveConflicts (E6-S1, synth/conflict.go) at generate()
+			// setup time: a shape-fit B is pre-claimed there, so the pair
+			// is excluded with an explicit warning — replacing what used
+			// to be this loop's own silent "shape fit wins" special case
+			// (distOf[cnp.B] != DistNormal) with the SAME shared mechanism
+			// every other conditional-relationship conflict routes through.
+			// Any OTHER non-normal, non-mixture reconstruction (e.g. the
+			// DistConstant fallback for a field the profiler could not
+			// summarize) still excludes the pair here — that is a data-
+			// integrity guard, not a claim conflict.
+			if distOf[cnp.A] != DistWeightedCategorical ||
+				(distOf[cnp.B] != DistNormal && distOf[cnp.B] != DistMixture) {
 				continue
 			}
 			num, ok := numericMoments[cnp.B]

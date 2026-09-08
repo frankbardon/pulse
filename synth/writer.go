@@ -191,15 +191,25 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		return 0, 0, nil, err
 	}
 
-	corr, err := buildCorrelator(s, wfs)
+	// resolveConflicts runs once per Spec, not per row — conflicts among
+	// the conditional-pairing relationships below are static for a given
+	// spec, so per-row detection would be pure waste. It walks the exact
+	// priority order the stage sequence below already implies and prunes
+	// any later claimant whose target an earlier stage already claimed,
+	// producing one warning per exclusion instead of drawRow's previous
+	// silent last-write-wins. See synth/conflict.go.
+	conflicts := resolveConflicts(s)
+	warnings = conflicts.warnings
+
+	corr, err := buildCorrelator(conflicts.correlations, wfs)
 	if err != nil {
 		return 0, 0, nil, err
 	}
-	catPairSamplers := buildCategoricalPairSamplers(s.CategoricalPairs)
-	catNumPairSamplers := buildCategoricalNumericPairSamplers(s.CategoricalNumericPairs)
-	setCatPairSamplers := buildSetCategoricalPairSamplers(s.SetCategoricalPairs)
-	setNumPairSamplers := buildSetNumericPairSamplers(s.SetNumericPairs)
-	setSetPairSamplers := buildSetSetPairSamplers(s.SetSetPairs)
+	catPairSamplers := buildCategoricalPairSamplers(conflicts.catPairs)
+	catNumPairSamplers := buildCategoricalNumericPairSamplers(conflicts.catNumPairs)
+	setCatPairSamplers := buildSetCategoricalPairSamplers(conflicts.setCatPairs)
+	setNumPairSamplers := buildSetNumericPairSamplers(conflicts.setNumPairs)
+	setSetPairSamplers := buildSetSetPairSamplers(conflicts.setSetPairs)
 
 	for rowsGenerated < s.RowCount {
 		if err := drawRow(rng, wfs, row, rowNullMask, corr, catPairSamplers, catNumPairSamplers,
