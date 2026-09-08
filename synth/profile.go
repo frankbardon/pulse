@@ -1838,9 +1838,26 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			Name:        fp.Name,
 			Type:        fp.Type,
 			Description: fp.Description,
-			NullRate:    fp.NullRate,
-			Precision:   fp.Precision,
-			Scale:       fp.Scale,
+			// FieldProfile carries no direct "was this field declared
+			// nullable" flag — only the observed NullRate (nulls/total
+			// over the profiled sample, computed above in ProfileCohort).
+			// NullRate > 0 is nonetheless an exact proxy, not a heuristic:
+			// a non-nullable schema field can never contribute a counted
+			// null, so NullRate is strictly 0 for one and NullRate == 0
+			// already short-circuits buildSampler's nullableSampler wrap
+			// (synth/distributions.go) — so this is the only bit that can
+			// possibly matter. Without it, FieldSpec.Nullable stays at its
+			// zero value false while NullRate still drives buildSampler to
+			// sample nulls; encodeRow (synth/writer.go) then only ever
+			// consults encoding.Field.Nullable (set from fs.Nullable, not
+			// NullRate) to decide whether a null sample reaches the
+			// per-record bitmap, so every "null" draw for such a field was
+			// silently written as an in-band 0 — indistinguishable from a
+			// genuine zero.
+			Nullable:  fp.NullRate > 0,
+			NullRate:  fp.NullRate,
+			Precision: fp.Precision,
+			Scale:     fp.Scale,
 		}
 		switch {
 		case fp.Set != nil:
