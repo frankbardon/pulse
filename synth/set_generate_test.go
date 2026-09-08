@@ -236,7 +236,7 @@ func TestAugmentFromProfile_SetMarginalMatchesSourceWithinTolerance(t *testing.T
 		t.Fatalf("expected a captured Set profile for field %q", "channels")
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	var channelsSpec *synth.FieldSpec
 	for i := range spec.Fields {
 		if spec.Fields[i].Name == "channels" {
@@ -331,7 +331,7 @@ func TestAugmentFromProfile_ReconstructsSetCategoricalAssociationWithinTolerance
 		t.Fatalf("expected %d captured set-categorical pairs, got Conditional=%+v", len(featureOpts), prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetCategoricalPairs) != len(featureOpts) {
 		t.Fatalf("expected SpecFromProfile to populate %d set-categorical pairs, got %d",
 			len(featureOpts), len(spec.SetCategoricalPairs))
@@ -457,7 +457,7 @@ func TestAugmentFromProfile_ReconstructsSetNumericMeanWithinTolerance(t *testing
 		t.Fatalf("expected exactly one captured set-numeric pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetNumericPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one set-numeric pair, got %d", len(spec.SetNumericPairs))
 	}
@@ -577,7 +577,7 @@ func TestAugmentFromProfile_ReconstructsSetSetAssociationWithinTolerance(t *test
 		t.Fatalf("expected exactly one captured set-set pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetSetPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one set-set pair, got %d", len(spec.SetSetPairs))
 	}
@@ -680,7 +680,7 @@ func TestAugmentFromProfile_WithoutSetConditional_GeneratesIndependentMarginals(
 		t.Fatal("expected Conditional to be nil when --conditional was not requested")
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetCategoricalPairs) != 0 {
 		t.Fatalf("expected no set-categorical pairs reconstructed from a profile with no conditional section, got %d",
 			len(spec.SetCategoricalPairs))

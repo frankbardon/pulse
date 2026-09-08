@@ -54,7 +54,7 @@ func TestAugmentFromProfile_ReconstructsCategoricalContingencyWithinTolerance(t 
 		t.Fatalf("expected exactly one captured categorical pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.CategoricalPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one categorical pair from Conditional.CategoricalPairs, got %d", len(spec.CategoricalPairs))
 	}
@@ -124,7 +124,7 @@ func TestAugmentFromProfile_ReconstructsCategoricalNumericMeanWithinTolerance(t 
 		t.Fatalf("expected exactly one captured categorical-numeric pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.CategoricalNumericPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one categorical-numeric pair from Conditional.CategoricalNumericPairs, got %d", len(spec.CategoricalNumericPairs))
 	}
@@ -204,7 +204,7 @@ func TestAugmentFromProfile_WithoutCategoricalConditional_GeneratesIndependentMa
 		t.Fatal("expected Conditional to be nil when --conditional was not requested")
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.CategoricalPairs) != 0 {
 		t.Fatalf("expected no categorical pairs reconstructed from a profile with no conditional section, got %d", len(spec.CategoricalPairs))
 	}

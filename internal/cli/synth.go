@@ -116,16 +116,24 @@ func synthFromProfileCmd() *cli.Command {
 				return cliError(cmd, jsonOut, "CLI_ERROR", fmt.Sprintf("parsing profile: %v", err))
 			}
 
-			spec := synth.SpecFromProfile(&prof, rows)
+			spec, conflictWarnings := synth.SpecFromProfile(&prof, rows)
 			p, err := newPulse()
 			if err != nil {
 				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
 			}
+			// Capture-time thin-cell warnings (prof.Warnings, written to
+			// the profile document at `profile create` time) and
+			// synth-time conditional-relationship conflict warnings
+			// (conflictWarnings, computed just now against the composed
+			// Spec — see SpecFromProfile) share one channel into the
+			// fidelity report: FidelityWarnings. Capture-time first,
+			// synth-time second, matching the order each was produced.
+			fidelityWarnings := append(append([]string{}, prof.Warnings...), conflictWarnings...)
 			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{
 				Seed:               int64(seed),
 				SourceCohort:       source,
 				FidelityReportPath: fidelityReport,
-				FidelityWarnings:   prof.Warnings,
+				FidelityWarnings:   fidelityWarnings,
 			})
 			if err != nil {
 				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())

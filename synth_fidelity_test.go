@@ -51,7 +51,8 @@ func setupFidelityFixture(t *testing.T, fs afero.Fs) (*Pulse, *synth.Spec) {
 	if err != nil {
 		t.Fatalf("profile: %v", err)
 	}
-	return p, synth.SpecFromProfile(prof, 300)
+	spec, _ := synth.SpecFromProfile(prof, 300)
+	return p, spec
 }
 
 // TestSynth_FidelityReportOmittedWritesNoFile locks in acceptance

@@ -439,7 +439,7 @@ func TestProfile_ThenSynth_RoundTripsCategoricalShape(t *testing.T) {
 		t.Errorf("profile row count = %d", prof.RowCount)
 	}
 
-	specFromProfile := synth.SpecFromProfile(prof, 5000)
+	specFromProfile, _ := synth.SpecFromProfile(prof, 5000)
 	if _, err := p.Synth(context.Background(), specFromProfile, "/synth.pulse",
 		pulse.SynthOptions{Seed: 2}); err != nil {
 		t.Fatalf("synth from profile: %v", err)

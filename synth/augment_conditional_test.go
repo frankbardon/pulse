@@ -50,7 +50,7 @@ func TestAugmentFromProfile_ReconstructsCorrelationWithinTolerance(t *testing.T)
 		t.Fatalf("expected exactly one captured numeric pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.Correlations) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one correlation from Conditional.NumericPairs, got %d", len(spec.Correlations))
 	}
@@ -120,7 +120,7 @@ func TestAugmentFromProfile_WithoutConditional_GeneratesIndependentMarginals(t *
 		t.Fatal("expected Conditional to be nil when --conditional was not requested")
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.Correlations) != 0 {
 		t.Fatalf("expected no correlations reconstructed from a profile with no conditional/pairwise section, got %d", len(spec.Correlations))
 	}

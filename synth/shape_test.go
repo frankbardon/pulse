@@ -126,7 +126,7 @@ func TestProfile_FitShapeDoesNotForceFitNearNormalField(t *testing.T) {
 
 	// SpecFromProfile must fall back to the ordinary normal
 	// reconstruction for this field, exactly as it does today.
-	spec := synth.SpecFromProfile(prof, 1000)
+	spec, _ := synth.SpecFromProfile(prof, 1000)
 	if len(spec.Fields) != 1 || spec.Fields[0].Distribution != synth.DistNormal {
 		t.Fatalf("expected DistNormal reconstruction for a near-normal field, got %+v", spec.Fields)
 	}
@@ -170,7 +170,7 @@ func TestProfile_WithoutFitShape_NumericGeneratesAsToday(t *testing.T) {
 		t.Fatal(`expected no "shape" key in profile JSON when --fit-shape is off`)
 	}
 
-	spec := synth.SpecFromProfile(prof, 1000)
+	spec, _ := synth.SpecFromProfile(prof, 1000)
 	if len(spec.Fields) != 1 || spec.Fields[0].Distribution != synth.DistNormal {
 		t.Fatalf("expected unchanged DistNormal reconstruction without --fit-shape, got %+v", spec.Fields)
 	}
@@ -215,7 +215,7 @@ func TestProfile_FitShapeThenSynth_ReproducesBimodalShape(t *testing.T) {
 		t.Fatal("expected a captured Shape to drive regeneration — capture step failed upstream of this test")
 	}
 
-	spec := synth.SpecFromProfile(prof, 20000)
+	spec, _ := synth.SpecFromProfile(prof, 20000)
 	if spec.Fields[0].Distribution != synth.DistMixture {
 		t.Fatalf("expected SpecFromProfile to emit DistMixture, got %q", spec.Fields[0].Distribution)
 	}

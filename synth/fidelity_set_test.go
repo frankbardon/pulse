@@ -38,7 +38,7 @@ func TestBuildFidelityReport_SetFieldMarginalFrequencyDelta(t *testing.T) {
 	}
 
 	const newRows = 20000
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 
 	res, err := synth.AugmentFromProfile(fs, spec, "/source.pulse", "/augmented.pulse", synth.Options{Seed: 91})
 	if err != nil {
@@ -171,7 +171,7 @@ func TestBuildSetCategoricalPairwise_ComputesTVDAgainstSourceCells(t *testing.T)
 		t.Fatalf("expected %d captured set-categorical pairs, got Conditional=%+v", len(featureOpts), prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetCategoricalPairs) != len(featureOpts) {
 		t.Fatalf("expected SpecFromProfile to populate %d set-categorical pairs, got %d",
 			len(featureOpts), len(spec.SetCategoricalPairs))
@@ -229,7 +229,7 @@ func TestBuildSetCategoricalPairwise_ErrorWhenOptionUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("profile: %v", err)
 	}
-	spec := synth.SpecFromProfile(prof, 4000)
+	spec, _ := synth.SpecFromProfile(prof, 4000)
 
 	res, err := synth.AugmentFromProfile(fs, spec, "/source.pulse", "/augmented.pulse", synth.Options{Seed: 93})
 	if err != nil {
@@ -285,7 +285,7 @@ func TestBuildSetNumericPairwise_ComputesMeanStdDeltaAgainstSource(t *testing.T)
 		t.Fatalf("expected exactly one captured set-numeric pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetNumericPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one set-numeric pair, got %d", len(spec.SetNumericPairs))
 	}
@@ -354,7 +354,7 @@ func TestBuildSetSetPairwise_ComputesTVDAgainstSourceCells(t *testing.T) {
 		t.Fatalf("expected exactly one captured set-set pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetSetPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one set-set pair, got %d", len(spec.SetSetPairs))
 	}

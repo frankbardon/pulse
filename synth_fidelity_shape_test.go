@@ -118,7 +118,7 @@ func TestSynth_FidelityReportCatchesShapeCollapseViaKS(t *testing.T) {
 
 	// Correct case: synth from-profile, letting SpecFromProfile
 	// reconstruct DistMixture from the captured Shape as designed.
-	correctSpec := synth.SpecFromProfile(prof, newRows)
+	correctSpec, _ := synth.SpecFromProfile(prof, newRows)
 	if correctSpec.Fields[0].Distribution != synth.DistMixture {
 		t.Fatalf("expected SpecFromProfile to emit DistMixture, got %q", correctSpec.Fields[0].Distribution)
 	}

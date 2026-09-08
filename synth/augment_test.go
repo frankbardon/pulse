@@ -30,7 +30,8 @@ func setupAugmentFixture(t *testing.T, fs afero.Fs, sourcePath string, sourceRow
 	if err != nil {
 		t.Fatalf("profile: %v", err)
 	}
-	return p, synth.SpecFromProfile(prof, 0) // RowCount set per-call by caller
+	spec, _ := synth.SpecFromProfile(prof, 0) // RowCount set per-call by caller
+	return p, spec
 }
 
 // TestAugmentFromProfile_AppendsExactlyOneSyntheticField locks in
@@ -240,7 +241,7 @@ func TestAugmentFromProfile_RefusesAlreadyTaggedSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("profile once.pulse: %v", err)
 	}
-	spec2 := synth.SpecFromProfile(prof2, 5)
+	spec2, _ := synth.SpecFromProfile(prof2, 5)
 	_, err = synth.AugmentFromProfile(fs, spec2, "/once.pulse", "/twice.pulse", synth.Options{Seed: 3})
 	if !errors.HasCode(err, errors.PULSE_SYNTH_ALREADY_TAGGED) {
 		t.Fatalf("expected PULSE_SYNTH_ALREADY_TAGGED, got %v", err)

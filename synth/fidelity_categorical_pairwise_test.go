@@ -57,7 +57,7 @@ func TestBuildCategoricalPairwise_ComputesTVDAgainstSourceCells(t *testing.T) {
 		t.Fatalf("expected exactly one captured categorical pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.CategoricalPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one categorical pair, got %d", len(spec.CategoricalPairs))
 	}
@@ -116,7 +116,7 @@ func TestBuildCategoricalPairwise_ErrorWhenNoCoOccurrence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("profile: %v", err)
 	}
-	spec := synth.SpecFromProfile(prof, 200)
+	spec, _ := synth.SpecFromProfile(prof, 200)
 
 	res, err := synth.AugmentFromProfile(fs, spec, "/source.pulse", "/augmented.pulse", synth.Options{Seed: 44})
 	if err != nil {
@@ -175,7 +175,7 @@ func TestBuildCategoricalNumericPairwise_ComputesMeanStdDeltaAgainstSource(t *te
 		t.Fatalf("expected exactly one captured categorical-numeric pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.CategoricalNumericPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one categorical-numeric pair, got %d", len(spec.CategoricalNumericPairs))
 	}
@@ -243,7 +243,7 @@ func TestBuildCategoricalNumericPairwise_ErrorWhenCategoryUnobserved(t *testing.
 	if err != nil {
 		t.Fatalf("profile: %v", err)
 	}
-	spec := synth.SpecFromProfile(prof, 4000)
+	spec, _ := synth.SpecFromProfile(prof, 4000)
 	if len(spec.CategoricalNumericPairs) != 1 {
 		t.Fatalf("expected one categorical-numeric pair, got %d", len(spec.CategoricalNumericPairs))
 	}

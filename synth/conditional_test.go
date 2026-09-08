@@ -187,7 +187,7 @@ func TestProfile_ConditionalThenSynth_ReconstructsCorrelationWithinTolerance(t *
 		t.Fatalf("profile: %v", err)
 	}
 
-	specFromProfile := synth.SpecFromProfile(prof, 20000)
+	specFromProfile, _ := synth.SpecFromProfile(prof, 20000)
 	if _, err := p.Synth(context.Background(), specFromProfile, "/regen.pulse",
 		pulse.SynthOptions{Seed: 99}); err != nil {
 		t.Fatalf("synth from profile: %v", err)
@@ -230,7 +230,7 @@ func TestProfile_LegacyDocumentWithoutConditional_StillValidInput(t *testing.T) 
 		t.Fatal("expected Conditional to be nil for a document with no such key")
 	}
 
-	spec := synth.SpecFromProfile(&prof, 500)
+	spec, _ := synth.SpecFromProfile(&prof, 500)
 	if len(spec.Fields) != 2 {
 		t.Fatalf("expected 2 fields in reconstructed spec, got %d", len(spec.Fields))
 	}

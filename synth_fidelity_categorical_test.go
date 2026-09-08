@@ -123,7 +123,7 @@ func TestSynth_FidelityReportCategoricalPairwiseWithinTolerance(t *testing.T) {
 		t.Fatalf("expected exactly one captured categorical pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.CategoricalPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one categorical pair, got %d", len(spec.CategoricalPairs))
 	}
@@ -204,7 +204,7 @@ func TestSynth_FidelityReportCategoricalNumericPairwiseWithinTolerance(t *testin
 		t.Fatalf("expected exactly one captured categorical-numeric pair, got Conditional=%+v", prof.Conditional)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.CategoricalNumericPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one categorical-numeric pair, got %d", len(spec.CategoricalNumericPairs))
 	}
@@ -339,7 +339,7 @@ func TestSynth_FidelityReportSurfacesCategoricalThinPairWarning(t *testing.T) {
 		t.Fatalf("expected at least one warning naming a categorical pair kind, got %v", prof.Warnings)
 	}
 
-	spec := synth.SpecFromProfile(prof, 4000)
+	spec, _ := synth.SpecFromProfile(prof, 4000)
 	if _, err := p.Synth(context.Background(), spec, "/augmented.pulse", SynthOptions{
 		Seed:               82,
 		SourceCohort:       "/source.pulse",

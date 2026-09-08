@@ -63,7 +63,7 @@ func TestSynth_FidelityReportPairwiseWithinTolerance(t *testing.T) {
 	}
 	sourceRho := prof.Conditional.NumericPairs[0].Rho
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.Correlations) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one correlation, got %d", len(spec.Correlations))
 	}
@@ -146,7 +146,7 @@ func TestSynth_FidelityReportSurfacesThinPairWarning(t *testing.T) {
 		t.Fatal("expected at least one thin-pair warning from the profile capture")
 	}
 
-	spec := synth.SpecFromProfile(prof, 5000)
+	spec, _ := synth.SpecFromProfile(prof, 5000)
 	if _, err := p.Synth(context.Background(), spec, "/augmented.pulse", SynthOptions{
 		Seed:               82,
 		SourceCohort:       "/source.pulse",

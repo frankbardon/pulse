@@ -369,7 +369,7 @@ func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing
 		t.Fatalf("expected a captured set-categorical pair channels[sms] x region, got %+v", prof.Conditional.SetCategoricalPairs)
 	}
 
-	spec := synth.SpecFromProfile(prof, newRows)
+	spec, _ := synth.SpecFromProfile(prof, newRows)
 	if len(spec.SetCategoricalPairs) == 0 {
 		t.Fatal("expected SpecFromProfile to populate at least one set-categorical pair")
 	}
@@ -481,7 +481,7 @@ func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing
 		t.Fatalf("expected a captured set-numeric pair channels[push] x spend, got %+v", psProf.Conditional.SetNumericPairs)
 	}
 
-	psSpec := synth.SpecFromProfile(psProf, newRows)
+	psSpec, _ := synth.SpecFromProfile(psProf, newRows)
 	if len(psSpec.SetNumericPairs) == 0 {
 		t.Fatal("expected SpecFromProfile to populate at least one set-numeric pair")
 	}
@@ -560,7 +560,7 @@ func TestSynth_MarketingSurveyFidelityReport_SetDeltasWithinTolerance(t *testing
 		t.Fatalf("expected exactly one captured set-set pair, got Conditional=%+v", crossProf.Conditional)
 	}
 
-	crossSpec := synth.SpecFromProfile(crossProf, newRows)
+	crossSpec, _ := synth.SpecFromProfile(crossProf, newRows)
 	if len(crossSpec.SetSetPairs) != 1 {
 		t.Fatalf("expected SpecFromProfile to populate one set-set pair, got %d", len(crossSpec.SetSetPairs))
 	}

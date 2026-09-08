@@ -1816,7 +1816,22 @@ func collapseCells(counts map[[2]string]int, cellCap int) []ContingencyCell {
 // fields are reconstructed as normal distributions (mean, std clipped
 // at min/max), categorical fields as weighted_categorical, and date
 // fields as uniform_date over the observed range.
-func SpecFromProfile(p *Profile, rowCount int) *Spec {
+//
+// The second return value carries any conditional-relationship conflict
+// warnings resolveConflicts (synth/conflict.go, E6-S1) produces when run
+// against the just-composed Spec — e.g. two captured pairs both
+// legitimately targeting the same field. generate() (synth/writer.go)
+// independently runs the same pass again at its own setup time, so these
+// two calls always agree; this one exists only because
+// Profile.Warnings is serialized to disk at `profile create` time,
+// before SpecFromProfile ever runs at `synth from-profile` time — there
+// is no way to retroactively write a synth-time conflict warning back
+// into that already-persisted document. Returning the warnings here lets
+// a caller (internal/cli's `synth from-profile`) fold them into the same
+// FidelityWarnings channel it already uses for prof.Warnings, so both
+// surface together through `--fidelity-report`. Callers that don't need
+// them may discard with `_`.
+func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 	s := &Spec{RowCount: rowCount}
 	for _, fp := range p.Fields {
 		fs := FieldSpec{
@@ -2060,5 +2075,6 @@ func SpecFromProfile(p *Profile, rowCount int) *Spec {
 			})
 		}
 	}
-	return s
+	conflicts := resolveConflicts(s)
+	return s, conflicts.warnings
 }
