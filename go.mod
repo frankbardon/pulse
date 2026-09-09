@@ -12,7 +12,7 @@ require (
 	github.com/urfave/cli/v3 v3.10.1
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/sync v0.22.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.48.0
 	golang.org/x/text v0.38.0
 	gonum.org/v1/gonum v0.17.0
 )
