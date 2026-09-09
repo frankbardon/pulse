@@ -597,9 +597,9 @@ func newUniformDateSampler(f FieldSpec) (sampler, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: invalid end date %q", f.Name, endStr), nil)
 	}
-	if !endT.After(startT) {
+	if endT.Before(startT) {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("field %q: uniform_date end must be after start", f.Name), nil)
+			fmt.Sprintf("field %q: uniform_date end must not be before start", f.Name), nil)
 	}
 	const day = int64(86400)
 	return &uniformDateSampler{

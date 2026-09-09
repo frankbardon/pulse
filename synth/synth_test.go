@@ -287,6 +287,49 @@ func TestSynth_MixtureValidatesParams(t *testing.T) {
 	}
 }
 
+// TestSynth_UniformDateSingleDayRange asserts a degenerate uniform_date
+// range (start == end, the shape a single-wave source cohort profiles to)
+// is legal and every row lands on that day — not a SERVICE_VALIDATION
+// refusal. Regression for the synth-from-sample path over one-wave data.
+func TestSynth_UniformDateSingleDayRange(t *testing.T) {
+	spec := &synth.Spec{
+		RowCount: 50,
+		Fields: []synth.FieldSpec{
+			{Name: "waveDate", Type: "date", Distribution: synth.DistUniformDate,
+				Params: map[string]any{"start": "2023-02-20", "end": "2023-02-20"}},
+		},
+	}
+	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 7})
+	if err != nil {
+		t.Fatalf("expected single-day uniform_date range to succeed, got: %v", err)
+	}
+	got := readF64Field(t, data, "waveDate")
+	if len(got) != 50 {
+		t.Fatalf("expected 50 rows, got %d", len(got))
+	}
+	for i, v := range got {
+		if v != got[0] {
+			t.Fatalf("row %d: expected every row on the same day (%v), got %v", i, got[0], v)
+		}
+	}
+}
+
+// TestSynth_UniformDateEndBeforeStartRejected asserts an inverted range
+// (end strictly before start) still refuses — only the equal-bounds case
+// was wrongly rejected.
+func TestSynth_UniformDateEndBeforeStartRejected(t *testing.T) {
+	spec := &synth.Spec{
+		RowCount: 10,
+		Fields: []synth.FieldSpec{
+			{Name: "d", Type: "date", Distribution: synth.DistUniformDate,
+				Params: map[string]any{"start": "2023-02-20", "end": "2023-02-19"}},
+		},
+	}
+	if _, _, err := synth.SynthBytes(spec, synth.Options{Seed: 1}); err == nil {
+		t.Fatal("expected SERVICE_VALIDATION for end before start, got nil")
+	}
+}
+
 // TestSynth_ConstraintSatisfiedEveryRow verifies all rows satisfy declared
 // constraints when generation succeeds.
 func TestSynth_ConstraintSatisfiedEveryRow(t *testing.T) {

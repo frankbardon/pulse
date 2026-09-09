@@ -16,7 +16,7 @@ Synth distributions emit per-row values; they do not produce Response.Components
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `start` | string | required | ISO-8601 calendar date `YYYY-MM-DD`. |
-| `end` | string | required | ISO-8601 calendar date `YYYY-MM-DD`. Must be after `start`. |
+| `end` | string | required | ISO-8601 calendar date `YYYY-MM-DD`. Must not be before `start`; equal is legal (single-day range). |
 
 Internally each bound parses via `time.Parse("2006-01-02", ...)` and converts to days-since-1970-01-01.
 
@@ -36,7 +36,7 @@ Sampler draws `off = rng.Int64N(span + 1)` over `span = endDays - startDays`, so
 
 - Both bounds inclusive — `uniform_date(2024-01-01, 2024-12-31)` can emit either bound.
 - Unparseable dates → `SERVICE_VALIDATION` ("invalid start date" / "invalid end date").
-- `end <= start` → `SERVICE_VALIDATION` ("end must be after start").
+- `end == start` is legal — a degenerate single-day range, every draw lands on that day. Only `end < start` → `SERVICE_VALIDATION` ("end must not be before start").
 - Epoch is 1970-01-01; pre-epoch dates encode as negative days-since-epoch which the `date` field type cannot store — keep `start >= 1970-01-01`.
 - For sub-day granularity model the timestamp as `u64` seconds-since-epoch via `uniform`.
 

@@ -488,10 +488,50 @@ func SyntheticAsCategoricalSchema(schema *encoding.Schema) *encoding.Schema {
 // gets an Error entry rather than aborting the rest of the pairs or
 // the report — the same non-fatal contract BuildFidelityReport's own
 // per-field entries follow.
+// syntheticRow is one decoded row of mergedSchema's _synthetic=true
+// partition, retained in memory by decodeSyntheticRows so every pair a
+// Build*Pairwise call evaluates reads from that cache instead of
+// re-decoding the full merged record set per pair.
+type syntheticRow struct {
+	values map[string]float64
+	nulls  map[string]bool
+	wide   map[string]any
+}
+
+// decodeSyntheticRows decodes mergedSchema's records exactly once,
+// retaining only the rows where SyntheticFieldName is non-zero. Every
+// Build*Pairwise function previously called its own compute* helper
+// once per pair, and each of THOSE re-decoded the full merged record
+// set (source + synthetic rows) from scratch — O(pairs × records). A
+// profile with ~1,700 captured pairs over a 380k-row source cohort took
+// close to an hour to fidelity-report because of it. Decoding once per
+// Build*Pairwise call and handing every pair the same small retained
+// partition (typically the --rows count, far smaller than the source)
+// collapses that to O(records + pairs × synthetic_rows) — six full
+// decodes across the whole report instead of one per pair.
+func decodeSyntheticRows(mergedSchema *encoding.Schema, records []byte) []syntheticRow {
+	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
+	var out []syntheticRow
+	for {
+		values := make(map[string]float64, len(mergedSchema.Fields))
+		nulls := make(map[string]bool, len(mergedSchema.Fields))
+		wide := make(map[string]any, len(mergedSchema.Fields))
+		if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
+			break
+		}
+		if values[SyntheticFieldName] == 0 {
+			continue
+		}
+		out = append(out, syntheticRow{values: values, nulls: nulls, wide: wide})
+	}
+	return out
+}
+
 func BuildPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []CorrelationSpec, warnings []string) {
+	rows := decodeSyntheticRows(mergedSchema, records)
 	for _, p := range pairs {
 		entry := &PairwiseFidelity{A: p.A, B: p.B, SourceRho: p.Correlation}
-		rho, n, ok := computeSyntheticPairRho(mergedSchema, records, p.A, p.B)
+		rho, n, ok := computeSyntheticPairRho(rows, p.A, p.B)
 		entry.N = n
 		if !ok {
 			entry.Error = fmt.Sprintf(
@@ -505,31 +545,22 @@ func BuildPairwise(report *FidelityReport, mergedSchema *encoding.Schema, record
 	report.Warnings = append(report.Warnings, warnings...)
 }
 
-// computeSyntheticPairRho decodes mergedSchema's records once, computing
-// the realized Pearson correlation of fields a/b over exactly the rows
-// where _synthetic is true (non-zero) and both a and b are
-// simultaneously non-null — the same co-occurrence discipline
-// computeConditionalNumericPairs applies at capture time, applied here
-// to the OUTPUT cohort's generated partition instead of a source
-// capture. Returns ok=false (mirroring pearson's own NaN contract) when
-// fewer than two such rows exist.
-func computeSyntheticPairRho(mergedSchema *encoding.Schema, records []byte, a, b string) (rho float64, n int, ok bool) {
-	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
-	values := make(map[string]float64, len(mergedSchema.Fields))
-	nulls := make(map[string]bool, len(mergedSchema.Fields))
+// computeSyntheticPairRho computes the realized Pearson correlation of
+// fields a/b over rows (the cached _synthetic=true partition from
+// decodeSyntheticRows) where both a and b are simultaneously non-null —
+// the same co-occurrence discipline computeConditionalNumericPairs
+// applies at capture time, applied here to the OUTPUT cohort's
+// generated partition instead of a source capture. Returns ok=false
+// (mirroring pearson's own NaN contract) when fewer than two such rows
+// exist.
+func computeSyntheticPairRho(rows []syntheticRow, a, b string) (rho float64, n int, ok bool) {
 	var av, bv []float64
-	for {
-		if err := rr.ReadRecordWithWide(values, nulls, nil); err != nil {
-			break
-		}
-		if values[SyntheticFieldName] == 0 {
+	for _, row := range rows {
+		if row.nulls[a] || row.nulls[b] {
 			continue
 		}
-		if nulls[a] || nulls[b] {
-			continue
-		}
-		av = append(av, values[a])
-		bv = append(bv, values[b])
+		av = append(av, row.values[a])
+		bv = append(bv, row.values[b])
 	}
 	rho = pearson(av, bv)
 	if math.IsNaN(rho) {
@@ -559,9 +590,10 @@ func computeSyntheticPairRho(mergedSchema *encoding.Schema, records []byte, a, b
 // warnings slice by kind for no reason — one shared shape, one place it
 // lands.
 func BuildCategoricalPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []CategoricalPairSpec) {
+	rows := decodeSyntheticRows(mergedSchema, records)
 	for _, p := range pairs {
 		entry := &CategoricalPairFidelity{A: p.A, B: p.B}
-		counts, n := computeSyntheticCategoricalJoint(mergedSchema, records, p.A, p.B)
+		counts, n := computeSyntheticCategoricalJoint(mergedSchema, rows, p.A, p.B)
 		entry.N = n
 		if n == 0 {
 			entry.Error = fmt.Sprintf(
@@ -584,28 +616,19 @@ func BuildCategoricalPairwise(report *FidelityReport, mergedSchema *encoding.Sch
 // the same co-occurrence discipline computeConditionalCategoricalPairs
 // applies at capture time, applied here to the OUTPUT cohort's
 // generated partition instead of a source capture.
-func computeSyntheticCategoricalJoint(mergedSchema *encoding.Schema, records []byte, a, b string) (counts map[[2]string]int, n int) {
+func computeSyntheticCategoricalJoint(mergedSchema *encoding.Schema, rows []syntheticRow, a, b string) (counts map[[2]string]int, n int) {
 	counts = make(map[[2]string]int)
 	fa := mergedSchema.Field(a)
 	fb := mergedSchema.Field(b)
 	if fa == nil || fb == nil || fa.Dictionary == nil || fb.Dictionary == nil {
 		return counts, 0
 	}
-	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
-	values := make(map[string]float64, len(mergedSchema.Fields))
-	nulls := make(map[string]bool, len(mergedSchema.Fields))
-	for {
-		if err := rr.ReadRecordWithWide(values, nulls, nil); err != nil {
-			break
-		}
-		if values[SyntheticFieldName] == 0 {
+	for _, row := range rows {
+		if row.nulls[a] || row.nulls[b] {
 			continue
 		}
-		if nulls[a] || nulls[b] {
-			continue
-		}
-		av := fa.Dictionary.Resolve(uint32(values[a]))
-		bv := fb.Dictionary.Resolve(uint32(values[b]))
+		av := fa.Dictionary.Resolve(uint32(row.values[a]))
+		bv := fb.Dictionary.Resolve(uint32(row.values[b]))
 		if av == "" || bv == "" {
 			continue
 		}
@@ -668,8 +691,9 @@ func categoricalTVD(sourceCells []CategoricalPairCellSpec, sourceN int, syntheti
 // takes no warnings parameter: thin-cell warnings for this pair kind
 // already ride Profile.Warnings through BuildPairwise's copy.
 func BuildCategoricalNumericPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []CategoricalNumericPairSpec) {
+	rows := decodeSyntheticRows(mergedSchema, records)
 	for _, p := range pairs {
-		perCategory, _ := computeSyntheticConditionalNumeric(mergedSchema, records, p.A, p.B)
+		perCategory, _ := computeSyntheticConditionalNumeric(mergedSchema, rows, p.A, p.B)
 		entry := &CategoricalNumericPairFidelity{A: p.A, B: p.B}
 		for _, c := range p.Categories {
 			catEntry := &CategoricalNumericCategoryFidelity{
@@ -709,7 +733,7 @@ type categoricalNumericMoment struct {
 // co-occurrence discipline computeConditionalCategoricalNumericPairs
 // applies at capture time, applied here to the OUTPUT cohort's
 // generated partition instead of a source capture.
-func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, records []byte, catField, numField string) (map[string]categoricalNumericMoment, int) {
+func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, rows []syntheticRow, catField, numField string) (map[string]categoricalNumericMoment, int) {
 	out := make(map[string]categoricalNumericMoment)
 	fa := mergedSchema.Field(catField)
 	if fa == nil || fa.Dictionary == nil {
@@ -720,21 +744,12 @@ func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, records [
 		sum, sumSq float64
 	}
 	accs := make(map[string]*acc)
-	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
-	values := make(map[string]float64, len(mergedSchema.Fields))
-	nulls := make(map[string]bool, len(mergedSchema.Fields))
 	total := 0
-	for {
-		if err := rr.ReadRecordWithWide(values, nulls, nil); err != nil {
-			break
-		}
-		if values[SyntheticFieldName] == 0 {
+	for _, row := range rows {
+		if row.nulls[catField] || row.nulls[numField] {
 			continue
 		}
-		if nulls[catField] || nulls[numField] {
-			continue
-		}
-		catVal := fa.Dictionary.Resolve(uint32(values[catField]))
+		catVal := fa.Dictionary.Resolve(uint32(row.values[catField]))
 		if catVal == "" {
 			continue
 		}
@@ -743,7 +758,7 @@ func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, records [
 			a = &acc{}
 			accs[catVal] = a
 		}
-		v := values[numField]
+		v := row.values[numField]
 		a.count++
 		a.sum += v
 		a.sumSq += v * v
@@ -779,9 +794,10 @@ func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, records [
 // same non-fatal contract BuildCategoricalPairwise's own per-pair
 // entries follow.
 func BuildSetCategoricalPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []SetCategoricalPairSpec) {
+	rows := decodeSyntheticRows(mergedSchema, records)
 	for _, p := range pairs {
 		entry := &SetCategoricalPairFidelity{Set: p.Set, Option: p.Option, Categorical: p.Categorical}
-		counts, n := computeSyntheticSetOptionCategoricalJoint(mergedSchema, records, p.Set, p.Option, p.Categorical)
+		counts, n := computeSyntheticSetOptionCategoricalJoint(mergedSchema, rows, p.Set, p.Option, p.Categorical)
 		entry.N = n
 		if n == 0 {
 			entry.Error = fmt.Sprintf(
@@ -807,7 +823,7 @@ func BuildSetCategoricalPairwise(report *FidelityReport, mergedSchema *encoding.
 // discipline, applied to a set-option axis instead of an arbitrary
 // categorical field. Returns n=0 (and no counts) when setField carries
 // no dictionary entry named option.
-func computeSyntheticSetOptionCategoricalJoint(mergedSchema *encoding.Schema, records []byte, setField, option, catField string) (counts map[[2]string]int, n int) {
+func computeSyntheticSetOptionCategoricalJoint(mergedSchema *encoding.Schema, rows []syntheticRow, setField, option, catField string) (counts map[[2]string]int, n int) {
 	counts = make(map[[2]string]int)
 	fs := mergedSchema.Field(setField)
 	fc := mergedSchema.Field(catField)
@@ -818,25 +834,15 @@ func computeSyntheticSetOptionCategoricalJoint(mergedSchema *encoding.Schema, re
 	if !ok {
 		return counts, 0
 	}
-	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
-	values := make(map[string]float64, len(mergedSchema.Fields))
-	nulls := make(map[string]bool, len(mergedSchema.Fields))
-	wide := make(map[string]any, len(mergedSchema.Fields))
-	for {
-		if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
-			break
-		}
-		if values[SyntheticFieldName] == 0 {
+	for _, row := range rows {
+		if row.nulls[setField] || row.nulls[catField] {
 			continue
 		}
-		if nulls[setField] || nulls[catField] {
-			continue
-		}
-		cv := fc.Dictionary.Resolve(uint32(values[catField]))
+		cv := fc.Dictionary.Resolve(uint32(row.values[catField]))
 		if cv == "" {
 			continue
 		}
-		mask, _ := wide[setField].(uint64)
+		mask, _ := row.wide[setField].(uint64)
 		sel := "not_selected"
 		if mask&(uint64(1)<<optIdx) != 0 {
 			sel = "selected"
@@ -858,8 +864,9 @@ func computeSyntheticSetOptionCategoricalJoint(mergedSchema *encoding.Schema, re
 // rest of that pair's categories or the report — the same non-fatal
 // contract BuildCategoricalNumericPairwise's own entries follow.
 func BuildSetNumericPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []SetNumericPairSpec) {
+	rows := decodeSyntheticRows(mergedSchema, records)
 	for _, p := range pairs {
-		perBucket, _ := computeSyntheticSetOptionConditionalNumeric(mergedSchema, records, p.Set, p.Option, p.Numeric)
+		perBucket, _ := computeSyntheticSetOptionConditionalNumeric(mergedSchema, rows, p.Set, p.Option, p.Numeric)
 		entry := &SetNumericPairFidelity{Set: p.Set, Option: p.Option, Numeric: p.Numeric}
 		for _, c := range p.Categories {
 			catEntry := &CategoricalNumericCategoryFidelity{
@@ -894,7 +901,7 @@ func BuildSetNumericPairwise(report *FidelityReport, mergedSchema *encoding.Sche
 // discipline, applied to a set-option axis instead of an arbitrary
 // categorical field. Returns no buckets when setField carries no
 // dictionary entry named option.
-func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, records []byte, setField, option, numField string) (map[string]categoricalNumericMoment, int) {
+func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, rows []syntheticRow, setField, option, numField string) (map[string]categoricalNumericMoment, int) {
 	out := make(map[string]categoricalNumericMoment)
 	fs := mergedSchema.Field(setField)
 	if fs == nil || fs.Dictionary == nil {
@@ -909,22 +916,12 @@ func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, 
 		sum, sumSq float64
 	}
 	accs := make(map[string]*acc, 2)
-	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
-	values := make(map[string]float64, len(mergedSchema.Fields))
-	nulls := make(map[string]bool, len(mergedSchema.Fields))
-	wide := make(map[string]any, len(mergedSchema.Fields))
 	total := 0
-	for {
-		if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
-			break
-		}
-		if values[SyntheticFieldName] == 0 {
+	for _, row := range rows {
+		if row.nulls[setField] || row.nulls[numField] {
 			continue
 		}
-		if nulls[setField] || nulls[numField] {
-			continue
-		}
-		mask, _ := wide[setField].(uint64)
+		mask, _ := row.wide[setField].(uint64)
 		sel := "not_selected"
 		if mask&(uint64(1)<<optIdx) != 0 {
 			sel = "selected"
@@ -934,7 +931,7 @@ func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, 
 			a = &acc{}
 			accs[sel] = a
 		}
-		v := values[numField]
+		v := row.values[numField]
 		a.count++
 		a.sum += v
 		a.sumSq += v * v
@@ -966,9 +963,10 @@ func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, 
 // produced no co-occurring observation at all gets an Error entry
 // rather than aborting the rest of the pairs or the report.
 func BuildSetSetPairwise(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, pairs []SetSetPairSpec) {
+	rows := decodeSyntheticRows(mergedSchema, records)
 	for _, p := range pairs {
 		entry := &SetSetPairFidelity{SetA: p.SetA, OptionA: p.OptionA, SetB: p.SetB, OptionB: p.OptionB}
-		counts, n := computeSyntheticSetSetJoint(mergedSchema, records, p.SetA, p.OptionA, p.SetB, p.OptionB)
+		counts, n := computeSyntheticSetSetJoint(mergedSchema, rows, p.SetA, p.OptionA, p.SetB, p.OptionB)
 		entry.N = n
 		if n == 0 {
 			entry.Error = fmt.Sprintf(
@@ -991,7 +989,7 @@ func BuildSetSetPairwise(report *FidelityReport, mergedSchema *encoding.Schema, 
 // fields are simultaneously non-null. Returns n=0 (and no counts) when
 // either field carries no dictionary entry named for its declared
 // option.
-func computeSyntheticSetSetJoint(mergedSchema *encoding.Schema, records []byte, setA, optionA, setB, optionB string) (counts map[[2]string]int, n int) {
+func computeSyntheticSetSetJoint(mergedSchema *encoding.Schema, rows []syntheticRow, setA, optionA, setB, optionB string) (counts map[[2]string]int, n int) {
 	counts = make(map[[2]string]int)
 	fa := mergedSchema.Field(setA)
 	fb := mergedSchema.Field(setB)
@@ -1006,22 +1004,12 @@ func computeSyntheticSetSetJoint(mergedSchema *encoding.Schema, records []byte, 
 	if !ok {
 		return counts, 0
 	}
-	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
-	values := make(map[string]float64, len(mergedSchema.Fields))
-	nulls := make(map[string]bool, len(mergedSchema.Fields))
-	wide := make(map[string]any, len(mergedSchema.Fields))
-	for {
-		if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
-			break
-		}
-		if values[SyntheticFieldName] == 0 {
+	for _, row := range rows {
+		if row.nulls[setA] || row.nulls[setB] {
 			continue
 		}
-		if nulls[setA] || nulls[setB] {
-			continue
-		}
-		maskA, _ := wide[setA].(uint64)
-		maskB, _ := wide[setB].(uint64)
+		maskA, _ := row.wide[setA].(uint64)
+		maskB, _ := row.wide[setB].(uint64)
 		selA := "not_selected"
 		if maskA&(uint64(1)<<optIdxA) != 0 {
 			selA = "selected"
