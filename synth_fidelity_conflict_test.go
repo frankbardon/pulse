@@ -153,4 +153,17 @@ func TestSynth_FromProfileFidelityReport_NamesConflictingCategoricalNumericPairs
 	if !strings.Contains(conflictMsg, "already claimed by") || !strings.Contains(conflictMsg, "dropping") {
 		t.Errorf("conflict warning does not distinguish kept vs dropped: %q", conflictMsg)
 	}
+
+	// The pairwise section itself must reflect the SAME resolution the
+	// warning describes: only the surviving relationship (cat1 -> score)
+	// gets fidelity-checked. Scoring the dropped (cat2 -> score) pair too
+	// would compute a delta against a relationship generate() never
+	// applied — misleading, not merely redundant with the warning above.
+	if len(report.CategoricalNumericPairwise) != 1 {
+		t.Fatalf("expected exactly one surviving categorical-numeric pairwise entry (the conflict-dropped pair must not be scored), got %d: %+v",
+			len(report.CategoricalNumericPairwise), report.CategoricalNumericPairwise)
+	}
+	if got := report.CategoricalNumericPairwise[0].A; got != "cat1" {
+		t.Errorf("surviving pairwise entry A = %q, want %q (the relationship the conflict warning says was kept)", got, "cat1")
+	}
 }

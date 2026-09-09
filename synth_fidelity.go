@@ -18,19 +18,29 @@ import (
 // for numeric fields, TEST_CHISQ for categorical, a direct per-option
 // frequency comparison for set_* fields, all compared against
 // synth.SyntheticFieldName), folds in synth.BuildPairwise's
-// numeric-numeric correlation-delta section for spec.Correlations (see
-// synth.PairwiseFidelity) plus synth.BuildCategoricalPairwise /
-// synth.BuildCategoricalNumericPairwise's categorical-categorical
-// contingency-delta and categorical-numeric conditional-mean/std-delta
-// sections for spec.CategoricalPairs / spec.CategoricalNumericPairs
-// (E3-S4; see CategoricalPairFidelity / CategoricalNumericPairFidelity),
-// plus synth.BuildSetCategoricalPairwise / BuildSetNumericPairwise /
-// BuildSetSetPairwise's three set_* joint-structure delta sections for
-// spec.SetCategoricalPairs / spec.SetNumericPairs / spec.SetSetPairs
-// (E5-S4), plus any fidelityWarnings (typically Options.
-// FidelityWarnings, itself typically Profile.Warnings, covering every
-// pair kind through the same shared shape), and writes the resulting
-// JSON document to reportPath.
+// numeric-numeric correlation-delta section (see synth.PairwiseFidelity)
+// plus synth.BuildCategoricalPairwise / synth.BuildCategoricalNumericPairwise's
+// categorical-categorical contingency-delta and categorical-numeric
+// conditional-mean/std-delta sections (E3-S4; see CategoricalPairFidelity
+// / CategoricalNumericPairFidelity), plus synth.BuildSetCategoricalPairwise
+// / BuildSetNumericPairwise / BuildSetSetPairwise's three set_*
+// joint-structure delta sections (E5-S4), plus any fidelityWarnings
+// (typically Options.FidelityWarnings, itself typically Profile.Warnings,
+// covering every pair kind through the same shared shape), and writes
+// the resulting JSON document to reportPath.
+//
+// Every pairwise section is built from synth.ResolveConflicts(spec), NOT
+// spec's own (unpruned) pair slices: spec carries every relationship
+// SpecFromProfile captured, but generate() only ever applies the subset
+// resolveConflicts resolves out of it — one conditioning relationship
+// per target field, first-claimed-wins. Re-resolving here against the
+// SAME spec generate() was given (see Pulse.Synth) reproduces that exact
+// resolution deterministically, so this fidelity-checks only
+// relationships the generator actually modeled; a conflict-dropped
+// pair's own warning (already on fidelityWarnings) is what explains its
+// absence from the corresponding pairwise section instead of a
+// misleading delta computed against a relationship that was never
+// applied.
 //
 // This bridge lives at the pulse facade level rather than inside
 // synth/ because synth cannot import processing directly without
@@ -60,12 +70,25 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 
 	sourceRows, syntheticRows := countSyntheticPartitions(schema, records)
 	report := synth.BuildFidelityReport(schema, records, sourceRows, syntheticRows, runFidelityTest)
-	synth.BuildPairwise(report, schema, records, spec.Correlations, fidelityWarnings)
-	synth.BuildCategoricalPairwise(report, schema, records, spec.CategoricalPairs)
-	synth.BuildCategoricalNumericPairwise(report, schema, records, spec.CategoricalNumericPairs)
-	synth.BuildSetCategoricalPairwise(report, schema, records, spec.SetCategoricalPairs)
-	synth.BuildSetNumericPairwise(report, schema, records, spec.SetNumericPairs)
-	synth.BuildSetSetPairwise(report, schema, records, spec.SetSetPairs)
+
+	// spec carries the FULL captured relationship set (SpecFromProfile
+	// never prunes it — see synth.ResolveConflicts's own doc). generate()
+	// only ever applies the subset resolveConflicts resolves out of that
+	// set — one conditioning relationship per target field — so
+	// re-resolving here against the SAME spec generate() was given (see
+	// pulse.go Synth) restricts every pairwise section to relationships
+	// that were actually modeled. Fidelity-checking a conflict-dropped
+	// pair would score a delta for a relationship the generator never
+	// applied, which is misleading rather than merely redundant; the
+	// dropped pair's own conflict warning (already on fidelityWarnings)
+	// is what explains its absence here.
+	catPairs, catNumPairs, setCatPairs, setNumPairs, setSetPairs, correlations := synth.ResolveConflicts(spec)
+	synth.BuildPairwise(report, schema, records, correlations, fidelityWarnings)
+	synth.BuildCategoricalPairwise(report, schema, records, catPairs)
+	synth.BuildCategoricalNumericPairwise(report, schema, records, catNumPairs)
+	synth.BuildSetCategoricalPairwise(report, schema, records, setCatPairs)
+	synth.BuildSetNumericPairwise(report, schema, records, setNumPairs)
+	synth.BuildSetSetPairwise(report, schema, records, setSetPairs)
 
 	out, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

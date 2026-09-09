@@ -179,3 +179,32 @@ func resolveConflicts(s *Spec) conflictResolution {
 
 	return res
 }
+
+// ResolveConflicts is the exported form of resolveConflicts: it prunes
+// spec's captured conditional-pairing relationships down to exactly the
+// subset generate() applies at row-draw time, in the same priority
+// order (captured-shape pre-claim, then catPairs -> catNumPairs ->
+// setSetPairs -> setCatPairs -> setNumPairs -> correlations).
+//
+// resolveConflicts is pure and deterministic in spec (conflicts are
+// static for a given Spec — see resolveConflicts's own doc), so calling
+// it again here against the same *Spec generate() was given reproduces
+// the identical resolution without threading a return value through
+// Result. Exists for callers building a fidelity report against a
+// Spec's FULL captured relationships — e.g. writeSynthFidelityReport —
+// that must restrict their comparison to relationships generation
+// actually used: fidelity-checking a pair generation dropped would
+// score a "delta" for a relationship that was never modeled, which is
+// misleading rather than merely wasteful (see skills/synthetic-data.md,
+// Fidelity report).
+func ResolveConflicts(s *Spec) (
+	catPairs []CategoricalPairSpec,
+	catNumPairs []CategoricalNumericPairSpec,
+	setCatPairs []SetCategoricalPairSpec,
+	setNumPairs []SetNumericPairSpec,
+	setSetPairs []SetSetPairSpec,
+	correlations []CorrelationSpec,
+) {
+	r := resolveConflicts(s)
+	return r.catPairs, r.catNumPairs, r.setCatPairs, r.setNumPairs, r.setSetPairs, r.correlations
+}
