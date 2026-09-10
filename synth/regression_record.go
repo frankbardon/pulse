@@ -519,11 +519,23 @@ func (r *dummyRecord) NumericValue(name string) (float64, bool) {
 			return 1, true
 		}
 		return 0, true
-	default:
+	case dummyNumeric:
 		v, present := r.values[col.Field]
 		if !present {
 			return 0, false
 		}
 		return v, true
 	}
+	// Named rather than left to a `default:` arm, for the reason
+	// recorded on modelPredictorKind: dummyCategoricalOther reached that
+	// function's default and was serialised as a numeric predictor for
+	// four stories, silently taking every collapsing field's model with
+	// it. A default arm here would be worse still — a new indicator kind
+	// would read the row's RAW value (a dictionary ID, a mask) into the
+	// design matrix as if it were a scalar, and the fit would succeed.
+	// TestModelPredictorKind_CoversEveryDummyColumnKind pins the enum's
+	// cardinality, so a new member fails a test rather than acquiring an
+	// answer at either site. The trailing return exists only because Go
+	// requires one.
+	return 0, false
 }

@@ -1415,13 +1415,48 @@ func (f *fieldFit) residual() (float64, bool) {
 
 // modelPredictorKind maps the internal dummy column kind onto the
 // stable string spelling carried on ModelPredictor.
+//
+// # Why the catch-all is a categorical LEVEL and not a kind of its own
+//
+// dummyCategoricalOther differs from dummyCategoricalLevel only in the
+// row TEST it applies — membership in the retained set rather than
+// equality with one dictionary ID — and regression_record.go states
+// that difference is internal to the Kind. On the wire the catch-all is
+// an ordinary level whose text is otherCategoryLabel, the same spelling
+// every other collapsed bucket in a profile document already uses, so a
+// consumer holding (field, "other") reads it exactly as it reads
+// (field, "west"): one arm of a partition, measured against the dropped
+// reference this field names in FieldModel.References. Giving it its own
+// wire kind would make every reader learn a distinction that changes
+// nothing about how the coefficient is applied.
+//
+// # Why this switch is exhaustive and carries no default arm
+//
+// It used to end in `default: return ModelPredictorNumeric`, and
+// dummyCategoricalOther — added later, for the top-K collapse — landed
+// there. The result was a catch-all serialised as
+// {"kind":"numeric","field":"brand","level":"other"}, which
+// modelSpecFromProfile then refused; and because a model is refused
+// WHOLESALE on one unusable predictor, every fit that admitted a
+// categorical wider than TopK was silently discarded at generation. On
+// the motivating cohort that was 35 of 105 models, warned but never
+// surfaced, with a plausible cohort produced either way.
+//
+// The bug was not the mapping, it was the shape: a default arm over an
+// enum answers confidently for members it was never taught. Every kind
+// is therefore named here, and TestModelPredictorKind_CoversEveryDummyColumnKind
+// pins the table's size to the enum's cardinality so a new member fails
+// a test rather than acquiring a wrong answer. The trailing return
+// exists only because Go requires one; it is unreachable for the
+// declared set.
 func modelPredictorKind(k dummyColumnKind) string {
 	switch k {
-	case dummyCategoricalLevel:
+	case dummyCategoricalLevel, dummyCategoricalOther:
 		return ModelPredictorCategoricalLevel
 	case dummySetOption:
 		return ModelPredictorSetOption
-	default:
+	case dummyNumeric:
 		return ModelPredictorNumeric
 	}
+	return ModelPredictorNumeric
 }

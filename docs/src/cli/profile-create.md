@@ -401,6 +401,24 @@ of *k* levels does not have to guess which one is the zero baseline (a
 model with only `set_*` predictors carries no `references` key — a
 multi-select is not a partition and has no baseline arm).
 
+`kind` is a closed three-value vocabulary — `categorical_level`,
+`set_option`, `numeric` — and it is on the wire because it is not
+derivable from `(field, level)`: a categorical level is one arm of a
+partition, read against the dropped reference the same field names in
+`references`, while a set option is an independent indicator with no
+reference at all. The `--top-k` catch-all column is **a
+`categorical_level` whose `level` is the literal string `"other"`**, not
+a kind of its own — the same spelling the collapsed buckets in
+`categorical_pairs` and the captured marginals use, so a consumer
+applies it exactly as it applies `region=west`. `numeric` is reserved
+for a genuine scalar predictor and `synth from-profile` refuses a model
+carrying one, since there is no generation-time term for it. That
+refusal is wholesale — one unusable predictor drops the entire model,
+because dropping a single term would leave the surviving coefficients
+read against a baseline that no longer exists — so a document written by
+a build that mislabelled its catch-alls loses those models outright and
+must be re-captured rather than repaired.
+
 The **fitted residuals are not written**. They are a bounded row-aligned
 sample — thousands of numbers per numeric field — and their consumer
 runs in the same process as the capture, so they stay reachable through

@@ -645,3 +645,104 @@ func warningsContain(warnings []string, substr string) bool {
 	}
 	return false
 }
+
+// TestSynthModel_CatchAllLevelTermFires closes the E2-S5 loop at the
+// only place it can actually be closed: generation.
+//
+// Making the top-K catch-all serialise as a categorical level lets the
+// model SURVIVE SpecFromProfile, but that is worth nothing on its own —
+// a term keyed to the level text "other" is inert unless a generated
+// row can actually carry that value, and a model applied-but-inert is
+// strictly worse than one dropped loudly, because nothing warns.
+//
+// The reachability is real and it does NOT come from the field's own
+// marginal. SpecFromProfile reconstructs a categorical from
+// FieldProfile.Categorical.Top, which TRUNCATES to the top K and
+// renormalises the weights rather than appending a catch-all bucket —
+// so `brand` below is drawn as b0/b1/b2 and never as "other". What
+// puts "other" into the row is the categorical-categorical pair stage:
+// --conditional's contingency capture collapses out-of-top-K values to
+// otherCategoryLabel before building its cells, and
+// categoricalPairSampler resamples B straight out of those cells. The
+// model stage runs LAST, after every pair stage, so it reads the value
+// the emitted row actually carries. On the motivating cohort that is
+// what makes all 54 catch-all terms live: every field carrying one
+// (brand, category, ageExact) is also the B side of a captured
+// categorical pair whose cells contain "other".
+//
+// The fixture is built to prove exactly that: `brand`'s marginal has no
+// "other" in it, so any row carrying one arrived through the pair stage.
+func TestSynthModel_CatchAllLevelTermFires(t *testing.T) {
+	const catchAll = "other"
+	spec := &synth.Spec{
+		RowCount: 800,
+		Fields: []synth.FieldSpec{
+			{
+				Name: "segment", Type: "categorical_u8",
+				Distribution: synth.DistWeightedCategorical,
+				Params: map[string]any{
+					"values": []any{"s0", "s1"}, "weights": []any{1.0, 1.0},
+				},
+			},
+			{
+				// No "other" here — the marginal cannot produce it.
+				Name: "brand", Type: "categorical_u8",
+				Distribution: synth.DistWeightedCategorical,
+				Params: map[string]any{
+					"values": []any{"b0", "b1", "b2"}, "weights": []any{1.0, 1.0, 1.0},
+				},
+			},
+			{
+				Name: "spend", Type: "f64",
+				Distribution: synth.DistNormal,
+				Params:       map[string]any{"mean": 100.0, "std": 25.0},
+			},
+		},
+		CategoricalPairs: []synth.CategoricalPairSpec{{
+			A: "segment", B: "brand",
+			Cells: []synth.CategoricalPairCellSpec{
+				{AValue: "s0", BValue: "b0", Count: 50},
+				{AValue: "s0", BValue: catchAll, Count: 50},
+				{AValue: "s1", BValue: "b1", Count: 50},
+				{AValue: "s1", BValue: catchAll, Count: 50},
+			},
+		}},
+		Models: []synth.FieldModelSpec{{
+			Field:     "spend",
+			Intercept: 100,
+			Predictors: []synth.ModelPredictorSpec{
+				catLevel("brand", "b0", 30),
+				catLevel("brand", catchAll, 70),
+			},
+		}},
+	}
+
+	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 3})
+	if err != nil {
+		t.Fatalf("SynthBytes: %v", err)
+	}
+	brands := readCategoricalField(t, data, "brand")
+	spend := readField(t, data, "spend")
+
+	seen := map[string]int{}
+	for i, b := range brands {
+		want := 100.0
+		switch b {
+		case "b0":
+			want = 130.0
+		case catchAll:
+			want = 170.0
+		}
+		if math.Abs(spend[i]-want) > modelValueTolerance {
+			t.Fatalf("row %d brand %q: spend = %v, want %v", i, b, spend[i], want)
+		}
+		seen[b]++
+	}
+	if seen[catchAll] == 0 {
+		t.Fatalf("no generated row carried the collapsed %q bucket; the catch-all term was never exercised (brands seen: %v)",
+			catchAll, seen)
+	}
+	if seen["b0"] == 0 {
+		t.Fatalf("fixture never drew b0, so it cannot separate a firing catch-all from a firing ordinary level (brands seen: %v)", seen)
+	}
+}
