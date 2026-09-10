@@ -411,11 +411,19 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 //
 // A term whose level the output cohort never carries gets no column and
 // an Error saying so. That is a real and expected outcome rather than a
-// defect: `Categorical.Top` truncates a wide categorical's tail at
-// reconstruction, so a captured `otherCategoryLabel` catch-all term
-// generally has no level to match in the generated data at all, and the
-// honest report of that is "this term was never estimable here", not a
-// recovered zero sitting beside a captured 0.4.
+// defect, and the honest report of it is "this term was never estimable
+// here", not a recovered zero sitting beside a captured 0.4.
+//
+// It is NOT the otherCategoryLabel catch-all, which is reached through
+// the categorical-pair stage and fires freely — on the motivating cohort
+// all 54 catch-all terms fire, 3,992 to 9,046 rows each. The cause is
+// that a model's retained level set and Categorical.Top's are ranked on
+// DIFFERENT bases: the design ranks by frequency within the rows the fit
+// listwise-admitted for that target, the marginal ranks over the whole
+// cohort. Both keep --top-k of them and they disagree, so a level the
+// design retained can be absent from the marginal that generates it (9
+// of brand's 32, 4 of ageExact's, 2 of category's) leaving a column that
+// is constant over the synthetic partition.
 func resolveRecoveryTerms(mergedSchema *encoding.Schema, d *modelDrawer, std float64) []*recoveryTerm {
 	out := make([]*recoveryTerm, 0, len(d.predictors))
 	for i := range d.predictors {
