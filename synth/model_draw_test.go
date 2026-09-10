@@ -546,12 +546,26 @@ func TestSynthModel_RetiresNumericTargetPairStages(t *testing.T) {
 	}
 }
 
-// TestSynthModel_CorrelationNamingModelledFieldWarnsAsInterim pins the
-// decision that a model OWNS its field: the copula stage must not
-// overwrite a modelled draw. Correlated residuals are the design's
-// answer and have not landed, so the claim is neither honoured nor
-// silently lost — it is reported in words that say so.
-func TestSynthModel_CorrelationNamingModelledFieldWarnsAsInterim(t *testing.T) {
+// TestSynthModel_ValueCorrelationNamingModelledFieldIsRefusedPermanently
+// replaces E1-S4's TestSynthModel_CorrelationNamingModelledFieldWarnsAs
+// Interim, which pinned the wording of a notice that said the exclusion
+// was temporary and correlated residuals had not landed. They have
+// (E3-S2, Spec.ResidualCorrelations), and the notice would now be a
+// false statement, so it is gone rather than relaxed.
+//
+// What survives is the half that was never interim: a model OWNS its
+// field, so the VALUE-scale copula must not overwrite a modelled draw —
+// and the reason it must not is now permanent and stateable. A
+// value-scale correlation between two fields sharing predictors already
+// contains those predictors' joint effect, so it can be neither applied
+// to the value (which would delete the model) nor rerouted into the
+// residual (which would apply the shared predictors twice). The warning
+// must therefore say the request is NOT APPLIED and name the surface
+// that does correlate a modelled field, and it must still not be a
+// "conditional relationship conflict" — see
+// TestSpecFromProfile_ModelDrivenProfileRaisesNoNumericTargetConflicts,
+// which reads that prefix to classify arbitration losses.
+func TestSynthModel_ValueCorrelationNamingModelledFieldIsRefusedPermanently(t *testing.T) {
 	spec := modelDrawSpec(400, synth.FieldModelSpec{
 		Field:      "spend",
 		Intercept:  100,
@@ -578,11 +592,22 @@ func TestSynthModel_CorrelationNamingModelledFieldWarnsAsInterim(t *testing.T) {
 			t.Fatalf("row %d: the copula overwrote a modelled field; spend = %v, want %v", i, v, want)
 		}
 	}
-	if !warningsContain(res.Warnings, "not yet honoured") {
-		t.Fatalf("the unhonoured correlation was silent; warnings = %v", res.Warnings)
+	if !warningsContain(res.Warnings, "is not applied") {
+		t.Fatalf("the refused correlation was silent; warnings = %v", res.Warnings)
 	}
-	if !warningsContain(res.Warnings, "residual draw is still independent") {
-		t.Fatalf("the warning does not read as an interim state; warnings = %v", res.Warnings)
+	if !warningsContain(res.Warnings, "--residual-correlations") {
+		t.Fatalf("the warning does not name the surface that DOES correlate a modelled field; warnings = %v", res.Warnings)
+	}
+	// The interim wording must not come back under a new coat of paint:
+	// a reader told the exclusion is temporary will wait for a release
+	// that is never coming.
+	for _, stale := range []string{"not yet honoured", "still independent"} {
+		if warningsContain(res.Warnings, stale) {
+			t.Fatalf("the warning still reads as an interim state (%q); warnings = %v", stale, res.Warnings)
+		}
+	}
+	if warningsContain(res.Warnings, "conditional relationship conflict") {
+		t.Fatalf("the refusal was reported as an arbitration conflict; warnings = %v", res.Warnings)
 	}
 }
 

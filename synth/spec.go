@@ -99,6 +99,36 @@ type Spec struct {
 	// `models` populates this slot and leaves both numeric-target pair
 	// slots empty.
 	Models []FieldModelSpec `json:"models,omitempty"`
+
+	// ResidualCorrelations lists optional target correlations between
+	// the RESIDUALS of two modelled numeric fields — the Spec-facing
+	// counterpart of the profile document's `residual_correlations`
+	// section (`profile create --residual-correlations`), populated by
+	// SpecFromProfile from Profile.ResidualCorrelations when present.
+	// Absent (nil, the zero value) reproduces the independent-residual
+	// draw exactly: every modelled field takes its own fresh z, which
+	// is what every pre-existing spec gets.
+	//
+	// This is a DIFFERENT quantity from Correlations above and the two
+	// are not interchangeable. Correlations names a correlation between
+	// two fields' VALUES and is realized by drawing both values from a
+	// shared copula, which requires owning the value outright. Once a
+	// field carries a model, its value is the model's to produce and
+	// the only part still free to move is the residual — so this slot
+	// correlates THAT, supplying each modelled field its component of
+	// one shared correlated normal vector instead of overwriting what
+	// the model drew. Imposing a value-scale figure on the residual
+	// draw would apply every predictor the two targets share a second
+	// time (see synth/residual_corr.go), which is why a Correlations
+	// entry naming a modelled field is excluded rather than rerouted
+	// here.
+	//
+	// Entries reuse CorrelationSpec verbatim: a pair of field names and
+	// a rho, read on the residual scale. Both endpoints must carry a
+	// model; an entry naming a field whose model did not survive is
+	// dropped with a warning at generate() time, and validateSpec
+	// refuses one outright for a hand-authored spec.
+	ResidualCorrelations []CorrelationSpec `json:"residual_correlations,omitempty"`
 }
 
 // FieldModelSpec is one numeric field's additive linear predictor as
@@ -505,6 +535,37 @@ func validateSpec(s *Spec) error {
 					"model predictor may not be its own target",
 					map[string]any{"field": m.Field})
 			}
+		}
+	}
+	// A residual correlation is a statement about two MODELS, not about
+	// two fields, so "both endpoints carry a model" is a validity
+	// condition rather than an arbitration outcome: a field with no
+	// model has no residual for the figure to describe, and there is no
+	// weaker reading to fall back on. Refusing here keeps the
+	// hand-authored surface honest; the profile-derived path bypasses
+	// validateSpec and instead drops such an entry with a warning at
+	// generate() time (buildResidualCorrelator), because there the
+	// unmodelled endpoint is the downstream consequence of a model drop
+	// that was already reported on its own terms.
+	for _, rc := range s.ResidualCorrelations {
+		if rc.A == rc.B {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"residual correlation a and b must differ", map[string]any{"a": rc.A})
+		}
+		if rc.Correlation < -1 || rc.Correlation > 1 {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"residual correlation must be in [-1, 1]",
+				map[string]any{"a": rc.A, "b": rc.B, "value": rc.Correlation})
+		}
+		if !seen[rc.A] || !seen[rc.B] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"residual correlation references unknown field",
+				map[string]any{"a": rc.A, "b": rc.B})
+		}
+		if !modelled[rc.A] || !modelled[rc.B] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"residual correlation references a field with no model",
+				map[string]any{"a": rc.A, "b": rc.B})
 		}
 	}
 	if s.MaxRejectionRate < 0 || s.MaxRejectionRate >= 1 {

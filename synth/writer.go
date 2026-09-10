@@ -224,6 +224,19 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// warnings.
 	warnings = append(warnings, modelWarnings...)
 
+	// The residual correlator is built LAST because it is built over the
+	// COMPILED drawers, not over Spec.Models: a model that lost its
+	// claim or failed to compile has no residual for a correlation to
+	// attach to, and deciding participation from the spec list would
+	// stamp a component index onto a field nothing draws. It also stamps
+	// each participant's component index onto its drawer, so it must run
+	// after buildModelDrawers has fixed their schema order.
+	residual, residualWarnings, err := buildResidualCorrelator(s.ResidualCorrelations, models)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	warnings = append(warnings, residualWarnings...)
+
 	stages := &rowStages{
 		catPairs:    buildCategoricalPairSamplers(conflicts.catPairs),
 		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs),
@@ -232,6 +245,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs),
 		corr:        corr,
 		models:      models,
+		residual:    residual,
 	}
 
 	for rowsGenerated < s.RowCount {
@@ -286,6 +300,13 @@ type rowStages struct {
 	setNumPairs []*setNumericPairSampler
 	corr        *correlator
 	models      []*modelDrawer
+	// residual carries the correlation structure among the MODELS'
+	// residuals. It is not a stage of its own — nothing it produces
+	// reaches the row directly — it is the shared source of randomness
+	// the model stage draws through. nil whenever fewer than two
+	// modelled fields participate, in which case every drawer takes its
+	// own independent z exactly as it did before the slot existed.
+	residual *residualCorrelator
 }
 
 // drawRow draws one row: every field's own independent sampler first,
@@ -309,6 +330,13 @@ type rowStages struct {
 // resolveConflicts claims a modelled field before any pair or
 // correlation stage can bid for it, so a modelled numeric is written
 // exactly once per row. See synth/model_draw.go for the construction.
+//
+// The model stage is preceded by one draw that is NOT a stage: the row's
+// shared correlated normal vector (synth/residual_draw.go). It writes
+// nothing into the row — it supplies the z each participating drawer
+// composes its value through — which is how a modelled field ends up
+// both conditioned on its predictors and correlated with a sibling
+// numeric without either structure overwriting the other.
 //
 // ORDER IS FIXED AND SPEC-DERIVED, NEVER MAP-DERIVED. Fields are walked
 // via the ordered []*writerField and never via the row map, and the
@@ -350,8 +378,17 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	if stages.corr != nil {
 		stages.corr.transform(rng, row)
 	}
+	// One correlated normal vector for the whole row, drawn before the
+	// first drawer runs so every participant reads the same row's
+	// residual structure. It consumes exactly one rng.NormFloat64() per
+	// participant in component order (= drawer order = schema order),
+	// and is skipped entirely — no draws at all — when nothing
+	// participates, which is what keeps a spec without residual
+	// correlations byte-identical to one produced before the slot
+	// existed.
+	stages.residual.draw(rng)
 	for _, md := range stages.models {
-		md.transform(rng, row, nullMask)
+		md.transform(rng, row, nullMask, stages.residual)
 	}
 	return nil
 }

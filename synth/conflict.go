@@ -226,21 +226,32 @@ func resolveConflicts(s *Spec) conflictResolution {
 			}
 			excluded[f] = true
 			if modelClaimed[f] {
-				// INTERIM STATE, worded so it cannot be mistaken for
-				// the permanent arbitration above. The correlation is
-				// not being arbitrated away in favour of the model —
-				// under the design these two compose, with the
-				// correlation becoming the structure of the model's
-				// RESIDUAL rather than a competing overwrite of the
-				// field's value. The correlated residual draw has not
-				// landed yet (modelDrawer.transform still takes an
-				// independent z), so the claim is neither honoured nor
-				// silently lost: it is reported, and the field keeps
-				// its model. When correlated residuals land, this
-				// branch goes away and these participants stop being
-				// excluded at all.
+				// NOT an arbitration outcome, and deliberately worded so
+				// it cannot be read as one — which is why it does not go
+				// through conflict() and does not carry the
+				// "conditional relationship conflict" prefix every real
+				// claim loss carries.
+				//
+				// Spec.Correlations is a correlation between two fields'
+				// VALUES, and the only way to realize one is to draw
+				// both values from a shared copula — i.e. to overwrite
+				// them. A modelled field's value is the model's to
+				// produce, so there is no version of this request the
+				// copula can honour without deleting the model's whole
+				// account of the field.
+				//
+				// Rerouting the figure into the model's RESIDUAL instead
+				// is equally wrong and more insidious: a value-scale
+				// correlation between two fields sharing predictors
+				// already contains those predictors' joint effect, so
+				// applying it to the residual applies them a second time
+				// (see synth/residual_corr.go). The residual scale has
+				// its own measured section for exactly this reason, and
+				// the remedy named below is the honest one rather than a
+				// deferral — correlated residuals DID land, they simply
+				// read a different number than this slot carries.
 				res.warnings = append(res.warnings, fmt.Sprintf(
-					"pairwise correlation naming %s is not yet honoured: the field is drawn from its linear model, whose residual draw is still independent; the remaining participants still correlate",
+					"pairwise correlation naming %s is not applied: the field is drawn from its linear model, which owns its value, and a value-scale correlation would double-count the predictors the two fields share; capture residual correlations (`profile create --residual-correlations`) to correlate a modelled field. The remaining participants still correlate",
 					t))
 				continue
 			}

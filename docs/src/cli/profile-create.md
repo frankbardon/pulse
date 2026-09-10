@@ -507,10 +507,14 @@ still produces a byte-identical cohort. Each model consumes exactly one
 residual draw per row, in schema field order, whether or not any
 predictor fired.
 
-A `correlations` entry naming a modelled field is **not yet applied** —
-correlated residuals are the intended composition and have not landed —
-and is reported as such rather than silently overwriting the model's
-draw. What HAS landed is the capture half; see the next section.
+A `correlations` entry naming a modelled field is **not applied**, and
+permanently so: a `correlations` figure is a correlation between two
+fields' *values*, and the only way to realize one is to draw both values
+from a shared copula — which would delete the model's whole account of
+the field. Rerouting it into the residual instead would apply every
+predictor the two fields share a second time. The run reports the
+refusal and names the surface that *does* correlate a modelled field:
+`--residual-correlations`, below.
 
 ## `--residual-correlations`: the residual submatrix
 
@@ -614,17 +618,41 @@ participant. Treating it as one would produce a submatrix in which every
 pair is unmeasured, which describes the reader's situation rather than
 the cohort's.
 
-`synth from-profile` does not consume this section yet; the correlated
-residual draw is the next step. Capturing first is deliberate — the
-generator cannot honour structure the capture never measured, and the
-capture had to learn to say "unmeasured" before anything could act on
-it.
+### How generation uses it
+
+`synth from-profile` translates the **measured** pairs onto the spec and
+draws every participating model's residual from one shared correlated
+standard-normal vector per row — the same Cholesky, the same completion
+policy and the same ridge report the value-scale `correlations` matrix
+uses, with a different consumer rather than a second construction. The
+predictors move the prediction, the shared vector correlates the
+residual, and neither overwrites the other, so a field is finally able
+to be both conditioned and correlated.
+
+The `unmeasured` list is translated into **nothing at all**. An absent
+pair is completed as independent by the generator, which counts and
+names the assumption (see below); writing it out as a zero here would
+present a gap as a measurement and would silence that count as well.
+
+A pair whose endpoint lost its model in translation is dropped — the
+model drop was already reported by field, with its reason — and the run
+names the consequence once rather than per pair.
+
+The commonest such endpoint is a **zero-predictor** target. Selection
+emits a model for a target nothing explained, and it participates in the
+capture above — it still has a residual, its whole deviation from its own
+mean — but translation drops it, because a field nothing explains is
+better served by its captured conditional pair than by an empty model.
+Its residual pairs therefore have nothing to attach to. On a wide cohort
+roughly half the modelled targets carry no predictor, so
+`residual_correlations` reaches the predictor-carrying half.
 
 ### What the generator does with an incomplete matrix
 
-Independently of this section, `synth from-profile` and
-`synth from-schema` now say out loud what the correlation stage has to
-invent. `correlations` is a list and the Cholesky needs a matrix, so
+Both correlation surfaces — `correlations` on the value scale and
+`residual_correlations` on the residual scale — now say out loud what
+they had to invent, in the same words and through the same code. A
+correlation surface is a list and the Cholesky needs a matrix, so
 every pair the list does not name is filled with zero — those fields are
 drawn independent — and the run emits a warning counting how many pairs
 were **completed by assumption**. Refusing was considered and rejected:

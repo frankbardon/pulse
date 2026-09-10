@@ -195,6 +195,42 @@ func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*corre
 			"correlations require at least two numeric fields")
 	}
 
+	chol, warnings, err := factorCorrelations("correlation", "correlated field", names, idx, correlations)
+	if err != nil {
+		return nil, warnings, err
+	}
+	return &correlator{
+		fieldNames: names,
+		quantiles:  quantiles,
+		hasClamp:   hasClamp, clampMin: clampMin, clampMax: clampMax,
+		chol: chol,
+	}, warnings, nil
+}
+
+// factorCorrelations turns a LIST of pairs over an ordered participant
+// set into the Cholesky factor of the matrix they imply, completing
+// every pair the list never named and saying so.
+//
+// It is the one place the assemble → complete → factorize → report
+// sequence exists, shared by both consumers of a correlation structure:
+// buildCorrelator, which correlates field VALUES through each field's
+// own quantile function, and buildResidualCorrelator
+// (synth/residual_draw.go), which correlates the RESIDUALS of modelled
+// fields and hands each drawer its own component of the resulting
+// vector. There is deliberately no second Cholesky and no second
+// completion policy in this package — the two callers differ only in
+// what they do with L and in the two nouns they pass in for the warning
+// text (subject "correlation" / "residual correlation", participant
+// "correlated field" / "modelled field"), so a change to the policy
+// cannot land on one scale and miss the other.
+//
+// See buildCorrelator's own doc for WHY the completion policy is assume
+// -and-record rather than refusal; it applies verbatim on both scales,
+// and on the residual scale it is if anything more load-bearing, since
+// the captured submatrix names its unmeasured pairs explicitly
+// (ResidualCorrelationProfile.Unmeasured) and they arrive here as
+// absences.
+func factorCorrelations(subject, participant string, names []string, idx map[string]int, correlations []CorrelationSpec) ([][]float64, []string, error) {
 	n := len(names)
 	mat := make([][]float64, n)
 	// supplied[i][j] records whether the caller actually named the (i, j)
@@ -227,10 +263,10 @@ func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*corre
 	}
 	if assumed > 0 {
 		warnings = append(warnings, fmt.Sprintf(
-			"correlation matrix completed by assumption: %d of %d pair(s) among %d correlated field(s) "+
+			"%s matrix completed by assumption: %d of %d pair(s) among %d %s(s) "+
 				"were never supplied and are drawn as independent (rho = 0); an absent pair is unknown, "+
 				"not known to be uncorrelated",
-			assumed, n*(n-1)/2, n))
+			subject, assumed, n*(n-1)/2, n, participant))
 	}
 
 	chol, ridge, err := cholesky(mat)
@@ -246,40 +282,69 @@ func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*corre
 		// beyond a Cholesky factorization; saying that the request was
 		// bent, and by how much, is not.
 		warnings = append(warnings, fmt.Sprintf(
-			"correlation matrix is not positive definite as requested and was ridge-regularized "+
+			"%s matrix is not positive definite as requested and was ridge-regularized "+
 				"(diagonal jitter %g) to factorize: the requested pairwise correlations are not jointly "+
 				"consistent, so realized correlations will be pulled toward zero",
-			ridge))
+			subject, ridge))
 	}
-	return &correlator{
-		fieldNames: names,
-		quantiles:  quantiles,
-		hasClamp:   hasClamp, clampMin: clampMin, clampMax: clampMax,
-		chol: chol,
-	}, warnings, nil
+	return chol, warnings, nil
+}
+
+// correlatedNormals fills u with L*z for a freshly drawn standard normal
+// z, the shared first half of both scales' draw: on the value scale the
+// components go on to each field's own quantile function
+// (correlator.transform), on the residual scale each component IS the
+// modelled field's z (residualCorrelator.draw).
+//
+// z is consumed in COMPONENT ORDER, one rng.NormFloat64() per
+// participant, and both callers fix that order at construction time
+// from the Spec rather than from a map — the determinism contract rests
+// on it. See skills/synthetic-data.md (Determinism).
+func correlatedNormals(rng *mrand.Rand, chol [][]float64, z, u []float64) {
+	for i := range z {
+		z[i] = rng.NormFloat64()
+	}
+	for i := range u {
+		sum := 0.0
+		for j := 0; j <= i; j++ {
+			sum += chol[i][j] * z[j]
+		}
+		u[i] = sum
+	}
 }
 
 // transform overwrites row[name] for every participating field with a
 // draw from the Gaussian-copula construction described on correlator,
 // replacing the field's independently-drawn value outright rather than
-// blending a fraction of it in — see the type doc for why that is
-// correct here rather than destructive.
+// blending a fraction of it in.
+//
+// # Why overwriting is right HERE, and what it is not
+//
+// A participant of this stage is a field with no other account of
+// itself: it was drawn a moment earlier from its own marginal sampler,
+// that draw carried no structure the correlated one lacks, and
+// resolveConflicts has already excluded any field some other stage
+// claimed. Replacing the value outright is therefore not destroying
+// information — it is the same marginal, redrawn from a shared source
+// of randomness so it lands at a rank the matrix asked for.
+//
+// That reasoning stops at a MODELLED field, and this stage no longer
+// reaches one. A modelled numeric already has an account of itself: its
+// value is the composed model draw (synth/model_draw.go), and
+// overwriting it would delete every predictor's contribution and leave
+// the surviving coefficients describing nothing that was drawn. The
+// correlation structure among modelled fields is applied instead at the
+// place it belongs — as the correlation of their RESIDUALS, supplying
+// each drawer's z rather than replacing its output (see
+// synth/residual_draw.go). resolveConflicts excludes a modelled field
+// from Spec.Correlations for that reason and says so.
 func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 	if c == nil || len(c.fieldNames) == 0 {
 		return
 	}
 	z := make([]float64, len(c.fieldNames))
-	for i := range z {
-		z[i] = rng.NormFloat64()
-	}
 	u := make([]float64, len(c.fieldNames))
-	for i := 0; i < len(c.fieldNames); i++ {
-		sum := 0.0
-		for j := 0; j <= i; j++ {
-			sum += c.chol[i][j] * z[j]
-		}
-		u[i] = sum
-	}
+	correlatedNormals(rng, c.chol, z, u)
 	for i, name := range c.fieldNames {
 		p := phi(u[i])
 		v := c.quantiles[i](u[i], p)
@@ -312,16 +377,21 @@ func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 // quantile is inverted numerically to the last representable bit.
 //
 // This function has TWO callers and they reach different subsets of it.
-// buildCorrelator calls it for every correlation participant; a
-// modelled field calls it for its own target (buildModelDrawers,
-// synth/model_draw.go). In practice only the second ever sees a
-// mixture: resolveConflicts still pre-claims an unmodelled DistMixture
-// field before any correlation stage bids, and a MODELLED one is
-// reported as not-yet-honoured by the correlation arm, so a mixture
-// reaches buildCorrelator through neither path today. Nothing here
-// depends on that — the construction is sound for a mixture on either
-// path — but do not read a passing correlation suite as evidence the
-// correlation half is exercised.
+// buildCorrelator calls it for every VALUE-scale correlation
+// participant; a modelled field calls it for its own target
+// (buildModelDrawers, synth/model_draw.go). In practice only the second
+// ever sees a mixture: resolveConflicts pre-claims an unmodelled
+// DistMixture field before any correlation stage bids, and a MODELLED
+// one is excluded from the value-scale matrix permanently (its
+// correlation structure rides its residual instead — see
+// synth/residual_draw.go), so a mixture reaches buildCorrelator through
+// neither path. Nothing here depends on that — the construction is
+// sound for a mixture on either path — but do not read a passing
+// correlation suite as evidence the correlation half is exercised.
+//
+// buildResidualCorrelator is deliberately NOT a third caller: a residual
+// correlation needs no marginal at all, only the Cholesky factor, so it
+// shares factorCorrelations and stops there.
 func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp bool, err error) {
 	clampMin, clampMax = math.Inf(-1), math.Inf(1)
 	switch fs.Distribution {

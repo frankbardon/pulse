@@ -74,6 +74,19 @@ pair only overrides the drawn VALUE, never the field's declared shape.
 Omitting all five keys reproduces plain independent-marginal generation
 exactly, unchanged from a spec that never mentions them.
 
+Two further keys are hand-authorable on the same terms. `models` (the
+`Spec.Models` slot `profile create --fit-models` populates) declares one
+additive linear predictor per numeric field — a field it names is drawn
+from that model rather than from its own marginal, and any pair or
+`correlations` entry naming the same field is dropped with a warning.
+`residual_correlations` declares correlations between two **modelled**
+fields' residuals, `{a, b, correlation}` exactly like `correlations` but
+read on the residual scale; both endpoints must carry a `models` entry
+or the spec is refused. Omitting either key is the zero state — every
+residual is drawn independently, exactly as before they existed. The
+construction, the latent-scale caveat for non-`normal` targets and the
+determinism rules are in `skills/synthetic-data.md`.
+
 Minimal example — a categorical-categorical pair (`region` → `tier`)
 alongside a categorical-numeric pair (`region` → `revenue`):
 

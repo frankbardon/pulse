@@ -248,11 +248,14 @@ type Profile struct {
 	// field's model has explained what it can. All three can coexist in
 	// one document, and none of them replaces another.
 	//
-	// SpecFromProfile does not consume it yet — the correlated residual
-	// draw is E3-S2's job. Capturing it first is deliberate: the
-	// generator cannot honour structure the capture never measured, and
-	// the capture had to learn to say "unmeasured" before anything could
-	// act on it. See ResidualCorrelationProfile.
+	// SpecFromProfile translates the MEASURED pairs onto
+	// Spec.ResidualCorrelations, where generation consumes them as the
+	// shared source of randomness every modelled field's residual is
+	// drawn from (synth/residual_draw.go). The `unmeasured` list is
+	// translated into nothing at all: an absent pair is completed as
+	// independent by the generator, which counts and names the
+	// assumption, whereas writing it out as a zero would present it as
+	// a measurement. See ResidualCorrelationProfile.
 	ResidualCorrelations *ResidualCorrelationProfile `json:"residual_correlations,omitempty"`
 	Warnings             []string                    `json:"warnings,omitempty"`
 	Meta                 map[string]any              `json:"meta,omitempty"`
@@ -2236,9 +2239,10 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 		// does not participate in numeric-numeric correlation
 		// reconstruction — not for want of moments (fieldMoments gained
 		// exact mixture moments at E4-S1) but because resolveConflicts
-		// still pre-claims an unmodelled shape-fitted field, and a
-		// MODELLED one is reported as not-yet-honoured by the
-		// correlation arm. This used to be excluded here directly (a
+		// pre-claims an unmodelled shape-fitted field, and a MODELLED
+		// one is excluded from the value-scale matrix permanently — its
+		// correlation structure rides Spec.ResidualCorrelations
+		// instead. This used to be excluded here directly (a
 		// silent drop); it is added unconditionally now and left to
 		// resolveConflicts (E6-S1,
 		// synth/conflict.go) at generate() setup time — a shape-fit field
@@ -2295,6 +2299,35 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 		}
 		s.Models = append(s.Models, spec)
 		modelled[spec.Field] = true
+	}
+
+	// Residual correlation structure among the models that actually
+	// landed (`profile create --residual-correlations`). Only MEASURED
+	// pairs are translated, and only when both endpoints kept a model on
+	// this Spec.
+	//
+	// The document's `unmeasured` list is deliberately NOT translated
+	// into anything. It exists so a reader can tell a pair measured at
+	// rho = 0 from a pair nobody could measure, and the generator's
+	// completion policy already treats an absent pair as an assumption
+	// it names out loud (factorCorrelations, synth/copula.go). Writing
+	// an unmeasured pair out as a zero here would collapse exactly the
+	// distinction the capture side was built to preserve, and would do
+	// it silently, since a supplied zero is counted as measured.
+	//
+	// A pair whose endpoint lost its model needs no warning of its own:
+	// the model drop was already reported above, by field, with its
+	// reason — and buildResidualCorrelator names the consequence again
+	// at generate() time for a spec that reaches it with an unmodelled
+	// endpoint by some other route.
+	if p.ResidualCorrelations != nil {
+		for _, rc := range p.ResidualCorrelations.Pairs {
+			if !modelled[rc.A] || !modelled[rc.B] {
+				continue
+			}
+			s.ResidualCorrelations = append(s.ResidualCorrelations,
+				CorrelationSpec{A: rc.A, B: rc.B, Correlation: rc.Rho})
+		}
 	}
 
 	if p.Conditional != nil {

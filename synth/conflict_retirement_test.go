@@ -77,8 +77,7 @@ var (
 
 // isConflictWarning reports whether w is one of resolveConflicts' own
 // arbitration warnings, as opposed to a model-drop warning or the
-// interim unhonoured-correlation notice, both of which share the
-// channel.
+// value-scale-correlation refusal, both of which share the channel.
 func isConflictWarning(w string) bool {
 	return strings.Contains(w, "conditional relationship conflict")
 }
@@ -175,17 +174,20 @@ func modelDrivenProfiles(t *testing.T) (condSpec, bothSpec *synth.Spec, condWarn
 // exercising an arm cannot make the retirement look proven.
 //
 // The correlation class needs its own sentence. Under models the
-// participants ARE still excluded from the copula — but the exclusion is
-// no longer an arbitration outcome, because the two are meant to compose
-// (the correlation becomes the model's residual structure) and simply
-// have not been wired together yet. conflict.go says so in a
-// deliberately differently-worded interim notice that is not a conflict
-// at all; TestSynthModel_CorrelationNamingModelledFieldWarnsAsInterim
-// (model_draw_test.go) is where that wording is pinned, and E3-S2 is
-// where it goes away. What this test locks is only that the
-// CONFLICT-class exclusion is gone: a modelled field must never be
-// reported as having lost its correlation to a pair that claimed it
-// first, because no pair claims it any more.
+// participants ARE still excluded from the VALUE-scale copula, but the
+// exclusion is not an arbitration outcome: no pair claimed the field,
+// the model did, and a value-scale correlation is simply not a thing a
+// modelled field can carry (it would have to overwrite the model's
+// output, and rerouting the figure into the residual would double-count
+// the predictors the two fields share). conflict.go says so in a
+// deliberately differently-worded refusal that is not a conflict at
+// all; TestSynthModel_ValueCorrelationNamingModelledFieldIsRefused
+// Permanently (model_draw_test.go) is where that wording is pinned, and
+// the surface that DOES correlate a modelled field is
+// Spec.ResidualCorrelations (E3-S2, synth/residual_draw.go). What this
+// test locks is only that the CONFLICT-class exclusion is gone: a
+// modelled field must never be reported as having lost its correlation
+// to a pair that claimed it first, because no pair claims it any more.
 func TestSpecFromProfile_ModelDrivenProfileRaisesNoNumericTargetConflicts(t *testing.T) {
 	condSpec, bothSpec, condWarn, bothWarn := modelDrivenProfiles(t)
 

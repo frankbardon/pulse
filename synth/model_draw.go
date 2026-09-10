@@ -92,13 +92,22 @@ import (
 // a warning rather than layered on top. That claim is what retires the
 // parallel numeric resample stages for a modelled field.
 //
-// # z is INDEPENDENT here
+// # Where z comes from
 //
-// Each drawer takes its own fresh rng.NormFloat64(). Correlating the
-// residuals ACROSS modelled fields is a separate, later change; until
-// it lands, a Spec.Correlations entry naming a modelled field is
-// reported as not-yet-honoured by resolveConflicts rather than being
-// silently applied or silently dropped.
+// A drawer whose field takes part in Spec.ResidualCorrelations reads its
+// own component of ONE correlated standard-normal vector drawn for the
+// whole row (synth/residual_draw.go); every other drawer takes its own
+// fresh rng.NormFloat64(). That is the whole of how a field becomes
+// conditioned AND correlated at once: the predictors move mu, the shared
+// vector correlates the residual, and neither overwrites the other.
+//
+// A Spec.Correlations entry — a VALUE-scale correlation — naming a
+// modelled field is still excluded, permanently and by design, and
+// resolveConflicts says so: realizing it would require overwriting the
+// model's output, and rerouting its figure into the residual instead
+// would apply every predictor the two fields share a second time. The
+// residual scale has its own captured section for exactly this reason
+// (`profile create --residual-correlations`).
 
 // modelDrawer is one FieldModelSpec compiled for the row loop: the
 // linear predictor's terms, the target's own marginal moments and
@@ -128,6 +137,18 @@ type modelDrawer struct {
 	quantile quantileFunc
 
 	hasClamp float64Clamp
+
+	// residual is this drawer's component index in the row's shared
+	// correlated normal vector, or -1 when the field takes no part in
+	// Spec.ResidualCorrelations and draws its own independent z.
+	//
+	// It is stamped by buildResidualCorrelator AFTER the sort below, so
+	// component order is drawer order is schema field order. The value
+	// is fixed per Spec, never per row, which is what keeps the branch
+	// in transform off the determinism critical path: the RNG stream
+	// depends on WHICH drawers participate, decided once, and never on
+	// anything a row contains.
+	residual int
 }
 
 // float64Clamp is an optional inclusive [min, max] bound.
@@ -240,6 +261,12 @@ func buildModelDrawers(models []FieldModelSpec, wfs []*writerField) ([]*modelDra
 			invStd:    1 / std,
 			residualZ: m.ResidualStd / std,
 			quantile:  q,
+			// Independent until buildResidualCorrelator says otherwise.
+			// A model that never reaches it — or reaches it and does not
+			// participate — keeps the pre-residual-correlation draw
+			// exactly, which is what makes the whole feature inert for a
+			// spec that declares none.
+			residual: -1,
 		}
 
 		// CLAMPING. Exactly one clamp is applied, once, to the final
@@ -327,12 +354,21 @@ func buildModelDrawers(models []FieldModelSpec, wfs []*writerField) ([]*modelDra
 //
 // # The residual draw is unconditional
 //
-// rng.NormFloat64() is called exactly once per drawer per row, before
-// any branch on the prediction, so the seeded stream depends only on
-// the NUMBER of surviving drawers — never on which predictors happened
-// to fire, nor on whether ResidualStd is zero. A deterministic model
-// (ResidualStd == 0) still consumes its draw and multiplies it by zero.
-func (d *modelDrawer) transform(rng *mrand.Rand, row map[string]any, nullMask map[string]bool) {
+// The residual is obtained before any branch on the prediction, so the
+// seeded stream never depends on which predictors happened to fire nor
+// on whether ResidualStd is zero — a deterministic model (ResidualStd ==
+// 0) still takes its residual and multiplies it by zero.
+//
+// Which SOURCE it comes from is likewise fixed per Spec, not per row: a
+// participating drawer reads its stamped component of the vector
+// residualCorrelator.draw already filled for this row (consuming one
+// normal per participant, in component order, before the first drawer
+// ran), and a non-participating one calls rng.NormFloat64() exactly
+// where it always did. So the per-row RNG sequence is still a function
+// of the Spec alone — N shared draws followed by one per independent
+// drawer in schema order — which is what lets fields share randomness
+// without loosening the byte-identity contract.
+func (d *modelDrawer) transform(rng *mrand.Rand, row map[string]any, nullMask map[string]bool, rc *residualCorrelator) {
 	prediction := d.intercept
 	for i := range d.predictors {
 		p := &d.predictors[i]
@@ -350,7 +386,12 @@ func (d *modelDrawer) transform(rng *mrand.Rand, row map[string]any, nullMask ma
 		}
 	}
 
-	z := rng.NormFloat64()
+	var z float64
+	if rc != nil && d.residual >= 0 {
+		z = rc.component(d.residual)
+	} else {
+		z = rng.NormFloat64()
+	}
 	u := (prediction-d.mean)*d.invStd + d.residualZ*z
 	row[d.field] = d.hasClamp.apply(d.quantile(u, phi(u)))
 }
