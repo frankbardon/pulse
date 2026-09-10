@@ -3,6 +3,7 @@ package synth_test
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"math"
 	"os"
 	"reflect"
@@ -13,6 +14,15 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/synth"
 )
+
+// updateFixtures regenerates testdata/profile_pre_models.json in place:
+//
+//	go test ./synth/ -run TestProfile_PreModelsCaptureIsByteIdentical -update
+//
+// It exists so the fixture's provenance is a runnable command rather
+// than a claim about someone's laptop. Use it only for a deliberate,
+// documented change to what a flag-off capture emits.
+var updateFixtures = flag.Bool("update", false, "regenerate testdata fixtures in place")
 
 // modelsCohort builds a cohort carrying every axis the numeric-target
 // retirement rule has to be judged against at once: two categoricals,
@@ -87,15 +97,31 @@ func modelsCohort(t *testing.T) []byte {
 		// premium option each contribute their own offset — because that
 		// is exactly the structure a single linear model can represent
 		// and a chain of one-pair-at-a-time overwrites cannot.
-		spend := 40.0 + 11.0*float64(region) + 6.0*float64(tier)
+		//
+		// Accumulated in EXACT INTEGER hundredths and divided once at
+		// the end, rather than as a chain of float64 terms. That is not
+		// style: `40.0 + 11.0*float64(region)` is a fusible
+		// multiply-add, and the arm64 backend contracts it into a single
+		// FMA where amd64 does not — so the float form made the COHORT
+		// BYTES architecture-dependent (measured: 115 of these 1,200
+		// rows differed, e.g. 5.5599999999999996 vs 5.5600000000000005),
+		// and every byte-identity assertion downstream of this fixture
+		// inherited that. Integer arithmetic is exact, so there is no
+		// intermediate to round differently, and a single IEEE-754
+		// division is correctly rounded on every architecture. That is a
+		// stronger guarantee than a float64() barrier here, because it
+		// cannot be undone by a later edit that merely looks tidier.
+		spendHundredths := 4000 + 1100*region + 600*tier
 		if premium {
-			spend += 25.0
+			spendHundredths += 2500
 		}
 		// A deterministic pseudo-noise term keeps the residual scale
 		// non-zero, so ResidualStd is a real number a round trip can be
 		// held to rather than a trivially-preserved 0.
-		spend += float64(r%13)*0.25 + float64((r*7919)%97)*0.05
-		visits := 3.0 + 2.0*float64(tier) - 0.5*float64(region) + float64((r*104729)%53)*0.03
+		spendHundredths += (r%13)*25 + ((r*7919)%97)*5
+		spend := float64(spendHundredths) / 100
+		visitsHundredths := 300 + 200*tier - 50*region + ((r*104729)%53)*3
+		visits := float64(visitsHundredths) / 100
 
 		var rec [20]byte
 		rec[0] = byte(region)
@@ -764,23 +790,35 @@ func TestSpecFromProfile_ShapeFitTargetKeepsShapeAndModel(t *testing.T) {
 // bytes on purpose: generation is a pure function of (Spec, Seed), so
 // an unmoved Spec is an unmoved cohort, and unlike a hash of the
 // generated file this cannot drift between architectures over a
-// transcendental-function ULP. Update it only with a deliberate,
-// documented change to what an old document means.
+// transcendental-function ULP. The generated-bytes hash is deliberately
+// NOT asserted here — math.Exp / math.Log carry architecture-specific
+// implementations in the standard library, so a cross-machine byte pin
+// would be a flaky gate rather than a contract.
 //
-// Verified against the pre-change tree at the time it was pinned:
-// `git archive HEAD` of the commit before this story, fed the same
-// fixture, produced this same Spec hash AND a byte-identical generated
-// cohort (sha256 19162c6d…39e25c at seed 11) with the same 20 conflict
-// warnings. The generated-bytes hash is deliberately NOT asserted here
-// — math.Exp / math.Log carry architecture-specific implementations in
-// the standard library, so a cross-machine byte pin would be a flaky
-// gate rather than a contract.
-const preModelsSpecHash = "83b688a173b5609ab7b5572bf489f9f7"
+// This value MOVED ONCE, at E6-S4, and the reason is worth stating
+// because it is the one change that legitimately moves it without any
+// meaning changing. E6-S4 made the capture path fusion-free (see
+// synth/moments.go) and regenerated the fixture, so the fixture's floats
+// shifted in their last bits. A content hash over floats cannot be
+// invariant to that — it hashes the decimal spelling — so a regenerated
+// fixture necessarily produces a new hash even when nothing about what
+// an old document MEANS has changed. The invariance was checked the only
+// way it can be: the regenerated fixture was diffed against the old one
+// (all 27 changed lines float-valued, max |relative delta| 8.2e-15, no key
+// added or removed, no structural change) and every arm-population assertion
+// below re-passed unchanged.
+//
+// Any OTHER movement of this constant is a real semantic change and
+// needs its own justification. The previous value, for the record, was
+// 83b688a173b5609ab7b5572bf489f9f7 — the pre-fusion-fix capture as it
+// happened to round on arm64.
+const preModelsSpecHash = "e3f5d34a7a7a9c9ab7b6ee006098e87e"
 
 // preModelsCaptureOptions are the exact options testdata/
 // profile_pre_models.json was captured with. They are named here rather
 // than only in the fixture's provenance comment because
-// TestProfile_PreModelsCaptureIsByteIdentical re-runs them.
+// TestProfile_PreModelsCaptureIsByteIdentical re-runs them, and
+// `-update` recaptures with them.
 var preModelsCaptureOptions = synth.ProfileOptions{
 	IncludeStats:       true,
 	IncludeConditional: true,
@@ -788,21 +826,36 @@ var preModelsCaptureOptions = synth.ProfileOptions{
 	Seed:               5,
 }
 
-// TestProfile_PreModelsCaptureIsByteIdentical is the literal form of
-// the non-negotiable: a capture WITHOUT --fit-models must emit the
-// document it emitted before this story existed, byte for byte.
+// TestProfile_PreModelsCaptureIsByteIdentical is the literal form of the
+// non-negotiable: a capture WITHOUT --fit-models must emit the document
+// it has always emitted, byte for byte.
 //
-// testdata/profile_pre_models.json was produced by the pre-change tree
-// (`git archive` of the commit before this story) over modelsCohort and
-// verified there — same document, same resulting Spec hash, same
-// generated cohort bytes. Comparing today's capture against that file
-// is therefore a direct comparison against yesterday's output, not
-// against another run of today's code.
+// PROVENANCE — read this before touching the fixture.
+//
+// testdata/profile_pre_models.json is NOT the pre-change tree's output
+// verbatim any more, and the earlier comment here saying so was a lie by
+// the time E6-S4 landed. It was originally captured by the tree
+// preceding E1 (`git archive` of that commit) over modelsCohort, and it
+// held that meaning through E5. At E6-S4 it was REGENERATED, by
+// `-update` above, from the fusion-free capture path — because the
+// original file recorded arm64's FMA-contracted arithmetic and this test
+// consequently failed on every linux/amd64 CI run for 14 commits. The
+// fixture is now the ARCHITECTURE-INDEPENDENT capture: modelsCohort
+// builds its numeric columns in exact integer arithmetic, and every
+// formula between those bytes and this document carries an explicit
+// float64() fusion barrier (synth/moments.go). Both halves are required
+// — the pre-E6-S4 file differed from CI's in the COHORT bytes as well as
+// in the capture arithmetic (115 of 1,200 rows).
+//
+// So what this test still gives, and what it no longer gives: it is a
+// genuine cross-machine byte contract, which is strictly stronger than
+// what it was before and is the property `pulse profile create`
+// advertises. It is no longer a comparison against a physically older
+// tree; that role now belongs to TestSpecFromProfile_
+// PreModelsDocumentUnchanged, which reads the same file as a static
+// document and never re-captures. The pre-E6-S4 fixture's content is
+// recoverable from git history if a future reader needs the old bytes.
 func TestProfile_PreModelsCaptureIsByteIdentical(t *testing.T) {
-	want, err := os.ReadFile("testdata/profile_pre_models.json")
-	if err != nil {
-		t.Fatalf("read fixture: %v", err)
-	}
 	prof, err := synth.ProfileBytes(modelsCohort(t), preModelsCaptureOptions)
 	if err != nil {
 		t.Fatalf("ProfileBytes: %v", err)
@@ -812,8 +865,19 @@ func TestProfile_PreModelsCaptureIsByteIdentical(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 	got = append(got, '\n')
+	if *updateFixtures {
+		if err := os.WriteFile("testdata/profile_pre_models.json", got, 0o644); err != nil {
+			t.Fatalf("write fixture: %v", err)
+		}
+		t.Log("regenerated testdata/profile_pre_models.json")
+		return
+	}
+	want, err := os.ReadFile("testdata/profile_pre_models.json")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
 	if !bytes.Equal(bytes.TrimRight(want, "\n"), bytes.TrimRight(got, "\n")) {
-		t.Errorf("a flag-off capture no longer reproduces the pre-change document\n want: %s\n  got: %s", want, got)
+		t.Errorf("a flag-off capture no longer reproduces the fixture document\n want: %s\n  got: %s", want, got)
 	}
 }
 

@@ -146,7 +146,7 @@ func newUniformSampler(f FieldSpec) (sampler, error) {
 }
 
 func (u *uniformSampler) next(rng *rand.Rand) (any, bool) {
-	return u.min + rng.Float64()*(u.max-u.min), false
+	return u.min + float64(rng.Float64()*(u.max-u.min)), false
 }
 
 type normalSampler struct {
@@ -185,7 +185,7 @@ func newNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (n *normalSampler) next(rng *rand.Rand) (any, bool) {
-	v := n.mean + rng.NormFloat64()*n.std
+	v := n.mean + float64(rng.NormFloat64()*n.std)
 	if n.clamped {
 		if v < n.min {
 			v = n.min
@@ -218,7 +218,7 @@ func newLogNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (l *logNormalSampler) next(rng *rand.Rand) (any, bool) {
-	return math.Exp(l.mu + rng.NormFloat64()*l.sigma), false
+	return math.Exp(l.mu + float64(rng.NormFloat64()*l.sigma)), false
 }
 
 type exponentialSampler struct{ lambda float64 }
@@ -272,7 +272,7 @@ func (p *poissonSampler) next(rng *rand.Rand) (any, bool) {
 	}
 	// Normal approximation for large lambda. Mean = lambda, variance =
 	// lambda. Round to nearest non-negative integer.
-	v := p.lambda + rng.NormFloat64()*math.Sqrt(p.lambda)
+	v := p.lambda + float64(rng.NormFloat64()*math.Sqrt(p.lambda))
 	if v < 0 {
 		v = 0
 	}
@@ -300,7 +300,11 @@ func newParetoSampler(f FieldSpec) (sampler, error) {
 }
 
 func (p *paretoSampler) next(rng *rand.Rand) (any, bool) {
-	u := 1 - rng.Float64()
+	// float64(...) around an already-float64 value is NOT redundant: it
+	// is the FMA barrier (synth/moments.go). rng.Float64() inlines to a
+	// scaled integer, and without the conversion `1 - scale*n` contracts
+	// into a single fused multiply-subtract on arm64 but not on amd64.
+	u := 1 - float64(rng.Float64())
 	return p.xm / math.Pow(u, 1.0/p.alpha), false
 }
 
@@ -546,7 +550,7 @@ func (m *mixtureSampler) next(rng *rand.Rand) (any, bool) {
 	if idx >= len(m.means) {
 		idx = len(m.means) - 1
 	}
-	return m.means[idx] + rng.NormFloat64()*m.stds[idx], false
+	return m.means[idx] + float64(rng.NormFloat64()*m.stds[idx]), false
 }
 
 // setSampler draws a set_* field's own independent marginal: one

@@ -831,18 +831,12 @@ func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, rows []sy
 		v := row.values[numField]
 		a.count++
 		a.sum += v
-		a.sumSq += v * v
+		a.sumSq += float64(v * v)
 		total++
 	}
 	for catVal, a := range accs {
 		mean := a.sum / float64(a.count)
-		var variance float64
-		if a.count > 1 {
-			variance = (a.sumSq - mean*a.sum) / float64(a.count-1)
-		}
-		if variance < 0 {
-			variance = 0
-		}
+		variance := sampleVariance(a.count, a.sum, a.sumSq)
 		out[catVal] = categoricalNumericMoment{mean: mean, std: math.Sqrt(variance), n: a.count}
 	}
 	return out, total
@@ -1004,18 +998,12 @@ func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, 
 		v := row.values[numField]
 		a.count++
 		a.sum += v
-		a.sumSq += v * v
+		a.sumSq += float64(v * v)
 		total++
 	}
 	for sel, a := range accs {
 		mean := a.sum / float64(a.count)
-		var variance float64
-		if a.count > 1 {
-			variance = (a.sumSq - mean*a.sum) / float64(a.count-1)
-		}
-		if variance < 0 {
-			variance = 0
-		}
+		variance := sampleVariance(a.count, a.sum, a.sumSq)
 		out[sel] = categoricalNumericMoment{mean: mean, std: math.Sqrt(variance), n: a.count}
 	}
 	return out, total

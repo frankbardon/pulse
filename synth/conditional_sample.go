@@ -211,7 +211,7 @@ func (c *categoricalNumericPairSampler) transform(rng *rand.Rand, row map[string
 		}
 		mom = c.fallback
 	}
-	v := mom.mean + rng.NormFloat64()*mom.std
+	v := mom.mean + float64(rng.NormFloat64()*mom.std)
 	if c.hasClamp {
 		if v < c.clampMin {
 			v = c.clampMin
@@ -402,7 +402,7 @@ func (s *setNumericPairSampler) transform(rng *rand.Rand, row map[string]any) {
 		}
 		mom = s.fallback
 	}
-	v := mom.mean + rng.NormFloat64()*mom.std
+	v := mom.mean + float64(rng.NormFloat64()*mom.std)
 	if s.hasClamp {
 		if v < s.clampMin {
 			v = s.clampMin

@@ -458,7 +458,7 @@ func correlatedNormals(rng *mrand.Rand, chol [][]float64, z, u []float64) {
 	for i := range u {
 		sum := 0.0
 		for j := 0; j <= i; j++ {
-			sum += chol[i][j] * z[j]
+			sum += float64(chol[i][j] * z[j])
 		}
 		u[i] = sum
 	}
@@ -579,8 +579,9 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 		if sigma, _, err = paramFloat(fs.Name, fs.Params, "sigma", 1); err != nil {
 			return
 		}
-		mean = math.Exp(mu + sigma*sigma/2)
-		std = math.Sqrt((math.Exp(sigma*sigma) - 1) * math.Exp(2*mu+sigma*sigma))
+		sigmaSq := float64(sigma * sigma)
+		mean = math.Exp(mu + float64(sigmaSq/2))
+		std = math.Sqrt(float64((math.Exp(sigmaSq) - 1) * math.Exp(float64(2*mu)+sigmaSq)))
 	case DistExponential:
 		var lambda float64
 		if lambda, _, err = paramFloat(fs.Name, fs.Params, "lambda", 1); err != nil {
@@ -638,7 +639,7 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 	switch fs.Distribution {
 	case DistNormal:
 		return func(u, p float64) float64 {
-			return mean + std*u
+			return mean + float64(std*u)
 		}, nil
 	case DistUniform:
 		minV, _, err := paramFloat(fs.Name, fs.Params, "min", 0)
@@ -650,7 +651,7 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 			return nil, err
 		}
 		return func(u, p float64) float64 {
-			return minV + p*(maxV-minV)
+			return minV + float64(p*(maxV-minV))
 		}, nil
 	case DistLogNormal:
 		mu, _, err := paramFloat(fs.Name, fs.Params, "mu", 0)
@@ -662,7 +663,7 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 			return nil, err
 		}
 		return func(u, p float64) float64 {
-			return math.Exp(mu + sigma*u)
+			return math.Exp(mu + float64(sigma*u))
 		}, nil
 	case DistExponential:
 		lambda, _, err := paramFloat(fs.Name, fs.Params, "lambda", 1)
@@ -746,7 +747,7 @@ func tryCholesky(m [][]float64) ([][]float64, bool) {
 		for j := 0; j <= i; j++ {
 			sum := m[i][j]
 			for k := 0; k < j; k++ {
-				sum -= L[i][k] * L[j][k]
+				sum -= float64(L[i][k] * L[j][k])
 			}
 			if i == j {
 				if sum <= 0 {

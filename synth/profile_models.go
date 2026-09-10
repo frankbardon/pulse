@@ -433,7 +433,7 @@ func (a *interceptAcc) add(y float64) {
 	a.n++
 	d := y - a.mean
 	a.mean += d / float64(a.n)
-	a.m2 += d * (y - a.mean)
+	a.m2 += float64(d * (y - a.mean))
 }
 
 // std returns the sample standard deviation, or 0 below two
@@ -1405,7 +1405,7 @@ func (f *fieldFit) residual() (float64, bool) {
 		if !ok {
 			return 0, false
 		}
-		pred += f.model.Predictors[i].Coefficient * x
+		pred += float64(f.model.Predictors[i].Coefficient * x)
 	}
 	if math.IsNaN(pred) || math.IsInf(pred, 0) {
 		return 0, false

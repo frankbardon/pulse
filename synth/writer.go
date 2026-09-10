@@ -653,7 +653,7 @@ func decimalFromFloat(f float64, scale uint8) (encoding.Decimal128, error) {
 			"cannot encode NaN/Inf as decimal128")
 	}
 	mult := math.Pow10(int(scale))
-	scaled := f * mult
+	scaled := float64(f * mult)
 	if scaled < 0 {
 		scaled = math.Ceil(scaled - 0.5)
 	} else {

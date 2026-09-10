@@ -1036,7 +1036,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				v := values[f.Name]
 				na.count++
 				na.sum += v
-				na.sumSq += v * v
+				na.sumSq += float64(v * v)
 				if v < na.min {
 					na.min = v
 				}
@@ -1115,7 +1115,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 					}
 					acc.count++
 					acc.sum += v
-					acc.sumSq += v * v
+					acc.sumSq += float64(v * v)
 				}
 			}
 		}
@@ -1169,7 +1169,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 						acc := perNum[nf][sel]
 						acc.count++
 						acc.sum += v
-						acc.sumSq += v * v
+						acc.sumSq += float64(v * v)
 					}
 				}
 			}
@@ -1285,13 +1285,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			}
 			if na.count > 0 {
 				mean := na.sum / float64(na.count)
-				var variance float64
-				if na.count > 1 {
-					variance = (na.sumSq - mean*na.sum) / float64(na.count-1)
-				}
-				if variance < 0 {
-					variance = 0
-				}
+				variance := sampleVariance(na.count, na.sum, na.sumSq)
 				num := &NumericProfile{
 					Min:  na.min,
 					Max:  na.max,
@@ -1440,7 +1434,7 @@ func computePercentiles(samples []float64, qs []float64) []float64 {
 			out[i] = 0
 			continue
 		}
-		idx := q * float64(len(sorted)-1)
+		idx := float64(q * float64(len(sorted)-1))
 		lo := int(math.Floor(idx))
 		hi := int(math.Ceil(idx))
 		if lo == hi {
@@ -1448,7 +1442,7 @@ func computePercentiles(samples []float64, qs []float64) []float64 {
 			continue
 		}
 		frac := idx - float64(lo)
-		out[i] = sorted[lo]*(1-frac) + sorted[hi]*frac
+		out[i] = float64(sorted[lo]*(1-frac)) + float64(sorted[hi]*frac)
 	}
 	return out
 }
@@ -1521,9 +1515,9 @@ func pearson(a, b []float64) float64 {
 	for i := 0; i < n; i++ {
 		da := a[i] - mA
 		db := b[i] - mB
-		num += da * db
-		dA += da * da
-		dB += db * db
+		num += float64(da * db)
+		dA += float64(da * da)
+		dB += float64(db * db)
 	}
 	if dA == 0 || dB == 0 {
 		return math.NaN()
@@ -1745,13 +1739,7 @@ func computeConditionalCategoricalNumericPairs(catFields, numFields []string, ca
 					continue
 				}
 				mean := acc.sum / float64(acc.count)
-				var variance float64
-				if acc.count > 1 {
-					variance = (acc.sumSq - mean*acc.sum) / float64(acc.count-1)
-				}
-				if variance < 0 {
-					variance = 0
-				}
+				variance := sampleVariance(acc.count, acc.sum, acc.sumSq)
 				cats = append(cats, CategoricalNumericCategoryStat{
 					Category: catVal,
 					Mean:     mean,
@@ -1879,13 +1867,7 @@ func computeSetNumericPairs(setFields []string, setOptionNames map[string][]stri
 						continue
 					}
 					mean := acc.sum / float64(acc.count)
-					var variance float64
-					if acc.count > 1 {
-						variance = (acc.sumSq - mean*acc.sum) / float64(acc.count-1)
-					}
-					if variance < 0 {
-						variance = 0
-					}
+					variance := sampleVariance(acc.count, acc.sum, acc.sumSq)
 					cats = append(cats, CategoricalNumericCategoryStat{
 						Category: key, Mean: mean, Std: math.Sqrt(variance), N: acc.count,
 					})

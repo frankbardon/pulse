@@ -392,6 +392,6 @@ func (d *modelDrawer) transform(rng *mrand.Rand, row map[string]any, nullMask ma
 	} else {
 		z = rng.NormFloat64()
 	}
-	u := (prediction-d.mean)*d.invStd + d.residualZ*z
+	u := float64((prediction-d.mean)*d.invStd) + float64(d.residualZ*z)
 	row[d.field] = d.hasClamp.apply(d.quantile(u, phi(u)))
 }

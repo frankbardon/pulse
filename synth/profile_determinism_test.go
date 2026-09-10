@@ -99,7 +99,7 @@ func synthManyCategoryNumeric(t *testing.T, categoryCount, rowsPerCategory int, 
 	buf.WriteString("region,score\n")
 	for c := 0; c < categoryCount; c++ {
 		for r := 0; r < rowsPerCategory; r++ {
-			v := rng.NormFloat64()*430.0 + 12690.0
+			v := float64(rng.NormFloat64()*430.0) + 12690.0
 			fmt.Fprintf(&buf, "region_%03d,%.8f\n", c, v)
 		}
 	}

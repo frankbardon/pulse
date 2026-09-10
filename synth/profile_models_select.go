@@ -164,7 +164,7 @@ func (c *varCell) add(y float64) {
 	d := y - c.off
 	c.n++
 	c.sum += d
-	c.sq += d * d
+	c.sq += float64(d * d)
 }
 
 // mean returns the group mean, or 0 for an empty group.
@@ -237,7 +237,7 @@ func varianceExplained(groups []groupScore) float64 {
 		if g.n == 0 {
 			continue
 		}
-		grand += float64(g.n) * g.mean
+		grand += float64(float64(g.n) * g.mean)
 	}
 	grand /= float64(n)
 
@@ -247,7 +247,7 @@ func varianceExplained(groups []groupScore) float64 {
 			continue
 		}
 		d := g.mean - grand
-		ssb += float64(g.n) * d * d
+		ssb += float64(float64(g.n) * d * d)
 		ssw += g.m2
 	}
 	sst := ssb + ssw
@@ -544,9 +544,9 @@ func mergeCells(a, b varCell) varCell {
 	na, nb := float64(a.n), float64(b.n)
 	ma, mb := a.mean(), b.mean()
 	n := na + nb
-	mean := (na*ma + nb*mb) / n
+	mean := (float64(na*ma) + float64(nb*mb)) / n
 	d := mb - ma
-	m2 := a.m2() + b.m2() + d*d*na*nb/n
+	m2 := a.m2() + b.m2() + float64(d*d*na*nb/n)
 	// Repack onto a fresh offset so the invariants add()/mean()/m2()
 	// rely on continue to hold for a merged cell.
 	out := varCell{n: a.n + b.n, off: mean}

@@ -24,7 +24,7 @@ func modelFlagFixture(t *testing.T, rowCount int, seed int64) []byte {
 	for i := 0; i < rowCount; i++ {
 		region := regions[i%len(regions)]
 		tier := tiers[(i/3)%len(tiers)]
-		spend := 40.0 + 12.0*float64(i%len(regions)) + rng.NormFloat64()*3
+		spend := 40.0 + float64(12.0*float64(i%len(regions))) + float64(rng.NormFloat64()*3)
 		visits := 2.0 + rng.NormFloat64()
 		// Every fifth row drops its spend, so listwise deletion and the
 		// null-rate capture both have something to bite on.

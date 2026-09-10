@@ -90,7 +90,7 @@ func TestCollapseCategoricalNumeric_RepeatedFoldsAreBitIdentical(t *testing.T) {
 		// near 1e8 and the subtraction cancels ~3 significant digits.
 		raw := make(map[string]*condCatNumAcc, 64)
 		for i := 0; i < 64; i++ {
-			v := 12690.0 + float64(i)*0.37
+			v := 12690.0 + float64(float64(i)*0.37)
 			raw[smallKey(i)] = &condCatNumAcc{count: 3, sum: 3 * v, sumSq: 3 * v * v}
 		}
 		return map[string]map[string]map[string]*condCatNumAcc{catField: {numField: raw}}
@@ -131,6 +131,11 @@ func smallKey(i int) string {
 // path uses. Deliberately duplicates those formulas rather than calling
 // into them — the point is to pin the ORDER, and a shared helper would
 // pin nothing.
+//
+// The duplication must be FAITHFUL, which includes the float64() fusion
+// barrier on the product (see synth/moments.go). The comparison above is
+// bit-exact, so a fused reference against a barriered production would
+// fail on arm64 for a reason that has nothing to do with fold order.
 func sortedFoldMoments(raw map[string]*condCatNumAcc) (mean, std float64, n int) {
 	keys := make([]string, 0, len(raw))
 	for k := range raw {
@@ -147,7 +152,7 @@ func sortedFoldMoments(raw map[string]*condCatNumAcc) (mean, std float64, n int)
 	mean = sum / float64(n)
 	var variance float64
 	if n > 1 {
-		variance = (sumSq - mean*sum) / float64(n-1)
+		variance = (sumSq - float64(mean*sum)) / float64(n-1)
 	}
 	if variance < 0 {
 		variance = 0

@@ -772,6 +772,43 @@ envelope is also written to stdout (typically piped or `jq`-d).
 Profile schema lives in `synth/profile.go` and is documented in
 `skills/synthetic-data.md`.
 
+### Reproducibility — across machines, not just across runs
+
+The same `(--input, --seed, flags)` produces a **byte-identical** profile
+document, and that now holds **across CPU architectures** as well as
+across runs on one machine. A profile document is something you
+commit, review in a diff and hand to a colleague, so a guarantee that
+only held per-machine was not much of a guarantee: two engineers, one on
+an arm64 laptop and one on an amd64 build box, captured the same cohort
+and got documents that differed in the last bits of every `std` and
+`rho`.
+
+Two causes, both closed:
+
+- **Fold order.** Anywhere capture folds several accumulators into one
+  shared bucket — canonically the `--top-k` collapse folding every
+  out-of-top-K category into `"other"` — the fold walks sorted keys.
+  Float addition is not associative and Go randomizes map iteration, so
+  a map-order fold gave a different answer per *process*.
+- **Float fusion.** Go permits `a + b*c` to be contracted into a single
+  fused multiply-add; arm64 does it, amd64 does not. Every product in a
+  capture formula now carries an explicit `float64(...)` conversion,
+  which the language defines as forbidding contraction.
+
+Two residuals remain, and they are stated rather than papered over:
+
+- `--fit-shape` runs an EM fit through `math.Exp` / `math.Log`, whose
+  standard-library implementations are architecture-specific. A
+  `shape` section's last bits can therefore still differ between
+  machines. Every other section is architecture-independent.
+- `--fit-models` solves its least squares in `processing/regression`,
+  which has not been made fusion-free. A `models` coefficient's last
+  bits can differ between machines.
+
+Neither affects a value you would read or report — the divergence is at
+the 1e-15 relative level — but a byte-for-byte `diff` of two documents
+captured with those flags on different CPUs may still show movement.
+
 ### Text mode summary
 
 ```

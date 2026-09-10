@@ -96,10 +96,10 @@ func (mc mixtureComponents) moments() (mean, std float64) {
 	var m, m2 float64
 	for i := range mc.means {
 		w := mc.weights[i] / mc.weightTotal
-		m += w * mc.means[i]
-		m2 += w * (mc.stds[i]*mc.stds[i] + mc.means[i]*mc.means[i])
+		m += float64(w * mc.means[i])
+		m2 += float64(w * (float64(mc.stds[i]*mc.stds[i]) + float64(mc.means[i]*mc.means[i])))
 	}
-	variance := m2 - m*m
+	variance := m2 - float64(m*m)
 	if variance < 0 {
 		// Catastrophic cancellation only: E[X^2] >= (E[X])^2 always, so
 		// a negative here is float noise on a mixture whose components
@@ -118,7 +118,7 @@ func (mc mixtureComponents) moments() (mean, std float64) {
 func (mc mixtureComponents) cdf(x float64) float64 {
 	var acc float64
 	for i := range mc.means {
-		acc += (mc.weights[i] / mc.weightTotal) * phi((x-mc.means[i])/mc.stds[i])
+		acc += float64((mc.weights[i] / mc.weightTotal) * phi((x-mc.means[i])/mc.stds[i]))
 	}
 	return acc
 }
@@ -139,7 +139,7 @@ func (mc mixtureComponents) bracket() (lo, hi float64) {
 			maxStd = mc.stds[i]
 		}
 	}
-	pad := mixtureQuantileTailStds * maxStd
+	pad := float64(mixtureQuantileTailStds * maxStd)
 	return lo - pad, hi + pad
 }
 
@@ -158,12 +158,12 @@ func (mc mixtureComponents) bracket() (lo, hi float64) {
 // bracket, so the loop simply walks to the corresponding endpoint.
 func (mc mixtureComponents) quantile(p, lo, hi float64) float64 {
 	for i := 0; i < mixtureQuantileBisections; i++ {
-		mid := lo + (hi-lo)/2
+		mid := lo + float64((hi-lo)/2)
 		if mc.cdf(mid) < p {
 			lo = mid
 		} else {
 			hi = mid
 		}
 	}
-	return lo + (hi-lo)/2
+	return lo + float64((hi-lo)/2)
 }

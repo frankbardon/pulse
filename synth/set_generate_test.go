@@ -415,7 +415,7 @@ func synthSetNumericPair(t *testing.T, rowCount int, seed int64, meanSelected, m
 		if selected {
 			mean = meanSelected
 		}
-		spend := rng.NormFloat64()*std + mean
+		spend := float64(rng.NormFloat64()*std) + mean
 		var rec [9]byte
 		bits := math.Float64bits(spend)
 		for i := 0; i < 8; i++ {
