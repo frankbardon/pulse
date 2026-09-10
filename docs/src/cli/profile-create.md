@@ -346,6 +346,41 @@ section being present, not from any individual model surviving.
 Without the section — every document written before this flag existed
 included — nothing changes: all five arms populate exactly as before.
 
+### How a modelled numeric is drawn
+
+`synth from-profile` composes the value in one step rather than drawing
+a marginal and overwriting it:
+
+```
+value = Q( Φ( μ(row) + σ·z ) )
+```
+
+`μ(row)` is the model's prediction for that row — the intercept plus the
+coefficient of every predictor that fires — standardised by the field's
+own captured mean and standard deviation; `σ` is `residual_std` on that
+same scale, and `z` is a fresh standard-normal draw. `Φ` and `Q` are the
+same normal CDF and per-field quantile function the correlation
+reconstruction uses, so a modelled field and a correlated field agree on
+what the field's own shape is. For a numeric reconstructed as `normal` —
+which is every numeric a profile carries a model for — this reduces
+**exactly** to `prediction + residual_std × z`.
+
+A coefficient fires only on an exact match. A categorical level the fit
+never saw, and a null predictor, both contribute **nothing** — they read
+as the reference level, which is what the dropped-baseline encoding
+means. The drawn value is clamped once to the field's observed
+`[min, max]`.
+
+Generation stays deterministic: the same `(profile, --rows, --seed)`
+still produces a byte-identical cohort. Each model consumes exactly one
+residual draw per row, in schema field order, whether or not any
+predictor fired.
+
+A `correlations` entry naming a modelled field is **not yet applied** —
+correlated residuals are the intended composition and have not landed —
+and is reported as such rather than silently overwriting the model's
+draw.
+
 ## Output
 
 The profile JSON is always written to `--output`. With `--json`, the

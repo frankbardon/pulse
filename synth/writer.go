@@ -205,15 +205,30 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	if err != nil {
 		return 0, 0, nil, err
 	}
-	catPairSamplers := buildCategoricalPairSamplers(conflicts.catPairs)
-	catNumPairSamplers := buildCategoricalNumericPairSamplers(conflicts.catNumPairs)
-	setCatPairSamplers := buildSetCategoricalPairSamplers(conflicts.setCatPairs)
-	setNumPairSamplers := buildSetNumericPairSamplers(conflicts.setNumPairs)
-	setSetPairSamplers := buildSetSetPairSamplers(conflicts.setSetPairs)
+	models, modelWarnings, err := buildModelDrawers(conflicts.models, wfs)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	// Compilation warnings follow the arbitration warnings: a model that
+	// won its claim and then turned out to be uncompilable is a second,
+	// later fact about the same field, and reporting it before the
+	// conflicts it already resolved would invert the causal order — the
+	// same ordering rule SpecFromProfile applies to its own model-drop
+	// warnings.
+	warnings = append(warnings, modelWarnings...)
+
+	stages := &rowStages{
+		catPairs:    buildCategoricalPairSamplers(conflicts.catPairs),
+		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs),
+		setSetPairs: buildSetSetPairSamplers(conflicts.setSetPairs),
+		setCatPairs: buildSetCategoricalPairSamplers(conflicts.setCatPairs),
+		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs),
+		corr:        corr,
+		models:      models,
+	}
 
 	for rowsGenerated < s.RowCount {
-		if err := drawRow(rng, wfs, row, rowNullMask, corr, catPairSamplers, catNumPairSamplers,
-			setCatPairSamplers, setNumPairSamplers, setSetPairSamplers); err != nil {
+		if err := drawRow(rng, wfs, row, rowNullMask, stages); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
 		ok, evalErr := cons.evaluate(row)
@@ -245,6 +260,27 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	return rowsGenerated, rowsRejected, warnings, nil
 }
 
+// rowStages is the fixed, per-Spec set of post-processing stages
+// drawRow applies to every row, compiled once at generate() setup time
+// and held in the exact order they run. Bundled into a struct rather
+// than passed as seven positional arguments so adding a stage is a
+// named field and a documented position in drawRow, not another
+// unlabelled parameter at a call site.
+//
+// Every field is independently a no-op (nil / empty slice) unless the
+// Spec that produced it actually declared that structure — see the
+// Spec.CategoricalPairs / CategoricalNumericPairs / SetCategoricalPairs
+// / SetNumericPairs / SetSetPairs / Correlations / Models doc comments.
+type rowStages struct {
+	catPairs    []*categoricalPairSampler
+	catNumPairs []*categoricalNumericPairSampler
+	setSetPairs []*setSetPairSampler
+	setCatPairs []*setCategoricalPairSampler
+	setNumPairs []*setNumericPairSampler
+	corr        *correlator
+	models      []*modelDrawer
+}
+
 // drawRow draws one row: every field's own independent sampler first,
 // then a fixed chain of conditional post-processing steps that each
 // overwrite an already-drawn field's value in place — categorical joint
@@ -256,14 +292,26 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 // layered on top. set-set runs before set-categorical/set-numeric so a
 // set option's OWN state — potentially itself resampled from another
 // set field's option — is settled before it is used as the conditioning
-// input for a numeric resample. Each step is a no-op (nil/empty slice)
-// unless the profile that produced this Spec actually captured that
-// structure — see Spec.CategoricalPairs / CategoricalNumericPairs /
-// SetCategoricalPairs / SetNumericPairs / SetSetPairs / Correlations doc
-// comments.
-func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask map[string]bool, corr *correlator,
-	catPairs []*categoricalPairSampler, catNumPairs []*categoricalNumericPairSampler,
-	setCatPairs []*setCategoricalPairSampler, setNumPairs []*setNumericPairSampler, setSetPairs []*setSetPairSampler) error {
+// input for a numeric resample.
+//
+// The linear-model stage runs LAST, after every other stage has
+// settled. Its inputs are the row's categorical levels and set option
+// bits, which the pair stages above can still be rewriting, so reading
+// them any earlier would evaluate a model against values the emitted
+// row does not carry. Nothing runs after it, and nothing needs to:
+// resolveConflicts claims a modelled field before any pair or
+// correlation stage can bid for it, so a modelled numeric is written
+// exactly once per row. See synth/model_draw.go for the construction.
+//
+// ORDER IS FIXED AND SPEC-DERIVED, NEVER MAP-DERIVED. Fields are walked
+// via the ordered []*writerField and never via the row map, and the
+// model stage is sorted into schema field order at compile time, so the
+// per-row sequence of RNG draws is a function of the Spec alone — the
+// property "same spec + same seed produces a byte-identical .pulse
+// file" rests on it, and buildSchema's set-dictionary pre-registration
+// comment and writeFieldValueForField's dictionary-order iteration are
+// the same rule applied on the encode side.
+func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask map[string]bool, stages *rowStages) error {
 	for k := range row {
 		delete(row, k)
 	}
@@ -277,23 +325,26 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 			nullMask[wf.spec.Name] = true
 		}
 	}
-	for _, cp := range catPairs {
+	for _, cp := range stages.catPairs {
 		cp.transform(rng, row)
 	}
-	for _, cnp := range catNumPairs {
+	for _, cnp := range stages.catNumPairs {
 		cnp.transform(rng, row)
 	}
-	for _, ssp := range setSetPairs {
+	for _, ssp := range stages.setSetPairs {
 		ssp.transform(rng, row)
 	}
-	for _, scp := range setCatPairs {
+	for _, scp := range stages.setCatPairs {
 		scp.transform(rng, row)
 	}
-	for _, snp := range setNumPairs {
+	for _, snp := range stages.setNumPairs {
 		snp.transform(rng, row)
 	}
-	if corr != nil {
-		corr.transform(rng, row)
+	if stages.corr != nil {
+		stages.corr.transform(rng, row)
+	}
+	for _, md := range stages.models {
+		md.transform(rng, row, nullMask)
 	}
 	return nil
 }
