@@ -164,6 +164,15 @@ than the estimator's own noise cannot be evidence of anything.
 zero: a term that fired thousands of times and recovered nothing is a
 fault; a term that never fired had nothing to recover.
 
+One caveat when reading a flag: the latent inversion undoes `Q`, but it
+cannot undo the writer's integer rounding. For a `packed_bool` or `u4`
+target that rounding is most of the map — a 0/1 value inverts to exactly
+two latent values — so a large share of the latent effect is destroyed
+by the write and the refit correctly reports only what survived. That is
+a real property of the generated cohort, not an artefact of the
+measurement: the rows genuinely carry less conditioning than the model
+asked for.
+
 Three absence rules, all deliberate:
 
 - A field carrying **no model** has no entry here, rather than an entry
