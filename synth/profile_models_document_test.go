@@ -686,14 +686,25 @@ func TestSpecFromProfile_MixedModelledAndUnmodelledTargets(t *testing.T) {
 	}
 }
 
-// TestSpecFromProfile_ShapeFitTargetKeepsItsShape pins the one
-// interaction with an existing flag. A --fit-shape field reconstructs
-// to a mixture with no closed-form quantile a linear predictor can ride,
-// so its model is dropped and the field keeps its captured shape —
-// which is the same net outcome resolveConflicts already produces for a
-// shape-fit field named by a conditional pair, reached here by refusing
-// the claim rather than by arbitrating it.
-func TestSpecFromProfile_ShapeFitTargetKeepsItsShape(t *testing.T) {
+// TestSpecFromProfile_ShapeFitTargetKeepsShapeAndModel pins the one
+// interaction with an existing flag, at the translation layer. It used
+// to assert the opposite — modelSpecFromProfile refused a --fit-shape
+// target and the model was dropped with a warning — because the mixture
+// had no quantile function a linear predictor could ride. E4-S1 gave it
+// one (synth/mixture_quantile.go), so the field now keeps BOTH: its
+// captured mixture marginal AND its captured model, with the mixture
+// serving as Q in value = Q(Phi(mu(row) + sigma*z)).
+//
+// The drop was never harmless: on a real cohort it removed every
+// measured relationship from precisely the numerics whose distributions
+// were interesting enough to earn a shape fit, and did it through a
+// "not applied" warning buried among thousands.
+//
+// The generation-side proof that the composition actually holds — that
+// the shape survives and the conditioning lands — is
+// TestSynthModel_ShapeFittedTargetKeepsShapeAndGainsConditioning in
+// model_draw_shape_test.go; this one only pins the translation.
+func TestSpecFromProfile_ShapeFitTargetKeepsShapeAndModel(t *testing.T) {
 	p := &synth.Profile{
 		RowCount: 100,
 		Fields: []synth.FieldProfile{
@@ -722,22 +733,26 @@ func TestSpecFromProfile_ShapeFitTargetKeepsItsShape(t *testing.T) {
 		}},
 	}
 	spec, warnings := synth.SpecFromProfile(p, 50)
-	if len(spec.Models) != 0 {
-		t.Errorf("spec models = %d, want 0 for a shape-fit target", len(spec.Models))
+	if len(spec.Models) != 1 || spec.Models[0].Field != "spend" {
+		t.Fatalf("spec models = %+v, want the captured model for %q", spec.Models, "spend")
 	}
 	for _, fs := range spec.Fields {
 		if fs.Name == "spend" && fs.Distribution != synth.DistMixture {
-			t.Errorf("spend distribution = %q, want %q", fs.Distribution, synth.DistMixture)
+			t.Errorf("spend distribution = %q, want %q — the shape fit must survive the model", fs.Distribution, synth.DistMixture)
 		}
 	}
-	found := false
+	// Nothing was dropped, so nothing is reported: the shape-fit refusal
+	// and the conflict it used to cause are both gone.
 	for _, w := range warnings {
-		if strings.Contains(w, "not applied") && strings.Contains(w, "--fit-shape") {
-			found = true
+		if strings.Contains(w, "not applied") || strings.Contains(w, "dropping linear model") {
+			t.Errorf("shape and model compose; nothing should be dropped, got warning %q", w)
 		}
 	}
-	if !found {
-		t.Errorf("shape-fit drop was silent; warnings = %v", warnings)
+	// The pair the model retires is still retired — that rule is per
+	// target and is unaffected by how the target's marginal was
+	// reconstructed.
+	if len(spec.CategoricalNumericPairs) != 0 {
+		t.Errorf("categorical-numeric pairs = %+v, want none for a modelled target", spec.CategoricalNumericPairs)
 	}
 }
 

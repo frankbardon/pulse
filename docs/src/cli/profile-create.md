@@ -213,18 +213,23 @@ Limitations (see `synth/shape.go` for the full algorithm and its
 documented trade-offs): fixed at exactly 2 components (no component-
 count search); a single deterministic EM run per field, not
 multi-start, so a genuinely trimodal source fits a 2-component
-approximation rather than an optimal one. A field's captured shape and
-`--conditional`'s categorical-numeric conditional structure (or a
-numeric-numeric correlation) for that same field have not been asked
-to compose, but the conflict is no longer resolved silently: at
-`synth from-profile` generation time a `--fit-shape`-captured field is
-pre-claimed under `"captured shape (--fit-shape)"` before any
-conditional-pairing or correlation stage runs
-(`synth.resolveConflicts`, `synth/conflict.go`), so the shape fit
-always wins that field — but the excluded relationship (the dropped
-categorical-numeric pair, or that field's exclusion from a correlation
-whose other participants still correlate) is reported as one warning
-naming both the field and which relationship lost. That warning lands
+approximation rather than an optimal one. A captured shape **does** compose with `--fit-models`: a
+shape-fitted numeric that lands a linear model draws through that
+model with its fitted mixture as the marginal, keeping both halves.
+See "`--fit-shape` and `--fit-models` compose" below.
+
+A field's captured shape and `--conditional`'s categorical-numeric
+conditional structure (or a numeric-numeric correlation) for that same
+field still do not compose, but the conflict is not resolved silently:
+at `synth from-profile` generation time a `--fit-shape`-captured field
+that carries no model is pre-claimed under
+`"captured shape (--fit-shape)"` before any conditional-pairing or
+correlation stage runs (`synth.resolveConflicts`,
+`synth/conflict.go`), so the shape fit wins that field — but the
+excluded relationship (the dropped categorical-numeric pair, or that
+field's exclusion from a correlation whose other participants still
+correlate) is reported as one warning naming both the field and which
+relationship lost. That warning lands
 on `synth.Result.Warnings` (`data.warnings` under `--json`) for every
 `synth from-schema` / `synth from-profile` run, and additionally folds
 into `--fidelity-report`'s own `warnings` array for a `synth
@@ -232,7 +237,9 @@ from-profile` run, alongside `profile create`'s own capture-time
 thin-pair warnings. The same priority-ordered claim mechanism resolves
 every other conditional-relationship collision too (e.g. two
 categorical-numeric pairs both naming the same numeric field) — a
-shape fit is simply the highest-priority claimant, not a special case.
+shape fit is simply a high-priority claimant, not a special case. The
+one claimant above it is a linear model, which does not displace the
+shape fit but composes with it.
 
 ## `--fit-models`: per-numeric linear models
 
@@ -424,10 +431,9 @@ FROM categorical and set structure; it says nothing about how that
 structure co-varies with itself, so passing `--conditional` and
 `--fit-models` together is supported and keeps both halves.
 
-A model that cannot be applied to the reconstructed spec — its target
-was `--fit-shape`-fitted (a mixture has no closed-form quantile a linear
-predictor can ride), it names a field the profile does not carry, or it
-is the zero-predictor model above — is dropped with a
+A model that cannot be applied to the reconstructed spec — it names a
+field the profile does not carry, or it is the zero-predictor model
+above — is dropped with a
 `model for numeric field "x" not applied: …` warning, and that field
 **keeps** its captured conditional pair. Retirement is per field, not
 per document: a field that gains no model must not also lose the
@@ -435,6 +441,39 @@ structure `--conditional` measured for it.
 
 Without the section — every document written before this flag existed
 included — nothing changes: all five arms populate exactly as before.
+
+### `--fit-shape` and `--fit-models` compose
+
+A `--fit-shape` target used to be a drop reason: its mixture had no
+quantile function a linear predictor could ride, so `synth
+from-profile` kept the fitted shape and discarded the model. On a real
+cohort that removed every measured conditioning relationship from
+exactly the numerics whose distributions had been interesting enough
+to earn a shape fit.
+
+They now compose. A modelled numeric is drawn as
+`value = Q(Φ(μ(row) + σ·z))`, and `Q` is the field's own marginal — so
+a fitted mixture simply *becomes* `Q` while the predictors shift the
+latent, the same way a hand-authored `lognormal` target already keeps
+its skew under a linear predictor. Nothing is dropped and nothing is
+warned. A shape-fitted field that lands **no** model is untouched: it
+draws its own mixture and still holds the pre-claim described above.
+
+Two consequences worth knowing before reading such a model's numbers:
+
+- **Coefficients are on the latent scale.** For a plain `normal`
+  target the mapping is affine and a coefficient of `+30` moves the
+  drawn value by `+30`. For a fitted mixture it does **not** — the
+  same coefficient moves values by an amount that depends on where in
+  the distribution the row landed, because it shifts mass between the
+  modes rather than translating them. Direction and monotonicity hold;
+  magnitude in data units does not. Do not read such a coefficient as
+  "this many units of the field".
+- **The marginal is preserved exactly.** The alternative — drawing
+  from the mixture and then adding the linear prediction — would make
+  coefficients read in data units, at the cost of smearing the fitted
+  modes across the level offsets. That destroys the shape the flag
+  exists to capture, so it is not what happens.
 
 ### How a modelled numeric is drawn
 

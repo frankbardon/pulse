@@ -35,12 +35,13 @@ import (
 // closed-form quantile function for its own declared distribution — see
 // quantileFor / fieldMoments — the resulting vector carries the
 // requested rank-correlation structure while each field's own marginal
-// shape (not just its mean/std) survives. Scoped to the four
-// distributions fieldMoments already accepts: normal, uniform,
-// lognormal, exponential — poisson (no closed-form quantile) and
-// bernoulli (degenerate quantile under a continuous copula draw) are
-// deliberately out of scope. See skills/synthetic-data.md (Pairwise
-// correlations).
+// shape (not just its mean/std) survives. Scoped to the distributions
+// fieldMoments accepts: normal, uniform, lognormal, exponential, and
+// (E4-S1, reachable through the model draw rather than through this
+// correlator — see fieldMoments) mixture; poisson (no quantile at all
+// for a discrete lattice under this construction) and bernoulli
+// (degenerate quantile under a continuous copula draw) are deliberately
+// out of scope. See skills/synthetic-data.md (Pairwise correlations).
 //
 // Why a parametric quantile-function construction and not a rank-based
 // empirical copula: a schema-mode spec (`synth from-schema`,
@@ -224,15 +225,30 @@ func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 // fieldMoments returns the analytic mean and standard deviation of a
 // FieldSpec's declared distribution, plus an optional clamp range
 // (normal's min/max params only — the one distribution among the
-// supported set that declares one). Only distributions with a
-// closed-form (mean, std) can participate in a correlation: normal,
-// uniform, lognormal, exponential. Anything else (weighted_categorical,
+// supported set that declares one). Only distributions with EXACT
+// moments and a usable quantile function can be driven through the
+// copula construction: normal, uniform, lognormal, exponential, and —
+// since E4-S1 — mixture. Anything else (weighted_categorical,
 // bernoulli, poisson, pareto, regex, monotonic_from, constant,
 // uniform_date, ...) refuses with SERVICE_VALIDATION naming the
 // distribution rather than silently approximating — the v0 blend's
 // "works for any distribution" was really "quietly distorts any
 // distribution a little," which this story removes rather than
-// preserves under a new name.
+// preserves under a new name. Mixture joins the set on that same
+// standard and not by relaxing it: its moments are exact and its
+// quantile is inverted numerically to the last representable bit.
+//
+// This function has TWO callers and they reach different subsets of it.
+// buildCorrelator calls it for every correlation participant; a
+// modelled field calls it for its own target (buildModelDrawers,
+// synth/model_draw.go). In practice only the second ever sees a
+// mixture: resolveConflicts still pre-claims an unmodelled DistMixture
+// field before any correlation stage bids, and a MODELLED one is
+// reported as not-yet-honoured by the correlation arm, so a mixture
+// reaches buildCorrelator through neither path today. Nothing here
+// depends on that — the construction is sound for a mixture on either
+// path — but do not read a passing correlation suite as evidence the
+// correlation half is exercised.
 func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp bool, err error) {
 	clampMin, clampMax = math.Inf(-1), math.Inf(1)
 	switch fs.Distribution {
@@ -278,6 +294,25 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 		}
 		mean = 1 / lambda
 		std = 1 / lambda
+	case DistMixture:
+		// A captured shape (`profile create --fit-shape`) admitted at
+		// E4-S1. Its moments are EXACT — the law-of-total-variance form,
+		// see mixtureComponents.moments — so this is not the "quietly
+		// distorts any distribution a little" widening the refusal below
+		// exists to prevent. What a mixture lacks is a closed-form
+		// INVERSE, which quantileFor supplies numerically; that is a
+		// cost in cycles, not in fidelity.
+		//
+		// No clamp: DistMixture declares no min/max params (unlike
+		// DistNormal), so hasClamp stays false and a modelled mixture
+		// target takes its bound from FieldModelSpec.Min/Max instead —
+		// the observed range SpecFromProfile carries for exactly this
+		// purpose. See buildModelDrawers' clamping note.
+		var mc mixtureComponents
+		if mc, err = parseMixtureComponents(fs); err != nil {
+			return
+		}
+		mean, std = mc.moments()
 	default:
 		err = errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: distribution %q does not support pairwise correlation", fs.Name, fs.Distribution),
@@ -289,7 +324,7 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 // quantileFor returns fs's own quantile function (inverse CDF) Q,
 // closed over that distribution's declared params — the second half of
 // the Gaussian-copula construction on correlator, paired with fieldMoments
-// (which validates fs.Distribution is one of the four supported here and
+// (which validates fs.Distribution is one of the five supported here and
 // supplies mean/std for the normal case). Only called after fieldMoments
 // has already succeeded for fs, so the default branch below is
 // unreachable in practice; it still refuses defensively with the same
@@ -299,8 +334,12 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 // directly: Q_normal(p) = mean + std*Φ⁻¹(p) and Q_lognormal(p) =
 // exp(mu + sigma*Φ⁻¹(p)), but Φ⁻¹(p) == u exactly by construction (p was
 // built as Φ(u) — see phi), so recomputing it would be exact but
-// pointlessly indirect. uniform and exponential have no such shortcut
-// and use p.
+// pointlessly indirect. uniform, exponential and mixture have no such
+// shortcut and use p.
+//
+// Every arm but mixture is O(1) closed form. Mixture pays a fixed
+// bisection per call (synth/mixture_quantile.go) — the price of letting
+// a `--fit-shape` marginal be driven by a linear predictor at all.
 func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 	switch fs.Distribution {
 	case DistNormal:
@@ -338,6 +377,22 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 		}
 		return func(u, p float64) float64 {
 			return -math.Log(1-p) / lambda
+		}, nil
+	case DistMixture:
+		// The one arm with no closed form. A Gaussian mixture's CDF is a
+		// weighted sum of erfs and has no elementary inverse, so Q is
+		// computed by a fixed-count bisection whose bracket is decided
+		// once here rather than per call — see synth/mixture_quantile.go
+		// for why the count is fixed and why bisection rather than
+		// Newton. Uses p, like uniform and exponential; there is no u
+		// shortcut to take.
+		mc, err := parseMixtureComponents(fs)
+		if err != nil {
+			return nil, err
+		}
+		lo, hi := mc.bracket()
+		return func(u, p float64) float64 {
+			return mc.quantile(p, lo, hi)
 		}, nil
 	default:
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,

@@ -199,10 +199,14 @@ pulse synth from-profile --profile sales.profile.json --source sales.pulse --out
   depend on exact field values (e.g. joinable identifiers) need
   the schema-driven path instead.
 - Shape fitting (`--fit-shape` at profile-creation time): fixed at
-  exactly 2 mixture components, no min/max clamp, and a field carrying
-  a captured `shape` does not participate in `--conditional`'s
-  categorical-numeric conditioning even when both were captured for it
-  — see `pulse profile create`'s `--fit-shape` section.
+  exactly 2 mixture components, and no min/max clamp on the field's own
+  independent draw. A field carrying a captured `shape` does not
+  participate in `--conditional`'s categorical-numeric conditioning
+  even when both were captured for it; it **does** compose with
+  `--fit-models`, drawing through its captured linear model with the
+  fitted mixture as the marginal — with the caveat that such a model's
+  coefficients are on the latent scale and are not readable in data
+  units. See `pulse profile create`'s `--fit-shape` section.
 
 ## Related
 

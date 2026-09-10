@@ -452,9 +452,17 @@ func TestSynthModel_DrawOrderIsSchemaOrderNotSliceOrder(t *testing.T) {
 // is invisible in the output. That is the same reason a spec carrying no
 // `models` key reproduces its pre-change bytes exactly.
 //
-// The zero-drawer state is reached the way a real spec reaches it — the
-// captured-shape pre-claim takes the model's target, so arbitration
-// hands the stage nothing to compile.
+// The zero-drawer state is reached through buildModelDrawers' other
+// warn-and-skip: a target whose reconstructed marginal has no finite
+// scale to standardise the prediction against. A lognormal with a large
+// sigma is the reachable form — its analytic std overflows to +Inf — and
+// it is a legal spec, so validateSpec lets it through to the place that
+// refuses it by name.
+//
+// It used to be reached through the captured-shape pre-claim taking the
+// model's target; E4-S1 retired that exclusivity, so a shape-fitted
+// target now compiles a drawer like any other and is no longer a route
+// to zero.
 func TestSynthModel_StageInertWithoutDrawers(t *testing.T) {
 	build := func(withModel bool) *synth.Spec {
 		s := modelDrawSpec(300, synth.FieldModelSpec{
@@ -464,12 +472,8 @@ func TestSynthModel_StageInertWithoutDrawers(t *testing.T) {
 		})
 		for i := range s.Fields {
 			if s.Fields[i].Name == "spend" {
-				s.Fields[i].Distribution = synth.DistMixture
-				s.Fields[i].Params = map[string]any{
-					"means":   []any{10.0, 90.0},
-					"stds":    []any{1.0, 1.0},
-					"weights": []any{0.5, 0.5},
-				}
+				s.Fields[i].Distribution = synth.DistLogNormal
+				s.Fields[i].Params = map[string]any{"mu": 0.0, "sigma": 30.0}
 			}
 		}
 		if !withModel {
@@ -582,41 +586,13 @@ func TestSynthModel_CorrelationNamingModelledFieldWarnsAsInterim(t *testing.T) {
 	}
 }
 
-// TestSynthModel_CapturedShapeOutranksModel is the E4-S1 boundary: a
-// --fit-shape target keeps today's behaviour, and the model it displaces
-// is reported rather than dropped in silence.
-func TestSynthModel_CapturedShapeOutranksModel(t *testing.T) {
-	spec := modelDrawSpec(300, synth.FieldModelSpec{
-		Field:      "spend",
-		Intercept:  100,
-		Predictors: []synth.ModelPredictorSpec{catLevel("region", "east", 30)},
-	})
-	for i := range spec.Fields {
-		if spec.Fields[i].Name == "spend" {
-			spec.Fields[i].Distribution = synth.DistMixture
-			spec.Fields[i].Params = map[string]any{
-				"means":   []any{10.0, 90.0},
-				"stds":    []any{1.0, 1.0},
-				"weights": []any{0.5, 0.5},
-			}
-		}
-	}
-
-	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 43})
-	if err != nil {
-		t.Fatalf("SynthBytes: %v", err)
-	}
-	if !warningsContain(res.Warnings, "dropping linear model") {
-		t.Fatalf("the displaced model was silent; warnings = %v", res.Warnings)
-	}
-	// The shape fit is still what drew the field: a two-component
-	// mixture around 10 and 90, nothing sitting on the model's 100/130.
-	for i, v := range readField(t, data, "spend") {
-		if math.Abs(v-100) < 1 || math.Abs(v-130) < 1 {
-			t.Fatalf("row %d: the model still drew a shape-fitted field (spend = %v)", i, v)
-		}
-	}
-}
+// The E4-S1 boundary this file used to pin — TestSynthModel_
+// CapturedShapeOutranksModel, "a --fit-shape target displaces its model
+// and the drop is reported" — is GONE, not moved: E4-S1 retired the
+// exclusivity it asserted. Shape and conditioning now compose, and the
+// replacement pack lives in model_draw_shape_test.go, which asserts the
+// two halves that exclusivity was standing in for (the fitted marginal
+// survives; the conditioning is actually applied) in a single test.
 
 // TestSynthModel_UnsupportedPredictorKindRefuses: generation cannot
 // evaluate a numeric predictor term, and contributing zero for it would

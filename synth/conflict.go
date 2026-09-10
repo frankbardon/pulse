@@ -52,38 +52,55 @@ type conflictResolution struct {
 // relationship naming a given target actually gets to run, and reports
 // every one it drops instead of leaving the loss silent.
 //
+// A field carrying a linear model (Spec.Models, `profile create
+// --fit-models`) is claimed FIRST, before any of the six stages: a
+// model produces the field's value from ONE expression that already
+// accounts for every predictor it was fitted on, so a later stage
+// overwriting it would not layer extra structure on top — it would
+// discard the model's whole account of the field and leave its
+// surviving coefficients describing nothing that was actually drawn.
+// This pre-claim is what retires the parallel numeric resample stages
+// for a modelled field: a categorical-numeric or set-numeric pair
+// naming it loses the claim and is reported exactly like any other
+// exclusion. (A profile-derived spec carrying `models` already arrives
+// with both numeric-target pair slots empty — see SpecFromProfile — so
+// this fires only for a hand-authored spec that asks for both.)
+//
 // A field whose reconstructed distribution is a captured shape
-// (DistMixture, `profile create --fit-shape`) is pre-claimed under
-// "captured shape (--fit-shape)" before any of the six stages below run
-// — the field's own independent sampler already draws its value before
-// any conditional post-processing stage touches the row in drawRow, so
-// nothing may overwrite it. This pre-claim is the single mechanism that
-// replaces SpecFromProfile's two former special-cased silent skips
+// (DistMixture, `profile create --fit-shape`) is pre-claimed next,
+// still before any of the six stages — the field's own independent
+// sampler already draws its value before any conditional
+// post-processing stage touches the row in drawRow, so nothing may
+// overwrite it. This pre-claim is the single mechanism that replaces
+// SpecFromProfile's two former special-cased silent skips
 // (addCorrelation's DistMixture check, and the shape-vs-categorical-
 // numeric skip): both are now ordinary claim conflicts against this
 // pre-claim, reported exactly like any other exclusion below rather than
 // dropped without a trace.
 //
-// A field carrying a linear model (Spec.Models, `profile create
-// --fit-models`) is claimed next, still before any of the six stages,
-// for a reason that generalises the shape pre-claim: a model produces
-// the field's value from ONE expression that already accounts for every
-// predictor it was fitted on, so a later stage overwriting it would not
-// layer extra structure on top — it would discard the model's whole
-// account of the field and leave its surviving coefficients describing
-// nothing that was actually drawn. This pre-claim is what retires the
-// parallel numeric resample stages for a modelled field: a
-// categorical-numeric or set-numeric pair naming it loses the claim and
-// is reported exactly like any other exclusion. (A profile-derived spec
-// carrying `models` already arrives with both numeric-target pair slots
-// empty — see SpecFromProfile — so this fires only for a hand-authored
-// spec that asks for both.)
+// The two orderings above are the E4-S1 change and the ONE line in this
+// file that carries the story. The shape pre-claim used to run first
+// and beat the model, on the reasoning that a captured mixture had no
+// closed-form quantile a linear predictor could ride. That was true of
+// the code, not of the construction: value = Q(Phi(mu + sigma*z))
+// admits an arbitrary marginal in Q — it is exactly what a lognormal
+// target already does — so once the mixture acquired a Q
+// (synth/mixture_quantile.go) the exclusivity had nothing left holding
+// it up. It cost the motivating cohort every conditioning relationship
+// on the four fields whose shapes were most worth fitting.
 //
-// The shape pre-claim deliberately outranks it: a captured mixture has
-// no closed-form quantile a linear predictor could ride, so the two have
-// not been asked to compose, and modelSpecFromProfile never emits a
-// model for a DistMixture target. A hand-authored spec that asks for
-// both keeps the shape fit and is told the model was dropped.
+// So the two COMPOSE and neither is a conflict: a shape-fitted field
+// carrying a model is claimed by the model, draws through its model,
+// and gets its fitted mixture as Q — no warning, because nothing was
+// dropped. The shape pre-claim below is therefore expressed as an
+// ordinary claim() rather than a direct map write: it still owns every
+// DistMixture field the model claim did not take, so an UNMODELLED
+// shape-fitted field keeps today's behaviour exactly (pairs and
+// correlations naming it are still excluded, still with the "captured
+// shape (--fit-shape)" wording), and it silently yields the ones it
+// did. A pair naming a shape-fitted MODELLED field is still dropped —
+// it was always going to be — but now names "linear model" as the
+// owner, which is the truthful answer.
 //
 // Spec.Correlations is treated as ONE combined claimant across all of
 // its participant fields — it resolves jointly via a single
@@ -97,12 +114,6 @@ type conflictResolution struct {
 func resolveConflicts(s *Spec) conflictResolution {
 	var res conflictResolution
 	claims := make(map[claimTarget]string, len(s.Fields))
-
-	for _, fs := range s.Fields {
-		if fs.Distribution == DistMixture {
-			claims[claimTarget{field: fs.Name}] = "captured shape (--fit-shape)"
-		}
-	}
 
 	// claim registers desc as the target's owner iff nothing owns it yet.
 	// Returns false (and leaves the existing owner in place) on conflict.
@@ -131,6 +142,17 @@ func resolveConflicts(s *Spec) conflictResolution {
 			modelClaimed[m.Field] = true
 		} else {
 			conflict(t, "linear model")
+		}
+	}
+
+	// The captured-shape pre-claim, running SECOND so a shape-fitted
+	// field carrying a model composes with it instead of displacing it
+	// — see this function's doc. A shape-fitted field with no model is
+	// claimed here exactly as it always was, and everything downstream
+	// behaves identically for it.
+	for _, fs := range s.Fields {
+		if fs.Distribution == DistMixture {
+			claim(claimTarget{field: fs.Name}, "captured shape (--fit-shape)")
 		}
 	}
 

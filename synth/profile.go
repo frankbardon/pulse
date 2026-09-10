@@ -2109,18 +2109,21 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// capture time (fitNumericShape). Reuses DistMixture (E4-S1)
 			// verbatim: no new sampling logic, just the captured
 			// means/stds/weights handed straight through as its params.
-			// NOTE: DistMixture has no min/max clamp support (unlike
-			// DistNormal above), and a categorical-numeric conditional
-			// pair (Conditional.CategoricalNumericPairs) targeting this
-			// field will not wire up below — that wiring only fires
-			// when the reconstructed distribution is DistNormal, so a
-			// field that both shape-fits AND was profiled with
-			// --conditional silently keeps its independent shape-fitted
-			// marginal instead of the conditional one. Deliberate for
-			// v1: shape-fitting and categorical-numeric conditioning
-			// have not been asked to compose, and silently favoring the
-			// (arguably more informative) shape fit over dropping it is
-			// safer than crashing or reconciling the two by guesswork.
+			// NOTE: DistMixture declares no min/max clamp params
+			// (unlike DistNormal above), so a shape-fitted field's
+			// independent draw is unbounded; a MODELLED one takes its
+			// bound from FieldModelSpec.Min/Max instead (see
+			// modelSpecFromProfile).
+			//
+			// Conditioning: since E4-S1 a shape-fitted field DOES accept
+			// a captured linear model — the mixture becomes Q in
+			// value = Q(Phi(mu(row) + sigma*z)) and the predictors shift
+			// the latent, so shape and conditioning compose rather than
+			// one silently deleting the other. A shape-fitted field with
+			// no model still keeps its independent marginal and a
+			// captured categorical-numeric pair naming it is still
+			// excluded by resolveConflicts' captured-shape pre-claim,
+			// with a warning; that half is unchanged.
 			means := make([]any, len(fp.Numeric.Shape.Means))
 			stds := make([]any, len(fp.Numeric.Shape.Stds))
 			weights := make([]any, len(fp.Numeric.Shape.Weights))
@@ -2171,11 +2174,14 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			return
 		}
 		// A --fit-shape field that reconstructed to DistMixture (E4-S2)
-		// has no closed-form (mean, std) synth/copula.go's fieldMoments
-		// can hand a correlator — shape-fitting and numeric-numeric
-		// correlation reconstruction have not been asked to compose. This
-		// used to be excluded here directly (a silent drop); it is added
-		// unconditionally now and left to resolveConflicts (E6-S1,
+		// does not participate in numeric-numeric correlation
+		// reconstruction — not for want of moments (fieldMoments gained
+		// exact mixture moments at E4-S1) but because resolveConflicts
+		// still pre-claims an unmodelled shape-fitted field, and a
+		// MODELLED one is reported as not-yet-honoured by the
+		// correlation arm. This used to be excluded here directly (a
+		// silent drop); it is added unconditionally now and left to
+		// resolveConflicts (E6-S1,
 		// synth/conflict.go) at generate() setup time — a shape-fit field
 		// is pre-claimed there under "captured shape (--fit-shape)" before
 		// any correlation stage runs, so the outcome (the correlation
@@ -2264,7 +2270,11 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// Whether this pair actually gets to run is decided uniformly
 			// by resolveConflicts (E6-S1, synth/conflict.go) at generate()
 			// setup time: a shape-fit B is pre-claimed there, so the pair
-			// is excluded with an explicit warning — replacing what used
+			// is excluded with an explicit warning. (Only an UNMODELLED
+			// shape-fit B can reach this line at all — a modelled one was
+			// retired by the `modelled[cnp.B]` check above, since E4-S1
+			// lets a shape-fitted field carry a model — so the pre-claim
+			// is still what decides it.) That replaces what used
 			// to be this loop's own silent "shape fit wins" special case
 			// (distOf[cnp.B] != DistNormal) with the SAME shared mechanism
 			// every other conditional-relationship conflict routes through.
@@ -2374,13 +2384,22 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 	switch dist {
 	case DistNormal:
 	case DistMixture:
-		// A --fit-shape reconstruction already replaced this field's
-		// marginal with a captured mixture, and the two have not been
-		// asked to compose (the mixture has no closed-form quantile the
-		// linear predictor could ride). The field keeps its shape fit,
-		// which is the same outcome resolveConflicts produces today for
-		// a shape-fit field named by a conditional pair.
-		return FieldModelSpec{}, "target reconstructed from a captured shape (--fit-shape), which does not compose with a linear predictor"
+		// A --fit-shape reconstruction. This USED to be a refusal — the
+		// mixture had no quantile function a linear predictor could ride
+		// — and refusing it here was the upstream half of the same
+		// exclusivity resolveConflicts enforced downstream. E4-S1
+		// retires both: the mixture now carries an exact (mean, std) and
+		// a numerically inverted quantile (synth/mixture_quantile.go),
+		// so the fitted shape simply becomes Q in
+		// value = Q(Phi(mu(row) + sigma*z)) and the predictors shift the
+		// latent. The field keeps its shape AND gains its conditioning,
+		// which is the whole point: the refusal was silently deleting
+		// every measured relationship on precisely the fields whose
+		// distributions were interesting enough to fit.
+		//
+		// The effect is on the LATENT scale and therefore non-linear in
+		// value space for a non-normal Q — a coefficient is not "this
+		// many units of the field" here. See synth/mixture_quantile.go.
 	default:
 		return FieldModelSpec{}, "target did not reconstruct to a normal distribution"
 	}

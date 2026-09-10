@@ -44,9 +44,9 @@ import (
 // residual standard deviation" after the division.
 //
 // The payoff is the identity the whole construction is anchored on. For
-// a plain `normal` target — which is the ONLY shape SpecFromProfile
-// ever emits a model for, see modelSpecFromProfile — quantileFor
-// returns Q(u,p) = mean + std*u, so the round trip collapses to
+// a plain `normal` target — the common case SpecFromProfile emits, see
+// modelSpecFromProfile — quantileFor returns Q(u,p) = mean + std*u, so
+// the round trip collapses to
 //
 //	value = mean + std*((prediction-mean)/std + (residual_std/std)*z)
 //	      = prediction + residual_std*z
@@ -58,6 +58,22 @@ import (
 // driven by the linear predictor — the same reason correlator maps
 // through Q instead of overriding with mean + std*u, see copula.go's
 // v1-removed note.
+//
+// # Latent-scale effects (E4-S1)
+//
+// Since a captured Gaussian mixture acquired a quantile function
+// (synth/mixture_quantile.go), a `--fit-shape` target is an ordinary
+// member of that set: its fitted mixture becomes Q, the predictors
+// shift the latent, and shape and conditioning compose instead of the
+// shape pre-claim deleting the conditioning outright. The cost is that
+// a coefficient is a LATENT-scale quantity. For a normal Q the identity
+// above makes it a value-scale one too — +30 moves the drawn value by
+// +30 — but for a mixture or a lognormal the map is non-linear, so the
+// same coefficient moves the value by an amount that depends where in
+// the distribution the row landed. Direction and monotonicity hold;
+// magnitude in data units does not. The full argument, and why the
+// value-space alternative was rejected rather than merely deferred,
+// lives in synth/mixture_quantile.go's header.
 //
 // # Where this sits in the row
 //
@@ -182,14 +198,14 @@ func buildModelDrawers(models []FieldModelSpec, wfs []*writerField) ([]*modelDra
 		fs := wfs[pos].spec
 
 		// fieldMoments doubles as the eligibility check: it accepts
-		// exactly the four distributions that carry a closed-form
-		// (mean, std) AND a closed-form quantile, and refuses anything
-		// else by name rather than approximating it. A DistMixture
-		// target (`--fit-shape`) lands in that refusal, which is
-		// correct for now — a captured mixture has no quantile the
-		// linear predictor could ride, and modelSpecFromProfile never
-		// emits a model for one, so only a hand-authored spec can reach
-		// it.
+		// exactly the distributions that carry EXACT moments and a
+		// usable quantile function, and refuses anything else by name
+		// rather than approximating it. A DistMixture target
+		// (`--fit-shape`) is INSIDE that set since E4-S1 — its moments
+		// are exact and its quantile is inverted numerically — so a
+		// shape-fitted field reaches the composed draw below with its
+		// fitted mixture as Q. See synth/mixture_quantile.go, including
+		// why that makes its coefficients latent-scale.
 		mean, std, marginMin, marginMax, marginHasClamp, err := fieldMoments(fs)
 		if err != nil {
 			return nil, nil, err

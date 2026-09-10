@@ -37,7 +37,8 @@ Per-row `float64` sample from the selected component's Gaussian. No `min`/`max` 
 - `stds`/`weights` length mismatch with `means` → `SERVICE_VALIDATION`.
 - Any `std <= 0`, or negative/all-zero `weights` → `SERVICE_VALIDATION`.
 - `profile create --fit-shape` (E4-S2) fits and emits `mixture` automatically from a captured cohort, but fixed at 2 components via BIC-vs-normal selection (`synth/shape.go`) — no sweep over component count. Hand-written specs remain the only way to declare 3+ components.
-- Not one of the closed-form marginals `correlations` supports (`normal`/`uniform`/`lognormal`/`exponential`) — naming `mixture` there refuses with `SERVICE_VALIDATION`.
+- Excluded from `correlations`: a `mixture` field is pre-claimed (or, when modelled, reported not-yet-honoured) before the copula stage bids, so it never joins the matrix — the remaining participants still correlate.
+- Composes with `--fit-models` (E4-S1): a shape-fitted target draws through its model with the mixture as `Q`, via a fixed-count bisection inverse. Coefficients are then LATENT-scale — non-linear in value space. See `synthetic-data`.
 
 ## See
 
