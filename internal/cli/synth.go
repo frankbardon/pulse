@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	pulse "github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/synth"
@@ -79,6 +80,11 @@ func synthFromSchemaCmd() *cli.Command {
 			}
 			writeText(cmd.Writer, "Generated %d rows -> %s (rejected %d)\n",
 				res.RowsGenerated, res.OutputPath, res.RowsRejected)
+			// Generation warnings (conflict arbitration, correlation
+			// completion, model compilation) reach --json inside
+			// data.warnings and reached the text path nowhere at all.
+			writeWarningSummary(errWriter(cmd), res.Warnings,
+				"re-run with --json for every line")
 			return nil
 		},
 	}
@@ -146,8 +152,78 @@ func synthFromProfileCmd() *cli.Command {
 			if res.FidelityReportPath != "" {
 				writeText(cmd.Writer, "Fidelity report -> %s\n", res.FidelityReportPath)
 			}
+			// The terminal summary spans all THREE warning channels this
+			// leaf touches, because each carries findings the others do
+			// not: prof.Warnings is capture-time, conflictWarnings is
+			// SpecFromProfile translating the document (the channel the
+			// v0.32.x model-drop defect hid in), and res.Warnings is
+			// generate() compiling the spec. The middle two both derive
+			// their conflict lines from resolveConflicts over the same
+			// *Spec, so dedupeWarnings collapses that verbatim overlap —
+			// see its own doc. Nothing written to a file changes.
+			writeModelRecoverySummary(errWriter(cmd), fs, res.FidelityReportPath)
+			writeWarningSummary(errWriter(cmd),
+				append(append([]string{}, fidelityWarnings...), res.Warnings...),
+				fidelityWarningsLocation(res.FidelityReportPath))
 			return nil
 		},
+	}
+}
+
+// fidelityWarningsLocation names where a reader finds the unbounded
+// warning list for `synth from-profile`.
+//
+// The fidelity report is the ONLY document that carries all three
+// channels (see the call site), so without --fidelity-report there is no
+// file to point at and the honest answer is the flag that would make
+// one — not a path that does not exist.
+func fidelityWarningsLocation(reportPath string) string {
+	if reportPath == "" {
+		return "re-run with --fidelity-report to capture every line"
+	}
+	return reportPath + " (.warnings)"
+}
+
+// writeModelRecoverySummary prints the one-line headline of the fidelity
+// report's model-recovery sections.
+//
+// The sections themselves are the E5 instrument: per applied model, the
+// captured coefficients beside the ones a refit on the generated rows
+// recovers. On the motivating cohort they flag 30 of 55 models and 147
+// of 1,485 residual pairs — inside a 1.65 MB JSON document, which is a
+// finding nobody reads. The line exists so a reader learns that flags
+// are there without opening the file.
+//
+// It re-reads the report rather than having Synth return the counts,
+// because synth.Result is the --json payload and a new slot on it would
+// move that output. A report that cannot be read or carries no `models`
+// section prints nothing: this is a courtesy line and must never be able
+// to fail a generation that already succeeded.
+func writeModelRecoverySummary(w io.Writer, fsys afero.Fs, reportPath string) {
+	if reportPath == "" {
+		return
+	}
+	raw, err := afero.ReadFile(fsys, reportPath)
+	if err != nil {
+		return
+	}
+	var rep synth.FidelityReport
+	if err := json.Unmarshal(raw, &rep); err != nil {
+		return
+	}
+	if len(rep.Models) > 0 {
+		flagged := 0
+		for _, m := range rep.Models {
+			if m != nil && m.Flagged {
+				flagged++
+			}
+		}
+		writeText(w, "Model recovery: %d model(s) checked, %d flagged — see %s (.models)\n",
+			len(rep.Models), flagged, reportPath)
+	}
+	if rc := rep.ModelResidualCorrelations; rc != nil && rc.Compared > 0 {
+		writeText(w, "Residual recovery: %d pair(s) compared, %d flagged — see %s (.model_residual_correlations)\n",
+			rc.Compared, rc.Flagged, reportPath)
 	}
 }
 
@@ -218,6 +294,13 @@ func profileCreateCmd() *cli.Command {
 				return writeEnvelope(cmd.Writer, prof)
 			}
 			writeText(cmd.Writer, "Profiled %d rows from %s -> %s\n", prof.RowCount, input, output)
+			// Capture-time warnings — thin pairs, shrunk levels,
+			// zero-predictor models, skipped models, unmeasured residual
+			// pairs — used to reach the terminal nowhere at all, so a
+			// capture where something was dropped looked identical to one
+			// where nothing was. They stay in the document verbatim; this
+			// is a bounded pointer at them.
+			writeWarningSummary(errWriter(cmd), prof.Warnings, output+" (.warnings)")
 			return nil
 		},
 	}

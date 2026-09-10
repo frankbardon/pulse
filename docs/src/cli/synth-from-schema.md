@@ -157,6 +157,13 @@ Generated 10000 rows -> sales.pulse (rejected 0)
 (`PULSE_SYNTH_CONSTRAINT_INFEASIBLE` when the rejection rate is too
 high to make progress).
 
+Generation warnings — conflict arbitration, correlation matrices
+completed by assumption or ridge-regularized, models that could not be
+compiled — are summarised on **stderr** in the same grouped, counted,
+capped shape [`profile create`](profile-create.md#warning-summary) uses.
+Nothing is printed when the run raised none, and nothing is printed on
+the `--json` path, where `data.warnings` carries them in full.
+
 ### `--json`
 
 ```json

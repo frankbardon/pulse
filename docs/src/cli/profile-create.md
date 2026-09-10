@@ -778,14 +778,59 @@ Profile schema lives in `synth/profile.go` and is documented in
 Profiled 50000 rows from sales.pulse -> sales.profile.json
 ```
 
+That single line is the whole of **stdout**, so `pulse profile create …
+> log` and any pipeline over it keep exactly the bytes they always had.
+
+### Warning summary
+
+Diagnostics go to **stderr**, grouped by kind, counted, and capped at
+three examples per kind. On the 381,324-row cohort that produces 3,005
+warnings, the terminal shows twenty-one lines:
+
+```
+Warnings: 3005 in 5 kind(s) — 1 needing attention, 3004 expected
+  ! residual correlation pairs unmeasured (1)
+      residual correlations: 104 of 5460 pair(s) among 105 modelled field(s) could not be measured …
+  - thin categorical pair (2931)
+      thin categorical pair wave=20230220 x ethnicity=1005: only 12 supporting observation(s) (below 30) …
+      thin categorical pair wave=20230220 x income=1012: only 23 supporting observation(s) (below 30) …
+      thin categorical pair wave=20230220 x brand=11: only 29 supporting observation(s) (below 30) …
+      +2928 more of this kind
+  - model carries no predictors (50)
+      model for numeric field "placementAware" carries no predictors: no candidate explained at least 1.0% …
+      +47 more of this kind
+  …
+  Full list: sales.profile.json (.warnings)
+```
+
+Three properties are load-bearing:
+
+- **Kinds needing attention come first**, marked `!`, whatever their
+  count. A single model that could not be applied stays visible above
+  two thousand nine hundred thin-pair lines; sorting by volume would
+  bury it, which is exactly how a defect that disabled most of
+  `--fit-models` survived undetected.
+- **Expected outcomes are counted separately** and marked `-`. A
+  zero-predictor model is a *complete* model, a thin pair still ships,
+  and an arbitrated pair claim is the design working; none of them
+  inflate the `needing attention` figure.
+- **The cap is a screen budget, not a data limit.** Three examples per
+  kind (`maxWarningExamples`, `internal/cli/warnings.go`) is smaller
+  than the twenty synth's own `warnings` array uses for its internal
+  roll-ups, because every kind shares one terminal. The document keeps
+  every line.
+
+With `--json` the summary is not printed at all: the envelope already
+carries `data.warnings` in full.
+
 ### Where the warnings are
 
 Every diagnostic this command raises — thin pairs, shrunk levels,
 zero-predictor models, skipped models, unmeasured residual pairs — lands
-in the profile document's own `warnings` array. **The text summary above
-prints the row count and nothing else**, so on a capture where something
-was thin or dropped, the terminal looks exactly like a capture where
-nothing was. Read the array:
+in the profile document's own `warnings` array, **and a grouped summary
+of it is printed to stderr** (see [Warning summary](#warning-summary)
+above). The summary is bounded on purpose and names only three examples
+per kind, so the document is still where the full list lives:
 
 ```bash
 # how many, and what kind
@@ -809,10 +854,10 @@ Two related warning kinds are **not** here, because they are not
 produced here: `conditional relationship conflict: …` and
 `model for numeric field "x" not applied: …` arise when the profile is
 translated into a generation spec, which happens inside
-[`pulse synth from-profile`](synth-from-profile.md). Look for those on
-that command's `--json` output (`data.warnings`) or in its
-`--fidelity-report`, where they are appended after this document's own
-warnings.
+[`pulse synth from-profile`](synth-from-profile.md). That command's own
+stderr summary covers them — it spans all three channels — and the full
+list is in its `--fidelity-report`, where they are appended after this
+document's own warnings.
 
 ## Exit codes
 

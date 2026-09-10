@@ -409,12 +409,73 @@ one, and `synth/` for the underlying Go types.
 
 ```
 Generated 1000 rows -> sales.synth.pulse (rejected 0)
+Fidelity report -> sales.fidelity.json
 ```
+
+Those lines are the whole of **stdout**, so a redirect stays exactly the
+bytes it was.
+
+### Warning summary and recovery headline (stderr)
+
+Diagnostics go to **stderr**, in the same grouped, counted, capped shape
+[`profile create`](profile-create.md#warning-summary) uses — kinds
+needing attention first and marked `!`, expected outcomes counted
+separately and marked `-`, three examples per kind. With
+`--fidelity-report`, two headline lines precede it:
+
+```
+Model recovery: 55 model(s) checked, 33 flagged — see sales.fidelity.json (.models)
+Residual recovery: 1485 pair(s) compared, 154 flagged — see sales.fidelity.json (.model_residual_correlations)
+Warnings: 3846 in 6 kind(s) — 1 needing attention, 3845 expected
+  ! residual correlation pairs unmeasured (1)
+      residual correlations: 104 of 5460 pair(s) among 105 modelled field(s) could not be measured …
+  - thin categorical pair (2931)
+      …
+      +2928 more of this kind
+  - conditional relationship conflict (791)
+      conditional relationship conflict: field "dma" is already claimed by categorical pair (wave -> dma); …
+      …
+      +788 more of this kind
+  …
+  Full list: sales.fidelity.json (.warnings)
+```
+
+The recovery lines exist because the sections they summarise live inside
+a document that is 1.65 MB on the motivating cohort — a reader has to
+learn that flags are there before deciding to open it. Both lines are
+omitted when the report carries no such section, which is every spec
+predating `profile create --fit-models`.
+
+The summary spans **all three** warning channels this command touches,
+because each carries findings the others do not:
+
+| Channel | Produced by | Also written to |
+|---|---|---|
+| Capture-time | `profile create`, read back off the document | the profile document's `warnings` |
+| Translation | `SpecFromProfile` — model drops and conditional conflicts | `--fidelity-report`'s `warnings` |
+| Compilation | `generate()` — correlation completion, model compilation | `--json`'s `data.warnings` |
+
+The middle channel is the one that carries `model for numeric field "x"
+not applied: …`, and until the summary existed it reached no terminal at
+all: a spec that silently applied a fraction of its captured models
+generated a plausible cohort and printed `Generated 50000 rows`.
+
+Translation and compilation both derive their conflict lines from the
+same arbitration over the same spec, so the summary drops
+byte-identical duplicates before counting — 791 conflicts are reported
+as 791, not 1,582. Only the terminal summary dedupes; nothing written to
+a file moves.
+
+Without `--fidelity-report` no document holds the merged list, so the
+footer names the flag that would produce one rather than a path that
+does not exist.
 
 ### `--json`
 
 Same envelope shape as
-[`synth from-schema`](synth-from-schema.md#output).
+[`synth from-schema`](synth-from-schema.md#output). The stderr summary is
+not printed on this path — `data.warnings` already carries the
+compilation channel, and the report carries the rest.
 
 ## Exit codes
 
@@ -505,7 +566,8 @@ jq -r '.warnings[] | select(contains("not applied"))' survey.fidelity.json
 
 A `not applied` line is the one to read closely: that field fell back to
 its `--conditional` pair, so it is still conditioned, but by one
-categorical rather than by all of them.
+categorical rather than by all of them. It is also one of the kinds the
+stderr summary marks `!` and lists first, so it does not need finding.
 
 ## Limitations
 
