@@ -509,7 +509,12 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 		name       string
 		models     []synth.FieldModel
 		wantModels int
-		wantWarn   string
+		// wantPairs is the number of CategoricalNumericPairs the spec
+		// must carry. Retirement is PER TARGET: the fixture's single
+		// pair targets `spend`, so it survives in exactly the cases
+		// where `spend` did not land a model.
+		wantPairs int
+		wantWarn  string
 	}{
 		{
 			name: "applied",
@@ -522,6 +527,7 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 				References: []synth.ModelReference{{Field: "region", Level: "east"}},
 			}},
 			wantModels: 1,
+			wantPairs:  0,
 		},
 		{
 			name: "zero predictors",
@@ -529,6 +535,7 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 				Field: "spend", Intercept: 50, NObs: 100, ResidualStd: 10,
 			}},
 			wantModels: 0,
+			wantPairs:  1,
 			wantWarn:   "no predictors",
 		},
 		{
@@ -540,7 +547,10 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 				}},
 			}},
 			wantModels: 0,
-			wantWarn:   "not present in the profile",
+			// The model names a target the profile does not carry, so
+			// `spend` never had one and keeps its pair.
+			wantPairs: 1,
+			wantWarn:  "not present in the profile",
 		},
 		{
 			name: "unknown predictor",
@@ -551,6 +561,7 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 				}},
 			}},
 			wantModels: 0,
+			wantPairs:  1,
 			wantWarn:   "not present in the profile",
 		},
 		{
@@ -562,6 +573,7 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 				}},
 			}},
 			wantModels: 0,
+			wantPairs:  1,
 			wantWarn:   "unsupported kind",
 		},
 	}
@@ -575,10 +587,13 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 			if len(spec.Models) != tc.wantModels {
 				t.Errorf("spec models = %d, want %d", len(spec.Models), tc.wantModels)
 			}
-			// Retirement is decided by the presence of the section, not
-			// by whether any individual model survived translation.
-			if n := len(spec.CategoricalNumericPairs); n != 0 {
-				t.Errorf("CategoricalNumericPairs = %d, want 0 for a document carrying a models section", n)
+			// Retirement is decided PER TARGET by whether that target's
+			// model survived translation — never by the mere presence of
+			// a `models` section. A model the spec could not apply must
+			// leave its field's captured pair standing, or the field is
+			// reconstructed from nothing at all.
+			if n := len(spec.CategoricalNumericPairs); n != tc.wantPairs {
+				t.Errorf("CategoricalNumericPairs = %d, want %d", n, tc.wantPairs)
 			}
 			if tc.wantWarn == "" {
 				return
@@ -594,6 +609,80 @@ func TestSpecFromProfile_ModelsEdgeCases(t *testing.T) {
 				t.Errorf("no %q warning; got %v", tc.wantWarn, warnings)
 			}
 		})
+	}
+}
+
+// TestSpecFromProfile_MixedModelledAndUnmodelledTargets is the
+// per-target retirement rule stated as its own case, because the edge
+// matrix above can only show a document where NOTHING was modelled.
+//
+// Here `spend` lands a model and `visits` does not — the exact shape
+// predictor selection produces on a real cohort, where a target no
+// candidate explains, or one whose marginal a linear predictor cannot
+// ride, sits beside a hundred that fitted cleanly. `spend` must lose its
+// captured pair (its model already carries that predictor) and `visits`
+// must keep its own, or the field ends up reconstructed from nothing at
+// all — strictly worse than before --fit-models existed.
+func TestSpecFromProfile_MixedModelledAndUnmodelledTargets(t *testing.T) {
+	p := &synth.Profile{
+		RowCount: 100,
+		Fields: []synth.FieldProfile{
+			{
+				Name: "region", Type: "categorical_u8",
+				Categorical: &synth.CategoricalProfile{
+					Cardinality: 2,
+					Top: []synth.CategoryHit{
+						{Value: "east", Weight: 0.5},
+						{Value: "west", Weight: 0.5},
+					},
+				},
+			},
+			{Name: "spend", Type: "f64",
+				Numeric: &synth.NumericProfile{Min: 1, Max: 100, Mean: 50, Std: 10}},
+			{Name: "visits", Type: "f64",
+				Numeric: &synth.NumericProfile{Min: 0, Max: 9, Mean: 3, Std: 1}},
+		},
+		Conditional: &synth.ConditionalProfile{
+			CategoricalNumericPairs: []synth.CategoricalNumericPairProfile{
+				{A: "region", B: "spend", N: 100, Categories: []synth.CategoricalNumericCategoryStat{
+					{Category: "east", Mean: 40, Std: 5, N: 50},
+					{Category: "west", Mean: 60, Std: 5, N: 50},
+				}},
+				{A: "region", B: "visits", N: 100, Categories: []synth.CategoricalNumericCategoryStat{
+					{Category: "east", Mean: 2.5, Std: 1, N: 50},
+					{Category: "west", Mean: 3.5, Std: 1, N: 50},
+				}},
+			},
+		},
+		Models: []synth.FieldModel{
+			{
+				Field: "spend", Intercept: 40, NObs: 100, ResidualStd: 5,
+				Predictors: []synth.ModelPredictor{{
+					Kind: synth.ModelPredictorCategoricalLevel, Field: "region",
+					Level: "west", Coefficient: 20,
+				}},
+				References: []synth.ModelReference{{Field: "region", Level: "east"}},
+			},
+			// The zero-predictor model selection emits for a target no
+			// candidate explained. It is a complete model, but there is
+			// nothing for generation to apply, so the field falls back.
+			{Field: "visits", Intercept: 3, NObs: 100, ResidualStd: 1},
+		},
+	}
+
+	spec, _ := synth.SpecFromProfile(p, 50)
+	if len(spec.Models) != 1 || spec.Models[0].Field != "spend" {
+		t.Fatalf("spec.Models = %+v, want exactly the spend model", spec.Models)
+	}
+	got := map[string]bool{}
+	for _, pair := range spec.CategoricalNumericPairs {
+		got[pair.B] = true
+	}
+	if got["spend"] {
+		t.Error("spend kept its pair despite landing a model — the model already carries region")
+	}
+	if !got["visits"] {
+		t.Error("visits lost its pair without gaining a model — the field now reconstructs from nothing")
 	}
 }
 

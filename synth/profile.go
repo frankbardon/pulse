@@ -866,9 +866,17 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// linear models AND at least one field is fittable, so the per-row
 	// cost below is exactly zero for every existing caller. It rides
 	// this loop rather than a second scan — see synth/profile_models.go.
+	//
+	// opts.TopK is handed over rather than re-derived: the model
+	// capture's dummy expansion applies the SAME per-field top-K
+	// collapse FieldProfile.Categorical.Top and the conditional
+	// contingency tables apply, so a document's collapsed buckets mean
+	// one thing across every section of it. The default is already
+	// resolved at the top of this function, so the fitter never sees a
+	// zero.
 	var fitter *modelFitter
 	if opts.FitModels {
-		fitter = newModelFitter(schema, opts.Seed, &warnings)
+		fitter = newModelFitter(schema, opts.TopK, opts.Seed, &warnings)
 	}
 
 	rowCount := 0
@@ -1922,21 +1930,40 @@ func collapseCells(counts map[[2]string]int, cellCap int) []ContingencyCell {
 //
 // # Choosing between `models` and `conditional`'s numeric-target arms
 //
-// A document carrying the `models` section (`profile create
-// --fit-models`) reconstructs its numeric fields from those additive
-// linear predictors, and the two NUMERIC-TARGET conditional arms —
-// CategoricalNumericPairs and SetNumericPairs — are then not populated
-// on the Spec at all. This is a REPLACEMENT, not a preference between
-// equals: those arms exist to resample a numeric from one paired
-// field's conditional moments, so on a cohort with several categorical
-// and set fields every one of them claims the same numeric target and
-// all but the first are dropped by resolveConflicts, one warning each.
-// A model already accounts for all of those predictors simultaneously,
-// so the pairs have nothing left to add and populating them would
-// generate thousands of conflict warnings about relationships the spec
-// no longer needs. Leaving the slots empty is what retires them as
-// claimants — resolveConflicts itself is untouched and still arbitrates
-// exactly as before for every spec that does populate them.
+// A numeric field that lands a model on the Spec (`profile create
+// --fit-models`) is reconstructed from that additive linear predictor,
+// and the two NUMERIC-TARGET conditional arms — CategoricalNumericPairs
+// and SetNumericPairs — are then not populated FOR THAT FIELD. This is a
+// REPLACEMENT, not a preference between equals: those arms exist to
+// resample a numeric from one paired field's conditional moments, so on
+// a cohort with several categorical and set fields every one of them
+// claims the same numeric target and all but the first are dropped by
+// resolveConflicts, one warning each. A model already accounts for all
+// of those predictors simultaneously, so the pairs have nothing left to
+// add and populating them would generate thousands of conflict warnings
+// about relationships the spec no longer needs. Leaving the slots empty
+// is what retires them as claimants — resolveConflicts itself is
+// untouched and still arbitrates exactly as before for every spec that
+// does populate them.
+//
+// The retirement is PER TARGET, deliberately, and it did not start that
+// way. It was first written per DOCUMENT — one `models` section retired
+// both arms wholesale — on the reasoning that a spec mixing model-driven
+// and pair-driven numerics would give two fields in the same cohort two
+// different reconstruction semantics with nothing on the wire saying
+// which got which. That reasoning does not survive contact with a real
+// cohort. Predictor selection means a target can legitimately end up
+// with no model (its marginal reconstructed to something a linear
+// predictor cannot ride, or its design refused as unsolvable), and under
+// the document-wide rule such a field lost its captured conditional pair
+// as well and came out reconstructed from NOTHING — strictly worse than
+// before --fit-models existed. The mixed-semantics objection is also
+// answerable: the spec names both sets explicitly (Spec.Models versus
+// Spec.CategoricalNumericPairs / Spec.SetNumericPairs), so the wire does
+// say which got which, and resolveConflicts already claims a modelled
+// target before any pair stage bids, so a field can never be reached by
+// both. Falling back per field costs nothing and keeps a skipped model
+// from silently deleting structure the capture measured.
 //
 // The three NON-numeric-target arms (CategoricalPairs,
 // SetCategoricalPairs, SetSetPairs) are unaffected and populate exactly
@@ -2131,24 +2158,24 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 		}
 	}
 
-	// modelDriven is the single switch described in the doc comment
-	// above: it is decided by the DOCUMENT (does it carry a `models`
-	// section) rather than per numeric field, because a spec that mixed
-	// model-driven and pair-driven numerics would give two numeric
-	// fields in the same cohort two different reconstruction semantics
-	// with nothing on the wire saying which got which.
-	modelDriven := len(p.Models) > 0
+	// modelled names the numeric targets that actually landed a model on
+	// the Spec — not the targets the DOCUMENT carries a model for. The
+	// difference is the whole of the per-target retirement rule
+	// described above: a captured model that modelSpecFromProfile
+	// refuses to apply must leave its field's conditional pair standing,
+	// because the alternative is a field reconstructed from nothing at
+	// all.
+	modelled := make(map[string]bool, len(p.Models))
 	var modelWarnings []string
-	if modelDriven {
-		for _, m := range p.Models {
-			spec, why := modelSpecFromProfile(m, distOf, numericMoments)
-			if why != "" {
-				modelWarnings = append(modelWarnings, fmt.Sprintf(
-					"model for numeric field %q not applied: %s", m.Field, why))
-				continue
-			}
-			s.Models = append(s.Models, spec)
+	for _, m := range p.Models {
+		spec, why := modelSpecFromProfile(m, distOf, numericMoments)
+		if why != "" {
+			modelWarnings = append(modelWarnings, fmt.Sprintf(
+				"model for numeric field %q not applied: %s", m.Field, why))
+			continue
 		}
+		s.Models = append(s.Models, spec)
+		modelled[spec.Field] = true
 	}
 
 	if p.Conditional != nil {
@@ -2165,12 +2192,13 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			s.CategoricalPairs = append(s.CategoricalPairs, CategoricalPairSpec{A: cp.A, B: cp.B, Cells: cells})
 		}
 		for _, cnp := range p.Conditional.CategoricalNumericPairs {
-			if modelDriven {
-				// Retired for this document: the models section already
-				// carries every predictor of every numeric target. See
-				// the doc comment above for why this is a whole-arm
-				// decision and not a per-field one.
-				break
+			if modelled[cnp.B] {
+				// Retired for THIS target: its model already carries
+				// every predictor the pairs could contribute, all at
+				// once. A target whose model was captured but not
+				// applied keeps its pair — see the doc comment above for
+				// why the retirement is per field and not per document.
+				continue
 			}
 			// distOf[cnp.B] == DistMixture (a --fit-shape reconstruction,
 			// E4-S2) is deliberately ALLOWED through here rather than
@@ -2224,10 +2252,10 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			})
 		}
 		for _, snp := range p.Conditional.SetNumericPairs {
-			if modelDriven {
-				// Retired for this document, exactly as
+			if modelled[snp.Numeric] {
+				// Retired for THIS target, exactly as
 				// CategoricalNumericPairs above.
-				break
+				continue
 			}
 			if distOf[snp.Set] != DistSetBernoulli || distOf[snp.Numeric] != DistNormal {
 				continue

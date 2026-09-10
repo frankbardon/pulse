@@ -2,8 +2,10 @@ package synth
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -299,10 +301,15 @@ func TestProfileModels_NullsListwiseDeleted(t *testing.T) {
 }
 
 // TestProfileModels_DegenerateAndNoCandidateFieldsSkip covers the two
-// skip paths the acceptance criteria name: a cohort with no candidate
-// predictors at all, and a single-level categorical whose expansion
-// leaves nothing behind once its reference level is dropped. Neither may
-// fail the run, and both must say so in Warnings.
+// no-predictor paths, which are deliberately NOT the same outcome.
+//
+// A cohort with no candidate predictor field AT ALL has nothing to
+// regress on and produces no model. A cohort whose only candidate is a
+// single-level categorical does produce one — an intercept-only model —
+// because the candidate was REJECTED by the selection rule rather than
+// absent, and "nothing in this cohort explains this field" is a finding
+// the document should carry. Neither may fail the run, and both must say
+// so in Warnings.
 func TestProfileModels_DegenerateAndNoCandidateFieldsSkip(t *testing.T) {
 	t.Run("no candidates", func(t *testing.T) {
 		schema := &encoding.Schema{Fields: []encoding.Field{
@@ -350,19 +357,57 @@ func TestProfileModels_DegenerateAndNoCandidateFieldsSkip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("profileRecords must not fail on a degenerate design: %v", err)
 		}
-		if got := prof.FittedModels(); got != nil {
-			t.Errorf("FittedModels() = %+v, want nil (the only level is the reference)", got)
+		// A one-level candidate has zero between-group variance, so the
+		// rule rejects it without needing to know it is degenerate —
+		// which is the point: `wave` on a one-wave cohort is dropped by
+		// the same arithmetic that drops a real but negligible
+		// predictor, not by a special case.
+		spend, ok := modelByField(prof.FittedModels(), "spend")
+		if !ok {
+			t.Fatalf("want an intercept-only model, got %+v (warnings=%v)",
+				prof.FittedModels(), prof.Warnings)
+		}
+		if len(spend.Predictors) != 0 {
+			t.Errorf("Predictors = %+v, want none — the only level explains nothing", spend.Predictors)
+		}
+		if len(spend.References) != 0 {
+			t.Errorf("References = %+v, want none — a baseline without a contrast is meaningless",
+				spend.References)
+		}
+		// spend runs 0..39, so its own spread is the whole residual.
+		wantStd := 11.690451944500122
+		if math.Abs(spend.ResidualStd-wantStd) > 1e-9 {
+			t.Errorf("ResidualStd = %.12f, want %.12f (the field's own sample std)",
+				spend.ResidualStd, wantStd)
+		}
+		if spend.R2 != 0 {
+			t.Errorf("R2 = %v, want exactly 0", spend.R2)
 		}
 		if len(prof.Warnings) == 0 {
-			t.Error("a skipped model must be named in Warnings, not silently dropped")
+			t.Fatal("a predictor-less model must be named in Warnings, not silently emitted")
+		}
+		// The wording must not read as a failure — a skip and a
+		// zero-predictor model mean opposite things.
+		joined := strings.Join(prof.Warnings, "\n")
+		if !strings.Contains(joined, "carries no predictors") {
+			t.Errorf("warnings = %q, want the no-predictor wording", prof.Warnings)
+		}
+		if strings.Contains(joined, "skipped") {
+			t.Errorf("warnings = %q, must not call a complete model a skip", prof.Warnings)
 		}
 	})
 }
 
-// TestProfileModels_TooFewObservationsSkips covers the other half of the
-// skip contract: a design the closed form cannot solve because the
-// cohort is shorter than it is wide (n < p + 1). Six levels expand to
-// five columns; five rows cannot support them.
+// TestProfileModels_TooFewObservationsSkips asserts that a sample too
+// short to say anything never reaches the solver at all.
+//
+// Five rows against a six-level categorical is the design the closed
+// form cannot solve (n < p + 1). Selection refuses to SCORE a sample
+// that thin — below minSelectionObservations the adjusted statistic is
+// dominated by its own degrees-of-freedom correction — so the candidate
+// is rejected and the target lands on the intercept-only path instead of
+// on a rank failure. Narrowing on merit is what prevents the unsolvable
+// design; the solver never sees it.
 func TestProfileModels_TooFewObservationsSkips(t *testing.T) {
 	region := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c", "d", "e", "f"} {
@@ -386,22 +431,39 @@ func TestProfileModels_TooFewObservationsSkips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("too few observations must warn, not fail the run: %v", err)
 	}
-	if got := prof.FittedModels(); len(got) != 0 {
-		t.Errorf("FittedModels() = %+v, want none", got)
+	spend, ok := modelByField(prof.FittedModels(), "spend")
+	if !ok {
+		t.Fatalf("want an intercept-only model, got %+v (warnings=%v)",
+			prof.FittedModels(), prof.Warnings)
+	}
+	if len(spend.Predictors) != 0 {
+		t.Errorf("Predictors = %+v, want none — five rows cannot support five levels",
+			spend.Predictors)
+	}
+	if spend.NObs != len(rows) {
+		t.Errorf("NObs = %d, want %d", spend.NObs, len(rows))
 	}
 	if len(prof.Warnings) == 0 {
-		t.Fatal("expected a warning naming the skipped field")
+		t.Fatal("expected a warning naming the predictor-less field")
 	}
 	if prof.RowCount != len(rows) {
 		t.Errorf("RowCount = %d, want %d", prof.RowCount, len(rows))
 	}
 }
 
-// TestProfileModels_RankDeficientDesignSkipsFieldOnly asserts a
-// collinear pair (a nested categorical — the `region` inside `dma` case)
-// costs that field its model and nothing else: the profile still ships,
-// and every other section is intact.
-func TestProfileModels_RankDeficientDesignSkipsFieldOnly(t *testing.T) {
+// TestProfileModels_CollinearCandidatesResolvedByRefit covers the
+// nested-categorical case — `region` inside `dma`, `age` inside
+// `ageExact` — end to end.
+//
+// Selection scores candidates MARGINALLY, so two exactly-nested ones
+// both clear the floor and both enter, and the design comes out
+// rank-deficient. That is deliberate: the redundancy is resolved by the
+// solver's refusal rather than by a second rule, and the fit is retried
+// with its weakest-scoring predictor dropped. The field must end up with
+// a MODEL carrying the surviving candidate — not a skip, which is what
+// this produced before the refit existed and what cost the motivating
+// cohort 23 of its 105 targets.
+func TestProfileModels_CollinearCandidatesResolvedByRefit(t *testing.T) {
 	coarse := encoding.NewDictionary()
 	for _, v := range []string{"a", "b"} {
 		if _, err := coarse.Add(v); err != nil {
@@ -423,25 +485,102 @@ func TestProfileModels_RankDeficientDesignSkipsFieldOnly(t *testing.T) {
 	nulls := make([]map[string]bool, 40)
 	for i := range rows {
 		c, f := "a", "a1"
+		spend := 100.0
 		if i%2 == 1 {
-			c, f = "b", "b1"
+			c, f, spend = "b", "b1", 200.0
 		}
-		rows[i] = map[string]any{"spend": float64(i), "coarse": c, "fine": f}
+		// A little within-group spread so the target has variance to
+		// explain; the between-group split still dominates, which is
+		// what puts both nested candidates over the floor.
+		spend += float64(i) / 40
+		rows[i] = map[string]any{"spend": spend, "coarse": c, "fine": f}
 		nulls[i] = map[string]bool{}
 	}
 	prof, err := profileRecords(schema, bytes.NewReader(encodeModelRows(t, schema, rows, nulls)),
 		ProfileOptions{FitModels: true})
 	if err != nil {
-		t.Fatalf("a rank-deficient design must warn, not fail the run: %v", err)
+		t.Fatalf("a rank-deficient design must be narrowed, not fail the run: %v", err)
 	}
-	if got := prof.FittedModels(); len(got) != 0 {
-		t.Errorf("FittedModels() = %+v, want none", got)
+	m, ok := modelByField(prof.FittedModels(), "spend")
+	if !ok {
+		t.Fatalf("no model for spend; the refit must recover one: %v", prof.Warnings)
 	}
-	if len(prof.Warnings) == 0 {
-		t.Fatal("expected a warning naming the skipped field")
+	got := predictorFields(m)
+	if len(got) != 1 {
+		t.Fatalf("admitted predictors = %v, want exactly one of the nested pair", got)
+	}
+	// The two candidates explain the target identically here, so the tie
+	// break decides — the LATER field in schema order is given up, which
+	// is arbitrary but fixed, and which of them survives changes the
+	// reading of the coefficients and no fitted value.
+	if got[0] != "coarse" {
+		t.Errorf("survivor = %q, want coarse (ties give up the later field)", got[0])
+	}
+	if m.R2 < 0.99 {
+		t.Errorf("R2 = %v, want a near-perfect fit — the surviving candidate carries the target", m.R2)
 	}
 	if prof.RowCount != len(rows) || len(prof.Fields) != 3 {
 		t.Errorf("profile incomplete: RowCount=%d fields=%d", prof.RowCount, len(prof.Fields))
+	}
+}
+
+// TestDropWeakestChoice covers the narrowing step's own contract: it
+// gives up the lowest-scoring predictor, breaks ties on the later field,
+// and refuses to narrow a design that has nothing left to give.
+func TestDropWeakestChoice(t *testing.T) {
+	names := func(cs []predictorChoice) []string {
+		out := make([]string, len(cs))
+		for i := range cs {
+			out[i] = cs[i].field
+		}
+		return out
+	}
+	cases := []struct {
+		name    string
+		in      []predictorChoice
+		wantOK  bool
+		wantOut []string
+	}{
+		{
+			name:   "nothing to give up",
+			in:     []predictorChoice{{field: "a", score: 0.5}},
+			wantOK: false,
+		},
+		{
+			name:   "empty",
+			in:     nil,
+			wantOK: false,
+		},
+		{
+			name: "lowest score goes",
+			in: []predictorChoice{
+				{field: "a", score: 0.5}, {field: "b", score: 0.02}, {field: "c", score: 0.3},
+			},
+			wantOK:  true,
+			wantOut: []string{"a", "c"},
+		},
+		{
+			name: "ties give up the later field",
+			in: []predictorChoice{
+				{field: "a", score: 0.2}, {field: "b", score: 0.2}, {field: "c", score: 0.9},
+			},
+			wantOK:  true,
+			wantOut: []string{"a", "c"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := dropWeakestChoice(tc.in)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if fmt.Sprint(names(got)) != fmt.Sprint(tc.wantOut) {
+				t.Errorf("survivors = %v, want %v", names(got), tc.wantOut)
+			}
+		})
 	}
 }
 

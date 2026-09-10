@@ -73,6 +73,14 @@ const (
 	// folds into the same design matrix as a categorical level with no
 	// separate mechanism.
 	dummySetOption
+	// dummyCategoricalOther is the collapsed catch-all: 1 when the row's
+	// categorical value falls OUTSIDE the retained level set, 0 when it
+	// is one of them. It is the design-matrix half of the top-K collapse
+	// the rest of profile capture already applies (otherCategoryLabel),
+	// and it exists because dropping the tail outright would make those
+	// rows read as the reference level and quietly bias its intercept —
+	// a 1,906-level `brand` would fold 1,874 levels into "east".
+	dummyCategoricalOther
 )
 
 // dummyColumn is one column of the synthesised design matrix.
@@ -97,6 +105,12 @@ type dummyColumn struct {
 	// dict is the source field's dictionary, retained so the row reader
 	// can tell an in-dictionary ID from an unresolvable one.
 	dict *encoding.Dictionary
+	// retained is set only on a dummyCategoricalOther column: a
+	// dictionary-ID-indexed membership vector of the levels that DID get
+	// their own column. Indexed rather than hashed because the test runs
+	// once per retained row per model and a map probe there is the
+	// difference between a free stage and a measurable one.
+	retained []bool
 }
 
 // dummyPlan is the fixed, deterministic expansion of one target plus a
@@ -169,7 +183,43 @@ func dummySetName(field, option string) string {
 // level. That choice is a modelling decision and deliberately does not
 // live here; because the Record resolves purely by name, any SUBSET of
 // PredictorNames() works without rebuilding the plan.
+//
+// A caller that wants FEWER levels rather than a subset of the expanded
+// columns wants newDummyPlanFiltered below — see dummyLevelFilter for
+// why the narrowing happens during expansion rather than after it.
 func newDummyPlan(schema *encoding.Schema, target string, predictorFields []string) (*dummyPlan, error) {
+	return newDummyPlanFiltered(schema, target, predictorFields, nil)
+}
+
+// dummyLevelFilter narrows ONE categorical predictor field's expansion
+// to a chosen set of dictionary IDs, optionally plus a collapsed
+// catch-all column standing for everything else.
+//
+// It is the design-matrix expression of the top-K collapse the rest of
+// profile capture applies (ProfileOptions.TopK / otherCategoryLabel).
+// The filter is described here, in the expansion, rather than applied
+// afterwards by discarding columns, because the discarding version still
+// pays to BUILD every column first — a 1,906-level `brand` against 105
+// numeric targets is a quarter of a million throwaway column structs and
+// their names, per profile run.
+//
+// A set field is never filtered: it is not a partition, so there is no
+// "everything else" its options could collapse into.
+type dummyLevelFilter struct {
+	// keep lists the retained dictionary IDs. Order is the caller's and
+	// is preserved into the column list, so the reference level
+	// modelColumns drops is a stable, caller-chosen one.
+	keep []uint32
+	// other requests the catch-all column, 1 on any row whose level is
+	// outside keep.
+	other bool
+}
+
+// newDummyPlanFiltered is newDummyPlan with a per-field level filter.
+// A field absent from filters expands fully, which is what makes
+// newDummyPlan a one-line delegation and keeps the unfiltered behaviour
+// byte-for-byte what it was.
+func newDummyPlanFiltered(schema *encoding.Schema, target string, predictorFields []string, filters map[string]dummyLevelFilter) (*dummyPlan, error) {
 	if schema == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"synth: dummy plan requires a schema")
@@ -223,15 +273,45 @@ func newDummyPlan(schema *encoding.Schema, target string, predictorFields []stri
 					"synth: categorical predictor carries no dictionary",
 					map[string]any{"field": name})
 			}
-			for id := 0; id < f.Dictionary.Count(); id++ {
-				level := f.Dictionary.Resolve(uint32(id))
+			filter, filtered := filters[name]
+			ids := filter.keep
+			if !filtered {
+				ids = make([]uint32, 0, f.Dictionary.Count())
+				for id := 0; id < f.Dictionary.Count(); id++ {
+					ids = append(ids, uint32(id))
+				}
+			}
+			for _, id := range ids {
+				level := f.Dictionary.Resolve(id)
 				p.columns = append(p.columns, dummyColumn{
 					Name:    dummyCategoricalName(name, level),
 					Kind:    dummyCategoricalLevel,
 					Field:   name,
 					Level:   level,
-					LevelID: uint32(id),
+					LevelID: id,
 					dict:    f.Dictionary,
+				})
+			}
+			if filtered && filter.other {
+				// The catch-all is carried on the wire as an ordinary
+				// categorical level named otherCategoryLabel, which is
+				// the same spelling every other collapsed bucket in a
+				// profile document uses. Only the row TEST differs
+				// (membership in retained, rather than equality with one
+				// ID), and that difference stays internal to the Kind.
+				retained := make([]bool, f.Dictionary.Count())
+				for _, id := range filter.keep {
+					if int(id) < len(retained) {
+						retained[id] = true
+					}
+				}
+				p.columns = append(p.columns, dummyColumn{
+					Name:     dummyCategoricalName(name, otherCategoryLabel),
+					Kind:     dummyCategoricalOther,
+					Field:    name,
+					Level:    otherCategoryLabel,
+					dict:     f.Dictionary,
+					retained: retained,
 				})
 			}
 		case f.Type.IsSet():
@@ -409,6 +489,22 @@ func (r *dummyRecord) NumericValue(name string) (float64, bool) {
 			return 1, true
 		}
 		return 0, true
+	case dummyCategoricalOther:
+		raw, present := r.values[col.Field]
+		if !present {
+			return 0, false
+		}
+		id := uint32(raw)
+		if col.dict == nil || col.dict.Resolve(id) == "" {
+			return 0, false
+		}
+		// The membership vector is sized by the dictionary, so an ID
+		// past its end is by definition not retained — it is exactly the
+		// tail this column stands for.
+		if int(id) < len(col.retained) && col.retained[id] {
+			return 0, true
+		}
+		return 1, true
 	case dummySetOption:
 		// wide carries the exact uint64 mask (see
 		// encoding.RecordReader.readRecord); values' float64 echo is not

@@ -114,7 +114,6 @@ func TestProfile_FitModels_LeavesExistingCaptureUntouched(t *testing.T) {
 		{"pairwise", base.Pairwise, fitted.Pairwise, true},
 		{"conditional", base.Conditional, fitted.Conditional, true},
 		{"fields", base.Fields, fitted.Fields, true},
-		{"warnings", base.Warnings, fitted.Warnings, false},
 	}
 	for _, s := range sections {
 		aj, err := json.Marshal(s.a)
@@ -130,6 +129,22 @@ func TestProfile_FitModels_LeavesExistingCaptureUntouched(t *testing.T) {
 		}
 		if s.nonZero && (string(aj) == "null" || string(aj) == "[]") {
 			t.Errorf("%s section is empty; the fixture cannot prove anything about it", s.name)
+		}
+	}
+
+	// Warnings are deliberately NOT in the equality list: the model
+	// capture speaks through them (a skipped fit, a target no candidate
+	// explained), so demanding byte equality there would forbid the
+	// stage from reporting anything. The promise is one-directional —
+	// every warning the baseline raised must still be raised, in order,
+	// with the model capture's own appended after.
+	if len(fitted.Warnings) < len(base.Warnings) {
+		t.Fatalf("--fit-models dropped a warning\n base: %v\nfitted: %v",
+			base.Warnings, fitted.Warnings)
+	}
+	for i, w := range base.Warnings {
+		if fitted.Warnings[i] != w {
+			t.Errorf("warning %d moved under --fit-models: %q vs %q", i, w, fitted.Warnings[i])
 		}
 	}
 }
@@ -165,12 +180,17 @@ func TestProfile_FitModels_DeterministicAcrossRuns(t *testing.T) {
 	if len(first.FittedModels()) == 0 {
 		t.Fatal("fixture produced no models")
 	}
-	// Every fitted model must carry the two categoricals' non-reference
-	// levels and nothing from the numeric side — candidate predictors at
-	// this stage are categoricals and set options only.
+	// Every fitted model must carry only categorical levels and set
+	// options — candidate predictors at this stage are those two kinds
+	// and nothing else. A model with NO predictors is legal: `visits` in
+	// this fixture is pure noise, and the selection rule rejecting every
+	// candidate for it is the rule working. What must not happen is
+	// EVERY model coming out empty, which would mean selection had
+	// rejected a real effect too.
+	withPredictors := 0
 	for _, m := range first.FittedModels() {
-		if len(m.Predictors) == 0 {
-			t.Errorf("model %q retained with no predictors", m.Field)
+		if len(m.Predictors) > 0 {
+			withPredictors++
 		}
 		for _, p := range m.Predictors {
 			if p.Kind != synth.ModelPredictorCategoricalLevel && p.Kind != synth.ModelPredictorSetOption {
@@ -180,5 +200,8 @@ func TestProfile_FitModels_DeterministicAcrossRuns(t *testing.T) {
 				t.Errorf("model %q regressed on itself", m.Field)
 			}
 		}
+	}
+	if withPredictors == 0 {
+		t.Errorf("no model retained a predictor; the fixture's `spend` is driven by `region`")
 	}
 }

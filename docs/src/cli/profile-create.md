@@ -33,7 +33,7 @@ pulse profile create --input PATH --output PATH
 | `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
 | `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`), categorical-categorical contingency tables (`conditional.categorical_pairs`), categorical-numeric conditional means (`conditional.categorical_numeric_pairs`), and — per option of any `set_*` field — the same three pair kinds against categorical/numeric/other-set fields (`conditional.set_categorical_pairs`, `conditional.set_numeric_pairs`, `conditional.set_set_pairs`) |
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
-| `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field on the same scan — the field regressed on the cohort's categorical levels and set options — capturing coefficients, residual scale and fitted residuals (see below) |
+| `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels and set options automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling and `--fit-models`' residual reservoir (see below); each draws from its own stream, so the two flags never perturb each other, and the same `(--input, --seed)` produces byte-identical captured output |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
@@ -247,17 +247,60 @@ and `set_*` **options**, so `region`, `tier` and a multi-select all
 contribute to the same prediction rather than competing to be the last
 writer.
 
-The fit rides the scan `profile create` already makes — no second pass
-over the cohort. The regression engine is a streaming accumulator whose
-per-field state is quadratic in the predictor count and **independent of
-row count**, so the flag's cost does not grow with cohort size.
+The cohort is read **once**. What the scan itself does is retain a
+bounded, uniformly sampled row snapshot; the predictors are then
+selected, the models fitted and the residuals computed over that
+snapshot after the scan finishes. That ordering is not an optimisation —
+both halves of predictor selection are *measured*, and neither a level
+frequency ranking nor a variance share exists before any row has been
+read. One visible consequence: `n_obs` reports the fit's own support
+within the snapshot, so on a cohort larger than the snapshot it is
+smaller than `row_count`.
 
-Each categorical contributes one column per level except one
-**reference** level (the first dictionary entry), whose effect is
-absorbed into the model's intercept; every other coefficient is read
-relative to it. A full level set alongside an intercept is
-rank-deficient by construction, which is why one has to go. `set_*`
-options are **not** subject to this — a multi-select is not a partition,
+### Which predictors enter
+
+Selection is fully automatic. There is no way to declare, override or
+weight a predictor, and no threshold flag.
+
+**Levels are collapsed by `--top-k`.** A categorical contributes one
+column per top-`--top-k` level by frequency, plus a single catch-all
+column labelled `"other"` standing for everything below the cut — the
+same collapse `--top-k` already applies to captured marginals and
+contingency tables. This is what keeps the flag usable at all: a
+survey cohort with a 1,900-level `brand` column expands to thousands of
+design columns unbounded, past any sane width limit, and every numeric
+field would be skipped. It is also more honest — 1,900 levels cannot
+support 1,900 free coefficients, however many rows there are.
+
+**Fields are admitted by variance explained.** A candidate categorical
+or `set_*` field enters a numeric field's model only if it accounts for
+at least **1%** of that field's variance, adjusted for the degrees of
+freedom its groups spend. The criterion is deliberately *not*
+statistical significance: on a large cohort every candidate is
+significant, including ones explaining a thousandth of the variance, so
+a significance test would admit everything while looking selective. An
+absolute floor decides the same way regardless of how many rows the
+cohort has.
+
+Two consequences worth knowing. A field like `wave` on a single-wave
+cohort explains nothing by construction and is dropped by the same
+arithmetic that drops a real but negligible predictor — no special case.
+And two overlapping candidates (`age` is a banding of `ageExact`;
+`region` is nested inside `dma`) are scored independently, so both
+enter. Sorting out the redundancy is the fit's job, not the selection
+rule's: when the solver refuses the design as rank-deficient, the model
+is refitted with its weakest-scoring predictor dropped — up to four
+times — so the candidate that survives a nesting is the one that
+explains more of the target.
+
+Each admitted categorical contributes one column per retained level
+except one **reference** level, whose effect is absorbed into the
+model's intercept; every other coefficient is read relative to it. A
+full level set alongside an intercept is rank-deficient by construction,
+which is why one has to go. The `"other"` catch-all is never chosen as
+the reference — a baseline meaning "one of the remaining 1,874 brands"
+is not something a reader can interpret. `set_*` options are **not**
+subject to reference-dropping at all: a multi-select is not a partition,
 so each option is an independent indicator and all of them are kept.
 
 Alongside the coefficients the capture keeps each model's residual scale
@@ -266,12 +309,18 @@ row-aligned sample of the scan. Residuals are what remains once a
 field's systematic variation is explained, and they are the honest input
 to any later measurement of how two numeric fields co-move.
 
-Skipping is never a refusal. A field with no usable predictors, too few
-non-null rows to fit, or a rank-deficient design (two nested
-categoricals, say `region` inside `dma`, or a single-valued `wave`
-column) loses **its own** model and is named in the profile's
-`warnings`; every other field, and the whole rest of the document, is
-captured exactly as usual.
+A numeric field that **no** candidate explains is not skipped. It gets a
+model with zero predictors — its own mean as the intercept, its own
+spread as the residual scale, `r2` of 0 — and a warning saying it
+*carries no predictors*. That is a finding about the cohort, and it is
+deliberately worded differently from a skip.
+
+Skipping is never a refusal either. A field whose design stays
+unresolvable after those refits loses **its own** model, is named in the
+profile's `warnings` as *skipped* — with the reason and the predictors
+it was carrying — and costs the rest of the document nothing. It also
+keeps its `--conditional` pair, so it is reconstructed from measured
+structure rather than from nothing.
 
 ### What lands in the document
 
@@ -319,9 +368,9 @@ keep their exact meaning, flag present or absent.
 ### What `models` replaces at generation time
 
 `synth from-profile` reads the section instead of `--conditional`'s
-**numeric-target** pairs: when `models` is present,
-`conditional.categorical_numeric_pairs` and
-`conditional.set_numeric_pairs` are not applied at all. They exist to
+**numeric-target** pairs, field by field: a numeric field that lands a
+model has its entries in `conditional.categorical_numeric_pairs` and
+`conditional.set_numeric_pairs` dropped. They exist to
 resample a numeric field from one paired field's conditional moments, so
 on a cohort with several categorical and `set_*` fields every one of
 them claims the same numeric target and all but the first are dropped as
@@ -338,10 +387,12 @@ structure co-varies with itself, so passing `--conditional` and
 
 A model that cannot be applied to the reconstructed spec — its target
 was `--fit-shape`-fitted (a mixture has no closed-form quantile a linear
-predictor can ride), or it names a field the profile does not carry — is
-dropped with a `model for numeric field "x" not applied: …` warning. It
-does **not** revive the retired arms: the retirement follows from the
-section being present, not from any individual model surviving.
+predictor can ride), it names a field the profile does not carry, or it
+is the zero-predictor model above — is dropped with a
+`model for numeric field "x" not applied: …` warning, and that field
+**keeps** its captured conditional pair. Retirement is per field, not
+per document: a field that gains no model must not also lose the
+structure `--conditional` measured for it.
 
 Without the section — every document written before this flag existed
 included — nothing changes: all five arms populate exactly as before.
