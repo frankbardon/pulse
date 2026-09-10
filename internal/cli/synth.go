@@ -164,8 +164,9 @@ func profileCreateCmd() *cli.Command {
 			&cli.IntFlag{Name: "correlation-top-k", Usage: "Cap on retained correlation pairs", Value: 16},
 			&cli.BoolFlag{Name: "conditional", Usage: "Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse"},
 			&cli.BoolFlag{Name: "fit-shape", Usage: "Fit a 2-component Gaussian mixture per numeric field and keep it only when it's a genuine BIC improvement over the plain normal (see skills/synthetic-data.md); a near-normal field is left as normal"},
+			&cli.BoolFlag{Name: "fit-models", Usage: "Fit one linear model per numeric field on the same scan — the field regressed on the cohort's categorical levels and set options — keeping the coefficients, residual scale and fitted residuals; a field with no usable predictors or a rank-deficient design is skipped with a warning, never a refusal"},
 			&cli.IntFlag{Name: "sample-limit", Usage: "Cap rows ingested for the profile (0 = unlimited)"},
-			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed for --conditional's categorical-categorical reservoir sampling", Value: 0},
+			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed for --conditional's categorical-categorical reservoir sampling and --fit-models' residual reservoir (each draws from its own stream)", Value: 0},
 			&cli.BoolFlag{Name: "json", Usage: "Print envelope to stdout as well"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -177,6 +178,7 @@ func profileCreateCmd() *cli.Command {
 			corrTopK := int(cmd.Int("correlation-top-k"))
 			conditional := cmd.Bool("conditional")
 			fitShape := cmd.Bool("fit-shape")
+			fitModels := cmd.Bool("fit-models")
 			sampleLimit := int(cmd.Int("sample-limit"))
 			seed := cmd.Int("seed")
 			jsonOut := cmd.Bool("json")
@@ -192,6 +194,7 @@ func profileCreateCmd() *cli.Command {
 				CorrelationTopK:     corrTopK,
 				IncludeConditional:  conditional,
 				FitShape:            fitShape,
+				FitModels:           fitModels,
 				SampleLimit:         sampleLimit,
 				Seed:                int64(seed),
 			})

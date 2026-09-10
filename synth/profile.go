@@ -125,6 +125,20 @@ type ProfileOptions struct {
 	// for numeric fields so there is something to fit against, even
 	// when IncludeStats itself is false.
 	FitShape bool
+	// FitModels enables per-numeric linear model capture
+	// (`profile create --fit-models`, E1-S2): for each numeric field,
+	// fit one linear predictor of that field on the cohort's
+	// categorical LEVELS and set OPTIONS, driven off this same single
+	// scan, and retain the fitted coefficients, the residual scale and
+	// a bounded row-aligned residual vector.
+	//
+	// Off by default, and inert on the emitted document: the fits are
+	// held in memory behind Profile.FittedModels() rather than
+	// serialised, so a profile captured with this flag marshals to
+	// exactly the bytes it would have without it. It draws from its own
+	// RNG stream, so --conditional's captured output does not depend on
+	// whether this flag was also passed.
+	FitModels bool
 	// Seed drives the reservoir-sampling RNG used by
 	// IncludeConditional's categorical-categorical contingency capture
 	// (E7-S2) once the source cohort exceeds conditionalJointCap rows.
@@ -154,6 +168,13 @@ type Profile struct {
 	Conditional *ConditionalProfile `json:"conditional,omitempty"`
 	Warnings    []string            `json:"warnings,omitempty"`
 	Meta        map[string]any      `json:"meta,omitempty"`
+
+	// fittedModels holds the per-numeric linear models captured under
+	// ProfileOptions.FitModels. UNEXPORTED on purpose: MarshalJSON
+	// serialises this struct through a plain alias, so an exported slot
+	// would move the document for every caller the moment the flag is
+	// passed. Reachable via FittedModels(); see synth/profile_models.go.
+	fittedModels []FieldModel
 }
 
 // ConditionalProfile carries the joint reconstruction structure
@@ -822,6 +843,15 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	catReservoirRNG := newRng(opts.Seed)
 	catJointSeen := 0
 
+	// fitter is nil unless ProfileOptions.FitModels asked for per-numeric
+	// linear models AND at least one field is fittable, so the per-row
+	// cost below is exactly zero for every existing caller. It rides
+	// this loop rather than a second scan — see synth/profile_models.go.
+	var fitter *modelFitter
+	if opts.FitModels {
+		fitter = newModelFitter(schema, opts.Seed, &warnings)
+	}
+
 	rowCount := 0
 	for {
 		err := rr.ReadRecordWithWide(values, nulls, wide)
@@ -924,6 +954,11 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				if na.reservoirOn && len(na.samples) < 10000 {
 					na.samples = append(na.samples, v)
 				}
+			}
+		}
+		if fitter != nil {
+			if err := fitter.observe(values, nulls, wide); err != nil {
+				return nil, err
 			}
 		}
 		if len(jointFieldNames) >= 2 && len(jointRows) < conditionalJointCap {
@@ -1223,6 +1258,10 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				SetSetPairs:             setSetPairs,
 			}
 		}
+	}
+
+	if fitter != nil {
+		pf.fittedModels = fitter.finish(&warnings)
 	}
 
 	if len(warnings) > 0 {

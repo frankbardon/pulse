@@ -17,7 +17,7 @@ individual rows from the source.**
 pulse profile create --input PATH --output PATH
                      [--top-k N] [--include-stats]
                      [--include-correlations] [--correlation-top-k N]
-                     [--conditional] [--fit-shape]
+                     [--conditional] [--fit-shape] [--fit-models]
                      [--sample-limit N] [--seed N] [--json]
 ```
 
@@ -33,8 +33,9 @@ pulse profile create --input PATH --output PATH
 | `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
 | `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`), categorical-categorical contingency tables (`conditional.categorical_pairs`), categorical-numeric conditional means (`conditional.categorical_numeric_pairs`), and — per option of any `set_*` field — the same three pair kinds against categorical/numeric/other-set fields (`conditional.set_categorical_pairs`, `conditional.set_numeric_pairs`, `conditional.set_set_pairs`) |
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
+| `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field on the same scan — the field regressed on the cohort's categorical levels and set options — capturing coefficients, residual scale and fitted residuals (see below) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
-| `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling (see below); same `(--input, --seed)` produces byte-identical captured output |
+| `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling and `--fit-models`' residual reservoir (see below); each draws from its own stream, so the two flags never perturb each other, and the same `(--input, --seed)` produces byte-identical captured output |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
 
 ## What the profile captures
@@ -232,6 +233,53 @@ thin-pair warnings. The same priority-ordered claim mechanism resolves
 every other conditional-relationship collision too (e.g. two
 categorical-numeric pairs both naming the same numeric field) — a
 shape fit is simply the highest-priority claimant, not a special case.
+
+## `--fit-models`: per-numeric linear models
+
+By default a numeric field's relationship to the cohort's categorical
+structure is captured one pair at a time — `--conditional` records a
+separate conditional mean per category, per categorical field — and
+generation applies those pairs by overwriting the drawn value once per
+claimed pair. `--fit-models` captures the relationship as a single
+**additive linear model** instead: for each numeric field, one
+least-squares fit of that field on the cohort's categorical **levels**
+and `set_*` **options**, so `region`, `tier` and a multi-select all
+contribute to the same prediction rather than competing to be the last
+writer.
+
+The fit rides the scan `profile create` already makes — no second pass
+over the cohort. The regression engine is a streaming accumulator whose
+per-field state is quadratic in the predictor count and **independent of
+row count**, so the flag's cost does not grow with cohort size.
+
+Each categorical contributes one column per level except one
+**reference** level (the first dictionary entry), whose effect is
+absorbed into the model's intercept; every other coefficient is read
+relative to it. A full level set alongside an intercept is
+rank-deficient by construction, which is why one has to go. `set_*`
+options are **not** subject to this — a multi-select is not a partition,
+so each option is an independent indicator and all of them are kept.
+
+Alongside the coefficients the capture keeps each model's residual scale
+and its **fitted residuals** (observed minus predicted) over a bounded,
+row-aligned sample of the scan. Residuals are what remains once a
+field's systematic variation is explained, and they are the honest input
+to any later measurement of how two numeric fields co-move.
+
+Skipping is never a refusal. A field with no usable predictors, too few
+non-null rows to fit, or a rank-deficient design (two nested
+categoricals, say `region` inside `dma`, or a single-valued `wave`
+column) loses **its own** model and is named in the profile's
+`warnings`; every other field, and the whole rest of the document, is
+captured exactly as usual.
+
+At this stage the flag is capture-only: the fitted models are held in
+memory by the library (`synth.Profile.FittedModels()`) and are **not**
+written into the profile JSON, so a document captured with
+`--fit-models` is byte-for-byte the document captured without it, and
+`synth from-profile` behaves identically either way. `--conditional`,
+`--include-correlations`, `--correlation-top-k` and `--fit-shape` all
+keep their exact meaning, flag present or absent.
 
 ## Output
 
