@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
@@ -668,8 +669,28 @@ func categoricalTVD(sourceCells []CategoricalPairCellSpec, sourceN int, syntheti
 	for k := range synProp {
 		seen[k] = true
 	}
-	var sum float64
+	// The union is accumulated in SORTED cell order, not map order, for
+	// the same reason the conditional capture's top-K collapse folds
+	// sorted (see computeConditionalCategoricalNumericPairs in
+	// profile.go): this is a float64 sum over many addends of
+	// potentially very different magnitudes, float addition is not
+	// associative, and Go randomizes map iteration — so a map-order
+	// fold makes the reported Delta drift in its last bits between two
+	// runs over identical inputs. A fidelity number that moves when
+	// nothing moved is unusable for the regression-gating this report
+	// exists to support, and it moves silently.
+	keys := make([][2]string, 0, len(seen))
 	for k := range seen {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i][0] != keys[j][0] {
+			return keys[i][0] < keys[j][0]
+		}
+		return keys[i][1] < keys[j][1]
+	})
+	var sum float64
+	for _, k := range keys {
 		sum += math.Abs(srcProp[k] - synProp[k])
 	}
 	return 0.5 * sum

@@ -152,6 +152,8 @@ Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file. Any sample
 
 Seed splitting uses a 64-bit avalanche; seeds differing by 1 produce uncorrelated streams. `Seed == 0` is stable, not "random". `nullableSampler` always draws the inner value first, then the null mask — the seeded stream is invariant to which rows are null.
 
+**Capture is held to the same bar**: same `(--input, --seed)` MUST produce a byte-identical profile document, or the profile→synth pipeline is only deterministic downstream of a spec that itself drifts. The non-obvious threat there is not the RNG but **map iteration order**. Anywhere capture folds several accumulators into one shared bucket — canonically `--conditional`'s top-K collapse folding every out-of-top-K category into `"other"` — the fold MUST walk sorted keys, because float addition is not associative and Go randomizes map iteration. The `(sumSq - mean*sum)/(n-1)` variance form amplifies rather than absorbs the resulting last-bit difference (values ~1e4 give `sumSq` ~1e11 against a variance ~1e8), so a map-order fold surfaces as a ~1e-10 relative drift in the emitted `std`. Signature to recognise: only `"other"` entries move, because only `"other"` has more than one source. Sort, do not switch to compensated summation — the goal is a *reproducible* answer and Kahan summation is still order-dependent in principle.
+
 ## Library embedding
 
 `pulse.Pulse.Synth` and `pulse.Pulse.Profile` route through the embedded filesystem — `pulse.New(pulse.Options{FS: afero.NewMemMapFs()})` for hermetic tests.

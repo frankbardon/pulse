@@ -1630,8 +1630,39 @@ func computeConditionalCategoricalNumericPairs(catFields, numFields []string, ca
 			// own top-K plus one "other" bucket, mirroring the
 			// per-field collapse computeConditionalCategoricalPairs
 			// applies before building its joint table.
+			//
+			// The fold walks raw in SORTED key order rather than in map
+			// order, and that is load-bearing rather than tidiness.
+			// Every out-of-top-K category lands in the ONE shared
+			// otherCategoryLabel accumulator, so that bucket's
+			// sum/sumSq are a pairwise float64 sum over many addends;
+			// float addition is not associative and Go randomizes map
+			// iteration, so folding in map order gives a different
+			// sumSq per process. The variance below is the
+			// cancellation-prone (sumSq - mean*sum) form, which
+			// amplifies rather than absorbs that: on a cohort of
+			// ~1e4-magnitude values sumSq lands near 1e11 against a
+			// variance near 1e8, turning a single last-bit difference
+			// in the fold into a ~1e-10 relative drift in the emitted
+			// Std. That was a real, reproduced break of the
+			// byte-reproducibility `pulse profile create` promises, and
+			// its signature was diagnostic: ONLY "other" entries
+			// drifted, because "other" is the only multi-source
+			// accumulator here — an in-top-K key has exactly one source
+			// and no fold order to get wrong. Sorting is the fix rather
+			// than compensated summation because the goal is a
+			// REPRODUCIBLE answer, and Kahan summation is still
+			// order-dependent in principle. The cost is bounded by
+			// TopK + the raw distinct-value count and paid once per
+			// pair, not per record.
+			rawKeys := make([]string, 0, len(raw))
+			for catVal := range raw {
+				rawKeys = append(rawKeys, catVal)
+			}
+			sort.Strings(rawKeys)
 			collapsed := make(map[string]*condCatNumAcc)
-			for catVal, acc := range raw {
+			for _, catVal := range rawKeys {
+				acc := raw[catVal]
 				key := catVal
 				if !allowed[catVal] {
 					key = otherCategoryLabel
