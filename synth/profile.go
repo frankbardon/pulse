@@ -132,12 +132,18 @@ type ProfileOptions struct {
 	// scan, and retain the fitted coefficients, the residual scale and
 	// a bounded row-aligned residual vector.
 	//
-	// Off by default, and inert on the emitted document: the fits are
-	// held in memory behind Profile.FittedModels() rather than
-	// serialised, so a profile captured with this flag marshals to
-	// exactly the bytes it would have without it. It draws from its own
-	// RNG stream, so --conditional's captured output does not depend on
-	// whether this flag was also passed.
+	// Off by default. When on, the fits are written to the document as
+	// the additive `models` section (Profile.Models) and nothing else in
+	// the document moves: every other section is byte-identical to the
+	// same capture with the flag off, and a capture WITHOUT the flag
+	// emits no `models` key at all. It draws from its own RNG stream, so
+	// --conditional's captured output does not depend on whether this
+	// flag was also passed.
+	//
+	// It does change what SpecFromProfile builds: a document carrying
+	// `models` reconstructs its numeric fields from the additive linear
+	// predictors instead of from --conditional's one-pair-at-a-time
+	// numeric-target arms, which are then not populated at all.
 	FitModels bool
 	// Seed drives the reservoir-sampling RNG used by
 	// IncludeConditional's categorical-categorical contingency capture
@@ -166,15 +172,28 @@ type Profile struct {
 	// SpecFromProfile treats a nil Conditional exactly as it always
 	// has (falling back to Pairwise).
 	Conditional *ConditionalProfile `json:"conditional,omitempty"`
-	Warnings    []string            `json:"warnings,omitempty"`
-	Meta        map[string]any      `json:"meta,omitempty"`
-
-	// fittedModels holds the per-numeric linear models captured under
-	// ProfileOptions.FitModels. UNEXPORTED on purpose: MarshalJSON
-	// serialises this struct through a plain alias, so an exported slot
-	// would move the document for every caller the moment the flag is
-	// passed. Reachable via FittedModels(); see synth/profile_models.go.
-	fittedModels []FieldModel
+	// Models carries the per-numeric additive linear predictors captured
+	// only when ProfileOptions.FitModels was set (`profile create
+	// --fit-models`). Additive and omitempty, exactly like Conditional:
+	// the key is entirely absent from every document captured without
+	// the flag — including every document written before this section
+	// existed — and SpecFromProfile treats an empty Models exactly as it
+	// always has, falling back to Conditional's numeric-target pairs.
+	//
+	// The section is a REPLACEMENT for those pairs, not a supplement:
+	// when it is present SpecFromProfile stops populating
+	// Spec.CategoricalNumericPairs / Spec.SetNumericPairs entirely,
+	// because one additive model already accounts for every predictor at
+	// once and the pairs exist only to be applied one overwrite at a
+	// time. See SpecFromProfile for the full rule.
+	//
+	// Not every part of a captured FieldModel is durable: the residual
+	// reservoir and the internal design-column names are `json:"-"`, so
+	// a Profile read back from JSON carries coefficients but no
+	// per-row residuals. See FieldModel for why.
+	Models   []FieldModel   `json:"models,omitempty"`
+	Warnings []string       `json:"warnings,omitempty"`
+	Meta     map[string]any `json:"meta,omitempty"`
 }
 
 // ConditionalProfile carries the joint reconstruction structure
@@ -1261,7 +1280,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	}
 
 	if fitter != nil {
-		pf.fittedModels = fitter.finish(&warnings)
+		pf.Models = fitter.finish(&warnings)
 	}
 
 	if len(warnings) > 0 {
@@ -1901,6 +1920,36 @@ func collapseCells(counts map[[2]string]int, cellCap int) []ContingencyCell {
 // at min/max), categorical fields as weighted_categorical, and date
 // fields as uniform_date over the observed range.
 //
+// # Choosing between `models` and `conditional`'s numeric-target arms
+//
+// A document carrying the `models` section (`profile create
+// --fit-models`) reconstructs its numeric fields from those additive
+// linear predictors, and the two NUMERIC-TARGET conditional arms —
+// CategoricalNumericPairs and SetNumericPairs — are then not populated
+// on the Spec at all. This is a REPLACEMENT, not a preference between
+// equals: those arms exist to resample a numeric from one paired
+// field's conditional moments, so on a cohort with several categorical
+// and set fields every one of them claims the same numeric target and
+// all but the first are dropped by resolveConflicts, one warning each.
+// A model already accounts for all of those predictors simultaneously,
+// so the pairs have nothing left to add and populating them would
+// generate thousands of conflict warnings about relationships the spec
+// no longer needs. Leaving the slots empty is what retires them as
+// claimants — resolveConflicts itself is untouched and still arbitrates
+// exactly as before for every spec that does populate them.
+//
+// The three NON-numeric-target arms (CategoricalPairs,
+// SetCategoricalPairs, SetSetPairs) are unaffected and populate exactly
+// as they always have: a model predicts a numeric FROM categorical and
+// set structure, it says nothing about how that structure co-varies
+// with itself. A user may legitimately pass --conditional and
+// --fit-models together and gets both halves.
+//
+// Absent `models`, every arm populates exactly as before — which is the
+// path every document written before the section existed takes, and the
+// same silent-fallback shape Conditional.NumericPairs-over-Pairwise
+// already uses below.
+//
 // The second return value carries any conditional-relationship conflict
 // warnings resolveConflicts (synth/conflict.go, E6-S1) produces when run
 // against the just-composed Spec — e.g. two captured pairs both
@@ -2075,15 +2124,36 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 	// field the profiler could not summarize (falls back to `constant` in
 	// the switch above) still being named in a stale/foreign profile
 	// document's Conditional section.
-	if p.Conditional != nil {
-		numericMoments := make(map[string]NumericProfile, len(p.Fields))
-		for _, fp := range p.Fields {
-			if fp.Numeric != nil {
-				numericMoments[fp.Name] = *fp.Numeric
-			}
+	numericMoments := make(map[string]NumericProfile, len(p.Fields))
+	for _, fp := range p.Fields {
+		if fp.Numeric != nil {
+			numericMoments[fp.Name] = *fp.Numeric
 		}
-		// distOf was already built above (numeric-numeric correlation
-		// wiring) — reused here rather than rebuilt.
+	}
+
+	// modelDriven is the single switch described in the doc comment
+	// above: it is decided by the DOCUMENT (does it carry a `models`
+	// section) rather than per numeric field, because a spec that mixed
+	// model-driven and pair-driven numerics would give two numeric
+	// fields in the same cohort two different reconstruction semantics
+	// with nothing on the wire saying which got which.
+	modelDriven := len(p.Models) > 0
+	var modelWarnings []string
+	if modelDriven {
+		for _, m := range p.Models {
+			spec, why := modelSpecFromProfile(m, distOf, numericMoments)
+			if why != "" {
+				modelWarnings = append(modelWarnings, fmt.Sprintf(
+					"model for numeric field %q not applied: %s", m.Field, why))
+				continue
+			}
+			s.Models = append(s.Models, spec)
+		}
+	}
+
+	if p.Conditional != nil {
+		// distOf and numericMoments were already built above — reused
+		// here rather than rebuilt.
 		for _, cp := range p.Conditional.CategoricalPairs {
 			if distOf[cp.A] != DistWeightedCategorical || distOf[cp.B] != DistWeightedCategorical {
 				continue
@@ -2095,6 +2165,13 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			s.CategoricalPairs = append(s.CategoricalPairs, CategoricalPairSpec{A: cp.A, B: cp.B, Cells: cells})
 		}
 		for _, cnp := range p.Conditional.CategoricalNumericPairs {
+			if modelDriven {
+				// Retired for this document: the models section already
+				// carries every predictor of every numeric target. See
+				// the doc comment above for why this is a whole-arm
+				// decision and not a per-field one.
+				break
+			}
 			// distOf[cnp.B] == DistMixture (a --fit-shape reconstruction,
 			// E4-S2) is deliberately ALLOWED through here rather than
 			// filtered out — categoricalNumericPairSampler.transform
@@ -2147,6 +2224,11 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			})
 		}
 		for _, snp := range p.Conditional.SetNumericPairs {
+			if modelDriven {
+				// Retired for this document, exactly as
+				// CategoricalNumericPairs above.
+				break
+			}
 			if distOf[snp.Set] != DistSetBernoulli || distOf[snp.Numeric] != DistNormal {
 				continue
 			}
@@ -2177,5 +2259,91 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 		}
 	}
 	conflicts := resolveConflicts(s)
+	// Model-drop warnings ride the same channel as conflict warnings and
+	// come FIRST: a dropped model is why a numeric field fell back to
+	// its independent marginal, and reading that after the conflicts it
+	// prevented would invert the causal order. They are worded
+	// distinctly ("not applied") so neither kind can be mistaken for the
+	// other by a reader or by a test matching on the message.
+	if len(modelWarnings) > 0 {
+		return s, append(modelWarnings, conflicts.warnings...)
+	}
 	return s, conflicts.warnings
+}
+
+// modelSpecFromProfile translates one captured FieldModel into its
+// generation-facing FieldModelSpec, or returns the reason it cannot be
+// applied to THIS reconstructed spec.
+//
+// The guards mirror the "both sides must have reconstructed to the
+// expected distribution kind" rule the conditional pair wiring above
+// already applies, with one difference that follows from the shape: a
+// pair is one relationship and can be dropped on its own, whereas a
+// model is a single expression whose Intercept is defined relative to
+// every one of its predictors at once. Dropping a predictor from it
+// would leave the remaining coefficients being read against a baseline
+// that no longer exists — silently biased rather than merely poorer —
+// so an unusable predictor takes the whole model with it and says so.
+func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[string]NumericProfile) (FieldModelSpec, string) {
+	dist, present := distOf[m.Field]
+	if !present {
+		return FieldModelSpec{}, "target field is not present in the profile"
+	}
+	switch dist {
+	case DistNormal:
+	case DistMixture:
+		// A --fit-shape reconstruction already replaced this field's
+		// marginal with a captured mixture, and the two have not been
+		// asked to compose (the mixture has no closed-form quantile the
+		// linear predictor could ride). The field keeps its shape fit,
+		// which is the same outcome resolveConflicts produces today for
+		// a shape-fit field named by a conditional pair.
+		return FieldModelSpec{}, "target reconstructed from a captured shape (--fit-shape), which does not compose with a linear predictor"
+	default:
+		return FieldModelSpec{}, "target did not reconstruct to a normal distribution"
+	}
+	num, ok := moments[m.Field]
+	if !ok {
+		return FieldModelSpec{}, "target carries no numeric summary"
+	}
+
+	out := FieldModelSpec{
+		Field:       m.Field,
+		Intercept:   m.Intercept,
+		ResidualStd: m.ResidualStd,
+		Min:         num.Min,
+		Max:         num.Max,
+		HasClamp:    true,
+		Predictors:  make([]ModelPredictorSpec, 0, len(m.Predictors)),
+	}
+	for _, pr := range m.Predictors {
+		want := ""
+		switch pr.Kind {
+		case ModelPredictorCategoricalLevel:
+			want = DistWeightedCategorical
+		case ModelPredictorSetOption:
+			want = DistSetBernoulli
+		default:
+			return FieldModelSpec{}, fmt.Sprintf("predictor %q carries unsupported kind %q", pr.Field, pr.Kind)
+		}
+		got, present := distOf[pr.Field]
+		if !present {
+			return FieldModelSpec{}, fmt.Sprintf(
+				"predictor field %q is not present in the profile", pr.Field)
+		}
+		if got != want {
+			return FieldModelSpec{}, fmt.Sprintf(
+				"predictor field %q reconstructed as %q, not %q", pr.Field, got, want)
+		}
+		out.Predictors = append(out.Predictors, ModelPredictorSpec{
+			Kind:        pr.Kind,
+			Field:       pr.Field,
+			Level:       pr.Level,
+			Coefficient: pr.Coefficient,
+		})
+	}
+	if len(out.Predictors) == 0 {
+		return FieldModelSpec{}, "model carries no predictors"
+	}
+	return out, ""
 }

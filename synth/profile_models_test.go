@@ -64,53 +64,13 @@ func profileOptionMatrix() []struct {
 	}
 }
 
-// TestProfile_FitModels_DocumentByteIdentical is the non-negotiable
-// backward-compatibility gate.
-//
-// The captured models are held OUT of the serialised document at this
-// stage, so the assertion is the strongest available form of "the
-// document did not move": for every existing flag combination, the JSON
-// emitted with --fit-models must be byte-for-byte the JSON emitted
-// without it. That subsumes "byte-identical to today's output for the
-// same input and options", because the flag-off path constructs no
-// fitter at all and therefore cannot reach any of this story's code.
-func TestProfile_FitModels_DocumentByteIdentical(t *testing.T) {
-	data := modelFlagFixture(t, 600, 7)
-
-	for _, tc := range profileOptionMatrix() {
-		t.Run(tc.name, func(t *testing.T) {
-			baseOpts := tc.opts
-			base, err := synth.ProfileBytes(data, baseOpts)
-			if err != nil {
-				t.Fatalf("baseline profile: %v", err)
-			}
-			fitOpts := tc.opts
-			fitOpts.FitModels = true
-			fitted, err := synth.ProfileBytes(data, fitOpts)
-			if err != nil {
-				t.Fatalf("fit-models profile: %v", err)
-			}
-
-			baseJSON, err := json.Marshal(base)
-			if err != nil {
-				t.Fatalf("marshal baseline: %v", err)
-			}
-			fittedJSON, err := json.Marshal(fitted)
-			if err != nil {
-				t.Fatalf("marshal fitted: %v", err)
-			}
-			if string(baseJSON) != string(fittedJSON) {
-				t.Errorf("--fit-models moved the document\n base: %s\nfitted: %s", baseJSON, fittedJSON)
-			}
-			if got := base.FittedModels(); got != nil {
-				t.Errorf("FittedModels() = %+v without the flag, want nil", got)
-			}
-			if got := fitted.FittedModels(); len(got) == 0 {
-				t.Error("FittedModels() empty with the flag; fixture must be fittable")
-			}
-		})
-	}
-}
+// The byte-identity gate that used to live here moved to
+// TestProfile_ModelsSection_IsPurelyAdditive in
+// profile_models_document_test.go. E1-S2 could assert the absolute form
+// — the flag moved no byte at all — only because it serialised nothing;
+// now that `models` reaches the document the promise is the additive
+// one, and it is asserted section by section over the same
+// profileOptionMatrix rather than as an opaque string compare.
 
 // TestProfile_FitModels_LeavesExistingCaptureUntouched asserts the
 // per-section equality the byte comparison above implies but does not

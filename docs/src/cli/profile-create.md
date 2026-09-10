@@ -273,13 +273,78 @@ column) loses **its own** model and is named in the profile's
 `warnings`; every other field, and the whole rest of the document, is
 captured exactly as usual.
 
-At this stage the flag is capture-only: the fitted models are held in
-memory by the library (`synth.Profile.FittedModels()`) and are **not**
-written into the profile JSON, so a document captured with
-`--fit-models` is byte-for-byte the document captured without it, and
-`synth from-profile` behaves identically either way. `--conditional`,
+### What lands in the document
+
+The fits are written as an additive `models` section — one entry per
+fitted numeric field:
+
+```json
+"models": [
+  {
+    "field": "spend",
+    "intercept": 41.87,
+    "predictors": [
+      {"kind": "categorical_level", "field": "region", "level": "west", "coefficient": 11.02},
+      {"kind": "set_option",        "field": "features", "level": "premium", "coefficient": 24.91}
+    ],
+    "references": [{"field": "region", "level": "east"}],
+    "n_obs": 1160,
+    "r2": 0.94,
+    "residual_std": 1.41
+  }
+]
+```
+
+A coefficient is addressed by **`(field, level)`** — never by the
+solver's internal design-column name, which is an implementation detail
+and is deliberately absent, so the encoding stays free to change without
+invalidating documents already on disk. `references` names the level
+each categorical DROPPED into the intercept, so a reader holding *k−1*
+of *k* levels does not have to guess which one is the zero baseline (a
+model with only `set_*` predictors carries no `references` key — a
+multi-select is not a partition and has no baseline arm).
+
+The **fitted residuals are not written**. They are a bounded row-aligned
+sample — thousands of numbers per numeric field — and their consumer
+runs in the same process as the capture, so they stay reachable through
+`synth.Profile.FittedModels()` and are absent from a document read back
+off disk.
+
+A capture **without** `--fit-models` emits no `models` key at all and is
+byte-for-byte the document it has always been; a capture **with** it
+moves nothing but that one key. `--conditional`,
 `--include-correlations`, `--correlation-top-k` and `--fit-shape` all
 keep their exact meaning, flag present or absent.
+
+### What `models` replaces at generation time
+
+`synth from-profile` reads the section instead of `--conditional`'s
+**numeric-target** pairs: when `models` is present,
+`conditional.categorical_numeric_pairs` and
+`conditional.set_numeric_pairs` are not applied at all. They exist to
+resample a numeric field from one paired field's conditional moments, so
+on a cohort with several categorical and `set_*` fields every one of
+them claims the same numeric target and all but the first are dropped as
+conflicts — one warning each, thousands on a wide cohort. A model
+accounts for all of those predictors at once, so the pairs have nothing
+left to add.
+
+The three **non**-numeric-target arms —
+`conditional.categorical_pairs`, `conditional.set_categorical_pairs` and
+`conditional.set_set_pairs` — are unaffected. A model predicts a numeric
+FROM categorical and set structure; it says nothing about how that
+structure co-varies with itself, so passing `--conditional` and
+`--fit-models` together is supported and keeps both halves.
+
+A model that cannot be applied to the reconstructed spec — its target
+was `--fit-shape`-fitted (a mixture has no closed-form quantile a linear
+predictor can ride), or it names a field the profile does not carry — is
+dropped with a `model for numeric field "x" not applied: …` warning. It
+does **not** revive the retired arms: the retirement follows from the
+section being present, not from any individual model surviving.
+
+Without the section — every document written before this flag existed
+included — nothing changes: all five arms populate exactly as before.
 
 ## Output
 

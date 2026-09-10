@@ -39,10 +39,13 @@ import (
 //
 // # What is deliberately NOT here
 //
-//   - Persistence. The fits stay in memory behind Profile.FittedModels();
-//     the additive `models` profile section is a separate change. Nothing
-//     in this file can move a byte of the emitted document when the flag
-//     is off, which is the property the byte-identity test asserts.
+//   - Persistence POLICY. The fits reach the document through
+//     Profile.Models (the additive `models` section, serialised by the
+//     json tags on the shapes below); which of their parts are durable
+//     and which stay in-process is decided ON those shapes — see
+//     ModelPredictor.Column and FieldModel.Residuals for the two
+//     deliberate `json:"-"` slots. Nothing here runs when the flag is
+//     off, which is the property the byte-identity test asserts.
 //   - Predictor SELECTION by variance explained. Every categorical and
 //     every set option in the cohort is a candidate here. modelColumns
 //     below is the single seam that narrows them, so a selection rule
@@ -85,34 +88,73 @@ const (
 // Model predictor kinds, as they appear on ModelPredictor.Kind. These
 // are the string spellings of the internal dummyColumnKind — spelled
 // out rather than exposing the internal enum because this shape is what
-// the profile document's `models` section will serialise.
+// the profile document's `models` section serialises.
 const (
 	ModelPredictorCategoricalLevel = "categorical_level"
 	ModelPredictorSetOption        = "set_option"
 	ModelPredictorNumeric          = "numeric"
 )
 
-// ModelPredictor is one fitted coefficient: which design column it
-// belongs to, which real cohort field and level that column was
-// expanded from, and the coefficient itself.
+// ModelPredictor is one fitted coefficient: which real cohort field and
+// level the design column was expanded from, and the coefficient itself.
 //
-// Field/Level are carried alongside Column because Column is an
-// internal, length-prefixed encoding (see dummyCategoricalName) that no
-// consumer should ever have to parse — generation needs "the coefficient
-// for dma=602", and that is (Field, Level).
+// # Why (Field, Level) is the serialised identity and Column is not
+//
+// Column is the design-matrix name the solver keyed the coefficient by,
+// and it is an internal, length-prefixed encoding (see
+// dummyCategoricalName) invented purely so two different fields cannot
+// collide on a level spelling. Writing it into the document would
+// freeze that encoding into the profile file format: every future
+// reader would have to parse it, and changing it — to widen the field
+// namespace, say — would silently invalidate every document already on
+// disk. (Field, Level) is the durable identity a consumer actually
+// needs ("the coefficient for dma=602"), so Column is `json:"-"` and
+// survives only in-process, where the residual replay uses it.
 type ModelPredictor struct {
 	// Column is the design-matrix column name the engine keyed the
-	// coefficient by. Internal encoding; useful for diagnostics only.
-	Column string
-	// Kind is one of the ModelPredictor* constants above.
-	Kind string
+	// coefficient by. Internal encoding; diagnostics and the in-process
+	// residual replay only, never serialised — see the type comment.
+	Column string `json:"-"`
+	// Kind is one of the ModelPredictor* constants above. It is carried
+	// on the wire because it is not derivable from (Field, Level): a
+	// categorical level is one arm of a partition read against a dropped
+	// reference (see FieldModel.References), while a set option is an
+	// independent indicator with no reference at all, and a consumer
+	// reconstructing effects has to know which it is holding.
+	Kind string `json:"kind"`
 	// Field is the real cohort field this column was expanded from.
-	Field string
+	Field string `json:"field"`
 	// Level is the categorical level text or set option text this column
-	// indicates. Empty when Kind is ModelPredictorNumeric.
-	Level string
+	// indicates. Empty when Kind is ModelPredictorNumeric. Deliberately
+	// NOT omitempty: it is half of the addressing key, and a categorical
+	// dictionary may legitimately carry the empty-string level, so the
+	// key is always written rather than left to be inferred from its
+	// absence.
+	Level string `json:"level"`
 	// Coefficient is the fitted slope for this column.
-	Coefficient float64
+	Coefficient float64 `json:"coefficient"`
+}
+
+// ModelReference names one categorical predictor field's dropped
+// REFERENCE level — the level whose column modelColumns removed to keep
+// the design full-rank alongside an intercept, and whose effect is
+// therefore folded into FieldModel.Intercept.
+//
+// It exists so the document is self-describing about the baseline. A
+// consumer reading `predictors` alone sees k−1 levels of a k-level
+// field and has to GUESS that the missing one is the zero baseline —
+// and, worse, guess WHICH one it was, since the drop rule (dictionary
+// ID 0) is an implementation choice this section must not require a
+// reader to know. Writing the dropped level down turns both guesses
+// into a lookup, and leaves the drop rule free to change later without
+// invalidating a single document already written.
+type ModelReference struct {
+	// Field is the categorical predictor source field.
+	Field string `json:"field"`
+	// Level is the level whose effect is folded into the intercept. A
+	// row carrying it contributes nothing beyond the intercept for this
+	// field; every other level's coefficient is read relative to it.
+	Level string `json:"level"`
 }
 
 // FieldModel is one numeric field's fitted linear predictor.
@@ -125,26 +167,34 @@ type ModelPredictor struct {
 // full-rank alongside an intercept.
 type FieldModel struct {
 	// Field is the numeric target this model predicts.
-	Field string
+	Field string `json:"field"`
 	// Intercept is the fitted constant term: the predicted value for a
-	// row sitting at every categorical's reference level with no set
-	// option selected.
-	Intercept float64
+	// row sitting at every categorical's reference level (see
+	// References) with no set option selected.
+	Intercept float64 `json:"intercept"`
 	// Predictors lists the fitted coefficients in design-column order.
 	// Empty is legal and meaningful only in the sense that such a model
 	// is never retained — a target with no usable candidate columns is
 	// skipped, not stored with an empty predictor list.
-	Predictors []ModelPredictor
+	Predictors []ModelPredictor `json:"predictors"`
+	// References names, per categorical predictor field, the level
+	// dropped from Predictors and folded into Intercept. Absent
+	// (omitempty) exactly when the model carries no categorical
+	// predictor at all — a set-only model has nothing to drop, since a
+	// multi-select is not a partition — which a reader can confirm from
+	// predictors[].kind rather than having to assume. See ModelReference
+	// for why the baseline is written down instead of inferred.
+	References []ModelReference `json:"references,omitempty"`
 	// NObs is the number of rows that actually contributed to the fit.
 	// The engine applies listwise deletion, so a row with a null target
 	// or a null predictor SOURCE field contributes nothing and this is
 	// below the profile's RowCount whenever the cohort has nulls.
-	NObs int
+	NObs int `json:"n_obs"`
 	// R2 and ResidualStd are the fit's explanatory power and residual
 	// scale. ResidualStd is the standard deviation of the residual that
 	// generation adds back on top of the linear predictor.
-	R2          float64
-	ResidualStd float64
+	R2          float64 `json:"r2"`
+	ResidualStd float64 `json:"residual_std"`
 	// Residuals is the row-aligned fitted residual (observed − predicted)
 	// for each row retained in the capture's residual reservoir, and
 	// ResidualPresent[i] reports whether row i contributed one at all —
@@ -154,19 +204,35 @@ type FieldModel struct {
 	// Every FieldModel from one capture indexes the SAME retained rows,
 	// which is the whole point: residual correlation between two fields
 	// is only meaningful on rows where both residuals exist.
-	Residuals       []float64
-	ResidualPresent []bool
+	//
+	// Both are `json:"-"` — DELIBERATELY not part of the document. They
+	// are a bounded row-aligned SAMPLE (modelResidualCap entries per
+	// model, per field), so serialising them would add tens of thousands
+	// of numbers per numeric column to a document whose every other
+	// section is a handful of summary statistics, and would do it to
+	// carry rows a profile exists precisely to avoid retaining. Their
+	// consumer is the residual-correlation measurement, which runs in
+	// the SAME process as the capture and reads them straight off
+	// FittedModels(); what belongs in the document is the small derived
+	// quantity that measurement produces, not its input. A Profile read
+	// back from JSON therefore has coefficients and ResidualStd but nil
+	// Residuals, and any consumer that needs per-row residuals must
+	// capture rather than re-read.
+	Residuals       []float64 `json:"-"`
+	ResidualPresent []bool    `json:"-"`
 }
 
 // FittedModels returns the per-numeric linear models captured under
 // ProfileOptions.FitModels, or nil when the flag was off.
 //
-// It is a method rather than a struct field on purpose: the fits are
-// held OUT of the serialised document at this stage, so a profile
-// captured without the flag marshals to exactly the bytes it always did
-// and a profile captured WITH it does too. Persisting them is a
-// separate, additive change to the document shape.
-func (p *Profile) FittedModels() []FieldModel { return p.fittedModels }
+// It is a thin accessor over Profile.Models, retained because it is the
+// name the capture stage published and because it reads correctly at
+// both ends of a round trip: on a freshly captured Profile it hands
+// back models complete with their residual reservoir, and on one
+// decoded from a document it hands back the same models minus the
+// `json:"-"` parts. Callers that need per-row residuals must therefore
+// hold the capture, not re-read the file — see FieldModel.Residuals.
+func (p *Profile) FittedModels() []FieldModel { return p.Models }
 
 // modelFitter drives one streaming OLS engine per eligible numeric
 // field off the profiler's single scan, and afterwards computes each
@@ -207,8 +273,12 @@ type fieldFit struct {
 	target  string
 	plan    *dummyPlan
 	columns []dummyColumn
-	engine  regression.StreamingEngine
-	rec     *dummyRecord
+	// references are the categorical levels modelColumns dropped to keep
+	// the design full-rank; carried through to FieldModel.References so
+	// the emitted document names its own baseline.
+	references []ModelReference
+	engine     regression.StreamingEngine
+	rec        *dummyRecord
 
 	// model is populated at finish() when the fit succeeds; a nil model
 	// means the field was skipped and has already been warned about.
@@ -243,7 +313,7 @@ func newModelFitter(schema *encoding.Schema, seed int64, warnings *[]string) *mo
 			*warnings = append(*warnings, modelSkipWarning(target, err.Error()))
 			continue
 		}
-		columns := modelColumns(plan)
+		columns, references := modelColumns(plan)
 		if len(columns) == 0 {
 			*warnings = append(*warnings, modelSkipWarning(target,
 				"no usable predictor columns survived reference-level dropping"))
@@ -274,11 +344,12 @@ func newModelFitter(schema *encoding.Schema, seed int64, warnings *[]string) *mo
 			continue
 		}
 		f.fits = append(f.fits, &fieldFit{
-			target:  target,
-			plan:    plan,
-			columns: columns,
-			engine:  engines[0],
-			rec:     plan.newRecord(),
+			target:     target,
+			plan:       plan,
+			columns:    columns,
+			references: references,
+			engine:     engines[0],
+			rec:        plan.newRecord(),
 		})
 		used[target] = true
 		for _, c := range columns {
@@ -368,18 +439,59 @@ func modelCandidateFields(schema *encoding.Schema) []string {
 // a partition — a row may select all of its options, or none — so its
 // option columns do not sum to 1 and dropping one would discard a real
 // effect rather than remove a redundancy.
-func modelColumns(plan *dummyPlan) []dummyColumn {
+//
+// The dropped levels come back as the second return value rather than
+// being discarded, because the profile document has to be able to NAME
+// its own baseline: a reader handed k−1 of k levels would otherwise
+// have to infer both that a level is missing and which one it was, and
+// the second inference would hard-code this function's drop rule into
+// every consumer. Returning them from the one function that makes the
+// choice is what keeps the rule replaceable.
+func modelColumns(plan *dummyPlan) ([]dummyColumn, []ModelReference) {
 	out := make([]dummyColumn, 0, len(plan.columns))
+	var refs []ModelReference
 	reference := make(map[string]bool, len(plan.columns))
 	for _, c := range plan.columns {
 		if c.Kind == dummyCategoricalLevel && !reference[c.Field] {
 			reference[c.Field] = true
+			refs = append(refs, ModelReference{Field: c.Field, Level: c.Level})
 			continue
 		}
 		out = append(out, c)
 	}
-	return out
+	return out, refs
 }
+
+// finiteModel reports whether every float a FieldModel would serialise
+// is finite, naming the first offender.
+//
+// This is a document-integrity guard, not a statistical one. A
+// degenerate design can leave the solver returning a NaN or ±Inf
+// coefficient, and encoding/json refuses those outright — so a single
+// such model would fail the marshal of the ENTIRE profile document,
+// turning one unfittable field into a failed `profile create`. The
+// models are an addition to a document that is complete without them,
+// so an unrepresentable model is dropped with a warning on exactly the
+// same footing as a model that failed to fit at all.
+func finiteModel(m *FieldModel) (string, bool) {
+	if !isFinite(m.Intercept) {
+		return "intercept", false
+	}
+	if !isFinite(m.R2) {
+		return "r2", false
+	}
+	if !isFinite(m.ResidualStd) {
+		return "residual_std", false
+	}
+	for i := range m.Predictors {
+		if !isFinite(m.Predictors[i].Coefficient) {
+			return "coefficient for " + m.Predictors[i].Field + "=" + m.Predictors[i].Level, false
+		}
+	}
+	return "", true
+}
+
+func isFinite(f float64) bool { return !math.IsNaN(f) && !math.IsInf(f, 0) }
 
 // modelSkipWarning is the single spelling of "this field has no model".
 // Skipping is never a refusal — a cohort where every numeric field is
@@ -492,6 +604,7 @@ func (f *modelFitter) finish(warnings *[]string) []FieldModel {
 			Field:       fit.target,
 			Intercept:   res.Coefficients[regression.InterceptKey],
 			Predictors:  make([]ModelPredictor, 0, len(fit.columns)),
+			References:  fit.references,
 			NObs:        res.NObs,
 			R2:          res.R2,
 			ResidualStd: res.ResidualStdErr,
@@ -504,6 +617,11 @@ func (f *modelFitter) finish(warnings *[]string) []FieldModel {
 				Level:       c.Level,
 				Coefficient: res.Coefficients[c.Name],
 			})
+		}
+		if what, ok := finiteModel(model); !ok {
+			*warnings = append(*warnings, modelSkipWarning(fit.target,
+				"fit produced a non-finite "+what))
+			continue
 		}
 		fit.model = model
 		kept = append(kept, fit)

@@ -81,6 +81,86 @@ type Spec struct {
 	// ConditionalProfile.SetSetPairs when present; absent (nil)
 	// reproduces the independent per-option marginal behavior exactly.
 	SetSetPairs []SetSetPairSpec `json:"set_set_pairs,omitempty"`
+
+	// Models lists optional per-numeric ADDITIVE linear predictors to
+	// drive generation with, the Spec-facing counterpart of the profile
+	// document's `models` section (`profile create --fit-models`).
+	// Populated by SpecFromProfile from Profile.Models when present;
+	// absent (nil, the zero value) reproduces today's behaviour exactly
+	// — every pre-existing spec, hand-authored or profile-derived, has
+	// no such key.
+	//
+	// Where CategoricalNumericPairs and SetNumericPairs each RESAMPLE a
+	// numeric field from one paired field's conditional moments — so two
+	// pairs naming the same numeric compete to be the last writer, and
+	// resolveConflicts has to drop one — a model accounts for every
+	// predictor in a single expression. SpecFromProfile therefore treats
+	// the two as alternatives rather than layers: a profile carrying
+	// `models` populates this slot and leaves both numeric-target pair
+	// slots empty.
+	Models []FieldModelSpec `json:"models,omitempty"`
+}
+
+// FieldModelSpec is one numeric field's additive linear predictor as
+// generation consumes it: the Spec-facing counterpart of FieldModel,
+// carrying only what a draw needs.
+//
+// It is a distinct type from FieldModel rather than a re-use of it for
+// the same reason every *PairProfile has its own *PairSpec: the profile
+// shape is a MEASUREMENT (it carries n_obs, R2 and a residual reservoir
+// that describe how well the fit was supported), while the spec shape is
+// an INSTRUCTION (it carries the clamp bounds the profile keeps on the
+// numeric field summary instead). Collapsing them would drag capture
+// diagnostics into a hand-authorable generation surface.
+type FieldModelSpec struct {
+	// Field is the numeric field this model draws.
+	Field string `json:"field"`
+	// Intercept is the constant term — the prediction for a row sitting
+	// at every categorical predictor's reference level with no set
+	// option selected.
+	Intercept float64 `json:"intercept"`
+	// Predictors are the per-(field, level) contributions summed into
+	// the prediction. A row whose drawn value for a predictor's Field is
+	// not that predictor's Level contributes nothing for it.
+	Predictors []ModelPredictorSpec `json:"predictors"`
+	// ResidualStd is the scale of the residual added on top of the
+	// linear prediction. Zero means a deterministic prediction, which is
+	// a legal (if degenerate) model rather than an error.
+	ResidualStd float64 `json:"residual_std"`
+	// Min/Max are the numeric field's observed bounds, carried alongside
+	// HasClamp exactly as CategoricalNumericPairSpec and
+	// SetNumericPairSpec already carry them. They are the same bounds
+	// the field's own reconstructed marginal would clamp to; whether and
+	// where the draw applies them is the generation stage's decision,
+	// and this slot only guarantees the numbers are available to it
+	// without a second lookup into the profile.
+	Min      float64 `json:"min,omitempty"`
+	Max      float64 `json:"max,omitempty"`
+	HasClamp bool    `json:"has_clamp,omitempty"`
+}
+
+// ModelPredictorSpec is one (field, level) contribution of a
+// FieldModelSpec.
+//
+// Kind distinguishes the two indicator semantics and is not derivable
+// from (Field, Level): a categorical_level column is one arm of a
+// partition whose omitted reference level is the zero baseline, while a
+// set_option column is an independent indicator with no reference at
+// all. The internal design-column name the solver used is deliberately
+// absent — (Field, Level) is the addressing key here exactly as it is on
+// the profile document.
+type ModelPredictorSpec struct {
+	// Kind is one of the ModelPredictor* constants
+	// (ModelPredictorCategoricalLevel / ModelPredictorSetOption /
+	// ModelPredictorNumeric).
+	Kind string `json:"kind"`
+	// Field is the predictor's source field.
+	Field string `json:"field"`
+	// Level is the categorical level text or set option text that turns
+	// this contribution on.
+	Level string `json:"level"`
+	// Coefficient is added to the prediction when the indicator is 1.
+	Coefficient float64 `json:"coefficient"`
 }
 
 // SetCategoricalPairSpec is one set-option x categorical pair's
@@ -391,6 +471,40 @@ func validateSpec(s *Spec) error {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				"set-set pair must declare at least one cell",
 				map[string]any{"set_a": ssp.SetA, "set_b": ssp.SetB})
+		}
+	}
+	modelled := make(map[string]bool, len(s.Models))
+	for _, m := range s.Models {
+		if !seen[m.Field] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"model references unknown field", map[string]any{"field": m.Field})
+		}
+		// One field, one model. Two additive predictors for the same
+		// target are not a conflict this can arbitrate the way
+		// resolveConflicts arbitrates competing pair claims — a pair
+		// claim loses a relationship, whereas a second model would
+		// silently redefine the whole draw — so it is refused outright.
+		if modelled[m.Field] {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"duplicate model for field", map[string]any{"field": m.Field})
+		}
+		modelled[m.Field] = true
+		if m.ResidualStd < 0 {
+			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"model residual_std must be >= 0",
+				map[string]any{"field": m.Field, "residual_std": m.ResidualStd})
+		}
+		for _, pr := range m.Predictors {
+			if !seen[pr.Field] {
+				return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					"model predictor references unknown field",
+					map[string]any{"field": m.Field, "predictor": pr.Field})
+			}
+			if pr.Field == m.Field {
+				return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+					"model predictor may not be its own target",
+					map[string]any{"field": m.Field})
+			}
 		}
 	}
 	if s.MaxRejectionRate < 0 || s.MaxRejectionRate >= 1 {
