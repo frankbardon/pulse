@@ -135,7 +135,7 @@ recovered one, per predictor.
         {"kind": "categorical_level", "field": "region", "level": "east",
          "captured_coefficient": 1.2, "recovered_coefficient": 1.187,
          "std_error": 0.012, "delta": 0.013, "n_fired": 3341},
-        {"kind": "categorical_level", "field": "region", "level": "other",
+        {"kind": "categorical_level", "field": "region", "level": "yukon",
          "captured_coefficient": 1.76, "n_fired": 0,
          "error": "predictor level is absent from the output cohort's dictionary, so no row can carry it"}
       ]
@@ -164,14 +164,65 @@ than the estimator's own noise cannot be evidence of anything.
 zero: a term that fired thousands of times and recovered nothing is a
 fault; a term that never fired had nothing to recover.
 
-One caveat when reading a flag: the latent inversion undoes `Q`, but it
-cannot undo the writer's integer rounding. For a `packed_bool` or `u4`
-target that rounding is most of the map — a 0/1 value inverts to exactly
-two latent values — so a large share of the latent effect is destroyed
-by the write and the refit correctly reports only what survived. That is
-a real property of the generated cohort, not an artefact of the
-measurement: the rows genuinely carry less conditioning than the model
-asked for.
+#### Reading a flag without concluding the feature is broken
+
+**Expect flags.** On the 381,324-row survey cohort behind this feature,
+55 models were applied and **30 of them flagged**. That is not a
+generation failure, and the way to tell is that the flags cluster by the
+target's **on-wire type** — 18 `packed_bool` targets and 9 `u4` targets
+out of the 30.
+
+The reason is a known limitation with a name. The refit inverts each
+generated value back through `Q` to recover the latent it was drawn
+from, and that inversion is exact — but it cannot undo what the *writer*
+did afterwards. A `u4` field is stored rounded to a whole number; a
+`packed_bool` field is stored as 0 or 1 and nothing else. A latent
+effect of a fifth of a standard deviation survives that write only as a
+small change in how many rows crossed a boundary, so most of it is gone
+before anything measures it, and the refit correctly reports what is
+left. Call it **quantization attenuation**. It is a real property of the
+generated rows — they genuinely carry less conditioning than the model
+asked for — and the fix is a discrete draw (logistic or ordinal) for
+discrete targets rather than a looser tolerance. That is future work, so
+for now these flags are information, not action.
+
+What a flag on a **continuous, unrounded** target means is different,
+and that is the case worth acting on. Separate the two:
+
+| Look at | Quantization attenuation | A real generation fault |
+|---|---|---|
+| Target's field type | `packed_bool`, `u4`, or another narrow integer | `f32`/`f64`, or a wide integer |
+| `n_fired` | Healthy — thousands of rows | Healthy — thousands of rows (a *zero* here is neither case: nothing fired, so there was nothing to recover) |
+| `recovered_coefficient` | Same sign, systematically smaller | Near zero, or the wrong sign |
+| Peers | Most models of the same target type flag alike | An outlier among similar targets |
+
+`n_fired` is what stops the third row of that table being ambiguous. A
+term that fired thousands of times and recovered nothing is a fault
+worth reporting. A term that never fired had nothing to recover — the
+level exists in the model but the field's reconstructed marginal does
+not generate it, which is the absence case described above, and those
+terms carry an `error` rather than a delta.
+
+A quick triage over a report:
+
+```bash
+# how many models flagged, and of what target type
+jq '[.models[] | select(.flagged)] | length'          out.fidelity.json
+jq -r '[.models[] | select(.flagged) | .field] | .[]' out.fidelity.json
+
+# the terms actually driving the flags: fired a lot, recovered little
+jq '[.models[].predictors[]?
+     | select(.flagged and .n_fired > 500)
+     | {field, level, captured_coefficient, recovered_coefficient, n_fired}]
+    | sort_by(.n_fired) | reverse | .[:10]' out.fidelity.json
+```
+
+For calibration: among strong, well-supported terms on that same cohort
+(captured effect above 0.3 latent sd, `n_fired` over 500) the median
+recovered/captured ratio is **0.85** — e.g. a captured 2.219 recovering
+2.084. Generation is faithful there. A ratio near zero on a wide numeric
+target with a healthy `n_fired` is the signature that something in the
+generation path is not applying the model, and is worth reporting.
 
 Three absence rules, all deliberate:
 
@@ -184,6 +235,20 @@ Three absence rules, all deliberate:
   worse than reporting nothing, because the number looks like evidence.
 - A predictor whose level the generated cohort never carries is listed
   with an `error` and no delta, for the same reason.
+
+That last case has one cause worth naming, because it looks like a bug
+and is not. A model's retained level set and the field's own captured
+marginal are both cut at `--top-k`, but they are **ranked on different
+bases**: the model ranks levels by frequency within the rows its fit
+admitted for that one target, while the marginal ranks them across the
+whole cohort. Both keep 32 and they need not agree, so a level the model
+retained can be absent from the marginal that generates the field — on
+the survey cohort behind this feature, 9 of `brand`'s 32 design levels,
+4 of `ageExact`'s and 2 of `category`'s, 138 such terms out of 2,235.
+The `"other"` catch-all is **not** one of them: it is a design column
+like any other, it is generated through the categorical-pair stage, and
+on that cohort all 54 catch-all terms fired, between 3,992 and 9,046
+rows each.
 
 A model whose predictor selection admitted nothing carries
 `"marginal": true` and no `predictors` array. That is a *complete*
@@ -265,6 +330,20 @@ endpoint's model could not be refitted). Those entries carry
 — and **no** recovered-rho key at all, so an unmeasured pair can never
 be mistaken for one recovered at zero.
 
+For calibration again: 55 applied models on the survey cohort produce
+1,485 compared pairs, of which **147 flag**, at a mean `delta` of 0.055
+and a worst of 0.490. The worst entries are the same quantized targets
+the `models` section flags (`aware`×`familiarity`, `detractor`×`nps`) —
+one cause, surfacing in both sections.
+
+Because a modelled field is deliberately excluded from the value-scale
+`pairwise` arm, this section is the only place the report scores
+structure between two modelled fields. If you want the raw-value
+correlation between them as well, compute it over the output cohort's
+`_synthetic` partition yourself — on the survey cohort a source pair at
+0.835 realizes at 0.791 that way, which is the residual mechanism
+working as intended.
+
 `model_residual_correlations` is entirely absent when the profile
 carried no `residual_correlations` section, so a report for a profile
 captured without that flag is unchanged.
@@ -275,6 +354,23 @@ create`](profile-create.md)'s `--conditional` section) verbatim,
 letting a reader see "how well did it match" (`pairwise`) and "which
 parts were built on thin data" (`warnings`) in the one document.
 Absent, not an empty array, when the profile carried no warnings.
+
+### What the report costs
+
+The report is a footnote to generation, but on a wide cohort it is not a
+small file and it is not instant. Every model is refitted, so the work
+scales with the number of applied models and the width of their designs,
+and `model_residual_correlations` is quadratic in applied models. On the
+survey cohort — 105 captured models, 55 applied, designs up to 126
+columns — the report is about **1.65 MB** and adds a few seconds to a
+run that takes roughly **two minutes** in total. The refits are capped
+at the first 10,000 synthetic rows regardless of `--rows`, because the
+captured coefficients they are compared against were themselves
+estimated from a 10,000-row sample and sharpening one side of a
+comparison does not sharpen the comparison.
+
+Budget for it in a loop, and skip the flag when you are only iterating
+on `--seed`.
 
 Omitting `--fidelity-report` writes no report at all and changes no
 other behavior. The flag only has an effect on the tagged top-up path
@@ -295,10 +391,14 @@ count rather than an approximation), an optional per-numeric-field
 `shape` (when `--fit-shape` was passed AND that field's fit was a
 genuine improvement over normal — see
 [`pulse profile create`](profile-create.md)'s `--fit-shape` section),
-and a row count. A field carrying `shape` regenerates via the
-`mixture` distribution instead of `normal` — no separate flag here
-selects that; it is decided entirely by the profile document's own
-contents.
+an optional per-numeric-field linear model (`models`, when
+`--fit-models` was passed) with an optional correlation submatrix over
+those models' residuals (`residual_correlations`, when
+`--residual-correlations` was), and a row count. A field carrying
+`shape` regenerates via the `mixture` distribution instead of `normal`,
+and a field carrying a model is drawn through that model with its own
+marginal as the shape — no separate flag here selects either; it is
+decided entirely by the profile document's own contents.
 
 See [`pulse profile create`](profile-create.md) for how to capture
 one, and `synth/` for the underlying Go types.
@@ -342,10 +442,80 @@ pulse synth from-profile --profile sales.profile.json --source sales.pulse --out
 pulse synth from-profile --profile sales.profile.json --source sales.pulse --output sales.s42.pulse --rows 10000 --seed 42 --fidelity-report sales.s42.fidelity.json
 ```
 
+### Generating a numeric conditioned by several categoricals
+
+The companion to [`pulse profile create`](profile-create.md#one-numeric-conditioned-by-several-categoricals)'s
+worked example. Nothing here opts in — whether `spend` draws from a
+model is decided entirely by whether the profile carries one for it.
+
+```bash
+pulse profile create --input survey.pulse --output survey.profile.json \
+    --include-stats --conditional --fit-models --residual-correlations
+
+pulse synth from-profile --profile survey.profile.json --source survey.pulse \
+    --output survey.synth.pulse --rows 50000 --seed 7 \
+    --fidelity-report survey.fidelity.json
+```
+
+Check that the model was applied at all — a captured model that
+generation did not run has **no** entry in `models`, so presence is the
+check:
+
+```bash
+jq '.models[] | select(.field == "spend")
+    | {latent_scale, n_obs, r2, flagged,
+       fields: [.predictors[].field] | unique}' survey.fidelity.json
+```
+
+```json
+{
+  "latent_scale": 412.6,
+  "n_obs": 10000,
+  "r2": 0.29,
+  "flagged": null,
+  "fields": ["region", "segment", "tier"]
+}
+```
+
+`flagged` is omitted when nothing exceeded the band, which is the `null`
+the projection shows. All three conditioning fields are present and the
+model did not flag, so
+the generated rows carry `region`, `segment` and `tier` effects
+simultaneously — which the pick-one conditional sampler could not do.
+Because `spend` is modelled it has no `categorical_numeric_pairwise`
+entry, by design:
+
+```bash
+jq '[.categorical_numeric_pairwise[]? | select(.b == "spend")] | length' \
+    survey.fidelity.json     # 0
+```
+
+And because the model expresses all three relationships at once, none of
+them had to lose a conflict on the way in. Generation-time warnings —
+the conflicts, and any model the spec could not apply — land in this
+report's `warnings` array, after the capture-time ones the profile
+carried:
+
+```bash
+jq -r '.warnings[] | select(startswith("conditional relationship conflict"))' \
+    survey.fidelity.json     # empty for the numeric arms
+
+jq -r '.warnings[] | select(contains("not applied"))' survey.fidelity.json
+```
+
+A `not applied` line is the one to read closely: that field fell back to
+its `--conditional` pair, so it is still conditioned, but by one
+categorical rather than by all of them.
+
 ## Limitations
 
-- Categorical tails: anything past the captured top-K is replaced
-  with a sentinel "other" bucket sized to its observed weight.
+- Categorical tails: anything past the captured top-K is **dropped**,
+  not preserved as an `"other"` bucket — the retained levels' weights
+  are renormalised, so the tail's share is redistributed across them. A
+  1,900-level field therefore generates as `--top-k` levels. (The
+  `"other"` catch-all that appears in a `--fit-models` design and in
+  `conditional.*` tables is a different, per-section collapse and is
+  generated normally.)
 - Correlations: pairwise only, and only between numeric fields. The
   profile capture flag `--include-correlations` (or the more accurate
   `--conditional`) opts in; without either, fields are generated

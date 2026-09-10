@@ -45,7 +45,7 @@ pulse profile create --input PATH --output PATH
 | Field type | What is recorded |
 |---|---|
 | Numeric (`u*`, `f*`, `decimal128`) | Count, min, max, mean, stddev; percentiles if `--include-stats` |
-| Categorical | Top-K most-frequent values + their frequencies; "other" tail weight |
+| Categorical | Cardinality, plus the top-K most-frequent values with their observed weights. The tail below the cut is **not** retained as an `"other"` bucket — `synth from-profile` renormalises the retained weights, so a 1,900-level field regenerates as `--top-k` levels and the tail's share is redistributed across them. (The `"other"` spelling that *does* appear in `conditional.*` tables and in `--fit-models` designs is a different, per-section collapse.) |
 | `date` | Min, max, count |
 | `nullable_*` | Null count alongside the above |
 
@@ -363,6 +363,40 @@ it was carrying — and costs the rest of the document nothing. It also
 keeps its `--conditional` pair, so it is reconstructed from measured
 structure rather than from nothing.
 
+### What selection admits in practice
+
+Selection is calibrated for cohorts with enough rows to support a
+per-level coefficient — a survey panel or an operational extract, not a
+few hundred responses. A few numbers from a real 381,324-row, 122-field
+survey cohort give the shape of a typical result — the same cohort every
+measured figure on this page and on
+[`synth from-profile`](synth-from-profile.md) comes from:
+
+| | |
+|---|---|
+| Numeric fields, all of which got a model | 105 |
+| …of those, carrying at least one predictor | 55 |
+| Distinct (predictor field → target) relationships admitted | 113 |
+| Targets skipped | 0 |
+| Capture time, `--include-stats --conditional --fit-shape --fit-models` | ~37s |
+
+**Roughly half the models carrying no predictor is a normal result, not
+a breakage.** Those 50 fields are ones where no categorical or `set_*`
+in the cohort explained 1% of their variance — a finding about the
+cohort. They are reported as *carrying no predictors*, never as
+*skipped*, and the two words mean different things throughout the
+document: a zero-predictor model is complete and usable (it is the
+field's own mean and spread), while a skip means the field lost its
+model and fell back to whatever `--conditional` measured for it.
+
+On a **small** cohort expect the opposite pressure: with a few hundred
+rows most levels fall under the 50-observation mark, so most models are
+ridge-penalized, `shrinkage_alpha` appears widely, and the coefficients
+are pulled hard toward the reference level. That is the flag behaving
+correctly — it is refusing to state a level difference that a handful of
+rows cannot support — but it does mean the capture is not telling you
+much. Read the warnings before trusting a small-sample capture.
+
 ### What lands in the document
 
 The fits are written as an additive `models` section — one entry per
@@ -430,6 +464,50 @@ byte-for-byte the document it has always been; a capture **with** it
 moves nothing but that one key. `--conditional`,
 `--include-correlations`, `--correlation-top-k` and `--fit-shape` all
 keep their exact meaning, flag present or absent.
+
+### Reading a coefficient — it is not "points on the scale"
+
+Every coefficient is read **against the model's reference level** for
+that field: `region=west 11.02` beside `references: [{region, east}]`
+means *west relative to east*, not *west relative to zero*. A `set_*`
+option has no reference — it is read against not selecting the option.
+
+The subtler point is the **units**. Generation does not add a
+coefficient to a drawn value; it adds it to the field's *latent* — an
+internal standard-normal position — and the field's own captured
+marginal then turns that position into a value:
+
+```
+value = Q( Φ( μ(row) + σ·z ) )
+```
+
+That indirection is invisible for the simple case and unavoidable for
+the rest:
+
+- **A continuous field reconstructed as a plain normal** has an affine
+  marginal, so the round trip cancels: a coefficient of `+30` on such a
+  field really does move the drawn value by `+30` units, and reading it
+  as "thirty dollars of spend" is correct.
+- **A field carrying a `--fit-shape` mixture** does not. The same
+  coefficient shifts mass between the fitted modes rather than
+  translating the distribution, so how far a row moves depends on where
+  in the distribution it landed. Direction and ordering hold; magnitude
+  in data units does not.
+- **A field whose on-wire type is coarse** does not either, and this is
+  the case most survey cohorts are made of. A `u4` field storing a 0–10
+  scale is written to the nearest whole number; a `packed_bool` field is
+  written as 0 or 1 and nothing else. A latent shift of a quarter of a
+  standard deviation moves most rows by nothing at all and a few rows by
+  a whole scale point — it changes the *proportion* of rows that cross
+  each boundary, which is a real effect but not a per-row offset. On a
+  boolean target almost the whole latent effect disappears at write
+  time; see [`synth from-profile`](synth-from-profile.md)'s guidance on
+  reading a flagged model, where the same property shows up as a
+  measured recovery gap.
+
+So: read a coefficient's **sign and its size relative to the model's
+other coefficients** freely. Read it as an amount of the field only when
+the field is continuous, unrounded and reconstructed as a plain normal.
 
 ### What `models` replaces at generation time
 
@@ -700,6 +778,42 @@ Profile schema lives in `synth/profile.go` and is documented in
 Profiled 50000 rows from sales.pulse -> sales.profile.json
 ```
 
+### Where the warnings are
+
+Every diagnostic this command raises — thin pairs, shrunk levels,
+zero-predictor models, skipped models, unmeasured residual pairs — lands
+in the profile document's own `warnings` array. **The text summary above
+prints the row count and nothing else**, so on a capture where something
+was thin or dropped, the terminal looks exactly like a capture where
+nothing was. Read the array:
+
+```bash
+# how many, and what kind
+jq '.warnings | length' sales.profile.json
+jq -r '.warnings[]' sales.profile.json | sed 's/[0-9][0-9]*/N/g' | sort | uniq -c | sort -rn
+
+# the two that change what you can trust
+jq -r '.warnings[] | select(contains("skipped"))'          sales.profile.json
+jq -r '.warnings[] | select(contains("no predictors"))'    sales.profile.json
+```
+
+Volume is expected and is bounded on purpose: `--conditional` on a wide
+cohort emits a thin-pair line per thin pair (thousands is normal), while
+thin *levels* are aggregated per level and capped at twenty with a
+counted summary. A large count is not itself a problem — the two lines
+worth grepping for are the ones above, since a *skipped* model is a
+field that lost its fit and a *no predictors* model is a field the
+cohort does not explain.
+
+Two related warning kinds are **not** here, because they are not
+produced here: `conditional relationship conflict: …` and
+`model for numeric field "x" not applied: …` arise when the profile is
+translated into a generation spec, which happens inside
+[`pulse synth from-profile`](synth-from-profile.md). Look for those on
+that command's `--json` output (`data.warnings`) or in its
+`--fidelity-report`, where they are appended after this document's own
+warnings.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -721,6 +835,63 @@ pulse profile create --input sales.pulse --output sales.profile.json
 pulse profile create --input sales.pulse --output sales.profile.json \
     --include-stats --include-correlations --top-k 64 --correlation-top-k 32
 ```
+
+### One numeric conditioned by several categoricals
+
+This is what `--fit-models` adds that no earlier flag could express.
+`--conditional` measures a numeric field against **one** categorical at
+a time, and at generation time only one of those pairs can claim the
+field — the rest are dropped as conflicts, one warning each. A linear
+model carries all of them at once.
+
+```bash
+pulse profile create --input survey.pulse --output survey.profile.json \
+    --include-stats --conditional --fit-models
+```
+
+Ask the document which fields condition `spend`:
+
+```bash
+jq '.models[] | select(.field == "spend")
+    | {n_obs, r2, shrinkage_alpha,
+       fields: [.predictors[].field] | unique,
+       terms: (.predictors | length),
+       references}' survey.profile.json
+```
+
+```json
+{
+  "n_obs": 9840,
+  "r2": 0.31,
+  "shrinkage_alpha": null,
+  "fields": ["region", "segment", "tier"],
+  "terms": 27,
+  "references": [
+    {"field": "region",  "level": "east"},
+    {"field": "segment", "level": "consumer"},
+    {"field": "tier",    "level": "bronze"}
+  ]
+}
+```
+
+Three separate categoricals now condition `spend` additively: a `west`
+row in the `enterprise` segment on the `gold` tier gets all three
+offsets, not whichever pair happened to claim the field first. The
+`"shrinkage_alpha": null` is `jq` making an absent key explicit — every
+level in this design cleared 50 rows, so the fit is plain least squares.
+
+The `--conditional` pairs for `spend` are still in the document — the
+capture keeps everything it measured — and it is
+[`synth from-profile`](synth-from-profile.md#generating-a-numeric-conditioned-by-several-categoricals)
+that stands them down for a modelled target. The retirement is per
+**target**: a numeric that got no usable model keeps its pair, so the
+fallback is measured structure rather than nothing.
+
+On the 381k-row survey cohort behind this feature the same query against
+`nps` returns seven conditioning fields — `age`, `ageExact`, `brand`,
+`category`, `educationLevel`, `ethnicity` and `income` — over a
+126-column design. Under `--conditional` alone, six of those seven
+relationships were unrepresentable.
 
 ### Sample-limited profile for a huge cohort
 
