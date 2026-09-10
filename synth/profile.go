@@ -168,6 +168,27 @@ type ProfileOptions struct {
 	// predictors instead of from --conditional's one-pair-at-a-time
 	// numeric-target arms, which are then not populated at all.
 	FitModels bool
+	// FitResidualCorrelations enables capture of the correlation
+	// structure among the fitted model RESIDUALS
+	// (`profile create --residual-correlations`, E3-S1), written as the
+	// additive `residual_correlations` section
+	// (Profile.ResidualCorrelations).
+	//
+	// It requires FitModels — residuals are what the models produce, so
+	// with no models there is nothing to correlate, and asking for this
+	// alone warns rather than silently emitting nothing.
+	//
+	// It is deliberately its own flag rather than an implication of
+	// FitModels: the section is QUADRATIC in modelled fields (105
+	// targets is 5,460 pairs) and no existing caller asked for it, so
+	// switching it on with --fit-models would grow every such document
+	// without notice. It is likewise deliberately NOT wired to
+	// IncludeCorrelations / CorrelationTopK, which keep their exact
+	// meaning — the strongest top-K pairs of RAW values. This section is
+	// a different measurement (residuals, not raw values) with a
+	// different shape (a full submatrix, not a ranked list), and sharing
+	// either flag would silently change what those two already mean.
+	FitResidualCorrelations bool
 	// Seed drives the reservoir-sampling RNG used by
 	// IncludeConditional's categorical-categorical contingency capture
 	// (E7-S2) once the source cohort exceeds conditionalJointCap rows.
@@ -214,9 +235,27 @@ type Profile struct {
 	// reservoir and the internal design-column names are `json:"-"`, so
 	// a Profile read back from JSON carries coefficients but no
 	// per-row residuals. See FieldModel for why.
-	Models   []FieldModel   `json:"models,omitempty"`
-	Warnings []string       `json:"warnings,omitempty"`
-	Meta     map[string]any `json:"meta,omitempty"`
+	Models []FieldModel `json:"models,omitempty"`
+	// ResidualCorrelations carries the correlation structure among the
+	// fitted model residuals, captured only when
+	// ProfileOptions.FitResidualCorrelations was set (`profile create
+	// --residual-correlations`) alongside --fit-models. Additive and
+	// omitempty, exactly like Conditional and Models.
+	//
+	// It is a SEPARATE measurement from Pairwise and
+	// Conditional.NumericPairs, not a refinement of either: those two
+	// correlate raw values and this correlates what is left after each
+	// field's model has explained what it can. All three can coexist in
+	// one document, and none of them replaces another.
+	//
+	// SpecFromProfile does not consume it yet — the correlated residual
+	// draw is E3-S2's job. Capturing it first is deliberate: the
+	// generator cannot honour structure the capture never measured, and
+	// the capture had to learn to say "unmeasured" before anything could
+	// act on it. See ResidualCorrelationProfile.
+	ResidualCorrelations *ResidualCorrelationProfile `json:"residual_correlations,omitempty"`
+	Warnings             []string                    `json:"warnings,omitempty"`
+	Meta                 map[string]any              `json:"meta,omitempty"`
 }
 
 // ConditionalProfile carries the joint reconstruction structure
@@ -1312,6 +1351,26 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 
 	if fitter != nil {
 		pf.Models = fitter.finish(&warnings)
+	}
+
+	// The residual submatrix runs after the fits because it is measured
+	// FROM them: FieldModel.Residuals does not exist until finish() has
+	// solved every model and replayed the snapshot. It needs no cohort
+	// access of its own — the residual reservoir is already in memory —
+	// so it adds no read to the single scan.
+	if opts.FitResidualCorrelations {
+		switch {
+		case !opts.FitModels:
+			// Refusing outright would be disproportionate for a flag
+			// combination whose only consequence is an absent section,
+			// but staying silent would leave a caller believing they
+			// captured a submatrix they did not. Say so and carry on.
+			warnings = append(warnings,
+				"residual correlations requested without --fit-models: residuals come from fitted "+
+					"models, so no models means nothing to correlate and no residual_correlations section is written")
+		default:
+			pf.ResidualCorrelations = computeResidualCorrelations(pf.Models, &warnings)
+		}
 	}
 
 	if len(warnings) > 0 {

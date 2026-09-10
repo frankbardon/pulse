@@ -201,10 +201,17 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	conflicts := resolveConflicts(s)
 	warnings = conflicts.warnings
 
-	corr, err := buildCorrelator(conflicts.correlations, wfs)
+	// corrWarnings names what the correlation matrix had to invent to be
+	// usable — pairs never supplied and completed as independent, and a
+	// ridge that had to be added because the supplied ones were not
+	// jointly realizable. Both were silent before E3-S1; see
+	// buildCorrelator for why the policy is assume-and-record rather
+	// than refuse.
+	corr, corrWarnings, err := buildCorrelator(conflicts.correlations, wfs)
 	if err != nil {
 		return 0, 0, nil, err
 	}
+	warnings = append(warnings, corrWarnings...)
 	models, modelWarnings, err := buildModelDrawers(conflicts.models, wfs)
 	if err != nil {
 		return 0, 0, nil, err

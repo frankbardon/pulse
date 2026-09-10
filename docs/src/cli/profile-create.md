@@ -18,6 +18,7 @@ pulse profile create --input PATH --output PATH
                      [--top-k N] [--include-stats]
                      [--include-correlations] [--correlation-top-k N]
                      [--conditional] [--fit-shape] [--fit-models]
+                     [--residual-correlations]
                      [--sample-limit N] [--seed N] [--json]
 ```
 
@@ -34,6 +35,7 @@ pulse profile create --input PATH --output PATH
 | `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`), categorical-categorical contingency tables (`conditional.categorical_pairs`), categorical-numeric conditional means (`conditional.categorical_numeric_pairs`), and — per option of any `set_*` field — the same three pair kinds against categorical/numeric/other-set fields (`conditional.set_categorical_pairs`, `conditional.set_numeric_pairs`, `conditional.set_set_pairs`) |
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
 | `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels and set options automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
+| `--residual-correlations` |     | bool   | false      | Capture the full correlation submatrix among `--fit-models`' fitted residuals (`residual_correlations`); every pair, measured or explicitly unmeasured — never a top-K sample and never a fabricated zero (see below). Requires `--fit-models` |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling and `--fit-models`' residual reservoir (see below); each draws from its own stream, so the two flags never perturb each other, and the same `(--input, --seed)` produces byte-identical captured output |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
@@ -508,7 +510,135 @@ predictor fired.
 A `correlations` entry naming a modelled field is **not yet applied** —
 correlated residuals are the intended composition and have not landed —
 and is reported as such rather than silently overwriting the model's
-draw.
+draw. What HAS landed is the capture half; see the next section.
+
+## `--residual-correlations`: the residual submatrix
+
+`--include-correlations` and `--conditional` both measure the
+correlation between two fields' **raw values**, which is the right
+quantity when each field is reconstructed from its own marginal and
+nothing else. It stops being the right quantity the moment a field
+carries a model: once a numeric's systematic variation is explained by
+its predictors, the part still free to move at generation time is the
+**residual**. Two fields both driven by `region` correlate strongly on
+raw values while their residuals may be independent — imposing the raw
+figure on the residual draw would apply `region`'s effect twice.
+
+`--residual-correlations` (which requires `--fit-models`) measures the
+correlation between every pair of fitted residuals and writes it as the
+additive `residual_correlations` section. It reads no extra bytes from
+the cohort: the residual reservoir is already in memory when the fits
+finish.
+
+```json
+{
+  "residual_correlations": {
+    "fields": ["alpha", "beta", "gamma"],
+    "pairs": [
+      { "a": "alpha", "b": "beta",  "rho": 0.81, "n": 600 },
+      { "a": "alpha", "b": "gamma", "rho": 0.02, "n": 600 }
+    ],
+    "unmeasured": [
+      { "a": "beta", "b": "gamma", "n": 1, "reason": "insufficient_overlap" }
+    ]
+  }
+}
+```
+
+### The full submatrix, not a top-K sample
+
+`--correlation-top-k` retains the strongest *K* pairs because its
+consumer applies one pair at a time. This section's eventual consumer is
+a joint draw over every participant at once — a Cholesky factor of the
+whole matrix — and a matrix is not a ranked list. A pair left out of it
+is not "weak", it is a hole the factorization has to fill with
+something. So every pair among participants is visited.
+
+`--include-correlations` and `--correlation-top-k` are untouched and
+keep their exact meaning. This is a different measurement (residuals,
+not raw values) with a different shape (a submatrix, not a ranked list),
+and sharing either flag would silently change what those two already
+mean. It is likewise **not** implied by `--fit-models`: the section is
+quadratic in modelled fields (105 targets is 5,460 pairs), so switching
+it on for free would grow every such document without notice.
+
+### Measured zero is not the same as unmeasured
+
+`fields` + `pairs` + `unmeasured` is exhaustive and non-overlapping:
+every unordered pair among `fields` appears in exactly one of the two
+lists.
+
+A dense *N*×*N* array would have one slot per pair and every slot would
+have to hold a number, so "unmeasured" would have nowhere to live except
+a sentinel — and the sentinel that reads most naturally is `0`, which is
+also a perfectly ordinary measurement. Two lists make the two states
+*structurally* different rather than conventionally different, and a
+JSON round trip preserves a structural difference for free. **An
+unmeasured entry carries no `rho` key at all** — there is no slot for a
+zero to be written into.
+
+Two reasons, a closed vocabulary:
+
+| `reason` | Means |
+|---|---|
+| `insufficient_overlap` | Fewer than three rows carry both residuals. Two points always produce a Pearson coefficient of exactly ±1 — a line through two points is a perfect fit — so a figure from a handful of rows is an artifact of the arithmetic, not a weak measurement |
+| `no_variance` | The rows overlapped but one side's residual is constant across them, so the correlation is 0/0. An exactly fitted model on the overlap is the ordinary cause |
+
+That floor of three is deliberately **not** the 30-observation
+thin-pair threshold. Thirty answers "is this stable enough to trust",
+and its answer is a warning — a shaky measurement of something real
+beats no measurement. Three answers "is there a measurement here at
+all", and below it there is not. The two compose: a pair at or above
+three but below thirty is measured *and* warned.
+
+Warnings are bounded. One summary line names how many pairs are
+unmeasured (the per-pair reasons are already in the document, so the
+warning's job is to make sure the gap is noticed, not to re-list it);
+thin measured pairs are named individually up to twenty, thinnest-first,
+then collapse into one counted summary.
+
+### Who participates
+
+Every model carrying a residual vector, **including a model with zero
+predictors**. Selection can legitimately leave a target with nothing
+admitted, and such a target still has a residual: its whole deviation
+from its own mean. Excluding it would drop real structure for a reason
+unrelated to that structure, and would do it asymmetrically, since the
+same field paired against a predictor-carrying target is exactly as
+measurable. Its residual correlation simply coincides with its raw
+correlation, which is the correct answer for a field nothing predicts.
+
+A model whose residual vector is *absent* — a `Profile` decoded from a
+document, where the reservoir is deliberately not serialised — is not a
+participant. Treating it as one would produce a submatrix in which every
+pair is unmeasured, which describes the reader's situation rather than
+the cohort's.
+
+`synth from-profile` does not consume this section yet; the correlated
+residual draw is the next step. Capturing first is deliberate — the
+generator cannot honour structure the capture never measured, and the
+capture had to learn to say "unmeasured" before anything could act on
+it.
+
+### What the generator does with an incomplete matrix
+
+Independently of this section, `synth from-profile` and
+`synth from-schema` now say out loud what the correlation stage has to
+invent. `correlations` is a list and the Cholesky needs a matrix, so
+every pair the list does not name is filled with zero — those fields are
+drawn independent — and the run emits a warning counting how many pairs
+were **completed by assumption**. Refusing was considered and rejected:
+an incomplete list is the normal input (a spec correlating *a*–*b* and
+*b*–*c* has said nothing about *a*–*c*, and a profile-derived list is
+capped by `--correlation-top-k` by construction), and zero is the only
+completion that adds no structure the caller did not ask for. What was
+not acceptable is doing it silently.
+
+The ridge fallback likewise stays — it is the safety net for a matrix
+whose *supplied* entries are not jointly realizable — but now reports
+the diagonal jitter it had to add. A regularized matrix means the
+realized correlations will be pulled toward zero, which a caller
+previously could only infer from the output.
 
 ## Output
 
