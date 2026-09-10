@@ -65,6 +65,33 @@ const otherCategoryLabel = "other"
 // being dropped silently.
 const ContingencyCellCap = 128
 
+// thinSupportWarning is the one spelling of "this figure rests on too
+// few observations to trust" in the whole package, and every capture
+// stage that has such a figure routes through it.
+//
+// subject names WHAT is thin, a and b the two things it relates, and
+// consequence what the reader should expect as a result. The first two
+// were already generic across pair KIND; consequence is the third axis,
+// added when model-coefficient shrinkage became the first caller whose
+// outcome is not "a reconstructed correlation may be unstable" but "the
+// coefficient was pulled toward its baseline". Splitting it out rather
+// than adding a second warning builder is what keeps a reader scanning
+// Profile.Warnings able to recognise every thin-support line by its
+// shape, whatever produced it — and every existing caller's text is
+// byte-identical to what it was, because thinPairWarning below still
+// supplies the same two literals it always inlined.
+//
+// Returns "" when n meets the threshold, so a caller can append
+// unconditionally.
+func thinSupportWarning(subject, a, b string, n, threshold int, consequence string) string {
+	if n >= threshold {
+		return ""
+	}
+	return fmt.Sprintf(
+		"thin %s %s x %s: only %d supporting observation(s) (below %d) — %s",
+		subject, a, b, n, threshold, consequence)
+}
+
 // thinPairWarning returns a warning string when n falls below
 // threshold, or "" when the pair has enough support. kind names the
 // pair type in the message (e.g. "numeric" today; "categorical" / "set"
@@ -72,12 +99,8 @@ const ContingencyCellCap = 128
 // mechanism produces reads the same shape regardless of which capture
 // path produced it.
 func thinPairWarning(kind, a, b string, n, threshold int) string {
-	if n >= threshold {
-		return ""
-	}
-	return fmt.Sprintf(
-		"thin %s pair %s x %s: only %d supporting observation(s) (below %d) — reconstructed correlation may be unstable",
-		kind, a, b, n, threshold)
+	return thinSupportWarning(kind+" pair", a, b, n, threshold,
+		"reconstructed correlation may be unstable")
 }
 
 // ProfileOptions modulates how Profile summarizes a cohort.
@@ -125,6 +148,47 @@ type ProfileOptions struct {
 	// for numeric fields so there is something to fit against, even
 	// when IncludeStats itself is false.
 	FitShape bool
+	// FitModels enables per-numeric linear model capture
+	// (`profile create --fit-models`, E1-S2): for each numeric field,
+	// fit one linear predictor of that field on the cohort's
+	// categorical LEVELS and set OPTIONS, driven off this same single
+	// scan, and retain the fitted coefficients, the residual scale and
+	// a bounded row-aligned residual vector.
+	//
+	// Off by default. When on, the fits are written to the document as
+	// the additive `models` section (Profile.Models) and nothing else in
+	// the document moves: every other section is byte-identical to the
+	// same capture with the flag off, and a capture WITHOUT the flag
+	// emits no `models` key at all. It draws from its own RNG stream, so
+	// --conditional's captured output does not depend on whether this
+	// flag was also passed.
+	//
+	// It does change what SpecFromProfile builds: a document carrying
+	// `models` reconstructs its numeric fields from the additive linear
+	// predictors instead of from --conditional's one-pair-at-a-time
+	// numeric-target arms, which are then not populated at all.
+	FitModels bool
+	// FitResidualCorrelations enables capture of the correlation
+	// structure among the fitted model RESIDUALS
+	// (`profile create --residual-correlations`, E3-S1), written as the
+	// additive `residual_correlations` section
+	// (Profile.ResidualCorrelations).
+	//
+	// It requires FitModels — residuals are what the models produce, so
+	// with no models there is nothing to correlate, and asking for this
+	// alone warns rather than silently emitting nothing.
+	//
+	// It is deliberately its own flag rather than an implication of
+	// FitModels: the section is QUADRATIC in modelled fields (105
+	// targets is 5,460 pairs) and no existing caller asked for it, so
+	// switching it on with --fit-models would grow every such document
+	// without notice. It is likewise deliberately NOT wired to
+	// IncludeCorrelations / CorrelationTopK, which keep their exact
+	// meaning — the strongest top-K pairs of RAW values. This section is
+	// a different measurement (residuals, not raw values) with a
+	// different shape (a full submatrix, not a ranked list), and sharing
+	// either flag would silently change what those two already mean.
+	FitResidualCorrelations bool
 	// Seed drives the reservoir-sampling RNG used by
 	// IncludeConditional's categorical-categorical contingency capture
 	// (E7-S2) once the source cohort exceeds conditionalJointCap rows.
@@ -152,8 +216,49 @@ type Profile struct {
 	// SpecFromProfile treats a nil Conditional exactly as it always
 	// has (falling back to Pairwise).
 	Conditional *ConditionalProfile `json:"conditional,omitempty"`
-	Warnings    []string            `json:"warnings,omitempty"`
-	Meta        map[string]any      `json:"meta,omitempty"`
+	// Models carries the per-numeric additive linear predictors captured
+	// only when ProfileOptions.FitModels was set (`profile create
+	// --fit-models`). Additive and omitempty, exactly like Conditional:
+	// the key is entirely absent from every document captured without
+	// the flag — including every document written before this section
+	// existed — and SpecFromProfile treats an empty Models exactly as it
+	// always has, falling back to Conditional's numeric-target pairs.
+	//
+	// The section is a REPLACEMENT for those pairs, not a supplement:
+	// when it is present SpecFromProfile stops populating
+	// Spec.CategoricalNumericPairs / Spec.SetNumericPairs entirely,
+	// because one additive model already accounts for every predictor at
+	// once and the pairs exist only to be applied one overwrite at a
+	// time. See SpecFromProfile for the full rule.
+	//
+	// Not every part of a captured FieldModel is durable: the residual
+	// reservoir and the internal design-column names are `json:"-"`, so
+	// a Profile read back from JSON carries coefficients but no
+	// per-row residuals. See FieldModel for why.
+	Models []FieldModel `json:"models,omitempty"`
+	// ResidualCorrelations carries the correlation structure among the
+	// fitted model residuals, captured only when
+	// ProfileOptions.FitResidualCorrelations was set (`profile create
+	// --residual-correlations`) alongside --fit-models. Additive and
+	// omitempty, exactly like Conditional and Models.
+	//
+	// It is a SEPARATE measurement from Pairwise and
+	// Conditional.NumericPairs, not a refinement of either: those two
+	// correlate raw values and this correlates what is left after each
+	// field's model has explained what it can. All three can coexist in
+	// one document, and none of them replaces another.
+	//
+	// SpecFromProfile translates the MEASURED pairs onto
+	// Spec.ResidualCorrelations, where generation consumes them as the
+	// shared source of randomness every modelled field's residual is
+	// drawn from (synth/residual_draw.go). The `unmeasured` list is
+	// translated into nothing at all: an absent pair is completed as
+	// independent by the generator, which counts and names the
+	// assumption, whereas writing it out as a zero would present it as
+	// a measurement. See ResidualCorrelationProfile.
+	ResidualCorrelations *ResidualCorrelationProfile `json:"residual_correlations,omitempty"`
+	Warnings             []string                    `json:"warnings,omitempty"`
+	Meta                 map[string]any              `json:"meta,omitempty"`
 }
 
 // ConditionalProfile carries the joint reconstruction structure
@@ -822,6 +927,23 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	catReservoirRNG := newRng(opts.Seed)
 	catJointSeen := 0
 
+	// fitter is nil unless ProfileOptions.FitModels asked for per-numeric
+	// linear models AND at least one field is fittable, so the per-row
+	// cost below is exactly zero for every existing caller. It rides
+	// this loop rather than a second scan — see synth/profile_models.go.
+	//
+	// opts.TopK is handed over rather than re-derived: the model
+	// capture's dummy expansion applies the SAME per-field top-K
+	// collapse FieldProfile.Categorical.Top and the conditional
+	// contingency tables apply, so a document's collapsed buckets mean
+	// one thing across every section of it. The default is already
+	// resolved at the top of this function, so the fitter never sees a
+	// zero.
+	var fitter *modelFitter
+	if opts.FitModels {
+		fitter = newModelFitter(schema, opts.TopK, opts.Seed, &warnings)
+	}
+
 	rowCount := 0
 	for {
 		err := rr.ReadRecordWithWide(values, nulls, wide)
@@ -914,7 +1036,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				v := values[f.Name]
 				na.count++
 				na.sum += v
-				na.sumSq += v * v
+				na.sumSq += float64(v * v)
 				if v < na.min {
 					na.min = v
 				}
@@ -924,6 +1046,11 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				if na.reservoirOn && len(na.samples) < 10000 {
 					na.samples = append(na.samples, v)
 				}
+			}
+		}
+		if fitter != nil {
+			if err := fitter.observe(values, nulls, wide); err != nil {
+				return nil, err
 			}
 		}
 		if len(jointFieldNames) >= 2 && len(jointRows) < conditionalJointCap {
@@ -988,7 +1115,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 					}
 					acc.count++
 					acc.sum += v
-					acc.sumSq += v * v
+					acc.sumSq += float64(v * v)
 				}
 			}
 		}
@@ -1042,7 +1169,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 						acc := perNum[nf][sel]
 						acc.count++
 						acc.sum += v
-						acc.sumSq += v * v
+						acc.sumSq += float64(v * v)
 					}
 				}
 			}
@@ -1158,13 +1285,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			}
 			if na.count > 0 {
 				mean := na.sum / float64(na.count)
-				var variance float64
-				if na.count > 1 {
-					variance = (na.sumSq - mean*na.sum) / float64(na.count-1)
-				}
-				if variance < 0 {
-					variance = 0
-				}
+				variance := sampleVariance(na.count, na.sum, na.sumSq)
 				num := &NumericProfile{
 					Min:  na.min,
 					Max:  na.max,
@@ -1222,6 +1343,30 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				SetNumericPairs:         setNumericPairs,
 				SetSetPairs:             setSetPairs,
 			}
+		}
+	}
+
+	if fitter != nil {
+		pf.Models = fitter.finish(&warnings)
+	}
+
+	// The residual submatrix runs after the fits because it is measured
+	// FROM them: FieldModel.Residuals does not exist until finish() has
+	// solved every model and replayed the snapshot. It needs no cohort
+	// access of its own — the residual reservoir is already in memory —
+	// so it adds no read to the single scan.
+	if opts.FitResidualCorrelations {
+		switch {
+		case !opts.FitModels:
+			// Refusing outright would be disproportionate for a flag
+			// combination whose only consequence is an absent section,
+			// but staying silent would leave a caller believing they
+			// captured a submatrix they did not. Say so and carry on.
+			warnings = append(warnings,
+				"residual correlations requested without --fit-models: residuals come from fitted "+
+					"models, so no models means nothing to correlate and no residual_correlations section is written")
+		default:
+			pf.ResidualCorrelations = computeResidualCorrelations(pf.Models, &warnings)
 		}
 	}
 
@@ -1289,7 +1434,7 @@ func computePercentiles(samples []float64, qs []float64) []float64 {
 			out[i] = 0
 			continue
 		}
-		idx := q * float64(len(sorted)-1)
+		idx := float64(q * float64(len(sorted)-1))
 		lo := int(math.Floor(idx))
 		hi := int(math.Ceil(idx))
 		if lo == hi {
@@ -1297,7 +1442,7 @@ func computePercentiles(samples []float64, qs []float64) []float64 {
 			continue
 		}
 		frac := idx - float64(lo)
-		out[i] = sorted[lo]*(1-frac) + sorted[hi]*frac
+		out[i] = float64(sorted[lo]*(1-frac)) + float64(sorted[hi]*frac)
 	}
 	return out
 }
@@ -1370,9 +1515,9 @@ func pearson(a, b []float64) float64 {
 	for i := 0; i < n; i++ {
 		da := a[i] - mA
 		db := b[i] - mB
-		num += da * db
-		dA += da * da
-		dB += db * db
+		num += float64(da * db)
+		dA += float64(da * da)
+		dB += float64(db * db)
 	}
 	if dA == 0 || dB == 0 {
 		return math.NaN()
@@ -1541,8 +1686,39 @@ func computeConditionalCategoricalNumericPairs(catFields, numFields []string, ca
 			// own top-K plus one "other" bucket, mirroring the
 			// per-field collapse computeConditionalCategoricalPairs
 			// applies before building its joint table.
+			//
+			// The fold walks raw in SORTED key order rather than in map
+			// order, and that is load-bearing rather than tidiness.
+			// Every out-of-top-K category lands in the ONE shared
+			// otherCategoryLabel accumulator, so that bucket's
+			// sum/sumSq are a pairwise float64 sum over many addends;
+			// float addition is not associative and Go randomizes map
+			// iteration, so folding in map order gives a different
+			// sumSq per process. The variance below is the
+			// cancellation-prone (sumSq - mean*sum) form, which
+			// amplifies rather than absorbs that: on a cohort of
+			// ~1e4-magnitude values sumSq lands near 1e11 against a
+			// variance near 1e8, turning a single last-bit difference
+			// in the fold into a ~1e-10 relative drift in the emitted
+			// Std. That was a real, reproduced break of the
+			// byte-reproducibility `pulse profile create` promises, and
+			// its signature was diagnostic: ONLY "other" entries
+			// drifted, because "other" is the only multi-source
+			// accumulator here — an in-top-K key has exactly one source
+			// and no fold order to get wrong. Sorting is the fix rather
+			// than compensated summation because the goal is a
+			// REPRODUCIBLE answer, and Kahan summation is still
+			// order-dependent in principle. The cost is bounded by
+			// TopK + the raw distinct-value count and paid once per
+			// pair, not per record.
+			rawKeys := make([]string, 0, len(raw))
+			for catVal := range raw {
+				rawKeys = append(rawKeys, catVal)
+			}
+			sort.Strings(rawKeys)
 			collapsed := make(map[string]*condCatNumAcc)
-			for catVal, acc := range raw {
+			for _, catVal := range rawKeys {
+				acc := raw[catVal]
 				key := catVal
 				if !allowed[catVal] {
 					key = otherCategoryLabel
@@ -1563,13 +1739,7 @@ func computeConditionalCategoricalNumericPairs(catFields, numFields []string, ca
 					continue
 				}
 				mean := acc.sum / float64(acc.count)
-				var variance float64
-				if acc.count > 1 {
-					variance = (acc.sumSq - mean*acc.sum) / float64(acc.count-1)
-				}
-				if variance < 0 {
-					variance = 0
-				}
+				variance := sampleVariance(acc.count, acc.sum, acc.sumSq)
 				cats = append(cats, CategoricalNumericCategoryStat{
 					Category: catVal,
 					Mean:     mean,
@@ -1697,13 +1867,7 @@ func computeSetNumericPairs(setFields []string, setOptionNames map[string][]stri
 						continue
 					}
 					mean := acc.sum / float64(acc.count)
-					var variance float64
-					if acc.count > 1 {
-						variance = (acc.sumSq - mean*acc.sum) / float64(acc.count-1)
-					}
-					if variance < 0 {
-						variance = 0
-					}
+					variance := sampleVariance(acc.count, acc.sum, acc.sumSq)
 					cats = append(cats, CategoricalNumericCategoryStat{
 						Category: key, Mean: mean, Std: math.Sqrt(variance), N: acc.count,
 					})
@@ -1862,6 +2026,55 @@ func collapseCells(counts map[[2]string]int, cellCap int) []ContingencyCell {
 // at min/max), categorical fields as weighted_categorical, and date
 // fields as uniform_date over the observed range.
 //
+// # Choosing between `models` and `conditional`'s numeric-target arms
+//
+// A numeric field that lands a model on the Spec (`profile create
+// --fit-models`) is reconstructed from that additive linear predictor,
+// and the two NUMERIC-TARGET conditional arms — CategoricalNumericPairs
+// and SetNumericPairs — are then not populated FOR THAT FIELD. This is a
+// REPLACEMENT, not a preference between equals: those arms exist to
+// resample a numeric from one paired field's conditional moments, so on
+// a cohort with several categorical and set fields every one of them
+// claims the same numeric target and all but the first are dropped by
+// resolveConflicts, one warning each. A model already accounts for all
+// of those predictors simultaneously, so the pairs have nothing left to
+// add and populating them would generate thousands of conflict warnings
+// about relationships the spec no longer needs. Leaving the slots empty
+// is what retires them as claimants — resolveConflicts itself is
+// untouched and still arbitrates exactly as before for every spec that
+// does populate them.
+//
+// The retirement is PER TARGET, deliberately, and it did not start that
+// way. It was first written per DOCUMENT — one `models` section retired
+// both arms wholesale — on the reasoning that a spec mixing model-driven
+// and pair-driven numerics would give two fields in the same cohort two
+// different reconstruction semantics with nothing on the wire saying
+// which got which. That reasoning does not survive contact with a real
+// cohort. Predictor selection means a target can legitimately end up
+// with no model (its marginal reconstructed to something a linear
+// predictor cannot ride, or its design refused as unsolvable), and under
+// the document-wide rule such a field lost its captured conditional pair
+// as well and came out reconstructed from NOTHING — strictly worse than
+// before --fit-models existed. The mixed-semantics objection is also
+// answerable: the spec names both sets explicitly (Spec.Models versus
+// Spec.CategoricalNumericPairs / Spec.SetNumericPairs), so the wire does
+// say which got which, and resolveConflicts already claims a modelled
+// target before any pair stage bids, so a field can never be reached by
+// both. Falling back per field costs nothing and keeps a skipped model
+// from silently deleting structure the capture measured.
+//
+// The three NON-numeric-target arms (CategoricalPairs,
+// SetCategoricalPairs, SetSetPairs) are unaffected and populate exactly
+// as they always have: a model predicts a numeric FROM categorical and
+// set structure, it says nothing about how that structure co-varies
+// with itself. A user may legitimately pass --conditional and
+// --fit-models together and gets both halves.
+//
+// Absent `models`, every arm populates exactly as before — which is the
+// path every document written before the section existed takes, and the
+// same silent-fallback shape Conditional.NumericPairs-over-Pairwise
+// already uses below.
+//
 // The second return value carries any conditional-relationship conflict
 // warnings resolveConflicts (synth/conflict.go, E6-S1) produces when run
 // against the just-composed Spec — e.g. two captured pairs both
@@ -1940,18 +2153,21 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// capture time (fitNumericShape). Reuses DistMixture (E4-S1)
 			// verbatim: no new sampling logic, just the captured
 			// means/stds/weights handed straight through as its params.
-			// NOTE: DistMixture has no min/max clamp support (unlike
-			// DistNormal above), and a categorical-numeric conditional
-			// pair (Conditional.CategoricalNumericPairs) targeting this
-			// field will not wire up below — that wiring only fires
-			// when the reconstructed distribution is DistNormal, so a
-			// field that both shape-fits AND was profiled with
-			// --conditional silently keeps its independent shape-fitted
-			// marginal instead of the conditional one. Deliberate for
-			// v1: shape-fitting and categorical-numeric conditioning
-			// have not been asked to compose, and silently favoring the
-			// (arguably more informative) shape fit over dropping it is
-			// safer than crashing or reconciling the two by guesswork.
+			// NOTE: DistMixture declares no min/max clamp params
+			// (unlike DistNormal above), so a shape-fitted field's
+			// independent draw is unbounded; a MODELLED one takes its
+			// bound from FieldModelSpec.Min/Max instead (see
+			// modelSpecFromProfile).
+			//
+			// Conditioning: since E4-S1 a shape-fitted field DOES accept
+			// a captured linear model — the mixture becomes Q in
+			// value = Q(Phi(mu(row) + sigma*z)) and the predictors shift
+			// the latent, so shape and conditioning compose rather than
+			// one silently deleting the other. A shape-fitted field with
+			// no model still keeps its independent marginal and a
+			// captured categorical-numeric pair naming it is still
+			// excluded by resolveConflicts' captured-shape pre-claim,
+			// with a warning; that half is unchanged.
 			means := make([]any, len(fp.Numeric.Shape.Means))
 			stds := make([]any, len(fp.Numeric.Shape.Stds))
 			weights := make([]any, len(fp.Numeric.Shape.Weights))
@@ -2002,11 +2218,15 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			return
 		}
 		// A --fit-shape field that reconstructed to DistMixture (E4-S2)
-		// has no closed-form (mean, std) synth/copula.go's fieldMoments
-		// can hand a correlator — shape-fitting and numeric-numeric
-		// correlation reconstruction have not been asked to compose. This
-		// used to be excluded here directly (a silent drop); it is added
-		// unconditionally now and left to resolveConflicts (E6-S1,
+		// does not participate in numeric-numeric correlation
+		// reconstruction — not for want of moments (fieldMoments gained
+		// exact mixture moments at E4-S1) but because resolveConflicts
+		// pre-claims an unmodelled shape-fitted field, and a MODELLED
+		// one is excluded from the value-scale matrix permanently — its
+		// correlation structure rides Spec.ResidualCorrelations
+		// instead. This used to be excluded here directly (a
+		// silent drop); it is added unconditionally now and left to
+		// resolveConflicts (E6-S1,
 		// synth/conflict.go) at generate() setup time — a shape-fit field
 		// is pre-claimed there under "captured shape (--fit-shape)" before
 		// any correlation stage runs, so the outcome (the correlation
@@ -2036,15 +2256,65 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 	// field the profiler could not summarize (falls back to `constant` in
 	// the switch above) still being named in a stale/foreign profile
 	// document's Conditional section.
-	if p.Conditional != nil {
-		numericMoments := make(map[string]NumericProfile, len(p.Fields))
-		for _, fp := range p.Fields {
-			if fp.Numeric != nil {
-				numericMoments[fp.Name] = *fp.Numeric
-			}
+	numericMoments := make(map[string]NumericProfile, len(p.Fields))
+	for _, fp := range p.Fields {
+		if fp.Numeric != nil {
+			numericMoments[fp.Name] = *fp.Numeric
 		}
-		// distOf was already built above (numeric-numeric correlation
-		// wiring) — reused here rather than rebuilt.
+	}
+
+	// modelled names the numeric targets that actually landed a model on
+	// the Spec — not the targets the DOCUMENT carries a model for. The
+	// difference is the whole of the per-target retirement rule
+	// described above: a captured model that modelSpecFromProfile
+	// refuses to apply must leave its field's conditional pair standing,
+	// because the alternative is a field reconstructed from nothing at
+	// all.
+	modelled := make(map[string]bool, len(p.Models))
+	var modelWarnings []string
+	for _, m := range p.Models {
+		spec, why := modelSpecFromProfile(m, distOf, numericMoments)
+		if why != "" {
+			modelWarnings = append(modelWarnings, fmt.Sprintf(
+				"model for numeric field %q not applied: %s", m.Field, why))
+			continue
+		}
+		s.Models = append(s.Models, spec)
+		modelled[spec.Field] = true
+	}
+
+	// Residual correlation structure among the models that actually
+	// landed (`profile create --residual-correlations`). Only MEASURED
+	// pairs are translated, and only when both endpoints kept a model on
+	// this Spec.
+	//
+	// The document's `unmeasured` list is deliberately NOT translated
+	// into anything. It exists so a reader can tell a pair measured at
+	// rho = 0 from a pair nobody could measure, and the generator's
+	// completion policy already treats an absent pair as an assumption
+	// it names out loud (factorCorrelations, synth/copula.go). Writing
+	// an unmeasured pair out as a zero here would collapse exactly the
+	// distinction the capture side was built to preserve, and would do
+	// it silently, since a supplied zero is counted as measured.
+	//
+	// A pair whose endpoint lost its model needs no warning of its own:
+	// the model drop was already reported above, by field, with its
+	// reason — and buildResidualCorrelator names the consequence again
+	// at generate() time for a spec that reaches it with an unmodelled
+	// endpoint by some other route.
+	if p.ResidualCorrelations != nil {
+		for _, rc := range p.ResidualCorrelations.Pairs {
+			if !modelled[rc.A] || !modelled[rc.B] {
+				continue
+			}
+			s.ResidualCorrelations = append(s.ResidualCorrelations,
+				CorrelationSpec{A: rc.A, B: rc.B, Correlation: rc.Rho})
+		}
+	}
+
+	if p.Conditional != nil {
+		// distOf and numericMoments were already built above — reused
+		// here rather than rebuilt.
 		for _, cp := range p.Conditional.CategoricalPairs {
 			if distOf[cp.A] != DistWeightedCategorical || distOf[cp.B] != DistWeightedCategorical {
 				continue
@@ -2056,6 +2326,14 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			s.CategoricalPairs = append(s.CategoricalPairs, CategoricalPairSpec{A: cp.A, B: cp.B, Cells: cells})
 		}
 		for _, cnp := range p.Conditional.CategoricalNumericPairs {
+			if modelled[cnp.B] {
+				// Retired for THIS target: its model already carries
+				// every predictor the pairs could contribute, all at
+				// once. A target whose model was captured but not
+				// applied keeps its pair — see the doc comment above for
+				// why the retirement is per field and not per document.
+				continue
+			}
 			// distOf[cnp.B] == DistMixture (a --fit-shape reconstruction,
 			// E4-S2) is deliberately ALLOWED through here rather than
 			// filtered out — categoricalNumericPairSampler.transform
@@ -2066,7 +2344,11 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// Whether this pair actually gets to run is decided uniformly
 			// by resolveConflicts (E6-S1, synth/conflict.go) at generate()
 			// setup time: a shape-fit B is pre-claimed there, so the pair
-			// is excluded with an explicit warning — replacing what used
+			// is excluded with an explicit warning. (Only an UNMODELLED
+			// shape-fit B can reach this line at all — a modelled one was
+			// retired by the `modelled[cnp.B]` check above, since E4-S1
+			// lets a shape-fitted field carry a model — so the pre-claim
+			// is still what decides it.) That replaces what used
 			// to be this loop's own silent "shape fit wins" special case
 			// (distOf[cnp.B] != DistNormal) with the SAME shared mechanism
 			// every other conditional-relationship conflict routes through.
@@ -2108,6 +2390,11 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			})
 		}
 		for _, snp := range p.Conditional.SetNumericPairs {
+			if modelled[snp.Numeric] {
+				// Retired for THIS target, exactly as
+				// CategoricalNumericPairs above.
+				continue
+			}
 			if distOf[snp.Set] != DistSetBernoulli || distOf[snp.Numeric] != DistNormal {
 				continue
 			}
@@ -2138,5 +2425,100 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 		}
 	}
 	conflicts := resolveConflicts(s)
+	// Model-drop warnings ride the same channel as conflict warnings and
+	// come FIRST: a dropped model is why a numeric field fell back to
+	// its independent marginal, and reading that after the conflicts it
+	// prevented would invert the causal order. They are worded
+	// distinctly ("not applied") so neither kind can be mistaken for the
+	// other by a reader or by a test matching on the message.
+	if len(modelWarnings) > 0 {
+		return s, append(modelWarnings, conflicts.warnings...)
+	}
 	return s, conflicts.warnings
+}
+
+// modelSpecFromProfile translates one captured FieldModel into its
+// generation-facing FieldModelSpec, or returns the reason it cannot be
+// applied to THIS reconstructed spec.
+//
+// The guards mirror the "both sides must have reconstructed to the
+// expected distribution kind" rule the conditional pair wiring above
+// already applies, with one difference that follows from the shape: a
+// pair is one relationship and can be dropped on its own, whereas a
+// model is a single expression whose Intercept is defined relative to
+// every one of its predictors at once. Dropping a predictor from it
+// would leave the remaining coefficients being read against a baseline
+// that no longer exists — silently biased rather than merely poorer —
+// so an unusable predictor takes the whole model with it and says so.
+func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[string]NumericProfile) (FieldModelSpec, string) {
+	dist, present := distOf[m.Field]
+	if !present {
+		return FieldModelSpec{}, "target field is not present in the profile"
+	}
+	switch dist {
+	case DistNormal:
+	case DistMixture:
+		// A --fit-shape reconstruction. This USED to be a refusal — the
+		// mixture had no quantile function a linear predictor could ride
+		// — and refusing it here was the upstream half of the same
+		// exclusivity resolveConflicts enforced downstream. E4-S1
+		// retires both: the mixture now carries an exact (mean, std) and
+		// a numerically inverted quantile (synth/mixture_quantile.go),
+		// so the fitted shape simply becomes Q in
+		// value = Q(Phi(mu(row) + sigma*z)) and the predictors shift the
+		// latent. The field keeps its shape AND gains its conditioning,
+		// which is the whole point: the refusal was silently deleting
+		// every measured relationship on precisely the fields whose
+		// distributions were interesting enough to fit.
+		//
+		// The effect is on the LATENT scale and therefore non-linear in
+		// value space for a non-normal Q — a coefficient is not "this
+		// many units of the field" here. See synth/mixture_quantile.go.
+	default:
+		return FieldModelSpec{}, "target did not reconstruct to a normal distribution"
+	}
+	num, ok := moments[m.Field]
+	if !ok {
+		return FieldModelSpec{}, "target carries no numeric summary"
+	}
+
+	out := FieldModelSpec{
+		Field:       m.Field,
+		Intercept:   m.Intercept,
+		ResidualStd: m.ResidualStd,
+		Min:         num.Min,
+		Max:         num.Max,
+		HasClamp:    true,
+		Predictors:  make([]ModelPredictorSpec, 0, len(m.Predictors)),
+	}
+	for _, pr := range m.Predictors {
+		want := ""
+		switch pr.Kind {
+		case ModelPredictorCategoricalLevel:
+			want = DistWeightedCategorical
+		case ModelPredictorSetOption:
+			want = DistSetBernoulli
+		default:
+			return FieldModelSpec{}, fmt.Sprintf("predictor %q carries unsupported kind %q", pr.Field, pr.Kind)
+		}
+		got, present := distOf[pr.Field]
+		if !present {
+			return FieldModelSpec{}, fmt.Sprintf(
+				"predictor field %q is not present in the profile", pr.Field)
+		}
+		if got != want {
+			return FieldModelSpec{}, fmt.Sprintf(
+				"predictor field %q reconstructed as %q, not %q", pr.Field, got, want)
+		}
+		out.Predictors = append(out.Predictors, ModelPredictorSpec{
+			Kind:        pr.Kind,
+			Field:       pr.Field,
+			Level:       pr.Level,
+			Coefficient: pr.Coefficient,
+		})
+	}
+	if len(out.Predictors) == 0 {
+		return FieldModelSpec{}, "model carries no predictors"
+	}
+	return out, ""
 }

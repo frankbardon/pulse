@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
@@ -106,6 +107,26 @@ type CategoricalPairFidelity struct {
 // synth/conditional_sample.go's categoricalNumericPairSampler draws
 // from) and that category's REALIZED conditional mean/std over the
 // _synthetic=true partition of the output cohort.
+//
+// # This section and Models are DISJOINT by construction (E5-S2)
+//
+// A numeric target reached by a linear model has NO entry here, ever.
+// The pick-one sampler this section scores does not run for such a
+// field — the model owns its value — so an entry would be a delta for a
+// mechanism that never executed, which is the v0.32.2 bug class. Two
+// independent guards make it impossible rather than merely unlikely:
+// SpecFromProfile leaves a modelled target's captured pair off the Spec
+// entirely (per TARGET, not per document — an unmodelled numeric in the
+// same profile keeps its pair and is still scored here), and
+// resolveConflicts pre-claims every modelled field ahead of the
+// categorical-numeric stage, which catches a hand-authored spec
+// declaring both. So this section covers exactly the numerics that kept
+// the pick-one mechanism, `models` covers exactly the ones that did
+// not, and the two field sets never intersect. The same rule applies
+// verbatim to SetNumericPairFidelity; the three NON-numeric-target
+// sections (CategoricalPairFidelity, SetCategoricalPairFidelity,
+// SetSetPairFidelity) are untouched by any of it, because a linear
+// model targets a numeric and subsumes nothing they describe.
 type CategoricalNumericPairFidelity struct {
 	A          string                                `json:"a"`
 	B          string                                `json:"b"`
@@ -219,6 +240,10 @@ type SetCategoricalPairFidelity struct {
 // (SetNumericPairSpec.Categories, keyed "selected"/"not_selected") and
 // that bucket's REALIZED conditional mean/std over the _synthetic=true
 // partition — the set-option analogue of CategoricalNumericPairFidelity.
+//
+// It is a NUMERIC-TARGET section, so the model-retirement rule on
+// CategoricalNumericPairFidelity applies to it verbatim: a numeric
+// reached by a linear model has no entry here.
 type SetNumericPairFidelity struct {
 	Set        string                                `json:"set"`
 	Option     string                                `json:"option"`
@@ -279,7 +304,32 @@ type FidelityReport struct {
 	SetCategoricalPairwise     []*SetCategoricalPairFidelity     `json:"set_categorical_pairwise,omitempty"`
 	SetNumericPairwise         []*SetNumericPairFidelity         `json:"set_numeric_pairwise,omitempty"`
 	SetSetPairwise             []*SetSetPairFidelity             `json:"set_set_pairwise,omitempty"`
-	Warnings                   []string                          `json:"warnings,omitempty"`
+	// Models is the per-field MODEL-RECOVERY section (E5-S1): for every
+	// linear model generation actually applied, the captured coefficients
+	// beside the ones a refit on the generated partition recovers. It
+	// answers a different question from every section above — those ask
+	// whether the generated rows LOOK like the source, this asks whether
+	// the captured STRUCTURE survived generation — and it is the only
+	// section that can tell a faithful generation whose marginal
+	// contrasts are merely compressed apart from one that silently lost
+	// its conditioning. Absent (omitempty) for every spec carrying no
+	// `models`, which is every spec predating `profile create
+	// --fit-models`. See synth/fidelity_models.go.
+	Models []*ModelFidelity `json:"models,omitempty"`
+	// ModelResidualCorrelations is the residual-correlation half of the
+	// same model-recovery question (E5-S2): for every residual
+	// correlation generation applied, the captured rho beside the rho
+	// recovered from the generated partition. It is deliberately NOT
+	// folded into Pairwise, which scores the value-scale copula arm over
+	// a DISJOINT set of fields — a modelled field is excluded from
+	// Spec.Correlations by resolveConflicts precisely so the two arms
+	// never both fire on one field. The two section names are what tell
+	// a reader scanning this document which mechanism a given number
+	// describes. Absent (omitempty) for every spec carrying no
+	// `residual_correlations`, which is every spec predating `profile
+	// create --residual-correlations`. See synth/fidelity_residual.go.
+	ModelResidualCorrelations *ModelResidualCorrelationFidelity `json:"model_residual_correlations,omitempty"`
+	Warnings                  []string                          `json:"warnings,omitempty"`
 }
 
 // TestRunner executes a single statistical Test against an encoded
@@ -668,8 +718,28 @@ func categoricalTVD(sourceCells []CategoricalPairCellSpec, sourceN int, syntheti
 	for k := range synProp {
 		seen[k] = true
 	}
-	var sum float64
+	// The union is accumulated in SORTED cell order, not map order, for
+	// the same reason the conditional capture's top-K collapse folds
+	// sorted (see computeConditionalCategoricalNumericPairs in
+	// profile.go): this is a float64 sum over many addends of
+	// potentially very different magnitudes, float addition is not
+	// associative, and Go randomizes map iteration — so a map-order
+	// fold makes the reported Delta drift in its last bits between two
+	// runs over identical inputs. A fidelity number that moves when
+	// nothing moved is unusable for the regression-gating this report
+	// exists to support, and it moves silently.
+	keys := make([][2]string, 0, len(seen))
 	for k := range seen {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i][0] != keys[j][0] {
+			return keys[i][0] < keys[j][0]
+		}
+		return keys[i][1] < keys[j][1]
+	})
+	var sum float64
+	for _, k := range keys {
 		sum += math.Abs(srcProp[k] - synProp[k])
 	}
 	return 0.5 * sum
@@ -761,18 +831,12 @@ func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, rows []sy
 		v := row.values[numField]
 		a.count++
 		a.sum += v
-		a.sumSq += v * v
+		a.sumSq += float64(v * v)
 		total++
 	}
 	for catVal, a := range accs {
 		mean := a.sum / float64(a.count)
-		var variance float64
-		if a.count > 1 {
-			variance = (a.sumSq - mean*a.sum) / float64(a.count-1)
-		}
-		if variance < 0 {
-			variance = 0
-		}
+		variance := sampleVariance(a.count, a.sum, a.sumSq)
 		out[catVal] = categoricalNumericMoment{mean: mean, std: math.Sqrt(variance), n: a.count}
 	}
 	return out, total
@@ -934,18 +998,12 @@ func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, 
 		v := row.values[numField]
 		a.count++
 		a.sum += v
-		a.sumSq += v * v
+		a.sumSq += float64(v * v)
 		total++
 	}
 	for sel, a := range accs {
 		mean := a.sum / float64(a.count)
-		var variance float64
-		if a.count > 1 {
-			variance = (a.sumSq - mean*a.sum) / float64(a.count-1)
-		}
-		if variance < 0 {
-			variance = 0
-		}
+		variance := sampleVariance(a.count, a.sum, a.sumSq)
 		out[sel] = categoricalNumericMoment{mean: mean, std: math.Sqrt(variance), n: a.count}
 	}
 	return out, total

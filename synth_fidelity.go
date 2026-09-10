@@ -90,6 +90,28 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	synth.BuildSetNumericPairwise(report, schema, records, setNumPairs)
 	synth.BuildSetSetPairwise(report, schema, records, setSetPairs)
 
+	// The model-recovery section takes the WHOLE spec rather than a
+	// resolved slice: a model is not one of the six pairwise relationship
+	// lists ResolveConflicts returns, and its own arbitration includes
+	// two refusals (an absent target, a scaleless marginal) that only
+	// generation's drawer compiler knows about. synth.BuildModelFidelity
+	// re-runs both passes against this same *Spec instead, so the section
+	// still reports exactly the models generation applied. It needs no
+	// TestRunner: unlike TEST_KS/TEST_CHISQ it refits through
+	// processing/regression, which synth may import directly — see that
+	// function's own note on why the cycle constraint above does not
+	// reach it.
+	//
+	// The same call also folds the `model_residual_correlations` section
+	// (E5-S2), and folding it THERE rather than through a seventh
+	// Build* call here is deliberate: the residual comparison needs the
+	// residuals of the refits that call has just run, so a separate
+	// entry point would either refit every model a second time or take
+	// its residuals against the CAPTURED coefficients, which would fold
+	// the coefficient section's own gaps into a correlation and report
+	// one finding twice.
+	synth.BuildModelFidelity(report, schema, records, spec)
+
 	out, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return errors.WrapCodedError(err, errors.CLI_OUTPUT, "marshaling fidelity report")

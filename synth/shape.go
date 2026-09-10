@@ -103,8 +103,8 @@ func fitNumericShape(samples []float64, mean, std float64) *ShapeProfile {
 	}
 	normalLL := normalLogLikelihood(samples, mean, std)
 	lnN := math.Log(float64(n))
-	bicNormal := -2*normalLL + 2*lnN
-	bicMixture := -2*mixLL + 5*lnN
+	bicNormal := float64(-2*normalLL) + float64(2*lnN)
+	bicMixture := float64(-2*mixLL) + float64(5*lnN)
 	if bicMixture >= bicNormal {
 		return nil
 	}
@@ -144,8 +144,8 @@ func fitTwoComponentEM(samples []float64, overallStd float64) (m1, m2, s1, s2, w
 	for iter := 0; iter < shapeFitEMIterations; iter++ {
 		// E-step: responsibility of component 1 for each sample.
 		for i, x := range samples {
-			p1 := w1 * normalPDF(x, m1, s1)
-			p2 := w2 * normalPDF(x, m2, s2)
+			p1 := float64(w1 * normalPDF(x, m1, s1))
+			p2 := float64(w2 * normalPDF(x, m2, s2))
 			total := p1 + p2
 			if total <= 0 {
 				resp[i] = 0.5
@@ -160,8 +160,8 @@ func fitTwoComponentEM(samples []float64, overallStd float64) (m1, m2, s1, s2, w
 			r2 := 1 - r1
 			sumR1 += r1
 			sumR2 += r2
-			sumX1 += r1 * x
-			sumX2 += r2 * x
+			sumX1 += float64(r1 * x)
+			sumX2 += float64(r2 * x)
 		}
 		if sumR1 < 1e-6 || sumR2 < 1e-6 {
 			// One component has claimed (almost) no mass — the fit has
@@ -175,8 +175,8 @@ func fitTwoComponentEM(samples []float64, overallStd float64) (m1, m2, s1, s2, w
 		for i, x := range samples {
 			d1 := x - newM1
 			d2 := x - newM2
-			sumSq1 += resp[i] * d1 * d1
-			sumSq2 += (1 - resp[i]) * d2 * d2
+			sumSq1 += float64(resp[i] * d1 * d1)
+			sumSq2 += float64((1 - resp[i]) * d2 * d2)
 		}
 		newS1 := math.Sqrt(sumSq1 / sumR1)
 		newS2 := math.Sqrt(sumSq2 / sumR2)
@@ -193,8 +193,8 @@ func fitTwoComponentEM(samples []float64, overallStd float64) (m1, m2, s1, s2, w
 
 	var total float64
 	for _, x := range samples {
-		p1 := w1 * normalPDF(x, m1, s1)
-		p2 := w2 * normalPDF(x, m2, s2)
+		p1 := float64(w1 * normalPDF(x, m1, s1))
+		p2 := float64(w2 * normalPDF(x, m2, s2))
 		mix := p1 + p2
 		if mix <= 0 {
 			mix = math.SmallestNonzeroFloat64
@@ -214,8 +214,8 @@ func fitTwoComponentEM(samples []float64, overallStd float64) (m1, m2, s1, s2, w
 
 // normalPDF is the standard Gaussian density.
 func normalPDF(x, mean, std float64) float64 {
-	variance := std * std
-	return math.Exp(-((x-mean)*(x-mean))/(2*variance)) / math.Sqrt(2*math.Pi*variance)
+	variance := float64(std * std)
+	return math.Exp(-float64((x-mean)*(x-mean))/(2*variance)) / math.Sqrt(2*math.Pi*variance)
 }
 
 // normalLogLikelihood is the total log-likelihood of samples under a
@@ -224,8 +224,8 @@ func normalLogLikelihood(samples []float64, mean, std float64) float64 {
 	if std <= 0 {
 		return math.Inf(-1)
 	}
-	variance := std * std
-	logNorm := -0.5 * math.Log(2*math.Pi*variance)
+	variance := float64(std * std)
+	logNorm := float64(-0.5 * math.Log(2*math.Pi*variance))
 	var ll float64
 	for _, x := range samples {
 		d := x - mean

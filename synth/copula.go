@@ -35,12 +35,13 @@ import (
 // closed-form quantile function for its own declared distribution — see
 // quantileFor / fieldMoments — the resulting vector carries the
 // requested rank-correlation structure while each field's own marginal
-// shape (not just its mean/std) survives. Scoped to the four
-// distributions fieldMoments already accepts: normal, uniform,
-// lognormal, exponential — poisson (no closed-form quantile) and
-// bernoulli (degenerate quantile under a continuous copula draw) are
-// deliberately out of scope. See skills/synthetic-data.md (Pairwise
-// correlations).
+// shape (not just its mean/std) survives. Scoped to the distributions
+// fieldMoments accepts: normal, uniform, lognormal, exponential, and
+// (E4-S1, reachable through the model draw rather than through this
+// correlator — see fieldMoments) mixture; poisson (no quantile at all
+// for a discrete lattice under this construction) and bernoulli
+// (degenerate quantile under a continuous copula draw) are deliberately
+// out of scope. See skills/synthetic-data.md (Pairwise correlations).
 //
 // Why a parametric quantile-function construction and not a rank-based
 // empirical copula: a schema-mode spec (`synth from-schema`,
@@ -99,6 +100,157 @@ func phi(x float64) float64 {
 	return 0.5 * (1 + math.Erf(x/math.Sqrt2))
 }
 
+// phiInv returns Φ⁻¹(p), the standard normal quantile — phi's inverse,
+// via math.Erfinv: Φ⁻¹(p) = √2·erf⁻¹(2p−1). Nothing in GENERATION needs
+// it (the copula construction starts from a normal draw and never has
+// to go back), so it exists solely for latentFor below, which reads a
+// generated value back onto the latent scale for E5-S1's model-recovery
+// comparison.
+//
+// p is clipped into (eps, 1−eps) rather than allowed to return ±Inf. A
+// generated value can legitimately sit at or beyond its marginal's
+// support edge — a clamped draw, or a mixture whose fitted CDF
+// saturates in float64 well before the observed maximum — and an
+// infinite latent would poison the whole refit's Gram matrix with one
+// row rather than costing that row a few thousandths of accuracy. The
+// bound is ±7.03 standard deviations, far outside anything a 10,000-row
+// sample reaches by chance, so the clip is only ever load-bearing for
+// values the inversion genuinely cannot place.
+func phiInv(p float64) float64 {
+	const eps = 1e-12
+	switch {
+	case p <= eps:
+		p = eps
+	case p >= 1-eps:
+		p = 1 - eps
+	}
+	return math.Sqrt2 * math.Erfinv(2*p-1)
+}
+
+// latentFunc maps one generated DATA-SCALE value back onto the standard
+// normal latent u that produced it, reporting ok=false for a value the
+// distribution cannot place at all (a non-positive lognormal draw, a
+// negative exponential one). It is the exact inverse of the quantileFunc
+// quantileFor returns for the same FieldSpec.
+type latentFunc func(v float64) (float64, bool)
+
+// latentFor returns fs's inverse quantile: the function taking a value
+// this field's generation stage produced back to the standard-normal
+// latent u it came from, so u = latentFor(fs)(quantileFor(fs)(u, phi(u)))
+// for every u the field's support admits.
+//
+// # Why this exists at all
+//
+// A modelled numeric is drawn as value = Q(Φ(μ + σz)) — see
+// synth/model_draw.go's header. The coefficients inside μ are therefore
+// LATENT-scale quantities: for a `normal` target the round trip
+// collapses and they read as data-scale too, but for a lognormal,
+// uniform, exponential or captured-mixture target the map from u to
+// value is non-linear and a coefficient moves the value by an amount
+// that depends where in the distribution the row landed. Regressing a
+// generated cohort's raw VALUES on the same dummies and comparing the
+// result to a captured coefficient is therefore comparing a value-space
+// effect to a latent one — the trap E5-S1 exists to avoid. Inverting
+// each generated value through this function first puts both sides of
+// that comparison on one scale, which is what makes an attenuated
+// recovery evidence of a GENERATION fault rather than an artefact of
+// the marginal's shape. See BuildModelFidelity.
+//
+// # Lockstep with quantileFor
+//
+// Every arm here is the algebraic inverse of the matching arm above,
+// and the two MUST move together: a distribution admitted to
+// quantileFor without an inverse here would silently drop every model
+// targeting it out of the recovery section, and one inverted wrongly
+// would report a false attenuation for a generation path that is
+// correct. TestLatentFor_InvertsQuantileForEveryDistribution round-trips
+// all five and fails if either side moves alone.
+//
+// Only called after fieldMoments has succeeded for fs (so mean/std are
+// real and std > 0); the default arm refuses defensively with the same
+// SERVICE_VALIDATION shape quantileFor uses rather than assuming.
+func latentFor(fs FieldSpec, mean, std float64) (latentFunc, error) {
+	switch fs.Distribution {
+	case DistNormal:
+		// Q(u) = mean + std*u.
+		return func(v float64) (float64, bool) {
+			return (v - mean) / std, true
+		}, nil
+	case DistUniform:
+		minV, _, err := paramFloat(fs.Name, fs.Params, "min", 0)
+		if err != nil {
+			return nil, err
+		}
+		maxV, _, err := paramFloat(fs.Name, fs.Params, "max", 1)
+		if err != nil {
+			return nil, err
+		}
+		width := maxV - minV
+		if width <= 0 {
+			// A zero-width uniform has no latent to recover: every value
+			// is the same one and p is undefined. fieldMoments computes
+			// std = width/√12 for this arm, so buildModelDrawers has
+			// already refused such a field its model — held defensively.
+			return func(float64) (float64, bool) { return 0, false }, nil
+		}
+		// Q(p) = min + p*(max-min).
+		return func(v float64) (float64, bool) {
+			return phiInv((v - minV) / width), true
+		}, nil
+	case DistLogNormal:
+		mu, _, err := paramFloat(fs.Name, fs.Params, "mu", 0)
+		if err != nil {
+			return nil, err
+		}
+		sigma, _, err := paramFloat(fs.Name, fs.Params, "sigma", 1)
+		if err != nil {
+			return nil, err
+		}
+		if sigma <= 0 {
+			return func(float64) (float64, bool) { return 0, false }, nil
+		}
+		// Q(u) = exp(mu + sigma*u).
+		return func(v float64) (float64, bool) {
+			if v <= 0 {
+				return 0, false
+			}
+			return (math.Log(v) - mu) / sigma, true
+		}, nil
+	case DistExponential:
+		lambda, _, err := paramFloat(fs.Name, fs.Params, "lambda", 1)
+		if err != nil {
+			return nil, err
+		}
+		if lambda <= 0 {
+			return func(float64) (float64, bool) { return 0, false }, nil
+		}
+		// Q(p) = -log(1-p)/lambda, so p = 1 - exp(-lambda*v). Expm1
+		// keeps the small-v end accurate, where 1-exp(-x) cancels.
+		return func(v float64) (float64, bool) {
+			if v < 0 {
+				return 0, false
+			}
+			return phiInv(-math.Expm1(-lambda * v)), true
+		}, nil
+	case DistMixture:
+		// The mixture's CDF is a closed-form weighted sum of erfs — it
+		// is only its INVERSE that needs bisection — so the latent
+		// direction is the cheap one here, exactly the reverse of
+		// quantileFor's mixture arm.
+		mc, err := parseMixtureComponents(fs)
+		if err != nil {
+			return nil, err
+		}
+		return func(v float64) (float64, bool) {
+			return phiInv(mc.cdf(v)), true
+		}, nil
+	default:
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: distribution %q has no latent inverse", fs.Name, fs.Distribution),
+			map[string]any{"field": fs.Name, "distribution": fs.Distribution})
+	}
+}
+
 // buildCorrelator builds a correlator from correlations — the SURVIVING
 // CorrelationSpec entries after resolveConflicts has pruned any
 // participant field already claimed by an earlier drawRow stage (or by a
@@ -107,9 +259,41 @@ func phi(x float64) float64 {
 // partial exclusion from a multi-field correlation matrix work: the
 // Cholesky factor is rebuilt from whatever pairs survive, with no
 // special-casing needed in this function itself.
-func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*correlator, error) {
+//
+// # The unmeasured-entry policy: ASSUME AND RECORD
+//
+// The input is a LIST of pairs and the output needs a MATRIX, so every
+// pair among participants that the list does not name has to be filled
+// with something. This function fills it with zero — the participants
+// are drawn as independent on that pair — and it says so, returning one
+// warning naming how many of the matrix's pairs were completed by
+// assumption rather than supplied.
+//
+// The alternative considered and rejected was to REFUSE a matrix
+// carrying unmeasured pairs. Two things decide it against refusal.
+// First, an incomplete list is the NORMAL input, not a pathological
+// one: a spec correlating a with b and b with c has never said anything
+// about a and c, and a profile-derived one is capped at
+// CorrelationTopK pairs by construction, so refusal would reject
+// nearly every real correlation request outright. Second, zero is not
+// an arbitrary fill — it is the only completion that adds no structure
+// the caller did not ask for, so "assume independence" is the
+// conservative reading rather than a convenient one.
+//
+// What was NOT acceptable is doing it silently, which is what this
+// function did before: on a ten-field matrix built from a top-16 pair
+// list, 29 of the 45 pairs were asserted independent with nothing
+// anywhere saying they had been asserted rather than measured, and
+// cholesky's ridge then bent the partly-invented result into
+// factorizable shape without comment. Both halves now speak — see the
+// ridge warning below. The document side of the same distinction is
+// ResidualCorrelationProfile (synth/residual_corr.go), which keeps
+// measured-zero and unmeasured structurally apart so a future caller
+// can hand this function a matrix that knows which of its zeros were
+// real.
+func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*correlator, []string, error) {
 	if len(correlations) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	specs := make(map[string]FieldSpec, len(wfs))
 	for _, wf := range wfs {
@@ -151,61 +335,167 @@ func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*corre
 
 	for _, c := range correlations {
 		if err := ensure(c.A); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if err := ensure(c.B); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	if len(names) < 2 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"correlations require at least two numeric fields")
 	}
 
-	n := len(names)
-	mat := make([][]float64, n)
-	for i := range mat {
-		mat[i] = make([]float64, n)
-		mat[i][i] = 1
-	}
-	for _, c := range correlations {
-		i, j := idx[c.A], idx[c.B]
-		mat[i][j] = c.Correlation
-		mat[j][i] = c.Correlation
-	}
-	chol, err := cholesky(mat)
+	chol, warnings, err := factorCorrelations("correlation", "correlated field", names, idx, correlations)
 	if err != nil {
-		return nil, err
+		return nil, warnings, err
 	}
 	return &correlator{
 		fieldNames: names,
 		quantiles:  quantiles,
 		hasClamp:   hasClamp, clampMin: clampMin, clampMax: clampMax,
 		chol: chol,
-	}, nil
+	}, warnings, nil
+}
+
+// factorCorrelations turns a LIST of pairs over an ordered participant
+// set into the Cholesky factor of the matrix they imply, completing
+// every pair the list never named and saying so.
+//
+// It is the one place the assemble → complete → factorize → report
+// sequence exists, shared by both consumers of a correlation structure:
+// buildCorrelator, which correlates field VALUES through each field's
+// own quantile function, and buildResidualCorrelator
+// (synth/residual_draw.go), which correlates the RESIDUALS of modelled
+// fields and hands each drawer its own component of the resulting
+// vector. There is deliberately no second Cholesky and no second
+// completion policy in this package — the two callers differ only in
+// what they do with L and in the two nouns they pass in for the warning
+// text (subject "correlation" / "residual correlation", participant
+// "correlated field" / "modelled field"), so a change to the policy
+// cannot land on one scale and miss the other.
+//
+// See buildCorrelator's own doc for WHY the completion policy is assume
+// -and-record rather than refusal; it applies verbatim on both scales,
+// and on the residual scale it is if anything more load-bearing, since
+// the captured submatrix names its unmeasured pairs explicitly
+// (ResidualCorrelationProfile.Unmeasured) and they arrive here as
+// absences.
+func factorCorrelations(subject, participant string, names []string, idx map[string]int, correlations []CorrelationSpec) ([][]float64, []string, error) {
+	n := len(names)
+	mat := make([][]float64, n)
+	// supplied[i][j] records whether the caller actually named the (i, j)
+	// pair. It is what separates a zero the caller asked for from a zero
+	// this function invented, and it exists purely so the count in the
+	// warning below is a real count rather than an estimate.
+	supplied := make([][]bool, n)
+	for i := range mat {
+		mat[i] = make([]float64, n)
+		mat[i][i] = 1
+		supplied[i] = make([]bool, n)
+		supplied[i][i] = true
+	}
+	for _, c := range correlations {
+		i, j := idx[c.A], idx[c.B]
+		mat[i][j] = c.Correlation
+		mat[j][i] = c.Correlation
+		supplied[i][j] = true
+		supplied[j][i] = true
+	}
+
+	var warnings []string
+	assumed := 0
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			if !supplied[i][j] {
+				assumed++
+			}
+		}
+	}
+	if assumed > 0 {
+		warnings = append(warnings, fmt.Sprintf(
+			"%s matrix completed by assumption: %d of %d pair(s) among %d %s(s) "+
+				"were never supplied and are drawn as independent (rho = 0); an absent pair is unknown, "+
+				"not known to be uncorrelated",
+			subject, assumed, n*(n-1)/2, n, participant))
+	}
+
+	chol, ridge, err := cholesky(mat)
+	if err != nil {
+		return nil, warnings, err
+	}
+	if ridge > 0 {
+		// A matrix that needed regularization is telling the caller
+		// something: the pairwise correlations it asked for are not
+		// jointly realizable (a = 0.9 b, b = 0.9 c, a = -0.9 c has no
+		// joint distribution), so the draw will honour something OTHER
+		// than what was requested. Saying which pairs are impossible is
+		// beyond a Cholesky factorization; saying that the request was
+		// bent, and by how much, is not.
+		warnings = append(warnings, fmt.Sprintf(
+			"%s matrix is not positive definite as requested and was ridge-regularized "+
+				"(diagonal jitter %g) to factorize: the requested pairwise correlations are not jointly "+
+				"consistent, so realized correlations will be pulled toward zero",
+			subject, ridge))
+	}
+	return chol, warnings, nil
+}
+
+// correlatedNormals fills u with L*z for a freshly drawn standard normal
+// z, the shared first half of both scales' draw: on the value scale the
+// components go on to each field's own quantile function
+// (correlator.transform), on the residual scale each component IS the
+// modelled field's z (residualCorrelator.draw).
+//
+// z is consumed in COMPONENT ORDER, one rng.NormFloat64() per
+// participant, and both callers fix that order at construction time
+// from the Spec rather than from a map — the determinism contract rests
+// on it. See skills/synthetic-data.md (Determinism).
+func correlatedNormals(rng *mrand.Rand, chol [][]float64, z, u []float64) {
+	for i := range z {
+		z[i] = rng.NormFloat64()
+	}
+	for i := range u {
+		sum := 0.0
+		for j := 0; j <= i; j++ {
+			sum += float64(chol[i][j] * z[j])
+		}
+		u[i] = sum
+	}
 }
 
 // transform overwrites row[name] for every participating field with a
 // draw from the Gaussian-copula construction described on correlator,
 // replacing the field's independently-drawn value outright rather than
-// blending a fraction of it in — see the type doc for why that is
-// correct here rather than destructive.
+// blending a fraction of it in.
+//
+// # Why overwriting is right HERE, and what it is not
+//
+// A participant of this stage is a field with no other account of
+// itself: it was drawn a moment earlier from its own marginal sampler,
+// that draw carried no structure the correlated one lacks, and
+// resolveConflicts has already excluded any field some other stage
+// claimed. Replacing the value outright is therefore not destroying
+// information — it is the same marginal, redrawn from a shared source
+// of randomness so it lands at a rank the matrix asked for.
+//
+// That reasoning stops at a MODELLED field, and this stage no longer
+// reaches one. A modelled numeric already has an account of itself: its
+// value is the composed model draw (synth/model_draw.go), and
+// overwriting it would delete every predictor's contribution and leave
+// the surviving coefficients describing nothing that was drawn. The
+// correlation structure among modelled fields is applied instead at the
+// place it belongs — as the correlation of their RESIDUALS, supplying
+// each drawer's z rather than replacing its output (see
+// synth/residual_draw.go). resolveConflicts excludes a modelled field
+// from Spec.Correlations for that reason and says so.
 func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 	if c == nil || len(c.fieldNames) == 0 {
 		return
 	}
 	z := make([]float64, len(c.fieldNames))
-	for i := range z {
-		z[i] = rng.NormFloat64()
-	}
 	u := make([]float64, len(c.fieldNames))
-	for i := 0; i < len(c.fieldNames); i++ {
-		sum := 0.0
-		for j := 0; j <= i; j++ {
-			sum += c.chol[i][j] * z[j]
-		}
-		u[i] = sum
-	}
+	correlatedNormals(rng, c.chol, z, u)
 	for i, name := range c.fieldNames {
 		p := phi(u[i])
 		v := c.quantiles[i](u[i], p)
@@ -224,15 +514,35 @@ func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 // fieldMoments returns the analytic mean and standard deviation of a
 // FieldSpec's declared distribution, plus an optional clamp range
 // (normal's min/max params only — the one distribution among the
-// supported set that declares one). Only distributions with a
-// closed-form (mean, std) can participate in a correlation: normal,
-// uniform, lognormal, exponential. Anything else (weighted_categorical,
+// supported set that declares one). Only distributions with EXACT
+// moments and a usable quantile function can be driven through the
+// copula construction: normal, uniform, lognormal, exponential, and —
+// since E4-S1 — mixture. Anything else (weighted_categorical,
 // bernoulli, poisson, pareto, regex, monotonic_from, constant,
 // uniform_date, ...) refuses with SERVICE_VALIDATION naming the
 // distribution rather than silently approximating — the v0 blend's
 // "works for any distribution" was really "quietly distorts any
 // distribution a little," which this story removes rather than
-// preserves under a new name.
+// preserves under a new name. Mixture joins the set on that same
+// standard and not by relaxing it: its moments are exact and its
+// quantile is inverted numerically to the last representable bit.
+//
+// This function has TWO callers and they reach different subsets of it.
+// buildCorrelator calls it for every VALUE-scale correlation
+// participant; a modelled field calls it for its own target
+// (buildModelDrawers, synth/model_draw.go). In practice only the second
+// ever sees a mixture: resolveConflicts pre-claims an unmodelled
+// DistMixture field before any correlation stage bids, and a MODELLED
+// one is excluded from the value-scale matrix permanently (its
+// correlation structure rides its residual instead — see
+// synth/residual_draw.go), so a mixture reaches buildCorrelator through
+// neither path. Nothing here depends on that — the construction is
+// sound for a mixture on either path — but do not read a passing
+// correlation suite as evidence the correlation half is exercised.
+//
+// buildResidualCorrelator is deliberately NOT a third caller: a residual
+// correlation needs no marginal at all, only the Cholesky factor, so it
+// shares factorCorrelations and stops there.
 func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp bool, err error) {
 	clampMin, clampMax = math.Inf(-1), math.Inf(1)
 	switch fs.Distribution {
@@ -269,8 +579,9 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 		if sigma, _, err = paramFloat(fs.Name, fs.Params, "sigma", 1); err != nil {
 			return
 		}
-		mean = math.Exp(mu + sigma*sigma/2)
-		std = math.Sqrt((math.Exp(sigma*sigma) - 1) * math.Exp(2*mu+sigma*sigma))
+		sigmaSq := float64(sigma * sigma)
+		mean = math.Exp(mu + float64(sigmaSq/2))
+		std = math.Sqrt(float64((math.Exp(sigmaSq) - 1) * math.Exp(float64(2*mu)+sigmaSq)))
 	case DistExponential:
 		var lambda float64
 		if lambda, _, err = paramFloat(fs.Name, fs.Params, "lambda", 1); err != nil {
@@ -278,6 +589,25 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 		}
 		mean = 1 / lambda
 		std = 1 / lambda
+	case DistMixture:
+		// A captured shape (`profile create --fit-shape`) admitted at
+		// E4-S1. Its moments are EXACT — the law-of-total-variance form,
+		// see mixtureComponents.moments — so this is not the "quietly
+		// distorts any distribution a little" widening the refusal below
+		// exists to prevent. What a mixture lacks is a closed-form
+		// INVERSE, which quantileFor supplies numerically; that is a
+		// cost in cycles, not in fidelity.
+		//
+		// No clamp: DistMixture declares no min/max params (unlike
+		// DistNormal), so hasClamp stays false and a modelled mixture
+		// target takes its bound from FieldModelSpec.Min/Max instead —
+		// the observed range SpecFromProfile carries for exactly this
+		// purpose. See buildModelDrawers' clamping note.
+		var mc mixtureComponents
+		if mc, err = parseMixtureComponents(fs); err != nil {
+			return
+		}
+		mean, std = mc.moments()
 	default:
 		err = errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: distribution %q does not support pairwise correlation", fs.Name, fs.Distribution),
@@ -289,7 +619,7 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 // quantileFor returns fs's own quantile function (inverse CDF) Q,
 // closed over that distribution's declared params — the second half of
 // the Gaussian-copula construction on correlator, paired with fieldMoments
-// (which validates fs.Distribution is one of the four supported here and
+// (which validates fs.Distribution is one of the five supported here and
 // supplies mean/std for the normal case). Only called after fieldMoments
 // has already succeeded for fs, so the default branch below is
 // unreachable in practice; it still refuses defensively with the same
@@ -299,13 +629,17 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 // directly: Q_normal(p) = mean + std*Φ⁻¹(p) and Q_lognormal(p) =
 // exp(mu + sigma*Φ⁻¹(p)), but Φ⁻¹(p) == u exactly by construction (p was
 // built as Φ(u) — see phi), so recomputing it would be exact but
-// pointlessly indirect. uniform and exponential have no such shortcut
-// and use p.
+// pointlessly indirect. uniform, exponential and mixture have no such
+// shortcut and use p.
+//
+// Every arm but mixture is O(1) closed form. Mixture pays a fixed
+// bisection per call (synth/mixture_quantile.go) — the price of letting
+// a `--fit-shape` marginal be driven by a linear predictor at all.
 func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 	switch fs.Distribution {
 	case DistNormal:
 		return func(u, p float64) float64 {
-			return mean + std*u
+			return mean + float64(std*u)
 		}, nil
 	case DistUniform:
 		minV, _, err := paramFloat(fs.Name, fs.Params, "min", 0)
@@ -317,7 +651,7 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 			return nil, err
 		}
 		return func(u, p float64) float64 {
-			return minV + p*(maxV-minV)
+			return minV + float64(p*(maxV-minV))
 		}, nil
 	case DistLogNormal:
 		mu, _, err := paramFloat(fs.Name, fs.Params, "mu", 0)
@@ -329,7 +663,7 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 			return nil, err
 		}
 		return func(u, p float64) float64 {
-			return math.Exp(mu + sigma*u)
+			return math.Exp(mu + float64(sigma*u))
 		}, nil
 	case DistExponential:
 		lambda, _, err := paramFloat(fs.Name, fs.Params, "lambda", 1)
@@ -339,6 +673,22 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 		return func(u, p float64) float64 {
 			return -math.Log(1-p) / lambda
 		}, nil
+	case DistMixture:
+		// The one arm with no closed form. A Gaussian mixture's CDF is a
+		// weighted sum of erfs and has no elementary inverse, so Q is
+		// computed by a fixed-count bisection whose bracket is decided
+		// once here rather than per call — see synth/mixture_quantile.go
+		// for why the count is fixed and why bisection rather than
+		// Newton. Uses p, like uniform and exponential; there is no u
+		// shortcut to take.
+		mc, err := parseMixtureComponents(fs)
+		if err != nil {
+			return nil, err
+		}
+		lo, hi := mc.bracket()
+		return func(u, p float64) float64 {
+			return mc.quantile(p, lo, hi)
+		}, nil
 	default:
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: distribution %q does not support pairwise correlation", fs.Name, fs.Distribution),
@@ -346,11 +696,23 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 	}
 }
 
-// cholesky returns the lower-triangular factor L such that L L^T = M.
-// If M is not positive semi-definite (within tolerance), a small ridge
-// is added to the diagonal until the factorization succeeds. Returns
-// SERVICE_VALIDATION if even the maximally ridge-shifted matrix fails.
-func cholesky(m [][]float64) ([][]float64, error) {
+// cholesky returns the lower-triangular factor L such that L L^T = M,
+// plus the TOTAL diagonal jitter it had to add to get there (0 when M
+// factorized as given). If M is not positive semi-definite (within
+// tolerance), a small ridge is added to the diagonal until the
+// factorization succeeds. Returns SERVICE_VALIDATION if even the
+// maximally ridge-shifted matrix fails.
+//
+// The ridge is REPORTED rather than merely applied. It is a genuine
+// safety net for a matrix whose measured entries are jointly
+// inconsistent — a real and common condition, since pairwise
+// correlations are estimated independently and nothing forces the
+// resulting matrix to be a valid one — but a caller whose request was
+// bent into shape has to be able to find that out, and until E3-S1 the
+// only trace was in the numbers that came back out. The returned jitter
+// is the accumulated shift, not the last increment, so it reads as "how
+// far from realizable was this" rather than as an iteration counter.
+func cholesky(m [][]float64) ([][]float64, float64, error) {
 	n := len(m)
 	work := make([][]float64, n)
 	for i := range work {
@@ -358,18 +720,20 @@ func cholesky(m [][]float64) ([][]float64, error) {
 		copy(work[i], m[i])
 	}
 
+	total := 0.0
 	for ridge := 0; ridge < 8; ridge++ {
 		L, ok := tryCholesky(work)
 		if ok {
-			return L, nil
+			return L, total, nil
 		}
 		// Add a small jitter on the diagonal and retry.
 		jitter := math.Pow(10, float64(ridge-6)) // 1e-6 .. 1e-1
 		for i := 0; i < n; i++ {
 			work[i][i] += jitter
 		}
+		total += jitter
 	}
-	return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+	return nil, total, errors.NewCodedError(errors.SERVICE_VALIDATION,
 		"correlation matrix is not positive semi-definite even after ridge regularization")
 }
 
@@ -383,7 +747,7 @@ func tryCholesky(m [][]float64) ([][]float64, bool) {
 		for j := 0; j <= i; j++ {
 			sum := m[i][j]
 			for k := 0; k < j; k++ {
-				sum -= L[i][k] * L[j][k]
+				sum -= float64(L[i][k] * L[j][k])
 			}
 			if i == j {
 				if sum <= 0 {

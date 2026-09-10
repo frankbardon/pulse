@@ -265,7 +265,7 @@ func synthCategoricalNumericPair(t *testing.T, rowsPerCategory int, seed int64, 
 	counts := make(map[string]int, len(categories))
 	for i, cat := range categories {
 		for r := 0; r < rowsPerCategory; r++ {
-			v := rng.NormFloat64()*std + means[i]
+			v := float64(rng.NormFloat64()*std) + means[i]
 			fmt.Fprintf(&buf, "%s,%.8f\n", cat, v)
 			sums[cat] += v
 			counts[cat]++
@@ -295,7 +295,7 @@ func synthSkewedCategoricalNumeric(t *testing.T, rowCount int, seed int64, commo
 		if rng.Float64() >= commonFrac {
 			cat = rareValue
 		}
-		v := rng.NormFloat64()*5.0 + 50.0
+		v := float64(rng.NormFloat64()*5.0) + 50.0
 		fmt.Fprintf(&buf, "%s,%.8f\n", cat, v)
 	}
 	return importCSVFixture(t, buf.String(), rowCount)

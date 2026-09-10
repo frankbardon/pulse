@@ -146,7 +146,7 @@ func newUniformSampler(f FieldSpec) (sampler, error) {
 }
 
 func (u *uniformSampler) next(rng *rand.Rand) (any, bool) {
-	return u.min + rng.Float64()*(u.max-u.min), false
+	return u.min + float64(rng.Float64()*(u.max-u.min)), false
 }
 
 type normalSampler struct {
@@ -185,7 +185,7 @@ func newNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (n *normalSampler) next(rng *rand.Rand) (any, bool) {
-	v := n.mean + rng.NormFloat64()*n.std
+	v := n.mean + float64(rng.NormFloat64()*n.std)
 	if n.clamped {
 		if v < n.min {
 			v = n.min
@@ -218,7 +218,7 @@ func newLogNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (l *logNormalSampler) next(rng *rand.Rand) (any, bool) {
-	return math.Exp(l.mu + rng.NormFloat64()*l.sigma), false
+	return math.Exp(l.mu + float64(rng.NormFloat64()*l.sigma)), false
 }
 
 type exponentialSampler struct{ lambda float64 }
@@ -272,7 +272,7 @@ func (p *poissonSampler) next(rng *rand.Rand) (any, bool) {
 	}
 	// Normal approximation for large lambda. Mean = lambda, variance =
 	// lambda. Round to nearest non-negative integer.
-	v := p.lambda + rng.NormFloat64()*math.Sqrt(p.lambda)
+	v := p.lambda + float64(rng.NormFloat64()*math.Sqrt(p.lambda))
 	if v < 0 {
 		v = 0
 	}
@@ -300,7 +300,11 @@ func newParetoSampler(f FieldSpec) (sampler, error) {
 }
 
 func (p *paretoSampler) next(rng *rand.Rand) (any, bool) {
-	u := 1 - rng.Float64()
+	// float64(...) around an already-float64 value is NOT redundant: it
+	// is the FMA barrier (synth/moments.go). rng.Float64() inlines to a
+	// scaled integer, and without the conversion `1 - scale*n` contracts
+	// into a single fused multiply-subtract on arm64 but not on amd64.
+	u := 1 - float64(rng.Float64())
 	return p.xm / math.Pow(u, 1.0/p.alpha), false
 }
 
@@ -440,34 +444,60 @@ type mixtureSampler struct {
 	total       float64
 }
 
-func newMixtureSampler(f FieldSpec) (sampler, error) {
+// mixtureComponents is one DistMixture field's parsed, validated
+// parameter set. Weights are carried EXACTLY as declared (never
+// pre-normalised) alongside their running total, because
+// newMixtureSampler's component pick compares a scaled uniform draw
+// against a cumulative-weight table built by accumulating those same
+// raw numbers: dividing each weight by the total first would produce a
+// mathematically identical table and a floating-point different one,
+// which at a knife-edge draw is a different component, a different
+// value, and a different byte in a file this package promises is
+// reproducible. The copula-side consumers (fieldMoments / quantileFor,
+// synth/copula.go) do their own normalisation because a CDF genuinely
+// needs weights summing to one; the sampler must not.
+type mixtureComponents struct {
+	means, stds, weights []float64
+	weightTotal          float64
+}
+
+// parseMixtureComponents validates a DistMixture FieldSpec's params in
+// the exact order newMixtureSampler has always validated them, so the
+// same malformed spec still fails on the same clause with the same
+// message (see TestSynth_MixtureValidatesParams). It exists because
+// three call sites now need the same numbers: the independent sampler
+// below, and — since a shape-fitted field can carry a linear model
+// (E4-S1) — the mixture's analytic moments and its numerically
+// inverted quantile function in synth/copula.go.
+func parseMixtureComponents(f FieldSpec) (mixtureComponents, error) {
+	var mc mixtureComponents
 	means, ok, err := paramFloatSlice(f.Name, f.Params, "means")
 	if err != nil {
-		return nil, err
+		return mc, err
 	}
 	if !ok || len(means) < 2 {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+		return mc, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: mixture requires at least 2 means", f.Name), nil)
 	}
 	stds, ok, err := paramFloatSlice(f.Name, f.Params, "stds")
 	if err != nil {
-		return nil, err
+		return mc, err
 	}
 	if !ok || len(stds) != len(means) {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+		return mc, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: mixture stds length must match means", f.Name),
 			map[string]any{"means": len(means), "stds": len(stds)})
 	}
 	for i, s := range stds {
 		if s <= 0 {
-			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			return mc, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				fmt.Sprintf("field %q: mixture std must be > 0", f.Name),
 				map[string]any{"index": i, "value": s})
 		}
 	}
 	weights, hasW, err := paramFloatSlice(f.Name, f.Params, "weights")
 	if err != nil {
-		return nil, err
+		return mc, err
 	}
 	if !hasW {
 		weights = make([]float64, len(means))
@@ -476,26 +506,42 @@ func newMixtureSampler(f FieldSpec) (sampler, error) {
 		}
 	}
 	if len(weights) != len(means) {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+		return mc, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: mixture weights length must match means", f.Name),
 			map[string]any{"means": len(means), "weights": len(weights)})
 	}
-	cum := make([]float64, len(weights))
 	total := 0.0
 	for i, w := range weights {
 		if w < 0 {
-			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			return mc, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				fmt.Sprintf("field %q: negative mixture weight", f.Name),
 				map[string]any{"index": i, "value": w})
 		}
 		total += w
-		cum[i] = total
 	}
 	if total <= 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+		return mc, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: mixture weights sum must be > 0", f.Name), nil)
 	}
-	return &mixtureSampler{means: means, stds: stds, cum: cum, total: total}, nil
+	return mixtureComponents{means: means, stds: stds, weights: weights, weightTotal: total}, nil
+}
+
+func newMixtureSampler(f FieldSpec) (sampler, error) {
+	mc, err := parseMixtureComponents(f)
+	if err != nil {
+		return nil, err
+	}
+	// The cumulative table is accumulated here, from the raw weights, in
+	// declaration order — the identical arithmetic this constructor has
+	// always performed. See mixtureComponents on why the weights are not
+	// normalised on the way in.
+	cum := make([]float64, len(mc.weights))
+	total := 0.0
+	for i, w := range mc.weights {
+		total += w
+		cum[i] = total
+	}
+	return &mixtureSampler{means: mc.means, stds: mc.stds, cum: cum, total: total}, nil
 }
 
 func (m *mixtureSampler) next(rng *rand.Rand) (any, bool) {
@@ -504,7 +550,7 @@ func (m *mixtureSampler) next(rng *rand.Rand) (any, bool) {
 	if idx >= len(m.means) {
 		idx = len(m.means) - 1
 	}
-	return m.means[idx] + rng.NormFloat64()*m.stds[idx], false
+	return m.means[idx] + float64(rng.NormFloat64()*m.stds[idx]), false
 }
 
 // setSampler draws a set_* field's own independent marginal: one

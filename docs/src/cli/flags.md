@@ -58,7 +58,7 @@ fixed and documented in CLAUDE.md → Output Format Contract:
 }
 ```
 
-`format_version` is currently `"1.0"`. `errors` and `warnings` are
+`format_version` is currently `"1.1"`. `errors` and `warnings` are
 always arrays (never null) so JSON consumers can index without
 nullable-check overhead. `request` is opt-in (see
 [`--echo-request`](#--echo-request) below); `data.components` is the
@@ -173,7 +173,7 @@ added without naming it somewhere under `skills/` or `docs/src/`.
 | `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
 | `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
 | `pulse mcp` | Run the MCP server over stdio | [mcp](mcp.md) |
-| `pulse profile create` | Create a profile JSON for an existing cohort | [profile create](profile-create.md) |
+| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`) | [profile create](profile-create.md) |
 | `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
 | `pulse shard add` | Append a shard to an existing archive | `--help` |
 | `pulse shard compact` | Rewrite an archive to reclaim orphan bytes | `--help` |
@@ -184,7 +184,7 @@ added without naming it somewhere under `skills/` or `docs/src/`.
 | `pulse shard verify` | Re-validate every shard against the canonical schema | `--help` |
 | `pulse skills list` | List every embedded skill | `--help` |
 | `pulse skills show` | Print one skill's markdown | `--help` |
-| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile | [synth from-profile](synth-from-profile.md) |
+| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns | [synth from-profile](synth-from-profile.md) |
 | `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
 
 ## Help

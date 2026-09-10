@@ -2,13 +2,17 @@ package synth
 
 import "testing"
 
-// TestFieldMoments_RefusesUnsupportedDistributions confirms fieldMoments'
-// refusal set is unchanged by the E7-S1 copula rewrite: poisson,
-// bernoulli, pareto, and mixture still refuse to participate in a
-// correlation with an error — only normal/uniform/lognormal/exponential
-// ever reach quantileFor.
+// TestFieldMoments_RefusesUnsupportedDistributions confirms
+// fieldMoments' refusal set: poisson, bernoulli and pareto still refuse
+// with an error rather than being approximated.
+//
+// DistMixture LEFT this list at E4-S1 — it gained exact moments and a
+// numerically inverted quantile so a --fit-shape field could carry a
+// linear model — and is asserted in the supported set below instead.
+// The refusal set is what keeps fieldMoments' "exact or nothing" rule
+// honest; the widening was allowed only because a mixture meets it.
 func TestFieldMoments_RefusesUnsupportedDistributions(t *testing.T) {
-	for _, dist := range []string{DistPoisson, DistBernoulli, DistPareto, DistMixture} {
+	for _, dist := range []string{DistPoisson, DistBernoulli, DistPareto} {
 		t.Run(dist, func(t *testing.T) {
 			fs := FieldSpec{Name: "b", Type: "f64", Distribution: dist}
 			if _, _, _, _, _, err := fieldMoments(fs); err == nil {
@@ -20,15 +24,19 @@ func TestFieldMoments_RefusesUnsupportedDistributions(t *testing.T) {
 
 // TestQuantileFor_AcceptsExactlyFieldMomentsSupportedDistributions
 // confirms quantileFor's supported set matches fieldMoments' exactly:
-// the four distributions fieldMoments accepts each get a working
+// the five distributions fieldMoments accepts each get a working
 // quantile function, and an unsupported distribution refuses the same
-// way fieldMoments does.
+// way fieldMoments does. A MALFORMED mixture still refuses on both
+// halves — the widening admitted the distribution, not bad params.
 func TestQuantileFor_AcceptsExactlyFieldMomentsSupportedDistributions(t *testing.T) {
 	supported := []FieldSpec{
 		{Name: "n", Distribution: DistNormal, Params: map[string]any{"mean": 1.0, "std": 2.0}},
 		{Name: "u", Distribution: DistUniform, Params: map[string]any{"min": 0.0, "max": 1.0}},
 		{Name: "l", Distribution: DistLogNormal, Params: map[string]any{"mu": 0.0, "sigma": 1.0}},
 		{Name: "e", Distribution: DistExponential, Params: map[string]any{"lambda": 1.0}},
+		{Name: "m", Distribution: DistMixture, Params: map[string]any{
+			"means": []any{-5.0, 5.0}, "stds": []any{1.0, 1.0}, "weights": []any{0.5, 0.5},
+		}},
 	}
 	for _, fs := range supported {
 		t.Run(fs.Distribution, func(t *testing.T) {
@@ -45,6 +53,15 @@ func TestQuantileFor_AcceptsExactlyFieldMomentsSupportedDistributions(t *testing
 	unsupported := FieldSpec{Name: "b", Distribution: DistPoisson}
 	if _, err := quantileFor(unsupported, 0, 1); err == nil {
 		t.Fatalf("quantileFor: expected refusal for unsupported distribution %q, got success", DistPoisson)
+	}
+
+	malformed := FieldSpec{Name: "m", Distribution: DistMixture,
+		Params: map[string]any{"means": []any{1.0}, "stds": []any{1.0}}}
+	if _, _, _, _, _, err := fieldMoments(malformed); err == nil {
+		t.Fatal("fieldMoments: expected refusal for a one-component mixture, got success")
+	}
+	if _, err := quantileFor(malformed, 0, 1); err == nil {
+		t.Fatal("quantileFor: expected refusal for a one-component mixture, got success")
 	}
 }
 

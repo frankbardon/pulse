@@ -312,7 +312,7 @@ func synthDependentCategoricalAndNumeric(t *testing.T, rowsPerA int, seed int64)
 			if rng.Float64() < pX {
 				bv = "x"
 			}
-			cv := rng.NormFloat64()*5.0 + meanC
+			cv := float64(rng.NormFloat64()*5.0) + meanC
 			fmt.Fprintf(&buf, "%s,%s,%.8f\n", av, bv, cv)
 		}
 	}

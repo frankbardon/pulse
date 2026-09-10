@@ -1,0 +1,810 @@
+{
+  "row_count": 1200,
+  "fields": [
+    {
+      "name": "region",
+      "type": "categorical_u8",
+      "null_rate": 0,
+      "categorical": {
+        "cardinality": 3,
+        "top": [
+          {
+            "value": "east",
+            "weight": 0.3333333333333333
+          },
+          {
+            "value": "north",
+            "weight": 0.3333333333333333
+          },
+          {
+            "value": "west",
+            "weight": 0.3333333333333333
+          }
+        ]
+      }
+    },
+    {
+      "name": "tier",
+      "type": "categorical_u8",
+      "null_rate": 0,
+      "categorical": {
+        "cardinality": 2,
+        "top": [
+          {
+            "value": "gold",
+            "weight": 0.5
+          },
+          {
+            "value": "silver",
+            "weight": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "name": "features",
+      "type": "set_u8",
+      "null_rate": 0,
+      "set": {
+        "n": 1200,
+        "options": [
+          {
+            "value": "premium",
+            "count": 300,
+            "frequency": 0.25
+          },
+          {
+            "value": "trial",
+            "count": 172,
+            "frequency": 0.14333333333333334
+          }
+        ]
+      }
+    },
+    {
+      "name": "channels",
+      "type": "set_u8",
+      "null_rate": 0,
+      "set": {
+        "n": 1200,
+        "options": [
+          {
+            "value": "email",
+            "count": 240,
+            "frequency": 0.2
+          },
+          {
+            "value": "sms",
+            "count": 437,
+            "frequency": 0.3641666666666667
+          }
+        ]
+      }
+    },
+    {
+      "name": "spend",
+      "type": "f64",
+      "null_rate": 0,
+      "numeric": {
+        "min": 40.4,
+        "max": 94.8,
+        "mean": 64.14570833333335,
+        "std": 14.045269666271292,
+        "percentiles": [
+          41.8,
+          44.347500000000004,
+          52.387499999999996,
+          63.425,
+          71.9625,
+          90.4,
+          92.95
+        ]
+      }
+    },
+    {
+      "name": "visits",
+      "type": "f64",
+      "null_rate": 0,
+      "numeric": {
+        "min": 2,
+        "max": 6.56,
+        "mean": 4.271925000000001,
+        "std": 1.1722885430068186,
+        "percentiles": [
+          2.09,
+          2.45,
+          3.27,
+          4.27,
+          5.27,
+          6.08,
+          6.47
+        ]
+      }
+    }
+  ],
+  "conditional": {
+    "numeric_pairs": [
+      {
+        "a": "spend",
+        "b": "visits",
+        "rho": -0.1669375419094311,
+        "n": 1200
+      }
+    ],
+    "categorical_pairs": [
+      {
+        "a": "region",
+        "b": "tier",
+        "cells": [
+          {
+            "a_value": "east",
+            "b_value": "gold",
+            "count": 200
+          },
+          {
+            "a_value": "east",
+            "b_value": "silver",
+            "count": 200
+          },
+          {
+            "a_value": "north",
+            "b_value": "gold",
+            "count": 200
+          },
+          {
+            "a_value": "north",
+            "b_value": "silver",
+            "count": 200
+          },
+          {
+            "a_value": "west",
+            "b_value": "gold",
+            "count": 200
+          },
+          {
+            "a_value": "west",
+            "b_value": "silver",
+            "count": 200
+          }
+        ],
+        "n": 1200
+      }
+    ],
+    "categorical_numeric_pairs": [
+      {
+        "a": "region",
+        "b": "spend",
+        "categories": [
+          {
+            "category": "east",
+            "mean": 53.143499999999996,
+            "std": 9.589541491387232,
+            "n": 400
+          },
+          {
+            "category": "north",
+            "mean": 75.143875,
+            "std": 9.548167362606064,
+            "n": 400
+          },
+          {
+            "category": "west",
+            "mean": 64.14975,
+            "std": 12.92501460129191,
+            "n": 400
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "a": "region",
+        "b": "visits",
+        "categories": [
+          {
+            "category": "east",
+            "mean": 4.771074999999999,
+            "std": 1.1024354876299909,
+            "n": 400
+          },
+          {
+            "category": "north",
+            "mean": 3.7714499999999993,
+            "std": 1.0983938593125062,
+            "n": 400
+          },
+          {
+            "category": "west",
+            "mean": 4.273249999999999,
+            "std": 1.0986158698899013,
+            "n": 400
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "a": "tier",
+        "b": "spend",
+        "categories": [
+          {
+            "category": "gold",
+            "mean": 63.22974999999999,
+            "std": 14.916973976822854,
+            "n": 600
+          },
+          {
+            "category": "silver",
+            "mean": 65.06166666666667,
+            "std": 13.064136340356534,
+            "n": 600
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "a": "tier",
+        "b": "visits",
+        "categories": [
+          {
+            "category": "gold",
+            "mean": 3.2732999999999985,
+            "std": 0.6130531518105989,
+            "n": 600
+          },
+          {
+            "category": "silver",
+            "mean": 5.270550000000001,
+            "std": 0.6141233127302164,
+            "n": 600
+          }
+        ],
+        "n": 1200
+      }
+    ],
+    "set_categorical_pairs": [
+      {
+        "set": "features",
+        "option": "premium",
+        "categorical": "region",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "east",
+            "count": 300
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "north",
+            "count": 300
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "west",
+            "count": 300
+          },
+          {
+            "a_value": "selected",
+            "b_value": "east",
+            "count": 100
+          },
+          {
+            "a_value": "selected",
+            "b_value": "north",
+            "count": 100
+          },
+          {
+            "a_value": "selected",
+            "b_value": "west",
+            "count": 100
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "features",
+        "option": "premium",
+        "categorical": "tier",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "silver",
+            "count": 500
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "gold",
+            "count": 400
+          },
+          {
+            "a_value": "selected",
+            "b_value": "gold",
+            "count": 200
+          },
+          {
+            "a_value": "selected",
+            "b_value": "silver",
+            "count": 100
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "features",
+        "option": "trial",
+        "categorical": "region",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "north",
+            "count": 343
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "west",
+            "count": 343
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "east",
+            "count": 342
+          },
+          {
+            "a_value": "selected",
+            "b_value": "east",
+            "count": 58
+          },
+          {
+            "a_value": "selected",
+            "b_value": "north",
+            "count": 57
+          },
+          {
+            "a_value": "selected",
+            "b_value": "west",
+            "count": 57
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "features",
+        "option": "trial",
+        "categorical": "tier",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "silver",
+            "count": 515
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "gold",
+            "count": 513
+          },
+          {
+            "a_value": "selected",
+            "b_value": "gold",
+            "count": 87
+          },
+          {
+            "a_value": "selected",
+            "b_value": "silver",
+            "count": 85
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "channels",
+        "option": "email",
+        "categorical": "region",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "east",
+            "count": 320
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "north",
+            "count": 320
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "west",
+            "count": 320
+          },
+          {
+            "a_value": "selected",
+            "b_value": "east",
+            "count": 80
+          },
+          {
+            "a_value": "selected",
+            "b_value": "north",
+            "count": 80
+          },
+          {
+            "a_value": "selected",
+            "b_value": "west",
+            "count": 80
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "channels",
+        "option": "email",
+        "categorical": "tier",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "gold",
+            "count": 480
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "silver",
+            "count": 480
+          },
+          {
+            "a_value": "selected",
+            "b_value": "gold",
+            "count": 120
+          },
+          {
+            "a_value": "selected",
+            "b_value": "silver",
+            "count": 120
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "channels",
+        "option": "sms",
+        "categorical": "region",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "west",
+            "count": 255
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "east",
+            "count": 254
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "north",
+            "count": 254
+          },
+          {
+            "a_value": "selected",
+            "b_value": "east",
+            "count": 146
+          },
+          {
+            "a_value": "selected",
+            "b_value": "north",
+            "count": 146
+          },
+          {
+            "a_value": "selected",
+            "b_value": "west",
+            "count": 145
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "channels",
+        "option": "sms",
+        "categorical": "tier",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "silver",
+            "count": 382
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "gold",
+            "count": 381
+          },
+          {
+            "a_value": "selected",
+            "b_value": "gold",
+            "count": 219
+          },
+          {
+            "a_value": "selected",
+            "b_value": "silver",
+            "count": 218
+          }
+        ],
+        "n": 1200
+      }
+    ],
+    "set_numeric_pairs": [
+      {
+        "set": "features",
+        "option": "premium",
+        "numeric": "spend",
+        "categories": [
+          {
+            "category": "selected",
+            "mean": 81.88833333333332,
+            "std": 9.560985236078196,
+            "n": 300
+          },
+          {
+            "category": "not_selected",
+            "mean": 58.231500000000004,
+            "std": 9.624405531820372,
+            "n": 900
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "features",
+        "option": "premium",
+        "numeric": "visits",
+        "categories": [
+          {
+            "category": "selected",
+            "mean": 3.939966666666663,
+            "std": 1.1235179753905449,
+            "n": 300
+          },
+          {
+            "category": "not_selected",
+            "mean": 4.382577777777778,
+            "std": 1.1679032577777462,
+            "n": 900
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "features",
+        "option": "trial",
+        "numeric": "spend",
+        "categories": [
+          {
+            "category": "selected",
+            "mean": 64.03284883720939,
+            "std": 14.021879708159695,
+            "n": 172
+          },
+          {
+            "category": "not_selected",
+            "mean": 64.16459143968872,
+            "std": 14.055906288304227,
+            "n": 1028
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "features",
+        "option": "trial",
+        "numeric": "visits",
+        "categories": [
+          {
+            "category": "selected",
+            "mean": 4.261337209302325,
+            "std": 1.1707182591683034,
+            "n": 172
+          },
+          {
+            "category": "not_selected",
+            "mean": 4.273696498054473,
+            "std": 1.1731109255849521,
+            "n": 1028
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "channels",
+        "option": "email",
+        "numeric": "spend",
+        "categories": [
+          {
+            "category": "selected",
+            "mean": 64.14937499999999,
+            "std": 14.063627439695377,
+            "n": 240
+          },
+          {
+            "category": "not_selected",
+            "mean": 64.14479166666668,
+            "std": 14.04801404473156,
+            "n": 960
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "channels",
+        "option": "email",
+        "numeric": "visits",
+        "categories": [
+          {
+            "category": "selected",
+            "mean": 4.272874999999998,
+            "std": 1.1753854815909295,
+            "n": 240
+          },
+          {
+            "category": "not_selected",
+            "mean": 4.271687500000001,
+            "std": 1.1721267829272843,
+            "n": 960
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "channels",
+        "option": "sms",
+        "numeric": "spend",
+        "categories": [
+          {
+            "category": "selected",
+            "mean": 64.104118993135,
+            "std": 14.046287144162596,
+            "n": 437
+          },
+          {
+            "category": "not_selected",
+            "mean": 64.16952817824377,
+            "std": 14.05384536678009,
+            "n": 763
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set": "channels",
+        "option": "sms",
+        "numeric": "visits",
+        "categories": [
+          {
+            "category": "selected",
+            "mean": 4.2670709382151015,
+            "std": 1.1541294534907924,
+            "n": 437
+          },
+          {
+            "category": "not_selected",
+            "mean": 4.2747051114023575,
+            "std": 1.1833066844713325,
+            "n": 763
+          }
+        ],
+        "n": 1200
+      }
+    ],
+    "set_set_pairs": [
+      {
+        "set_a": "features",
+        "option_a": "premium",
+        "set_b": "channels",
+        "option_b": "email",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "not_selected",
+            "count": 720
+          },
+          {
+            "a_value": "selected",
+            "b_value": "not_selected",
+            "count": 240
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "selected",
+            "count": 180
+          },
+          {
+            "a_value": "selected",
+            "b_value": "selected",
+            "count": 60
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set_a": "features",
+        "option_a": "premium",
+        "set_b": "channels",
+        "option_b": "sms",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "not_selected",
+            "count": 572
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "selected",
+            "count": 328
+          },
+          {
+            "a_value": "selected",
+            "b_value": "not_selected",
+            "count": 191
+          },
+          {
+            "a_value": "selected",
+            "b_value": "selected",
+            "count": 109
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set_a": "features",
+        "option_a": "trial",
+        "set_b": "channels",
+        "option_b": "email",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "not_selected",
+            "count": 823
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "selected",
+            "count": 205
+          },
+          {
+            "a_value": "selected",
+            "b_value": "not_selected",
+            "count": 137
+          },
+          {
+            "a_value": "selected",
+            "b_value": "selected",
+            "count": 35
+          }
+        ],
+        "n": 1200
+      },
+      {
+        "set_a": "features",
+        "option_a": "trial",
+        "set_b": "channels",
+        "option_b": "sms",
+        "cells": [
+          {
+            "a_value": "not_selected",
+            "b_value": "not_selected",
+            "count": 654
+          },
+          {
+            "a_value": "not_selected",
+            "b_value": "selected",
+            "count": 374
+          },
+          {
+            "a_value": "selected",
+            "b_value": "not_selected",
+            "count": 109
+          },
+          {
+            "a_value": "selected",
+            "b_value": "selected",
+            "count": 63
+          }
+        ],
+        "n": 1200
+      }
+    ]
+  }
+}

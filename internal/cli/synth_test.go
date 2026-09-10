@@ -22,8 +22,19 @@ import (
 // group.
 func runSynthCLI(t *testing.T, buf *bytes.Buffer, args ...string) error {
 	t.Helper()
+	var discard bytes.Buffer
+	return runSynthCLIStreams(t, buf, &discard, args...)
+}
+
+// runSynthCLIStreams is runSynthCLI with the diagnostic stream captured
+// too. The warning summary (E6-S3) goes to ErrWriter rather than Writer
+// so a redirected stdout stays exactly the bytes it was, which means a
+// test that only captures stdout cannot see it at all.
+func runSynthCLIStreams(t *testing.T, out, errOut *bytes.Buffer, args ...string) error {
+	t.Helper()
 	root := SynthCommand()
-	root.Writer = buf
+	root.Writer = out
+	root.ErrWriter = errOut
 	return root.Run(context.Background(), append([]string{"synth"}, args...))
 }
 
@@ -32,8 +43,17 @@ func runSynthCLI(t *testing.T, buf *bytes.Buffer, args ...string) error {
 // `pulse profile` command group.
 func runProfileCLI(t *testing.T, buf *bytes.Buffer, args ...string) error {
 	t.Helper()
+	var discard bytes.Buffer
+	return runProfileCLIStreams(t, buf, &discard, args...)
+}
+
+// runProfileCLIStreams is runProfileCLI with the diagnostic stream
+// captured too. See runSynthCLIStreams.
+func runProfileCLIStreams(t *testing.T, out, errOut *bytes.Buffer, args ...string) error {
+	t.Helper()
 	root := ProfileCommand()
-	root.Writer = buf
+	root.Writer = out
+	root.ErrWriter = errOut
 	return root.Run(context.Background(), append([]string{"profile"}, args...))
 }
 
