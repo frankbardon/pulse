@@ -59,7 +59,7 @@ Fourteen kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` sk
 - `constant` — `value`; sentinel fields.
 - `set_bernoulli` — `options`, `frequencies`; one independent Bernoulli draw per declared bit, or a joint-structure resample when a set-categorical/set-numeric/set-set pair targets that option. `options` also pre-registers the field's dictionary at schema-build time — see the Set section below.
 
-All 17 `.pulse` field types reachable. `decimal128` requires `params.scale` matching declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the per-record null bitmap; distributions report nulls via the bitmap, never inline sentinels.
+17 of the 18 `.pulse` field types are reachable — **`datetime` is not**: `fieldTypeFromName` (`synth/writer.go`) has no case for it, so a spec declaring `"type": "datetime"` refuses with `unknown field type`. Use `date` (epoch days) or model the instant as `u64` epoch seconds. `decimal128` requires `params.scale` matching declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the per-record null bitmap; distributions report nulls via the bitmap, never inline sentinels.
 
 ### Constraints
 
