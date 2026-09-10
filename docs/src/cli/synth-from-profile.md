@@ -110,6 +110,82 @@ array — when the spec carried no correlations at all (e.g. neither
 `--conditional` nor `--include-correlations` was passed at profile
 time).
 
+### `models` — did generation reproduce the captured structure?
+
+Every other section asks whether the generated rows *look like* the
+source. `models` asks whether the captured **structure** survived
+generation: for each linear model generation actually applied
+(`profile create --fit-models`), it refits that same model on the
+`_synthetic` partition and reports the captured coefficient beside the
+recovered one, per predictor.
+
+```json
+{
+  "models": [
+    {
+      "field": "spend",
+      "latent_scale": 25.0,
+      "captured_intercept": 0.0,
+      "recovered_intercept": 0.004,
+      "intercept_delta": 0.004,
+      "n_obs": 10000,
+      "r2": 0.61,
+      "max_delta": 0.031,
+      "predictors": [
+        {"kind": "categorical_level", "field": "region", "level": "east",
+         "captured_coefficient": 1.2, "recovered_coefficient": 1.187,
+         "std_error": 0.012, "delta": 0.013, "n_fired": 3341},
+        {"kind": "categorical_level", "field": "region", "level": "other",
+         "captured_coefficient": 1.76, "n_fired": 0,
+         "error": "predictor level is absent from the output cohort's dictionary, so no row can carry it"}
+      ]
+    }
+  ]
+}
+```
+
+Both coefficients are on the **latent scale** — units of one standard
+deviation of the target's own reconstructed marginal, which is
+`latent_scale`. That is not a presentation choice: a modelled numeric
+is drawn as `value = Q(Φ(μ + σz))`, so its coefficients live on the
+latent scale, and for a `--fit-shape` target the map from latent to
+value is non-linear. Regressing the raw generated values would compare
+a value-space effect against a latent coefficient and report a large
+gap on a generation path that is exactly correct. Multiply by
+`latent_scale` to return to the units `profile create --fit-models`
+writes into the profile document.
+
+`flagged` marks a gap large enough to indicate a real generation
+fault: it fires only when `delta` exceeds **both** 0.10 latent standard
+deviations **and** twice the refit's own `std_error`. A gap smaller
+than the estimator's own noise cannot be evidence of anything.
+`n_fired` — how many admitted synthetic rows the term's indicator was
+1 on — is what separates the two ways a recovered coefficient reaches
+zero: a term that fired thousands of times and recovered nothing is a
+fault; a term that never fired had nothing to recover.
+
+Three absence rules, all deliberate:
+
+- A field carrying **no model** has no entry here, rather than an entry
+  with empty values.
+- A captured model generation did **not apply** — one whose target lost
+  a conflict, or which generation refused — likewise has no entry. The
+  section asks generation's own compiler which models ran; reporting a
+  computed-looking delta for a relationship that was never applied is
+  worse than reporting nothing, because the number looks like evidence.
+- A predictor whose level the generated cohort never carries is listed
+  with an `error` and no delta, for the same reason.
+
+A model whose predictor selection admitted nothing carries
+`"marginal": true` and no `predictors` array. That is a *complete*
+model — the field's own mean and spread — not a failure; its intercept
+comparison is still a real check, since a drifted intercept there means
+the marginal itself did not survive.
+
+`models` is entirely absent when the profile carried no `models`
+section, so a report for a profile captured without `--fit-models` is
+unchanged.
+
 `warnings` mirrors any thin-pair warnings the source profile carried
 (`Profile.Warnings` — see [`pulse profile
 create`](profile-create.md)'s `--conditional` section) verbatim,

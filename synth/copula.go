@@ -100,6 +100,157 @@ func phi(x float64) float64 {
 	return 0.5 * (1 + math.Erf(x/math.Sqrt2))
 }
 
+// phiInv returns Φ⁻¹(p), the standard normal quantile — phi's inverse,
+// via math.Erfinv: Φ⁻¹(p) = √2·erf⁻¹(2p−1). Nothing in GENERATION needs
+// it (the copula construction starts from a normal draw and never has
+// to go back), so it exists solely for latentFor below, which reads a
+// generated value back onto the latent scale for E5-S1's model-recovery
+// comparison.
+//
+// p is clipped into (eps, 1−eps) rather than allowed to return ±Inf. A
+// generated value can legitimately sit at or beyond its marginal's
+// support edge — a clamped draw, or a mixture whose fitted CDF
+// saturates in float64 well before the observed maximum — and an
+// infinite latent would poison the whole refit's Gram matrix with one
+// row rather than costing that row a few thousandths of accuracy. The
+// bound is ±7.03 standard deviations, far outside anything a 10,000-row
+// sample reaches by chance, so the clip is only ever load-bearing for
+// values the inversion genuinely cannot place.
+func phiInv(p float64) float64 {
+	const eps = 1e-12
+	switch {
+	case p <= eps:
+		p = eps
+	case p >= 1-eps:
+		p = 1 - eps
+	}
+	return math.Sqrt2 * math.Erfinv(2*p-1)
+}
+
+// latentFunc maps one generated DATA-SCALE value back onto the standard
+// normal latent u that produced it, reporting ok=false for a value the
+// distribution cannot place at all (a non-positive lognormal draw, a
+// negative exponential one). It is the exact inverse of the quantileFunc
+// quantileFor returns for the same FieldSpec.
+type latentFunc func(v float64) (float64, bool)
+
+// latentFor returns fs's inverse quantile: the function taking a value
+// this field's generation stage produced back to the standard-normal
+// latent u it came from, so u = latentFor(fs)(quantileFor(fs)(u, phi(u)))
+// for every u the field's support admits.
+//
+// # Why this exists at all
+//
+// A modelled numeric is drawn as value = Q(Φ(μ + σz)) — see
+// synth/model_draw.go's header. The coefficients inside μ are therefore
+// LATENT-scale quantities: for a `normal` target the round trip
+// collapses and they read as data-scale too, but for a lognormal,
+// uniform, exponential or captured-mixture target the map from u to
+// value is non-linear and a coefficient moves the value by an amount
+// that depends where in the distribution the row landed. Regressing a
+// generated cohort's raw VALUES on the same dummies and comparing the
+// result to a captured coefficient is therefore comparing a value-space
+// effect to a latent one — the trap E5-S1 exists to avoid. Inverting
+// each generated value through this function first puts both sides of
+// that comparison on one scale, which is what makes an attenuated
+// recovery evidence of a GENERATION fault rather than an artefact of
+// the marginal's shape. See BuildModelFidelity.
+//
+// # Lockstep with quantileFor
+//
+// Every arm here is the algebraic inverse of the matching arm above,
+// and the two MUST move together: a distribution admitted to
+// quantileFor without an inverse here would silently drop every model
+// targeting it out of the recovery section, and one inverted wrongly
+// would report a false attenuation for a generation path that is
+// correct. TestLatentFor_InvertsQuantileForEveryDistribution round-trips
+// all five and fails if either side moves alone.
+//
+// Only called after fieldMoments has succeeded for fs (so mean/std are
+// real and std > 0); the default arm refuses defensively with the same
+// SERVICE_VALIDATION shape quantileFor uses rather than assuming.
+func latentFor(fs FieldSpec, mean, std float64) (latentFunc, error) {
+	switch fs.Distribution {
+	case DistNormal:
+		// Q(u) = mean + std*u.
+		return func(v float64) (float64, bool) {
+			return (v - mean) / std, true
+		}, nil
+	case DistUniform:
+		minV, _, err := paramFloat(fs.Name, fs.Params, "min", 0)
+		if err != nil {
+			return nil, err
+		}
+		maxV, _, err := paramFloat(fs.Name, fs.Params, "max", 1)
+		if err != nil {
+			return nil, err
+		}
+		width := maxV - minV
+		if width <= 0 {
+			// A zero-width uniform has no latent to recover: every value
+			// is the same one and p is undefined. fieldMoments computes
+			// std = width/√12 for this arm, so buildModelDrawers has
+			// already refused such a field its model — held defensively.
+			return func(float64) (float64, bool) { return 0, false }, nil
+		}
+		// Q(p) = min + p*(max-min).
+		return func(v float64) (float64, bool) {
+			return phiInv((v - minV) / width), true
+		}, nil
+	case DistLogNormal:
+		mu, _, err := paramFloat(fs.Name, fs.Params, "mu", 0)
+		if err != nil {
+			return nil, err
+		}
+		sigma, _, err := paramFloat(fs.Name, fs.Params, "sigma", 1)
+		if err != nil {
+			return nil, err
+		}
+		if sigma <= 0 {
+			return func(float64) (float64, bool) { return 0, false }, nil
+		}
+		// Q(u) = exp(mu + sigma*u).
+		return func(v float64) (float64, bool) {
+			if v <= 0 {
+				return 0, false
+			}
+			return (math.Log(v) - mu) / sigma, true
+		}, nil
+	case DistExponential:
+		lambda, _, err := paramFloat(fs.Name, fs.Params, "lambda", 1)
+		if err != nil {
+			return nil, err
+		}
+		if lambda <= 0 {
+			return func(float64) (float64, bool) { return 0, false }, nil
+		}
+		// Q(p) = -log(1-p)/lambda, so p = 1 - exp(-lambda*v). Expm1
+		// keeps the small-v end accurate, where 1-exp(-x) cancels.
+		return func(v float64) (float64, bool) {
+			if v < 0 {
+				return 0, false
+			}
+			return phiInv(-math.Expm1(-lambda * v)), true
+		}, nil
+	case DistMixture:
+		// The mixture's CDF is a closed-form weighted sum of erfs — it
+		// is only its INVERSE that needs bisection — so the latent
+		// direction is the cheap one here, exactly the reverse of
+		// quantileFor's mixture arm.
+		mc, err := parseMixtureComponents(fs)
+		if err != nil {
+			return nil, err
+		}
+		return func(v float64) (float64, bool) {
+			return phiInv(mc.cdf(v)), true
+		}, nil
+	default:
+		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: distribution %q has no latent inverse", fs.Name, fs.Distribution),
+			map[string]any{"field": fs.Name, "distribution": fs.Distribution})
+	}
+}
+
 // buildCorrelator builds a correlator from correlations — the SURVIVING
 // CorrelationSpec entries after resolveConflicts has pruned any
 // participant field already claimed by an earlier drawRow stage (or by a

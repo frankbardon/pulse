@@ -280,7 +280,19 @@ type FidelityReport struct {
 	SetCategoricalPairwise     []*SetCategoricalPairFidelity     `json:"set_categorical_pairwise,omitempty"`
 	SetNumericPairwise         []*SetNumericPairFidelity         `json:"set_numeric_pairwise,omitempty"`
 	SetSetPairwise             []*SetSetPairFidelity             `json:"set_set_pairwise,omitempty"`
-	Warnings                   []string                          `json:"warnings,omitempty"`
+	// Models is the per-field MODEL-RECOVERY section (E5-S1): for every
+	// linear model generation actually applied, the captured coefficients
+	// beside the ones a refit on the generated partition recovers. It
+	// answers a different question from every section above — those ask
+	// whether the generated rows LOOK like the source, this asks whether
+	// the captured STRUCTURE survived generation — and it is the only
+	// section that can tell a faithful generation whose marginal
+	// contrasts are merely compressed apart from one that silently lost
+	// its conditioning. Absent (omitempty) for every spec carrying no
+	// `models`, which is every spec predating `profile create
+	// --fit-models`. See synth/fidelity_models.go.
+	Models   []*ModelFidelity `json:"models,omitempty"`
+	Warnings []string         `json:"warnings,omitempty"`
 }
 
 // TestRunner executes a single statistical Test against an encoded
