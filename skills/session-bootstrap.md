@@ -120,9 +120,21 @@ Four `.sav` WRITE knobs, each one field of `spss.WriterOptions`. They ride `puls
 
 Note two things `pulse export spss` refuses rather than ignores: `--include` and `--labels`. The `.sav` writer encodes from the cohort's raw storage, not from the rendered row stream those two transform, so honouring them would emit something other than what was asked for (`PULSE_SPSS_EXPORT_UNSUPPORTED`). Narrow or relabel into a cohort first, then export it.
 
+## Profile-capture CLI flags
+
+Four independent, additive `pulse profile create` knobs. Each adds an `omitempty` section; omitting all four reproduces the pre-flag document byte-for-byte. None implies another.
+
+- `--conditional` — the pick-one conditional pair sections (numeric-numeric, categorical-categorical, categorical-numeric, and the three `set_*` arms).
+- `--fit-shape` — a 2-component Gaussian mixture per numeric, kept only on a BIC win. Generates as `mixture` instead of `normal`.
+- `--fit-models` — one linear model per numeric, the field regressed on the categorical levels and set options automatic selection admitted. **This is how several drivers condition ONE numeric at once**, and it RETIRES the numeric-target conditional pairs for the targets it lands on — per target, never per document. The three non-numeric pair arms are untouched, so `--conditional` + `--fit-models` keeps both halves.
+- `--residual-correlations` (requires `--fit-models`) — the full correlation submatrix among the fitted residuals, so a numeric can be both conditioned and correlated with a sibling.
+
+**A model coefficient is a LATENT-scale quantity**, not data units: it shifts the standard-normal `μ` in `value = Q(Φ(μ + σ·z))`, so it is non-linear in value space for every non-normal `Q`. Never report one as "this many points on the scale". Detail: `synthetic-data`.
+
 ## Cross-links
 
 - `request-envelope` — envelope shape, slot keys, smart defaults, streamability flag.
+- `synthetic-data` — synth modes, multi-predictor models, correlations, determinism.
 - `response-components` — v0.20.0 Components family + per-operator key tables.
 - `mcp-integration` — every registered tool, full per-tool argument shape.
 - `debugging-with-predict` — predict loop in detail.
