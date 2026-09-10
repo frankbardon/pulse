@@ -107,6 +107,26 @@ type CategoricalPairFidelity struct {
 // synth/conditional_sample.go's categoricalNumericPairSampler draws
 // from) and that category's REALIZED conditional mean/std over the
 // _synthetic=true partition of the output cohort.
+//
+// # This section and Models are DISJOINT by construction (E5-S2)
+//
+// A numeric target reached by a linear model has NO entry here, ever.
+// The pick-one sampler this section scores does not run for such a
+// field — the model owns its value — so an entry would be a delta for a
+// mechanism that never executed, which is the v0.32.2 bug class. Two
+// independent guards make it impossible rather than merely unlikely:
+// SpecFromProfile leaves a modelled target's captured pair off the Spec
+// entirely (per TARGET, not per document — an unmodelled numeric in the
+// same profile keeps its pair and is still scored here), and
+// resolveConflicts pre-claims every modelled field ahead of the
+// categorical-numeric stage, which catches a hand-authored spec
+// declaring both. So this section covers exactly the numerics that kept
+// the pick-one mechanism, `models` covers exactly the ones that did
+// not, and the two field sets never intersect. The same rule applies
+// verbatim to SetNumericPairFidelity; the three NON-numeric-target
+// sections (CategoricalPairFidelity, SetCategoricalPairFidelity,
+// SetSetPairFidelity) are untouched by any of it, because a linear
+// model targets a numeric and subsumes nothing they describe.
 type CategoricalNumericPairFidelity struct {
 	A          string                                `json:"a"`
 	B          string                                `json:"b"`
@@ -220,6 +240,10 @@ type SetCategoricalPairFidelity struct {
 // (SetNumericPairSpec.Categories, keyed "selected"/"not_selected") and
 // that bucket's REALIZED conditional mean/std over the _synthetic=true
 // partition — the set-option analogue of CategoricalNumericPairFidelity.
+//
+// It is a NUMERIC-TARGET section, so the model-retirement rule on
+// CategoricalNumericPairFidelity applies to it verbatim: a numeric
+// reached by a linear model has no entry here.
 type SetNumericPairFidelity struct {
 	Set        string                                `json:"set"`
 	Option     string                                `json:"option"`
@@ -291,8 +315,21 @@ type FidelityReport struct {
 	// its conditioning. Absent (omitempty) for every spec carrying no
 	// `models`, which is every spec predating `profile create
 	// --fit-models`. See synth/fidelity_models.go.
-	Models   []*ModelFidelity `json:"models,omitempty"`
-	Warnings []string         `json:"warnings,omitempty"`
+	Models []*ModelFidelity `json:"models,omitempty"`
+	// ModelResidualCorrelations is the residual-correlation half of the
+	// same model-recovery question (E5-S2): for every residual
+	// correlation generation applied, the captured rho beside the rho
+	// recovered from the generated partition. It is deliberately NOT
+	// folded into Pairwise, which scores the value-scale copula arm over
+	// a DISJOINT set of fields — a modelled field is excluded from
+	// Spec.Correlations by resolveConflicts precisely so the two arms
+	// never both fire on one field. The two section names are what tell
+	// a reader scanning this document which mechanism a given number
+	// describes. Absent (omitempty) for every spec carrying no
+	// `residual_correlations`, which is every spec predating `profile
+	// create --residual-correlations`. See synth/fidelity_residual.go.
+	ModelResidualCorrelations *ModelResidualCorrelationFidelity `json:"model_residual_correlations,omitempty"`
+	Warnings                  []string                          `json:"warnings,omitempty"`
 }
 
 // TestRunner executes a single statistical Test against an encoded

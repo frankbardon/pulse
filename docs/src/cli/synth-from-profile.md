@@ -195,6 +195,80 @@ the marginal itself did not survive.
 section, so a report for a profile captured without `--fit-models` is
 unchanged.
 
+`models` and the two **numeric-target** pair sections
+(`categorical_numeric_pairwise`, `set_numeric_pairwise`) cover disjoint
+sets of fields, and always will. A numeric reached by a linear model
+draws from that model, so the pick-one conditional sampler those
+sections score never runs for it and it gets no entry there — reporting
+a delta for a mechanism that did not execute is the same mistake as
+reporting one for a conflict-dropped pair. The retirement is per
+**target**, not per profile: a numeric whose model was captured but not
+applied keeps its conditional pair and is still scored in those
+sections, because the alternative is a field reconstructed from nothing
+at all. `categorical_pairwise`, `set_categorical_pairwise` and
+`set_set_pairwise` are unaffected — a linear model targets a numeric and
+subsumes nothing they describe.
+
+### `model_residual_correlations` — did the structure BETWEEN models survive?
+
+`models` asks whether each field's own captured structure survived.
+This section asks whether the structure *between* modelled fields did:
+for every residual correlation generation applied (`profile create
+--residual-correlations`), it reports the captured rho beside the rho
+recovered from the generated partition.
+
+```json
+{
+  "model_residual_correlations": {
+    "fields": ["spend", "tenure"],
+    "compared": 1,
+    "mean_delta": 0.012,
+    "max_delta": 0.012,
+    "pairs": [
+      {"a": "spend", "b": "tenure", "captured_rho": 0.70, "recovered_rho": 0.688, "delta": 0.012, "n": 10000}
+    ]
+  }
+}
+```
+
+This is **not** `pairwise` under another name. `pairwise` scores a
+correlation between two fields' *values*, realized by the copula;
+this scores a correlation between two models' *residuals*, realized by
+the residual correlator. They are different numbers over the same two
+fields — two fields both driven by `region` correlate strongly on raw
+values while their residuals may be independent — and a modelled field
+is excluded from the value-scale arm precisely so the two never both
+fire on one field. The section names are how a reader tells which
+mechanism a given number describes.
+
+The residuals compared are the **refit's own**, on the latent scale.
+Capture measured the residuals of a model fitted on its own rows, so
+recovery measures the residuals of a model fitted on the synthetic rows
+— the symmetric definition. Taking them against the captured
+coefficients instead would fold the coefficient gaps `models` already
+reports into a correlation and state one finding twice.
+
+The listing is **bounded**, because the section is quadratic in
+participants: 55 applied models is 1,485 pairs. `compared`, `flagged`,
+`mean_delta` and `max_delta` describe every compared pair; `pairs`
+carries the worst 20 by absolute `delta`, largest first, and `omitted`
+counts the rest. A pair that did not make the listing recovered at
+least as well as the last one that did. `flagged` fires at a `delta`
+above 0.10 — a correlation is already unit-free, so unlike the
+coefficient band it needs no standard-error term.
+
+A pair generation applied but the synthetic partition cannot produce a
+correlation for is listed under `unmeasured` with a `reason`
+(`insufficient_overlap`, `no_variance`, or `no_model_fit` when one
+endpoint's model could not be refitted). Those entries carry
+`captured_rho` — so a reader can see how much structure went unverified
+— and **no** recovered-rho key at all, so an unmeasured pair can never
+be mistaken for one recovered at zero.
+
+`model_residual_correlations` is entirely absent when the profile
+carried no `residual_correlations` section, so a report for a profile
+captured without that flag is unchanged.
+
 `warnings` mirrors any thin-pair warnings the source profile carried
 (`Profile.Warnings` — see [`pulse profile
 create`](profile-create.md)'s `--conditional` section) verbatim,

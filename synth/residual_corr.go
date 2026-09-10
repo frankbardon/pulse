@@ -283,22 +283,37 @@ func computeResidualCorrelations(models []FieldModel, warnings *[]string) *Resid
 // silently correlate unrelated rows, and truncating is the only
 // reading of that situation that is not simply wrong.
 func coResiduals(a, b *FieldModel) (xs, ys []float64) {
-	n := len(a.Residuals)
-	if len(b.Residuals) < n {
-		n = len(b.Residuals)
+	return coResidualSlices(a.Residuals, a.ResidualPresent, b.Residuals, b.ResidualPresent)
+}
+
+// coResidualSlices is the row-alignment rule itself, over bare
+// slices.
+//
+// It is factored out of coResiduals so the RECOVERY side of the same
+// measurement — the fidelity report's refit residuals over the
+// generated partition, which are per-row vectors of exactly this shape
+// but carry no FieldModel around them (synth/fidelity_residual.go) —
+// intersects rows by the identical walk rather than by a second one
+// written to look like it. A capture and its recovery disagreeing about
+// which rows a pair shares would show up as a correlation delta and
+// read as a generation fault.
+func coResidualSlices(ar []float64, ap []bool, br []float64, bp []bool) (xs, ys []float64) {
+	n := len(ar)
+	if len(br) < n {
+		n = len(br)
 	}
-	if len(a.ResidualPresent) < n {
-		n = len(a.ResidualPresent)
+	if len(ap) < n {
+		n = len(ap)
 	}
-	if len(b.ResidualPresent) < n {
-		n = len(b.ResidualPresent)
+	if len(bp) < n {
+		n = len(bp)
 	}
 	for r := 0; r < n; r++ {
-		if !a.ResidualPresent[r] || !b.ResidualPresent[r] {
+		if !ap[r] || !bp[r] {
 			continue
 		}
-		xs = append(xs, a.Residuals[r])
-		ys = append(ys, b.Residuals[r])
+		xs = append(xs, ar[r])
+		ys = append(ys, br[r])
 	}
 	return xs, ys
 }

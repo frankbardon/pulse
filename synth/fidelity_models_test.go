@@ -89,6 +89,12 @@ func augmentForModelFidelity(t *testing.T, genSpec *synth.Spec, newRows int, see
 
 	sourceSpec := *genSpec
 	sourceSpec.Models = nil
+	// The residual correlations go with the models: validateSpec refuses
+	// a residual correlation naming a field with no model, and the
+	// source partition is deliberately generated model-free so the
+	// _synthetic rows are the only ones carrying the structure under
+	// test.
+	sourceSpec.ResidualCorrelations = nil
 	sourceSpec.RowCount = 400
 	srcData, _, err := synth.SynthBytes(&sourceSpec, synth.Options{Seed: seed})
 	if err != nil {

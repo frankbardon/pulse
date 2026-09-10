@@ -281,9 +281,20 @@ func BuildModelFidelity(report *FidelityReport, mergedSchema *encoding.Schema, r
 	for _, fs := range spec.Fields {
 		specOf[fs.Name] = fs
 	}
+	// residualsOf carries each refit's own per-row latent residuals out
+	// of the loop so the residual-correlation half (E5-S2) rides the
+	// SAME decode and the SAME refits rather than repeating either. The
+	// map is only ever read by key; nothing folds over it, so its
+	// iteration order never reaches a number (E2-S4).
+	residualsOf := make(map[string]*recoveredResiduals, len(drawers))
 	for _, d := range drawers {
-		report.Models = append(report.Models, computeModelFidelity(mergedSchema, rows, d, specOf[d.field]))
+		entry, resid := computeModelFidelity(mergedSchema, rows, d, specOf[d.field])
+		report.Models = append(report.Models, entry)
+		if resid != nil {
+			residualsOf[d.field] = resid
+		}
 	}
+	report.ModelResidualCorrelations = buildModelResidualFidelity(spec, drawers, residualsOf)
 }
 
 // recoveryTerm pairs one compiled model term with the design column that
@@ -314,7 +325,18 @@ type recoveryTerm struct {
 // as an exact match on the literal level text `otherCategoryLabel`
 // (modelDrawer.transform), and the recovery must reproduce what
 // GENERATION did, not what the fitter did.
-func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d *modelDrawer, fs FieldSpec) *ModelFidelity {
+//
+// The second return is the refit's own per-row latent residuals over
+// the admitted rows, row-aligned with rows, or nil when no refit ran.
+// They are produced HERE rather than by a second pass because they are
+// a by-product of a fit that has already happened: the residual
+// correlation section (E5-S2) needs the residuals of a model fitted on
+// the synthetic partition, which is precisely what this function just
+// fitted, and re-deriving them would mean either a second refit or —
+// worse — residuals taken against the CAPTURED coefficients, which
+// would fold this section's own coefficient gaps into a correlation and
+// report one finding twice.
+func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d *modelDrawer, fs FieldSpec) (*ModelFidelity, *recoveredResiduals) {
 	std := 1 / d.invStd
 	entry := &ModelFidelity{
 		Field:             d.field,
@@ -332,7 +354,7 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 		// one way this section could silently stop covering a
 		// distribution.
 		entry.Error = err.Error()
-		return entry
+		return entry, nil
 	}
 
 	terms := resolveRecoveryTerms(mergedSchema, d, std)
@@ -350,7 +372,7 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 	if !ok {
 		entry.Error = fmt.Sprintf(
 			"synthetic partition admits fewer than two rows carrying %s and every predictor of its model", d.field)
-		return entry
+		return entry, nil
 	}
 
 	if entry.Marginal {
@@ -366,19 +388,31 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 		}
 		entry.RecoveredIntercept = sum / float64(len(admitted))
 		entry.InterceptDelta = math.Abs(entry.RecoveredIntercept - entry.CapturedIntercept)
-		return entry
+		// A marginal model's residual is the row's whole deviation from
+		// its own recovered mean, which is what an intercept-only fit
+		// leaves over. It participates in the residual correlation
+		// exactly as a predictor-carrying model does — the same
+		// symmetry computeResidualCorrelations applies at capture, and
+		// for the same reason: a field nothing explains still has a
+		// residual, and it is the field's own centred latent.
+		resid := newRecoveredResiduals(len(rows))
+		for _, ri := range admitted {
+			u, _ := latent(rows[ri].values[d.field])
+			resid.set(ri, u-entry.RecoveredIntercept)
+		}
+		return entry, resid
 	}
 
 	live := liveRecoveryColumns(terms)
 	if len(live) == 0 {
 		entry.Error = "no model term carries information on the synthetic partition: every design column is absent or constant"
-		return entry
+		return entry, nil
 	}
 
 	res, ferr := fitRecovery(mergedSchema, rows, admitted, d, live, latent)
 	if ferr != "" {
 		entry.Error = ferr
-		return entry
+		return entry, nil
 	}
 
 	entry.RecoveredIntercept = res.Coefficients[regression.InterceptKey]
@@ -403,7 +437,41 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 			entry.Flagged = true
 		}
 	}
-	return entry
+	return entry, recoveryResidualsFor(rows, admitted, d, terms, latent, res)
+}
+
+// recoveryResidualsFor evaluates the refit's own residual for every
+// admitted row: the row's latent target minus the refit's prediction
+// for it, using the RECOVERED coefficients.
+//
+// Only live terms contribute, and that is exact rather than an
+// approximation. A term dropped by admitRecoveryRows is constant over
+// the admitted rows, so its contribution is either identically zero (it
+// never fires) or a constant the recovered intercept has already
+// absorbed (it always fires) — and a correlation is invariant to a
+// constant shift either way.
+func recoveryResidualsFor(rows []syntheticRow, admitted []int, d *modelDrawer, terms []*recoveryTerm, latent latentFunc, res *types.RegressionResult) *recoveredResiduals {
+	out := newRecoveredResiduals(len(rows))
+	intercept := res.Coefficients[regression.InterceptKey]
+	for _, ri := range admitted {
+		row := &rows[ri]
+		u, ok := latent(row.values[d.field])
+		if !ok {
+			// Unreachable: admission already required invertibility.
+			continue
+		}
+		pred := intercept
+		for _, t := range terms {
+			if !t.live {
+				continue
+			}
+			if recoveryIndicator(row, t.col) == 1 {
+				pred += res.Coefficients[t.col.Name]
+			}
+		}
+		out.set(ri, u-pred)
+	}
+	return out
 }
 
 // resolveRecoveryTerms turns each compiled model term into the design
