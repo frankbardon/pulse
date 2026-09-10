@@ -463,6 +463,14 @@ func TestProfileModels_TooFewObservationsSkips(t *testing.T) {
 // a MODEL carrying the surviving candidate — not a skip, which is what
 // this produced before the refit existed and what cost the motivating
 // cohort 23 of its 105 targets.
+//
+// The fixture is sized so EVERY level clears minLevelObservations. That
+// is load-bearing rather than incidental: thin-level shrinkage switches
+// the design to ridge, and a ridge-augmented Gram is positive-definite
+// even for exactly-collinear columns, so the solver never refuses and
+// the refit this test exists to cover never runs. See
+// TestProfileModels_ShrinkageAbsorbsCollinearityInsteadOfRefitting for
+// the other side of that boundary.
 func TestProfileModels_CollinearCandidatesResolvedByRefit(t *testing.T) {
 	coarse := encoding.NewDictionary()
 	for _, v := range []string{"a", "b"} {
@@ -481,25 +489,14 @@ func TestProfileModels_CollinearCandidatesResolvedByRefit(t *testing.T) {
 		{Name: "coarse", Type: encoding.FieldTypeCategoricalU8, Nullable: true, Dictionary: coarse},
 		{Name: "fine", Type: encoding.FieldTypeCategoricalU8, Nullable: true, Dictionary: fine},
 	}}
-	rows := make([]map[string]any, 40)
-	nulls := make([]map[string]bool, 40)
-	for i := range rows {
-		c, f := "a", "a1"
-		spend := 100.0
-		if i%2 == 1 {
-			c, f, spend = "b", "b1", 200.0
-		}
-		// A little within-group spread so the target has variance to
-		// explain; the between-group split still dominates, which is
-		// what puts both nested candidates over the floor.
-		spend += float64(i) / 40
-		rows[i] = map[string]any{"spend": spend, "coarse": c, "fine": f}
-		nulls[i] = map[string]bool{}
-	}
+	rows, nulls := nestedCategoricalRows(4 * minLevelObservations)
 	prof, err := profileRecords(schema, bytes.NewReader(encodeModelRows(t, schema, rows, nulls)),
 		ProfileOptions{FitModels: true})
 	if err != nil {
 		t.Fatalf("a rank-deficient design must be narrowed, not fail the run: %v", err)
+	}
+	if m, ok := modelByField(prof.FittedModels(), "spend"); ok && m.ShrinkageAlpha != 0 {
+		t.Fatalf("fixture must be thick enough to stay unpenalized; alpha = %v", m.ShrinkageAlpha)
 	}
 	m, ok := modelByField(prof.FittedModels(), "spend")
 	if !ok {
@@ -522,6 +519,28 @@ func TestProfileModels_CollinearCandidatesResolvedByRefit(t *testing.T) {
 	if prof.RowCount != len(rows) || len(prof.Fields) != 3 {
 		t.Errorf("profile incomplete: RowCount=%d fields=%d", prof.RowCount, len(prof.Fields))
 	}
+}
+
+// nestedCategoricalRows builds n rows of the exactly-nested fixture
+// `coarse` ⊃ `fine` — two levels each, in lockstep — with a small
+// within-group ramp so the target has some variance to explain. n
+// controls the per-level support, which is the only thing that decides
+// whether the design is fitted by plain OLS (and refused as
+// rank-deficient) or by ridge.
+func nestedCategoricalRows(n int) ([]map[string]any, []map[string]bool) {
+	rows := make([]map[string]any, n)
+	nulls := make([]map[string]bool, n)
+	for i := range rows {
+		c, f := "a", "a1"
+		spend := 100.0
+		if i%2 == 1 {
+			c, f, spend = "b", "b1", 200.0
+		}
+		spend += float64(i) / float64(n)
+		rows[i] = map[string]any{"spend": spend, "coarse": c, "fine": f}
+		nulls[i] = map[string]bool{}
+	}
+	return rows, nulls
 }
 
 // TestDropWeakestChoice covers the narrowing step's own contract: it
@@ -631,9 +650,16 @@ func TestProfileModels_RidesTheExistingScan(t *testing.T) {
 // The residual reservoir is the one row-dependent structure and is
 // bounded by modelResidualCap — asserted alongside so the two are never
 // confused for each other.
+//
+// BOTH rep counts are chosen so every level clears
+// minLevelObservations (the smaller run lands 20 rows on each of the
+// three regions per rep). Below it the smaller run would be shrunk and
+// the larger one not, and the coefficients would legitimately differ —
+// which is thin-level shrinkage working, not row-count dependence, and
+// asserting it here would conflate the two properties.
 func TestProfileModels_FitStateIndependentOfRowCount(t *testing.T) {
 	schema := modelFixtureSchema(t)
-	small, smallNulls := modelFixtureRows(5)
+	small, smallNulls := modelFixtureRows(20)
 	profSmall, err := profileRecords(schema, bytes.NewReader(encodeModelRows(t, schema, small, smallNulls)),
 		ProfileOptions{FitModels: true})
 	if err != nil {
@@ -642,7 +668,7 @@ func TestProfileModels_FitStateIndependentOfRowCount(t *testing.T) {
 	// A fresh schema: dictionaries are mutated by the encoder, and the
 	// two runs must not share one.
 	schema2 := modelFixtureSchema(t)
-	large, largeNulls := modelFixtureRows(50)
+	large, largeNulls := modelFixtureRows(200)
 	profLarge, err := profileRecords(schema2, bytes.NewReader(encodeModelRows(t, schema2, large, largeNulls)),
 		ProfileOptions{FitModels: true})
 	if err != nil {

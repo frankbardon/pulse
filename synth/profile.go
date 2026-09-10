@@ -65,6 +65,33 @@ const otherCategoryLabel = "other"
 // being dropped silently.
 const ContingencyCellCap = 128
 
+// thinSupportWarning is the one spelling of "this figure rests on too
+// few observations to trust" in the whole package, and every capture
+// stage that has such a figure routes through it.
+//
+// subject names WHAT is thin, a and b the two things it relates, and
+// consequence what the reader should expect as a result. The first two
+// were already generic across pair KIND; consequence is the third axis,
+// added when model-coefficient shrinkage became the first caller whose
+// outcome is not "a reconstructed correlation may be unstable" but "the
+// coefficient was pulled toward its baseline". Splitting it out rather
+// than adding a second warning builder is what keeps a reader scanning
+// Profile.Warnings able to recognise every thin-support line by its
+// shape, whatever produced it — and every existing caller's text is
+// byte-identical to what it was, because thinPairWarning below still
+// supplies the same two literals it always inlined.
+//
+// Returns "" when n meets the threshold, so a caller can append
+// unconditionally.
+func thinSupportWarning(subject, a, b string, n, threshold int, consequence string) string {
+	if n >= threshold {
+		return ""
+	}
+	return fmt.Sprintf(
+		"thin %s %s x %s: only %d supporting observation(s) (below %d) — %s",
+		subject, a, b, n, threshold, consequence)
+}
+
 // thinPairWarning returns a warning string when n falls below
 // threshold, or "" when the pair has enough support. kind names the
 // pair type in the message (e.g. "numeric" today; "categorical" / "set"
@@ -72,12 +99,8 @@ const ContingencyCellCap = 128
 // mechanism produces reads the same shape regardless of which capture
 // path produced it.
 func thinPairWarning(kind, a, b string, n, threshold int) string {
-	if n >= threshold {
-		return ""
-	}
-	return fmt.Sprintf(
-		"thin %s pair %s x %s: only %d supporting observation(s) (below %d) — reconstructed correlation may be unstable",
-		kind, a, b, n, threshold)
+	return thinSupportWarning(kind+" pair", a, b, n, threshold,
+		"reconstructed correlation may be unstable")
 }
 
 // ProfileOptions modulates how Profile summarizes a cohort.

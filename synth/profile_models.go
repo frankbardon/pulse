@@ -77,11 +77,14 @@ import (
 //     both decided in profile_models_select.go; this file consumes the
 //     answer. Read that file's header before changing anything about
 //     which columns exist.
-//   - Regularisation. Ridge is already implemented and tested inside the
-//     engine (spec.Penalty = "l2" + Alpha); a degenerate design is
-//     SKIPPED with a warning here rather than quietly bent into shape by
-//     a hand-rolled penalty. Shrinking thin levels is a modelling
-//     decision that deserves its own change and its own threshold.
+//   - Thin-level SHRINKAGE. The engine's ridge (spec.Penalty = "l2" +
+//     Alpha) is switched on per fit when one of its levels rests on too
+//     few rows to be fitted freely; which levels those are, what alpha
+//     they buy and why a clean design stays unpenalized are all decided
+//     in profile_models_shrink.go. What stays true here is that a design
+//     the solver refuses outright is SKIPPED with a warning rather than
+//     bent into shape — shrinkage answers thin support, not
+//     rank-deficiency.
 
 const (
 	// modelResidualCap bounds the row-aligned snapshot this capture
@@ -253,6 +256,20 @@ type FieldModel struct {
 	// generation adds back on top of the linear predictor.
 	R2          float64 `json:"r2"`
 	ResidualStd float64 `json:"residual_std"`
+	// ShrinkageAlpha is the ridge penalty this model was fitted under,
+	// absent (omitempty, and therefore zero) when it was fitted by plain
+	// unpenalized OLS.
+	//
+	// It is on the wire because a shrunk coefficient and a free one are
+	// not the same kind of number, and nothing else in the document says
+	// which was produced. A reader comparing two models' coefficients —
+	// or comparing one model against a hand-run regression — needs to
+	// know that at least one of this model's levels was thin enough to
+	// pull the whole design toward its baselines, and by how much: the
+	// penalty is minLevelObservations pseudo-observations spread over
+	// NObs rows, so alpha·NObs recovers the pseudo-count. See
+	// profile_models_shrink.go for the construction.
+	ShrinkageAlpha float64 `json:"shrinkage_alpha,omitempty"`
 	// Residuals is the row-aligned fitted residual (observed − predicted)
 	// for each row retained in the capture's residual reservoir, and
 	// ResidualPresent[i] reports whether row i contributed one at all —
@@ -379,6 +396,19 @@ type fieldFit struct {
 	// whatever the last narrowed attempt happened to say.
 	choices []predictorChoice
 	failure string
+
+	// support is parallel to columns after prune: the number of ADMITTED
+	// rows on which each surviving column was non-zero. contrib is the
+	// admitted row count those supports are out of. Both are measured by
+	// pruneDegenerateColumns and kept because thinness is exactly the
+	// ratio between them — see planShrinkage.
+	support []int
+	contrib int
+	// alpha is the ridge penalty planShrinkage chose, 0 when no column
+	// was thin and the fit is plain OLS. thin lists the columns that
+	// forced it, for the warnings.
+	alpha float64
+	thin  []thinLevel
 
 	// model is populated at finish() when the fit succeeds; a nil model
 	// means the field was skipped and has already been warned about.
@@ -596,6 +626,9 @@ func finiteModel(m *FieldModel) (string, bool) {
 	}
 	if !isFinite(m.ResidualStd) {
 		return "residual_std", false
+	}
+	if !isFinite(m.ShrinkageAlpha) {
+		return "shrinkage_alpha", false
 	}
 	for i := range m.Predictors {
 		if !isFinite(m.Predictors[i].Coefficient) {
@@ -832,6 +865,16 @@ func (f *fieldFit) buildEngine(plan *dummyPlan) string {
 		Target:     plan.Target(),
 		Predictors: names,
 	}
+	if f.alpha > 0 {
+		// Thin-level shrinkage. "l2" is the engine's spelling of ridge
+		// and Alpha must be strictly positive alongside it —
+		// regression.ValidateRegression rejects the half-set pair — so
+		// the two are written together and nowhere else. See
+		// planShrinkage for where alpha comes from and why a fit with no
+		// thin column is left unpenalized.
+		spec.Penalty = "l2"
+		spec.Alpha = f.alpha
+	}
 	engines, err := regression.BuildStreaming([]*types.RegressionSpec{spec}, plan.viewSchema())
 	if err != nil {
 		return err.Error()
@@ -971,6 +1014,10 @@ func (f *modelFitter) pruneDegenerateColumns(fits []*fieldFit, values map[string
 	kept := fits[:0]
 	for i, fit := range fits {
 		fit.prune(states[i].hits, states[i].refOf, states[i].refHits, states[i].contrib)
+		// Shrinkage is planned between the prune and the engine: it
+		// reads the support prune measured, and it decides a spec field
+		// buildEngine is about to freeze.
+		fit.planShrinkage()
 		if why := fit.buildEngine(fit.plan); why != "" {
 			fit.failure = why
 			continue
@@ -1003,6 +1050,8 @@ func (f *modelFitter) pruneDegenerateColumns(fits []*fieldFit, values map[string
 // baseline is only meaningful as the arm some other coefficient is read
 // against.
 func (f *fieldFit) prune(hits []int, refOf []int, refHits []int, contrib int) {
+	f.contrib = contrib
+	f.support = f.support[:0]
 	if len(f.columns) == 0 {
 		return
 	}
@@ -1039,6 +1088,11 @@ func (f *fieldFit) prune(hits []int, refOf []int, refHits []int, contrib int) {
 	for ci := range f.columns {
 		if keep[ci] {
 			cols = append(cols, f.columns[ci])
+			// Carried out of the filter rather than recomputed later:
+			// hits is indexed by the PRE-prune column position, and once
+			// f.columns has been rewritten that index is gone. Thin-level
+			// shrinkage reads this parallel slice — see planShrinkage.
+			f.support = append(f.support, hits[ci])
 		}
 	}
 	f.columns = cols
@@ -1158,8 +1212,17 @@ func (f *modelFitter) finish(warnings *[]string) []FieldModel {
 	}
 	f.computeResiduals(kept)
 
+	ordered := f.targetOrder(kept)
+	// Thin-level warnings are emitted here, once, over the fits that
+	// SURVIVED — a fit given up during the refit loop already reported
+	// its own skip, and warning about the levels of a model that is not
+	// in the document would name coefficients no reader can look up.
+	// Emission order follows the document's own target order, which
+	// thinLevelWarnings then re-sorts thinnest-first before truncating.
+	*warnings = append(*warnings, thinLevelWarnings(ordered)...)
+
 	out := make([]FieldModel, 0, len(kept))
-	for _, fit := range f.targetOrder(kept) {
+	for _, fit := range ordered {
 		out = append(out, *fit.model)
 	}
 	return out
@@ -1235,13 +1298,14 @@ func (f *fieldFit) finalize() (*FieldModel, string) {
 		return nil, err.Error()
 	}
 	model := &FieldModel{
-		Field:       f.target,
-		Intercept:   res.Coefficients[regression.InterceptKey],
-		Predictors:  make([]ModelPredictor, 0, len(f.columns)),
-		References:  f.references,
-		NObs:        res.NObs,
-		R2:          res.R2,
-		ResidualStd: res.ResidualStdErr,
+		Field:          f.target,
+		Intercept:      res.Coefficients[regression.InterceptKey],
+		Predictors:     make([]ModelPredictor, 0, len(f.columns)),
+		References:     f.references,
+		NObs:           res.NObs,
+		R2:             res.R2,
+		ResidualStd:    res.ResidualStdErr,
+		ShrinkageAlpha: f.alpha,
 	}
 	for _, c := range f.columns {
 		model.Predictors = append(model.Predictors, ModelPredictor{

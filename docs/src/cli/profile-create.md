@@ -291,7 +291,10 @@ enter. Sorting out the redundancy is the fit's job, not the selection
 rule's: when the solver refuses the design as rank-deficient, the model
 is refitted with its weakest-scoring predictor dropped — up to four
 times — so the candidate that survives a nesting is the one that
-explains more of the target.
+explains more of the target. That narrowing applies to *unpenalized*
+designs only: a ridge penalty makes a collinear design solvable, so a
+model that carries a thin level (below) keeps both overlapping
+candidates and shrinks them together instead.
 
 Each admitted categorical contributes one column per retained level
 except one **reference** level, whose effect is absorbed into the
@@ -302,6 +305,35 @@ the reference — a baseline meaning "one of the remaining 1,874 brands"
 is not something a reader can interpret. `set_*` options are **not**
 subject to reference-dropping at all: a multi-select is not a partition,
 so each option is an independent indicator and all of them are kept.
+
+**Thin levels are shrunk, not dropped.** Choosing which *fields* enter a
+model is one question; how much to trust the individual *levels* of a
+field that already entered is another. Retaining a field's top 32 levels
+bounds how many there are, not how many rows each has — the 32nd most
+common `brand` is still rare, and rows are dropped again for every model
+whose target or predictors are null on them. A coefficient fitted from
+four rows is mostly sampling noise, and generation would reproduce that
+noise as a confident offset for every row it draws at that level.
+
+So a model with any design column supported by fewer than **50** of the
+rows it admits is fitted with a ridge penalty instead of plain least
+squares. The penalty is worth 50 observations at zero, which means a
+level keeps `n / (n + 50)` of the coefficient it would otherwise get:
+three rows keep 6% of it, thirty keep 38%, fifty keep half, five hundred
+keep 91%. The shrinkage therefore *scales* with how thin the level is
+rather than switching on at the threshold, and it pulls the level toward
+the model's reference level — the honest reading of "too few rows to say
+this level differs". A model fitted this way records the penalty as
+`shrinkage_alpha`; one whose levels all clear 50 records nothing and is
+plain least squares.
+
+Each shrunk level is named once in the profile's `warnings`, with its
+support and the model it was thinnest in. Thinness is a property of the
+level rather than of the target, so the lines are aggregated across
+models and then capped at twenty, thinnest first, with a counted summary
+for the rest — lowering `--top-k` folds rare levels into `"other"` and
+is the actual fix. A thin level is never refused and never silently
+dropped.
 
 Alongside the coefficients the capture keeps each model's residual scale
 and its **fitted residuals** (observed minus predicted) over a bounded,
@@ -339,10 +371,17 @@ fitted numeric field:
     "references": [{"field": "region", "level": "east"}],
     "n_obs": 1160,
     "r2": 0.94,
-    "residual_std": 1.41
+    "residual_std": 1.41,
+    "shrinkage_alpha": 0.0431
   }
 ]
 ```
+
+`shrinkage_alpha` appears only when the fit was penalized (see *thin
+levels* above); its absence means plain least squares. A shrunk
+coefficient and a free one are not the same kind of number, and this key
+is the only thing on the wire that says which one you are holding —
+`shrinkage_alpha × n_obs` gives back the 50-observation pseudo-count.
 
 A coefficient is addressed by **`(field, level)`** — never by the
 solver's internal design-column name, which is an implementation detail
