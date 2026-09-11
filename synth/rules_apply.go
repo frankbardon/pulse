@@ -2,6 +2,8 @@ package synth
 
 import (
 	"fmt"
+	"math"
+	"strings"
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
@@ -95,11 +97,10 @@ type ruleExprAssign struct {
 // compiledRule is one RuleSpec with its predicate compiled and every
 // iteration order it needs frozen into a slice.
 //
-// null_together is deliberately ABSENT: it is validated (synth/rules.go)
-// and not yet applied (E1-S5). A rule declaring only that slot compiles
-// to nothing at all and is skipped — including its `when`, which has no
-// action to gate and whose evaluation could only fail a run that is
-// otherwise inert.
+// Every action slot is live as of E1-S5. A rule compiles to nothing only
+// when no slot names a field the schema declares, which validateRules
+// already refuses; the skip below survives for a caller that built a
+// Spec by hand and went around validation.
 type compiledRule struct {
 	// index is the rule's position in Spec.Rules, carried because a rule
 	// has no name of its own and the index is the only handle back to
@@ -128,6 +129,12 @@ type compiledRule struct {
 	setNull []string
 	set     []ruleAssign
 	setExpr []ruleExprAssign
+
+	// nullTogether is the block in DECLARATION order, and the order is
+	// the SEMANTICS here rather than a determinism detail: the FIRST
+	// entry is the block's gate and the only member whose own null
+	// decision survives. See applyNullTogether.
+	nullTogether []string
 
 	// exprBuf holds this rule's evaluated set_expr results between the
 	// snapshot phase and the write phase. Allocated ONCE at compile
@@ -194,7 +201,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 		for _, name := range r.SetNull {
 			cr.setNull = append(cr.setNull, name)
 			if f, ok := byName[name]; ok && !f.Nullable {
-				warnings = append(warnings, ruleNonNullableWarning(i, name))
+				warnings = append(warnings, ruleNonNullableWarning(i, "set_null", name))
 			}
 		}
 		for _, name := range sortedKeys(r.Set) {
@@ -234,9 +241,28 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 		}
 		cr.exprBuf = make([]any, len(cr.setExpr))
 
-		// A rule whose only slot is null_together is INERT at this
-		// story: nothing to do, so nothing to gate either.
-		if len(cr.setNull) == 0 && len(cr.set) == 0 && len(cr.setExpr) == 0 {
+		// null_together keeps DECLARATION order — the first surviving
+		// member is the block's gate — and drops any name the schema does
+		// not declare, which validateRules has already refused. A block
+		// left with fewer than two members states nothing.
+		for _, name := range r.NullTogether {
+			if _, ok := byName[name]; ok {
+				cr.nullTogether = append(cr.nullTogether, name)
+			}
+		}
+		if len(cr.nullTogether) < 2 {
+			cr.nullTogether = nil
+		} else {
+			warnings = append(warnings, nullTogetherWarnings(i, cr.nullTogether, byName)...)
+		}
+
+		// A rule that names no declarable field in any slot has nothing
+		// to do, so there is nothing to gate either and its `when` is not
+		// even compiled. Unreachable through validateSpec, which refuses
+		// an actionless rule (PULSE_SYNTH_RULE_EMPTY) and an unknown field
+		// name (PULSE_SYNTH_RULE_FIELD_UNKNOWN) before either can get
+		// here.
+		if len(cr.setNull) == 0 && len(cr.set) == 0 && len(cr.setExpr) == 0 && len(cr.nullTogether) == 0 {
 			continue
 		}
 		if r.When != "" {
@@ -259,21 +285,87 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	return applier, warnings, nil
 }
 
-// ruleNonNullableWarning names a set_null target the schema cannot
-// actually record a null for.
+// ruleNonNullableWarning names a target the schema cannot actually
+// record a null for. `slot` is the rule slot that asked — "set_null" or
+// "null_together", the two that can null a field.
 //
 // encodeRow writes the per-record null bitmap for NULLABLE fields only,
-// so a set_null over a field declared without `"nullable": true` writes
-// the type's zero as an ordinary VALUE and no null bit — which for a u4
-// or a packed_bool is indistinguishable from a real 0. That is the
+// so nulling a field declared without `"nullable": true` writes the
+// type's zero as an ordinary VALUE and no null bit — which for a u4 or a
+// packed_bool is indistinguishable from a real 0. That is the
 // silent-outcome class this whole layer exists to remove, so it is
 // reported. It is a warning rather than a refusal because the rule is
 // otherwise well-formed and the fix is on the FIELD, not the rule; an
 // eager refusal wants its own coded fault and belongs with the rest of
 // validateRules.
-func ruleNonNullableWarning(idx int, field string) string {
-	return fmt.Sprintf("rule %d set_null names non-nullable field %q: "+
-		"the row will carry 0 rather than a null; declare the field nullable", idx, field)
+func ruleNonNullableWarning(idx int, slot, field string) string {
+	return fmt.Sprintf("rule %d %s names non-nullable field %q: "+
+		"the row will carry 0 rather than a null; declare the field nullable", idx, slot, field)
+}
+
+// nullRateDivergenceThreshold is how far a null_together member's OWN
+// declared null_rate may sit from the block gate's before the copy is
+// reported.
+//
+// The block's resolution rule discards every member's null_rate but the
+// first's (see applyNullTogether), and discarding a declared number
+// without saying so is precisely the silent divergence the rule layer
+// exists to remove — so past this distance it is said out loud. It stays
+// a WARNING rather than a refusal because a real block whose fields
+// drifted slightly (a coding difference, a partial re-ask, a rate read
+// back off a rounded published table) would otherwise become unusable,
+// and the copy is still the right answer for it.
+//
+// The comparison is ABSOLUTE, in probability, and deliberately not
+// relative: what the copy throws away is a NUMBER OF ROWS, so a relative
+// test would scream about 0.001 against 0.002 — four rows in ten
+// thousand — while staying quiet about 0.80 against 0.84, which is four
+// hundred. 0.02 is two rows in a hundred. Below it the gap is within
+// what coding drift or a rounded figure explains and is invisible in any
+// rendered table; above it the fields were not asked as one question,
+// and the rate the copy applies is materially not the rate the member
+// declared.
+//
+// It is a package constant, not an Options field, matching
+// minVarianceExplained / minLevelObservations: it is a tuning of a
+// diagnostic, not a parameter of the request, and a knob here would
+// mostly be used to turn off the one warning that exists to stop a
+// declared rate vanishing unannounced. No value of it changes a
+// generated byte or refuses a spec.
+const nullRateDivergenceThreshold = 0.02
+
+// nullTogetherWarnings reports, once per spec at compile time, the two
+// things a null_together block can be doing that the generated file
+// cannot show:
+//
+//   - a member the schema cannot record a null for at all, and
+//   - a member whose own declared null_rate the block's gate overrides
+//     by more than nullRateDivergenceThreshold.
+//
+// block must already be the filtered, declaration-ordered member list
+// with at least two entries; block[0] is the gate.
+func nullTogetherWarnings(idx int, block []string, byName map[string]FieldSpec) []string {
+	var out []string
+	for _, name := range block {
+		if f, ok := byName[name]; ok && !f.Nullable {
+			out = append(out, ruleNonNullableWarning(idx, "null_together", name))
+		}
+	}
+	gate := byName[block[0]]
+	var divergent []string
+	for _, name := range block[1:] {
+		f := byName[name]
+		if math.Abs(f.NullRate-gate.NullRate) <= nullRateDivergenceThreshold {
+			continue
+		}
+		divergent = append(divergent, fmt.Sprintf("%q (%.4g)", name, f.NullRate))
+	}
+	if len(divergent) > 0 {
+		out = append(out, fmt.Sprintf("rule %d null_together applies %q null_rate %.4g to the whole block; "+
+			"%s declare a materially different rate (more than %.4g apart) and theirs is ignored",
+			idx, block[0], gate.NullRate, strings.Join(divergent, ", "), nullRateDivergenceThreshold))
+	}
+	return out
 }
 
 // apply runs every compiled rule over one drawn row, in declaration
@@ -295,10 +387,13 @@ func ruleNonNullableWarning(idx int, field string) string {
 //   - set_expr evaluates, coerces the result to the target's type
 //     (synth/rules_coerce.go) and then writes exactly as set does,
 //     clearing the mask for the same reason.
+//   - null_together copies nullMask[block[0]] onto every other member,
+//     so the block is all null or all present. It is the rule's LAST
+//     write and it moves no value; see applyNullTogether.
 //
-// The three therefore compose symmetrically under declaration order: a
-// set_null followed by a set yields the value, a set followed by a
-// set_null yields the null.
+// The first three therefore compose symmetrically under declaration
+// order: a set_null followed by a set yields the value, a set followed
+// by a set_null yields the null.
 //
 // # SNAPSHOT: a rule reads the row as it was BEFORE the rule ran
 //
@@ -401,6 +496,74 @@ func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error 
 			row[r.setExpr[j].field] = r.exprBuf[j]
 			delete(nullMask, r.setExpr[j].field)
 		}
+		// PHASE 3 — the block decision, LAST within the rule. See
+		// applyNullTogether for why it follows the per-field writes
+		// rather than preceding them.
+		applyNullTogether(r.nullTogether, nullMask)
 	}
 	return nil
+}
+
+// applyNullTogether collapses a block of fields onto ONE null decision:
+// the state of block[0] is copied to every other member, so the members
+// are all null or all present and never a mixture.
+//
+// # Why the FIRST field wins
+//
+// Every field has already consumed its own null draw by the time the
+// rule pass runs, so copying an existing decision is the only resolution
+// that adds no randomness — and the pass consuming no RNG is a hard
+// contract, not a preference (synth/writer.go's determinism rule). A
+// majority vote or a re-draw would both need a number the row does not
+// have. The consequence is real and is documented rather than hidden:
+// every member but the first has its own null_rate IGNORED, and
+// nullTogetherWarnings says so out loud whenever the discarded rate is
+// materially different. It also matches the survey fact the slot exists
+// for — a question block is gated by the QUESTION, and the first named
+// field is the author's statement of which question that is.
+//
+// The arithmetic this fixes: four fields each declaring null_rate 0.826
+// draw independently, so all four are present on 0.174^4 of rows — 45 in
+// 40,000 on the motivating cohort, against the ~6,960 the block actually
+// has. After the copy the block is present on 0.174 of rows, the first
+// field's own complement.
+//
+// # Why it is the rule's LAST write
+//
+// Within one rule the slots have no order an author can read — they are
+// Go maps and JSON arrays in one object — so the order is fixed here and
+// documented instead. The block goes last because that is the composition
+// that is USEFUL: `{"set_null": ["nps"], "null_together": ["nps", …]}`
+// nulls the gate and the whole block follows it, which is the natural
+// reading. Reversed, the block would be decided from the gate's DRAWN
+// state and the set_null would then break it apart again on the very
+// rows it was meant to gate.
+//
+// The same order means a set_null naming a NON-gate member of the block
+// in the SAME rule is overridden by the block — the block is a statement
+// about all of them and it is applied after. Across rules there is a real
+// order to appeal to and the ordinary last-write-wins applies instead:
+// a later rule's set_null over any member does break the block, and a
+// later null_together re-decides it from whatever the gate holds by then.
+//
+// Copying moves the null DECISION only, never a value: each member keeps
+// the value its own sampler drew. A member the block nulls keeps that
+// value in the row exactly as set_null leaves it (isnull() and any later
+// rule then read the two alike), and writeFieldValueForField writes the
+// type's zero for it. A member the block UN-nulls — the gate carried a
+// value, the member had drawn a null — publishes the value it drew,
+// which is the whole point: a block is present together or absent
+// together.
+func applyNullTogether(block []string, nullMask map[string]bool) {
+	if len(block) == 0 {
+		return
+	}
+	gateIsNull := nullMask[block[0]]
+	for _, name := range block[1:] {
+		if gateIsNull {
+			nullMask[name] = true
+			continue
+		}
+		delete(nullMask, name)
+	}
 }

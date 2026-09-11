@@ -193,9 +193,66 @@ same per-row sequence as the same spec without them, and a spec
 declaring no rules generates byte-identical output to one written before
 the slot existed.
 
-`null_together` is **validated but not yet applied**. A rule whose only
-slot is that one is skipped entirely — its `when` is not evaluated
-either — so an unimplemented slot cannot fail a working run.
+### `null_together`: one null decision for a block
+
+A survey question block is asked or skipped as a unit, so its fields are
+present or absent together. Generation draws each field's null
+independently from its own `null_rate`, which turns a block into a
+lottery: on a real 122-field survey profile the `nps` / `promoter` /
+`passive` / `detractor` block shares `null_rate` 0.8260 exactly, and all
+four came back present in **45 of 40,000** generated rows against the
+~6,960 the block actually has — because `0.174⁴` is not `0.174`. With
+the rule, 6,809–6,994 across five seeds, and no partial block at all.
+
+```json
+{"null_together": ["nps", "promoter", "passive", "detractor"]}
+```
+
+**The first named field's null state is copied to the rest.** Every
+field has already taken its own null draw by the time the rule pass
+runs, so copying an existing decision is the only resolution that adds
+no randomness — and the pass consuming none is a hard contract, not a
+preference. Order the block so the field you mean as the gate comes
+first; it is normally the question the block hangs off.
+
+**So every other member's own `null_rate` is ignored.** That is the cost
+of the copy, it is deliberate, and the run says so out loud rather than
+leaving you to find it: when a member's declared rate sits more than
+**0.02** from the gate's, a warning names the rule, the gate and every
+divergent field with its rate. It is a warning and not a refusal,
+because a real block whose fields drifted a little — a coding
+difference, a partial re-ask, a rate read back off a rounded table — is
+still a block, and the copy is still the right answer for it. The
+comparison is absolute and each member is measured against the *gate*,
+not against the block's spread: what the copy discards is a number of
+rows, so 0.80 against 0.84 matters and 0.001 against 0.002 does not.
+
+The copy moves the null **decision**, never a value. Each member keeps
+what its own sampler drew; a member the block nulls keeps it in the row
+exactly as `set_null` does (the file gets the type's zero), and a member
+the block **un-nulls** — the gate carried a value, the member had drawn
+a null — publishes the value it drew. That second direction is what
+makes the block share a *rate* rather than merely share its nulls.
+
+Inside one rule the block is the **last** write, after `set_null`, `set`
+and `set_expr`. The slots of a single rule have no order you can read
+off the document, so the order is fixed: the block goes last because
+that is the composition that does what it looks like —
+
+```json
+{"when": "aware == 0", "set_null": ["nps"],
+ "null_together": ["nps", "promoter", "passive", "detractor"]}
+```
+
+nulls the gate and the whole block follows it. The same fixed order
+means a `set_null` naming a **non-gate** member of the *same* rule is
+overridden by the block. Across rules there is a real order to appeal
+to and the ordinary last-write-wins applies instead: a later rule's
+`set_null` over any member does break the block apart, and a later
+`null_together` re-decides it from whatever the gate holds by then.
+
+A block member that is not declared `"nullable": true` raises the same
+warning `set_null` does — see below.
 
 ### `set_expr` and the coercion matrix
 
@@ -279,12 +336,13 @@ rules have no names of their own — plus the offending slot and field.
 
 ### Two things that are silent if you get them wrong
 
-**`set_null` needs a nullable field.** The per-record null bitmap only
-carries a bit for a field declared `"nullable": true`. A `set_null` over
-any other field writes the type's zero as an ordinary value with no null
-flag — indistinguishable from a real `0` on a `u4` or a `packed_bool`.
-The rule fires and the file cannot show it, so the run emits a warning
-naming the rule index and the field. Declare the field nullable.
+**Nulling needs a nullable field.** The per-record null bitmap only
+carries a bit for a field declared `"nullable": true`. A `set_null` — or
+a `null_together` block — over any other field writes the type's zero as
+an ordinary value with no null flag, indistinguishable from a real `0`
+on a `u4` or a `packed_bool`. The rule fires and the file cannot show
+it, so the run emits a warning naming the rule index, the slot and the
+field. Declare the field nullable.
 
 **`when` and `set_expr` see the pre-rounding value.** A numeric field is
 drawn as a float and rounded on the way to the file, so `familiarity ==

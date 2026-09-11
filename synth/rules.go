@@ -58,9 +58,7 @@ import (
 // byte-identical output to the same spec with the slot absent.
 //
 // Validation is EAGER — every fault below is refused at spec parse, not
-// at row 400,000 (see validateRules). Application lands in a later
-// story; a rule that validates and does nothing is the correct state
-// until then.
+// at row 400,000 (see validateRules).
 //
 // The standalone rules-file format is this array itself, so an inline
 // `rules` declaration and a `--rules` file are the same JSON.
@@ -97,9 +95,14 @@ type RuleSpec struct {
 
 	// NullTogether nulls a block of fields as ONE decision rather than
 	// per field, the co-missingness shape a survey question block has:
-	// the first named field's drawn null state is copied to the rest.
-	// Requires at least two distinct fields — a one-field block is
-	// set_null spelled less clearly.
+	// the FIRST named field's null state is copied to the rest, so the
+	// block is all null or all present and never a mixture. Every other
+	// member's own null_rate is consequently IGNORED — the cost of the
+	// only resolution that adds no randomness, reported by
+	// nullTogetherWarnings when the discarded rate is materially
+	// different. Requires at least two distinct fields — a one-field
+	// block is set_null spelled less clearly. Applied LAST within its
+	// rule; see applyNullTogether.
 	NullTogether []string `json:"null_together,omitempty"`
 }
 
@@ -204,8 +207,11 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, whenOpts, va
 	// Two slots naming one field inside ONE rule have no order to appeal
 	// to — rules are ordered, the slots of a rule are not — so a
 	// self-contradiction is refused rather than arbitrated. set_null and
-	// null_together are NOT a conflict with each other: both null, so
-	// the outcome is the same either way.
+	// null_together are NOT a conflict with each other: they are
+	// arbitrated by a FIXED, documented within-rule order instead
+	// (applyNullTogether runs last), under which the useful composition
+	// — set_null the block's gate, the block follows — does what it
+	// reads like.
 	for _, pair := range [][2]string{{"set", "set_null"}, {"set", "set_expr"}, {"set_expr", "set_null"}} {
 		if name, ok := firstOverlap(ruleSlotFields(r, pair[0]), ruleSlotFields(r, pair[1])); ok {
 			return ruleError(errors.PULSE_SYNTH_RULE_CONFLICT, idx, pair[0], name,

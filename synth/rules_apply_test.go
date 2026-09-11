@@ -361,59 +361,6 @@ func TestRules_RulesFreeSpecIsByteIdenticalToPreStory(t *testing.T) {
 	}
 }
 
-// TestRules_InertSlotsStayInert is the SCOPE BOUNDARY of this story,
-// NARROWED by one slot rather than deleted: E1-S3 asserted that set_expr
-// and null_together were both inert, E1-S4 makes set_expr live, and
-// null_together stays inert until E1-S5. A spec whose only rule uses it
-// must still generate the rules-free bytes — including the pinned
-// pre-story ones, which proves the pass did not even consume a draw for
-// the rule it skipped.
-//
-// The set_expr half moved to synth/rules_expr_test.go and the coercion
-// matrix in synth/rules_coerce_internal_test.go, where the claim is the
-// opposite one.
-func TestRules_InertSlotsStayInert(t *testing.T) {
-	spec := ruleFreeSpec()
-	spec.Rules = []synth.RuleSpec{
-		{NullTogether: []string{"perception", "nps"}},
-	}
-	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 4242})
-	if err != nil {
-		t.Fatalf("SynthBytes: %v", err)
-	}
-	sum := sha256.Sum256(data)
-	if got := hex.EncodeToString(sum[:]); got != preRuleApplySpecHash {
-		t.Fatalf("null_together is not inert at this story: got %s, want %s",
-			got, preRuleApplySpecHash)
-	}
-
-	// Inert means the rule is not REACHED, not merely that its action is
-	// skipped: a rule with no applicable action must not evaluate its
-	// `when` either, or an unimplemented slot could fail an otherwise
-	// working run. `isnull` over an undeclared field compiles (E1-S1
-	// made it a deliberate RUN-time refusal) and errors on the first
-	// row, so it is the cheapest probe for "was this gate evaluated".
-	spec = ruleFreeSpec()
-	spec.Rules = []synth.RuleSpec{
-		{When: `isnull("no_such_field")`, NullTogether: []string{"perception", "nps"}},
-	}
-	if _, _, err := synth.SynthBytes(spec, synth.Options{Seed: 4242}); err != nil {
-		t.Fatalf("a rule with no applicable action must not evaluate its when: %v", err)
-	}
-
-	// ...and the inverse, which is what keeps the claim above non-empty:
-	// the SAME gate on a rule carrying a live set_expr IS evaluated, and
-	// fails. A rule skipped for having no action and a rule skipped for
-	// having no effect are different things; only the first is "inert".
-	spec = ruleFreeSpec()
-	spec.Rules = []synth.RuleSpec{
-		{When: `isnull("no_such_field")`, SetExpr: map[string]string{"nps": "nps"}},
-	}
-	if _, _, err := synth.SynthBytes(spec, synth.Options{Seed: 4242}); err == nil {
-		t.Fatal("a rule carrying a live set_expr must evaluate its when")
-	}
-}
-
 // TestRules_DeterministicAcrossRuns asserts the determinism contract
 // still holds WITH rules present: same spec + same seed, byte-identical
 // output. The pass consumes no RNG and walks fixed slices rather than

@@ -151,14 +151,28 @@ var warningKinds = []warningKind{
 	},
 
 	{
-		// A set_null target the schema cannot record a null for: the
-		// field is not nullable, so the row carries the type's zero as
-		// an ordinary value and no null bit. The rule fired; the file
-		// cannot show it.
+		// A set_null or null_together target the schema cannot record a
+		// null for: the field is not nullable, so the row carries the
+		// type's zero as an ordinary value and no null bit. The rule
+		// fired; the file cannot show it. The slot is INTERPOLATED into
+		// the message and so is deliberately not matched on — the
+		// finding has one shape whichever slot asked.
 		kind:      "rule cannot null a non-nullable field",
 		attention: true,
 		match: func(w string) bool {
-			return hasAll(w, "set_null names non-nullable field ")
+			return hasAll(w, "rule ", " names non-nullable field ")
+		},
+	},
+	{
+		// A null_together block copies its FIRST member's null decision
+		// to the rest, so every other member's declared null_rate is
+		// discarded. The rule applied; a number the author wrote did
+		// not. That is a requested thing not happening, so it needs
+		// attention even though the block itself is working as designed.
+		kind:      "rule null_together overrides a declared null_rate",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "null_together applies ")
 		},
 	},
 
