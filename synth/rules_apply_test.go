@@ -258,10 +258,19 @@ func TestRules_DeclarationOrderLastWriteWins(t *testing.T) {
 // The fixture's rules deliberately touch the LAST two fields in schema
 // order and a model target, so a stolen draw would be visible in the
 // model stage's own normals as well as in the samplers.
+//
+// Both rules are deliberately NON-CLAIMING (E2-S2): a set_null never
+// claims, and the `set` carries a `when`. That restriction is what
+// keeps this test measuring the PASS rather than the arbitration — an
+// unconditional `set` over a model target pre-claims the field, drops
+// its model, and so removes that drawer's own unconditional
+// NormFloat64 from every row. The stream legitimately shifts there, and
+// TestRuleClaim_ClaimingRuleShiftsTheStreamNonClaimingDoesNot pins both
+// halves of that distinction.
 func TestRules_ConsumeNoRNG(t *testing.T) {
 	rules := []synth.RuleSpec{
 		{When: "aware == 0", SetNull: []string{"spend"}},
-		{Set: map[string]any{"score": 7.0}},
+		{When: "aware == 1", Set: map[string]any{"score": 7.0}},
 	}
 	withRules := ruleModelSpec(300, rules)
 	withoutRules := ruleModelSpec(300, nil)

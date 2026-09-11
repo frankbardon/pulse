@@ -262,9 +262,12 @@ Every relationship writes into one shared claim space at generation time: a fiel
 `resolveConflicts` (`synth/conflict.go`) runs ONCE per `Spec` at generation setup, never per row, walking the fixed `drawRow` priority order:
 
 ```
-linear-model pre-claim → shape-fit pre-claim → catPairs → catNumPairs
-  → setSetPairs → setCatPairs → setNumPairs → correlations
+structural-rule pre-claim → linear-model pre-claim → shape-fit pre-claim
+  → catPairs → catNumPairs → setSetPairs → setCatPairs → setNumPairs
+  → correlations
 ```
+
+A `Spec.Rules` entry that DETERMINES a field claims it first, because the rule pass runs last in `drawRow` and wins outright; which rule shapes qualify (and the four exclusions, each silent if got backwards) is in `synth-structural-rules`.
 
 First claim wins; every later relationship naming the same target is dropped and reported, one warning each, instead of resolving to "whichever stage runs last". `Spec.Correlations` is one joint claimant across all its participants (single Cholesky draw) — losing one participant excludes only that field, and `buildCorrelator` rebuilds from whatever survives.
 

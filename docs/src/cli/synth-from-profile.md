@@ -136,6 +136,58 @@ The rule-specific codes are E1's own, not a leaf placeholder, so
 `pulse errors lookup PULSE_SYNTH_RULE_FIELD_UNKNOWN` carries the recovery
 prose. A refused file generates nothing.
 
+### What a rule retires from the derived spec
+
+A rule that **determines** a field takes it away from everything
+upstream that was going to produce a value the rule overwrites. The
+field's captured **linear model** stops being applied, any **conditional
+pair** naming it is dropped, and it stops being a
+**`residual_correlations`** participant. Each loss is warned:
+
+```
+conditional relationship conflict: field "promoter" is already claimed by
+  structural rule 0 (set_expr); dropping linear model
+residual correlation(s) naming [promoter] dropped: the field carries no
+  surviving linear model, so it has no residual to correlate; the
+  remaining participants still correlate
+```
+
+That is not primarily about saving work. The fidelity report's
+[`models`](#models--did-generation-reproduce-the-captured-structure)
+section asks generation's own compiler which models ran, so without the
+retirement a rule-overwritten field would ship a captured-versus-recovered
+coefficient delta **for a value nothing kept** — every number rendering,
+and nothing on the report saying it describes something that did not
+happen.
+
+**Which rule shapes retire a field, and which deliberately do not:**
+
+| Rule | Retires? | Why |
+|---|---|---|
+| `set` / `set_expr` with **no** `when` | yes | writes every row |
+| any rule carrying a `when` | no | writes only some rows; the model still produces the value the rest keep |
+| `set_null`, at any conditionality | **no** | it removes a value rather than supplying one — `if gate then null else inferred` needs the model to produce what the non-gated rows carry |
+| `null_together` | no | copies one null decision; supplies no value |
+| `set_expr` reading **its own target** | no | it transforms what generation produced rather than determining it |
+
+The last row is why the documented pre-rounding remedy
+`{"set_expr": {"nps": "int(nps)"}}` is safe — retiring `nps` there would
+leave `int()` applied to a bare marginal draw. The reference is detected
+on the parsed expression, so a field named `nps_reason` elsewhere in the
+expression is not mistaken for one.
+
+Measured on the 381,324-row survey cohort: an unconditional
+`{"set_expr": {"promoter": "nps >= 9"}}` takes the applied models from 55
+to 54, drops `promoter`'s 54 residual-correlation pairs, and removes its
+`models` fidelity entry. A `set_null` over the same field changes none of
+the three.
+
+One consequence worth knowing: a rule that retires a model also removes
+that model's per-row random draw, so a spec with such a rule generates a
+different row sequence from the same spec without it. The determinism
+contract is unaffected — same spec and seed still reproduce the same
+bytes — and the change is always announced by the warning above.
+
 ### The two compose
 
 ```
@@ -258,6 +310,13 @@ than the estimator's own noise cannot be evidence of anything.
 1 on — is what separates the two ways a recovered coefficient reaches
 zero: a term that fired thousands of times and recovered nothing is a
 fault; a term that never fired had nothing to recover.
+
+**A field a `--rules` rule determines has no entry here at all.** The
+section reports only the models generation applied, and an unconditional
+`set` / `set_expr` retires its target's model before generation runs —
+see [What a rule retires from the derived
+spec](#what-a-rule-retires-from-the-derived-spec). An absent field is
+therefore an answer, not a gap; the conflict warning on stderr names it.
 
 #### Reading a flag without concluding the feature is broken
 

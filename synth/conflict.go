@@ -35,8 +35,10 @@ type conflictResolution struct {
 	correlations []CorrelationSpec
 	// models are the Spec.Models entries that kept their target. A
 	// model is claimed BEFORE any of the six stages above (see
-	// resolveConflicts), so it can only lose to the captured-shape
-	// pre-claim; everything else loses to it.
+	// resolveConflicts), so it can only lose to a structural rule's
+	// priority-0 pre-claim; everything else loses to it. It cannot lose
+	// to the captured-shape pre-claim, which runs after it and composes
+	// with it rather than displacing it.
 	models   []FieldModelSpec
 	warnings []string
 }
@@ -52,8 +54,16 @@ type conflictResolution struct {
 // relationship naming a given target actually gets to run, and reports
 // every one it drops instead of leaving the loss silent.
 //
+// A field an unconditional structural rule DETERMINES (Spec.Rules,
+// `set` / `set_expr` with no `when`) is claimed at priority 0, ahead of
+// everything else, because the rule pass is the last stage in drawRow
+// and overwrites its target outright. The claim removes the wasted
+// stage AND the false fidelity entry the wasted stage would otherwise
+// produce; which rules claim, and the four exclusions that keep the
+// claim from being over-broad, are in synth/rules_claim.go.
+//
 // A field carrying a linear model (Spec.Models, `profile create
-// --fit-models`) is claimed FIRST, before any of the six stages: a
+// --fit-models`) is claimed next, before any of the six stages: a
 // model produces the field's value from ONE expression that already
 // accounts for every predictor it was fitted on, so a later stage
 // overwriting it would not layer extra structure on top — it would
@@ -129,6 +139,31 @@ func resolveConflicts(s *Spec) conflictResolution {
 		res.warnings = append(res.warnings, fmt.Sprintf(
 			"conditional relationship conflict: %s is already claimed by %s; dropping %s",
 			t, claims[t], dropped))
+	}
+
+	// PRIORITY 0: structural rules (Spec.Rules). The rule pass is the
+	// LAST thing to touch a row, and an unconditional `set` /
+	// `set_expr` overwrites its target outright, so nothing below may
+	// spend a stage producing a value the rule discards — and, more
+	// importantly, nothing may REPORT having produced it. The fidelity
+	// report's `models` section is derived from this same arbitration
+	// (BuildModelFidelity re-runs resolveConflicts and
+	// buildModelDrawers), so without this loop a rule-overwritten
+	// modelled field ships a captured-versus-recovered coefficient
+	// delta for a value nothing kept.
+	//
+	// Only rules that DETERMINE the field claim: no `when`, a value
+	// actually supplied (`set` / `set_expr`, never `set_null` or
+	// `null_together`), and a `set_expr` that does not read its own
+	// target. Each exclusion is silent if it is got backwards; the
+	// reasoning for all four is in synth/rules_claim.go.
+	//
+	// Two rules claiming one field is not a conflict — both still run,
+	// under the declaration-order last-write-wins contract — so the
+	// claim's return value is deliberately ignored here, exactly as the
+	// captured-shape pre-claim below ignores its own.
+	for _, rc := range ruleClaims(s.Rules) {
+		claim(rc.target, rc.desc)
 	}
 
 	// modelClaimed records which targets the model pre-claim below won,

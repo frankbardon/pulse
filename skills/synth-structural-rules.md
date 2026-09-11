@@ -58,11 +58,31 @@ Scalar = `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date` `packed_bool` `decimal12
 
 **Two timings, one code.** A fault the RETURN TYPE settles is refused at SPEC PARSE; one only a VALUE settles (range, category) at ROW time. Both are `PULSE_SYNTH_RULE_VALUE_INVALID`, naming rule, slot, field and value.
 
-**Across rules an expression sees EARLIER writes and not LATER ones — correct and surprising. WITHIN one rule, order is UNOBSERVABLE:** every expression, `when` included, reads the row as it was BEFORE the rule ran and all its writes land after, so `{"set_expr": {"a": "b", "b": "a"}}` swaps, like SQL `UPDATE`. A sibling `set` literal is invisible to a sibling `set_expr`; self-reference (`{"nps": "nps + 1"}`) works.
+**Across rules an expression sees EARLIER writes and not LATER ones — correct and surprising. WITHIN one rule, order is UNOBSERVABLE:** every expression, `when` included, reads the row as it was BEFORE the rule ran and all its writes land after, so `{"set_expr": {"a": "b", "b": "a"}}` swaps, like SQL `UPDATE`. A sibling `set` literal is invisible to a sibling `set_expr`; self-reference (`{"nps": "nps + 1"}`) works — and does NOT pre-claim the field (see below).
 
 Two silent gotchas. Nulling a field not declared `"nullable": true` — via `set_null` OR a `null_together` block — writes the type's zero as an ordinary value with NO null bit: the rule fires and the file cannot show it, so it warns naming the rule index, the slot and the field. And `when` / `set_expr` read the row's PRE-ROUNDING float, not the wire value: `== k` fires only on draws landing exactly on `k`. Use comparisons (`>= 9`); `packed_bool` is exact (`1.0`/`0.0`). It bites `set_expr` harder because the result still looks right — a three-band NPS classification off raw `nps` sets exactly one flag per row and merely disagrees with the score beside it (476 of 3,486 scored rows on the motivating profile). Normalise in an EARLIER rule (`{"set_expr": {"nps": "int(nps)"}}`); snapshot semantics means the same rule will not do. Rules reach GENERATED rows only — `synth from-profile --source` re-encodes the real partition straight through.
 
 **Validation is EAGER — at spec parse, never at row time.** A rule naming a mistyped field, or carrying an uncompilable expression, is invisible at run time: the run succeeds and the gate is simply absent. Six codes, each naming the rule INDEX (`rule_index` — a rule has no name of its own) plus the slot and field where one exists: `PULSE_SYNTH_RULE_EMPTY`, `_FIELD_UNKNOWN`, `_EXPR_INVALID`, `_VALUE_INVALID` (a `set` literal OR a `set_expr` result — one matrix; `details.slot` says which), `_CONFLICT` (one rule naming a field in two slots that DISAGREE: within a rule there is no order to appeal to, so it is refused not arbitrated — `set_null` + `null_together` do not disagree and are ordered instead), `_BLOCK_INVALID`. `pulse errors lookup CODE` is authoritative.
+
+## What a rule retires
+
+A rule that DETERMINES a field **pre-claims it at priority 0** in `resolveConflicts`, ahead of the linear-model pre-claim — the rule pass runs last and an unconditional write wins outright, so nothing upstream should produce a value it discards. Three things stop for that field: its `models` entry, any conditional pair naming it, and its place in `residual_correlations`. Each loss is warned, with the ordinary wording (`conditional relationship conflict: field "promoter" is already claimed by structural rule 0 (set_expr); dropping linear model`).
+
+**The report is the reason, not the wasted work.** `FidelityReport.Models` asks generation's own compiler which models ran, so without the claim a rule-overwritten modelled field ships a captured-versus-recovered coefficient delta for a value nothing kept — every number rendering, nothing saying it describes something that did not happen.
+
+**Four exclusions, each SILENT if got backwards:**
+
+| Rule shape | Claims? | Why |
+|---|---|---|
+| `set` / `set_expr`, no `when` | **yes** | writes every row from inputs the field's own generation does not supply |
+| carries a `when` | no | writes only some rows; claiming strips the model from the rest and leaves a plausible bare marginal |
+| `set_null` (any conditionality) | **no** | removes a value rather than supplying one — `if gate then null else inferred` needs the model to produce what non-gated rows keep |
+| `null_together` | no | copies one null decision; supplies no value |
+| `set_expr` reading its OWN target | no | transforms what generation produced rather than determining it |
+
+The last is why the documented pre-rounding remedy `{"set_expr": {"nps": "int(nps)"}}` is safe: claiming there would leave `int()` applied to a bare marginal draw. Self-reference is detected on the PARSED expression, never by substring (`nps_reason` is not `nps`). The no-`when` restriction is sufficient rather than limiting because `set_expr` collapses the motivating three-band case into one unconditional rule.
+
+**One contract narrows.** The pass still consumes no RNG, but a CLAIMING rule retires a model and a retired model stops drawing its own per-row normal, so the stream shifts — for a reason a warning names. A spec with no rules, or with rules that claim nothing, stays byte-identical.
 
 ## Reaching rules from a profile
 
