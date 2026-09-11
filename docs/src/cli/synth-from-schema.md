@@ -130,6 +130,68 @@ is dropped with a warning on `Result.Warnings`
 create`](profile-create.md) ("`--fit-shape`" section) for the full
 priority order.
 
+## Structural rules
+
+Beyond distributions, correlations and joint structure — all of which
+describe *variation* — a spec can declare **structural rules**: facts
+about which fields a row may carry a value for at all, and what that
+value is. A skip-logic gate ("the perception block is not asked of a
+respondent who has never heard of the brand") is not a rate, and a
+profile reconstructs it as soft noise with a plausible null rate and no
+gate.
+
+```json
+{
+  "row_count": 40000,
+  "fields": [ "..." ],
+  "rules": [
+    {"when": "aware == 0",
+     "set_null": ["perception_1", "perception_2"],
+     "set": {"segment": "unaware"}},
+    {"set_expr": {"promoter": "nps >= 9"}},
+    {"null_together": ["nps", "nps_reason"]}
+  ]
+}
+```
+
+| Slot | Type | Meaning |
+|---|---|---|
+| `when`          | expr string | the rule applies to rows satisfying it; **absent means every row** |
+| `set_null`      | array       | null these fields |
+| `set`           | object      | assign these **literal** values |
+| `set_expr`      | object      | assign the **result** of these expressions |
+| `null_together` | array       | null this block as one decision (needs ≥ 2 distinct fields) |
+
+`set` and `set_expr` are separate keys on purpose: with one map,
+`{"set": {"region": "west"}}` would be undecidable between a categorical
+literal and a bare identifier.
+
+Rules apply in **declaration order, sequentially, last write wins**, in
+one pass at the very end of the row — after every distribution, pair,
+correlation and model has settled. So a gated field is still *generated*
+normally and the rule then masks or replaces it on the rows `when`
+selects; rows the rule does not gate keep the value generation inferred.
+An expression reads whatever the row holds at that moment, which a later
+rule may still change. Rules are deliberately **not** reordered by
+dependency: declaration order is the one ordering you can read off the
+file.
+
+Expressions are the same `expr-lang` environment `constraints[]` uses —
+every scalar including a boolean is a number (`flag == 1`, never bare
+`flag`), a categorical is a string, a `set_*` is a map
+(`flags["opt"]`), and `isnull(field)` tests absence. `when` must return
+a bool.
+
+The same array is also the standalone **rules file** format that
+[`synth from-profile --rules`](synth-from-profile.md) loads, so an
+inline declaration and a file are the same JSON.
+
+Every malformed rule is refused **when the spec is parsed**, not at row
+400,000: a rule naming a mistyped field, or carrying an expression that
+does not compile, would otherwise generate a full cohort with the gate
+silently missing. Each refusal names the rule's index (`rule_index`) —
+rules have no names of their own — plus the offending slot and field.
+
 ## Supported distributions
 
 `bernoulli`, `constant`, `exponential`, `lognormal`, `monotonic_from`,
@@ -193,6 +255,12 @@ the `--json` path, where `data.warnings` carries them in full.
 |---|---|
 | `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`  | Spec references a distribution name not in the catalog |
 | `PULSE_SYNTH_CONSTRAINT_INFEASIBLE` | Constraints reject too high a fraction of generated rows |
+| `PULSE_SYNTH_RULE_EMPTY`            | A rule declares no action slot (`set` / `set_expr` / `set_null` / `null_together`) |
+| `PULSE_SYNTH_RULE_FIELD_UNKNOWN`    | A rule names a field the spec does not declare |
+| `PULSE_SYNTH_RULE_EXPR_INVALID`     | A rule's `when` or a `set_expr` value does not compile (`when` must return a bool) |
+| `PULSE_SYNTH_RULE_VALUE_INVALID`    | A `set` literal is the wrong shape for its target field, outside the type's range, or outside the declared `values` / `options` domain |
+| `PULSE_SYNTH_RULE_CONFLICT`         | One rule names the same field in two slots that disagree about it |
+| `PULSE_SYNTH_RULE_BLOCK_INVALID`    | A `null_together` block names fewer than two distinct fields |
 
 ## Examples
 

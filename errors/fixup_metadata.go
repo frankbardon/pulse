@@ -537,6 +537,66 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_RULE_FIELD_UNKNOWN: {
+		Message: "A synth rule names a field the spec does not declare, so the rule could never fire.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*"},
+				Hint:   "Check the field name against the spec's `fields[].name` (for a profile-derived run, dump it with `synth from-profile --emit-spec`); a rule over an undeclared field is refused, never ignored.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_EXPR_INVALID: {
+		Message: "A synth rule's `when` predicate or one of its `set_expr` expressions does not compile against the row environment.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "When"},
+				Hint:   "Compile-check the expression against the row's own types: every scalar (including packed_bool) is a number, so write `flag == 1` not bare `flag`; a categorical is a string; a set_* is a map (`flags[\"opt\"]`); test absence with `isnull(field)`. `when` must return a bool.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_VALUE_INVALID: {
+		Message: "A synth rule's `set` literal cannot be written to its target field: wrong JSON shape, a number outside the field type's range, or a value outside the domain the field's distribution declares.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "Set"},
+				Hint:   "Match the literal to the target field's type: a number (or true/false) for a scalar, within that type's range; a declared `params.values` entry for a categorical_*; an array of declared `params.options` for a set_*.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_EMPTY: {
+		Message: "A synth rule declares no action slot, so it could only evaluate its `when` and discard the answer.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*"},
+				Hint:   "Give the rule an action — `set`, `set_expr`, `set_null` or `null_together` — or delete the rule.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_CONFLICT: {
+		Message: "One synth rule names the same field in two slots that disagree about what happens to it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*"},
+				Hint:   "Drop the field from one of the two slots; if both outcomes are genuinely wanted, split them into two rules, which apply in declaration order with last write wins.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_BLOCK_INVALID: {
+		Message: "A synth rule's `null_together` block does not name at least two distinct fields.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*", "NullTogether"},
+				Hint:   "Name at least two distinct fields in the block, or use `set_null` for a single field — `null_together` exists to make one null decision cover several fields.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

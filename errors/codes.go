@@ -261,6 +261,46 @@ const (
 	// shape.
 	PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH Code = "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH"
 
+	// PULSE_SYNTH_RULE_FIELD_UNKNOWN indicates a synth Spec.Rules entry
+	// names a field no schema field matches. Refused at spec parse
+	// rather than at row time: a rule over a field that does not exist
+	// can never fire, and a rule that silently never fires is the
+	// failure mode the rule layer exists to remove.
+	PULSE_SYNTH_RULE_FIELD_UNKNOWN Code = "PULSE_SYNTH_RULE_FIELD_UNKNOWN"
+
+	// PULSE_SYNTH_RULE_EXPR_INVALID indicates a rule's `when` predicate
+	// or one of its `set_expr` value expressions does not compile
+	// against the row environment. `when` must additionally return a
+	// bool — a predicate that yields anything else is refused here, not
+	// coerced.
+	PULSE_SYNTH_RULE_EXPR_INVALID Code = "PULSE_SYNTH_RULE_EXPR_INVALID"
+
+	// PULSE_SYNTH_RULE_VALUE_INVALID indicates a rule's `set` literal
+	// cannot be written to its target field: the wrong JSON shape for
+	// the field type, a number outside the type's representable range,
+	// or a categorical / set value outside the domain the field's own
+	// distribution declares.
+	PULSE_SYNTH_RULE_VALUE_INVALID Code = "PULSE_SYNTH_RULE_VALUE_INVALID"
+
+	// PULSE_SYNTH_RULE_EMPTY indicates a rule declares no action slot at
+	// all — no `set`, `set_expr`, `set_null` or `null_together` — so it
+	// could only ever evaluate its `when` and discard the answer.
+	PULSE_SYNTH_RULE_EMPTY Code = "PULSE_SYNTH_RULE_EMPTY"
+
+	// PULSE_SYNTH_RULE_CONFLICT indicates one rule names the same field
+	// in two slots that disagree about what happens to it (`set` and
+	// `set_null`, `set` and `set_expr`, `set_expr` and `set_null`).
+	// Rules apply in declaration order with last write wins, but within
+	// ONE rule there is no order to appeal to, so the self-contradiction
+	// is refused rather than arbitrated.
+	PULSE_SYNTH_RULE_CONFLICT Code = "PULSE_SYNTH_RULE_CONFLICT"
+
+	// PULSE_SYNTH_RULE_BLOCK_INVALID indicates a `null_together` block
+	// does not name at least two DISTINCT fields. A one-field block is
+	// `set_null`, spelled less clearly; a block naming the same field
+	// twice is the same mistake with a typo on top.
+	PULSE_SYNTH_RULE_BLOCK_INVALID Code = "PULSE_SYNTH_RULE_BLOCK_INVALID"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -2004,6 +2044,24 @@ const (
 	DetailVariable = "variable"
 )
 
+// Detail map keys shared by the PULSE_SYNTH_RULE_* family. A rule fault
+// is addressed by (which rule, which slot, which field) — the rule has
+// no name of its own, so the zero-based index in Spec.Rules is the only
+// stable handle an author can follow back to the document they wrote,
+// and it is the same handle the standalone rules file and the per-rule
+// firing counts use. Callers key off these constants rather than
+// re-spelling the strings.
+const (
+	// DetailSynthRule is the CodedError.Details key carrying the
+	// zero-based index into Spec.Rules of the offending rule.
+	DetailSynthRule = "rule_index"
+
+	// DetailSynthRuleSlot is the CodedError.Details key naming which of
+	// the five rule slots raised the fault: "when", "set", "set_expr",
+	// "set_null" or "null_together".
+	DetailSynthRuleSlot = "slot"
+)
+
 // Detail map keys shared by the PULSE_SPSS_* family. Every SPSS parse
 // error names the record it was reading and the byte offset it was
 // reading at, so a caller can point at the exact spot in the file.
@@ -2245,6 +2303,12 @@ var allCodes = []Code{
 	PULSE_SYNTH_OUTPUT_COLLISION,
 	PULSE_SYNTH_ALREADY_TAGGED,
 	PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH,
+	PULSE_SYNTH_RULE_FIELD_UNKNOWN,
+	PULSE_SYNTH_RULE_EXPR_INVALID,
+	PULSE_SYNTH_RULE_VALUE_INVALID,
+	PULSE_SYNTH_RULE_EMPTY,
+	PULSE_SYNTH_RULE_CONFLICT,
+	PULSE_SYNTH_RULE_BLOCK_INVALID,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

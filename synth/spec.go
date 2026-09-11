@@ -129,6 +129,30 @@ type Spec struct {
 	// dropped with a warning at generate() time, and validateSpec
 	// refuses one outright for a hand-authored spec.
 	ResidualCorrelations []CorrelationSpec `json:"residual_correlations,omitempty"`
+
+	// Rules lists optional STRUCTURAL rules — statements about which
+	// fields a row may carry a value for and what that value is, imposed
+	// on top of whatever the distributions, conditional pairs,
+	// correlations and models produced. Additive and omitempty: absent
+	// (nil, the zero value) reproduces today's behaviour exactly, and
+	// because the rule pass consumes no RNG, a spec declaring no rules
+	// is byte-identical to one written before the slot existed.
+	//
+	// This is the slot for the class of fact no statistical summary can
+	// express, because it is not variation at all: a question block that
+	// is not ASKED of a respondent who failed a screener, a flag that is
+	// a band of another column. Reconstructed from marginals those come
+	// back as soft noise with a plausible rate and no gate.
+	//
+	// Rules apply in DECLARATION ORDER, sequentially, LAST WRITE WINS,
+	// in one pass at the very end of the row — see RuleSpec for the full
+	// semantics and for why they are deliberately not topologically
+	// sorted. The standalone rules-file format is this array itself, so
+	// an inline declaration and a `--rules` file are the same JSON.
+	//
+	// Validation is EAGER: validateRules refuses every malformed rule at
+	// spec parse with a PULSE_SYNTH_RULE_* code naming the rule index.
+	Rules []RuleSpec `json:"rules,omitempty"`
 }
 
 // FieldModelSpec is one numeric field's additive linear predictor as
@@ -601,6 +625,14 @@ func validateSpec(s *Spec) error {
 	if s.MaxRejectionRate < 0 || s.MaxRejectionRate >= 1 {
 		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			"max_rejection_rate must be in [0, 1)", map[string]any{"value": s.MaxRejectionRate})
+	}
+	// Rules are validated LAST, so a rule naming a field is reported
+	// only once the field list itself is known good — a duplicate or
+	// unnamed field would otherwise make "rule names an unknown field"
+	// the first thing an author sees about a spec whose fields are the
+	// real problem.
+	if err := validateRules(s); err != nil {
+		return err
 	}
 	return nil
 }

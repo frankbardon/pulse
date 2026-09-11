@@ -56,7 +56,7 @@ Fourteen kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` sk
 - `mixture` — `means`, `stds`, optional `weights` (parallel lists, `>= 2` components); reproduces bimodal/multimodal or skewed shapes a single `normal` collapses to.
 - `uniform_date` — `start`, `end` (YYYY-MM-DD); inclusive.
 - `regex` — `pattern`, `max_repeat`; walks `regexp/syntax` AST.
-- `constant` — `value`; sentinel fields.
+- `constant` — `value`; sentinel fields. Coerced ONCE at spec-compile time to the field's own row shape (bool to 1/0 on any scalar, array of option names to a set mask, string required for a categorical, verbatim string for `decimal128` since `ParseDecimal128` is exact). It is the only sampler whose value comes from the document rather than a draw, so it was the only one that could put a Go `bool` where `sentinelFor` promises a `float64` and break every expression over the field at run time; a shape the row cannot hold is now refused at parse.
 - `set_bernoulli` — `options`, `frequencies`; one independent Bernoulli draw per declared bit, or a joint-structure resample when a set-categorical/set-numeric/set-set pair targets that option. `options` also pre-registers the field's dictionary at schema-build time — see the Set section below.
 
 17 of the 18 `.pulse` field types are reachable — **`datetime` is not**: `fieldTypeFromName` (`synth/writer.go`) has no case for it, so a spec declaring `"type": "datetime"` refuses with `unknown field type`. Use `date` (epoch days) or model the instant as `u64` epoch seconds. `decimal128` requires `params.scale` matching declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the per-record null bitmap; distributions report nulls via the bitmap, never inline sentinels.
@@ -68,6 +68,28 @@ Fourteen kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` sk
 **Env types are the row's types** (`sentinelFor`, derived from `fieldTypeFromName` so the two cannot drift): every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is a `float64`; `categorical_*` is a `string`; `set_*` is a `map[string]bool` (`flags["opt"]`). So a boolean field is tested as `flag == 1`, never bare `flag` (that is a compile-time refusal, not a boolean). Typing `packed_bool` as a Go `bool` was issue #258: it compiled and then failed on every row with `PROCESSING_RUNTIME: invalid operation: bool(float64)`, making constraints unusable on the commonest survey field type.
 
 **`isnull(field)`** answers the row's null state from the per-record null mask — the only way to test absence, since a nulled field still carries its drawn value in the row. Takes the field NAME: `isnull(x)` (bare identifier, rewritten to a literal) and `isnull("x")` are equivalent; an undeclared name is refused (compile-time for a bare identifier, run-time for a string literal), never answered `false`.
+
+### Structural rules
+
+`rules[]` (additive, `omitempty`) state what no statistical summary can: a question block that is not ASKED of a respondent who failed a screener, a flag that is a band of another column. Reconstructed from marginals those come back as soft noise with a plausible rate and no gate at all.
+
+```json
+"rules": [
+  {"when": "aware == 0", "set_null": ["perception_1", "perception_2"], "set": {"segment": "unaware"}},
+  {"set_expr": {"promoter": "nps >= 9"}},
+  {"null_together": ["nps", "nps_reason"]}
+]
+```
+
+Five slots. `when` is an optional predicate — **absent means EVERY row**, not "never". `set_null` nulls fields; `set` assigns LITERALS; `set_expr` assigns expression RESULTS; `null_together` nulls a block as one decision (first named field's drawn null state copied to the rest; needs ≥2 distinct fields).
+
+**`set` and `set_expr` are sibling keys, never one map with a `{"$expr": …}` marker.** One map leaves `{"set": {"region": "west"}}` undecidable between a categorical literal and a bare identifier; two keys make the question impossible to ask.
+
+**Declaration order, sequentially, last write wins**, one pass at the very END of the row (after the model stage). So the semantics are `if gate then null else inferred`: a gated field is still drawn through its own sampler, model and pairs, and the rule masks or replaces it on the rows `when` selects — non-gated rows keep the inferred value. An expression reads whatever the row holds at that moment, which a later rule may still change: a `set_expr` reading a field an EARLIER rule wrote sees the new value, one reading a field a LATER rule writes sees the old one. Correct and surprising. **Rules are deliberately NOT topologically sorted** — a sort makes the applied order implicit, and declaration order is the one ordering an author can read off the document.
+
+Expressions are the constraint environment (`when` and `set_expr` share `rowExprEnv` with `constraints[]`, so `flag == 1` not bare `flag`, and `isnull(field)` for absence). `when` must return a bool. The pass consumes no RNG, so a rules-free spec is byte-identical to output from before the slot existed. **The standalone rules-file format is this array itself**, so an inline declaration and a file are the same JSON.
+
+**Validation is EAGER — at spec parse, never at row time.** A rule naming a mistyped field, or carrying an expression that cannot compile, is invisible at run time: the run succeeds and the gate is simply absent. Six codes, each naming the rule INDEX (`rule_index` in details — a rule has no name of its own) plus the slot and field where one exists: `PULSE_SYNTH_RULE_EMPTY` (no action slot), `_FIELD_UNKNOWN`, `_EXPR_INVALID`, `_VALUE_INVALID` (a `set` literal outside the target type's range, or outside a `weighted_categorical`'s declared `values` / a `set_*`'s declared `options`), `_CONFLICT` (one rule naming a field in two slots that disagree — within a rule there is no order to appeal to, so it is refused not arbitrated), `_BLOCK_INVALID`. `set` literal shapes: a number or `true`/`false` for a scalar, a declared category string for a `categorical_*`, an array of declared options for a `set_*`.
 
 ### Pairwise correlations
 

@@ -35,30 +35,64 @@ type compiledConstraints struct {
 	nullMask map[string]bool
 }
 
+// rowExprEnv builds the expr environment shape for a set of declared
+// fields: one entry per field name, carrying a sentinel of the Go type
+// the ROW will hold for it (see sentinelFor). The second return is the
+// declared-name set, used both to reject isnull("typo") and to gate the
+// bare-identifier patch.
+//
+// It takes []FieldSpec rather than []*writerField so the two callers can
+// share it: compileConstraints runs after buildSchema and has writer
+// fields, while rule validation (synth/rules.go) runs BEFORE buildSchema
+// and has only the Spec. Compiling a rule's `when` against a
+// hand-rolled second environment is exactly the drift that produced
+// issue #258, so there is one builder and both go through it.
+func rowExprEnv(fields []FieldSpec) (env map[string]any, names map[string]bool) {
+	env = make(map[string]any, len(fields))
+	names = make(map[string]bool, len(fields))
+	for _, f := range fields {
+		env[f.Name] = sentinelFor(f.Type)
+		names[f.Name] = true
+	}
+	return env, names
+}
+
+// rowExprOptions returns the expr.Option set every expression compiled
+// against a generated row shares: the environment, the isnull builtin
+// and the bare-identifier patch that feeds it. isnull is passed in
+// rather than looked up because it must close over the evaluating
+// compiledConstraints' current null mask; a validation-only caller
+// supplies a throwaway probe whose mask is never read.
+//
+// extra is appended last, so a caller wanting expr.AsBool() (a `when`
+// predicate or a constraint) adds it and a caller compiling a value
+// expression (`set_expr`, whose return type is the coercion matrix's
+// business, not the compiler's) does not.
+func rowExprOptions(env map[string]any, names map[string]bool, isnull func(...any) (any, error), extra ...expr.Option) []expr.Option {
+	opts := []expr.Option{
+		expr.Env(env),
+		expr.Function(isnullFuncName, isnull, new(func(string) bool)),
+		expr.Patch(isnullIdentifierPatcher{fields: names}),
+	}
+	return append(opts, extra...)
+}
+
 func compileConstraints(in []ConstraintSpec, wfs []*writerField) (*compiledConstraints, error) {
 	if len(in) == 0 {
 		return &compiledConstraints{}, nil
 	}
-	// Build an environment shape so expr can pick the right comparison
-	// operators. We use map[string]any with one entry per field name.
-	env := make(map[string]any, len(wfs))
-	names := make(map[string]bool, len(wfs))
+	specs := make([]FieldSpec, 0, len(wfs))
 	for _, wf := range wfs {
-		env[wf.spec.Name] = sentinelFor(wf.spec.Type)
-		names[wf.spec.Name] = true
+		specs = append(specs, wf.spec)
 	}
+	env, names := rowExprEnv(specs)
 
 	out := &compiledConstraints{
 		progs:  make([]*vm.Program, 0, len(in)),
 		exprs:  make([]string, 0, len(in)),
 		fields: names,
 	}
-	opts := []expr.Option{
-		expr.Env(env),
-		expr.AsBool(),
-		expr.Function(isnullFuncName, out.isnullBuiltin, new(func(string) bool)),
-		expr.Patch(isnullIdentifierPatcher{fields: names}),
-	}
+	opts := rowExprOptions(env, names, out.isnullBuiltin, expr.AsBool())
 	for _, c := range in {
 		prog, err := expr.Compile(c.Expr, opts...)
 		if err != nil {
