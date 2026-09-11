@@ -2710,10 +2710,15 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			for i, c := range cnp.Categories {
 				cats[i] = CategoricalNumericCategorySpec{Category: c.Category, Mean: c.Mean, Std: c.Std}
 			}
+			// No `bernoulli` key: the flag is RETIRED and the
+			// conditional draw resolves the target's own marginal from
+			// its FieldSpec (buildBernoulliConditionals), exactly as the
+			// `discrete` staircase always did. Emitting an inert key
+			// would tell a reader of `--emit-spec` output that it is what
+			// makes the cell draw a step, which is no longer true.
 			s.CategoricalNumericPairs = append(s.CategoricalNumericPairs, CategoricalNumericPairSpec{
 				A: cnp.A, B: cnp.B, Categories: cats,
 				Min: num.Min, Max: num.Max, HasClamp: true,
-				Bernoulli: distOf[cnp.B] == DistBernoulli,
 			})
 		}
 
@@ -2739,7 +2744,12 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 				continue
 			}
 			// DistBernoulli admitted for the same reason as the
-			// categorical-numeric arm above, and carried the same way.
+			// categorical-numeric arm above. It needs no key here and
+			// never did: the pair sampler resolves a bernoulli target's
+			// step from its FieldSpec (buildBernoulliConditionals). This
+			// arm's silent omission of the old wire flag — while its
+			// comment claimed the flag was "carried the same way" — is
+			// what retired the flag.
 			if distOf[snp.Set] != DistSetBernoulli ||
 				(distOf[snp.Numeric] != DistNormal && distOf[snp.Numeric] != DistBernoulli &&
 					distOf[snp.Numeric] != DistDiscrete) {

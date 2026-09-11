@@ -284,13 +284,24 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	if err != nil {
 		return 0, 0, nil, err
 	}
+	// The same question asked of the OTHER discontinuous marginal: a
+	// `bernoulli` target's cell mean is a prevalence, so the conditional
+	// draw is Bernoulli(mean) rather than Normal(mean, std). Derived here
+	// from the compiled field specs for the reason above — it used to
+	// ride the pair spec as a wire flag, and a flag can disagree with the
+	// marginal it is overwriting. Pairs still carrying the retired flag
+	// over a non-bernoulli target are reported rather than silently
+	// ignored.
+	bernoulliTargets := buildBernoulliConditionals(wfs)
+	warnings = append(warnings,
+		bernoulliFlagWarnings(conflicts.catNumPairs, conflicts.setNumPairs, bernoulliTargets)...)
 
 	stages := &rowStages{
 		catPairs:    buildCategoricalPairSamplers(conflicts.catPairs),
-		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs, discreteTargets),
+		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs, discreteTargets, bernoulliTargets),
 		setSetPairs: buildSetSetPairSamplers(conflicts.setSetPairs),
 		setCatPairs: buildSetCategoricalPairSamplers(conflicts.setCatPairs),
-		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs, discreteTargets),
+		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs, discreteTargets, bernoulliTargets),
 		corr:        corr,
 		models:      models,
 		residual:    residual,

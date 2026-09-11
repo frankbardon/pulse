@@ -164,6 +164,19 @@ var warningKinds = []warningKind{
 		},
 	},
 	{
+		// A conditional pair still declaring the RETIRED `bernoulli`
+		// wire flag over a target whose own marginal is not a bernoulli
+		// step. The flag is read by nothing (the cell draw follows the
+		// field's marginal now — buildBernoulliConditionals), so this is
+		// a declaration that does not do what it says: attention, for
+		// the same reason a never-fired rule is.
+		kind:      "conditional pair declares the retired `bernoulli` flag",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "declares the retired `bernoulli` flag")
+		},
+	},
+	{
 		// A null_together block copies its FIRST member's null decision
 		// to the rest, so every other member's declared null_rate is
 		// discarded. The rule applied; a number the author wrote did

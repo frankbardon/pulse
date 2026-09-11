@@ -1,6 +1,7 @@
 package synth
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"sort"
 )
@@ -139,9 +140,10 @@ type categoricalNumericPairSampler struct {
 	hasClamp    bool
 	clampMin    float64
 	clampMax    float64
-	// bernoulli mirrors CategoricalNumericPairSpec.Bernoulli — B is a
-	// boolean marginal, so each cell's Mean is a prevalence rather than
-	// a location. See conditionalNumericDraw.
+	// bernoulli is true when B's own marginal is a `bernoulli` step, so
+	// each cell's Mean is a prevalence rather than a location. DERIVED
+	// from B's FieldSpec, never read off the pair — see
+	// buildBernoulliConditionals and conditionalNumericDraw.
 	bernoulli bool
 	// discrete is non-nil when B reconstructed as `discrete`: the cell's
 	// moments then locate a draw on B's own staircase rather than on a
@@ -154,7 +156,7 @@ type categoryMoments struct {
 	mean, std float64
 }
 
-func buildCategoricalNumericPairSamplers(pairs []CategoricalNumericPairSpec, disc map[string]*discreteConditional) []*categoricalNumericPairSampler {
+func buildCategoricalNumericPairSamplers(pairs []CategoricalNumericPairSpec, disc map[string]*discreteConditional, bern map[string]bool) []*categoricalNumericPairSampler {
 	if len(pairs) == 0 {
 		return nil
 	}
@@ -163,12 +165,12 @@ func buildCategoricalNumericPairSamplers(pairs []CategoricalNumericPairSpec, dis
 		if len(p.Categories) == 0 {
 			continue
 		}
-		out = append(out, buildCategoricalNumericPairSampler(p, disc[p.B]))
+		out = append(out, buildCategoricalNumericPairSampler(p, disc[p.B], bern[p.B]))
 	}
 	return out
 }
 
-func buildCategoricalNumericPairSampler(p CategoricalNumericPairSpec, disc *discreteConditional) *categoricalNumericPairSampler {
+func buildCategoricalNumericPairSampler(p CategoricalNumericPairSpec, disc *discreteConditional, bern bool) *categoricalNumericPairSampler {
 	perCat := make(map[string]categoryMoments, len(p.Categories))
 	var sumMean, sumWeight float64
 	for _, c := range p.Categories {
@@ -186,7 +188,7 @@ func buildCategoricalNumericPairSampler(p CategoricalNumericPairSpec, disc *disc
 		hasClamp:    p.HasClamp,
 		clampMin:    p.Min,
 		clampMax:    p.Max,
-		bernoulli:   p.Bernoulli,
+		bernoulli:   bern,
 		discrete:    disc,
 	}
 	if sumWeight > 0 {
@@ -294,6 +296,81 @@ type discreteConditional struct {
 // parsed the same declaration at schema-build time — but the error is
 // propagated rather than swallowed, because a silently dropped entry
 // would put the pair back on the clamped-normal draw with nothing saying so.
+// buildBernoulliConditionals returns the set of fields whose own
+// marginal is a `bernoulli` step, so a conditional pair overwriting one
+// of them draws Bernoulli(cell mean) rather than Normal(cell mean, cell
+// std).
+//
+// It is DERIVED from the compiled field specs, exactly as
+// buildDiscreteConditionals is, and that is the whole point rather than
+// a tidy-up. The fact used to ride the wire, on
+// CategoricalNumericPairSpec.Bernoulli / SetNumericPairSpec.Bernoulli,
+// and a wire flag can DISAGREE with the field's own reconstruction — a
+// marginal disagreeing with the draw that overwrites it is the failure
+// class the boolean and small-integer work exists to remove, and the
+// disagreement is invisible: every cell still renders a plausible
+// prevalence, merely the wrong one.
+//
+// It was not hypothetical. SpecFromProfile's SET-numeric arm admitted a
+// DistBernoulli target with a comment saying the flag was "carried the
+// same way" as the categorical-numeric arm's, and did not set it — so a
+// profile-derived set-numeric pair over a boolean target reproduced the
+// clamped-normal defect once PER CELL, worst exactly where the signal
+// is. Deriving makes the omission unrepresentable; nothing has to
+// remember to carry it.
+//
+// Returns nil when no field reconstructs as bernoulli, so a spec with
+// none allocates nothing and every pair sampler keeps its pre-existing
+// draw exactly.
+func buildBernoulliConditionals(wfs []*writerField) map[string]bool {
+	var out map[string]bool
+	for _, wf := range wfs {
+		if wf.spec.Distribution != DistBernoulli {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]bool, 4)
+		}
+		out[wf.spec.Name] = true
+	}
+	return out
+}
+
+// bernoulliFlagWarnings reports every pair still carrying the retired
+// `bernoulli` wire flag over a target whose own marginal is NOT a
+// bernoulli step.
+//
+// The flag is no longer read (see buildBernoulliConditionals), and a
+// declaration that silently does nothing is the same class of fault as
+// the omission that motivated retiring it — so the one shape where
+// ignoring it CHANGES the draw is said out loud. The other shape (flag
+// set, target bernoulli) is silent on purpose: the flag and the
+// derivation agree, so there is nothing to report and every
+// profile-derived spec written before the retirement stays quiet.
+//
+// Walks the two slices in order and never a map, so the lines are
+// deterministic.
+func bernoulliFlagWarnings(catNum []CategoricalNumericPairSpec, setNum []SetNumericPairSpec, bern map[string]bool) []string {
+	var out []string
+	line := func(kind, axis, target string) string {
+		return fmt.Sprintf("conditional pair %s (%s -> %s) declares the retired `bernoulli` flag, "+
+			"but %q does not reconstruct as a bernoulli marginal; the flag is ignored and the cell draw "+
+			"follows the field's own marginal. Declare the field `bernoulli` if that is what it is",
+			kind, axis, target, target)
+	}
+	for _, p := range catNum {
+		if p.Bernoulli && !bern[p.B] {
+			out = append(out, line("categorical-numeric", p.A, p.B))
+		}
+	}
+	for _, p := range setNum {
+		if p.Bernoulli && !bern[p.Numeric] {
+			out = append(out, line("set-numeric", p.Set+"."+p.Option, p.Numeric))
+		}
+	}
+	return out
+}
+
 func buildDiscreteConditionals(wfs []*writerField) (map[string]*discreteConditional, error) {
 	var out map[string]*discreteConditional
 	for _, wf := range wfs {
@@ -469,14 +546,14 @@ type setNumericPairSampler struct {
 	hasFallback                 bool
 	hasClamp                    bool
 	clampMin, clampMax          float64
-	// bernoulli mirrors SetNumericPairSpec.Bernoulli — see
-	// conditionalNumericDraw and categoricalNumericPairSampler.bernoulli.
+	// bernoulli mirrors categoricalNumericPairSampler.bernoulli and is
+	// DERIVED the same way, from the numeric target's own FieldSpec.
 	bernoulli bool
 	// discrete mirrors categoricalNumericPairSampler.discrete.
 	discrete *discreteConditional
 }
 
-func buildSetNumericPairSamplers(pairs []SetNumericPairSpec, disc map[string]*discreteConditional) []*setNumericPairSampler {
+func buildSetNumericPairSamplers(pairs []SetNumericPairSpec, disc map[string]*discreteConditional, bern map[string]bool) []*setNumericPairSampler {
 	if len(pairs) == 0 {
 		return nil
 	}
@@ -485,16 +562,16 @@ func buildSetNumericPairSamplers(pairs []SetNumericPairSpec, disc map[string]*di
 		if len(p.Categories) == 0 {
 			continue
 		}
-		out = append(out, buildSetNumericPairSampler(p, disc[p.Numeric]))
+		out = append(out, buildSetNumericPairSampler(p, disc[p.Numeric], bern[p.Numeric]))
 	}
 	return out
 }
 
-func buildSetNumericPairSampler(p SetNumericPairSpec, disc *discreteConditional) *setNumericPairSampler {
+func buildSetNumericPairSampler(p SetNumericPairSpec, disc *discreteConditional, bern bool) *setNumericPairSampler {
 	s := &setNumericPairSampler{
 		set: p.Set, option: p.Option, numeric: p.Numeric,
 		hasClamp: p.HasClamp, clampMin: p.Min, clampMax: p.Max,
-		bernoulli: p.Bernoulli,
+		bernoulli: bern,
 		discrete:  disc,
 	}
 	// p.Categories is a short (<=2), deterministically ordered slice —
