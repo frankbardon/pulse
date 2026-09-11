@@ -145,24 +145,34 @@ Available on: `profile create`.
 `--suggest-rules <path>` detects structural rules on the same scan the
 profile already makes — no additional cohort read — and writes them to
 `<path>` as the bare rules array `synth from-profile --rules` consumes
-unmodified. Two detectors, one file: GATING relationships (a
+unmodified. Three detectors, one file: GATING relationships (a
 low-cardinality field whose levels split a target's null rate into ~1 and
-~0, proposed as `set_null`) and CO-MISSING blocks (fields null on exactly
-the same rows, proposed as `null_together`). An identical null RATE is
-never enough for a block — two unrelated fields can share one — so
-admission is identical null PATTERN; near misses and always-null columns
-are reported in `warnings` rather than proposed.
+~0, proposed as `set_null`), CO-MISSING blocks (fields null on exactly
+the same rows, proposed as `null_together`) and EXACT DEPENDENCIES (a
+field that IS a function of one other, proposed as `set_expr`). An
+identical null RATE is never enough for a block — two unrelated fields
+can share one — so admission is identical null PATTERN; near misses,
+almost-determined pairs, always-null columns and constant columns are
+reported in `warnings` rather than proposed.
+
+**Dependency detection is bounded, deliberately, and the bounds are
+published** — in every candidate's `_evidence.note`, on stderr and in
+[profile create](profile-create.md). TARGETS are `packed_bool` and `u4`
+only; SOURCES are `categorical_*` / `packed_bool` / `u4` with at most 16
+observed levels; the dependency is on exactly ONE source. A field missing
+from the file was not cleared, it was not examined.
 
 PROPOSED, never applied. Detection finds the STATISTICAL gate; a human
 knows the SEMANTIC one, and the two are routinely different fields that
 move together. Each candidate carries its own measurement on `_evidence`
 — the one inert slot of a rule, which generation never reads — so a
 candidate the analyst deletes takes its evidence with it. Gating
-candidates are emitted first, because declaration order is applied order
-and a block that FOLLOWS a hand-narrowed `set_null` repairs it. The
-profile document itself gains no section: absent the flag it is
-byte-identical, and with it only `warnings` moves. See
-[profile create](profile-create.md).
+candidates are emitted first and dependency candidates LAST, because
+declaration order is applied order: a block that FOLLOWS a hand-narrowed
+`set_null` repairs it, and a `set_expr` derivation must re-resolve its
+own block after every null-state rule has run. The profile document
+itself gains no section: absent the flag it is byte-identical, and with
+it only `warnings` moves. See [profile create](profile-create.md).
 
 ## Command index
 
@@ -216,7 +226,7 @@ added without naming it somewhere under `skills/` or `docs/src/`.
 | `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
 | `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
 | `pulse mcp` | Run the MCP server over stdio | [mcp](mcp.md) |
-| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships and co-missing question blocks on the same scan and writes them as a standalone rules file for review | [profile create](profile-create.md) |
+| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review | [profile create](profile-create.md) |
 | `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
 | `pulse shard add` | Append a shard to an existing archive | `--help` |
 | `pulse shard compact` | Rewrite an archive to reclaim orphan bytes | `--help` |

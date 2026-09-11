@@ -112,12 +112,41 @@ type RuleEvidence struct {
 	// the fact that the candidate was emitted at all.
 	Block []RuleEvidenceBlockMember `json:"block,omitempty"`
 
+	// SourceField and SourceLevels are the EXACT-DEPENDENCY detector's
+	// own: the single field every target of the candidate is a function
+	// of, and the number of levels it was observed to take.
+	//
+	// It is deliberately NOT GateField reused. A gate field's levels
+	// decide whether a target is ABSENT; a source field's levels decide
+	// what a present target's VALUE is. They are different claims about
+	// different halves of the record, and one key carrying both would
+	// make `detector` the only thing standing between a reader and the
+	// wrong reading.
+	SourceField  string `json:"source_field,omitempty"`
+	SourceLevels int    `json:"source_levels,omitempty"`
+
+	// Dependency carries the measured lookup, one entry per target: the
+	// source level to target value table the expression was READ OFF,
+	// and the rendering form chosen.
+	//
+	// It is a slot on the one evidence type rather than a third evidence
+	// type, exactly as Block is, so a reader walks one shape and reads
+	// `detector` to know which part of it is populated — and so the
+	// inertness contract (this type's own doc, and
+	// TestRuleEvidence_IsInert) stays a property of the whole struct
+	// rather than something a parallel type could drift out of.
+	Dependency []RuleEvidenceDependency `json:"dependency,omitempty"`
+
 	// RowsObserved is the cohort rows the detection saw (every row lands
 	// in exactly one level, the null pseudo-level included).
 	RowsObserved int `json:"rows_observed"`
 	// RowsAffected is the rows the `when` would select — the row count
 	// this rule would change. For a co-missing candidate, which carries
-	// no `when`, it is the rows on which the block is null.
+	// no `when`, it is the rows on which the block is null. For an
+	// exact-dependency candidate, which also carries no `when`, it is
+	// the CO-PRESENT rows: the rows the lookup was measured on, which
+	// the admission rule (identical null patterns) makes exactly the
+	// rows either field is present on.
 	RowsAffected int `json:"rows_affected"`
 	// GatedShare is RowsAffected / RowsObserved. It is the figure to
 	// compare against each target's own null_rate in the profile
@@ -160,7 +189,9 @@ type RuleEvidence struct {
 	// where the block is null and the rows where it is present — and
 	// this is the thinner of them, which asks the same question of the
 	// same threshold: a block observed present on four rows is not a
-	// measurement of a question block.
+	// measurement of a question block. An exact-dependency candidate's
+	// is the thinnest SOURCE level: a mapping arm resting on four rows
+	// is a coincidence, not a derivation.
 	MinLevelSupport int  `json:"min_level_support"`
 	ThinSupport     bool `json:"thin_support,omitempty"`
 }
@@ -214,4 +245,51 @@ type RuleEvidenceBlockMember struct {
 	// member's: of the rows where either is null, the share where both
 	// are. 1 exactly when the two are null on the same rows.
 	Agreement float64 `json:"agreement"`
+}
+
+// RuleEvidenceDependency is one target of an exact-dependency
+// candidate, with the measured lookup that proposed it.
+//
+// The rendered EXPRESSION is deliberately absent: it is already the
+// rule's own `set_expr` entry for this field, and a second copy would go
+// stale the first time an analyst edits the one that executes — in the
+// direction of describing a rule that is no longer there, which is the
+// exact failure the whole `_evidence` design (see RuleEvidence) exists
+// to avoid.
+type RuleEvidenceDependency struct {
+	Field string `json:"field"`
+	// Type is the target's `.pulse` type, carried for Block's reason: a
+	// reader deciding whether to believe a derived-flag proposal wants
+	// to know whether the target is one bit or a small integer without
+	// opening the profile document.
+	Type string `json:"type"`
+	// Form names the RENDERING judgement — which reading of the lookup
+	// below the expression is. It is the one thing the expression itself
+	// cannot say, and the thing most worth checking: `threshold` and
+	// `threshold_chain` are TOTAL functions of the source (an
+	// unobserved value lands in the nearest band), while `membership`,
+	// `membership_complement` and `enumeration_chain` fall to a default
+	// arm.
+	Form string `json:"form"`
+	// Mapping is the measured lookup itself, in the source's own level
+	// order, with the rows behind each arm. Exceptions is 0 for every
+	// emitted candidate BY THE ADMISSION RULE, and is carried anyway for
+	// the reason Block's Agreement is: it is the detector's central
+	// claim — this is a FUNCTION, not a tendency — stated on the wire
+	// where a reader can check it against the supports beside it rather
+	// than left implicit in the fact that the candidate was emitted.
+	Mapping    []RuleEvidenceMapValue `json:"mapping"`
+	Exceptions int                    `json:"exceptions"`
+}
+
+// RuleEvidenceMapValue is one arm of a measured lookup: a level of the
+// source, the value the target took at it, and the rows behind it.
+type RuleEvidenceMapValue struct {
+	Level string `json:"level"`
+	// Value is the target's value in its own JSON shape — a bool for a
+	// packed_bool, a number for a u4 — rather than a uniform string, so
+	// a reader can compare it against the profile document's own
+	// marginal for the field without decoding a convention.
+	Value any `json:"value"`
+	N     int `json:"n"`
 }

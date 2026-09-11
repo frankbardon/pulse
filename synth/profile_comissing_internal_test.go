@@ -255,11 +255,24 @@ func TestSuggestBlocks_AlwaysNullIsItsOwnFinding(t *testing.T) {
 		}
 	}
 
-	// A field declared nullable that carried NO null is not a finding at
-	// all: it has no pattern to match and nothing went wrong.
+	// A field declared nullable that carried NO null is not a finding of
+	// THIS detector at all: it has no pattern to match and nothing went
+	// wrong.
+	//
+	// NARROWED at E3-S3, not relaxed. The assertion was "no warning
+	// mentions `present`", which held only while the two null-state
+	// detectors were the sole writers to this channel. The
+	// exact-dependency detector reads VALUES and legitimately names a
+	// never-null field when it is a function of something (this
+	// fixture's columns are all row-index functions, so several are), so
+	// the assertion now excludes that detector's own lines by their
+	// wording rather than excluding the field.
 	for _, w := range prof.Warnings {
+		if strings.Contains(w, "exact function") {
+			continue
+		}
 		if strings.Contains(w, `"present"`) {
-			t.Errorf("a never-null field was reported: %q", w)
+			t.Errorf("a never-null field was reported by a null-state detector: %q", w)
 		}
 	}
 }

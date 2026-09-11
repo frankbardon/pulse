@@ -124,7 +124,7 @@ func dedupeWarnings(warnings []string) []string {
 }
 
 // writeSuggestedRulesCaveat renders the cross-cutting caveat for
-// `profile create --suggest-rules`.
+// `profile create --suggest-rules`, covering all THREE detectors.
 //
 // It lives on STDERR, beside writeWarningSummary and for the same
 // reason: `pulse profile create … > out.json` must keep producing
@@ -145,19 +145,27 @@ func writeSuggestedRulesCaveat(w io.Writer, count int, path string) {
 	}
 	fmt.Fprintf(w, "\nWrote %d candidate rule(s) to %s — PROPOSED, not applied.\n", count, path)
 	if count == 0 {
-		fmt.Fprintf(w, "  Detection found no gating relationship and no co-missing block.\n")
+		fmt.Fprintf(w, "  Detection found no gating relationship, no co-missing block and no exact\n")
+		fmt.Fprintf(w, "  dependency.\n")
 	}
 	fmt.Fprintf(w, "  Read each `_evidence`, correct what it got wrong, and delete what you do not\n")
 	fmt.Fprintf(w, "  believe before applying. A `set_null` candidate names the STATISTICAL gate; the\n")
 	fmt.Fprintf(w, "  SEMANTIC cause may be a different field that moves with it, so the `when` is the\n")
 	fmt.Fprintf(w, "  part to check. A `null_together` candidate names fields null on EXACTLY the same\n")
 	fmt.Fprintf(w, "  rows — an identical null rate alone is never enough, and near misses are\n")
-	fmt.Fprintf(w, "  reported in the warnings rather than proposed.\n")
+	fmt.Fprintf(w, "  reported in the warnings rather than proposed. A `set_expr` candidate states\n")
+	fmt.Fprintf(w, "  that a field IS a function of another; check the band edges, which were read\n")
+	fmt.Fprintf(w, "  off the data, and note that accepting one RETIRES the target's captured model,\n")
+	fmt.Fprintf(w, "  conditional pairs and residual correlations.\n")
 	fmt.Fprintf(w, "  DECLARATION ORDER IS APPLIED ORDER. Gating candidates come first so that a\n")
-	fmt.Fprintf(w, "  block repairs any `set_null` you narrow by hand; moving a `null_together` above\n")
-	fmt.Fprintf(w, "  an edited gate lets the gate break the block again.\n")
-	fmt.Fprintf(w, "  Detection reads NULL STATE only. It did NOT look for derived fields or any\n")
-	fmt.Fprintf(w, "  relationship among non-null VALUES.\n")
+	fmt.Fprintf(w, "  block repairs any `set_null` you narrow by hand; `set_expr` candidates come last\n")
+	fmt.Fprintf(w, "  and carry their own `null_together`, so splitting one into two rules lets the\n")
+	fmt.Fprintf(w, "  derivation run afterwards and un-null every member.\n")
+	fmt.Fprintf(w, "  WHAT WAS NOT LOOKED FOR — a field missing from this file was not cleared, it\n")
+	fmt.Fprintf(w, "  was not examined. Gating and blocks read NULL STATE only. Dependency detection\n")
+	fmt.Fprintf(w, "  reads VALUES but only for packed_bool and u4 TARGETS, only from a SINGLE\n")
+	fmt.Fprintf(w, "  categorical_*/packed_bool/u4 source of at most 16 observed levels, and never\n")
+	fmt.Fprintf(w, "  jointly from two. Wider numerics, date and set_* are in neither role.\n")
 	fmt.Fprintf(w, "  A set_null gate repairs co-missingness only: each target's own null_rate still\n")
 	fmt.Fprintf(w, "  fires beneath the gate, so the targets' marginal null rate rises above the\n")
 	fmt.Fprintf(w, "  captured one.\n")

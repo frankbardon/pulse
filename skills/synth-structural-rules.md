@@ -141,6 +141,22 @@ Bounded by construction: a per-field bitset over `blockChunkRows` rows folded in
 
 Measured on the 381,324-row motivating cohort: four blocks — 50 fields at 0.2526, **26 at 0.3564 (the cluster no single gate could explain)**, 13 at 0.2649 and the four-field NPS block at 0.8260 — plus one always-null column and four near misses, alongside the eight gating candidates, in one file `--rules` consumes unmodified.
 
+### Exact dependencies (`set_expr` candidates)
+
+The third detector (`detector: "dependency"`, evidence on `_evidence.dependency`) reads VALUES, not null state: a field that IS a function of ONE other on every row where both are present. `promoter` is `nps >= 9`, and generation otherwise samples it independently and models it, so the cohort contains promoters scoring 3.
+
+**The search is NARROW and the bounds ride the file.** Targets `packed_bool`/`u4` ONLY; sources `categorical_*`/`packed_bool`/`u4` with at most `maxDepLevels` (16) observed levels; exactly ONE source. Wider numerics, `date`, `set_*`, categorical-VALUED targets and joint two-field dependencies were not looked for — **a field missing from the file was not cleared, it was not examined**, and the note says so because an analyst who thinks otherwise stops looking.
+
+**Band edges are DISCOVERED.** The measurement is a lookup; the rendering is a separate judgement. A threshold form is preferred wherever the target's value regions are contiguous in the source's own order, because it is a TOTAL function — an unobserved source value lands in the nearest band instead of off the end of an enumeration. `form` names the reading (`threshold`/`threshold_chain` total; `membership`/`membership_complement`/`enumeration_chain` fall to a default arm). The standard 9-10 / 7-8 / 0-6 NPS definition is this detector's OUTPUT on the motivating cohort, never its input.
+
+**ONE candidate per SOURCE, carrying its `null_together` in the SAME rule.** A partition is three measurements against one field, and three rules would have to be kept consistent by hand. All three E2-S4 remedies ride the emitted rule: every numeric term goes through `round()`; there is NO separate normalisation rule (the rounding is inside each predicate, so nothing writes the source and the `!isnull` guard is unnecessary); and `null_together` names the SOURCE first inside the same rule, where it is the last write. Splitting it out lets the derivation run afterwards and un-null every member. No `when`, so the targets are **pre-claim-eligible** — accepting a candidate RETIRES their captured model, conditional pairs and residual correlations rather than computing and overwriting them.
+
+**Admission is IDENTICAL NULL PATTERNS**, read from the co-missing detector's own accumulator rather than a second one. Differing patterns, or an unavailable accumulator, are REPORTED not guessed: a `set_expr` clears the null mask and would un-null the target wherever the source is absent. Also reported: an ALMOST-determined pair (1..`maxDepExceptions` = 8 contradicting rows, counted order-independently; over 8 it is dropped and not reported, being not "almost" anything), a CONSTANT column (determined by everything and by nothing), a mutually-determining pair, and a target contested by two sources (written once, by the strongest).
+
+**Emitted LAST**, so the derivation re-resolves its block after every null-state rule. Measured with a hand-narrowed `set_null` over the source alone: last leaves 0 orphan rows, first leaves 940.
+
+Measured on the motivating cohort: `nps -> {detractor <= 6, passive 7..8, promoter >= 9}` on 66,343 co-present rows, and `aware = round(familiarity) >= 2` on all 381,324 — **which answers the proxy question the gating detector could only report**. Nothing in a null-state measurement separates `aware` from `familiarity == 1`; values do, and one is derived from the other. 14 candidates in one file, +7.5% CPU over the two-detector figure, no additional byte read.
+
 ## See
 
 - `synthetic-data` — modes, distributions, correlations, models, determinism contract.

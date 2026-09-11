@@ -820,7 +820,7 @@ supplied exactly one; a second and larger one was found by accident
 while verifying something else. An unstated rule is invisible in the
 output because **every marginal inside it is individually correct**.
 
-`--suggest-rules <path>` runs two detectors on the scan `profile create`
+`--suggest-rules <path>` runs three detectors on the scan `profile create`
 already makes — **no additional cohort read** — and writes their
 candidates to one file:
 
@@ -831,6 +831,12 @@ candidates to one file:
 - **Co-missing.** It proposes a `null_together` rule for each set of
   fields null on EXACTLY the same rows, and reports separately the
   near misses and the always-null columns.
+- **Exact dependency.** It proposes a `set_expr` rule for each field that
+  IS a function of one other field on every row where both are present —
+  `promoter` is `nps >= 9` — and reports separately the almost-determined
+  pairs and the constant columns.
+
+The first two read NULL STATE only; the third reads VALUES.
 
 ```
 pulse profile create -i cohort.pulse -o profile.json --suggest-rules candidates.json
@@ -1138,6 +1144,199 @@ gating half of the candidate file is byte-identical with and without it.
 Fed back unmodified, all four blocks are all-or-nothing on **20,000 of
 20,000** generated rows. At the same seed without the rules: partial on
 20,000 / 20,000 / 19,660 / 10,761.
+
+## Exact dependencies (`set_expr` candidates)
+
+`promoter` IS `nps >= 9`. Generation samples it from its own marginal and
+gives it a captured linear model, so the synthetic cohort contains
+promoters with a score of 3 — and the profile document has been carrying
+the proof the whole time (`promoter + passive + detractor = 1.0000`,
+exactly) with nothing reading it. This detector reads it.
+
+### The search is NARROW, deliberately, and the bounds are published
+
+A general functional-dependency search over 122 fields is quadratic,
+mostly finds noise, and would have to be believed on the strength of a
+claim nobody can check. What is searched:
+
+| | Admitted |
+|---|---|
+| **Target** | `packed_bool`, `u4` — a boolean flag or a small integer |
+| **Source** | `categorical_*`, `packed_bool`, `u4`, with at most **16** observed levels |
+| **Arity** | exactly ONE source |
+
+Everything else is out: wider numerics (`u8`+, `f32`/`f64`,
+`decimal128`), `date`, `set_*`, categorical-VALUED targets (a derived
+category needs the declared domain and a wrong arm silently grows the
+dictionary), and joint dependencies on two fields at once.
+
+**A field missing from the candidate file was not cleared — it was not
+examined.** The bound is stated in every candidate's `_evidence.note`, on
+stderr and here, because an analyst who believes a field was checked
+stops looking.
+
+### Band edges are DISCOVERED, never assumed
+
+The measurement is a LOOKUP — source level to target value. Rendering it
+as `round(nps) >= 9` rather than a nine-way disjunction is a separate
+judgement, and the edges come from the data. The standard NPS 9-10 / 7-8
+/ 0-6 definition is this detector's OUTPUT on the motivating cohort; it
+is nowhere in its input.
+
+A threshold form is preferred wherever the target's value regions are
+contiguous in the source's own order, because it is a **total function**
+of the source: a value generation produces that the cohort never carried
+lands in the nearest band instead of falling off the end of an
+enumeration. `_evidence.dependency[].form` names which reading was
+chosen — `threshold` / `threshold_chain` are total, while `membership` /
+`membership_complement` / `enumeration_chain` (a categorical source has
+no order to be contiguous in) fall to a default arm.
+
+### One candidate per SOURCE, with its `null_together` in the SAME rule
+
+A partition is three measurements against one field. Three separate rules
+would have to be kept consistent by hand — delete one and the remaining
+two silently stop partitioning — so every target a source determines
+rides ONE rule:
+
+```json
+{
+  "set_expr": {
+    "detractor": "round(nps) <= 6",
+    "passive":   "round(nps) >= 7 && round(nps) <= 8",
+    "promoter":  "round(nps) >= 9"
+  },
+  "null_together": ["nps", "detractor", "passive", "promoter"],
+  "_evidence": {
+    "detector": "dependency",
+    "source_field": "nps",
+    "source_levels": 11,
+    "dependency": [
+      {"field": "promoter", "type": "packed_bool", "form": "threshold",
+       "mapping": [{"level": "0", "value": false, "n": 6272}, "…"],
+       "exceptions": 0}
+    ],
+    "rows_observed": 381324,
+    "rows_affected": 66343,
+    "gated_share": 0.17398119,
+    "max_null_rate_deviation": 0,
+    "min_level_support": 1176
+  }
+}
+```
+
+Three properties of that snippet are load-bearing, and each was measured
+wrong before it was measured right (see
+[synth from-schema](synth-from-schema.md)):
+
+- **`round()`, uniformly.** A generated row holds the sampler's float and
+  the file holds the stored integer, so a bare `nps >= 9` classifies
+  against a value the file does not show. Measured on this story's own
+  suite: 838 of 4,495 scored rows disagree without it.
+- **No normalisation rule.** The rounding is INSIDE each band predicate
+  rather than in a separate `{"set_expr": {"nps": "round(nps)"}}` rule,
+  so nothing writes to the source and nothing can un-null it — the
+  `!isnull()` guard that remedy needs is unnecessary because the write
+  does not happen.
+- **`null_together` in THIS rule**, naming the SOURCE first. A `set_expr`
+  clears its target's null mask; within a rule `null_together` is the
+  last write, so the flags are computed and then take the score's null
+  decision. Split into two rules the derivation runs afterwards and
+  un-nulls every member: 1,505 orphan rows on the same suite.
+
+The rule carries **no `when`**, which is the true statement (the target
+is a function of the source on every co-present row) and which makes its
+targets **pre-claim-eligible**: accepting one RETIRES the target's
+captured linear model, conditional pairs and residual correlations rather
+than computing them and overwriting the result. The note says so, because
+that is the most valuable consequence of accepting a candidate.
+
+### Admission: identical null patterns, or nothing
+
+A candidate is emitted only when the source and every target are null on
+EXACTLY the same rows — the same test the co-missing detector applies,
+served from that detector's own co-null accumulator rather than a second
+one. When the patterns differ, the dependency is REPORTED and not
+emitted: a `set_expr` clears the target's null mask, so the rule would
+un-null the target on every row its source is absent from. When the
+accumulator is unavailable (abandoned over 256 nullable fields) the
+answer is "unknown" and the candidate is reported, never guessed.
+
+### What it reports rather than proposes
+
+- An **almost-determined** pair — at least one and at most **8**
+  contradicting rows — with its exception count. `set_expr` has no dial
+  for "almost" and would rewrite exactly the rows that disagreed, and
+  unlike a gating candidate's `when` there is nothing in it to correct.
+  Over 8 the pair is dropped entirely and not reported, because it is not
+  "almost" anything. The count is taken against the two most common
+  values at each source level, so it does not depend on the order the
+  rows arrived in.
+- A **constant column**: determined by every other field and by none of
+  them. Excluded from both roles and named once.
+- A **mutually-determining pair**: both directions are proposed and both
+  are consistent, but either alone is sufficient and the pair is usually
+  one column under two names.
+- A **contested target** determined by two sources: written once, by the
+  strongest candidate, because two rules writing one field leaves the
+  earlier one firing with no effect.
+
+Thin candidates are **not** suppressed — they ship with
+`thin_support: true` and their `min_level_support`.
+
+### Emitted LAST, and the order has teeth
+
+Gating candidates, then co-missing blocks, then dependencies. A
+dependency rule writes VALUES and carries its own `null_together`, so
+placed last it re-resolves that block from the source AFTER every
+null-state rule has decided the source's own null state. Measured on this
+story's suite with a hand-narrowed `set_null` over the source alone:
+dependency-last leaves **0** orphan rows, dependency-first leaves **940**.
+
+### Measured on the motivating cohort
+
+Same 381,324 rows, 122 fields. **Two** dependency candidates, alongside
+the eight gating candidates and four blocks — 14 in one file.
+
+| source | targets | expression | form | co-present |
+|---|---|---|---|---|
+| `nps` (11 levels) | `detractor` | `round(nps) <= 6` | threshold | 66,343 |
+| | `passive` | `round(nps) >= 7 && round(nps) <= 8` | threshold | |
+| | `promoter` | `round(nps) >= 9` | threshold | |
+| `familiarity` (7 levels) | `aware` | `round(familiarity) >= 2` | threshold | 381,324 |
+
+The NPS partition comes back as **ONE** candidate with the standard
+9-10 / 7-8 / 0-6 band edges, discovered rather than assumed, carrying
+`null_together: ["nps", "detractor", "passive", "promoter"]` — the same
+four fields the co-missing detector proposes as a block, restated inside
+the rule that derives them because that is where it has to be.
+
+**The second candidate answers the proxy question the gating detector
+could only report.** `aware` and `familiarity == 1` select the same
+96,326 rows with identical evidence to sixteen digits, and nothing in a
+null-state measurement can separate them. Reading VALUES does: `aware` is
+an exact function of `familiarity` on all 381,324 rows, so they are not
+two independent gates — one is DERIVED from the other, and the analyst's
+own rule names the source.
+
+Reported, not proposed: three constant columns (`wave`, `country`,
+`_synthetic` — the last an artefact of taking the real partition), and
+five fields over the level cap (`ageExact`, `brand`, `category`, `dma`,
+`region`). No almost-determined pair and no null-shape mismatch survive
+on this cohort.
+
+Fed back unmodified through `synth from-profile --rules`, both candidates
+reproduce the source mapping on **100%** of co-present rows with **zero**
+orphan rows. At the same seed without them: `detractor` 86.3%, `promoter`
+76.8%, `passive` 56.1% agreement, each with ~5,700 rows carrying a band
+flag and no score, and `aware` 81.8%.
+
+Detection costs **+7.5%** CPU against the two-detector figure (38.6s →
+41.5s on a full `--conditional --fit-models --residual-correlations`
+capture, against a 34.6s no-detection baseline) and reads **no additional
+byte**. The candidate output is byte-identical with those flags and
+without them, and the eight gating candidates and four blocks are
+byte-identical to the file the previous two detectors wrote.
 
 ## Output
 

@@ -1199,3 +1199,157 @@ func TestProfileCreateCLI_AlwaysNullColumnReachesTheTerminal(t *testing.T) {
 		t.Errorf("the always-null finding is not in the document's warnings")
 	}
 }
+
+// derivedCohortFields is gatedCohortFields plus the motivating shape:
+// a `score` and the three bands derived from it, all four gated by
+// `aware` so the cohort carries all THREE detectors' findings at once —
+// which is the ordinary case on a survey, not a contrived one.
+func derivedCohortFields() []synth.FieldSpec {
+	fields := append(gatedCohortFields(), synth.FieldSpec{
+		Name: "score", Type: "u4", Nullable: true, NullRate: 0,
+		Distribution: synth.DistNormal,
+		Params:       map[string]any{"mean": 6.0, "std": 3.0, "min": 0.0, "max": 10.0},
+	})
+	for _, name := range []string{"promoter", "passive", "detractor"} {
+		fields = append(fields, synth.FieldSpec{
+			Name: name, Type: "packed_bool", Nullable: true, NullRate: 0,
+			Distribution: synth.DistBernoulli, Params: map[string]any{"p": 0.4},
+		})
+	}
+	return fields
+}
+
+// TestProfileCreateCLI_SuggestDependenciesRoundTripsThroughFromProfile
+// is E3-S3's half of the CLI round trip, driving BOTH real leaves: the
+// exact-dependency candidate reaches the file beside the gating and
+// co-missing ones, the combined file is consumed UNMODIFIED, and the
+// derived flags agree with the score on every generated row.
+func TestProfileCreateCLI_SuggestDependenciesRoundTripsThroughFromProfile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	p, err := newPulse()
+	if err != nil {
+		t.Fatalf("newPulse: %v", err)
+	}
+	spec := &pulse.SynthSpec{RowCount: 4000, Fields: derivedCohortFields(),
+		Rules: []synth.RuleSpec{
+			// The normalisation is a SEPARATE, EARLIER rule: within one
+			// rule every expression reads the row as it stood before the
+			// rule ran, so the bands would still see the sampler's float
+			// and the fixture would carry the pre-rounding incoherence
+			// E2-S4 measured rather than the relationship under test.
+			{When: "!isnull(score)", SetExpr: map[string]string{"score": "round(score)"}},
+			{SetExpr: map[string]string{
+				"promoter":  "score >= 9",
+				"passive":   "score >= 7 && score < 9",
+				"detractor": "score < 7",
+			}},
+			{When: "aware == 0", SetNull: []string{
+				"q1", "q2", "q3", "q4", "score", "promoter", "passive", "detractor"}},
+		}}
+	if _, err := p.Synth(context.Background(), spec, source, pulse.SynthOptions{Seed: 55}); err != nil {
+		t.Fatalf("p.Synth: %v", err)
+	}
+
+	profile := filepath.Join(dir, "profile.json")
+	candidates := filepath.Join(dir, "candidates.json")
+	var out, errOut bytes.Buffer
+	if err := runProfileCLIStreams(t, &out, &errOut, "create",
+		"--input", source, "--output", profile, "--suggest-rules", candidates); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+
+	raw, err := os.ReadFile(candidates)
+	if err != nil {
+		t.Fatalf("ReadFile(candidates): %v", err)
+	}
+	rules, err := synth.ParseRules(raw)
+	if err != nil {
+		t.Fatalf("the written file is not a rules document: %v", err)
+	}
+	lastOther, firstDep := -1, -1
+	var dep *synth.RuleSpec
+	for i := range rules {
+		if rules[i].Evidence == nil {
+			continue
+		}
+		if rules[i].Evidence.Detector == "dependency" {
+			if firstDep < 0 {
+				firstDep = i
+				dep = &rules[i]
+			}
+			continue
+		}
+		lastOther = i
+	}
+	if firstDep < 0 {
+		t.Fatalf("no dependency candidate in the combined file:\n%s", raw)
+	}
+	if lastOther > firstDep {
+		t.Errorf("a null-state candidate is declared at %d, after the dependency candidate at %d — "+
+			"declaration order is applied order and a dependency rule must re-resolve its block last",
+			lastOther, firstDep)
+	}
+	if dep.Evidence.SourceField != "score" {
+		t.Errorf("dependency source = %q, want score", dep.Evidence.SourceField)
+	}
+	if len(dep.SetExpr) != 3 {
+		t.Errorf("the partition came back as %d target(s), want one candidate covering all three: %v",
+			len(dep.SetExpr), dep.SetExpr)
+	}
+	if len(dep.NullTogether) == 0 || dep.NullTogether[0] != "score" {
+		t.Errorf("null_together = %v, want the source first and in this same rule", dep.NullTogether)
+	}
+	if !strings.Contains(errOut.String(), "WHAT WAS NOT LOOKED FOR") {
+		t.Errorf("the search bounds did not reach the terminal: %s", errOut.String())
+	}
+
+	// The same bytes, unmodified, through the consuming leaf.
+	ruledOut := filepath.Join(dir, "ruled.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", ruledOut,
+		"--rows", "1500", "--seed", "21", "--rules", candidates); err != nil {
+		t.Fatalf("synth from-profile --rules <detected file>: %v", err)
+	}
+	vals, nulls := readCohortRows(t, ruledOut)
+	if len(vals) <= 4000 {
+		t.Fatal("no rows generated")
+	}
+	scored, bad, orphan := 0, 0, 0
+	for i := 4000; i < len(vals); i++ {
+		if nulls[i]["score"] {
+			for _, f := range []string{"promoter", "passive", "detractor"} {
+				if !nulls[i][f] {
+					orphan++
+					break
+				}
+			}
+			continue
+		}
+		scored++
+		s, ok := vals[i]["score"].(float64)
+		if !ok {
+			t.Fatalf("score on row %d is %T, want float64", i, vals[i]["score"])
+		}
+		want := map[string]bool{
+			"promoter": s >= 9, "passive": s >= 7 && s < 9, "detractor": s < 7,
+		}
+		for f, w := range want {
+			v, _ := vals[i][f].(float64)
+			if nulls[i][f] || (v != 0) != w {
+				bad++
+				break
+			}
+		}
+	}
+	if scored == 0 {
+		t.Fatal("no scored rows generated")
+	}
+	if bad != 0 {
+		t.Errorf("%d of %d scored rows disagree with the detected mapping", bad, scored)
+	}
+	if orphan != 0 {
+		t.Errorf("%d generated rows carry a band flag with no score", orphan)
+	}
+}

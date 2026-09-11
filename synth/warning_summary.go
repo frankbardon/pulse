@@ -255,6 +255,11 @@ var thinSubjects = []string{
 	// The same, for a co-missing block whose thinner arm (null or
 	// present) rests on too few rows.
 	"co-missing block",
+	// The same, for an exact-dependency candidate whose thinnest SOURCE
+	// LEVEL rests on too few rows: a mapping arm resting on four rows is
+	// a coincidence, not a derivation. It ships with its support
+	// attached for the reason the two above do.
+	"dependency level",
 }
 
 // otherWarningKind is where an unrecognised warning lands, and it is

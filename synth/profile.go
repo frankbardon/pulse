@@ -993,9 +993,11 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// does. See synth/profile_gating.go.
 	var gates *gateDetector
 	var blocks *blockDetector
+	var deps *depDetector
 	if opts.SuggestRules {
 		gates = newGateDetector(schema)
 		blocks = newBlockDetector(schema)
+		deps = newDepDetector(schema)
 	}
 
 	rowCount := 0
@@ -1112,6 +1114,9 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 		}
 		if blocks != nil {
 			blocks.observe(nulls)
+		}
+		if deps != nil {
+			deps.observe(values, nulls)
 		}
 		if len(jointFieldNames) >= 2 && len(jointRows) < conditionalJointCap {
 			rowVals := make([]float64, len(jointFieldNames))
@@ -1434,7 +1439,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// reason the fits do: the classification is a property of the whole
 	// cohort and does not exist until every row has been seen. It reads
 	// only its own accumulators — no cohort access, no second pass.
-	if gates != nil || blocks != nil {
+	if gates != nil || blocks != nil || deps != nil {
 		// ORDER IS APPLIED ORDER, and it is chosen rather than
 		// incidental. Gating candidates first, co-missing blocks second.
 		//
@@ -1463,8 +1468,25 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 		// different KINDS of finding, and a shared cap would let twenty
 		// gating candidates hide the fact that the cohort has question
 		// blocks at all.
+		//
+		// EXACT-DEPENDENCY candidates come LAST, and the argument is the
+		// one that put blocks after gates: for candidates AS DETECTED
+		// the orders are equivalent, and the choice is made for the
+		// EDITED file. A dependency rule writes VALUES and carries its
+		// own null_together in the SAME rule (E2-S4's measured finding —
+		// a set_expr clears the null mask, so a block declared in an
+		// earlier rule is un-nulled by the derivation that follows it),
+		// so it re-resolves the block from the source AFTER any gate has
+		// decided the source's own null state. Placed last, it REPAIRS a
+		// set_null an analyst has narrowed by hand; placed first, the
+		// narrowed gate would break the derived block again.
+		//
+		// It also reads a DIFFERENT half of the record from the other
+		// two — values rather than null state — so nothing it writes can
+		// change which rows they select.
 		cands := gates.finish(&warnings)
-		pf.RuleCandidates = append(cands, blocks.finish(&warnings)...)
+		cands = append(cands, blocks.finish(&warnings)...)
+		pf.RuleCandidates = append(cands, deps.finish(&warnings, blocks)...)
 	}
 
 	if len(warnings) > 0 {

@@ -339,6 +339,53 @@ func (d *blockDetector) overlap(i, j int) float64 {
 	return float64(c) / float64(union)
 }
 
+// sameNullPattern answers whether fields a and b are null on exactly
+// the same rows, and whether the question could be answered at all.
+//
+// It is the EXACT-DEPENDENCY detector's (synth/profile_dependency.go)
+// admission test, served from this accumulator rather than duplicated
+// into a second one. That detector needs "do these two fields share a
+// null pattern" for a reason of its own — a `set_expr` clears the
+// target's null mask, so a derivation is only faithful when the target
+// is absent exactly where its source is — and that is bit for bit the
+// question classify already asks. Two accumulators computing one number
+// is the shape E1-S6 exists because of, and a disagreement between them
+// would be silent.
+//
+// known=false is the honest answer when this detector did not run (fewer
+// than two nullable fields) or was abandoned over maxBlockFields. The
+// caller reports the candidate instead of emitting it; it does not
+// guess.
+//
+// A field this accumulator does not carry is NON-NULLABLE, so its null
+// count is exactly 0 — that is the admission rule of newBlockDetector,
+// not an approximation.
+//
+// foldChunk is idempotent (it returns immediately on an empty chunk), so
+// calling it here is safe whether or not finish has already run.
+func (d *blockDetector) sameNullPattern(a, b string) (same, known bool) {
+	if d == nil || d.over {
+		return false, false
+	}
+	d.foldChunk()
+	i, okA := d.idx[a]
+	j, okB := d.idx[b]
+	na, nb := 0, 0
+	if okA {
+		na = d.nullN[i]
+	}
+	if okB {
+		nb = d.nullN[j]
+	}
+	if na != nb {
+		return false, true
+	}
+	if na == 0 {
+		return true, true
+	}
+	return d.co(i, j) == na, true
+}
+
 // blockClass is one set of fields sharing a null count, partitioned
 // further by whether their null PATTERNS are identical.
 type blockClass struct {
