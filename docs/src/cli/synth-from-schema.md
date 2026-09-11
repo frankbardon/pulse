@@ -45,8 +45,9 @@ pulse synth from-schema --spec FILE --output FILE
 }
 ```
 
-Full spec grammar (constraints, correlations, regex, …) lives in
-`skills/synthetic-data.md` and `synth/`.
+Full spec grammar (correlations, regex, …) lives in
+`skills/synthetic-data.md` and `synth/`; `constraints[]` and the
+`rules[]` structural surface live in `skills/synth-structural-rules.md`.
 
 ## Categorical / numeric / set joint structure (advanced)
 
@@ -467,4 +468,5 @@ pulse synth from-schema --spec sales.spec.json --output sales.pulse --json
   a captured profile of an existing cohort
 - [`pulse profile create`](profile-create.md) — capture the profile
 - `skills/synthetic-data.md` — full spec grammar and distribution table
+- `skills/synth-structural-rules.md` — `rules[]` and `constraints[]`
 - [Library: pulse.Synth](../library/overview.md)

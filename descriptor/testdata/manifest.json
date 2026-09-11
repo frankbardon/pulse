@@ -7074,8 +7074,12 @@
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
       },
       {
+        "name": "synth-structural-rules",
+        "description": "Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical."
+      },
+      {
         "name": "synthetic-data",
-        "description": "`pulse_synth_from_schema` vs `pulse_synth_from_profile`, multi-predictor models, correlations, constraints, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills."
+        "description": "`pulse_synth_from_schema` vs `pulse_synth_from_profile`, multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules."
       },
       {
         "name": "tool-compose",
@@ -9575,4 +9579,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5ee7d8f67bd6055cc5b6eae46fc03950d70286afd69762c7616d4da5103ed213
+// golden-hash: cc613f6488e88662d77c06dd2f6d647b6484cfd0916cacdd788c3f93aa31178f

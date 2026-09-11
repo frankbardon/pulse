@@ -239,6 +239,7 @@ If you are writing a system prompt for an LLM agent that uses Pulse, point it at
 | Run a statistical test (tier-1 or tier-2) | `statistical-testing` |
 | Fit a regression (OLS, GLM, Bayesian) | `regression-modeling` |
 | Generate synthetic data | `synthetic-data` |
+| Gate, mask or derive a synthetic field (`rules[]`) | `synth-structural-rules` |
 | Understand a cohort's schema layout | `cohort-schema-design` |
 | Import a tabular source into `.pulse` | `import-best-practices` |
 | Pick an export format | `export-format-selection` |

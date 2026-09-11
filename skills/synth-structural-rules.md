@@ -1,0 +1,71 @@
+---
+name: synth-structural-rules
+description: Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical.
+type: guide
+kind: design
+applies_to: inspect, predict, manifest
+covers: [synth, rules, constraints, set_null, set_expr, null_together, PULSE_SYNTH_RULE]
+---
+
+# Synth structural rules
+
+Two synth-spec slots act ON a drawn row rather than describing its variation: `constraints[]` rejects a row outright and makes the generator redraw, `rules[]` masks or overwrites named fields on the rows a predicate selects. They compile against the SAME `expr-lang` row environment (`rowExprEnv`), so they live together here; a second hand-rolled env is what produced issue #258.
+
+Everything else about synth — modes, the distribution registry, pairwise correlations, profile capture, multi-predictor models, the fidelity report and the determinism contract — stays in `synthetic-data`.
+
+## Constraints
+
+`constraints[]` reuse `expr-lang/expr`. Row rejected if any constraint returns false; generator keeps drawing until `row_count` is reached. Default reject cap 50%; beyond that `PULSE_SYNTH_CONSTRAINT_INFEASIBLE` fires. Override via `max_rejection_rate`. Constraints read any field on the same row; no cross-row reach in v1.
+
+**Env types are the row's types** (`sentinelFor`, derived from `fieldTypeFromName` so the two cannot drift): every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is a `float64`; `categorical_*` is a `string`; `set_*` is a `map[string]bool` (`flags["opt"]`). So a boolean field is tested as `flag == 1`, never bare `flag` (that is a compile-time refusal, not a boolean). Typing `packed_bool` as a Go `bool` was issue #258: it compiled and then failed on every row with `PROCESSING_RUNTIME: invalid operation: bool(float64)`, making constraints unusable on the commonest survey field type.
+
+**`isnull(field)`** answers the row's null state from the per-record null mask — the only way to test absence, since a nulled field still carries its drawn value in the row. Takes the field NAME: `isnull(x)` (bare identifier, rewritten to a literal) and `isnull("x")` are equivalent; an undeclared name is refused (compile-time for a bare identifier, run-time for a string literal), never answered `false`.
+
+## Structural rules
+
+`rules[]` (additive, `omitempty`) state what no statistical summary can, and so comes back from marginals as soft noise with a plausible rate and no gate: a question block not ASKED of a respondent who failed a screener, a flag that is a band of another column.
+
+```json
+"rules": [
+  {"when": "aware == 0", "set_null": ["perception_1", "perception_2"], "set": {"segment": "unaware"}},
+  {"set_expr": {"promoter": "nps >= 9"}},
+  {"null_together": ["nps", "nps_reason"]}
+]
+```
+
+Five slots. `when` is an optional predicate — **absent means EVERY row**, not "never". `set` assigns LITERALS, `set_expr` expression RESULTS, `null_together` nulls a block as one decision.
+
+**`set` and `set_expr` are sibling keys, never one map with a `{"$expr": …}` marker**: one map leaves `{"set": {"region": "west"}}` undecidable between a literal and an identifier.
+
+Expressions are the constraint environment above (`rowExprEnv`, shared with `constraints[]`). `when` must return a bool. The pass consumes no RNG and allocates nothing per row, so a rules-free spec is byte-identical to output from before the slot existed. **The standalone rules-file format is this array itself**, so an inline declaration and a file are the same JSON.
+
+**Declaration order, sequentially, last write wins**, in ONE pass that is `drawRow`'s last act, after the model stage — and **the placement is the design**. It buys `if gate then null else inferred`: a gated field is still drawn through its own sampler, model and pairs, and the rule masks or replaces it only where `when` selects, so non-gated rows keep the inferred value. **Accepted consequence: a field a rule NULLS still contributed its DRAWN value to any model using it as a PREDICTOR on that row.** Write semantics: `set_null` sets the mask and LEAVES the drawn value in the row (the shape `nullableSampler` produces; the wire gets the type's zero, never the masked value); `set` and `set_expr` write the value and CLEAR the mask, so declaration order composes symmetrically. A `set` literal is coerced to the row's Go shape once at compile time via `constantRowValue` — that is what turns a `set_*` target's `["tv","radio"]` into the row's `map[string]bool`.
+
+**`null_together`: one null decision per block, and the FIRST named field wins.** A question block is asked or skipped as a unit; independent per-field null draws make it a lottery. The motivating profile's `nps`/`promoter`/`passive`/`detractor` all declare 0.8260 and came back all-present in **45 of 40,000** rows against ~6,960: `0.174⁴ ≠ 0.174`. The rule COPIES `nullMask[first]` onto the rest — every field has already taken its null draw, so a copy is the only resolution adding no randomness. **Cost: every other member's `null_rate` is IGNORED** — a member more than **0.02** from the gate's (`nullRateDivergenceThreshold`; absolute, against the GATE) warns as an ATTENTION kind, never a refusal. The copy moves the DECISION, never a value: a member the gate UN-nulls publishes what it drew, which is what makes the block share a RATE and not merely share its nulls. **Within one rule it is the LAST write**, after `set_null`/`set`/`set_expr` — `{"set_null": ["nps"], "null_together": ["nps", …]}` nulls the gate and the block follows — so a `set_null` over a NON-gate member of the same rule is overridden. Across rules, ordinary last-write-wins.
+
+**`set_expr`: the coercion matrix.** It assigns an expression's RESULT, writing the value and clearing the mask as `set` does — collapsing three `when`-gated rules into one. A wrong cell is a SILENT wrong value, so:
+
+| result | scalar target | `categorical_*` | `set_*` |
+|---|---|---|---|
+| bool | **1 / 0** | refused | refused |
+| number (`float64`/`int`) | the number, RANGE-CHECKED | refused | refused |
+| string | refused (see decimal) | must be a DECLARED value | refused |
+| selection (`map[string]bool`, option list, `split()`) | refused | refused | **the selection** |
+
+Scalar = `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date` `packed_bool` `decimal128`. Range is the bound a `set` literal obeys (`u4` 0–15) — ONE matrix, shared; NaN/Inf refused. Declared = `weighted_categorical`'s `values` / a `set_*`'s `options`; a `regex` or `constant` categorical is unbounded, so any string lands.
+
+**One asymmetry: a `decimal128` takes an exact string only from a `set` LITERAL.** `set_expr` refuses one — expr already reduced the value to `float64`, so the exactness is gone, and a string left in a `float64`-typed row slot breaks the NEXT rule reading it, only on gated rows.
+
+**Two timings, one code.** A fault the RETURN TYPE settles is refused at SPEC PARSE; one only a VALUE settles (range, category) at ROW time. Both are `PULSE_SYNTH_RULE_VALUE_INVALID`, naming rule, slot, field and value.
+
+**Across rules an expression sees EARLIER writes and not LATER ones — correct and surprising. WITHIN one rule, order is UNOBSERVABLE:** every expression, `when` included, reads the row as it was BEFORE the rule ran and all its writes land after, so `{"set_expr": {"a": "b", "b": "a"}}` swaps, like SQL `UPDATE`. A sibling `set` literal is invisible to a sibling `set_expr`; self-reference (`{"nps": "nps + 1"}`) works.
+
+Two silent gotchas. Nulling a field not declared `"nullable": true` — via `set_null` OR a `null_together` block — writes the type's zero as an ordinary value with NO null bit: the rule fires and the file cannot show it, so it warns naming the rule index, the slot and the field. And `when` / `set_expr` read the row's PRE-ROUNDING float, not the wire value: `== k` fires only on draws landing exactly on `k`. Use comparisons (`>= 9`); `packed_bool` is exact (`1.0`/`0.0`). It bites `set_expr` harder because the result still looks right — a three-band NPS classification off raw `nps` sets exactly one flag per row and merely disagrees with the score beside it (476 of 3,486 scored rows on the motivating profile). Normalise in an EARLIER rule (`{"set_expr": {"nps": "int(nps)"}}`); snapshot semantics means the same rule will not do. Rules reach GENERATED rows only — `synth from-profile --source` re-encodes the real partition straight through.
+
+**Validation is EAGER — at spec parse, never at row time.** A rule naming a mistyped field, or carrying an uncompilable expression, is invisible at run time: the run succeeds and the gate is simply absent. Six codes, each naming the rule INDEX (`rule_index` — a rule has no name of its own) plus the slot and field where one exists: `PULSE_SYNTH_RULE_EMPTY`, `_FIELD_UNKNOWN`, `_EXPR_INVALID`, `_VALUE_INVALID` (a `set` literal OR a `set_expr` result — one matrix; `details.slot` says which), `_CONFLICT` (one rule naming a field in two slots that DISAGREE: within a rule there is no order to appeal to, so it is refused not arbitrated — `set_null` + `null_together` do not disagree and are ordered instead), `_BLOCK_INVALID`. `pulse errors lookup CODE` is authoritative.
+
+## See
+
+- `synthetic-data` — modes, distributions, correlations, models, determinism contract.
+- `tool-errors-lookup` — `PULSE_SYNTH_RULE_*` / `PULSE_SYNTH_CONSTRAINT_*` recovery; `pulse errors lookup CODE` is authoritative.
+- `docs/src/cli/synth-from-schema.md` — CLI surface; the `rules` array is also the standalone rules-file format.

@@ -135,6 +135,7 @@ Four independent, additive `pulse profile create` knobs. Each adds an `omitempty
 
 - `request-envelope` — envelope shape, slot keys, smart defaults, streamability flag.
 - `synthetic-data` — synth modes, multi-predictor models, correlations, determinism.
+- `synth-structural-rules` — synth `rules[]` / `constraints[]`: gating, masking, derived fields.
 - `response-components` — v0.20.0 Components family + per-operator key tables.
 - `mcp-integration` — every registered tool, full per-tool argument shape.
 - `debugging-with-predict` — predict loop in detail.
