@@ -585,6 +585,18 @@ stderr summary marks `!` and lists first, so it does not need finding.
   construction (`synth/copula.go`) that exactly targets the captured
   Pearson `rho` for jointly-normal fields — see
   `skills/synthetic-data.md` for the technique and its trade-offs.
+- Boolean (`packed_bool`) fields: reconstructed as `bernoulli` with
+  `p` = the captured mean, which holds the prevalence exactly. Two
+  consequences. A modelled boolean is drawn as a **probit**, so its
+  coefficients order rows but are not probability changes; and its
+  recovery is **unidentified** — the `models` section of a fidelity
+  report carries an `error` for these targets rather than a recovered
+  coefficient, because a 0/1 value does not determine the latent that
+  produced it. A boolean observed at prevalence exactly 0 or 1 has no
+  variance, so a model on it is dropped with a warning. A
+  hand-authored schema-mode spec that puts a continuous distribution on
+  a `packed_bool` is still biased (the writer rounds at 0.5); declare
+  `bernoulli` there instead.
 - Decimal and geo fields: regenerated within the same type family
   but with synthetic value distributions; downstream uses that
   depend on exact field values (e.g. joinable identifiers) need

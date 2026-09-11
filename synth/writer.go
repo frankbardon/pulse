@@ -592,12 +592,36 @@ func toFloat32(v any) float32 {
 	return float32(toFloat64(v))
 }
 
+// toBool reduces a drawn value to the single bit a packed_bool field
+// stores.
+//
+// The float64 arm thresholds at 0.5, NOT at "non-zero". Non-zero was the
+// historical behaviour and it was a silent, severe prevalence bug for
+// every packed_bool field reconstructed as a continuous distribution: a
+// normal clamped to the observed [0, 1] puts mass at exactly 0 only for
+// the draws that fell BELOW zero, so P(false) was Phi(-p/sigma) and a
+// 20%-prevalence boolean generated at 69.1%, a 50% one at 84.2% and an
+// 80% one at 97.7% — measured, and matching that formula to three
+// digits.
+//
+// Rounding to nearest is the right reduction for a value that is meant
+// to BE the field's value, and it is what a reader of any other integer
+// arm here would expect (u4 and the u* arms all use Floor(f+0.5)). It is
+// not, however, a fix for the prevalence: a clamped normal at p=0.2
+// still generates 22.7% at this threshold, because clamping piles
+// asymmetric mass on the near bound. The fix for that is upstream — a
+// packed_bool reconstructs as `bernoulli`, whose sampler emits exactly
+// 0.0 or 1.0, and a modelled one draws through quantileFor's step Q. On
+// both of those paths this threshold and the old one agree exactly. This
+// arm exists for a HAND-AUTHORED spec that puts a continuous
+// distribution on a packed_bool field, where being merely biased beats
+// being inverted.
 func toBool(v any) bool {
 	switch x := v.(type) {
 	case bool:
 		return x
 	case float64:
-		return x != 0
+		return x >= 0.5
 	case int:
 		return x != 0
 	case string:

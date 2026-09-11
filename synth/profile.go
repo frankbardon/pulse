@@ -2146,6 +2146,32 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			}
 			fs.Distribution = DistWeightedCategorical
 			fs.Params = map[string]any{"values": vals, "weights": weights}
+		case fp.Numeric != nil && isBooleanFieldType(fp.Type):
+			// A packed_bool is profiled through the NUMERIC accumulator
+			// (it is neither date, categorical nor set, so it falls to
+			// that default branch), and the obvious reading of its
+			// summary — normal(mean, std) clamped to the observed [0, 1]
+			// — is WRONG on the wire, badly and silently.
+			//
+			// The field holds one bit, so the writer must reduce a
+			// continuous draw to 0 or 1, and no threshold over a clamped
+			// normal lands in the right place: at the historical
+			// `value != 0` a 20%-prevalence boolean generated at 69%,
+			// and even a corrected `>= 0.5` leaves a clamped normal
+			// biased (0.227 for the same field), because clamping piles
+			// asymmetric mass on the near bound. A bernoulli marginal is
+			// EXACT by construction and needs no threshold at all: the
+			// observed mean IS p.
+			//
+			// This arm sits ahead of the --fit-shape arm below on
+			// purpose. fitNumericShape happily fits a two-component
+			// mixture to a 0/1 column — two well-separated near-zero-
+			// variance spikes beat a normal on BIC every time — and that
+			// mixture reproduces the marginal no better than the normal
+			// did, while costing a bisection per draw. A boolean's shape
+			// is not a thing to discover; it is one number.
+			fs.Distribution = DistBernoulli
+			fs.Params = map[string]any{"p": fp.Numeric.Mean}
 		case fp.Numeric != nil && fp.Numeric.Shape != nil:
 			// Captured shape (--fit-shape, E4-S2) takes precedence over
 			// the plain normal reconstruction below — it exists
@@ -2356,8 +2382,17 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// DistConstant fallback for a field the profiler could not
 			// summarize) still excludes the pair here — that is a data-
 			// integrity guard, not a claim conflict.
+			// DistBernoulli (a packed_bool target, see the type switch
+			// above) is admitted alongside them and carries a flag, not
+			// a special case: the pair sampler overwrites row[B] with a
+			// draw from the cell's captured moments, and for a boolean
+			// target that draw has to be Bernoulli(cell mean) rather
+			// than Normal(cell mean, cell std). Without the flag the arm
+			// would reproduce, per cell, exactly the inverted-prevalence
+			// defect the bernoulli reconstruction exists to remove.
 			if distOf[cnp.A] != DistWeightedCategorical ||
-				(distOf[cnp.B] != DistNormal && distOf[cnp.B] != DistMixture) {
+				(distOf[cnp.B] != DistNormal && distOf[cnp.B] != DistMixture &&
+					distOf[cnp.B] != DistBernoulli) {
 				continue
 			}
 			num, ok := numericMoments[cnp.B]
@@ -2371,6 +2406,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			s.CategoricalNumericPairs = append(s.CategoricalNumericPairs, CategoricalNumericPairSpec{
 				A: cnp.A, B: cnp.B, Categories: cats,
 				Min: num.Min, Max: num.Max, HasClamp: true,
+				Bernoulli: distOf[cnp.B] == DistBernoulli,
 			})
 		}
 
@@ -2395,7 +2431,10 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 				// CategoricalNumericPairs above.
 				continue
 			}
-			if distOf[snp.Set] != DistSetBernoulli || distOf[snp.Numeric] != DistNormal {
+			// DistBernoulli admitted for the same reason as the
+			// categorical-numeric arm above, and carried the same way.
+			if distOf[snp.Set] != DistSetBernoulli ||
+				(distOf[snp.Numeric] != DistNormal && distOf[snp.Numeric] != DistBernoulli) {
 				continue
 			}
 			num, ok := numericMoments[snp.Numeric]
@@ -2474,6 +2513,21 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 		// The effect is on the LATENT scale and therefore non-linear in
 		// value space for a non-normal Q — a coefficient is not "this
 		// many units of the field" here. See synth/mixture_quantile.go.
+	case DistBernoulli:
+		// A packed_bool target. quantileFor's bernoulli arm makes the
+		// composed draw a PROBIT — P(1 | row) = Phi((mu - Phi^-1(1-p))
+		// / sigma) — so the predictors still order the rows and still
+		// decide which ones come out 1, while the prevalence is held
+		// exactly at the captured p.
+		//
+		// Refusing it here was considered and rejected. The refusal
+		// would have been invisible in the output: a boolean target's
+		// captured conditional pair is retired in favour of its model
+		// (the per-target rule above), so a refused model leaves the
+		// field with no conditioning at all, which is strictly worse
+		// than a probit whose coefficients need reading on the latent
+		// scale. It is also the arm the motivating cohort leans on
+		// hardest — most of its modelled targets are packed_bool.
 	default:
 		return FieldModelSpec{}, "target did not reconstruct to a normal distribution"
 	}

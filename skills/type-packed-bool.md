@@ -22,7 +22,12 @@ Orthogonal. `Nullable: true` participates in the per-record null bitmap (indepen
 
 Absent. `packed_bool` carries no inline dictionary block. The default grouper is `GROUP_CATEGORY` (two buckets); the default aggregator is `AGG_FREQUENCY`.
 
+## Synth
+
+`profile create` summarises a `packed_bool` through the NUMERIC accumulator (it is neither date, categorical nor set), and `SpecFromProfile` reconstructs it as `bernoulli` with `p` = the observed mean — ahead of `--fit-shape`, so a boolean never becomes a mixture. A continuous marginal is NOT a valid reconstruction: one bit forces the writer to threshold, and a clamped normal thresholded anywhere reproduces the wrong prevalence. A modelled boolean draws through a step quantile, which makes it a probit — coefficients order rows, they are not probability changes.
+
 ## See
 
 - Skill: `cohort-schema-design` (Field-type matrix, Bit-packed runs, Smart defaults).
+- Skills: `op-synth-bernoulli`, `synthetic-data` (Boolean marginals).
 - Cross-link: `type-u4` for small ordinals using the same packed-byte cursor.
