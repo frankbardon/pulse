@@ -124,13 +124,20 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			// LOOKUP against an already-complete dictionary, so the
 			// order in which map entries happen to be visited while
 			// building a row's mask can never affect the result.
-			options, ok, perr := paramStringSlice(fs.Name, fs.Params, "options")
+			//
+			// Declaring no options at all is legal HERE and yields an
+			// empty dictionary, which encoding.WriteSchema emits as an
+			// explicit zero-entry block — it is the only honest shape for
+			// a column with no observed selections, which is what
+			// SpecFromProfile's fallback reconstructs for an always-null
+			// set_* (the empty selection, see E1-S6). The requirement
+			// belongs to the DRAW, not to the type: newSetSampler refuses
+			// a set_bernoulli with no options on its own terms, so a spec
+			// that actually samples options still cannot get here without
+			// them.
+			options, _, perr := paramStringSlice(fs.Name, fs.Params, "options")
 			if perr != nil {
 				return nil, nil, perr
-			}
-			if !ok || len(options) == 0 {
-				return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-					fmt.Sprintf("field %q: set field requires non-empty params.options", fs.Name), nil)
 			}
 			dict := encoding.NewDictionary()
 			maxEntries := ft.MaxSetEntries()

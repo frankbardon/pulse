@@ -2213,10 +2213,29 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 				"max":  fp.Numeric.Max,
 			}
 		default:
-			// Field type the profiler couldn't summarize. Use a constant
-			// of 0 so synth still produces a record-shaped output.
+			// The profiler summarised nothing for this field. In practice
+			// that means a column that is 100% NULL — there were no values
+			// to summarise — so the constant below is a placeholder that
+			// is never visible on the wire: NullRate is 1.0, nullableSampler
+			// nulls every row, and encodeRow writes the type's zero. It
+			// still has to be well TYPED, because it enters the row map
+			// before anything knows the row is null.
+			//
+			// This used to emit float64(0) regardless of the field's type,
+			// which was latently wrong for a categorical_* (the row holds a
+			// string) and a set_* (a map[string]bool) and became a hard
+			// failure once constantRowValue started refusing a shape the
+			// row cannot hold: a cohort with one always-null categorical
+			// column — the ordinary case on a survey — could not be
+			// regenerated from its own profile at all.
+			//
+			// sentinelFor is REUSED rather than restated. It already
+			// derives the three row-value classes from fieldTypeFromName,
+			// it is the same answer constantRowValue validates against, and
+			// a second hand-written table here is precisely how the two
+			// came to disagree in the first place.
 			fs.Distribution = DistConstant
-			fs.Params = map[string]any{"value": float64(0)}
+			fs.Params = map[string]any{"value": sentinelFor(fp.Type)}
 		}
 		s.Fields = append(s.Fields, fs)
 	}

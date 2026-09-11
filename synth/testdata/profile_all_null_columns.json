@@ -1,0 +1,43 @@
+{
+  "row_count": 400,
+  "fields": [
+    {
+      "name": "respondent",
+      "type": "u32",
+      "null_rate": 0,
+      "numeric": {"min": 1, "max": 400, "mean": 200.5, "std": 115.47}
+    },
+    {
+      "name": "region",
+      "type": "categorical_u8",
+      "null_rate": 1
+    },
+    {
+      "name": "topics",
+      "type": "set_u8",
+      "null_rate": 1
+    },
+    {
+      "name": "score",
+      "type": "f64",
+      "null_rate": 1
+    },
+    {
+      "name": "signup",
+      "type": "date",
+      "null_rate": 1
+    },
+    {
+      "name": "consented",
+      "type": "packed_bool",
+      "null_rate": 1
+    },
+    {
+      "name": "spend",
+      "type": "decimal128",
+      "null_rate": 1,
+      "precision": 18,
+      "scale": 2
+    }
+  ]
+}
