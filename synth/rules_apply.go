@@ -130,6 +130,14 @@ type compiledRule struct {
 	set     []ruleAssign
 	setExpr []ruleExprAssign
 
+	// whenReads is the declared fields this rule's predicate reads, each
+	// classified by whether a comparison against it is pre-rounding.
+	// Resolved ONCE here so the never-fired warning can name the cause
+	// that applies to THIS rule (synth/rules_firing_cause.go) rather
+	// than the one that was most common when the message was written.
+	// Nil for a rule with no `when`.
+	whenReads []whenField
+
 	// nullTogether is the block in DECLARATION order, and the order is
 	// the SEMANTICS here rather than a determinism detail: the FIRST
 	// entry is the block's gate and the only member whose own null
@@ -159,6 +167,11 @@ type ruleApplier struct {
 	// and reports zero, which is the honest answer.
 	rowFired []bool
 	firings  []int
+	// everFired is the ATTEMPT memory: set when a rule selects a row and
+	// never cleared, so a rule with everFired and no firings selected
+	// rows a constraint then rejected. It is what lets the never-fired
+	// warning name the constraint instead of guessing at the predicate.
+	everFired []bool
 
 	// owned / rowOwnedNull / ownedNull are the null-OWNERSHIP accounting
 	// (synth/rules_ownership.go): the fields whose own null draw a
@@ -213,6 +226,12 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	// the very thing it is supposed to return.
 	whenOpts := rowExprOptions(env, names, applier.nullState.isnullBuiltin, expr.AsBool())
 	valueOpts := rowExprOptions(env, names, applier.nullState.isnullBuiltin)
+
+	// The fields any rule's set_expr writes, resolved before the loop
+	// because a LATER rule's write is just as capable of moving an
+	// earlier rule's gate field off its own support. See
+	// fieldIsPreRounded.
+	setExprTargets := ruleSetExprTargets(rules)
 
 	var warnings []string
 	for i, r := range rules {
@@ -290,6 +309,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 			continue
 		}
 		if r.When != "" {
+			cr.whenReads = whenFieldsRead(r.When, byName, setExprTargets)
 			prog, err := expr.Compile(r.When, whenOpts...)
 			if err != nil {
 				// Unreachable via validateSpec, which compiles the same
@@ -312,6 +332,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	}
 	applier.rowFired = make([]bool, len(applier.rules))
 	applier.firings = make([]int, len(applier.rules))
+	applier.everFired = make([]bool, len(applier.rules))
 	// The ownership accounting is derived from the SAME predicate
 	// buildSchema used to suppress the draws (ruleOwnedNullFields), over
 	// the raw rules rather than the compiled ones: a claim whose rule was

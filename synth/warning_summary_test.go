@@ -145,7 +145,7 @@ func TestClassifyWarning_EveryProducerIsClassified(t *testing.T) {
 		{
 			// synth/rules_firing.go, the zero-firing report.
 			name:      "ruleNeverFiredWarning",
-			warning:   ruleNeverFiredWarning(3, "familiarity == 1", 20000),
+			warning:   ruleNeverFiredWarning(ruleFiring{index: 3, when: "familiarity == 1"}, 20000),
 			wantKind:  "rule never fired",
 			attention: true,
 		},
@@ -287,8 +287,8 @@ func TestGroupWarnings_NeverFiredRuleLeadsTheSummary(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		ws = append(ws, thinPairWarning("categorical", "a", "b", 3, MinPairObservations))
 	}
-	ws = append(ws, ruleNeverFiredWarning(0, "familiarity == 1", 20000))
-	ws = append(ws, ruleNeverFiredWarning(4, "nps == 9", 20000))
+	ws = append(ws, ruleNeverFiredWarning(ruleFiring{index: 0, when: "familiarity == 1"}, 20000))
+	ws = append(ws, ruleNeverFiredWarning(ruleFiring{index: 4, when: "nps == 9"}, 20000))
 
 	groups := GroupWarnings(ws)
 	if groups[0].Kind != "rule never fired" {

@@ -225,9 +225,10 @@ expected-outcome lines sit below it:
 
 ```
   ! rule never fired (1)
-      rule 0 never fired: when "familiarity == 99" was true on 0 of 20000
-      generated row(s), so the rule applied to nothing; note a numeric
-      compares PRE-ROUNDING, so normalise first (an earlier rule setting
+      rule 2 never fired: when "respondent == 0.5" was true on 0 of 20000
+      generated row(s), so the rule applied to nothing; it compares
+      "respondent" (u64, normal), whose row value is PRE-ROUNDING — the
+      file holds round(v) — so normalise first (an earlier rule setting
       round(field)) or compare a range
 ```
 
@@ -235,14 +236,47 @@ The count is over rows that reached the **file**: a row a constraint
 rejected was re-drawn and left no trace, so it is not a firing. A rule
 that fires on every row, and one that fires on some, are silent.
 
-The message names the pre-rounding gotcha because it is the usual cause.
+### The message names the cause that applies to THAT rule
+
+There are three arms, and the line picks between them from what the
+compiled spec says about the fields the predicate reads. A single message
+naming one cause was wrong for most rules once the `discrete` and
+`bernoulli` marginals shipped — measured on the 381,324-row survey
+profile, **103 of its 123 fields** round on the way to the file *and*
+draw exact values, so a dead rule gating on any one of them was told to
+fix a gate that was already exact. Only three genuinely carry the
+hazard.
+
+| Arm | Reached when | What it says |
+|---|---|---|
+| **constraint** | the rule DID select rows and a constraint rejected every one (recorded, not inferred) | the cause is the constraint; relax it or widen the rule |
+| **pre-rounding** | the predicate reads a field that rounds on write *and* draws continuous values | normalise with `round(field)` in an earlier rule, or compare a range |
+| **neutral** | neither | names each field it reads with its type and distribution, and explicitly rules pre-rounding OUT for a field whose row value already *is* the stored value |
+
+A field rounds on write when it is `u4`/`u8`/`u16`/`u32`/`u64`, `date` or
+`packed_bool`. It still draws exact values — so pre-rounding cannot be
+the cause — when its distribution is `discrete`, `bernoulli`,
+`uniform_date`, `poisson` or `monotonic_from`. A small-integer column
+reconstructs as `discrete` and a `packed_bool` as `bernoulli`
+automatically, so on a survey cohort the neutral arm is the common one:
+
+```
+rule 0 never fired: when "familiarity == 99" was true on 0 of 2000 generated
+row(s), so the rule applied to nothing; it reads "familiarity" (u4, discrete),
+and only the values those fields actually generate can match it — check the
+predicate against each field's own reconstruction; pre-rounding is NOT the
+cause for "familiarity", whose row value already is the stored value
+```
+
+### When pre-rounding IS the cause, the remedy is `round`, not `int`
+
 The row holds the sampler's float and the wire holds `round(f)`, so
 `familiarity <= 1` selects only the draws whose float is already at or
-below 1. It also names **`round`**, not `int`: an integer field is stored
-as `floor(v+0.5)`, so `round(v)` is the one expression that reproduces
-the value the file holds, and `int(v)` widens the gate by moving VALUES
-down instead. Measured on the 381,324-row survey profile at 20,000
-generated rows:
+below 1. An integer field is stored as `floor(v+0.5)`, so `round(v)` is
+the one expression that reproduces the value the file holds, and `int(v)`
+widens the gate by moving VALUES down instead. Measured on the
+381,324-row survey profile at 20,000 generated rows, back when
+`familiarity` still reconstructed as a clamped normal:
 
 | gate | rows it fires on | wire `familiarity == 1` |
 |---|---|---|
@@ -253,7 +287,11 @@ generated rows:
 `round` reaches exactly the population a reader sees in the file and
 stores the same column it would have stored anyway; `int` gets its extra
 rows by rewriting the score. All three run silently; only the fully-empty
-case is a warning.
+case is a warning. That table is now historical for `familiarity` itself
+— it reconstructs as `discrete`, so its row value is already the stored
+level — and stays live for an `f32`/`f64` column, an integer column with
+more observed levels than the `discrete` cap, and a hand-authored
+continuous distribution on an integer field.
 
 If many rules never fire the listing is capped at 20 with a counted
 `+N further rule(s) never fired` line, the same bound the thin-level and

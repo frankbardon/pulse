@@ -165,36 +165,201 @@ func TestNeverFiredWarnings_BoundedWithACountedRemainder(t *testing.T) {
 	}
 }
 
-// TestRuleNeverFiredWarning_NamesRoundNotInt pins the remedy the message
-// recommends, because it is the only place the engine itself gives
-// authoring advice and a wrong recommendation there is worse than none —
-// a reader who follows it fixes the gate and silently corrupts the
-// column the gate reads.
+// TestRuleNeverFiredWarning_NamesTheCauseThatApplies is the diagnostic's
+// contract, and all four arms are asserted in ONE table because each is
+// trivially satisfiable by abandoning the others: the single message
+// this replaced satisfied the pre-rounding row and got the other three
+// wrong.
 //
-// The remedy is round(), not int(). An integer field is stored as
-// floor(v+0.5) (writeFieldValueForField), so round(v) is the one
-// expression that reproduces the stored value: the gate then selects
-// exactly the rows the file shows and the column does not move. int(v)
-// truncates and widens the gate by moving VALUES down instead — measured
-// on the motivating 122-field profile at 20,000 rows, a `familiarity <= 1`
-// gate fires on 1,843 rows raw, on 2,739 behind round() with the column
-// unchanged, and on 3,824 behind int(), which gets there by dropping
-// 1,085 respondents a point.
-//
-// The behavioural half of that claim is
-// TestRulesCoherence_RoundNormalisesTheBandIntMovesTheScore (E2-S4); this
-// case only guards the advice from drifting away from it.
-func TestRuleNeverFiredWarning_NamesRoundNotInt(t *testing.T) {
-	w := ruleNeverFiredWarning(0, "familiarity == 99", 20000)
-	if !strings.Contains(w, "round(field)") {
-		t.Errorf("the never-fired advice does not name round(): %q", w)
+//  1. A rule that DID select rows a constraint then rejected blames the
+//     CONSTRAINT, and says nothing about rounding — the arithmetic of
+//     its predicate is not what removed the rows.
+//  2. A rule comparing a continuously-reconstructed integer column gets
+//     the pre-rounding remedy, and it is round(), not int(). An integer
+//     field is stored as floor(v+0.5) (writeFieldValueForField), so
+//     round(v) reproduces the value the FILE holds and the gate then
+//     selects exactly the rows a reader sees. int(v) truncates and
+//     widens the gate by moving VALUES down instead — measured on the
+//     motivating 122-field profile at 20,000 rows, `familiarity <= 1`
+//     fires on 1,843 rows raw, on 2,739 behind round() with the column
+//     unchanged, and on 3,824 behind int(), which gets there by dropping
+//     1,085 respondents a point. (The behavioural half of that claim is
+//     TestRulesCoherence_RoundNormalisesTheBandIntMovesTheScore.)
+//  3. A rule comparing a field whose row value ALREADY IS the stored
+//     value — a `discrete` integer column, a `bernoulli` packed_bool —
+//     must NOT get the pre-rounding remedy. Since the discrete and
+//     bernoulli marginals shipped, that advice sends an author to
+//     normalise a gate that is already exact while the real cause goes
+//     unstated, so this row is the reason the split exists at all.
+//  4. A rule reading no quantizing field at all gets neither remedy and
+//     names what the predicate reads instead.
+func TestRuleNeverFiredWarning_NamesTheCauseThatApplies(t *testing.T) {
+	cases := []struct {
+		name    string
+		firing  ruleFiring
+		want    []string
+		notWant []string
+	}{
+		{
+			name: "constraint rejected every row it selected",
+			firing: ruleFiring{index: 3, when: "score > 4", attempted: true,
+				reads: []whenField{{name: "score", typeName: "f64", dist: DistNormal}}},
+			want:    []string{"rule 3 never fired", "constraint", "relax"},
+			notWant: []string{"round(field)", "PRE-ROUNDING"},
+		},
+		{
+			name: "continuous integer column is pre-rounding",
+			firing: ruleFiring{index: 0, when: "familiarity == 1",
+				reads: []whenField{{name: "familiarity", typeName: "u4", dist: DistNormal, preRounded: true}}},
+			want:    []string{"PRE-ROUNDING", "round(field)", `"familiarity" (u4, normal)`},
+			notWant: []string{"int(field)", "constraint"},
+		},
+		{
+			name: "discrete integer column is exact, so pre-rounding is ruled out",
+			firing: ruleFiring{index: 1, when: "nps == 99",
+				reads: []whenField{{name: "nps", typeName: "u4", dist: DistDiscrete}}},
+			want:    []string{`"nps" (u4, discrete)`, "pre-rounding is NOT the cause"},
+			notWant: []string{"PRE-ROUNDING", "round(field)"},
+		},
+		{
+			name: "bernoulli packed_bool is exact too",
+			firing: ruleFiring{index: 2, when: "aware == 2",
+				reads: []whenField{{name: "aware", typeName: "packed_bool", dist: DistBernoulli}}},
+			want:    []string{`"aware" (packed_bool, bernoulli)`, "pre-rounding is NOT the cause"},
+			notWant: []string{"round(field)"},
+		},
+		{
+			name: "a categorical gate gets neither remedy",
+			firing: ruleFiring{index: 4, when: `region == "noplace"`,
+				reads: []whenField{{name: "region", typeName: "categorical_u8", dist: DistWeightedCategorical}}},
+			want:    []string{`"region" (categorical_u8, weighted_categorical)`, "reconstruction"},
+			notWant: []string{"round(field)", "pre-rounding is NOT the cause", "constraint"},
+		},
 	}
-	if strings.Contains(w, "int(field)") {
-		t.Errorf("the never-fired advice still recommends int(), which widens the gate by rewriting "+
-			"the stored value rather than by reading it correctly: %q", w)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ruleNeverFiredWarning(tc.firing, 20000)
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("warning does not contain %q: %s", want, got)
+				}
+			}
+			for _, bad := range tc.notWant {
+				if strings.Contains(got, bad) {
+					t.Errorf("warning wrongly contains %q: %s", bad, got)
+				}
+			}
+			// Whatever the arm, the line must stay in its warning kind:
+			// the classifier keys on the message shape, and an arm that
+			// falls into the catch-all is reported as an unrecognised
+			// warning rather than as a dead rule.
+			if kind, attention := classifyWarning(got); kind != "rule never fired" || !attention {
+				t.Errorf("classifyWarning = (%q, %v), want the attention-needing never-fired kind", kind, attention)
+			}
+		})
 	}
 	// Guard the guard: the advice is only reachable on the `when` arm.
-	if strings.Contains(ruleNeverFiredWarning(0, "", 20000), "round(field)") {
+	if strings.Contains(ruleNeverFiredWarning(ruleFiring{index: 0}, 20000), "round(field)") {
 		t.Error("the no-`when` arm carries pre-rounding advice it has no use for")
+	}
+}
+
+// TestRuleFirings_ConstraintRejectedOnlyIsItsOwnCause is the DETECTION
+// half of the case above: the constraint arm is reached from evidence
+// the applier records, not from a guess.
+//
+// The rule fires on every attempt and none of those attempts is
+// committed, which is exactly what generate() does when a constraint
+// rejects the row. The warning must then blame the constraint — the
+// separation the original single message could not make, and the reason
+// it sent this case to a normalisation that would have done nothing.
+func TestRuleFirings_ConstraintRejectedOnlyIsItsOwnCause(t *testing.T) {
+	a := firingFixture(t, RuleSpec{When: "aware == 1", SetNull: []string{"score"}})
+
+	for i := 0; i < 5; i++ {
+		row, mask := firingRow(1)
+		if err := a.apply(row, mask); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		// No commitRow: the constraint pass rejected this row.
+	}
+	// One accepted row the rule did NOT select, so the run generated
+	// something and the zero is a real zero.
+	row, mask := firingRow(0)
+	if err := a.apply(row, mask); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	a.commitRow()
+
+	ws := a.neverFiredWarnings(1)
+	if len(ws) != 1 {
+		t.Fatalf("neverFiredWarnings = %v, want exactly one", ws)
+	}
+	if !strings.Contains(ws[0], "constraint") {
+		t.Errorf("a rule that fired only on rejected rows does not blame the constraint: %q", ws[0])
+	}
+	if strings.Contains(ws[0], "round(field)") {
+		t.Errorf("a rule the constraint removed is sent to a rounding normalisation: %q", ws[0])
+	}
+}
+
+// TestWhenFieldsRead_ClassifiesTheFieldsAPredicateReads pins the
+// classification the message is built from, straight off the fixture's
+// own schema — a message arm is only as right as the predicate behind
+// it.
+//
+// The fixture carries one of each shape that matters: `nps` is a u4 on a
+// continuous `uniform`, so a comparison against it is pre-rounding;
+// `aware` is a packed_bool on `bernoulli`, so it is exact; `score` is an
+// f64, which the writer stores as given; `region` is a categorical a
+// numeric comparison never reaches.
+func TestWhenFieldsRead_ClassifiesTheFieldsAPredicateReads(t *testing.T) {
+	spec := ruleSpecFixture()
+	byName := map[string]FieldSpec{}
+	for _, f := range spec.Fields {
+		byName[f.Name] = f
+	}
+	cases := []struct {
+		src            string
+		wantNames      []string
+		wantPreRounded []string
+	}{
+		{"nps == 9", []string{"nps"}, []string{"nps"}},
+		{"aware == 1", []string{"aware"}, nil},
+		{"score > 0.5", []string{"score"}, nil},
+		{`region == "east"`, []string{"region"}, nil},
+		{"nps == 9 && aware == 1", []string{"aware", "nps"}, []string{"nps"}},
+		// isnull's string spelling must resolve to the field too, or a
+		// co-missingness gate reads as a predicate over nothing.
+		{`isnull("nps")`, []string{"nps"}, []string{"nps"}},
+		// An identifier that is not a declared field contributes
+		// nothing — the message names fields, not free variables.
+		{"1 == 2", nil, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.src, func(t *testing.T) {
+			got := whenFieldsRead(tc.src, byName, nil)
+			var names, pre []string
+			for _, f := range got {
+				names = append(names, f.name)
+				if f.preRounded {
+					pre = append(pre, f.name)
+				}
+			}
+			if strings.Join(names, ",") != strings.Join(tc.wantNames, ",") {
+				t.Errorf("fields read = %v, want %v", names, tc.wantNames)
+			}
+			if strings.Join(pre, ",") != strings.Join(tc.wantPreRounded, ",") {
+				t.Errorf("pre-rounded = %v, want %v", pre, tc.wantPreRounded)
+			}
+		})
+	}
+
+	// A field some rule's set_expr writes loses its exactness claim: the
+	// expression's result is an arbitrary float, so the value in the row
+	// need no longer sit on the distribution's own support.
+	got := whenFieldsRead("aware == 1", byName, map[string]bool{"aware": true})
+	if len(got) != 1 || !got[0].preRounded {
+		t.Errorf("a set_expr-written packed_bool still claims exactness: %+v", got)
 	}
 }
