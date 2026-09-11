@@ -1,6 +1,7 @@
 package synth
 
 import (
+	"math"
 	"sort"
 
 	"github.com/expr-lang/expr/ast"
@@ -101,14 +102,15 @@ var quantizingFieldTypes = map[string]bool{
 // automatically; the last two are here because leaving them out would
 // name pre-rounding for a field that cannot suffer from it.
 //
-// constant is deliberately ABSENT: its value comes from the document and
-// may be any float, so the claim would depend on the literal rather than
-// on the distribution. The same three also survive every OTHER writer
-// that can reach the field — a conditional pair resolves a discrete
-// target on its own staircase and a bernoulli target on its own step,
-// and the composed model draw goes through quantileFor, which is the
-// same staircase — so the exactness is a property of the field, not of
-// which stage last touched it.
+// constant is ABSENT because a map keyed on the distribution NAME cannot
+// answer for it — its value comes from the document and may be any float
+// — so it is decided per FieldSpec instead; see
+// distributionIsExactValued. The same claims also survive every OTHER
+// writer that can reach the field — a conditional pair resolves a
+// discrete target on its own staircase and a bernoulli target on its own
+// step, and the composed model draw goes through quantileFor, which is
+// the same staircase — so the exactness is a property of the field, not
+// of which stage last touched it.
 var exactValuedDistributions = map[string]bool{
 	DistDiscrete:      true,
 	DistBernoulli:     true,
@@ -117,24 +119,84 @@ var exactValuedDistributions = map[string]bool{
 	DistMonotonicFrom: true,
 }
 
-// fieldIsPreRounded reports whether a comparison against this field in a
-// rule predicate reads a value that may differ from the one the file
-// holds.
+// distributionIsExactValued answers exactValuedDistributions' question
+// for one FIELD rather than for a distribution name, which is what the
+// `constant` arm needs.
 //
-// rewritten names the fields some rule's `set_expr` writes. Those are
-// treated as pre-rounded whatever their distribution says, because the
-// expression's result is an arbitrary float and the exactness claim
-// above is about the SAMPLER. That is the conservative direction: it
-// keeps the pre-rounding advice for a field whose value the rules
-// themselves may have moved off its support.
-func fieldIsPreRounded(f FieldSpec, rewritten map[string]bool) bool {
+// A `constant` field's draw is the document's own literal, so whether it
+// is the number the writer will store depends on the LITERAL and not on
+// the distribution: {"value": 3} on a u8 is exact, {"value": 3.4} is not.
+// The literal is coerced through constantRowValue — the same function
+// the sampler itself uses, so the two cannot disagree about what the row
+// will hold — and admitted when the result is a finite integral float.
+// A literal the coercion refuses is not admitted: buildSampler will
+// refuse the field on its own terms and a diagnostic must not claim
+// anything about it.
+//
+// The non-scalar classes never reach here: quantizingFieldTypes is the
+// gate above and it contains no categorical or set type.
+func distributionIsExactValued(f FieldSpec) bool {
+	if exactValuedDistributions[f.Distribution] {
+		return true
+	}
+	if f.Distribution != DistConstant {
+		return false
+	}
+	raw, ok := f.Params["value"]
+	if !ok {
+		return false
+	}
+	coerced, err := constantRowValue(f, raw)
+	if err != nil {
+		return false
+	}
+	n, isFloat := coerced.(float64)
+	if !isFloat {
+		return false
+	}
+	return !math.IsNaN(n) && !math.IsInf(n, 0) && math.Trunc(n) == n
+}
+
+// fieldIsPreRounded reports whether a comparison against this field in
+// the rule at index idx reads a value that may differ from the one the
+// file holds.
+//
+// Two independent sources of inexactness, and the order below is the
+// contract:
+//
+//   - The SAMPLER. A field whose own distribution can draw a
+//     non-integral value is pre-rounded, and that is what the warning
+//     was written for.
+//   - A `set_expr` REWRITE. A rule's expression result is an arbitrary
+//     value, so a field some rule writes loses the sampler's exactness
+//     claim — UNLESS every expression writing it is demonstrably
+//     integral (rewriteIndex, exprIsIntegral).
+//
+// The integral case is not a nicety: `{"set_expr": {"nps": "round(nps)"}}`
+// is the normalisation this package DOCUMENTS as the remedy for
+// pre-rounding, and treating its target as pre-rounded meant the
+// diagnostic told an author to apply a fix and then named the fix as the
+// hazard. A demonstrably-integral rewrite in an EARLIER rule clears the
+// sampler's inexactness too, because by the time this rule's predicate
+// runs the field holds that rule's integral result — which is exactly
+// what the message's own "normalise first (an earlier rule setting
+// round(field))" advice describes.
+//
+// Ordering is deliberately asymmetric and conservative in the direction
+// that cannot mislead: a rewrite that is NOT demonstrably integral marks
+// the field whatever its position, because the diagnosis has no cheap
+// way to know which rows a later `when` will reach.
+func fieldIsPreRounded(f FieldSpec, rw rewriteIndex, idx int) bool {
 	if !quantizingFieldTypes[f.Type] {
 		return false
 	}
-	if rewritten[f.Name] {
+	if rw.inexact[f.Name] {
 		return true
 	}
-	return !exactValuedDistributions[f.Distribution]
+	if at, ok := rw.normalisedAt[f.Name]; ok && at < idx {
+		return false
+	}
+	return !distributionIsExactValued(f)
 }
 
 // whenFieldsRead returns, in sorted order, the declared fields a rule's
@@ -146,7 +208,7 @@ func fieldIsPreRounded(f FieldSpec, rewritten map[string]bool) bool {
 // returns nothing — the diagnosis then falls back to the neutral arm,
 // which is right, because a source that does not parse never compiled
 // and never reached generation.
-func whenFieldsRead(src string, byName map[string]FieldSpec, rewritten map[string]bool) []whenField {
+func whenFieldsRead(src string, byName map[string]FieldSpec, rw rewriteIndex, idx int) []whenField {
 	if src == "" {
 		return nil
 	}
@@ -168,7 +230,7 @@ func whenFieldsRead(src string, byName map[string]FieldSpec, rewritten map[strin
 			name:       name,
 			typeName:   f.Type,
 			dist:       f.Distribution,
-			preRounded: fieldIsPreRounded(f, rewritten),
+			preRounded: fieldIsPreRounded(f, rw, idx),
 		})
 	}
 	return out
@@ -211,18 +273,121 @@ func (p *fieldReadProbe) Visit(node *ast.Node) {
 	}
 }
 
-// ruleSetExprTargets returns every field any rule's `set_expr` writes.
-// Used only by fieldIsPreRounded; see there for why a rewritten field
-// loses its exactness claim.
-func ruleSetExprTargets(rules []RuleSpec) map[string]bool {
-	var out map[string]bool
-	for _, r := range rules {
-		for name := range r.SetExpr {
-			if out == nil {
-				out = map[string]bool{}
+// rewriteIndex is what every rule's `set_expr` slots say about the
+// fields they write, from the pre-rounding diagnosis' point of view.
+// Built once per spec by ruleRewriteIndex; read only by
+// fieldIsPreRounded.
+type rewriteIndex struct {
+	// inexact names fields written by at least one expression whose
+	// result is not demonstrably integral. Position-insensitive: one
+	// such write anywhere disqualifies the field.
+	inexact map[string]bool
+	// normalisedAt maps a field to the LOWEST rule index writing it with
+	// a demonstrably-integral expression. A rule at a higher index reads
+	// the normalised value.
+	normalisedAt map[string]int
+}
+
+// ruleRewriteIndex classifies every `set_expr` target in the spec.
+//
+// The two maps are built in one pass in declaration order, so
+// normalisedAt keeps the first (lowest) index for a field written more
+// than once, and a field that is both integrally and inexactly written
+// lands in BOTH — where fieldIsPreRounded's order gives inexact the
+// verdict.
+func ruleRewriteIndex(rules []RuleSpec) rewriteIndex {
+	var rw rewriteIndex
+	for i, r := range rules {
+		for _, name := range sortedKeys(r.SetExpr) {
+			if exprIsIntegral(r.SetExpr[name]) {
+				if rw.normalisedAt == nil {
+					rw.normalisedAt = map[string]int{}
+				}
+				if _, seen := rw.normalisedAt[name]; !seen {
+					rw.normalisedAt[name] = i
+				}
+				continue
 			}
-			out[name] = true
+			if rw.inexact == nil {
+				rw.inexact = map[string]bool{}
+			}
+			rw.inexact[name] = true
 		}
 	}
-	return out
+	return rw
+}
+
+// integralCallees are the expr BUILTINS whose result is an integer
+// VALUE, whatever its Go type: round and int are the two the
+// normalisation idiom uses, floor and ceil are the same operation with a
+// different tie rule. abs is deliberately absent — abs(-1.5) is 1.5.
+//
+// Matched against ast.BuiltinNode.Name, so a user-registered function
+// sharing one of these names (an ast.CallNode) is not admitted.
+//
+// This is a diagnostic, so the set is allowed to be incomplete and is
+// not allowed to be wrong: an expression outside it is simply treated as
+// inexact, which is where every expression sat before.
+var integralCallees = map[string]bool{
+	"round": true, "int": true, "floor": true, "ceil": true,
+}
+
+// exprIsIntegral reports whether an expression's result is DEMONSTRABLY
+// an integer value, from its source alone.
+//
+// Four shapes, each of which is a statement about the expression rather
+// than about any row it will see:
+//
+//   - an integer literal;
+//   - a bool literal, and any boolean-valued operator, because the
+//     coercion matrix writes a bool to a numeric target as 1/0 — this
+//     is what makes `--suggest-rules`' emitted band rules
+//     ({"promoter": "round(nps) >= 9"}) exact;
+//   - a call to one of integralCallees;
+//   - a parenthesised/negated form of any of the above.
+//
+// Everything else answers false, including an arithmetic expression over
+// integral operands (`round(nps) + 1` is integral in fact, and proving
+// it needs a type lattice this diagnostic does not need). Parsed from
+// the AUTHOR'S SOURCE for the reason exprReadsIdentifier is: a compiler
+// is free to fold and rewrite, and the question is what the author
+// wrote. An unparseable source — unreachable past validateRules —
+// answers false, which is the direction that keeps the old advice.
+func exprIsIntegral(src string) bool {
+	tree, err := parser.Parse(src)
+	if err != nil || tree == nil || tree.Node == nil {
+		return false
+	}
+	return nodeIsIntegral(tree.Node)
+}
+
+func nodeIsIntegral(n ast.Node) bool {
+	switch node := n.(type) {
+	case *ast.IntegerNode, *ast.BoolNode:
+		return true
+	case *ast.UnaryNode:
+		switch node.Operator {
+		case "!", "not":
+			return true
+		case "-", "+":
+			return nodeIsIntegral(node.Node)
+		}
+		return false
+	case *ast.BinaryNode:
+		switch node.Operator {
+		case "==", "!=", "<", "<=", ">", ">=", "&&", "||", "and", "or",
+			"in", "not in", "matches", "contains", "startsWith", "endsWith":
+			return true
+		}
+		return false
+	case *ast.BuiltinNode:
+		// round / int / floor / ceil parse as BuiltinNode, not CallNode
+		// — expr resolves its own builtins at parse time. A user
+		// function with one of those names would be a CallNode and is
+		// correctly NOT admitted: the diagnostic knows nothing about it.
+		return integralCallees[node.Name]
+	case *ast.ConditionalNode:
+		return nodeIsIntegral(node.Exp1) && nodeIsIntegral(node.Exp2)
+	}
+	return false
 }

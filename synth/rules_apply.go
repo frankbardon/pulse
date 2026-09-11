@@ -227,11 +227,12 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	whenOpts := rowExprOptions(env, names, applier.nullState.isnullBuiltin, expr.AsBool())
 	valueOpts := rowExprOptions(env, names, applier.nullState.isnullBuiltin)
 
-	// The fields any rule's set_expr writes, resolved before the loop
-	// because a LATER rule's write is just as capable of moving an
-	// earlier rule's gate field off its own support. See
+	// What every rule's set_expr says about the fields it writes,
+	// resolved before the loop because a LATER rule's write is just as
+	// capable of moving an earlier rule's gate field off its own
+	// support, while an EARLIER integral write settles it. See
 	// fieldIsPreRounded.
-	setExprTargets := ruleSetExprTargets(rules)
+	rewrites := ruleRewriteIndex(rules)
 
 	var warnings []string
 	for i, r := range rules {
@@ -309,7 +310,7 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 			continue
 		}
 		if r.When != "" {
-			cr.whenReads = whenFieldsRead(r.When, byName, setExprTargets)
+			cr.whenReads = whenFieldsRead(r.When, byName, rewrites, i)
 			prog, err := expr.Compile(r.When, whenOpts...)
 			if err != nil {
 				// Unreachable via validateSpec, which compiles the same

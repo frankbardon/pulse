@@ -338,7 +338,7 @@ func TestWhenFieldsRead_ClassifiesTheFieldsAPredicateReads(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.src, func(t *testing.T) {
-			got := whenFieldsRead(tc.src, byName, nil)
+			got := whenFieldsRead(tc.src, byName, rewriteIndex{}, 0)
 			var names, pre []string
 			for _, f := range got {
 				names = append(names, f.name)
@@ -355,10 +355,12 @@ func TestWhenFieldsRead_ClassifiesTheFieldsAPredicateReads(t *testing.T) {
 		})
 	}
 
-	// A field some rule's set_expr writes loses its exactness claim: the
-	// expression's result is an arbitrary float, so the value in the row
-	// need no longer sit on the distribution's own support.
-	got := whenFieldsRead("aware == 1", byName, map[string]bool{"aware": true})
+	// A field some rule's set_expr writes with an expression whose result
+	// is NOT demonstrably integral loses its exactness claim: the result
+	// is an arbitrary float, so the value in the row need no longer sit
+	// on the distribution's own support.
+	inexact := rewriteIndex{inexact: map[string]bool{"aware": true}}
+	got := whenFieldsRead("aware == 1", byName, inexact, 0)
 	if len(got) != 1 || !got[0].preRounded {
 		t.Errorf("a set_expr-written packed_bool still claims exactness: %+v", got)
 	}
