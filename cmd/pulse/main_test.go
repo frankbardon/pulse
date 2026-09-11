@@ -274,19 +274,6 @@ func TestCliCohortInspectJson(t *testing.T) {
 	}
 }
 
-func TestCliCohortInspectFullDict(t *testing.T) {
-	dir := t.TempDir()
-	pulsePath := createTestPulseFile(t, dir)
-
-	out, err := runApp(t, "cohort", "inspect", "--full-dict", pulsePath)
-	if err != nil {
-		t.Fatalf("cohort inspect --full-dict: %v\noutput: %s", err, out)
-	}
-	if !strings.Contains(out, "Fields:") {
-		t.Errorf("expected 'Fields:' in output: %s", out)
-	}
-}
-
 func TestCliApiSample(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := createTestPulseFile(t, dir)
@@ -1352,5 +1339,26 @@ func TestCliCohortInspectFullDict_DisablesTruncation(t *testing.T) {
 	if full.Truncated || len(full.Values) != 120 {
 		t.Errorf("--full-dict inspect: truncated=%v values=%d, want false/120",
 			full.Truncated, len(full.Values))
+	}
+
+	// The TEXT renderer too, which is where the deleted
+	// TestCliCohortInspectFullDict looked: it asserted only that
+	// "Fields:" appeared, which prints with or without the flag, so it
+	// passed against a leaf that ignored --full-dict entirely. The
+	// truncation marker is the one thing the flag changes here.
+	textOf := func(t *testing.T, args ...string) string {
+		t.Helper()
+		out, err := runApp(t, args...)
+		if err != nil {
+			t.Fatalf("%v: %v\noutput: %s", args, err, out)
+		}
+		return out
+	}
+	if got := textOf(t, "cohort", "inspect", pulsePath); !strings.Contains(got, "dictionary: 120 entries (truncated)") {
+		t.Errorf("default text inspect does not report the truncation: %s", got)
+	}
+	plain := textOf(t, "cohort", "inspect", "--full-dict", pulsePath)
+	if !strings.Contains(plain, "dictionary: 120 entries") || strings.Contains(plain, "(truncated)") {
+		t.Errorf("--full-dict text inspect still reports a truncated dictionary: %s", plain)
 	}
 }

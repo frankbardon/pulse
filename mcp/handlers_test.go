@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	"github.com/frankbardon/pulse/mcp/toolmeta"
@@ -427,4 +429,134 @@ func TestImportSchema_CharsetIsSPSSOnlyAndMissingModeIsAbsent(t *testing.T) {
 	if !strings.Contains(ts.Description, "charset") {
 		t.Error("DescImport does not mention charset; an agent reading the tool description would not know the recourse exists")
 	}
+}
+
+// inspectCohortBytes builds a minimal single-file .pulse cohort: two u8
+// fields (a TWO-byte record stride, so one appended byte is a torn tail
+// rather than a fourth whole record), n whole records, header + schema +
+// payload and nothing else. Hand-built rather than imported so the
+// payload length is exactly 2n bytes.
+func inspectCohortBytes(t *testing.T, n int) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "age", Type: encoding.FieldTypeU8},
+		{Name: "tier", Type: encoding.FieldTypeU8},
+	}}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+	if got := schema.RecordByteSize(); got != 2 {
+		t.Fatalf("fixture stride = %d, want 2 — a one-byte stride makes the torn arm a whole record", got)
+	}
+	for i := 0; i < n; i++ {
+		buf.WriteByte(byte(i))
+		buf.WriteByte(byte(i))
+	}
+	return buf.Bytes()
+}
+
+// TestHandleInspect_SurfacesTheTruncatedTailWarning is the MCP half of
+// the derived-record-count contract.
+//
+// record_count is payload bytes divided by the record stride, so a
+// cohort whose payload is not a whole multiple of that stride reports
+// the FLOOR. descriptor.Inspect raises an ENCODING_INVALID warning
+// beside it; pulse.Inspect discards the warning, and routing this tool
+// through that wrapper left an MCP agent holding a plausible count with
+// no way to learn the tail was cut — the blind spot the CLI lost when
+// `pulse cohort inspect` moved onto InspectEnvelope.
+//
+// Both halves in ONE test because each is trivially satisfiable by
+// abandoning the other: a handler that always attaches a warning
+// satisfies the truncated arm, and one that never attaches any
+// satisfies the clean arm (and is the pre-change behaviour).
+func TestHandleInspect_SurfacesTheTruncatedTailWarning(t *testing.T) {
+	afs := afero.NewMemMapFs()
+	clean := inspectCohortBytes(t, 3)
+	if err := afero.WriteFile(afs, "clean.pulse", clean, 0o644); err != nil {
+		t.Fatalf("seed clean: %v", err)
+	}
+	if err := afero.WriteFile(afs, "torn.pulse", append(append([]byte(nil), clean...), 0x07), 0o644); err != nil {
+		t.Fatalf("seed torn: %v", err)
+	}
+	p, err := pulse.New(pulse.Options{FS: afs})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+
+	cleanOut, err := HandleInspect(context.Background(), p, InspectIn{Path: "clean.pulse"})
+	if err != nil {
+		t.Fatalf("HandleInspect(clean): %v", err)
+	}
+	if cleanOut.RecordCount != 3 {
+		t.Errorf("clean record_count = %d, want 3", cleanOut.RecordCount)
+	}
+	if len(cleanOut.Warnings) != 0 {
+		t.Errorf("a clean header read warned: %+v", cleanOut.Warnings)
+	}
+	// The slot is additive: a clean read must serialise to exactly the
+	// keys the pre-change contract carried, so `warnings` is absent
+	// rather than null or [].
+	body, err := json.Marshal(cleanOut)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(body), "warnings") {
+		t.Errorf("a clean inspect emits a warnings key: %s", body)
+	}
+	if !strings.Contains(string(body), `"record_count":3`) {
+		t.Errorf("the embedded result's own keys did not stay at the top level: %s", body)
+	}
+
+	tornOut, err := HandleInspect(context.Background(), p, InspectIn{Path: "torn.pulse"})
+	if err != nil {
+		t.Fatalf("HandleInspect(torn): %v", err)
+	}
+	if tornOut.RecordCount != 3 {
+		t.Errorf("torn record_count = %d, want the floor 3", tornOut.RecordCount)
+	}
+	if len(tornOut.Warnings) != 1 {
+		t.Fatalf("a truncated tail raised %d warning(s), want 1: %+v", len(tornOut.Warnings), tornOut.Warnings)
+	}
+	w := tornOut.Warnings[0]
+	if w.Code != string(perr.ENCODING_INVALID) {
+		t.Errorf("warning code = %q, want %q", w.Code, perr.ENCODING_INVALID)
+	}
+	if w.Details["trailing_bytes"] == nil || w.Details["record_stride"] == nil {
+		t.Errorf("the warning carries neither number an agent would act on: %+v", w.Details)
+	}
+}
+
+// TestInspectSchema_DeclaresTheWarningsSlot: the reflected output schema
+// an MCP client reads must advertise the slot, or a client that trusts
+// the schema will never look for it.
+func TestInspectSchema_DeclaresTheWarningsSlot(t *testing.T) {
+	ts, ok := SchemaFor(toolmeta.ToolInspect)
+	if !ok {
+		t.Fatalf("no reflected schema for %s", toolmeta.ToolInspect)
+	}
+	var out struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(ts.OutputSchema, &out); err != nil {
+		t.Fatalf("unmarshal output schema: %v", err)
+	}
+	for _, key := range []string{"record_count", "fields", "field_count", "shards", "warnings"} {
+		if _, ok := out.Properties[key]; !ok {
+			t.Errorf("output schema has no %q property; properties = %v", key, keysOf(out.Properties))
+		}
+	}
+}
+
+func keysOf(m map[string]json.RawMessage) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

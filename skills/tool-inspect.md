@@ -18,9 +18,12 @@ Schema-only output without running a request: listing fields for a UI, debugging
 
 `descriptor.Envelope` wrapping `InspectResult`: field list (name, type, nullable, dictionary contents for categorical fields), record count, format-version metadata, schema hash. Dictionaries truncated to `DefaultDictionaryLimit = 100` unless `FullDict: true`.
 
+MCP (`pulse_inspect`) returns those keys at the top level plus an additive `warnings` array of coded `{code, message, details}` entries — omitted entirely on a clean read.
+
 ## Gotchas
 
 - Header-only: reads `encoding.ReadHeader` + `encoding.ReadSchema` only. No record decode.
+- `record_count` is DERIVED (payload bytes / record stride) and a payload that is not a whole multiple of the stride reports the FLOOR. The only signal is an `ENCODING_INVALID` warning carrying `record_stride` + `trailing_bytes`; the count itself looks ordinary. Library callers must use `Pulse.InspectEnvelope` — `Pulse.Inspect` drops the warning.
 - Dictionary truncation is silent at the manifest level — call with `FullDict: true` (CLI) when you need the full label list.
 - Unknown magic / format-version mismatch → `ENCODING_INVALID`.
 

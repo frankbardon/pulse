@@ -5357,7 +5357,7 @@
       },
       {
         "name": "pulse_inspect",
-        "description": "Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata. Use when you need schema-only output without running a request — listing fields for a UI, debugging dictionary contents, or confirming a field's type before authoring a request slot."
+        "description": "Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata. Use when you need schema-only output without running a request — listing fields for a UI, debugging dictionary contents, or confirming a field's type before authoring a request slot.\n\nrecord_count is DERIVED (payload bytes / record stride), so a cohort whose payload is not a whole multiple of the stride reports the FLOOR. That case carries a coded ENCODING_INVALID entry in the additive `warnings` array with record_stride and trailing_bytes in its details; a clean read emits no `warnings` key at all. Read it — a truncated tail is invisible in the count itself."
       },
       {
         "name": "pulse_label_resolve",
@@ -9606,4 +9606,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3d1971468986a26c7a24155be296395e3cac97368e4c143c6b882b59368341c2
+// golden-hash: 64890c6a577ddf4fa3db59a6454cc3b174f6803048a8926d3656d34834359144

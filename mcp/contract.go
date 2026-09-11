@@ -155,8 +155,28 @@ type LookupIn = types.LookupRequest
 
 // --- Outputs ------------------------------------------------------------------
 
-// InspectOut is the output contract for pulse_inspect.
-type InspectOut = descriptor.InspectResult
+// InspectOut is the output contract for pulse_inspect: the inspect
+// result with the header read's own DIAGNOSTICS beside it.
+//
+// The result is EMBEDDED, so every key an agent already parses stays
+// exactly where it was and `warnings` is purely additive. The slot
+// exists because record_count is a DERIVED figure — payload bytes
+// divided by the record stride — and a cohort whose payload is not a
+// whole multiple of that stride reports the FLOOR. descriptor.Inspect
+// raises an ENCODING_INVALID warning saying so; pulse.Inspect discards
+// it, so routing this tool through that wrapper left an MCP agent
+// unable to see a truncated tail at all. The CLI reads the same
+// envelope (`pulse cohort inspect --json`), so the two surfaces now
+// report the same thing.
+//
+// Warnings is []*descriptor.EnvelopeEntry rather than []string on
+// purpose: an agent that can read the code can look it up with
+// pulse_errors_lookup, and the details map carries record_stride and
+// trailing_bytes — the two numbers needed to act on it.
+type InspectOut struct {
+	descriptor.InspectResult
+	Warnings []*descriptor.EnvelopeEntry `json:"warnings,omitempty" jsonschema:"Diagnostics from the header read — coded {code, message, details} entries. A truncated payload tail raises ENCODING_INVALID and record_count is the floor. Absent when the read was clean."`
+}
 
 // PredictOut is the output contract for pulse_predict.
 type PredictOut = descriptor.PredictResult
