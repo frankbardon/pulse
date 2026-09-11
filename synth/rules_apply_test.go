@@ -450,43 +450,53 @@ func TestRules_SetLiteralTakesTheRowShapeForEveryValueClass(t *testing.T) {
 	}
 }
 
-// TestRules_SetNullOnNonNullableFieldWarns pins the one outcome the pass
-// cannot make honest. encodeRow writes a null bit only for a NULLABLE
-// field, so a set_null over a field declared without `"nullable": true`
-// writes the type's zero as an ordinary value — indistinguishable from a
-// real 0 on a u4 or a packed_bool. The rule fires and the file cannot
-// show it, so it is reported rather than left silent.
-func TestRules_SetNullOnNonNullableFieldWarns(t *testing.T) {
+// TestRules_SetNullOnNonNullableFieldIsRefused pins the one outcome the
+// pass cannot make honest, and pins that it is now REFUSED rather than
+// warned. encodeRow writes a null bit only for a NULLABLE field, so a
+// set_null over a field declared without `"nullable": true` writes the
+// type's zero as an ordinary value — indistinguishable from a real 0 on
+// a u4 or a packed_bool. The rule fires and the file cannot show it,
+// which is the silent class the layer exists to remove, and it is
+// knowable from the field declaration before a row exists.
+//
+// It was a warning through E1. A warning was not enough: the terminal
+// summary caps each kind at three examples, so on a survey-shaped spec
+// the entire signal for a missing gate was three lines among thousands.
+//
+// The second half is the remedy, and it belongs in the same test: the
+// fix is on the FIELD, and declaring it nullable both validates and
+// produces a real null bit — so the refusal is a redirection rather than
+// a dead end.
+func TestRules_SetNullOnNonNullableFieldIsRefused(t *testing.T) {
 	spec := ruleModelSpec(20, []synth.RuleSpec{{SetNull: []string{"score"}}})
-	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 17})
-	if err != nil {
-		t.Fatalf("SynthBytes: %v", err)
-	}
-	found := false
-	for _, w := range res.Warnings {
-		if bytes.Contains([]byte(w), []byte(`set_null names non-nullable field "score"`)) {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("want a warning naming the non-nullable set_null target, got %v", res.Warnings)
-	}
-	// The warning must reach the reader as a kind needing attention, not
-	// as an expected outcome buried in the terminal summary.
-	groups := synth.GroupWarnings(res.Warnings)
-	if len(groups) == 0 || !groups[0].Attention {
-		t.Fatalf("warning group = %+v, want an attention kind", groups)
+	if _, _, err := synth.SynthBytes(spec, synth.Options{Seed: 17}); err == nil {
+		t.Fatal("want a refusal for a set_null over a non-nullable field")
+	} else if !bytes.Contains([]byte(err.Error()), []byte("PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE")) {
+		t.Fatalf("want PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE, got %v", err)
 	}
 
-	// ...and the value really is an ordinary 0 with no null bit, which
-	// is what the warning is about.
+	spec = ruleModelSpec(20, []synth.RuleSpec{{SetNull: []string{"score"}}})
+	for i := range spec.Fields {
+		if spec.Fields[i].Name == "score" {
+			spec.Fields[i].Nullable = true
+		}
+	}
+	data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 17})
+	if err != nil {
+		t.Fatalf("declaring the field nullable must be the whole remedy: %v", err)
+	}
+	for _, w := range res.Warnings {
+		if bytes.Contains([]byte(w), []byte("non-nullable")) {
+			t.Fatalf("nothing is non-nullable any more: %q", w)
+		}
+	}
 	values, nulls := readFieldRows(t, data, "score")
 	for i := range values {
-		if nulls[i] {
-			t.Fatalf("row %d: a non-nullable field cannot carry a null bit", i)
+		if !nulls[i] {
+			t.Fatalf("row %d: want a real null bit now that the field is nullable", i)
 		}
 		if values[i] != 0 {
-			t.Fatalf("row %d: score = %v, want 0", i, values[i])
+			t.Fatalf("row %d: score = %v, want 0 on the wire for a masked field", i, values[i])
 		}
 	}
 }

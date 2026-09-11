@@ -5062,7 +5062,7 @@
         ]
       }
     ],
-    "error_codes_count": 222,
+    "error_codes_count": 223,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5259,6 +5259,7 @@
       "PULSE_SYNTH_RULE_CONFLICT",
       "PULSE_SYNTH_RULE_EMPTY",
       "PULSE_SYNTH_RULE_EXPR_INVALID",
+      "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE",
       "PULSE_SYNTH_RULE_FIELD_UNKNOWN",
       "PULSE_SYNTH_RULE_VALUE_INVALID",
       "PULSE_SYNTH_SOURCE_REQUIRED",
@@ -9579,4 +9580,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cc613f6488e88662d77c06dd2f6d647b6484cfd0916cacdd788c3f93aa31178f
+// golden-hash: a969ddf6a4f339dec405b12fa4e7d5921326301b9165dfadbaf06800c6ad3609

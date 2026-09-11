@@ -602,6 +602,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE: {
+		Message: "A synth rule's `set_null` names a field that is not declared nullable, so the row would carry the type's zero rather than a null and the file could not show the rule fired.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Fields", "*", "Nullable"},
+				Hint:   "Declare the field `\"nullable\": true` in the spec — the fix is on the FIELD, not the rule. On a profile-derived run the field is nullable only if the source had nulls in it: dump the spec with `synth from-profile --emit-spec`, add the flag, and generate with `synth from-schema`.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*", "SetNull"},
+				Hint:   "Or drop the field from `set_null` if a real 0 is what the cohort should carry — a non-nullable field has no way to record absence, and `null_together` will not help: it copies a gate's decision rather than making one.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

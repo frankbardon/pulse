@@ -208,12 +208,14 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 
 		// set_null first so the declaration order of the two arrays a
 		// rule can carry is preserved exactly as written.
-		for _, name := range r.SetNull {
-			cr.setNull = append(cr.setNull, name)
-			if f, ok := byName[name]; ok && !f.Nullable {
-				warnings = append(warnings, ruleNonNullableWarning(i, "set_null", name))
-			}
-		}
+		// No nullability check here: a set_null naming a non-nullable
+		// field is REFUSED at spec parse
+		// (PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE,
+		// ruleSetNullNullableFault), so a spec reaching compileRules has
+		// none. The warning that used to live here was the whole signal,
+		// and three lines in a capped terminal summary was not enough
+		// signal for a gate silently going missing.
+		cr.setNull = append(cr.setNull, r.SetNull...)
 		for _, name := range sortedKeys(r.Set) {
 			f, ok := byName[name]
 			if !ok {
@@ -298,18 +300,27 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 }
 
 // ruleNonNullableWarning names a target the schema cannot actually
-// record a null for. `slot` is the rule slot that asked — "set_null" or
-// "null_together", the two that can null a field.
+// record a null for. `slot` is the rule slot that asked, and since the
+// set_null arm became a refusal there is exactly one caller —
+// "null_together" — but the parameter stays: the message shape is what
+// the warning taxonomy keys on (classifyWarning matches
+// " names non-nullable field "), and a second slot acquiring the same
+// diagnostic must land in the same kind rather than inventing a second
+// wording.
 //
 // encodeRow writes the per-record null bitmap for NULLABLE fields only,
 // so nulling a field declared without `"nullable": true` writes the
 // type's zero as an ordinary VALUE and no null bit — which for a u4 or a
-// packed_bool is indistinguishable from a real 0. That is the
-// silent-outcome class this whole layer exists to remove, so it is
-// reported. It is a warning rather than a refusal because the rule is
-// otherwise well-formed and the fix is on the FIELD, not the rule; an
-// eager refusal wants its own coded fault and belongs with the rest of
-// validateRules.
+// packed_bool is indistinguishable from a real 0.
+//
+// It stays a WARNING here where `set_null` became a refusal because the
+// two slots claim different things: `set_null` states the field IS null
+// on a matching row, which a non-nullable field can never honour, while
+// `null_together` states the members carry the GATE's decision — a
+// decision that may be "present" on every row, and is exactly that in
+// the gated-block idiom, whose gate is deliberately a never-null field.
+// See ruleSetNullNullableFault for the full reasoning; refusing here
+// would refuse that idiom.
 func ruleNonNullableWarning(idx int, slot, field string) string {
 	return fmt.Sprintf("rule %d %s names non-nullable field %q: "+
 		"the row will carry 0 rather than a null; declare the field nullable", idx, slot, field)
@@ -350,15 +361,32 @@ const nullRateDivergenceThreshold = 0.02
 // things a null_together block can be doing that the generated file
 // cannot show:
 //
-//   - a member the schema cannot record a null for at all, and
+//   - a NON-GATE member the schema cannot record a null for at all, and
 //   - a member whose own declared null_rate the block's gate overrides
 //     by more than nullRateDivergenceThreshold.
 //
 // block must already be the filtered, declaration-ordered member list
 // with at least two entries; block[0] is the gate.
+//
+// # The gate is skipped, deliberately, in BOTH loops
+//
+// applyNullTogether never writes nullMask[block[0]] — the gate's own
+// state is what gets COPIED FROM — so a non-nullable gate is not a field
+// the block fails to null, and reporting it was accurate about the
+// declaration while being wrong about the consequence. It was also noisy
+// for exactly the shape the diagnostic should stay quiet on: the gated
+// block idiom names a NEVER-NULL field first on purpose, so that the copy
+// clears every member's own MCAR null and a later rule's `set_null`
+// becomes the only source of absence in the block. Warning there flags
+// the design as a defect.
+//
+// The divergence loop already skipped the gate for a different reason —
+// it is measured AGAINST the gate — so after this narrowing a
+// non-nullable gate produces no line at all, and a block is only
+// reported for members whose null decision the copy can actually reach.
 func nullTogetherWarnings(idx int, block []string, byName map[string]FieldSpec) []string {
 	var out []string
-	for _, name := range block {
+	for _, name := range block[1:] {
 		if f, ok := byName[name]; ok && !f.Nullable {
 			out = append(out, ruleNonNullableWarning(idx, "null_together", name))
 		}

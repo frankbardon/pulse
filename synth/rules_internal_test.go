@@ -11,15 +11,22 @@ import (
 // ruleSpecFixture is the field set every validation case below declares
 // rules against: one of each row-value class plus the narrow integer
 // types whose ranges a literal can overflow.
+//
+// `nps` and `score` are declared NULLABLE and `id` / `aware` / the rest
+// are not, which is load-bearing rather than incidental: a `set_null`
+// over a field the schema cannot record a null for is refused
+// (PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE), so the accepted rows below need
+// a nullable target and the refusal rows need a non-nullable one. Both
+// kinds have to be in one fixture.
 func ruleSpecFixture(rules ...RuleSpec) *Spec {
 	return &Spec{
 		RowCount: 10,
 		Fields: []FieldSpec{
 			{Name: "id", Type: "u32", Distribution: DistMonotonicFrom,
 				Params: map[string]any{"start": 1.0}},
-			{Name: "nps", Type: "u4", Distribution: DistUniform,
+			{Name: "nps", Type: "u4", Nullable: true, Distribution: DistUniform,
 				Params: map[string]any{"min": 0.0, "max": 11.0}},
-			{Name: "score", Type: "f64", Distribution: DistNormal,
+			{Name: "score", Type: "f64", Nullable: true, Distribution: DistNormal,
 				Params: map[string]any{"mean": 0.0, "std": 1.0}},
 			{Name: "aware", Type: "packed_bool", Distribution: DistBernoulli,
 				Params: map[string]any{"p": 0.5}},
@@ -77,16 +84,7 @@ func TestValidateRules_Matrix(t *testing.T) {
 		{"set_expr with an unknowable return type defers to run time",
 			RuleSpec{SetExpr: map[string]string{"score": `nps >= 9 ? 1 : "x"`}}, ""},
 		{"when reads isnull", RuleSpec{When: "isnull(score)", SetNull: []string{"nps"}}, ""},
-		// The STRING form of isnull is a deliberate run-time refusal (see
-		// isnullBuiltin): only the bare-identifier form is patched, and
-		// only for a declared field, so an unknown name in a literal is
-		// refused when it is reached rather than answered false forever.
-		// A compile-time pass therefore cannot catch it, and must not
-		// pretend to — the alternative would make rule validation
-		// stricter than the constraint compiler it shares an environment
-		// with.
-		{"isnull of an undeclared name in string form compiles",
-			RuleSpec{When: `isnull("nosuch")`, SetNull: []string{"nps"}}, ""},
+		{"isnull of a declared name in string form", RuleSpec{When: `isnull("score")`, SetNull: []string{"nps"}}, ""},
 		{"when reads a set member", RuleSpec{When: `brands["acme"]`, SetNull: []string{"nps"}}, ""},
 		{"null_together block of two", RuleSpec{NullTogether: []string{"nps", "score"}}, ""},
 		{"set and set_null on different fields",
@@ -105,6 +103,24 @@ func TestValidateRules_Matrix(t *testing.T) {
 		{"set_expr unknown field", RuleSpec{SetExpr: map[string]string{"nope": "1"}}, errors.PULSE_SYNTH_RULE_FIELD_UNKNOWN},
 		{"null_together unknown field",
 			RuleSpec{NullTogether: []string{"nps", "nope"}}, errors.PULSE_SYNTH_RULE_FIELD_UNKNOWN},
+
+		// The STRING form of isnull names a field where only the builtin
+		// can see it. It COMPILES — expr's signature is
+		// func(string) bool — so it used to reach isnullBuiltin's
+		// run-time refusal, past the eager-validation promise. Now
+		// parsed and refused here, as the undeclared name it is.
+		{"isnull of an undeclared name in string form",
+			RuleSpec{When: `isnull("nosuch")`, SetNull: []string{"nps"}},
+			errors.PULSE_SYNTH_RULE_FIELD_UNKNOWN},
+		{"isnull of an undeclared name inside a set_expr",
+			RuleSpec{SetExpr: map[string]string{"score": `isnull("nosuch") ? 1 : 2`}},
+			errors.PULSE_SYNTH_RULE_FIELD_UNKNOWN},
+
+		// --- a null the file cannot record ----------------------------
+		{"set_null over a non-nullable field",
+			RuleSpec{SetNull: []string{"aware"}}, errors.PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE},
+		{"null_together over a non-nullable member is NOT refused",
+			RuleSpec{NullTogether: []string{"nps", "aware"}}, ""},
 
 		// --- expressions ----------------------------------------------
 		{"when does not parse", RuleSpec{When: "aware ==", SetNull: []string{"nps"}}, errors.PULSE_SYNTH_RULE_EXPR_INVALID},
@@ -268,21 +284,27 @@ func TestValidateRules_FaultChoiceIsDeterministic(t *testing.T) {
 //
 // Both halves compile rather than generate: what is being compared is the
 // COMPILE-TIME verdict, and a constraint that compiles can still reject
-// every row (`isnull(score)` over a non-nullable field does) for reasons
-// that say nothing about the environment.
+// every row (`isnull(score)` over a field that is never actually null
+// does) for reasons that say nothing about the environment.
+//
+// The isnull("nosuch") row is refused on BOTH surfaces, and that is why
+// FU-04's static pass was applied to compileConstraints as well as to
+// validateRules: refusing it for a rule only would have made this gate
+// fail, and correctly — the two surfaces share an environment and must
+// share its verdicts.
 func TestValidateRules_ExprEnvIsTheConstraintEnv(t *testing.T) {
 	cases := []struct {
 		expr     string
 		accepted bool
 	}{
-		{"aware == 1", true},       // packed_bool is a number in the row
-		{"aware", false},           // ...so bare is not a bool
-		{`region == "west"`, true}, // categorical is a string
-		{"region == 1", false},     // ...so a number does not compare
-		{`brands["acme"]`, true},   // set_* is a map[string]bool
-		{"isnull(score)", true},    // bare-identifier isnull patch
-		{`isnull("nosuch")`, true}, // string form: run-time refusal, compiles
-		{"nosuch == 1", false},     // unknown identifier
+		{"aware == 1", true},        // packed_bool is a number in the row
+		{"aware", false},            // ...so bare is not a bool
+		{`region == "west"`, true},  // categorical is a string
+		{"region == 1", false},      // ...so a number does not compare
+		{`brands["acme"]`, true},    // set_* is a map[string]bool
+		{"isnull(score)", true},     // bare-identifier isnull patch
+		{`isnull("nosuch")`, false}, // string form: parsed and refused on BOTH surfaces
+		{"nosuch == 1", false},      // unknown identifier
 		{"score > 0 && nps < 9", true},
 	}
 	base := ruleSpecFixture()
@@ -292,7 +314,7 @@ func TestValidateRules_ExprEnvIsTheConstraintEnv(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.expr, func(t *testing.T) {
-			ruleErr := validateSpec(ruleSpecFixture(RuleSpec{When: tc.expr, SetNull: []string{"id"}}))
+			ruleErr := validateSpec(ruleSpecFixture(RuleSpec{When: tc.expr, SetNull: []string{"score"}}))
 			_, consErr := compileConstraints([]ConstraintSpec{{Expr: tc.expr}}, wfs)
 
 			if tc.accepted {

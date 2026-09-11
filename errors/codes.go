@@ -310,6 +310,25 @@ const (
 	// twice is the same mistake with a typo on top.
 	PULSE_SYNTH_RULE_BLOCK_INVALID Code = "PULSE_SYNTH_RULE_BLOCK_INVALID"
 
+	// PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE indicates a rule's `set_null`
+	// names a field the schema cannot record a null for — one not
+	// declared `"nullable": true`, so the per-record null bitmap carries
+	// no bit for it.
+	//
+	// The rule would FIRE and the file could not show it: nulling such a
+	// field writes the type's zero as an ordinary value, indistinguishable
+	// from a real 0 on a u4 or a packed_bool. Refused at spec parse rather
+	// than warned, because it is knowable from the field declaration and
+	// the outcome it produces is silent in the generated cohort.
+	//
+	// It is keyed on what the SLOT CLAIMS. `null_together` deliberately
+	// does NOT raise it: that slot copies the block gate's null decision,
+	// which includes UN-nulling, so a non-nullable member of a block whose
+	// gate is never null is doing nothing wrong — and a never-null gate is
+	// the idiomatic way to clear a block's own per-field nulls. Those
+	// members are reported as a warning instead.
+	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE Code = "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -2318,6 +2337,7 @@ var allCodes = []Code{
 	PULSE_SYNTH_RULE_EMPTY,
 	PULSE_SYNTH_RULE_CONFLICT,
 	PULSE_SYNTH_RULE_BLOCK_INVALID,
+	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

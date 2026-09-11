@@ -585,7 +585,15 @@ func TestSuggestRules_PredicateSurvivesTheRuleCompiler(t *testing.T) {
 	prof := gateFixtureProfile(t, 400, 40)
 	spec := &Spec{}
 	for _, fp := range prof.Fields {
-		spec.Fields = append(spec.Fields, FieldSpec{Name: fp.Name, Type: fp.Type})
+		// Nullable mirrors SpecFromProfile's own derivation
+		// (NullRate > 0), which a set_null candidate depends on: a
+		// non-nullable target is refused
+		// (PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE), and a gating candidate
+		// exists only because the target HAS nulls, so dropping the flag
+		// here would make the fixture describe a spec the derivation
+		// never produces.
+		spec.Fields = append(spec.Fields, FieldSpec{
+			Name: fp.Name, Type: fp.Type, Nullable: fp.NullRate > 0})
 	}
 	spec.Rules = prof.RuleCandidates
 	if len(spec.Rules) == 0 {
@@ -655,8 +663,13 @@ func TestSuggestRules_UncompilablePredicateIsDroppedNotWritten(t *testing.T) {
 
 	spec := &Spec{Rules: prof.RuleCandidates}
 	for i := range schema.Fields {
+		// Nullable comes off the source schema for the same reason
+		// SpecFromProfile derives it from the captured null rate: a
+		// set_null candidate over a non-nullable field is refused.
 		spec.Fields = append(spec.Fields, FieldSpec{
-			Name: schema.Fields[i].Name, Type: schema.Fields[i].Type.String()})
+			Name:     schema.Fields[i].Name,
+			Type:     schema.Fields[i].Type.String(),
+			Nullable: schema.Fields[i].Nullable})
 	}
 	if err := validateRules(spec); err != nil {
 		t.Fatalf("the written candidates do not survive rule validation: %v", err)

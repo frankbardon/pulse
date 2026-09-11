@@ -149,6 +149,8 @@ var ruleFieldSlots = []string{"set", "set_expr", "set_null", "null_together"}
 //     that disagree.
 //   - PULSE_SYNTH_RULE_BLOCK_INVALID — `null_together` names fewer than
 //     two distinct fields.
+//   - PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE — `set_null` names a field the
+//     schema cannot record a null for.
 //
 // Every error carries the rule index (errors.DetailSynthRule) and, where
 // one exists, the offending slot (errors.DetailSynthRuleSlot) and field,
@@ -172,14 +174,14 @@ func validateRules(s *Spec) error {
 	valueOpts := rowExprOptions(env, names, probe.isnullBuiltin)
 
 	for i, r := range s.Rules {
-		if err := validateRule(i, r, byName, whenOpts, valueOpts); err != nil {
+		if err := validateRule(i, r, byName, names, whenOpts, valueOpts); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, whenOpts, valueOpts []expr.Option) error {
+func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, declared map[string]bool, whenOpts, valueOpts []expr.Option) error {
 	if len(r.Set) == 0 && len(r.SetExpr) == 0 && len(r.SetNull) == 0 && len(r.NullTogether) == 0 {
 		return ruleError(errors.PULSE_SYNTH_RULE_EMPTY, idx, "", "",
 			"rule declares no action: expected at least one of set, set_expr, set_null, null_together")
@@ -203,12 +205,18 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, whenOpts, va
 			return ruleError(errors.PULSE_SYNTH_RULE_EXPR_INVALID, idx, "when", "",
 				fmt.Sprintf("rule when %q does not compile: %v", r.When, err))
 		}
+		if err := validateRuleIsnull(idx, "when", "", r.When, declared); err != nil {
+			return err
+		}
 	}
 	for _, name := range sortedKeys(r.SetExpr) {
 		prog, err := expr.Compile(r.SetExpr[name], valueOpts...)
 		if err != nil {
 			return ruleError(errors.PULSE_SYNTH_RULE_EXPR_INVALID, idx, "set_expr", name,
 				fmt.Sprintf("rule set_expr[%q] = %q does not compile: %v", name, r.SetExpr[name], err))
+		}
+		if err := validateRuleIsnull(idx, "set_expr", name, r.SetExpr[name], declared); err != nil {
+			return err
 		}
 		if err := validateRuleExpr(idx, name, prog, byName[name]); err != nil {
 			return err
@@ -246,7 +254,97 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, whenOpts, va
 			return err
 		}
 	}
+
+	// LAST, deliberately. A set_null target the schema cannot record a
+	// null for is refused rather than warned (ruleSetNullNullableFault),
+	// but it is a fault of the FIELD DECLARATION rather than of the rule's
+	// structure, so it is reported only once nothing structural is wrong:
+	// a rule whose `when` does not compile AND whose set_null target is
+	// non-nullable has a broken predicate, and saying so first points the
+	// author at the line they have to fix anyway. Same reasoning puts it
+	// after the `set` literal matrix, which is the other
+	// can-this-value-land check.
+	for _, name := range r.SetNull {
+		if err := ruleSetNullNullableFault(idx, byName[name]); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// validateRuleIsnull refuses, at SPEC PARSE, an expression calling
+// isnull with a STRING LITERAL naming a field the spec does not declare.
+//
+// It is PULSE_SYNTH_RULE_FIELD_UNKNOWN rather than _EXPR_INVALID, and the
+// choice is the point rather than a detail. The expression COMPILES —
+// expr's signature for the builtin is func(string) bool and a string
+// literal satisfies it whatever the string says — so _EXPR_INVALID,
+// whose documented meaning is "does not compile against the row
+// environment", would have to be widened to cover a fault that is not a
+// compile failure at all. _FIELD_UNKNOWN's meaning already describes it
+// exactly ("a rule names a field the spec does not declare"), and it is
+// the same fault every other slot's name is refused for: the argument to
+// isnull IS a field name, just one written where only the builtin can
+// see it. details["field"] carries the offending name, so the two spell
+// the fault the same way.
+//
+// Why it is caught here at all, rather than left to isnullBuiltin's
+// loud run-time refusal: validateRules' whole promise is that a
+// malformed rule is refused at spec parse, and this was the one
+// author-visible fault that slipped past it. expr.Patch cannot return an
+// error, so the patcher that handles the bare-identifier form could not
+// have carried the check.
+func validateRuleIsnull(idx int, slot, target, src string, declared map[string]bool) error {
+	unknown, bad := isnullUnknownField(src, declared)
+	if !bad {
+		return nil
+	}
+	where := "rule " + slot
+	if target != "" {
+		where = fmt.Sprintf("rule %s[%q]", slot, target)
+	}
+	return ruleError(errors.PULSE_SYNTH_RULE_FIELD_UNKNOWN, idx, slot, unknown,
+		fmt.Sprintf("%s calls %s with unknown field %q in %q", where, isnullFuncName, unknown, src))
+}
+
+// ruleSetNullNullableFault refuses a `set_null` naming a field the file
+// cannot record a null for. It is the one fault that moved from a
+// WARNING to a refusal after E1, and the reasoning is worth keeping
+// because the slot next door kept the warning.
+//
+// encodeRow writes a null bit for NULLABLE fields only, so nulling a
+// field declared without `"nullable": true` writes the type's zero as an
+// ordinary value — indistinguishable from a real 0 on a u4 or a
+// packed_bool. The rule FIRES and the file cannot show it, which is
+// precisely the silent-outcome class the rule layer exists to remove,
+// and it is eagerly detectable from FieldSpec.Nullable. A warning was
+// not enough in practice: the terminal summary caps each kind at three
+// examples, so on a survey-shaped spec three lines out of thousands of
+// warning lines were the entire signal that a gate had gone missing.
+//
+// # Why `null_together` does NOT get the same refusal
+//
+// The refusal is keyed on what the SLOT CLAIMS, not on whether a field
+// could conceivably end up nulled. `set_null` claims "this field is null
+// on a matching row" — an unconditional statement about the field, which
+// a non-nullable field can never honour. `null_together` claims
+// something else: "these members carry the GATE's decision", which
+// includes UN-nulling, and the direction it takes is the gate's run-time
+// state rather than the rule's claim. A non-nullable member of a block
+// whose gate is itself never null is doing nothing wrong, and that shape
+// is not hypothetical — it is the measured gated-block idiom, where the
+// block's gate is deliberately a never-null field (`aware`) so the copy
+// CLEARS the members' own MCAR nulls and a later rule's `set_null`
+// supplies the real gate. A refusal keyed on "any field a rule may null"
+// refuses that idiom, which is the most useful shape this layer has. The
+// non-gate members keep the warning instead (nullTogetherWarnings).
+func ruleSetNullNullableFault(idx int, f FieldSpec) error {
+	if f.Name == "" || f.Nullable {
+		return nil
+	}
+	return ruleError(errors.PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE, idx, "set_null", f.Name,
+		fmt.Sprintf("rule set_null names field %q, which is not declared nullable: "+
+			"the row would carry 0 rather than a null and the file could not show the rule fired", f.Name))
 }
 
 // validateRuleLiteral refuses a `set` literal the target field cannot

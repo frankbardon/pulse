@@ -5,6 +5,7 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/parser"
 	"github.com/expr-lang/expr/vm"
 	"github.com/frankbardon/pulse/errors"
 )
@@ -18,9 +19,13 @@ type compiledConstraints struct {
 	progs []*vm.Program
 	exprs []string
 
-	// fields is the set of field names the Spec declared, used to reject
-	// isnull("typo") at run time (loudly) rather than answering false
-	// for a field that does not exist.
+	// fields is the set of field names the Spec declared. It is the
+	// run-time BACKSTOP for isnull("typo") — refusing loudly rather than
+	// answering false for a field that does not exist. The statically
+	// resolvable spellings are refused before the row loop by
+	// isnullUnknownField; what reaches here is an argument that was only
+	// a string at run time (isnull(region + "!")), so the backstop is
+	// still live and is not dead code.
 	fields map[string]bool
 
 	// nullMask is the CURRENT row's null state. evaluate sets it before
@@ -100,6 +105,16 @@ func compileConstraints(in []ConstraintSpec, wfs []*writerField) (*compiledConst
 				fmt.Sprintf("compiling constraint %q: %v", c.Expr, err),
 				map[string]any{"expr": c.Expr})
 		}
+		// A compiling expression can still name a field that does not
+		// exist, in the one place expr cannot check it: isnull's string
+		// form. Refused HERE — the last moment before the row loop —
+		// rather than on the row that reaches it, so a constraint typo
+		// costs no generation at all. See isnullUnknownField.
+		if unknown, bad := isnullUnknownField(c.Expr, names); bad {
+			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				fmt.Sprintf("constraint %q calls %s with unknown field %q", c.Expr, isnullFuncName, unknown),
+				map[string]any{"expr": c.Expr, "field": unknown})
+		}
 		out.progs = append(out.progs, prog)
 		out.exprs = append(out.exprs, c.Expr)
 	}
@@ -151,6 +166,78 @@ func (p isnullIdentifierPatcher) Visit(node *ast.Node) {
 	lit := &ast.StringNode{Value: ident.Value}
 	lit.SetLocation(ident.Location())
 	call.Arguments[0] = lit
+}
+
+// isnullUnknownField reports the first isnull() argument written as a
+// STRING LITERAL naming a field `declared` does not carry, so a typo in
+// the one form the patcher above cannot reach is refused BEFORE a row
+// exists rather than when the builtin is finally evaluated.
+//
+// The two forms are asymmetric and only one of them was covered:
+// isnull(field) is an identifier, so expr's own unknown-name check
+// refuses it at compile time (the patcher deliberately leaves an
+// undeclared identifier alone for exactly that reason), while
+// isnull("field") satisfies the builtin's func(string) bool signature
+// whatever the string says and reaches isnullBuiltin's run-time refusal.
+// That refusal is loud rather than wrong — the alternative, answering
+// false for a field that does not exist, is the silent one — but it
+// arrives after the caller has waited for a generation that was never
+// going to finish, and for a rule it arrives past the eager-validation
+// promise validateRules exists to make.
+//
+// PARSED, never substring-matched, for the same reason
+// exprReadsIdentifier is (synth/rules_claim.go): a field legitimately
+// named isnull_reason, and the text isnull("x") sitting inside a string
+// LITERAL, must not trip it. The question is syntactic, so it is asked
+// of the syntax.
+//
+// It reads the AUTHOR'S SOURCE rather than a compiled program's node,
+// also following exprReadsIdentifier: a compiler is free to fold and
+// rewrite. The consequence is that isnull("no" + "such") — a name expr
+// would fold to a literal — is NOT reported here and stays a run-time
+// fault, which is the same answer a genuinely dynamic argument gets and
+// the conservative direction. An unparseable source reports nothing at
+// all: the compile step that follows owns that error and says it better.
+//
+// Walk order is expr's own post-order traversal, so a source with two
+// unknown names reports the same one on every run — the determinism rule
+// every other fault-selection site in the rule layer follows.
+func isnullUnknownField(src string, declared map[string]bool) (string, bool) {
+	tree, err := parser.Parse(src)
+	if err != nil || tree == nil || tree.Node == nil {
+		return "", false
+	}
+	probe := &isnullLiteralProbe{declared: declared}
+	ast.Walk(&tree.Node, probe)
+	return probe.unknown, probe.found
+}
+
+// isnullLiteralProbe collects the first single-argument isnull call whose
+// argument is a string literal naming an undeclared field.
+type isnullLiteralProbe struct {
+	declared map[string]bool
+	unknown  string
+	found    bool
+}
+
+func (p *isnullLiteralProbe) Visit(node *ast.Node) {
+	if p.found {
+		return
+	}
+	call, ok := (*node).(*ast.CallNode)
+	if !ok {
+		return
+	}
+	callee, ok := call.Callee.(*ast.IdentifierNode)
+	if !ok || callee.Value != isnullFuncName || len(call.Arguments) != 1 {
+		return
+	}
+	lit, ok := call.Arguments[0].(*ast.StringNode)
+	if !ok || p.declared[lit.Value] {
+		return
+	}
+	p.unknown = lit.Value
+	p.found = true
 }
 
 // evaluate returns true when every compiled constraint accepts the row.

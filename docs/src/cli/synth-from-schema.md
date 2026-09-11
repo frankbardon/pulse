@@ -252,8 +252,16 @@ to and the ordinary last-write-wins applies instead: a later rule's
 `set_null` over any member does break the block apart, and a later
 `null_together` re-decides it from whatever the gate holds by then.
 
-A block member that is not declared `"nullable": true` raises the same
-warning `set_null` does — see below.
+A block member that is not declared `"nullable": true` raises a **warning**
+— where `set_null` over such a field is **refused**. The difference is
+what each slot claims: `set_null` states the field *is* null on a
+matching row, which a non-nullable field can never record, while
+`null_together` states the members carry the *gate's* decision, and that
+decision may be "present" on every row. The block's **gate** is never
+reported at all: the copy reads it, so a non-nullable gate is not a field
+the block failed to null — and a never-null gate is an idiom rather than
+a mistake, since it clears every member's own null and leaves a later
+`set_null` as the block's only source of absence. See below.
 
 ### `set_expr` and the coercion matrix
 
@@ -323,7 +331,11 @@ Expressions are the same `expr-lang` environment `constraints[]` uses —
 every scalar including a boolean is a number (`flag == 1`, never bare
 `flag`), a categorical is a string, a `set_*` is a map
 (`flags["opt"]`), and `isnull(field)` tests absence. `when` must return
-a bool.
+a bool. `isnull` takes a field NAME, bare or quoted, and a name the spec
+does not declare is refused when the spec is parsed in either spelling —
+the quoted form compiles, so it is reported as the unknown FIELD it is
+(`PULSE_SYNTH_RULE_FIELD_UNKNOWN`), not as an expression that will not
+compile.
 
 The same array is also the standalone **rules file** format that
 [`synth from-profile --rules`](synth-from-profile.md) loads, so an
@@ -338,12 +350,22 @@ rules have no names of their own — plus the offending slot and field.
 ### Two things that are silent if you get them wrong
 
 **Nulling needs a nullable field.** The per-record null bitmap only
-carries a bit for a field declared `"nullable": true`. A `set_null` — or
-a `null_together` block — over any other field writes the type's zero as
-an ordinary value with no null flag, indistinguishable from a real `0`
-on a `u4` or a `packed_bool`. The rule fires and the file cannot show
-it, so the run emits a warning naming the rule index, the slot and the
-field. Declare the field nullable.
+carries a bit for a field declared `"nullable": true`. Nulling any other
+field writes the type's zero as an ordinary value with no null flag,
+indistinguishable from a real `0` on a `u4` or a `packed_bool`: the rule
+fires and the file cannot show it.
+
+A `set_null` over such a field is therefore **refused when the spec is
+parsed** (`PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE`, naming the rule index,
+the slot and the field). The fix is on the **field**, not the rule —
+declare it `"nullable": true`. On a profile-derived run a field is
+nullable only if the source cohort had nulls in it, so the route is
+[`--emit-spec`](synth-from-profile.md), add the flag, and generate with
+`synth from-schema`. Dropping the field from `set_null` is the other
+answer, if a real `0` is what the cohort should carry.
+
+A `null_together` **member** only warns, for the reason above: that slot
+copies a decision rather than making one.
 
 **`when` and `set_expr` see the pre-rounding value.** A numeric field is
 drawn as a float and rounded on the way to the file, so `familiarity ==
@@ -470,7 +492,8 @@ the `--json` path, where `data.warnings` carries them in full.
 | `PULSE_SYNTH_DISTRIBUTION_UNKNOWN`  | Spec references a distribution name not in the catalog |
 | `PULSE_SYNTH_CONSTRAINT_INFEASIBLE` | Constraints reject too high a fraction of generated rows |
 | `PULSE_SYNTH_RULE_EMPTY`            | A rule declares no action slot (`set` / `set_expr` / `set_null` / `null_together`) |
-| `PULSE_SYNTH_RULE_FIELD_UNKNOWN`    | A rule names a field the spec does not declare |
+| `PULSE_SYNTH_RULE_FIELD_UNKNOWN`    | A rule names a field the spec does not declare — in a slot, or inside `isnull("…")` |
+| `PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE` | A rule's `set_null` names a field that is not declared `"nullable": true`, so the null could not be recorded |
 | `PULSE_SYNTH_RULE_EXPR_INVALID`     | A rule's `when` or a `set_expr` value does not compile (`when` must return a bool) |
 | `PULSE_SYNTH_RULE_VALUE_INVALID`    | A `set` literal is the wrong shape for its target field, outside the type's range, or outside the declared `values` / `options` domain |
 | `PULSE_SYNTH_RULE_CONFLICT`         | One rule names the same field in two slots that disagree about it |
