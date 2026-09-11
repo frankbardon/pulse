@@ -811,6 +811,23 @@ stderr summary marks `!` and lists first, so it does not need finding.
   hand-authored schema-mode spec that puts a continuous distribution on
   a `packed_bool` is still biased (the writer rounds at 0.5); declare
   `bernoulli` there instead.
+- Small-integer (`u4`/`u8`/`u16`/`u32`/`u64`) fields: reconstructed from
+  the captured per-level histogram as `discrete` when the column carried
+  at most 64 distinct values, which holds every level's share exactly;
+  wider columns keep the clamped normal (see
+  [`profile create`](profile-create.md) for the cap and why it abandons
+  rather than truncates). The consequences mirror the boolean arm above.
+  A modelled integer target is drawn as an **ordered probit**, so its
+  coefficients order rows but are not scale points; and its recovery is
+  **unidentified** — the `models` section carries an `error` for these
+  targets, because a level pins the latent to an interval rather than to a
+  point. On the survey cohort that moves the `models` section from 14
+  comparable targets of 55 to **2**, and `model_residual_correlations`
+  from 91 compared pairs to **1**, since a residual-correlation
+  comparison needs a refit at both endpoints. The generated cohort is
+  strictly more faithful; the instrument that measured its conditioning
+  covers less of it. Recovering an ordered-probit coefficient needs an
+  ordered-probit refit, which `processing/regression` does not yet offer.
 - Decimal and geo fields: regenerated within the same type family
   but with synthetic value distributions; downstream uses that
   depend on exact field values (e.g. joinable identifiers) need

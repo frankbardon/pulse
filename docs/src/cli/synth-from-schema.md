@@ -367,13 +367,26 @@ answer, if a real `0` is what the cohort should carry.
 A `null_together` **member** only warns, for the reason above: that slot
 copies a decision rather than making one.
 
-**`when` and `set_expr` see the pre-rounding value.** A numeric field is
-drawn as a float and rounded on the way to the file, so `familiarity ==
-1` tests the *drawn* value, not the `1` you read back: for a clamped
-`normal` it fires on the clamp's point mass, not on the whole
-wire-value-1 bucket. Use comparisons (`nps >= 9`) for numerics. A
-`packed_bool` is exact — its row value is exactly `1.0` or `0.0`, so
-`aware == 0` selects precisely the rows the file shows as `0`.
+**`when` and `set_expr` see the pre-rounding value — *when the field's
+reconstruction is continuous*.** A numeric drawn from a continuous
+distribution is a float in the row and `floor(v+0.5)` in the file, so
+`familiarity == 1` tests the *drawn* value, not the `1` you read back: for
+a clamped `normal` it fires on the clamp's point mass, not on the whole
+wire-value-1 bucket. Use comparisons (`nps >= 9`) for those.
+
+Two reconstructions are **exact** and need no normalisation at all. A
+`packed_bool` reconstructs as `bernoulli`, whose row value is exactly `1.0`
+or `0.0`, so `aware == 0` selects precisely the rows the file shows as `0`.
+And an integer column (`u4`/`u8`/`u16`/`u32`/`u64`) with at most 64
+observed levels reconstructs as `discrete` — its own captured histogram —
+whose row value already *is* the stored integer, so `round(nps) == 9` and
+`nps == 9` select the same rows and a `round()` normalisation rule over it
+is a no-op.
+
+The gap survives for three shapes, and the advice below is written for
+them: an `f32`/`f64` field, an integer column too wide for the 64-level cap
+(see [`profile create`](profile-create.md)), and a hand-authored spec that
+puts a continuous distribution on an integer field.
 
 It bites `set_expr` harder than `when`, because the result still looks
 right. The three-band NPS rule above, written straight off `nps`, sets
@@ -430,9 +443,16 @@ no rule ever rewrites one of those rows.
 
 ## Supported distributions
 
-`bernoulli`, `constant`, `exponential`, `lognormal`, `monotonic_from`,
-`normal`, `pareto`, `poisson`, `regex`, `uniform`, `uniform_date`,
-`weighted_categorical`.
+`bernoulli`, `constant`, `discrete`, `exponential`, `lognormal`,
+`mixture`, `monotonic_from`, `normal`, `pareto`, `poisson`, `regex`,
+`set_bernoulli`, `uniform`, `uniform_date`, `weighted_categorical`.
+
+`discrete` takes `values` (strictly ascending) plus optional `weights` and
+emits one declared level per row at its own share — the exact marginal of a
+coded integer scale, and what `profile create` reconstructs every narrow
+integer column from. Its quantile function is a staircase, so a `discrete`
+field used as a model target or a correlation participant carries
+latent-scale effects: ordering holds, magnitude in scale points does not.
 
 The full catalog (with parameters) is in `skills/synthetic-data.md`
 and `pulse --json | jq '.data.distributions'`.

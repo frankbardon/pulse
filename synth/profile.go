@@ -580,6 +580,78 @@ type NumericProfile struct {
 	// Mean/Std/Min/Max normal reconstruction whenever this is nil,
 	// exactly as it always has.
 	Shape *ShapeProfile `json:"shape,omitempty"`
+	// Discrete carries the EXACT per-level histogram of an
+	// integer-quantized column (u4/u8/u16/u32/u64 — see
+	// isIntegerQuantizedFieldType), captured unconditionally on the same
+	// single scan and present whenever the column carried at most
+	// maxDiscreteLevels distinct values.
+	//
+	// Additive + omitempty, so a document captured before this key
+	// existed is unchanged and SpecFromProfile's clamped-normal fallback
+	// still applies to it verbatim — the same silent-fallback shape
+	// Shape and conditional.numeric_pairs already use.
+	//
+	// The key's ABSENCE on an integer field is itself the record that the
+	// column was too wide and the histogram was ABANDONED rather than
+	// truncated: presence/absence is exactly the "which reconstruction
+	// will this field get" answer, so nothing is hidden by there being no
+	// warning for it. (Structural rather than conventional, for the same
+	// reason ResidualCorrelationProfile keeps `unmeasured` out of
+	// `pairs`.)
+	//
+	// It sits BESIDE Min/Max/Mean/Std/Percentiles and replaces none of
+	// them: they remain the field's summary for every reader, and
+	// reconstructing from the histogram recomputes its own exact moments
+	// rather than trusting these (see parseDiscreteLevels).
+	Discrete *DiscreteProfile `json:"discrete,omitempty"`
+}
+
+// DiscreteProfile is an integer-quantized numeric column's exact
+// per-level histogram, in ascending level order.
+//
+// Value/Count/Frequency mirrors SetOptionStat deliberately: a reader who
+// has learnt one per-option table in this document has learnt them all.
+// Count is the load-bearing figure — SpecFromProfile hands the raw counts
+// to the `discrete` distribution's weights, so the reconstruction carries
+// no float round trip — and Frequency is the human-readable share,
+// normalised by the field's NON-NULL count (the same base
+// SetProfile.Frequency uses), never by the cohort's row count.
+type DiscreteProfile struct {
+	Levels []DiscreteLevel `json:"levels"`
+}
+
+// DiscreteLevel is one observed integer level and its support.
+type DiscreteLevel struct {
+	Value     float64 `json:"value"`
+	Count     int     `json:"count"`
+	Frequency float64 `json:"frequency"`
+}
+
+// discreteProfileFrom turns a numAcc histogram into its document form.
+//
+// Levels are emitted in ASCENDING VALUE order, never Go map order: the
+// document has to be byte-reproducible across runs, and the `discrete`
+// distribution additionally refuses a non-ascending support
+// (parseDiscreteLevels), so sorting here is what makes the emitted
+// document loadable at all.
+func discreteProfileFrom(levels map[int64]int, nonNull int) *DiscreteProfile {
+	keys := make([]int64, 0, len(levels))
+	for k := range levels {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	out := &DiscreteProfile{Levels: make([]DiscreteLevel, 0, len(keys))}
+	for _, k := range keys {
+		c := levels[k]
+		freq := 0.0
+		if nonNull > 0 {
+			freq = float64(c) / float64(nonNull)
+		}
+		out.Levels = append(out.Levels, DiscreteLevel{
+			Value: float64(k), Count: c, Frequency: freq,
+		})
+	}
+	return out
 }
 
 // ShapeProfile is a fitted 2-component Gaussian mixture: parallel
@@ -671,6 +743,17 @@ type numAcc struct {
 	min, max    float64
 	samples     []float64
 	reservoirOn bool
+	// levels is the EXACT per-level histogram for an integer-quantized
+	// column (isIntegerQuantizedFieldType), keyed by the integer the
+	// writer would store. nil for every other field type, and set back to
+	// nil the moment the column is seen to carry more than
+	// maxDiscreteLevels distinct values — abandoned rather than
+	// truncated, which is what levelsOver records.
+	//
+	// It rides the EXISTING single scan: one map per eligible field,
+	// bounded at maxDiscreteLevels entries, no second cohort read.
+	levels     map[int64]int
+	levelsOver bool
 }
 type catAcc struct {
 	count int
@@ -812,7 +895,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				setOptionNames[f.Name] = names
 			}
 		default:
-			numAccs[f.Name] = &numAcc{
+			na := &numAcc{
 				min: math.Inf(1), max: math.Inf(-1),
 				// FitShape needs the same reservoir sample the
 				// percentile computation below uses, even when
@@ -820,6 +903,16 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				// a shape against otherwise.
 				reservoirOn: includeStats || opts.FitShape,
 			}
+			// The per-level histogram is UNCONDITIONAL for an
+			// integer-quantized column — no capture flag gates it.
+			// --fit-shape and --conditional are enhancements a caller
+			// opts into; this is the DEFAULT reconstruction being wrong,
+			// and a correctness fix behind a flag is a defect that ships
+			// on by default.
+			if isIntegerQuantizedFieldType(f.Type.String()) {
+				na.levels = make(map[int64]int, 8)
+			}
+			numAccs[f.Name] = na
 			if opts.IncludeConditional {
 				jointFieldNames = append(jointFieldNames, f.Name)
 			}
@@ -1102,6 +1195,27 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				if na.reservoirOn && len(na.samples) < 10000 {
 					na.samples = append(na.samples, v)
 				}
+				if na.levels != nil {
+					// Bucket by the SAME rule the writer quantizes by
+					// (writeFieldValueForField's Floor(f+0.5)), so a
+					// captured level and a generated one are the same
+					// integer by construction rather than by both
+					// happening to be exact. On the wire these values
+					// already ARE integers, so the rounding is a no-op
+					// in practice and a guarantee in principle.
+					key := int64(math.Floor(v + 0.5))
+					if _, seen := na.levels[key]; seen {
+						na.levels[key]++
+					} else if len(na.levels) >= maxDiscreteLevels {
+						// One level too many. ABANDON — see
+						// maxDiscreteLevels for why a truncated
+						// histogram is worse than none.
+						na.levels = nil
+						na.levelsOver = true
+					} else {
+						na.levels[key] = 1
+					}
+				}
 			}
 		}
 		if fitter != nil {
@@ -1363,6 +1477,9 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				}
 				if opts.FitShape && len(na.samples) > 0 {
 					num.Shape = fitNumericShape(na.samples, mean, num.Std)
+				}
+				if len(na.levels) > 0 {
+					num.Discrete = discreteProfileFrom(na.levels, na.count)
 				}
 				fp.Numeric = num
 			}
@@ -2281,6 +2398,57 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// is not a thing to discover; it is one number.
 			fs.Distribution = DistBernoulli
 			fs.Params = map[string]any{"p": fp.Numeric.Mean}
+		case fp.Numeric != nil && fp.Numeric.Discrete != nil &&
+			isIntegerQuantizedFieldType(fp.Type):
+			// A SMALL-INTEGER marginal, and the same defect class as the
+			// boolean arm above one type wider.
+			//
+			// A u4 / u8 / u16 / u32 / u64 column is profiled through the
+			// NUMERIC accumulator (it is neither date, categorical nor
+			// set), and the obvious reading of that summary —
+			// normal(mean, std) clamped to the observed [min, max] — is
+			// WRONG on the wire in a way the mean cannot show. The writer
+			// stores floor(v+0.5), so a continuous draw is quantized, and
+			// clamping piles asymmetric mass on the near bound while the
+			// bell flattens whatever shape the scale actually had.
+			// Measured on the motivating 122-field survey cohort:
+			// `familiarity` (u4, 1-7, genuinely U-shaped) has 25.26% of
+			// its rows at level 1 and generated 13.73%; `nps` (u4, 0-10)
+			// has 32.00% at level 10 and generated 22.53%, with 2.84% at
+			// level 0 generated as 0.20%; `sow` (u16, 0-15) has 64.69% at
+			// level 0 and generated 38.04%. Every one of those fields'
+			// MEANS came back within a few percent.
+			//
+			// The histogram is exact and needs no threshold. A level's
+			// observed count IS its weight.
+			//
+			// This arm sits AHEAD of the --fit-shape arm below for the
+			// same reason the boolean arm does: fitNumericShape will
+			// happily prefer a two-component mixture on a 7-level integer
+			// column — a couple of well-separated low-variance humps beat
+			// a single normal on BIC — and that mixture reproduces the
+			// per-level marginal no better while costing a bisection per
+			// draw. A coded scale's shape is not a thing to discover; it
+			// is the histogram.
+			//
+			// isIntegerQuantizedFieldType is re-checked here even though
+			// capture only writes the key for such a column, matching the
+			// "both sides must have reconstructed to the expected kind"
+			// guard the conditional-pair wiring below applies: a
+			// hand-edited or foreign document must not put a staircase on
+			// an f64.
+			vals := make([]any, len(fp.Numeric.Discrete.Levels))
+			weights := make([]any, len(fp.Numeric.Discrete.Levels))
+			for i, lv := range fp.Numeric.Discrete.Levels {
+				vals[i] = lv.Value
+				// Counts, not frequencies: integers straight off the
+				// document, normalised once at parse. A float round trip
+				// here would be the only lossy step in an otherwise exact
+				// reconstruction.
+				weights[i] = float64(lv.Count)
+			}
+			fs.Distribution = DistDiscrete
+			fs.Params = map[string]any{"values": vals, "weights": weights}
 		case fp.Numeric != nil && fp.Numeric.Shape != nil:
 			// Captured shape (--fit-shape, E4-S2) takes precedence over
 			// the plain normal reconstruction below — it exists
@@ -2518,9 +2686,20 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// than Normal(cell mean, cell std). Without the flag the arm
 			// would reproduce, per cell, exactly the inverted-prevalence
 			// defect the bernoulli reconstruction exists to remove.
+			// DistDiscrete (a small-integer target, see the type switch
+			// above) is admitted for the same reason DistBernoulli is and
+			// needs no wire flag of its own: the pair sampler resolves
+			// the target's own staircase from its FieldSpec at build time
+			// (buildDiscreteConditionals), so the conditional draw and
+			// the field's own marginal cannot disagree about what the
+			// field is. Without that the arm would reproduce, PER CELL,
+			// exactly the flattened-scale defect the discrete
+			// reconstruction exists to remove — and worst where the
+			// signal is, since a contrasted cell is the one furthest from
+			// the field's own centre.
 			if distOf[cnp.A] != DistWeightedCategorical ||
 				(distOf[cnp.B] != DistNormal && distOf[cnp.B] != DistMixture &&
-					distOf[cnp.B] != DistBernoulli) {
+					distOf[cnp.B] != DistBernoulli && distOf[cnp.B] != DistDiscrete) {
 				continue
 			}
 			num, ok := numericMoments[cnp.B]
@@ -2562,7 +2741,8 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// DistBernoulli admitted for the same reason as the
 			// categorical-numeric arm above, and carried the same way.
 			if distOf[snp.Set] != DistSetBernoulli ||
-				(distOf[snp.Numeric] != DistNormal && distOf[snp.Numeric] != DistBernoulli) {
+				(distOf[snp.Numeric] != DistNormal && distOf[snp.Numeric] != DistBernoulli &&
+					distOf[snp.Numeric] != DistDiscrete) {
 				continue
 			}
 			num, ok := numericMoments[snp.Numeric]
@@ -2641,6 +2821,20 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 		// The effect is on the LATENT scale and therefore non-linear in
 		// value space for a non-normal Q — a coefficient is not "this
 		// many units of the field" here. See synth/mixture_quantile.go.
+	case DistDiscrete:
+		// A small-integer target (u4/u8/u16/u32/u64 reconstructed from
+		// its own per-level histogram). quantileFor's staircase arm makes
+		// the composed draw an ORDERED PROBIT: the predictors shift the
+		// latent, the staircase decides which level it lands on, and the
+		// captured histogram is held exactly.
+		//
+		// Refusing it was considered and rejected on the same grounds as
+		// the bernoulli arm below, and the grounds are stronger here
+		// because the motivating cohort's most-discussed model target
+		// (`nps`, a u4) is one of these: the per-target retirement rule
+		// above drops a modelled field's captured conditional pair, so a
+		// refusal would leave the field with NO conditioning at all
+		// rather than with a latent-scale one.
 	case DistBernoulli:
 		// A packed_bool target. quantileFor's bernoulli arm makes the
 		// composed draw a PROBIT — P(1 | row) = Phi((mu - Phi^-1(1-p))

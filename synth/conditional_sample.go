@@ -143,13 +143,18 @@ type categoricalNumericPairSampler struct {
 	// boolean marginal, so each cell's Mean is a prevalence rather than
 	// a location. See conditionalNumericDraw.
 	bernoulli bool
+	// discrete is non-nil when B reconstructed as `discrete`: the cell's
+	// moments then locate a draw on B's own staircase rather than on a
+	// normal. Derived from B's FieldSpec, never from a wire flag — see
+	// discreteConditional.
+	discrete *discreteConditional
 }
 
 type categoryMoments struct {
 	mean, std float64
 }
 
-func buildCategoricalNumericPairSamplers(pairs []CategoricalNumericPairSpec) []*categoricalNumericPairSampler {
+func buildCategoricalNumericPairSamplers(pairs []CategoricalNumericPairSpec, disc map[string]*discreteConditional) []*categoricalNumericPairSampler {
 	if len(pairs) == 0 {
 		return nil
 	}
@@ -158,12 +163,12 @@ func buildCategoricalNumericPairSamplers(pairs []CategoricalNumericPairSpec) []*
 		if len(p.Categories) == 0 {
 			continue
 		}
-		out = append(out, buildCategoricalNumericPairSampler(p))
+		out = append(out, buildCategoricalNumericPairSampler(p, disc[p.B]))
 	}
 	return out
 }
 
-func buildCategoricalNumericPairSampler(p CategoricalNumericPairSpec) *categoricalNumericPairSampler {
+func buildCategoricalNumericPairSampler(p CategoricalNumericPairSpec, disc *discreteConditional) *categoricalNumericPairSampler {
 	perCat := make(map[string]categoryMoments, len(p.Categories))
 	var sumMean, sumWeight float64
 	for _, c := range p.Categories {
@@ -182,6 +187,7 @@ func buildCategoricalNumericPairSampler(p CategoricalNumericPairSpec) *categoric
 		clampMin:    p.Min,
 		clampMax:    p.Max,
 		bernoulli:   p.Bernoulli,
+		discrete:    disc,
 	}
 	if sumWeight > 0 {
 		// A plain average of the captured per-category means/stds, used
@@ -216,7 +222,12 @@ func (c *categoricalNumericPairSampler) transform(rng *rand.Rand, row map[string
 		}
 		mom = c.fallback
 	}
-	v := conditionalNumericDraw(rng, mom, c.bernoulli)
+	var v float64
+	if c.discrete != nil {
+		v = conditionalDiscreteDraw(rng, mom, c.discrete)
+	} else {
+		v = conditionalNumericDraw(rng, mom, c.bernoulli)
+	}
 	if c.hasClamp {
 		if v < c.clampMin {
 			v = c.clampMin
@@ -253,6 +264,94 @@ func conditionalNumericDraw(rng *rand.Rand, mom categoryMoments, bernoulli bool)
 		return 0
 	}
 	return mom.mean + float64(rng.NormFloat64()*mom.std)
+}
+
+// discreteConditional is the target-side half of a conditional pair whose
+// numeric target reconstructed as `discrete`: the field's OWN marginal
+// (its staircase Q, plus the moments to standardise a cell's location
+// against).
+//
+// It is resolved from the target's FieldSpec at generate() setup time
+// rather than carried on the pair spec. That is deliberate and is NOT
+// symmetric with SetNumericPairSpec.Bernoulli, which IS a wire flag: a
+// flag can disagree with the field's own reconstruction, and a marginal
+// disagreeing with the draw that overwrites it is the whole failure class
+// this work removes. Deriving it makes the disagreement unrepresentable,
+// and it means a HAND-AUTHORED spec that puts `discrete` on a field gets
+// the right conditional draw with no extra key to remember.
+type discreteConditional struct {
+	mean   float64
+	invStd float64
+	levels discreteLevels
+}
+
+// buildDiscreteConditionals resolves one entry per field whose declared
+// distribution is `discrete`. Returns nil when the spec declares none, so
+// a spec without them allocates nothing and every pair sampler keeps its
+// pre-existing draw exactly.
+//
+// Params are already known-good by the time this runs — buildSampler
+// parsed the same declaration at schema-build time — but the error is
+// propagated rather than swallowed, because a silently dropped entry
+// would put the pair back on the clamped-normal draw with nothing saying so.
+func buildDiscreteConditionals(wfs []*writerField) (map[string]*discreteConditional, error) {
+	var out map[string]*discreteConditional
+	for _, wf := range wfs {
+		if wf.spec.Distribution != DistDiscrete {
+			continue
+		}
+		levels, err := parseDiscreteLevels(wf.spec)
+		if err != nil {
+			return nil, err
+		}
+		if levels.std <= 0 {
+			// A single-level support is a constant column: there is no
+			// scale to read a cell's location against, and every cell
+			// would produce the one level anyway. Leaving it out means
+			// the pair falls back to its ordinary draw, which the clamp
+			// then pins to the same single value.
+			continue
+		}
+		if out == nil {
+			out = make(map[string]*discreteConditional, 4)
+		}
+		out[wf.spec.Name] = &discreteConditional{
+			mean: levels.mean, invStd: 1 / levels.std, levels: levels,
+		}
+	}
+	return out, nil
+}
+
+// conditionalDiscreteDraw turns one cell's captured moments into a level
+// of the target's own staircase.
+//
+// It is the SAME composed construction the model stage uses
+// (modelDrawer.transform): standardise the cell's location against the
+// field's own marginal moments, add the cell's own spread on that scale,
+// and read the result through the field's quantile function —
+// value = Q(Phi(u)), u = (cellMean - fieldMean)/fieldStd + (cellStd/fieldStd)*z.
+// Reusing it rather than inventing a second conditional construction is
+// the point: a modelled target and a paired target then disagree about
+// nothing except where their location came from.
+//
+// Two consequences, both deliberate. (1) The target's own MARGINAL
+// survives the pair: every emitted value is a declared level at a
+// declared share, which the alternative (draw the cell's normal, let the
+// writer round it) destroys per cell — the defect the field-level
+// reconstruction removes, reintroduced once for every category. (2) The
+// shift is LATENT-scale, so the cell's mean is reproduced in ORDER and
+// direction but not exactly in field units; a coefficient-free cell whose
+// moments equal the field's reproduces the field's marginal exactly. That
+// is the same non-linearity mixture and bernoulli targets carry, and the
+// value-scale alternative is what destroys the marginal.
+//
+// Consumes exactly one NormFloat64 per call — the same draw count as the
+// normal arm it replaces, though not the same values. The per-row RNG
+// sequence stays a function of the SPEC.
+func conditionalDiscreteDraw(rng *rand.Rand, mom categoryMoments, dc *discreteConditional) float64 {
+	z := rng.NormFloat64()
+	u := float64((mom.mean-dc.mean)*dc.invStd) + float64((mom.std*dc.invStd)*z)
+	return dc.levels.quantile(phi(u))
 }
 
 // setOptionMap fetches the map[string]bool a setSampler produced for
@@ -373,9 +472,11 @@ type setNumericPairSampler struct {
 	// bernoulli mirrors SetNumericPairSpec.Bernoulli — see
 	// conditionalNumericDraw and categoricalNumericPairSampler.bernoulli.
 	bernoulli bool
+	// discrete mirrors categoricalNumericPairSampler.discrete.
+	discrete *discreteConditional
 }
 
-func buildSetNumericPairSamplers(pairs []SetNumericPairSpec) []*setNumericPairSampler {
+func buildSetNumericPairSamplers(pairs []SetNumericPairSpec, disc map[string]*discreteConditional) []*setNumericPairSampler {
 	if len(pairs) == 0 {
 		return nil
 	}
@@ -384,16 +485,17 @@ func buildSetNumericPairSamplers(pairs []SetNumericPairSpec) []*setNumericPairSa
 		if len(p.Categories) == 0 {
 			continue
 		}
-		out = append(out, buildSetNumericPairSampler(p))
+		out = append(out, buildSetNumericPairSampler(p, disc[p.Numeric]))
 	}
 	return out
 }
 
-func buildSetNumericPairSampler(p SetNumericPairSpec) *setNumericPairSampler {
+func buildSetNumericPairSampler(p SetNumericPairSpec, disc *discreteConditional) *setNumericPairSampler {
 	s := &setNumericPairSampler{
 		set: p.Set, option: p.Option, numeric: p.Numeric,
 		hasClamp: p.HasClamp, clampMin: p.Min, clampMax: p.Max,
 		bernoulli: p.Bernoulli,
+		discrete:  disc,
 	}
 	// p.Categories is a short (<=2), deterministically ordered slice —
 	// accumulate the fallback moments straight from it, never a map.
@@ -438,7 +540,12 @@ func (s *setNumericPairSampler) transform(rng *rand.Rand, row map[string]any) {
 		}
 		mom = s.fallback
 	}
-	v := conditionalNumericDraw(rng, mom, s.bernoulli)
+	var v float64
+	if s.discrete != nil {
+		v = conditionalDiscreteDraw(rng, mom, s.discrete)
+	} else {
+		v = conditionalNumericDraw(rng, mom, s.bernoulli)
+	}
 	if s.hasClamp {
 		if v < s.clampMin {
 			v = s.clampMin

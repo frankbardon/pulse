@@ -88,6 +88,15 @@ func distributionCapabilities() []DistributionMeta {
 			},
 		},
 		{
+			Name:        synth.DistDiscrete,
+			Description: "Exact per-level histogram for an integer-valued column: one declared value per observed level, drawn at its own weight. What `profile create` reconstructs every u4/u8/u16/u32/u64 field from, so a coded scale keeps its real shape instead of a clamped normal's bell.",
+			AppliesTo:   []string{"numeric"},
+			Params: []Param{
+				{Name: "values", Type: "list", Required: true, Description: "Strictly ascending list of the integer levels to draw from."},
+				{Name: "weights", Type: "list", Required: false, Description: "Optional non-negative weight list matching values length; uniform when absent."},
+			},
+		},
+		{
 			Name:        synth.DistMixture,
 			Description: "Mixture-of-normals samples; a component is drawn by weight, then a Gaussian sample from that component — reproduces bimodal/multimodal or skewed shapes a single normal cannot.",
 			AppliesTo:   []string{"numeric"},

@@ -256,12 +256,23 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	}
 	warnings = append(warnings, ruleWarnings...)
 
+	// The two NUMERIC-target pair stages need the target field's own
+	// marginal when that marginal is a staircase (`discrete`), because a
+	// cell's captured moments then locate a level rather than a point on
+	// a normal. Resolved ONCE here, from the compiled field specs, so the
+	// conditional draw and the field's own sampler cannot disagree about
+	// what the field is — see discreteConditional.
+	discreteTargets, err := buildDiscreteConditionals(wfs)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+
 	stages := &rowStages{
 		catPairs:    buildCategoricalPairSamplers(conflicts.catPairs),
-		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs),
+		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs, discreteTargets),
 		setSetPairs: buildSetSetPairSamplers(conflicts.setSetPairs),
 		setCatPairs: buildSetCategoricalPairSamplers(conflicts.setCatPairs),
-		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs),
+		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs, discreteTargets),
 		corr:        corr,
 		models:      models,
 		residual:    residual,

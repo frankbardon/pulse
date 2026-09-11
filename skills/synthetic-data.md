@@ -42,7 +42,7 @@ Verify with `pulse_inspect`.
 
 ### Distribution registry
 
-Fourteen kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` skills. Registry: `synth.AllDistributions()`.
+Fifteen kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` skills. Registry: `synth.AllDistributions()`.
 
 - `uniform` — closed-open `[min, max)`.
 - `normal` — `mean`, `std`, optional `min`/`max` clamp.
@@ -53,6 +53,7 @@ Fourteen kinds. Per-kind params + clamp semantics in atomic `op-synth-<kind>` sk
 - `bernoulli` — `p`; pairs with `packed_bool` or uint.
 - `monotonic_from` — `start`, `step`; deterministic, ignores RNG. Primary keys.
 - `weighted_categorical` — `values`, optional `weights`; uniform when absent.
+- `discrete` — `values` (strictly ascending), optional `weights`; the exact per-level histogram of an integer column. What `profile create` reconstructs every `u4`/`u8`/`u16`/`u32`/`u64` field from — see Small-integer marginals below.
 - `mixture` — `means`, `stds`, optional `weights` (parallel lists, `>= 2` components); reproduces bimodal/multimodal or skewed shapes a single `normal` collapses to.
 - `uniform_date` — `start`, `end` (YYYY-MM-DD); inclusive.
 - `regex` — `pattern`, `max_repeat`; walks `regexp/syntax` AST.
@@ -96,6 +97,16 @@ Capture via `pulse_profile_create`; synth via `pulse_synth_from_profile`. Profil
 Three writers reach a boolean and all three are covered. Its own sampler draws `bernoulli` directly. A conditional pair carries `Bernoulli: true` on `CategoricalNumericPairSpec` / `SetNumericPairSpec`, so each cell's captured `Mean` is drawn as a prevalence rather than a location (`Std` unused) — without it the same defect recurs once per cell, worst exactly where the signal is. A model draws through `quantileFor`'s step `Q`, which makes it a **probit**: `P(1 | row) = Φ((μ − Φ⁻¹(1−p)) / σ)`. Coefficients order rows and hold the marginal exactly; they are not probability changes.
 
 Two consequences worth knowing. A boolean observed at `p` of exactly 0 or 1 has zero variance, so a model on it is dropped with a warning rather than producing an infinite `1/std`. And a bernoulli target's **model recovery is not identified** — a 0/1 value does not determine the latent that produced it, so `latentFor` refuses and the fidelity report's `models` entry carries an `error` and no delta instead of a fabricated attenuation. The continuous arm is retained for a hand-authored spec that puts `normal` on a `packed_bool`; it is biased, not correct, and `toBool` rounds at 0.5 there so it is at least not inverted.
+
+### Small-integer marginals
+
+**A `u4`/`u8`/`u16`/`u32`/`u64` column with at most 64 observed levels reconstructs as `discrete` — its own exact per-level histogram — and that arm sits AHEAD of `--fit-shape`.** Same defect class as Boolean marginals above, one type wider. An integer column is summarised by the numeric accumulator, and `normal(mean, std)` clamped to `[min, max]` is wrong on the wire because the writer stores `floor(v+0.5)`: the bell flattens whatever shape the scale had and clamping piles asymmetric mass on the near bound, while the MEAN comes back right, which is how it went unnoticed. Measured on a 122-field survey cohort — `familiarity` (u4, 1–7, U-shaped) 25.26% at level 1 → **13.73%**; `nps` (u4, 0–10) 32.00% at 10 → **22.53%**, 2.84% at 0 → **0.20%**; `sow` (u16, 0–15) 64.69% at 0 → **38.04%** with levels 10, 12–15 never generated at all. A histogram needs no threshold: a level's observed count *is* its weight.
+
+The cap (`maxDiscreteLevels`, 64, a package constant with no flag) is where the capture **abandons** the histogram rather than truncating it — a top-64-of-3,000 histogram makes every share a share of an arbitrary subset. Above it the field keeps the clamped normal; the absent `discrete` key in the profile document *is* that record. The boundary is pragmatic, not a fidelity cliff: the clamped normal's per-level RELATIVE error does not shrink with more levels, only its absolute error does (~1/K).
+
+Three writers reach a small integer and all three are covered. Its own sampler draws the staircase. A conditional pair locates the cell's captured moments ON that staircase — `value = Q(Φ((cellMean−fieldMean)/fieldStd + (cellStd/fieldStd)z))`, the same composed construction the model stage uses — resolved from the target's own `FieldSpec`, deliberately NOT from a wire flag like `Bernoulli`, so the pair and the marginal cannot disagree; without it the defect recurs once per cell. A model draws through the staircase `Q`, making it an **ordered probit**: predictors shift the latent, the histogram is held exactly, direction and ordering carry and scale-point magnitude does not.
+
+Consequences. A `discrete` target's **model recovery is not identified** (a level pins the latent to an interval, not a point), so `latentFor` refuses and the fidelity `models` entry carries an `error` rather than a delta — the same treatment `bernoulli` gets, and the same reason. Value-scale Pearson correlation on a `discrete` copula participant attenuates while rank correlation is exact, as for every non-normal `Q`. And the **pre-rounding gotcha disappears** for these fields: the row value already is the stored integer, so a `{"set_expr": {"nps": "round(nps)"}}` normalisation is a no-op. That advice still applies to `f32`/`f64`, to an integer column too wide for the cap, and to a hand-authored continuous distribution on an integer field.
 
 ### Set (multi-select) field profiling
 

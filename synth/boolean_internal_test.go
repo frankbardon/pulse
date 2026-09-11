@@ -136,6 +136,7 @@ func TestLatentFor_EveryDistributionIsClassified(t *testing.T) {
 		DistExponential:         classRoundTrip,
 		DistMixture:             classRoundTrip,
 		DistBernoulli:           classStepQuantile,
+		DistDiscrete:            classStepQuantile,
 		DistConstant:            classRefused,
 		DistMonotonicFrom:       classRefused,
 		DistPareto:              classRefused,
@@ -156,6 +157,10 @@ func TestLatentFor_EveryDistributionIsClassified(t *testing.T) {
 			"weights": []any{0.6, 0.4},
 		},
 		DistBernoulli: {"p": 0.3},
+		DistDiscrete: {
+			"values":  []any{1.0, 2.0, 3.0},
+			"weights": []any{5.0, 3.0, 2.0},
+		},
 	}
 
 	all := AllDistributions()

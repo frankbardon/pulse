@@ -46,6 +46,7 @@ pulse profile create --input PATH --output PATH
 | Field type | What is recorded |
 |---|---|
 | Numeric (`u*`, `f*`, `decimal128`) | Count, min, max, mean, stddev; percentiles if `--include-stats` |
+| Integer (`u4`, `u8`, `u16`, `u32`, `u64`) | The same numeric summary, **plus an exact per-level histogram** (`numeric.discrete`) when the column carries at most 64 distinct values — and **reconstructed from that histogram, not as a clamped normal**. See "Small-integer fields" below |
 | `packed_bool` | The same numeric summary (a boolean falls to the numeric accumulator), but **reconstructed as `bernoulli`, not as a clamped normal** — see "Boolean fields" below |
 | Categorical | Cardinality, plus the top-K most-frequent values with their observed weights. The tail below the cut is **not** retained as an `"other"` bucket — `synth from-profile` renormalises the retained weights, so a 1,900-level field regenerates as `--top-k` levels and the tail's share is redistributed across them. (The `"other"` spelling that *does* appear in `conditional.*` tables and in `--fit-models` designs is a different, per-section collapse.) |
 | `date` | Min, max, count |
@@ -93,6 +94,86 @@ max 0.0116, nothing off by more than 0.05). Two details follow from it:
   report reports these targets as unidentified rather than fabricating a
   recovered figure, because a 0/1 value does not determine the latent that
   produced it.
+
+## Small-integer fields
+
+Same defect class as "Boolean fields" above, one type wider, and it is the
+one that bites a survey cohort hardest: a `u4`/`u8`/`u16`/`u32`/`u64`
+column falls to the numeric accumulator too, so its entry is `mean`, `std`,
+`min`, `max` — and the writer stores `floor(v + 0.5)`, so a clamped-normal
+reconstruction is quantized on the way to the file. What comes back is a
+bell where the source had a U, a J or a spike, and **the mean is roughly
+right**, which is why it went unnoticed.
+
+Measured on the same 381,324-row survey cohort, generating 40,000 rows:
+
+| Field | Level | Source share | Generated (before) |
+|---|---|---|---|
+| `familiarity` (u4, 1–7) | 1 | 0.2526 | **0.1373** |
+| `familiarity` | 7 | 0.2198 | 0.1323 |
+| `nps` (u4, 0–10) | 10 | 0.3200 | 0.2253 |
+| `nps` | 0 | 0.0284 | **0.0020** |
+| `useCon` (u4, 1–6) | 6 | 0.3143 | 0.1806 |
+| `sow` (u16, 0–15) | 0 | 0.6469 | **0.3804** |
+
+`sow`'s levels 10 and 12–15 were never generated at all. Every one of those
+fields' means came back within about 3%.
+
+The capture therefore records the **exact per-level histogram** on
+`numeric.discrete` — one `{value, count, frequency}` entry per observed
+level, in ascending order — and `synth from-profile` reconstructs the field
+as the `discrete` distribution from it. A level's observed count *is* its
+weight, so no threshold is involved and the marginal is exact by
+construction. Same cohort after the fix: `familiarity` level 1 at 0.2493,
+`nps` level 10 at 0.3310 and level 0 at 0.0269, `useCon` level 6 at 0.3154,
+`sow` level 0 at 0.6460, every level present.
+
+```json
+"nps": {
+  "min": 0, "max": 10, "mean": 7.5489, "std": 2.6561,
+  "discrete": {
+    "levels": [
+      {"value": 0, "count": 1883, "frequency": 0.02838},
+      {"value": 1, "count": 1176, "frequency": 0.01772}
+    ]
+  }
+}
+```
+
+Four details follow from it.
+
+- **Above 64 distinct levels the histogram is ABANDONED, not truncated.**
+  A top-64 view of a 3,000-level column would make every share a share of
+  an arbitrary subset, so such a column keeps the clamped normal instead.
+  The **absence** of the `discrete` key on an integer field is the record
+  that this happened — there is no warning and no flag, because presence or
+  absence of the key *is* the answer to "which reconstruction will this
+  field get". On the motivating cohort 12 of 14 integer columns qualified;
+  `respondent` (a u64 ID) and `catSpend` (a u32 currency amount) abandoned.
+  The cap is a package constant, not a flag, matching every other tuned
+  threshold in `synth`.
+- **The boundary is pragmatic, not a fidelity cliff.** A clamped normal's
+  per-level *relative* error does not shrink as levels are added — its
+  central levels come out around 1.4× their true share at any number of
+  levels. What shrinks is the *absolute* error (roughly 1/K). So a column
+  just over the cap is wrong by under about 1.5 percentage points per level
+  while one just under it can be wrong by 12.
+- **The integer arm outranks `--fit-shape`**, for the same reason the
+  boolean arm does: a mixture fits a 7-level column well by BIC and
+  reproduces the per-level shares no better, while costing a numeric
+  inversion per draw. A coded scale's shape is its histogram.
+- **A modelled integer target is an ordered probit.** `--fit-models` on one
+  still works and its coefficients still order rows, but the staircase `Q`
+  means they shift the *latent*, not the value: a coefficient is **not**
+  "this many points on the scale". The fidelity report reports these
+  targets as unidentified rather than fabricating a recovered figure,
+  because a level pins the latent to an interval rather than a point.
+
+The capture is unconditional — there is no flag — because this is the
+default reconstruction being wrong rather than an enhancement. It rides the
+existing single scan (one bounded map per eligible column) and adds one
+`omitempty` key: a document captured before the key existed still
+reconstructs exactly as it did, through the clamped normal.
 
 ## What the profile does NOT capture
 

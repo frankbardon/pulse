@@ -391,6 +391,67 @@ func generateCoherence(t *testing.T, prof *synth.Profile, rules string) ([]coher
 	return rows, spec, res.Warnings
 }
 
+// withoutCapturedHistogram strips one field's captured per-level
+// histogram from a profile, so SpecFromProfile falls back to the
+// clamped-normal reconstruction for it — the shape every document
+// captured before FU-03 has, and the shape a too-wide integer column
+// still gets.
+func withoutCapturedHistogram(prof *synth.Profile, field string) *synth.Profile {
+	for i := range prof.Fields {
+		if prof.Fields[i].Name == field && prof.Fields[i].Numeric != nil {
+			prof.Fields[i].Numeric.Discrete = nil
+		}
+	}
+	return prof
+}
+
+// TestRulesCoherence_DiscreteScoreNeedsNoPreRoundingNormalisation is the
+// other half of the round-vs-int measurement below, and the reason that
+// one now has to construct its own gotcha.
+//
+// `score` is a u4, so it reconstructs from its own captured histogram and
+// its row value IS the value the writer stores. A band read straight off
+// the row therefore agrees with the file on every row with NO
+// normalisation rule at all — which is the pre-rounding gotcha being
+// absent rather than worked around.
+//
+// Both halves are asserted together on purpose: "no normalisation needed"
+// is trivially satisfiable by a fixture whose block is never present, so
+// the test also requires the block to be present on a real share of rows.
+func TestRulesCoherence_DiscreteScoreNeedsNoPreRoundingNormalisation(t *testing.T) {
+	prof := coherenceFixtureProfile(t)
+
+	spec, _ := synth.SpecFromProfile(prof, coherenceFixtureRows)
+	var scoreDist string
+	for _, f := range spec.Fields {
+		if f.Name == "score" {
+			scoreDist = f.Distribution
+		}
+	}
+	if scoreDist != "discrete" {
+		t.Fatalf("score reconstructed as %q, want \"discrete\" — the fixture is not exercising "+
+			"the integer-histogram arm and this test says nothing", scoreDist)
+	}
+
+	unNormalised := strings.Replace(canonicalCoherenceRules,
+		`  {"when": "!isnull(score)", "set_expr": {"score": "round(score)"}},`+"\n", "", 1)
+	rows, _, _ := generateCoherence(t, prof, unNormalised)
+	m := measureCoherence(rows)
+	t.Logf("discrete score, no normalisation: agrees=%d of %d block-present row(s)",
+		m.bandAgrees, m.allPresent)
+
+	if m.allPresent < coherenceFixtureRows/10 {
+		t.Fatalf("the block is present on only %d of %d rows; with so few scored rows the "+
+			"agreement figure below says nothing", m.allPresent, m.rows)
+	}
+	if m.bandAgrees != m.allPresent {
+		t.Errorf("%d of %d block-present row(s) disagree with their band with no normalisation "+
+			"rule; a discrete reconstruction emits the stored integer, so there is no "+
+			"pre-rounding gap for a round() rule to close",
+			m.allPresent-m.bandAgrees, m.allPresent)
+	}
+}
+
 // TestRulesCoherence_ProfileDerivedBlockBecomesCoherent is the epic's
 // proof, reduced to a fixture of the same shape.
 //
@@ -677,7 +738,25 @@ func TestRulesCoherence_UnguardedNormalisationUnNullsTheBlock(t *testing.T) {
 //     moves down instead, so agreement is bought by corrupting the
 //     marginal the profile captured.
 func TestRulesCoherence_RoundNormalisesTheBandIntMovesTheScore(t *testing.T) {
-	prof := coherenceFixtureProfile(t)
+	// The gotcha this test measures is a property of a CONTINUOUS
+	// reconstruction: the row holds the sampler's float while the wire
+	// holds floor(v+0.5), so a band read off the row disagrees with the
+	// band a reader computes from the file.
+	//
+	// Since FU-03 an integer column with at most maxDiscreteLevels
+	// observed values reconstructs as `discrete`, whose sampler emits the
+	// stored integer exactly, and the gotcha is GONE for it — see
+	// TestRulesCoherence_DiscreteScoreNeedsNoPreRoundingNormalisation,
+	// which asserts that directly on the unmodified fixture. So the
+	// gotcha now has to be CONSTRUCTED here, by dropping `score`'s
+	// captured histogram and letting SpecFromProfile fall back to the
+	// clamped normal exactly as it does for every pre-FU-03 document.
+	//
+	// The advice this test pins is still live, for the three shapes that
+	// still reconstruct continuously: an f32/f64 field, an integer column
+	// too wide for the cap, and a hand-authored spec putting a continuous
+	// distribution on an integer field.
+	prof := withoutCapturedHistogram(coherenceFixtureProfile(t), "score")
 	withNorm := func(expr string) string {
 		if expr == "" {
 			return strings.Replace(canonicalCoherenceRules,

@@ -27,6 +27,7 @@ const (
 	DistRegex               = "regex"
 	DistConstant            = "constant"
 	DistMixture             = "mixture"
+	DistDiscrete            = "discrete"
 	DistSetBernoulli        = "set_bernoulli"
 )
 
@@ -34,7 +35,7 @@ const (
 // Used by the manifest and tests.
 func AllDistributions() []string {
 	out := []string{
-		DistBernoulli, DistConstant, DistExponential, DistLogNormal,
+		DistBernoulli, DistConstant, DistDiscrete, DistExponential, DistLogNormal,
 		DistMixture, DistMonotonicFrom, DistNormal, DistPareto, DistPoisson,
 		DistRegex, DistSetBernoulli, DistUniform, DistUniformDate, DistWeightedCategorical,
 	}
@@ -96,6 +97,8 @@ func buildBaseSampler(f FieldSpec) (sampler, error) {
 		return newWeightedCategoricalSampler(f)
 	case DistMixture:
 		return newMixtureSampler(f)
+	case DistDiscrete:
+		return newDiscreteSampler(f)
 	case DistSetBernoulli:
 		return newSetSampler(f)
 	case DistUniformDate:

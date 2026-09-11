@@ -270,28 +270,44 @@ func latentFor(fs FieldSpec, mean, std float64) (latentFunc, error) {
 //
 // The two sets were identical until a boolean marginal was admitted, and
 // the split is a property of the mathematics rather than a gap waiting
-// to be closed. Every other supported Q is strictly monotone, so a
-// generated value names exactly one latent and the inverse is a
-// reparameterisation. DistBernoulli's Q is a STEP: every latent above
-// the threshold produces the value 1 and every latent below it produces
-// 0, so a 0/1 value carries one bit where the latent carried a real
-// number, and no function of the value can recover it.
+// to be closed. Every INVERTIBLE supported Q is strictly monotone and
+// continuous, so a generated value names exactly one latent and the
+// inverse is a reparameterisation. The two refusals are the two
+// DISCONTINUOUS ones, and they are the same shape at different widths:
+// DistBernoulli's Q is a STEP (every latent above the threshold produces
+// 1, every latent below it produces 0) and DistDiscrete's is a
+// STAIRCASE, of which that step is the two-level case. Either way a
+// generated value pins the latent only to an INTERVAL, and no function
+// of the value can recover the point inside it.
 //
-// The tempting move — placing each arm at the conditional mean of its
-// half (E[u | u > c] and E[u | u <= c], the inverse-Mills construction)
-// — is REJECTED. It returns a two-valued "latent", which makes the
-// recovery refit a linear probability model on two points dressed up as
-// a latent-scale comparison: it would report a large attenuation for a
-// generation path that is exactly correct, which the latent round-trip
-// gate's own comment names as worse than reporting nothing.
+// The tempting move in the boolean case — placing each arm at the
+// conditional mean of its half (E[u | u > c] and E[u | u <= c], the
+// inverse-Mills construction) — is REJECTED. It returns a two-valued
+// "latent", which makes the recovery refit a linear probability model on
+// two points dressed up as a latent-scale comparison: it would report a
+// large attenuation for a generation path that is exactly correct, which
+// the latent round-trip gate's own comment names as worse than reporting
+// nothing. The K-level generalisation (the interval-midpoint probit
+// score, Phi^-1 of each band's midpoint) is a BETTER estimator than that
+// — it is monotone in the value and converges on the exact inverse as
+// the levels multiply — but it still reports attenuation for a
+// generation path that is exactly right, it degenerates to precisely the
+// rejected two-valued construction at K = 2, and choosing per-K would
+// leave this function answering "is it identified" with "sort of". So
+// both discontinuous arms refuse, uniformly.
 //
-// So a modelled bernoulli target gets a fidelity entry carrying its
-// captured coefficients and an `error` saying the recovery is not
-// identified, rather than a fabricated delta. Recovering a probit
-// coefficient properly needs a probit refit, which processing/regression
-// does not offer; when it does, this is the one place that changes.
+// So a modelled bernoulli or discrete target gets a fidelity entry
+// carrying its captured coefficients and an `error` saying the recovery
+// is not identified, rather than a fabricated delta. Recovering an
+// ordered-probit coefficient properly needs an ordered-probit refit,
+// which processing/regression does not offer; when it does, this is the
+// one place that changes.
 func latentInvertible(distribution string) bool {
-	return distribution != DistBernoulli
+	switch distribution {
+	case DistBernoulli, DistDiscrete:
+		return false
+	}
+	return true
 }
 
 // buildCorrelator builds a correlator from correlations — the SURVIVING
@@ -651,6 +667,35 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 			return
 		}
 		mean, std = mc.moments()
+	case DistDiscrete:
+		// A small-integer marginal: the field's own per-level histogram,
+		// captured exactly (SpecFromProfile's discrete arm). Admitted on
+		// the same standard as every other arm here — its moments are
+		// EXACT closed-form sums over the declared support, not an
+		// approximation — and for the same reason bernoulli was: a u4 /
+		// u8 / u16 column is a model TARGET on real survey data (the
+		// motivating cohort's nps is a u4), and refusing it here would
+		// drop the model, which SpecFromProfile's per-target retirement
+		// rule has already traded the field's conditional pair away for.
+		//
+		// Q is a staircase, so the composed draw is an ORDERED PROBIT
+		// rather than a linear model in value space; quantileFor's arm
+		// carries that argument.
+		//
+		// No clamp. hasClamp stays false because Q emits only declared
+		// levels and there is nothing outside the support for a clamp to
+		// pull back — the same relationship bernoulli has with
+		// FieldModelSpec.Min/Max, where applying the model's own bound
+		// is a no-op by construction.
+		var levels discreteLevels
+		if levels, err = parseDiscreteLevels(fs); err != nil {
+			return
+		}
+		mean, std = levels.mean, levels.std
+		// std is 0 for a single-level support — a constant column. Left
+		// unfloored for the same reason bernoulli's is: buildModelDrawers'
+		// std <= 0 guard turns it into a dropped model WITH a warning
+		// rather than an infinite invStd.
 	case DistBernoulli:
 		// A boolean marginal. Admitted so that a packed_bool field —
 		// which SpecFromProfile reconstructs as bernoulli, because its
@@ -766,6 +811,35 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 		lo, hi := mc.bracket()
 		return func(u, p float64) float64 {
 			return mc.quantile(p, lo, hi)
+		}, nil
+	case DistDiscrete:
+		// A STAIRCASE Q — the second non-invertible arm, and the general
+		// form of which bernoulli's step is the two-level special case.
+		//
+		// For the field's own independent draw this is exact: p is Phi(u)
+		// and u is standard normal across rows, so p is uniform on (0,1)
+		// and each level comes out at exactly its declared share. That is
+		// the whole reason a small-integer field is reconstructed this way
+		// rather than as a clamped normal: the writer rounds, and no
+		// continuous marginal survives rounding with its per-level shares
+		// intact (measured on a 7-level scale: 0.2526 -> 0.1373 at the
+		// modal level, with the MEAN still correct to three digits, which
+		// is how it went unnoticed).
+		//
+		// For a MODELLED target the composed draw becomes an ORDERED
+		// PROBIT: the predictors shift the latent, the staircase decides
+		// which level the shifted latent lands on, and the marginal is
+		// held exactly at the captured histogram. Direction and ordering
+		// carry through from the coefficients; magnitude in field units
+		// does NOT, and a coefficient here may not be read as "this many
+		// points on the scale". Same latent-scale caveat as mixture and
+		// bernoulli, on the type family a survey cohort is mostly made of.
+		levels, err := parseDiscreteLevels(fs)
+		if err != nil {
+			return nil, err
+		}
+		return func(u, p float64) float64 {
+			return levels.quantile(p)
 		}, nil
 	case DistBernoulli:
 		// The one arm whose Q is a STEP function, and the one whose
