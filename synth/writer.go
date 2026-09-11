@@ -252,7 +252,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		if err := drawRow(rng, wfs, row, rowNullMask, stages); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
-		ok, evalErr := cons.evaluate(row)
+		ok, evalErr := cons.evaluate(row, rowNullMask)
 		if evalErr != nil {
 			return rowsGenerated, rowsRejected, warnings, evalErr
 		}
