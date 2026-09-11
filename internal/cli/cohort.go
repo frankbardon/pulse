@@ -3,10 +3,10 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -195,7 +195,21 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 		return err
 	}
 
-	f, err := os.Open(includeFrom)
+	// The include-set is a SIDE FILE, not a cohort: an arbitrary
+	// newline-delimited path the caller names on the command line,
+	// resolved against the process working directory. It goes through an
+	// explicitly-constructed afero.NewOsFs() rather than `os` directly —
+	// the convention internal/cli/synth.go already uses for its own side
+	// files (--profile, --rules, --emit-spec) — so the repo rule "do not
+	// bypass afero.Fs" holds literally and the site is greppable with
+	// every other filesystem reach in the CLI.
+	//
+	// It is deliberately NOT the facade's injected fs. That one is rooted
+	// at PULSE_DATA_DIR when the env var is set, so routing a
+	// cwd-relative side-file path through it would silently resolve it
+	// inside the data directory. The cohort at --input goes through the
+	// facade; this does not, and the two are different kinds of path.
+	f, err := afero.NewOsFs().Open(includeFrom)
 	if err != nil {
 		if jsonOut {
 			return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())
