@@ -237,6 +237,33 @@ func validateRules(s *Spec) error {
 	// helper compileConstraints uses. Compiling here is the only way to
 	// keep the refusal eager, and sharing the builder is the only way to
 	// keep "a rule's `when` sees what a constraint sees" true.
+	//
+	// # The programs compiled here are DISCARDED, deliberately
+	//
+	// compileRules compiles the same sources against the same options a
+	// moment later, so every `when` and every `set_expr` is compiled
+	// TWICE per Spec. Handing the applier these programs was considered
+	// and REJECTED, for three reasons and one measurement:
+	//
+	//  1. SpecFromProfile bypasses validateSpec by design, so
+	//     compileRules must be able to compile on its own whatever
+	//     happens here. A cache would be an optional fast path, not a
+	//     removal of the second compile site.
+	//  2. ApplyRulesFile validates a COPY and then replaces Spec.Rules.
+	//     A cache produced by validation is therefore a cache of a
+	//     DIFFERENT rules slice, and the staleness would be silent —
+	//     the applier would run programs compiled from rules the spec no
+	//     longer carries.
+	//  3. Threading it from validateSpec through Synth / SynthBytes /
+	//     AugmentFromProfile into generate() widens the signature of the
+	//     one function whose determinism contract is load-bearing.
+	//
+	// Measured: ~11.4us per expression compile, so a 14-rule candidate
+	// file pays ~160us ONCE per run, against ~1.6s to generate 20,000
+	// rows of the motivating cohort. Two independent compiles are also
+	// what keeps the eager refusal and the applier's own refusal PROVEN
+	// to agree rather than assumed to
+	// (TestCompileRules_RefusesIndependentlyOfValidateRules).
 	env, names := rowExprEnv(s.Fields)
 	probe := &compiledConstraints{fields: names}
 	whenOpts := rowExprOptions(env, names, probe.isnullBuiltin, expr.AsBool())

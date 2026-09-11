@@ -3,6 +3,8 @@ package synth
 import (
 	"strings"
 	"testing"
+
+	"github.com/frankbardon/pulse/errors"
 )
 
 // The pre-rounding classifier decides one thing: whether a comparison in
@@ -211,6 +213,69 @@ func TestNeverFiredWarning_DoesNotSendANormalisedGateBackToRound(t *testing.T) {
 		}
 		if !strings.Contains(w, "pre-rounding is NOT the cause") {
 			t.Errorf("the message must state the exactness it found: %q", w)
+		}
+	}
+}
+
+// TestCompileRules_RefusesIndependentlyOfValidateRules is FU-17's close.
+//
+// `set_expr` and `when` are compiled TWICE per Spec — once by
+// validateRules (to keep the refusal EAGER, at spec parse) and once by
+// compileRules (to build the pass). Handing the applier validation's
+// programs was rejected: SpecFromProfile bypasses validateSpec entirely,
+// so compileRules must compile on its own regardless; ApplyRulesFile
+// validates a COPY and then replaces Spec.Rules, so a validation-built
+// cache would be a cache of a different rules slice and its staleness
+// would be silent; and the measured cost is ~11.4us per expression, so a
+// 14-rule candidate file pays ~160us once per run against ~1.6s to
+// generate 20,000 rows. The reasoning lives at validateRules.
+//
+// This test pins the property that makes the duplication worth its
+// price, and the property a shared cache would quietly remove: the
+// applier's own refusal is INDEPENDENT and reaches the same coded error,
+// with the same rule index and the same slot, on a Spec that never went
+// through validateSpec. Sharing the programs would make this path stop
+// refusing, which is exactly the "must not weaken the eager-validation
+// contract" condition — asserted rather than promised.
+func TestCompileRules_RefusesIndependentlyOfValidateRules(t *testing.T) {
+	// Reaches compileRules WITHOUT validateSpec, the SpecFromProfile
+	// shape. `nps * ` does not parse, so both compile sites must refuse.
+	spec := ruleSpecFixture(
+		RuleSpec{SetNull: []string{"score"}},
+		RuleSpec{When: "nps * ", SetNull: []string{"nps"}},
+	)
+
+	validateErr := validateRules(spec)
+	if validateErr == nil {
+		t.Fatal("validateRules accepted an uncompilable when")
+	}
+
+	_, wfs, err := buildSchema(spec)
+	if err != nil {
+		t.Fatalf("buildSchema: %v", err)
+	}
+	_, _, compileErr := compileRules(spec.Rules, wfs)
+	if compileErr == nil {
+		t.Fatal("compileRules accepted an uncompilable when: the applier no longer compiles for itself, " +
+			"so a Spec that bypassed validateSpec (SpecFromProfile) reaches the row loop with a broken rule")
+	}
+
+	for _, tc := range []struct {
+		who string
+		err error
+	}{{"validateRules", validateErr}, {"compileRules", compileErr}} {
+		coded, ok := tc.err.(*errors.CodedError)
+		if !ok {
+			t.Fatalf("%s returned %T, want a *errors.CodedError", tc.who, tc.err)
+		}
+		if coded.Code != errors.PULSE_SYNTH_RULE_EXPR_INVALID {
+			t.Errorf("%s: code %v, want PULSE_SYNTH_RULE_EXPR_INVALID", tc.who, coded.Code)
+		}
+		if got := coded.Details[errors.DetailSynthRule]; got != 1 {
+			t.Errorf("%s: rule index %v, want 1", tc.who, got)
+		}
+		if got := coded.Details[errors.DetailSynthRuleSlot]; got != "when" {
+			t.Errorf("%s: slot %v, want \"when\"", tc.who, got)
 		}
 	}
 }
