@@ -5,6 +5,7 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 )
 
@@ -79,14 +80,26 @@ type ruleAssign struct {
 	value any
 }
 
+// ruleExprAssign is one compiled `set_expr` assignment: a target field,
+// the program, and everything the coercion needs resolved ONCE at
+// compile time (the FieldSpec and its FieldType), so the per-row path
+// does no lookup.
+type ruleExprAssign struct {
+	field string
+	spec  FieldSpec
+	ft    encoding.FieldType
+	prog  *vm.Program
+	src   string
+}
+
 // compiledRule is one RuleSpec with its predicate compiled and every
 // iteration order it needs frozen into a slice.
 //
-// set_expr and null_together are deliberately ABSENT: they are validated
-// (synth/rules.go) and not yet applied. A rule declaring only those two
-// slots compiles to nothing at all and is skipped — including its
-// `when`, which has no action to gate and whose evaluation could only
-// fail a run that is otherwise inert.
+// null_together is deliberately ABSENT: it is validated (synth/rules.go)
+// and not yet applied (E1-S5). A rule declaring only that slot compiles
+// to nothing at all and is skipped — including its `when`, which has no
+// action to gate and whose evaluation could only fail a run that is
+// otherwise inert.
 type compiledRule struct {
 	// index is the rule's position in Spec.Rules, carried because a rule
 	// has no name of its own and the index is the only handle back to
@@ -97,23 +110,32 @@ type compiledRule struct {
 	// below is a belt-and-braces check rather than the contract.
 	when    *vm.Program
 	whenSrc string
-	// setNull is in DECLARATION order; set is in SORTED-KEY order.
+	// setNull is in DECLARATION order; set and setExpr are in
+	// SORTED-KEY order.
 	//
-	// Rules are applied in declaration order with last write wins, but
-	// the order WITHIN one rule's `set` is not observable in the output
-	// today and the sort is not what makes the file deterministic: a Go
-	// map cannot name one field twice, so two assignments in one rule
-	// always target different fields, and validateRules refuses the one
-	// rule that could self-contradict (`set` and `set_null` naming the
-	// same field). It is frozen into a slice anyway for two reasons that
-	// are not decoration — the `sortedKeys` walk is the package's
-	// standing rule for reaching a map at all (validateRules relies on
-	// it for the much stronger property that a rule with two faults
-	// refuses the SAME one on every run), and `set_expr` (E1-S4) READS
-	// the row, at which point the order within a rule becomes observable
-	// and would otherwise become map-seed dependent on the day it lands.
+	// E1-S3 froze these into slices expecting `set_expr` to make the
+	// order WITHIN one rule observable, and reported honestly that it
+	// could not falsify the sort — a Go map cannot name one field twice,
+	// so two assignments in one rule always target different fields.
+	// E1-S4 answered the question a different way (see apply's SNAPSHOT
+	// paragraph): intra-rule order is not observable in the OUTPUT at
+	// all. The sort survives for two reasons that are not decoration —
+	// `sortedKeys` is the package's standing rule for reaching a map at
+	// all (validateRules relies on it so a rule with two faults refuses
+	// the SAME one on every run), and a rule whose set_expr results BOTH
+	// fail at row time must report the same one on every run for exactly
+	// the same reason.
 	setNull []string
 	set     []ruleAssign
+	setExpr []ruleExprAssign
+
+	// exprBuf holds this rule's evaluated set_expr results between the
+	// snapshot phase and the write phase. Allocated ONCE at compile
+	// time, len(setExpr), reused on every row — the pass allocates
+	// nothing per row of its own. (expr.Run's own allocations are
+	// inherent to evaluation and are the ones `when` has made since
+	// E1-S3.)
+	exprBuf []any
 }
 
 // ruleApplier is the compiled, per-Spec rule pass. Built once in
@@ -153,7 +175,15 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	env, names := rowExprEnv(specs)
 
 	applier := &ruleApplier{nullState: &compiledConstraints{fields: names}}
-	opts := rowExprOptions(env, names, applier.nullState.isnullBuiltin, expr.AsBool())
+	// Two option sets over ONE environment: a `when` must return a bool
+	// and says so with expr.AsBool(), while a `set_expr` value
+	// expression deliberately does not constrain its return type — what
+	// the result may be is the coercion matrix's question, answered
+	// against the TARGET, and expr.AsBool() here would refuse
+	// `{"set_expr": {"score": "nps * 2"}}` at compile time for returning
+	// the very thing it is supposed to return.
+	whenOpts := rowExprOptions(env, names, applier.nullState.isnullBuiltin, expr.AsBool())
+	valueOpts := rowExprOptions(env, names, applier.nullState.isnullBuiltin)
 
 	var warnings []string
 	for i, r := range rules {
@@ -180,14 +210,37 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 			}
 			cr.set = append(cr.set, ruleAssign{field: name, value: value})
 		}
+		for _, name := range sortedKeys(r.SetExpr) {
+			f, ok := byName[name]
+			if !ok {
+				continue
+			}
+			ft, known := fieldTypeFromName(f.Type)
+			if !known {
+				// buildSchema refuses this field on its own terms; see
+				// validateRuleLiteral for why the rule is not blamed.
+				continue
+			}
+			prog, err := expr.Compile(r.SetExpr[name], valueOpts...)
+			if err != nil {
+				// Unreachable via validateSpec, which compiles the same
+				// source against the same options.
+				return nil, nil, ruleError(errors.PULSE_SYNTH_RULE_EXPR_INVALID, i, "set_expr", name,
+					fmt.Sprintf("rule set_expr[%q] = %q does not compile: %v", name, r.SetExpr[name], err))
+			}
+			cr.setExpr = append(cr.setExpr, ruleExprAssign{
+				field: name, spec: f, ft: ft, prog: prog, src: r.SetExpr[name],
+			})
+		}
+		cr.exprBuf = make([]any, len(cr.setExpr))
 
-		// A rule whose only slots are set_expr / null_together is INERT
-		// at this story: nothing to do, so nothing to gate either.
-		if len(cr.setNull) == 0 && len(cr.set) == 0 {
+		// A rule whose only slot is null_together is INERT at this
+		// story: nothing to do, so nothing to gate either.
+		if len(cr.setNull) == 0 && len(cr.set) == 0 && len(cr.setExpr) == 0 {
 			continue
 		}
 		if r.When != "" {
-			prog, err := expr.Compile(r.When, opts...)
+			prog, err := expr.Compile(r.When, whenOpts...)
 			if err != nil {
 				// Unreachable via validateSpec, which compiles the same
 				// source against the same options. Returned rather than
@@ -239,10 +292,45 @@ func ruleNonNullableWarning(idx int, field string) string {
 //     states a field's value is stating the field HAS one; leaving a
 //     drawn null in the mask would write 0 to the wire and the literal
 //     would silently vanish.
+//   - set_expr evaluates, coerces the result to the target's type
+//     (synth/rules_coerce.go) and then writes exactly as set does,
+//     clearing the mask for the same reason.
 //
-// The two therefore compose symmetrically under declaration order: a
+// The three therefore compose symmetrically under declaration order: a
 // set_null followed by a set yields the value, a set followed by a
 // set_null yields the null.
+//
+// # SNAPSHOT: a rule reads the row as it was BEFORE the rule ran
+//
+// Every expression in ONE rule — the `when` and every `set_expr` — is
+// evaluated against the row as it stands when the RULE starts, and only
+// then are that rule's writes applied. `UPDATE t SET a = b, b = a`
+// swaps; so does `{"set_expr": {"a": "b", "b": "a"}}`. Across rules
+// nothing changes: they are sequential and last write wins, so a
+// `set_expr` reading a field an EARLIER rule wrote sees the new value
+// and one reading a field a LATER rule will write sees the old one.
+//
+// This is E1-S4's answer to the question E1-S3 left open, and it is a
+// DECISION. The alternative — evaluate and assign key by key, in the
+// sorted order the compiled slices carry — was rejected because the
+// order it would expose is not one an author can SEE: a rule's slots
+// are Go maps, JSON object order is gone by the time the document is
+// decoded, and the surviving order is ALPHABETICAL. Under that reading
+// `{"set_expr": {"a": "b + 1", "b": "0"}}` depends on the spelling of
+// the field names, and renaming a column silently changes a number.
+// Snapshot semantics removes the question instead of answering it
+// badly: intra-rule order is UNOBSERVABLE, so there is nothing to get
+// wrong and nothing to document beyond this paragraph.
+//
+// Refusing intra-rule reads outright was the third option and is
+// strictly worse: `{"set_expr": {"nps": "nps + 1"}}` — a field derived
+// from its own drawn value — is the most natural thing an author
+// writes, and any refusal broad enough to be stateable also refuses it.
+//
+// The three write sets within one rule are pairwise disjoint by
+// validation (PULSE_SYNTH_RULE_CONFLICT refuses a field named in two of
+// set / set_expr / set_null), so the order of the three write loops
+// below is unobservable too.
 func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error {
 	if a == nil {
 		return nil
@@ -279,12 +367,39 @@ func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error 
 				continue
 			}
 		}
+		// PHASE 1 — evaluate every set_expr against the row as it
+		// stands before this rule writes anything. See the SNAPSHOT
+		// paragraph above for why this is a phase and not a loop body.
+		for j := range r.setExpr {
+			ea := &r.setExpr[j]
+			out, err := expr.Run(ea.prog, row)
+			if err != nil {
+				return errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
+					fmt.Sprintf("rule %d: evaluating set_expr[%q] = %q: %v", r.index, ea.field, ea.src, err),
+					map[string]any{
+						errors.DetailSynthRule:     r.index,
+						errors.DetailSynthRuleSlot: "set_expr",
+						"field":                    ea.field,
+						"expr":                     ea.src,
+					})
+			}
+			value, err := ruleExprRowValue(ea.field, ea.spec, ea.ft, out)
+			if err != nil {
+				return ruleExprResultError(r.index, ea.field, ea.src, out, err)
+			}
+			r.exprBuf[j] = value
+		}
+		// PHASE 2 — the rule's writes.
 		for _, name := range r.setNull {
 			nullMask[name] = true
 		}
 		for _, as := range r.set {
 			row[as.field] = as.value
 			delete(nullMask, as.field)
+		}
+		for j := range r.setExpr {
+			row[r.setExpr[j].field] = r.exprBuf[j]
+			delete(nullMask, r.setExpr[j].field)
 		}
 	}
 	return nil

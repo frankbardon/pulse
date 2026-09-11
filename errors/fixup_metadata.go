@@ -558,12 +558,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SYNTH_RULE_VALUE_INVALID: {
-		Message: "A synth rule's `set` literal cannot be written to its target field: wrong JSON shape, a number outside the field type's range, or a value outside the domain the field's distribution declares.",
+		Message: "The value a synth rule wants to write cannot be written to its target field: wrong shape, a number outside the field type's range, or a value outside the domain the field's distribution declares. `details.slot` says whether it came from a `set` literal or a `set_expr` result.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Rules", "*", "Set"},
 				Hint:   "Match the literal to the target field's type: a number (or true/false) for a scalar, within that type's range; a declared `params.values` entry for a categorical_*; an array of declared `params.options` for a set_*.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Match the expression's RESULT to the target: a bool (lands as 1/0) or a number for any scalar, in that type's range; a declared category string for a categorical_*; a list of declared options for a set_*. A decimal128 takes a number from an expression and an exact string only from `set`.",
 			},
 		},
 	},

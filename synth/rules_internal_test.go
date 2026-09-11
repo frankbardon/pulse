@@ -66,6 +66,16 @@ func TestValidateRules_Matrix(t *testing.T) {
 		{"set exact decimal string", RuleSpec{Set: map[string]any{"cents": "1.25"}}, ""},
 		{"set_expr compiles", RuleSpec{SetExpr: map[string]string{"score": "nps * 2"}}, ""},
 		{"set_expr may return bool", RuleSpec{SetExpr: map[string]string{"aware": "nps >= 9"}}, ""},
+		{"set_expr may return an int", RuleSpec{SetExpr: map[string]string{"nps": "int(nps)"}}, ""},
+		{"set_expr may read its own target", RuleSpec{SetExpr: map[string]string{"nps": "nps"}}, ""},
+		{"set_expr may read a field the same rule writes",
+			RuleSpec{SetExpr: map[string]string{"nps": "score", "score": "nps"}}, ""},
+		{"set_expr may return a number for a decimal128 target",
+			RuleSpec{SetExpr: map[string]string{"cents": "score * 2"}}, ""},
+		{"set_expr may return a string for a declared categorical",
+			RuleSpec{SetExpr: map[string]string{"region": `nps >= 9 ? "west" : "east"`}}, ""},
+		{"set_expr with an unknowable return type defers to run time",
+			RuleSpec{SetExpr: map[string]string{"score": `nps >= 9 ? 1 : "x"`}}, ""},
 		{"when reads isnull", RuleSpec{When: "isnull(score)", SetNull: []string{"nps"}}, ""},
 		// The STRING form of isnull is a deliberate run-time refusal (see
 		// isnullBuiltin): only the bare-identifier form is patched, and
@@ -109,6 +119,28 @@ func TestValidateRules_Matrix(t *testing.T) {
 			RuleSpec{SetExpr: map[string]string{"score": "nps +"}}, errors.PULSE_SYNTH_RULE_EXPR_INVALID},
 		{"set_expr names an undeclared field",
 			RuleSpec{SetExpr: map[string]string{"score": "nosuch * 2"}}, errors.PULSE_SYNTH_RULE_EXPR_INVALID},
+
+		// --- set_expr return type, knowable at parse ------------------
+		// expr type-checks against the row environment, so a return type
+		// NO value could coerce to its target is refusable here, before a
+		// row exists. A fault only a VALUE settles (a number out of
+		// range, a category outside the declared domain) is NOT — see
+		// TestRules_SetExprTimingSplit for that half, which is the one
+		// this table cannot express.
+		{"set_expr returns a string for a numeric target",
+			RuleSpec{SetExpr: map[string]string{"score": `"1.5"`}}, errors.PULSE_SYNTH_RULE_VALUE_INVALID},
+		{"set_expr returns a number for a categorical target",
+			RuleSpec{SetExpr: map[string]string{"region": "nps * 2"}}, errors.PULSE_SYNTH_RULE_VALUE_INVALID},
+		{"set_expr returns a bool for a categorical target",
+			RuleSpec{SetExpr: map[string]string{"region": "nps >= 9"}}, errors.PULSE_SYNTH_RULE_VALUE_INVALID},
+		{"set_expr returns a number for a set target",
+			RuleSpec{SetExpr: map[string]string{"brands": "nps"}}, errors.PULSE_SYNTH_RULE_VALUE_INVALID},
+		{"set_expr returns a set selection for a numeric target",
+			RuleSpec{SetExpr: map[string]string{"score": "brands"}}, errors.PULSE_SYNTH_RULE_VALUE_INVALID},
+		// The decision, not an oversight: a decimal128 takes an exact
+		// string only from a `set` LITERAL. See ruleValueFault.
+		{"set_expr returns a string for a decimal128 target",
+			RuleSpec{SetExpr: map[string]string{"cents": `"1.25"`}}, errors.PULSE_SYNTH_RULE_VALUE_INVALID},
 
 		// --- literal range / domain -----------------------------------
 		{"u4 literal over range", RuleSpec{Set: map[string]any{"nps": 16.0}}, errors.PULSE_SYNTH_RULE_VALUE_INVALID},

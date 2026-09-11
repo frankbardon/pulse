@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 )
@@ -190,9 +191,13 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, whenOpts, va
 		}
 	}
 	for _, name := range sortedKeys(r.SetExpr) {
-		if _, err := expr.Compile(r.SetExpr[name], valueOpts...); err != nil {
+		prog, err := expr.Compile(r.SetExpr[name], valueOpts...)
+		if err != nil {
 			return ruleError(errors.PULSE_SYNTH_RULE_EXPR_INVALID, idx, "set_expr", name,
 				fmt.Sprintf("rule set_expr[%q] = %q does not compile: %v", name, r.SetExpr[name], err))
+		}
+		if err := validateRuleExpr(idx, name, prog, byName[name]); err != nil {
+			return err
 		}
 	}
 
@@ -228,10 +233,16 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, whenOpts, va
 }
 
 // validateRuleLiteral refuses a `set` literal the target field cannot
-// hold. Three shapes, one per row-value class (the same three classes
-// sentinelFor derives): a scalar takes a number or a bool, a
-// categorical_* takes a declared category string, a set_* takes an array
-// of declared options.
+// hold. It is a THIN WRAPPER over ruleValueFault (synth/rules_coerce.go),
+// the one coercion matrix a `set` literal and a `set_expr` result share
+// — a literal is refused at parse for BOTH fault kinds, because the
+// value is right there in the document.
+//
+// The matrix used to live here, inlined. It moved when set_expr went
+// live and needed the same answers: two copies of a type/range/domain
+// table is exactly the shape E1-S6 exists because of, and here a
+// disagreement would be silent (a u4 taking 16 is masked to its low
+// nibble and stored as 0, which is a real value).
 //
 // A field whose declared `type` is not a name fieldTypeFromName knows is
 // SKIPPED here rather than reported as a rule fault — buildSchema
@@ -243,67 +254,42 @@ func validateRuleLiteral(idx int, name string, value any, f FieldSpec) error {
 	if !ok {
 		return nil
 	}
-	fail := func(format string, args ...any) error {
-		return ruleError(errors.PULSE_SYNTH_RULE_VALUE_INVALID, idx, "set", name,
-			fmt.Sprintf(format, args...))
+	kind, reason, err := ruleValueFault("set", name, f, ft, value, false)
+	if err != nil {
+		return err
 	}
-	switch {
-	case ft.IsCategorical():
-		s, isStr := value.(string)
-		if !isStr {
-			return fail("rule set[%q]: categorical field needs a string literal, got %T", name, value)
-		}
-		if domain, bounded := declaredCategoricalDomain(f); bounded && !containsString(domain, s) {
-			return fail("rule set[%q] = %q is not one of the field's declared values %v", name, s, domain)
-		}
-		return nil
-	case ft.IsSet():
-		arr, isArr := value.([]any)
-		if !isArr {
-			return fail("rule set[%q]: set field needs an array of option strings, got %T", name, value)
-		}
-		options, _, err := paramStringSlice(f.Name, f.Params, "options")
-		if err != nil {
-			return err
-		}
-		for j, e := range arr {
-			s, isStr := e.(string)
-			if !isStr {
-				return fail("rule set[%q][%d]: set option must be a string, got %T", name, j, e)
-			}
-			if len(options) > 0 && !containsString(options, s) {
-				return fail("rule set[%q][%d] = %q is not one of the field's declared options %v", name, j, s, options)
-			}
-		}
-		return nil
-	default:
-		// Scalar class. A bool is legal on every scalar target and means
-		// 1/0 — the same coercion the rule pass applies to a bool
-		// `set_expr` result — so `{"set": {"flag": true}}` on a
-		// packed_bool reads the way an author writes it.
-		if _, isBool := value.(bool); isBool {
-			return nil
-		}
-		num, isNum := literalFloat(value)
-		if !isNum {
-			// decimal128 is the one scalar that takes a string, and it
-			// takes it EXACTLY (encoding.ParseDecimal128, no float
-			// round trip). Range is the decimal codec's business.
-			if _, isStr := value.(string); isStr && ft.IsDecimal() {
-				return nil
-			}
-			return fail("rule set[%q]: %s field needs a number or a bool, got %T", name, f.Type, value)
-		}
-		if math.IsNaN(num) || math.IsInf(num, 0) {
-			return fail("rule set[%q]: %s field cannot hold %v", name, f.Type, value)
-		}
-		lo, hi, bounded := scalarRange(ft)
-		if bounded && (num < lo || num > hi) {
-			return fail("rule set[%q] = %v is outside the representable range [%v, %v] of %s",
-				name, num, lo, hi, f.Type)
-		}
+	if kind == ruleFaultNone {
 		return nil
 	}
+	return ruleError(errors.PULSE_SYNTH_RULE_VALUE_INVALID, idx, "set", name, reason)
+}
+
+// validateRuleExpr refuses, AT SPEC PARSE, a `set_expr` whose inferred
+// return type no value could coerce to its target.
+//
+// The timing split is the story's own rule: expr type-checks against the
+// row environment, so `{"set_expr": {"region": "nps * 2"}}` is knowably
+// impossible before a row exists and must not generate 400,000 rows
+// first. A fault only a VALUE settles — a number out of the type's
+// range, a computed category outside the declared domain — cannot be
+// seen here and is refused at row time by the same matrix.
+//
+// prog is the already-compiled program; its Node carries the type expr
+// inferred. An interface{} type is expr saying it could not infer, and
+// defers whole.
+func validateRuleExpr(idx int, name string, prog *vm.Program, f FieldSpec) error {
+	ft, ok := fieldTypeFromName(f.Type)
+	if !ok {
+		return nil
+	}
+	node := prog.Node()
+	if node == nil {
+		return nil
+	}
+	if err := ruleExprStaticFault(name, f, ft, node.Type()); err != nil {
+		return ruleError(errors.PULSE_SYNTH_RULE_VALUE_INVALID, idx, "set_expr", name, err.Error())
+	}
+	return nil
 }
 
 // scalarRange returns the inclusive value range a scalar field type can

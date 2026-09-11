@@ -275,11 +275,20 @@ const (
 	// coerced.
 	PULSE_SYNTH_RULE_EXPR_INVALID Code = "PULSE_SYNTH_RULE_EXPR_INVALID"
 
-	// PULSE_SYNTH_RULE_VALUE_INVALID indicates a rule's `set` literal
-	// cannot be written to its target field: the wrong JSON shape for
+	// PULSE_SYNTH_RULE_VALUE_INVALID indicates the value a rule wants to
+	// write cannot be written to its target field: the wrong shape for
 	// the field type, a number outside the type's representable range,
 	// or a categorical / set value outside the domain the field's own
 	// distribution declares.
+	//
+	// It covers BOTH ways a rule produces a value — a `set` LITERAL out
+	// of the document and a `set_expr` RESULT out of an expression —
+	// because both go through one coercion matrix and the fault is the
+	// same concept either way. `details.slot` says which. A literal is
+	// always refused at spec parse; a computed value is refused at spec
+	// parse when the expression's RETURN TYPE settles it and at row time
+	// when only the value can (a number out of range, a computed
+	// category outside the declared domain).
 	PULSE_SYNTH_RULE_VALUE_INVALID Code = "PULSE_SYNTH_RULE_VALUE_INVALID"
 
 	// PULSE_SYNTH_RULE_EMPTY indicates a rule declares no action slot at

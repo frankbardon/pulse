@@ -171,9 +171,9 @@ one pass at the very end of the row — after every distribution, pair,
 correlation and model has settled. So a gated field is still *generated*
 normally and the rule then masks or replaces it on the rows `when`
 selects; rows the rule does not gate keep the value generation inferred.
-An expression reads whatever the row holds at that moment, which a later
-rule may still change. Rules are deliberately **not** reordered by
-dependency: declaration order is the one ordering you can read off the
+An expression reads the row as it stood when **its rule** started, and a
+later rule may still change it. Rules are deliberately **not** reordered
+by dependency: declaration order is the one ordering you can read off the
 file.
 
 Running the pass last is what makes `if gate then null else inferred`
@@ -184,19 +184,82 @@ on that row — the propensity existed, the question was not asked.
 
 `set_null` sets the null flag and leaves the drawn value in the row; the
 file gets the type's zero, so a masked value never reaches the wire.
-`set` writes the value and clears the null flag, because a rule stating a
-field's value is stating the field has one. So `set_null` then `set`
-yields the value, and `set` then `set_null` yields the null.
+`set` and `set_expr` write the value and clear the null flag, because a
+rule stating a field's value is stating the field has one. So `set_null`
+then `set` yields the value, and `set` then `set_null` yields the null.
 
 The pass consumes no randomness: a spec carrying rules draws exactly the
 same per-row sequence as the same spec without them, and a spec
 declaring no rules generates byte-identical output to one written before
 the slot existed.
 
-`set_expr` and `null_together` are **validated but not yet applied**. A
-rule whose only slots are those two is skipped entirely — its `when` is
-not evaluated either — so an unimplemented slot cannot fail a working
-run.
+`null_together` is **validated but not yet applied**. A rule whose only
+slot is that one is skipped entirely — its `when` is not evaluated
+either — so an unimplemented slot cannot fail a working run.
+
+### `set_expr` and the coercion matrix
+
+`set_expr` assigns what an expression computes from the row, which
+collapses a derived-field relationship from several `when`-gated rules
+into one unconditional rule:
+
+```json
+{"set_expr": {"promoter":  "nps >= 9",
+              "passive":   "nps >= 7 && nps < 9",
+              "detractor": "nps < 7"}}
+```
+
+It writes the value and clears the null flag exactly as `set` does.
+
+An expression returns a Go value and the target field is one of the
+seventeen declarable types, so the interesting surface is **which
+results can land on which targets**. Getting a cell of that wrong is a
+silent wrong value — a `true` reaching a `u8` as a formatted string
+would encode as `0` — so the whole matrix is written down:
+
+| expression result | scalar target | `categorical_*` | `set_*` |
+|---|---|---|---|
+| `true` / `false`                    | **1 / 0**                   | refused | refused |
+| a number                            | the number, **range-checked** | refused | refused |
+| a string                            | refused (see below)         | must be a **declared** value | refused |
+| a selection (another `set_*` field, a list of option names, `split()`) | refused | refused | the selection |
+
+*Scalar* means `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date`
+`packed_bool` `decimal128`. The range is the same one a `set` literal
+obeys — `u4` is 0–15, `packed_bool` is 0–1 — because both go through one
+implementation; `NaN` and infinities are refused. *Declared* means an
+entry in a `weighted_categorical`'s `params.values`, or in a `set_*`'s
+`params.options`; a `regex` or `constant` categorical has no declarable
+domain, so any string is accepted there.
+
+**A `decimal128` takes an exact string only from `set`, never from
+`set_expr`.** A literal like `"1.25"` is parsed exactly, with no float
+round trip. An expression cannot offer that — `expr` sees the field as
+the `float64` the row holds, so anything computed already lost the
+digits — and a string left in the row for a field the expression
+environment types as a number would break the *next* rule that reads it,
+on gated rows only. Write the literal with `set`.
+
+**Two timings, one error.** A result type that could never land is
+refused when the spec is parsed, before a single row is generated:
+`{"set_expr": {"region": "nps * 2"}}` is a number aimed at a
+categorical, and `expr` knows that from the types. A fault only a
+*value* can settle — a number outside the target's range, a computed
+category outside the declared domain — is refused at row time, because
+that is the first moment it exists. Both are
+`PULSE_SYNTH_RULE_VALUE_INVALID` and both name the rule index, the slot,
+the field, the expression and the value.
+
+**Inside one rule, order does not exist.** Every expression in a rule —
+its `when` included — reads the row as it was *before* the rule ran, and
+all of that rule's writes land afterwards. `{"set_expr": {"a": "b", "b":
+"a"}}` swaps the two, the way a SQL `UPDATE` does. A `set` literal in
+the same rule is **not** visible to a sibling `set_expr`. Reading the
+target's own drawn value (`{"set_expr": {"nps": "nps + 1"}}`) works.
+The alternative would have been alphabetical key order, which is not
+something you can read off a JSON document and which would make renaming
+a column change a number. *Across* rules nothing changed: an expression
+sees what an earlier rule wrote and not what a later one will.
 
 Expressions are the same `expr-lang` environment `constraints[]` uses —
 every scalar including a boolean is a number (`flag == 1`, never bare
@@ -223,13 +286,35 @@ flag — indistinguishable from a real `0` on a `u4` or a `packed_bool`.
 The rule fires and the file cannot show it, so the run emits a warning
 naming the rule index and the field. Declare the field nullable.
 
-**`when` sees the pre-rounding value.** A numeric field is drawn as a
-float and rounded on the way to the file, so `familiarity == 1` tests
-the *drawn* value, not the `1` you read back: for a clamped `normal` it
-fires on the clamp's point mass, not on the whole wire-value-1 bucket.
-Use comparisons (`nps >= 9`) for numerics. A `packed_bool` is exact —
-its row value is exactly `1.0` or `0.0`, so `aware == 0` selects
-precisely the rows the file shows as `0`.
+**`when` and `set_expr` see the pre-rounding value.** A numeric field is
+drawn as a float and rounded on the way to the file, so `familiarity ==
+1` tests the *drawn* value, not the `1` you read back: for a clamped
+`normal` it fires on the clamp's point mass, not on the whole
+wire-value-1 bucket. Use comparisons (`nps >= 9`) for numerics. A
+`packed_bool` is exact — its row value is exactly `1.0` or `0.0`, so
+`aware == 0` selects precisely the rows the file shows as `0`.
+
+It bites `set_expr` harder than `when`, because the result still looks
+right. The three-band NPS rule above, written straight off `nps`, sets
+exactly one flag on every scored row — it simply disagrees with the
+score printed beside it whenever the float and its rounding fall on
+opposite sides of a band edge. Measured on a real 122-field survey
+profile at 20,000 rows: 476 of 3,486 scored rows, 13.7%. Normalise
+first, in an **earlier** rule, because snapshot semantics means the same
+rule will not do:
+
+```json
+"rules": [
+  {"when": "!isnull(nps)", "set_expr": {"nps": "int(nps)"}},
+  {"when": "!isnull(nps)", "set_expr": {"promoter":  "nps >= 9",
+                                        "passive":   "nps >= 7 && nps < 9",
+                                        "detractor": "nps < 7"}}
+]
+```
+
+The `when` matters too: a `set_expr` clears the target's null flag, so an
+ungated rule would un-null every row the score was missing from and
+classify a respondent who was never asked.
 
 Rules apply to **generated rows only**. `synth from-profile --source`
 copies the real cohort through unchanged and tags it `_synthetic=false`;
