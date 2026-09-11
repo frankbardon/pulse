@@ -115,16 +115,22 @@ func TestRules_AbsentSlotRoundTripsByteIdentically(t *testing.T) {
 	}
 }
 
-// TestRules_ValidateAndDoNothing is the SCOPE BOUNDARY of this story and
-// the precondition of the next one's byte-identity gate. A declared rule
-// is fully validated and applied to no row: the generated file is
-// byte-identical to the same spec with the rules removed.
+// TestRules_ValidateAndApply asserts the two halves of the slot being
+// LIVE, over one spec, because each is trivially satisfiable by
+// abandoning the other: a validator that refuses nothing also changes no
+// bytes, and a pass that rewrites every row also refuses nothing.
 //
-// Both halves matter and each is trivially satisfiable by abandoning the
-// other — a validator that refuses nothing would also change no bytes,
-// and a slot that is ignored entirely would also produce identical bytes
-// — so the inert half is asserted beside a refusal over the SAME spec.
-func TestRules_ValidateAndDoNothing(t *testing.T) {
+// This REPLACES E1-S2's TestRules_ValidateAndDoNothing. That test
+// asserted a declared rule changed NO bytes — the correct state while
+// rules validated and did nothing — and this story makes it false by
+// design. The property worth keeping from it is ADDITIVITY, and it is
+// re-stated where it is still true and strictly stronger: against a
+// spec declaring NO rules, pinned to the pre-story bytes, in
+// TestRules_RulesFreeSpecIsByteIdenticalToPreStory
+// (synth/rules_apply_test.go). Pinning there rather than comparing two
+// sibling runs matters — a sibling comparison passes even when both
+// sides regress together.
+func TestRules_ValidateAndApply(t *testing.T) {
 	withRules, err := synth.ParseSpec([]byte(rulesSpecJSON))
 	if err != nil {
 		t.Fatalf("ParseSpec: %v", err)
@@ -143,9 +149,31 @@ func TestRules_ValidateAndDoNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SynthBytes without rules: %v", err)
 	}
-	if !bytes.Equal(ruled, plain) {
-		t.Fatalf("a declared rule changed %d bytes; at this story rules validate and apply to no row",
-			byteDiffCount(ruled, plain))
+	if bytes.Equal(ruled, plain) {
+		t.Fatal("a declared rule changed nothing; rules are applied from this story on")
+	}
+	// The applied rule is rulesSpecJSON's first: `when aware == 0` ->
+	// null the perception block and set region. Every row it gates must
+	// show BOTH effects, and every row it does not must show neither
+	// forced region nor a rule-sourced null beyond the fields' own
+	// null_rate.
+	aware := readF64Field(t, ruled, "aware")
+	region := readCategoricalField(t, ruled, "region")
+	gated := 0
+	for i := range aware {
+		if aware[i] != 0 {
+			continue
+		}
+		gated++
+		if region[i] != "east" {
+			t.Fatalf("row %d: gated region = %q, want the rule literal east", i, region[i])
+		}
+	}
+	if gated == 0 {
+		t.Fatal("fixture degenerate: no row satisfied the rule when")
+	}
+	if n := readNullCountForField(t, ruled, "perception_a"); n < gated {
+		t.Fatalf("perception_a null count = %d, want at least the %d gated rows", n, gated)
 	}
 
 	// ...and the validator over that same spec is live: break one rule

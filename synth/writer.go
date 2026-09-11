@@ -237,6 +237,18 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	}
 	warnings = append(warnings, residualWarnings...)
 
+	// The rule pass is compiled LAST because it is the last stage to
+	// run, and its warnings follow every other stage's for the same
+	// causal-order reason the model warnings follow the arbitration
+	// ones. It reaches every generation path: AugmentFromProfile calls
+	// generate() for its GENERATED partition only, so rules never touch
+	// the copied `_synthetic=false` source rows.
+	rules, ruleWarnings, err := compileRules(s.Rules, wfs)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	warnings = append(warnings, ruleWarnings...)
+
 	stages := &rowStages{
 		catPairs:    buildCategoricalPairSamplers(conflicts.catPairs),
 		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs),
@@ -246,6 +258,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		corr:        corr,
 		models:      models,
 		residual:    residual,
+		rules:       rules,
 	}
 
 	for rowsGenerated < s.RowCount {
@@ -307,6 +320,12 @@ type rowStages struct {
 	// modelled fields participate, in which case every drawer takes its
 	// own independent z exactly as it did before the slot existed.
 	residual *residualCorrelator
+	// rules is the structural-rule pass and is the LAST stage, run
+	// after everything above has settled. It consumes no RNG and is nil
+	// for every spec that declares no applicable rule, which is what
+	// keeps a rules-free spec byte-identical to output from before the
+	// slot existed. See synth/rules_apply.go for why last is the design.
+	rules *ruleApplier
 }
 
 // drawRow draws one row: every field's own independent sampler first,
@@ -390,7 +409,18 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	for _, md := range stages.models {
 		md.transform(rng, row, nullMask, stages.residual)
 	}
-	return nil
+	// The structural-rule pass is the LAST word on the row, and that
+	// placement is the semantics rather than a detail: every field above
+	// has produced the value generation INFERS for this row, and a rule
+	// now masks or replaces it only where its `when` selects, leaving
+	// the inferred value everywhere else — `if gate then null else
+	// inferred`. Running it any earlier would let the model stage
+	// overwrite its own rule-gated target. It writes the two maps this
+	// function already owns and consumes no RNG, so the per-row draw
+	// sequence is identical to a spec with no rules at all. The full
+	// rationale, including why the two-phase alternative was rejected,
+	// is on synth/rules_apply.go.
+	return stages.rules.apply(row, nullMask)
 }
 
 func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMask map[string]bool, bitmapSize int) error {

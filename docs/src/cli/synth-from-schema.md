@@ -176,6 +176,28 @@ rule may still change. Rules are deliberately **not** reordered by
 dependency: declaration order is the one ordering you can read off the
 file.
 
+Running the pass last is what makes `if gate then null else inferred`
+true; running it earlier would let a model overwrite its own rule-gated
+target. The accepted consequence is that a field a rule **nulls** still
+contributed its drawn value to any model that used it as a *predictor*
+on that row — the propensity existed, the question was not asked.
+
+`set_null` sets the null flag and leaves the drawn value in the row; the
+file gets the type's zero, so a masked value never reaches the wire.
+`set` writes the value and clears the null flag, because a rule stating a
+field's value is stating the field has one. So `set_null` then `set`
+yields the value, and `set` then `set_null` yields the null.
+
+The pass consumes no randomness: a spec carrying rules draws exactly the
+same per-row sequence as the same spec without them, and a spec
+declaring no rules generates byte-identical output to one written before
+the slot existed.
+
+`set_expr` and `null_together` are **validated but not yet applied**. A
+rule whose only slots are those two is skipped entirely — its `when` is
+not evaluated either — so an unimplemented slot cannot fail a working
+run.
+
 Expressions are the same `expr-lang` environment `constraints[]` uses —
 every scalar including a boolean is a number (`flag == 1`, never bare
 `flag`), a categorical is a string, a `set_*` is a map
@@ -191,6 +213,27 @@ Every malformed rule is refused **when the spec is parsed**, not at row
 does not compile, would otherwise generate a full cohort with the gate
 silently missing. Each refusal names the rule's index (`rule_index`) —
 rules have no names of their own — plus the offending slot and field.
+
+### Two things that are silent if you get them wrong
+
+**`set_null` needs a nullable field.** The per-record null bitmap only
+carries a bit for a field declared `"nullable": true`. A `set_null` over
+any other field writes the type's zero as an ordinary value with no null
+flag — indistinguishable from a real `0` on a `u4` or a `packed_bool`.
+The rule fires and the file cannot show it, so the run emits a warning
+naming the rule index and the field. Declare the field nullable.
+
+**`when` sees the pre-rounding value.** A numeric field is drawn as a
+float and rounded on the way to the file, so `familiarity == 1` tests
+the *drawn* value, not the `1` you read back: for a clamped `normal` it
+fires on the clamp's point mass, not on the whole wire-value-1 bucket.
+Use comparisons (`nps >= 9`) for numerics. A `packed_bool` is exact —
+its row value is exactly `1.0` or `0.0`, so `aware == 0` selects
+precisely the rows the file shows as `0`.
+
+Rules apply to **generated rows only**. `synth from-profile --source`
+copies the real cohort through unchanged and tags it `_synthetic=false`;
+no rule ever rewrites one of those rows.
 
 ## Supported distributions
 

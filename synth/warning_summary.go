@@ -150,6 +150,18 @@ var warningKinds = []warningKind{
 		},
 	},
 
+	{
+		// A set_null target the schema cannot record a null for: the
+		// field is not nullable, so the row carries the type's zero as
+		// an ordinary value and no null bit. The rule fired; the file
+		// cannot show it.
+		kind:      "rule cannot null a non-nullable field",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "set_null names non-nullable field ")
+		},
+	},
+
 	// --- arbitration and support caveats ----------------------------
 	{
 		kind:      "conditional relationship conflict",
