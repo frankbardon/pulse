@@ -395,11 +395,17 @@ reported only **2** comparable targets of the same 53, and
 covering the field types the feature mostly applies to.)
 
 The rows do carry slightly less conditioning than the captured model
-asked for. Call it **quantization attenuation**: a `u4` field is stored
-rounded to a whole number and a `packed_bool` as 0 or 1, so a latent
-effect survives the write only as a change in how many rows crossed a
-boundary. It is a real property of the generated rows, not an artefact
-of the instrument.
+asked for, for two reasons that compose. **Quantization attenuation**: a
+`u4` field is stored rounded to a whole number and a `packed_bool` as 0
+or 1, so a latent effect survives the write only as a change in how many
+rows crossed a boundary. And the composed draw holds a target's marginal
+exactly only while the generated latent is standard normal — that holds
+by construction at *fit* time, but at *generation* time the predictors
+come from their own reconstructed marginals, so the linear predictor's
+variance is whatever that distribution gives (measured on `aware`, 0.045
+against a captured R² of 0.078, with 9 of its 64 terms never firing on a
+generated row). Both are real properties of the generated rows, not
+artefacts of the instrument.
 
 What a flag on a **continuous, unrounded** target means is different,
 and that is the case worth acting on. Separate the two:
@@ -861,6 +867,20 @@ stderr summary marks `!` and lists first, so it does not need finding.
   hand-authored schema-mode spec that puts a continuous distribution on
   a `packed_bool` is still biased (the writer rounds at 0.5); declare
   `bernoulli` there instead.
+
+  One caveat worth knowing when you compare a generated prevalence to
+  the captured one: a MODELLED boolean holds its marginal exactly only
+  while the generated latent is standard normal. The residual scale on
+  the wire is a FIT-time quantity, and at generation the predictors come
+  from their own reconstructed marginals, so the latent's variance is
+  whatever that distribution gives. On the survey cohort `aware` was
+  captured at `p` = 0.7473906704010238 and generated with
+  `P(aware == 0)` = 0.247193 over 20 seeds against the exact
+  0.252609 — a −0.0054 drift. It is the composed draw, not the
+  sampler: a lone `bernoulli` field over 200 seeds is exact to
+  +0.000046, and the same spec with every model removed is exact to
+  +0.000324. A rule-gated field inherits the drift from the field it
+  gates on.
 - Small-integer (`u4`/`u8`/`u16`/`u32`/`u64`) fields: reconstructed from
   the captured per-level histogram as `discrete` when the column carried
   at most 64 distinct values, which holds every level's share exactly;
