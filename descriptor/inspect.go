@@ -148,11 +148,13 @@ func Inspect(fileData io.ReadSeeker, opts *InspectOptions) *Envelope {
 
 // deriveSingleFileRecordCount returns the number of whole records in a
 // single-file cohort, plus any leftover trailing bytes that do not
-// complete a record. It is the same derivation Service.CountRecords
-// uses for single-file cohorts — (payload_bytes / record_stride) over
-// encoding.Schema.RecordByteSize, which is the single source of truth
-// for the stride and already accounts for both the one-byte-per-field
-// bit-packed run and the trailing per-record null bitmap.
+// complete a record. The arithmetic is not its own: it measures the
+// payload region and hands it to encoding.Schema.RecordCountForPayload,
+// which is the ONE derivation Service.CountRecords calls too, so the
+// two arms cannot disagree about the NUMBER over identical bytes. They
+// disagree only about observability, deliberately — this arm has an
+// envelope and warns about a truncated tail, CountRecords has no
+// warning channel and stays silent (see RecordCountForPayload).
 //
 // It must be called immediately after ReadHeader + ReadSchema, with the
 // stream positioned at the first record. Cost is two seeks: no record
@@ -174,15 +176,7 @@ func deriveSingleFileRecordCount(rs io.ReadSeeker, schema *encoding.Schema) (cou
 	if _, err := rs.Seek(payloadStart, io.SeekStart); err != nil {
 		return 0, 0, false
 	}
-	stride := int64(schema.RecordByteSize())
-	if stride <= 0 {
-		return 0, 0, false
-	}
-	remaining := end - payloadStart
-	if remaining < 0 {
-		return 0, 0, false
-	}
-	return remaining / stride, remaining % stride, true
+	return schema.RecordCountForPayload(end - payloadStart)
 }
 
 // InspectFromBytes inspects either a single-file .pulse cohort or a

@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/fs"
@@ -170,4 +171,69 @@ func (cf *countingFile) ReadAt(p []byte, off int64) (int, error) {
 	n, err := cf.File.ReadAt(p, off)
 	cf.ctr.bytes += int64(n)
 	return n, err
+}
+
+// TestCountRecords_TruncatedTailAgreesWithInspect drives ONE truncated
+// cohort's bytes down both record-count arms and asserts the contract
+// they were lifted onto encoding.Schema.RecordCountForPayload to make
+// enforceable: the NUMBER is identical, and the observability is not.
+//
+// CountRecords floors silently — it has no warning channel, and it
+// feeds the parallel-decode eligibility gate as well as the facade, so
+// a half-written trailing record must not stop a cohort that still
+// processes from reporting its whole-record count. descriptor.Inspect
+// floors to the same number and raises the ENCODING_INVALID warning
+// naming the leftover bytes, because it has an envelope and its whole
+// job is to describe the file.
+func TestCountRecords_TruncatedTailAgreesWithInspect(t *testing.T) {
+	schema := testSchema()
+	stride := int64(schema.RecordByteSize())
+	whole := writePulseFile(t, schema, testRecords())
+
+	// Three bytes of a fourth-record tail that will never complete.
+	truncated := append(append([]byte{}, whole...), 0x01, 0x02, 0x03)
+
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), "truncated.pulse", truncated, 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	svc := New(cfg)
+
+	got, err := svc.CountRecords(context.Background(), "truncated.pulse")
+	if err != nil {
+		t.Fatalf("CountRecords over a truncated tail must not fail: %v", err)
+	}
+	if got != 5 {
+		t.Errorf("CountRecords = %d, want the floor 5", got)
+	}
+
+	env := descriptor.InspectFromBytes(truncated, nil)
+	result, ok := env.Data.(*descriptor.InspectResult)
+	if !ok {
+		t.Fatalf("inspect data = %T, want *descriptor.InspectResult", env.Data)
+	}
+	if result.RecordCount != int64(got) {
+		t.Errorf("arms disagree on the count: inspect %d, CountRecords %d",
+			result.RecordCount, got)
+	}
+
+	// Only the inspect arm says the tail is there, and it names the
+	// leftover byte count so the reader can tell a truncation from an
+	// empty cohort.
+	var warned bool
+	for _, w := range env.Warnings {
+		if w.Code == string(errors.ENCODING_INVALID) {
+			warned = true
+			if w.Details["trailing_bytes"] != int64(3) {
+				t.Errorf("trailing_bytes = %v (%T), want int64(3)",
+					w.Details["trailing_bytes"], w.Details["trailing_bytes"])
+			}
+			if w.Details["record_stride"] != int(stride) {
+				t.Errorf("record_stride = %v, want %d", w.Details["record_stride"], stride)
+			}
+		}
+	}
+	if !warned {
+		t.Error("inspect raised no ENCODING_INVALID warning for a truncated tail")
+	}
 }
