@@ -364,16 +364,43 @@ rule will not do:
 
 ```json
 "rules": [
-  {"when": "!isnull(nps)", "set_expr": {"nps": "int(nps)"}},
-  {"when": "!isnull(nps)", "set_expr": {"promoter":  "nps >= 9",
-                                        "passive":   "nps >= 7 && nps < 9",
-                                        "detractor": "nps < 7"}}
+  {"when": "!isnull(nps)", "set_expr": {"nps": "round(nps)"}},
+  {"set_expr":      {"promoter":  "nps >= 9",
+                     "passive":   "nps >= 7 && nps < 9",
+                     "detractor": "nps < 7"},
+   "null_together": ["nps", "promoter", "passive", "detractor"]}
 ]
 ```
 
-The `when` matters too: a `set_expr` clears the target's null flag, so an
-ungated rule would un-null every row the score was missing from and
-classify a respondent who was never asked.
+Three things in that snippet are load-bearing, and each was measured
+wrong before it was measured right.
+
+**`round`, not `int`.** An integer field is stored as `floor(v+0.5)`, so
+`round(v)` is the expression that reproduces the value the file will
+hold: the flags move onto the right side of the band edge and the stored
+score does not move at all. `int(v)` truncates, and `band(v)` equals
+`band(floor(v))` for integer thresholds — so truncation moves no flag and
+reaches the same agreement by pulling the SCORE down instead. On the
+survey profile at 40,000 rows `round` repaired 1,029 band disagreements
+and left the `nps` column byte-identical to the un-normalised run, while
+`int` repaired none and rewrote 3,018 of 6,944 scored rows.
+
+**The `when` on the normalisation rule.** A `set_expr` clears the
+target's null flag, so an ungated `{"set_expr": {"nps": "round(nps)"}}`
+un-nulls every row the score was missing from — and a `null_together`
+keyed on `nps` then copies that decision to the whole block. Measured:
+the block goes from present on 17.4% of rows to present on 100% of them,
+with nothing refusing it.
+
+**The classification and the block share ONE rule.** Within a rule
+`null_together` is the last write, so the flags are computed and then take
+the score's null decision. Declared as two rules with `null_together`
+first, the `set_expr` runs afterwards and un-nulls all three flags on
+every unscored row — 33,056 of 40,000 on the same measurement. The second
+rule needs no `when` of its own precisely because the block resolves
+after it; and having no `when` is also what makes the three flags
+eligible for the pre-claim, so they are not modelled upstream only to be
+overwritten.
 
 Rules apply to **generated rows only**. `synth from-profile --source`
 copies the real cohort through unchanged and tags it `_synthetic=false`;

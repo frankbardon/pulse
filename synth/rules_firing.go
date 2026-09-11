@@ -160,6 +160,16 @@ func (a *ruleApplier) neverFiredWarnings(rows int) []string {
 // the same handle validateRules' errors use), the predicate verbatim,
 // and the row count the zero is out of — so the line is a statement
 // about THIS run rather than an assertion a reader has to go and check.
+//
+// The remedy it names is round(), not int(). An integer field is stored
+// as floor(v+0.5) (writeFieldValueForField), so round(v) is the one
+// expression that reproduces the value the FILE holds: the gate then
+// selects exactly the rows a reader sees, and the stored column does not
+// move. int(v) truncates, which widens the gate by moving VALUES down
+// instead — measured on the motivating profile at 20,000 rows, a
+// `familiarity <= 1` gate fires on 1,843 rows raw, 2,739 behind round()
+// with the column unchanged, and 3,824 behind int(), which gets there by
+// dropping 1,085 respondents a point.
 func ruleNeverFiredWarning(idx int, when string, rows int) string {
 	if when == "" {
 		// Unreachable through generate(), which refuses RowCount <= 0: a
@@ -170,6 +180,6 @@ func ruleNeverFiredWarning(idx int, when string, rows int) string {
 	}
 	return fmt.Sprintf("rule %d never fired: when %q was true on 0 of %d generated row(s), "+
 		"so the rule applied to nothing; note a numeric compares PRE-ROUNDING, "+
-		"so normalise first (an earlier rule setting int(field)) or compare a range",
+		"so normalise first (an earlier rule setting round(field)) or compare a range",
 		idx, when, rows)
 }

@@ -171,10 +171,10 @@ happen.
 | `set_expr` reading **its own target** | no | it transforms what generation produced rather than determining it |
 
 The last row is why the documented pre-rounding remedy
-`{"set_expr": {"nps": "int(nps)"}}` is safe — retiring `nps` there would
-leave `int()` applied to a bare marginal draw. The reference is detected
-on the parsed expression, so a field named `nps_reason` elsewhere in the
-expression is not mistaken for one.
+`{"set_expr": {"nps": "round(nps)"}}` is safe — retiring `nps` there would
+leave the rounding applied to a bare marginal draw. The reference is
+detected on the parsed expression, so a field named `nps_reason`
+elsewhere in the expression is not mistaken for one.
 
 Measured on the 381,324-row survey cohort: an unconditional
 `{"set_expr": {"promoter": "nps >= 9"}}` takes the applied models from 55
@@ -217,7 +217,7 @@ expected-outcome lines sit below it:
       rule 0 never fired: when "familiarity == 99" was true on 0 of 20000
       generated row(s), so the rule applied to nothing; note a numeric
       compares PRE-ROUNDING, so normalise first (an earlier rule setting
-      int(field)) or compare a range
+      round(field)) or compare a range
 ```
 
 The count is over rows that reached the **file**: a row a constraint
@@ -227,11 +227,22 @@ that fires on every row, and one that fires on some, are silent.
 The message names the pre-rounding gotcha because it is the usual cause.
 The row holds the sampler's float and the wire holds `round(f)`, so
 `familiarity <= 1` selects only the draws whose float is already at or
-below 1. Measured on the 381,324-row survey profile at 20,000 generated
-rows: the un-normalised gate fires on **1,830** rows, and the same gate
-behind `{"set_expr": {"familiarity": "int(familiarity)"}}` fires on
-**3,693** — the whole wire-value population it reads as. Both run
-silently; only the fully-empty case is a warning.
+below 1. It also names **`round`**, not `int`: an integer field is stored
+as `floor(v+0.5)`, so `round(v)` is the one expression that reproduces
+the value the file holds, and `int(v)` widens the gate by moving VALUES
+down instead. Measured on the 381,324-row survey profile at 20,000
+generated rows:
+
+| gate | rows it fires on | wire `familiarity == 1` |
+|---|---|---|
+| `familiarity <= 1`, un-normalised | 1,843 | 2,739 |
+| behind `{"set_expr": {"familiarity": "round(familiarity)"}}` | **2,739** | 2,739 — unchanged |
+| behind `{"set_expr": {"familiarity": "int(familiarity)"}}` | 3,824 | **3,824** — 1,085 respondents dropped a point |
+
+`round` reaches exactly the population a reader sees in the file and
+stores the same column it would have stored anyway; `int` gets its extra
+rows by rewriting the score. All three run silently; only the fully-empty
+case is a warning.
 
 If many rules never fire the listing is capped at 20 with a counted
 `+N further rule(s) never fired` line, the same bound the thin-level and

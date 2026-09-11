@@ -164,3 +164,37 @@ func TestNeverFiredWarnings_BoundedWithACountedRemainder(t *testing.T) {
 		}
 	}
 }
+
+// TestRuleNeverFiredWarning_NamesRoundNotInt pins the remedy the message
+// recommends, because it is the only place the engine itself gives
+// authoring advice and a wrong recommendation there is worse than none —
+// a reader who follows it fixes the gate and silently corrupts the
+// column the gate reads.
+//
+// The remedy is round(), not int(). An integer field is stored as
+// floor(v+0.5) (writeFieldValueForField), so round(v) is the one
+// expression that reproduces the stored value: the gate then selects
+// exactly the rows the file shows and the column does not move. int(v)
+// truncates and widens the gate by moving VALUES down instead — measured
+// on the motivating 122-field profile at 20,000 rows, a `familiarity <= 1`
+// gate fires on 1,843 rows raw, on 2,739 behind round() with the column
+// unchanged, and on 3,824 behind int(), which gets there by dropping
+// 1,085 respondents a point.
+//
+// The behavioural half of that claim is
+// TestRulesCoherence_RoundNormalisesTheBandIntMovesTheScore (E2-S4); this
+// case only guards the advice from drifting away from it.
+func TestRuleNeverFiredWarning_NamesRoundNotInt(t *testing.T) {
+	w := ruleNeverFiredWarning(0, "familiarity == 99", 20000)
+	if !strings.Contains(w, "round(field)") {
+		t.Errorf("the never-fired advice does not name round(): %q", w)
+	}
+	if strings.Contains(w, "int(field)") {
+		t.Errorf("the never-fired advice still recommends int(), which widens the gate by rewriting "+
+			"the stored value rather than by reading it correctly: %q", w)
+	}
+	// Guard the guard: the advice is only reachable on the `when` arm.
+	if strings.Contains(ruleNeverFiredWarning(0, "", 20000), "round(field)") {
+		t.Error("the no-`when` arm carries pre-rounding advice it has no use for")
+	}
+}
