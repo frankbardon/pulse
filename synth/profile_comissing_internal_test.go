@@ -316,6 +316,29 @@ func TestSuggestBlocks_PartialOverlapIsReportedWithItsAgreement(t *testing.T) {
 	if kind != "rule candidate not considered" || !attention {
 		t.Errorf("near-block classified as %q / attention=%v", kind, attention)
 	}
+	// FU-10: the block side must carry a handle that actually finds the
+	// candidate. The handle is the candidate's FIRST null_together entry
+	// — content-derived, so an analyst deleting other candidates does
+	// not invalidate it, which is exactly what a candidate INDEX would
+	// do. Asserted as a real lookup rather than as a substring: the
+	// handle is checked by going and finding the candidate with it.
+	if !strings.Contains(line, "null_together beginning") {
+		t.Errorf("the near-block report gives no handle back to the candidate: %q", line)
+	}
+	handle := nearBlockHandleFromLine(t, line)
+	var carrier []string
+	for _, c := range blockCandidates(prof.RuleCandidates) {
+		if len(c.NullTogether) > 0 && c.NullTogether[0] == handle {
+			carrier = c.NullTogether
+		}
+	}
+	if carrier == nil {
+		t.Fatalf("the handle %q names no emitted candidate; candidates = %v",
+			handle, blockMembers(blockCandidates(prof.RuleCandidates)))
+	}
+	if len(carrier) != 4 {
+		t.Errorf("the handle resolves to a block of %d, but the line says 4: %v", len(carrier), carrier)
+	}
 
 	// And the exact block still ships without it — a near miss costs the
 	// near field its membership, not the block its candidacy.
@@ -741,5 +764,54 @@ func TestSuggestBlocks_ThinBlockShipsWithItsSupport(t *testing.T) {
 	// maxBlockCandidates, one line per emitted block at most.
 	if len(thin) > maxBlockCandidates {
 		t.Errorf("%d thin-block lines for at most %d blocks", len(thin), maxBlockCandidates)
+	}
+}
+
+// nearBlockHandleFromLine extracts the candidate handle a near-miss line
+// advertises — the field name it says the candidate's null_together
+// begins with.
+func nearBlockHandleFromLine(t *testing.T, line string) string {
+	t.Helper()
+	const marker = `null_together beginning "`
+	i := strings.Index(line, marker)
+	if i < 0 {
+		t.Fatalf("no handle in %q", line)
+	}
+	rest := line[i+len(marker):]
+	j := strings.Index(rest, `"`)
+	if j < 0 {
+		t.Fatalf("unterminated handle in %q", line)
+	}
+	return rest[:j]
+}
+
+// TestNearBlockSideLabel_HandleOnlyWhenThereIsACandidate pins the three
+// shapes a near-miss side can take, because the middle one is the whole
+// of FU-10 and the third is the way to get it wrong.
+//
+// A SINGLETON is not a block, so it carries no handle — there is no
+// candidate to find. A proposed class carries the content-derived handle
+// (the candidate whose null_together begins with the representative). A
+// class that did NOT reach the file — beyond maxBlockCandidates — must
+// say so rather than advertise a handle that resolves to nothing, which
+// is the failure a per-side flag exists to prevent.
+func TestNearBlockSideLabel_HandleOnlyWhenThereIsACandidate(t *testing.T) {
+	if got := blockSideLabel("solo", 1, false); got != `"solo"` {
+		t.Errorf("singleton label = %q, want the bare name", got)
+	}
+	if got := blockSideLabel("solo", 1, true); got != `"solo"` {
+		t.Errorf("a singleton must never advertise a block handle: %q", got)
+	}
+	proposed := blockSideLabel("regard", 50, true)
+	if !strings.Contains(proposed, "a block of 50") ||
+		!strings.Contains(proposed, `null_together beginning "regard"`) {
+		t.Errorf("a proposed block gives no handle: %q", proposed)
+	}
+	dropped := blockSideLabel("regard", 50, false)
+	if strings.Contains(dropped, "null_together beginning") {
+		t.Errorf("a block that never reached the file advertises a handle to nothing: %q", dropped)
+	}
+	if !strings.Contains(dropped, "not proposed") {
+		t.Errorf("a block that never reached the file does not say so: %q", dropped)
 	}
 }

@@ -480,7 +480,14 @@ func (d *blockDetector) finish(warnings *[]string) []RuleSpec {
 		*warnings = append(*warnings, blockTruncationWarning(rest, len(kept)))
 	}
 
-	d.appendNearBlockWarnings(warnings, classes)
+	// The near-miss lines label each side with the handle that actually
+	// exists in the emitted file, so the representatives a candidate was
+	// built for have to be known here. See appendNearBlockWarnings.
+	proposed := make(map[int]bool, len(kept))
+	for _, c := range kept {
+		proposed[c.members[0]] = true
+	}
+	d.appendNearBlockWarnings(warnings, classes, proposed)
 	return out
 }
 
@@ -671,7 +678,31 @@ type nearBlockPair struct {
 // the analyst corrects the `when` — there is nothing here to correct.
 // The finding is the two field names and the number, which is enough to
 // go and look.
-func (d *blockDetector) appendNearBlockWarnings(warnings *[]string, classes []blockClass) {
+//
+// # The handle each side carries
+//
+// A representative is a bare field name, so a reader who wants to act on
+// `'regard' (a block of 50)` has to work out WHICH candidate carries
+// `regard`. A candidate INDEX would close that and is refused: the
+// candidate file exists to be edited by DELETION, and every index below
+// a deleted line shifts, so an index is a handle that goes wrong
+// silently.
+//
+// The stable handle is derived from the candidate's own content instead.
+// A block candidate's members are the class's members in the class's own
+// order, so the representative IS the candidate's FIRST null_together
+// entry — and that entry is load-bearing rather than incidental
+// (applyNullTogether makes block[0] the gate, the only member whose own
+// null decision survives), so it cannot be reordered away without
+// changing what the rule means. The line therefore names the field AND
+// says the candidate is the null_together that begins with it, which is
+// a grep that survives any deletion.
+//
+// `proposed` is the set of representatives that actually reached the
+// file — a class beyond maxBlockCandidates has no candidate to point at,
+// and claiming one would send the reader hunting for a line that is not
+// there.
+func (d *blockDetector) appendNearBlockWarnings(warnings *[]string, classes []blockClass, proposed map[int]bool) {
 	var pairs []nearBlockPair
 	for i := 0; i < len(classes); i++ {
 		for j := i + 1; j < len(classes); j++ {
@@ -701,7 +732,9 @@ func (d *blockDetector) appendNearBlockWarnings(warnings *[]string, classes []bl
 	}
 	for _, p := range shown {
 		*warnings = append(*warnings, nearBlockWarning(
-			d.fields[p.a].name, p.sizeA, d.fields[p.b].name, p.sizeB, p.agreement, p.disagree))
+			blockSideLabel(d.fields[p.a].name, p.sizeA, proposed[p.a]),
+			blockSideLabel(d.fields[p.b].name, p.sizeB, proposed[p.b]),
+			p.agreement, p.disagree))
 	}
 	if rest := len(pairs) - len(shown); rest > 0 {
 		*warnings = append(*warnings, fmt.Sprintf(
@@ -710,17 +743,30 @@ func (d *blockDetector) appendNearBlockWarnings(warnings *[]string, classes []bl
 	}
 }
 
-func nearBlockWarning(a string, sizeA int, b string, sizeB int, agreement float64, disagree int) string {
+func nearBlockWarning(a, b string, agreement float64, disagree int) string {
 	return fmt.Sprintf(
 		"rule suggestion: %s and %s are null together on %.4f of the rows where either is null (%d row(s) disagree) "+
 			"but not on exactly the same rows, so they are NOT proposed as one block — null_together would rewrite "+
 			"the disagreeing rows and has no way to say \"almost\"",
-		blockSideLabel(a, sizeA), blockSideLabel(b, sizeB), agreement, disagree)
+		a, b, agreement, disagree)
 }
 
-func blockSideLabel(field string, size int) string {
-	if size > 1 {
-		return fmt.Sprintf("%q (a block of %d)", field, size)
+// blockSideLabel renders one side of a near-miss line, carrying the
+// handle a reader needs to find the block in the emitted file.
+//
+// A singleton is its own name and nothing more — it is not a block, so
+// there is no candidate to point at. A class of two or more is named
+// with its size and, when it reached the file, with the content-derived
+// handle: the candidate is the null_together whose FIRST entry is this
+// field. See appendNearBlockWarnings for why that rather than an index.
+func blockSideLabel(field string, size int, proposed bool) string {
+	switch {
+	case size == 1:
+		return fmt.Sprintf("%q", field)
+	case proposed:
+		return fmt.Sprintf("%q (a block of %d — its candidate is the null_together beginning %q)",
+			field, size, field)
+	default:
+		return fmt.Sprintf("%q (a block of %d, not proposed — over the candidate cap)", field, size)
 	}
-	return fmt.Sprintf("%q", field)
 }

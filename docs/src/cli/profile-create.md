@@ -1158,10 +1158,23 @@ Fields that agree on MOST rows but not all are reported in `warnings`
 with their agreement and their disagreeing row count:
 
 ```
-rule suggestion: "regard" (a block of 50) and "appropriate" (a block of 13)
-are null together on 0.9537 of the rows where either is null
-(4676 row(s) disagree) but not on exactly the same rows …
+rule suggestion: "regard" (a block of 50 — its candidate is the null_together
+beginning "regard") and "appropriate" (a block of 13 — its candidate is the
+null_together beginning "appropriate") are null together on 0.9537 of the rows
+where either is null (4676 row(s) disagree) but not on exactly the same rows …
 ```
+
+Each block side carries the handle that finds it in the emitted file:
+the candidate is the `null_together` whose **first** entry is that field.
+The handle is derived from the candidate's own content rather than from
+its position, because the file exists to be edited by DELETION and every
+index below a deleted line shifts — an index would be a handle that goes
+wrong silently. The first entry is also load-bearing rather than
+incidental (it is the block's gate, the only member whose own null
+decision survives), so it cannot be reordered away without changing what
+the rule means. A side that produced no candidate — a singleton, or a
+class beyond the candidate cap — carries no handle and says so, rather
+than pointing at a line that is not there.
 
 They are not emitted, and the asymmetry with the gating detector's thin
 candidates is deliberate: a thin gate's RELATIONSHIP is exact and only
