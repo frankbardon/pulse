@@ -1440,53 +1440,43 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// cohort and does not exist until every row has been seen. It reads
 	// only its own accumulators — no cohort access, no second pass.
 	if gates != nil || blocks != nil || deps != nil {
-		// ORDER IS APPLIED ORDER, and it is chosen rather than
-		// incidental. Gating candidates first, co-missing blocks second.
+		// EMITTED ORDER IS APPLIED ORDER. The three detectors are
+		// concatenated in a PREFERENCE order — gating, co-missing
+		// blocks, exact dependencies — and that concatenation is then
+		// reordered so a candidate WRITING a field another candidate
+		// READS is emitted before it.
 		//
-		// For candidates AS DETECTED the two orders are EQUIVALENT, and
-		// the reason is arithmetic rather than empirical: a block is
-		// admitted only when its members are null on exactly the same
-		// rows, so they carry identical conditional null rates at every
-		// level of every gate, so the gating detector classifies them
-		// identically. A gate therefore takes a WHOLE block or none of
-		// one, never part of one, and both orders reduce to "null iff
-		// the gate fired or the first member drew null". The obvious
-		// claim — that a block placed first is broken by a later
-		// set_null — is false here, and
-		// TestSuggestBlocks_ComposeWithGatingCandidatesInOneFile
-		// asserts the equivalence rather than the claim.
+		// The preference is the readable order and is preserved wherever
+		// nothing forces it: gates are the largest structural claims and
+		// the ones most in need of judgement, and a block placed after
+		// the gates REPAIRS a set_null an analyst narrows by hand rather
+		// than being broken by it. A dependency writes VALUES and carries
+		// its own null_together in the SAME rule (E2-S4's measured
+		// finding — a set_expr clears the null mask, so a block declared
+		// in an EARLIER rule is un-nulled by a derivation that follows
+		// it), so it re-resolves its block from the source last.
 		//
-		// The order is chosen for the file's actual purpose, which is to
-		// be EDITED. A hand-narrowed gate over PART of a block — the
-		// analyst keeping two of four targets, or adding a rule of their
-		// own — is precisely where the orders differ, and gate-first is
-		// the one where the block REPAIRS the edit instead of being
-		// broken by it. Same test, fourth clause.
+		// The reorder is what the preference alone got WRONG, and it was
+		// wrong about a gate's SOURCE rather than its targets. The
+		// argument that made block-after-gate safe — a block's members
+		// are null on exactly the same rows, so a gate takes a whole
+		// block or none of one — governs the fields a gate WRITES. A
+		// block member that is a gate's `when` FIELD is a different
+		// relationship: the block moves the gate's own input after the
+		// gate has read it. Measured on the motivating cohort, that left
+		// 8,693 of 20,000 rows carrying an answer whose screener the same
+		// file says was never asked. ruleCandidateOrder states the rule,
+		// its cost and its cycle policy in one place.
 		//
 		// Each detector bounds its own listing (maxRuleCandidates /
 		// maxBlockCandidates) rather than sharing one budget: they are
 		// different KINDS of finding, and a shared cap would let twenty
 		// gating candidates hide the fact that the cohort has question
 		// blocks at all.
-		//
-		// EXACT-DEPENDENCY candidates come LAST, and the argument is the
-		// one that put blocks after gates: for candidates AS DETECTED
-		// the orders are equivalent, and the choice is made for the
-		// EDITED file. A dependency rule writes VALUES and carries its
-		// own null_together in the SAME rule (E2-S4's measured finding —
-		// a set_expr clears the null mask, so a block declared in an
-		// earlier rule is un-nulled by the derivation that follows it),
-		// so it re-resolves the block from the source AFTER any gate has
-		// decided the source's own null state. Placed last, it REPAIRS a
-		// set_null an analyst has narrowed by hand; placed first, the
-		// narrowed gate would break the derived block again.
-		//
-		// It also reads a DIFFERENT half of the record from the other
-		// two — values rather than null state — so nothing it writes can
-		// change which rows they select.
 		cands := gates.finish(&warnings)
 		cands = append(cands, blocks.finish(&warnings)...)
-		pf.RuleCandidates = append(cands, deps.finish(&warnings, blocks)...)
+		cands = append(cands, deps.finish(&warnings, blocks)...)
+		pf.RuleCandidates = ruleCandidateOrder(cands, &warnings)
 	}
 
 	if len(warnings) > 0 {

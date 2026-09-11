@@ -952,8 +952,9 @@ statements. On the motivating cohort `aware` nulls the five `*Aware`
 flags, and the five later candidates — each gated partly on
 `isnull(<x>Aware)` — then fire on those nulls too. That is the
 declaration-order contract working, and it is why the file's order is
-the applied order. Gating candidates are emitted BEFORE co-missing
-blocks; see *Emitted order is applied order* below.
+the applied order. The file is ordered so that a candidate WRITING a
+field another candidate READS comes before it; see *Emitted order is
+applied order* below.
 
 **A `set_null` gate repairs co-missingness only.** Each target's own
 `null_rate` still fires beneath the gate, so the targets' marginal null
@@ -1087,17 +1088,55 @@ decision.
 
 ### Emitted order is applied order
 
-Gating candidates come FIRST in the file, then co-missing blocks.
+**A candidate that WRITES a field another candidate READS is emitted
+BEFORE it.** Within that constraint the preference order — gating, then
+co-missing blocks, then exact dependencies — is preserved as closely as
+possible: candidates are walked in that order and a candidate a walked
+one depends on is hoisted to just before it, never further.
 
-For candidates as DETECTED the two orders are equivalent, and that is
-arithmetic rather than luck: block members are admitted only when their
-null patterns are identical, so they carry identical conditional null
-rates at every level of every gate and the gating detector classifies
-them identically. A gate takes a WHOLE block or none of one.
+The preference is the readable order and is kept wherever nothing forces
+a move. For a block holding a gate's TARGETS the two orders are
+equivalent, and that is arithmetic rather than luck: block members are
+admitted only when their null patterns are identical, so they carry
+identical conditional null rates at every level of every gate and the
+gating detector classifies them identically. A gate takes a WHOLE block
+or none of one. Gate-first is then chosen for what the file is FOR —
+being edited: a hand-narrowed `set_null` over part of a block is repaired
+by a block that follows it and broken by one that precedes it.
 
-The order is chosen for what the file is FOR — being edited. A
-hand-narrowed `set_null` over part of a block is repaired by a block that
-follows it and broken by one that precedes it.
+**That equivalence governs the fields a gate WRITES, and is false for the
+field a gate READS.** When a block member is also a gate's `when` field,
+a block placed after that gate moves the gate's own INPUT after the gate
+has read it: the gate fires on the drawn value, the block then nulls the
+field the gate was reading, and a target it left present is now an answer
+on a row whose screener is absent. On the motivating cohort five gates
+sit in exactly that shape (`peopleAware`, `promotionAware`,
+`placementAware`, `productAware`, `priceAware` are all members of the
+50-field block) and a sixth reads a field a `set_expr` rewrites
+(`aware = round(familiarity) >= 2`).
+
+| | orphan rows of 20,000 |
+|---|---|
+| preference order alone | **8,693** |
+| writer-before-reader | **0** |
+
+An orphan row is one carrying a value for a gate's target while the
+gate's own field is absent.
+
+**What it costs.** A block hoisted ahead of a gate loses, for that gate,
+the repair property above: narrow that gate's target list by hand and the
+hoisted block no longer follows the edit. The trade is not symmetric —
+the repair property protects an edit that may never be made, the ordering
+fault corrupts every generated row unconditionally. Only the candidates
+that MUST move, move: on the motivating cohort the headline 63-target
+gate stays first and one block is hoisted ahead of the five gates that
+read it.
+
+**If you reorder the file by hand, keep writers before readers.** A
+mutual pair — each writing a field the other reads — has no satisfying
+order; one edge is dropped, the surviving one decides the pair, and the
+drop is reported as a warning naming both. It does not arise on the
+motivating cohort.
 
 ### Bounded, on the same scan
 
@@ -1292,6 +1331,12 @@ placed last it re-resolves that block from the source AFTER every
 null-state rule has decided the source's own null state. Measured on this
 story's suite with a hand-narrowed `set_null` over the source alone:
 dependency-last leaves **0** orphan rows, dependency-first leaves **940**.
+
+The one exception is the writer-before-reader rule above: a dependency
+whose `set_expr` writes a field a GATE reads is hoisted ahead of that
+gate, because otherwise the gate fires on a value the dependency rewrites
+afterwards. `aware = round(familiarity) >= 2` against a gate on `aware`
+is exactly that shape on the motivating cohort.
 
 ### Measured on the motivating cohort
 

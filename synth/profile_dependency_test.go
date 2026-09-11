@@ -296,7 +296,11 @@ func TestSuggestDeps_ComposeWithTheOtherDetectorsInOneFile(t *testing.T) {
 	}
 	// Dependency candidates come LAST: they carry their own
 	// null_together and must re-resolve the block AFTER any null-state
-	// rule has decided the source's own null state.
+	// rule has decided the source's own null state. That is the
+	// PREFERENCE order, and it holds here because no gate in this
+	// fixture reads a field a dependency writes; where one does, the
+	// writer-before-reader rule hoists the dependency ahead of it
+	// (TestSuggestRules_EmittedOrderLeavesNoOrphanRows).
 	for i, c := range prof.RuleCandidates {
 		if c.Evidence.Detector != "dependency" && i > lastDep {
 			t.Errorf("a %s candidate is written after a dependency candidate (index %d > %d)",

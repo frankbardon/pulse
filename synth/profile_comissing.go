@@ -568,7 +568,7 @@ func blockCandidateNote(members, rows int) string {
 			"not merely an identical null rate, which two unrelated fields can share by coincidence. "+
 			"null_together copies the FIRST member's null decision onto the rest and IGNORES every other member's own null_rate; "+
 			"every member here carries the same rate (max_null_rate_deviation 0), so no declared rate is discarded and the member order is arbitrary by construction. "+
-			"Declaration order is applied order: keep this rule AFTER any gating rule naming the same fields, because the block copies whatever the first member holds when it runs.",
+			"Declaration order is applied order and the emitted position is already correct: this rule sits AFTER any gating rule whose TARGETS it holds, so it repairs a set_null you narrow by hand, and BEFORE any gating rule whose `when` FIELD it holds, because it rewrites that gate's own input. Move it only if you also move the rules that read it.",
 		members, rows)
 }
 

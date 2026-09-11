@@ -255,7 +255,11 @@ func TestSuggestBlocks_ComposeWithGatingCandidatesInOneFile(t *testing.T) {
 		t.Fatalf("ProfileBytes: %v", err)
 	}
 
-	// 1. The file carries BOTH kinds, gating first.
+	// 1. The file carries BOTH kinds, gating first — which is the
+	// PREFERENCE order, kept here because nothing forces a move: `aware`
+	// is written by no candidate, so the block holds none of its gate's
+	// source. The case where the constraint overrides the preference is
+	// TestSuggestRules_EmittedOrderLeavesNoOrphanRows.
 	firstGate, firstBlock := -1, -1
 	for i, c := range prof.RuleCandidates {
 		switch c.Evidence.Detector {
