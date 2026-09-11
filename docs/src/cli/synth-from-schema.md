@@ -162,6 +162,7 @@ gate.
 | `set`           | object      | assign these **literal** values |
 | `set_expr`      | object      | assign the **result** of these expressions |
 | `null_together` | array       | null this block as one decision (needs ≥ 2 distinct fields) |
+| `owns_nulls`    | bool        | **modifier, not an action**: this rule is the only source of absence for the fields it names in `set_null`, so their own `null_rate` draw is discarded |
 
 `set` and `set_expr` are separate keys on purpose: with one map,
 `{"set": {"region": "west"}}` would be undecidable between a categorical
@@ -193,6 +194,65 @@ The pass consumes no randomness: a spec carrying rules draws exactly the
 same per-row sequence as the same spec without them, and a spec
 declaring no rules generates byte-identical output to one written before
 the slot existed.
+
+### `owns_nulls`: the rule owns the field's absence
+
+`set_null` states **which rows** a field is absent on. It says nothing
+about **how many**, and each target's own `null_rate` keeps firing
+underneath the gate. That rate is a *marginal* the profiler captured, so
+it already includes every row the gate removed, and the two compose as
+`g + (1 - g) * r`: a gate that is exactly right about every gated row is
+still wrong about the marginal.
+
+Measured on the 381,324-row survey profile behind this feature, a
+50-field `{"when": "aware == 0"}` gate took `regard` from a captured
+0.2526 to a generated **0.4369**, and the five `*Aware` gates took
+`people` from 0.4273 to **0.7506**.
+
+```json
+{"when": "aware == 0",
+ "set_null": ["regard", "meaningfulness", "uniqueness"],
+ "owns_nulls": true}
+```
+
+With the flag, all fifty land on **0.2455** — the gate's own firing
+rate, which is the number the capture was measuring — while the gate
+stays exact on 491,200 of 491,200 gated cells.
+
+The flag is scoped to `set_null` and to nothing else; declaring it with
+an empty `set_null` is `PULSE_SYNTH_RULE_OWNERSHIP_INVALID`, because a
+claim that is merely ignored is invisible.
+
+**It zeroes the field's own draw rather than applying the residual
+`(r - g) / (1 - g)`.** The residual needs `g`, the rule's *firing
+probability*, and a `when` is an arbitrary predicate over a row — no
+spec knows how often it will be true, and estimating it would need a
+generation pass whose own rows are drawn from the rates being corrected.
+So the gap is **measured** instead of guessed: an owned field whose
+realised null rate misses its discarded `null_rate` by more than 0.02
+*and* by two standard errors is reported after generation, naming both
+rates, the row count and every rule that claimed it. The second term is
+not decoration — at 200 rows a correct claim on a 0.25 field misses by
+more than 0.02 about half the time.
+
+Two rules may own one field. Ownership is a **union**, not an exclusive
+claim: `set_null` removes a value rather than supplying one, so it never
+takes a field away from its own generation, and "two gates can each
+account for this field's absence" needs no arbitration. The draw is
+suppressed once and either gate nulls the field.
+
+The field still *draws* its null and only the verdict is discarded, so
+the seeded stream does not move: on the motivating cohort the other 72
+fields are cell-identical to the un-owned run at the same seed, and the
+only change is 381,351 null flags removed on non-gated rows — none
+added, no value moved.
+
+`null_together` already does this for its non-gate members, by copying
+the gate's decision rather than by suppression, which is why naming a
+never-null field first is an idiom. `owns_nulls` states it directly, on
+the rule that makes it true. The block is still required for the shape
+it alone expresses: a co-missing block with no gating field at all,
+where one member's own draw is the block's only source of absence.
 
 ### `null_together`: one null decision for a block
 
@@ -518,6 +578,7 @@ the `--json` path, where `data.warnings` carries them in full.
 | `PULSE_SYNTH_RULE_VALUE_INVALID`    | A `set` literal is the wrong shape for its target field, outside the type's range, or outside the declared `values` / `options` domain |
 | `PULSE_SYNTH_RULE_CONFLICT`         | One rule names the same field in two slots that disagree about it |
 | `PULSE_SYNTH_RULE_BLOCK_INVALID`    | A `null_together` block names fewer than two distinct fields |
+| `PULSE_SYNTH_RULE_OWNERSHIP_INVALID` | A rule declares `"owns_nulls": true` but names no field in `set_null`, so the claim has nothing to apply to |
 
 ## Examples
 

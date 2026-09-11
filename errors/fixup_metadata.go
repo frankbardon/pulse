@@ -617,6 +617,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_RULE_OWNERSHIP_INVALID: {
+		Message: "A synth rule declares `\"owns_nulls\": true` but names no field in `set_null`, so the ownership claim has nothing to apply to.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Rules", "*", "SetNull"},
+				Hint:   "Name the fields whose absence this rule is the only source of. `owns_nulls` is scoped to `set_null` and to nothing else: it discards those fields' own `null_rate` draw so the rule's gate is the single source of their nulls.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*", "OwnsNulls"},
+				Hint:   "Or drop `owns_nulls`. A `null_together` block already discards every non-gate member's own null_rate by copying the gate's decision, so a block needs no ownership flag.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

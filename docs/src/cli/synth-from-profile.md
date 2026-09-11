@@ -102,10 +102,21 @@ moves between the two by cut and paste:
 
 ```json
 [
-  {"when": "aware == 0", "set_null": ["perception_1", "perception_2"]},
+  {"when": "aware == 0", "set_null": ["perception_1", "perception_2"],
+   "owns_nulls": true},
   {"null_together": ["nps", "nps_reason"]}
 ]
 ```
+
+A gate applied to a PROFILE-DERIVED spec almost always wants
+[`owns_nulls`](synth-from-schema.md#owns_nulls-the-rule-owns-the-fields-absence).
+`SpecFromProfile` carries each field's CAPTURED `null_rate`, which is a
+marginal already inclusive of every row the gate removed, so without the
+flag the gate's absences and the field's own draw compose and the
+generated rate lands well above the captured one — measured on the
+motivating profile at 0.4369 against a captured 0.2526. The flag
+discards the field's own draw; `profile create --suggest-rules` writes
+it on every gating candidate for the same reason.
 
 ```
 pulse synth from-profile -p cohort.json --source cohort.pulse \
@@ -166,7 +177,7 @@ happen.
 |---|---|---|
 | `set` / `set_expr` with **no** `when` | yes | writes every row |
 | any rule carrying a `when` | no | writes only some rows; the model still produces the value the rest keep |
-| `set_null`, at any conditionality | **no** | it removes a value rather than supplying one — `if gate then null else inferred` needs the model to produce what the non-gated rows carry |
+| `set_null`, at any conditionality (with or without `owns_nulls`) | **no** | it removes a value rather than supplying one — `if gate then null else inferred` needs the model to produce what the non-gated rows carry. `owns_nulls` suppresses the field's own NULL DRAW and claims nothing: the value is still the model's |
 | `null_together` | no | copies one null decision; supplies no value |
 | `set_expr` reading **its own target** | no | it transforms what generation produced rather than determining it |
 

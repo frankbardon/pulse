@@ -177,6 +177,27 @@ var warningKinds = []warningKind{
 	},
 
 	{
+		// A `{"owns_nulls": true}` claim the RUN did not bear out: the
+		// flag discarded a field's captured null_rate on the author's
+		// statement that the rule accounts for its absence, and the
+		// realised rate missed it. Either the gate explains only part of
+		// the missingness or it never nulls the field at all, and both
+		// mean a number the author wrote has been thrown away and not
+		// replaced. That is a requested thing not happening, so it needs
+		// attention — the same reading the null_together override above
+		// gets, for the same discarded-rate reason. The roll-up arm
+		// folds the bounded listing's "+N further owned field(s)" line
+		// into this group, since the cap must not split one finding
+		// across two counts.
+		kind:      "rule owns_nulls discarded a null_rate it did not replace",
+		attention: true,
+		match: func(w string) bool {
+			return strings.Contains(w, " the nulls of field ") ||
+				(strings.HasPrefix(w, "+") && strings.Contains(w, "further owned field(s)"))
+		},
+	},
+
+	{
 		// A rule that applied to NO generated row. The author wrote a
 		// structural fact, the spec validated, the cohort generated
 		// cleanly, and the fact is absent — the package's own failure

@@ -5083,7 +5083,7 @@
         ]
       }
     ],
-    "error_codes_count": 223,
+    "error_codes_count": 224,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5282,6 +5282,7 @@
       "PULSE_SYNTH_RULE_EXPR_INVALID",
       "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE",
       "PULSE_SYNTH_RULE_FIELD_UNKNOWN",
+      "PULSE_SYNTH_RULE_OWNERSHIP_INVALID",
       "PULSE_SYNTH_RULE_VALUE_INVALID",
       "PULSE_SYNTH_SOURCE_REQUIRED",
       "PULSE_TEMPLATE_INVALID",
@@ -9605,4 +9606,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7a69f522d50a62aa84a603229e4f552ccb2ec325c001a97d80665918f55333a8
+// golden-hash: 3d1971468986a26c7a24155be296395e3cac97368e4c143c6b882b59368341c2

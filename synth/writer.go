@@ -87,6 +87,15 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	fields := make([]encoding.Field, len(s.Fields))
 	wfs := make([]*writerField, len(s.Fields))
 
+	// Fields whose own null draw a `{"owns_nulls": true}` rule has
+	// claimed. Resolved ONCE, here, because the sampler is built here —
+	// and from the same helper compileRules uses for the accounting, so
+	// the suppression and its end-of-run report cannot disagree about
+	// which fields are owned. Empty (and the wrap below unreachable) for
+	// every spec that declares no ownership, which is what keeps such a
+	// spec byte-identical. See synth/rules_ownership.go.
+	ownedNulls := ruleOwnedNullFields(s.Rules)
+
 	byteOffset := 0
 	bitCursor := 8 // bit offsets advance from the high bit of a fresh byte
 	for i, fs := range s.Fields {
@@ -168,6 +177,15 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		smp, err := buildSampler(fs)
 		if err != nil {
 			return nil, nil, err
+		}
+		if ownedNulls[fs.Name] {
+			// The field still DRAWS its null — same calls, same order —
+			// and the verdict is discarded, so ownership moves the null
+			// mask of the owned fields and nothing else in the file.
+			// Rebuilding the sampler without its nullable wrapper would
+			// drop one rng.Float64() per row per owned field and shift
+			// the whole seeded stream.
+			smp = ruleOwnedNullSampler{inner: smp}
 		}
 
 		fields[i] = field
@@ -312,6 +330,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		// the reported figure divisible by rowsGenerated: a rejected row
 		// was re-drawn and left no trace. See synth/rules_firing.go.
 		rules.commitRow()
+		rules.commitOwnedNulls()
 		rowsGenerated++
 	}
 	// A rule that applied to NO generated row is the one rule fault
@@ -321,6 +340,16 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// compiling the spec, and the warning order in this function is
 	// causal.
 	warnings = append(warnings, rules.neverFiredWarnings(rowsGenerated)...)
+	// The other fact only the RUN can establish: whether each
+	// `{"owns_nulls": true}` claim held. The flag discards a captured
+	// null_rate on the author's word that the rule accounts for it, and
+	// nothing before generation can check that word — a `when` is an
+	// arbitrary predicate and its firing rate is not knowable from the
+	// spec. Reported after the never-fired lines because a rule that
+	// fired on nothing explains its owned fields' zero rate, and the
+	// causal order of this function's warnings is cause before
+	// consequence. See synth/rules_ownership.go.
+	warnings = append(warnings, rules.ownershipWarnings(rowsGenerated)...)
 	return rowsGenerated, rowsRejected, warnings, nil
 }
 

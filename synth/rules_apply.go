@@ -160,6 +160,16 @@ type ruleApplier struct {
 	rowFired []bool
 	firings  []int
 
+	// owned / rowOwnedNull / ownedNull are the null-OWNERSHIP accounting
+	// (synth/rules_ownership.go): the fields whose own null draw a
+	// `{"owns_nulls": true}` rule discarded, a per-row scratch of how
+	// each of them ended up, and the running totals over ACCEPTED rows.
+	// All three are sized once here and are nil for every spec that
+	// declares no ownership, so the pass still allocates nothing per row.
+	owned        []ownedNullField
+	rowOwnedNull []bool
+	ownedNull    []int
+
 	// nullState exists ONLY to host the isnull builtin baked into every
 	// compiled `when`. isnull answers from a null MASK rather than from
 	// the row, because a nulled field still carries its drawn value in
@@ -184,9 +194,11 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 		return nil, nil, nil
 	}
 	specs := make([]FieldSpec, 0, len(wfs))
+	fieldOrder := make([]string, 0, len(wfs))
 	byName := make(map[string]FieldSpec, len(wfs))
 	for _, wf := range wfs {
 		specs = append(specs, wf.spec)
+		fieldOrder = append(fieldOrder, wf.spec.Name)
 		byName[wf.spec.Name] = wf.spec
 	}
 	env, names := rowExprEnv(specs)
@@ -292,10 +304,23 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 		applier.rules = append(applier.rules, cr)
 	}
 	if len(applier.rules) == 0 {
+		// No compiled rule, so nothing to apply and nothing to count —
+		// including no ownership report. Unreachable through
+		// validateSpec, which refuses every rule shape that compiles to
+		// nothing before buildSchema can wrap a sampler for it.
 		return nil, warnings, nil
 	}
 	applier.rowFired = make([]bool, len(applier.rules))
 	applier.firings = make([]int, len(applier.rules))
+	// The ownership accounting is derived from the SAME predicate
+	// buildSchema used to suppress the draws (ruleOwnedNullFields), over
+	// the raw rules rather than the compiled ones: a claim whose rule was
+	// dropped here has still had its sampler wrapped, so the report has
+	// to cover it or the suppression would be the one thing in the pass
+	// with no end-of-run statement about it.
+	applier.owned = buildOwnedNullFields(rules, fieldOrder, byName)
+	applier.rowOwnedNull = make([]bool, len(applier.owned))
+	applier.ownedNull = make([]int, len(applier.owned))
 	return applier, warnings, nil
 }
 
@@ -548,6 +573,12 @@ func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error 
 		// rather than preceding them.
 		applyNullTogether(r.nullTogether, nullMask)
 	}
+	// PHASE 4, once per row rather than once per rule: snapshot how each
+	// OWNED field ended up. It is taken after every rule has run because
+	// the file records the mask as the last rule left it, and a claim is
+	// answerable only against that. Pure reads into a slice sized at
+	// compile time — no RNG, no allocation.
+	a.noteOwnedNulls(nullMask)
 	return nil
 }
 

@@ -329,6 +329,20 @@ const (
 	// members are reported as a warning instead.
 	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE Code = "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE"
 
+	// PULSE_SYNTH_RULE_OWNERSHIP_INVALID indicates a rule declares
+	// `"owns_nulls": true` — the claim that the rule is the ONLY source
+	// of absence for the fields it nulls, which discards those fields'
+	// own null_rate draw — without naming a single field in `set_null`.
+	//
+	// The claim is scoped to `set_null` and to nothing else, so with an
+	// empty `set_null` it has no referent: nothing is suppressed, nothing
+	// is nulled, and the declaration reads as a statement the generated
+	// cohort cannot reflect either way. Refused at spec parse rather than
+	// ignored, because an ignored ownership claim is invisible — the
+	// field keeps the double-counted null rate the flag exists to remove
+	// and no number anywhere says the flag did nothing.
+	PULSE_SYNTH_RULE_OWNERSHIP_INVALID Code = "PULSE_SYNTH_RULE_OWNERSHIP_INVALID"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -2338,6 +2352,7 @@ var allCodes = []Code{
 	PULSE_SYNTH_RULE_CONFLICT,
 	PULSE_SYNTH_RULE_BLOCK_INVALID,
 	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE,
+	PULSE_SYNTH_RULE_OWNERSHIP_INVALID,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

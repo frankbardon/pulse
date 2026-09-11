@@ -462,7 +462,25 @@ func (d *gateDetector) finish(warnings *[]string) []RuleSpec {
 		for _, ti := range c.targets {
 			targets = append(targets, d.targets[ti])
 		}
-		out = append(out, RuleSpec{When: c.when, SetNull: targets, Evidence: c.evidence})
+		// OwnsNulls rides EVERY gating candidate, and the detector's own
+		// admission thresholds are what make that correct rather than
+		// optimistic. A pair is admitted only when the target is null on
+		// at least gateHighNullRate of gated rows and at most
+		// gateLowNullRate (0.02) of OPEN rows — and P(null | open) IS the
+		// residual the flag zeroes. So the suppression is within 0.02 of
+		// exact by construction, which is the distance
+		// nullOwnershipDivergenceThreshold already calls immaterial, and
+		// a detection-derived run stays silent unless generation drifted.
+		//
+		// Emitting without it is the strictly worse default: the gate is
+		// then exactly right about WHICH rows are absent and wrong about
+		// HOW MANY, because the target's captured null_rate already
+		// includes everything the gate removed and fires again beneath
+		// it. Measured on the motivating cohort that took `regard` from a
+		// captured 0.2526 to a generated 0.4418 — a marginal an analyst
+		// reads as the data's own, with nothing in the file to say the
+		// candidate they accepted caused it.
+		out = append(out, RuleSpec{When: c.when, SetNull: targets, OwnsNulls: true, Evidence: c.evidence})
 		if c.evidence.ThinSupport {
 			thin = append(thin, c)
 		}

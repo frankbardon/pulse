@@ -958,6 +958,7 @@ rather than payload.
   {
     "when": "round(useCon) == 3 || round(useCon) == 4 || round(useCon) == 5 || round(useCon) == 6 || isnull(useCon)",
     "set_null": ["nps", "detractor", "passive", "promoter"],
+    "owns_nulls": true,
     "_evidence": {
       "detector": "gating",
       "note": "measured, not asserted: \"useCon\" is the field whose levels split these 4 target(s) …",
@@ -1037,10 +1038,33 @@ the applied order. The file is ordered so that a candidate WRITING a
 field another candidate READS comes before it; see *Emitted order is
 applied order* below.
 
-**A `set_null` gate repairs co-missingness only.** Each target's own
-`null_rate` still fires beneath the gate, so the targets' marginal null
-rate rises above the captured one. Rules cannot suppress a field's own
-null draw.
+**Every gating candidate carries `"owns_nulls": true`, and the
+detector's own admission thresholds are what make that correct.** Without
+it a `set_null` gate repairs co-missingness ONLY: each target's own
+`null_rate` keeps firing beneath the gate, and because that rate is a
+marginal already inclusive of everything the gate removed, the two
+compose as `g + (1 - g) * r` and the generated rate rises well above the
+captured one. `owns_nulls` discards the target's own null draw, making
+the gate the single source of its absence (see
+[`synth from-schema`](./synth-from-schema.md#owns_nulls-the-rule-owns-the-fields-absence)).
+
+That would be an optimistic default if it were not bounded: a
+(gate, target) pair is admitted only when the target is null on at least
+`gateHighNullRate` (0.98) of gated rows and at most `gateLowNullRate`
+(0.02) of OPEN rows — and `P(null | open)` **is** the residual the flag
+zeroes. So every candidate this detector can emit is within 0.02 of
+exact, which is the distance the divergence warning already calls
+immaterial; a claim that misses by more is reported after generation
+rather than left silent.
+
+Measured on the motivating cohort's accepted 11-candidate file at 40,000
+generated rows: the 50 `aware`-gated fields moved from **0.4320 to
+0.2455** against a captured 0.2526, and `people` from 0.7506 to 0.4208
+against a captured 0.4273, with the coherence table, the emitted
+ordering and the zero orphan count all unchanged and no claim diverging
+enough to warn. A co-missing block candidate never carries the flag: it
+already discards its non-gate members' rates by copying the gate's
+decision.
 
 ### Measured on the motivating cohort
 

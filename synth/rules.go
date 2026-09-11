@@ -21,10 +21,13 @@ import (
 // plausible-looking marginal and no gate at all.
 //
 // Five slots, exactly one of which (`when`) is a predicate and four of
-// which are actions:
+// which are actions, plus one MODIFIER (`owns_nulls`) that changes what
+// a `set_null` means for the fields it names rather than adding an
+// action of its own:
 //
 //	{"when": "familiarity == 1",
 //	 "set_null": ["perception_1", "perception_2"],
+//	 "owns_nulls": true,
 //	 "set": {"segment": "unaware"},
 //	 "set_expr": {"promoter": "nps >= 9"},
 //	 "null_together": ["nps", "nps_reason"]}
@@ -79,6 +82,70 @@ type RuleSpec struct {
 	// matters on every row the rule does not gate — which is why a
 	// set_null target is never pre-claimed away from its model.
 	SetNull []string `json:"set_null,omitempty"`
+
+	// OwnsNulls declares that THIS RULE is the only source of absence
+	// for the fields it names in SetNull: their own `null_rate` draw is
+	// DISCARDED and the rule's gate becomes the single thing that can
+	// null them. Scoped to SetNull and to nothing else — a rule
+	// declaring it without a SetNull field is refused
+	// (PULSE_SYNTH_RULE_OWNERSHIP_INVALID).
+	//
+	// # The arithmetic it fixes
+	//
+	// A captured `null_rate` is a MARGINAL: it already includes whatever
+	// the gate removed. Left in place beneath a `set_null` the two
+	// compose — a field is null when the gate fires OR when its own
+	// draw says so — and the generated rate comes out at
+	// g + (1-g)*r rather than r. Measured on the motivating 122-field
+	// survey profile, `regard` declares 0.2526 and generated 0.4418
+	// behind a `{"when": "aware == 0"}` gate that is exactly right about
+	// WHICH rows are absent. Declaring ownership lands it on the gate's
+	// own firing rate, which is what the captured number was measuring.
+	//
+	// # Zero, not a residual, and why
+	//
+	// The exactly-correct suppression is the RESIDUAL rate conditional
+	// on the rule not firing, (r - g) / (1 - g). It needs g, the rule's
+	// firing PROBABILITY, and a `when` is an arbitrary predicate over a
+	// row: nothing in a Spec knows how often it will be true, and
+	// estimating it would need a pre-pass whose own rows are drawn from
+	// the rates it is trying to correct. So the declaration zeroes the
+	// draw and the gap is MEASURED at generation instead of guessed —
+	// ownershipWarnings reports any owned field whose realised null rate
+	// misses its declared one (synth/rules_ownership.go).
+	//
+	// Where g IS knowable the residual is bounded rather than unknown:
+	// `profile create --suggest-rules` admits a gate only when the
+	// target is null on at least gateHighNullRate of gated rows and at
+	// most gateLowNullRate (0.02) of open rows, and that second
+	// threshold IS the residual. Every candidate detection can emit is
+	// therefore within 0.02 of exact under a zeroed draw — the same
+	// distance nullRateDivergenceThreshold already calls immaterial —
+	// which is why detection emits this flag on every gating candidate.
+	//
+	// # Two rules may own one field
+	//
+	// Ownership is a UNION, not an exclusive claim, and deliberately not
+	// routed through resolveConflicts' claim(): `set_null` REMOVES a
+	// value rather than supplying one, so it never claims a field away
+	// from its own generation (E2-S2), and "two gates can each account
+	// for this field's absence" is a coherent statement needing no
+	// arbitration. The draw is suppressed once.
+	//
+	// # Its relationship to NullTogether
+	//
+	// A block already does this for its non-gate members, by COPY rather
+	// than by suppression: applyNullTogether overwrites every member's
+	// decision with the gate's, so their own null_rate is discarded
+	// exactly as this flag discards it. The gated-block idiom — name a
+	// never-null field first so the copy clears the block's own MCAR
+	// nulls, then supply the real gate with a `set_null` — is ownership
+	// obtained as a SIDE EFFECT of that copy. OwnsNulls is the same
+	// statement said directly, and on the rule that makes it true. The
+	// block is still required for the shape it alone expresses: a
+	// co-missing block with NO gating field, where one member's own draw
+	// is the block's only source of absence.
+	OwnsNulls bool `json:"owns_nulls,omitempty"`
 
 	// Set assigns LITERAL values: a number or bool for a scalar target,
 	// a declared category string for a categorical_*, an array of
@@ -151,6 +218,8 @@ var ruleFieldSlots = []string{"set", "set_expr", "set_null", "null_together"}
 //     two distinct fields.
 //   - PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE — `set_null` names a field the
 //     schema cannot record a null for.
+//   - PULSE_SYNTH_RULE_OWNERSHIP_INVALID — `owns_nulls` is declared with
+//     an empty `set_null`, so the claim has no referent.
 //
 // Every error carries the rule index (errors.DetailSynthRule) and, where
 // one exists, the offending slot (errors.DetailSynthRuleSlot) and field,
@@ -185,6 +254,22 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, declared map
 	if len(r.Set) == 0 && len(r.SetExpr) == 0 && len(r.SetNull) == 0 && len(r.NullTogether) == 0 {
 		return ruleError(errors.PULSE_SYNTH_RULE_EMPTY, idx, "", "",
 			"rule declares no action: expected at least one of set, set_expr, set_null, null_together")
+	}
+
+	// Reported SECOND, immediately after the actionless rule and before
+	// any slot's contents are read, because it is the same CLASS of
+	// fault: the rule's own declaration is incoherent before any field
+	// name, expression or literal in it has been looked at. An ownership
+	// claim with no referent is silent if it is merely ignored — the
+	// owned fields keep the double-counted null rate the flag exists to
+	// remove, and nothing in the run says the flag did nothing — so it
+	// is refused rather than dropped. Scoped to `set_null` alone:
+	// `null_together` discards its non-gate members' own null_rate by
+	// copying the gate's decision and needs no flag to do it.
+	if r.OwnsNulls && len(r.SetNull) == 0 {
+		return ruleError(errors.PULSE_SYNTH_RULE_OWNERSHIP_INVALID, idx, "owns_nulls", "",
+			"rule declares owns_nulls but names no set_null field: "+
+				"the claim is scoped to set_null and has nothing to apply to")
 	}
 
 	// Every field a slot names must exist, checked before anything else
