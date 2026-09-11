@@ -1026,7 +1026,12 @@ func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts Sy
 		return nil, err
 	}
 	if opts.SourceCohort != "" && opts.FidelityReportPath != "" {
-		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath, spec, opts.FidelityWarnings); err != nil {
+		// The report's warnings array carries BOTH channels: the ones
+		// the caller supplied (capture-time, translation-time) and the
+		// ones generation itself raised. See mergeFidelityWarnings for
+		// why the fold lives here rather than at the CLI leaf.
+		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath, spec,
+			mergeFidelityWarnings(opts.FidelityWarnings, res.Warnings)); err != nil {
 			return nil, err
 		}
 		res.FidelityReportPath = opts.FidelityReportPath

@@ -200,6 +200,43 @@ The emitted spec carries the merged rules, so the loop is emit → read →
 write rules → apply → emit again to check what they became. `--emit-spec`
 never changes the generated cohort; it is a pure diagnostic.
 
+### A rule that never fires says so
+
+A rule naming a mistyped field or carrying an uncompilable expression is
+refused at spec parse. A rule whose `when` is simply **never true** is
+refused by nothing: it validates, it compiles, it applies to no row, and
+the cohort generates cleanly with the structural fact still absent.
+
+Every rule's firings are counted during generation, and a rule that
+applied to **zero** generated rows is reported — as a kind needing
+**attention**, so it leads the stderr summary however many
+expected-outcome lines sit below it:
+
+```
+  ! rule never fired (1)
+      rule 0 never fired: when "familiarity == 99" was true on 0 of 20000
+      generated row(s), so the rule applied to nothing; note a numeric
+      compares PRE-ROUNDING, so normalise first (an earlier rule setting
+      int(field)) or compare a range
+```
+
+The count is over rows that reached the **file**: a row a constraint
+rejected was re-drawn and left no trace, so it is not a firing. A rule
+that fires on every row, and one that fires on some, are silent.
+
+The message names the pre-rounding gotcha because it is the usual cause.
+The row holds the sampler's float and the wire holds `round(f)`, so
+`familiarity <= 1` selects only the draws whose float is already at or
+below 1. Measured on the 381,324-row survey profile at 20,000 generated
+rows: the un-normalised gate fires on **1,830** rows, and the same gate
+behind `{"set_expr": {"familiarity": "int(familiarity)"}}` fires on
+**3,693** — the whole wire-value population it reads as. Both run
+silently; only the fully-empty case is a warning.
+
+If many rules never fire the listing is capped at 20 with a counted
+`+N further rule(s) never fired` line, the same bound the thin-level and
+thin-residual-pair listings use.
+
 ## Determinism
 
 Same `(profile, source, seed, rows)` tuple → byte-identical output.
@@ -607,18 +644,28 @@ because each carries findings the others do not:
 |---|---|---|
 | Capture-time | `profile create`, read back off the document | the profile document's `warnings` |
 | Translation | `SpecFromProfile` — model drops and conditional conflicts | `--fidelity-report`'s `warnings` |
-| Compilation | `generate()` — correlation completion, model compilation | `--json`'s `data.warnings` |
+| Generation | `generate()` — the post-`--rules` arbitration, rule compilation, rules that never fired, correlation completion, model compilation | `--json`'s `data.warnings` **and** `--fidelity-report`'s `warnings` |
 
 The middle channel is the one that carries `model for numeric field "x"
 not applied: …`, and until the summary existed it reached no terminal at
 all: a spec that silently applied a fraction of its captured models
 generated a plausible cohort and printed `Generated 50000 rows`.
 
-Translation and compilation both derive their conflict lines from the
-same arbitration over the same spec, so the summary drops
-byte-identical duplicates before counting — 791 conflicts are reported
-as 791, not 1,582. Only the terminal summary dedupes; nothing written to
-a file moves.
+Translation and generation both derive their conflict lines from the
+same arbitration, so byte-identical duplicates are dropped before
+counting — 791 conflicts are reported as 791, not 1,582.
+
+The generation channel reaches the **report** as well as the terminal,
+and that is what makes the summary's `Full list:` footer true. Until it
+did, the report held the two channels computed *before* the run, so a
+`--rules` run's post-merge arbitration — precisely the record of which
+captured relationships the rules retired — existed only on a terminal
+nobody keeps. Measured on the 381,324-row profile with
+`{"set_expr": {"promoter": "nps >= 9"}}` plus one never-firing rule: the
+report went from 3,846 warnings that mentioned neither fact to 3,849
+carrying the retired model, the dropped residual participant, and the
+dead rule. The overlap with the translation channel is deduped at the
+fold, so 791 shared lines are written once.
 
 Without `--fidelity-report` no document holds the merged list, so the
 footer names the flag that would produce one rather than a path that
@@ -629,7 +676,9 @@ does not exist.
 Same envelope shape as
 [`synth from-schema`](synth-from-schema.md#output). The stderr summary is
 not printed on this path — `data.warnings` already carries the
-compilation channel, and the report carries the rest.
+generation channel, and the report carries every channel. The envelope
+shape is unchanged: `warnings` is the same `[]string` slot it has always
+been.
 
 ## Exit codes
 

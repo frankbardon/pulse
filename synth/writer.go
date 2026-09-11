@@ -296,8 +296,20 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		if encErr := encodeRow(recordsBuf, wfs, row, rowNullMask, bitmapSize); encErr != nil {
 			return rowsGenerated, rowsRejected, warnings, encErr
 		}
+		// The row reached the file, so the rules that applied to it
+		// count. Committing HERE rather than inside apply is what makes
+		// the reported figure divisible by rowsGenerated: a rejected row
+		// was re-drawn and left no trace. See synth/rules_firing.go.
+		rules.commitRow()
 		rowsGenerated++
 	}
+	// A rule that applied to NO generated row is the one rule fault
+	// nothing else can see — it validates, it compiles, and the cohort
+	// generates cleanly without the structural fact it was written for.
+	// Reported last because it is a fact about the RUN, not about
+	// compiling the spec, and the warning order in this function is
+	// causal.
+	warnings = append(warnings, rules.neverFiredWarnings(rowsGenerated)...)
 	return rowsGenerated, rowsRejected, warnings, nil
 }
 

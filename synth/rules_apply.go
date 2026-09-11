@@ -150,6 +150,16 @@ type compiledRule struct {
 type ruleApplier struct {
 	rules []compiledRule
 
+	// rowFired and firings are the firing counter (synth/rules_firing.go).
+	// Both are len(rules) and allocated ONCE here, so the per-row pass
+	// still allocates nothing: rowFired is scratch for the row being
+	// drawn, cleared at the top of every apply, and firings accumulates
+	// only the rows generate() ACCEPTED (commitRow). A rule that fired
+	// solely on constraint-rejected attempts left nothing in the file
+	// and reports zero, which is the honest answer.
+	rowFired []bool
+	firings  []int
+
 	// nullState exists ONLY to host the isnull builtin baked into every
 	// compiled `when`. isnull answers from a null MASK rather than from
 	// the row, because a nulled field still carries its drawn value in
@@ -282,6 +292,8 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	if len(applier.rules) == 0 {
 		return nil, warnings, nil
 	}
+	applier.rowFired = make([]bool, len(applier.rules))
+	applier.firings = make([]int, len(applier.rules))
 	return applier, warnings, nil
 }
 
@@ -434,6 +446,9 @@ func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error 
 	// must happen before the first Run: a stale mask would answer about
 	// the previous row.
 	a.nullState.nullMask = nullMask
+	// Same reasoning for the firing scratch: it describes the row being
+	// drawn, and the row it described may have been rejected.
+	clear(a.rowFired)
 
 	for i := range a.rules {
 		r := &a.rules[i]
@@ -462,6 +477,10 @@ func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error 
 				continue
 			}
 		}
+		// The rule applies to this row. Recorded BEFORE the writes
+		// because the gate is what "fired" means — a rule whose every
+		// write is a no-op on this row still selected it.
+		a.noteFired(i)
 		// PHASE 1 — evaluate every set_expr against the row as it
 		// stands before this rule writes anything. See the SNAPSHOT
 		// paragraph above for why this is a phase and not a loop body.

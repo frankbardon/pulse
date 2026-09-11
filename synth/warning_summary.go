@@ -176,6 +176,23 @@ var warningKinds = []warningKind{
 		},
 	},
 
+	{
+		// A rule that applied to NO generated row. The author wrote a
+		// structural fact, the spec validated, the cohort generated
+		// cleanly, and the fact is absent — the package's own failure
+		// class (see synth/rules_firing.go), so it needs attention
+		// rather than joining the expected-outcome count. The roll-up
+		// arm folds the bounded listing's "+N further rule(s) never
+		// fired" line into the same group as the lines it summarises,
+		// since the cap must not split one finding across two counts.
+		kind:      "rule never fired",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "rule ", " never fired") ||
+				(strings.HasPrefix(w, "+") && strings.Contains(w, "further rule(s) never fired"))
+		},
+	},
+
 	// --- arbitration and support caveats ----------------------------
 	{
 		kind:      "conditional relationship conflict",

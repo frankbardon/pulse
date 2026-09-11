@@ -158,11 +158,23 @@ func synthFromProfileCmd() *cli.Command {
 			}
 			// Capture-time thin-cell warnings (prof.Warnings, written to
 			// the profile document at `profile create` time) and
-			// synth-time conditional-relationship conflict warnings
-			// (conflictWarnings, computed just now against the composed
-			// Spec — see SpecFromProfile) share one channel into the
-			// fidelity report: FidelityWarnings. Capture-time first,
-			// synth-time second, matching the order each was produced.
+			// translation-time conditional-relationship conflict
+			// warnings (conflictWarnings, computed just now against the
+			// composed Spec — see SpecFromProfile) share one channel
+			// into the fidelity report: FidelityWarnings. Capture-time
+			// first, translation-time second, matching the order each
+			// was produced.
+			//
+			// These are the two channels that exist BEFORE generation,
+			// and they are deliberately still the only two passed here:
+			// conflictWarnings was computed against a spec that had not
+			// yet been merged with --rules, so it cannot name a
+			// relationship a rule retired. The third channel —
+			// everything generate() raised, the post-merge arbitration
+			// included — is folded onto the report by the facade, which
+			// is the only place holding both it and the report path.
+			// See mergeFidelityWarnings (synth_fidelity.go) for why the
+			// fold lives there rather than being re-derived here.
 			fidelityWarnings := append(append([]string{}, prof.Warnings...), conflictWarnings...)
 			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{
 				Seed:               int64(seed),
@@ -206,9 +218,12 @@ func synthFromProfileCmd() *cli.Command {
 // warning list for `synth from-profile`.
 //
 // The fidelity report is the ONLY document that carries all three
-// channels (see the call site), so without --fidelity-report there is no
-// file to point at and the honest answer is the flag that would make
-// one — not a path that does not exist.
+// channels (capture, translation, generation — the last folded in by
+// the facade, see mergeFidelityWarnings), so without --fidelity-report
+// there is no file to point at and the honest answer is the flag that
+// would make one — not a path that does not exist. Until E2-S3 this
+// pointer was not true even WITH the flag: the report held the first
+// two channels only.
 func fidelityWarningsLocation(reportPath string) string {
 	if reportPath == "" {
 		return "re-run with --fidelity-report to capture every line"
