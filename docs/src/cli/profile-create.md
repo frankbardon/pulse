@@ -1100,6 +1100,15 @@ Fed back unmodified through `synth from-profile --rules`, all 8 fire on
 without the rules leaves `aware` coherent on 0 of 4,964 and the NPS block
 on 7,819 of 16,806.
 
+That figure is about the rows each gate SELECTS, and it predates the
+orphan measurement. Five of these eight gates read a field that is itself
+a member of an emitted co-missing block, so under detector preference
+alone they fired on a drawn value the block then nulled — 8,693 of 20,000
+generated rows carried an answer to a question the same file said was
+never asked, with every gate still at 100% on its own gated rows. The
+writer-before-reader ordering in [Emitted order is applied order](#emitted-order-is-applied-order)
+takes that to 0; see [Ordering has teeth](synth-calibration.md#ordering-has-teeth).
+
 ## Co-missing blocks (`null_together` candidates)
 
 A survey question block is asked or skipped as a unit, so its fields are
@@ -1744,4 +1753,6 @@ pulse cohort inspect sales.synth.pulse
 - [`pulse synth from-schema`](synth-from-schema.md) — the alternative
   spec-driven path
 - `skills/synthetic-data.md` — full profile and spec grammar
+- `skills/synth-models.md` — `--fit-models` capture, selection and shrinkage
+- [Synth calibration figures and design rationale](synth-calibration.md)
 - [Library: pulse.Profile](../library/overview.md)

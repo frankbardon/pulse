@@ -270,28 +270,53 @@ cause for "familiarity", whose row value already is the stored value
 
 ### When pre-rounding IS the cause, the remedy is `round`, not `int`
 
-The row holds the sampler's float and the wire holds `round(f)`, so
-`familiarity <= 1` selects only the draws whose float is already at or
-below 1. An integer field is stored as `floor(v+0.5)`, so `round(v)` is
-the one expression that reproduces the value the file holds, and `int(v)`
-widens the gate by moving VALUES down instead. Measured on the
-381,324-row survey profile at 20,000 generated rows, back when
-`familiarity` still reconstructed as a clamped normal:
+The row holds the sampler's float and the wire holds `round(f)`, so a
+`<= k` gate selects only the draws whose float is already at or below `k`.
+An integer field is stored as `floor(v+0.5)`, so `round(v)` is the one
+expression that reproduces the value the file holds, and `int(v)` widens
+the gate by moving VALUES down instead.
 
-| gate | rows it fires on | wire `familiarity == 1` |
-|---|---|---|
-| `familiarity <= 1`, un-normalised | 1,843 | 2,739 |
-| behind `{"set_expr": {"familiarity": "round(familiarity)"}}` | **2,739** | 2,739 — unchanged |
-| behind `{"set_expr": {"familiarity": "int(familiarity)"}}` | 3,824 | **3,824** — 1,085 respondents dropped a point |
+Measured on the current tree, at 20,000 rows and `--seed 7`, against the
+smallest spec that still carries the hazard — a hand-authored continuous
+distribution on an integer field, which is one of the three live cases
+listed below:
+
+```json
+{"row_count": 20000,
+ "fields": [
+   {"name": "score", "type": "u8", "nullable": true, "distribution": "normal",
+    "params": {"mean": 5, "std": 2.5, "min": 0, "max": 10}, "null_rate": 0.1}],
+ "rules": [{"when": "!isnull(score) && score <= 1", "set": {"marker": "fired"}}]}
+```
+
+| gate | rows it fires on | wire `score <= 1` | stored level 0 / 1 |
+|---|---|---|---|
+| `score <= 1`, un-normalised | 1,000 | 1,480 | 659 / 821 |
+| behind `{"set_expr": {"score": "round(score)"}}` | **1,480** | 1,480 | 659 / 821 — unchanged |
+| behind `{"set_expr": {"score": "int(score)"}}` | 2,140 | **2,140** | **1,000 / 1,140** — rewritten |
 
 `round` reaches exactly the population a reader sees in the file and
 stores the same column it would have stored anyway; `int` gets its extra
-rows by rewriting the score. All three run silently; only the fully-empty
-case is a warning. That table is now historical for `familiarity` itself
-— it reconstructs as `discrete`, so its row value is already the stored
-level — and stays live for an `f32`/`f64` column, an integer column with
-more observed levels than the `discrete` cap, and a hand-authored
-continuous distribution on an integer field.
+660 rows by rewriting the score of every respondent whose draw had a
+fractional part. All three run silently; only the fully-empty case is a
+warning.
+
+**How big the gap is depends on the field's SPREAD, not just its type.**
+The divergence band is the half unit either side of the threshold, so a
+WIDE integer column is live in principle and immaterial in practice: on
+the same tree, `catSpend` (u32, 0–150,000, std 11,672 — over the
+`discrete` cap, so it reconstructs as a clamped normal) fired on 7,872
+rows un-normalised, 7,872 behind `round()` and 7,872 behind `int()`, all
+three matching the wire count exactly. The three cases where it bites are
+an `f32`/`f64` column, a NARROW integer column drawn from a continuous
+distribution, and any gate whose threshold sits where the density is high.
+
+The original worked example for this section used `familiarity` from the
+381,324-row survey profile; it is now a no-op there, because a
+small-integer column reconstructs as `discrete` and its row value already
+IS the stored level. `round(familiarity)` changes nothing, which is the
+outcome the [`discrete` marginal](profile-create.md#small-integer-fields)
+was added to produce.
 
 If many rules never fire the listing is capped at 20 with a counted
 `+N further rule(s) never fired` line, the same bound the thin-level and
@@ -956,3 +981,5 @@ stderr summary marks `!` and lists first, so it does not need finding.
 - [`pulse profile create`](profile-create.md)
 - [`pulse synth from-schema`](synth-from-schema.md)
 - `skills/synthetic-data.md` — the spec / profile grammar
+- `skills/synth-models.md` — `--fit-models`, residual correlations, and the two structure-recovery fidelity sections
+- [Synth calibration figures and design rationale](synth-calibration.md)

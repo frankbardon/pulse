@@ -85,8 +85,9 @@ fields' residuals, `{a, b, correlation}` exactly like `correlations` but
 read on the residual scale; both endpoints must carry a `models` entry
 or the spec is refused. Omitting either key is the zero state — every
 residual is drawn independently, exactly as before they existed. The
-construction, the latent-scale caveat for non-`normal` targets and the
-determinism rules are in `skills/synthetic-data.md`.
+construction and the latent-scale caveat for non-`normal` targets are in
+`skills/synth-models.md`; the determinism rules in
+`skills/synthetic-data.md`.
 
 Minimal example — a categorical-categorical pair (`region` → `tier`)
 alongside a categorical-numeric pair (`region` → `revenue`):
@@ -195,6 +196,10 @@ same per-row sequence as the same spec without them, and a spec
 declaring no rules generates byte-identical output to one written before
 the slot existed.
 
+<!-- ANCHOR-PINNED: two pages link to this heading by its generated anchor
+     (#owns_nulls-the-rule-owns-the-fields-absence) — profile-create.md and
+     synth-from-profile.md. No link checker runs in CI, so a rename here breaks
+     both links SILENTLY. Rename only together with those two references. -->
 ### `owns_nulls`: the rule owns the field's absence
 
 `set_null` states **which rows** a field is absent on. It says nothing
@@ -599,5 +604,6 @@ pulse synth from-schema --spec sales.spec.json --output sales.pulse --json
   a captured profile of an existing cohort
 - [`pulse profile create`](profile-create.md) — capture the profile
 - `skills/synthetic-data.md` — full spec grammar and distribution table
+- [Synth calibration figures and design rationale](synth-calibration.md)
 - `skills/synth-structural-rules.md` — `rules[]` and `constraints[]`
 - [Library: pulse.Synth](../library/overview.md)
