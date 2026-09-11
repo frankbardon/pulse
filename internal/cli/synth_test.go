@@ -897,3 +897,168 @@ func TestSynthFromProfileCLI_EmitSpecWithJSONKeepsTheEnvelope(t *testing.T) {
 		t.Errorf("errors = %+v, want empty", env.Errors)
 	}
 }
+
+// gatedCohortFields is a survey-shaped cohort with a real gating
+// relationship, written through the rule layer itself so the source
+// genuinely carries the structure detection has to recover.
+func gatedCohortFields() []synth.FieldSpec {
+	fields := []synth.FieldSpec{
+		{Name: "aware", Type: "packed_bool", Distribution: synth.DistBernoulli,
+			Params: map[string]any{"p": 0.75}},
+		{Name: "noise", Type: "f64", Nullable: true, NullRate: 0.30,
+			Distribution: synth.DistNormal, Params: map[string]any{"mean": 10.0, "std": 3.0}},
+	}
+	for i := 1; i <= 4; i++ {
+		fields = append(fields, synth.FieldSpec{
+			Name: "q" + strconv.Itoa(i), Type: "u4", Nullable: true, NullRate: 0,
+			Distribution: synth.DistNormal,
+			Params:       map[string]any{"mean": 4.0, "std": 1.5, "min": 1.0, "max": 7.0},
+		})
+	}
+	return fields
+}
+
+func writeGatedCohort(t *testing.T, path string, rows int, seed int64) {
+	t.Helper()
+	p, err := newPulse()
+	if err != nil {
+		t.Fatalf("newPulse: %v", err)
+	}
+	spec := &pulse.SynthSpec{RowCount: rows, Fields: gatedCohortFields(),
+		Rules: []synth.RuleSpec{{When: "aware == 0", SetNull: []string{"q1", "q2", "q3", "q4"}}}}
+	if _, err := p.Synth(context.Background(), spec, path, pulse.SynthOptions{Seed: seed}); err != nil {
+		t.Fatalf("p.Synth(gated fixture): %v", err)
+	}
+}
+
+// TestProfileCreateCLI_SuggestRulesRoundTripsThroughFromProfile drives
+// BOTH real leaves: `profile create --suggest-rules` writes the file and
+// `synth from-profile --rules` consumes it UNMODIFIED and generates.
+//
+// The file is passed byte for byte between the two commands — no
+// re-encode, no edit, no library shortcut — because "consumed without
+// modification" is the acceptance criterion and every weaker assertion
+// (it parses; it has the right shape) passes against a document whose
+// predicates never fire.
+func TestProfileCreateCLI_SuggestRulesRoundTripsThroughFromProfile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	writeGatedCohort(t, source, 4000, 77)
+
+	profile := filepath.Join(dir, "profile.json")
+	candidates := filepath.Join(dir, "candidates.json")
+	var out, errOut bytes.Buffer
+	if err := runProfileCLIStreams(t, &out, &errOut, "create",
+		"--input", source, "--output", profile, "--suggest-rules", candidates); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+
+	raw, err := os.ReadFile(candidates)
+	if err != nil {
+		t.Fatalf("ReadFile(candidates): %v", err)
+	}
+	rules, err := synth.ParseRules(raw)
+	if err != nil {
+		t.Fatalf("the written file is not a rules document: %v", err)
+	}
+	if len(rules) == 0 {
+		t.Fatalf("no candidates written; stderr = %s", errOut.String())
+	}
+	var gate *synth.RuleSpec
+	for i := range rules {
+		if rules[i].Evidence != nil && rules[i].Evidence.GateField == "aware" {
+			gate = &rules[i]
+		}
+	}
+	if gate == nil {
+		t.Fatalf("aware was not proposed; file = %s", raw)
+	}
+	if len(gate.SetNull) != 4 {
+		t.Errorf("aware targets = %v, want q1..q4", gate.SetNull)
+	}
+
+	// The cross-cutting caveat is on STDERR, not in the document and
+	// not on stdout, so a redirected `> profile.json` keeps exactly the
+	// bytes it had.
+	if !strings.Contains(errOut.String(), "PROPOSED, not applied") ||
+		!strings.Contains(errOut.String(), "STATISTICAL") {
+		t.Errorf("the caveat is missing from stderr: %s", errOut.String())
+	}
+	if strings.Contains(out.String(), "PROPOSED") {
+		t.Errorf("the caveat leaked onto stdout: %s", out.String())
+	}
+
+	// The same bytes, unmodified, through the consuming leaf.
+	ruledOut := filepath.Join(dir, "ruled.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", ruledOut,
+		"--rows", "1000", "--seed", "13", "--rules", candidates); err != nil {
+		t.Fatalf("synth from-profile --rules <detected file>: %v", err)
+	}
+
+	vals, nulls := readCohortRows(t, ruledOut)
+	gated, gatedAllNull := 0, 0
+	for i := 4000; i < len(vals); i++ {
+		if vals[i]["aware"] != float64(0) {
+			continue
+		}
+		gated++
+		if nulls[i]["q1"] && nulls[i]["q2"] && nulls[i]["q3"] && nulls[i]["q4"] {
+			gatedAllNull++
+		}
+	}
+	if gated == 0 {
+		t.Fatal("no generated row satisfied the detected gate")
+	}
+	if gatedAllNull != gated {
+		t.Errorf("the detected rule fired on %d of %d gated rows, want all of them", gatedAllNull, gated)
+	}
+}
+
+// TestProfileCreateCLI_SuggestRulesLeavesTheDocumentAlone is acceptance
+// criterion 8 at the CLI: absent the flag the written profile document
+// is byte-identical, and with it only the warnings key moves.
+func TestProfileCreateCLI_SuggestRulesLeavesTheDocumentAlone(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	writeGatedCohort(t, source, 1500, 77)
+
+	plain := filepath.Join(dir, "plain.json")
+	detected := filepath.Join(dir, "detected.json")
+	var buf bytes.Buffer
+	if err := runProfileCLI(t, &buf, "create", "--input", source, "--output", plain); err != nil {
+		t.Fatalf("profile create: %v", err)
+	}
+	if err := runProfileCLI(t, &buf, "create", "--input", source, "--output", detected,
+		"--suggest-rules", filepath.Join(dir, "c.json")); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+
+	a := profileDocWithoutWarnings(t, plain)
+	b := profileDocWithoutWarnings(t, detected)
+	if !bytes.Equal(a, b) {
+		t.Errorf("the profile document moved beyond its warnings under --suggest-rules")
+	}
+}
+
+func profileDocWithoutWarnings(t *testing.T, path string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", path, err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("Unmarshal(%s): %v", path, err)
+	}
+	if _, ok := doc["rule_candidates"]; ok {
+		t.Errorf("%s carries a rule_candidates section", path)
+	}
+	delete(doc, "warnings")
+	out, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	return out
+}

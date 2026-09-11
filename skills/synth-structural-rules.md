@@ -109,6 +109,22 @@ Generation-time warnings — the POST-merge arbitration (which relationships the
 
 The two compose: emit, read what your rules became, re-run. Refusals name the FILE as well as the rule index — `details.path` on every `PULSE_SYNTH_RULE_*` raised by the load, so an analyst holding a rules file, a spec and a profile knows which document is wrong. A missing file is `DATA_FILE`, a malformed one `SERVICE_VALIDATION`; both name the path.
 
+## Detecting rules from the data (`--suggest-rules`)
+
+Coverage bounds the layer's value and rules get written from RECALL. `pulse profile create --suggest-rules <path>` measures `P(target null | gate = level)` on the SAME scan (no extra byte read) for every low-cardinality field — `categorical_*`, `packed_bool`, `u4` — and proposes a `set_null` rule for each field whose levels split a target's null rate into ~1 and ~0 (`gateHighNullRate` 0.98 / `gateLowNullRate` 0.02, package constants, not flags). The file is the bare rules array `--rules` consumes UNMODIFIED.
+
+**Proposed, never applied.** Detection finds the STATISTICAL gate; a human knows the SEMANTIC one. Measured on the motivating cohort it proposes `aware` AND `familiarity == 1` with identical evidence to sixteen digits — they gate the same 96,326 rows with zero exceptions, so nothing in the data can separate them. Read each candidate's evidence, correct the `when`, delete the rest.
+
+**Evidence rides the rule, on `_evidence`** — the ONE inert slot of `RuleSpec`. Generation never reads it, an evidence-only rule is still `PULSE_SYNTH_RULE_EMPTY`, and hand-authoring it is harmless. It lives there rather than in a sibling block because the file must stay a bare array (a wrapper object is refused) and because evidence in a second document drifts the first time a candidate is deleted. It carries per-level conditional null rates and support, per-target gated/open rates, `rows_affected`, `gated_share` and `max_null_rate_deviation`.
+
+`gated_share` is the `1 - P(gate)` figure that identified this cohort's gate by hand (0.2526093295989762, matching 50 fields' `null_rate` to ten digits). It is a CHECKING aid, not the ranking signal: the split test arithmetically implies it, so every admitted candidate scores well. Ranking is target count, then rows affected.
+
+Numeric gates are emitted through `round()`, uniformly, including `packed_bool`. Bare `==` reads the pre-rounding float and silently under-fires — 531 of 901 rows in the committed regression.
+
+Two things it will NOT propose, both counted in `Profile.Warnings` rather than dropped silently: a field with more than `maxGateLevels` (16) observed levels (an attribute, not a branch — abandoned, never truncated), and a gate whose ONLY gated level is the null pseudo-level, which is co-missingness rather than value gating (every member of an N-field block reports the other N-1 that way). Thin candidates SHIP with their support attached, warned thinnest-first and capped.
+
+Candidates COMPOSE in declaration order: on the real cohort `aware` nulls the five `*Aware` flags and the five later candidates then fire on those nulls too. And a `set_null` gate repairs co-missingness ONLY — each target's own `null_rate` still fires beneath it, so the marginal rises above the captured one.
+
 ## See
 
 - `synthetic-data` — modes, distributions, correlations, models, determinism contract.

@@ -138,6 +138,27 @@ bare array of rule objects, the same shape as a spec's `rules` key — and
 `PULSE_SYNTH_RULE_*` codes with the file path in `details.path`. See
 [synth from-profile](synth-from-profile.md).
 
+### `--suggest-rules`
+
+Available on: `profile create`.
+
+`--suggest-rules <path>` detects structural GATING relationships on the
+same scan the profile already makes — no additional cohort read — and
+writes them to `<path>` as the bare rules array `synth from-profile
+--rules` consumes unmodified. For every low-cardinality field
+(`categorical_*`, `packed_bool`, `u4`) it measures
+`P(target null | gate = level)` and proposes a `set_null` rule for each
+field whose levels split a target's null rate into ~1 and ~0.
+
+PROPOSED, never applied. Detection finds the STATISTICAL gate; a human
+knows the SEMANTIC one, and the two are routinely different fields that
+move together. Each candidate carries its own measurement on `_evidence`
+— the one inert slot of a rule, which generation never reads — so a
+candidate the analyst deletes takes its evidence with it. The profile
+document itself gains no section: absent the flag it is byte-identical,
+and with it only `warnings` moves. See
+[profile create](profile-create.md).
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it
@@ -190,7 +211,7 @@ added without naming it somewhere under `skills/` or `docs/src/`.
 | `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
 | `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
 | `pulse mcp` | Run the MCP server over stdio | [mcp](mcp.md) |
-| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`) | [profile create](profile-create.md) |
+| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships on the same scan and writes them as a standalone rules file for review | [profile create](profile-create.md) |
 | `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
 | `pulse shard add` | Append a shard to an existing archive | `--help` |
 | `pulse shard compact` | Rewrite an archive to reclaim orphan bytes | `--help` |

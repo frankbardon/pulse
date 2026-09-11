@@ -18,7 +18,7 @@ pulse profile create --input PATH --output PATH
                      [--top-k N] [--include-stats]
                      [--include-correlations] [--correlation-top-k N]
                      [--conditional] [--fit-shape] [--fit-models]
-                     [--residual-correlations]
+                     [--residual-correlations] [--suggest-rules PATH]
                      [--sample-limit N] [--seed N] [--json]
 ```
 
@@ -36,6 +36,7 @@ pulse profile create --input PATH --output PATH
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
 | `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels and set options automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
 | `--residual-correlations` |     | bool   | false      | Capture the full correlation submatrix among `--fit-models`' fitted residuals (`residual_correlations`); every pair, measured or explicitly unmeasured — never a top-K sample and never a fabricated zero (see below). Requires `--fit-models` |
+| `--suggest-rules`        |      | string | (off)      | Detect structural GATING relationships on the same scan and write them to this path as a standalone rules file — the bare JSON array `synth from-profile --rules` consumes unmodified. PROPOSED, never applied; the profile document itself gains no section (see below) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling and `--fit-models`' residual reservoir (see below); each draws from its own stream, so the two flags never perturb each other, and the same `(--input, --seed)` produces byte-identical captured output |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
@@ -807,6 +808,176 @@ whose *supplied* entries are not jointly realizable — but now reports
 the diagonal jitter it had to add. A regularized matrix means the
 realized correlations will be pulled toward zero, which a caller
 previously could only infer from the output.
+
+## `--suggest-rules`: proposing structural rules from the data
+
+The `rules[]` layer (`docs/src/cli/synth-from-schema.md`) can state the
+facts no statistical summary can — a question block not ASKED of a
+respondent who failed a screener, a flag that is a band of another
+column — but its value is bounded entirely by rule COVERAGE, and rules
+get written from memory. On the motivating 122-field survey the analyst
+supplied exactly one; a second and larger one was found by accident
+while verifying something else. An unstated rule is invisible in the
+output because **every marginal inside it is individually correct**.
+
+`--suggest-rules <path>` measures, for every low-cardinality field
+(`categorical_*`, `packed_bool`, `u4`) and every other field,
+`P(target null | gate = level)`, and proposes a `set_null` rule for each
+field whose levels split a target's null rate into ~1 and ~0. It rides
+the scan `profile create` already makes — **no additional cohort read**.
+
+```
+pulse profile create -i cohort.pulse -o profile.json --suggest-rules candidates.json
+pulse synth from-profile -p profile.json --source cohort.pulse -o out.pulse \
+      --rows 20000 --rules candidates.json
+```
+
+### Proposed, never applied
+
+A detected pattern can be a coincidence of the sample, and a rule applied
+without review is a silent structural claim about the data. Nothing is
+auto-applied and the profile DOCUMENT is untouched: absent the flag it is
+byte-identical, and with the flag the only key that moves is `warnings`.
+The candidates are never a profile section — an unreviewed structural
+claim must not ride inside the document that drives generation.
+
+### Detection finds the STATISTICAL gate, not the SEMANTIC cause
+
+This is measured, not hypothetical. On the motivating cohort detection
+proposes BOTH `round(aware) == 0` and `round(familiarity) == 1`, with
+identical evidence to sixteen digits — the two select the same 96,326
+rows with zero exceptions either way, so nothing in the data can
+separate them, and the analyst's own rule is the second. Each candidate
+says so in its `_evidence.note` and invites correction rather than
+asserting cause.
+
+### The `_evidence` block
+
+Each candidate carries its own supporting measurement on `_evidence` —
+the ONE INERT slot of a rule. Generation never reads it, a rule carrying
+only `_evidence` is still refused as `PULSE_SYNTH_RULE_EMPTY`, and
+deleting a candidate takes its evidence with it. The leading underscore
+follows the repo's `_meta` convention for a block that is documentation
+rather than payload.
+
+```json
+[
+  {
+    "when": "round(useCon) == 3 || round(useCon) == 4 || round(useCon) == 5 || round(useCon) == 6 || isnull(useCon)",
+    "set_null": ["nps", "detractor", "passive", "promoter"],
+    "_evidence": {
+      "detector": "gating",
+      "note": "measured, not asserted: \"useCon\" is the field whose levels split these 4 target(s) …",
+      "gate_field": "useCon",
+      "gated_levels": ["3", "4", "5", "6", "(null)"],
+      "open_levels": ["1", "2"],
+      "levels": [{"level": "1", "side": "open", "n": 40517, "mean_target_null_rate": 0}, "…"],
+      "targets": [{"field": "nps", "null_rate": 0.826, "gated_null_rate": 1, "open_null_rate": 0}, "…"],
+      "rows_observed": 381324,
+      "rows_affected": 314981,
+      "gated_share": 0.826019343130776,
+      "max_null_rate_deviation": 0,
+      "min_level_support": 19313
+    }
+  }
+]
+```
+
+`gated_share` is the figure to compare against each target's own
+`null_rate` in the profile document — that agreement is how the
+relationship was first found by hand. It is a CHECKING aid rather than
+the ranking signal: the split test arithmetically implies it, so every
+admitted candidate scores well on it. Ranking is target count, then rows
+affected.
+
+### Predicates are emitted through `round()`
+
+Uniformly, including for a `packed_bool` whose row value is already
+exactly `0.0` or `1.0`. A generated row holds the sampler's float and
+the file holds the stored integer, so a bare `familiarity == 1` selects
+only the draws that landed exactly on 1 — measured at 531 of 901 rows in
+the committed regression. The uniformity is deliberate: a file where one
+numeric gate is spelled bare and another through `round()` teaches a
+reader that bare is sometimes fine, and nothing in the file says which.
+
+### What it will NOT propose, and says so
+
+Both are COUNTED in `warnings` rather than dropped silently.
+
+- A field with more than **16** observed levels. A gate is a branch, and
+  a branch with more arms than that is an attribute. The candidate is
+  ABANDONED, never truncated — a partial level map makes every rate
+  below it a rate over an arbitrary subset of the cohort.
+- A gate whose ONLY gated level is the null pseudo-level. That is
+  co-missingness between fields rather than value gating, and every
+  member of an N-field co-missing block reports the other N−1 that way;
+  proposing them restates one finding N times and buries everything
+  else. On the motivating cohort that is 3,932 relationships.
+
+Candidates resting on THIN levels are **not** suppressed — they ship with
+`thin_support: true` and their `min_level_support`, warned thinnest-first
+with a counted remainder. The analyst is better placed than a threshold
+to judge a twelve-row level.
+
+### Thresholds are constants, not flags
+
+`gateHighNullRate` (0.98) and `gateLowNullRate` (0.02) are package
+constants with their reasoning at the declaration in
+`synth/profile_gating.go`, matching the `minVarianceExplained` /
+`minLevelObservations` precedent: a threshold whose purpose is to mean
+the same thing across cohorts must not be tunable per run. They are tight
+because skip logic is EXACT in the source. A looser pair would not find
+more gates; it would find ordinary ASSOCIATION and propose it as
+structure, and a rule built from a 10%/30%/50% null rate is applied
+unconditionally and wrong on most of the rows it selects.
+
+### Two caveats that survive detection
+
+**Candidates compose in declaration order.** They are not independent
+statements. On the motivating cohort `aware` nulls the five `*Aware`
+flags, and the five later candidates — each gated partly on
+`isnull(<x>Aware)` — then fire on those nulls too. That is the
+declaration-order contract working, and it is why the file's order is
+the applied order.
+
+**A `set_null` gate repairs co-missingness only.** Each target's own
+`null_rate` still fires beneath the gate, so the targets' marginal null
+rate rises above the captured one. Rules cannot suppress a field's own
+null draw.
+
+### Measured on the motivating cohort
+
+381,324 rows, 122 fields. Detection proposes **8** candidates and adds
+**no cohort read** (+13% CPU against a full
+`--conditional --fit-models --residual-correlations` capture; the output
+is byte-identical with those flags and without them).
+
+| gate | targets | `gated_share` | deviation |
+|---|---|---|---|
+| `round(aware) == 0` | 63 | 0.2526093295989762 | 1.2e-02 |
+| `round(familiarity) == 1` | 63 | 0.2526093295989762 | 1.2e-02 |
+| `round(useCon) ∈ {3,4,5,6} ∨ isnull` | 4 | 0.8260193431307760 | 0 |
+| `round(peopleAware) == 0 ∨ isnull` | 1 (`people`) | 0.427288 | 0 |
+| `round(promotionAware) == 0 ∨ isnull` | 1 (`promotion`) | 0.321231 | 0 |
+| `round(placementAware) == 0 ∨ isnull` | 1 (`placement`) | 0.304429 | 0 |
+| `round(productAware) == 0 ∨ isnull` | 1 (`product`) | 0.293158 | 0 |
+| `round(priceAware) == 0 ∨ isnull` | 1 (`price`) | 0.288857 | 0 |
+
+The first two are the proxy pair above. The third is the four-field NPS
+block that was found by ACCIDENT during research — recovered here
+automatically, with rate exactly 1 at every gated level and exactly 0 at
+every open one. `aware`'s 63 targets are a strict SUPERSET of the 50
+fields whose `null_rate` is exactly `0.2526093295989762`: the extra 13
+are the `0.2649` cluster that research recorded as *"no matching single
+boolean gate — UNEXPLAINED"*. They are gated by `aware` too, with a
+further ~1.2% of missingness on the open side. The `0.3564` cluster (26
+fields) remains unexplained — no single low-cardinality field's levels
+split it.
+
+Fed back unmodified through `synth from-profile --rules`, all 8 fire on
+**100%** of their gated rows over 20,000 generated rows; the same seed
+without the rules leaves `aware` coherent on 0 of 4,964 and the NPS block
+on 7,819 of 16,806.
 
 ## Output
 

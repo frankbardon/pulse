@@ -193,6 +193,21 @@ var warningKinds = []warningKind{
 		},
 	},
 
+	{
+		// Structural-rule DETECTION (`profile create --suggest-rules`)
+		// reporting what it could not consider or could not fit in the
+		// file. Nothing failed — a proposal pass has no failure mode —
+		// but each line names a candidate the analyst will not see, and
+		// an unseen candidate is an unwritten rule, which is the whole
+		// gap this detector exists to close. Marked ATTENTION for that
+		// reason, ahead of the expected-outcome count.
+		kind:      "rule candidate not considered",
+		attention: true,
+		match: func(w string) bool {
+			return strings.HasPrefix(w, "rule suggestion: ")
+		},
+	},
+
 	// --- arbitration and support caveats ----------------------------
 	{
 		kind:      "conditional relationship conflict",
@@ -214,6 +229,11 @@ var thinSubjects = []string{
 	"set pair",
 	"residual pair",
 	"model level",
+	// A rule candidate resting on a thin gate level. It SHIPS with its
+	// support attached rather than being suppressed, so it is an
+	// expected outcome and not a fault — the analyst is better placed
+	// than the threshold to judge a 12-row level.
+	"gate level",
 }
 
 // otherWarningKind is where an unrecognised warning lands, and it is

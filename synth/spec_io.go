@@ -168,3 +168,49 @@ func withRulesFilePath(err error, path string) error {
 		Cause:   ce.Cause,
 	}
 }
+
+// WriteRuleCandidates writes detected rule candidates to path as an
+// indented JSON array — the standalone rules-file format, byte for byte
+// the shape ApplyRulesFile / ParseRules consume.
+//
+// This is the library half of `profile create --suggest-rules`. The
+// round trip is the contract and it is a GENERATION round trip, not a
+// shape comparison: the written file, unmodified, is loaded by
+// `synth from-profile --rules` and its rules fire
+// (TestSuggestRules_WrittenFileGeneratesUnmodified). A test that merely
+// unmarshals the file into []RuleSpec passes against a document whose
+// predicates do not compile, whose targets name fields the derived spec
+// does not declare, or whose `when` is silently never true — and all
+// three are the silent-inertness class this effort exists to remove.
+//
+// An EMPTY candidate list writes `[]` rather than nothing. "Detection
+// found no gating relationship" is a real answer and the analyst asked
+// for the file; leaving a stale file from a previous run in its place,
+// or no file at all, makes the run's own result unreadable. `[]` is a
+// legal rules document meaning "no rules" (see ParseRules).
+//
+// Indented for the same reason WriteSpec is: the workflow is
+// suggest -> read -> delete what you do not believe -> correct the
+// `when` -> apply, and every step but the last is done by eye.
+func WriteRuleCandidates(fs afero.Fs, candidates []RuleSpec, path string) error {
+	if fs == nil {
+		return errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: fs is required")
+	}
+	if path == "" {
+		return errors.NewCodedError(errors.SERVICE_VALIDATION, "synth: suggest-rules path is required")
+	}
+	if candidates == nil {
+		candidates = []RuleSpec{}
+	}
+	raw, err := json.MarshalIndent(candidates, "", "  ")
+	if err != nil {
+		return errors.WrapCodedError(err, errors.SERVICE_VALIDATION, "marshalling rule candidates")
+	}
+	raw = append(raw, '\n')
+	if err := afero.WriteFile(fs, path, raw, 0o644); err != nil {
+		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
+			fmt.Sprintf("writing rule candidates to %q: %v", path, err),
+			map[string]any{"path": path})
+	}
+	return nil
+}

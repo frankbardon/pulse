@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"io"
 	"os"
 
@@ -120,4 +121,41 @@ func dedupeWarnings(warnings []string) []string {
 		out = append(out, w)
 	}
 	return out
+}
+
+// writeSuggestedRulesCaveat renders the cross-cutting caveat for
+// `profile create --suggest-rules`.
+//
+// It lives on STDERR, beside writeWarningSummary and for the same
+// reason: `pulse profile create … > out.json` must keep producing
+// exactly the bytes it did before.
+//
+// The caveat is here rather than in the file because it is about the
+// DETECTION, not about any one candidate — what the pass looked for and,
+// more importantly, what it did not. Each candidate carries its own
+// proxy caveat in its `_evidence.note`, which is the part that has to
+// survive being read in isolation; this is the part that would be
+// repeated verbatim 20 times if it lived there.
+//
+// Deliberately not a warning: nothing went wrong. It is the reading
+// instruction for a file whose whole risk is being applied unread.
+func writeSuggestedRulesCaveat(w io.Writer, count int, path string) {
+	if w == nil {
+		return
+	}
+	fmt.Fprintf(w, "\nWrote %d candidate rule(s) to %s — PROPOSED, not applied.\n", count, path)
+	if count == 0 {
+		fmt.Fprintf(w, "  Detection found no field whose levels split another field's null rate into ~1 and ~0.\n")
+	}
+	fmt.Fprintf(w, "  Each candidate is the STATISTICAL gate measured from the data. The SEMANTIC\n")
+	fmt.Fprintf(w, "  cause may be a different field that moves with it, so read each `_evidence`,\n")
+	fmt.Fprintf(w, "  correct the `when`, and delete what you do not believe before applying.\n")
+	fmt.Fprintf(w, "  Detection looked for ONE thing: a low-cardinality field (categorical_*,\n")
+	fmt.Fprintf(w, "  packed_bool, u4) whose levels split a target's null rate. It did NOT look for\n")
+	fmt.Fprintf(w, "  co-missing blocks with no single gate, derived fields, or any relationship\n")
+	fmt.Fprintf(w, "  among non-null VALUES.\n")
+	fmt.Fprintf(w, "  A set_null gate repairs co-missingness only: each target's own null_rate still\n")
+	fmt.Fprintf(w, "  fires beneath the gate, so the targets' marginal null rate rises above the\n")
+	fmt.Fprintf(w, "  captured one.\n")
+	fmt.Fprintf(w, "  Apply with: pulse synth from-profile --rules %s …\n", path)
 }
