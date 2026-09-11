@@ -245,10 +245,53 @@ func latentFor(fs FieldSpec, mean, std float64) (latentFunc, error) {
 			return phiInv(mc.cdf(v)), true
 		}, nil
 	default:
+		// Two different refusals share this branch and the message
+		// distinguishes them, because a reader of a fidelity report's
+		// `error` slot needs to know which one they are looking at.
+		//
+		// A distribution fieldMoments does not admit could never have
+		// reached a compiled drawer at all — that refusal is purely
+		// defensive. A distribution fieldMoments DOES admit but whose Q
+		// is not invertible is a real, expected outcome: see
+		// latentInvertible.
+		if !latentInvertible(fs.Distribution) {
+			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				fmt.Sprintf("field %q: distribution %q has a step quantile function, so a generated value does not identify the latent that produced it", fs.Name, fs.Distribution),
+				map[string]any{"field": fs.Name, "distribution": fs.Distribution})
+		}
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: distribution %q has no latent inverse", fs.Name, fs.Distribution),
 			map[string]any{"field": fs.Name, "distribution": fs.Distribution})
 	}
+}
+
+// latentInvertible reports whether a distribution that fieldMoments
+// admits ALSO has a usable value -> latent inverse in latentFor.
+//
+// The two sets were identical until a boolean marginal was admitted, and
+// the split is a property of the mathematics rather than a gap waiting
+// to be closed. Every other supported Q is strictly monotone, so a
+// generated value names exactly one latent and the inverse is a
+// reparameterisation. DistBernoulli's Q is a STEP: every latent above
+// the threshold produces the value 1 and every latent below it produces
+// 0, so a 0/1 value carries one bit where the latent carried a real
+// number, and no function of the value can recover it.
+//
+// The tempting move — placing each arm at the conditional mean of its
+// half (E[u | u > c] and E[u | u <= c], the inverse-Mills construction)
+// — is REJECTED. It returns a two-valued "latent", which makes the
+// recovery refit a linear probability model on two points dressed up as
+// a latent-scale comparison: it would report a large attenuation for a
+// generation path that is exactly correct, which the latent round-trip
+// gate's own comment names as worse than reporting nothing.
+//
+// So a modelled bernoulli target gets a fidelity entry carrying its
+// captured coefficients and an `error` saying the recovery is not
+// identified, rather than a fabricated delta. Recovering a probit
+// coefficient properly needs a probit refit, which processing/regression
+// does not offer; when it does, this is the one place that changes.
+func latentInvertible(distribution string) bool {
+	return distribution != DistBernoulli
 }
 
 // buildCorrelator builds a correlator from correlations — the SURVIVING
@@ -608,6 +651,41 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 			return
 		}
 		mean, std = mc.moments()
+	case DistBernoulli:
+		// A boolean marginal. Admitted so that a packed_bool field —
+		// which SpecFromProfile reconstructs as bernoulli, because its
+		// on-wire value is one bit and a continuous reconstruction
+		// cannot round-trip through it (see the type switch there) —
+		// can still be the TARGET of a captured linear model. Q is a
+		// step function, which makes the composed draw a probit rather
+		// than a linear model; quantileFor's arm carries that argument.
+		//
+		// The moments are exact and closed form, not an approximation:
+		// a Bernoulli(p) has mean p and variance p(1-p).
+		//
+		// No clamp. hasClamp stays false because Q emits exactly 0 or
+		// 1 and there is nothing outside the support for a clamp to
+		// pull back — unlike DistNormal, whose declared min/max are
+		// doing real work. A modelled bernoulli target still carries
+		// FieldModelSpec.Min/Max from the observed range; applying it
+		// is a no-op, which is the intended relationship.
+		var prev float64
+		if prev, _, err = paramFloat(fs.Name, fs.Params, "p", 0.5); err != nil {
+			return
+		}
+		if prev < 0 || prev > 1 {
+			err = errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				fmt.Sprintf("field %q: bernoulli p must be in [0, 1]", fs.Name),
+				map[string]any{"field": fs.Name, "p": prev})
+			return
+		}
+		mean = prev
+		// std is 0 at p == 0 and p == 1. That is the honest answer for
+		// a constant field, and buildModelDrawers' std <= 0 guard is
+		// what turns it into a dropped model with a warning rather
+		// than an infinite invStd — deliberately not floored here, so
+		// the degeneracy stays visible to its one caller that cares.
+		std = math.Sqrt(float64(prev * (1 - prev)))
 	default:
 		err = errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: distribution %q does not support pairwise correlation", fs.Name, fs.Distribution),
@@ -619,7 +697,7 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 // quantileFor returns fs's own quantile function (inverse CDF) Q,
 // closed over that distribution's declared params — the second half of
 // the Gaussian-copula construction on correlator, paired with fieldMoments
-// (which validates fs.Distribution is one of the five supported here and
+// (which validates fs.Distribution is one of the kinds supported here and
 // supplies mean/std for the normal case). Only called after fieldMoments
 // has already succeeded for fs, so the default branch below is
 // unreachable in practice; it still refuses defensively with the same
@@ -688,6 +766,40 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 		lo, hi := mc.bracket()
 		return func(u, p float64) float64 {
 			return mc.quantile(p, lo, hi)
+		}, nil
+	case DistBernoulli:
+		// The one arm whose Q is a STEP function, and the one whose
+		// composed draw is therefore not a linear model in value space
+		// at all: value = Q(Phi(mu + sigma*z)) with this Q is exactly a
+		// PROBIT, P(1 | row) = Phi((mu - Phi^-1(1-prev)) / sigma).
+		// Direction and ordering carry through from the coefficients;
+		// magnitude does not, and no coefficient on a bernoulli target
+		// may be read as a change in probability. That is the same
+		// latent-scale caveat every non-normal Q carries, in its
+		// sharpest form.
+		//
+		// Q(p) = 1 iff p > 1-prev. Since p is Phi(u) and u is standard
+		// normal across rows, p is uniform on (0,1) and P(1) == prev
+		// EXACTLY — which is the whole reason a packed_bool target is
+		// reconstructed as bernoulli rather than as a clamped normal.
+		// A continuous marginal written through a one-bit field cannot
+		// preserve its own prevalence: the writer has to threshold, and
+		// every threshold over a clamped normal lands in the wrong
+		// place (see toBool and the profile type switch).
+		//
+		// Degenerate p is exact rather than special-cased: prev == 1
+		// gives threshold 0 and p > 0 always holds, prev == 0 gives
+		// threshold 1 and p > 1 never does.
+		prev, _, err := paramFloat(fs.Name, fs.Params, "p", 0.5)
+		if err != nil {
+			return nil, err
+		}
+		threshold := 1 - prev
+		return func(u, p float64) float64 {
+			if p > threshold {
+				return 1
+			}
+			return 0
 		}, nil
 	default:
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
@@ -764,6 +876,19 @@ func tryCholesky(m [][]float64) ([][]float64, bool) {
 
 // isNumericFieldType reports whether a spec-string type is a numeric
 // type the copula code can blend.
+// isBooleanFieldType reports whether a schema type name denotes a
+// single-bit boolean column.
+//
+// `packed_bool` is the only spelling, deliberately: it is what
+// encoding.FieldType.String() emits and the only boolean name
+// fieldTypeFromName can build, so a spec naming anything else never
+// reaches the writer. `nullable_bool` appears in some descriptor
+// capability lists as a legacy alias and is NOT accepted here — matching
+// it would claim support for a type synth cannot construct.
+func isBooleanFieldType(typeName string) bool {
+	return typeName == "packed_bool"
+}
+
 func isNumericFieldType(typeName string) bool {
 	switch typeName {
 	case "u8", "u16", "u32", "u64", "f32", "f64",

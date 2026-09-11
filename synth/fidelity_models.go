@@ -347,12 +347,21 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 
 	latent, err := latentFor(fs, d.mean, std)
 	if err != nil {
-		// Unreachable for a drawer that compiled: buildModelDrawers
-		// already ran fieldMoments and quantileFor over the same
-		// FieldSpec, and latentFor accepts exactly that set. Held rather
-		// than assumed, because the two switches drifting apart is the
-		// one way this section could silently stop covering a
-		// distribution.
+		// REACHABLE, and expected for one distribution. A bernoulli
+		// target (a packed_bool field) is generated through a STEP
+		// quantile, so its 0/1 value does not identify the latent that
+		// produced it and latentFor refuses rather than guessing — see
+		// latentInvertible for why the inverse-Mills alternative was
+		// rejected. The entry still ships, carrying every captured
+		// coefficient and this error in place of recovered figures, so a
+		// reader sees that the model ran and that its recovery is not
+		// identified. Nothing is flagged.
+		//
+		// The other way in is a distribution admitted to fieldMoments
+		// and quantileFor with no latentFor arm at all, which is a drift
+		// bug rather than a property of the mathematics;
+		// TestLatentFor_InvertsQuantileForEveryDistribution is the gate
+		// that keeps the two switches classified together.
 		entry.Error = err.Error()
 		return entry, nil
 	}

@@ -221,6 +221,21 @@ type SetNumericPairSpec struct {
 	Min        float64                          `json:"min,omitempty"`
 	Max        float64                          `json:"max,omitempty"`
 	HasClamp   bool                             `json:"has_clamp,omitempty"`
+	// Bernoulli marks the numeric target as a BOOLEAN marginal
+	// (packed_bool), which changes what the conditional draw is: the
+	// cell's captured Mean is a prevalence and the draw is
+	// Bernoulli(Mean), not Normal(Mean, Std). Std is then unused.
+	//
+	// It exists because the target field holds ONE BIT, so a continuous
+	// conditional draw has to be thresholded by the writer and every
+	// threshold over a clamped normal reproduces the wrong prevalence —
+	// the same defect the field's own bernoulli reconstruction removes
+	// (see SpecFromProfile), which this flag carries into the
+	// conditional arm so the two cannot disagree per cell. A
+	// hand-authored spec that omits it on a packed_bool target gets the
+	// continuous behaviour and the bias that comes with it; omitting it
+	// is how every pre-existing spec stays byte-identical.
+	Bernoulli bool `json:"bernoulli,omitempty"`
 }
 
 // SetSetPairSpec is one option x option pair's generation-time
@@ -275,6 +290,21 @@ type CategoricalNumericPairSpec struct {
 	Min      float64 `json:"min,omitempty"`
 	Max      float64 `json:"max,omitempty"`
 	HasClamp bool    `json:"has_clamp,omitempty"`
+	// Bernoulli marks the numeric target as a BOOLEAN marginal
+	// (packed_bool), which changes what the conditional draw is: the
+	// cell's captured Mean is a prevalence and the draw is
+	// Bernoulli(Mean), not Normal(Mean, Std). Std is then unused.
+	//
+	// It exists because the target field holds ONE BIT, so a continuous
+	// conditional draw has to be thresholded by the writer and every
+	// threshold over a clamped normal reproduces the wrong prevalence —
+	// the same defect the field's own bernoulli reconstruction removes
+	// (see SpecFromProfile), which this flag carries into the
+	// conditional arm so the two cannot disagree per cell. A
+	// hand-authored spec that omits it on a packed_bool target gets the
+	// continuous behaviour and the bias that comes with it; omitting it
+	// is how every pre-existing spec stays byte-identical.
+	Bernoulli bool `json:"bernoulli,omitempty"`
 }
 
 // CategoricalNumericCategorySpec is the numeric field's conditional

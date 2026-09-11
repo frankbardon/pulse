@@ -3,16 +3,22 @@ package synth
 import "testing"
 
 // TestFieldMoments_RefusesUnsupportedDistributions confirms
-// fieldMoments' refusal set: poisson, bernoulli and pareto still refuse
-// with an error rather than being approximated.
+// fieldMoments' refusal set: poisson and pareto still refuse with an
+// error rather than being approximated.
 //
-// DistMixture LEFT this list at E4-S1 — it gained exact moments and a
-// numerically inverted quantile so a --fit-shape field could carry a
-// linear model — and is asserted in the supported set below instead.
-// The refusal set is what keeps fieldMoments' "exact or nothing" rule
-// honest; the widening was allowed only because a mixture meets it.
+// Two distributions have LEFT this list, each because it met the "exact
+// or nothing" rule rather than because the rule was relaxed. DistMixture
+// left at E4-S1, gaining exact moments and a numerically inverted
+// quantile so a --fit-shape field could carry a linear model.
+// DistBernoulli left with the boolean-marginal fix: a Bernoulli(p) has
+// mean p and variance p(1-p) in closed form, and admitting it is what
+// lets a packed_bool field — whose on-wire value is one bit, so no
+// continuous marginal can round-trip through it — be a modelled target at
+// all. Its Q is a step function, which makes it the one admitted
+// distribution latentFor cannot invert; see
+// TestLatentFor_EveryDistributionIsClassified.
 func TestFieldMoments_RefusesUnsupportedDistributions(t *testing.T) {
-	for _, dist := range []string{DistPoisson, DistBernoulli, DistPareto} {
+	for _, dist := range []string{DistPoisson, DistPareto} {
 		t.Run(dist, func(t *testing.T) {
 			fs := FieldSpec{Name: "b", Type: "f64", Distribution: dist}
 			if _, _, _, _, _, err := fieldMoments(fs); err == nil {
@@ -24,10 +30,13 @@ func TestFieldMoments_RefusesUnsupportedDistributions(t *testing.T) {
 
 // TestQuantileFor_AcceptsExactlyFieldMomentsSupportedDistributions
 // confirms quantileFor's supported set matches fieldMoments' exactly:
-// the five distributions fieldMoments accepts each get a working
-// quantile function, and an unsupported distribution refuses the same
-// way fieldMoments does. A MALFORMED mixture still refuses on both
-// halves — the widening admitted the distribution, not bad params.
+// every distribution fieldMoments accepts gets a working quantile
+// function, and an unsupported distribution refuses the same way
+// fieldMoments does. A MALFORMED mixture still refuses on both halves —
+// the widening admitted the distribution, not bad params.
+//
+// These two sets remain identical. It is latentFor that no longer matches
+// them, because a step Q is usable forwards and not backwards.
 func TestQuantileFor_AcceptsExactlyFieldMomentsSupportedDistributions(t *testing.T) {
 	supported := []FieldSpec{
 		{Name: "n", Distribution: DistNormal, Params: map[string]any{"mean": 1.0, "std": 2.0}},
@@ -37,6 +46,7 @@ func TestQuantileFor_AcceptsExactlyFieldMomentsSupportedDistributions(t *testing
 		{Name: "m", Distribution: DistMixture, Params: map[string]any{
 			"means": []any{-5.0, 5.0}, "stds": []any{1.0, 1.0}, "weights": []any{0.5, 0.5},
 		}},
+		{Name: "b", Distribution: DistBernoulli, Params: map[string]any{"p": 0.3}},
 	}
 	for _, fs := range supported {
 		t.Run(fs.Distribution, func(t *testing.T) {

@@ -45,9 +45,53 @@ pulse profile create --input PATH --output PATH
 | Field type | What is recorded |
 |---|---|
 | Numeric (`u*`, `f*`, `decimal128`) | Count, min, max, mean, stddev; percentiles if `--include-stats` |
+| `packed_bool` | The same numeric summary (a boolean falls to the numeric accumulator), but **reconstructed as `bernoulli`, not as a clamped normal** — see "Boolean fields" below |
 | Categorical | Cardinality, plus the top-K most-frequent values with their observed weights. The tail below the cut is **not** retained as an `"other"` bucket — `synth from-profile` renormalises the retained weights, so a 1,900-level field regenerates as `--top-k` levels and the tail's share is redistributed across them. (The `"other"` spelling that *does* appear in `conditional.*` tables and in `--fit-models` designs is a different, per-section collapse.) |
 | `date` | Min, max, count |
 | `nullable_*` | Null count alongside the above |
+
+## Boolean fields
+
+A `packed_bool` is summarised by the numeric accumulator — it is neither
+date, categorical nor set — so its profile entry looks exactly like any
+other numeric's: `mean`, `std`, `min: 0`, `max: 1`. The obvious reading of
+that entry is `normal(mean, std)` clamped to `[0, 1]`, and it is wrong on
+the wire.
+
+The field holds **one bit**. Generation therefore has to reduce a
+continuous draw to 0 or 1, and no threshold over a clamped normal lands in
+the right place — a clamped normal is exactly 0 only where the underlying
+draw fell below zero, so the historical `value != 0` threshold gave
+`P(false) = Φ(−p/σ)`:
+
+| Source prevalence | Generated (before) |
+|---|---|
+| 0.20 | 0.691 |
+| 0.50 | 0.842 |
+| 0.80 | 0.977 |
+
+On a real 381,324-row survey cohort with 90 `packed_bool` fields, the mean
+prevalence error was **0.47** and **89 of 90** fields were off by more than
+0.05 — every 11–14% brand-attribute item generated at around 64%, which
+turns a rare attribute into the majority answer. The marginals looked
+plausible in isolation; nothing compared them to the source.
+
+`synth from-profile` now reconstructs a `packed_bool` as **`bernoulli`**
+with `p` = the observed mean. No threshold is involved, so the prevalence
+is exact by construction (same cohort after the fix: mean error 0.0032,
+max 0.0116, nothing off by more than 0.05). Two details follow from it:
+
+- **The boolean arm outranks `--fit-shape`.** A two-component mixture fits
+  a 0/1 column very well by BIC — two near-zero-variance spikes — and
+  reproduces the prevalence no better while costing a numeric inversion per
+  draw. A boolean's shape is one number, not something to discover.
+- **A modelled boolean is a probit.** `--fit-models` on a boolean target
+  still works, and its coefficients still order rows, but the composed draw
+  is `P(1 | row) = Φ((μ − Φ⁻¹(1−p)) / σ)`. A coefficient is **not** a
+  change in probability. See "Reading a coefficient" below; the fidelity
+  report reports these targets as unidentified rather than fabricating a
+  recovered figure, because a 0/1 value does not determine the latent that
+  produced it.
 
 ## What the profile does NOT capture
 

@@ -139,6 +139,10 @@ type categoricalNumericPairSampler struct {
 	hasClamp    bool
 	clampMin    float64
 	clampMax    float64
+	// bernoulli mirrors CategoricalNumericPairSpec.Bernoulli — B is a
+	// boolean marginal, so each cell's Mean is a prevalence rather than
+	// a location. See conditionalNumericDraw.
+	bernoulli bool
 }
 
 type categoryMoments struct {
@@ -177,6 +181,7 @@ func buildCategoricalNumericPairSampler(p CategoricalNumericPairSpec) *categoric
 		hasClamp:    p.HasClamp,
 		clampMin:    p.Min,
 		clampMax:    p.Max,
+		bernoulli:   p.Bernoulli,
 	}
 	if sumWeight > 0 {
 		// A plain average of the captured per-category means/stds, used
@@ -211,7 +216,7 @@ func (c *categoricalNumericPairSampler) transform(rng *rand.Rand, row map[string
 		}
 		mom = c.fallback
 	}
-	v := mom.mean + float64(rng.NormFloat64()*mom.std)
+	v := conditionalNumericDraw(rng, mom, c.bernoulli)
 	if c.hasClamp {
 		if v < c.clampMin {
 			v = c.clampMin
@@ -221,6 +226,33 @@ func (c *categoricalNumericPairSampler) transform(rng *rand.Rand, row map[string
 		}
 	}
 	row[c.b] = v
+}
+
+// conditionalNumericDraw turns one cell's captured moments into the value
+// the pair writes into the row.
+//
+// The bernoulli arm is not an optimisation of the normal one — it draws a
+// DIFFERENT thing. A boolean target's field holds one bit, so a
+// continuous conditional draw must be reduced to 0 or 1 downstream, and
+// no threshold over a clamped normal reproduces the cell's prevalence
+// (that is the defect the field's own bernoulli reconstruction removes;
+// see SpecFromProfile). Here the cell's Mean IS the prevalence, so one
+// uniform draw against it is exact and mom.std is deliberately unused.
+//
+// Both arms consume exactly one RNG value, but NOT the same one — a
+// Float64 is one uint64 pull where a NormFloat64 may take several. That
+// is fine and is the ordinary rule for this package: the per-row draw
+// sequence must be a function of the SPEC, which the bernoulli flag is
+// part of, not a function of the data. Two specs differing in the flag
+// produce different streams by design.
+func conditionalNumericDraw(rng *rand.Rand, mom categoryMoments, bernoulli bool) float64 {
+	if bernoulli {
+		if rng.Float64() < mom.mean {
+			return 1
+		}
+		return 0
+	}
+	return mom.mean + float64(rng.NormFloat64()*mom.std)
 }
 
 // setOptionMap fetches the map[string]bool a setSampler produced for
@@ -338,6 +370,9 @@ type setNumericPairSampler struct {
 	hasFallback                 bool
 	hasClamp                    bool
 	clampMin, clampMax          float64
+	// bernoulli mirrors SetNumericPairSpec.Bernoulli — see
+	// conditionalNumericDraw and categoricalNumericPairSampler.bernoulli.
+	bernoulli bool
 }
 
 func buildSetNumericPairSamplers(pairs []SetNumericPairSpec) []*setNumericPairSampler {
@@ -358,6 +393,7 @@ func buildSetNumericPairSampler(p SetNumericPairSpec) *setNumericPairSampler {
 	s := &setNumericPairSampler{
 		set: p.Set, option: p.Option, numeric: p.Numeric,
 		hasClamp: p.HasClamp, clampMin: p.Min, clampMax: p.Max,
+		bernoulli: p.Bernoulli,
 	}
 	// p.Categories is a short (<=2), deterministically ordered slice —
 	// accumulate the fallback moments straight from it, never a map.
@@ -402,7 +438,7 @@ func (s *setNumericPairSampler) transform(rng *rand.Rand, row map[string]any) {
 		}
 		mom = s.fallback
 	}
-	v := mom.mean + float64(rng.NormFloat64()*mom.std)
+	v := conditionalNumericDraw(rng, mom, s.bernoulli)
 	if s.hasClamp {
 		if v < s.clampMin {
 			v = s.clampMin

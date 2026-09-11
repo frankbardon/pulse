@@ -7,9 +7,16 @@ import (
 
 // TestLatentFor_InvertsQuantileForEveryDistribution is the lockstep gate
 // between quantileFor (generation's latent -> value map) and latentFor
-// (the fidelity report's value -> latent map). Every distribution
-// fieldMoments admits is round-tripped: u -> Q(u, phi(u)) -> latentFor
-// must return u.
+// (the fidelity report's value -> latent map) for every distribution
+// whose Q is strictly monotone: u -> Q(u, phi(u)) -> latentFor must
+// return u.
+//
+// It no longer covers every distribution fieldMoments admits.
+// DistBernoulli is admitted with a STEP Q, which no inverse can undo, and
+// is therefore excluded here and covered by
+// TestLatentFor_EveryDistributionIsClassified instead — that test is what
+// keeps the partition exhaustive, so a new distribution cannot fall out
+// of both.
 //
 // It is a build-failing gate rather than a spot check because BOTH ways
 // the two can drift are silent at runtime. A distribution admitted to
@@ -100,10 +107,11 @@ func TestLatentFor_InvertsQuantileForEveryDistribution(t *testing.T) {
 	}
 }
 
-// TestLatentFor_RefusesUnsupportedDistribution pins that latentFor's
-// refusal set matches fieldMoments' — a distribution nothing can place
-// on the latent scale must say so rather than answer with a plausible
-// number.
+// TestLatentFor_RefusesUnsupportedDistribution pins the defensive half of
+// latentFor's refusal: a distribution fieldMoments does not admit at all
+// must say so rather than answer with a plausible number. (The other
+// refusal — admitted but not invertible — is the step-quantile case, held
+// by TestLatentFor_EveryDistributionIsClassified.)
 func TestLatentFor_RefusesUnsupportedDistribution(t *testing.T) {
 	fs := FieldSpec{Name: "p", Distribution: DistPoisson,
 		Params: map[string]any{"lambda": 3.0}}
