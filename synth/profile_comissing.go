@@ -541,7 +541,7 @@ func (d *blockDetector) buildBlockCandidate(c blockClass) RuleSpec {
 		GatedShare:      float64(c.nullN) / float64(d.rows),
 		MinLevelSupport: min(c.nullN, d.rows-c.nullN),
 	}
-	ev.ThinSupport = ev.MinLevelSupport < minGateLevelSupport
+	ev.ThinSupport = thinLevelSupport(ev.MinLevelSupport)
 	for _, i := range c.members {
 		members = append(members, d.fields[i].name)
 		ev.Block = append(ev.Block, RuleEvidenceBlockMember{

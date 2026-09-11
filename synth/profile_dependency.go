@@ -923,7 +923,7 @@ func (d *depDetector) buildCandidate(g depGroup) RuleSpec {
 		GatedShare:      float64(g.coPresent) / float64(d.rows),
 		MinLevelSupport: g.minSupport,
 	}
-	ev.ThinSupport = ev.MinLevelSupport < minGateLevelSupport
+	ev.ThinSupport = thinLevelSupport(ev.MinLevelSupport)
 	// 0 by construction: the admission rule is an IDENTICAL null
 	// pattern, so every member of the block this rule carries has the
 	// same null count and the same rate. It is the checkable form of

@@ -169,6 +169,33 @@ const (
 	gatingDetectorName = "gating"
 )
 
+// thinLevelSupport is the ONE spelling of "this candidate's weakest
+// supporting cell is too thin for its rate to be a measurement", shared
+// by ALL THREE --suggest-rules detectors: gating (profile_gating.go),
+// co-missing blocks (profile_comissing.go) and exact dependencies
+// (profile_dependency.go).
+//
+// Sharing minGateLevelSupport across three detectors is deliberate and
+// is asserted rather than assumed: each of the three is asking the same
+// question of the same kind of quantity — how many rows sit behind the
+// weakest cell this candidate rests on — so a second number would fork
+// one tuning into three for no reason, and the three would then drift
+// apart one edit at a time with nothing saying so.
+//
+// If a detector ever needs its OWN threshold, FORK THE CONSTANT and
+// write the reasoning at BOTH declarations, the way minLevelObservations
+// is forked from MinPairObservations. Do not open-code a different
+// comparison at one call site:
+// TestThinLevelSupport_EveryDetectorAsksTheSameQuestion is the
+// build-failing guard on exactly that, and it can only see the shared
+// spelling.
+//
+// It never suppresses. A thin candidate still ships, flagged
+// (RuleEvidence.ThinSupport) and warned.
+func thinLevelSupport(minSupport int) bool {
+	return minSupport < minGateLevelSupport
+}
+
 // gateLevel addresses one level of a gate candidate. The null
 // pseudo-level is a first-class level with its own key rather than a
 // sentinel string, so a categorical whose dictionary happens to contain
@@ -696,7 +723,7 @@ func (d *gateDetector) buildCandidate(gi int, gated, open []gateLevel, targets [
 		RowsAffected:    gatedN,
 		GatedShare:      float64(gatedN) / float64(d.rows),
 		MinLevelSupport: minSupport,
-		ThinSupport:     minSupport < minGateLevelSupport,
+		ThinSupport:     thinLevelSupport(minSupport),
 	}
 
 	for _, lv := range gated {

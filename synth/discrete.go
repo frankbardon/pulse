@@ -45,6 +45,27 @@ import (
 // level a histogram is also reproducing sampling noise exactly, which is
 // a true statement about the source and a weaker generalisation than a
 // smooth marginal — a second reason not to raise it far.
+//
+// # Abandoning is SILENT, and that is a decision, re-measured
+//
+// There is no warning when a column abandons its histogram, and the
+// ABSENCE of the `discrete` key IS the record — structurally, the same
+// way ResidualCorrelationProfile keeps `unmeasured` distinct from
+// `pairs`. The reasoning is that no action is available to the reader
+// (nothing about an ID column should be done differently) and a warning
+// would fire on every ID and every wide measure in every capture.
+//
+// The case for revisiting would be a real coded column landing in the
+// 65-200 band, where a reader might reasonably expect a histogram and
+// find none. Measured on the motivating 381,324-row / 123-field survey
+// cohort: of its 14 integer columns, exactly TWO abandon — `respondent`
+// (u64, 31,777 distinct non-null values, 497x the cap) and `catSpend`
+// (u32, 12,060 distinct, 188x) — and both are exactly what the silence
+// assumes, an identifier and a wide continuous spend measure. The widest
+// RETAINED column is `sow` at 16 levels, so the gap between the last
+// retained and the first abandoned column is three orders of magnitude
+// and nothing sits near the boundary at all. Keep the silence; re-measure
+// before changing it.
 const maxDiscreteLevels = 64
 
 // isIntegerQuantizedFieldType reports whether a schema type name denotes
