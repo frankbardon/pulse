@@ -64,6 +64,15 @@ Two silent gotchas. Nulling a field not declared `"nullable": true` — via `set
 
 **Validation is EAGER — at spec parse, never at row time.** A rule naming a mistyped field, or carrying an uncompilable expression, is invisible at run time: the run succeeds and the gate is simply absent. Six codes, each naming the rule INDEX (`rule_index` — a rule has no name of its own) plus the slot and field where one exists: `PULSE_SYNTH_RULE_EMPTY`, `_FIELD_UNKNOWN`, `_EXPR_INVALID`, `_VALUE_INVALID` (a `set` literal OR a `set_expr` result — one matrix; `details.slot` says which), `_CONFLICT` (one rule naming a field in two slots that DISAGREE: within a rule there is no order to appeal to, so it is refused not arbitrated — `set_null` + `null_together` do not disagree and are ordered instead), `_BLOCK_INVALID`. `pulse errors lookup CODE` is authoritative.
 
+## Reaching rules from a profile
+
+`SpecFromProfile` derives a spec and generates from it in one breath and emits no rules of its own, so `pulse synth from-profile` carries two flags that make the layer reachable — the profile path is the one the motivating use case takes.
+
+- `--rules <path>` loads a standalone rules document and **REPLACES** `Spec.Rules` (no append mode: a derived spec carries nothing to append to, and one would only create an ordering question). The file is the `rules` array itself — a bare JSON array of rule objects — so a rule moves between a spec and a file by cut and paste. `{"rules": […]}` is refused rather than read as zero rules; `[]` is accepted and means "no rules".
+- `--emit-spec <path>` writes the derived spec, AFTER the merge, as indented JSON. It is the spec that generated, not a rendering: fed to `synth from-schema` at the same seed it reproduces the same rows byte for byte. It is the authoring aid (field names, types, floors a `when` must be written against) and the diagnostic (which models survived translation, which distribution each field reconstructed to, which conditional pairs were retired). Written BEFORE generation, so a failing run still leaves the document.
+
+The two compose: emit, read what your rules became, re-run. Refusals name the FILE as well as the rule index — `details.path` on every `PULSE_SYNTH_RULE_*` raised by the load, so an analyst holding a rules file, a spec and a profile knows which document is wrong. A missing file is `DATA_FILE`, a malformed one `SERVICE_VALIDATION`; both name the path.
+
 ## See
 
 - `synthetic-data` — modes, distributions, correlations, models, determinism contract.

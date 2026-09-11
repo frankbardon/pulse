@@ -121,6 +121,23 @@ entries. Pair with `--json` for programmatic consumption.
 deterministic RNG) and `--rows` (override the spec's row count). See
 the per-command pages.
 
+### `--emit-spec` / `--rules`
+
+Available on: `synth from-profile`.
+
+`--emit-spec <path>` writes the profile-derived spec (after any
+`--rules` merge) as indented JSON. It is the spec that actually
+generated, so feeding it to `synth from-schema` at the same `--seed`
+reproduces the same rows — and it is the only way to see which captured
+models survived translation, which distribution each field reconstructed
+to, and which conditional pairs were retired.
+
+`--rules <path>` loads structural rules from a standalone JSON file — a
+bare array of rule objects, the same shape as a spec's `rules` key — and
+**replaces** the derived spec's rules with them. Refusals carry E1's own
+`PULSE_SYNTH_RULE_*` codes with the file path in `details.path`. See
+[synth from-profile](synth-from-profile.md).
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it
@@ -184,7 +201,7 @@ added without naming it somewhere under `skills/` or `docs/src/`.
 | `pulse shard verify` | Re-validate every shard against the canonical schema | `--help` |
 | `pulse skills list` | List every embedded skill | `--help` |
 | `pulse skills show` | Print one skill's markdown | `--help` |
-| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns | [synth from-profile](synth-from-profile.md) |
+| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns | [synth from-profile](synth-from-profile.md) |
 | `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
 
 ## Help

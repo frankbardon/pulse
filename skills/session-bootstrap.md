@@ -129,6 +129,13 @@ Four independent, additive `pulse profile create` knobs. Each adds an `omitempty
 - `--fit-models` — one linear model per numeric, the field regressed on the categorical levels and set options automatic selection admitted. **This is how several drivers condition ONE numeric at once**, and it RETIRES the numeric-target conditional pairs for the targets it lands on — per target, never per document. The three non-numeric pair arms are untouched, so `--conditional` + `--fit-models` keeps both halves.
 - `--residual-correlations` (requires `--fit-models`) — the full correlation submatrix among the fitted residuals, so a numeric can be both conditioned and correlated with a sibling.
 
+## Synth-generation CLI flags
+
+Two additive `pulse synth from-profile` knobs. Both absent reproduces the pre-flag output byte-for-byte.
+
+- `--emit-spec <path>` — write the derived spec (AFTER any `--rules` merge) as indented JSON. It is the real spec, not a rendering: fed to `synth from-schema` at the same seed it reproduces the same rows. **It is the only way to see which captured models survived translation, which distribution each field reconstructed to, and which conditional pairs were retired** — three findings this package has silently lost before, each leaving a plausible cohort behind. It is also how you learn the field names, types and floors a rule has to be written against. Written before generation, so a failing run still leaves the document.
+- `--rules <path>` — load structural rules from a standalone JSON file and apply them. Without it the whole `rules[]` layer is unreachable from the profile path. The file is a **bare JSON array of rule objects — the `rules` key's own value**, so a rule moves between spec and file by cut and paste; wrapping it in `{"rules": […]}` is refused, not silently read as zero rules. It REPLACES `Spec.Rules` (a derived spec carries none, so there is nothing to append to). Validation is eager and names the FILE: a rule naming a field the derived spec does not carry is `PULSE_SYNTH_RULE_FIELD_UNKNOWN` with `details.path`, never a bare parse error. Detail: `synth-structural-rules`.
+
 **A model coefficient is a LATENT-scale quantity**, not data units: it shifts the standard-normal `μ` in `value = Q(Φ(μ + σ·z))`, so it is non-linear in value space for every non-normal `Q`. Never report one as "this many points on the scale". Detail: `synthetic-data`.
 
 ## Cross-links

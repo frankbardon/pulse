@@ -101,6 +101,8 @@ func synthFromProfileCmd() *cli.Command {
 			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
 			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
+			&cli.StringFlag{Name: "rules", Usage: "Load structural rules from a standalone JSON file (a bare array of rule objects — the same shape as a spec's \"rules\" key) and apply them to the profile-derived spec; REPLACES any rules the spec carries"},
+			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so `synth from-schema` reproduces this run at the same seed"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -110,6 +112,8 @@ func synthFromProfileCmd() *cli.Command {
 			rows := int(cmd.Int("rows"))
 			seed := cmd.Int("seed")
 			fidelityReport := cmd.String("fidelity-report")
+			rulesPath := cmd.String("rules")
+			emitSpecPath := cmd.String("emit-spec")
 			jsonOut := cmd.Bool("json")
 
 			fs := afero.NewOsFs()
@@ -123,6 +127,31 @@ func synthFromProfileCmd() *cli.Command {
 			}
 
 			spec, conflictWarnings := synth.SpecFromProfile(&prof, rows)
+
+			// --rules merges BEFORE --emit-spec writes and before
+			// generation runs, so the emitted document is the spec that
+			// actually generated. The load, the merge and the eager
+			// validation all live in synth.ApplyRulesFile; this leaf
+			// only supplies the path and routes the refusal, which
+			// carries E1-S2's own PULSE_SYNTH_RULE_* code plus the file
+			// path in details — writeCodedErrorEnvelope surfaces both
+			// rather than flattening them into a placeholder.
+			if rulesPath != "" {
+				if err := synth.ApplyRulesFile(fs, spec, rulesPath); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_RULES_ERROR", err)
+				}
+			}
+			// Emitted BEFORE generation on purpose: the document's
+			// diagnostic value (which models survived translation,
+			// which distribution each field reconstructed to, which
+			// conditional pairs were retired) is at its highest
+			// precisely when the run that follows fails.
+			if emitSpecPath != "" {
+				if err := synth.WriteSpec(fs, spec, emitSpecPath); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_EMIT_SPEC_ERROR", err)
+				}
+			}
+
 			p, err := newPulse()
 			if err != nil {
 				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
@@ -149,6 +178,9 @@ func synthFromProfileCmd() *cli.Command {
 			}
 			writeText(cmd.Writer, "Generated %d rows -> %s (rejected %d)\n",
 				res.RowsGenerated, res.OutputPath, res.RowsRejected)
+			if emitSpecPath != "" {
+				writeText(cmd.Writer, "Derived spec -> %s\n", emitSpecPath)
+			}
 			if res.FidelityReportPath != "" {
 				writeText(cmd.Writer, "Fidelity report -> %s\n", res.FidelityReportPath)
 			}
@@ -313,4 +345,20 @@ func cliError(cmd *cli.Command, jsonOut bool, code, msg string) error {
 		return writeErrorEnvelope(cmd.Writer, code, msg)
 	}
 	return fmt.Errorf("%s: %s", code, msg)
+}
+
+// cliCodedError is cliError for a failure that already carries its own
+// coded error. It preserves the code and the details map instead of
+// stringifying both into a placeholder — a rules-file refusal's value
+// is precisely its PULSE_SYNTH_RULE_* code (usable with
+// `pulse errors lookup`) and its details, which name the rule index,
+// the slot, the field and the file.
+//
+// On the text path the error is returned unwrapped, so errors.As still
+// finds the code, and its own Error() already renders as "CODE: message".
+func cliCodedError(cmd *cli.Command, jsonOut bool, fallback string, err error) error {
+	if jsonOut {
+		return writeCodedErrorEnvelope(cmd.Writer, fallback, err)
+	}
+	return err
 }

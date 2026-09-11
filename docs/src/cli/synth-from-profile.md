@@ -17,7 +17,8 @@ from the source; only summary statistics drive generation.
 
 ```
 pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
-                         [--seed N] [--fidelity-report FILE] [--json]
+                         [--seed N] [--fidelity-report FILE]
+                         [--rules FILE] [--emit-spec FILE] [--json]
 ```
 
 ## Flags
@@ -30,6 +31,8 @@ pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
 | `--rows`    |      | int    | (required) | Number of **new** rows to generate |
 | `--seed`    |      | int    | 0          | Deterministic RNG seed |
 | `--fidelity-report` | | string | (none) | Write a JSON fidelity report to this path after generation completes |
+| `--rules`   |      | string | (none) | Load structural rules from a standalone JSON file and apply them to the derived spec |
+| `--emit-spec` |    | string | (none) | Write the derived spec (after any `--rules` merge) to this path as indented JSON |
 | `--json`    |      | bool   | false      | Emit the standard envelope |
 
 `--rows` is required (unlike `from-schema`, which can pull it from
@@ -52,6 +55,98 @@ through unchanged, in order.
 mutates it in place — an `--output` that resolves to the same file
 as `--source` is refused outright, and the source cohort's bytes and
 modification time are unchanged by a run.
+
+## Inspecting and modifying the derived spec
+
+`synth from-profile` derives a `synth.Spec` from the profile and
+generates from it in one breath. Two additive flags open that step up.
+Both absent, behaviour and output bytes are unchanged.
+
+### `--emit-spec <path>`
+
+Writes the spec that **actually generated** as indented JSON. It is the
+real spec, not a summary of it: fed to
+[`synth from-schema`](synth-from-schema.md) at the same `--seed` it
+reproduces the same rows.
+
+```
+pulse synth from-profile -p cohort.json --source cohort.pulse \
+    -o out.pulse --rows 20000 --seed 7 --emit-spec derived.json
+```
+
+It is the authoring aid — writing `{"when": "familiarity == 1", …}`
+requires knowing the field is called `familiarity`, that it is a `u4`
+and that its floor is 1, and nothing else prints any of that — and
+equally the **diagnostic**. The emitted document is the only place a
+reader can see:
+
+- which captured `models` survived translation onto the spec,
+- which distribution each field reconstructed to (`normal`, `bernoulli`,
+  `mixture`, `weighted_categorical`, `constant` for a column the
+  profiler could not summarise),
+- which conditional pairs were retired, and which survived.
+
+Each of those has been lost silently in this package before, every time
+leaving a plausible-looking cohort behind. The spec is written **before**
+generation runs, so a run that then fails still leaves the document.
+
+### `--rules <path>`
+
+Loads a standalone rules document and applies it to the derived spec.
+Without it the whole [structural-rules](synth-from-schema.md#structural-rules)
+layer is unreachable from the profile path.
+
+The file is **the `rules` array itself** — a bare JSON array of rule
+objects, identical to the `rules` key of a `from-schema` spec, so a rule
+moves between the two by cut and paste:
+
+```json
+[
+  {"when": "aware == 0", "set_null": ["perception_1", "perception_2"]},
+  {"null_together": ["nps", "nps_reason"]}
+]
+```
+
+```
+pulse synth from-profile -p cohort.json --source cohort.pulse \
+    -o out.pulse --rows 20000 --seed 7 --rules rules.json
+```
+
+**Merge semantics are REPLACE, not append.** `SpecFromProfile` derives no
+rules, so there is nothing to append to; an append mode would only create
+an ordering question no caller has asked. An empty array (`[]`) is a legal
+document meaning "no rules"; a `{"rules": [...]}` wrapper is refused
+rather than read as zero rules, because a run with every gate silently
+missing is the exact failure eager validation exists to remove.
+
+Validation is eager and runs before generation. Every refusal names the
+**file** in `details.path` alongside the rule index, because an analyst
+editing a rules file beside a spec beside a profile needs to know which
+document is wrong:
+
+| Fault | Code |
+|---|---|
+| A rule names a field the derived spec does not carry | `PULSE_SYNTH_RULE_FIELD_UNKNOWN` |
+| A `when` or `set_expr` does not compile | `PULSE_SYNTH_RULE_EXPR_INVALID` |
+| A `set` literal the target cannot hold | `PULSE_SYNTH_RULE_VALUE_INVALID` |
+| The file is not readable | `DATA_FILE` |
+| The file is not a JSON array of rule objects | `SERVICE_VALIDATION` |
+
+The rule-specific codes are E1's own, not a leaf placeholder, so
+`pulse errors lookup PULSE_SYNTH_RULE_FIELD_UNKNOWN` carries the recovery
+prose. A refused file generates nothing.
+
+### The two compose
+
+```
+pulse synth from-profile -p cohort.json --source cohort.pulse \
+    -o out.pulse --rows 20000 --seed 7 \
+    --rules rules.json --emit-spec derived.json
+```
+
+The emitted spec carries the merged rules, so the loop is emit → read →
+write rules → apply → emit again to check what they became. `--emit-spec`
+never changes the generated cohort; it is a pure diagnostic.
 
 ## Determinism
 

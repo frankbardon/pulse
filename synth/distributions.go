@@ -443,6 +443,28 @@ func constantRowValue(f FieldSpec, v any) (any, error) {
 		if m, isMap := v.(map[string]bool); isMap {
 			return m, nil
 		}
+		// map[string]any is the SAME value after a JSON round trip —
+		// json.Marshal turns map[string]bool into an object and
+		// json.Unmarshal into `any` hands it back generically. This
+		// arm is what makes `--emit-spec` honest for an all-null
+		// set_* column: SpecFromProfile's unsummarisable fallback
+		// (sentinelFor) puts an empty map[string]bool here, so
+		// without it the emitted spec parses and then refuses at
+		// generation — the one shape in the whole Spec that does not
+		// decode back to the Go type it was marshalled from.
+		if m, isMap := v.(map[string]any); isMap {
+			sel := make(map[string]bool, len(m))
+			for k, e := range m {
+				b, isBool := e.(bool)
+				if !isBool {
+					return nil, bad("an object of option -> bool, or an array of option strings")
+				}
+				if b {
+					sel[k] = true
+				}
+			}
+			return sel, nil
+		}
 		arr, isArr := v.([]any)
 		if !isArr {
 			return nil, bad("an array of option strings")
