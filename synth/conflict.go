@@ -10,6 +10,34 @@ import "fmt"
 // two different options on the SAME set_* field are two DIFFERENT
 // targets, never one shared claim, because each option's transform
 // writes only its own entry in the row's map[string]bool selection map.
+// The space is INTENTIONALLY two-level. A stage that writes a whole
+// field claims {field}; one that writes a single set_* OPTION claims
+// {field, option}, because two pairs may legitimately drive two
+// different options of one multi-select and arbitrating them against
+// each other would drop structure neither contests.
+//
+// The containment between the two levels is NOT free and is not what a
+// map lookup gives you: {field} and {field, option} are different keys.
+// claimedBy is the one place that relationship is expressed — a
+// whole-field claim SUBSUMES every option of that field, and an
+// option-level claim does NOT reach the whole field. Both halves are
+// load-bearing and both are silent if reversed: without the first, an
+// unconditional rule writing a whole set_* field leaves the per-option
+// pair stages running and then discards their work (the wasted-stage and
+// false-fidelity-report class the priority-0 pre-claim exists to remove);
+// with the second wrong, one pair driving one option would evict a rule
+// or a model from the entire field.
+//
+// # For a future per-option rule slot
+//
+// Spec.Rules has no way to write a single option today, so ruleClaims
+// only ever emits {field}. A slot that CAN — the obvious shape is a
+// `set` entry naming "field.option" — MUST key its claim on
+// {field, option}. Keying it on {field} would make a rule touching one
+// option evict every pair driving the field's OTHER options, silently:
+// they would simply stop running and the file would keep its plausible
+// marginal. TestClaimTarget_OptionGranularity is the guard on both
+// directions.
 type claimTarget struct {
 	field  string
 	option string
@@ -125,10 +153,27 @@ func resolveConflicts(s *Spec) conflictResolution {
 	var res conflictResolution
 	claims := make(map[claimTarget]string, len(s.Fields))
 
+	// claimedBy resolves a target's current owner ACROSS the two levels
+	// of the claim space: an option-level target is owned by its own
+	// entry if it has one, and otherwise by any whole-field claim over
+	// the field it belongs to. See claimTarget for why the containment
+	// is one-directional and why both directions are silent if reversed.
+	claimedBy := func(t claimTarget) (string, bool) {
+		if desc, ok := claims[t]; ok {
+			return desc, true
+		}
+		if t.option != "" {
+			if desc, ok := claims[claimTarget{field: t.field}]; ok {
+				return desc, true
+			}
+		}
+		return "", false
+	}
+
 	// claim registers desc as the target's owner iff nothing owns it yet.
 	// Returns false (and leaves the existing owner in place) on conflict.
 	claim := func(t claimTarget, desc string) bool {
-		if _, taken := claims[t]; taken {
+		if _, taken := claimedBy(t); taken {
 			return false
 		}
 		claims[t] = desc
@@ -136,9 +181,10 @@ func resolveConflicts(s *Spec) conflictResolution {
 	}
 
 	conflict := func(t claimTarget, dropped string) {
+		owner, _ := claimedBy(t)
 		res.warnings = append(res.warnings, fmt.Sprintf(
 			"conditional relationship conflict: %s is already claimed by %s; dropping %s",
-			t, claims[t], dropped))
+			t, owner, dropped))
 	}
 
 	// PRIORITY 0: structural rules (Spec.Rules). The rule pass is the
@@ -256,7 +302,7 @@ func resolveConflicts(s *Spec) conflictResolution {
 		excluded := make(map[string]bool, len(participants))
 		for _, f := range participants {
 			t := claimTarget{field: f}
-			if _, taken := claims[t]; !taken {
+			if _, taken := claimedBy(t); !taken {
 				continue
 			}
 			excluded[f] = true
