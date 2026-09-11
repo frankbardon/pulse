@@ -948,8 +948,6 @@ func tryCholesky(m [][]float64) ([][]float64, bool) {
 	return L, true
 }
 
-// isNumericFieldType reports whether a spec-string type is a numeric
-// type the copula code can blend.
 // isBooleanFieldType reports whether a schema type name denotes a
 // single-bit boolean column.
 //
@@ -963,12 +961,65 @@ func isBooleanFieldType(typeName string) bool {
 	return typeName == "packed_bool"
 }
 
+// isNumericFieldType reports whether a spec-string type is one the
+// copula may treat as a number: a SCALAR column, whose row value is the
+// float64 every scalar sampler emits and which correlator.transform can
+// therefore write Q(Φ(u)) back over.
+//
+// # Derived, not transcribed
+//
+// The answer comes from fieldTypeFromName, for the reason sentinelFor's
+// does (issue #258): the two lists drifted. The switch this replaced
+// carried `nullable_u4` / `nullable_u8` / `nullable_u16` — spellings
+// fieldTypeFromName cannot build, so no spec naming them ever reached
+// the writer — and did NOT carry `u4`, which is what
+// encoding.FieldType.String() actually emits. addCorrelation
+// (synth/profile.go) gates on this predicate, so every u4 field was
+// dropped from Spec.Correlations in silence: 11 of the motivating survey
+// cohort's 14 integer columns, including nps, and all 16 of its captured
+// numeric pairs, leaving that cohort's reconstructed correlation
+// structure completely empty with nothing anywhere saying so.
+// TestFieldTypePredicates_ClassifyEveryDeclarableType enumerates the
+// type list rather than sampling it, because the name that is missing is
+// by definition not in a hand-picked sample.
+//
+// # The boundary is TYPE, not distribution
+//
+// A scalar whose reconstruction has no moments — a date's
+// uniform_date, a regex, a constant — is refused one call later by
+// fieldMoments, naming the distribution. That is the honest refusal and
+// a better message than "references non-numeric field" for a column that
+// plainly holds a number, so `date` stays admitted here.
+//
+// packed_bool and decimal128 are IN, deliberately. Both land in the
+// profiler's NUMERIC accumulator (ProfileBytes' default arm), so both
+// can appear in Conditional.NumericPairs — `detractor`, a packed_bool,
+// carries one of the motivating cohort's 16 — and excluding them would
+// reproduce this same silent drop one type over. fieldMoments and
+// quantileFor already carry the bernoulli arm that makes a boolean a
+// sound copula participant: Q is a step and p is uniform, so P(1) comes
+// back at exactly the declared prevalence while the latent carries the
+// dependence. categorical_* and set_* are OUT because their row value is
+// a string / map[string]bool, not a number the transform could write.
+//
+// # What a discrete participant produces
+//
+// Since a small integer reconstructs as `discrete` (synth/discrete.go),
+// most newly admitted participants have a STAIRCASE Q. The copula still
+// induces the dependence on the latent, so the RANK correlation carries
+// through and the marginal is held exactly at the captured histogram,
+// but the realised correlation on the VALUE scale is attenuated by the
+// discretisation — the same documented property a lognormal or mixture
+// participant has, sharper on a 7-level scale, and it costs rank as well
+// as Pearson once ties dominate. Measured on the motivating cohort's
+// regard × meaningfulness pair (both u4, both 7-level `discrete`,
+// captured rho +0.8400, 200,000 rows): Pearson +0.8072, Spearman
+// +0.8051, with both participants' per-level marginals held to within
+// 0.003. Before this fix the pair was not correlated at all.
 func isNumericFieldType(typeName string) bool {
-	switch typeName {
-	case "u8", "u16", "u32", "u64", "f32", "f64",
-		"nullable_u4", "nullable_u8", "nullable_u16",
-		"date":
-		return true
+	ft, ok := fieldTypeFromName(typeName)
+	if !ok {
+		return false
 	}
-	return false
+	return !ft.IsCategorical() && !ft.IsSet()
 }

@@ -803,13 +803,23 @@ stderr summary marks `!` and lists first, so it does not need finding.
   `"other"` catch-all that appears in a `--fit-models` design and in
   `conditional.*` tables is a different, per-section collapse and is
   generated normally.)
-- Correlations: pairwise only, and only between numeric fields. The
+- Correlations: pairwise only, and only between SCALAR fields — every
+  declarable type that is not `categorical_*` or `set_*`, so `u4` … `u64`,
+  `f32`/`f64`, `date`, `decimal128` and `packed_bool` all qualify. The
   profile capture flag `--include-correlations` (or the more accurate
   `--conditional`) opts in; without either, fields are generated
   independently. Reconstruction uses a conditional-Gaussian
   construction (`synth/copula.go`) that exactly targets the captured
   Pearson `rho` for jointly-normal fields — see
   `skills/synthetic-data.md` for the technique and its trade-offs.
+  A small-integer or boolean participant reconstructs as a staircase
+  (`discrete` / `bernoulli`), which holds its own per-level shares
+  exactly and attenuates the realised correlation: measured on two real
+  7-level `u4` columns at a captured `rho` of +0.8400, Pearson came back
+  +0.8072 and Spearman +0.8051 with both marginals within 0.003 per
+  level. A participant already claimed by an earlier stage — a linear
+  model, or a categorical-numeric conditional pair — is not correlated
+  at all, and says so in the generation warnings.
 - Boolean (`packed_bool`) fields: reconstructed as `bernoulli` with
   `p` = the captured mean, which holds the prevalence exactly. Two
   consequences. A modelled boolean is drawn as a **probit**, so its
