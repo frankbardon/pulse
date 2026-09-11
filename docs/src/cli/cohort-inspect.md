@@ -18,6 +18,11 @@ cohort size.
 pulse cohort inspect PATH [--json] [--full-dict]
 ```
 
+`PATH` is a single-file cohort, a shard archive, or the anchor form
+`archive.pulse#shard.pulse`, which inspects one shard as a one-shard
+cohort. Every mode resolves the anchor — text, `--json` and
+`--full-dict` alike.
+
 ## Flags
 
 | Flag | Type | Default | Purpose |
@@ -27,21 +32,40 @@ pulse cohort inspect PATH [--json] [--full-dict]
 
 ## Output (text mode)
 
+Every example below is verbatim CLI output.
+
 ```
-Fields: 7
-  order_id              u64                  Stable order identifier
-  region                categorical_u8       Sales region label
+Records: 1200
+Fields: 3
+  order_id                       u32                  Numeric field: order_id
+  region                         categorical_u8       Categorical field: region
     dictionary: 4 entries
-  product               categorical_u16      Product SKU
-    dictionary: 240 entries (truncated)
-  units                 u32                  Units sold per line
-  revenue               decimal128           Line revenue (precision 18, scale 2)
-  sold_on               date                 Date the order shipped
-  ...
+  units                          u4                   Numeric field: units
 ```
 
+`Records` is derived from the file length (`payload_bytes /
+record_stride`), never by reading a record, so it stays constant-time.
 Dictionaries with > 100 entries are flagged `(truncated)` — pass
 `--full-dict` to print every entry.
+
+A shard archive additionally prints the per-shard breakdown under the
+aggregate:
+
+```
+Records: 200
+Shards: 2
+  s1.pulse                       120 records
+  s2.pulse                       80 records
+Fields: 3
+  respondent                     u32                  Numeric field: respondent
+  region                         categorical_u8       Categorical field: region
+    dictionary: 4 entries
+  score                          u8                   Numeric field: score
+```
+
+An anchor reports that shard's own count, not the archive aggregate —
+`pulse cohort inspect arch.pulse#s2.pulse` opens on `Records: 80`.
+Single-file cohorts print no `Shards:` line at all.
 
 ## Output (`--json`)
 
@@ -49,35 +73,85 @@ Dictionaries with > 100 entries are flagged `(truncated)` — pass
 {
   "format_version": "1.1",
   "data": {
-    "field_count": 7,
+    "field_count": 3,
     "fields": [
       {
         "name": "order_id",
-        "type": "u64",
+        "type": "u32",
         "byte_offset": 0,
         "bit_position": 0,
-        "description": "Stable order identifier",
-        "description_source": "schema"
+        "description": "Numeric field: order_id",
+        "description_source": "synthesized",
+        "categorical": false
       },
       {
         "name": "region",
         "type": "categorical_u8",
-        "byte_offset": 8,
+        "byte_offset": 4,
         "bit_position": 0,
-        "description": "Sales region label",
-        "description_source": "schema",
+        "description": "Categorical field: region",
+        "description_source": "synthesized",
+        "categorical": true,
         "dictionary": {
           "total_entries": 4,
           "truncated": false,
-          "entries": ["east", "west", "north", "south"]
+          "values": ["east", "west", "north", "south"]
         }
+      },
+      {
+        "name": "units",
+        "type": "u4",
+        "byte_offset": 5,
+        "bit_position": 0,
+        "description": "Numeric field: units",
+        "description_source": "synthesized",
+        "categorical": false
       }
-    ]
+    ],
+    "shards": [],
+    "record_count": 1200
   },
   "errors": [],
   "warnings": []
 }
 ```
+
+`record_count` and `shards` are always present. `shards` is `[]` (never
+`null`) for a single-file cohort and for an anchor; for an archive it
+carries one entry per shard in insertion order, with `record_count` the
+cumulative sum:
+
+```json
+  "data": {
+    "field_count": 3,
+    "fields": ["..."],
+    "shards": [
+      {"filename": "s1.pulse", "record_count": 120},
+      {"filename": "s2.pulse", "record_count": 80}
+    ],
+    "record_count": 200
+  }
+```
+
+A `record_count` of `0` means an empty cohort. When the payload length
+is not a whole multiple of the record stride — a truncated tail — the
+count is the FLOOR and the envelope says so:
+
+```json
+  "record_count": 120,
+  "warnings": [
+    {
+      "code": "ENCODING_INVALID",
+      "message": "cohort payload length is not a whole multiple of the record stride; record_count is the floor",
+      "details": {"record_stride": 6, "trailing_bytes": 3}
+    }
+  ]
+```
+
+`pulse.CountRecords` floors the same bytes to the same number and
+raises no warning: it has no warning channel, and a half-written
+trailing record must not stop a cohort that still processes from
+reporting its whole-record count. `inspect` is the arm that tells you.
 
 Fields with empty descriptions on disk get a synthesised fallback
 (`"Categorical field: <name>"` / `"Numeric field: <name>"`); their
@@ -101,6 +175,12 @@ pulse cohort inspect data.pulse --json
 
 # Show all categorical entries
 pulse cohort inspect data.pulse --full-dict --json | jq '.data.fields[] | select(.dictionary)'
+
+# Record count alone
+pulse cohort inspect data.pulse --json | jq '.data.record_count'
+
+# One shard of an archive, as a one-shard cohort
+pulse cohort inspect 'archive.pulse#20190101.pulse'
 ```
 
 ## Related
