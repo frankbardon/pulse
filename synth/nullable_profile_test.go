@@ -41,6 +41,23 @@ func readNullFlagsForField(t *testing.T, data []byte, name string) []bool {
 	return out
 }
 
+// FIXTURES MUST MIRROR THIS DERIVATION. The rule layer refuses a
+// set_null naming a non-nullable field, so a hand-built fixture that
+// sets Nullable without a NullRate (or a NullRate without Nullable)
+// describes a spec SpecFromProfile never produces, and a real refusal
+// can pass unnoticed against it — the defect FU-23 found in two
+// --suggest-rules tests.
+//
+// Swept at WP-J across every FieldSpec literal in synth/*_test.go (70 of
+// them): NO fixture carries the dangerous direction (NullRate > 0 with
+// Nullable false — a spec that draws nulls the file cannot record). Ten
+// carry the benign one, Nullable true with NullRate 0, and every one is
+// a cohort-GENERATOR spec whose nulls come from a rule rather than from
+// a rate, or is the nullability refusal's own subject; a profile of the
+// cohort each writes has NullRate > 0, so the derived spec is
+// consistent. Re-run the sweep when adding a fixture that feeds a
+// hand-built Spec to rule validation or to generation.
+//
 // TestSpecFromProfile_SetsNullableFromObservedNullRate is the narrow unit
 // check behind E6-S3: SpecFromProfile must set FieldSpec.Nullable true for
 // a field whose profile carries a positive NullRate, and leave it false
