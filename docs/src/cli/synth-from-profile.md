@@ -380,31 +380,33 @@ therefore an answer, not a gap; the conflict warning on stderr names it.
 #### Reading a flag without concluding the feature is broken
 
 **Expect flags.** On the 381,324-row survey cohort behind this feature,
-55 models were applied and **30 of them flagged**. That is not a
-generation failure, and the way to tell is that the flags cluster by the
-target's **on-wire type** — 18 `packed_bool` targets and 9 `u4` targets
-out of the 30.
+53 models were applied, **all 53 are comparable** and **40 of them
+flag**. That is not a generation failure.
 
-The reason is a known limitation with a name. The refit inverts each
-generated value back through `Q` to recover the latent it was drawn
-from, and that inversion is exact — but it cannot undo what the *writer*
-did afterwards. A `u4` field is stored rounded to a whole number; a
-`packed_bool` field is stored as 0 or 1 and nothing else. A latent
-effect of a fifth of a standard deviation survives that write only as a
-small change in how many rows crossed a boundary, so most of it is gone
-before anything measures it, and the refit correctly reports what is
-left. Call it **quantization attenuation**. It is a real property of the
-generated rows — they genuinely carry less conditioning than the model
-asked for — and the fix is a discrete draw (logistic or ordinal) for
-discrete targets rather than a looser tolerance. That is future work, so
-for now these flags are information, not action.
+A target whose `Q` is a step or a staircase — every `packed_bool` and
+every small integer, which on a survey cohort is nearly all of them —
+has no point latent inverse, so its entry carries
+`"scale": "probit_score"` and was recovered through a calibrated score
+rather than a direct inversion. That calibration is exact in
+expectation, so a flag on such an entry is a statement about the rows,
+not about the instrument. (Before that score existed the section
+reported only **2** comparable targets of the same 53, and
+`model_residual_correlations` only 1 pair; the instrument had stopped
+covering the field types the feature mostly applies to.)
+
+The rows do carry slightly less conditioning than the captured model
+asked for. Call it **quantization attenuation**: a `u4` field is stored
+rounded to a whole number and a `packed_bool` as 0 or 1, so a latent
+effect survives the write only as a change in how many rows crossed a
+boundary. It is a real property of the generated rows, not an artefact
+of the instrument.
 
 What a flag on a **continuous, unrounded** target means is different,
 and that is the case worth acting on. Separate the two:
 
 | Look at | Quantization attenuation | A real generation fault |
 |---|---|---|
-| Target's field type | `packed_bool`, `u4`, or another narrow integer | `f32`/`f64`, or a wide integer |
+| Target's field type | `packed_bool`, `u4`, or another narrow integer (`"scale": "probit_score"`) | `f32`/`f64`, or a wide integer (no `scale` key) |
 | `n_fired` | Healthy — thousands of rows | Healthy — thousands of rows (a *zero* here is neither case: nothing fired, so there was nothing to recover) |
 | `recovered_coefficient` | Same sign, systematically smaller | Near zero, or the wrong sign |
 | Peers | Most models of the same target type flag alike | An outlier among similar targets |
@@ -430,12 +432,25 @@ jq '[.models[].predictors[]?
     | sort_by(.n_fired) | reverse | .[:10]' out.fidelity.json
 ```
 
-For calibration: among strong, well-supported terms on that same cohort
-(captured effect above 0.3 latent sd, `n_fired` over 500) the median
-recovered/captured ratio is **0.85** — e.g. a captured 2.219 recovering
-2.084. Generation is faithful there. A ratio near zero on a wide numeric
-target with a healthy `n_fired` is the signature that something in the
-generation path is not applying the model, and is worth reporting.
+For calibration on that same cohort: 2,499 predictor entries, **2,343
+compared** and 97 flagged; 156 unestimable, of which 143 are the
+different-ranking-basis case described below, 7 constant columns and 6
+terms whose captured effect falls below the staircase score's own
+resolution (those carry an `error`, never a divided-by-nothing number).
+A ratio near zero on a wide numeric target with a healthy `n_fired` is
+the signature that something in the generation path is not applying the
+model, and is worth reporting.
+
+On a `"scale": "probit_score"` entry each predictor also carries
+`score_retention` — the fraction of the captured effect that survives
+onto the score, which both the recovered coefficient and its
+`std_error` have already been divided by. Read a small retention as a
+wide confidence band, not as a suspect number. Measured across 2,193
+calibrated terms on that cohort: minimum 0.075, median 0.456, upper
+quartile 0.814. A staircase entry reports no
+`recovered_intercept`: its cut points come from the captured marginal,
+which generation holds exactly, so that intercept carries no evidence
+about the coefficients.
 
 Three absence rules, all deliberate:
 
@@ -543,11 +558,25 @@ endpoint's model could not be refitted). Those entries carry
 — and **no** recovered-rho key at all, so an unmeasured pair can never
 be mistaken for one recovered at zero.
 
-For calibration again: 55 applied models on the survey cohort produce
-1,485 compared pairs, of which **147 flag**, at a mean `delta` of 0.055
-and a worst of 0.490. The worst entries are the same quantized targets
-the `models` section flags (`aware`×`familiarity`, `detractor`×`nps`) —
-one cause, surfacing in both sections.
+**A pair with a `packed_bool` or small-integer endpoint is always
+`no_model_fit`, and that is deliberate.** The `models` section can
+calibrate a staircase target's *coefficient* because least squares is
+linear in its response, so the same score projected twice divides the
+attenuation out exactly. A *correlation* has no such projection: the
+factor relating two score residuals' correlation to the correlation of
+the residuals that drove the draws depends on the pair's joint
+distribution, not on either marginal. Shipping the attenuated figure
+would put a number that looks measured beside one that is, so it is
+counted as a gap instead — on the survey cohort 1 compared pair and
+1,377 unmeasured. Closing it needs a polychoric-style bivariate
+calibration or an ordered-probit refit.
+
+For calibration again: on a cohort whose modelled targets are all
+continuous, 55 applied models produce 1,485 compared pairs, of which
+**147 flag**, at a mean `delta` of 0.055 and a worst of 0.490. On the
+survey cohort, whose targets are 51 of 53 staircase, the same section
+compares 1 pair and reports 1,377 as `no_model_fit` — see the paragraph
+above.
 
 Because a modelled field is deliberately excluded from the value-scale
 `pairwise` arm, this section is the only place the report scores
@@ -823,11 +852,11 @@ stderr summary marks `!` and lists first, so it does not need finding.
 - Boolean (`packed_bool`) fields: reconstructed as `bernoulli` with
   `p` = the captured mean, which holds the prevalence exactly. Two
   consequences. A modelled boolean is drawn as a **probit**, so its
-  coefficients order rows but are not probability changes; and its
-  recovery is **unidentified** — the `models` section of a fidelity
-  report carries an `error` for these targets rather than a recovered
-  coefficient, because a 0/1 value does not determine the latent that
-  produced it. A boolean observed at prevalence exactly 0 or 1 has no
+  coefficients order rows but are not probability changes; and a 0/1
+  value pins the latent to an interval rather than to a point, so the
+  `models` section of a fidelity report recovers it through a calibrated
+  probit score (marked `scale: "probit_score"`) instead of a direct
+  inverse. A boolean observed at prevalence exactly 0 or 1 has no
   variance, so a model on it is dropped with a warning. A
   hand-authored schema-mode spec that puts a continuous distribution on
   a `packed_bool` is still biased (the writer rounds at 0.5); declare
@@ -839,16 +868,17 @@ stderr summary marks `!` and lists first, so it does not need finding.
   [`profile create`](profile-create.md) for the cap and why it abandons
   rather than truncates). The consequences mirror the boolean arm above.
   A modelled integer target is drawn as an **ordered probit**, so its
-  coefficients order rows but are not scale points; and its recovery is
-  **unidentified** — the `models` section carries an `error` for these
-  targets, because a level pins the latent to an interval rather than to a
-  point. On the survey cohort that moves the `models` section from 14
-  comparable targets of 55 to **2**, and `model_residual_correlations`
-  from 91 compared pairs to **1**, since a residual-correlation
-  comparison needs a refit at both endpoints. The generated cohort is
-  strictly more faithful; the instrument that measured its conditioning
-  covers less of it. Recovering an ordered-probit coefficient needs an
-  ordered-probit refit, which `processing/regression` does not yet offer.
+  coefficients order rows but are not scale points; and like a boolean it
+  is recovered through the calibrated probit score rather than a direct
+  latent inverse, because a level pins the latent to an interval. On the
+  survey cohort the `models` section reports **53 comparable targets of
+  53 entries** (it reported 2 before that score existed) and **2,343 of
+  2,499** predictor terms compared. `model_residual_correlations` still
+  reports **1** compared pair with 1,377 unmeasured: a coefficient can be
+  calibrated because least squares is linear in its response, a
+  correlation cannot, so a staircase endpoint stays in the unmeasured
+  list under `no_model_fit` rather than shipping an attenuated rho that
+  looks measured.
 - Decimal and geo fields: regenerated within the same type family
   but with synthetic value distributions; downstream uses that
   depend on exact field values (e.g. joinable identifiers) need

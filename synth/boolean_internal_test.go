@@ -121,6 +121,13 @@ const (
 // no entry fails here rather than silently landing in whichever arm its
 // default behaviour happens to match.
 //
+// FU-19 added a THIRD switch to keep in lockstep —
+// isStaircaseDistribution / buildRecoveryScore, which decides whether a
+// distribution latentFor refuses is nonetheless recoverable through the
+// calibrated interval-midpoint probit score. A step-quantile kind
+// missing from it silently leaves the fidelity report exactly as WP-C's
+// refusal did, so each arm below now asserts all three.
+//
 // That default-arm failure mode is not hypothetical in this package — a
 // `default:` in modelPredictorKind mapped a whole predictor kind to the
 // wrong one and disabled roughly 80% of a shipped feature with every test
@@ -187,6 +194,12 @@ func TestLatentFor_EveryDistributionIsClassified(t *testing.T) {
 			if _, err := latentFor(fs, mean, std); err == nil {
 				t.Errorf("%q: latentFor accepted a distribution fieldMoments refuses", name)
 			}
+			if isStaircaseDistribution(name) {
+				t.Errorf("%q: isStaircaseDistribution says yes for a distribution fieldMoments refuses", name)
+			}
+			if _, err := buildRecoveryScore(fs, mean, std, 0.5); err == nil {
+				t.Errorf("%q: buildRecoveryScore accepted a distribution fieldMoments refuses", name)
+			}
 		case classRoundTrip:
 			if momErr != nil {
 				t.Errorf("%q: fieldMoments refused a distribution classified as round-trip: %v", name, momErr)
@@ -200,6 +213,16 @@ func TestLatentFor_EveryDistributionIsClassified(t *testing.T) {
 			}
 			if !latentInvertible(name) {
 				t.Errorf("%q: latentInvertible says no for a round-trip distribution", name)
+			}
+			if isStaircaseDistribution(name) {
+				t.Errorf("%q: isStaircaseDistribution says yes for a distribution with a point inverse", name)
+			}
+			sc, err := buildRecoveryScore(fs, mean, std, 0.5)
+			if err != nil {
+				t.Errorf("%q: buildRecoveryScore refused a round-trip distribution: %v", name, err)
+			} else if sc.staircase {
+				t.Errorf("%q: buildRecoveryScore chose the calibrated score for a distribution "+
+					"whose latent is directly recoverable", name)
 			}
 		case classStepQuantile:
 			if momErr != nil {
@@ -215,6 +238,25 @@ func TestLatentFor_EveryDistributionIsClassified(t *testing.T) {
 			if _, err := latentFor(fs, mean, std); err == nil {
 				t.Fatalf("%q: latentFor placed a value a step quantile cannot identify — "+
 					"a fabricated latent reports a false attenuation for a correct generation path", name)
+			}
+			// The recovery path is the third switch that must stay in
+			// lockstep (FU-19). A step-quantile distribution latentFor
+			// refuses must be recoverable through the CALIBRATED score
+			// instead, or its models drop out of the fidelity report
+			// exactly as they did before that score existed.
+			if !isStaircaseDistribution(name) {
+				t.Errorf("%q: isStaircaseDistribution says no for a step quantile, so "+
+					"buildRecoveryScore will pass latentFor's refusal through and every model "+
+					"targeting it leaves the recovery section", name)
+			}
+			sc, err := buildRecoveryScore(fs, mean, std, 0.5)
+			if err != nil {
+				t.Errorf("%q: buildRecoveryScore refused a step quantile: %v", name, err)
+			} else if !sc.staircase || sc.expected == nil {
+				t.Errorf("%q: buildRecoveryScore returned an uncalibrated score (staircase=%v, "+
+					"expected=nil:%v) — the raw midpoint score reports a systematically attenuated "+
+					"coefficient for a generation path that is exactly correct",
+					name, sc.staircase, sc.expected == nil)
 			}
 		}
 	}

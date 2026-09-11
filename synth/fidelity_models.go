@@ -154,6 +154,18 @@ type ModelFidelity struct {
 	// still a real check, since a drifted intercept on a marginal model
 	// means the marginal itself did not survive.
 	Marginal bool `json:"marginal,omitempty"`
+	// Scale names how this entry's comparison was put on the latent
+	// scale. Empty — the ordinary case — means the generated value was
+	// inverted through latentFor, a point inverse, and the recovered
+	// coefficient is a direct estimate. RecoveryScaleProbitScore means
+	// the target's Q is a step or staircase with no point inverse, so
+	// the recovery ran through the CALIBRATED interval-midpoint probit
+	// score (synth/fidelity_score.go): still latent-scale and still
+	// unbiased, but divided by a retention factor that widens the
+	// standard error, so the same numeric gap carries less evidence.
+	// A score-scale entry reports no intercept comparison — see
+	// RecoveredIntercept.
+	Scale string `json:"scale,omitempty"`
 	// LatentScale is the target's reconstructed marginal standard
 	// deviation — the divisor that puts every captured coefficient below
 	// on the latent scale. Multiply a latent figure by it to return to
@@ -164,6 +176,16 @@ type ModelFidelity struct {
 	// intercepts: (Intercept − mean)/std as generation standardises it,
 	// against the refit's own. InterceptDelta is their absolute
 	// difference.
+	//
+	// On a Scale == RecoveryScaleProbitScore entry the recovered
+	// intercept is ABSENT and InterceptDelta with it. A staircase's cut
+	// points come from the captured MARGINAL, which generation holds
+	// exactly by construction, so the score-scale intercept is pinned by
+	// the marginal rather than by the model and carries no independent
+	// information about whether the coefficients were applied. Reporting
+	// a calibrated one would put a number where there is no measurement;
+	// the captured figure still ships, because the reader needs to see
+	// what the model declared.
 	CapturedIntercept  float64 `json:"captured_intercept"`
 	RecoveredIntercept float64 `json:"recovered_intercept,omitempty"`
 	InterceptDelta     float64 `json:"intercept_delta,omitempty"`
@@ -214,6 +236,20 @@ type ModelPredictorFidelity struct {
 	RecoveredCoefficient float64 `json:"recovered_coefficient,omitempty"`
 	StdError             float64 `json:"std_error,omitempty"`
 	Delta                float64 `json:"delta,omitempty"`
+	// ScoreRetention is the fraction of this term's captured latent
+	// effect that survives onto the interval-midpoint probit score,
+	// present only on a Scale == RecoveryScaleProbitScore entry and
+	// absent (0) otherwise.
+	//
+	// It is computed, not estimated: the same score is projected onto
+	// the same design once from the generated values and once from the
+	// conditional mean the CAPTURED model implies, and their ratio is
+	// this number. Both the recovered coefficient and its standard error
+	// have been divided by it, so a small retention means a wide band
+	// rather than a suspect estimate — which is the whole reason it is
+	// on the wire. Two levels retain the least of any K; a long scale
+	// retains the most.
+	ScoreRetention float64 `json:"score_retention,omitempty"`
 	// NFired is the number of admitted synthetic rows on which this
 	// term's indicator was 1. It is the term's own support and it is what
 	// distinguishes the two ways a recovered coefficient reaches zero: a
@@ -345,25 +381,25 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 		Marginal:          len(d.predictors) == 0,
 	}
 
-	latent, err := latentFor(fs, d.mean, std)
+	score, err := buildRecoveryScore(fs, d.mean, std, d.residualZ)
 	if err != nil {
-		// REACHABLE, and expected for one distribution. A bernoulli
-		// target (a packed_bool field) is generated through a STEP
-		// quantile, so its 0/1 value does not identify the latent that
-		// produced it and latentFor refuses rather than guessing — see
-		// latentInvertible for why the inverse-Mills alternative was
-		// rejected. The entry still ships, carrying every captured
-		// coefficient and this error in place of recovered figures, so a
-		// reader sees that the model ran and that its recovery is not
-		// identified. Nothing is flagged.
+		// Reachable only as a DRIFT bug now: a distribution admitted to
+		// fieldMoments and quantileFor that is neither latent-invertible
+		// nor named by isStaircaseDistribution, so buildRecoveryScore
+		// has no arm for it and passes latentFor's refusal through.
+		// TestLatentFor_EveryDistributionIsClassified is the gate that
+		// forces the three-way partition to stay exhaustive.
 		//
-		// The other way in is a distribution admitted to fieldMoments
-		// and quantileFor with no latentFor arm at all, which is a drift
-		// bug rather than a property of the mathematics;
-		// TestLatentFor_InvertsQuantileForEveryDistribution is the gate
-		// that keeps the two switches classified together.
+		// The two STAIRCASE distributions used to land here — a
+		// bernoulli or discrete target shipped its captured coefficients
+		// with this error in place of a delta, which cost the motivating
+		// cohort 53 of its 55 comparable models. They now recover
+		// through the calibrated score; see synth/fidelity_score.go.
 		entry.Error = err.Error()
 		return entry, nil
+	}
+	if score.staircase {
+		entry.Scale = RecoveryScaleProbitScore
 	}
 
 	terms := resolveRecoveryTerms(mergedSchema, d, std)
@@ -376,7 +412,7 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 	// predictor source field non-null — and then held fixed for the refit
 	// even after a degenerate column is dropped below, so NFired and NObs
 	// describe one admission rule rather than two.
-	admitted, ok := admitRecoveryRows(rows, d, terms, latent)
+	admitted, ok := admitRecoveryRows(rows, d, terms, score.value)
 	entry.NObs = len(admitted)
 	if !ok {
 		entry.Error = fmt.Sprintf(
@@ -385,6 +421,18 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 	}
 
 	if entry.Marginal {
+		if score.staircase {
+			// A zero-predictor staircase model has nothing this section
+			// can measure. Its only comparison is the intercept, and a
+			// staircase's score-scale intercept is pinned by the captured
+			// marginal (which generation holds exactly) rather than by
+			// the model — see ModelFidelity.RecoveredIntercept. There is
+			// no coefficient to calibrate and therefore no statement to
+			// make, so the entry ships complete and silent rather than
+			// carrying a number with no content.
+			entry.Error = "a zero-predictor staircase model has no coefficient to recover, and its score-scale intercept is fixed by the captured marginal"
+			return entry, nil
+		}
 		// An intercept-only model has no design to solve: the recovered
 		// intercept IS the mean latent over the admitted rows, which is
 		// what an OLS fit with no regressors returns. Computing it
@@ -392,7 +440,7 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 		// fieldFit.finalize's own intercept-only arm at capture.
 		var sum float64
 		for _, ri := range admitted {
-			u, _ := latent(rows[ri].values[d.field])
+			u, _ := score.value(rows[ri].values[d.field])
 			sum += u
 		}
 		entry.RecoveredIntercept = sum / float64(len(admitted))
@@ -406,7 +454,7 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 		// residual, and it is the field's own centred latent.
 		resid := newRecoveredResiduals(len(rows))
 		for _, ri := range admitted {
-			u, _ := latent(rows[ri].values[d.field])
+			u, _ := score.value(rows[ri].values[d.field])
 			resid.set(ri, u-entry.RecoveredIntercept)
 		}
 		return entry, resid
@@ -418,21 +466,51 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 		return entry, nil
 	}
 
-	res, ferr := fitRecovery(mergedSchema, rows, admitted, d, live, latent)
+	res, ferr := fitRecovery(mergedSchema, rows, admitted, d, live, observedResponse(d, score))
 	if ferr != "" {
 		entry.Error = ferr
 		return entry, nil
 	}
 
-	entry.RecoveredIntercept = res.Coefficients[regression.InterceptKey]
-	entry.InterceptDelta = math.Abs(entry.RecoveredIntercept - entry.CapturedIntercept)
-	entry.R2 = res.R2
+	// The EXPECTED-side fit, for a staircase target only. It regresses
+	// the conditional mean of the same score under the captured model
+	// onto the same design and the same rows, which is what turns the
+	// attenuated observed coefficients back into latent-scale ones — see
+	// synth/fidelity_score.go for why that division is exact rather than
+	// an approximation.
+	var expected *types.RegressionResult
+	if score.staircase {
+		exp, eerr := fitRecovery(mergedSchema, rows, admitted, d, live, expectedResponse(entry, terms, score))
+		if eerr != "" {
+			entry.Error = "expected-score calibration fit failed: " + eerr
+			return entry, nil
+		}
+		expected = exp
+	}
+
+	if !score.staircase {
+		entry.RecoveredIntercept = res.Coefficients[regression.InterceptKey]
+		entry.InterceptDelta = math.Abs(entry.RecoveredIntercept - entry.CapturedIntercept)
+		entry.R2 = res.R2
+	}
 	for _, t := range terms {
 		if !t.live {
 			continue
 		}
-		t.entry.RecoveredCoefficient = res.Coefficients[t.col.Name]
-		t.entry.StdError = res.StdErrors[t.col.Name]
+		coef := res.Coefficients[t.col.Name]
+		stdErr := res.StdErrors[t.col.Name]
+		if expected != nil {
+			retention, ok := scoreRetention(expected.Coefficients[t.col.Name], t.entry.CapturedCoefficient)
+			if !ok {
+				t.entry.Error = "the captured effect for this term falls below the staircase score's resolution, so its calibration would be a division by approximately nothing"
+				continue
+			}
+			t.entry.ScoreRetention = retention
+			coef /= retention
+			stdErr /= retention
+		}
+		t.entry.RecoveredCoefficient = coef
+		t.entry.StdError = stdErr
 		t.entry.Delta = math.Abs(t.entry.RecoveredCoefficient - t.entry.CapturedCoefficient)
 		band := ModelRecoveryTolerance
 		if se := modelRecoverySEMultiple * t.entry.StdError; se > band {
@@ -446,7 +524,72 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 			entry.Flagged = true
 		}
 	}
-	return entry, recoveryResidualsFor(rows, admitted, d, terms, latent, res)
+	if score.staircase {
+		// The residual-correlation half (E5-S2) takes no staircase
+		// endpoint. A score residual is a NON-LINEAR image of the
+		// residual that actually drove the draw, so its correlation is
+		// attenuated too — and unlike a coefficient, a correlation
+		// cannot be calibrated by a projection, because the factor
+		// depends on the pair's own joint distribution rather than on
+		// either marginal. Those pairs stay in the unmeasured list under
+		// ResidualUnmeasuredNoModelFit, counted rather than silent.
+		return entry, nil
+	}
+	return entry, recoveryResidualsFor(rows, admitted, d, terms, score.value, res)
+}
+
+// scoreRetention is the fraction of a captured latent coefficient that
+// survives onto the staircase score: the expected-side coefficient
+// divided by the captured one.
+//
+// ok=false when the ratio cannot be taken honestly — a captured
+// coefficient of zero (nothing to retain a fraction OF), an expected
+// coefficient of the wrong sign or one so small that the calibration
+// would multiply the estimate and its standard error by more than
+// 1/minScoreRetention.
+func scoreRetention(expectedCoef, capturedCoef float64) (float64, bool) {
+	if capturedCoef == 0 || math.IsNaN(expectedCoef) {
+		return 0, false
+	}
+	r := expectedCoef / capturedCoef
+	if r < minScoreRetention {
+		return 0, false
+	}
+	return r, true
+}
+
+// observedResponse scores each row's own generated target value — the
+// left-hand side of the recovery refit.
+func observedResponse(d *modelDrawer, score recoveryScore) recoveryResponse {
+	return func(row *syntheticRow) (float64, bool) {
+		return score.value(row.values[d.field])
+	}
+}
+
+// expectedResponse computes, for each row, the conditional mean of the
+// same score under the CAPTURED model — the calibration half.
+//
+// The row's standardised linear prediction is assembled from the entry's
+// own already-standardised figures (CapturedIntercept plus each fired
+// term's CapturedCoefficient), which is exactly the quantity
+// modelDrawer.transform builds before adding its residual. Every term
+// contributes, including one the recovery design dropped as constant:
+// generation applied it, so the expected score must see it. A term whose
+// level the output cohort never carries has no resolved column and can
+// never fire, which is the same zero contribution generation makes.
+func expectedResponse(entry *ModelFidelity, terms []*recoveryTerm, score recoveryScore) recoveryResponse {
+	return func(row *syntheticRow) (float64, bool) {
+		m := entry.CapturedIntercept
+		for _, t := range terms {
+			if t.col.Name == "" {
+				continue
+			}
+			if recoveryIndicator(row, t.col) == 1 {
+				m += t.entry.CapturedCoefficient
+			}
+		}
+		return score.expected(m), true
+	}
 }
 
 // recoveryResidualsFor evaluates the refit's own residual for every
@@ -679,7 +822,7 @@ func liveRecoveryColumns(terms []*recoveryTerm) []dummyColumn {
 // against is the shrunken one, it is what generation actually applied,
 // and re-applying a ridge here would shrink the recovery a second time
 // and report a gap that neither side committed.
-func fitRecovery(mergedSchema *encoding.Schema, rows []syntheticRow, admitted []int, d *modelDrawer, cols []dummyColumn, latent latentFunc) (*types.RegressionResult, string) {
+func fitRecovery(mergedSchema *encoding.Schema, rows []syntheticRow, admitted []int, d *modelDrawer, cols []dummyColumn, respond recoveryResponse) (*types.RegressionResult, string) {
 	plan := &dummyPlan{
 		target:  d.field,
 		columns: cols,
@@ -711,7 +854,7 @@ func fitRecovery(mergedSchema *encoding.Schema, rows []syntheticRow, admitted []
 	for _, ri := range admitted {
 		row := &rows[ri]
 		rec.bind(row.values, row.nulls, row.wide)
-		rec.latent, rec.ok = latent(row.values[d.field])
+		rec.latent, rec.ok = respond(row)
 		if err := engines[0].UpdateRow(rec); err != nil {
 			return nil, err.Error()
 		}
@@ -723,8 +866,19 @@ func fitRecovery(mergedSchema *encoding.Schema, rows []syntheticRow, admitted []
 	return res, ""
 }
 
+// recoveryResponse produces one refit's left-hand side for one cached
+// synthetic row, reporting ok=false for a row the response cannot be
+// computed on (the same contract latentFunc has, since a latent inverse
+// is one of the two responses this signature carries).
+//
+// It is a per-ROW function rather than a per-VALUE one because the
+// calibration half needs the row's predictors as well as its target: the
+// expected score is E[score | this row's own linear prediction]. See
+// expectedResponse.
+type recoveryResponse func(row *syntheticRow) (float64, bool)
+
 // latentRecord is the dummyRecord adapter with its TARGET column
-// answered on the latent scale instead of the raw one.
+// answered on the recovery scale instead of the raw one.
 //
 // It wraps rather than replaces because every PREDICTOR must keep
 // resolving through the identical dummy-coding path capture used —
