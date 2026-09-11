@@ -542,8 +542,16 @@ func TestSuggestRules_CoMissingGateIsCountedNotProposed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("profileRecords: %v", err)
 	}
-	if len(prof.RuleCandidates) != 0 {
-		t.Errorf("a co-missing block was proposed as value gating: %v", gateNames(prof.RuleCandidates))
+	// NARROWED at E3-S2, not relaxed. The assertion was
+	// "len(RuleCandidates) == 0" while this detector was the only one
+	// writing to the slot; the co-missing detector now proposes exactly
+	// this block, which is the whole point of it. What must still hold —
+	// and is the half this test exists for — is that NO GATING candidate
+	// is proposed for it.
+	for _, c := range prof.RuleCandidates {
+		if c.Evidence != nil && c.Evidence.Detector == gatingDetectorName {
+			t.Errorf("a co-missing block was proposed as value gating: %v", c.Evidence.GateField)
+		}
 	}
 	var found bool
 	for _, w := range prof.Warnings {
@@ -553,6 +561,18 @@ func TestSuggestRules_CoMissingGateIsCountedNotProposed(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("the co-missing relationships were dropped silently; warnings = %v", prof.Warnings)
+	}
+	// And the other half of the hand-off: the finding this detector
+	// counts is the finding E3-S2's detector proposes, so the two must
+	// not BOTH stay silent about it.
+	var block []string
+	for _, c := range prof.RuleCandidates {
+		if c.Evidence != nil && c.Evidence.Detector == comissingDetectorName {
+			block = c.NullTogether
+		}
+	}
+	if strings.Join(block, ",") != "a,b,c" {
+		t.Errorf("the co-missing block was counted by one detector and proposed by neither: %v", block)
 	}
 }
 

@@ -194,6 +194,24 @@ var warningKinds = []warningKind{
 	},
 
 	{
+		// A column with no observations at all
+		// (`profile create --suggest-rules`). It is NOT a rule candidate
+		// and never becomes one — it has no gate and no block — so it
+		// gets its own kind rather than folding into the line above.
+		//
+		// ATTENTION, and not arguably: every marginal the profile
+		// carries for such a column is computed over zero rows, and
+		// generation fabricates a distribution from it. That is the
+		// plausible-looking-output failure class this whole effort
+		// exists to make visible, in its purest form.
+		kind:      "always-null column",
+		attention: true,
+		match: func(w string) bool {
+			return strings.HasPrefix(w, "always-null column")
+		},
+	},
+
+	{
 		// Structural-rule DETECTION (`profile create --suggest-rules`)
 		// reporting what it could not consider or could not fit in the
 		// file. Nothing failed — a proposal pass has no failure mode —
@@ -234,6 +252,9 @@ var thinSubjects = []string{
 	// expected outcome and not a fault — the analyst is better placed
 	// than the threshold to judge a 12-row level.
 	"gate level",
+	// The same, for a co-missing block whose thinner arm (null or
+	// present) rests on too few rows.
+	"co-missing block",
 }
 
 // otherWarningKind is where an unrecognised warning lands, and it is

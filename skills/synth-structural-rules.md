@@ -121,9 +121,25 @@ Coverage bounds the layer's value and rules get written from RECALL. `pulse prof
 
 Numeric gates are emitted through `round()`, uniformly, including `packed_bool`. Bare `==` reads the pre-rounding float and silently under-fires — 531 of 901 rows in the committed regression.
 
-Two things it will NOT propose, both counted in `Profile.Warnings` rather than dropped silently: a field with more than `maxGateLevels` (16) observed levels (an attribute, not a branch — abandoned, never truncated), and a gate whose ONLY gated level is the null pseudo-level, which is co-missingness rather than value gating (every member of an N-field block reports the other N-1 that way). Thin candidates SHIP with their support attached, warned thinnest-first and capped.
+Two things it will NOT propose, both counted in `Profile.Warnings` rather than dropped silently: a field with more than `maxGateLevels` (16) observed levels (an attribute, not a branch — abandoned, never truncated), and a gate whose ONLY gated level is the null pseudo-level, which is co-missingness rather than value gating (the section below proposes those). Thin candidates SHIP with their support attached, warned thinnest-first and capped.
 
-Candidates COMPOSE in declaration order: on the real cohort `aware` nulls the five `*Aware` flags and the five later candidates then fire on those nulls too. And a `set_null` gate repairs co-missingness ONLY — each target's own `null_rate` still fires beneath it, so the marginal rises above the captured one.
+A `set_null` gate repairs co-missingness ONLY — each target's own `null_rate` still fires beneath it, so the marginal rises above the captured one.
+
+### Co-missing blocks and always-null columns
+
+The same scan also proposes `null_together` candidates (`detector: "co_missing"`, evidence on `_evidence.block`): fields nulled as one question block.
+
+**An identical `null_rate` is NEVER enough**, and that is the whole of it. Two unrelated fields can share a rate to sixteen digits and overlap by chance, so the rate is only the grouping key and admission is IDENTICAL NULL PATTERN — null on exactly the same rows. Every member of an emitted block therefore carries `agreement: 1`, an identical `null_count`, and `max_null_rate_deviation: 0`, which is precisely E1-S5's divergence measure: no member's declared rate is discarded, and the member order is arbitrary by construction rather than a ranking.
+
+A NEAR block is reported in the warnings with its agreement and its disagreeing row count, never emitted: `null_together` has no dial for "almost" and, unlike a gating candidate's `when`, there is nothing in it for an analyst to correct. The agreement is the null-SET overlap, not row-level agreement — two independent fields each null at 1% agree on 98% of ROWS.
+
+An ALWAYS-NULL column is its own finding, named with its type, and belongs to no block and no gate: its marginal is summarised over zero observations and generation fabricates a distribution from it.
+
+Bounded by construction: a per-field bitset over `blockChunkRows` rows folded into a co-null matrix by popcount, so memory is flat in the row count; over `maxBlockFields` (256) nullable fields the detector abandons rather than truncating. Blocks rank largest-first, capped with a counted remainder.
+
+**Candidates COMPOSE in declaration order and gating candidates come FIRST.** On the real cohort `aware` nulls the five `*Aware` flags and the five later candidates then fire on those nulls too. Gate-before-block is chosen for the EDITED file rather than the emitted one — as detected the two orders are equivalent, because identical patterns classify identically so a gate takes a whole block or none of one; once you narrow a `set_null` by hand, a block that FOLLOWS it repairs the edit and one that precedes it is broken by it.
+
+Measured on the 381,324-row motivating cohort: four blocks — 50 fields at 0.2526, **26 at 0.3564 (the cluster no single gate could explain)**, 13 at 0.2649 and the four-field NPS block at 0.8260 — plus one always-null column and four near misses, alongside the eight gating candidates, in one file `--rules` consumes unmodified.
 
 ## See
 

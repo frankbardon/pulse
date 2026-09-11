@@ -36,7 +36,7 @@ pulse profile create --input PATH --output PATH
 | `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
 | `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels and set options automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
 | `--residual-correlations` |     | bool   | false      | Capture the full correlation submatrix among `--fit-models`' fitted residuals (`residual_correlations`); every pair, measured or explicitly unmeasured — never a top-K sample and never a fabricated zero (see below). Requires `--fit-models` |
-| `--suggest-rules`        |      | string | (off)      | Detect structural GATING relationships on the same scan and write them to this path as a standalone rules file — the bare JSON array `synth from-profile --rules` consumes unmodified. PROPOSED, never applied; the profile document itself gains no section (see below) |
+| `--suggest-rules`        |      | string | (off)      | Detect structural rules on the same scan — GATING relationships (`set_null`) and CO-MISSING question blocks (`null_together`) — and write them to this path as a standalone rules file, the bare JSON array `synth from-profile --rules` consumes unmodified. PROPOSED, never applied; the profile document itself gains no section (see below) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling and `--fit-models`' residual reservoir (see below); each draws from its own stream, so the two flags never perturb each other, and the same `(--input, --seed)` produces byte-identical captured output |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
@@ -820,11 +820,17 @@ supplied exactly one; a second and larger one was found by accident
 while verifying something else. An unstated rule is invisible in the
 output because **every marginal inside it is individually correct**.
 
-`--suggest-rules <path>` measures, for every low-cardinality field
-(`categorical_*`, `packed_bool`, `u4`) and every other field,
-`P(target null | gate = level)`, and proposes a `set_null` rule for each
-field whose levels split a target's null rate into ~1 and ~0. It rides
-the scan `profile create` already makes — **no additional cohort read**.
+`--suggest-rules <path>` runs two detectors on the scan `profile create`
+already makes — **no additional cohort read** — and writes their
+candidates to one file:
+
+- **Gating.** For every low-cardinality field (`categorical_*`,
+  `packed_bool`, `u4`) and every other field it measures
+  `P(target null | gate = level)`, and proposes a `set_null` rule for
+  each field whose levels split a target's null rate into ~1 and ~0.
+- **Co-missing.** It proposes a `null_together` rule for each set of
+  fields null on EXACTLY the same rows, and reports separately the
+  near misses and the always-null columns.
 
 ```
 pulse profile create -i cohort.pulse -o profile.json --suggest-rules candidates.json
@@ -912,7 +918,9 @@ Both are COUNTED in `warnings` rather than dropped silently.
   co-missingness between fields rather than value gating, and every
   member of an N-field co-missing block reports the other N−1 that way;
   proposing them restates one finding N times and buries everything
-  else. On the motivating cohort that is 3,932 relationships.
+  else. On the motivating cohort that is 3,932 relationships — and the
+  co-missing detector below proposes those blocks as ONE candidate
+  each, so the finding is counted here and resolved there.
 
 Candidates resting on THIN levels are **not** suppressed — they ship with
 `thin_support: true` and their `min_level_support`, warned thinnest-first
@@ -938,7 +946,8 @@ statements. On the motivating cohort `aware` nulls the five `*Aware`
 flags, and the five later candidates — each gated partly on
 `isnull(<x>Aware)` — then fire on those nulls too. That is the
 declaration-order contract working, and it is why the file's order is
-the applied order.
+the applied order. Gating candidates are emitted BEFORE co-missing
+blocks; see *Emitted order is applied order* below.
 
 **A `set_null` gate repairs co-missingness only.** Each target's own
 `null_rate` still fires beneath the gate, so the targets' marginal null
@@ -971,13 +980,164 @@ fields whose `null_rate` is exactly `0.2526093295989762`: the extra 13
 are the `0.2649` cluster that research recorded as *"no matching single
 boolean gate — UNEXPLAINED"*. They are gated by `aware` too, with a
 further ~1.2% of missingness on the open side. The `0.3564` cluster (26
-fields) remains unexplained — no single low-cardinality field's levels
-split it.
+fields) has no single low-cardinality gate either — it is EXPLAINED by
+the co-missing detector below, as an exact 26-field block.
 
 Fed back unmodified through `synth from-profile --rules`, all 8 fire on
 **100%** of their gated rows over 20,000 generated rows; the same seed
 without the rules leaves `aware` coherent on 0 of 4,964 and the NPS block
 on 7,819 of 16,806.
+
+## Co-missing blocks (`null_together` candidates)
+
+A survey question block is asked or skipped as a unit, so its fields are
+present or absent together. Generation draws each field's null
+independently from its own scalar `null_rate`, which turns the block into
+a lottery — the defect `null_together` exists to fix
+(`docs/src/cli/synth-from-schema.md`). This detector finds the blocks.
+
+### An identical `null_rate` is never enough
+
+This is the whole subtlety of the detector, and getting it wrong is
+silent. Two entirely independent fields can share a null rate to sixteen
+digits and overlap only by chance; grouping by rate proposes them as one
+question block, `null_together` then makes the claim TRUE in generated
+output, and the cohort acquires a structural fact the source does not
+have.
+
+So the rate is only the grouping key, and admission is **identical null
+PATTERN** — null on exactly the same rows. Every member of an emitted
+block therefore carries `agreement: 1`, an identical `null_count`, and
+`max_null_rate_deviation: 0`.
+
+That last figure is exactly the measure `null_together` itself warns on:
+the rule copies the FIRST named member's null decision and ignores every
+other member's declared `null_rate`, warning above a 0.02 divergence. For
+an emitted block the divergence is zero, so no declared rate is
+discarded — and the member ORDER is arbitrary by construction rather than
+a ranking someone has to get right.
+
+```json
+{
+  "null_together": ["nps", "detractor", "passive", "promoter"],
+  "_evidence": {
+    "detector": "co_missing",
+    "note": "measured, not asserted: these 4 field(s) are null on exactly the same 314981 row(s) …",
+    "block": [
+      {"field": "nps", "type": "u4", "null_count": 314981, "null_rate": 0.826019343130776, "agreement": 1},
+      {"field": "detractor", "type": "packed_bool", "null_count": 314981, "null_rate": 0.826019343130776, "agreement": 1}
+    ],
+    "rows_observed": 381324,
+    "rows_affected": 314981,
+    "gated_share": 0.826019343130776,
+    "max_null_rate_deviation": 0,
+    "min_level_support": 66343
+  }
+}
+```
+
+The candidate carries no `when`: an absent `when` means EVERY ROW, which
+is the true statement — the members are null together on the rows where
+the block is null and present together on the rows where it is not.
+
+### A near block is reported, never proposed
+
+Fields that agree on MOST rows but not all are reported in `warnings`
+with their agreement and their disagreeing row count:
+
+```
+rule suggestion: "regard" (a block of 50) and "appropriate" (a block of 13)
+are null together on 0.9537 of the rows where either is null
+(4676 row(s) disagree) but not on exactly the same rows …
+```
+
+They are not emitted, and the asymmetry with the gating detector's thin
+candidates is deliberate: a thin gate's RELATIONSHIP is exact and only
+its support is thin, whereas a near block's relationship is measurably
+false on some rows. `null_together` has no dial for "almost" — applying
+one silently rewrites the rows that disagreed — and unlike a gating
+candidate, whose `when` an analyst can correct, there is nothing in it
+to fix.
+
+The agreement is the overlap of the two null SETS (of the rows where
+either is null, the share where both are), not row-level agreement. Two
+independent fields each null at 1% agree on 98% of ROWS, so a row-level
+threshold anywhere near 1 would flood the report with unrelated pairs.
+
+### Always-null columns
+
+A column null on every row is its own finding, named with its type:
+
+```
+always-null column "lgbt" (categorical_u8): null on all 381324 row(s) profiled,
+so its marginal is summarised over zero observations and generation fabricates
+a distribution for it; it has no gate and no block, and is not proposed as a rule
+```
+
+It is deliberately kept out of every block and every gate — it is not
+co-missing with anything, it is simply absent — and no rule is proposed
+for it. What generation should DO about such a column is a separate
+decision.
+
+### Emitted order is applied order
+
+Gating candidates come FIRST in the file, then co-missing blocks.
+
+For candidates as DETECTED the two orders are equivalent, and that is
+arithmetic rather than luck: block members are admitted only when their
+null patterns are identical, so they carry identical conditional null
+rates at every level of every gate and the gating detector classifies
+them identically. A gate takes a WHOLE block or none of one.
+
+The order is chosen for what the file is FOR — being edited. A
+hand-narrowed `set_null` over part of a block is repaired by a block that
+follows it and broken by one that precedes it.
+
+### Bounded, on the same scan
+
+The accumulator is a per-field bitset over a fixed chunk of rows, folded
+into a pairwise co-null matrix by popcount and cleared. Memory is flat in
+the row count and bounded by the field count; the per-row cost is one bit
+write per null field. Over **256** nullable fields the detector abandons
+rather than truncating — a truncated field set yields blocks that are
+exact among the fields it kept and silently missing the rest, which is
+the defect this detector exists to remove.
+
+Blocks rank largest-first, capped at 20 with a counted remainder, and
+each detector bounds its own listing rather than sharing one budget.
+
+### Measured on the motivating cohort
+
+Same 381,324 rows. Four blocks, one always-null column and four near
+misses, alongside the eight gating candidates — 12 candidates in one
+file, consumed by `synth from-profile --rules` unmodified.
+
+| members | `gated_share` | first members |
+|---|---|---|
+| 50 | 0.2526093295989762 | `regard`, `meaningfulness`, `uniqueness`, … |
+| 26 | 0.3564055763602606 | `funcAppearance`, `attentionToDetail`, `brandAssets`, … |
+| 13 | 0.2648718674932603 | `appropriate`, `beliefsValues`, `clarity`, … |
+| 4  | 0.8260193431307760 | `nps`, `detractor`, `passive`, `promoter` |
+
+The **26-field `0.3564` cluster** is the one the gating detector could not
+explain and research recorded as unexplained. It has no single
+low-cardinality gate, and it is an EXACT co-missing block. The 50-field
+and 13-field clusters are the `aware` targets, split apart here by their
+patterns: they overlap on 0.9537 and are reported as a near miss rather
+than merged.
+
+One always-null column: `lgbt`. Near misses: the 50/13 pair above,
+`sow` against the 26-field block (0.9989, 145 rows), and `useCon`
+against `sow` (0.9798) and the 26-field block (0.9788).
+
+Block detection costs **+2%** CPU on a full
+`--conditional --fit-models --residual-correlations` capture (37.8s →
+38.5s against a 34.0s baseline) and reads no additional byte. The
+gating half of the candidate file is byte-identical with and without it.
+
+Fed back unmodified, all four blocks are all-or-nothing on **20,000 of
+20,000** generated rows. At the same seed without the rules: partial on
+20,000 / 20,000 / 19,660 / 10,761.
 
 ## Output
 

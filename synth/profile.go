@@ -992,8 +992,10 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// by counting bytes pulled, exactly as the model capture's own gate
 	// does. See synth/profile_gating.go.
 	var gates *gateDetector
+	var blocks *blockDetector
 	if opts.SuggestRules {
 		gates = newGateDetector(schema)
+		blocks = newBlockDetector(schema)
 	}
 
 	rowCount := 0
@@ -1107,6 +1109,9 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 		}
 		if gates != nil {
 			gates.observe(values, nulls)
+		}
+		if blocks != nil {
+			blocks.observe(nulls)
 		}
 		if len(jointFieldNames) >= 2 && len(jointRows) < conditionalJointCap {
 			rowVals := make([]float64, len(jointFieldNames))
@@ -1429,8 +1434,37 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// reason the fits do: the classification is a property of the whole
 	// cohort and does not exist until every row has been seen. It reads
 	// only its own accumulators — no cohort access, no second pass.
-	if gates != nil {
-		pf.RuleCandidates = gates.finish(&warnings)
+	if gates != nil || blocks != nil {
+		// ORDER IS APPLIED ORDER, and it is chosen rather than
+		// incidental. Gating candidates first, co-missing blocks second.
+		//
+		// For candidates AS DETECTED the two orders are EQUIVALENT, and
+		// the reason is arithmetic rather than empirical: a block is
+		// admitted only when its members are null on exactly the same
+		// rows, so they carry identical conditional null rates at every
+		// level of every gate, so the gating detector classifies them
+		// identically. A gate therefore takes a WHOLE block or none of
+		// one, never part of one, and both orders reduce to "null iff
+		// the gate fired or the first member drew null". The obvious
+		// claim — that a block placed first is broken by a later
+		// set_null — is false here, and
+		// TestSuggestBlocks_ComposeWithGatingCandidatesInOneFile
+		// asserts the equivalence rather than the claim.
+		//
+		// The order is chosen for the file's actual purpose, which is to
+		// be EDITED. A hand-narrowed gate over PART of a block — the
+		// analyst keeping two of four targets, or adding a rule of their
+		// own — is precisely where the orders differ, and gate-first is
+		// the one where the block REPAIRS the edit instead of being
+		// broken by it. Same test, fourth clause.
+		//
+		// Each detector bounds its own listing (maxRuleCandidates /
+		// maxBlockCandidates) rather than sharing one budget: they are
+		// different KINDS of finding, and a shared cap would let twenty
+		// gating candidates hide the fact that the cohort has question
+		// blocks at all.
+		cands := gates.finish(&warnings)
+		pf.RuleCandidates = append(cands, blocks.finish(&warnings)...)
 	}
 
 	if len(warnings) > 0 {

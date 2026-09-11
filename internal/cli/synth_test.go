@@ -1062,3 +1062,140 @@ func profileDocWithoutWarnings(t *testing.T, path string) []byte {
 	}
 	return out
 }
+
+// TestProfileCreateCLI_SuggestBlocksRoundTripsThroughFromProfile is
+// E3-S2's half of the CLI round trip: the co-missing candidate reaches
+// the file alongside the gating one, the two are consumed together
+// UNMODIFIED, and the block is all-or-nothing on every generated row.
+//
+// The same source cohort carries both shapes — `aware == 0` gates
+// q1..q4 and q1..q4 are therefore also nulled together — which is the
+// ordinary case rather than a contrived one, so the combined file is
+// what a real run produces.
+func TestProfileCreateCLI_SuggestBlocksRoundTripsThroughFromProfile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	writeGatedCohort(t, source, 4000, 77)
+
+	profile := filepath.Join(dir, "profile.json")
+	candidates := filepath.Join(dir, "candidates.json")
+	var out, errOut bytes.Buffer
+	if err := runProfileCLIStreams(t, &out, &errOut, "create",
+		"--input", source, "--output", profile, "--suggest-rules", candidates); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+
+	raw, err := os.ReadFile(candidates)
+	if err != nil {
+		t.Fatalf("ReadFile(candidates): %v", err)
+	}
+	rules, err := synth.ParseRules(raw)
+	if err != nil {
+		t.Fatalf("the written file is not a rules document: %v", err)
+	}
+	firstGate, firstBlock := -1, -1
+	var block []string
+	for i := range rules {
+		if rules[i].Evidence == nil {
+			continue
+		}
+		switch rules[i].Evidence.Detector {
+		case "gating":
+			if firstGate < 0 {
+				firstGate = i
+			}
+		case "co_missing":
+			if firstBlock < 0 {
+				firstBlock = i
+				block = rules[i].NullTogether
+			}
+		}
+	}
+	if firstGate < 0 || firstBlock < 0 {
+		t.Fatalf("combined file missing a kind (gate=%d block=%d); file = %s", firstGate, firstBlock, raw)
+	}
+	if firstGate > firstBlock {
+		t.Errorf("the co-missing block is declared at %d, ahead of the gating candidate at %d — "+
+			"declaration order is applied order", firstBlock, firstGate)
+	}
+	if strings.Join(block, ",") != "q1,q2,q3,q4" {
+		t.Errorf("block = %v, want q1..q4", block)
+	}
+	if len(rules[firstBlock].Evidence.Block) != 4 {
+		t.Errorf("block evidence carries %d members", len(rules[firstBlock].Evidence.Block))
+	}
+
+	// The same bytes, unmodified, through the consuming leaf.
+	ruledOut := filepath.Join(dir, "ruled.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", ruledOut,
+		"--rows", "1000", "--seed", "13", "--rules", candidates); err != nil {
+		t.Fatalf("synth from-profile --rules <detected file>: %v", err)
+	}
+	vals, nulls := readCohortRows(t, ruledOut)
+	partial := 0
+	for i := 4000; i < len(vals); i++ {
+		n := 0
+		for _, m := range block {
+			if nulls[i][m] {
+				n++
+			}
+		}
+		if n != 0 && n != len(block) {
+			partial++
+		}
+	}
+	if len(vals) <= 4000 {
+		t.Fatal("no rows generated")
+	}
+	if partial != 0 {
+		t.Errorf("%d generated rows carry a partial block after the detected file was applied", partial)
+	}
+}
+
+// TestProfileCreateCLI_AlwaysNullColumnReachesTheTerminal keeps the
+// always-null finding on the path a user actually sees: it is a warning
+// in the profile document and a counted ATTENTION kind in the stderr
+// summary, never a silent omission and never on stdout.
+func TestProfileCreateCLI_AlwaysNullColumnReachesTheTerminal(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	p, err := newPulse()
+	if err != nil {
+		t.Fatalf("newPulse: %v", err)
+	}
+	fields := append(gatedCohortFields(), synth.FieldSpec{
+		Name: "lgbt", Type: "categorical_u8", Nullable: true, NullRate: 1,
+		Distribution: synth.DistWeightedCategorical,
+		Params:       map[string]any{"values": []any{"yes", "no"}, "weights": []any{1.0, 9.0}},
+	})
+	spec := &pulse.SynthSpec{RowCount: 1500, Fields: fields,
+		Rules: []synth.RuleSpec{{When: "aware == 0", SetNull: []string{"q1", "q2", "q3", "q4"}}}}
+	if _, err := p.Synth(context.Background(), spec, source, pulse.SynthOptions{Seed: 9}); err != nil {
+		t.Fatalf("p.Synth: %v", err)
+	}
+
+	profile := filepath.Join(dir, "profile.json")
+	var out, errOut bytes.Buffer
+	if err := runProfileCLIStreams(t, &out, &errOut, "create",
+		"--input", source, "--output", profile, "--suggest-rules", filepath.Join(dir, "c.json")); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "always-null column") {
+		t.Errorf("the always-null finding did not reach stderr: %s", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "categorical_u8") {
+		t.Errorf("the always-null finding did not name the type on the terminal: %s", errOut.String())
+	}
+	if strings.Contains(out.String(), "always-null") {
+		t.Errorf("the always-null finding leaked onto stdout: %s", out.String())
+	}
+	raw, err := os.ReadFile(profile)
+	if err != nil {
+		t.Fatalf("ReadFile(profile): %v", err)
+	}
+	if !strings.Contains(string(raw), "always-null column \\\"lgbt\\\"") {
+		t.Errorf("the always-null finding is not in the document's warnings")
+	}
+}

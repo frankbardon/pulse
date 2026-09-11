@@ -64,28 +64,60 @@ type RuleEvidence struct {
 	Note string `json:"note"`
 
 	// GateField is the field whose levels split the targets' null rate.
-	GateField string `json:"gate_field"`
+	//
+	// This and the four slots below are the GATING detector's own, and
+	// carry `omitempty` so a co-missing candidate — which has no gate
+	// field, no levels and no targets — does not write five keys spelled
+	// like measurements with nothing measured in them. A gating
+	// candidate populates every one of them by construction (a gate has
+	// at least one level on each side and at least one target), so the
+	// wire shape of a gating candidate is unchanged by the tags; the
+	// keys that are shared with the co-missing detector deliberately do
+	// NOT carry omitempty, because a real 0 there is a real measurement.
+	GateField string `json:"gate_field,omitempty"`
 	// GatedLevels and OpenLevels are that split, as the level spellings
 	// the `when` predicate tests. The null pseudo-level is spelled
 	// "(null)" here and reaches the predicate as isnull(field).
-	GatedLevels []string `json:"gated_levels"`
-	OpenLevels  []string `json:"open_levels"`
+	GatedLevels []string `json:"gated_levels,omitempty"`
+	OpenLevels  []string `json:"open_levels,omitempty"`
 
 	// Levels carries the per-level support and the mean conditional null
 	// rate across this candidate's targets — the shape of the split, at
 	// a glance, before a reader descends into Targets.
-	Levels []RuleEvidenceLevel `json:"levels"`
+	Levels []RuleEvidenceLevel `json:"levels,omitempty"`
 
 	// Targets carries the per-target conditional null rates: what the
 	// candidate actually measured, one row per field it proposes to
 	// null.
-	Targets []RuleEvidenceTarget `json:"targets"`
+	Targets []RuleEvidenceTarget `json:"targets,omitempty"`
+
+	// Block carries the CO-MISSING detector's members: the fields a
+	// null_together candidate names, each with the type, null count and
+	// null rate that admitted it.
+	//
+	// It is a slot on the one evidence type rather than a second
+	// evidence type because a reader of the candidate file walks one
+	// shape and reads `detector` to know which half of it is populated —
+	// and because the inertness contract (RuleEvidence's doc, and
+	// TestRuleEvidence_IsInert) is a property of the whole struct, so a
+	// parallel type would need its own copy of that guarantee and could
+	// drift out of it silently.
+	//
+	// Agreement is each member's null-set overlap with the FIRST member
+	// and is 1 for every member of an emitted block, by the admission
+	// rule. It is carried anyway, and the constant is the point: it is
+	// the detector's central claim — identical PATTERN, not merely an
+	// identical rate — stated on the wire where a reader can check it
+	// against the null counts beside it, rather than left implicit in
+	// the fact that the candidate was emitted at all.
+	Block []RuleEvidenceBlockMember `json:"block,omitempty"`
 
 	// RowsObserved is the cohort rows the detection saw (every row lands
 	// in exactly one level, the null pseudo-level included).
 	RowsObserved int `json:"rows_observed"`
 	// RowsAffected is the rows the `when` would select — the row count
-	// this rule would change.
+	// this rule would change. For a co-missing candidate, which carries
+	// no `when`, it is the rows on which the block is null.
 	RowsAffected int `json:"rows_affected"`
 	// GatedShare is RowsAffected / RowsObserved. It is the figure to
 	// compare against each target's own null_rate in the profile
@@ -123,6 +155,12 @@ type RuleEvidence struct {
 	// says whether it fell below minGateLevelSupport. A thin candidate
 	// still SHIPS — suppressing it would hide the finding rather than
 	// qualify it — so this is the qualification.
+	//
+	// A co-missing candidate has two arms rather than levels — the rows
+	// where the block is null and the rows where it is present — and
+	// this is the thinner of them, which asks the same question of the
+	// same threshold: a block observed present on four rows is not a
+	// measurement of a question block.
 	MinLevelSupport int  `json:"min_level_support"`
 	ThinSupport     bool `json:"thin_support,omitempty"`
 }
@@ -155,4 +193,25 @@ type RuleEvidenceTarget struct {
 	// P(null | open levels), pooled over the levels on each side.
 	GatedNullRate float64 `json:"gated_null_rate"`
 	OpenNullRate  float64 `json:"open_null_rate"`
+}
+
+// RuleEvidenceBlockMember is one field of a co-missing block.
+type RuleEvidenceBlockMember struct {
+	Field string `json:"field"`
+	// Type is the field's `.pulse` type. It is carried because a block
+	// mixing a u4 with three packed_bool flags is a derived-partition
+	// shape and a block of twenty categoricals is a question battery,
+	// and a reader deciding whether to believe a proposal wants that
+	// without opening the profile document.
+	Type string `json:"type"`
+	// NullCount and NullRate are the member's own marginal. They are
+	// identical across an emitted block by the admission rule, which is
+	// what makes the member order arbitrary and what makes
+	// max_null_rate_deviation 0.
+	NullCount int     `json:"null_count"`
+	NullRate  float64 `json:"null_rate"`
+	// Agreement is the overlap of this member's null set with the FIRST
+	// member's: of the rows where either is null, the share where both
+	// are. 1 exactly when the two are null on the same rows.
+	Agreement float64 `json:"agreement"`
 }
