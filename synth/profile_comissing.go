@@ -595,13 +595,29 @@ func blockTruncationWarning(remaining, kept int) string {
 // appendAlwaysNullWarnings reports the columns that are null on every
 // row — their own finding, named with their type.
 //
-// They are NOT proposed as a rule. A rule is available (a `set_null`
-// with no `when` nulls a field on every row) and is deliberately not
-// emitted: what generation should do about a column with no observations
-// at all is a separate decision from detecting it, and this file's whole
-// contract is that a candidate is a claim a human reviews. The column is
-// named so the analyst can see that generation is today fabricating a
-// distribution for it off a marginal computed over zero rows.
+// They are NOT proposed as a rule, and the reason is stronger than "out
+// of scope": the rule would be REDUNDANT. A column the profiler
+// summarised nothing for falls to SpecFromProfile's default arm, which
+// reconstructs it as a typed `constant` placeholder with null_rate 1.0,
+// so nullableSampler nulls every row and encodeRow writes the type's
+// zero behind a set null bit. Generation already reproduces the column
+// exactly, and an unconditional `{"set_null": [...]}` on top of that
+// changes not one byte.
+//
+// That is a MEASURED correction to what this warning used to claim. It
+// said generation "fabricates a distribution" from a marginal computed
+// over zero observations, which is the one thing the default arm exists
+// to avoid — it is reached precisely BECAUSE there is no marginal.
+// Measured on the motivating profile at 20,000 generated rows, the
+// always-null `lgbt` column came back null on 20,000 of 20,000 rows;
+// the hermetic gate is
+// TestProfileAlwaysNull_ReproducedExactlyWithoutARule, which asserts the
+// same across all three row-value classes.
+//
+// So the finding stays a finding — a column with no observations is
+// worth an analyst's eye, because the usual cause is the SOURCE or the
+// slice profiled rather than anything a rules file can fix — and the
+// line says what is actually true about it.
 func (d *blockDetector) appendAlwaysNullWarnings(warnings *[]string, idx []int) {
 	if len(idx) == 0 {
 		return
@@ -621,8 +637,10 @@ func (d *blockDetector) appendAlwaysNullWarnings(warnings *[]string, idx []int) 
 
 func alwaysNullWarning(field, typ string, rows int) string {
 	return fmt.Sprintf(
-		"always-null column %q (%s): null on all %d row(s) profiled, so its marginal is summarised over zero "+
-			"observations and generation fabricates a distribution for it; it has no gate and no block, and is not proposed as a rule",
+		"always-null column %q (%s): null on all %d row(s) profiled, so the profile summarises no marginal for it "+
+			"and generation reproduces it exactly — null on every row, from null_rate 1.0; no rule is proposed "+
+			"because an unconditional set_null would be redundant. If the column is meant to carry values, "+
+			"the gap is in the source or in the slice profiled",
 		field, typ, rows)
 }
 

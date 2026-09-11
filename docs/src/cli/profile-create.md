@@ -1182,14 +1182,25 @@ A column null on every row is its own finding, named with its type:
 
 ```
 always-null column "lgbt" (categorical_u8): null on all 381324 row(s) profiled,
-so its marginal is summarised over zero observations and generation fabricates
-a distribution for it; it has no gate and no block, and is not proposed as a rule
+so the profile summarises no marginal for it and generation reproduces it
+exactly — null on every row, from null_rate 1.0; no rule is proposed because
+an unconditional set_null would be redundant. If the column is meant to carry
+values, the gap is in the source or in the slice profiled
 ```
 
 It is deliberately kept out of every block and every gate — it is not
-co-missing with anything, it is simply absent — and no rule is proposed
-for it. What generation should DO about such a column is a separate
-decision.
+co-missing with anything, it is simply absent — and **no rule is
+proposed for it because one would change nothing**. A column the
+profiler summarised nothing for is reconstructed as a typed `constant`
+placeholder with `null_rate` 1.0, so every row is nulled and the type's
+zero is written behind a set null bit. Measured: the motivating cohort's
+`lgbt` came back null on 20,000 of 20,000 generated rows.
+
+An earlier version of this line claimed generation "fabricates a
+distribution" for such a column. It does not — the no-marginal arm is
+reached precisely BECAUSE there is nothing to fabricate from. The
+finding stays worth an analyst's eye, but the thing to check is the
+source or the slice profiled, not the rules file.
 
 ### Emitted order is applied order
 

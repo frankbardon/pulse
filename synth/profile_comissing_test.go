@@ -458,3 +458,98 @@ func TestSuggestBlocks_AlwaysNullColumnIsNamedWithItsType(t *testing.T) {
 		t.Errorf("always-null did not reach the terminal summary; groups = %+v", groups)
 	}
 }
+
+// TestProfileAlwaysNull_ReproducedExactlyWithoutARule is the FU-09
+// decision, asserted rather than asserted-about: an always-null column
+// is REPRODUCED by generation, so the `set_null` candidate the detector
+// declines to propose would change nothing.
+//
+// The warning this replaces claimed the opposite — that generation
+// "fabricates a distribution" from a marginal computed over zero
+// observations — and the claim was the whole case for proposing a rule.
+// It is false: a column the profiler summarised nothing for reaches
+// SpecFromProfile's default arm, which reconstructs a typed `constant`
+// placeholder with null_rate 1.0, so nullableSampler nulls every row.
+//
+// All THREE row-value classes are covered in one case because the
+// default arm is shared and each class reaches it through a different
+// summariser being nil: a categorical (row value is a string), a numeric
+// (float64) and a set_* (map[string]bool). A regression that restores
+// the fabrication for one type only would otherwise pass.
+//
+// Two claims, both required, because either alone is trivially
+// satisfiable: the column comes back null on EVERY row, and no rule
+// candidate names it.
+func TestProfileAlwaysNull_ReproducedExactlyWithoutARule(t *testing.T) {
+	const rows = 2000
+	src := &synth.Spec{
+		RowCount: rows,
+		Fields: []synth.FieldSpec{
+			{Name: "kept", Type: "u8", Distribution: synth.DistNormal,
+				Params: map[string]any{"mean": 5.0, "std": 1.0, "min": 0.0, "max": 10.0}},
+			{Name: "gone_cat", Type: "categorical_u8", Nullable: true, NullRate: 1,
+				Distribution: synth.DistWeightedCategorical,
+				Params:       map[string]any{"values": []any{"yes", "no"}, "weights": []any{1.0, 9.0}}},
+			{Name: "gone_num", Type: "f64", Nullable: true, NullRate: 1,
+				Distribution: synth.DistNormal,
+				Params:       map[string]any{"mean": 1.0, "std": 1.0}},
+			{Name: "gone_set", Type: "set_u8", Nullable: true, NullRate: 1,
+				Distribution: synth.DistSetBernoulli,
+				Params: map[string]any{
+					"options":     []any{"tv", "radio"},
+					"frequencies": []any{0.5, 0.5},
+				}},
+		},
+	}
+	data, _, err := synth.SynthBytes(src, synth.Options{Seed: 11})
+	if err != nil {
+		t.Fatalf("SynthBytes source: %v", err)
+	}
+	prof, err := synth.ProfileBytes(data, synth.ProfileOptions{TopK: 8, SuggestRules: true})
+	if err != nil {
+		t.Fatalf("ProfileBytes: %v", err)
+	}
+
+	gone := []string{"gone_cat", "gone_num", "gone_set"}
+
+	// (1) Every always-null column is reproduced as all-null, with no
+	// rule applied at all.
+	spec, _ := synth.SpecFromProfile(prof, rows)
+	out, _, err := synth.SynthBytes(spec, synth.Options{Seed: 12})
+	if err != nil {
+		t.Fatalf("SynthBytes regenerated: %v", err)
+	}
+	if got := readRecordCount(t, out); got != rows {
+		t.Fatalf("regenerated %d rows, want %d", got, rows)
+	}
+	for _, name := range gone {
+		if got := readNullCountForField(t, out, name); got != rows {
+			t.Errorf("%q came back null on %d of %d rows; an always-null column is not reproduced, "+
+				"so the detector's decision not to propose a set_null candidate is wrong", name, got, rows)
+		}
+	}
+
+	// (2) No candidate names one, and the finding says why.
+	for _, c := range prof.RuleCandidates {
+		for _, m := range append(append([]string{}, c.NullTogether...), c.SetNull...) {
+			for _, name := range gone {
+				if m == name {
+					t.Errorf("always-null column %q was proposed as a rule: %+v", name, c)
+				}
+			}
+		}
+	}
+	joined := strings.Join(prof.Warnings, "\n")
+	for _, name := range gone {
+		if !strings.Contains(joined, `always-null column "`+name+`"`) {
+			t.Errorf("always-null column %q was not reported at all; warnings = %v", name, prof.Warnings)
+		}
+	}
+	if strings.Contains(joined, "fabricates a distribution") {
+		t.Error("the always-null finding still claims generation fabricates a distribution, " +
+			"which this test measures to be false")
+	}
+	if !strings.Contains(joined, "redundant") {
+		t.Error("the always-null finding does not say why no rule is proposed")
+	}
+}

@@ -143,7 +143,7 @@ The same scan also proposes `null_together` candidates (`detector: "co_missing"`
 
 A NEAR block is reported in the warnings with its agreement and its disagreeing row count, never emitted: `null_together` has no dial for "almost" and, unlike a gating candidate's `when`, there is nothing in it for an analyst to correct. The agreement is the null-SET overlap, not row-level agreement — two independent fields each null at 1% agree on 98% of ROWS.
 
-An ALWAYS-NULL column is its own finding, named with its type, and belongs to no block and no gate: its marginal is summarised over zero observations and generation fabricates a distribution from it.
+An ALWAYS-NULL column is its own finding, named with its type, and belongs to no block and no gate. **No rule is proposed for it because one would change nothing**: a column the profiler summarised nothing for reconstructs as a typed `constant` with `null_rate` 1.0, so every row is nulled and generation reproduces it exactly (measured: `lgbt` null on 20,000 of 20,000 generated rows). The thing to check is the source or the slice profiled, not the rules file.
 
 Bounded by construction: a per-field bitset over `blockChunkRows` rows folded into a co-null matrix by popcount, so memory is flat in the row count; over `maxBlockFields` (256) nullable fields the detector abandons rather than truncating. Blocks rank largest-first, capped with a counted remainder.
 
