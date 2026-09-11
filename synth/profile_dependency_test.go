@@ -382,3 +382,175 @@ func TestSuggestDeps_ComposeWithTheOtherDetectorsInOneFile(t *testing.T) {
 	t.Logf("hand-narrowed gate: dep-last orphan=%d, dep-first orphan=%d", lastOrphan, firstOrphan)
 	_ = firstGap
 }
+
+// depWideSourceSpec is the FU-16 fixture: a cohort built so the two
+// dependency renderings the motivating cohort never reaches are forced.
+//
+// Neither `membership_complement` nor `enumeration_chain` fires on the
+// real 381,324-row survey cohort — every dependency it carries is
+// numeric-sourced, so both arms shipped with unit assertions on render()
+// and no worked example of the detector producing one. They are reached
+// here by the two structures that select them:
+//
+//   - `nonwest` is a boolean of a FOUR-level categorical that is true on
+//     THREE of them, so the false side is the smaller one and the
+//     rendering is its negated complement rather than a three-term
+//     disjunction;
+//   - `tier` is a MULTI-VALUED numeric of a categorical, which has no
+//     threshold reading at all (a categorical has no order to band), so
+//     it renders as an equality chain.
+//
+// Every field is non-nullable on purpose: null-pattern admission is
+// answered from the detector's own counts when neither side is ever
+// null, so the fixture needs no co-null accumulator and the two
+// renderings are the only variables in it. `decoy` is the negative
+// control — a flag determined by nothing.
+func depWideSourceSpec(rows int) *synth.Spec {
+	return &synth.Spec{
+		RowCount: rows,
+		Fields: []synth.FieldSpec{
+			{Name: "region", Type: "categorical_u8", Distribution: synth.DistWeightedCategorical,
+				Params: map[string]any{
+					"values":  []any{"east", "north", "south", "west"},
+					"weights": []any{0.3, 0.25, 0.25, 0.2},
+				}},
+			{Name: "plan", Type: "categorical_u8", Distribution: synth.DistWeightedCategorical,
+				Params: map[string]any{
+					"values":  []any{"basic", "plus", "pro"},
+					"weights": []any{0.2, 0.3, 0.5},
+				}},
+			{Name: "nonwest", Type: "packed_bool", Distribution: synth.DistBernoulli,
+				Params: map[string]any{"p": 0.5}},
+			{Name: "tier", Type: "u4", Distribution: synth.DistNormal,
+				Params: map[string]any{"mean": 2.0, "std": 1.0, "min": 1.0, "max": 3.0}},
+			{Name: "decoy", Type: "packed_bool", Distribution: synth.DistBernoulli,
+				Params: map[string]any{"p": 0.4}},
+		},
+		Rules: []synth.RuleSpec{
+			{SetExpr: map[string]string{"nonwest": `region != "west"`}},
+			{SetExpr: map[string]string{"tier": `plan == "basic" ? 1 : (plan == "plus" ? 2 : 3)`}},
+		},
+	}
+}
+
+// TestSuggestDeps_ComplementAndEnumerationArmsFireEndToEnd is FU-16's
+// close: both rendering arms are reached by the DETECTOR (not by a
+// render() unit fixture), each is pinned to the exact expression it
+// emits, and each is then fed back through `--rules` and shown to
+// reproduce its mapping on every generated wire row.
+//
+// The two are asserted in ONE test because they share a fixture and a
+// round trip; splitting them would double a 4,000-row generation to
+// state one property twice.
+func TestSuggestDeps_ComplementAndEnumerationArmsFireEndToEnd(t *testing.T) {
+	src, _, err := synth.SynthBytes(depWideSourceSpec(4000), synth.Options{Seed: 31})
+	if err != nil {
+		t.Fatalf("SynthBytes(source cohort): %v", err)
+	}
+	prof, err := synth.ProfileBytes(src, synth.ProfileOptions{
+		TopK: 8, IncludeStats: true, SuggestRules: true, Seed: 1,
+	})
+	if err != nil {
+		t.Fatalf("ProfileBytes: %v", err)
+	}
+
+	formOf := map[string]string{}
+	exprOf := map[string]string{}
+	for _, c := range depCandidateRules(prof) {
+		for target, expr := range c.SetExpr {
+			exprOf[target] = expr
+		}
+		for _, d := range c.Evidence.Dependency {
+			formOf[d.Field] = d.Form
+		}
+	}
+
+	// The exact strings are pinned rather than pattern-matched: the
+	// whole point of recording a worked example is that a reader can see
+	// what the arm produces, and a substring test would pass against a
+	// chain missing an arm.
+	for _, want := range []struct{ target, form, expr string }{
+		{"nonwest", "membership_complement", `!(region == "west")`},
+		{"tier", "enumeration_chain", `plan == "basic" ? 1 : (plan == "plus" ? 2 : (3))`},
+	} {
+		if got := formOf[want.target]; got != want.form {
+			t.Errorf("%s: form = %q, want %q (candidates = %v)", want.target, got, want.form, exprOf)
+		}
+		if got := exprOf[want.target]; got != want.expr {
+			t.Errorf("%s: set_expr = %q, want %q", want.target, got, want.expr)
+		}
+	}
+	if _, ok := exprOf["decoy"]; ok {
+		t.Errorf("the negative control was proposed as derived: %q", exprOf["decoy"])
+	}
+
+	// The round trip: the emitted file, unmodified, reproduces both
+	// mappings on generated rows.
+	cfg := fs.NewMemMap()
+	if err := synth.WriteRuleCandidates(cfg.Fs(), prof.RuleCandidates, "/c.json"); err != nil {
+		t.Fatalf("WriteRuleCandidates: %v", err)
+	}
+	spec, _ := synth.SpecFromProfile(roundTripProfile(t, prof), 4000)
+	if err := synth.ApplyRulesFile(cfg.Fs(), spec, "/c.json"); err != nil {
+		t.Fatalf("ApplyRulesFile: %v", err)
+	}
+	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 77})
+	if err != nil {
+		t.Fatalf("SynthBytes(generated): %v", err)
+	}
+
+	r := bytes.NewReader(data)
+	if err := encoding.ReadHeader(r); err != nil {
+		t.Fatalf("read header: %v", err)
+	}
+	schema, err := encoding.ReadSchema(r)
+	if err != nil {
+		t.Fatalf("read schema: %v", err)
+	}
+	dictOf := map[string]*encoding.Dictionary{}
+	for i := range schema.Fields {
+		if d := schema.Fields[i].Dictionary; d != nil {
+			dictOf[schema.Fields[i].Name] = d
+		}
+	}
+	if dictOf["region"] == nil || dictOf["plan"] == nil {
+		t.Fatalf("generated cohort lost a source dictionary: %v", dictOf)
+	}
+	tierOf := map[string]float64{"basic": 1, "plus": 2, "pro": 3}
+	rr := encoding.NewRecordReader(r, schema)
+	values := map[string]float64{}
+	nulls := map[string]bool{}
+	rows, badComplement, badEnumeration := 0, 0, 0
+	seenPlans := map[string]int{}
+	for {
+		if err := rr.ReadRecord(values, nulls); err != nil {
+			break
+		}
+		rows++
+		region := dictOf["region"].Resolve(uint32(values["region"]))
+		plan := dictOf["plan"].Resolve(uint32(values["plan"]))
+		seenPlans[plan]++
+		if (values["nonwest"] != 0) != (region != "west") {
+			badComplement++
+		}
+		if values["tier"] != tierOf[plan] {
+			badEnumeration++
+		}
+	}
+	if rows == 0 {
+		t.Fatal("no rows generated")
+	}
+	if len(seenPlans) != 3 {
+		t.Fatalf("the generated cohort carries %d plan level(s), so the chain's arms are not all exercised: %v",
+			len(seenPlans), seenPlans)
+	}
+	if badComplement != 0 {
+		t.Errorf("membership_complement disagreed on %d of %d wire rows", badComplement, rows)
+	}
+	if badEnumeration != 0 {
+		t.Errorf("enumeration_chain disagreed on %d of %d wire rows", badEnumeration, rows)
+	}
+	t.Logf("FU-16 worked example: %d rows, plan levels %v; "+
+		"nonwest := %s (membership_complement); tier := %s (enumeration_chain)",
+		rows, seenPlans, exprOf["nonwest"], exprOf["tier"])
+}
