@@ -51,7 +51,7 @@ func TestClaimTarget_OptionGranularity(t *testing.T) {
 		spec := setPairSpecForClaim([]RuleSpec{{Set: map[string]any{"b": []any{"x"}}}})
 		res := resolveConflicts(spec)
 		if len(res.setSetPairs) != 0 {
-			t.Errorf("set-set pair over b.x survived a rule that writes the WHOLE of b on every row: "+
+			t.Errorf("set-set pair over b.x survived a rule that writes the WHOLE of b on every row: " +
 				"the stage runs and its result is discarded, and the fidelity report scores it")
 		}
 		if len(res.warnings) != 1 || !strings.Contains(res.warnings[0], "structural rule 0 (set)") {

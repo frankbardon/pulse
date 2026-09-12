@@ -274,28 +274,24 @@ func conditionalNumericDraw(rng *rand.Rand, mom categoryMoments, bernoulli bool)
 // against).
 //
 // It is resolved from the target's FieldSpec at generate() setup time
-// rather than carried on the pair spec. That is deliberate and is NOT
-// symmetric with SetNumericPairSpec.Bernoulli, which IS a wire flag: a
-// flag can disagree with the field's own reconstruction, and a marginal
-// disagreeing with the draw that overwrites it is the whole failure class
-// this work removes. Deriving it makes the disagreement unrepresentable,
-// and it means a HAND-AUTHORED spec that puts `discrete` on a field gets
-// the right conditional draw with no extra key to remember.
+// rather than carried on the pair spec: a flag can disagree with the
+// field's own reconstruction, and a marginal disagreeing with the draw
+// that overwrites it is the whole failure class this work removes.
+// Deriving it makes the disagreement unrepresentable, and it means a
+// HAND-AUTHORED spec that puts `discrete` on a field gets the right
+// conditional draw with no extra key to remember.
+//
+// The boolean arm beside it was ASYMMETRIC when this was written —
+// CategoricalNumericPairSpec.Bernoulli / SetNumericPairSpec.Bernoulli
+// were wire flags — and it no longer is: buildBernoulliConditionals
+// derives the same fact the same way. Keep them symmetric. A reader who
+// finds one derived and one carried should suspect the carried one.
 type discreteConditional struct {
 	mean   float64
 	invStd float64
 	levels discreteLevels
 }
 
-// buildDiscreteConditionals resolves one entry per field whose declared
-// distribution is `discrete`. Returns nil when the spec declares none, so
-// a spec without them allocates nothing and every pair sampler keeps its
-// pre-existing draw exactly.
-//
-// Params are already known-good by the time this runs — buildSampler
-// parsed the same declaration at schema-build time — but the error is
-// propagated rather than swallowed, because a silently dropped entry
-// would put the pair back on the clamped-normal draw with nothing saying so.
 // buildBernoulliConditionals returns the set of fields whose own
 // marginal is a `bernoulli` step, so a conditional pair overwriting one
 // of them draws Bernoulli(cell mean) rather than Normal(cell mean, cell
@@ -371,6 +367,15 @@ func bernoulliFlagWarnings(catNum []CategoricalNumericPairSpec, setNum []SetNume
 	return out
 }
 
+// buildDiscreteConditionals resolves one entry per field whose declared
+// distribution is `discrete`. Returns nil when the spec declares none, so
+// a spec without them allocates nothing and every pair sampler keeps its
+// pre-existing draw exactly.
+//
+// Params are already known-good by the time this runs — buildSampler
+// parsed the same declaration at schema-build time — but the error is
+// propagated rather than swallowed, because a silently dropped entry
+// would put the pair back on the clamped-normal draw with nothing saying so.
 func buildDiscreteConditionals(wfs []*writerField) (map[string]*discreteConditional, error) {
 	var out map[string]*discreteConditional
 	for _, wf := range wfs {
