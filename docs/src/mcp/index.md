@@ -92,7 +92,7 @@ Fifteen tools, registered at server start. Names and order match `mcp/toolmeta/m
 | Tool | Purpose |
 |---|---|
 | `pulse_manifest` | **Call first.** Self-description: commands, operators (with accepted types + streamability), tier-1/tier-2 tests, regressions, synth distributions, error code list, MCP tool list, cohort field types with operator cross-references. Cache once per session. |
-| `pulse_inspect` | Read `.pulse` header + schema (no record bytes). Side effect: registers session-scoped schema-bound tool variants (see below). |
+| `pulse_inspect` | Read `.pulse` header + schema (no record bytes). Carries an additive `warnings` array beside the result — a payload length that is not a whole multiple of the record stride floors `record_count` and says so there. Side effect: registers session-scoped schema-bound tool variants (see below). |
 | `pulse_predict` | Validate a request against the schema without executing. Returns errors, warnings, applied defaults, streamability reasons. |
 | `pulse_process` | Execute one pre-built request. |
 | `pulse_compose` | Execute a batch of requests against the same cohort in one round trip. |
@@ -239,6 +239,7 @@ If you are writing a system prompt for an LLM agent that uses Pulse, point it at
 | Run a statistical test (tier-1 or tier-2) | `statistical-testing` |
 | Fit a regression (OLS, GLM, Bayesian) | `regression-modeling` |
 | Generate synthetic data | `synthetic-data` |
+| Gate, mask or derive a synthetic field (`rules[]`) | `synth-structural-rules` |
 | Understand a cohort's schema layout | `cohort-schema-design` |
 | Import a tabular source into `.pulse` | `import-best-practices` |
 | Pick an export format | `export-format-selection` |

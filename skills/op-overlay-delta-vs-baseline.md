@@ -9,19 +9,15 @@ applies_to: process, compose
 examples_tags: [overlay, time-series, before-after]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref.BaselineIndex.Position` | int | (required) | `>= 0`; positional anchor in host order. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` must be `group`. `Ref.BaselineIndex.Position` (int, required) — `>= 0`; positional anchor in host order. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-SERIES — ordered grouped Process host (e.g. `GROUP_DATE`). Family: positional baseline (`Ref.BaselineIndex`). Subtractive twin of `OVERLAY_INDEX_VS_BASELINE`.
+SERIES — ordered grouped Process host (e.g. `GROUP_DATE`). Subtractive twin of `OVERLAY_INDEX_VS_BASELINE`.
 
 ## Output
 
@@ -32,9 +28,8 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `delta =
 - Out-of-range `Position` → `PULSE_OVERLAY_REF_UNKNOWN` (predict + runtime via `ResolveBaselineIndex`).
 - Zero baseline → no warning (subtraction defined for every finite value; delta becomes raw host value). Distinct from `OVERLAY_INDEX_VS_BASELINE` which raises `PULSE_OVERLAY_REF_ZERO`.
 - Absent host point → `SeriesEntry` with unset `Statistic` (canonical absent-slot shape).
-- Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- Buffered — `host.ValueAt(Position)` consulted post-finalize via `ApplyOverlaysSeries`.
+- Buffered — `host.ValueAt(Position)` read post-finalize via `ApplyOverlaysSeries`.
 
 ## See
 
-- Skills: `overlay-system`, `op-overlay-index-vs-baseline`, `op-overlay-delta-vs-margin`.
+- Skills: `overlay-system`, `op-overlay-index-vs-baseline`.

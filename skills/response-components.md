@@ -1,537 +1,139 @@
 ---
 name: response-components
 description: How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell
+kind: design
 type: guide
 applies_to: process, compose, predict, sample, facet
 ---
 
-# Response.Components — universal contract
+# `Response.Components`
 
-`Response.Components` carries the constituent parts behind every value a Pulse
-processing run emits, so every aggregator scalar, every grouper bucket count,
-every filterer N-in/N-out, and every crosstab cell is auditable from the same
-envelope that delivered the value. The slot is always-on for built-in operators
-and required for extension-registered operators (probe-validation rejects an
-emitter without a matching `ComponentSchema`). The shape is additive
-omitempty — `Response.Components` itself is `*ResponseComponents` so a run that
-produces nothing components-shaped marshals to no `components` key at all,
-byte-identical to the pre-Components wire form. Adding the slot did not
-move `format_version` because it is additive — only renames/removals bump
-per the Output Format Contract in CLAUDE.md, which is the single source
-for the current value (`"1.1"` today, moved by the Compose facade lift,
-not by anything in this file).
+The constituent parts behind every emitted value — aggregator scalars, grouper bucket counts, filterer N-in/N-out, crosstab cells — auditable from the envelope that delivered the value. Canonical source for the cross-cutting shape; per-operator key tables live in each `op-*` atomic's `## Components` section and in `manifest.components_schemas`.
 
-This is the single source of truth for the universal contract; the per-category
-skills (`aggregation-design.md`, `grouper-design.md`, `crosstab-guide.md`,
-`overlay-system.md`, and `docs/src/internals/extension-points.md`) carry per-operator key tables and
-point back here for the cross-cutting shape.
+Always-on for built-ins, required for extension operators (probe-validation rejects an emitter with no matching `ComponentSchema`). Additive `omitempty` throughout — `Response.Components` is `*ResponseComponents`, so a run producing nothing components-shaped emits no `components` key and is byte-identical to the pre-Components wire form. Additive keys never bump `format_version` (`"1.1"`, moved by the Compose facade lift, not by anything here); CLAUDE.md "Output Format Contract" is the source.
 
 ## Universal floor
 
-Every typed shell has a typed floor — the orchestrator fills it, NOT the
-operator's `Components()` method. Operator code only emits its declared
-schema-keys (`mean`, `variance`, `mode_count`, `range_min`, etc.); the
-universal floor is wired in service-layer code so a no-op `Components()`
-implementation (or a floor-only extension) still surfaces `{n, n_null}`.
+Filled by the ORCHESTRATOR, not by the operator's `Components()` — a no-op implementation or a floor-only extension still surfaces it. Filled unconditionally even when `ComponentSchema.Keys` is empty; `AGG_COUNT` is the canonical floor-only aggregator.
 
 | Shell | Floor fields | JSON keys |
 |---|---|---|
 | `AggregationComponents` | `N int`, `NNull int` | `n`, `n_null` |
 | `GrouperComponents` | `TotalN int`, `NNull int` | `total_n`, `n_null` |
 | `FiltererComponents` | `NIn int`, `NOut int`, `NNullInput int` | `n_in`, `n_out`, `n_null_input` |
-| Crosstab cell | `n int`, `n_null int` (inside `CellComponents[r][c] map[string]any`) | `n`, `n_null` |
+| crosstab cell (`CellComponents[r][c] map[string]any`) | `n int`, `n_null int` | `n`, `n_null` |
 
-Operator-specific keys ride inside the typed shell's `Operator map[string]any`
-slot (Aggregation / Grouper) or directly inside the cell map for crosstab
-cells, per the schema declared in `descriptor.Manifest.ComponentsSchemas`.
+Aggregation / crosstab-cell floor is therefore `{n, n_null}`.
 
-The floor is filled unconditionally even when the operator's
-`ComponentSchema.Keys` slice is empty. `AGG_COUNT` is the canonical floor-only
-aggregator — it declares no operator-specific keys but consumers still see
-`{n, n_null}` on every entry.
+Operator-specific keys (`mean`, `variance`, `mode_count`, `range_min`, `range_max`, …) ride `Operator map[string]any` on the aggregation / grouper shells, or the cell map directly, per `descriptor.Manifest.ComponentsSchemas`.
 
-## Per-family typed shape
+## Five sub-blocks
 
-`ResponseComponents` carries five sub-blocks. Every nested slice / pointer /
-map is `omitempty` so a partially populated run marshals to byte-identical
-wire output against the pre-Components baseline.
+`ResponseComponents` = `Aggregations []AggregationComponents` (`aggregations`) · `Groupers []GrouperComponents` (`groupers`) · `Crosstab *CrosstabComponents` (`crosstab`) · `Filterers []FiltererComponents` (`filterers`) · `Run *RunComponents` (`run`) — every slot `omitempty`.
 
-```go
-type ResponseComponents struct {
-    Aggregations []AggregationComponents `json:"aggregations,omitempty"`
-    Groupers     []GrouperComponents     `json:"groupers,omitempty"`
-    Crosstab     *CrosstabComponents     `json:"crosstab,omitempty"`
-    Filterers    []FiltererComponents    `json:"filterers,omitempty"`
-    Run          *RunComponents          `json:"run,omitempty"`
-}
-```
+| Block | Cardinality · slot identity | Carries |
+|---|---|---|
+| `Aggregations` | one per `Request.Aggregations`, declared order · `Label` (mirrors `Aggregation.Label`) | floor + `Operator`; per-AGG keys in `aggregation-design` |
+| `Groupers` | one per `Request.Groups`, declared order · `Field` + `Label` when a field repeats | floor + `Operator` (bucket edges, dict mappings, `range_min`/`range_max`); per-GROUP keys in `grouper-design` |
+| `Crosstab` | only when the Request carried `Crosstab` | below + `crosstab-guide` |
+| `Filterers` | one per `Request.Filterers`, declared order · `Label` | floor only — no `Operator` slot today; `MetaFilterer` exists for extension parity |
+| `Run` | always on a successful `Process` | `TotalRecords` (pre-filter), `FilteredRecords`, `NullRecords`, `ShardCount` (0 = single file), `PartialCohortReason` (free-form; a shard failed to open) |
 
-- **`Aggregations []AggregationComponents`** — one entry per
-  `Request.Aggregations` slot in matching declared order. Slot identity rides
-  on `Label` (mirrors `Aggregation.Label`). Universal floor fields `N` and
-  `NNull` plus operator-specific keys inside `Operator map[string]any`. See
-  `skills/aggregation-design.md` for the per-AGG key tables.
+`TotalN` = sum of bucket counts for a single-key grouper; for a multi-key streaming grouper (`GROUP_SET_PER_ELEMENT`) the bucket sum EXCEEDS `TotalN` — one record lands in several buckets. `Run` coexists with `Response.Metadata`: `Metadata.TotalRows == Run.TotalRecords` at every orchestrator exit; `Metadata` keeps non-numerical run facts (cohort filename), `Run` the typed counters.
 
-- **`Groupers []GrouperComponents`** — one entry per `Request.Groups` slot in
-  matching declared order. Slot identity rides on `Field` plus `Label` when
-  multiple groupers share a field. Universal floor fields `TotalN` and
-  `NNull` plus operator-specific keys (bucket edges, dict mappings,
-  `range_min`, `range_max`, etc.) inside `Operator map[string]any`. For
-  single-key groupers `TotalN` equals the sum of bucket counts; for
-  multi-key streaming groupers (e.g. `GROUP_SET_PER_ELEMENT`) the sum of
-  bucket counts exceeds `TotalN` because a single record contributes to
-  multiple buckets. See `skills/grouper-design.md` for per-GROUP keys.
+## Crosstab block
 
-- **`Crosstab *CrosstabComponents`** — populated only when the originating
-  Request carried `Crosstab`. Mirrors `MatrixPayload` coordinate-for-
-  coordinate so consumers index components by the same `(r, c)` tuple they
-  already use to read `Cells`, `RowMargins`, `ColumnMargins`, `GrandTotal`.
-  Carries the per-cell record counts (`CellCounts[r][c]`), the per-cell
-  aggregator components (`CellComponents[r][c]`), per-axis margin counts +
-  components, grand-total counts + components, per-axis grouper components
-  (`RowKeyComponents`, `ColumnKeyComponents`), and the sanity counters
-  `IncludedRecords` / `ExcludedRecords`. **`CellCounts[r][c]` is a RECORD
-  count while the cell floor's `n` counts NON-NULL observations, so the
-  identity is `CellCounts[r][c] == n + n_null`** — do not read `CellCounts`
-  as the aggregator's sample size. The same split holds on the margin
-  counterparts. See `skills/crosstab-guide.md` for the full indexing
-  contract.
+Mirrors `MatrixPayload` coordinate-for-coordinate — same `(r, c)` tuple as `Cells` / `RowMargins` / `ColumnMargins` / `GrandTotal`. Slots: `CellCounts[r][c]`, `CellComponents[r][c]` (`nil` for an empty cell), `RowMarginCounts` / `RowMarginComponents` (column symmetric), `GrandTotalCount` / `GrandTotalComponents`, `RowKeyComponents` / `ColumnKeyComponents`, sanity counters `IncludedRecords` / `ExcludedRecords`. Full indexing contract: `crosstab-guide`.
 
-  **Auxiliary margin figures.** When the Request declared
-  `crosstab.margin_aggregations`, the block additionally carries
-  `RowMarginAggregations[r]` / `ColumnMarginAggregations[c]` /
-  `GrandTotalAggregations` — one map per margin slot, keyed by each
-  auxiliary's effective label (`label`, else `TYPE_field`; the validators
-  force them unique across the slot and distinct from the cell's, so a
-  label addresses exactly one figure). They sit BESIDE the margin
-  components rather than inside them because they are not the same
-  figure: `RowMarginComponents[r]` describes the CELL aggregator's own
-  margin, which counts every filter-passing record routed to that row,
-  while an auxiliary observes the cell's ADMISSION instead.
+**`CellCounts[r][c]` is a RECORD count; the floor's `n` counts NON-NULL observations — `CellCounts[r][c] == n + n_null`.** Never read `CellCounts` as the aggregator's sample size. Same split on every margin counterpart.
 
-  **The admission rule, stated in full — it is the least guessable
-  property of this surface.** A record contributes to an auxiliary
-  margin ONLY IF IT CONTRIBUTED TO A CELL. Two exclusions follow, and
-  they are the entire difference from the margin components beside it:
-  a record whose CELL FIELD IS NULL, and a record whose AXIS KEY A
-  GROUPER `Include` EXCLUDED. The cell's own margins count both. That is
-  deliberate and there is no knob: an auxiliary exists to be a base the
-  cells beside it are read against, so it has to see the records they
-  saw — a cohort-wide base would answer a different question while
-  looking identical. Reading `n` off an auxiliary's `components` as a
-  cohort count is therefore wrong, and wrong SILENTLY: every figure
-  still renders and only the base is off. Both execution arms implement
-  the same rule and must agree, because dispatch picks fused or buffered
-  on request SHAPE and nothing in `Response` reports which one ran.
+### Auxiliary margin figures
 
-  Each entry is a `MarginAggregationFigure{value, present, components}`.
-  `components` is the universal floor `{n, n_null}` over the ADMITTED
-  records merged with that aggregator's own `ComponentSchema` keys — so
-  an `AGG_DISTINCT_SUM` auxiliary surfaces its `distinct_count` per
-  margin slot alongside the scalar sum in `value`, which is what lets one
-  operator serve two rendered figures off one scan.
+Present when the Request declared `crosstab.margin_aggregations`: `RowMarginAggregations[r]` / `ColumnMarginAggregations[c]` / `GrandTotalAggregations`, one map per margin slot keyed by each auxiliary's effective label (`label`, else `TYPE_field`; validators force it unique across the slot and distinct from the cell's, so a label addresses exactly one figure). Entry = `MarginAggregationFigure{value, present, components}`; `components` is the floor over ADMITTED records merged with that operator's `ComponentSchema` keys, so an `AGG_DISTINCT_SUM` auxiliary's `distinct_count` is reachable PER MARGIN SLOT beside the scalar sum — two rendered figures off one scan.
 
-  **`present` is load-bearing and is not a zero.** A slot that admitted
-  no record carries `present: false` and NO `value` key: an aggregator
-  over an empty set has no defined output, and a fabricated `0` is
-  indistinguishable on the wire from a real one. Its `components` still
-  carry the floor, whose `n = 0` is a true statement about the slot. The
-  three keys are `omitempty` and are emitted only when the matching
-  margin is DISPLAYED (`margins.rows` / `.columns` / `.grand`), matching
-  the emission rule the cell's own margin counts and components follow —
-  a margin computed only as a normalize denominator stays off the wire on
-  both. A request declaring no auxiliary emits none of the three, so the
-  wire form is byte-identical to the pre-slot baseline and
-  `format_version` does not move.
+**ADMISSION RULE — least guessable property of this surface. A record contributes to an auxiliary ONLY IF IT CONTRIBUTED TO A CELL.** Two exclusions follow and they are the entire difference from the margin components beside it: a record whose CELL FIELD IS NULL, and a record whose AXIS KEY A GROUPER `Include` EXCLUDED. The cell's own margins count both. Deliberate, no knob — an auxiliary is a base the cells beside it are read against, so it must see the records they saw; a cohort-wide base answers a different question while looking identical. Reading an auxiliary's `n` as a cohort count is wrong SILENTLY: every figure still renders, only the base is off. Both arms implement the rule and must AGREE — dispatch picks fused or buffered on request SHAPE and nothing in `Response` reports which ran.
 
-  **Allocation is wider than emission, and the gap is warned rather
-  than closed.** Both paths ALLOCATE auxiliary accumulators on
-  `NeedsRowMargin` / `NeedsColumnMargin` / `NeedsGrandMargin` — display
-  OR normalize — while emission rides the display flag alone. So a spec
-  with every margin flag false, a normalize direction set and an
-  auxiliary declared accumulates every figure and emits not one of them.
-  `pulse predict` warns `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` on
-  exactly that shape: its predicate
-  (`types.CrosstabSpec.MarginAggregationsObserved`) reads the display
-  flags directly and deliberately NOT the `Needs*Margin` trio, which
-  answers the CELL's question. An auxiliary is never a denominator, so a
-  normalize direction is not a landing site for one. If you are looking
-  for auxiliary figures and the block is absent, check the display flag
-  before checking anything else.
-
-- **`Filterers []FiltererComponents`** — one entry per `Request.Filterers`
-  slot in matching declared order. Slot identity rides on `Label`. Universal
-  floor fields `NIn`, `NOut`, `NNullInput` — there is no operator-specific
-  `Operator` slot today; `MetaFilterer` exists for extension parity and
-  leaves room for future per-filter specifics.
-
-- **`Run *RunComponents`** — always allocated on a successful Process call.
-  Carries `TotalRecords` (cohort pre-filter), `FilteredRecords` (survived
-  the filter chain), `NullRecords` (dropped due to null input),
-  `ShardCount` (zero for single-file cohorts), and `PartialCohortReason`
-  (free-form diagnostic when a shard failed to open). Coexists with
-  `Response.Metadata`: `Metadata.TotalRows` equals `Run.TotalRecords` by
-  construction at every orchestrator exit. Metadata retains non-numerical
-  run facts (cohort filename); Run carries the typed counters consumers
-  compute against.
-
-## Manifest declaration
-
-`descriptor.Manifest.ComponentsSchemas` projects the per-operator components
-contract at manifest level so LLM clients can plan
-`ResponseComponents.Components[]` consumption in one O(N) scan without
-crawling per-category Operator entries.
-
-```go
-type ComponentsSchemasBlock struct {
-    Aggregators map[string]ComponentSchema `json:"aggregators,omitempty"`
-    Groupers    map[string]ComponentSchema `json:"groupers,omitempty"`
-    Filterers   map[string]ComponentSchema `json:"filterers,omitempty"`
-}
-
-type ComponentSchema struct {
-    Keys         []ComponentKey         `json:"keys,omitempty"`
-    Mergeability ComponentsMergeability `json:"mergeability"`
-}
-
-type ComponentKey struct {
-    Name        string `json:"name"`        // snake_case wire key
-    Type        string `json:"type"`        // "int", "float64", "WelfordTriple", "map[string]int"
-    Description string `json:"description"` // one-sentence prose
-}
-```
-
-Each map is keyed by operator name and sorted deterministically at
-serialization time. `Keys` enumerates the operator-specific keys in
-emission order; the universal floor (`{"n", "n_null"}`) is filled
-unconditionally and is NOT listed in `Keys`. An empty `Keys` slice paired
-with `Mergeability == Mergeable` is a valid declaration — it signals a
-floor-only operator (AGG_COUNT is canonical).
-
-`ComponentSchema` is declared per-operator in `descriptor/capabilities_*.go`
-files (`capabilities_aggregators.go`, `capabilities_groupers.go`,
-`capabilities_filterers.go`). The same `ComponentSchema` value appears
-twice in the manifest by design — once inside the per-operator
-`Operator` entry (so a category-by-category drilldown is self-contained)
-and once inside the top-level `components_schemas` block (so a whole-
-catalog scan is one fetch).
-
-Fetch from MCP via `pulse_manifest` (cached for the session) or from CLI
-via `pulse manifest --json | jq .components_schemas`.
+- They sit BESIDE `RowMarginComponents[r]`, never inside it: that is the CELL aggregator's own margin, counting every filter-passing record routed to that row — a DIFFERENT admission. Merging the key sets would file two differently-based figures under one roof with nothing saying so.
+- **`present` is load-bearing, not a zero value.** A slot admitting no record carries `present: false` and NO `value` key — an aggregator over an empty set has no defined output, and a fabricated `0` is indistinguishable on the wire from a real one. Its `components` still carry the floor, whose `n = 0` is a true statement about the slot.
+- **Allocation is wider than emission; the gap is warned, not closed.** Both arms ALLOCATE on `NeedsRowMargin` / `NeedsColumnMargin` / `NeedsGrandMargin` (display OR normalize); EMISSION rides the display flag alone (`margins.rows` / `.columns` / `.grand`), the rule the cell's own margin counts and components already follow — a margin computed only as a normalize denominator stays off the wire on both. So margins-all-false + `normalize=row|column|total` + a declared auxiliary accumulates every figure and emits none; `pulse predict` warns `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` there. Its predicate `types.CrosstabSpec.MarginAggregationsObserved` reads the DISPLAY flags and deliberately NOT the `Needs*Margin` trio, which answers the CELL's question — an auxiliary is never a denominator, so a normalize direction is not a landing site. **Expecting figures and the block is absent? check the display flag first.**
+- Declaring no auxiliary emits none of the three: byte-identical to the pre-slot form, `format_version` unmoved.
 
 ## Opting out
 
-`Response.Components` is on by default but two switches turn it off:
+| Knob | Scope |
+|---|---|
+| `pulse.Options.DisableComponents bool` | engine default for every request the instance runs |
+| `types.Request.DisableComponents *bool` | per-request override — `nil` inherits, `true` forces off, `false` forces ON even on an engine shipping them off. The pointer is what separates "inherit" from "explicit false" |
+| `--no-components` | CLI, on `pulse api process` / `pulse api process-chain` / `pulse api compose`; request JSON `"disable_components": true` / `false` wins over it |
 
-- `pulse.Options.DisableComponents bool` — engine-level default applied to every
-  request the instance runs. False (the default) keeps current behaviour.
-- `types.Request.DisableComponents *bool` — per-request override. `nil`
-  inherits the engine default; explicit `true` forces off, explicit `false`
-  forces on. The pointer form distinguishes "inherit" from "explicit false"
-  so a single request can re-enable components on an engine that ships them
-  off, and vice versa.
+`effective = req.DisableComponents != nil ? *req.DisableComponents : opts.DisableComponents`.
 
-Effective rule: `effective = req.DisableComponents != nil ? *req.DisableComponents : opts.DisableComponents`.
+Disabled ⇒ `Response.Components` stays `nil`, wire form byte-identical to the pre-Components baseline, `format_version` NOT bumped. The gate sits at each execution path's emission block (`processStreaming` / `processStreamingGrouped` / `processStreamingTwoPass` / `processRecords` exits, plus `RunCrosstab` and `FusedCrosstabState.Finalize`), so `MetaAggregator.Components` / `MetaGrouper.Components` construction is SKIPPED — not built then discarded. Parallel-buffered and per-shard reducers gate at `service.attachMergedRunComponents` via a `disableComponents` parameter threaded through `finalizeMergedPartial`. `pulse.ProcessStream` inherits the nil block, so `.Components()` returns `nil` on terminal flush — streaming consumers MUST tolerate it. Compose: each `ComposedRequest.Requests[i]` carries its own override; the Compose-host overlay fold treats per-slot Components read-only, so dropping the slot never interacts with `Overlays[i].Warnings`. MCP tools do NOT surface the knob (matches `DisableDefaults` / `EchoRequest` — Options-level knobs stay off the tool parameter surface); embedders set it at `pulse.New()`.
 
-When the effective decision is "disabled", `Response.Components` stays `nil`
-and the wire form is byte-identical to the pre-Components baseline —
-`format_version` is NOT bumped. The gate sits at the per-execution-path
-emission block (every `processStreaming` / `processStreamingGrouped` /
-`processStreamingTwoPass` / `processRecords` exit, plus `RunCrosstab` and
-`FusedCrosstabState.Finalize`), so the `MetaAggregator.Components` /
-`MetaGrouper.Components` construction work is skipped entirely — not
-built then discarded. The single-file parallel-buffered and per-shard
-parallel reducers gate at `service.attachMergedRunComponents` via a
-`disableComponents` parameter threaded through `finalizeMergedPartial`.
+## Manifest declaration
 
-CLI surface: `--no-components` on `pulse api process`, `pulse api process-chain`,
-and `pulse api compose`. Per-request override via the request JSON's
-`"disable_components": true` / `false` field wins over the CLI flag.
+`descriptor.Manifest.ComponentsSchemas` is a `ComponentsSchemasBlock` of three operator-name-keyed maps: `Aggregators` (`json:"aggregators,omitempty"`), `Groupers` (`json:"groupers,omitempty"`), `Filterers` (`json:"filterers,omitempty"`). Each value is a `ComponentSchema` = `Keys []ComponentKey` (`json:"keys,omitempty"`) + `Mergeability ComponentsMergeability` (`json:"mergeability"`). Each `ComponentKey` = `Name` (`json:"name"`, snake_case wire key) + `Type` (`json:"type"` — `"int"`, `"float64"`, `"WelfordTriple"`, `"map[string]int"`) + `Description` (`json:"description"`, one-sentence prose).
 
-`pulse.ProcessStream`: when components are disabled, the bufferedRowIter
-inherits the nil block from the underlying buffered `Process` call, so
-`.Components()` returns `nil` on terminal flush. Streaming consumers
-that always read `.Components()` MUST tolerate the `nil` return.
-
-Compose: each `ComposedRequest.Requests[i]` carries its own per-request
-override (the engine default applies across the batch when no per-slot
-override is set). The Compose-host overlay fold treats per-slot
-Components as read-only, so dropping the slot does not interact with
-Compose-overlay diagnostics on `Overlays[i].Warnings`.
-
-MCP tools do not surface this knob (matches the `DisableDefaults` /
-`EchoRequest` precedent — Options-level knobs stay out of the tool
-parameter surface). Embedders that wrap MCP set the option at
-`pulse.New()` time.
+Sorted deterministically at serialization. `Keys` is the operator-specific set in emission order; the floor (`{"n", "n_null"}`) is unconditional and NOT listed. Empty `Keys` with `Mergeability == Mergeable` is valid — a floor-only operator. Declared per operator in `descriptor/capabilities_*.go` (`capabilities_aggregators.go`, `capabilities_groupers.go`, `capabilities_filterers.go`). The same value appears TWICE by design: inside the per-operator `Operator` entry (self-contained drilldown) and in top-level `components_schemas`, so an LLM plans `ResponseComponents.Components[]` consumption in one O(N) scan. Fetch via `pulse_manifest` (session-cached) or `pulse manifest --json | jq .components_schemas`.
 
 ## Mergeability
 
-`ComponentsMergeability` (defined in `types/streamability.go`, re-exported
-as `descriptor.Mergeable` / `descriptor.Partial` / `descriptor.None`)
-classifies how an operator's components fold across streaming chunks and
-parallel-shard partitions:
+`ComponentsMergeability` (`types/streamability.go`; re-exported `descriptor.Mergeable` / `descriptor.Partial` / `descriptor.None`) classifies the fold across streaming chunks and parallel-shard / parallel-segment partitions.
 
-| Constant | Wire value | Semantics | Canonical operators |
+| Constant | Wire | Semantics | Canonical operators |
 |---|---|---|---|
-| `Mergeable` | `"mergeable"` | Components fold via the same associative/commutative path as the scalar value. Constant-space `MergeOnline` works across chunks. Safe to emit per-chunk and merge online. | AGG_SUM, AGG_COUNT, AGG_WELFORD, AGG_WEIGHTED_MEAN, AGG_RATIO, AGG_SET_UNION, AGG_SET_CARDINALITY_SUM |
-| `Partial` | `"partial"` | Components fold across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. Orchestrator may stage merge at terminal flush. | AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM, AGG_SET_FREQUENCY |
-| `None` | `"none"` | Components cannot be computed from a per-chunk partial — the operator needs a sorted view (or equivalent) of the full input. Streaming chunks omit components; emission lands only on the terminal buffered flush. | AGG_MEDIAN, AGG_PERCENTILE, GROUP_QUANTILE |
+| `Mergeable` | `"mergeable"` | folds via the scalar's own associative/commutative path; constant-space `MergeOnline`; safe per chunk | `AGG_SUM`, `AGG_COUNT`, `AGG_WELFORD`, `AGG_WEIGHTED_MEAN`, `AGG_RATIO`, `AGG_SET_UNION`, `AGG_SET_CARDINALITY_SUM` |
+| `Partial` | `"partial"` | associative but not constant-space (map / set unions); orchestrator may stage the merge at terminal flush | `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY` |
+| `None` | `"none"` | not computable from a per-chunk partial — needs a sorted (or equivalent) view of the full input | `AGG_MEDIAN`, `AGG_PERCENTILE`, `GROUP_QUANTILE` |
 
-Predict surfaces a per-slot `BufferedComponents` flag that is
-`(Mergeability == None)` — an LLM client checks this once when planning a
-streaming request to know which slots will receive components only on the
-terminal chunk.
+Predict surfaces per-slot `BufferedComponents` = `(Mergeability == None)`; check it once when planning a streaming request.
 
-## Streaming behavior
+## Streaming
 
-`pulse.ProcessStream` chunks carry `Components *types.ResponseComponents`
-alongside the chunk's row payload. Behaviour by mergeability class:
+`pulse.ProcessStream` chunks carry `Components *types.ResponseComponents` beside the row payload. `Mergeable`: every chunk is the running state — render it, or fold consumer-side through the same `MergeOnline` path the orchestrator uses. `Partial`: chunks 1..N-1 carry per-chunk partial maps, consumer-side union supported but optional, terminal chunk authoritative. `None`: chunks 1..N-1 emit `Operator: nil` on the affected entry, so consumers MUST wait for the terminal chunk — predict flags the slot `BufferedComponents: true` upfront.
 
-- **Mergeable aggregators / groupers** — every chunk carries the running
-  state. A consumer that needs intermediate visibility can read each
-  chunk's `Components` and either render it directly or merge it across
-  chunks using the same `MergeOnline` path the orchestrator uses
-  internally. The terminal chunk is byte-equal to the buffered `Process`
-  result.
-
-- **Partial-merge aggregators (`AGG_FREQUENCY`, `AGG_MODE`,
-  `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY`)** — chunks 1..N-1 carry the
-  per-chunk partial maps. The terminal chunk carries the merged final.
-  Consumer-side merge of per-chunk maps is supported (associative union)
-  but optional — the terminal chunk is authoritative.
-
-- **Non-mergeable aggregators (`AGG_MEDIAN`, `AGG_PERCENTILE`,
-  `GROUP_QUANTILE`)** — chunks 1..N-1 emit `Operator: nil` on the
-  affected entry. The terminal chunk carries the full buffered final.
-  Streaming consumers that need these values MUST wait for the terminal
-  chunk; predict flags the slot as `BufferedComponents: true` so the
-  client knows upfront.
-
-In every case the terminal chunk is byte-equal to the buffered `Process`
-result for the same Request — streaming is a presentation layer over the
-same compute path, never a divergent code path.
-
-Parallel shards (`pulse.Options.ShardWorkers`) and parallel-segment
-buffered decode (`pulse.Options.DecodeWorkers`) merge per-shard /
-per-segment partials through the same path. Mergeability-axis applies
-identically: mergeable folds without buffering, partial allocates, none
-falls back to single-pass at the terminal merge step.
+**In every class the terminal chunk is byte-equal to the buffered `Process` result for the same Request** — streaming is presentation over one compute path, never a divergent one. `pulse.Options.ShardWorkers` / `pulse.Options.DecodeWorkers` partials fold identically: mergeable without buffering, partial allocates, none falls back to single-pass at the terminal merge.
 
 ## Overlay parity reads
 
-The four stat-test parity overlays —
-`OVERLAY_T_CELL`, `OVERLAY_Z_CELL`, `OVERLAY_T_VS_REF`, `OVERLAY_Z_VS_REF` —
-read `{n, mean, variance}` directly from
-`Response.Components.Crosstab.CellComponents[r][c]`. This is the canonical
-audit-aligned path for the Welch t-test parity family and the
-two-sample z-test parity family.
+`OVERLAY_T_CELL` / `OVERLAY_Z_CELL` / `OVERLAY_T_VS_REF` / `OVERLAY_Z_VS_REF` read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` — keys `CellComponents[r][c]["n"]`, `["mean"]`, `["variance"]`. Canonical audit-aligned path for the Welch t-test and two-sample z-test parity families.
 
-The legacy `processing.WelfordTriple` typed payload smuggled inside
-`MatrixCell.Value` is GONE. `MatrixCell.Value` for `AGG_WELFORD` cells now
-carries the scalar mean — same shape as every other aggregator's cell
-payload (the value the operator's `Aggregate()` contract returns). The
-side channel that complicated the cell contract is eliminated; the
-compute formulas (Welch t-test, two-sample z-test) are unchanged —
-only the source of `{n, mean, variance}` moved from
-`MatrixCell.Value.(processing.WelfordTriple)` to a typed read against
-`CellComponents[r][c]["n"]`, `["mean"]`, `["variance"]`.
-
-The handler still falls through to the scalar-plus-Params path when the
-cell carries no Components payload at the coordinate (or the keys are
-absent) — `MatrixCell.Value` returns the running mean and variance + n
-come from `Params["variance_*"]` / `Params["sample_size_*"]`. The
-additive contract is preserved: scalar cell + Params-supplied mean /
-variance / N still works when no triple is attached.
-
-See `skills/overlay-system.md` Migration note for the full per-side
-resolver flow and worked examples.
+The legacy `processing.WelfordTriple` smuggled inside `MatrixCell.Value` is GONE: an `AGG_WELFORD` cell's `MatrixCell.Value` now carries the scalar mean, like every other cell payload (what `Aggregate()` returns). Formulas unchanged — only the triple's source moved off `MatrixCell.Value.(processing.WelfordTriple)`. Additive fallback preserved: with no Components at the coordinate (or keys absent) the handler reads the scalar mean plus `Params["variance_*"]` / `Params["sample_size_*"]`. Resolver flow: `overlay-system` (Migration note).
 
 ## Extension contract
 
-Embedder extensions registered via `pulse.Options.Extensions` declare a
-`ComponentSchema` at registration time and implement either
-`ComponentsFunc` (the closure form) or the matching sibling interface
-(`processing.MetaAggregator`, `MetaGrouper`, `MetaFilterer`). Probe-
-validation at `pulse.New()` checks parity between declaration and runtime
-emission:
+Extensions registered via `pulse.Options.Extensions` declare a `ComponentSchema` and implement either `ComponentsFunc` (closure) or the sibling interface (`processing.MetaAggregator` / `MetaGrouper` / `MetaFilterer`). Probe-validation at `pulse.New()` checks declaration-vs-emission parity:
 
-- `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` — the registration supplied
-  a runtime emitter (`ComponentsFunc` non-nil or sibling interface
-  implemented) but `ComponentSchema.Keys` is empty. Either declare the
-  keys or drop the emitter.
+| Code | Cause | Fix |
+|---|---|---|
+| `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter supplied (`ComponentsFunc` non-nil or sibling implemented) but `ComponentSchema.Keys` empty | declare the keys, or drop the emitter |
+| `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | probe emitted a key set diverging from the declaration | align `Components()` to the declared list, in declared order |
 
-- `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` — the runtime probe
-  emitted a key set that diverges from the declared schema. Fix by
-  aligning the emitter's `Components()` return to the declared key list,
-  in declared order.
+Floor-only extensions are valid: empty `Keys` + nil `ComponentsFunc` + no sibling interface ⇒ floor only, no probe error (the `AGG_COUNT`-equivalent shape). The manifest `extensions` block projects per-extension `ComponentSchema`; predict reads it via `descriptor.ExtensionsSnapshot`; schema-bound MCP tools carry extension names in the per-category enums.
 
-Floor-only extensions are valid: when both `ComponentSchema.Keys` is
-empty and `ComponentsFunc` is nil (and no sibling interface is
-implemented), the orchestrator fills the universal floor only — no
-probe-validation error fires. This is the AGG_COUNT-equivalent shape
-for extensions.
-
-The manifest's `extensions` block surfaces per-extension
-`ComponentSchema` projections; predict reads the same projection via
-`descriptor.ExtensionsSnapshot`. Schema-bound MCP tools include
-extension operator names in the per-category enums so an LLM client can
-plan against the union of built-in + extension catalogs.
-
-See `docs/src/internals/extension-points.md` for the full registration recipe and
-the `FieldInputs` projection hook.
-
-## Examples
-
-**Read every aggregation's components — label-join + operator-key lookup.**
+## Reading it
 
 ```go
-resp, _ := p.Process(ctx, req)
-for _, a := range resp.Components.Aggregations {
-    fmt.Printf("%-20s  n=%d  n_null=%d", a.Label, a.N, a.NNull)
-    if mean, ok := a.Operator["mean"].(float64); ok {
-        fmt.Printf("  mean=%.4f", mean)
-    }
-    if variance, ok := a.Operator["variance"].(float64); ok {
-        fmt.Printf("  variance=%.4f", variance)
-    }
-    fmt.Println()
+for _, a := range resp.Components.Aggregations {       // floor + operator keys
+    mean, _ := a.Operator["mean"].(float64)
+    fmt.Println(a.Label, a.N, a.NNull, mean)
 }
-```
-
-**Read a Welford triple from a crosstab cell — the canonical parity-overlay
-read path.**
-
-```go
-ct := resp.Components.Crosstab
-if ct != nil && r < len(ct.CellComponents) && c < len(ct.CellComponents[r]) {
-    cell := ct.CellComponents[r][c]
-    if cell != nil {
-        n := cell["n"].(int)
-        mean := cell["mean"].(float64)
-        variance := cell["variance"].(float64)
-        // ... pass to Welch t-test or two-sample z-test machinery
+for _, f := range resp.Components.Filterers {          // attrition: NIn -> NOut, NNullInput
+    fmt.Println(f.Label, f.NIn, f.NOut, f.NNullInput)
+}
+if run := resp.Components.Run; run != nil {            // + FilteredRecords/NullRecords/ShardCount
+    fmt.Println(run.TotalRecords, run.PartialCohortReason)
+}
+if ct := resp.Components.Crosstab; ct != nil {
+    if cell := ct.CellComponents[row][col]; cell != nil { // nil for an empty cell — null-check first
+        n, mean := cell["n"].(int), cell["mean"].(float64)
+        _, _ = n, mean                                 // + cell["variance"] → Welch / two-sample z
     }
 }
 ```
 
-**Check run-level cohort totals — partial-cohort diagnostic.**
+Runnable, `//go:embed`-registered and `TestExamples_*`-validated, so both surface via `pulse_examples_search` / `pulse_examples_get`: `examples/aggregations/08_welford_components.json` — `AGG_WELFORD` over `experiment.pulse#revenue`, value `{Mean, Variance, N}`, projection `{n, n_null, mean, m2, variance, stddev}`; `examples/crosstab/16_welford_components_revenue_by_region_treatment.json` — `region` × `treatment` (`GROUP_CATEGORY` both axes, all margins), `Crosstab` fully populated. Build fixtures once via `./examples/fixtures/build.sh`, then `bin/pulse api process --request <path> --json`. Emission benchmarks + regression frontier: `docs/src/ops/performance.md` (Components emission baselines).
 
-```go
-r := resp.Components.Run
-fmt.Printf("total=%d  filtered=%d  null=%d  shards=%d\n",
-    r.TotalRecords, r.FilteredRecords, r.NullRecords, r.ShardCount)
-if r.PartialCohortReason != "" {
-    fmt.Printf("partial cohort: %s\n", r.PartialCohortReason)
-}
-```
+## See
 
-**Filter chain audit — per-stage attrition.**
-
-```go
-for i, f := range resp.Components.Filterers {
-    fmt.Printf("[%d] %-20s  %d -> %d  (null_in=%d, drop=%d)\n",
-        i, f.Label, f.NIn, f.NOut, f.NNullInput, f.NIn-f.NOut)
-}
-```
-
-**Streaming consumer — fold mergeable + wait for terminal on non-mergeable.**
-
-```go
-stream, _ := p.ProcessStream(ctx, req)
-var finalComponents *types.ResponseComponents
-for chunk := range stream.Chunks() {
-    if chunk.Components != nil {
-        // Mergeable / Partial: chunk.Components is the running view.
-        // None: chunk.Components.Aggregations[i].Operator is nil for the
-        //   median / percentile slot until the terminal chunk.
-        finalComponents = chunk.Components
-    }
-}
-// finalComponents now byte-equal to buffered Process result.
-```
-
-## Performance baselines
-
-Always-on Components emission baselines (Apple M1 Max, `go1.x`, hermetic
-`afero.NewMemMapFs()` cohorts). The buffered/streaming pair drives a
-100K-record single-`f64` cohort through a five-aggregator mix that covers
-both mergeable (`AGG_SUM` / `AGG_COUNT` / `AGG_AVERAGE` / `AGG_VARIANCE`)
-and non-mergeable (`AGG_MEDIAN`) paths. The crosstab fused / buffered
-pair drives a 200-field × 10K-row wide cohort with a `region × segment`
-crosstab over `AGG_COUNT(value)` and full margins. Each cell is the
-median of three `b.Loop()` runs.
-
-| Bench | ms/op | MB/op | allocs/op |
-|---|---:|---:|---:|
-| `BenchmarkProcess_BufferedComponents` (`/`) | 30.16 | 49.25 | 600,122 |
-| `BenchmarkProcessStream_WithComponents` (`/`) | 30.44 | 49.38 | 600,487 |
-| `BenchmarkCrosstabWideCohort_Fused` (`/service/`) | 8.69 | 21.07 | 143,903 |
-| `BenchmarkCrosstabWideCohort_Buffered` (`/service/`) | 9.08 | 22.03 | 83,978 |
-
-These are the canonical post-Components-always-on baselines and the
-regression frontier for future PRs — sustained `> +5%` regressions on
-any line warrant investigation.
-
-A "+5% delta vs no-Components" relative gate (`BenchmarkProcess_NoComponents`
-vs `_WithComponents` and the matching crosstab pair) would require a
-`pulse.Options.DisableComponents` knob that does NOT exist in the current
-build — Components emission is unconditional once the operator declares a
-`ComponentSchema`. Locking absolute baselines is the practical regression
-frontier today; if a disable knob lands later, add the paired
-`_NoComponents` sub-cases and flip the gate from absolute to relative.
-
-Reproduce with:
-
-```sh
-go test -bench=BenchmarkProcessStream_WithComponents -run=^$ -count=3 -benchmem ./
-go test -bench=BenchmarkProcess_BufferedComponents  -run=^$ -count=3 -benchmem ./
-go test -bench=BenchmarkCrosstabWideCohort_Fused    -run=^$ -count=3 -benchmem ./service/
-go test -bench=BenchmarkCrosstabWideCohort_Buffered -run=^$ -count=3 -benchmem ./service/
-```
-
-## Runnable examples
-
-Two runnable Request examples ship with the embedded `examples/` library and
-demonstrate Components consumption end-to-end against built fixtures. Both
-are registered through the same `//go:embed` manifest as every other
-example, so they show up under `pulse_examples_search` / `pulse_examples_get`
-and round-trip through `TestExamples_*` meta-validation:
-
-- [`examples/aggregations/08_welford_components.json`](../examples/aggregations/08_welford_components.json)
-  — process example. `AGG_WELFORD` against `experiment.pulse#revenue` emits
-  the streaming triple `{Mean, Variance, N}` as the aggregator value and
-  surfaces the full operator projection `{n, n_null, mean, m2, variance,
-  stddev}` under `Response.Components.Aggregations[0].Operator`. Canonical
-  illustration of operator-specific Component keys riding alongside the
-  universal floor `{n, n_null}`.
-
-- [`examples/crosstab/16_welford_components_revenue_by_region_treatment.json`](../examples/crosstab/16_welford_components_revenue_by_region_treatment.json)
-  — crosstab example. `AGG_WELFORD` cell aggregator over `region` x
-  `treatment` (`GROUP_CATEGORY` on both axes) with row, column, and grand
-  margins enabled. `Response.Components.Crosstab` is fully populated:
-  `CellCounts[r][c]` per-cell counts, `CellComponents[r][c]` per-cell triples
-  + floor, `MarginRowComponents` / `MarginColumnComponents` per-axis
-  recompute-from-raw triples, `GrandTotalComponents` all-records triple, plus
-  axis-key components in `RowKeyComponents` / `ColumnKeyComponents`. Indexes
-  byte-identically with `MatrixPayload` so consumers traverse Cells and
-  CellComponents with the same `(r, c)` tuple.
-
-Run them after building the fixture cohorts once via `./examples/fixtures/build.sh`:
-
-```sh
-bin/pulse api process --request examples/aggregations/08_welford_components.json --json
-bin/pulse api process --request examples/crosstab/16_welford_components_revenue_by_region_treatment.json --json
-```
-
-## Cross-links
-
-- [aggregation-design](aggregation-design.md) — per-AGG component keys + the
-  per-category Components section model
-- [grouper-design](grouper-design.md) — per-GROUP component keys
-- [crosstab-guide](crosstab-guide.md) — `CrosstabComponents` indexing
-  contract + cell vs margin vs grand-total layout
-- [overlay-system](overlay-system.md) — parity-overlay migration (the four
-  `OVERLAY_*_CELL` / `OVERLAY_*_VS_REF` kinds reading from
-  `CellComponents`)
-- [extension-points](../docs/src/internals/extension-points.md) — extension `ComponentSchema`
-  registration, probe-validation errors, and `FieldInputs` projection
+`aggregation-design` (per-AGG keys) · `grouper-design` (per-GROUP keys) · `crosstab-guide` (`CrosstabComponents` indexing, cell vs margin vs grand total) · `overlay-system` (parity migration) · `docs/src/internals/extension-points.md` (registration, probe errors, `FieldInputs`).

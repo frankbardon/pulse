@@ -122,6 +122,63 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	return nil
 }
 
+// mergeFidelityWarnings folds generation-time warnings into the
+// caller-supplied ones for the fidelity report's `warnings` array,
+// dropping lines that are byte-identical to one already present.
+//
+// # Why the report gains a channel it did not have
+//
+// Until E2-S3 the report carried only what the CALLER passed —
+// Profile.Warnings (capture time) plus SpecFromProfile's translation
+// warnings, both computed BEFORE Synth ran. Everything generate() itself
+// raised reached stderr and no file at all: the conflict arbitration
+// over the spec that actually generated (which differs from the
+// translation-time one whenever `--rules` merged a rule that pre-claims
+// a field), the rule-compilation warnings, the correlation matrix's
+// assumed pairs and ridge, the model drawer refusals, and E2-S3's own
+// report of a rule that applied to no row.
+//
+// That made the CLI's own pointer false: `synth from-profile` prints
+// "Full list: <report> (.warnings)" and the report was not the full
+// list. The written report is the one document an analyst keeps, and a
+// run whose rules retired half the captured relationships was
+// indistinguishable in it from one where they retired none.
+//
+// The alternative considered was re-running resolveConflicts at the CLI
+// leaf after the `--rules` merge and passing THOSE warnings down. It was
+// rejected on two counts: it fixes the conflict lines only, leaving
+// every other generation-time channel still unrecorded — including the
+// firing counts, which do not exist until the run is over — and it puts
+// a second copy of generation's arbitration in a second place, which is
+// the drift this package has been bitten by before.
+//
+// Deduping is needed because the two channels genuinely overlap: the
+// translation-time conflict warnings and generate()'s own both come from
+// resolveConflicts over the same *Spec, so an unchanged conflict arrives
+// verbatim twice. That is the same finding reported twice and the same
+// collapse internal/cli's dedupeWarnings makes for the terminal summary
+// — applied here so the DOCUMENT does not double-count either. Supplied
+// order is preserved and generated lines follow it, matching the causal
+// order every other warning channel in this package uses.
+//
+// No shape moves: `warnings` is an existing []string slot on the report,
+// synth.Result is untouched, and no --json envelope changes.
+func mergeFidelityWarnings(supplied, generated []string) []string {
+	if len(generated) == 0 {
+		return supplied
+	}
+	seen := make(map[string]struct{}, len(supplied)+len(generated))
+	out := make([]string, 0, len(supplied)+len(generated))
+	for _, w := range append(append([]string{}, supplied...), generated...) {
+		if _, dup := seen[w]; dup {
+			continue
+		}
+		seen[w] = struct{}{}
+		out = append(out, w)
+	}
+	return out
+}
+
 // countSyntheticPartitions does one decode pass over records under
 // schema's real (physical) layout, tallying rows by the on-wire value
 // of synth.SyntheticFieldName (0 = copied from source, non-zero =

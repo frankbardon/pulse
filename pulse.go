@@ -778,7 +778,46 @@ func (p *Pulse) touchManaged(ctx context.Context, path string) {
 
 // Inspect reads a .pulse file header and schema, returning structured field information.
 // It never reads record data.
+//
+// Callers that need the inspect WARNINGS (a truncated payload tail
+// raises one) or dictionary options want InspectEnvelope — this
+// wrapper keeps the result and discards the rest of the envelope.
 func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectResult, error) {
+	env, err := p.InspectEnvelope(ctx, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(env.Errors) > 0 {
+		return nil, fmt.Errorf("pulse: inspect: %s", env.Errors[0].Message)
+	}
+	result, ok := env.Data.(*descriptor.InspectResult)
+	if !ok {
+		return nil, fmt.Errorf("pulse: inspect returned unexpected type")
+	}
+	return result, nil
+}
+
+// InspectEnvelope is Inspect's envelope-returning sibling: same
+// header-only read, same anchor resolution, same afero.Fs, but it
+// returns the descriptor envelope WHOLE and accepts InspectOptions
+// (nil means defaults).
+//
+// It exists because the two things a caller can need beyond the result
+// are unreachable through Inspect: the InspectOptions.FullDict knob,
+// and env.Warnings — a cohort whose payload length is not a whole
+// multiple of the record stride reports its floored record count with
+// an ENCODING_INVALID warning beside it, and Inspect drops that
+// warning on the floor. `pulse cohort inspect --json` / `--full-dict`
+// used to reach descriptor.InspectFromBytes over its own os.ReadFile
+// for exactly this reason, which cost it anchor resolution
+// (archive.pulse#shard.pulse resolved in text mode and failed under
+// --json) and the injected filesystem along with it.
+//
+// A returned error is a READ failure (missing file, unresolvable
+// anchor). An envelope-level fault — a bad header, a corrupt archive —
+// comes back as a non-nil envelope carrying env.Errors, so a --json
+// caller can emit the coded envelope verbatim.
+func (p *Pulse) InspectEnvelope(ctx context.Context, path string, opts *descriptor.InspectOptions) (*descriptor.Envelope, error) {
 	readPath := path
 	anchorEntry := ""
 	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
@@ -799,17 +838,13 @@ func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectRe
 		data = shardBytes
 	}
 
-	env := descriptor.InspectFromBytes(data, nil)
-	if len(env.Errors) > 0 {
-		return nil, fmt.Errorf("pulse: inspect: %s", env.Errors[0].Message)
+	env := descriptor.InspectFromBytes(data, opts)
+	if len(env.Errors) == 0 {
+		// TTL slide on a successful read only — an unreadable cohort is
+		// not a use of the managed import.
+		p.touchManaged(ctx, path)
 	}
-
-	result, ok := env.Data.(*descriptor.InspectResult)
-	if !ok {
-		return nil, fmt.Errorf("pulse: inspect returned unexpected type")
-	}
-	p.touchManaged(ctx, path)
-	return result, nil
+	return env, nil
 }
 
 // Predict validates a request against a .pulse file without executing it.
@@ -1026,7 +1061,12 @@ func (p *Pulse) Synth(_ context.Context, spec *SynthSpec, output string, opts Sy
 		return nil, err
 	}
 	if opts.SourceCohort != "" && opts.FidelityReportPath != "" {
-		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath, spec, opts.FidelityWarnings); err != nil {
+		// The report's warnings array carries BOTH channels: the ones
+		// the caller supplied (capture-time, translation-time) and the
+		// ones generation itself raised. See mergeFidelityWarnings for
+		// why the fold lives here rather than at the CLI leaf.
+		if err := writeSynthFidelityReport(p.fsys, output, opts.FidelityReportPath, spec,
+			mergeFidelityWarnings(opts.FidelityWarnings, res.Warnings)); err != nil {
 			return nil, err
 		}
 		res.FidelityReportPath = opts.FidelityReportPath

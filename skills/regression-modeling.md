@@ -100,4 +100,4 @@ A significant group-level slope does NOT imply individual-level association (Rob
 - `feature-engineering` — `FEAT_POLY` parameter table + column naming.
 - `statistical-testing` — Wald-z vs Student-t.
 - `request-envelope` — slot keys, streamability.
-- `error-code-reference` — `PROCESSING_REGRESSION_*` recovery.
+- `pulse_errors_lookup` — `PROCESSING_REGRESSION_*` recovery.

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/io/csv"
@@ -1167,5 +1168,98 @@ func TestProcessChain_FacadeRoundTrip(t *testing.T) {
 	}
 	if got := resp.Final.Data[0]["n"].(float64); got != 1.0 {
 		t.Errorf("final count = %v, want 1.0", got)
+	}
+}
+
+// TestInspectEnvelope_SurfacesWarningsThroughTheInjectedFS covers the
+// two things Inspect cannot reach and the CLI needed: the envelope's
+// warnings, and the InspectOptions knob — both read through the
+// injected afero.Fs, which is what makes this test hermetic at all.
+// `pulse cohort inspect --json` reached descriptor.InspectFromBytes
+// over its own os.ReadFile for exactly these two, and paid for it by
+// losing anchor resolution.
+func TestInspectEnvelope_SurfacesWarningsThroughTheInjectedFS(t *testing.T) {
+	memFs := afero.NewMemMapFs()
+	createTestPulseFile(t, memFs, "test.pulse", []string{"age", "name"}, [][]string{
+		{"10", "hello"},
+		{"20", "world"},
+	})
+
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	env, err := p.InspectEnvelope(context.Background(), "test.pulse", nil)
+	if err != nil {
+		t.Fatalf("InspectEnvelope: %v", err)
+	}
+	if len(env.Warnings) != 0 {
+		t.Errorf("clean cohort warned: %+v", env.Warnings)
+	}
+	result, ok := env.Data.(*descriptor.InspectResult)
+	if !ok {
+		t.Fatalf("data = %T, want *descriptor.InspectResult", env.Data)
+	}
+	if result.RecordCount != 2 {
+		t.Errorf("record_count = %d, want 2", result.RecordCount)
+	}
+
+	// The options argument is not decoration: an embedder passing
+	// InspectOptions must see them applied, which is the same
+	// passthrough `--full-dict` rides.
+	capped, cerr := p.InspectEnvelope(context.Background(), "test.pulse",
+		&descriptor.InspectOptions{DictionaryLimit: 1})
+	if cerr != nil {
+		t.Fatalf("InspectEnvelope with options: %v", cerr)
+	}
+	cappedResult, ok := capped.Data.(*descriptor.InspectResult)
+	if !ok {
+		t.Fatalf("data = %T, want *descriptor.InspectResult", capped.Data)
+	}
+	var sawDict bool
+	for _, f := range cappedResult.Fields {
+		if f.Dictionary == nil {
+			continue
+		}
+		sawDict = true
+		if !f.Dictionary.Truncated || len(f.Dictionary.Values) != 1 {
+			t.Errorf("field %q: truncated=%v values=%d, want true/1 under DictionaryLimit:1",
+				f.Name, f.Dictionary.Truncated, len(f.Dictionary.Values))
+		}
+	}
+	if !sawDict {
+		t.Fatal("fixture carries no dictionary field; the options assertion proves nothing")
+	}
+
+	// A half-written trailing record: the count floors and the envelope
+	// says so. Inspect() returns the same floored result and drops the
+	// warning, which is the whole reason the envelope sibling exists.
+	data, rerr := afero.ReadFile(memFs, "test.pulse")
+	if rerr != nil {
+		t.Fatalf("ReadFile: %v", rerr)
+	}
+	if werr := afero.WriteFile(memFs, "truncated.pulse", append(data, 0x01), 0644); werr != nil {
+		t.Fatalf("WriteFile: %v", werr)
+	}
+
+	env, err = p.InspectEnvelope(context.Background(), "truncated.pulse", nil)
+	if err != nil {
+		t.Fatalf("InspectEnvelope truncated: %v", err)
+	}
+	if len(env.Warnings) == 0 {
+		t.Error("truncated payload raised no warning on the envelope")
+	}
+	plain, perr := p.Inspect(context.Background(), "truncated.pulse")
+	if perr != nil {
+		t.Fatalf("Inspect truncated: %v", perr)
+	}
+	truncatedResult, ok := env.Data.(*descriptor.InspectResult)
+	if !ok {
+		t.Fatalf("data = %T, want *descriptor.InspectResult", env.Data)
+	}
+	if plain.RecordCount != truncatedResult.RecordCount || plain.RecordCount != 2 {
+		t.Errorf("Inspect %d / InspectEnvelope %d, want both 2",
+			plain.RecordCount, truncatedResult.RecordCount)
 	}
 }

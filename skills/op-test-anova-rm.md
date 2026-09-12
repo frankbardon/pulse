@@ -9,23 +9,15 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, tier-1-test, parametric, repeated-measures, k-sample, buffered-pipeline]
 ---
 
-Statistical tests emit summary statistics (statistic, p-value, effect size); they do not produce Response.Components.
+Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-
-Slot params: `Field` (required, numeric), `SplitBy` (required, categorical — the condition), `SubjectField` (required, categorical — the within-subject grouping).
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
-| `SubjectField` | categorical: `categorical_u8`/`u16`/`u32` |
+`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` (required, the condition) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `SubjectField` (required, the within-subject grouping) — `categorical_u8`/`u16`/`u32`.
 
 ## Output
 

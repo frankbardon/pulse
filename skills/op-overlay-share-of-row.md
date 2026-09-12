@@ -9,15 +9,11 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, proportion-analysis]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `cell`. |
-| `Ref.Margin.Axis` | enum | (required) | Must be `row`. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — must be `row`. `Level`/`Within` must be `0`.
 
 ## Host shape
 
@@ -30,7 +26,7 @@ MATRIX — `Cells[r][c].Value = cell / row_margin` (raw ratio, no ×100). Cells 
 ## Gotchas
 
 - Distinct from `OVERLAY_INDEX_VS_MARGIN` (×100). Kind names kept distinct — author doesn't confuse `share` with `index/100`.
-- `row_margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` warning per affected row.
+- `row_margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected row.
 - Absent host cells stay absent on the overlay.
 - Scope MUST be `cell`. Empty `Ref.Margin` or non-row Axis → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (host crosstab always recomputes margins from raw rows).

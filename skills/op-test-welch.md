@@ -9,22 +9,17 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, t-test, tier-1-test, parametric, two-sample, welch, streaming-friendly]
 ---
 
-Statistical tests emit summary statistics (statistic, p-value, effect size); they do not produce Response.Components.
+Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 

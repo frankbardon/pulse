@@ -632,3 +632,111 @@ func TestFidelityReport_OldFormatSpecCarriesNoNewKeys(t *testing.T) {
 		t.Error("fixture is not discriminating: the old-format report scores no categorical-numeric pair at all")
 	}
 }
+
+// TestBuildModelResidualFidelity_ClaimRemovesItsPairsFromTheAccounting
+// closes FU-15: `model_residual_correlations.compared` was observed not
+// to move when a structural rule retired two models, while `models`
+// correctly did, and it was never established whether that was sound.
+//
+// It is — but only conditionally, and this test pins the condition
+// rather than the observation. Every applied residual correlation lands
+// in exactly ONE of `compared` and `unmeasured`, so the two must sum to
+// C(participants, 2), and a claim that removes a participant removes
+// that field's pairs from whichever list they were in. `compared` is
+// therefore invariant to a claim EXACTLY WHEN the claimed field's pairs
+// were all unmeasured, and it drops otherwise.
+//
+// The fixture makes them measurable: three `normal` targets, so
+// latentFor inverts all three and every pair is compared. The claim then
+// has to move the number. On the motivating cohort it does not, because
+// almost every target there is a `packed_bool` or small-integer
+// `discrete` whose latent is not recoverable, so its pairs sit in
+// `unmeasured` under no_model_fit — measured on the current tree at
+// 20,000 generated rows: models 58 -> 55 under a claim over
+// promoter/passive/detractor, compared 1 -> 1, and unmeasured
+// 1,652 -> 1,484, the 168-pair difference being exactly
+// C(58,2) - C(55,2). The accounting identity below is what makes that
+// readable as bookkeeping rather than as blindness.
+func TestBuildModelResidualFidelity_ClaimRemovesItsPairsFromTheAccounting(t *testing.T) {
+	build := func(rules []synth.RuleSpec) *synth.Spec {
+		spec := modelFidelitySpec(6000,
+			synth.FieldModelSpec{
+				Field: "spend", Intercept: 100, ResidualStd: 15,
+				Predictors: []synth.ModelPredictorSpec{catLevel("region", "east", 30)},
+			},
+			synth.FieldModelSpec{
+				Field: "tenure", Intercept: 30, ResidualStd: 4,
+				Predictors: []synth.ModelPredictorSpec{catLevel("plan", "pro", 5)},
+			},
+			synth.FieldModelSpec{
+				Field: "visits", Intercept: 20, ResidualStd: 5,
+				Predictors: []synth.ModelPredictorSpec{catLevel("region", "north", 6)},
+			},
+		)
+		spec.Fields = append(spec.Fields, synth.FieldSpec{
+			Name: "visits", Type: "f64",
+			Distribution: synth.DistNormal,
+			Params:       map[string]any{"mean": 20.0, "std": 5.0},
+		})
+		spec.ResidualCorrelations = []synth.CorrelationSpec{
+			{A: "spend", B: "tenure", Correlation: 0.5},
+			{A: "spend", B: "visits", Correlation: 0.4},
+			{A: "tenure", B: "visits", Correlation: 0.6},
+		}
+		spec.Rules = rules
+		return spec
+	}
+
+	sectionFor := func(t *testing.T, spec *synth.Spec) *synth.ModelResidualCorrelationFidelity {
+		t.Helper()
+		schema, records := augmentForModelFidelity(t, spec, 6000, 407)
+		report := &synth.FidelityReport{}
+		synth.BuildModelFidelity(report, schema, records, spec)
+		if report.ModelResidualCorrelations == nil {
+			t.Fatal("ModelResidualCorrelations is nil for a spec declaring residual correlations")
+		}
+		return report.ModelResidualCorrelations
+	}
+
+	// accounting asserts the identity that makes an invariant `compared`
+	// readable: nothing applied is silently absent from both lists.
+	accounting := func(t *testing.T, sec *synth.ModelResidualCorrelationFidelity) {
+		t.Helper()
+		n := len(sec.Fields)
+		want := n * (n - 1) / 2
+		got := sec.Compared + len(sec.Unmeasured) + sec.UnmeasuredOmitted
+		if got != want {
+			t.Errorf("%d participant(s): compared %d + unmeasured %d = %d, want C(%d,2) = %d — "+
+				"an applied residual correlation is in neither list",
+				n, sec.Compared, len(sec.Unmeasured)+sec.UnmeasuredOmitted, got, n, want)
+		}
+	}
+
+	free := sectionFor(t, build(nil))
+	if len(free.Fields) != 3 || free.Compared != 3 {
+		t.Fatalf("fixture broken before the claim: %d participant(s), %d compared — this test needs "+
+			"every pair MEASURED, or an invariant Compared proves nothing", len(free.Fields), free.Compared)
+	}
+	accounting(t, free)
+
+	claimed := sectionFor(t, build([]synth.RuleSpec{{SetExpr: map[string]string{"spend": "42"}}}))
+	if len(claimed.Fields) != 2 {
+		t.Fatalf("participants = %v, want the two survivors", claimed.Fields)
+	}
+	if claimed.Compared != 1 {
+		t.Errorf("Compared = %d after a claim retired one of three measurable participants, want 1 — "+
+			"`compared` must fall when the claimed field's pairs WERE being compared",
+			claimed.Compared)
+	}
+	for _, p := range claimed.Pairs {
+		if p.A == "spend" || p.B == "spend" {
+			t.Errorf("a pair naming the claimed field is still scored: %+v", p)
+		}
+	}
+	for _, u := range claimed.Unmeasured {
+		if u.A == "spend" || u.B == "spend" {
+			t.Errorf("a pair naming the claimed field is reported unmeasured rather than removed: %+v", u)
+		}
+	}
+	accounting(t, claimed)
+}

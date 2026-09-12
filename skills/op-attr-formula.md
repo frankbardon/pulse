@@ -33,9 +33,9 @@ One `float64` per record (booleans coerce to `1.0` / `0.0`). Null reference with
 - **No in-slot chaining** — cannot reference another attribute's label. Stage via Compose / ProcessChain.
 - Categorical surfaces as STRING (`==` / `in`); `set_*` as `[]string` (`contains`, `has_any`, `popcount`).
 - No `sqrt` / `log` / `exp` / trig — use `**` or pre-compute via FEAT.
-- Inject via `Options.Extensions.ExprFunctions`; tables via `lookup(...)`. See `extension-points`.
+- Inject via `Options.Extensions.ExprFunctions`; tables via `lookup(...)`. See `docs/src/internals/extension-points.md`.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `attribute-composition`, `extension-points`
+- Skills: `attribute-composition`; `docs/src/internals/extension-points.md`

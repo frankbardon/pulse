@@ -9,22 +9,15 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, tier-1-test, exact-test, cross-tabulation, proportion-analysis, small-sample, buffered-pipeline]
 ---
 
-Statistical tests emit summary statistics (statistic, p-value, effect size); they do not produce Response.Components.
+Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-
-Slot params: `Rows` (required, categorical, 2 levels), `Cols` (required, categorical, 2 levels). `Field` ignored.
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Rows` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
-| `Cols` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Rows` / `Cols` (both required, 2 levels each) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `Field` ignored.
 
 ## Output
 

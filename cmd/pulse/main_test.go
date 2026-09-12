@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -270,19 +271,6 @@ func TestCliCohortInspectJson(t *testing.T) {
 	}
 	if env.FormatVersion != "1.1" {
 		t.Errorf("format_version = %q, want 1.1", env.FormatVersion)
-	}
-}
-
-func TestCliCohortInspectFullDict(t *testing.T) {
-	dir := t.TempDir()
-	pulsePath := createTestPulseFile(t, dir)
-
-	out, err := runApp(t, "cohort", "inspect", "--full-dict", pulsePath)
-	if err != nil {
-		t.Fatalf("cohort inspect --full-dict: %v\noutput: %s", err, out)
-	}
-	if !strings.Contains(out, "Fields:") {
-		t.Errorf("expected 'Fields:' in output: %s", out)
 	}
 }
 
@@ -1132,3 +1120,245 @@ func runRowTestForCell(t *testing.T, pulsePath, region, segment, testKind string
 // Ensure unused imports are consumed.
 var _ = encoding.FieldTypeU8
 var _ = (*afero.MemMapFs)(nil)
+
+// createShardPulseFile writes a single-file .pulse cohort of `rows`
+// records at dir/name, over the same two-column schema
+// createTestPulseFile uses, so two of them are byte-cohesive enough to
+// go into one shard archive.
+func createShardPulseFile(t *testing.T, dir, name string, rows int) string {
+	t.Helper()
+	var b strings.Builder
+	b.WriteString("age,name\n")
+	names := []string{"alice", "bob", "charlie"}
+	for i := 0; i < rows; i++ {
+		b.WriteString(strconv.Itoa(10 + i))
+		b.WriteString(",")
+		b.WriteString(names[i%len(names)])
+		b.WriteString("\n")
+	}
+	csvPath := filepath.Join(dir, name+".csv")
+	if err := os.WriteFile(csvPath, []byte(b.String()), 0644); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+	pulsePath := filepath.Join(dir, name+".pulse")
+	fsys := afero.NewOsFs()
+	job := pio.NewImportJob(csv.NewReader(fsys, csvPath), pulsePath)
+	job.FS = fsys
+	if _, err := job.Run(context.Background()); err != nil {
+		t.Fatalf("creating shard pulse file %s: %v", name, err)
+	}
+	return pulsePath
+}
+
+// createTestShardArchive builds a two-shard archive (6 + 4 records)
+// through the real `pulse shard create` leaf and returns the archive
+// path plus the two shard basenames.
+func createTestShardArchive(t *testing.T, dir string) (string, string, string) {
+	t.Helper()
+	first := createShardPulseFile(t, dir, "shard_a", 6)
+	second := createShardPulseFile(t, dir, "shard_b", 4)
+	archive := filepath.Join(dir, "arch.pulse")
+	out, err := runApp(t, "shard", "create", "-i", first, "-i", second, archive)
+	if err != nil {
+		t.Fatalf("shard create: %v\noutput: %s", err, out)
+	}
+	return archive, filepath.Base(first), filepath.Base(second)
+}
+
+// TestCliCohortInspectJson_ResolvesShardAnchor pins the anchor fix. The
+// --json branch used to os.ReadFile the raw argument, so
+// `archive.pulse#shard.pulse` — which text mode resolved fine through
+// the facade — came back as an open-no-such-file error envelope with
+// data:null. Both modes now read through Pulse.InspectEnvelope, so the
+// anchor resolves identically and the reported record count is the
+// named SHARD's, not the archive aggregate.
+func TestCliCohortInspectJson_ResolvesShardAnchor(t *testing.T) {
+	dir := t.TempDir()
+	archive, _, second := createTestShardArchive(t, dir)
+
+	out, err := runApp(t, "cohort", "inspect", "--json", archive+"#"+second)
+	if err != nil {
+		t.Fatalf("cohort inspect --json anchor: %v\noutput: %s", err, out)
+	}
+	var env struct {
+		Data   *descriptor.InspectResult `json:"data"`
+		Errors []struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
+	}
+	if len(env.Errors) > 0 {
+		t.Fatalf("anchor inspect reported %s: %s", env.Errors[0].Code, env.Errors[0].Message)
+	}
+	if env.Data == nil {
+		t.Fatal("data is null; the anchor was not resolved")
+	}
+	if env.Data.RecordCount != 4 {
+		t.Errorf("record_count = %d, want 4 (the named shard's own count, not the archive's 10)",
+			env.Data.RecordCount)
+	}
+	if len(env.Data.Shards) != 0 {
+		t.Errorf("shards = %v, want empty: an anchor inspects one shard's standalone bytes",
+			env.Data.Shards)
+	}
+}
+
+// TestCliCohortInspectFullDict_ResolvesShardAnchor covers the other
+// half of the same branch: --full-dict without --json took the same
+// os.ReadFile path and failed on an anchor while plain text mode
+// succeeded.
+func TestCliCohortInspectFullDict_ResolvesShardAnchor(t *testing.T) {
+	dir := t.TempDir()
+	archive, first, _ := createTestShardArchive(t, dir)
+
+	out, err := runApp(t, "cohort", "inspect", "--full-dict", archive+"#"+first)
+	if err != nil {
+		t.Fatalf("cohort inspect --full-dict anchor: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "Records: 6") {
+		t.Errorf("expected the anchored shard's own count in output: %s", out)
+	}
+}
+
+// TestCliCohortInspectText_ReportsRecordCount pins the record count on
+// the text surface. It was derived correctly and then printed nowhere:
+// text mode listed fields only, so the figure was reachable through
+// --json, the library or the MCP tool and not through the leaf a human
+// runs. Three shapes, three correct answers.
+func TestCliCohortInspectText_ReportsRecordCount(t *testing.T) {
+	dir := t.TempDir()
+
+	single := createTestPulseFile(t, dir)
+	out, err := runApp(t, "cohort", "inspect", single)
+	if err != nil {
+		t.Fatalf("cohort inspect single: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "Records: 3") {
+		t.Errorf("single-file inspect missing 'Records: 3': %s", out)
+	}
+	if strings.Contains(out, "Shards:") {
+		t.Errorf("single-file inspect must print no shard breakdown: %s", out)
+	}
+
+	archive, first, second := createTestShardArchive(t, dir)
+	out, err = runApp(t, "cohort", "inspect", archive)
+	if err != nil {
+		t.Fatalf("cohort inspect archive: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "Records: 10") {
+		t.Errorf("archive inspect missing the aggregate 'Records: 10': %s", out)
+	}
+	if !strings.Contains(out, "Shards: 2") {
+		t.Errorf("archive inspect missing 'Shards: 2': %s", out)
+	}
+	for basename, want := range map[string]string{first: "6 records", second: "4 records"} {
+		if !strings.Contains(out, basename) || !strings.Contains(out, want) {
+			t.Errorf("archive inspect missing per-shard line %q %q: %s", basename, want, out)
+		}
+	}
+
+	out, err = runApp(t, "cohort", "inspect", archive+"#"+second)
+	if err != nil {
+		t.Fatalf("cohort inspect anchor: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "Records: 4") {
+		t.Errorf("anchor inspect must report the shard's own count, got: %s", out)
+	}
+}
+
+// TestCliCohortInspectFullDict_DisablesTruncation is the assertion the
+// pre-existing --full-dict test does not make: it only looked for
+// "Fields:", which prints with or without the flag. The flag's whole
+// job is the InspectOptions.FullDict passthrough, and that passthrough
+// moved when the leaf stopped calling descriptor.InspectFromBytes
+// itself — a dropped option would have been invisible.
+func TestCliCohortInspectFullDict_DisablesTruncation(t *testing.T) {
+	dir := t.TempDir()
+	var b strings.Builder
+	b.WriteString("id,city\n")
+	// 120 distinct categorical values, each repeated, so the importer
+	// keeps the column categorical and the dictionary exceeds
+	// descriptor.DefaultDictionaryLimit (100).
+	for rep := 0; rep < 2; rep++ {
+		for i := 0; i < 120; i++ {
+			b.WriteString(strconv.Itoa(rep*120 + i))
+			b.WriteString(",city")
+			b.WriteString(strconv.Itoa(i))
+			b.WriteString("\n")
+		}
+	}
+	csvPath := filepath.Join(dir, "wide.csv")
+	if err := os.WriteFile(csvPath, []byte(b.String()), 0644); err != nil {
+		t.Fatalf("write csv: %v", err)
+	}
+	pulsePath := filepath.Join(dir, "wide.pulse")
+	fsys := afero.NewOsFs()
+	job := pio.NewImportJob(csv.NewReader(fsys, csvPath), pulsePath)
+	job.FS = fsys
+	if _, err := job.Run(context.Background()); err != nil {
+		t.Fatalf("import wide cohort: %v", err)
+	}
+
+	dictOf := func(t *testing.T, args ...string) *descriptor.DictionaryInfo {
+		t.Helper()
+		out, err := runApp(t, args...)
+		if err != nil {
+			t.Fatalf("%v: %v\noutput: %s", args, err, out)
+		}
+		var env struct {
+			Data *descriptor.InspectResult `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(out), &env); err != nil {
+			t.Fatalf("invalid JSON: %v\noutput: %s", err, out)
+		}
+		if env.Data == nil {
+			t.Fatal("data is null")
+		}
+		for _, f := range env.Data.Fields {
+			if f.Dictionary != nil {
+				return f.Dictionary
+			}
+		}
+		t.Fatal("no dictionary-bearing field in inspect output")
+		return nil
+	}
+
+	truncated := dictOf(t, "cohort", "inspect", "--json", pulsePath)
+	if truncated.TotalEntries != 120 {
+		t.Fatalf("total_entries = %d, want 120", truncated.TotalEntries)
+	}
+	if !truncated.Truncated || len(truncated.Values) != descriptor.DefaultDictionaryLimit {
+		t.Errorf("default inspect: truncated=%v values=%d, want true/%d",
+			truncated.Truncated, len(truncated.Values), descriptor.DefaultDictionaryLimit)
+	}
+
+	full := dictOf(t, "cohort", "inspect", "--json", "--full-dict", pulsePath)
+	if full.Truncated || len(full.Values) != 120 {
+		t.Errorf("--full-dict inspect: truncated=%v values=%d, want false/120",
+			full.Truncated, len(full.Values))
+	}
+
+	// The TEXT renderer too, which is where the deleted
+	// TestCliCohortInspectFullDict looked: it asserted only that
+	// "Fields:" appeared, which prints with or without the flag, so it
+	// passed against a leaf that ignored --full-dict entirely. The
+	// truncation marker is the one thing the flag changes here.
+	textOf := func(t *testing.T, args ...string) string {
+		t.Helper()
+		out, err := runApp(t, args...)
+		if err != nil {
+			t.Fatalf("%v: %v\noutput: %s", args, err, out)
+		}
+		return out
+	}
+	if got := textOf(t, "cohort", "inspect", pulsePath); !strings.Contains(got, "dictionary: 120 entries (truncated)") {
+		t.Errorf("default text inspect does not report the truncation: %s", got)
+	}
+	plain := textOf(t, "cohort", "inspect", "--full-dict", pulsePath)
+	if !strings.Contains(plain, "dictionary: 120 entries") || strings.Contains(plain, "(truncated)") {
+		t.Errorf("--full-dict text inspect still reports a truncated dictionary: %s", plain)
+	}
+}

@@ -101,6 +101,8 @@ func synthFromProfileCmd() *cli.Command {
 			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
 			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
+			&cli.StringFlag{Name: "rules", Usage: "Load structural rules from a standalone JSON file (a bare array of rule objects — the same shape as a spec's \"rules\" key) and apply them to the profile-derived spec; REPLACES any rules the spec carries"},
+			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so `synth from-schema` reproduces this run at the same seed"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -110,6 +112,8 @@ func synthFromProfileCmd() *cli.Command {
 			rows := int(cmd.Int("rows"))
 			seed := cmd.Int("seed")
 			fidelityReport := cmd.String("fidelity-report")
+			rulesPath := cmd.String("rules")
+			emitSpecPath := cmd.String("emit-spec")
 			jsonOut := cmd.Bool("json")
 
 			fs := afero.NewOsFs()
@@ -123,17 +127,54 @@ func synthFromProfileCmd() *cli.Command {
 			}
 
 			spec, conflictWarnings := synth.SpecFromProfile(&prof, rows)
+
+			// --rules merges BEFORE --emit-spec writes and before
+			// generation runs, so the emitted document is the spec that
+			// actually generated. The load, the merge and the eager
+			// validation all live in synth.ApplyRulesFile; this leaf
+			// only supplies the path and routes the refusal, which
+			// carries E1-S2's own PULSE_SYNTH_RULE_* code plus the file
+			// path in details — writeCodedErrorEnvelope surfaces both
+			// rather than flattening them into a placeholder.
+			if rulesPath != "" {
+				if err := synth.ApplyRulesFile(fs, spec, rulesPath); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_RULES_ERROR", err)
+				}
+			}
+			// Emitted BEFORE generation on purpose: the document's
+			// diagnostic value (which models survived translation,
+			// which distribution each field reconstructed to, which
+			// conditional pairs were retired) is at its highest
+			// precisely when the run that follows fails.
+			if emitSpecPath != "" {
+				if err := synth.WriteSpec(fs, spec, emitSpecPath); err != nil {
+					return cliCodedError(cmd, jsonOut, "SYNTH_EMIT_SPEC_ERROR", err)
+				}
+			}
+
 			p, err := newPulse()
 			if err != nil {
 				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
 			}
 			// Capture-time thin-cell warnings (prof.Warnings, written to
 			// the profile document at `profile create` time) and
-			// synth-time conditional-relationship conflict warnings
-			// (conflictWarnings, computed just now against the composed
-			// Spec — see SpecFromProfile) share one channel into the
-			// fidelity report: FidelityWarnings. Capture-time first,
-			// synth-time second, matching the order each was produced.
+			// translation-time conditional-relationship conflict
+			// warnings (conflictWarnings, computed just now against the
+			// composed Spec — see SpecFromProfile) share one channel
+			// into the fidelity report: FidelityWarnings. Capture-time
+			// first, translation-time second, matching the order each
+			// was produced.
+			//
+			// These are the two channels that exist BEFORE generation,
+			// and they are deliberately still the only two passed here:
+			// conflictWarnings was computed against a spec that had not
+			// yet been merged with --rules, so it cannot name a
+			// relationship a rule retired. The third channel —
+			// everything generate() raised, the post-merge arbitration
+			// included — is folded onto the report by the facade, which
+			// is the only place holding both it and the report path.
+			// See mergeFidelityWarnings (synth_fidelity.go) for why the
+			// fold lives there rather than being re-derived here.
 			fidelityWarnings := append(append([]string{}, prof.Warnings...), conflictWarnings...)
 			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{
 				Seed:               int64(seed),
@@ -149,6 +190,9 @@ func synthFromProfileCmd() *cli.Command {
 			}
 			writeText(cmd.Writer, "Generated %d rows -> %s (rejected %d)\n",
 				res.RowsGenerated, res.OutputPath, res.RowsRejected)
+			if emitSpecPath != "" {
+				writeText(cmd.Writer, "Derived spec -> %s\n", emitSpecPath)
+			}
 			if res.FidelityReportPath != "" {
 				writeText(cmd.Writer, "Fidelity report -> %s\n", res.FidelityReportPath)
 			}
@@ -174,9 +218,12 @@ func synthFromProfileCmd() *cli.Command {
 // warning list for `synth from-profile`.
 //
 // The fidelity report is the ONLY document that carries all three
-// channels (see the call site), so without --fidelity-report there is no
-// file to point at and the honest answer is the flag that would make
-// one — not a path that does not exist.
+// channels (capture, translation, generation — the last folded in by
+// the facade, see mergeFidelityWarnings), so without --fidelity-report
+// there is no file to point at and the honest answer is the flag that
+// would make one — not a path that does not exist. Until E2-S3 this
+// pointer was not true even WITH the flag: the report held the first
+// two channels only.
 func fidelityWarningsLocation(reportPath string) string {
 	if reportPath == "" {
 		return "re-run with --fidelity-report to capture every line"
@@ -242,6 +289,7 @@ func profileCreateCmd() *cli.Command {
 			&cli.BoolFlag{Name: "fit-shape", Usage: "Fit a 2-component Gaussian mixture per numeric field and keep it only when it's a genuine BIC improvement over the plain normal (see skills/synthetic-data.md); a near-normal field is left as normal"},
 			&cli.BoolFlag{Name: "fit-models", Usage: "Fit one linear model per numeric field on the same scan — the field regressed on the cohort's categorical levels and set options — keeping the coefficients, residual scale and fitted residuals; a field with no usable predictors or a rank-deficient design is skipped with a warning, never a refusal"},
 			&cli.BoolFlag{Name: "residual-correlations", Usage: "Capture the full correlation submatrix among --fit-models' fitted residuals (every pair, not a top-K sample); a pair with too few co-present rows is recorded as unmeasured with a reason, never as rho=0. Requires --fit-models"},
+			&cli.StringFlag{Name: "suggest-rules", Usage: "Detect structural rules on the same scan — gating relationships (`set_null`), co-missing question blocks (`null_together`) and exact single-source dependencies (`set_expr`) — and write them to this path as a standalone rules file (a bare JSON array, the shape `synth from-profile --rules` consumes). PROPOSED, never applied: read the `_evidence` on each candidate, correct it, delete what you do not believe. Near-miss blocks, almost-determined pairs, always-null and constant columns are reported in the warnings rather than proposed. Dependency detection is bounded to packed_bool/u4 targets and a single low-cardinality source of at most 16 levels. The profile document itself is unchanged"},
 			&cli.IntFlag{Name: "sample-limit", Usage: "Cap rows ingested for the profile (0 = unlimited)"},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed for --conditional's categorical-categorical reservoir sampling and --fit-models' residual reservoir (each draws from its own stream)", Value: 0},
 			&cli.BoolFlag{Name: "json", Usage: "Print envelope to stdout as well"},
@@ -257,6 +305,7 @@ func profileCreateCmd() *cli.Command {
 			fitShape := cmd.Bool("fit-shape")
 			fitModels := cmd.Bool("fit-models")
 			residualCorrelations := cmd.Bool("residual-correlations")
+			suggestRulesPath := cmd.String("suggest-rules")
 			sampleLimit := int(cmd.Int("sample-limit"))
 			seed := cmd.Int("seed")
 			jsonOut := cmd.Bool("json")
@@ -275,6 +324,7 @@ func profileCreateCmd() *cli.Command {
 				FitModels:           fitModels,
 
 				FitResidualCorrelations: residualCorrelations,
+				SuggestRules:            suggestRulesPath != "",
 
 				SampleLimit: sampleLimit,
 				Seed:        int64(seed),
@@ -290,10 +340,23 @@ func profileCreateCmd() *cli.Command {
 			if err := afero.WriteFile(fs, output, out, 0644); err != nil {
 				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
 			}
+			// The candidate file is written AFTER the profile document,
+			// so a failing write leaves the capture the caller paid for.
+			// It is written even when empty — `[]` is the honest answer
+			// to "what did detection find", and leaving the previous
+			// run's file in place would answer a question nobody asked.
+			if suggestRulesPath != "" {
+				if err := synth.WriteRuleCandidates(fs, prof.RuleCandidates, suggestRulesPath); err != nil {
+					return cliCodedError(cmd, jsonOut, "SUGGEST_RULES_ERROR", err)
+				}
+			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, prof)
 			}
 			writeText(cmd.Writer, "Profiled %d rows from %s -> %s\n", prof.RowCount, input, output)
+			if suggestRulesPath != "" {
+				writeSuggestedRulesCaveat(errWriter(cmd), len(prof.RuleCandidates), suggestRulesPath)
+			}
 			// Capture-time warnings — thin pairs, shrunk levels,
 			// zero-predictor models, skipped models, unmeasured residual
 			// pairs — used to reach the terminal nowhere at all, so a
@@ -313,4 +376,20 @@ func cliError(cmd *cli.Command, jsonOut bool, code, msg string) error {
 		return writeErrorEnvelope(cmd.Writer, code, msg)
 	}
 	return fmt.Errorf("%s: %s", code, msg)
+}
+
+// cliCodedError is cliError for a failure that already carries its own
+// coded error. It preserves the code and the details map instead of
+// stringifying both into a placeholder — a rules-file refusal's value
+// is precisely its PULSE_SYNTH_RULE_* code (usable with
+// `pulse errors lookup`) and its details, which name the rule index,
+// the slot, the field and the file.
+//
+// On the text path the error is returned unwrapped, so errors.As still
+// finds the code, and its own Error() already renders as "CODE: message".
+func cliCodedError(cmd *cli.Command, jsonOut bool, fallback string, err error) error {
+	if jsonOut {
+		return writeCodedErrorEnvelope(cmd.Writer, fallback, err)
+	}
+	return err
 }

@@ -9,19 +9,15 @@ applies_to: facet
 examples_tags: [overlay, facet, hypothesis-test, distribution-shape]
 ---
 
-Rides on `FacetRequest.Overlays`. Overlays decorate the host result; they do not emit `Response.Components`.
+Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref.Population.Cohort` | string | (required) | Comparison-population cohort name. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` must be `group`. `Ref.Population.Cohort` required — the comparison-population cohort; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0`.
 
 ## Host shape
 
-FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (sibling `OVERLAY_CHISQ_VS_POP` covers discrete arm). Reuses `kolmogorovSurvival` backing `TEST_KS`.
+FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (sibling `OVERLAY_CHISQ_VS_POP` covers the discrete arm). Reuses `kolmogorovSurvival` backing `TEST_KS`.
 
 ## Output
 
@@ -29,12 +25,11 @@ SCALAR — `Payload.Scalar` carries KS `D`; `OverlaySummary{Statistic, PValue, P
 
 ## Gotchas
 
-- Empirical-CDF reconstruction path: (1) histogram (both arms have one — preferred), (2) percentile-map (fallback), (3) Welford-only (degenerate → NaN + `PULSE_OVERLAY_REF_ZERO`).
-- Population resolver retains only Welford / histogram / percentiles — raw values discarded. Set `IncludeHistogram=true` or `NumericPercentiles=[...]` on BOTH arms.
+- Empirical-CDF path: histogram (preferred), else percentile-map, else Welford-only (degenerate → NaN + `PULSE_OVERLAY_REF_ZERO`).
+- The resolver retains only Welford / histogram / percentiles; raw values are discarded. Set `IncludeHistogram=true` or `NumericPercentiles=[...]` on BOTH arms.
 - Empty host or pop (`n_subset == 0` / `n_pop == 0`) → NaN + `PULSE_OVERLAY_REF_ZERO`.
-- Mismatched histogram edges → fall through to percentile path, else `PULSE_OVERLAY_REF_ZERO`.
-- Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- Buffered (inferential family).
+- Mismatched histogram edges fall to the percentile path, else `PULSE_OVERLAY_REF_ZERO`.
+- Buffered (inferential).
 
 ## See
 

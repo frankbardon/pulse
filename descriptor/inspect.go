@@ -47,6 +47,14 @@ type ShardInfo struct {
 // canonical schema carried in the reserved _schema.pulse entry, and
 // RecordCount (when present in metadata) plus aggregate counting via
 // per-shard headers populate the cumulative total — see ShardInfo.
+//
+// RecordCount is populated on BOTH paths: the cumulative per-shard sum
+// for an archive, and (payload_bytes / Schema.RecordByteSize) for a
+// single-file cohort — derived from the file length, never by reading a
+// record. A real 0 means an empty cohort. When the payload length is
+// not a whole multiple of the record stride (a truncated tail) the
+// count is the floor and the envelope carries an ENCODING_INVALID
+// warning naming the leftover bytes.
 type InspectResult struct {
 	FieldCount  int             `json:"field_count"`
 	Fields      []*InspectField `json:"fields"`
@@ -117,7 +125,58 @@ func Inspect(fileData io.ReadSeeker, opts *InspectOptions) *Envelope {
 		result.Fields[i] = renderInspectField(f, limit)
 	}
 
+	// Record count for a single-file cohort is derivable from the bytes
+	// remaining after the header + schema — no record is read. The
+	// archive path populates RecordCount from per-shard headers; before
+	// this, the single-file path left it at its zero value, which is
+	// indistinguishable on the wire from a genuinely empty cohort.
+	count, trailing, ok := deriveSingleFileRecordCount(fileData, schema)
+	if ok {
+		result.RecordCount = count
+		if trailing != 0 {
+			env.AddWarning(string(errors.ENCODING_INVALID),
+				"cohort payload length is not a whole multiple of the record stride; record_count is the floor",
+				map[string]any{
+					"record_stride":  schema.RecordByteSize(),
+					"trailing_bytes": trailing,
+				})
+		}
+	}
+
 	return env
+}
+
+// deriveSingleFileRecordCount returns the number of whole records in a
+// single-file cohort, plus any leftover trailing bytes that do not
+// complete a record. The arithmetic is not its own: it measures the
+// payload region and hands it to encoding.Schema.RecordCountForPayload,
+// which is the ONE derivation Service.CountRecords calls too, so the
+// two arms cannot disagree about the NUMBER over identical bytes. They
+// disagree only about observability, deliberately — this arm has an
+// envelope and warns about a truncated tail, CountRecords has no
+// warning channel and stays silent (see RecordCountForPayload).
+//
+// It must be called immediately after ReadHeader + ReadSchema, with the
+// stream positioned at the first record. Cost is two seeks: no record
+// byte is read, so the header-only inspect contract holds. The stream
+// is left exactly where it was found.
+//
+// ok is false when the file size cannot be established or the schema's
+// stride is zero (a field-less schema has no records to count); the
+// caller then leaves RecordCount at 0.
+func deriveSingleFileRecordCount(rs io.ReadSeeker, schema *encoding.Schema) (count, trailing int64, ok bool) {
+	payloadStart, err := rs.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0, 0, false
+	}
+	end, err := rs.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, 0, false
+	}
+	if _, err := rs.Seek(payloadStart, io.SeekStart); err != nil {
+		return 0, 0, false
+	}
+	return schema.RecordCountForPayload(end - payloadStart)
 }
 
 // InspectFromBytes inspects either a single-file .pulse cohort or a

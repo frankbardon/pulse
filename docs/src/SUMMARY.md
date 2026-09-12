@@ -25,6 +25,7 @@
 - [synth from-schema](cli/synth-from-schema.md)
 - [synth from-profile](cli/synth-from-profile.md)
 - [profile create](cli/profile-create.md)
+- [Synth calibration & rationale](cli/synth-calibration.md)
 - [mcp](cli/mcp.md)
 - [Flag Reference](cli/flags.md)
 

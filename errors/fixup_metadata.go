@@ -537,6 +537,101 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_RULE_FIELD_UNKNOWN: {
+		Message: "A synth rule names a field the spec does not declare, so the rule could never fire.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*"},
+				Hint:   "Check the field name against the spec's `fields[].name` (for a profile-derived run, dump it with `synth from-profile --emit-spec`); a rule over an undeclared field is refused, never ignored.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_EXPR_INVALID: {
+		Message: "A synth rule's `when` predicate or one of its `set_expr` expressions does not compile against the row environment.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "When"},
+				Hint:   "Compile-check the expression against the row's own types: every scalar (including packed_bool) is a number, so write `flag == 1` not bare `flag`; a categorical is a string; a set_* is a map (`flags[\"opt\"]`); test absence with `isnull(field)`. `when` must return a bool.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_VALUE_INVALID: {
+		Message: "The value a synth rule wants to write cannot be written to its target field: wrong shape, a number outside the field type's range, or a value outside the domain the field's distribution declares. `details.slot` says whether it came from a `set` literal or a `set_expr` result.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "Set"},
+				Hint:   "Match the literal to the target field's type: a number (or true/false) for a scalar, within that type's range; a declared `params.values` entry for a categorical_*; an array of declared `params.options` for a set_*.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Match the expression's RESULT to the target: a bool (lands as 1/0) or a number for any scalar, in that type's range; a declared category string for a categorical_*; a list of declared options for a set_*. A decimal128 takes a number from an expression and an exact string only from `set`.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_EMPTY: {
+		Message: "A synth rule declares no action slot, so it could only evaluate its `when` and discard the answer.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*"},
+				Hint:   "Give the rule an action — `set`, `set_expr`, `set_null` or `null_together` — or delete the rule.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_CONFLICT: {
+		Message: "One synth rule names the same field in two slots that disagree about what happens to it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*"},
+				Hint:   "Drop the field from one of the two slots; if both outcomes are genuinely wanted, split them into two rules, which apply in declaration order with last write wins.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_BLOCK_INVALID: {
+		Message: "A synth rule's `null_together` block does not name at least two distinct fields.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*", "NullTogether"},
+				Hint:   "Name at least two distinct fields in the block, or use `set_null` for a single field — `null_together` exists to make one null decision cover several fields.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE: {
+		Message: "A synth rule's `set_null` names a field that is not declared nullable, so the row would carry the type's zero rather than a null and the file could not show the rule fired.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Fields", "*", "Nullable"},
+				Hint:   "Declare the field `\"nullable\": true` in the spec — the fix is on the FIELD, not the rule. On a profile-derived run the field is nullable only if the source had nulls in it: dump the spec with `synth from-profile --emit-spec`, add the flag, and generate with `synth from-schema`.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*", "SetNull"},
+				Hint:   "Or drop the field from `set_null` if a real 0 is what the cohort should carry — a non-nullable field has no way to record absence, and `null_together` will not help: it copies a gate's decision rather than making one.",
+			},
+		},
+	},
+	PULSE_SYNTH_RULE_OWNERSHIP_INVALID: {
+		Message: "A synth rule declares `\"owns_nulls\": true` but names no field in `set_null`, so the ownership claim has nothing to apply to.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Rules", "*", "SetNull"},
+				Hint:   "Name the fields whose absence this rule is the only source of. `owns_nulls` is scoped to `set_null` and to nothing else: it discards those fields' own `null_rate` draw so the rule's gate is the single source of their nulls.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Rules", "*", "OwnsNulls"},
+				Hint:   "Or drop `owns_nulls`. A `null_together` block already discards every non-gate member's own null_rate by copying the gate's decision, so a block needs no ownership flag.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

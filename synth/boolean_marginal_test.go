@@ -2,6 +2,7 @@ package synth_test
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/synth"
@@ -168,7 +169,12 @@ func TestSynth_BooleanDegeneratePrevalence(t *testing.T) {
 
 // boolPairSpec is a four-region cohort whose boolean target is written by
 // a conditional pair rather than by its own sampler.
-func boolPairSpec(rows int, bernoulli bool) *synth.Spec {
+//
+// The target's MARGINAL is what now decides the cell draw — the pair's
+// `bernoulli` wire flag is retired and read by nothing — so the
+// distribution is the knob these tests turn. `flag` exists only so the
+// retired slot can be exercised on a target that contradicts it.
+func boolPairSpec(rows int, dist string, params map[string]any, flag bool) *synth.Spec {
 	return &synth.Spec{
 		RowCount: rows,
 		Fields: []synth.FieldSpec{
@@ -182,12 +188,12 @@ func boolPairSpec(rows int, bernoulli bool) *synth.Spec {
 			},
 			{
 				Name: "aware", Type: "packed_bool",
-				Distribution: synth.DistBernoulli,
-				Params:       map[string]any{"p": 0.275},
+				Distribution: dist,
+				Params:       params,
 			},
 		},
 		CategoricalNumericPairs: []synth.CategoricalNumericPairSpec{{
-			A: "region", B: "aware", Bernoulli: bernoulli,
+			A: "region", B: "aware", Bernoulli: flag,
 			Min: 0, Max: 1, HasClamp: true,
 			Categories: []synth.CategoricalNumericCategorySpec{
 				{Category: "north", Mean: 0.60, Std: 0.49},
@@ -199,6 +205,14 @@ func boolPairSpec(rows int, bernoulli bool) *synth.Spec {
 	}
 }
 
+// boolPairBernoulliSpec is the ordinary shape: the target reconstructs as
+// a bernoulli step and the pair says nothing about it. It is what
+// SpecFromProfile now emits, and what the retired flag used to be
+// required for.
+func boolPairBernoulliSpec(rows int) *synth.Spec {
+	return boolPairSpec(rows, synth.DistBernoulli, map[string]any{"p": 0.275}, false)
+}
+
 // TestSynth_BooleanConditionalPairPrevalence covers the second writer. A
 // captured categorical-numeric pair overwrites the target outright from
 // the cell's own moments, so without the Bernoulli flag it reproduces the
@@ -207,7 +221,7 @@ func boolPairSpec(rows int, bernoulli bool) *synth.Spec {
 // contrast the pair exists to carry).
 func TestSynth_BooleanConditionalPairPrevalence(t *testing.T) {
 	const rows = 60000
-	data, _, err := synth.SynthBytes(boolPairSpec(rows, true), synth.Options{Seed: 910})
+	data, _, err := synth.SynthBytes(boolPairBernoulliSpec(rows), synth.Options{Seed: 910})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
 	}
@@ -232,15 +246,26 @@ func TestSynth_BooleanConditionalPairPrevalence(t *testing.T) {
 	}
 }
 
-// TestSynth_BooleanConditionalPairWithoutFlagIsBiased is the deliberate
-// negative. The continuous arm is RETAINED for a hand-authored spec that
-// omits the flag, and it is biased rather than correct — this test states
-// that plainly so nobody reads the retained arm as an equally valid
-// choice, and so a future attempt to "unify" the two arms has to confront
-// the number.
-func TestSynth_BooleanConditionalPairWithoutFlagIsBiased(t *testing.T) {
+// TestSynth_BooleanConditionalPairOnAContinuousMarginalIsBiased is the
+// deliberate negative. The continuous arm is RETAINED for the one shape
+// that still reaches it — a HAND-AUTHORED spec putting a continuous
+// distribution on a packed_bool field — and it is biased rather than
+// correct. The test states that plainly so nobody reads the retained arm
+// as an equally valid choice, and so a future attempt to "unify" the two
+// arms has to confront the number.
+//
+// It used to reach that arm by omitting the pair's `bernoulli` flag over
+// a bernoulli-reconstructed target. That shape is gone: the flag is
+// retired and the draw follows the target's own marginal, so an unflagged
+// pair over a bernoulli field is now CORRECT — which is the bug fix, and
+// is asserted by TestSynth_BooleanConditionalPairDerivesFromTheMarginal.
+// The premise here survives intact because it never depended on the flag;
+// it depended on the cell draw being continuous.
+func TestSynth_BooleanConditionalPairOnAContinuousMarginalIsBiased(t *testing.T) {
 	const rows = 60000
-	data, _, err := synth.SynthBytes(boolPairSpec(rows, false), synth.Options{Seed: 911})
+	spec := boolPairSpec(rows, synth.DistNormal,
+		map[string]any{"mean": 0.275, "std": 0.45, "min": 0.0, "max": 1.0}, false)
+	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 911})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
 	}
@@ -260,9 +285,132 @@ func TestSynth_BooleanConditionalPairWithoutFlagIsBiased(t *testing.T) {
 	// rounded at 0.5 overstates it; the point of the test is only that
 	// it does, and that the flagged arm above does not.
 	if math.Abs(got-0.05) <= 0.01 {
-		t.Errorf("unflagged continuous arm produced %.4f for a 0.05 cell — if it is now accurate, "+
-			"the arm has changed and this test's premise (and the Bernoulli flag's justification) needs revisiting", got)
+		t.Errorf("continuous arm produced %.4f for a 0.05 cell — if it is now accurate, "+
+			"the arm has changed and this test's premise needs revisiting", got)
 	}
+}
+
+// TestSynth_BooleanConditionalPairDerivesFromTheMarginal is the gate on
+// the retirement, and it asserts BOTH halves in one test because each is
+// trivially satisfiable by abandoning the other:
+//
+//  1. A pair over a bernoulli-reconstructed target draws the step even
+//     though the pair declares NOTHING. This is the bug: the SET-numeric
+//     arm of SpecFromProfile never wrote the flag, so a boolean target
+//     there took the clamped-normal draw once per cell.
+//  2. A pair still DECLARING the retired flag over a target whose
+//     marginal is not bernoulli does not get the step, and is WARNED
+//     about rather than silently ignored.
+func TestSynth_BooleanConditionalPairDerivesFromTheMarginal(t *testing.T) {
+	const rows = 60000
+
+	t.Run("unflagged bernoulli target draws the step", func(t *testing.T) {
+		data, res, err := synth.SynthBytes(boolPairBernoulliSpec(rows), synth.Options{Seed: 912})
+		if err != nil {
+			t.Fatalf("SynthBytes: %v", err)
+		}
+		for _, w := range res.Warnings {
+			if strings.Contains(w, "retired `bernoulli` flag") {
+				t.Errorf("agreement must be silent, got %q", w)
+			}
+		}
+		flags := readF64Field(t, data, "aware")
+		regions := readCategoricalField(t, data, "region")
+		var west []float64
+		for i := range flags {
+			if regions[i] == "west" {
+				west = append(west, flags[i])
+			}
+		}
+		if len(west) == 0 {
+			t.Fatal("no west rows generated")
+		}
+		// The cell's captured prevalence is 0.05. The continuous arm this
+		// replaces produced ~0.41 for it.
+		assertPrevalence(t, "cell west", west, 0.05, 4)
+	})
+
+	t.Run("set-numeric pair over a bernoulli target draws the step", func(t *testing.T) {
+		// The shipped bug, in its own arm. SpecFromProfile's SET-numeric
+		// arm admitted a DistBernoulli target and never wrote the flag,
+		// so this exact spec shape drew a clamped normal per cell. No
+		// pair here can declare anything — the slot is retired.
+		spec := &synth.Spec{
+			RowCount: rows,
+			Fields: []synth.FieldSpec{
+				{
+					Name: "channels", Type: "set_u8", Distribution: synth.DistSetBernoulli,
+					Params: map[string]any{
+						"options":     []any{"tv", "radio"},
+						"frequencies": []any{0.5, 0.3},
+					},
+				},
+				{
+					Name: "aware", Type: "packed_bool", Distribution: synth.DistBernoulli,
+					Params: map[string]any{"p": 0.275},
+				},
+			},
+			SetNumericPairs: []synth.SetNumericPairSpec{{
+				Set: "channels", Option: "tv", Numeric: "aware",
+				Min: 0, Max: 1, HasClamp: true,
+				Categories: []synth.CategoricalNumericCategorySpec{
+					{Category: "selected", Mean: 0.60, Std: 0.49},
+					{Category: "not_selected", Mean: 0.05, Std: 0.22},
+				},
+			}},
+		}
+		data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 914})
+		if err != nil {
+			t.Fatalf("SynthBytes: %v", err)
+		}
+		flags := readF64Field(t, data, "aware")
+		_, chanLabels, _ := readSetFieldRows(t, data, "channels")
+		var sel, notSel []float64
+		for i := range flags {
+			if hasLabel(chanLabels[i], "tv") {
+				sel = append(sel, flags[i])
+			} else {
+				notSel = append(notSel, flags[i])
+			}
+		}
+		if len(sel) == 0 || len(notSel) == 0 {
+			t.Fatalf("degenerate fixture: %d selected / %d not-selected", len(sel), len(notSel))
+		}
+		assertPrevalence(t, "selected", sel, 0.60, 4)
+		assertPrevalence(t, "not_selected", notSel, 0.05, 4)
+	})
+
+	t.Run("retired flag over a non-bernoulli target is ignored and warned", func(t *testing.T) {
+		spec := boolPairSpec(rows, synth.DistNormal,
+			map[string]any{"mean": 0.275, "std": 0.45, "min": 0.0, "max": 1.0}, true)
+		data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 913})
+		if err != nil {
+			t.Fatalf("SynthBytes: %v", err)
+		}
+		var warned bool
+		for _, w := range res.Warnings {
+			if strings.Contains(w, "retired `bernoulli` flag") && strings.Contains(w, `"aware"`) {
+				warned = true
+			}
+		}
+		if !warned {
+			t.Errorf("a declared-but-ignored flag must be reported, got warnings %v", res.Warnings)
+		}
+		flags := readF64Field(t, data, "aware")
+		regions := readCategoricalField(t, data, "region")
+		var west []float64
+		for i := range flags {
+			if regions[i] == "west" {
+				west = append(west, flags[i])
+			}
+		}
+		if len(west) == 0 {
+			t.Fatal("no west rows generated")
+		}
+		if got := boolPrevalence(west); math.Abs(got-0.05) <= 0.01 {
+			t.Errorf("cell west prevalence %.4f — the retired flag must NOT have re-enabled the step draw", got)
+		}
+	})
 }
 
 // boolModelSpec is the same four-region cohort with the target written by

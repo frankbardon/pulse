@@ -529,3 +529,827 @@ func TestSynthFromProfileCLI_MissingSourceFlagErrors(t *testing.T) {
 		t.Fatal("expected error for missing required --source flag")
 	}
 }
+
+// ---------- synth from-profile --emit-spec / --rules (E2-S1) ----------
+
+// richFromProfileFixture builds a source cohort with a numeric, a
+// categorical, a boolean and a nullable numeric column, plus a
+// --conditional profile over it. Deliberately wider than
+// synthFromProfileFixture's single f64: the round trip below is only
+// as strong as the number of distinct slots SpecFromProfile populates,
+// and a one-numeric-field spec exercises neither the categorical
+// dictionary arm nor the conditional-pair arm.
+func richFromProfileFixture(t *testing.T, dir string, rows int, seed int64) (sourcePath, profilePath string) {
+	t.Helper()
+	sourcePath = filepath.Join(dir, "rich-source.pulse")
+	synthLibraryCohort(t, sourcePath, []synth.FieldSpec{
+		{Name: "score", Type: "f64", Nullable: true, NullRate: 0.1, Distribution: synth.DistNormal,
+			Params: map[string]any{"mean": 10.0, "std": 3.0}},
+		{Name: "region", Type: "categorical_u8", Distribution: synth.DistWeightedCategorical,
+			Params: map[string]any{"values": []any{"us", "eu", "apac"}, "weights": []any{3.0, 2.0, 1.0}}},
+		{Name: "aware", Type: "packed_bool", Distribution: synth.DistBernoulli,
+			Params: map[string]any{"p": 0.3}},
+		{Name: "spend", Type: "f64", Nullable: true, NullRate: 0.25, Distribution: synth.DistNormal,
+			Params: map[string]any{"mean": 50.0, "std": 12.0}},
+	}, rows, seed)
+
+	profilePath = filepath.Join(dir, "rich-profile.json")
+	var buf bytes.Buffer
+	if err := runProfileCLI(t, &buf, "create", "--input", sourcePath, "--output", profilePath, "--conditional"); err != nil {
+		t.Fatalf("profile create (rich fixture): %v", err)
+	}
+	return sourcePath, profilePath
+}
+
+// readCohortRows decodes every record of a .pulse file into a
+// per-field value map keyed by field name, alongside the null flags. A
+// categorical field is resolved through the file's OWN dictionary and
+// returned as its label string; every other field is returned as a
+// float64.
+//
+// The label resolution is load-bearing rather than convenient. A
+// from-profile output's merged schema inherits the SOURCE cohort's
+// dictionary (insertion order of the real rows), while a from-schema
+// output builds its dictionary from the emitted spec's `values` list
+// (frequency order, as `Categorical.Top` ranks it). The same category
+// therefore legitimately carries a different ID in the two files, and
+// comparing IDs would report a difference where the cohorts agree.
+func readCohortRows(t *testing.T, path string) (vals []map[string]any, nulls []map[string]bool) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", path, err)
+	}
+	r := bytes.NewReader(raw)
+	if err := encoding.ReadHeader(r); err != nil {
+		t.Fatalf("ReadHeader(%s): %v", path, err)
+	}
+	schema, err := encoding.ReadSchema(r)
+	if err != nil {
+		t.Fatalf("ReadSchema(%s): %v", path, err)
+	}
+	rr := encoding.NewRecordReader(r, schema)
+	for {
+		v := make(map[string]float64)
+		n := make(map[string]bool)
+		if err := rr.ReadRecord(v, n); err != nil {
+			break
+		}
+		row := make(map[string]any, len(v))
+		for name, f := range v {
+			fld := schema.Field(name)
+			if fld != nil && fld.Dictionary != nil {
+				row[name] = fld.Dictionary.Resolve(uint32(f))
+				continue
+			}
+			row[name] = f
+		}
+		vals = append(vals, row)
+		nulls = append(nulls, n)
+	}
+	return vals, nulls
+}
+
+// TestSynthFromProfileCLI_EmitSpecRoundTripsThroughFromSchema is the
+// E2-S1 acceptance criterion driven through BOTH real leaves:
+// `from-profile --emit-spec` writes the derived spec, `from-schema`
+// consumes that file at the same seed, and the rows the two produce
+// must agree value for value.
+//
+// File-level byte-identity is not available here and its absence is
+// structural rather than a weakened assertion: from-profile's output
+// additionally carries every source row and an appended `_synthetic`
+// column, so its records are re-encoded into a merged schema with
+// different offsets and a different bitmap width. The library-side
+// test synth.TestEmitSpec_RoundTripsToByteIdenticalCohort makes the
+// byte comparison directly, on the generated partition alone; this one
+// proves the two CLI leaves are actually wired to those code paths.
+func TestSynthFromProfileCLI_EmitSpecRoundTripsThroughFromSchema(t *testing.T) {
+	dir := t.TempDir()
+	const sourceRows = 120
+	const newRows = 60
+	const seed = "9"
+	source, profile := richFromProfileFixture(t, dir, sourceRows, 3)
+
+	emitted := filepath.Join(dir, "derived-spec.json")
+	fromProfileOut := filepath.Join(dir, "from-profile.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", fromProfileOut,
+		"--rows", strconv.Itoa(newRows), "--seed", seed, "--emit-spec", emitted); err != nil {
+		t.Fatalf("synth from-profile --emit-spec: %v", err)
+	}
+	if !strings.Contains(buf.String(), emitted) {
+		t.Errorf("stdout does not name the emitted spec path; got %q", buf.String())
+	}
+
+	specRaw, err := os.ReadFile(emitted)
+	if err != nil {
+		t.Fatalf("--emit-spec wrote no file at %q: %v", emitted, err)
+	}
+	if !bytes.Contains(specRaw, []byte("\n  \"fields\": [")) {
+		t.Error("emitted spec is not indented")
+	}
+	spec, err := synth.ParseSpec(specRaw)
+	if err != nil {
+		t.Fatalf("emitted spec does not parse: %v\n%s", err, specRaw)
+	}
+	if spec.RowCount != newRows {
+		t.Errorf("emitted row_count = %d, want %d (--rows)", spec.RowCount, newRows)
+	}
+	if len(spec.Fields) != 4 {
+		t.Fatalf("emitted spec declares %d fields, want the source's 4", len(spec.Fields))
+	}
+
+	fromSchemaOut := filepath.Join(dir, "from-schema.pulse")
+	buf.Reset()
+	if err := runSynthCLI(t, &buf, "from-schema",
+		"--spec", emitted, "--output", fromSchemaOut, "--seed", seed); err != nil {
+		t.Fatalf("synth from-schema (emitted spec): %v", err)
+	}
+
+	profileVals, profileNulls := readCohortRows(t, fromProfileOut)
+	schemaVals, schemaNulls := readCohortRows(t, fromSchemaOut)
+	if len(profileVals) != sourceRows+newRows {
+		t.Fatalf("from-profile output has %d records, want %d", len(profileVals), sourceRows+newRows)
+	}
+	if len(schemaVals) != newRows {
+		t.Fatalf("from-schema output has %d records, want %d", len(schemaVals), newRows)
+	}
+
+	// The generated partition is the tail of the from-profile output,
+	// tagged _synthetic = 1; the from-schema output is that partition
+	// on its own.
+	fields := []string{"score", "region", "aware", "spend"}
+	for i := 0; i < newRows; i++ {
+		gen := profileVals[sourceRows+i]
+		if gen["_synthetic"] != float64(1) {
+			t.Fatalf("record %d of the from-profile tail is not tagged _synthetic", sourceRows+i)
+		}
+		for _, f := range fields {
+			if gen[f] != schemaVals[i][f] {
+				t.Fatalf("row %d field %q: from-profile %v, from-schema %v — the emitted spec did not "+
+					"reproduce the run it was emitted from", i, f, gen[f], schemaVals[i][f])
+			}
+			if profileNulls[sourceRows+i][f] != schemaNulls[i][f] {
+				t.Fatalf("row %d field %q: null flag differs between the two leaves", i, f)
+			}
+		}
+	}
+}
+
+// TestSynthFromProfileCLI_EmitSpecDoesNotChangeTheCohort pins
+// --emit-spec as a pure diagnostic: the cohort a run produces must be
+// byte-identical whether or not the spec was written out.
+func TestSynthFromProfileCLI_EmitSpecDoesNotChangeTheCohort(t *testing.T) {
+	dir := t.TempDir()
+	source, profile := richFromProfileFixture(t, dir, 60, 4)
+
+	run := func(name string, extra ...string) []byte {
+		out := filepath.Join(dir, name+".pulse")
+		var buf bytes.Buffer
+		args := append([]string{"from-profile",
+			"--profile", profile, "--source", source, "--output", out,
+			"--rows", "30", "--seed", "12"}, extra...)
+		if err := runSynthCLI(t, &buf, args...); err != nil {
+			t.Fatalf("synth from-profile (%s): %v", name, err)
+		}
+		data, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatalf("ReadFile(%s): %v", out, err)
+		}
+		return data
+	}
+
+	plain := run("plain")
+	withEmit := run("emitted", "--emit-spec", filepath.Join(dir, "spec.json"))
+	if !bytes.Equal(plain, withEmit) {
+		t.Error("--emit-spec changed the generated cohort; it must be a pure diagnostic")
+	}
+}
+
+// TestSynthFromProfileCLI_RulesFileAppliesToGeneratedRows drives the
+// --rules half end to end. The two halves are asserted in ONE test
+// because each is trivially satisfiable by abandoning the other: a
+// flag that is parsed and ignored leaves the cohort unchanged, and a
+// cohort that changed proves nothing unless the change is the rule's.
+func TestSynthFromProfileCLI_RulesFileAppliesToGeneratedRows(t *testing.T) {
+	dir := t.TempDir()
+	const sourceRows = 80
+	const newRows = 200
+	source, profile := richFromProfileFixture(t, dir, sourceRows, 5)
+
+	rulesPath := filepath.Join(dir, "rules.json")
+	// A gate on the boolean screener plus a block null: exactly the
+	// shape the motivating survey needs.
+	rules := `[{"when": "aware == 0", "set_null": ["spend"], "null_together": ["spend", "score"]}]`
+	if err := os.WriteFile(rulesPath, []byte(rules), 0o644); err != nil {
+		t.Fatalf("WriteFile(rules): %v", err)
+	}
+
+	emitted := filepath.Join(dir, "with-rules-spec.json")
+	out := filepath.Join(dir, "ruled.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", out,
+		"--rows", strconv.Itoa(newRows), "--seed", "13",
+		"--rules", rulesPath, "--emit-spec", emitted); err != nil {
+		t.Fatalf("synth from-profile --rules: %v", err)
+	}
+
+	// --rules and --emit-spec compose: the emitted document carries
+	// the merged rules, so an analyst can inspect what theirs became.
+	specRaw, err := os.ReadFile(emitted)
+	if err != nil {
+		t.Fatalf("ReadFile(emitted spec): %v", err)
+	}
+	spec, err := synth.ParseSpec(specRaw)
+	if err != nil {
+		t.Fatalf("ParseSpec(emitted spec): %v", err)
+	}
+	if len(spec.Rules) != 1 || spec.Rules[0].When != "aware == 0" {
+		t.Fatalf("emitted spec Rules = %+v, want the merged rules file", spec.Rules)
+	}
+
+	vals, nulls := readCohortRows(t, out)
+	gated, gatedNull, ungatedNonNull := 0, 0, 0
+	for i := sourceRows; i < len(vals); i++ {
+		if vals[i]["aware"] != float64(0) {
+			if !nulls[i]["spend"] && !nulls[i]["score"] {
+				ungatedNonNull++
+			}
+			continue
+		}
+		gated++
+		if nulls[i]["spend"] && nulls[i]["score"] {
+			gatedNull++
+		}
+	}
+	if gated == 0 {
+		t.Fatal("no generated row satisfied the gate; the fixture cannot show the rule firing")
+	}
+	if gatedNull != gated {
+		t.Errorf("%d of %d gated rows carry the nulled block; want all of them — the --rules file did not fire",
+			gatedNull, gated)
+	}
+	if ungatedNonNull == 0 {
+		t.Error("every ungated row is nulled too; the rule is not gated by its `when`")
+	}
+}
+
+// TestSynthFromProfileCLI_RulesRefusalNamesTheFile covers the two
+// refusal classes the story pins, on the --json arm so the envelope's
+// own error shape is what gets asserted: the code must be E1-S2's
+// rather than a leaf placeholder, and details must name the file.
+func TestSynthFromProfileCLI_RulesRefusalNamesTheFile(t *testing.T) {
+	dir := t.TempDir()
+	source, profile := richFromProfileFixture(t, dir, 40, 6)
+
+	cases := []struct {
+		name     string
+		body     string
+		wantCode string
+	}{
+		{"unknown_field", `[{"set_null": ["nosuchfield"]}]`, "PULSE_SYNTH_RULE_FIELD_UNKNOWN"},
+		{"malformed", `[{"set_null":`, "SERVICE_VALIDATION"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rulesPath := filepath.Join(dir, tc.name+".json")
+			if err := os.WriteFile(rulesPath, []byte(tc.body), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+			out := filepath.Join(dir, tc.name+".pulse")
+			var buf bytes.Buffer
+			if err := runSynthCLI(t, &buf, "from-profile",
+				"--profile", profile, "--source", source, "--output", out,
+				"--rows", "5", "--seed", "1", "--rules", rulesPath, "--json"); err != nil {
+				t.Fatalf("--json refusals are written to the envelope, not returned: %v", err)
+			}
+			var env struct {
+				FormatVersion string `json:"format_version"`
+				Errors        []struct {
+					Code    string         `json:"code"`
+					Message string         `json:"message"`
+					Details map[string]any `json:"details"`
+				} `json:"errors"`
+			}
+			if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
+				t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())
+			}
+			if env.FormatVersion != "1.1" {
+				t.Errorf("format_version = %q, want 1.1 — the envelope shape is unchanged", env.FormatVersion)
+			}
+			if len(env.Errors) != 1 {
+				t.Fatalf("errors = %+v, want exactly 1", env.Errors)
+			}
+			if env.Errors[0].Code != tc.wantCode {
+				t.Errorf("errors[0].code = %q, want %q — a placeholder makes `pulse errors lookup` useless",
+					env.Errors[0].Code, tc.wantCode)
+			}
+			if got := env.Errors[0].Details["path"]; got != rulesPath {
+				t.Errorf("errors[0].details.path = %v, want %q", got, rulesPath)
+			}
+			if _, err := os.Stat(out); err == nil {
+				t.Error("a refused rules file still produced an output cohort")
+			}
+		})
+	}
+}
+
+// TestSynthFromProfileCLI_EmitSpecWithJSONKeepsTheEnvelope pins that
+// both new flags coexist with --json and move nothing in the envelope.
+func TestSynthFromProfileCLI_EmitSpecWithJSONKeepsTheEnvelope(t *testing.T) {
+	dir := t.TempDir()
+	source, profile := richFromProfileFixture(t, dir, 40, 7)
+	rulesPath := filepath.Join(dir, "ok-rules.json")
+	if err := os.WriteFile(rulesPath, []byte(`[{"when": "aware == 0", "set_null": ["spend"]}]`), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	out := filepath.Join(dir, "out.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", out,
+		"--rows", "10", "--seed", "1",
+		"--rules", rulesPath, "--emit-spec", filepath.Join(dir, "spec.json"), "--json"); err != nil {
+		t.Fatalf("synth from-profile: %v", err)
+	}
+	var env struct {
+		FormatVersion string `json:"format_version"`
+		Data          struct {
+			RowsGenerated int    `json:"rows_generated"`
+			OutputPath    string `json:"output_path"`
+		} `json:"data"`
+		Errors   []any `json:"errors"`
+		Warnings []any `json:"warnings"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
+		t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())
+	}
+	if env.FormatVersion != "1.1" {
+		t.Errorf("format_version = %q, want 1.1", env.FormatVersion)
+	}
+	if env.Data.RowsGenerated != 10 || env.Data.OutputPath != out {
+		t.Errorf("data = %+v, want the unchanged Result shape", env.Data)
+	}
+	if len(env.Errors) != 0 {
+		t.Errorf("errors = %+v, want empty", env.Errors)
+	}
+}
+
+// gatedCohortFields is a survey-shaped cohort with a real gating
+// relationship, written through the rule layer itself so the source
+// genuinely carries the structure detection has to recover.
+func gatedCohortFields() []synth.FieldSpec {
+	fields := []synth.FieldSpec{
+		{Name: "aware", Type: "packed_bool", Distribution: synth.DistBernoulli,
+			Params: map[string]any{"p": 0.75}},
+		{Name: "noise", Type: "f64", Nullable: true, NullRate: 0.30,
+			Distribution: synth.DistNormal, Params: map[string]any{"mean": 10.0, "std": 3.0}},
+	}
+	for i := 1; i <= 4; i++ {
+		fields = append(fields, synth.FieldSpec{
+			Name: "q" + strconv.Itoa(i), Type: "u4", Nullable: true, NullRate: 0,
+			Distribution: synth.DistNormal,
+			Params:       map[string]any{"mean": 4.0, "std": 1.5, "min": 1.0, "max": 7.0},
+		})
+	}
+	return fields
+}
+
+func writeGatedCohort(t *testing.T, path string, rows int, seed int64) {
+	t.Helper()
+	p, err := newPulse()
+	if err != nil {
+		t.Fatalf("newPulse: %v", err)
+	}
+	spec := &pulse.SynthSpec{RowCount: rows, Fields: gatedCohortFields(),
+		Rules: []synth.RuleSpec{{When: "aware == 0", SetNull: []string{"q1", "q2", "q3", "q4"}}}}
+	if _, err := p.Synth(context.Background(), spec, path, pulse.SynthOptions{Seed: seed}); err != nil {
+		t.Fatalf("p.Synth(gated fixture): %v", err)
+	}
+}
+
+// TestProfileCreateCLI_SuggestRulesRoundTripsThroughFromProfile drives
+// BOTH real leaves: `profile create --suggest-rules` writes the file and
+// `synth from-profile --rules` consumes it UNMODIFIED and generates.
+//
+// The file is passed byte for byte between the two commands — no
+// re-encode, no edit, no library shortcut — because "consumed without
+// modification" is the acceptance criterion and every weaker assertion
+// (it parses; it has the right shape) passes against a document whose
+// predicates never fire.
+func TestProfileCreateCLI_SuggestRulesRoundTripsThroughFromProfile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	writeGatedCohort(t, source, 4000, 77)
+
+	profile := filepath.Join(dir, "profile.json")
+	candidates := filepath.Join(dir, "candidates.json")
+	var out, errOut bytes.Buffer
+	if err := runProfileCLIStreams(t, &out, &errOut, "create",
+		"--input", source, "--output", profile, "--suggest-rules", candidates); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+
+	raw, err := os.ReadFile(candidates)
+	if err != nil {
+		t.Fatalf("ReadFile(candidates): %v", err)
+	}
+	rules, err := synth.ParseRules(raw)
+	if err != nil {
+		t.Fatalf("the written file is not a rules document: %v", err)
+	}
+	if len(rules) == 0 {
+		t.Fatalf("no candidates written; stderr = %s", errOut.String())
+	}
+	var gate *synth.RuleSpec
+	for i := range rules {
+		if rules[i].Evidence != nil && rules[i].Evidence.GateField == "aware" {
+			gate = &rules[i]
+		}
+	}
+	if gate == nil {
+		t.Fatalf("aware was not proposed; file = %s", raw)
+	}
+	if len(gate.SetNull) != 4 {
+		t.Errorf("aware targets = %v, want q1..q4", gate.SetNull)
+	}
+
+	// The cross-cutting caveat is on STDERR, not in the document and
+	// not on stdout, so a redirected `> profile.json` keeps exactly the
+	// bytes it had.
+	if !strings.Contains(errOut.String(), "PROPOSED, not applied") ||
+		!strings.Contains(errOut.String(), "STATISTICAL") {
+		t.Errorf("the caveat is missing from stderr: %s", errOut.String())
+	}
+	if strings.Contains(out.String(), "PROPOSED") {
+		t.Errorf("the caveat leaked onto stdout: %s", out.String())
+	}
+
+	// The same bytes, unmodified, through the consuming leaf.
+	ruledOut := filepath.Join(dir, "ruled.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", ruledOut,
+		"--rows", "1000", "--seed", "13", "--rules", candidates); err != nil {
+		t.Fatalf("synth from-profile --rules <detected file>: %v", err)
+	}
+
+	vals, nulls := readCohortRows(t, ruledOut)
+	gated, gatedAllNull := 0, 0
+	for i := 4000; i < len(vals); i++ {
+		if vals[i]["aware"] != float64(0) {
+			continue
+		}
+		gated++
+		if nulls[i]["q1"] && nulls[i]["q2"] && nulls[i]["q3"] && nulls[i]["q4"] {
+			gatedAllNull++
+		}
+	}
+	if gated == 0 {
+		t.Fatal("no generated row satisfied the detected gate")
+	}
+	if gatedAllNull != gated {
+		t.Errorf("the detected rule fired on %d of %d gated rows, want all of them", gatedAllNull, gated)
+	}
+}
+
+// TestProfileCreateCLI_SuggestRulesLeavesTheDocumentAlone is acceptance
+// criterion 8 at the CLI: absent the flag the written profile document
+// is byte-identical, and with it only the warnings key moves.
+func TestProfileCreateCLI_SuggestRulesLeavesTheDocumentAlone(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	writeGatedCohort(t, source, 1500, 77)
+
+	plain := filepath.Join(dir, "plain.json")
+	detected := filepath.Join(dir, "detected.json")
+	var buf bytes.Buffer
+	if err := runProfileCLI(t, &buf, "create", "--input", source, "--output", plain); err != nil {
+		t.Fatalf("profile create: %v", err)
+	}
+	if err := runProfileCLI(t, &buf, "create", "--input", source, "--output", detected,
+		"--suggest-rules", filepath.Join(dir, "c.json")); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+
+	a := profileDocWithoutWarnings(t, plain)
+	b := profileDocWithoutWarnings(t, detected)
+	if !bytes.Equal(a, b) {
+		t.Errorf("the profile document moved beyond its warnings under --suggest-rules")
+	}
+}
+
+func profileDocWithoutWarnings(t *testing.T, path string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", path, err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("Unmarshal(%s): %v", path, err)
+	}
+	if _, ok := doc["rule_candidates"]; ok {
+		t.Errorf("%s carries a rule_candidates section", path)
+	}
+	delete(doc, "warnings")
+	out, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	return out
+}
+
+// TestProfileCreateCLI_SuggestBlocksRoundTripsThroughFromProfile is
+// E3-S2's half of the CLI round trip: the co-missing candidate reaches
+// the file alongside the gating one, the two are consumed together
+// UNMODIFIED, and the block is all-or-nothing on every generated row.
+//
+// The same source cohort carries both shapes — `aware == 0` gates
+// q1..q4 and q1..q4 are therefore also nulled together — which is the
+// ordinary case rather than a contrived one, so the combined file is
+// what a real run produces.
+func TestProfileCreateCLI_SuggestBlocksRoundTripsThroughFromProfile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	writeGatedCohort(t, source, 4000, 77)
+
+	profile := filepath.Join(dir, "profile.json")
+	candidates := filepath.Join(dir, "candidates.json")
+	var out, errOut bytes.Buffer
+	if err := runProfileCLIStreams(t, &out, &errOut, "create",
+		"--input", source, "--output", profile, "--suggest-rules", candidates); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+
+	raw, err := os.ReadFile(candidates)
+	if err != nil {
+		t.Fatalf("ReadFile(candidates): %v", err)
+	}
+	rules, err := synth.ParseRules(raw)
+	if err != nil {
+		t.Fatalf("the written file is not a rules document: %v", err)
+	}
+	firstGate, firstBlock := -1, -1
+	var block []string
+	for i := range rules {
+		if rules[i].Evidence == nil {
+			continue
+		}
+		switch rules[i].Evidence.Detector {
+		case "gating":
+			if firstGate < 0 {
+				firstGate = i
+			}
+		case "co_missing":
+			if firstBlock < 0 {
+				firstBlock = i
+				block = rules[i].NullTogether
+			}
+		}
+	}
+	if firstGate < 0 || firstBlock < 0 {
+		t.Fatalf("combined file missing a kind (gate=%d block=%d); file = %s", firstGate, firstBlock, raw)
+	}
+	if firstGate > firstBlock {
+		t.Errorf("the co-missing block is declared at %d, ahead of the gating candidate at %d — "+
+			"declaration order is applied order", firstBlock, firstGate)
+	}
+	if strings.Join(block, ",") != "q1,q2,q3,q4" {
+		t.Errorf("block = %v, want q1..q4", block)
+	}
+	if len(rules[firstBlock].Evidence.Block) != 4 {
+		t.Errorf("block evidence carries %d members", len(rules[firstBlock].Evidence.Block))
+	}
+
+	// The same bytes, unmodified, through the consuming leaf.
+	ruledOut := filepath.Join(dir, "ruled.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", ruledOut,
+		"--rows", "1000", "--seed", "13", "--rules", candidates); err != nil {
+		t.Fatalf("synth from-profile --rules <detected file>: %v", err)
+	}
+	vals, nulls := readCohortRows(t, ruledOut)
+	partial := 0
+	for i := 4000; i < len(vals); i++ {
+		n := 0
+		for _, m := range block {
+			if nulls[i][m] {
+				n++
+			}
+		}
+		if n != 0 && n != len(block) {
+			partial++
+		}
+	}
+	if len(vals) <= 4000 {
+		t.Fatal("no rows generated")
+	}
+	if partial != 0 {
+		t.Errorf("%d generated rows carry a partial block after the detected file was applied", partial)
+	}
+}
+
+// TestProfileCreateCLI_AlwaysNullColumnReachesTheTerminal keeps the
+// always-null finding on the path a user actually sees: it is a warning
+// in the profile document and a counted ATTENTION kind in the stderr
+// summary, never a silent omission and never on stdout.
+func TestProfileCreateCLI_AlwaysNullColumnReachesTheTerminal(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	p, err := newPulse()
+	if err != nil {
+		t.Fatalf("newPulse: %v", err)
+	}
+	fields := append(gatedCohortFields(), synth.FieldSpec{
+		Name: "lgbt", Type: "categorical_u8", Nullable: true, NullRate: 1,
+		Distribution: synth.DistWeightedCategorical,
+		Params:       map[string]any{"values": []any{"yes", "no"}, "weights": []any{1.0, 9.0}},
+	})
+	spec := &pulse.SynthSpec{RowCount: 1500, Fields: fields,
+		Rules: []synth.RuleSpec{{When: "aware == 0", SetNull: []string{"q1", "q2", "q3", "q4"}}}}
+	if _, err := p.Synth(context.Background(), spec, source, pulse.SynthOptions{Seed: 9}); err != nil {
+		t.Fatalf("p.Synth: %v", err)
+	}
+
+	profile := filepath.Join(dir, "profile.json")
+	var out, errOut bytes.Buffer
+	if err := runProfileCLIStreams(t, &out, &errOut, "create",
+		"--input", source, "--output", profile, "--suggest-rules", filepath.Join(dir, "c.json")); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "always-null column") {
+		t.Errorf("the always-null finding did not reach stderr: %s", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "categorical_u8") {
+		t.Errorf("the always-null finding did not name the type on the terminal: %s", errOut.String())
+	}
+	if strings.Contains(out.String(), "always-null") {
+		t.Errorf("the always-null finding leaked onto stdout: %s", out.String())
+	}
+	raw, err := os.ReadFile(profile)
+	if err != nil {
+		t.Fatalf("ReadFile(profile): %v", err)
+	}
+	if !strings.Contains(string(raw), "always-null column \\\"lgbt\\\"") {
+		t.Errorf("the always-null finding is not in the document's warnings")
+	}
+}
+
+// derivedCohortFields is gatedCohortFields plus the motivating shape:
+// a `score` and the three bands derived from it, all four gated by
+// `aware` so the cohort carries all THREE detectors' findings at once —
+// which is the ordinary case on a survey, not a contrived one.
+func derivedCohortFields() []synth.FieldSpec {
+	fields := append(gatedCohortFields(), synth.FieldSpec{
+		Name: "score", Type: "u4", Nullable: true, NullRate: 0,
+		Distribution: synth.DistNormal,
+		Params:       map[string]any{"mean": 6.0, "std": 3.0, "min": 0.0, "max": 10.0},
+	})
+	for _, name := range []string{"promoter", "passive", "detractor"} {
+		fields = append(fields, synth.FieldSpec{
+			Name: name, Type: "packed_bool", Nullable: true, NullRate: 0,
+			Distribution: synth.DistBernoulli, Params: map[string]any{"p": 0.4},
+		})
+	}
+	return fields
+}
+
+// TestProfileCreateCLI_SuggestDependenciesRoundTripsThroughFromProfile
+// is E3-S3's half of the CLI round trip, driving BOTH real leaves: the
+// exact-dependency candidate reaches the file beside the gating and
+// co-missing ones, the combined file is consumed UNMODIFIED, and the
+// derived flags agree with the score on every generated row.
+func TestProfileCreateCLI_SuggestDependenciesRoundTripsThroughFromProfile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	p, err := newPulse()
+	if err != nil {
+		t.Fatalf("newPulse: %v", err)
+	}
+	spec := &pulse.SynthSpec{RowCount: 4000, Fields: derivedCohortFields(),
+		Rules: []synth.RuleSpec{
+			// The normalisation is a SEPARATE, EARLIER rule: within one
+			// rule every expression reads the row as it stood before the
+			// rule ran, so the bands would still see the sampler's float
+			// and the fixture would carry the pre-rounding incoherence
+			// E2-S4 measured rather than the relationship under test.
+			{When: "!isnull(score)", SetExpr: map[string]string{"score": "round(score)"}},
+			{SetExpr: map[string]string{
+				"promoter":  "score >= 9",
+				"passive":   "score >= 7 && score < 9",
+				"detractor": "score < 7",
+			}},
+			{When: "aware == 0", SetNull: []string{
+				"q1", "q2", "q3", "q4", "score", "promoter", "passive", "detractor"}},
+		}}
+	if _, err := p.Synth(context.Background(), spec, source, pulse.SynthOptions{Seed: 55}); err != nil {
+		t.Fatalf("p.Synth: %v", err)
+	}
+
+	profile := filepath.Join(dir, "profile.json")
+	candidates := filepath.Join(dir, "candidates.json")
+	var out, errOut bytes.Buffer
+	if err := runProfileCLIStreams(t, &out, &errOut, "create",
+		"--input", source, "--output", profile, "--suggest-rules", candidates); err != nil {
+		t.Fatalf("profile create --suggest-rules: %v", err)
+	}
+
+	raw, err := os.ReadFile(candidates)
+	if err != nil {
+		t.Fatalf("ReadFile(candidates): %v", err)
+	}
+	rules, err := synth.ParseRules(raw)
+	if err != nil {
+		t.Fatalf("the written file is not a rules document: %v", err)
+	}
+	lastOther, firstDep := -1, -1
+	var dep *synth.RuleSpec
+	for i := range rules {
+		if rules[i].Evidence == nil {
+			continue
+		}
+		if rules[i].Evidence.Detector == "dependency" {
+			if firstDep < 0 {
+				firstDep = i
+				dep = &rules[i]
+			}
+			continue
+		}
+		lastOther = i
+	}
+	if firstDep < 0 {
+		t.Fatalf("no dependency candidate in the combined file:\n%s", raw)
+	}
+	if lastOther > firstDep {
+		t.Errorf("a null-state candidate is declared at %d, after the dependency candidate at %d — "+
+			"declaration order is applied order and a dependency rule must re-resolve its block last",
+			lastOther, firstDep)
+	}
+	if dep.Evidence.SourceField != "score" {
+		t.Errorf("dependency source = %q, want score", dep.Evidence.SourceField)
+	}
+	if len(dep.SetExpr) != 3 {
+		t.Errorf("the partition came back as %d target(s), want one candidate covering all three: %v",
+			len(dep.SetExpr), dep.SetExpr)
+	}
+	if len(dep.NullTogether) == 0 || dep.NullTogether[0] != "score" {
+		t.Errorf("null_together = %v, want the source first and in this same rule", dep.NullTogether)
+	}
+	if !strings.Contains(errOut.String(), "WHAT WAS NOT LOOKED FOR") {
+		t.Errorf("the search bounds did not reach the terminal: %s", errOut.String())
+	}
+
+	// The same bytes, unmodified, through the consuming leaf.
+	ruledOut := filepath.Join(dir, "ruled.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-profile",
+		"--profile", profile, "--source", source, "--output", ruledOut,
+		"--rows", "1500", "--seed", "21", "--rules", candidates); err != nil {
+		t.Fatalf("synth from-profile --rules <detected file>: %v", err)
+	}
+	vals, nulls := readCohortRows(t, ruledOut)
+	if len(vals) <= 4000 {
+		t.Fatal("no rows generated")
+	}
+	scored, bad, orphan := 0, 0, 0
+	for i := 4000; i < len(vals); i++ {
+		if nulls[i]["score"] {
+			for _, f := range []string{"promoter", "passive", "detractor"} {
+				if !nulls[i][f] {
+					orphan++
+					break
+				}
+			}
+			continue
+		}
+		scored++
+		s, ok := vals[i]["score"].(float64)
+		if !ok {
+			t.Fatalf("score on row %d is %T, want float64", i, vals[i]["score"])
+		}
+		want := map[string]bool{
+			"promoter": s >= 9, "passive": s >= 7 && s < 9, "detractor": s < 7,
+		}
+		for f, w := range want {
+			v, _ := vals[i][f].(float64)
+			if nulls[i][f] || (v != 0) != w {
+				bad++
+				break
+			}
+		}
+	}
+	if scored == 0 {
+		t.Fatal("no scored rows generated")
+	}
+	if bad != 0 {
+		t.Errorf("%d of %d scored rows disagree with the detected mapping", bad, scored)
+	}
+	if orphan != 0 {
+		t.Errorf("%d generated rows carry a band flag with no score", orphan)
+	}
+}

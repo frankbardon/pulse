@@ -27,6 +27,7 @@ const (
 	DistRegex               = "regex"
 	DistConstant            = "constant"
 	DistMixture             = "mixture"
+	DistDiscrete            = "discrete"
 	DistSetBernoulli        = "set_bernoulli"
 )
 
@@ -34,7 +35,7 @@ const (
 // Used by the manifest and tests.
 func AllDistributions() []string {
 	out := []string{
-		DistBernoulli, DistConstant, DistExponential, DistLogNormal,
+		DistBernoulli, DistConstant, DistDiscrete, DistExponential, DistLogNormal,
 		DistMixture, DistMonotonicFrom, DistNormal, DistPareto, DistPoisson,
 		DistRegex, DistSetBernoulli, DistUniform, DistUniformDate, DistWeightedCategorical,
 	}
@@ -96,6 +97,8 @@ func buildBaseSampler(f FieldSpec) (sampler, error) {
 		return newWeightedCategoricalSampler(f)
 	case DistMixture:
 		return newMixtureSampler(f)
+	case DistDiscrete:
+		return newDiscreteSampler(f)
 	case DistSetBernoulli:
 		return newSetSampler(f)
 	case DistUniformDate:
@@ -357,13 +360,147 @@ func (m *monotonicSampler) next(_ *rand.Rand) (any, bool) {
 
 type constantSampler struct{ val any }
 
+// newConstantSampler is the one sampler whose row value comes straight
+// from the spec document rather than from an arithmetic draw, so it is
+// also the one that can put the WRONG GO TYPE into the row. Every other
+// sampler for a given field type emits one shape — float64 for every
+// scalar (including packed_bool, which bernoulliSampler emits as 1.0 /
+// 0.0), string for a categorical, map[string]bool for a set — and
+// sentinelFor types the expression environment on exactly that
+// assumption. A JSON `true` on a packed_bool field therefore put a Go
+// bool where the env promised a float64, and any constraint (and, from
+// the rule layer on, any `when` or `set_expr`) touching that field
+// failed at RUN time with the inverse of issue #258's type mismatch.
+//
+// The value is normalised to the field's row shape HERE, once, at spec
+// compile time, rather than being coerced at every read: the row map has
+// no type discipline of its own, so the only place the invariant can
+// hold is where the value enters it.
+//
+// Byte-identity is preserved for every spec that worked before. A bool
+// on a numeric target already encoded as 1/0 (toFloat64/toBool both map
+// it), and a JSON number is already float64. What changes is the shapes
+// that were BROKEN: a string on a non-decimal scalar encoded as a silent
+// 0 (toFloat64's string arm) and is now refused; a non-string on a
+// categorical raised ENCODING_TYPE_MISMATCH at row time and is now
+// refused at parse; an array on a set_* raised the same at row time and
+// now works, as the option-name list an author would write.
 func newConstantSampler(f FieldSpec) (sampler, error) {
 	v, ok := f.Params["value"]
 	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: constant requires param value", f.Name), nil)
 	}
-	return &constantSampler{val: v}, nil
+	norm, err := constantRowValue(f, v)
+	if err != nil {
+		return nil, err
+	}
+	return &constantSampler{val: norm}, nil
+}
+
+// literalFloat reads a JSON-decoded numeric literal. json.Unmarshal into
+// an `any` produces float64, but a programmatically-built Spec may carry
+// a Go int, so both are accepted.
+func literalFloat(v any) (float64, bool) {
+	switch x := v.(type) {
+	case float64:
+		return x, true
+	case float32:
+		return float64(x), true
+	case int:
+		return float64(x), true
+	case int64:
+		return float64(x), true
+	case uint64:
+		return float64(x), true
+	}
+	return 0, false
+}
+
+// constantRowValue coerces a declared `constant` value to the Go type the
+// row holds for f's field type — the three classes sentinelFor derives.
+// A field whose declared type is not a name fieldTypeFromName knows is
+// passed through untouched: buildSchema refuses that field on its own
+// terms and a coercion error here would name the wrong cause.
+func constantRowValue(f FieldSpec, v any) (any, error) {
+	ft, ok := fieldTypeFromName(f.Type)
+	if !ok {
+		return v, nil
+	}
+	bad := func(want string) error {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("field %q: constant value for %s must be %s, got %T", f.Name, f.Type, want, v),
+			map[string]any{"field": f.Name, "type": f.Type})
+	}
+	switch {
+	case ft.IsCategorical():
+		if _, isStr := v.(string); !isStr {
+			return nil, bad("a string")
+		}
+		return v, nil
+	case ft.IsSet():
+		// map[string]bool is what a programmatically-built Spec may
+		// already carry; from JSON the natural form is the list of
+		// selected option names, which is also what params.options
+		// declares.
+		if m, isMap := v.(map[string]bool); isMap {
+			return m, nil
+		}
+		// map[string]any is the SAME value after a JSON round trip —
+		// json.Marshal turns map[string]bool into an object and
+		// json.Unmarshal into `any` hands it back generically. This
+		// arm is what makes `--emit-spec` honest for an all-null
+		// set_* column: SpecFromProfile's unsummarisable fallback
+		// (sentinelFor) puts an empty map[string]bool here, so
+		// without it the emitted spec parses and then refuses at
+		// generation — the one shape in the whole Spec that does not
+		// decode back to the Go type it was marshalled from.
+		if m, isMap := v.(map[string]any); isMap {
+			sel := make(map[string]bool, len(m))
+			for k, e := range m {
+				b, isBool := e.(bool)
+				if !isBool {
+					return nil, bad("an object of option -> bool, or an array of option strings")
+				}
+				if b {
+					sel[k] = true
+				}
+			}
+			return sel, nil
+		}
+		arr, isArr := v.([]any)
+		if !isArr {
+			return nil, bad("an array of option strings")
+		}
+		sel := make(map[string]bool, len(arr))
+		for _, e := range arr {
+			s, isStr := e.(string)
+			if !isStr {
+				return nil, bad("an array of option strings")
+			}
+			sel[s] = true
+		}
+		return sel, nil
+	default:
+		// Scalar class. A bool means 1/0, the same reduction every other
+		// boolean path applies.
+		if b, isBool := v.(bool); isBool {
+			if b {
+				return float64(1), nil
+			}
+			return float64(0), nil
+		}
+		if n, isNum := literalFloat(v); isNum {
+			return n, nil
+		}
+		// decimal128 is the one scalar whose string form is exact
+		// (encoding.ParseDecimal128, no float round trip), so it is kept
+		// verbatim for writeFieldValueForField's own string arm.
+		if _, isStr := v.(string); isStr && ft.IsDecimal() {
+			return v, nil
+		}
+		return nil, bad("a number or a bool")
+	}
 }
 
 func (c *constantSampler) next(_ *rand.Rand) (any, bool) {

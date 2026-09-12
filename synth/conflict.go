@@ -10,6 +10,34 @@ import "fmt"
 // two different options on the SAME set_* field are two DIFFERENT
 // targets, never one shared claim, because each option's transform
 // writes only its own entry in the row's map[string]bool selection map.
+// The space is INTENTIONALLY two-level. A stage that writes a whole
+// field claims {field}; one that writes a single set_* OPTION claims
+// {field, option}, because two pairs may legitimately drive two
+// different options of one multi-select and arbitrating them against
+// each other would drop structure neither contests.
+//
+// The containment between the two levels is NOT free and is not what a
+// map lookup gives you: {field} and {field, option} are different keys.
+// claimedBy is the one place that relationship is expressed — a
+// whole-field claim SUBSUMES every option of that field, and an
+// option-level claim does NOT reach the whole field. Both halves are
+// load-bearing and both are silent if reversed: without the first, an
+// unconditional rule writing a whole set_* field leaves the per-option
+// pair stages running and then discards their work (the wasted-stage and
+// false-fidelity-report class the priority-0 pre-claim exists to remove);
+// with the second wrong, one pair driving one option would evict a rule
+// or a model from the entire field.
+//
+// # For a future per-option rule slot
+//
+// Spec.Rules has no way to write a single option today, so ruleClaims
+// only ever emits {field}. A slot that CAN — the obvious shape is a
+// `set` entry naming "field.option" — MUST key its claim on
+// {field, option}. Keying it on {field} would make a rule touching one
+// option evict every pair driving the field's OTHER options, silently:
+// they would simply stop running and the file would keep its plausible
+// marginal. TestClaimTarget_OptionGranularity is the guard on both
+// directions.
 type claimTarget struct {
 	field  string
 	option string
@@ -35,8 +63,10 @@ type conflictResolution struct {
 	correlations []CorrelationSpec
 	// models are the Spec.Models entries that kept their target. A
 	// model is claimed BEFORE any of the six stages above (see
-	// resolveConflicts), so it can only lose to the captured-shape
-	// pre-claim; everything else loses to it.
+	// resolveConflicts), so it can only lose to a structural rule's
+	// priority-0 pre-claim; everything else loses to it. It cannot lose
+	// to the captured-shape pre-claim, which runs after it and composes
+	// with it rather than displacing it.
 	models   []FieldModelSpec
 	warnings []string
 }
@@ -52,8 +82,16 @@ type conflictResolution struct {
 // relationship naming a given target actually gets to run, and reports
 // every one it drops instead of leaving the loss silent.
 //
+// A field an unconditional structural rule DETERMINES (Spec.Rules,
+// `set` / `set_expr` with no `when`) is claimed at priority 0, ahead of
+// everything else, because the rule pass is the last stage in drawRow
+// and overwrites its target outright. The claim removes the wasted
+// stage AND the false fidelity entry the wasted stage would otherwise
+// produce; which rules claim, and the four exclusions that keep the
+// claim from being over-broad, are in synth/rules_claim.go.
+//
 // A field carrying a linear model (Spec.Models, `profile create
-// --fit-models`) is claimed FIRST, before any of the six stages: a
+// --fit-models`) is claimed next, before any of the six stages: a
 // model produces the field's value from ONE expression that already
 // accounts for every predictor it was fitted on, so a later stage
 // overwriting it would not layer extra structure on top — it would
@@ -115,10 +153,27 @@ func resolveConflicts(s *Spec) conflictResolution {
 	var res conflictResolution
 	claims := make(map[claimTarget]string, len(s.Fields))
 
+	// claimedBy resolves a target's current owner ACROSS the two levels
+	// of the claim space: an option-level target is owned by its own
+	// entry if it has one, and otherwise by any whole-field claim over
+	// the field it belongs to. See claimTarget for why the containment
+	// is one-directional and why both directions are silent if reversed.
+	claimedBy := func(t claimTarget) (string, bool) {
+		if desc, ok := claims[t]; ok {
+			return desc, true
+		}
+		if t.option != "" {
+			if desc, ok := claims[claimTarget{field: t.field}]; ok {
+				return desc, true
+			}
+		}
+		return "", false
+	}
+
 	// claim registers desc as the target's owner iff nothing owns it yet.
 	// Returns false (and leaves the existing owner in place) on conflict.
 	claim := func(t claimTarget, desc string) bool {
-		if _, taken := claims[t]; taken {
+		if _, taken := claimedBy(t); taken {
 			return false
 		}
 		claims[t] = desc
@@ -126,9 +181,35 @@ func resolveConflicts(s *Spec) conflictResolution {
 	}
 
 	conflict := func(t claimTarget, dropped string) {
+		owner, _ := claimedBy(t)
 		res.warnings = append(res.warnings, fmt.Sprintf(
 			"conditional relationship conflict: %s is already claimed by %s; dropping %s",
-			t, claims[t], dropped))
+			t, owner, dropped))
+	}
+
+	// PRIORITY 0: structural rules (Spec.Rules). The rule pass is the
+	// LAST thing to touch a row, and an unconditional `set` /
+	// `set_expr` overwrites its target outright, so nothing below may
+	// spend a stage producing a value the rule discards — and, more
+	// importantly, nothing may REPORT having produced it. The fidelity
+	// report's `models` section is derived from this same arbitration
+	// (BuildModelFidelity re-runs resolveConflicts and
+	// buildModelDrawers), so without this loop a rule-overwritten
+	// modelled field ships a captured-versus-recovered coefficient
+	// delta for a value nothing kept.
+	//
+	// Only rules that DETERMINE the field claim: no `when`, a value
+	// actually supplied (`set` / `set_expr`, never `set_null` or
+	// `null_together`), and a `set_expr` that does not read its own
+	// target. Each exclusion is silent if it is got backwards; the
+	// reasoning for all four is in synth/rules_claim.go.
+	//
+	// Two rules claiming one field is not a conflict — both still run,
+	// under the declaration-order last-write-wins contract — so the
+	// claim's return value is deliberately ignored here, exactly as the
+	// captured-shape pre-claim below ignores its own.
+	for _, rc := range ruleClaims(s.Rules) {
+		claim(rc.target, rc.desc)
 	}
 
 	// modelClaimed records which targets the model pre-claim below won,
@@ -221,7 +302,7 @@ func resolveConflicts(s *Spec) conflictResolution {
 		excluded := make(map[string]bool, len(participants))
 		for _, f := range participants {
 			t := claimTarget{field: f}
-			if _, taken := claims[t]; !taken {
+			if _, taken := claimedBy(t); !taken {
 				continue
 			}
 			excluded[f] = true

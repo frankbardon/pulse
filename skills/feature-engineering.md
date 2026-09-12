@@ -75,4 +75,4 @@ Downstream: filter to train-only with `FILTER_INCLUDE` on `split == 0`; group by
 - `regression-modeling` — `FEAT_POLY` upstream of `REG_OLS` for polynomial regression.
 - `request-envelope` — slot keys, streamability, smart defaults.
 - `streaming-and-watching` — streaming-vs-buffered pipeline selection.
-- `error-code-reference` — `PULSE_FEAT_TARGET_LEAKAGE_RISK` recovery playbook.
+- `pulse_errors_lookup` — `PULSE_FEAT_TARGET_LEAKAGE_RISK` recovery playbook.

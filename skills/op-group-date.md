@@ -11,37 +11,22 @@ examples_tags: [time-series, streaming-friendly]
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `component` | enum | `month` | `day`, `day_of_week`, `week`, `month`, `quarter`, `year`. |
-| `fiscal_offset` | int | 0 | Months after Jan when FY starts; `year`/`quarter` only. Non-zero prefixes keys `FY` (end-year). |
+- `component` — enum, default `month`. `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
+- `fiscal_offset` — int, default 0. Months after Jan the FY starts; `year`/`quarter` only. Non-zero prefixes keys `FY` (end-year).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `date`, `datetime` |
+`Field` — `date`, `datetime`.
 
-`datetime` truncates to the UTC calendar day (time of day discarded, never rounded — `23:59:59` stays on its day).
+`datetime` truncates to the UTC calendar day (time discarded, never rounded — `23:59:59` stays on its day).
 
 ## Output
 
-String key per row (e.g. `2024-Q1`, `FY2025-Q1`). Smart default for `date` and `datetime`.
+String key per row (`2024-Q1`, `FY2025-Q1`). Smart default for `date` and `datetime`.
 
 ## Components
 
-Universal floor `{total_n, n_null}` plus:
-
-| Key | Type | Notes |
-|---|---|---|
-| `granularity` | string | Component used |
-| `range_start` | string | ISO, earliest period |
-| `range_end` | string | ISO, latest period |
-| `n_buckets` | int | Distinct buckets |
-| `buckets` | []bucket | `{key, period_start, period_end, count}` |
-
-- Mergeability: `Mergeable`
-- Streaming: `Streamable=false`. Hint — `GROUP_CATEGORY` on `ATTR_DATE_PART` for streaming.
+Floor `{total_n, n_null}` + `granularity` (string, component used), `range_start` / `range_end` (ISO, earliest / latest period), `n_buckets` (int, distinct buckets), `buckets` (`[]bucket` of `{key, period_start, period_end, count}`). `Mergeable`; `Streamable=false` — hint: `GROUP_CATEGORY` on an `ATTR_DATE_PART` column for streaming.
 
 ## Gotchas
 

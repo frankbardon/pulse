@@ -87,6 +87,15 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	fields := make([]encoding.Field, len(s.Fields))
 	wfs := make([]*writerField, len(s.Fields))
 
+	// Fields whose own null draw a `{"owns_nulls": true}` rule has
+	// claimed. Resolved ONCE, here, because the sampler is built here —
+	// and from the same helper compileRules uses for the accounting, so
+	// the suppression and its end-of-run report cannot disagree about
+	// which fields are owned. Empty (and the wrap below unreachable) for
+	// every spec that declares no ownership, which is what keeps such a
+	// spec byte-identical. See synth/rules_ownership.go.
+	ownedNulls := ruleOwnedNullFields(s.Rules)
+
 	byteOffset := 0
 	bitCursor := 8 // bit offsets advance from the high bit of a fresh byte
 	for i, fs := range s.Fields {
@@ -124,13 +133,20 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			// LOOKUP against an already-complete dictionary, so the
 			// order in which map entries happen to be visited while
 			// building a row's mask can never affect the result.
-			options, ok, perr := paramStringSlice(fs.Name, fs.Params, "options")
+			//
+			// Declaring no options at all is legal HERE and yields an
+			// empty dictionary, which encoding.WriteSchema emits as an
+			// explicit zero-entry block — it is the only honest shape for
+			// a column with no observed selections, which is what
+			// SpecFromProfile's fallback reconstructs for an always-null
+			// set_* (the empty selection, see E1-S6). The requirement
+			// belongs to the DRAW, not to the type: newSetSampler refuses
+			// a set_bernoulli with no options on its own terms, so a spec
+			// that actually samples options still cannot get here without
+			// them.
+			options, _, perr := paramStringSlice(fs.Name, fs.Params, "options")
 			if perr != nil {
 				return nil, nil, perr
-			}
-			if !ok || len(options) == 0 {
-				return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-					fmt.Sprintf("field %q: set field requires non-empty params.options", fs.Name), nil)
 			}
 			dict := encoding.NewDictionary()
 			maxEntries := ft.MaxSetEntries()
@@ -161,6 +177,15 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 		smp, err := buildSampler(fs)
 		if err != nil {
 			return nil, nil, err
+		}
+		if ownedNulls[fs.Name] {
+			// The field still DRAWS its null — same calls, same order —
+			// and the verdict is discarded, so ownership moves the null
+			// mask of the owned fields and nothing else in the file.
+			// Rebuilding the sampler without its nullable wrapper would
+			// drop one rng.Float64() per row per owned field and shift
+			// the whole seeded stream.
+			smp = ruleOwnedNullSampler{inner: smp}
 		}
 
 		fields[i] = field
@@ -237,22 +262,57 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	}
 	warnings = append(warnings, residualWarnings...)
 
+	// The rule pass is compiled LAST because it is the last stage to
+	// run, and its warnings follow every other stage's for the same
+	// causal-order reason the model warnings follow the arbitration
+	// ones. It reaches every generation path: AugmentFromProfile calls
+	// generate() for its GENERATED partition only, so rules never touch
+	// the copied `_synthetic=false` source rows.
+	rules, ruleWarnings, err := compileRules(s.Rules, wfs)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	warnings = append(warnings, ruleWarnings...)
+
+	// The two NUMERIC-target pair stages need the target field's own
+	// marginal when that marginal is a staircase (`discrete`), because a
+	// cell's captured moments then locate a level rather than a point on
+	// a normal. Resolved ONCE here, from the compiled field specs, so the
+	// conditional draw and the field's own sampler cannot disagree about
+	// what the field is — see discreteConditional.
+	discreteTargets, err := buildDiscreteConditionals(wfs)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	// The same question asked of the OTHER discontinuous marginal: a
+	// `bernoulli` target's cell mean is a prevalence, so the conditional
+	// draw is Bernoulli(mean) rather than Normal(mean, std). Derived here
+	// from the compiled field specs for the reason above — it used to
+	// ride the pair spec as a wire flag, and a flag can disagree with the
+	// marginal it is overwriting. Pairs still carrying the retired flag
+	// over a non-bernoulli target are reported rather than silently
+	// ignored.
+	bernoulliTargets := buildBernoulliConditionals(wfs)
+	warnings = append(warnings,
+		bernoulliFlagWarnings(conflicts.catNumPairs, conflicts.setNumPairs, bernoulliTargets)...)
+
 	stages := &rowStages{
 		catPairs:    buildCategoricalPairSamplers(conflicts.catPairs),
-		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs),
+		catNumPairs: buildCategoricalNumericPairSamplers(conflicts.catNumPairs, discreteTargets, bernoulliTargets),
 		setSetPairs: buildSetSetPairSamplers(conflicts.setSetPairs),
 		setCatPairs: buildSetCategoricalPairSamplers(conflicts.setCatPairs),
-		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs),
+		setNumPairs: buildSetNumericPairSamplers(conflicts.setNumPairs, discreteTargets, bernoulliTargets),
 		corr:        corr,
 		models:      models,
 		residual:    residual,
+		rules:       rules,
 	}
 
 	for rowsGenerated < s.RowCount {
 		if err := drawRow(rng, wfs, row, rowNullMask, stages); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
-		ok, evalErr := cons.evaluate(row)
+		ok, evalErr := cons.evaluate(row, rowNullMask)
 		if evalErr != nil {
 			return rowsGenerated, rowsRejected, warnings, evalErr
 		}
@@ -276,8 +336,31 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		if encErr := encodeRow(recordsBuf, wfs, row, rowNullMask, bitmapSize); encErr != nil {
 			return rowsGenerated, rowsRejected, warnings, encErr
 		}
+		// The row reached the file, so the rules that applied to it
+		// count. Committing HERE rather than inside apply is what makes
+		// the reported figure divisible by rowsGenerated: a rejected row
+		// was re-drawn and left no trace. See synth/rules_firing.go.
+		rules.commitRow()
+		rules.commitOwnedNulls()
 		rowsGenerated++
 	}
+	// A rule that applied to NO generated row is the one rule fault
+	// nothing else can see — it validates, it compiles, and the cohort
+	// generates cleanly without the structural fact it was written for.
+	// Reported last because it is a fact about the RUN, not about
+	// compiling the spec, and the warning order in this function is
+	// causal.
+	warnings = append(warnings, rules.neverFiredWarnings(rowsGenerated)...)
+	// The other fact only the RUN can establish: whether each
+	// `{"owns_nulls": true}` claim held. The flag discards a captured
+	// null_rate on the author's word that the rule accounts for it, and
+	// nothing before generation can check that word — a `when` is an
+	// arbitrary predicate and its firing rate is not knowable from the
+	// spec. Reported after the never-fired lines because a rule that
+	// fired on nothing explains its owned fields' zero rate, and the
+	// causal order of this function's warnings is cause before
+	// consequence. See synth/rules_ownership.go.
+	warnings = append(warnings, rules.ownershipWarnings(rowsGenerated)...)
 	return rowsGenerated, rowsRejected, warnings, nil
 }
 
@@ -307,6 +390,12 @@ type rowStages struct {
 	// modelled fields participate, in which case every drawer takes its
 	// own independent z exactly as it did before the slot existed.
 	residual *residualCorrelator
+	// rules is the structural-rule pass and is the LAST stage, run
+	// after everything above has settled. It consumes no RNG and is nil
+	// for every spec that declares no applicable rule, which is what
+	// keeps a rules-free spec byte-identical to output from before the
+	// slot existed. See synth/rules_apply.go for why last is the design.
+	rules *ruleApplier
 }
 
 // drawRow draws one row: every field's own independent sampler first,
@@ -390,7 +479,18 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	for _, md := range stages.models {
 		md.transform(rng, row, nullMask, stages.residual)
 	}
-	return nil
+	// The structural-rule pass is the LAST word on the row, and that
+	// placement is the semantics rather than a detail: every field above
+	// has produced the value generation INFERS for this row, and a rule
+	// now masks or replaces it only where its `when` selects, leaving
+	// the inferred value everywhere else — `if gate then null else
+	// inferred`. Running it any earlier would let the model stage
+	// overwrite its own rule-gated target. It writes the two maps this
+	// function already owns and consumes no RNG, so the per-row draw
+	// sequence is identical to a spec with no rules at all. The full
+	// rationale, including why the two-phase alternative was rejected,
+	// is on synth/rules_apply.go.
+	return stages.rules.apply(row, nullMask)
 }
 
 func encodeRow(buf *bytes.Buffer, wfs []*writerField, row map[string]any, nullMask map[string]bool, bitmapSize int) error {

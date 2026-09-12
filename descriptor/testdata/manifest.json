@@ -4797,6 +4797,27 @@
         ]
       },
       {
+        "name": "discrete",
+        "description": "Exact per-level histogram for an integer-valued column: one declared value per observed level, drawn at its own weight. What `profile create` reconstructs every u4/u8/u16/u32/u64 field from, so a coded scale keeps its real shape instead of a clamped normal's bell.",
+        "applies_to": [
+          "numeric"
+        ],
+        "params": [
+          {
+            "name": "values",
+            "type": "list",
+            "required": true,
+            "description": "Strictly ascending list of the integer levels to draw from."
+          },
+          {
+            "name": "weights",
+            "type": "list",
+            "required": false,
+            "description": "Optional non-negative weight list matching values length; uniform when absent."
+          }
+        ]
+      },
+      {
         "name": "exponential",
         "description": "Exponential samples with rate parameter lambda.",
         "applies_to": [
@@ -5062,7 +5083,7 @@
         ]
       }
     ],
-    "error_codes_count": 216,
+    "error_codes_count": 224,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5255,6 +5276,14 @@
       "PULSE_SYNTH_OUTPUT_COLLISION",
       "PULSE_SYNTH_OUTPUT_REQUIRED",
       "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
+      "PULSE_SYNTH_RULE_BLOCK_INVALID",
+      "PULSE_SYNTH_RULE_CONFLICT",
+      "PULSE_SYNTH_RULE_EMPTY",
+      "PULSE_SYNTH_RULE_EXPR_INVALID",
+      "PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE",
+      "PULSE_SYNTH_RULE_FIELD_UNKNOWN",
+      "PULSE_SYNTH_RULE_OWNERSHIP_INVALID",
+      "PULSE_SYNTH_RULE_VALUE_INVALID",
       "PULSE_SYNTH_SOURCE_REQUIRED",
       "PULSE_TEMPLATE_INVALID",
       "PULSE_TEMPLATE_NOT_FOUND",
@@ -5328,7 +5357,7 @@
       },
       {
         "name": "pulse_inspect",
-        "description": "Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata. Use when you need schema-only output without running a request — listing fields for a UI, debugging dictionary contents, or confirming a field's type before authoring a request slot."
+        "description": "Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata. Use when you need schema-only output without running a request — listing fields for a UI, debugging dictionary contents, or confirming a field's type before authoring a request slot.\n\nrecord_count is DERIVED (payload bytes / record stride), so a cohort whose payload is not a whole multiple of the stride reports the FLOOR. That case carries a coded ENCODING_INVALID entry in the additive `warnings` array with record_stride and trailing_bytes in its details; a clean read emits no `warnings` key at all. Read it — a truncated tail is invisible in the count itself."
       },
       {
         "name": "pulse_label_resolve",
@@ -6856,6 +6885,10 @@
         "description": "Emit a constant value on every row; useful for unit testing, sentinel columns, and placeholder fields."
       },
       {
+        "name": "op-synth-discrete",
+        "description": "Exact per-level histogram for an integer column; what a profile reconstructs every u4/u8/u16/u32/u64 field from."
+      },
+      {
         "name": "op-synth-exponential",
         "description": "Exponential samples with rate parameter lambda; mean is 1/lambda."
       },
@@ -7068,8 +7101,16 @@
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
       },
       {
+        "name": "synth-models",
+        "description": "Synth `--fit-models` — per-numeric linear model capture, predictor selection, thin-level shrinkage, the composed latent draw, correlated residuals, and the fidelity recovery sections that score whether the captured structure survived generation. Split out of the synthetic-data topical."
+      },
+      {
+        "name": "synth-structural-rules",
+        "description": "Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical."
+      },
+      {
         "name": "synthetic-data",
-        "description": "`pulse_synth_from_schema` vs `pulse_synth_from_profile`, multi-predictor models, correlations, constraints, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills."
+        "description": "`pulse_synth_from_schema` vs `pulse_synth_from_profile`, multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules."
       },
       {
         "name": "tool-compose",
@@ -9569,4 +9610,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 79b9c2baab349685ecedc937c5e19ac39db24a6bb0d0119a3f4e41fe82d22916
+// golden-hash: 84c56938ab5195678cb9bd0a14b2f3e4e63e234af71d466f1b52e8a3f80b8429

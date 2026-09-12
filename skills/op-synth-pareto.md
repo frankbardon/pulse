@@ -9,20 +9,16 @@ applies_to: inspect, predict, manifest
 examples_tags: [synth, distribution-shape, outlier-detection]
 ---
 
-Synth distributions emit per-row values; they do not produce Response.Components.
+Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `xm` | float | `1.0` | Scale (minimum emitted value); must be `> 0`. |
-| `alpha` | float | `1.5` | Shape; must be `> 0`. Larger alpha → lighter tail. |
+- `xm` — float, default `1.0`. Scale (minimum emitted value); must be `> 0`.
+- `alpha` — float, default `1.5`. Shape; must be `> 0`. Larger alpha → lighter tail.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| field `type:` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`. Output is always `>= xm`. |
+field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`. Output is always `>= xm`.
 
 ## Output
 

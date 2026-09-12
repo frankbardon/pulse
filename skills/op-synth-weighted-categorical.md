@@ -9,22 +9,18 @@ applies_to: inspect, predict, manifest
 examples_tags: [synth, cohort-analysis, cardinality-analysis]
 ---
 
-Synth distributions emit per-row values; they do not produce Response.Components.
+Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `values` | list[string] | required | Dictionary entries to draw from; non-empty. |
-| `weights` | list[float] | uniform | Per-value weight; length MUST match `values`. Non-negative; sum `> 0`. |
+- `values` — list[string], required. Dictionary entries to draw from; non-empty.
+- `weights` — list[float], default uniform. Per-value weight; length MUST match `values`. Non-negative; sum `> 0`.
 
 When `weights` absent the sampler installs equal weights internally.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| field `type:` | `categorical_u8`/`u16`/`u32` (the writer registers `values` as the inline dictionary). |
+field `type:` — `categorical_u8`/`u16`/`u32` (the writer registers `values` as the inline dictionary).
 
 ## Output
 

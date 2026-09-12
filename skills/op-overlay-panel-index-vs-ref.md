@@ -9,32 +9,27 @@ applies_to: compose
 examples_tags: [overlay, compose, comparison]
 ---
 
-Compose-only multi-reference. Overlays decorate the host result; they do not emit `Response.Components`.
+Compose-only multi-reference. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | `cell` (matrix host) or `group` (series host). |
-| `Reference` | string | (required) | Shared reference slot label. |
-| `Targets` | []string | (required) | One layer emitted per target. |
-| `OverlayOptions.MaxPanelTargets` | int | `16` | Cap on `len(Targets)`. |
+`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` = shared reference slot. `Targets` — one layer per target. `OverlayOptions.MaxPanelTargets` int, default `16`, caps `len(Targets)`.
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference + every target slot. Schema-match + key-alignment + dict-prefix gates per (ref, target). Sibling to `OVERLAY_PROP_Z_PANEL` (inferential).
+COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference and every target. Schema-match + key-alignment + dict-prefix gates per (ref, target). Sibling to `OVERLAY_PROP_Z_PANEL`.
 
 ## Output
 
-ONE layer per target: `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Payload shape mirrors reference slot's host shape (MATRIX or SERIES). Mathematically equivalent to `OVERLAY_INDEX_VS_REF` for each `(reference, target[i])` pair — byte-equal per layer.
+ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Payload shape mirrors the reference slot's. Byte-equal per layer to `OVERLAY_INDEX_VS_REF` on each `(reference, target[i])`.
 
 ## Gotchas
 
 - `len(Targets) > MaxPanelTargets` → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
-- Empty `spec.Name` → label degenerates to `OVERLAY_PANEL_INDEX_VS_REF__<target_label>`.
-- Streamable — SERIES fold-only; MATRIX forced buffered by the slot barrier.
-- Shared coord space enforced by schema-match + key-alignment gates before dispatch.
-- Layer slice order matches `spec.Targets` order; stable across re-runs.
+- Empty `spec.Name` → label becomes `OVERLAY_PANEL_INDEX_VS_REF__<target_label>`.
+- Streamable: SERIES fold-only; MATRIX forced buffered by the slot barrier.
+- Shared coord space is enforced before dispatch.
+- Layer slice order matches `spec.Targets`, stable across re-runs.
 
 ## See
 

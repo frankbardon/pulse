@@ -53,7 +53,7 @@ Their full names appear in CLAUDE.md so the
 | `TestPerPackageCoverageFloors`          | Package directories exist and meet documented coverage floors |
 | `TestNoOrbitReferences`, `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
 | `TestSkillsCoverAll*`                   | Skill files mention every registered component, error code, distribution, CLI leaf, field type, MCP tool |
-| `TestSkillsManifestConsistent`          | `skills/index.json` matches the `.md` files and frontmatter |
+| `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
 | `TestRegistryStreamabilityMatchesTypes` | Aggregator `OnlineAggregator` capability matches `AggregationType.Streamable()` |
 | `TestPredict_Streamable_MatchesRuntime` | `PredictResult.Streamable` mirrors `processing.CanStreamRequest` |

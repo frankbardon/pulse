@@ -12,23 +12,23 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 
 | If you change... | You MUST also update... | Enforced by |
 |---|---|---|
-| A registered aggregator | `skills/aggregation-design.md` (add or update the section for that aggregator) | `TestSkillsCoverAllComponents` |
-| A registered attribute | `skills/attribute-composition.md` | `TestSkillsCoverAllComponents` |
-| A registered filterer | `skills/aggregation-design.md` (filtering section) | `TestSkillsCoverAllComponents` |
-| A registered grouper | `skills/grouper-design.md` | `TestSkillsCoverAllComponents` |
-| A registered window operator | `skills/window-design.md` | `TestSkillsCoverAllWindowTypes` |
+| A registered aggregator | `skills/op-agg-<kebab>.md` (one atomic skill per operator) | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
+| A registered attribute | `skills/op-attr-<kebab>.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
+| A registered filterer | `skills/op-filter-<kebab>.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
+| A registered grouper | `skills/op-group-<kebab>.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
+| A registered window operator | `skills/op-win-<kebab>.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllWindowTypes` |
 | An error code (added/removed/renamed) | `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups; surfaced per-code via `pulse_errors_lookup` / `pulse errors lookup CODE`) | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
 | A CLI leaf (added/removed/flag added) | the command index in `docs/src/cli/flags.md` + `skills/session-bootstrap.md` if the leaf carries a user-facing flag | `TestSkillsCoverAllCliLeaves` (checks the leaf path is NAMED under `skills/` or `docs/src/`; it cannot check that the prose is adequate) |
 | A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
-| A `.pulse` file format change (header layout, new field type) | `CLAUDE.md` "Code Conventions" + `skills/cohort-schema-design.md` | `TestClaudeMdMentionsFormatVersion`, `TestSkillsCoverAllFieldTypes` |
+| A `.pulse` file format change (header layout, new field type) | `CLAUDE.md` "Byte-layout invariants" + `skills/type-<kebab>.md` (one atomic skill per `FieldType`) + `skills/cohort-schema-design.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestClaudeMdMentionsFormatVersion`, `TestSkillsCoverAllFieldTypes` |
 | A new non-skippable CI gate | `CLAUDE.md` (gate listed by name in the relevant section) | `TestClaudeMdMentionsAllNonSkippableGates` |
 | A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
 | An environment variable | `CLAUDE.md` "Build / Dev / Test Workflow" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
 | A registered MCP tool (added/removed) | `docs/src/internals/adding-mcp-tool.md` + `mcp/toolmeta/meta.go` (name + description) | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
 | A new MCP action tool with field-name parameters | `mcp/bind.go` (add a per-tool JSON Schema builder + entry in `Bind`) + `docs/src/internals/adding-mcp-tool.md` (Schema-bound enums section) | `TestMCPSchemaBinding_RemovesInvalidFields`, `TestMCPSchemaBinding_AllFieldsInFiltererEnum`, `TestMCPSchemaBinding_SampleAndFacetFieldEnum`, `TestMCPSchemaBinding_DedupAndSort`, `TestMCPSchemaBinding_NilSchema` |
-| A registered feature operator | `skills/feature-engineering.md` (operator catalog) + capability declaration in `descriptor/capabilities_features.go` | `TestSkillsCoverAllComponents`, `TestManifestOperatorsComplete` |
-| A registered synth distribution kind | `skills/synthetic-data.md` (Supported distributions) + capability declaration in `descriptor/capabilities_distributions.go` | `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
-| A registered statistical test (`TEST_*`) | `skills/statistical-testing.md` (Operator catalog) + `types/streamability.go` + `types/streamability_test.go` + capability declaration in `descriptor/capabilities_tests.go` | `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
+| A registered feature operator | `skills/op-feat-<kebab>.md` + capability declaration in `descriptor/capabilities_features.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
+| A registered synth distribution kind | `skills/op-synth-<kebab>.md` + capability declaration in `descriptor/capabilities_distributions.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
+| A registered statistical test (`TEST_*`) | `skills/op-test-<kebab>.md` + `types/streamability.go` + `types/streamability_test.go` + capability declaration in `descriptor/capabilities_tests.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
 | A registered tier-2 post-test variant | Capability declaration in `descriptor/capabilities_tests.go` (`postTestCapabilities`) | `TestManifestPostTestsComplete` |
 | A registered aggregator/attribute/filterer/grouper/window capability metadata | Capability declaration in `descriptor/capabilities_<category>.go` (params, accepts_types, emits_type, streamable_hint) | `TestManifestOperatorsComplete` |
 | A new error code | Description row in `descriptor/capabilities_errors.go` (`errorMetaTable`) | `TestManifestErrorCodesComplete` |

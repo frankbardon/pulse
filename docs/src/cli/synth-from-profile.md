@@ -17,7 +17,8 @@ from the source; only summary statistics drive generation.
 
 ```
 pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
-                         [--seed N] [--fidelity-report FILE] [--json]
+                         [--seed N] [--fidelity-report FILE]
+                         [--rules FILE] [--emit-spec FILE] [--json]
 ```
 
 ## Flags
@@ -30,6 +31,8 @@ pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
 | `--rows`    |      | int    | (required) | Number of **new** rows to generate |
 | `--seed`    |      | int    | 0          | Deterministic RNG seed |
 | `--fidelity-report` | | string | (none) | Write a JSON fidelity report to this path after generation completes |
+| `--rules`   |      | string | (none) | Load structural rules from a standalone JSON file and apply them to the derived spec |
+| `--emit-spec` |    | string | (none) | Write the derived spec (after any `--rules` merge) to this path as indented JSON |
 | `--json`    |      | bool   | false      | Emit the standard envelope |
 
 `--rows` is required (unlike `from-schema`, which can pull it from
@@ -52,6 +55,272 @@ through unchanged, in order.
 mutates it in place — an `--output` that resolves to the same file
 as `--source` is refused outright, and the source cohort's bytes and
 modification time are unchanged by a run.
+
+## Inspecting and modifying the derived spec
+
+`synth from-profile` derives a `synth.Spec` from the profile and
+generates from it in one breath. Two additive flags open that step up.
+Both absent, behaviour and output bytes are unchanged.
+
+### `--emit-spec <path>`
+
+Writes the spec that **actually generated** as indented JSON. It is the
+real spec, not a summary of it: fed to
+[`synth from-schema`](synth-from-schema.md) at the same `--seed` it
+reproduces the same rows.
+
+```
+pulse synth from-profile -p cohort.json --source cohort.pulse \
+    -o out.pulse --rows 20000 --seed 7 --emit-spec derived.json
+```
+
+It is the authoring aid — writing `{"when": "familiarity == 1", …}`
+requires knowing the field is called `familiarity`, that it is a `u4`
+and that its floor is 1, and nothing else prints any of that — and
+equally the **diagnostic**. The emitted document is the only place a
+reader can see:
+
+- which captured `models` survived translation onto the spec,
+- which distribution each field reconstructed to (`normal`, `bernoulli`,
+  `mixture`, `weighted_categorical`, `constant` for a column the
+  profiler could not summarise),
+- which conditional pairs were retired, and which survived.
+
+Each of those has been lost silently in this package before, every time
+leaving a plausible-looking cohort behind. The spec is written **before**
+generation runs, so a run that then fails still leaves the document.
+
+### `--rules <path>`
+
+Loads a standalone rules document and applies it to the derived spec.
+Without it the whole [structural-rules](synth-from-schema.md#structural-rules)
+layer is unreachable from the profile path.
+
+The file is **the `rules` array itself** — a bare JSON array of rule
+objects, identical to the `rules` key of a `from-schema` spec, so a rule
+moves between the two by cut and paste:
+
+```json
+[
+  {"when": "aware == 0", "set_null": ["perception_1", "perception_2"],
+   "owns_nulls": true},
+  {"null_together": ["nps", "nps_reason"]}
+]
+```
+
+A gate applied to a PROFILE-DERIVED spec almost always wants
+[`owns_nulls`](synth-from-schema.md#owns_nulls-the-rule-owns-the-fields-absence).
+`SpecFromProfile` carries each field's CAPTURED `null_rate`, which is a
+marginal already inclusive of every row the gate removed, so without the
+flag the gate's absences and the field's own draw compose and the
+generated rate lands well above the captured one — measured on the
+motivating profile at 0.4369 against a captured 0.2526. The flag
+discards the field's own draw; `profile create --suggest-rules` writes
+it on every gating candidate for the same reason.
+
+```
+pulse synth from-profile -p cohort.json --source cohort.pulse \
+    -o out.pulse --rows 20000 --seed 7 --rules rules.json
+```
+
+**Merge semantics are REPLACE, not append.** `SpecFromProfile` derives no
+rules, so there is nothing to append to; an append mode would only create
+an ordering question no caller has asked. An empty array (`[]`) is a legal
+document meaning "no rules"; a `{"rules": [...]}` wrapper is refused
+rather than read as zero rules, because a run with every gate silently
+missing is the exact failure eager validation exists to remove.
+
+Validation is eager and runs before generation. Every refusal names the
+**file** in `details.path` alongside the rule index, because an analyst
+editing a rules file beside a spec beside a profile needs to know which
+document is wrong:
+
+| Fault | Code |
+|---|---|
+| A rule names a field the derived spec does not carry | `PULSE_SYNTH_RULE_FIELD_UNKNOWN` |
+| A `when` or `set_expr` does not compile | `PULSE_SYNTH_RULE_EXPR_INVALID` |
+| A `set` literal the target cannot hold | `PULSE_SYNTH_RULE_VALUE_INVALID` |
+| The file is not readable | `DATA_FILE` |
+| The file is not a JSON array of rule objects | `SERVICE_VALIDATION` |
+
+The rule-specific codes are E1's own, not a leaf placeholder, so
+`pulse errors lookup PULSE_SYNTH_RULE_FIELD_UNKNOWN` carries the recovery
+prose. A refused file generates nothing.
+
+### What a rule retires from the derived spec
+
+A rule that **determines** a field takes it away from everything
+upstream that was going to produce a value the rule overwrites. The
+field's captured **linear model** stops being applied, any **conditional
+pair** naming it is dropped, and it stops being a
+**`residual_correlations`** participant. Each loss is warned:
+
+```
+conditional relationship conflict: field "promoter" is already claimed by
+  structural rule 0 (set_expr); dropping linear model
+residual correlation(s) naming [promoter] dropped: the field carries no
+  surviving linear model, so it has no residual to correlate; the
+  remaining participants still correlate
+```
+
+That is not primarily about saving work. The fidelity report's
+[`models`](#models--did-generation-reproduce-the-captured-structure)
+section asks generation's own compiler which models ran, so without the
+retirement a rule-overwritten field would ship a captured-versus-recovered
+coefficient delta **for a value nothing kept** — every number rendering,
+and nothing on the report saying it describes something that did not
+happen.
+
+**Which rule shapes retire a field, and which deliberately do not:**
+
+| Rule | Retires? | Why |
+|---|---|---|
+| `set` / `set_expr` with **no** `when` | yes | writes every row |
+| any rule carrying a `when` | no | writes only some rows; the model still produces the value the rest keep |
+| `set_null`, at any conditionality (with or without `owns_nulls`) | **no** | it removes a value rather than supplying one — `if gate then null else inferred` needs the model to produce what the non-gated rows carry. `owns_nulls` suppresses the field's own NULL DRAW and claims nothing: the value is still the model's |
+| `null_together` | no | copies one null decision; supplies no value |
+| `set_expr` reading **its own target** | no | it transforms what generation produced rather than determining it |
+
+The last row is why the documented pre-rounding remedy
+`{"set_expr": {"nps": "round(nps)"}}` is safe — retiring `nps` there would
+leave the rounding applied to a bare marginal draw. The reference is
+detected on the parsed expression, so a field named `nps_reason`
+elsewhere in the expression is not mistaken for one.
+
+Measured on the 381,324-row survey cohort: an unconditional
+`{"set_expr": {"promoter": "nps >= 9"}}` takes the applied models from 55
+to 54, drops `promoter`'s 54 residual-correlation pairs, and removes its
+`models` fidelity entry. A `set_null` over the same field changes none of
+the three.
+
+One consequence worth knowing: a rule that retires a model also removes
+that model's per-row random draw, so a spec with such a rule generates a
+different row sequence from the same spec without it. The determinism
+contract is unaffected — same spec and seed still reproduce the same
+bytes — and the change is always announced by the warning above.
+
+### The two compose
+
+```
+pulse synth from-profile -p cohort.json --source cohort.pulse \
+    -o out.pulse --rows 20000 --seed 7 \
+    --rules rules.json --emit-spec derived.json
+```
+
+The emitted spec carries the merged rules, so the loop is emit → read →
+write rules → apply → emit again to check what they became. `--emit-spec`
+never changes the generated cohort; it is a pure diagnostic.
+
+### A rule that never fires says so
+
+A rule naming a mistyped field or carrying an uncompilable expression is
+refused at spec parse. A rule whose `when` is simply **never true** is
+refused by nothing: it validates, it compiles, it applies to no row, and
+the cohort generates cleanly with the structural fact still absent.
+
+Every rule's firings are counted during generation, and a rule that
+applied to **zero** generated rows is reported — as a kind needing
+**attention**, so it leads the stderr summary however many
+expected-outcome lines sit below it:
+
+```
+  ! rule never fired (1)
+      rule 2 never fired: when "respondent == 0.5" was true on 0 of 20000
+      generated row(s), so the rule applied to nothing; it compares
+      "respondent" (u64, normal), whose row value is PRE-ROUNDING — the
+      file holds round(v) — so normalise first (an earlier rule setting
+      round(field)) or compare a range
+```
+
+The count is over rows that reached the **file**: a row a constraint
+rejected was re-drawn and left no trace, so it is not a firing. A rule
+that fires on every row, and one that fires on some, are silent.
+
+### The message names the cause that applies to THAT rule
+
+There are three arms, and the line picks between them from what the
+compiled spec says about the fields the predicate reads. A single message
+naming one cause was wrong for most rules once the `discrete` and
+`bernoulli` marginals shipped — measured on the 381,324-row survey
+profile, **103 of its 123 fields** round on the way to the file *and*
+draw exact values, so a dead rule gating on any one of them was told to
+fix a gate that was already exact. Only three genuinely carry the
+hazard.
+
+| Arm | Reached when | What it says |
+|---|---|---|
+| **constraint** | the rule DID select rows and a constraint rejected every one (recorded, not inferred) | the cause is the constraint; relax it or widen the rule |
+| **pre-rounding** | the predicate reads a field that rounds on write *and* draws continuous values | normalise with `round(field)` in an earlier rule, or compare a range |
+| **neutral** | neither | names each field it reads with its type and distribution, and explicitly rules pre-rounding OUT for a field whose row value already *is* the stored value |
+
+A field rounds on write when it is `u4`/`u8`/`u16`/`u32`/`u64`, `date` or
+`packed_bool`. It still draws exact values — so pre-rounding cannot be
+the cause — when its distribution is `discrete`, `bernoulli`,
+`uniform_date`, `poisson` or `monotonic_from`. A small-integer column
+reconstructs as `discrete` and a `packed_bool` as `bernoulli`
+automatically, so on a survey cohort the neutral arm is the common one:
+
+```
+rule 0 never fired: when "familiarity == 99" was true on 0 of 2000 generated
+row(s), so the rule applied to nothing; it reads "familiarity" (u4, discrete),
+and only the values those fields actually generate can match it — check the
+predicate against each field's own reconstruction; pre-rounding is NOT the
+cause for "familiarity", whose row value already is the stored value
+```
+
+### When pre-rounding IS the cause, the remedy is `round`, not `int`
+
+The row holds the sampler's float and the wire holds `round(f)`, so a
+`<= k` gate selects only the draws whose float is already at or below `k`.
+An integer field is stored as `floor(v+0.5)`, so `round(v)` is the one
+expression that reproduces the value the file holds, and `int(v)` widens
+the gate by moving VALUES down instead.
+
+Measured on the current tree, at 20,000 rows and `--seed 7`, against the
+smallest spec that still carries the hazard — a hand-authored continuous
+distribution on an integer field, which is one of the three live cases
+listed below:
+
+```json
+{"row_count": 20000,
+ "fields": [
+   {"name": "score", "type": "u8", "nullable": true, "distribution": "normal",
+    "params": {"mean": 5, "std": 2.5, "min": 0, "max": 10}, "null_rate": 0.1}],
+ "rules": [{"when": "!isnull(score) && score <= 1", "set": {"marker": "fired"}}]}
+```
+
+| gate | rows it fires on | wire `score <= 1` | stored level 0 / 1 |
+|---|---|---|---|
+| `score <= 1`, un-normalised | 1,000 | 1,480 | 659 / 821 |
+| behind `{"set_expr": {"score": "round(score)"}}` | **1,480** | 1,480 | 659 / 821 — unchanged |
+| behind `{"set_expr": {"score": "int(score)"}}` | 2,140 | **2,140** | **1,000 / 1,140** — rewritten |
+
+`round` reaches exactly the population a reader sees in the file and
+stores the same column it would have stored anyway; `int` gets its extra
+660 rows by rewriting the score of every respondent whose draw had a
+fractional part. All three run silently; only the fully-empty case is a
+warning.
+
+**How big the gap is depends on the field's SPREAD, not just its type.**
+The divergence band is the half unit either side of the threshold, so a
+WIDE integer column is live in principle and immaterial in practice: on
+the same tree, `catSpend` (u32, 0–150,000, std 11,672 — over the
+`discrete` cap, so it reconstructs as a clamped normal) fired on 7,872
+rows un-normalised, 7,872 behind `round()` and 7,872 behind `int()`, all
+three matching the wire count exactly. The three cases where it bites are
+an `f32`/`f64` column, a NARROW integer column drawn from a continuous
+distribution, and any gate whose threshold sits where the density is high.
+
+The original worked example for this section used `familiarity` from the
+381,324-row survey profile; it is now a no-op there, because a
+small-integer column reconstructs as `discrete` and its row value already
+IS the stored level. `round(familiarity)` changes nothing, which is the
+outcome the [`discrete` marginal](profile-create.md#small-integer-fields)
+was added to produce.
+
+If many rules never fire the listing is capped at 20 with a counted
+`+N further rule(s) never fired` line, the same bound the thin-level and
+thin-residual-pair listings use.
 
 ## Determinism
 
@@ -164,34 +433,49 @@ than the estimator's own noise cannot be evidence of anything.
 zero: a term that fired thousands of times and recovered nothing is a
 fault; a term that never fired had nothing to recover.
 
+**A field a `--rules` rule determines has no entry here at all.** The
+section reports only the models generation applied, and an unconditional
+`set` / `set_expr` retires its target's model before generation runs —
+see [What a rule retires from the derived
+spec](#what-a-rule-retires-from-the-derived-spec). An absent field is
+therefore an answer, not a gap; the conflict warning on stderr names it.
+
 #### Reading a flag without concluding the feature is broken
 
 **Expect flags.** On the 381,324-row survey cohort behind this feature,
-55 models were applied and **30 of them flagged**. That is not a
-generation failure, and the way to tell is that the flags cluster by the
-target's **on-wire type** — 18 `packed_bool` targets and 9 `u4` targets
-out of the 30.
+53 models were applied, **all 53 are comparable** and **40 of them
+flag**. That is not a generation failure.
 
-The reason is a known limitation with a name. The refit inverts each
-generated value back through `Q` to recover the latent it was drawn
-from, and that inversion is exact — but it cannot undo what the *writer*
-did afterwards. A `u4` field is stored rounded to a whole number; a
-`packed_bool` field is stored as 0 or 1 and nothing else. A latent
-effect of a fifth of a standard deviation survives that write only as a
-small change in how many rows crossed a boundary, so most of it is gone
-before anything measures it, and the refit correctly reports what is
-left. Call it **quantization attenuation**. It is a real property of the
-generated rows — they genuinely carry less conditioning than the model
-asked for — and the fix is a discrete draw (logistic or ordinal) for
-discrete targets rather than a looser tolerance. That is future work, so
-for now these flags are information, not action.
+A target whose `Q` is a step or a staircase — every `packed_bool` and
+every small integer, which on a survey cohort is nearly all of them —
+has no point latent inverse, so its entry carries
+`"scale": "probit_score"` and was recovered through a calibrated score
+rather than a direct inversion. That calibration is exact in
+expectation, so a flag on such an entry is a statement about the rows,
+not about the instrument. (Before that score existed the section
+reported only **2** comparable targets of the same 53, and
+`model_residual_correlations` only 1 pair; the instrument had stopped
+covering the field types the feature mostly applies to.)
+
+The rows do carry slightly less conditioning than the captured model
+asked for, for two reasons that compose. **Quantization attenuation**: a
+`u4` field is stored rounded to a whole number and a `packed_bool` as 0
+or 1, so a latent effect survives the write only as a change in how many
+rows crossed a boundary. And the composed draw holds a target's marginal
+exactly only while the generated latent is standard normal — that holds
+by construction at *fit* time, but at *generation* time the predictors
+come from their own reconstructed marginals, so the linear predictor's
+variance is whatever that distribution gives (measured on `aware`, 0.045
+against a captured R² of 0.078, with 9 of its 64 terms never firing on a
+generated row). Both are real properties of the generated rows, not
+artefacts of the instrument.
 
 What a flag on a **continuous, unrounded** target means is different,
 and that is the case worth acting on. Separate the two:
 
 | Look at | Quantization attenuation | A real generation fault |
 |---|---|---|
-| Target's field type | `packed_bool`, `u4`, or another narrow integer | `f32`/`f64`, or a wide integer |
+| Target's field type | `packed_bool`, `u4`, or another narrow integer (`"scale": "probit_score"`) | `f32`/`f64`, or a wide integer (no `scale` key) |
 | `n_fired` | Healthy — thousands of rows | Healthy — thousands of rows (a *zero* here is neither case: nothing fired, so there was nothing to recover) |
 | `recovered_coefficient` | Same sign, systematically smaller | Near zero, or the wrong sign |
 | Peers | Most models of the same target type flag alike | An outlier among similar targets |
@@ -217,12 +501,25 @@ jq '[.models[].predictors[]?
     | sort_by(.n_fired) | reverse | .[:10]' out.fidelity.json
 ```
 
-For calibration: among strong, well-supported terms on that same cohort
-(captured effect above 0.3 latent sd, `n_fired` over 500) the median
-recovered/captured ratio is **0.85** — e.g. a captured 2.219 recovering
-2.084. Generation is faithful there. A ratio near zero on a wide numeric
-target with a healthy `n_fired` is the signature that something in the
-generation path is not applying the model, and is worth reporting.
+For calibration on that same cohort: 2,499 predictor entries, **2,343
+compared** and 97 flagged; 156 unestimable, of which 143 are the
+different-ranking-basis case described below, 7 constant columns and 6
+terms whose captured effect falls below the staircase score's own
+resolution (those carry an `error`, never a divided-by-nothing number).
+A ratio near zero on a wide numeric target with a healthy `n_fired` is
+the signature that something in the generation path is not applying the
+model, and is worth reporting.
+
+On a `"scale": "probit_score"` entry each predictor also carries
+`score_retention` — the fraction of the captured effect that survives
+onto the score, which both the recovered coefficient and its
+`std_error` have already been divided by. Read a small retention as a
+wide confidence band, not as a suspect number. Measured across 2,193
+calibrated terms on that cohort: minimum 0.075, median 0.456, upper
+quartile 0.814. A staircase entry reports no
+`recovered_intercept`: its cut points come from the captured marginal,
+which generation holds exactly, so that intercept carries no evidence
+about the coefficients.
 
 Three absence rules, all deliberate:
 
@@ -330,11 +627,25 @@ endpoint's model could not be refitted). Those entries carry
 — and **no** recovered-rho key at all, so an unmeasured pair can never
 be mistaken for one recovered at zero.
 
-For calibration again: 55 applied models on the survey cohort produce
-1,485 compared pairs, of which **147 flag**, at a mean `delta` of 0.055
-and a worst of 0.490. The worst entries are the same quantized targets
-the `models` section flags (`aware`×`familiarity`, `detractor`×`nps`) —
-one cause, surfacing in both sections.
+**A pair with a `packed_bool` or small-integer endpoint is always
+`no_model_fit`, and that is deliberate.** The `models` section can
+calibrate a staircase target's *coefficient* because least squares is
+linear in its response, so the same score projected twice divides the
+attenuation out exactly. A *correlation* has no such projection: the
+factor relating two score residuals' correlation to the correlation of
+the residuals that drove the draws depends on the pair's joint
+distribution, not on either marginal. Shipping the attenuated figure
+would put a number that looks measured beside one that is, so it is
+counted as a gap instead — on the survey cohort 1 compared pair and
+1,377 unmeasured. Closing it needs a polychoric-style bivariate
+calibration or an ordered-probit refit.
+
+For calibration again: on a cohort whose modelled targets are all
+continuous, 55 applied models produce 1,485 compared pairs, of which
+**147 flag**, at a mean `delta` of 0.055 and a worst of 0.490. On the
+survey cohort, whose targets are 51 of 53 staircase, the same section
+compares 1 pair and reports 1,377 as `no_model_fit` — see the paragraph
+above.
 
 Because a modelled field is deliberately excluded from the value-scale
 `pairwise` arm, this section is the only place the report scores
@@ -453,18 +764,28 @@ because each carries findings the others do not:
 |---|---|---|
 | Capture-time | `profile create`, read back off the document | the profile document's `warnings` |
 | Translation | `SpecFromProfile` — model drops and conditional conflicts | `--fidelity-report`'s `warnings` |
-| Compilation | `generate()` — correlation completion, model compilation | `--json`'s `data.warnings` |
+| Generation | `generate()` — the post-`--rules` arbitration, rule compilation, rules that never fired, correlation completion, model compilation | `--json`'s `data.warnings` **and** `--fidelity-report`'s `warnings` |
 
 The middle channel is the one that carries `model for numeric field "x"
 not applied: …`, and until the summary existed it reached no terminal at
 all: a spec that silently applied a fraction of its captured models
 generated a plausible cohort and printed `Generated 50000 rows`.
 
-Translation and compilation both derive their conflict lines from the
-same arbitration over the same spec, so the summary drops
-byte-identical duplicates before counting — 791 conflicts are reported
-as 791, not 1,582. Only the terminal summary dedupes; nothing written to
-a file moves.
+Translation and generation both derive their conflict lines from the
+same arbitration, so byte-identical duplicates are dropped before
+counting — 791 conflicts are reported as 791, not 1,582.
+
+The generation channel reaches the **report** as well as the terminal,
+and that is what makes the summary's `Full list:` footer true. Until it
+did, the report held the two channels computed *before* the run, so a
+`--rules` run's post-merge arbitration — precisely the record of which
+captured relationships the rules retired — existed only on a terminal
+nobody keeps. Measured on the 381,324-row profile with
+`{"set_expr": {"promoter": "nps >= 9"}}` plus one never-firing rule: the
+report went from 3,846 warnings that mentioned neither fact to 3,849
+carrying the retired model, the dropped residual participant, and the
+dead rule. The overlap with the translation channel is deduped at the
+fold, so 791 shared lines are written once.
 
 Without `--fidelity-report` no document holds the merged list, so the
 footer names the flag that would produce one rather than a path that
@@ -475,7 +796,9 @@ does not exist.
 Same envelope shape as
 [`synth from-schema`](synth-from-schema.md#output). The stderr summary is
 not printed on this path — `data.warnings` already carries the
-compilation channel, and the report carries the rest.
+generation channel, and the report carries every channel. The envelope
+shape is unchanged: `warnings` is the same `[]string` slot it has always
+been.
 
 ## Exit codes
 
@@ -578,25 +901,67 @@ stderr summary marks `!` and lists first, so it does not need finding.
   `"other"` catch-all that appears in a `--fit-models` design and in
   `conditional.*` tables is a different, per-section collapse and is
   generated normally.)
-- Correlations: pairwise only, and only between numeric fields. The
+- Correlations: pairwise only, and only between SCALAR fields — every
+  declarable type that is not `categorical_*` or `set_*`, so `u4` … `u64`,
+  `f32`/`f64`, `date`, `decimal128` and `packed_bool` all qualify. The
   profile capture flag `--include-correlations` (or the more accurate
   `--conditional`) opts in; without either, fields are generated
   independently. Reconstruction uses a conditional-Gaussian
   construction (`synth/copula.go`) that exactly targets the captured
   Pearson `rho` for jointly-normal fields — see
   `skills/synthetic-data.md` for the technique and its trade-offs.
+  A small-integer or boolean participant reconstructs as a staircase
+  (`discrete` / `bernoulli`), which holds its own per-level shares
+  exactly and attenuates the realised correlation: measured on two real
+  7-level `u4` columns at a captured `rho` of +0.8400, Pearson came back
+  +0.8072 and Spearman +0.8051 with both marginals within 0.003 per
+  level. A participant already claimed by an earlier stage — a linear
+  model, or a categorical-numeric conditional pair — is not correlated
+  at all, and says so in the generation warnings.
 - Boolean (`packed_bool`) fields: reconstructed as `bernoulli` with
   `p` = the captured mean, which holds the prevalence exactly. Two
   consequences. A modelled boolean is drawn as a **probit**, so its
-  coefficients order rows but are not probability changes; and its
-  recovery is **unidentified** — the `models` section of a fidelity
-  report carries an `error` for these targets rather than a recovered
-  coefficient, because a 0/1 value does not determine the latent that
-  produced it. A boolean observed at prevalence exactly 0 or 1 has no
+  coefficients order rows but are not probability changes; and a 0/1
+  value pins the latent to an interval rather than to a point, so the
+  `models` section of a fidelity report recovers it through a calibrated
+  probit score (marked `scale: "probit_score"`) instead of a direct
+  inverse. A boolean observed at prevalence exactly 0 or 1 has no
   variance, so a model on it is dropped with a warning. A
   hand-authored schema-mode spec that puts a continuous distribution on
   a `packed_bool` is still biased (the writer rounds at 0.5); declare
   `bernoulli` there instead.
+
+  One caveat worth knowing when you compare a generated prevalence to
+  the captured one: a MODELLED boolean holds its marginal exactly only
+  while the generated latent is standard normal. The residual scale on
+  the wire is a FIT-time quantity, and at generation the predictors come
+  from their own reconstructed marginals, so the latent's variance is
+  whatever that distribution gives. On the survey cohort `aware` was
+  captured at `p` = 0.7473906704010238 and generated with
+  `P(aware == 0)` = 0.247193 over 20 seeds against the exact
+  0.252609 — a −0.0054 drift. It is the composed draw, not the
+  sampler: a lone `bernoulli` field over 200 seeds is exact to
+  +0.000046, and the same spec with every model removed is exact to
+  +0.000324. A rule-gated field inherits the drift from the field it
+  gates on.
+- Small-integer (`u4`/`u8`/`u16`/`u32`/`u64`) fields: reconstructed from
+  the captured per-level histogram as `discrete` when the column carried
+  at most 64 distinct values, which holds every level's share exactly;
+  wider columns keep the clamped normal (see
+  [`profile create`](profile-create.md) for the cap and why it abandons
+  rather than truncates). The consequences mirror the boolean arm above.
+  A modelled integer target is drawn as an **ordered probit**, so its
+  coefficients order rows but are not scale points; and like a boolean it
+  is recovered through the calibrated probit score rather than a direct
+  latent inverse, because a level pins the latent to an interval. On the
+  survey cohort the `models` section reports **53 comparable targets of
+  53 entries** (it reported 2 before that score existed) and **2,343 of
+  2,499** predictor terms compared. `model_residual_correlations` still
+  reports **1** compared pair with 1,377 unmeasured: a coefficient can be
+  calibrated because least squares is linear in its response, a
+  correlation cannot, so a staircase endpoint stays in the unmeasured
+  list under `no_model_fit` rather than shipping an attenuated rho that
+  looks measured.
 - Decimal and geo fields: regenerated within the same type family
   but with synthetic value distributions; downstream uses that
   depend on exact field values (e.g. joinable identifiers) need
@@ -616,3 +981,5 @@ stderr summary marks `!` and lists first, so it does not need finding.
 - [`pulse profile create`](profile-create.md)
 - [`pulse synth from-schema`](synth-from-schema.md)
 - `skills/synthetic-data.md` — the spec / profile grammar
+- `skills/synth-models.md` — `--fit-models`, residual correlations, and the two structure-recovery fidelity sections
+- [Synth calibration figures and design rationale](synth-calibration.md)

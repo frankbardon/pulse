@@ -28,15 +28,33 @@ func errMissingArg(name string) error {
 }
 
 // HandleInspect runs pulse_inspect: header-only schema introspection.
+//
+// It reads through InspectEnvelope rather than Inspect because the
+// envelope is where the WARNINGS are: a cohort whose payload length is
+// not a whole multiple of the record stride reports the floored
+// record_count with an ENCODING_INVALID warning beside it, and Inspect
+// drops that warning on the floor. An agent holding only the result
+// cannot tell a truncated tail from a clean read — see InspectOut.
+//
+// The envelope-level fault arm mirrors Pulse.Inspect's exactly (a bad
+// header comes back as env.Errors, not as a returned error), so the
+// only behaviour that moved is the warnings slot.
 func HandleInspect(ctx context.Context, p *pulse.Pulse, in InspectIn) (InspectOut, error) {
 	if in.Path == "" {
 		return InspectOut{}, errMissingArg("path")
 	}
-	res, err := p.Inspect(ctx, in.Path)
+	env, err := p.InspectEnvelope(ctx, in.Path, nil)
 	if err != nil {
 		return InspectOut{}, err
 	}
-	return *res, nil
+	if len(env.Errors) > 0 {
+		return InspectOut{}, errors.New("pulse: inspect: " + env.Errors[0].Message)
+	}
+	res, ok := env.Data.(*descriptor.InspectResult)
+	if !ok {
+		return InspectOut{}, errors.New("pulse: inspect returned unexpected type")
+	}
+	return InspectOut{InspectResult: *res, Warnings: env.Warnings}, nil
 }
 
 // HandlePredict runs pulse_predict: no-execute request validation.

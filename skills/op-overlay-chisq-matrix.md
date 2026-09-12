@@ -9,15 +9,11 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `matrix`. |
-| `Ref` | object | (empty) | Implicit-margin — leave empty. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` (enum, required) — must be `matrix`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
 ## Host shape
 
@@ -30,7 +26,7 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 ## Gotchas
 
 - Expected cell formula: `row_margin × col_margin / grand_total`. p-value via `chiSquareSurvival` — byte-equal to `TEST_CHISQ` on the same contingency.
-- Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` warning per layer.
+- Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer.
 - Absent host cell treated as observed count of 0.
 - Scope MUST be `matrix`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent — margins recomputed from raw rows).

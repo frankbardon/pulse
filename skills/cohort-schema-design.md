@@ -40,13 +40,7 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 
 ## Selection heuristics
 
-- Counts / IDs: smallest unsigned width that fits the max.
-- Floats: `f32` for measurements; `f64` for scores or wide dynamic range.
-- Money: `decimal128` — see `financial-cohorts`.
-- Booleans: `packed_bool`. Small ordinals (Likert, grades): `u4`.
-- Strings: always categorical. Width by distinct cardinality.
-- Multi-select: `set_*`. Width by distinct-label cap.
-- Sometimes-missing values: pick base type, then `Nullable: true`.
+Counts / IDs → smallest unsigned width that fits the max. Measurements → `f32`; scores or wide dynamic range → `f64`. Money → `decimal128` (see `financial-cohorts`). Booleans → `packed_bool`; small ordinals (Likert, grades) → `u4`. Strings → always categorical, width by distinct cardinality. Multi-select → `set_*`, width by distinct-label cap. Sometimes-missing → pick the base type, then `Nullable: true`.
 
 ## Nullability + per-record bitmap
 
@@ -57,7 +51,7 @@ When at least one field is `Nullable: true`, every record carries a trailing bit
 
 The bitmap is the sole null mechanism. No type has an inline sentinel — `decimal128` all-zero bits is decimal zero, not null. Null-skip semantics for sum/mean/percentile are central.
 
-**Inferred imports promote on out-of-sample nulls.** Schema inference reads only the first `--sample-rows` (default 500) rows to decide nullability. A null (`""`/`null`/`na`/`n/a`) past that window promotes the field to nullable and continues rather than failing — emitting `PULSE_IMPORT_NULL_PROMOTED` (also `ImportReport.PromotedFields` / `Result.promoted_fields`). Applies to every inferred text/columnar import (csv, tsv, ndjson, jsonarray, parquet, arrow, excel). An **explicit `--schema`** is a contract: a null in a declared-non-nullable field stays `PULSE_IMPORT_ROW_ERROR`. Avoid surprises: mark sometimes-missing fields `"nullable": true`, or raise `--sample-rows`.
+**Inferred imports promote on out-of-sample nulls.** Inference decides nullability from the first `--sample-rows` (default 500) rows only; a null (`""`/`null`/`na`/`n/a`) past that window promotes the field and continues rather than failing — `PULSE_IMPORT_NULL_PROMOTED` + `ImportReport.PromotedFields` / `Result.promoted_fields`. Every inferred text/columnar import (csv, tsv, ndjson, jsonarray, parquet, arrow, excel). An **explicit `--schema`** is a contract: a null in a declared-non-nullable field stays `PULSE_IMPORT_ROW_ERROR`. Avoid surprises by marking sometimes-missing fields `"nullable": true`, or raising `--sample-rows`.
 
 ## Bit-packed runs
 
@@ -73,18 +67,11 @@ Mitigation: pick widths with growth headroom up front.
 
 ## Field descriptions
 
-- Capped at 1000 bytes per field. Over-cap → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`.
-- Empty, sub-10-character, or generic ("n/a", "tbd", "unknown", "field", "data", "value", "column") → `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (warning; error under strict).
-- Style: concise, third-person, present-tense; state what the field represents, its units, and domain semantics.
+Capped at 1000 bytes per field; over-cap → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`. Empty, sub-10-character, or generic ("n/a", "tbd", "unknown", "field", "data", "value", "column") → `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (warning; error under `--strict`). Style: concise, third-person, present-tense — what the field represents, its units, its domain semantics.
 
 ## Sharded cohorts
 
-A `.pulse` path resolves to one of two shapes; dispatch on the leading 4 bytes:
-
-1. **Single-file.** Magic `PULSE\x00\x00\x00` + format byte `0x01`. Schema, dicts, records.
-2. **Shard archive.** Uncompressed Zip64 (Method 0); magic `PK\x03\x04`. Reserved `_schema.pulse` (header-only canonical schema + `SHRD` trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads.
-
-Old single-file readers fail loud on archive magic.
+A `.pulse` path resolves to one of two shapes, dispatched on the leading 4 bytes. **Single-file:** magic `PULSE\x00\x00\x00` + format byte `0x01`, then schema, dicts, records. **Shard archive:** uncompressed Zip64 (Method 0), magic `PK\x03\x04`, a reserved `_schema.pulse` entry (header-only canonical schema + `SHRD` trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Old single-file readers fail loud on archive magic.
 
 ### Cohesion
 
@@ -112,37 +99,23 @@ No concurrent-writer protection: two writers race, last wins. Readers snapshot a
 
 ## Sidecar index
 
-`Pulse.Lookup` / `pulse index build` use a **separate file** — `cohort.pulse.<keyhash>.idx`; the `.pulse` layout above stays untouched. Format **v3**:
+`Pulse.Lookup` / `pulse index build` use a **separate file** — `cohort.pulse.<keyhash>.idx`; the `.pulse` layout above stays untouched. Format **v3**, in order: 9-byte header (magic `PULSEIDX` + version `0x03`, its own magic/version distinct from `encoding.MagicBytes` / `FormatVersion`) → 32-byte SHA-256 source fingerprint → key-spec (ordered key columns + field types) → `SourceSize` (u64) + `SourceModTime` (i64 Unix ns) staleness snapshot → `u32 bucket_count` → fixed-width `bucket_count × u64` offset table (directly addressable, O(1) single-bucket seek) → self-delimited bucket data, FNV-1a hash buckets → `[]uint64` row-id multimap.
 
-1. 9-byte header: magic `PULSEIDX` + version `0x03` (own magic/version, distinct from `encoding.MagicBytes`/`FormatVersion`).
-2. 32-byte SHA-256 source fingerprint.
-3. Key-spec: ordered key columns + field types.
-4. `SourceSize` (u64) + `SourceModTime` (i64 Unix ns) — staleness snapshot.
-5. `u32 bucket_count`.
-6. Fixed-width `bucket_count × u64` offset table — directly addressable, O(1) single-bucket seek.
-7. Self-delimited bucket data: FNV-1a hash buckets → `[]uint64` row-id multimap.
+A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then seeks each matched record via `RecordLocator` — never a full-cohort or full-index read. Read-path staleness is an O(1) size+mtime stat (mismatch ⇒ `PULSE_INDEX_STALE`); `pulse index verify` recomputes the full SHA-256 instead.
 
-A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then seeks to each matched record via `RecordLocator` — never a full-cohort or full-index read. Read-path staleness is an O(1) size+mtime stat (mismatch → `PULSE_INDEX_STALE`); `pulse index verify` recomputes the full SHA-256 instead.
+**Keyable types** (`processing.IsIndexKeyableFieldType`): every type in the matrix above EXCEPT `set_*` — a multi-select mask has no single unambiguous equality value, so use `FILTER_SET`. Per-type equality caveats are in that matrix's Notes column.
 
-**Keyable types** (`processing.IsIndexKeyableFieldType`): every type in the matrix above EXCEPT `set_*` — a multi-select mask has no single unambiguous equality value, so use `FILTER_SET` instead. Per-type equality caveats live in that matrix's Notes column, not here.
-
-**Constraints:** single-file cohorts only (`archive.pulse#shard.pulse` anchor is a tested single-shard workaround); equality-only, full-key required, composite-key order significant end to end. The `PULSE_INDEX_*` / `PULSE_LOOKUP_*` error set and its fixups are `tool-lookup`'s surface.
+**Constraints:** single-file cohorts only (the `archive.pulse#shard.pulse` anchor is a tested single-shard workaround); equality-only, full-key required, composite-key order significant end to end. The `PULSE_INDEX_*` / `PULSE_LOOKUP_*` set and its fixups are `tool-lookup`'s surface.
 
 ## SPSS import (`.sav` / `.zsav`)
 
-Full surface: **`spss-cohorts`**. The two facts that belong here, because they change what a `.pulse` schema means:
+Full surface: **`spss-cohorts`**. Two facts belong here because they change what a `.pulse` schema means.
 
-1. **The schema is not inferred.** An SPSS dictionary DECLARES every column, so `io/spss` implements `io.SchemaAwareReader` and the sample-and-vote pass in `io/infer.go` is skipped. The inference-steering slots (`SampleRows`, `SetInferenceMinPct`, `SetDelimiters`, `ColumnTypeOverrides`) are inert, and there is **no null promotion** — declared nullability is a contract, so an unexpected null is `PULSE_IMPORT_ROW_ERROR`. An explicit `ImportJob.Schema` still wins.
-2. **The cohort can be wider than the source.** Two kinds of derived column are added: a `<var>_missing` `categorical_*` sibling per numeric variable declaring user-missing values (the null bitmap is one bit and cannot say *why*), and one `set_*` column per multiple-dichotomy response set, emitted **beside** its constituents. Count columns from `pulse_inspect` / `ReadHeader`, never from the SPSS variable count. `--spss-missing=null` suppresses the siblings; the `set_*` column has no opt-out.
+1. **The schema is not inferred.** An SPSS dictionary DECLARES every column, so `io/spss` implements `io.SchemaAwareReader` and `io/infer.go`'s sample-and-vote pass is skipped: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters`, `ColumnTypeOverrides` are inert and there is **no null promotion** — declared nullability is a contract, so an unexpected null is `PULSE_IMPORT_ROW_ERROR`. An explicit `ImportJob.Schema` still wins.
+2. **The cohort can be wider than the source.** Two derived kinds: a `<var>_missing` `categorical_*` sibling per numeric variable declaring user-missing values (the null bitmap is one bit and cannot say *why*), and one `set_*` column per multiple-dichotomy response set, emitted **beside** its constituents. Count columns from `pulse_inspect` / `ReadHeader`, never from the SPSS variable count. `--spss-missing=null` suppresses the siblings; the `set_*` column has no opt-out.
 
-Categorical columns hold SPSS **codes**, not labels (two codes may share a label, so a label-keyed dictionary would collapse them) — resolve labels at output time via `label-display`. An import also writes a JSON metadata sidecar, `cohort.pulse.spss.json`, holding what the `.pulse` header cannot: value labels, measure levels, missing-value specs, response-set definitions, and the registry of which columns were derived. Writable too: `pulse export spss -i cohort.pulse -o out.sav` re-emits the `.sav`, reproducing the source dictionary from that sidecar — value labels, measure levels, missing-value specs, response sets — and folding the derived columns back away. A cohort that never came from SPSS exports fine on a synthesised dictionary (`PULSE_SPSS_SIDECAR_ABSENT`, a warning); a **stale** sidecar is an error, never a quiet fallback. `--include` / `--labels` are refused rather than ignored, because the writer encodes from raw storage rather than from the rendered row stream.
+Categorical columns hold SPSS **codes**, not labels (two codes may share a label, so a label-keyed dictionary would collapse them) — resolve at output time via `label-display`. An import also writes `cohort.pulse.spss.json`, the JSON metadata sidecar holding what the `.pulse` header cannot: value labels, measure levels, missing-value specs, response-set definitions, and which columns were derived. `pulse export spss` reproduces that dictionary and folds the derived columns away; a cohort that never came from SPSS exports on a synthesised one (`PULSE_SPSS_SIDECAR_ABSENT`, a warning), a **stale** sidecar is an error, and `--include` / `--labels` are refused rather than ignored because the writer encodes from raw storage.
 
 ## Cross-links
 
-- `financial-cohorts` — `decimal128` rules.
-- `response-components` — `data.components.run.shard_count` + `partial_cohort_reason`.
-- `aggregation-guide` / `grouper-design` / `attribute-composition` — `set_*` operator surfaces.
-- `tool-lookup` — point-lookup MCP surface built on this sidecar format.
-- `tool-import` — the import MCP surface, incl. the SPSS format enum.
-- `label-display` — resolving SPSS value labels from the numeric codes the cohort stores.
-- `spss-cohorts` — the full `.sav` / `.zsav` surface: type mapping, derived columns, missing-value split, metadata sidecar, `PULSE_SPSS_*` diagnostics.
+`financial-cohorts` (`decimal128` rules) · `response-components` (`data.components.run.shard_count` + `partial_cohort_reason`) · `aggregation-design` / `grouper-design` / `attribute-composition` (`set_*` operator surfaces) · `tool-lookup` (point-lookup MCP surface on this sidecar format) · `tool-import` (import MCP surface incl. the SPSS format enum) · `label-display` (resolving SPSS value labels from stored codes) · `spss-cohorts` (the full `.sav` / `.zsav` surface: type mapping, derived columns, missing-value split, metadata sidecar, `PULSE_SPSS_*` diagnostics) · `docs/src/internals/managing-shard-archives.md`.

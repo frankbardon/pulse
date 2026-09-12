@@ -9,32 +9,25 @@ applies_to: process, compose
 examples_tags: [overlay, outlier-detection, streaming-friendly]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref` | object | (empty) | Implicit grand-total — leave empty. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` required, must be `group`. `Ref` empty (implicit grand-total; populated → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`). `Level` / `Within` must be `0`.
 
 ## Host shape
 
-SERIES — grouped Process host. Family: implicit grand-total (no `Ref`). Streamable alongside `OVERLAY_INDEX_VS_TOTAL` + `OVERLAY_SHARE_OF_TOTAL`.
+SERIES grouped Process host. Streamable alongside `OVERLAY_INDEX_VS_TOTAL` + `OVERLAY_SHARE_OF_TOTAL`.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key in host order, carrying `z = (group_val - mean) / sd` on `Summary.Statistic` where `sd = sqrt(M2 / N)` (**POPULATION SD**, n denominator). Layer `Baseline = 0`.
+SERIES — one `SeriesEntry` per host group key in host order carrying `z = (group_val - mean) / sd` on `Summary.Statistic`, `sd = sqrt(M2 / N)` (**POPULATION SD**). Layer `Baseline = 0`.
 
 ## Gotchas
 
-- **POPULATION SD**: per-group set IS the standardisation target. Contrast `OVERLAY_ZSCORE_VS_ROLLING` (sample SD, n-1). Matches `ATTR_ZSCORE` + `OVERLAY_ZSCORE_VS_MARGIN`.
-- Variance across GROUPS, not raw records — distinct from `ATTR_ZSCORE`.
-- `sd == 0` (every group equal, every-group-zero, single-group) → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
-- Absent host group → unset entry; does NOT contribute to Welford fold.
-- Populated `Ref` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- Streamable — Welford `(count, mean, M2)` triple carried inside the streaming Process fold; byte-equal within ULP across serial / parallel buffered / streaming.
+- **POPULATION SD**: the per-group set IS the standardisation target. Contrast `OVERLAY_ZSCORE_VS_ROLLING` (sample SD, n-1); matches `OVERLAY_ZSCORE_VS_MARGIN` and `ATTR_ZSCORE`'s denominator — but the variance is across GROUPS, not raw records.
+- `sd == 0` (all groups equal, all zero, single group) → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer. Absent host group → unset entry, no Welford contribution.
+- Streamable — the Welford `(count, mean, M2)` triple rides the streaming fold, byte-equal within ULP across every path.
 
 ## See
 

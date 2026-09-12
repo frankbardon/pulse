@@ -9,35 +9,28 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, t-test, tier-1-test, parametric, two-sample, one-sample, streaming-friendly]
 ---
 
-Statistical tests emit summary statistics (statistic, p-value, effect size); they do not produce Response.Components.
+Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-| `mu` | float | `0.0` | Hypothesized mean (one-sample only; ignored when `SplitBy` is set). |
-
-Slot params: `Field` (required, numeric); `SplitBy` (optional categorical → switches to two-sample Welch).
+- `alpha` — float, default `0.05`, in `(0, 1)`.
+- `mu` — float, default `0.0`. Hypothesized mean, one-sample only; ignored when `SplitBy` is set.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Field` (required) — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` (optional → two-sample Welch) — `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 
-`TestResult.Statistic` = t; `DF`; `PValue` (two-sided, Student-t CDF); `RejectNull` = `PValue < Alpha`. `Details` carries per-group `{n, mean, variance}` for the two-sample variant.
+`TestResult.Statistic` = t; `DF`; `PValue` (two-sided, Student-t CDF); `RejectNull` = `PValue < Alpha`. `Details` carries per-group `{n, mean, variance}` for two-sample.
 
 ## Gotchas
 
-- Two-sample variant requires exactly 2 SplitBy groups; else `PULSE_TEST_INVALID_SPLITBY`.
+- Two-sample needs exactly 2 `SplitBy` groups, else `PULSE_TEST_INVALID_SPLITBY`.
 - Streamable — reads running Welford state from a parallel `AGG_WELFORD` on the same `(field, split_by)`.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 - Tiny groups → unstable p; gate with `AGG_COUNT` + `PULSE_TEST_INSUFFICIENT_N`.
-- Unambiguous two-sample intent → `TEST_WELCH`; large-n survey conventions → `TEST_Z_TWO_SAMPLE`.
+- Unambiguous two-sample intent → `TEST_WELCH`; large-n survey convention → `TEST_Z_TWO_SAMPLE`.
 
 ## See
 

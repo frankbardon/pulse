@@ -9,15 +9,11 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, exact-test, small-sample]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `cell`. |
-| `Ref` | object | (empty) | Implicit-margin — leave empty. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` must be `cell`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
 ## Host shape
 
@@ -30,7 +26,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors host Ro
 ## Gotchas
 
 - 2×2 contingency: `[cell, row_margin-cell; col_margin-cell, grand-row_margin-col_margin+cell]`. Reuses `logHypergeometric` — byte-equal to `TEST_FISHER_EXACT` on the same 2×2.
-- Cochran rule: any of four expected counts `< 1` OR `>= 20%` of expected `< 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` warning per offending cell. Advisory only — Fisher stays exact.
+- Cochran rule: any of four expected counts `< 1` OR `>= 20%` of expected `< 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending cell. Advisory only — Fisher stays exact.
 - `grand_total <= 0` → absent cells everywhere + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent).

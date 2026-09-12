@@ -9,31 +9,25 @@ applies_to: facet
 examples_tags: [overlay, facet, comparison]
 ---
 
-Rides on `FacetRequest.Overlays`. Overlays decorate the host result; they do not emit `Response.Components`.
+Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref.Population.Cohort` | string | (required) | Comparison-population cohort name. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` must be `group`. `Ref.Population.Cohort` (string, required) — comparison-population cohort name. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-FACET — `FacetResult` (discrete arm or numeric arm with `IncludeHistogram=true`). Population view resolved via `processing.FacetPopulationView`.
+FACET — `FacetResult`, discrete arm or numeric arm with `IncludeHistogram=true`. Population view via `processing.FacetPopulationView`.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host value in payload order. Categorical: walks `FacetDiscrete.Values`; numeric: walks histogram bins. Each entry carries `index = subset_freq / pop_freq × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
+SERIES — one `SeriesEntry` per host value in payload order (categorical walks `FacetDiscrete.Values`, numeric walks histogram bins), carrying `index = subset_freq / pop_freq × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
 
 ## Gotchas
 
-- `pop_freq == 0` for some value → ONE `PULSE_OVERLAY_REF_ZERO` warning per affected entry + SKIP that entry (Statistic unset).
-- Value absent from population dict → treated as zero-pop_freq (skip + warning).
-- Numeric host without `IncludeHistogram` → zero entries (no per-value buckets to index).
-- Unknown population field → resolver returns `PULSE_OVERLAY_REF_UNKNOWN`.
-- Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- `pop_freq == 0`, or a value absent from the population dict (treated as zero pop_freq) → ONE `PULSE_OVERLAY_REF_ZERO` per affected entry + SKIP it (`Statistic` unset).
+- Numeric host without `IncludeHistogram` → zero entries (no per-value buckets).
+- Unknown population field → `PULSE_OVERLAY_REF_UNKNOWN` from the resolver.
 - Streamable — post-finalize fold; byte-identical streaming vs buffered.
 
 ## See

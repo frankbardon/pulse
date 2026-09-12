@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, pre-filter, feature-pipeline]
 ---
 
-Feature operators emit row-level/derived columns; they do not produce `Response.Components`.
+Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
@@ -17,20 +17,18 @@ None. `Field` (required, categorical) — `params` block is unused.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `categorical_u8`, `categorical_u16`, `categorical_u32` (must carry a dictionary) |
+`Field` — `categorical_u8`, `categorical_u16`, `categorical_u32` (must carry a dictionary).
 
 ## Output
 
-ONE column per dictionary entry, named `<prefix>_<category>` where prefix is `Label` (default `<field>`). Each row holds `1.0` in the column matching its category, `0.0` in every other. The column set is materialised from the SCHEMA dictionary at construction — predict reports the full post-feature schema without scanning records.
+ONE column per dictionary entry, named `<prefix>_<category>`, prefix = `Label` (default `<field>`). Each row holds `1.0` in its category's column, `0.0` elsewhere. The column set comes from the SCHEMA dictionary at construction, so predict reports the full post-feature schema without scanning records.
 
 ## Gotchas
 
-- Field must be categorical with a dictionary — otherwise `PROCESSING_CONFIG` ("must be categorical with a dictionary").
-- Whitespace in category labels is normalised to `_` for column-name safety (`"New York"` -> `<prefix>_New_York`); other punctuation is left to the caller.
+- Non-categorical or dictionary-less `Field` → `PROCESSING_CONFIG`.
+- Whitespace in labels normalises to `_` for column-name safety (`"New York"` -> `<prefix>_New_York`); other punctuation is the caller's problem.
 - Null categories emit ALL ZERO across the one-hot block (mirrors `Compute`). No implicit "unknown" column.
-- Categories not present in records but present in the dictionary still get an all-zero column — useful for stable downstream layouts.
+- A dictionary category absent from the records still gets an all-zero column, which keeps downstream layouts stable.
 - Streamable per-row.
 
 ## See

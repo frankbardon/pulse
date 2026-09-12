@@ -290,3 +290,42 @@ func ReadSchema(r io.Reader) (*Schema, error) {
 
 	return s, nil
 }
+
+// RecordCountForPayload derives how many whole records occupy a payload
+// of payloadBytes under this schema, together with the leftover bytes
+// that do not complete a record.
+//
+// It is the ONE derivation behind every "how many records does this
+// cohort hold" answer for a single-file cohort — service.CountRecords
+// (the header-fast facade path and the parallel-decode eligibility gate)
+// and descriptor.Inspect (the header-only reporting path) both call it.
+// They lived as two independent floor divisions until they were lifted
+// here; identical arithmetic written twice is one edit away from two
+// different record counts over the same bytes, and nothing on either
+// wire says which arm produced the number a caller is holding.
+//
+// count is always the FLOOR. trailing is payloadBytes % stride and is
+// non-zero only for a truncated tail — a cohort whose last record was
+// half-written. The two arms deliberately differ in what they do with
+// it, and only in that: Inspect has an envelope and raises an
+// ENCODING_INVALID warning naming the leftover bytes, while
+// CountRecords returns (uint64, error) with no warning channel and
+// stays silent, because it is a counter feeding an eligibility gate
+// rather than a diagnostic and a truncated tail must not make a cohort
+// that still processes fail to count. The count itself is identical on
+// both arms by construction.
+//
+// ok is false when the stride is not positive (a field-less schema has
+// no records to count) or payloadBytes is negative (the file is shorter
+// than its own header + schema); the caller reports no count rather
+// than a fabricated zero.
+func (s *Schema) RecordCountForPayload(payloadBytes int64) (count, trailing int64, ok bool) {
+	stride := int64(s.RecordByteSize())
+	if stride <= 0 {
+		return 0, 0, false
+	}
+	if payloadBytes < 0 {
+		return 0, 0, false
+	}
+	return payloadBytes / stride, payloadBytes % stride, true
+}

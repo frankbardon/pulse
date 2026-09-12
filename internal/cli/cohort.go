@@ -3,10 +3,10 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -40,48 +40,64 @@ func cohortInspectCmd() *cli.Command {
 			jsonOut := cmd.Bool("json")
 			fullDict := cmd.Bool("full-dict")
 
-			if fullDict || jsonOut {
-				// Use descriptor directly for full-dict / envelope support.
-				data, err := os.ReadFile(path)
-				if err != nil {
-					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "INSPECT_ERROR", err.Error())
-					}
-					return err
-				}
-				opts := &descriptor.InspectOptions{FullDict: fullDict}
-				env := descriptor.InspectFromBytes(data, opts)
-				if len(env.Errors) > 0 && !jsonOut {
-					return fmt.Errorf("%s", env.Errors[0].Message)
-				}
-				if jsonOut {
-					return writeJSON(cmd.Writer, env)
-				}
-				result, ok := env.Data.(*descriptor.InspectResult)
-				if !ok {
-					return fmt.Errorf("unexpected inspect result type")
-				}
-				printInspectResult(cmd, result)
-				return nil
-			}
-
 			p, err := newPulse()
 			if err != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "INSPECT_ERROR", err)
+				}
 				return err
 			}
 
-			result, err := p.Inspect(ctx, path)
+			// Every mode reads through the facade. The --json / --full-dict
+			// branch used to slurp the path itself with os.ReadFile, which
+			// bypassed the injected afero.Fs and — the visible symptom —
+			// never resolved the archive.pulse#shard.pulse anchor, so an
+			// anchor that inspected fine as text returned data:null under
+			// --json.
+			env, err := p.InspectEnvelope(ctx, path, &descriptor.InspectOptions{FullDict: fullDict})
 			if err != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "INSPECT_ERROR", err)
+				}
 				return err
 			}
-
+			if jsonOut {
+				return writeJSON(cmd.Writer, env)
+			}
+			if len(env.Errors) > 0 {
+				return fmt.Errorf("%s", env.Errors[0].Message)
+			}
+			result, ok := env.Data.(*descriptor.InspectResult)
+			if !ok {
+				return fmt.Errorf("unexpected inspect result type")
+			}
 			printInspectResult(cmd, result)
 			return nil
 		},
 	}
 }
 
+// printInspectResult renders the text mode of `pulse cohort inspect`.
+//
+// Records is printed FIRST because it is the figure a reader is usually
+// after and it was invisible here until now — reachable only through
+// --json, the library or the MCP tool. The number is whatever
+// descriptor.Inspect derived, which is already the right one for the
+// shape being inspected: the aggregate across shards for an archive,
+// that shard's own count for an archive.pulse#shard.pulse anchor
+// (the anchor resolves to the shard's standalone bytes before inspect
+// ever sees them), and payload_bytes / record_stride for a single file.
+// A per-shard breakdown follows for an archive so the aggregate is not
+// the only thing on offer; single-file cohorts carry an empty Shards
+// slice and print no breakdown.
 func printInspectResult(cmd *cli.Command, result *descriptor.InspectResult) {
+	writeText(cmd.Writer, "Records: %d\n", result.RecordCount)
+	if len(result.Shards) > 0 {
+		writeText(cmd.Writer, "Shards: %d\n", len(result.Shards))
+		for _, sh := range result.Shards {
+			writeText(cmd.Writer, "  %-30s %d records\n", sh.Filename, sh.RecordCount)
+		}
+	}
 	writeText(cmd.Writer, "Fields: %d\n", result.FieldCount)
 	for _, f := range result.Fields {
 		writeText(cmd.Writer, "  %-30s %-20s %s\n", f.Name, f.Type, f.Description)
@@ -179,7 +195,21 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 		return err
 	}
 
-	f, err := os.Open(includeFrom)
+	// The include-set is a SIDE FILE, not a cohort: an arbitrary
+	// newline-delimited path the caller names on the command line,
+	// resolved against the process working directory. It goes through an
+	// explicitly-constructed afero.NewOsFs() rather than `os` directly —
+	// the convention internal/cli/synth.go already uses for its own side
+	// files (--profile, --rules, --emit-spec) — so the repo rule "do not
+	// bypass afero.Fs" holds literally and the site is greppable with
+	// every other filesystem reach in the CLI.
+	//
+	// It is deliberately NOT the facade's injected fs. That one is rooted
+	// at PULSE_DATA_DIR when the env var is set, so routing a
+	// cwd-relative side-file path through it would silently resolve it
+	// inside the data directory. The cohort at --input goes through the
+	// facade; this does not, and the two are different kinds of path.
+	f, err := afero.NewOsFs().Open(includeFrom)
 	if err != nil {
 		if jsonOut {
 			return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())

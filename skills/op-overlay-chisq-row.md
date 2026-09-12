@@ -9,15 +9,11 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `row`. |
-| `Ref` | object | (empty) | Implicit-margin — leave empty. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` (enum, required) — must be `row`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
 ## Host shape
 
@@ -30,7 +26,7 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per row ke
 ## Gotchas
 
 - Reuses `chiSquareSurvival` — byte-equal p-values to `TEST_CHISQ` / `OVERLAY_CHISQ_MATRIX` / `OVERLAY_CHISQ_COL` on the same contingency.
-- Any `expected < 5` in a row emits ONE `PULSE_OVERLAY_EXPECTED_LOW` warning per offending row.
+- Any `expected < 5` in a row emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending row.
 - Absent host cell treated as observed count of 0.
 - Scope MUST be `row`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent).

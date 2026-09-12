@@ -11,31 +11,21 @@ examples_tags: [cardinality-analysis, cohort-analysis]
 
 ## Params
 
-None. `Group.Label` overrides output column name; `Group.Include []string` allow-lists composite keys (pipe-joined sorted labels, e.g. `"AMEX|VISA"`) and sets emission order.
+None. `Group.Label` overrides the output column name; `Group.Include []string` allow-lists composite keys (pipe-joined sorted labels, `"AMEX|VISA"`) and sets emission order.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `set_u8`/`set_u16`/`set_u32`/`set_u64` |
+`Field` — `set_u8`/`set_u16`/`set_u32`/`set_u64`.
 
 ## Output
 
-String bucket key per row (e.g. `"AMEX|VISA"`). Empty-mask rows land under an empty-key bucket — a valid distinct selection from null.
+String bucket key per row (`"AMEX|VISA"`). Empty-mask rows land under an empty-key bucket — a valid selection, distinct from null.
 
-Non-empty `Include` is order-significant: buckets emit in listed composite-key order (`Data` + `Components.buckets`); empty/absent keeps prior alphabetical order (byte-identical). Zero-record entries dropped.
+Non-empty `Include` is order-significant: buckets emit in listed composite-key order (`Data` + `Components.buckets`); empty/absent keeps the prior alphabetical order, byte-identical. Zero-record entries drop.
 
 ## Components
 
-Universal floor `{total_n, n_null}` plus operator-specific:
-
-| Key | Type | Notes |
-|---|---|---|
-| `n_empty_mask` | int | Records whose set mask was the empty selection (zero-bit) |
-| `buckets` | []bucket | `{key, mask, count, labels}` per emission |
-
-- Mergeability: `Mergeable`
-- Streaming: `StreamableGrouper` — eligible for fused crosstab
+Floor `{total_n, n_null}` + `n_empty_mask` (int, records whose set mask was the empty zero-bit selection) and `buckets` (`[]bucket` of `{key, mask, count, labels}` per emission). `Mergeable`; `StreamableGrouper`, so eligible for fused crosstab.
 
 ## Gotchas
 

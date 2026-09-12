@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, cardinality-analysis, pre-filter]
 ---
 
-Feature operators emit row-level/derived columns; they do not produce `Response.Components`.
+Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
@@ -17,9 +17,7 @@ None. `Field` (required, categorical) — `params` block is unused.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `categorical_u8`, `categorical_u16`, `categorical_u32` |
+`Field` — `categorical_u8`, `categorical_u16`, `categorical_u32`.
 
 ## Output
 

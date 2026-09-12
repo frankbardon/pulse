@@ -150,6 +150,116 @@ var warningKinds = []warningKind{
 		},
 	},
 
+	{
+		// A set_null or null_together target the schema cannot record a
+		// null for: the field is not nullable, so the row carries the
+		// type's zero as an ordinary value and no null bit. The rule
+		// fired; the file cannot show it. The slot is INTERPOLATED into
+		// the message and so is deliberately not matched on — the
+		// finding has one shape whichever slot asked.
+		kind:      "rule cannot null a non-nullable field",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "rule ", " names non-nullable field ")
+		},
+	},
+	{
+		// A conditional pair still declaring the RETIRED `bernoulli`
+		// wire flag over a target whose own marginal is not a bernoulli
+		// step. The flag is read by nothing (the cell draw follows the
+		// field's marginal now — buildBernoulliConditionals), so this is
+		// a declaration that does not do what it says: attention, for
+		// the same reason a never-fired rule is.
+		kind:      "conditional pair declares the retired `bernoulli` flag",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "declares the retired `bernoulli` flag")
+		},
+	},
+	{
+		// A null_together block copies its FIRST member's null decision
+		// to the rest, so every other member's declared null_rate is
+		// discarded. The rule applied; a number the author wrote did
+		// not. That is a requested thing not happening, so it needs
+		// attention even though the block itself is working as designed.
+		kind:      "rule null_together overrides a declared null_rate",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "null_together applies ")
+		},
+	},
+
+	{
+		// A `{"owns_nulls": true}` claim the RUN did not bear out: the
+		// flag discarded a field's captured null_rate on the author's
+		// statement that the rule accounts for its absence, and the
+		// realised rate missed it. Either the gate explains only part of
+		// the missingness or it never nulls the field at all, and both
+		// mean a number the author wrote has been thrown away and not
+		// replaced. That is a requested thing not happening, so it needs
+		// attention — the same reading the null_together override above
+		// gets, for the same discarded-rate reason. The roll-up arm
+		// folds the bounded listing's "+N further owned field(s)" line
+		// into this group, since the cap must not split one finding
+		// across two counts.
+		kind:      "rule owns_nulls discarded a null_rate it did not replace",
+		attention: true,
+		match: func(w string) bool {
+			return strings.Contains(w, " the nulls of field ") ||
+				(strings.HasPrefix(w, "+") && strings.Contains(w, "further owned field(s)"))
+		},
+	},
+
+	{
+		// A rule that applied to NO generated row. The author wrote a
+		// structural fact, the spec validated, the cohort generated
+		// cleanly, and the fact is absent — the package's own failure
+		// class (see synth/rules_firing.go), so it needs attention
+		// rather than joining the expected-outcome count. The roll-up
+		// arm folds the bounded listing's "+N further rule(s) never
+		// fired" line into the same group as the lines it summarises,
+		// since the cap must not split one finding across two counts.
+		kind:      "rule never fired",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "rule ", " never fired") ||
+				(strings.HasPrefix(w, "+") && strings.Contains(w, "further rule(s) never fired"))
+		},
+	},
+
+	{
+		// A column with no observations at all
+		// (`profile create --suggest-rules`). It is NOT a rule candidate
+		// and never becomes one — it has no gate and no block — so it
+		// gets its own kind rather than folding into the line above.
+		//
+		// ATTENTION, and not arguably: every marginal the profile
+		// carries for such a column is computed over zero rows, and
+		// generation fabricates a distribution from it. That is the
+		// plausible-looking-output failure class this whole effort
+		// exists to make visible, in its purest form.
+		kind:      "always-null column",
+		attention: true,
+		match: func(w string) bool {
+			return strings.HasPrefix(w, "always-null column")
+		},
+	},
+
+	{
+		// Structural-rule DETECTION (`profile create --suggest-rules`)
+		// reporting what it could not consider or could not fit in the
+		// file. Nothing failed — a proposal pass has no failure mode —
+		// but each line names a candidate the analyst will not see, and
+		// an unseen candidate is an unwritten rule, which is the whole
+		// gap this detector exists to close. Marked ATTENTION for that
+		// reason, ahead of the expected-outcome count.
+		kind:      "rule candidate not considered",
+		attention: true,
+		match: func(w string) bool {
+			return strings.HasPrefix(w, "rule suggestion: ")
+		},
+	},
+
 	// --- arbitration and support caveats ----------------------------
 	{
 		kind:      "conditional relationship conflict",
@@ -171,6 +281,19 @@ var thinSubjects = []string{
 	"set pair",
 	"residual pair",
 	"model level",
+	// A rule candidate resting on a thin gate level. It SHIPS with its
+	// support attached rather than being suppressed, so it is an
+	// expected outcome and not a fault — the analyst is better placed
+	// than the threshold to judge a 12-row level.
+	"gate level",
+	// The same, for a co-missing block whose thinner arm (null or
+	// present) rests on too few rows.
+	"co-missing block",
+	// The same, for an exact-dependency candidate whose thinnest SOURCE
+	// LEVEL rests on too few rows: a mapping arm resting on four rows is
+	// a coincidence, not a derivation. It ships with its support
+	// attached for the reason the two above do.
+	"dependency level",
 }
 
 // otherWarningKind is where an unrecognised warning lands, and it is

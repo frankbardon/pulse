@@ -9,23 +9,16 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, tier-1-test, parametric, two-sample, proportion-analysis, experiment-analysis, streaming-friendly]
 ---
 
-Statistical tests emit summary statistics (statistic, p-value, effect size); they do not produce Response.Components.
+Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-| `success` | string | required | Dictionary value of Field treated as a "success". |
-
-Slot params: `Field` (required, categorical / `packed_bool`), `SplitBy` (required, categorical, exactly 2 groups).
+- `alpha` — float, default `0.05`, in `(0, 1)`.
+- `success` — string, required. Dictionary value of Field treated as a "success".
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Field` (required) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `SplitBy` (required, exactly 2 groups) — same set.
 
 ## Output
 
@@ -36,7 +29,7 @@ Slot params: `Field` (required, categorical / `packed_bool`), `SplitBy` (require
 - `success` must match a dictionary value; otherwise `PULSE_TEST_INVALID_SUCCESS`.
 - Streamable — per-group counts feed both numerator and pooled denominator in one pass.
 - Small expected counts → switch to `TEST_FISHER_EXACT` (still 2×2).
-- For k > 2 SplitBy groups use `TEST_CHISQ` on the implicit `(SplitBy × Field)` contingency.
+- k > 2 `SplitBy` groups → `TEST_CHISQ` on the implicit `(SplitBy × Field)` contingency.
 - Pairs with `OVERLAY_PROP_Z_CELL` for crosstab cell-level proportion tests.
 
 ## See

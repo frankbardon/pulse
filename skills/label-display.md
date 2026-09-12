@@ -9,17 +9,17 @@ covers: [LabelBinding, pulse_label_tables, pulse_label_resolve]
 
 # Label display
 
-Pulse stores categorical fields as dictionary indices resolving to compact strings on read (`"US"`, `"M01.2"`, internal SKUs). When the resolved string is itself a code rather than a display label, the **label overlay** rewrites or augments the value at output time without touching the on-disk schema.
+Pulse stores categorical fields as dictionary indices resolving to compact strings on read (`"US"`, `"M01.2"`, internal SKUs). When that string is itself a code rather than a display label, the **label overlay** rewrites or augments it at output time without touching the on-disk schema.
 
 ## When to use
 
-Use a binding when the cohort stores an identifier (ISO code, SKU, ICD code, enum) and the user wants a human-readable name; OR the mapping is runtime-controlled (external store, evolves independently, varies per audience). Skip when the label is intrinsic and stable (import a second categorical column), the translation is computed (use `ATTR_FORMULA`), or the mapping is analytic semantics used by filters/sort (denormalise during import).
+Use a binding when the cohort stores an identifier (ISO code, SKU, ICD code, enum) and the user wants a readable name; OR the mapping is runtime-controlled (external store, evolves independently, varies per audience). Skip when the label is intrinsic and stable (import a second categorical column), the translation is computed (`ATTR_FORMULA`), or the mapping is analytic semantics used by filters/sort (denormalise at import).
 
 ## Two-step setup
 
 ### 1. Register a label table
 
-Tables live on `pulse.Options.Extensions.LabelTables` or load from disk via `PULSE_LABEL_TABLES_DIR`.
+Tables live on `pulse.Options.Extensions.LabelTables`, or load from disk via `PULSE_LABEL_TABLES_DIR`.
 
 ```go
 LabelTables: map[string]pulse.LabelTable{
@@ -30,9 +30,9 @@ LabelTables: map[string]pulse.LabelTable{
 }
 ```
 
-`PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename without `.json` = table name). Either flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
+`PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename minus `.json` = table name). Flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
 
-**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata) and `*.meta.json` (managed import) by suffix before reading them, so pointing the variable at a directory that also holds cohorts is safe and a skipped sidecar registers no table. Every OTHER `*.json` under the root is still parsed as a label table and a file that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically. A dedicated directory is still the cleaner habit.
+**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata) and `*.meta.json` (managed import) by suffix before reading, so pointing the variable at a directory that also holds cohorts is safe; a skipped sidecar registers no table. Every OTHER `*.json` under the root is parsed as a label table, and one that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically. A dedicated directory is still cleaner.
 
 ### 2. Attach a binding
 

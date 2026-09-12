@@ -9,19 +9,15 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, proportion-analysis]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `cell`. |
-| `Ref.Margin.Axis` | enum | (required) | Must be `column`. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — must be `column`. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Family: explicit-margin (`Ref.Margin`). Structural twin of `OVERLAY_SHARE_OF_ROW` / `OVERLAY_SHARE_OF_TOTAL`. Compatible with any cell aggregator.
+MATRIX crosstab (`Response.Crosstab.Matrix`). Structural twin of `OVERLAY_SHARE_OF_ROW` / `OVERLAY_SHARE_OF_TOTAL`. Compatible with any cell aggregator.
 
 ## Output
 
@@ -30,9 +26,8 @@ MATRIX — `Cells[r][c].Value = cell / col_margin` (raw ratio, no ×100). Cells 
 ## Gotchas
 
 - Distinct from `OVERLAY_INDEX_VS_MARGIN` (×100). Kind names kept distinct — author doesn't confuse `share` with `index/100`.
-- `col_margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` warning per affected column.
+- `col_margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected column.
 - Absent host cells stay absent on the overlay.
-- Scope MUST be `cell`. Empty `Ref.Margin` or non-column Axis → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (host crosstab always recomputes margins from raw rows).
 
 ## See

@@ -2,9 +2,12 @@ package cli
 
 import (
 	"context"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -250,5 +253,55 @@ func TestCohortFilterCLI_EmptyIncludeFileWritesZeroRows(t *testing.T) {
 	}
 	if n := inspectRecordCount(t, dst); n != 0 {
 		t.Errorf("empty-include row count = %d, want 0", n)
+	}
+}
+
+// TestCohortFile_ReachesTheFilesystemThroughAferoOnly is the guard on
+// FU-42's decision, and the decision is worth stating because the rule it
+// applies has a documented exception it does NOT fall under.
+//
+// CLAUDE.md's rule is "do not bypass afero.Fs — it defeats fs.NewMemMap()
+// and the custom-storage extension hook". The sanctioned exception is
+// CONFIG-DIR loading (label_loader.go / range_loader.go / template/), and
+// it is sanctioned because those directories are resolved from env vars
+// at pulse.New() time and are configuration rather than data.
+//
+// `cohort filter --include-from` is neither. It is a side file the caller
+// names on the command line, and it is not a cohort — so it is also not
+// the facade's injected fs's business: that fs is rooted at
+// PULSE_DATA_DIR when the env var is set, and routing a cwd-relative
+// side-file path through it would silently resolve the path inside the
+// data directory. The in-repo precedent for exactly this category is
+// internal/cli/synth.go, which reads --profile / --rules / --emit-spec
+// through an explicitly-constructed afero.NewOsFs(). This file follows
+// it: same behaviour, rule held literally, and one greppable spelling for
+// every filesystem reach in the CLI.
+//
+// The check is on the IMPORT rather than on behaviour because that is
+// what a future edit would reintroduce — os.Open is one character shorter
+// than the afero form and reads as equivalent.
+func TestCohortFile_ReachesTheFilesystemThroughAferoOnly(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "cohort.go", nil, parser.ImportsOnly)
+	if err != nil {
+		t.Fatalf("parse cohort.go: %v", err)
+	}
+	var afero bool
+	for _, imp := range file.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			t.Fatalf("unquote %s: %v", imp.Path.Value, err)
+		}
+		if path == "os" {
+			t.Errorf(`internal/cli/cohort.go imports "os": every filesystem reach in this file must go ` +
+				`through afero (afero.NewOsFs() for a caller-named side file, the facade for a cohort). ` +
+				`See this test's doc for why --include-from is not the sanctioned config-dir exception.`)
+		}
+		if path == "github.com/spf13/afero" {
+			afero = true
+		}
+	}
+	if !afero {
+		t.Error("cohort.go no longer imports afero — if the --include-from read moved, move this guard with it")
 	}
 }

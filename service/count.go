@@ -78,16 +78,26 @@ func (s *Service) CountRecords(ctx context.Context, path string) (uint64, error)
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading schema from: %s", path))
 	}
-	stride := schema.RecordByteSize()
-	if stride <= 0 {
-		return 0, nil
-	}
 	remaining := size - cr.n
 	if remaining < 0 {
 		return 0, errors.NewCodedError(errors.ENCODING_INVALID,
 			"cohort file size smaller than header + schema")
 	}
-	return uint64(remaining) / uint64(stride), nil
+	// Floor division over the record stride, through the one shared
+	// derivation descriptor.Inspect also calls — the count must be the
+	// same number on both arms, and that is only guaranteed while the
+	// arithmetic exists once. A non-whole payload (truncated tail)
+	// floors SILENTLY here: this path has no warning channel, it feeds
+	// the parallel-decode eligibility gate as well as the facade, and a
+	// half-written trailing record must not stop a cohort that still
+	// processes from reporting how many whole records it holds. The
+	// same bytes through `pulse cohort inspect` carry the
+	// ENCODING_INVALID warning naming the leftover bytes.
+	count, _, ok := schema.RecordCountForPayload(remaining)
+	if !ok {
+		return 0, nil
+	}
+	return uint64(count), nil
 }
 
 // countArchive reads the zip central directory + the reserved

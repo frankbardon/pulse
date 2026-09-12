@@ -49,7 +49,7 @@ Evaluates an `expr-lang/expr` (v1.17.x) string per row.
 - **Field refs** by bare name. Numeric → number. Categorical → dictionary string (use `==` / `in`, not the index). `set_*` → sorted `[]string` of selected labels; helpers `contains`, `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor` consume naturally.
 - **Operators**: arithmetic (`+ - * / % **`), comparison, logical (`and or not`), membership / pattern (`in`, `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
 - **Functions**: numeric (`abs`, `ceil`, `floor`, `round`, `min`, `max`, `sum`, `mean`, `median`), cast (`int`, `float`, `string`), collection (`len`, `keys`, `values`, `concat`, `sort`, `uniq`, `filter`, `map`, `reduce`, `all`, `any`), string (`join`, `split`, `replace`, `trim`, `lower`, `upper`, `hasPrefix`, `hasSuffix`, `indexOf`), JSON / time (`toJSON`, `fromJSON`, `now`, `date`, `duration`). **No** `sqrt` / `log` / `exp` / `pow` / trig — use `**` for powers (`x ** 0.5`) or pre-compute upstream.
-- **Extensions.** `pulse.Options.Extensions.ExprFunctions` injects custom functions; `LookupTables` reaches `lookup(table, keys...)`. Per `extension-points`.
+- **Extensions.** `pulse.Options.Extensions.ExprFunctions` injects custom functions; `LookupTables` reaches `lookup(table, keys...)`. Per `docs/src/internals/extension-points.md`.
 - **Null fields are omitted** from the env. Referencing one without `??` raises `PROCESSING_RUNTIME` and drops the row.
 
 Two common patterns:
@@ -85,5 +85,5 @@ Attributes emit scalars; they do not produce `Response.Components`. The Componen
 - `aggregation-design` — when to aggregate instead of derive a column.
 - `feature-engineering` — FEAT_* pre-filter column production.
 - `request-envelope` — slot keys, streamability, smart defaults.
-- `extension-points` — `ExprFunctions` + `LookupTables` injection.
+- `docs/src/internals/extension-points.md` — `ExprFunctions` + `LookupTables` injection.
 - `streaming-and-watching` — per-slot streamability classification.

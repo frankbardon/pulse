@@ -9,22 +9,15 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, tier-1-test, normality-test, distribution-shape, parametric, buffered-pipeline]
 ---
 
-Statistical tests emit summary statistics (statistic, p-value, effect size); they do not produce Response.Components.
+Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-
-Slot params: `Field` (required, numeric); `SplitBy` (optional categorical — when set, runs the test per-group).
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` (optional) |
+`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` (optional — when set, runs per-group) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 

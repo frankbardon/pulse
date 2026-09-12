@@ -135,6 +135,20 @@ func TestClassifyWarning_EveryProducerIsClassified(t *testing.T) {
 			wantKind:  "residual correlations not captured",
 			attention: true,
 		},
+		{
+			// synth/rules_apply.go, ruleNonNullableWarning.
+			name:      "ruleNonNullableWarning",
+			warning:   ruleNonNullableWarning(2, "set_null", "nps"),
+			wantKind:  "rule cannot null a non-nullable field",
+			attention: true,
+		},
+		{
+			// synth/rules_firing.go, the zero-firing report.
+			name:      "ruleNeverFiredWarning",
+			warning:   ruleNeverFiredWarning(ruleFiring{index: 3, when: "familiarity == 1"}, 20000),
+			wantKind:  "rule never fired",
+			attention: true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -254,5 +268,39 @@ func TestGroupWarnings_EmptyIsNil(t *testing.T) {
 	attention, info := CountWarningsNeedingAttention(nil)
 	if attention != 0 || info != 0 {
 		t.Errorf("counts over no groups = (%d, %d), want (0, 0)", attention, info)
+	}
+}
+
+// TestGroupWarnings_NeverFiredRuleLeadsTheSummary is the ordering gate
+// for this kind, and the target of E2-S3's falsification: flip the
+// "rule never fired" row's attention flag to false and this test fails.
+//
+// The property it pins is the one the terminal summary depends on. A
+// wide-cohort capture legitimately puts thousands of expected-outcome
+// lines on the same slice, and a rendering that shows a bounded prefix
+// must still show the two lines saying a rule the author wrote applied
+// to nothing. Classified as expected, those two sort BELOW a thousand
+// thin pairs and the finding is where nobody looks — which is precisely
+// how this package's three prior silent structure-loss defects survived.
+func TestGroupWarnings_NeverFiredRuleLeadsTheSummary(t *testing.T) {
+	var ws []string
+	for i := 0; i < 1000; i++ {
+		ws = append(ws, thinPairWarning("categorical", "a", "b", 3, MinPairObservations))
+	}
+	ws = append(ws, ruleNeverFiredWarning(ruleFiring{index: 0, when: "familiarity == 1"}, 20000))
+	ws = append(ws, ruleNeverFiredWarning(ruleFiring{index: 4, when: "nps == 9"}, 20000))
+
+	groups := GroupWarnings(ws)
+	if groups[0].Kind != "rule never fired" {
+		t.Fatalf("groups[0].Kind = %q, want the never-fired rules first despite being outnumbered 500:1",
+			groups[0].Kind)
+	}
+	if !groups[0].Attention || groups[0].Count() != 2 {
+		t.Errorf("groups[0] = %q attention=%v x%d, want an attention kind with both lines",
+			groups[0].Kind, groups[0].Attention, groups[0].Count())
+	}
+	attention, informational := CountWarningsNeedingAttention(groups)
+	if attention != 2 || informational != 1000 {
+		t.Errorf("counts = (%d attention, %d expected), want (2, 1000)", attention, informational)
 	}
 }

@@ -9,19 +9,15 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `column`. |
-| `Ref` | object | (empty) | Implicit-margin — leave empty. Any populated arm rejected. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` (enum, required) — must be `column`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Family: implicit-margin χ² (no `Ref`). Compatible with any crosstab regardless of cell aggregator; reads observed × expected from row/column margins recomputed by the buffered orchestrator.
+MATRIX crosstab (`Response.Crosstab.Matrix`). Compatible with any crosstab regardless of cell aggregator; reads observed × expected from row/column margins recomputed by the buffered orchestrator.
 
 ## Output
 
@@ -29,10 +25,9 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per column
 
 ## Gotchas
 
-- Reuses `chiSquareSurvival` — byte-equal p-values to `TEST_CHISQ` and `OVERLAY_CHISQ_ROW` / `OVERLAY_CHISQ_MATRIX` on the same contingency.
-- Any `expected < 5` in a column emits ONE `PULSE_OVERLAY_EXPECTED_LOW` warning per offending column.
+- Reuses `chiSquareSurvival` — p-values byte-equal to `TEST_CHISQ`, `OVERLAY_CHISQ_ROW`, `OVERLAY_CHISQ_MATRIX`.
+- Any `expected < 5` in a column emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending column.
 - Absent host cell treated as observed count of 0.
-- Scope MUST be `column`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent — host crosstab path always recomputes margins from raw rows).
 
 ## See

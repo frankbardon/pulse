@@ -67,6 +67,7 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `Export(ctx, job) (*ExportReport, error)` | `.pulse` → tabular |
 | `Convert(ctx, job) (*ConvertReport, error)` | Tabular → tabular, with `.pulse` as the transparent middle |
 | `Inspect(ctx, path) (*InspectResult, error)` | Read header + schema only (no record data) |
+| `InspectEnvelope(ctx, path, opts) (*Envelope, error)` | Same read, envelope returned whole — carries the warnings `Inspect` drops (e.g. a truncated payload tail) and takes `descriptor.InspectOptions` |
 | `Predict(ctx, req) (*PredictResult, error)` | Validate a request without executing |
 | `Sample(ctx, path, n) ([]Record, error)` | Up to n rows |
 | `Facet(ctx, path, field) ([]string, error)` | Distinct values of a field |

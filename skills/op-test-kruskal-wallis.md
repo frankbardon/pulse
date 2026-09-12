@@ -9,22 +9,15 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, tier-1-test, nonparametric, k-sample, comparison, buffered-pipeline]
 ---
 
-Statistical tests emit summary statistics (statistic, p-value, effect size); they do not produce Response.Components.
+Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-
-Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 2 groups).
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` (required, ≥ 2 groups) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 
@@ -34,9 +27,9 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 
 
 - Buffered — combined values ranked across all groups under tie correction.
 - Nonparametric alternative to `TEST_ANOVA_F` when normality fails or distributions are heavy-tailed.
-- Global test only — pairwise post-hoc (Dunn / Conover) not yet shipped; use multiple `TEST_MANN_WHITNEY_U` with manual Bonferroni until then.
+- Global only — Dunn / Conover post-hoc not yet shipped; use repeated `TEST_MANN_WHITNEY_U` with manual Bonferroni.
 - Tiny groups (`n_i < 5`) inflate type-I; gate with `PULSE_TEST_INSUFFICIENT_N`.
-- Tests stochastic-equality, not equal medians — distributions with different shapes can reject for shape reasons alone.
+- Tests stochastic equality, not equal medians — differing shapes can reject on shape alone.
 
 ## See
 
