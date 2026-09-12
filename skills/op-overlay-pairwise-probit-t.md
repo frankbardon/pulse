@@ -9,9 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components` (but this family READS them).
-
-Intra-matrix pairwise: tests one host-matrix slot against another ALONG one axis of the SAME crosstab. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row. Sibling of `OVERLAY_PAIRWISE_PROP_Z` — same proportion + n inputs, different test (probit transform).
+Intra-matrix pairwise: one host-matrix slot against another ALONG one axis of the SAME crosstab. `row` scope pairs row indices per column; `column` pairs column indices per row. Sibling of `OVERLAY_PAIRWISE_PROP_Z` — same proportion + n inputs, probit transform instead. Overlays decorate the host result; they do not emit `Response.Components` (this family READS them).
 
 ## Params
 
@@ -30,18 +28,14 @@ MATRIX crosstab + `Response.Components.Crosstab`. Components-disabled host → `
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values. Identical layout to `op-overlay-pairwise-prop-z`.
-
-## Math
-
-Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`, two-sided. Proportions are clipped to `[1e-10, 1-1e-10]` before the Φ⁻¹ transform. Reuses the Student-t survival helper backing `TEST_T`.
+MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to `op-overlay-pairwise-prop-z`. Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`, two-sided; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. Reuses the Student-t survival helper backing `TEST_T`.
 
 ## Gotchas
 
-- `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO` warning).
-- Emits RAW p-values only — direction / thresholds / min-n are the embedder's job.
-- `p_source` mismatch fails silently: `cell_value` over a 0..100 percentage cell pushes proportions outside `[0,1]` and every pair skips. See `op-overlay-pairwise-prop-z`.
-- Flagged buffered in `OverlayStreamability` (inferential); the HOST crosstab still FUSES when its cell aggregator is mergeable.
+- `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
+- RAW p-values only — direction / thresholds / min-n are the embedder's job.
+- `p_source` mismatch fails silently: `cell_value` over a 0..100 percentage pushes proportions outside `[0,1]` and every pair skips.
+- Flagged buffered in `OverlayStreamability`; the HOST crosstab still FUSES on a mergeable cell aggregator.
 
 ## See
 

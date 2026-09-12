@@ -9,14 +9,14 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, streaming-friendly]
 ---
 
-Regression operators emit coefficient + diagnostics; they do not produce Response.Components. Fit summaries ride `Response.Regressions[i]`.
+Regression operators emit coefficient + diagnostics, not Response.Components. Fit summaries ride `Response.Regressions[i]`.
 
 ## Params
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | required | Response variable (numeric). |
-| `predictors` | []field | required | ≥1 predictor (numeric). |
+| `predictors` | []field | required | ≥1 numeric predictor. |
 | `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | `0` | Strength; >0 when `penalty` set. |
 | `l1_ratio` | float | `0` | Elastic-net mix in `[0,1]`. |
@@ -26,15 +26,11 @@ Regression operators emit coefficient + diagnostics; they do not produce Respons
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `packed_bool`, plus nullable variants |
-
-Nullable rows drop from `n_obs` via the per-record bitmap.
+`target` / `predictors` — numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `packed_bool`, plus nullable variants. Nullable rows drop from `n_obs` via the per-record bitmap.
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. Penalized shrunk-to-zero βs drop from `StdErrors`. Streams Welford-Pébaÿ sufficient stats; regularized solve runs once at finalize over the p×p Gram.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. Penalized shrunk-to-zero βs drop from `StdErrors`. Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
 
 ## Gotchas
 

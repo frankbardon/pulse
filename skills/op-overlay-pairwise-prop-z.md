@@ -9,9 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components` (but this family READS them).
-
-Intra-matrix pairwise: tests one host-matrix slot against another ALONG one axis of the SAME crosstab (the per-Request counterpart to Compose's `OVERLAY_PROP_Z_PANEL`). ROW scope pairs row indices per column; COLUMN scope pairs column indices per row.
+Tests one host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's `OVERLAY_PROP_Z_PANEL`. Overlays decorate the host result; they do not emit `Response.Components` (this family READS them).
 
 ## Params
 
@@ -19,26 +17,26 @@ Intra-matrix pairwise: tests one host-matrix slot against another ALONG one axis
 |---|---|---|---|
 | `Scope` | enum | (required) | `row` (pair rows per column) or `column` (pair columns per row). |
 | `Ref` | object | (empty) | Intra-matrix — leave empty. Any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. |
-| `params.pair_along_dim` | int | (unset) | Restrict pairs to "all pair-axis dims agree except this one" buckets. Unset = every pair. |
-| `params.n_source` | enum | `cell_n_unweighted` | Sample-size leg: `cell_n_unweighted` / `cell_value_weighted` / `row_margin_n` / `column_margin_n` / `n_within` / `cell_weight_sum`. |
+| `params.pair_along_dim` | int | (unset) | Restrict pairs to buckets agreeing on all pair-axis dims but this one. Unset = every pair. |
+| `params.n_source` | enum | `cell_n_unweighted` | `cell_n_unweighted` / `cell_value_weighted` / `row_margin_n` / `column_margin_n` / `n_within` / `cell_weight_sum`. |
 | `params.n_within_depth` | int | `0` | With `n_source=n_within`, fixes the first depth+1 pair-axis dims in the denominator (mirrors `CrosstabSpec.NormalizeWithin`). |
-| `params.p_source` | enum | `cell_value_pct` | `cell_value_pct` (cell is a 0..100 percentage, ÷100) or `cell_value` (already 0..1). |
+| `params.p_source` | enum | `cell_value_pct` | `cell_value_pct` (0..100, ÷100) or `cell_value` (already 0..1). |
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`) + `Response.Components.Crosstab`. A components-disabled host fires `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
+MATRIX crosstab (`Response.Crosstab.Matrix`) + `Response.Components.Crosstab`. Components-disabled host → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
 
 ## Output
 
-MATRIX — `OverlayLayer.Payload.Shape = "matrix"`. The PAIR axis carries one entry per evaluated `(i, j)` index pair (key = the 2-tuple of the compared legs' labels); the OPPOSITE axis echoes the host's other axis. Cell `(pair, opp)` = the pair's two-sided p-value, absent when a leg is unreadable or the test degenerate. ROW scope → rows = pairs, cols = host columns; COLUMN scope transposes.
+MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)` pair, key = the 2-tuple of the compared legs' labels; OPPOSITE axis echoes the host's other axis. Cell = the pair's two-sided p-value, absent when a leg is unreadable or the test degenerate. `row` scope → rows = pairs; `column` transposes.
 
 ## Gotchas
 
-- Reuses `twoProportionZ` — p-values match `OVERLAY_PROP_Z_CELL` / `TEST_PROP_Z` byte-for-byte for the same (success, n) inputs.
-- Emits RAW p-values only. Direction (which leg is greater), thresholds, and min-n flags are the embedder's job — every input for them is already on the response (host cells, per-cell n).
+- Reuses `twoProportionZ` — byte-for-byte equal to `OVERLAY_PROP_Z_CELL` / `TEST_PROP_Z` on the same (success, n).
+- RAW p-values only. Direction, thresholds and min-n flags are the embedder's job; every input is already on the response.
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` warning per reason.
-- **`p_source` mismatch fails silently and totally.** `cell_value` over a cell that is really a 0..100 percentage (e.g. `AGG_WEIGHTED_MEAN` of a pct field) drives the pooled proportion outside `[0,1]`, so EVERY pair skips on invalid pooled SE and the layer returns empty. Match the mode to the cell: `cell_value_pct` divides by 100.
-- Flagged buffered in `OverlayStreamability` (inferential), but the HOST crosstab still FUSES when its cell aggregator is mergeable — `AGG_WEIGHTED_MEAN` fuses, including over a `GROUP_SET_PER_ELEMENT` axis.
+- **`p_source` mismatch fails silently and totally.** `cell_value` over a real 0..100 percentage drives pooled p outside `[0,1]`, so EVERY pair skips and the layer returns empty.
+- Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (`AGG_WEIGHTED_MEAN`, including over a `GROUP_SET_PER_ELEMENT` axis).
 
 ## See
 

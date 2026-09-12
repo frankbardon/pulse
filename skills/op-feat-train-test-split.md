@@ -15,37 +15,25 @@ Feature operators emit row-level/derived columns; they do not produce `Response.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `ratios` | list[float] | (required) | Two- OR three-element ratio vector. Must sum to `1.0` within `1e-6`. |
-| `seed` | int | `0` | RNG seed; same seed produces byte-identical assignments. |
-| `stratify` | field name (string) | — | Optional categorical field; ratios are applied per category for class balance. |
-
-Two-element ratios produce train + val (no test). Three-element ratios produce all three splits.
+| `ratios` | list[float] | (required) | Two elements → train + val; three → all three splits. Must sum to `1.0` within `1e-6`. |
+| `seed` | int | `0` | Same seed ⇒ byte-identical assignments. |
+| `stratify` | string | — | Optional categorical field; ratios applied per category for class balance. |
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | not consulted — assignments are positional / per-shuffle. May be omitted. |
-| `params.stratify` | `categorical_u8` / `u16` / `u32` (rejects non-categorical) |
+`Field` not consulted — assignments are positional / per-shuffle; may be omitted. `params.stratify` — `categorical_u8` / `u16` / `u32` only.
 
 ## Output
 
-One `u8`-valued `f64` column written to `Label` (default `split`). Constants surfaced from `processing/feature`:
-
-```go
-feature.SplitTrain = 0
-feature.SplitVal   = 1
-feature.SplitTest  = 2
-```
+One `u8`-valued `f64` column at `Label` (default `split`), from `processing/feature`: `feature.SplitTrain = 0`, `feature.SplitVal = 1`, `feature.SplitTest = 2`.
 
 ## Gotchas
 
-- `ratios` length outside `[2, 3]` → `PROCESSING_CONFIG`. Any negative ratio → `PROCESSING_CONFIG`. Sum off `1.0` by more than `1e-6` → `PROCESSING_CONFIG`.
-- Non-categorical `stratify` → `PROCESSING_CONFIG`.
-- GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields the precomputed assignment in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
+- `ratios` length outside `[2, 3]`, any negative ratio, a sum off `1.0` by more than `1e-6`, or a non-categorical `stratify` → `PROCESSING_CONFIG`.
+- GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields it in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
 - Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
-- Stratified mode hashes deterministically per group using `seed + len(out)*indices[0]+1` — different groups don't collapse to identical shuffles.
-- LEAKAGE-SAFE WIRING: place THIS operator BEFORE any `FEAT_TARGET_ENCODE` to suppress `PULSE_FEAT_TARGET_LEAKAGE_RISK`. Then `FILTER_INCLUDE` on `split == 0` to scope downstream training-only computations.
+- Stratified mode hashes per group with `seed + len(out)*indices[0]+1`, so groups do not collapse to identical shuffles.
+- LEAKAGE-SAFE WIRING: place this BEFORE any `FEAT_TARGET_ENCODE` to suppress `PULSE_FEAT_TARGET_LEAKAGE_RISK`, then `FILTER_INCLUDE` on `split == 0` to scope downstream training-only work.
 
 ## See
 
