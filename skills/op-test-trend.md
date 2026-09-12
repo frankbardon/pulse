@@ -13,19 +13,14 @@ Statistical tests emit summary statistics (statistic, p-value, effect size); the
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-| `variant` | string | `"mann_kendall"` | Algorithm name (only variant currently supported). |
+- `alpha` — float, default `0.05`, in `(0, 1)`.
+- `variant` — string, default `"mann_kendall"` (only variant supported).
 
-Slot params: `Field` (required, numeric), `OrderBy` (required, ≥ 1 key). **Tier-2 typical** — list in `Request.PostTests`; tier-1 possible when the raw field has a natural ordering key.
+Slot params `Field` (numeric) + `OrderBy` (≥ 1 key) both required. **Tier-2 typical** — list in `Request.PostTests`; tier-1 is possible when the raw field has a natural ordering key.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric output column (typically from `WIN_MOVING_AVG` or a grouped aggregate) |
-| `OrderBy` | numeric or `date` field defining the series ordering |
+`Field` — numeric output column (typically `WIN_MOVING_AVG` or a grouped aggregate). `OrderBy` — numeric or `date` field defining the series order.
 
 ## Output
 
@@ -33,10 +28,9 @@ Slot params: `Field` (required, numeric), `OrderBy` (required, ≥ 1 key). **Tie
 
 ## Gotchas
 
-- Tier-2 only meaningful with an ordered upstream series — `WIN_MOVING_AVG` over a date grouper is the canonical pairing; reads result rows, never the raw cohort.
-- `OrderBy` empty → `PULSE_TEST_MISSING_ORDER_BY`.
-- Buffered (`Streamable=false`).
-- Short series → unstable p; gate with `PULSE_TEST_INSUFFICIENT_N` (n ≥ 10).
+- Meaningful only over an ordered upstream series — `WIN_MOVING_AVG` over a date grouper is the canonical pairing; reads result rows, never the raw cohort.
+- `OrderBy` empty → `PULSE_TEST_MISSING_ORDER_BY`. Buffered (`Streamable=false`).
+- Short series → unstable p; gated by `PULSE_TEST_INSUFFICIENT_N` (n ≥ 10).
 - Sensitive to seasonality — pre-deseasonalize via `WIN_EWMA` or month grouping.
 
 ## See

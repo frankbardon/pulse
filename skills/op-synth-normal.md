@@ -17,29 +17,25 @@ Synth distributions emit per-row values; they do not produce Response.Components
 |---|---|---|---|
 | `mean` | float | `0.0` | Distribution mean. |
 | `std` | float | `1.0` | Standard deviation; must be `> 0`. |
-| `min` | float | `-inf` | Optional lower clamp; enables clamp path. |
-| `max` | float | `+inf` | Optional upper clamp; enables clamp path. |
+| `min` | float | `-inf` | Lower clamp. |
+| `max` | float | `+inf` | Upper clamp. |
 
-Setting either `min` or `max` flips an internal `clamped` flag — once on, both bounds are applied even when only one was specified.
+Setting either bound flips an internal `clamped` flag — once on, BOTH bounds apply even though only one was given.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| field `type:` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date` (days-since-epoch). Bit-packed (`u4`) writes one byte per row. |
-
-Categorical / `packed_bool` not supported — use `weighted_categorical` or `bernoulli`.
+Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date` (days-since-epoch); `u4` writes one byte per row. Categorical / `packed_bool` unsupported — use `weighted_categorical` or `bernoulli`.
 
 ## Output
 
-Per-row `float64` sample drawn from `N(mean, std²)`. Cast/clamped to the declared field type at write time. Days-since-epoch when bound to a `date` field.
+Per-row `float64` from `N(mean, std²)`, cast/clamped to the declared field type at write time; days-since-epoch on a `date` field.
 
 ## Gotchas
 
 - Heavy clamping distorts pairwise correlations — `|rho|_actual < |rho|_requested` when a partner field is clamp-narrow.
 - `std <= 0` → `SERVICE_VALIDATION` at spec parse.
-- Nullable fields draw the inner value first, then the null mask — the seeded stream stays invariant to which rows end up null.
-- Determinism: same `(spec, opts.Seed)` produces byte-identical output. `Seed == 0` is stable, not random.
+- Nullable fields draw the inner value first, then the null mask, so the seeded stream is invariant to which rows end up null.
+- Same `(spec, opts.Seed)` ⇒ byte-identical output. `Seed == 0` is stable, not random.
 
 ## See
 

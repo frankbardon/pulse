@@ -13,29 +13,22 @@ Overlays decorate the host result; they do not emit `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref.RollingMean` | object | (empty marker) | Tags ref family. |
-| `params.window` | int | (required) | Positive integer; window width `W`. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` required, must be `group`. `Ref.RollingMean` empty marker tags the ref family. `params.window` required, positive width `W`. `Level` / `Within` must be `0`.
 
 ## Host shape
 
-SERIES — ordered grouped Process host. Family: rolling window (`Ref.RollingMean`). Shares per-group ring buffer + Welford trio with `OVERLAY_INDEX_VS_ROLLING_MEAN`.
+SERIES — ordered grouped Process host. Rolling-window family (`Ref.RollingMean`); shares the per-group ring buffer + Welford trio with `OVERLAY_INDEX_VS_ROLLING_MEAN`, reading `mean` + `M2`.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key, carrying `z = (point - rolling_mean) / rolling_sd` on `Summary.Statistic` where `rolling_sd = sqrt(M2 / (count - 1))` (**SAMPLE SD**, n-1 denominator). Layer `Baseline = 0`.
+SERIES — one `SeriesEntry` per host group key carrying `z = (point - rolling_mean) / rolling_sd` on `Summary.Statistic`, `rolling_sd = sqrt(M2 / (count - 1))` (**SAMPLE SD**, n-1). Layer `Baseline = 0`.
 
 ## Gotchas
 
-- **SAMPLE SD**: rolling window IS a sample of the wider series → unbiased variance. Contrast `OVERLAY_ZSCORE_VS_TOTAL` (population SD, divide by N).
-- Shares ring buffer + Welford trio with `OVERLAY_INDEX_VS_ROLLING_MEAN`; ZSCORE reads `mean` + `M2`.
+- **SAMPLE SD**: the window IS a sample of the wider series → unbiased variance. Contrast `OVERLAY_ZSCORE_VS_TOTAL` (population SD, ÷N).
 - Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window <= 0` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
-- `count < 2` → NaN, no warning (Welford needs ≥2).
-- Zero rolling SD → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per occurrence.
-- Absent host point → NaN + ring does NOT advance.
+- `count < 2` → NaN, no warning (Welford needs ≥2). Zero rolling SD → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per occurrence.
+- Absent host point → NaN, and the ring does NOT advance.
 - Buffered.
 
 ## See

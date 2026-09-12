@@ -13,28 +13,21 @@ Feature operators emit row-level/derived columns; they do not produce `Response.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `degree` | int | (required) | Polynomial degree. Must be `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 (the linear term) is the original column — reference it directly downstream. |
+`degree` — int, required. `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `decimal128` accepted via f64 approximation. (no categorical, no `packed_bool`) |
+`Field` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; `decimal128` via f64 approximation. No categorical, no `packed_bool`.
 
 ## Output
 
-`Degree - 1` columns named `<prefix>_<k>` for `k = 2..Degree`, where `prefix` defaults to `<field>_poly` (override via `Label`). Each column holds `x^k` per row, computed as iterative multiplication (`power *= v`). The ORIGINAL column is left untouched so REG_OLS over `{x, x_poly_2, x_poly_3, ...}` becomes the linear-model basis for polynomial regression.
+`Degree - 1` columns `<prefix>_<k>` for `k = 2..Degree`, `prefix` default `<field>_poly` (override via `Label`). Each holds `x^k` by iterative multiplication (`power *= v`). The ORIGINAL column is untouched, so `REG_OLS` over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
 
 ## Gotchas
 
-- `degree < 2` → `PROCESSING_CONFIG` ("use the original column for the linear term").
-- `degree > 10` → `PROCESSING_CONFIG` ("Degree capped at 10; consider standardizing inputs first or using an orthogonal basis").
-- OVERFLOW WITHOUT STANDARDISATION: naive `x^10` with `|x| = 100` already yields `1e20`. Centre / standardise the predictor first; for serious work use an orthogonal basis (out of scope for v1).
-- Null inputs → null on every emitted column.
-- Streamable per-row.
-- Designed for `REG_OLS` polynomial fits (Indeed #8). Pair with `regression-modeling`.
+- `degree` outside `[2, 10]` → `PROCESSING_CONFIG`.
+- OVERFLOW WITHOUT STANDARDISATION: `x^10` at `|x| = 100` is already `1e20`. Centre / standardise first; an orthogonal basis is out of scope for v1.
+- Null inputs → null on every emitted column. Streamable per-row.
 
 ## See
 
