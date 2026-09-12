@@ -9,7 +9,7 @@ applies_to: inspect, predict, manifest
 examples_tags: [synth, data-quality]
 ---
 
-Synth distributions emit per-row values; they do not produce Response.Components.
+Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 

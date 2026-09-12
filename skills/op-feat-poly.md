@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, polynomial, pre-filter, streaming-friendly]
 ---
 
-Feature operators emit row-level/derived columns; they do not produce `Response.Components`.
+Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 

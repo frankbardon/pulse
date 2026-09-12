@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, selection, stepwise, buffered-pipeline]
 ---
 
-Regression operators emit coefficient + diagnostics, not Response.Components. This modifier shrinks the active predictor set in `Response.Regressions[i].SelectedFeatures` and drops non-selected entries from `Coefficients` / `StdErrors`.
+Regression operators emit coefficient + diagnostics; no `Response.Components`. This modifier shrinks the active predictor set in `Response.Regressions[i].SelectedFeatures` and drops non-selected entries from `Coefficients` / `StdErrors`.
 
 ## Params
 

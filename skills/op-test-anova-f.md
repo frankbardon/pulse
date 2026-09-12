@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [hypothesis-test, tier-1-test, k-sample, parametric, comparison, streaming-friendly]
 ---
 
-Statistical tests emit summary statistics (statistic, p-value, effect size); they do not produce Response.Components.
+Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 

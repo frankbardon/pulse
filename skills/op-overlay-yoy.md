@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, time-series, comparison, trend-detection]
 ---
 
-Overlays decorate the host result; they do not emit `Response.Components`.
+Overlays decorate the host; they emit no `Response.Components`.
 
 ## Params
 

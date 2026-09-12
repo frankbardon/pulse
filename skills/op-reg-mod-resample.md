@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, resampling, jackknife, buffered-pipeline]
 ---
 
-Regression operators emit coefficient + diagnostics, not Response.Components. This modifier overwrites `StdErrors` / `PValues` in `Response.Regressions[i]`; the point estimate stays the full-data fit.
+Regression operators emit coefficient + diagnostics; no `Response.Components`. This modifier overwrites `StdErrors` / `PValues` in `Response.Regressions[i]`; the point estimate stays the full-data fit.
 
 ## Params
 

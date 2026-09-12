@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, glm, logistic, buffered-pipeline]
 ---
 
-Regression operators emit coefficient + diagnostics, not Response.Components. Fit summaries ride `Response.Regressions[i]`.
+Regression operators emit coefficient + diagnostics; no `Response.Components`. Fit summaries ride `Response.Regressions[i]`.
 
 ## Params
 

@@ -9,7 +9,7 @@ applies_to: compose
 examples_tags: [overlay, compose, cross-tabulation, hypothesis-test]
 ---
 
-Compose-only. Overlays decorate the host result; they do not emit `Response.Components`.
+Compose-only. Overlays decorate the host; they emit no `Response.Components`.
 
 ## Params
 

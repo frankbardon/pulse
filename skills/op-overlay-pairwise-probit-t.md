@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 
-Intra-matrix pairwise: one host-matrix slot against another ALONG one axis of the SAME crosstab. `row` scope pairs row indices per column; `column` pairs column indices per row. Sibling of `OVERLAY_PAIRWISE_PROP_Z` — same proportion + n inputs, probit transform instead. Overlays decorate the host result; they do not emit `Response.Components` (this family READS them).
+Intra-matrix pairwise: one host-matrix slot against another ALONG one axis of the SAME crosstab. `row` scope pairs row indices per column; `column` pairs column indices per row. Sibling of `OVERLAY_PAIRWISE_PROP_Z` — same proportion + n inputs, probit transform instead. Overlays decorate the host; they emit no `Response.Components` (this family READS them).
 
 ## Params
 

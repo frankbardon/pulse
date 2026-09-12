@@ -9,7 +9,7 @@ applies_to: compose
 examples_tags: [overlay, compose, hypothesis-test, z, byte-equal-test]
 ---
 
-Compose-only parity overlay. Overlays decorate the host result; they do not emit `Response.Components`.
+Compose-only parity overlay. Overlays decorate the host; they emit no `Response.Components`.
 
 ## Params
 
