@@ -11,7 +11,7 @@ covers: [pulse_synth_from_schema, pulse_synth_from_profile, synth, distributions
 
 Pulse synthesizes deterministic `.pulse` cohorts via `pulse_synth_from_schema` / `pulse_synth_from_profile` (matching CLI leaves).
 
-This file is the CONTRACT surface — the rules that are not inferable from the code you are editing, and whose violation is SILENT. Per-distribution params are in atomic `op-synth-*` skills; `rules[]` / `constraints[]` in `synth-structural-rules`; the measurements behind each rule, and every closed design question, in `docs/src/cli/synth-calibration.md`.
+The CONTRACT surface — rules not inferable from the code you are editing, whose violation is SILENT. Per-distribution params: atomic `op-synth-*`. `rules[]` / `constraints[]`: `synth-structural-rules`. The measurements behind each rule and every closed design question: `docs/src/cli/synth-calibration.md`.
 
 Synth does not emit `Response.Components` — it writes a `.pulse` file.
 
@@ -52,7 +52,7 @@ Three carry rules you cannot guess:
 
 - `discrete` — `values` strictly ASCENDING + optional `weights`. The exact per-level histogram of an integer column; what `profile create` reconstructs every capped integer field from (see Small-integer marginals).
 - `constant` — coerced ONCE at spec-compile time to the field's own ROW shape: bool → 1/0 on any scalar, array or object of option names → a `set_*` mask, string REQUIRED for a categorical, verbatim string for `decimal128` (`ParseDecimal128` is exact). The only sampler taking its value from the document, so the only one that can put a Go `bool` where the expr environment promises `float64`; a shape the row cannot hold is refused at parse.
-- `set_bernoulli` — `options` also PRE-REGISTERS the field's dictionary at schema-build time. That is a determinism requirement, not an optimisation (see Set profiling).
+- `set_bernoulli` — `options` also PRE-REGISTERS the field's dictionary at schema-build time. A determinism requirement, not an optimisation (see Set profiling).
 
 17 of the 18 field types are reachable — **`datetime` is NOT**: `fieldTypeFromName` (`synth/writer.go`) has no case for it, so `"type": "datetime"` refuses with `unknown field type`. Use `date` (epoch days) or `u64` epoch seconds. `decimal128` needs `params.scale` matching the declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
 
@@ -64,7 +64,7 @@ Three carry rules you cannot guess:
 
 `correlations` is a list of `{a, b, rho}` realized by a Gaussian copula (`synth/copula.go`): correlated standard normals `u` via Cholesky → `p_i = Φ(u_i)` → each field's OWN quantile `Q_i(p_i)`.
 
-- **Supported marginals:** `normal` / `uniform` / `lognormal` / `exponential` / `mixture` / `bernoulli` / `discrete` (`fieldMoments` validates, `quantileFor` builds `Q_i`). Anything else named in `correlations` → `SERVICE_VALIDATION`. `|rho| ≥ 1` rejected at validation.
+- **Supported marginals:** `normal` / `uniform` / `lognormal` / `exponential` / `mixture` / `bernoulli` / `discrete` (`fieldMoments` validates, `quantileFor` builds `Q_i`). Anything else in `correlations` → `SERVICE_VALIDATION`. `|rho| ≥ 1` rejected at validation.
 - **A participant must also be a SCALAR field TYPE, and that predicate is DERIVED, never transcribed.** `isNumericFieldType` reads `fieldTypeFromName`: every declarable non-`categorical_*`, non-`set_*` type qualifies (`u4`…`u64`, `f32`/`f64`, `date`, `decimal128`, `packed_bool`) and nothing else. A hand-written list silently dropped a whole type out of `Spec.Correlations` once — do not reintroduce one. The boundary is TYPE, not distribution: a `date`'s `uniform_date` is refused one call later, NAMING the distribution.
 - **`normal` reduces exactly to `mean + std*u`.** Otherwise the copula targets RANK correlation exactly and preserves each field's own marginal (mean, std AND skew); realized PEARSON attenuates for a wide-variance non-normal marginal, and `min`/`max` clamping distorts further.
 - **A step/staircase participant (`bernoulli`, `discrete`) holds its marginal EXACTLY and attenuates the realised correlation**, costing rank as well as Pearson once ties dominate.
@@ -77,24 +77,22 @@ Gates: `TestSynth_CorrelationReconstructionWithinTolerance`, `TestSynth_CopulaPr
 
 Capture via `pulse_profile_create`; synth via `pulse_synth_from_profile`. Per field:
 
-- Numeric: mean, std, min, max, optional percentiles, null-rate — plus `discrete` (per-level histogram) for a capped integer column. Categorical: top-K + frequencies, cardinality, null-rate. Date: range, weekday histogram, null-rate. `set_*`: below.
+- Numeric: mean, std, min, max, optional percentiles, null-rate, plus `discrete` (per-level histogram) for a capped integer column. Categorical: top-K + frequencies, cardinality, null-rate. Date: range, weekday histogram, null-rate. `set_*`: below.
 - Pairwise: strongest `|rho|` (capped by `--correlation-top-k`).
-- `--conditional` (additive / `omitempty`, all under `conditional.`): `conditional.numeric_pairs` `{a,b,rho,n}` row-aligned, `n` the TRUE co-occurrence count — preferred over `pairwise` when present, falling back unchanged when absent; `conditional.categorical_pairs` `{a,b,cells,n}` over at most 10,000 rows by genuine Algorithm-R reservoir sampling (`--seed`), NOT first-N, so a block-ordered source is unbiased — two caps compose, each field's `--top-k` collapsing to `"other"` FIRST, then `ContingencyCellCap` (128) with the tail folded into one merged `("other","other")`; `conditional.categorical_numeric_pairs` `{a,b,categories,n}`, one online `{category,mean,std,n}` per category (no reservoir cap, no second joint cap).
+- `--conditional` (additive / `omitempty`, all under `conditional.`): `conditional.numeric_pairs` `{a,b,rho,n}` row-aligned, `n` the TRUE co-occurrence count — preferred over `pairwise` when present, falling back unchanged when absent. `conditional.categorical_pairs` `{a,b,cells,n}` over at most 10,000 rows by genuine Algorithm-R reservoir sampling (`--seed`), NOT first-N, so a block-ordered source is unbiased; two caps compose — each field's `--top-k` collapses to `"other"` FIRST, then `ContingencyCellCap` (128) folds the tail into one merged `("other","other")`. `conditional.categorical_numeric_pairs` `{a,b,categories,n}`, one online `{category,mean,std,n}` per category (no reservoir cap, no second joint cap).
 - **Thin-pair warning:** `n < 30` (`synth.MinPairObservations`) still SHIPS — never refused — with a warning naming the pair (`thinPairWarning`). Every pair kind reuses this mechanism.
-- `--fit-models` (`models`) and `--residual-correlations` (`residual_correlations`, requires `--fit-models`): below.
+- `--fit-models` (`models`) and `--residual-correlations` (`residual_correlations`, requires `--fit-models`): `synth-models`.
 - `--fit-shape` (`numeric.shape`, numeric only): a 2-component Gaussian mixture (`synth/shape.go`) kept only when it beats plain normal on **BIC** AND the means are ≥ `0.75*avgStd` apart. `fitTwoComponentEM` runs a FIXED 50 iterations from a deterministic percentile init (no RNG) with a std floor at 5% of overall std. Fixed at 2 components, no sweep. `SpecFromProfile` then emits `mixture` instead of `normal`.
 
 `SpecFromProfile` reconstructs: `packed_bool` → `bernoulli`; capped small integer → `discrete`; other numeric → `normal` clamped to observed min/max (or `mixture` when `shape` is present); categorical → `weighted_categorical`; date → `uniform_date`; `set_*` → `set_bernoulli`. Unsupported → `PULSE_PROFILE_FIELD_UNSUPPORTED`.
 
+Both non-normal numeric arms below share one shape, and it is the part to get right: the arm runs **AHEAD of `--fit-shape`** (a mixture fits such a column happily and reproduces its shares no better), capture is UNCONDITIONAL (this is the DEFAULT reconstruction being wrong, not an enhancement), and **all THREE writers that can reach the field are covered — fixing one leaves the others wrong with no signal**: its own sampler, a conditional pair, and the model draw.
+
 ### Boolean marginals
 
-**A `packed_bool` reconstructs as `bernoulli` with `p` = the observed mean, and that arm sits AHEAD of `--fit-shape`.** A boolean lands in the NUMERIC accumulator, and the obvious reading of that summary — `normal(mean, std)` clamped to `[0,1]` — is wrong on the wire, severely and silently: the field holds ONE BIT, the writer must reduce a continuous draw to 0/1, and no threshold over a clamped normal lands right (a 20% boolean generated at 69%, a 50% one at 84%). `bernoulli` needs no threshold — the mean IS `p`. The arm precedes `--fit-shape` because a mixture fits a 0/1 column happily and reproduces the prevalence no better.
+**A `packed_bool` reconstructs as `bernoulli` with `p` = the observed mean.** A boolean lands in the NUMERIC accumulator, and the obvious reading of that summary — `normal(mean, std)` clamped to `[0,1]` — is wrong on the wire, severely and silently: the field holds ONE BIT, the writer must reduce a continuous draw to 0/1, and no threshold over a clamped normal lands right (a 20% boolean generated at 69%, a 50% one at 84%). `bernoulli` needs no threshold — the mean IS `p`.
 
-**Three writers reach a boolean and all three are covered** — fixing one leaves the others wrong with no signal:
-
-1. Its own sampler draws `bernoulli`.
-2. A conditional pair draws each cell's captured `Mean` as a PREVALENCE, not a location (`Std` unused), resolved from the target's own `FieldSpec` — never a wire flag, so pair and marginal cannot disagree.
-3. A model draws through the step `Q`, making it a **probit**: `P(1 | row) = Φ((μ − Φ⁻¹(1−p)) / σ)`. Coefficients order rows, not probabilities.
+Three writers: its own sampler draws `bernoulli`; a conditional pair draws each cell's captured `Mean` as a PREVALENCE, not a location (`Std` unused), resolved from the target's own `FieldSpec` so pair and marginal cannot disagree; a model draws through the step `Q`, making it a **probit** — `P(1 | row) = Φ((μ − Φ⁻¹(1−p)) / σ)`, so coefficients order rows, not probabilities.
 
 Consequences: `p` of exactly 0 or 1 has zero variance, so a model on it is DROPPED with a warning rather than producing an infinite `1/std` (the constant is deliberately not floored). A bernoulli target has no POINT latent inverse, so `latentFor` refuses it and recovery runs on the calibrated probit score. The continuous arm survives only for a hand-authored `normal` on a `packed_bool`: biased, not correct, and `toBool` rounds at 0.5 there so it is at least not inverted.
 
@@ -102,13 +100,13 @@ Consequences: `p` of exactly 0 or 1 has zero variance, so a model on it is DROPP
 
 ### Small-integer marginals
 
-**An integer column with at most 64 observed levels reconstructs as `discrete` — its own exact per-level histogram — and that arm sits AHEAD of `--fit-shape`.** The boolean defect one type wider: the writer stores `floor(v+0.5)`, so a clamped normal is QUANTIZED on the way to the file — the bell flattens the scale's real shape and the clamp piles asymmetric mass on the near bound, while the MEAN comes back roughly right, which is how it survived. A level's observed count IS its weight. Capture is UNCONDITIONAL (no flag): this is the DEFAULT reconstruction being wrong, not an enhancement.
+**An integer column with at most 64 observed levels reconstructs as `discrete` — its own exact per-level histogram.** The boolean defect one type wider: the writer stores `floor(v+0.5)`, so a clamped normal is QUANTIZED on the way to the file — the bell flattens the scale's real shape and the clamp piles asymmetric mass on the near bound, while the MEAN comes back roughly right, which is how it survived. A level's observed count IS its weight.
 
 **Which types claim the arm is not a taste judgement.** `isIntegerQuantizedFieldType` is exactly the set of `writeFieldValueForField` arms applying `Floor(f+0.5)` — so `f32`/`f64` (the float is stored), `decimal128` (exact at its scale), `date` (owns `uniform_date`) and `packed_bool` (`bernoulli` runs ahead) are excluded. A type list ALONE is insufficient (a `u16` share-of-wallet is in the defect, a `u64` ID must not be), so the observed-level cap separates them.
 
 **`maxDiscreteLevels` (64, package constant, no flag) is where capture ABANDONS the histogram, never truncates it** — a top-64-of-3,000 histogram makes every share a share of an arbitrary subset — and the ABSENCE of the `discrete` key IS that record, structurally rather than conventionally. Above the cap the field keeps the clamped normal. The boundary is PRAGMATIC, not a fidelity cliff: the clamped normal's per-level RELATIVE error is scale-invariant; only its absolute error shrinks (~1/K).
 
-**Three writers, all covered.** Its own sampler draws the staircase. A conditional pair locates the cell's captured moments ON that staircase — `value = Q(Φ((cellMean−fieldMean)/fieldStd + (cellStd/fieldStd)·z))`, the SAME construction the model stage uses — resolved from the target's own `FieldSpec`, never a wire flag. A model draws through the staircase `Q`, an **ordered probit**: predictors shift the latent, the histogram holds exactly, direction and ordering carry, scale-point magnitude does not.
+Three writers: its own sampler draws the staircase; a conditional pair locates the cell's captured moments ON that staircase — `value = Q(Φ((cellMean−fieldMean)/fieldStd + (cellStd/fieldStd)·z))`, the SAME construction the model stage uses — resolved from the target's own `FieldSpec`, never a wire flag; a model draws through the staircase `Q`, an **ordered probit** (predictors shift the latent, the histogram holds exactly, direction and ordering carry, scale-point magnitude does not).
 
 Consequences: no POINT latent inverse, so `latentFor` refuses it as it refuses `bernoulli` and recovery runs on the probit score. Value-scale correlation on a `discrete` participant attenuates. And the **pre-rounding gotcha DISAPPEARS** for these fields — the row value already IS the stored integer, so `{"set_expr": {"nps": "round(nps)"}}` is a no-op. That advice stays live only for `f32`/`f64`, an integer column over the cap, and a hand-authored continuous distribution on an integer field.
 
@@ -136,7 +134,7 @@ The option axis never needs a top-K collapse (fixed two-value domain). Bounded b
 
 ## Multi-predictor models → `synth-models`
 
-`--fit-models` is how **several drivers condition one numeric at once** (the pair arms above are pick-one: each overwrites the numeric it targets, so on a wide cohort every categorical claims the same target and all but the first are dropped). Capture, predictor selection, thin-level shrinkage, the composed latent draw, latent-scale effects, shape-fitted composition, `residual_correlations`, what a model retires, and the two fidelity RECOVERY sections all live in `synth-models`. Read it before touching `Spec.Models`, `Spec.ResidualCorrelations` or `FidelityReport.Models`.
+`--fit-models` is how several drivers condition one numeric at once (the pair arms above are pick-one). Capture, predictor selection, thin-level shrinkage, the composed latent draw, latent-scale effects, shape-fitted composition, `residual_correlations`, what a model retires, and the two fidelity RECOVERY sections are all in `synth-models`. Read it before touching `Spec.Models`, `Spec.ResidualCorrelations` or `FidelityReport.Models`.
 
 ## Conditional relationship conflicts
 
@@ -160,21 +158,21 @@ Warnings surface two ways: `generate()` returns them on `Result.Warnings`; for `
 
 ## Tagged top-up contract
 
-`synth from-profile` (`SynthOptions.SourceCohort` / `--source`) always: (1) appends one `_synthetic` `packed_bool` field — `false` on copied rows, `true` on generated ones; (2) writes to a **new** output path, distinct from `--source`, which is opened read-only and never mutated; (3) treats `--rows` as a count of NEW rows, never "top up to N total" (`--rows 500` against 200 source rows → 700 rows). `SourceCohort` empty (`synth from-schema`) is the plain path — no tag column. Refusals: `PULSE_SYNTH_SOURCE_REQUIRED`, `PULSE_SYNTH_OUTPUT_REQUIRED`, `PULSE_SYNTH_OUTPUT_COLLISION`, `PULSE_SYNTH_ALREADY_TAGGED`, `PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH`.
+`synth from-profile` (`SynthOptions.SourceCohort` / `--source`) always: (1) appends one `_synthetic` `packed_bool` field, `false` on copied rows, `true` on generated ones; (2) writes a **new** output path, distinct from `--source`, which is opened read-only and never mutated; (3) treats `--rows` as a count of NEW rows, never "top up to N total" (`--rows 500` against 200 source rows → 700 rows). `SourceCohort` empty (`synth from-schema`) is the plain path — no tag column. Refusals: `PULSE_SYNTH_SOURCE_REQUIRED`, `PULSE_SYNTH_OUTPUT_REQUIRED`, `PULSE_SYNTH_OUTPUT_COLLISION`, `PULSE_SYNTH_ALREADY_TAGGED`, `PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH`.
 
 ## Fidelity report
 
-`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. Marginals: numeric via `TEST_KS` (`split_by: _synthetic`), categorical via `TEST_CHISQ` — existing operators, no new stat math. `_synthetic` is on-wire `packed_bool` and both operators need categorical, so the bridge presents it through a `categorical_u8` VIEW schema for that call only. The bridge lives in `pulse.go` (`writeSynthFidelityReport`), not `synth/`, to avoid an import cycle — `synth.BuildFidelityReport` takes an injected `TestRunner`. A failed field test reports `error`, not `result`, without aborting the rest. Sections are `omitempty` throughout.
+`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. Marginals: numeric via `TEST_KS` (`split_by: _synthetic`), categorical via `TEST_CHISQ` — existing operators, no new stat math. `_synthetic` is on-wire `packed_bool` and both operators need categorical, so the bridge presents it through a `categorical_u8` VIEW schema for that call only. That bridge lives in `pulse.go` (`writeSynthFidelityReport`), not `synth/`, to avoid an import cycle: `synth.BuildFidelityReport` takes an injected `TestRunner`. A failed field test reports `error`, not `result`, without aborting the rest. Sections `omitempty` throughout.
 
-**Every section scores ONLY relationships generation ACTUALLY APPLIED.** `spec` carries the full captured cross product; `generate()` applies the subset conflict resolution resolves out of it, and scoring a conflict-dropped pair would compute a delta against a relationship the generator never modelled — a number that LOOKS like evidence. `synth.ResolveConflicts` re-runs the identical arbitration against the identical `*Spec`, so a dropped pair has no entry and its own conflict warning explains the absence.
+**Every section scores ONLY relationships generation ACTUALLY APPLIED.** `spec` carries the full captured cross product; `generate()` applies the subset conflict resolution leaves. Scoring a conflict-dropped pair computes a delta against a relationship the generator never modelled — a number that LOOKS like evidence. `synth.ResolveConflicts` re-runs the identical arbitration against the identical `*Spec`, so a dropped pair has no entry and its own conflict warning explains the absence.
 
 `pairwise` is one `{a, b, source_rho, synthetic_rho, delta, n}` per surviving numeric-numeric pair, via the same `pearson` helper capture uses.
 
-The two structure-recovery sections — `models` and `model_residual_correlations`, which ask whether the captured CONDITIONING survived rather than whether the rows look alike — are in `synth-models`.
+The two structure-recovery sections — `models` and `model_residual_correlations`, asking whether the captured CONDITIONING survived rather than whether the rows look alike — are in `synth-models`.
 
 ## Determinism contract
 
-Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file. Any sampler change that breaks that is a contract break.
+Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file. Any sampler change breaking that is a contract break.
 
 Seed splitting uses a 64-bit avalanche; seeds differing by 1 give uncorrelated streams. `Seed == 0` is stable, not "random". `nullableSampler` always draws the inner value FIRST, then the null mask — the stream is invariant to which rows are null.
 
@@ -191,17 +189,16 @@ Seed splitting uses a 64-bit avalanche; seeds differing by 1 give uncorrelated s
 
 - Constraints + `monotonic_from`: monotonic ignores RNG, so a rejected row still increments the counter.
 - Correlations + non-normal marginal: keep sigma modest if Pearson must land tightly.
-- **A model coefficient is a latent-scale quantity.** Never read it as data units unless `Q` is `normal`.
-- **A quantized (`packed_bool` / `u4`) modelled target attenuates at write time.** Recovery flags there are real, but they are quantization, not a generation fault.
+- **A model coefficient is latent-scale** (never data units unless `Q` is `normal`) and **a quantized (`packed_bool` / `u4`) modelled target attenuates at write time** — recovery flags there are quantization, not a generation fault. Both in `synth-models`.
 - `--fit-models` does not imply `--residual-correlations`, and neither implies `--conditional`. `--fit-shape` composes with all of them.
 - `weighted_categorical` weights normalize at sample time; absent weights default to uniform.
 
 ## See
 
 - Recipes: `pulse_examples_search tags=["synth"]` plus atomic `op-synth-<kind>`.
-- `synth-models` — `--fit-models`: capture, selection, shrinkage, the composed latent draw, residual correlations, and the fidelity recovery sections.
+- `synth-models` — `--fit-models`: capture, selection, shrinkage, the composed latent draw, residual correlations, the fidelity recovery sections.
 - `synth-structural-rules` — `rules[]` / `constraints[]`: gating, masking, derived fields.
 - `docs/src/cli/synth-calibration.md` — the measurements behind every rule here, and the closed design questions.
 - `cohort-schema-design` — field types, dictionaries, null bitmap.
-- `regression-modeling` — the `REG_OLS` engine both the capture and the recovery refit drive.
+- `regression-modeling` — the `REG_OLS` engine both capture and the recovery refit drive.
 - `error-code-reference` — `PULSE_SYNTH_*` / `PULSE_PROFILE_*` recovery.
