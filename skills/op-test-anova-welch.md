@@ -13,13 +13,11 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`. Significance level in `(0, 1)`.
-
-Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 2 groups).
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 
 ## Inputs
 
-`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
+`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` (required, ≥ 2 groups) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 

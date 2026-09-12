@@ -28,7 +28,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value via standard normal survival.
 - **Byte-equal** to `TEST_Z_TWO_SAMPLE` over the same inputs — both share `standardNormalCDF`.
 - Differs from `OVERLAY_T_CELL` only by distribution (normal vs Student's t) — same SE `sqrt(var_t/n_t + var_r/n_r)`.
 - Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` REMOVED v0.20.0 — `MatrixCell.Value` carries scalar mean.
-- Buffered (inferential family).
+- Buffered (inferential).
 
 ## See
 

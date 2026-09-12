@@ -14,24 +14,24 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
-- `variant` — string, default `"mann_kendall"` (only variant supported).
+- `variant` — string, default `"mann_kendall"` (the only variant).
 
-Slot params `Field` (numeric) + `OrderBy` (≥ 1 key) both required. **Tier-2 typical** — list in `Request.PostTests`; tier-1 is possible when the raw field has a natural ordering key.
+`Field` + `OrderBy` (≥ 1 key) both required. **Tier-2 typical** — list in `Request.PostTests`; tier-1 works when the raw field has a natural ordering key.
 
 ## Inputs
 
-`Field` — numeric output column (typically `WIN_MOVING_AVG` or a grouped aggregate). `OrderBy` — numeric or `date` field defining the series order.
+`Field` — numeric output column (typically `WIN_MOVING_AVG` or a grouped aggregate). `OrderBy` — numeric or `date`, defining series order.
 
 ## Output
 
-`Statistic` = S (Mann-Kendall score); `PValue` via the standard-normal approximation with tie correction. `Details.tau` = Kendall's τ (effect size); `Details.var_s` = adjusted variance.
+`Statistic` = S (Mann-Kendall score); `PValue` via standard-normal approximation with tie correction. `Details.tau` = Kendall's τ; `Details.var_s` = adjusted variance.
 
 ## Gotchas
 
-- Meaningful only over an ordered upstream series — `WIN_MOVING_AVG` over a date grouper is the canonical pairing; reads result rows, never the raw cohort.
-- `OrderBy` empty → `PULSE_TEST_MISSING_ORDER_BY`. Buffered (`Streamable=false`).
+- Meaningful only over an ordered upstream series — `WIN_MOVING_AVG` over a date grouper is canonical; reads result rows, never the raw cohort.
+- Empty `OrderBy` → `PULSE_TEST_MISSING_ORDER_BY`. Buffered (`Streamable=false`).
 - Short series → unstable p; gated by `PULSE_TEST_INSUFFICIENT_N` (n ≥ 10).
-- Sensitive to seasonality — pre-deseasonalize via `WIN_EWMA` or month grouping.
+- Seasonality-sensitive — pre-deseasonalize via `WIN_EWMA` or month grouping.
 
 ## See
 

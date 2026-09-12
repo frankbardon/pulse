@@ -13,13 +13,11 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`. Significance level in `(0, 1)`.
-
-Slot params: `Rows` (required, categorical, 2 levels), `Cols` (required, categorical, 2 levels). `Field` ignored.
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 
 ## Inputs
 
-`Rows` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `Cols` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
+`Rows` / `Cols` (both required, 2 levels each) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `Field` ignored.
 
 ## Output
 

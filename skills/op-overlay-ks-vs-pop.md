@@ -29,7 +29,7 @@ SCALAR — `Payload.Scalar` carries KS `D`; `OverlaySummary{Statistic, PValue, P
 - The population resolver retains only Welford / histogram / percentiles — raw values are discarded. Set `IncludeHistogram=true` or `NumericPercentiles=[...]` on BOTH arms.
 - Empty host or pop (`n_subset == 0` / `n_pop == 0`) → NaN + `PULSE_OVERLAY_REF_ZERO`.
 - Mismatched histogram edges fall through to the percentile path, else `PULSE_OVERLAY_REF_ZERO`.
-- Buffered (inferential family).
+- Buffered (inferential).
 
 ## See
 

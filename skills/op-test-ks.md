@@ -13,7 +13,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`. Significance level in `(0, 1)`.
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 - `alternative` — enum, default `"two-sided"`. `"two-sided"` / `"less"` / `"greater"`.
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).

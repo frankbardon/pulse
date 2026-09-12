@@ -29,7 +29,7 @@ SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Par
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` warning per layer carrying count of low-expected categories.
 - Empty host distribution, `subset_N == 0`, or all `pop_freq == 0` → NaN statistic + `PULSE_OVERLAY_REF_ZERO`.
 - Single category (`df = 0`) → NaN p-value (chi-square undefined).
-- Buffered (inferential family — FacetSchema post-finalize hook; byte-identical streaming vs buffered host).
+- Buffered (inferential — FacetSchema post-finalize hook; byte-identical streaming vs buffered host).
 
 ## See
 

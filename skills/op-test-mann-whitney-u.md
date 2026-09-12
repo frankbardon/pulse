@@ -13,13 +13,11 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`. Significance level in `(0, 1)`.
-
-Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
+- `alpha` — float, default `0.05`, in `(0, 1)`.
 
 ## Inputs
 
-`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
+`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` (required, exactly 2 groups) — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 
@@ -29,7 +27,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 - Buffered — combined values ranked under tie correction; mean-rank ties consume memory.
 - Robust alternative to `TEST_T` / `TEST_WELCH` when normality fails.
-- Tests stochastic equality of distributions, not mean difference — divergent results from `TEST_WELCH` are real signal, not a bug.
+- Tests stochastic equality, not mean difference — divergence from `TEST_WELCH` is signal, not a bug.
 - Small-n exact p not yet shipped — `PULSE_TEST_INSUFFICIENT_N` warns below the asymptotic threshold (n_a + n_b < 20).
 - Paired data → `TEST_WILCOXON_SR`; k-group extension → `TEST_KRUSKAL_WALLIS`.
 

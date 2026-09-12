@@ -27,7 +27,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target. Layer 
 
 - **Byte-equal** to `TEST_WELCH` over the same inputs — both read `{n, mean, variance}` via Welford + share `studentTTwoSidedP`. Welch-Satterthwaite df recurrence reused from `TEST_T`.
 - Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` REMOVED v0.20.0 — `MatrixCell.Value` carries scalar mean.
-- Canonical pairing: `AGG_WELFORD` + `OVERLAY_T_CELL`. Buffered (inferential family).
+- Canonical pairing: `AGG_WELFORD` + `OVERLAY_T_CELL`. Buffered (inferential).
 
 ## See
 

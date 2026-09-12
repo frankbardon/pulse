@@ -29,7 +29,7 @@ MATRIX — `Cells[r][c].Value` is `[]float64` of upper-triangular pairwise p-val
 - `len(Targets) > MaxPanelTargets` → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 - Missing row margins → cell value as sample size. Degenerate `(pooled ∈ {0,1}, se == 0)` → NaN at the pair + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
 - Any reference value absent → nil slice + ONE `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`.
-- Buffered (inferential family).
+- Buffered (inferential).
 
 ## See
 

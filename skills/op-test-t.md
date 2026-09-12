@@ -16,15 +16,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - `alpha` — float, default `0.05`, in `(0, 1)`.
 - `mu` — float, default `0.0`. Hypothesized mean, one-sample only; ignored when `SplitBy` is set.
 
-Slot params: `Field` required numeric; `SplitBy` optional categorical → two-sample Welch.
-
 ## Inputs
 
-`Field` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` — `categorical_u8`/`u16`/`u32`, `packed_bool`.
+`Field` (required) — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` (optional → two-sample Welch) — `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 
-`TestResult.Statistic` = t; `DF`; `PValue` (two-sided, Student-t CDF); `RejectNull` = `PValue < Alpha`. `Details` carries per-group `{n, mean, variance}` for the two-sample variant.
+`TestResult.Statistic` = t; `DF`; `PValue` (two-sided, Student-t CDF); `RejectNull` = `PValue < Alpha`. `Details` carries per-group `{n, mean, variance}` for two-sample.
 
 ## Gotchas
 
@@ -32,7 +30,7 @@ Slot params: `Field` required numeric; `SplitBy` optional categorical → two-sa
 - Streamable — reads running Welford state from a parallel `AGG_WELFORD` on the same `(field, split_by)`.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 - Tiny groups → unstable p; gate with `AGG_COUNT` + `PULSE_TEST_INSUFFICIENT_N`.
-- Unambiguous two-sample intent → `TEST_WELCH`; large-n survey conventions → `TEST_Z_TWO_SAMPLE`.
+- Unambiguous two-sample intent → `TEST_WELCH`; large-n survey convention → `TEST_Z_TWO_SAMPLE`.
 
 ## See
 
