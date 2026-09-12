@@ -25,10 +25,10 @@ SCALAR — `Payload.Scalar` carries KS `D`; `OverlaySummary{Statistic, PValue, P
 
 ## Gotchas
 
-- Empirical-CDF reconstruction path: (1) histogram (preferred, both arms have one), (2) percentile-map, (3) Welford-only (degenerate → NaN + `PULSE_OVERLAY_REF_ZERO`).
-- The population resolver retains only Welford / histogram / percentiles — raw values are discarded. Set `IncludeHistogram=true` or `NumericPercentiles=[...]` on BOTH arms.
+- Empirical-CDF path: (1) histogram (preferred), (2) percentile-map, (3) Welford-only (degenerate → NaN + `PULSE_OVERLAY_REF_ZERO`).
+- The population resolver retains only Welford / histogram / percentiles; raw values are discarded. Set `IncludeHistogram=true` or `NumericPercentiles=[...]` on BOTH arms.
 - Empty host or pop (`n_subset == 0` / `n_pop == 0`) → NaN + `PULSE_OVERLAY_REF_ZERO`.
-- Mismatched histogram edges fall through to the percentile path, else `PULSE_OVERLAY_REF_ZERO`.
+- Mismatched histogram edges fall to the percentile path, else `PULSE_OVERLAY_REF_ZERO`.
 - Buffered (inferential).
 
 ## See

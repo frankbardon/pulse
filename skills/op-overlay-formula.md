@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, feature-engineering]
 ---
 
-Overlays decorate the host result; do not emit `Response.Components`.
+Overlays decorate the host; they emit no `Response.Components`.
 
 ## Params
 
@@ -25,17 +25,16 @@ ANY (MATRIX / SERIES / SCALAR). Per-shape namespace via `types.FormulaNamespace`
 
 ## Output
 
-Shape matches host. Each evaluation produces one `float64`. Layer `Baseline` unset.
+Shape matches host; each evaluation yields one `float64`. Layer `Baseline` unset.
 
 ## Gotchas
 
-- Compile-once / run-many via `expr.Compile` (like `ATTR_FORMULA`).
-- Predict-time AST walk validates identifiers; unknown → `PULSE_OVERLAY_FORMULA_INVALID_IDENT` with allowed set.
+- Compile-once / run-many via `expr.Compile`, as `ATTR_FORMULA`.
+- Predict-time AST walk validates identifiers; unknown → `PULSE_OVERLAY_FORMULA_INVALID_IDENT` + allowed set.
 - Parse error → `PULSE_OVERLAY_FORMULA_PARSE_ERROR`; non-coercible result → `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`.
-- Embedder `ExprFunctions` widen function surface; variables fixed per host shape (custom `OverlayKinds` entry to widen).
-- `lookup(...)` NOT in env at v1 — register as `ExprFunctions` if needed.
+- Embedder `ExprFunctions` widen the function surface; variables are fixed per host shape (widen via a custom `OverlayKinds` entry). `lookup(...)` is NOT in the v1 env.
 - Buffered at v1 (margins / totals / SDs need post-fold state).
 
 ## See
 
-- Skills: `overlay-system`, `op-attr-formula`, `extension-points`.
+- Skills: `overlay-system`, `op-attr-formula`; `docs/src/internals/extension-points.md`.

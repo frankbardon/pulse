@@ -91,4 +91,4 @@ Every rejected `(Ref, Target)` populates `ChainValidationResult.OverlaysSchemaDi
 - `overlay-system` — `_VS_STAGE` catalog, shared `indexKernel` / `deltaKernel`, shape-inheritance rules.
 - `response-components` — per-stage Components shape + universal floor.
 - `streaming-and-watching` — `ChainRequest.Hash()` cache keys.
-- `contributor-workflow` — adding a chain-stage predicate; `processing/chain.go`, `descriptor/chain.go` edits.
+- `docs/src/internals/adding-chain-predicate.md` — adding a chain-stage predicate; `processing/chain.go`, `descriptor/chain.go` edits.

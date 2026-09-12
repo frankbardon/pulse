@@ -13,7 +13,7 @@ Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decora
 
 ## Params
 
-`Scope` (enum, required) — must be `chain`. `Ref.Stage` (object, required) — `{Index: N}` or `{Name: "stage-id"}`. `Target.Stage` (object, default latest stage) — `{Index}` or `{Name}`.
+`Scope` must be `chain`; `Level` / `Within` must be zero. `Ref.Stage` required — `{Index: N}` or `{Name: "stage-id"}`. `Target.Stage` — `{Index}` or `{Name}`, default the latest stage.
 
 ## Host shape
 
@@ -28,9 +28,8 @@ Shape inherited from target stage. Per-coordinate `delta = target_val - ref_val`
 - No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO`. Distinct from `OVERLAY_INDEX_VS_STAGE`.
 - Stage shape divergence (target shape ≠ ref shape) → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` + NaN across coordinates.
 - Unknown stage → `PULSE_OVERLAY_REF_UNKNOWN` (and `PULSE_OVERLAY_TARGET_UNKNOWN` when those codes land).
-- Scope MUST be `chain`. `Level` / `Within` MUST be zero.
 - Buffered (whole-chain barrier runs after every stage finalises by construction).
 
 ## See
 
-- Skills: `overlay-system`, `contributor-workflow`, `op-overlay-index-vs-stage`.
+- Skills: `overlay-system`, `process-chain`, `op-overlay-index-vs-stage`.

@@ -122,4 +122,4 @@ Universal floor filled by the orchestrator. Per-operator keys ride inside `opera
 - `compose-requests` — `ComposedRequest` semantics.
 - `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
 - `streaming-and-watching` — stream chunks, request hashing, watch loop.
-- `debugging-with-predict` — predict iteration loop.
+- `docs/src/internals/debugging-predict.md` — predict iteration loop.

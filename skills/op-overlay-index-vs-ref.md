@@ -17,7 +17,7 @@ Compose-only dual-shape. Overlays decorate the host; they emit no `Response.Comp
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on both reference + target. Schema-match + key-alignment + dict-prefix gates at the slot barrier. Ratio twin of `OVERLAY_DELTA_VS_REF`. First COMPOSE-only kind.
+COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + target. Schema-match + key-alignment + dict-prefix gates at the slot barrier. Ratio twin of `OVERLAY_DELTA_VS_REF`.
 
 ## Output
 
@@ -27,10 +27,8 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `(target / ref) × 
 
 - Zero reference → NaN + ONE `PULSE_OVERLAY_REF_ZERO` warning per affected coord.
 - Missing reference coordinate → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true` Detail flag.
-- SERIES dispatch is fold-only — streamable per `OverlayStreamability`.
-- MATRIX dispatch forced buffered by the slot barrier.
-- `OverlayOptions.DictPrefixFast` enables byte-equal dictionary prefix probe.
-- Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- SERIES dispatch is fold-only (streamable per `OverlayStreamability`); MATRIX is forced buffered by the slot barrier.
+- `OverlayOptions.DictPrefixFast` enables the byte-equal dictionary prefix probe. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## See
 

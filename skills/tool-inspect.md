@@ -31,4 +31,4 @@ MCP (`pulse_inspect`) returns those keys at the top level plus an additive `warn
 
 - `cohort-schema-design` — `.pulse` byte layout and field-type matrix.
 - `tool-predict` — schema validation companion (no record decode).
-- `mcp-integration` (when present) — session-bound tool rebinding semantics.
+- `tool-import` — the other leaf that rebinds session-scoped tools.

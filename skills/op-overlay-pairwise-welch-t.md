@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise, welford-triple]
 ---
 
-Intra-matrix pairwise on MEANS: one host cell's mean against another ALONG one axis of the SAME crosstab, reading the `{mean, variance, n}` Welford triple from `Response.Components.Crosstab.CellComponents`. `row` scope pairs row indices per column; `column` pairs column indices per row. Overlays decorate the host; they emit no `Response.Components` (this family READS them).
+Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope pairs row indices per column, `column` pairs column indices per row. Overlays decorate the host; they emit no `Response.Components` (this family READS them).
 
 ## Params
 
@@ -19,7 +19,7 @@ Intra-matrix pairwise on MEANS: one host cell's mean against another ALONG one a
 
 ## Host shape
 
-MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Components.Crosstab`. Non-Welford host → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components-disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
+MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Components.Crosstab`, from which it reads the `{mean, variance, n}` triple per cell. Non-Welford host → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components-disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
 
 ## Output
 

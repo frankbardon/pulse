@@ -13,7 +13,7 @@ Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decora
 
 ## Params
 
-`Scope` (enum, required) — must be `chain`. `Ref.Stage` (object, required) — `{Index: N}` or `{Name: "stage-id"}`. `Target.Stage` (object, default latest stage) — `{Index}` or `{Name}`.
+`Scope` must be `chain`; `Level` / `Within` must be zero. `Ref.Stage` required — `{Index: N}` or `{Name: "stage-id"}`. `Target.Stage` — `{Index}` or `{Name}`, default the latest stage.
 
 ## Host shape
 
@@ -26,12 +26,11 @@ Shape inherited from target stage. Per-coordinate `index = target / ref × 100`.
 ## Gotchas
 
 - Zero `ref_val_k` → NaN at that coordinate + ONE `PULSE_OVERLAY_REF_ZERO` warning per layer.
-- Default `Target` = latest stage when both `Index` nil + `Name` empty (the "anchor against final result" authoring shape). `Ref` has no default.
+- `Target` defaults to the latest stage when `Index` is nil and `Name` empty (the "anchor against final result" shape); `Ref` has no default.
 - Stage shape divergence → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` (runtime only — predict can't catch it).
 - Unknown stage → `PULSE_OVERLAY_REF_UNKNOWN` (and `PULSE_OVERLAY_TARGET_UNKNOWN` when those codes land).
-- Scope MUST be `chain`. `Level` / `Within` MUST be zero.
 - Buffered (whole-chain barrier post stage loop).
 
 ## See
 
-- Skills: `overlay-system`, `contributor-workflow`, `op-overlay-delta-vs-stage`.
+- Skills: `overlay-system`, `process-chain`, `op-overlay-delta-vs-stage`.

@@ -17,7 +17,7 @@ Compose-only. Overlays decorate the host; they emit no `Response.Components`.
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on both reference + target slot. Schema-match + key-alignment gates apply at the slot barrier. `OverlayOptions.DictPrefixFast` enables byte-equal dictionary prefix probe.
+COMPOSE — MATRIX crosstab on reference + target slot. Schema-match + key-alignment gates at the slot barrier; `OverlayOptions.DictPrefixFast` enables the byte-equal dictionary prefix probe.
 
 ## Output
 
@@ -27,10 +27,10 @@ SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Par
 
 - Reference distribution scaled to target N: `expected = ref_cell × (target_N / ref_N)`. Reuses `chiSquareSurvival` — byte-equal to `TEST_CHISQ` on the same contingency.
 - `df = (target cells with expected > 0) - 1`.
-- Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` warning per layer (canonical χ² low-count rule).
+- Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer (canonical χ² low-count rule).
 - `target_N == 0`, `ref_N == 0`, or every `expected == 0` → NaN + `PULSE_OVERLAY_REF_ZERO`.
 - Dict-prefix drift between slots → `PULSE_OVERLAY_COMPOSE_DICT_DIVERGENCE` (when `DictPrefixFast` enabled).
-- Buffered (inferential family; Compose slot barrier always buffered by construction).
+- Buffered (inferential; the Compose slot barrier always buffers).
 
 ## See
 

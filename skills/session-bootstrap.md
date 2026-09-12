@@ -17,7 +17,7 @@ Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into `pulse_process` / `pulse_predict` / `pulse_compose` / `pulse_sample` / `pulse_facet`, constraining field-name arguments to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category` |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
-| 5 | `pulse_skills_get` | on demand | shape, gotchas, contract. Runnable JSON comes from examples, NOT skills. Cold start ⇒ `getting-started`, else derive below |
+| 5 | `pulse_skills_get` | on demand | shape, gotchas, contract. Runnable JSON comes from examples, NOT skills. Cold start ⇒ `docs/src/getting-started/`, else derive below |
 | 6 | `pulse_predict` | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
 | 7 | `pulse_process` / `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample` / `pulse_lookup` | execute | `{format_version, data, errors, warnings}` + additive `data.components`; `format_version` is `"1.1"` |
 | 8 | `pulse_errors_lookup` | per unique `code` | canonical `message` + structured `fixups[]`. Authoritative — never paraphrase from memory |
@@ -42,7 +42,7 @@ Lowercase the operator family prefix and map through this table. Skills carry no
 | `synth_distributions[i].kind` | `synthetic-data` |
 | `cohort_types[i].name` (field type) | `cohort-schema-design` |
 | a `.sav` / `.zsav` source, or a cohort carrying a `.spss.json` sidecar | `spss-cohorts` |
-| `mcp_tools[i].name` | `mcp-integration` |
+| `mcp_tools[i].name` | `tool-<name minus `pulse_`>` — one atomic skill per tool |
 | `pulse_lookup` / `pulse index build` / `pulse index list` / `pulse index verify` / `pulse index drop` / `pulse api lookup` | `tool-lookup` (MCP surface), `cohort-schema-design` (sidecar format) |
 | `error_codes[i]` | `pulse_errors_lookup` — the tool is the surface, not a skill |
 | Request slot `Joins` | `join-design` |
@@ -51,11 +51,11 @@ Lowercase the operator family prefix and map through this table. Skills carry no
 | Response slot `data.components` (first sight) | `response-components` |
 | Response slot `Metadata.LabelBindings` | `label-display` |
 | `ComposedRequest` | `compose-requests` |
-| `ChainRequest` | `contributor-workflow` (ProcessChain section) |
+| `ChainRequest` | `process-chain` |
 | `FacetRequest` / `FacetSchemaRequest` | `facet-design` |
 | streaming, watch, request hashing | `streaming-and-watching` |
-| extension operator (anything in `manifest.extensions`) | `extension-points` |
-| predict failed — fix loop | `debugging-with-predict` |
+| extension operator (anything in `manifest.extensions`) | `docs/src/internals/extension-points.md` |
+| predict failed — fix loop | `docs/src/internals/debugging-predict.md` |
 
 **`Response.Components` / `data.components` first sight.** Fetch `response-components` — canonical for the per-family shape (`aggregations[]`, `groupers[]`, `crosstab`, `filterers[]`, `run`), the orchestrator-filled universal floor (`{n, n_null}`, or `{total_n, n_null}` / `{n_in, n_out, n_null_input}` by family — NOT enumerated in `manifest.components_schemas[*].keys`), and the per-operator keys inside `Operator map[string]any` (or the cell map for crosstab cells), looked up under `manifest.components_schemas.aggregators[name].keys` / `.groupers[name].keys` / `.filterers[name].keys`. Additive-only; never bumps `format_version`. Never infer the shape from memory — it is bound to the binary version.
 
@@ -125,4 +125,4 @@ Two additive `pulse synth from-profile` knobs (both absent reproduces pre-flag o
 
 ## Cross-links
 
-`request-envelope` (envelope shape, slot keys, smart defaults, streamability) · `synthetic-data` (synth modes, multi-predictor models, correlations, determinism) · `synth-structural-rules` (`rules[]` / `constraints[]`: gating, masking, derived fields) · `response-components` · `mcp-integration` (every tool, full argument shape) · `debugging-with-predict` · `getting-started` (cold-start fallback) · `spss-cohorts`.
+`request-envelope` (envelope shape, slot keys, smart defaults, streamability) · `synthetic-data` (synth modes, multi-predictor models, correlations, determinism) · `synth-structural-rules` (`rules[]` / `constraints[]`: gating, masking, derived fields) · `response-components` · `tool-*` (one atomic skill per MCP tool, full argument shape) · `docs/src/internals/debugging-predict.md` · `docs/src/getting-started/` (cold-start fallback) · `spss-cohorts`.

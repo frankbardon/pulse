@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 
-Tests one host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's `OVERLAY_PROP_Z_PANEL`. Overlays decorate the host; they emit no `Response.Components` (this family READS them).
+One host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's `OVERLAY_PROP_Z_PANEL`. Overlays decorate the host; they emit no `Response.Components` (this family READS them).
 
 ## Params
 
@@ -21,12 +21,12 @@ MATRIX crosstab (`Response.Crosstab.Matrix`) + `Response.Components.Crosstab`. C
 
 ## Output
 
-MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)` pair, key = the 2-tuple of the compared legs' labels; OPPOSITE axis echoes the host's other axis. Cell = the pair's two-sided p-value, absent when a leg is unreadable or the test degenerate. `row` scope → rows = pairs; `column` transposes.
+MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)` pair, key = the 2-tuple of the legs' labels; OPPOSITE axis echoes the host's other axis. Cell = the pair's two-sided p-value, absent when a leg is unreadable or the test degenerate. `row` scope → rows = pairs; `column` transposes.
 
 ## Gotchas
 
 - Reuses `twoProportionZ` — byte-for-byte equal to `OVERLAY_PROP_Z_CELL` / `TEST_PROP_Z` on the same (success, n).
-- RAW p-values only. Direction, thresholds and min-n flags are the embedder's job; every input is already on the response.
+- RAW p-values only — direction, thresholds and min-n flags are the embedder's job; every input is already on the response.
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` warning per reason.
 - **`p_source` mismatch fails silently and totally.** `cell_value` over a real 0..100 percentage drives pooled p outside `[0,1]`, so EVERY pair skips and the layer returns empty.
 - Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (`AGG_WEIGHTED_MEAN`, including over a `GROUP_SET_PER_ELEMENT` axis).

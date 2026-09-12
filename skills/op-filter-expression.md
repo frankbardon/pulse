@@ -34,10 +34,10 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 ## Gotchas
 
 - Cannot reference attribute output — filters run before attributes. Compose / ProcessChain to filter on derived columns.
-- Embedder extensions: `Options.Extensions.ExprFunctions` + `LookupTables` are visible. See `extension-points`.
+- Embedder extensions: `Options.Extensions.ExprFunctions` + `LookupTables` are visible. See `docs/src/internals/extension-points.md`.
 - Runtime panic / type mismatch → `PROCESSING_RUNTIME` — drops the row.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `aggregation-design`, `response-components`, `extension-points`
+- Skills: `aggregation-design`, `response-components`; `docs/src/internals/extension-points.md`
