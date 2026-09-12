@@ -3,6 +3,7 @@ package pulse
 import (
 	"strings"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/imports"
 	"github.com/frankbardon/pulse/io/spss"
 )
@@ -15,8 +16,9 @@ import (
 // The constants are referenced rather than re-spelled so a suffix
 // rename in the owning package cannot silently un-skip its sidecar.
 var pulseSidecarSuffixes = []string{
-	imports.SidecarSuffix, // ".meta.json"  — managed-import handle metadata
-	spss.SidecarSuffix,    // ".spss.json"  — SPSS dictionary metadata
+	imports.SidecarSuffix,        // ".meta.json"    — managed-import handle metadata
+	spss.SidecarSuffix,           // ".spss.json"    — SPSS dictionary metadata
+	encoding.IndexManifestSuffix, // ".indexes.json" — sidecar point-lookup index catalog
 }
 
 // isPulseSidecarName reports whether name is one of Pulse's own
@@ -36,8 +38,9 @@ var pulseSidecarSuffixes = []string{
 // that silently is not there.
 //
 // Not covered here (and not needing to be): the sidecar point-lookup
-// index, cohort.pulse.<keyhash>.idx, which is not *.json and so never
-// reaches a loader's parse attempt.
+// index itself, cohort.pulse.<keyhash>.idx, which is not *.json and so
+// never reaches a loader's parse attempt. Its MANIFEST
+// (cohort.pulse.indexes.json) is *.json and IS covered.
 func isPulseSidecarName(name string) bool {
 	for _, suffix := range pulseSidecarSuffixes {
 		if strings.HasSuffix(name, suffix) {

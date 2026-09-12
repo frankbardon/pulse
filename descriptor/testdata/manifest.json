@@ -5083,7 +5083,7 @@
         ]
       }
     ],
-    "error_codes_count": 224,
+    "error_codes_count": 226,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5168,6 +5168,8 @@
       "PULSE_IMPORT_SET_OVERFLOW",
       "PULSE_IMPORT_SOURCE_FORBIDDEN",
       "PULSE_IMPORT_SOURCE_MISSING",
+      "PULSE_INDEX_MANIFEST_INVALID",
+      "PULSE_INDEX_MANIFEST_STALE",
       "PULSE_INDEX_MISSING",
       "PULSE_INDEX_STALE",
       "PULSE_INDEX_UNSUPPORTED_SHARDED",
@@ -9610,4 +9612,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 84c56938ab5195678cb9bd0a14b2f3e4e63e234af71d466f1b52e8a3f80b8429
+// golden-hash: ba8597879e03b78804a4fb4e3a3462cee2d08578554f2a00977d22cbf74407b8

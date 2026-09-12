@@ -1258,6 +1258,40 @@ const (
 	// PULSE_INDEX_MISSING (single-file cohort, no sidecar built yet).
 	PULSE_INDEX_UNSUPPORTED_SHARDED Code = "PULSE_INDEX_UNSUPPORTED_SHARDED"
 
+	// PULSE_INDEX_MANIFEST_INVALID indicates the sidecar index MANIFEST
+	// beside a cohort ("cohort.pulse.indexes.json",
+	// encoding.IndexManifestSuffix) exists but cannot be trusted:
+	// malformed JSON, a foreign `kind`, an unrecognised `format_version`,
+	// or an entry naming no index file. The manifest is the keyless
+	// catalog that makes an index's key tuple discoverable without a
+	// directory listing (the sidecar's own filename is a HASH of that
+	// tuple), so a reader that cannot parse it is refused rather than
+	// degraded to a directory listing: the fallback SUCCEEDS on a local
+	// disk and answers "no indexes" on object storage, which is the
+	// silent, backend-dependent divergence the manifest exists to remove.
+	// An ABSENT manifest is not this error — it is the ordinary state of
+	// a corpus indexed before the manifest existed, and the directory
+	// listing is the documented fallback there. Details carry
+	// manifest_path, cohort, and a reason-specific key. Distinct from
+	// PULSE_INDEX_MANIFEST_STALE, which is a manifest that parses and
+	// disagrees with the disk.
+	PULSE_INDEX_MANIFEST_INVALID Code = "PULSE_INDEX_MANIFEST_INVALID"
+
+	// PULSE_INDEX_MANIFEST_STALE indicates the sidecar index manifest
+	// parses cleanly and names an index file that is not present on
+	// disk — an index removed out of band (a bare `rm` of the `.idx`
+	// rather than `pulse index drop`, or a partially-synced corpus).
+	// Service.ListIndexes refuses rather than skipping the entry,
+	// because a listing quietly reporting two indexes for a cohort that
+	// claims three is indistinguishable from a correct answer. The
+	// repair is either rebuilding the named key tuple (`pulse index
+	// build`) or dropping it (`pulse index drop`, which prunes the
+	// manifest entry even when the sidecar is already gone). Details
+	// carry manifest_path, cohort, the missing index_path, and the
+	// entry's key fields. Distinct from PULSE_INDEX_MISSING, which is a
+	// lookup/verify/drop naming a key tuple no index was ever built for.
+	PULSE_INDEX_MANIFEST_STALE Code = "PULSE_INDEX_MANIFEST_STALE"
+
 	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
 	// emitted by the CSV (and TSV) export adapter when an overlay-bearing
 	// Response is exported to a flat tabular format that cannot encode
@@ -2462,6 +2496,8 @@ var allCodes = []Code{
 	PULSE_LOOKUP_AMBIGUOUS,
 	PULSE_INDEX_STALE,
 	PULSE_INDEX_UNSUPPORTED_SHARDED,
+	PULSE_INDEX_MANIFEST_INVALID,
+	PULSE_INDEX_MANIFEST_STALE,
 	PULSE_TEMPLATE_NOT_FOUND,
 	PULSE_TEMPLATE_INVALID,
 	PULSE_TEMPLATE_TARGET_UNKNOWN,

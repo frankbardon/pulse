@@ -28,8 +28,9 @@ O(1) row addressing by exact key, not a scan — requires a sidecar index alread
 
 ## Gotchas
 
-- `PULSE_INDEX_MISSING` — no sidecar for the key field(s); build one.
-- `PULSE_INDEX_STALE` — cohort changed since build (O(1) size+mtime check; `verify` is the full-hash check). Rebuild.
+- `PULSE_INDEX_MISSING` — no sidecar for the key field(s); build one. To discover which tuples DO exist, read `pulse index list` / `Pulse.ListIndexes` — a sidecar's filename is a hash of its key tuple, so globbing `.idx` tells you nothing and is unavailable on object storage; the listing is served from the keyless `<cohort>.indexes.json` manifest.
+- `PULSE_INDEX_STALE` — the cohort really changed: a different size, or a content hash that disagrees. An mtime that moved while the size held is NOT stale — it falls through to the fingerprint (memoised per stat pair), so an index read through a bucket still serves. `details.fingerprint_checked` says which arm refused. Rebuild.
+- `PULSE_INDEX_MANIFEST_INVALID` / `_STALE` — the discovery manifest is unreadable, or names a sidecar that is gone. Rebuild or drop that tuple.
 - `PULSE_INDEX_UNSUPPORTED_SHARDED` — shard archives unsupported; `archive.pulse#shard.pulse` anchor works around it.
 - `PULSE_LOOKUP_NOT_FOUND` — fresh index, no matching record.
 - `PULSE_LOOKUP_AMBIGUOUS` — default `assert_unique` rejects >1-row matches; opt into `first`/`all` for duplicates.
