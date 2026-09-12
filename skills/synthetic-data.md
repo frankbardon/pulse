@@ -201,4 +201,4 @@ Seed splitting uses a 64-bit avalanche; seeds differing by 1 give uncorrelated s
 - `docs/src/cli/synth-calibration.md` — the measurements behind every rule here, and the closed design questions.
 - `cohort-schema-design` — field types, dictionaries, null bitmap.
 - `regression-modeling` — the `REG_OLS` engine both capture and the recovery refit drive.
-- `error-code-reference` — `PULSE_SYNTH_*` / `PULSE_PROFILE_*` recovery.
+- `pulse_errors_lookup` — `PULSE_SYNTH_*` / `PULSE_PROFILE_*` recovery.

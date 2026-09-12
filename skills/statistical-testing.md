@@ -76,4 +76,4 @@ Cheapest pattern — declare `AGG_WELFORD` on the same `(field, split_by)` and t
 - `regression-modeling` — Wald-z vs Student-t inference inside REG_*.
 - `overlay-system` — crosstab cell-level stat overlays.
 - `request-envelope` — slot keys, streamability rules.
-- `error-code-reference` — `PULSE_TEST_*` recovery steps.
+- `pulse_errors_lookup` — `PULSE_TEST_*` recovery steps.

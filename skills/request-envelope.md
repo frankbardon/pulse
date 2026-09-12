@@ -116,10 +116,9 @@ Universal floor filled by the orchestrator. Per-operator keys ride inside `opera
 
 ## Cross-links
 
-- `response-components` — full Components contract + per-operator key tables.
+- `response-components` — full Components contract + per-operator keys.
 - `session-bootstrap` — MCP session order.
-- `aggregation-guide` / `grouper-design` / `attribute-composition` / ... — per-category slot shapes.
-- `compose-requests` — `ComposedRequest` semantics.
-- `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
+- `aggregation-design` / `grouper-design` / `attribute-composition` — per-category slot shapes.
+- `compose-requests` — `ComposedRequest` semantics; `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
 - `streaming-and-watching` — stream chunks, request hashing, watch loop.
 - `docs/src/internals/debugging-predict.md` — predict iteration loop.

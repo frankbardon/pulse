@@ -113,5 +113,5 @@ CSV / TSV / NDJSON / JSON-array importers parse decimal strings strictly. Accept
 ## Cross-links
 
 - `cohort-schema-design` — schema layout, null bitmap, shards.
-- `aggregation-guide` — full aggregator list and decimal column support per op.
+- `aggregation-design` — aggregator slot semantics; per-op decimal support in `op-agg-*`.
 - `pulse_errors_lookup` — canonical message + fixups for every error code mentioned here.

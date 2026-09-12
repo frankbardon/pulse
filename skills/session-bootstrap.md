@@ -30,11 +30,11 @@ Lowercase the operator family prefix and map through this table. Skills carry no
 
 | Trigger | Skill to fetch |
 |---|---|
-| `AGG_*` | `aggregation-guide` |
+| `AGG_*` | `aggregation-design` |
 | `ATTR_*` | `attribute-composition` |
-| `FILTER_*` | `aggregation-guide` (filtering section) |
+| `FILTER_*` | `aggregation-design` |
 | `GROUP_*` | `grouper-design` |
-| `WIN_*` | `window-operations` |
+| `WIN_*` | `window-design` |
 | `FEAT_*` | `feature-engineering` |
 | `TEST_*` (tier-1 or tier-2) | `statistical-testing` |
 | `REG_*` | `regression-modeling` |
