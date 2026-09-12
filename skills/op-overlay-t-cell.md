@@ -17,16 +17,16 @@ Compose-only parity overlay. Overlays decorate the host; no `Response.Components
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, populated by `AGG_WELFORD` via `MetaAggregator`; falls back to the `params` triple when absent.
+COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via `MetaAggregator`), else the `params` triple.
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target. Layer `Baseline` unset.
+MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target; `Baseline` unset.
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_WELCH` over the same inputs — both read `{n, mean, variance}` via Welford + share `studentTTwoSidedP`. Welch-Satterthwaite df recurrence reused from `TEST_T`.
-- Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` REMOVED v0.20.0 — `MatrixCell.Value` carries scalar mean.
+- **Byte-equal** to `TEST_WELCH` on the same inputs — both read `{n, mean, variance}` via Welford and share `studentTTwoSidedP`; df recurrence reused from `TEST_T`.
+- Legacy `processing.WelfordTriple` smuggle REMOVED v0.20.0 — `MatrixCell.Value` carries the scalar mean.
 - Canonical pairing: `AGG_WELFORD` + `OVERLAY_T_CELL`. Buffered (inferential).
 
 ## See

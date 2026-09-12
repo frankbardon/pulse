@@ -26,10 +26,10 @@ MATRIX — `OverlayLayer.Payload.Matrix.Cells[r][c].Value` = `cell - margin`. Mi
 ## Gotchas
 
 - Preserves host cell's units — a $-valued `AGG_SUM` cell minus a $-valued row margin yields a $-valued deviation in the same currency.
-- No division — never raises `PULSE_OVERLAY_REF_ZERO`. Distinct from `OVERLAY_INDEX_VS_MARGIN` and `OVERLAY_SHARE_OF_*` triad.
+- No division — never raises `PULSE_OVERLAY_REF_ZERO`. Unlike `OVERLAY_INDEX_VS_MARGIN` / the `OVERLAY_SHARE_OF_*` triad.
 - `Axis = grand` is supported (all three axes).
 - Buffered (inherent — host crosstab path always recomputes margins from raw rows).
 
 ## See
 
-- Skills: `overlay-system`, `crosstab-guide`, `op-overlay-index-vs-margin`, `op-overlay-zscore-vs-margin`.
+- Skills: `overlay-system`, `crosstab-guide`, `op-overlay-index-vs-margin`.

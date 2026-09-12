@@ -26,7 +26,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `index =
 ## Gotchas
 
 - Out-of-range `Position` → `PULSE_OVERLAY_REF_UNKNOWN` (predict + runtime via `ResolveBaselineIndex`).
-- Zero baseline → NaN across entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer. Distinct from `OVERLAY_DELTA_VS_BASELINE` (no warning on zero).
+- Zero baseline → NaN across entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer, unlike `OVERLAY_DELTA_VS_BASELINE`.
 - Absent host point → `SeriesEntry` with unset `Statistic`.
 - Absent baseline ordinal yields `0.0` from host → routes to zero-baseline arm.
 - Buffered — `host.ValueAt(Position)` post-finalize via `ApplyOverlaysSeries`.

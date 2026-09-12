@@ -17,17 +17,17 @@ Compose-only parity overlay. Series-shape sibling of `OVERLAY_Z_CELL`. Overlays 
 
 ## Host shape
 
-COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents` (matrix arms via `AGG_WELFORD`), else the `params` triple. Renders as a per-group inferential strip.
+COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents` (matrix arms via `AGG_WELFORD`), else the `params` triple. Renders as a per-group strip.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary.Statistic`. One layer per target. Layer `Baseline` unset.
+SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary.Statistic`. One layer per target; `Baseline` unset.
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_Z_TWO_SAMPLE` over the same inputs — shares `standardNormalCDF` with `TEST_Z_TWO_SAMPLE` / `OVERLAY_Z_CELL`.
-- Missing reference row → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN. Degenerate inputs (`se == 0`, `n < 2`) → same.
-- Distinct from the streamable SERIES arm of `OVERLAY_INDEX_VS_REF` / `OVERLAY_DELTA_VS_REF` — inferential family, buffered by policy.
+- **Byte-equal** to `TEST_Z_TWO_SAMPLE` on the same inputs — shares `standardNormalCDF` with it and `OVERLAY_Z_CELL`.
+- Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
+- Unlike the streamable SERIES arm of `OVERLAY_INDEX_VS_REF` / `OVERLAY_DELTA_VS_REF`: inferential, buffered.
 
 ## See
 

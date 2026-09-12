@@ -28,8 +28,8 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `delta =
 - Out-of-range `Position` → `PULSE_OVERLAY_REF_UNKNOWN` (predict + runtime via `ResolveBaselineIndex`).
 - Zero baseline → no warning (subtraction defined for every finite value; delta becomes raw host value). Distinct from `OVERLAY_INDEX_VS_BASELINE` which raises `PULSE_OVERLAY_REF_ZERO`.
 - Absent host point → `SeriesEntry` with unset `Statistic` (canonical absent-slot shape).
-- Buffered — `host.ValueAt(Position)` consulted post-finalize via `ApplyOverlaysSeries`.
+- Buffered — `host.ValueAt(Position)` read post-finalize via `ApplyOverlaysSeries`.
 
 ## See
 
-- Skills: `overlay-system`, `op-overlay-index-vs-baseline`, `op-overlay-delta-vs-margin`.
+- Skills: `overlay-system`, `op-overlay-index-vs-baseline`.

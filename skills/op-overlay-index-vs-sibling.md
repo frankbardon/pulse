@@ -28,7 +28,7 @@ SERIES — one `SeriesEntry` per host group, carrying `index = group / sibling �
 - Unknown `(Field, Value)` pair → ONE `PULSE_OVERLAY_REF_UNKNOWN` per layer + NaN entries.
 - Zero sibling value → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer. Distinct from `OVERLAY_DELTA_VS_SIBLING` (no warning on zero — subtraction defined).
 - Absent host group → `SeriesEntry` with unset `Statistic`.
-- Buffered — sibling resolver requires materialised per-group accumulators (`ApplyOverlaysSeries`).
+- Buffered — the resolver needs materialised per-group accumulators (`ApplyOverlaysSeries`).
 
 ## See
 

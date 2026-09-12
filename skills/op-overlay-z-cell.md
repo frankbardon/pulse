@@ -17,17 +17,17 @@ Compose-only parity overlay. Overlays decorate the host; no `Response.Components
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, populated by `AGG_WELFORD` via `MetaAggregator`; falls back to the `params` triple when absent.
+COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` (populated by `AGG_WELFORD` via `MetaAggregator`), else the `params` triple.
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = two-sided p-value via standard normal survival. One layer per target. Layer `Baseline` unset.
+MATRIX — `Cells[r][c].Value` = two-sided p-value via standard normal survival. One layer per target; `Baseline` unset.
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_Z_TWO_SAMPLE` over the same inputs — both share `standardNormalCDF`.
-- Differs from `OVERLAY_T_CELL` only by distribution (normal vs Student's t) — same SE `sqrt(var_t/n_t + var_r/n_r)`.
-- Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` REMOVED v0.20.0 — `MatrixCell.Value` carries scalar mean.
+- **Byte-equal** to `TEST_Z_TWO_SAMPLE` on the same inputs (shared `standardNormalCDF`).
+- Differs from `OVERLAY_T_CELL` only by distribution (normal vs Student t); same SE.
+- Legacy `processing.WelfordTriple` smuggle REMOVED v0.20.0; `MatrixCell.Value` holds the scalar mean.
 - Buffered (inferential).
 
 ## See

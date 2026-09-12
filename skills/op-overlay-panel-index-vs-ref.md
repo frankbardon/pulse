@@ -13,23 +13,23 @@ Compose-only multi-reference. Overlays decorate the host; no `Response.Component
 
 ## Params
 
-`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` = shared reference slot label. `Targets` — one layer per target. `OverlayOptions.MaxPanelTargets` int, default `16`, caps `len(Targets)`.
+`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` = shared reference slot. `Targets` — one layer per target. `OverlayOptions.MaxPanelTargets` int, default `16`, caps `len(Targets)`.
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference and every target slot. Schema-match + key-alignment + dict-prefix gates per (ref, target). Sibling to `OVERLAY_PROP_Z_PANEL` (inferential).
+COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference and every target. Schema-match + key-alignment + dict-prefix gates per (ref, target). Sibling to `OVERLAY_PROP_Z_PANEL`.
 
 ## Output
 
-ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Payload shape mirrors the reference slot's host shape. Byte-equal per layer to `OVERLAY_INDEX_VS_REF` on each `(reference, target[i])` pair.
+ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Payload shape mirrors the reference slot's. Byte-equal per layer to `OVERLAY_INDEX_VS_REF` on each `(reference, target[i])`.
 
 ## Gotchas
 
 - `len(Targets) > MaxPanelTargets` → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
-- Empty `spec.Name` → label degenerates to `OVERLAY_PANEL_INDEX_VS_REF__<target_label>`.
-- Streamable — SERIES fold-only; MATRIX forced buffered by the slot barrier.
-- Shared coord space enforced by the schema-match + key-alignment gates before dispatch.
-- Layer slice order matches `spec.Targets`; stable across re-runs.
+- Empty `spec.Name` → label becomes `OVERLAY_PANEL_INDEX_VS_REF__<target_label>`.
+- Streamable: SERIES fold-only; MATRIX forced buffered by the slot barrier.
+- Shared coord space is enforced before dispatch.
+- Layer slice order matches `spec.Targets`, stable across re-runs.
 
 ## See
 

@@ -16,7 +16,7 @@ Feature operators emit derived columns; no `Response.Components`.
 EXACTLY ONE of:
 
 - `boundaries` (list[float]) — sorted ascending cutpoints; `v` lands in bucket `i` where `boundaries[i-1] < v <= boundaries[i]`.
-- `quantiles` (int) — number of equal-population buckets.
+- `quantiles` (int) — count of equal-population buckets.
 
 ## Inputs
 
@@ -29,9 +29,9 @@ One `u32`-coded `f64` column at `Label` (default `BUCKET_<field>`) holding the b
 ## Gotchas
 
 - Neither OR both of `boundaries` / `quantiles` → `PROCESSING_CONFIG` at predict.
-- Quantile mode is GLOBAL-PASS — sweeps the cohort for N-1 cutpoints before emitting. Buffered streaming still works (state survives `iter.Reset()`); file-backed iterators pay a second I/O. Explicit mode is PER-ROW and stateless.
-- Boundaries are EXCLUSIVE on the lower edge — a value exactly on a cutpoint goes to the LOWER index (`SearchFloat64s` semantics).
-- Null inputs emit a null bucket. `FILTER_RANGE` works directly on the integer code.
+- Quantile mode is GLOBAL-PASS — sweeps the cohort for N-1 cutpoints before emitting. Streaming still works (state survives `iter.Reset()`); file-backed iterators pay a second I/O. Explicit mode is PER-ROW, stateless.
+- Boundaries are EXCLUSIVE on the lower edge — a value on a cutpoint goes to the LOWER index (`SearchFloat64s`).
+- Null inputs emit a null bucket; `FILTER_RANGE` works on the integer code.
 
 ## See
 

@@ -25,7 +25,7 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per column
 
 ## Gotchas
 
-- Reuses `chiSquareSurvival` — byte-equal p-values to `TEST_CHISQ` and `OVERLAY_CHISQ_ROW` / `OVERLAY_CHISQ_MATRIX` on the same contingency.
+- Reuses `chiSquareSurvival` — p-values byte-equal to `TEST_CHISQ`, `OVERLAY_CHISQ_ROW`, `OVERLAY_CHISQ_MATRIX`.
 - Any `expected < 5` in a column emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending column.
 - Absent host cell treated as observed count of 0.
 - Buffered (inherent — host crosstab path always recomputes margins from raw rows).

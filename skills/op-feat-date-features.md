@@ -31,14 +31,14 @@ FIVE columns prefixed by `Label` (default the field name):
 | `<prefix>_dow` | f64 | `0..6` — `time.Weekday`, `0` = Sunday |
 | `<prefix>_quarter` | f64 | `1..4` |
 
-Date storage convention: days since the Unix epoch, decoded as UTC (mirrors `ATTR_DATE_PART`).
+Date storage: days since the Unix epoch, decoded as UTC (mirrors `ATTR_DATE_PART`).
 
 ## Gotchas
 
 - Non-`date` source → `PROCESSING_CONFIG` at construction.
 - Null date → ALL FIVE columns emit `null` for that row.
 - DOW is `0` = Sunday (Go `time.Weekday` convention), NOT ISO `1` = Monday.
-- Capabilities metadata historically listed `day_of_week` / `is_weekend`; actual emitted columns are `dow` / `quarter`. Code is authoritative — reference the suffixes above.
+- Capabilities metadata historically listed `day_of_week` / `is_weekend`; the emitted columns are `dow` / `quarter`. Code is authoritative — use the suffixes above.
 - Streamable per-row.
 
 ## See

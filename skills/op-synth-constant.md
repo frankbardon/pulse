@@ -28,9 +28,9 @@ Same `value` returned on every row. RNG state untouched.
 ## Gotchas
 
 - Missing `value` param → `SERVICE_VALIDATION` ("requires param value").
-- Type mismatch between `value` and field `type:` is caught at writer cast — surfaces as `PULSE_SYNTH_VALUE_INVALID` or a related coded error.
-- Does NOT consume RNG — like `monotonic_from`, adding / removing a constant field preserves byte-equality of every other field's stream.
-- A constant categorical field still emits a one-entry dictionary block (one byte per row at `categorical_u8`); use `bernoulli` with `p=0` / `p=1` if you want a packed-bool equivalent.
+- Type mismatch between `value` and field `type:` is caught at the writer cast — `PULSE_SYNTH_VALUE_INVALID` or a related code.
+- Consumes NO RNG — like `monotonic_from`, adding / removing a constant field preserves byte-equality of every other field's stream.
+- A constant categorical still emits a one-entry dictionary block (one byte per row at `categorical_u8`); for a packed-bool equivalent use `bernoulli` with `p=0` / `p=1`.
 
 ## See
 

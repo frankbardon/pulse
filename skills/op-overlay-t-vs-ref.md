@@ -17,17 +17,17 @@ Compose-only parity overlay. Series-shape sibling of `OVERLAY_T_CELL`. Overlays 
 
 ## Host shape
 
-COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents` (matrix arms via `AGG_WELFORD`), else the `params` triple. Renders as a per-group inferential strip.
+COMPOSE — SERIES grouped Process on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents` (matrix arms via `AGG_WELFORD`), else the `params` triple. Renders as a per-group strip.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary.Statistic`. One layer per target. Layer `Baseline` unset.
+SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary.Statistic`. One layer per target; `Baseline` unset.
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_WELCH` over the same inputs — shares `studentTTwoSidedP` + the Welch-Satterthwaite df recurrence with `TEST_T` / `OVERLAY_T_CELL`.
-- Missing reference row → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN. Degenerate inputs (`se == 0`, `n < 2`) → same.
-- Distinct from the streamable SERIES arm of INDEX/DELTA_VS_REF — inferential family, buffered by policy.
+- **Byte-equal** to `TEST_WELCH` on the same inputs — shares `studentTTwoSidedP` + the df recurrence with `TEST_T` / `OVERLAY_T_CELL`.
+- Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
+- Unlike the streamable SERIES arm of INDEX/DELTA_VS_REF: inferential, buffered by policy.
 
 ## See
 

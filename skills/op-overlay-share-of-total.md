@@ -17,16 +17,16 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-Dual-shape: **MATRIX** crosstab (`Ref.Margin` required, grand-axis) → per-cell `cell / grand_total`; **SERIES** grouped Process host (implicit grand-total, empty `Ref`) → per-group `group_val / grand_total`.
+Dual-shape: **MATRIX** crosstab (`Ref.Margin` required, grand-axis) → `cell / grand_total`; **SERIES** grouped Process host (implicit grand-total, empty `Ref`) → `group_val / grand_total`.
 
 ## Output
 
-MATRIX or SERIES — raw share (no ×100). Whole matrix sums to 1.0; complete partition sums to 1.0 within ULP. Layer `Baseline = 1` (raw-share centerpoint).
+MATRIX or SERIES — raw share (no ×100). A whole matrix / complete partition sums to 1.0 within ULP. Layer `Baseline = 1`.
 
 ## Gotchas
 
-- Streamable via SERIES dispatch — same `computeSeriesGrandTotal` accumulator as `OVERLAY_INDEX_VS_TOTAL`. MATRIX is buffered.
-- Empty `Ref.Margin` on MATRIX, or any populated `Ref` arm on SERIES → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Streamable via SERIES dispatch — same `computeSeriesGrandTotal` accumulator as `OVERLAY_INDEX_VS_TOTAL`; MATRIX buffers.
+- Empty `Ref.Margin` on MATRIX, or a populated `Ref` on SERIES → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - `grand_total == 0` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - Absent host coordinate → unset entry, no contribution to the grand total.
 - Distinct from `OVERLAY_INDEX_VS_TOTAL` (×100); the kind names are kept distinct.

@@ -21,13 +21,13 @@ CHAIN — `ProcessChain` with reference + target stage's host result shape (scal
 
 ## Output
 
-Shape inherited from target stage. Per-coordinate `delta = target_val - ref_val`. Preserves target stage's units — a $-valued aggregator yields a $-valued delta in the same currency. Layer `Baseline = 0`.
+Shape inherited from target stage. Per-coordinate `delta = target_val - ref_val`, in the target stage's own units. Layer `Baseline = 0`.
 
 ## Gotchas
 
 - No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO`. Distinct from `OVERLAY_INDEX_VS_STAGE`.
-- Stage shape divergence (target shape ≠ ref shape) → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` + NaN across coordinates.
-- Unknown stage → `PULSE_OVERLAY_REF_UNKNOWN` (and `PULSE_OVERLAY_TARGET_UNKNOWN` when those codes land).
+- Target shape ≠ ref shape → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` + NaN across coordinates.
+- Unknown stage → `PULSE_OVERLAY_REF_UNKNOWN` (`PULSE_OVERLAY_TARGET_UNKNOWN` when it lands).
 - Buffered (whole-chain barrier runs after every stage finalises by construction).
 
 ## See
