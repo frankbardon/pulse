@@ -11,9 +11,9 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Params
 
-Exactly one range source in `Params json.RawMessage` (not `Values []string`) — inline `ranges` XOR named `table`:
+Exactly one range source in `Params json.RawMessage` (not `Values []string`) — `ranges` XOR `table`:
 
-- `ranges` (`[]{label,start,end}`) — ISO `YYYY-MM-DD`; omit/null a bound for an open one. Inclusive, fully validated.
+- `ranges` (`[]{label,start,end}`) — ISO `YYYY-MM-DD`; omit/null a bound for an open one. Inclusive, validated.
 - `table` (string) — registered `RangeTable` (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`).
 
 ## Inputs
@@ -31,9 +31,9 @@ Floor only — `{n_in, n_out, n_null_input}`. Mergeable; counters fold by additi
 ## Gotchas
 
 - Null/missing date → dropped.
-- Both or neither of `ranges` / `table` → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`.
+- Both or neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`.
 - Overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal or start>end → `PULSE_RANGE_INVALID`.
-- Row-local streamable — auto-available to `facet` (`FacetRequest.Filterers`) and `sample`, single-pass.
+- Row-local streamable — auto-available single-pass to `facet` (`FacetRequest.Filterers`) and `sample`.
 
 ## See
 

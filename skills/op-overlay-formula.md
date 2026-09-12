@@ -13,15 +13,15 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` (enum, required) — `cell` (MATRIX) / `group` (SERIES) / `total` (SCALAR). `params.formula` (string, required) — `expr-lang/expr` expression. `params.baseline_position` (int, optional) — SERIES only — opt-in `baseline` variable.
+`Scope` required — `cell` (MATRIX) / `group` (SERIES) / `total` (SCALAR). `params.formula` required — an `expr-lang/expr` expression. `params.baseline_position` (int, optional) — SERIES only, opts in the `baseline` variable.
 
 ## Host shape
 
-ANY (MATRIX / SERIES / SCALAR). Per-shape namespace via `types.FormulaNamespace`:
+ANY shape. Per-shape namespace via `types.FormulaNamespace`:
 
 - MATRIX: `cell`, `margin_row|col|grand`, `sd_row|col|grand` (+ `ref_cell` on Compose).
-- SERIES: `value`, `total`, `prior` (+ opt-in `baseline`, + `ref_value` Compose).
-- SCALAR: `value` (+ `ref` Compose).
+- SERIES: `value`, `total`, `prior` (+ opt-in `baseline`, `ref_value` on Compose).
+- SCALAR: `value` (+ `ref` on Compose).
 
 ## Output
 

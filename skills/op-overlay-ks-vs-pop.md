@@ -13,7 +13,7 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 ## Params
 
-`Scope` required, must be `group`. `Ref.Population.Cohort` required — comparison-population cohort name; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0`.
+`Scope` must be `group`. `Ref.Population.Cohort` required — the comparison-population cohort; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0`.
 
 ## Host shape
 
@@ -25,8 +25,8 @@ SCALAR — `Payload.Scalar` carries KS `D`; `OverlaySummary{Statistic, PValue, P
 
 ## Gotchas
 
-- Empirical-CDF path: (1) histogram (preferred), (2) percentile-map, (3) Welford-only (degenerate → NaN + `PULSE_OVERLAY_REF_ZERO`).
-- The population resolver retains only Welford / histogram / percentiles; raw values are discarded. Set `IncludeHistogram=true` or `NumericPercentiles=[...]` on BOTH arms.
+- Empirical-CDF path: histogram (preferred), else percentile-map, else Welford-only (degenerate → NaN + `PULSE_OVERLAY_REF_ZERO`).
+- The resolver retains only Welford / histogram / percentiles; raw values are discarded. Set `IncludeHistogram=true` or `NumericPercentiles=[...]` on BOTH arms.
 - Empty host or pop (`n_subset == 0` / `n_pop == 0`) → NaN + `PULSE_OVERLAY_REF_ZERO`.
 - Mismatched histogram edges fall to the percentile path, else `PULSE_OVERLAY_REF_ZERO`.
 - Buffered (inferential).

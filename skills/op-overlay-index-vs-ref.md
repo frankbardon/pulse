@@ -13,7 +13,7 @@ Compose-only dual-shape. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` (enum, required) — `cell` (matrix host) or `group` (series host). `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels (one or more). `params.scale` (float, default `100`) — scale (set to `1` for raw ratio).
+`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` / `Targets` required slot labels (one or more targets). `params.scale` (float, default `100`) — set `1` for a raw ratio.
 
 ## Host shape
 
@@ -25,8 +25,8 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `(target / ref) × 
 
 ## Gotchas
 
-- Zero reference → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per affected coord.
-- Missing reference coordinate → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true` Detail flag.
+- Zero reference → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per coord.
+- Missing reference coordinate → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`.
 - SERIES dispatch is fold-only (streamable per `OverlayStreamability`); MATRIX is forced buffered by the slot barrier.
 - `OverlayOptions.DictPrefixFast` enables the byte-equal dictionary prefix probe. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 

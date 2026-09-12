@@ -13,14 +13,9 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `mean` | float | `0.0` | Distribution mean. |
-| `std` | float | `1.0` | Standard deviation; must be `> 0`. |
-| `min` | float | `-inf` | Lower clamp. |
-| `max` | float | `+inf` | Upper clamp. |
-
-Setting either bound flips an internal `clamped` flag — once on, BOTH bounds apply even though only one was given.
+- `mean` — float, default `0.0`.
+- `std` — float, default `1.0`; must be `> 0`.
+- `min` / `max` — float, default `-inf` / `+inf`. Setting EITHER flips an internal `clamped` flag; once on, BOTH bounds apply.
 
 ## Inputs
 
@@ -28,7 +23,7 @@ Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`
 
 ## Output
 
-Per-row `float64` from `N(mean, std²)`, cast/clamped to the declared field type at write time; days-since-epoch on a `date` field.
+Per-row `float64` from `N(mean, std²)`, cast/clamped to the declared type at write time; days-since-epoch on a `date` field.
 
 ## Gotchas
 

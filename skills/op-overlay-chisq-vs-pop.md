@@ -17,18 +17,18 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 ## Host shape
 
-FACET — `FacetResult` discrete arm only; numeric host → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. Pairs with descriptive `OVERLAY_INDEX_VS_POP` / `OVERLAY_ZSCORE_VS_POP`.
+FACET — discrete arm only; numeric host → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. Pairs with descriptive `OVERLAY_INDEX_VS_POP` / `OVERLAY_ZSCORE_VS_POP`.
 
 ## Output
 
-SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Parameters["df"]}` where `df = len(observed) - 1`. Layer `Baseline` unset.
+SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Parameters["df"]}`, `df = len(observed) - 1`. `Baseline` unset.
 
 ## Gotchas
 
-- `expected[v] = pop_freq(v) × subset_N`. Reuses `chiSquareSurvival` — byte-equal to `TEST_CHISQ` on the same contingency.
+- `expected[v] = pop_freq(v) × subset_N`. Reuses `chiSquareSurvival` — byte-equal to `TEST_CHISQ`.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer, carrying the low-expected category count.
 - Empty host distribution, `subset_N == 0`, or all `pop_freq == 0` → NaN statistic + `PULSE_OVERLAY_REF_ZERO`. Single category (`df = 0`) → NaN p-value.
-- Buffered (inferential — FacetSchema post-finalize hook; byte-identical streaming vs buffered host).
+- Buffered (inferential — FacetSchema post-finalize hook; byte-identical streaming vs buffered).
 
 ## See
 

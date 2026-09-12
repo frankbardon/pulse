@@ -13,22 +13,22 @@ Compose-only. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `cell`. `Reference` (string, required) — anchor for resolution + key-set gates only. `Targets` ([]string, required) — target slot labels. `params.population` (string, default `matrix`) — `row` / `column` / `matrix`.
+`Scope` must be `cell`. `Reference` required — anchor for resolution + key-set gates only. `Targets` required slot labels. `params.population` (string, default `matrix`) — `row` / `column` / `matrix`.
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab. Reference slot anchors schema-match + key-alignment but its VALUES are not consumed — rank math reads only target cells. Intentional asymmetry keeps RANK orthogonal to comparison family (INDEX / DELTA / PROP_Z / T / CHISQ).
+COMPOSE — MATRIX crosstab. The reference slot anchors schema-match + key-alignment but its VALUES are not consumed: rank math reads target cells only. That asymmetry keeps RANK orthogonal to the comparison family (INDEX / DELTA / PROP_Z / T / CHISQ).
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = 1-based rank (1 = largest) within the selected population. Mirrors target matrix's RowKeys / ColumnKeys. Layer `Baseline` unset.
+MATRIX — `Cells[r][c].Value` = 1-based rank (1 = largest) within the selected population. Mirrors the target's RowKeys / ColumnKeys. `Baseline` unset.
 
 ## Gotchas
 
 - Tie-breaking: average rank (matches `scipy.stats.rankdata` default).
-- Absent target cell stays absent on the overlay — does NOT participate in the population's denominator. Ranks over PRESENT cells only.
-- `population=row` → rank within the cell's own row; `column` → within column; `matrix` → across all present cells.
-- Buffered (Compose host always buffered by the slot barrier; ranking needs the full materialised matrix anyway).
+- An absent target cell stays absent and is NOT in the population's denominator — ranks cover PRESENT cells only.
+- `population=row` → rank within the cell's row; `column` → within its column; `matrix` → across all present cells.
+- Buffered (the slot barrier always buffers, and ranking needs the full materialised matrix).
 
 ## See
 

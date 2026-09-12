@@ -11,12 +11,12 @@ examples_tags: [time-series, cohort-analysis]
 
 ## Params
 
-Exactly one range source — inline `ranges` XOR named `table`.
+Exactly one range source — `ranges` XOR `table`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `ranges` | array | (one source) | Ordered `{label, start, end}`. ISO dates, omitted bound = open, inclusive, non-overlapping, distinct labels. |
-| `table` | string | (one source) | Registered `RangeTable` name (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`). |
+| `table` | string | (one source) | Registered `RangeTable` (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`). |
 | `unmatched_label` | string | `unmatched` | Out-of-range bucket; must not equal a range label. |
 
 ## Inputs
@@ -25,15 +25,15 @@ Exactly one range source — inline `ranges` XOR named `table`.
 
 ## Output
 
-The matching range's label per row, else the unmatched label. Buckets emit in supplied range order.
+The matching range's label per row, else the unmatched label; buckets emit in supplied range order.
 
 ## Components
 
-Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`[]bucket` of `{key, label, count}`, supplied order, unmatched last). `Mergeable`; `Streamable=true`.
+Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`[]bucket` of `{key, label, count}`, supplied order, unmatched last). `Mergeable`, `Streamable=true`.
 
 ## Gotchas
 
-- Both or neither of `ranges` / `table` → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`. Field neither `date` nor `datetime` → `PROCESSING_CONFIG`.
+- Both or neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`. Field neither `date` nor `datetime` → `PROCESSING_CONFIG`.
 - Overlap / dup label / bad boundary → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
 - `Group.Include` not honoured.
 

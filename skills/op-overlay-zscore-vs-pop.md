@@ -17,19 +17,18 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 ## Host shape
 
-FACET — `FacetResult` (discrete or numeric arm). Streamable sibling to `OVERLAY_INDEX_VS_POP` — pairs as the two streamable FACET kinds; one Facet pass.
+FACET — `FacetResult`, discrete or numeric arm. Streamable sibling to `OVERLAY_INDEX_VS_POP`: the two streamable FACET kinds, one Facet pass.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host value in payload order, carrying z-score on `Summary.Statistic`. Layer `Baseline = 0` (z-score centerpoint).
+SERIES — one `SeriesEntry` per host value in payload order carrying the z-score on `Summary.Statistic`. Layer `Baseline = 0`.
 
 ## Gotchas
 
-- Discrete: `(subset_freq - pop_freq) / sd_pop` where `sd_pop = FacetPopulationView.DiscreteFrequencyStdev()` (population Welford SD across per-category frequencies).
-- Numeric: Welford `(mean, sd)` from `FacetPopulationView` — per-bin center standardised against population's Welford triple.
-- `sd_pop == 0` → ONE `PULSE_OVERLAY_REF_ZERO` per affected entry + SKIP entry (Statistic unset).
-- Absent population entry → same warning + skip behavior.
-- Streamable — post-finalize fold over already-materialised host + population view; carrier not widened.
+- Discrete: `(subset_freq - pop_freq) / sd_pop`, `sd_pop = FacetPopulationView.DiscreteFrequencyStdev()` (population Welford SD across per-category frequencies).
+- Numeric: per-bin centre standardised against the population's Welford `(mean, sd)` from `FacetPopulationView`.
+- `sd_pop == 0`, or an absent population entry → ONE `PULSE_OVERLAY_REF_ZERO` per affected entry + SKIP it (`Statistic` unset).
+- Streamable — post-finalize fold over the materialised host + population view; carrier not widened.
 
 ## See
 
