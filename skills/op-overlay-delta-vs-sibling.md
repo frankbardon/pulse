@@ -9,15 +9,15 @@ applies_to: process, compose
 examples_tags: [overlay, comparison, before-after]
 ---
 
-Overlays decorate the host; they emit no `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `group`. `Ref.Sibling.Field` (string, required) — grouper field on the host. `Ref.Sibling.Value` (string, required) — axis-key value identifying the sibling group.
+`Scope` must be `group`. `Ref.Sibling.Field` (string, required) — grouper field on the host. `Ref.Sibling.Value` (string, required) — axis-key value identifying the sibling group. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-SERIES — grouped Process host. Family: sibling reference (`Ref.Sibling`). Subtractive twin of `OVERLAY_INDEX_VS_SIBLING`. Sibling resolved via `processing/overlay_sibling_resolver.go`.
+SERIES — grouped Process host. Subtractive twin of `OVERLAY_INDEX_VS_SIBLING`. Sibling resolved via `processing/overlay_sibling_resolver.go`.
 
 ## Output
 
@@ -25,10 +25,9 @@ SERIES — one `SeriesEntry` per host group, carrying `delta = group - sibling` 
 
 ## Gotchas
 
-- Unknown `(Field, Value)` pair → ONE `PULSE_OVERLAY_REF_UNKNOWN` warning per layer + NaN across entries.
+- Unknown `(Field, Value)` pair → ONE `PULSE_OVERLAY_REF_UNKNOWN` per layer + NaN across entries.
 - Zero sibling value → no warning (subtraction defined; delta becomes raw group value). Distinct from `OVERLAY_INDEX_VS_SIBLING` which raises `PULSE_OVERLAY_REF_ZERO`.
 - Absent host group → `SeriesEntry` with unset `Statistic`.
-- Both `Field` and `Value` MUST be non-empty. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered — sibling resolver requires materialised per-group accumulators (`ApplyOverlaysSeries`).
 
 ## See

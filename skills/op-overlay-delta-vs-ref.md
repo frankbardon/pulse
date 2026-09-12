@@ -9,11 +9,11 @@ applies_to: compose
 examples_tags: [overlay, compose, before-after]
 ---
 
-Compose-only dual-shape. Overlays decorate the host; they emit no `Response.Components`.
+Compose-only dual-shape. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` (enum, required) — `cell` (matrix host) or `group` (series host). `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels (one or more).
+`Scope` (enum, required) — `cell` (matrix host) or `group` (series host). `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels (one or more). Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
@@ -29,7 +29,6 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - r
 - Missing reference coordinates (target key not in reference) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true` Detail flag; affected entry NaN.
 - SERIES dispatch is fold-only (single accumulator per group) — streamable per `OverlayStreamability`.
 - MATRIX dispatch forced buffered by the slot barrier.
-- Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## See
 

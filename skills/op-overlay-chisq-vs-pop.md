@@ -9,7 +9,7 @@ applies_to: facet
 examples_tags: [overlay, facet, hypothesis-test]
 ---
 
-Rides on `FacetRequest.Overlays`. Overlays decorate the host; they emit no `Response.Components`.
+Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 

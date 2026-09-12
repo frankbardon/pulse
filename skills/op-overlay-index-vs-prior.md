@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, time-series, trend-detection, streaming-friendly]
 ---
 
-Overlays decorate the host; they emit no `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -28,7 +28,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `index =
 - Single-state lag carrier (one `float64`) — streamable inside the streaming Process fold.
 - First ordinal → NaN, no warning ("no comparison available" ≠ "denominator zero").
 - Absent host point → NaN + carrier does NOT advance (next present point still divides by last present value).
-- Zero prior → NaN + ONE `PULSE_OVERLAY_REF_ZERO` warning per layer.
+- Zero prior → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - `Ref.Prior.Lag` reserved for future window-N priors; v1 ships lag-1 only.
 - Empty `Ref` and populated `Ref.Prior` both spell lag-1.
 - Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.

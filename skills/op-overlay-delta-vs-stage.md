@@ -9,7 +9,7 @@ applies_to: process
 examples_tags: [overlay, before-after]
 ---
 
-Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decorates `ChainResponse.Overlays`; per-stage overlays are independent. Overlays do not emit `Response.Components`.
+Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decorates `ChainResponse.Overlays`; per-stage overlays are independent. Overlays emit no `Response.Components`.
 
 ## Params
 

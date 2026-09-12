@@ -9,7 +9,7 @@ applies_to: compose
 examples_tags: [overlay, compose, comparison]
 ---
 
-Compose-only multi-reference. Overlays decorate the host; they emit no `Response.Components`.
+Compose-only multi-reference. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 

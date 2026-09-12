@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test]
 ---
 
-Overlays decorate the host; they emit no `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -26,7 +26,7 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 ## Gotchas
 
 - Expected cell formula: `row_margin × col_margin / grand_total`. p-value via `chiSquareSurvival` — byte-equal to `TEST_CHISQ` on the same contingency.
-- Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` warning per layer.
+- Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer.
 - Absent host cell treated as observed count of 0.
 - Scope MUST be `matrix`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent — margins recomputed from raw rows).

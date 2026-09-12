@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, proportion-analysis, streaming-friendly]
 ---
 
-Overlays decorate the host; they emit no `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -27,7 +27,7 @@ MATRIX or SERIES — raw share (no ×100). Whole matrix sums to 1.0; complete pa
 
 - Streamable via SERIES dispatch — same `computeSeriesGrandTotal` accumulator as `OVERLAY_INDEX_VS_TOTAL`. MATRIX is buffered.
 - Empty `Ref.Margin` on MATRIX, or any populated `Ref` arm on SERIES → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- `grand_total == 0` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` warning per layer.
+- `grand_total == 0` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - Absent host coordinate → unset entry, no contribution to the grand total.
 - Distinct from `OVERLAY_INDEX_VS_TOTAL` (×100); the kind names are kept distinct.
 

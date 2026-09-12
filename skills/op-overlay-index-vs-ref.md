@@ -9,7 +9,7 @@ applies_to: compose
 examples_tags: [overlay, compose, comparison]
 ---
 
-Compose-only dual-shape. Overlays decorate the host; they emit no `Response.Components`.
+Compose-only dual-shape. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -25,7 +25,7 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `(target / ref) × 
 
 ## Gotchas
 
-- Zero reference → NaN + ONE `PULSE_OVERLAY_REF_ZERO` warning per affected coord.
+- Zero reference → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per affected coord.
 - Missing reference coordinate → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true` Detail flag.
 - SERIES dispatch is fold-only (streamable per `OverlayStreamability`); MATRIX is forced buffered by the slot barrier.
 - `OverlayOptions.DictPrefixFast` enables the byte-equal dictionary prefix probe. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.

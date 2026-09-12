@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, comparison, streaming-friendly]
 ---
 
-Overlays decorate the host; they emit no `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -17,7 +17,7 @@ Overlays decorate the host; they emit no `Response.Components`.
 
 ## Host shape
 
-SERIES — grouped Process host. Family: implicit grand-total (no `Ref`). First streamable SERIES-host overlay with a streaming finalize hook. Sibling to `OVERLAY_SHARE_OF_TOTAL` (SERIES arm) — same accumulator, different scale.
+SERIES — grouped Process host. First streamable SERIES-host overlay with a streaming finalize hook. Sibling to `OVERLAY_SHARE_OF_TOTAL` (SERIES arm) — same accumulator, different scale.
 
 ## Output
 
@@ -25,7 +25,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `index =
 
 ## Gotchas
 
-- `grand_total == 0` → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` warning per layer.
+- `grand_total == 0` → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - Absent host group → `SeriesEntry` with unset `Statistic` and does NOT contribute to grand total.
 - Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Streamable — one `float64` grand-total accumulator carried alongside per-group accumulators inside the streaming Process fold. Post-host finalize is the divide step.

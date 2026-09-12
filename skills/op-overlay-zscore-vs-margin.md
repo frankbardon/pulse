@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, outlier-detection]
 ---
 
-Overlays decorate the host; they emit no `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -17,7 +17,7 @@ Overlays decorate the host; they emit no `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab. Family: explicit-margin (`Ref.Margin`). First non-ratio overlay — output is unitless deviation, not ratio or percentage. Sibling of `OVERLAY_INDEX_VS_MARGIN` (ratio) + `OVERLAY_DELTA_VS_MARGIN` (additive).
+MATRIX crosstab. First non-ratio overlay — output is unitless deviation, not ratio or percentage. Sibling of `OVERLAY_INDEX_VS_MARGIN` (ratio) + `OVERLAY_DELTA_VS_MARGIN` (additive).
 
 ## Output
 
@@ -26,7 +26,7 @@ MATRIX — `Cells[r][c].Value = (cell - margin) / sd`. Mirrors host RowKeys / Co
 ## Gotchas
 
 - Per-slice population SD via Welford recurrence. Supports all three axes (`row` / `column` / `grand`).
-- `sd == 0` (constant slice) → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` warning per affected slice.
+- `sd == 0` (constant slice) → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected slice.
 - Empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Population SD convention (divide by N, not N-1) — matches `ATTR_ZSCORE` + `OVERLAY_ZSCORE_VS_TOTAL`.
 - Buffered (host crosstab path + per-slice Welford recurrence both need materialised matrix).

@@ -9,7 +9,7 @@ applies_to: compose
 examples_tags: [overlay, compose, hypothesis-test, proportion-analysis]
 ---
 
-Compose-only. Overlays decorate the host; they emit no `Response.Components`.
+Compose-only. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -26,7 +26,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors referen
 ## Gotchas
 
 - Pooled SE: `sqrt(pooled × (1-pooled) × (1/n_target + 1/n_ref))` where `pooled = (target+ref) / (n_target+n_ref)`. Reuses `standardNormalCDF` — byte-equal to `TEST_PROP_Z` on the same `(success, n)` pair.
-- Degenerate inputs (`pooled ∈ {0,1}`, missing row margin, `se == 0`) → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` warning per affected cell.
+- Degenerate inputs (`pooled ∈ {0,1}`, missing row margin, `se == 0`) → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected cell.
 - Schema-match + key-alignment gates at the slot barrier.
 - Buffered (inferential).
 

@@ -9,15 +9,15 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, before-after]
 ---
 
-Overlays decorate the host; they emit no `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` must be `0`.
+`Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Family: explicit-margin (`Ref.Margin`). Subtractive sibling of `OVERLAY_INDEX_VS_MARGIN` (ratio) and `OVERLAY_ZSCORE_VS_MARGIN` (standardized). Compatible with any cell aggregator.
+MATRIX crosstab (`Response.Crosstab.Matrix`). Subtractive sibling of `OVERLAY_INDEX_VS_MARGIN` (ratio) and `OVERLAY_ZSCORE_VS_MARGIN` (standardized). Compatible with any cell aggregator.
 
 ## Output
 
@@ -28,7 +28,6 @@ MATRIX — `OverlayLayer.Payload.Matrix.Cells[r][c].Value` = `cell - margin`. Mi
 - Preserves host cell's units — a $-valued `AGG_SUM` cell minus a $-valued row margin yields a $-valued deviation in the same currency.
 - No division — never raises `PULSE_OVERLAY_REF_ZERO`. Distinct from `OVERLAY_INDEX_VS_MARGIN` and `OVERLAY_SHARE_OF_*` triad.
 - `Axis = grand` is supported (all three axes).
-- Scope MUST be `cell`. Empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Buffered (inherent — host crosstab path always recomputes margins from raw rows).
 
 ## See

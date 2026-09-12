@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, outlier-detection, streaming-friendly]
 ---
 
-Overlays decorate the host; they emit no `Response.Components`.
+Overlays decorate the host; no `Response.Components`.
 
 ## Params
 

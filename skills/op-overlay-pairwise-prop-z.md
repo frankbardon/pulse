@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 
-One host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's `OVERLAY_PROP_Z_PANEL`. Overlays decorate the host; they emit no `Response.Components` (this family READS them).
+One host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's `OVERLAY_PROP_Z_PANEL`. Overlays decorate the host; no `Response.Components` (this family READS them).
 
 ## Params
 
@@ -27,7 +27,7 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 
 - Reuses `twoProportionZ` — byte-for-byte equal to `OVERLAY_PROP_Z_CELL` / `TEST_PROP_Z` on the same (success, n).
 - RAW p-values only — direction, thresholds and min-n flags are the embedder's job; every input is already on the response.
-- Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` warning per reason.
+- Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.
 - **`p_source` mismatch fails silently and totally.** `cell_value` over a real 0..100 percentage drives pooled p outside `[0,1]`, so EVERY pair skips and the layer returns empty.
 - Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (`AGG_WEIGHTED_MEAN`, including over a `GROUP_SET_PER_ELEMENT` axis).
 
