@@ -9,7 +9,7 @@ covers: [LabelBinding, pulse_label_tables, pulse_label_resolve]
 
 # Label display
 
-Pulse stores categorical fields as dictionary indices resolving to compact strings on read (`"US"`, `"M01.2"`, internal SKUs). When the resolved string is itself a code rather than a display label, the **label overlay** rewrites or augments the value at output time without touching the on-disk schema.
+Pulse stores categorical fields as dictionary indices resolving to compact strings on read (`"US"`, `"M01.2"`, internal SKUs). When that string is itself a code rather than a display label, the **label overlay** rewrites or augments it at output time without touching the on-disk schema.
 
 ## When to use
 
@@ -32,7 +32,7 @@ LabelTables: map[string]pulse.LabelTable{
 
 `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename without `.json` = table name). Either flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
 
-**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata) and `*.meta.json` (managed import) by suffix before reading them, so pointing the variable at a directory that also holds cohorts is safe and a skipped sidecar registers no table. Every OTHER `*.json` under the root is still parsed as a label table and a file that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically. A dedicated directory is still the cleaner habit.
+**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata) and `*.meta.json` (managed import) by suffix before reading them, so pointing the variable at a directory that also holds cohorts is safe and a skipped sidecar registers no table. Every OTHER `*.json` under the root is parsed as a label table, and one that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically. A dedicated directory is still cleaner.
 
 ### 2. Attach a binding
 
