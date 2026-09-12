@@ -13,18 +13,14 @@ Synth distributions emit per-row values; they do not produce Response.Components
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `mu` | float | `0.0` | Log-space mean (mean of `ln(X)`). |
-| `sigma` | float | `1.0` | Log-space standard deviation; must be `> 0`. |
+- `mu` — float, default `0.0`. Log-space mean (mean of `ln(X)`).
+- `sigma` — float, default `1.0`. Log-space standard deviation; must be `> 0`.
 
 Spec defaults mirror the standard log-normal. Mean of the emitted distribution is `exp(mu + sigma²/2)`.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| field `type:` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`. Output is always `> 0`, so signed-clamp casts are safe. |
+field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`. Output is always `> 0`, so signed-clamp casts are safe.
 
 ## Output
 

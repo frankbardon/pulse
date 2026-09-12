@@ -13,17 +13,11 @@ Compose-only parity overlay. Overlays decorate the host result; they do not emit
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `cell`. |
-| `Reference` | string | (required) | Reference slot label. |
-| `Targets` | []string | (required) | Target slot labels. |
-| `params.variance_target/_ref` | float | `1.0` | Optional override. |
-| `params.sample_size_target/_ref` | int | `2` | Optional override. |
+`Scope` required, must be `cell`. `Reference` / `Targets` required slot labels. Optional overrides `params.variance_target/_ref` (float, `1.0`), `params.sample_size_target/_ref` (int, `2`) — the defaults keep the handler usable against a minimal Compose surface.
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` populated by `AGG_WELFORD` via `MetaAggregator`. Falls back to `params`-supplied triple when `CellComponents` absent.
+COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, populated by `AGG_WELFORD` via `MetaAggregator`; falls back to the `params` triple when absent.
 
 ## Output
 
@@ -33,9 +27,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target. Layer 
 
 - **Byte-equal** to `TEST_WELCH` over the same inputs — both read `{n, mean, variance}` via Welford + share `studentTTwoSidedP`. Welch-Satterthwaite df recurrence reused from `TEST_T`.
 - Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` REMOVED v0.20.0 — `MatrixCell.Value` carries scalar mean.
-- Canonical pairing: `AGG_WELFORD` + `OVERLAY_T_CELL`.
-- Defaults `var=1.0, n=2` for minimal Compose surface.
-- Buffered (inferential family).
+- Canonical pairing: `AGG_WELFORD` + `OVERLAY_T_CELL`. Buffered (inferential family).
 
 ## See
 

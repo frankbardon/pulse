@@ -13,17 +13,11 @@ Overlays decorate the host result; they do not emit `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | `cell` (MATRIX) or `group` (SERIES). |
-| `Ref.Margin.Axis` | enum | conditional | MATRIX dispatch: required (grand-axis-locked, value ignored). SERIES: leave empty. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` required — `cell` (MATRIX) or `group` (SERIES). `Ref.Margin.Axis` required on MATRIX dispatch (grand-axis-locked, value ignored), empty on SERIES. `Level` / `Within` must be `0`.
 
 ## Host shape
 
-Dual-shape overload:
-- **MATRIX** crosstab (`Ref.Margin` required, grand-axis): per-cell `cell / grand_total`.
-- **SERIES** grouped Process host (implicit grand-total; empty `Ref`): per-group `group_val / grand_total`.
+Dual-shape: **MATRIX** crosstab (`Ref.Margin` required, grand-axis) → per-cell `cell / grand_total`; **SERIES** grouped Process host (implicit grand-total, empty `Ref`) → per-group `group_val / grand_total`.
 
 ## Output
 
@@ -32,11 +26,10 @@ MATRIX or SERIES — raw share (no ×100). Whole matrix sums to 1.0; complete pa
 ## Gotchas
 
 - Streamable via SERIES dispatch — same `computeSeriesGrandTotal` accumulator as `OVERLAY_INDEX_VS_TOTAL`. MATRIX is buffered.
-- MATRIX dispatch: empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- SERIES dispatch: any populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Empty `Ref.Margin` on MATRIX, or any populated `Ref` arm on SERIES → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - `grand_total == 0` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` warning per layer.
-- Absent host coordinate → unset entry; does NOT contribute to grand total.
-- Distinct from `OVERLAY_INDEX_VS_TOTAL` (×100). Kind names kept distinct.
+- Absent host coordinate → unset entry, no contribution to the grand total.
+- Distinct from `OVERLAY_INDEX_VS_TOTAL` (×100); the kind names are kept distinct.
 
 ## See
 

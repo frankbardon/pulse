@@ -13,18 +13,13 @@ Statistical tests emit summary statistics (statistic, p-value, effect size); the
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
+- `alpha` — float, default `0.05`. Significance level in `(0, 1)`.
 
 Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Field` is ignored.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Rows` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
-| `Cols` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Rows` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `Cols` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 

@@ -13,15 +13,11 @@ Synth distributions emit per-row values; they do not produce Response.Components
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `lambda` | float | `1.0` | Rate parameter; equals both the mean and the variance. Must be `> 0`. |
+- `lambda` — float, default `1.0`. Rate parameter; equals both the mean and the variance. Must be `> 0`.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| field `type:` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`. Cast at write time — `u4` overflows silently if `lambda` is large. |
+field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`. Cast at write time — `u4` overflows silently if `lambda` is large.
 
 ## Output
 

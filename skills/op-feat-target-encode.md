@@ -13,10 +13,8 @@ Feature operators emit row-level/derived columns; they do not produce `Response.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `target` | string | (required) | Numeric field whose grouped mean replaces the category. |
-| `smoothing` | float | `0.0` | Additive prior weight toward the global target mean; `>= 0`. |
+- `target` — string, required. Numeric field whose grouped mean replaces the category.
+- `smoothing` — float, default `0.0`. Additive prior weight toward the global target mean; `>= 0`.
 
 ```
 encoded = (count_cat * mean_cat + smoothing * mean_global) / (count_cat + smoothing)

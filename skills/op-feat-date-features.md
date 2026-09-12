@@ -17,9 +17,7 @@ None. `Field` (required, `date`) — `params` block is unused.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `date` only — rejects every other type including categorical. |
+`Field` — `date` only — rejects every other type including categorical.
 
 ## Output
 

@@ -11,16 +11,12 @@ examples_tags: [time-series, streaming-friendly]
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `component` | enum | `month` | `day`, `day_of_week`, `week`, `month`, `quarter`, `year`. |
-| `fiscal_offset` | int | 0 | Months after Jan when FY starts; `year`/`quarter` only. Non-zero prefixes keys `FY` (end-year). |
+- `component` — enum, default `month`. `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
+- `fiscal_offset` — int, default 0. Months after Jan when FY starts; `year`/`quarter` only. Non-zero prefixes keys `FY` (end-year).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `date`, `datetime` |
+`Field` — `date`, `datetime`.
 
 `datetime` truncates to the UTC calendar day (time of day discarded, never rounded — `23:59:59` stays on its day).
 

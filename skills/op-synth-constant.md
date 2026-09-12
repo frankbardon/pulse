@@ -13,17 +13,13 @@ Synth distributions emit per-row values; they do not produce Response.Components
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `value` | any | required | Per-row payload. Interpreted by the declared field type at write time. |
+- `value` — any, required. Per-row payload. Interpreted by the declared field type at write time.
 
 The sampler stores `value` as raw `any` — it never converts; the writer-side cast does the interpretation.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| field `type:` | any of the 17 `.pulse` field types. Categorical fields treat `value` as a dictionary entry (string), numeric as a number, `date` as days-since-epoch. |
+field `type:` — any of the 17 `.pulse` field types. Categorical fields treat `value` as a dictionary entry (string), numeric as a number, `date` as days-since-epoch.
 
 ## Output
 

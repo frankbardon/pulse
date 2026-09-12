@@ -13,18 +13,13 @@ Statistical tests emit summary statistics (statistic, p-value, effect size); the
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
+- `alpha` — float, default `0.05`. Significance level in `(0, 1)`.
 
 Slot params: `Field` (required, numeric); `SplitBy` (optional categorical — when set, runs the test per-group).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` (optional) |
+`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` (optional).
 
 ## Output
 

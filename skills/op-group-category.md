@@ -15,9 +15,7 @@ None. `Group.Label` overrides the output column name; `Group.Include []string` a
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any cohort field type |
+`Field` — any cohort field type.
 
 ## Output
 

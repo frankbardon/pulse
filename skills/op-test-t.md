@@ -13,19 +13,14 @@ Statistical tests emit summary statistics (statistic, p-value, effect size); the
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-| `mu` | float | `0.0` | Hypothesized mean (one-sample only; ignored when `SplitBy` is set). |
+- `alpha` — float, default `0.05`, in `(0, 1)`.
+- `mu` — float, default `0.0`. Hypothesized mean, one-sample only; ignored when `SplitBy` is set.
 
-Slot params: `Field` (required, numeric); `SplitBy` (optional categorical → switches to two-sample Welch).
+Slot params: `Field` required numeric; `SplitBy` optional categorical → two-sample Welch.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Field` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` — `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 
@@ -33,7 +28,7 @@ Slot params: `Field` (required, numeric); `SplitBy` (optional categorical → sw
 
 ## Gotchas
 
-- Two-sample variant requires exactly 2 SplitBy groups; else `PULSE_TEST_INVALID_SPLITBY`.
+- Two-sample needs exactly 2 `SplitBy` groups, else `PULSE_TEST_INVALID_SPLITBY`.
 - Streamable — reads running Welford state from a parallel `AGG_WELFORD` on the same `(field, split_by)`.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 - Tiny groups → unstable p; gate with `AGG_COUNT` + `PULSE_TEST_INSUFFICIENT_N`.

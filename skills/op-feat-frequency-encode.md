@@ -17,9 +17,7 @@ None. `Field` (required, categorical) — `params` block is unused.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `categorical_u8`, `categorical_u16`, `categorical_u32` |
+`Field` — `categorical_u8`, `categorical_u16`, `categorical_u32`.
 
 ## Output
 

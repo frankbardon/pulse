@@ -13,19 +13,14 @@ Statistical tests emit summary statistics (statistic, p-value, effect size); the
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-| `alternative` | enum | `"two-sided"` | `"two-sided"` / `"less"` / `"greater"`. |
+- `alpha` — float, default `0.05`. Significance level in `(0, 1)`.
+- `alternative` — enum, default `"two-sided"`. `"two-sided"` / `"less"` / `"greater"`.
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`. `SplitBy` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 

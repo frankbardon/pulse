@@ -13,17 +13,11 @@ Compose-only parity overlay. Overlays decorate the host result; they do not emit
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `cell`. |
-| `Reference` | string | (required) | Reference slot label. |
-| `Targets` | []string | (required) | Target slot labels. |
-| `params.variance_target/_ref` | float | `1.0` | Optional. |
-| `params.sample_size_target/_ref` | int | `2` | Optional. |
+`Scope` required, must be `cell`. `Reference` / `Targets` required slot labels. Optional overrides `params.variance_target/_ref` (float, `1.0`), `params.sample_size_target/_ref` (int, `2`) — the defaults keep the handler usable against a minimal Compose surface.
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]` populated by `AGG_WELFORD` via `MetaAggregator`. Falls back to `params`-supplied triple when absent.
+COMPOSE — MATRIX crosstab on both slots. **Parity overlay** — reads `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, populated by `AGG_WELFORD` via `MetaAggregator`; falls back to the `params` triple when absent.
 
 ## Output
 
@@ -32,9 +26,8 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value via standard normal survival.
 ## Gotchas
 
 - **Byte-equal** to `TEST_Z_TWO_SAMPLE` over the same inputs — both share `standardNormalCDF`.
-- Distinct from `OVERLAY_T_CELL` only by distribution (normal vs Student's t) — same SE: `sqrt(var_t/n_t + var_r/n_r)`.
+- Differs from `OVERLAY_T_CELL` only by distribution (normal vs Student's t) — same SE `sqrt(var_t/n_t + var_r/n_r)`.
 - Legacy `processing.WelfordTriple` smuggle through `MatrixCell.Value` REMOVED v0.20.0 — `MatrixCell.Value` carries scalar mean.
-- Defaults `var=1.0, n=2` keep handler usable against minimal Compose surface.
 - Buffered (inferential family).
 
 ## See

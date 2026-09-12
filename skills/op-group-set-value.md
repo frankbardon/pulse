@@ -15,9 +15,7 @@ None. `Group.Label` overrides output column name; `Group.Include []string` allow
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `set_u8`/`set_u16`/`set_u32`/`set_u64` |
+`Field` — `set_u8`/`set_u16`/`set_u32`/`set_u64`.
 
 ## Output
 

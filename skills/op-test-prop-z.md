@@ -13,19 +13,14 @@ Statistical tests emit summary statistics (statistic, p-value, effect size); the
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`. |
-| `success` | string | required | Dictionary value of Field treated as a "success". |
+- `alpha` — float, default `0.05`. Significance level in `(0, 1)`.
+- `success` — string, required. Dictionary value of Field treated as a "success".
 
 Slot params: `Field` (required, categorical / `packed_bool`), `SplitBy` (required, categorical, exactly 2 groups).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
-| `SplitBy` | categorical: `categorical_u8`/`u16`/`u32`, `packed_bool` |
+`Field` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`. `SplitBy` — categorical: `categorical_u8`/`u16`/`u32`, `packed_bool`.
 
 ## Output
 
