@@ -1,6 +1,7 @@
 ---
 name: response-components
 description: How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell
+kind: design
 type: guide
 applies_to: process, compose, predict, sample, facet
 ---
