@@ -13,11 +13,7 @@ Intra-matrix pairwise on MEANS: one host cell's mean against another ALONG one a
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | `row` or `column`. |
-| `Ref` | object | (empty) | Intra-matrix — leave empty. |
-| `params.pair_along_dim` | int | (unset) | Restrict pairs to same-bucket comparisons on the pair axis. |
+`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis.
 
 `n_source` / `p_source` ignored — n and moments come from the Welford triple.
 

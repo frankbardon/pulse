@@ -13,11 +13,7 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host result; they do not
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref.Population.Cohort` | string | (required) | Comparison-population cohort name. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` must be `group`. `Ref.Population.Cohort` (string, required) — comparison-population cohort name. `Level`/`Within` must be `0`.
 
 ## Host shape
 

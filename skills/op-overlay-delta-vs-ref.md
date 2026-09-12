@@ -13,11 +13,7 @@ Compose-only dual-shape. Overlays decorate the host result; they do not emit `Re
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | `cell` (matrix host) or `group` (series host). |
-| `Reference` | string | (required) | Reference slot label. |
-| `Targets` | []string | (required) | Target slot labels (one or more). |
+`Scope` (enum, required) — `cell` (matrix host) or `group` (series host). `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels (one or more).
 
 ## Host shape
 

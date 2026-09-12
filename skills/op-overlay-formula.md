@@ -13,11 +13,7 @@ Overlays decorate the host result; do not emit `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | `cell` (MATRIX) / `group` (SERIES) / `total` (SCALAR). |
-| `params.formula` | string | (required) | `expr-lang/expr` expression. |
-| `params.baseline_position` | int | optional | SERIES only — opt-in `baseline` variable. |
+`Scope` (enum, required) — `cell` (MATRIX) / `group` (SERIES) / `total` (SCALAR). `params.formula` (string, required) — `expr-lang/expr` expression. `params.baseline_position` (int, optional) — SERIES only — opt-in `baseline` variable.
 
 ## Host shape
 

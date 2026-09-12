@@ -13,11 +13,7 @@ Overlays decorate the host result; they do not emit `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref.Sibling.Field` | string | (required) | Grouper field on the host. |
-| `Ref.Sibling.Value` | string | (required) | Axis-key value identifying the sibling group. |
+`Scope` must be `group`. `Ref.Sibling.Field` (string, required) — grouper field on the host. `Ref.Sibling.Value` (string, required) — axis-key value identifying the sibling group.
 
 ## Host shape
 

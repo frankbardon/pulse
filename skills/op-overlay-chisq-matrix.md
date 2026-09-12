@@ -13,11 +13,7 @@ Overlays decorate the host result; they do not emit `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `matrix`. |
-| `Ref` | object | (empty) | Implicit-margin — leave empty. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` (enum, required) — must be `matrix`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
 ## Host shape
 

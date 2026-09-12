@@ -13,11 +13,7 @@ Overlays decorate the host result; they do not emit `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref.YoY` | object | (empty marker) | Tags ref family. |
-| `params.frequency` | string | conditional | `annual`/`quarterly`/`monthly`/`weekly`/`daily`/`hourly`. |
+`Scope` must be `group`. `Ref.YoY` (empty marker) — tags ref family. `params.frequency` (string, conditional) — `annual`/`quarterly`/`monthly`/`weekly`/`daily`/`hourly`.
 
 ## Host shape
 

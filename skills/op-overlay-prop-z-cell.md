@@ -13,11 +13,7 @@ Compose-only. Overlays decorate the host result; they do not emit `Response.Comp
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `cell`. |
-| `Reference` | string | (required) | Reference slot label. |
-| `Targets` | []string | (required) | Target slot labels. |
+`Scope` must be `cell`. `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels.
 
 ## Host shape
 

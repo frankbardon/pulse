@@ -13,12 +13,7 @@ Compose-only. Overlays decorate the host result; they do not emit `Response.Comp
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `cell`. |
-| `Reference` | string | (required) | Anchor for resolution + key-set gates only. |
-| `Targets` | []string | (required) | Target slot labels. |
-| `params.population` | string | `matrix` | `row` / `column` / `matrix`. |
+`Scope` must be `cell`. `Reference` (string, required) — anchor for resolution + key-set gates only. `Targets` ([]string, required) — target slot labels. `params.population` (string, default `matrix`) — `row` / `column` / `matrix`.
 
 ## Host shape
 

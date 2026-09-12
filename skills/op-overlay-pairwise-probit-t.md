@@ -13,14 +13,7 @@ Intra-matrix pairwise: one host-matrix slot against another ALONG one axis of th
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | `row` or `column`. |
-| `Ref` | object | (empty) | Intra-matrix — leave empty. |
-| `params.pair_along_dim` | int | (unset) | Restrict pairs to same-bucket comparisons on the pair axis. |
-| `params.n_source` | enum | `cell_n_unweighted` | Sample-size leg (see `op-overlay-pairwise-prop-z`). |
-| `params.n_within_depth` | int | `0` | Within-group denominator depth for `n_source=n_within`. |
-| `params.p_source` | enum | `cell_value_pct` | `cell_value_pct` or `cell_value`. |
+`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source` (enum, default `cell_n_unweighted`) — sample-size leg (see `op-overlay-pairwise-prop-z`). `params.n_within_depth` (int, default `0`) — within-group denominator depth for `n_source=n_within`. `params.p_source` (enum, default `cell_value_pct`) — `cell_value_pct` or `cell_value`.
 
 ## Host shape
 

@@ -13,14 +13,7 @@ Tests one host-matrix slot against another ALONG one axis of the SAME crosstab �
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | `row` (pair rows per column) or `column` (pair columns per row). |
-| `Ref` | object | (empty) | Intra-matrix — leave empty. Any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. |
-| `params.pair_along_dim` | int | (unset) | Restrict pairs to buckets agreeing on all pair-axis dims but this one. Unset = every pair. |
-| `params.n_source` | enum | `cell_n_unweighted` | `cell_n_unweighted` / `cell_value_weighted` / `row_margin_n` / `column_margin_n` / `n_within` / `cell_weight_sum`. |
-| `params.n_within_depth` | int | `0` | With `n_source=n_within`, fixes the first depth+1 pair-axis dims in the denominator (mirrors `CrosstabSpec.NormalizeWithin`). |
-| `params.p_source` | enum | `cell_value_pct` | `cell_value_pct` (0..100, ÷100) or `cell_value` (already 0..1). |
+`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix — leave empty. Any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one. Unset = every pair. `params.n_source` (enum, default `cell_n_unweighted`) — `cell_n_unweighted` / `cell_value_weighted` / `row_margin_n` / `column_margin_n` / `n_within` / `cell_weight_sum`. `params.n_within_depth` (int, default `0`) — with `n_source=n_within`, fixes the first depth+1 pair-axis dims in the denominator (mirrors `CrosstabSpec.NormalizeWithin`). `params.p_source` (enum, default `cell_value_pct`) — `cell_value_pct` (0..100, ÷100) or `cell_value` (already 0..1).
 
 ## Host shape
 

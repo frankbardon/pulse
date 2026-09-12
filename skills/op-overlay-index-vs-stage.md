@@ -13,11 +13,7 @@ Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decora
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `chain`. |
-| `Ref.Stage` | object | (required) | `{Index: N}` or `{Name: "stage-id"}`. |
-| `Target.Stage` | object | latest stage | `{Index}` or `{Name}`. |
+`Scope` (enum, required) — must be `chain`. `Ref.Stage` (object, required) — `{Index: N}` or `{Name: "stage-id"}`. `Target.Stage` (object, default latest stage) — `{Index}` or `{Name}`.
 
 ## Host shape
 

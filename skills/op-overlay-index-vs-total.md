@@ -13,11 +13,7 @@ Overlays decorate the host result; they do not emit `Response.Components`.
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `Scope` | enum | (required) | Must be `group`. |
-| `Ref` | object | (empty) | Implicit-grand-total — leave empty. |
-| `Level` / `Within` | int | `0` | Must be zero. |
+`Scope` must be `group`. `Ref` (object, empty) — implicit-grand-total — leave empty. `Level`/`Within` must be `0`.
 
 ## Host shape
 
