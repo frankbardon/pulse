@@ -108,3 +108,38 @@ For high-throughput pipelines, embed Pulse directly via the Go library
 through your own writer with `ProcessStream`. For ad-hoc analysis,
 JSON-in/JSON-out via `pulse api process --json` is faster to write
 and easier to debug.
+
+## Components emission baselines
+
+Always-on `Response.Components` emission baselines (Apple M1 Max, `go1.x`,
+hermetic `afero.NewMemMapFs()` cohorts). The buffered/streaming pair drives a
+100K-record single-`f64` cohort through a five-aggregator mix covering both
+mergeable (`AGG_SUM` / `AGG_COUNT` / `AGG_AVERAGE` / `AGG_VARIANCE`) and
+non-mergeable (`AGG_MEDIAN`) paths. The crosstab fused/buffered pair drives a
+200-field × 10K-row wide cohort with a `region × segment` crosstab over
+`AGG_COUNT(value)` and full margins. Each cell is the median of three
+`b.Loop()` runs.
+
+| Bench | ms/op | MB/op | allocs/op |
+|---|---:|---:|---:|
+| `BenchmarkProcess_BufferedComponents` (`/`) | 30.16 | 49.25 | 600,122 |
+| `BenchmarkProcessStream_WithComponents` (`/`) | 30.44 | 49.38 | 600,487 |
+| `BenchmarkCrosstabWideCohort_Fused` (`/service/`) | 8.69 | 21.07 | 143,903 |
+| `BenchmarkCrosstabWideCohort_Buffered` (`/service/`) | 9.08 | 22.03 | 83,978 |
+
+These are the canonical post-Components-always-on baselines and the regression
+frontier: a sustained `> +5%` regression on any line warrants investigation.
+
+A relative "+5% vs no-Components" gate (`BenchmarkProcess_NoComponents` against
+`_WithComponents`, plus the matching crosstab pair) would need paired
+`_NoComponents` sub-cases that do not exist today; add them and flip the gate
+from absolute to relative if the pairing lands.
+
+Reproduce with:
+
+```sh
+go test -bench=BenchmarkProcessStream_WithComponents -run=^$ -count=3 -benchmem ./
+go test -bench=BenchmarkProcess_BufferedComponents  -run=^$ -count=3 -benchmem ./
+go test -bench=BenchmarkCrosstabWideCohort_Fused    -run=^$ -count=3 -benchmem ./service/
+go test -bench=BenchmarkCrosstabWideCohort_Buffered -run=^$ -count=3 -benchmem ./service/
+```
