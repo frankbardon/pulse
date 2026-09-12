@@ -32,10 +32,15 @@ func IndexCommand() *cli.Command {
 // `pulse index build`. Keys is the ordered list of key columns (order
 // is significant — see encoding.SidecarIndexPath); DistinctKeys and
 // IndexedRecords summarize the built encoding.Index without requiring
-// the caller to re-read the sidecar off disk.
+// the caller to re-read the sidecar off disk. ManifestPath names the
+// keyless catalog (encoding.IndexManifestSuffix) this build upserted
+// its entry into — the one path that can be read to recover this
+// index's key tuple WITHOUT already knowing the tuple, which
+// IndexPath's hash-derived name makes impossible.
 type indexBuildOutput struct {
 	Cohort         string   `json:"cohort"`
 	IndexPath      string   `json:"index_path"`
+	ManifestPath   string   `json:"manifest_path,omitempty"`
 	Keys           []string `json:"keys"`
 	DistinctKeys   int      `json:"distinct_keys"`
 	IndexedRecords int      `json:"indexed_records"`
@@ -82,6 +87,7 @@ func indexBuildCmd() *cli.Command {
 			out := indexBuildOutput{
 				Cohort:         input,
 				IndexPath:      res.IndexPath,
+				ManifestPath:   res.ManifestPath,
 				Keys:           keyFields,
 				DistinctKeys:   countDistinctIndexKeys(res),
 				IndexedRecords: countIndexedRecords(res),
@@ -92,6 +98,9 @@ func indexBuildCmd() *cli.Command {
 			}
 			writeText(cmd.Writer, "Built index for %s (keys: %s) -> %s (%d distinct key(s), %d indexed record(s))\n",
 				out.Cohort, strings.Join(out.Keys, ","), out.IndexPath, out.DistinctKeys, out.IndexedRecords)
+			if out.ManifestPath != "" {
+				writeText(cmd.Writer, "Key tuple published in %s\n", out.ManifestPath)
+			}
 			return nil
 		},
 	}
@@ -180,14 +189,18 @@ func indexListCmd() *cli.Command {
 // service.IndexFreshnessReason ("stat_mismatch" / "fingerprint_match" /
 // "fingerprint_mismatch"); FastPath mirrors
 // service.VerifyIndexResult.FastPath — true only when Reason ==
-// "stat_mismatch" (the size+mtime comparison alone was conclusive).
+// "stat_mismatch" (the size comparison alone was conclusive).
+// ModTimeDrift mirrors service.VerifyIndexResult.ModTimeDrift and is
+// additive (`omitempty`), so a verify whose stats line up emits the
+// same JSON it always did.
 type indexVerifyOutput struct {
-	Cohort    string   `json:"cohort"`
-	IndexPath string   `json:"index_path"`
-	Keys      []string `json:"keys"`
-	Fresh     bool     `json:"fresh"`
-	Reason    string   `json:"reason"`
-	FastPath  bool     `json:"fast_path"`
+	Cohort       string   `json:"cohort"`
+	IndexPath    string   `json:"index_path"`
+	Keys         []string `json:"keys"`
+	Fresh        bool     `json:"fresh"`
+	Reason       string   `json:"reason"`
+	FastPath     bool     `json:"fast_path"`
+	ModTimeDrift bool     `json:"modtime_drift,omitempty"`
 }
 
 func indexVerifyCmd() *cli.Command {
@@ -229,12 +242,13 @@ func indexVerifyCmd() *cli.Command {
 			}
 
 			out := indexVerifyOutput{
-				Cohort:    input,
-				IndexPath: res.IndexPath,
-				Keys:      keyFields,
-				Fresh:     res.Fresh,
-				Reason:    string(res.Reason),
-				FastPath:  res.FastPath,
+				Cohort:       input,
+				IndexPath:    res.IndexPath,
+				Keys:         keyFields,
+				Fresh:        res.Fresh,
+				Reason:       string(res.Reason),
+				FastPath:     res.FastPath,
+				ModTimeDrift: res.ModTimeDrift,
 			}
 
 			if jsonOut {
@@ -244,8 +258,16 @@ func indexVerifyCmd() *cli.Command {
 			if out.Fresh {
 				freshness = "FRESH"
 			}
-			writeText(cmd.Writer, "%s: %s (keys: %s) -> %s (reason: %s, fast_path: %v)\n",
-				freshness, out.Cohort, strings.Join(out.Keys, ","), out.IndexPath, out.Reason, out.FastPath)
+			drift := ""
+			if out.ModTimeDrift {
+				// Stated in the text form too: the cohort's mtime no
+				// longer matches the snapshot and the content hash
+				// overruled it, which is the one thing a reader
+				// diagnosing a bucket deployment needs to see.
+				drift = ", modtime_drift: true"
+			}
+			writeText(cmd.Writer, "%s: %s (keys: %s) -> %s (reason: %s, fast_path: %v%s)\n",
+				freshness, out.Cohort, strings.Join(out.Keys, ","), out.IndexPath, out.Reason, out.FastPath, drift)
 			return nil
 		},
 	}

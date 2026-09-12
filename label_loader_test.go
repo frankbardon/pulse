@@ -196,10 +196,12 @@ func TestIsPulseSidecarName(t *testing.T) {
 	}{
 		{name: "cohort.pulse.spss.json", want: true},
 		{name: "cohort.pulse.meta.json", want: true},
+		{name: "cohort.pulse.indexes.json", want: true},
 		{name: "a.b.c.pulse.spss.json", want: true},
 		{name: "regions.json", want: false},
 		{name: "spss.json", want: false},
 		{name: "meta.json", want: false},
+		{name: "indexes.json", want: false},
 		{name: "country.json", want: false},
 		{name: "cohort.pulse.9f3a.idx", want: false},
 	}

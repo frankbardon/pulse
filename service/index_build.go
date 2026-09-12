@@ -18,6 +18,13 @@ import (
 type BuildIndexResult struct {
 	IndexPath string
 	Index     *encoding.Index
+
+	// ManifestPath is the keyless sidecar index manifest this build
+	// upserted its entry into (encoding.IndexManifestPath). Additive —
+	// it names the ONE path a caller can read to discover this index's
+	// key tuple without knowing the tuple already, which the sidecar's
+	// own hash-derived filename makes impossible.
+	ManifestPath string
 }
 
 // BuildIndex scans the single-file cohort at path exactly once,
@@ -129,7 +136,18 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		return nil, err
 	}
 
-	return &BuildIndexResult{IndexPath: indexPath, Index: idx}, nil
+	// Publish the key tuple where it can be FOUND. The sidecar records
+	// its own Keys, but its filename is a hash OF those keys, so the
+	// file cannot be opened without already knowing them — and object
+	// storage cannot list a directory, so there is no glob-and-read
+	// escape where cohorts are actually served from. The manifest is
+	// the keyless, one-GET answer. See encoding.IndexManifestSuffix.
+	manifestPath, err := s.recordIndexInManifest(fsys, path, indexPath, idx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BuildIndexResult{IndexPath: indexPath, Index: idx, ManifestPath: manifestPath}, nil
 }
 
 // computeCohortFingerprint reads the whole cohort file at path back

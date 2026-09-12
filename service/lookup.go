@@ -137,24 +137,37 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 		return nil, err
 	}
 
-	// Read-path staleness check: a CHEAP size+mtime stat comparison, not
-	// a full content hash. Hashing the whole .pulse on every Lookup would
-	// defeat the point of an O(1) point lookup (multi-second per call on a
-	// multi-GB cohort). The stat check catches the common mutation cases
-	// — a re-import/re-export/rewrite changes the file size and/or mtime —
-	// at effectively zero cost. The intentional residual gap is an
-	// in-place edit that preserves BOTH size and mtime: Lookup will not
-	// catch that (by design), but `pulse index verify` / Service.VerifyIndex
-	// is the authoritative content check and recomputes the full SHA-256
-	// fingerprint to confirm freshness conclusively.
-	currentSize, currentModTime, err := statCohortFile(fsys, path)
+	// Read-path staleness check. A matching size+mtime pair is served
+	// hash-free — hashing the whole .pulse on every Lookup would defeat
+	// the point of an O(1) point lookup (multi-second per call on a
+	// multi-GB cohort). A size change is an instant, conclusive
+	// rejection. An mtime that moved while the size held is NOT a
+	// rejection: it escalates to the sidecar's own SHA-256 fingerprint,
+	// because a modification time is metadata the filesystem currently
+	// reporting the file may not carry at the nanosecond resolution the
+	// index recorded (an S3 LastModified is whole seconds; every copy,
+	// restore and cache hop truncates somewhere), and refusing there
+	// refuses an index whose source is byte-identical. See
+	// classifyIndexFreshness for the full decision tree and for the memo
+	// that keeps the escalation from costing a hash per lookup.
+	//
+	// The intentional residual gap is unchanged: an in-place edit that
+	// preserves BOTH size and mtime is not caught here (by design), but
+	// `pulse index verify` / Service.VerifyIndex is the authoritative
+	// content check and always recomputes the fingerprint.
+	freshness, err := s.classifyIndexFreshness(fsys, path, meta, false)
 	if err != nil {
 		return nil, err
 	}
-	if currentSize != meta.SourceSize || currentModTime != meta.SourceModTime {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_STALE,
-			"sidecar point-lookup index is stale: the cohort file's size or modification time no longer matches the snapshot taken at index build",
-			map[string]any{"cohort": path, "fields": keyFieldNames, "index_path": indexPath})
+	if !freshness.Fresh {
+		detail := map[string]any{"cohort": path, "fields": keyFieldNames, "index_path": indexPath}
+		message := "sidecar point-lookup index is stale: the cohort file's size no longer matches the snapshot taken at index build"
+		if freshness.HashChecked {
+			detail["modtime_drift"] = freshness.ModTimeDrift
+			detail["fingerprint_checked"] = true
+			message = "sidecar point-lookup index is stale: the cohort file's content hash no longer matches the fingerprint recorded at index build"
+		}
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_STALE, message, detail)
 	}
 
 	if len(meta.Keys) != len(components) {
@@ -221,7 +234,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	// size — the record region itself is never read up front. Every
 	// matched row-id then seeks directly to its own record via the same
 	// open handle and a single reused DecodePlan.
-	cohortFile, loc, err := openRecordLocator(fsys, path, schema, currentSize)
+	cohortFile, loc, err := openRecordLocator(fsys, path, schema, freshness.Size)
 	if err != nil {
 		return nil, err
 	}

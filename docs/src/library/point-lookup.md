@@ -135,36 +135,125 @@ if err != nil {
 `errors.HasCode(err, errors.CODE)` (`github.com/frankbardon/pulse/errors`)
 is the coded-error check used across the codebase — the same pattern
 covers `PULSE_INDEX_MISSING`, `PULSE_INDEX_STALE`,
-`PULSE_INDEX_UNSUPPORTED_SHARDED`, and `PULSE_LOOKUP_NOT_FOUND`.
+`PULSE_INDEX_UNSUPPORTED_SHARDED`, `PULSE_INDEX_MANIFEST_INVALID`,
+`PULSE_INDEX_MANIFEST_STALE`, and `PULSE_LOOKUP_NOT_FOUND`.
 
 ## Index lifecycle
 
 Three more facade methods manage sidecars without a lookup:
 
 ```go
-// Freshness check — O(1) size+mtime fast-path before an authoritative
+// Freshness check — size fast-path before an authoritative
 // full-content SHA-256 recompute.
 verify, err := p.VerifyIndex(ctx, "sales.pulse", []string{"order_id"})
 // verify.Fresh, verify.Reason ("stat_mismatch" | "fingerprint_match" |
-// "fingerprint_mismatch"), verify.FastPath
+// "fingerprint_mismatch"), verify.FastPath, verify.ModTimeDrift
 
-// Enumerate every sidecar built against a cohort.
+// Enumerate every sidecar built against a cohort, with each one's
+// ordered key tuple. Served from the keyless manifest when present, so
+// it needs no directory listing.
 indexes, err := p.ListIndexes(ctx, "sales.pulse")
 // []pulse.IndexInfo{IndexPath, Keys, DistinctKeys, IndexedRecords}
 
-// Remove a sidecar. Non-interactive — no confirmation prompt.
+// Remove a sidecar. Non-interactive — no confirmation prompt. Prunes
+// the manifest entry in the same call.
 err = p.DropIndex(ctx, "sales.pulse", []string{"order_id"})
 ```
 
-`Lookup` itself only pays the **O(1) size+mtime stat** for staleness
-(`PULSE_INDEX_STALE` on mismatch) — full-hash-per-lookup would defeat
-the point of an O(1) store. `VerifyIndex` is the authoritative path:
-a matching size+mtime pair alone is inconclusive (mtime resolution,
-same-size rewrites) and always falls through to a full content-hash
-recompute before reporting `Fresh: true`. Run `VerifyIndex`
-explicitly wherever you need a stronger guarantee than the fast-path
-`Lookup` gives you for free — e.g. before a batch of lookups against a
-cohort you don't fully trust, or in a periodic health check.
+### Staleness has three outcomes, not two
+
+- **Size mismatch** → `PULSE_INDEX_STALE` immediately, with no hash.
+  This is conclusive rather than merely cheap: the sidecar's
+  fingerprint covers the whole file, so a file of a different length
+  cannot produce the recorded digest.
+- **Size and mtime both match** → served hash-free. That is the O(1)
+  property; a full hash per lookup would defeat the point of the store.
+- **Mtime moved while the size held** → *not* staleness. It escalates
+  to the sidecar's own SHA-256 and refuses only if the content really
+  differs.
+
+That third case is the one worth knowing about. `SourceModTime` is
+recorded as Unix **nanoseconds**; an S3 `LastModified` is whole
+**seconds**, and every copy, restore and cache hop truncates somewhere
+of its own choosing. Treating drift as proof of mutation refused
+byte-identical indexes *permanently* — not transiently — so a cohort
+read through an object-storage backend could not be looked up at all.
+
+The escalation is memoised per `(cohort path, size, mtime)`, so a
+backend that never preserves nanoseconds pays one whole-file hash per
+distinct stat, not one per lookup. The memo assumes exactly what the
+stat fast-path already assumes (same path, size and mtime means the
+same bytes), so it adds no freshness gap of its own.
+
+`VerifyIndex` is the authoritative path: a matching size alone is
+inconclusive (a same-size rewrite is possible), so it always falls
+through to a full content-hash recompute before reporting
+`Fresh: true`, and it **never reads that memo** — its whole job is the
+verdict that does not rest on a stat pair. `ModTimeDrift` reports that
+the mtime disagreed and the hash overruled it, on both a fresh and a
+stale verdict. Run `VerifyIndex` explicitly wherever you need a
+stronger guarantee than `Lookup` gives you for free — before a batch of
+lookups against a cohort you don't fully trust, or in a periodic health
+check.
+
+The one residual gap is unchanged and deliberate: an in-place edit that
+preserves **both** size and mtime passes `Lookup` and is caught only by
+`VerifyIndex`.
+
+### Discovering which indexes exist
+
+A sidecar's filename embeds a **hash of its ordered key tuple**
+(`cohort.pulse.<keyhash>.idx`), so the file cannot be opened without
+already knowing the tuple — and key order is significant, so guessing
+is a permutation search. On a local disk you could glob
+`<cohort>.*.idx` and read each match's key spec; object storage cannot
+list a directory, so that escape is unavailable exactly where cohorts
+are usually served from.
+
+`BuildIndex` therefore also writes a keyless catalog beside the cohort
+at a deterministic path — `sales.pulse.indexes.json` — holding every
+index's ordered key tuple with its column types and counts:
+
+```json
+{
+  "format_version": "1",
+  "kind": "pulse.index-manifest",
+  "cohort": "sales.pulse",
+  "indexes": [
+    {
+      "index_path": "sales.pulse.42fdb66c2f329c5c.idx",
+      "key_hash": "42fdb66c2f329c5c",
+      "keys": [
+        {"name": "category_id", "type": "u16"},
+        {"name": "brand_id", "type": "u32"}
+      ],
+      "distinct_keys": 480,
+      "indexed_records": 50000
+    }
+  ]
+}
+```
+
+`ListIndexes` reads it first, which is why discovery costs one read of
+that document plus one existence probe per entry and **no read of any
+sidecar**. `BuildIndexResult.ManifestPath` names the file. Its
+`format_version` is the manifest's own, independent of the `.pulse`
+format and the sidecar index format, so a field can be added to it
+without any rebuild.
+
+Behaviour at the edges:
+
+| State | Result |
+|---|---|
+| No manifest (indexes built by an older Pulse) | Falls back to the directory listing; unchanged behaviour |
+| Manifest plus a sidecar it does not name | Both are listed — the union, so an older sidecar does not vanish |
+| Manifest present, directory not listable | Manifest answers; not an error |
+| Manifest unreadable | `PULSE_INDEX_MANIFEST_INVALID` — never a silent fall back to the listing, which would succeed locally and answer "no indexes" on a bucket |
+| Manifest names a sidecar that is gone | `PULSE_INDEX_MANIFEST_STALE`; repair with `BuildIndex` or `DropIndex` (which prunes an orphaned entry) |
+
+The manifest is one of Pulse's own `*.json` sidecars, so a
+`PULSE_LABEL_TABLES_DIR` or `PULSE_RANGE_TABLES_DIR` pointed at a data
+directory skips it by suffix.
 
 ## Keyable-type policy
 

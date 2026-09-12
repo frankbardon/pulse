@@ -1802,7 +1802,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Field"},
-				Hint:   "Alternatively, point the lookup at a field that already has a built sidecar index — list existing sidecars alongside the cohort file (same directory, `.idx` suffix) to see which key fields are ready.",
+				Hint:   "Alternatively, point the lookup at a field that already has a built sidecar index. `pulse index list <cohort>` (or Service.ListIndexes) reports every built index with its ordered key tuple — read that rather than globbing `.idx` files beside the cohort, which is unavailable on object storage: it is served from the keyless manifest `<cohort>.indexes.json`, needs no directory listing, and a sidecar's own filename is a hash OF its key tuple and so cannot be interpreted without the manifest.",
 			},
 		},
 	},
@@ -1848,6 +1848,24 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "Point-lookup against a sharded cohort is not supported in v1 — there is no per-archive workaround that indexes across shards. If you only need to look up within a SINGLE shard, extract it as a standalone single-file cohort via the anchor syntax (`archive.pulse#shard.pulse`) and build/query the index against that anchor path instead — the anchor opens the named shard as if it were its own single-file `.pulse` cohort, so `pulse index build \"archive.pulse#shard.pulse\" --key <field>` and subsequent lookups work exactly as they do against any single-file cohort. This does not give you a cross-shard index; it only lets you index one shard at a time.",
+			},
+		},
+	},
+	PULSE_INDEX_MANIFEST_INVALID: {
+		Message: "The sidecar index manifest beside this cohort (\"cohort.pulse.indexes.json\") exists but is not a readable manifest document — malformed JSON, a foreign \"kind\", an unrecognised \"format_version\", or an entry naming no index file. That manifest is the keyless catalog that makes each sidecar index's ordered key tuple discoverable without a directory listing (a sidecar's own filename is a 16-hex-digit HASH of its key tuple, so it cannot be opened without already knowing the tuple). A manifest that cannot be parsed is refused rather than silently ignored: falling back to a directory listing succeeds on a local disk and answers \"this cohort has no indexes\" on object storage, which is precisely the backend-dependent divergence the manifest exists to remove. An ABSENT manifest is NOT this error — that is the ordinary state of a corpus indexed before the manifest existed, and the directory-listing fallback covers it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Rewrite the manifest from the indexes that actually exist: run `pulse index build <cohort> --key <field[,field...]>` for each key tuple you need (a build upserts its own manifest entry and seeds the document from the sidecars already on disk), or delete the unreadable `<cohort>.pulse.indexes.json` file to fall back to the directory-listing path on a filesystem that supports it. The `.idx` sidecars themselves are untouched by this error — only the catalog is unreadable.",
+			},
+		},
+	},
+	PULSE_INDEX_MANIFEST_STALE: {
+		Message: "The sidecar index manifest parses cleanly but names an index file that is not present on disk — an index was removed out of band (a bare `rm` of the `.idx` file rather than `pulse index drop`, or a corpus that synced the manifest without every sidecar). The listing is refused rather than quietly skipping the entry: a listing that reports two indexes for a cohort whose manifest claims three is indistinguishable from a correct answer, and a caller that then composes a lookup key for the missing tuple gets PULSE_INDEX_MISSING for data the manifest said was there.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Pick one: rebuild the named key tuple with `pulse index build <cohort> --key <field[,field...]>` (the details' key fields name it), or drop it with `pulse index drop <cohort> --key <field[,field...]>` — drop prunes the manifest entry even when the sidecar file is already gone, which is the repair path for exactly this state.",
 			},
 		},
 	},

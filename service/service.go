@@ -70,6 +70,13 @@ type Service struct {
 	// SetDisableCrosstabFusion(true) to disable the optimisation
 	// without rebuilding pulse.New().
 	disableCrosstabFusion bool
+
+	// fingerprints memoises each cohort file's content digest against
+	// the (size, mtime) pair it was computed under, so the read-path
+	// freshness fall-through (classifyIndexFreshness) pays a whole-file
+	// hash once per distinct stat rather than once per point lookup.
+	// Zero value is usable — the map is lazily created under the mutex.
+	fingerprints cohortFingerprintCache
 }
 
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
