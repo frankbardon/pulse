@@ -1464,6 +1464,7 @@
         "OVERLAY_CHISQ_VS_REF",
         "OVERLAY_DELTA_VS_BASELINE",
         "OVERLAY_DELTA_VS_MARGIN",
+        "OVERLAY_DELTA_VS_PRIOR",
         "OVERLAY_DELTA_VS_REF",
         "OVERLAY_DELTA_VS_SIBLING",
         "OVERLAY_DELTA_VS_STAGE",
@@ -2623,4 +2624,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 683bb68d0129d2d447e267657baccffaa97642caee42acecb9a0adcb2ec536ca
+// golden-hash: f9dc620d30d30a4e03ddcc46844c48c09122ad3757e6564ce32db345bfe4f682

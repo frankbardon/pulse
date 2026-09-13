@@ -207,6 +207,12 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// PRESENT value). The post-host finalize step is the divide. v1
 	// ships lag-1 only via the implicit-default `Ref.Prior` arm.
 	OverlayKindIndexVsPrior: true,
+	// OVERLAY_DELTA_VS_PRIOR is streamable for the identical reason and
+	// with the identical carrier: one f64 lag alongside the per-group
+	// accumulators, absent host points not advancing it, and a post-host
+	// finalize step that SUBTRACTS where the index twin divides. v1 ships
+	// lag-1 only via the implicit-default `Ref.Prior` arm.
+	OverlayKindDeltaVsPrior: true,
 	// OVERLAY_INDEX_VS_ROLLING_MEAN is buffered — the per-group ring buffer
 	// carries the full window of present values, which the streaming
 	// Process pass cannot maintain inline with the per-record fold today

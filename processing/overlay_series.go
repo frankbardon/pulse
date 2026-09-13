@@ -332,6 +332,12 @@ var seriesOverlayHandlers = map[types.OverlayKind]seriesOverlayHandler{
 	// streaming fold). Streamable. Handler: applyIndexVsPrior in
 	// processing/overlay_index_vs_prior.go.
 	types.OverlayKindIndexVsPrior: applyIndexVsPrior,
+	// OVERLAY_DELTA_VS_PRIOR: the additive twin of the kind above —
+	// same single-state lag carrier, subtraction instead of division,
+	// and no zero-ref branch (subtraction has no degenerate
+	// denominator). Streamable. Handler: applyDeltaVsPrior in
+	// processing/overlay_delta_vs_prior.go.
+	types.OverlayKindDeltaVsPrior: applyDeltaVsPrior,
 	// OVERLAY_INDEX_VS_ROLLING_MEAN: per-point windowed index
 	// against the arithmetic mean of the W immediately preceding
 	// present points — rolling-window carrier (ring buffer of W f64s

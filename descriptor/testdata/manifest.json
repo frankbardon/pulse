@@ -6719,6 +6719,10 @@
         "description": "Per-cell additive delta against the matching axis margin (cell − margin)."
       },
       {
+        "name": "op-overlay-delta-vs-prior",
+        "description": "Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host."
+      },
+      {
         "name": "op-overlay-delta-vs-ref",
         "description": "Compose-host additive delta of target slot value against the matching reference slot value (matrix or series)."
       },
@@ -7275,7 +7279,7 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 165,
+    "examples_count": 166,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -7764,6 +7768,20 @@
           "within"
         ],
         "description": "Per-cell additive delta against the matching axis margin: cell - margin. CELL scope over a MATRIX (crosstab) host. Supports all three margin axes (row / column / grand). Output preserves the host cell's units — a $-valued cell minus a $-valued margin yields a $-valued deviation. No division and no Welford recurrence, so PULSE_OVERLAY_REF_ZERO is never emitted; renderers centre diverging colour ramps on baseline=0. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation."
+      },
+      {
+        "kind": "OVERLAY_DELTA_VS_PRIOR",
+        "shapes": [
+          "series"
+        ],
+        "scopes": [
+          "group"
+        ],
+        "ref_kinds": [
+          "Prior"
+        ],
+        "buffered": false,
+        "description": "Per-point windowed ADDITIVE DELTA against the immediately preceding point of an ordered SERIES (grouped Process) host: point_value - prior_value. The absolute-difference twin of OVERLAY_INDEX_VS_PRIOR, standing to it as OVERLAY_DELTA_VS_BASELINE stands to OVERLAY_INDEX_VS_BASELINE: same host shape, same Ref.Prior arm, same single-state lag carrier, subtraction where the index divides. Answers \"how much did this change\" where the index answers \"what proportion of the prior is this\"; the two are not interchangeable in a report. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the delta on Summary.Statistic. The single-state lag carrier is one f64 carried alongside the per-group accumulators inside the streaming Process fold; the post-host finalize is the subtract step. First present point emits NaN (no prior available — a delta of zero would claim nothing changed about a comparison never made). NEVER emits PULSE_OVERLAY_REF_ZERO: a prior of exactly zero is a valid subtrahend, so the degenerate-denominator branch the index twin needs has no counterpart here. Absent host points emit a present SeriesEntry whose Summary leaves Statistic unset and do NOT advance the lag carrier — the next present point compares against the most recent PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1) or an entirely empty Ref; any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. Level / Within MUST be zero; non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Scope must be GROUP. Streamable. Renderers centre diverging colour ramps on baseline=0 (mirrors OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN), NOT on the index family's 100."
       },
       {
         "kind": "OVERLAY_DELTA_VS_REF",
@@ -9612,4 +9630,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ba8597879e03b78804a4fb4e3a3462cee2d08578554f2a00977d22cbf74407b8
+// golden-hash: 6df1a6da17f54047fad3d3bc666b7b5349711538d70535e90cc22d8dbdf088b8

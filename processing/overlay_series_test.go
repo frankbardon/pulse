@@ -467,6 +467,7 @@ func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
 		types.OverlayKindDeltaVsSibling:     true,
 		types.OverlayKindIndexVsSibling:     true,
 		types.OverlayKindIndexVsPrior:       true,
+		types.OverlayKindDeltaVsPrior:       true,
 		types.OverlayKindIndexVsRollingMean: true,
 		types.OverlayKindIndexVsBaseline:    true,
 		types.OverlayKindDeltaVsBaseline:    true,
