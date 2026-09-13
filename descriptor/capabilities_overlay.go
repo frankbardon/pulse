@@ -743,6 +743,38 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Renderers centre diverging colour ramps on " +
 				"baseline=100.",
 		}
+	case types.OverlayKindDeltaVsPrior:
+		return OverlayCapability{
+			Kind: types.OverlayKindDeltaVsPrior,
+			Shapes: []types.OverlayShape{
+				types.OverlayShapeSeries,
+			},
+			Scopes: []types.OverlayScope{
+				types.OverlayScopeGroup,
+			},
+			// Same Prior arm as the index twin above, and the same v1
+			// lag-1-only shape.
+			RefKinds: []string{"Prior"},
+			Description: "Per-point windowed ADDITIVE DELTA against the immediately preceding point of an ordered " +
+				"SERIES (grouped Process) host: point_value - prior_value. The absolute-difference twin of " +
+				"OVERLAY_INDEX_VS_PRIOR, standing to it as OVERLAY_DELTA_VS_BASELINE stands to " +
+				"OVERLAY_INDEX_VS_BASELINE: same host shape, same Ref.Prior arm, same single-state lag carrier, " +
+				"subtraction where the index divides. Answers \"how much did this change\" where the index answers " +
+				"\"what proportion of the prior is this\"; the two are not interchangeable in a report. GROUP scope " +
+				"over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each " +
+				"carrying the delta on Summary.Statistic. The single-state lag carrier is one f64 carried alongside " +
+				"the per-group accumulators inside the streaming Process fold; the post-host finalize is the " +
+				"subtract step. First present point emits NaN (no prior available — a delta of zero would claim " +
+				"nothing changed about a comparison never made). NEVER emits PULSE_OVERLAY_REF_ZERO: a prior of " +
+				"exactly zero is a valid subtrahend, so the degenerate-denominator branch the index twin needs has " +
+				"no counterpart here. Absent host points emit a present SeriesEntry whose Summary leaves Statistic " +
+				"unset and do NOT advance the lag carrier — the next present point compares against the most recent " +
+				"PRESENT value. Ref accepts either Ref.Prior (with Lag zero or unset for v1) or an entirely empty " +
+				"Ref; any other ref-family pointer fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time. " +
+				"Level / Within MUST be zero; non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Scope must be " +
+				"GROUP. Streamable. Renderers centre diverging colour ramps on baseline=0 (mirrors " +
+				"OVERLAY_DELTA_VS_BASELINE / OVERLAY_DELTA_VS_MARGIN), NOT on the index family's 100.",
+		}
 	case types.OverlayKindIndexVsRef:
 		return OverlayCapability{
 			Kind: types.OverlayKindIndexVsRef,

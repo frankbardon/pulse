@@ -100,6 +100,7 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 			types.OverlayKindDeltaVsSibling,
 			types.OverlayKindIndexVsSibling,
 			types.OverlayKindIndexVsPrior,
+			types.OverlayKindDeltaVsPrior,
 			types.OverlayKindIndexVsRollingMean,
 			types.OverlayKindZScoreVsRolling,
 			types.OverlayKindIndexVsBaseline,
@@ -284,6 +285,11 @@ func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
 		types.OverlayKindIndexVsPrior: {
 			Name:  "idx_prior",
 			Kind:  types.OverlayKindIndexVsPrior,
+			Scope: types.OverlayScopeGroup,
+		},
+		types.OverlayKindDeltaVsPrior: {
+			Name:  "delta_prior",
+			Kind:  types.OverlayKindDeltaVsPrior,
 			Scope: types.OverlayScopeGroup,
 		},
 		types.OverlayKindIndexVsPop: {
@@ -579,6 +585,7 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 		types.OverlayKindDeltaVsSibling:     true,
 		types.OverlayKindIndexVsSibling:     true,
 		types.OverlayKindIndexVsPrior:       true,
+		types.OverlayKindDeltaVsPrior:       true,
 		types.OverlayKindIndexVsRollingMean: true,
 		types.OverlayKindIndexVsBaseline:    true,
 		types.OverlayKindDeltaVsBaseline:    true,
@@ -782,6 +789,15 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 		types.OverlayKindIndexVsPrior: {
 			Name:  "index_vs_prior",
 			Kind:  types.OverlayKindIndexVsPrior,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Prior: &types.OverlayPriorRef{},
+			},
+		},
+		// SERIES windowed additive twin — same Ref.Prior arm.
+		types.OverlayKindDeltaVsPrior: {
+			Name:  "delta_vs_prior",
+			Kind:  types.OverlayKindDeltaVsPrior,
 			Scope: types.OverlayScopeGroup,
 			Ref: types.OverlayRef{
 				Prior: &types.OverlayPriorRef{},
@@ -1225,6 +1241,15 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 		types.OverlayKindIndexVsPrior: {
 			Name:  "index_vs_prior",
 			Kind:  types.OverlayKindIndexVsPrior,
+			Scope: types.OverlayScopeGroup,
+			Ref: types.OverlayRef{
+				Prior: &types.OverlayPriorRef{},
+			},
+		},
+		// SERIES windowed additive twin — same Ref.Prior arm.
+		types.OverlayKindDeltaVsPrior: {
+			Name:  "delta_vs_prior",
+			Kind:  types.OverlayKindDeltaVsPrior,
 			Scope: types.OverlayScopeGroup,
 			Ref: types.OverlayRef{
 				Prior: &types.OverlayPriorRef{},

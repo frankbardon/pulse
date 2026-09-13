@@ -552,6 +552,39 @@ const (
 	// the streamability flag flips to true.
 	OverlayKindDeltaVsBaseline OverlayKind = "OVERLAY_DELTA_VS_BASELINE"
 
+	// OverlayKindDeltaVsPrior emits a per-point windowed additive delta
+	// against the immediately preceding point of an ordered SERIES
+	// (grouped Process) host: `delta_i = point_value_i -
+	// prior_value_{i-1}`. GROUP scope over a SERIES host with SERIES
+	// payload — one `SeriesEntry` per host group key in host order, each
+	// carrying the delta on `Summary.Statistic`.
+	//
+	// Absolute-difference twin of `OVERLAY_INDEX_VS_PRIOR`, standing to
+	// it exactly as `OVERLAY_DELTA_VS_BASELINE` stands to
+	// `OVERLAY_INDEX_VS_BASELINE`: same host shape, same `Ref.Prior` arm,
+	// same single-state lag carrier, subtraction where the index
+	// divides. It answers "how much did this change" where the index
+	// answers "what proportion of the prior is this" — the two are not
+	// interchangeable in a report, which is why both exist.
+	//
+	// The first present point emits NaN: no prior exists to compare
+	// against, and a delta of zero would CLAIM that nothing changed
+	// about a comparison that was never made.
+	//
+	// ⚠ NEVER RAISES `PULSE_OVERLAY_REF_ZERO`, unlike its index twin. A
+	// prior of exactly zero is a valid subtrahend — `value - 0` is
+	// `value` — so the degenerate-denominator branch that kind needs has
+	// no counterpart here. Its absence is deliberate.
+	//
+	// Streamable. Per `types/overlay_streamability.go`, the streamability
+	// row is `true` — the single-state lag carrier is one f64 carried
+	// alongside the per-group accumulators inside the streaming Process
+	// fold, and the subtract step happens at host finalize. Renderers
+	// centre diverging colour ramps on `baseline = 0` (mirrors
+	// `OVERLAY_DELTA_VS_BASELINE` / `OVERLAY_DELTA_VS_MARGIN`), NOT on
+	// the index family's 100.
+	OverlayKindDeltaVsPrior OverlayKind = "OVERLAY_DELTA_VS_PRIOR"
+
 	// OverlayKindDeltaVsSibling emits a per-group additive delta against a
 	// sibling group named in `Ref.Sibling`. GROUP scope over a SERIES
 	// (grouped Process) host with SERIES payload — one SeriesEntry per
@@ -2368,6 +2401,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindChiSqVsRef,
 		OverlayKindDeltaVsBaseline,
 		OverlayKindDeltaVsMargin,
+		OverlayKindDeltaVsPrior,
 		OverlayKindDeltaVsRef,
 		OverlayKindDeltaVsSibling,
 		OverlayKindDeltaVsStage,

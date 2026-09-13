@@ -2753,6 +2753,12 @@ func overlayLayerName(spec *types.OverlaySpec) string {
 		// matching the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES dispatch
 		// convention (no axis dispatch — the ordered host axis is fixed).
 		return "index_vs_prior"
+	case types.OverlayKindDeltaVsPrior:
+		// DELTA_VS_PRIOR is the windowed lag-1 additive twin; synthesised
+		// default surfaces the lower-case bare-kind string
+		// "delta_vs_prior" matching the INDEX_VS_PRIOR convention (no
+		// axis dispatch — the ordered host axis is fixed).
+		return "delta_vs_prior"
 	case types.OverlayKindIndexVsRollingMean:
 		// INDEX_VS_ROLLING_MEAN is the windowed rolling-mean kind; the
 		// synthesised default surfaces the lower-case bare-kind string

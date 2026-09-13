@@ -41,7 +41,13 @@ func TestStreamability_OverlaysKnown(t *testing.T) {
 		// its margin centerpoint is recomputed by the buffered crosstab
 		// orchestrator before ApplyOverlays runs.
 		OverlayKindDeltaVsMargin: false,
-		OverlayKindDeltaVsRef:    true,
+		// DELTA_VS_PRIOR is streamable, like its INDEX_VS_PRIOR twin and
+		// unlike every other DELTA_* kind here: the single-state lag
+		// carrier is one f64 folded alongside the per-group accumulators,
+		// so the kind never needs the materialised series the positional
+		// and sibling deltas do.
+		OverlayKindDeltaVsPrior: true,
+		OverlayKindDeltaVsRef:   true,
 		// DELTA_VS_SIBLING is buffered — sibling resolution against a
 		// (Field, Value) pair requires the full materialised
 		// SeriesPayload; the streaming Process pass cannot resolve the

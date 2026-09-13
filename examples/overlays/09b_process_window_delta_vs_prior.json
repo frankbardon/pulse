@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Grouped Process aggregating revenue by month decorated with an OVERLAY_DELTA_VS_PRIOR group overlay that subtracts each month's immediately preceding month (current_month - previous_month) — a month-over-month ADDITIVE change, in the metric's own units. The absolute-difference twin of 09_process_window_index_vs_prior: same host, same grouper, same Ref.Prior arm, subtraction where that example divides. Reach for this one when the question is \"how much did it change\" and for the index when the question is \"what proportion of the prior is this\" — an index of 101.6 and a delta of +1.5 are not interchangeable in a report. Streamable: the single-state lag carrier is one f64 per group, carried alongside the per-group accumulators inside the streaming Process fold. First-present-point semantics: January emits NaN (no prior available — a delta of zero would claim nothing changed about a comparison never made); February onward each emits feb-jan, mar-feb, and so on against orders.pulse's 2025 calendar-year span. Unlike the index twin this kind never emits PULSE_OVERLAY_REF_ZERO — a prior of exactly zero is a valid subtrahend.",
+    "name": "process-window-delta-vs-prior",
+    "operators": [
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "overlay",
+      "streaming-friendly",
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "monthly_revenue"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "month"
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "name": "mom_delta",
+      "kind": "OVERLAY_DELTA_VS_PRIOR",
+      "scope": "group"
+    }
+  ]
+}

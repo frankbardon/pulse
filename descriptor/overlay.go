@@ -207,6 +207,17 @@ var indexVsPriorSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeGroup: true,
 }
 
+// deltaVsPriorSupportedScopes is the supported scope set for
+// OVERLAY_DELTA_VS_PRIOR — the additive twin of the kind above, with
+// the identical GROUP-only footprint for the identical reason. Kept as
+// its own map rather than aliasing `indexVsPriorSupportedScopes` so the
+// two kinds' contracts can diverge without one silently dragging the
+// other, exactly as `deltaVsBaselineSupportedScopes` sits beside
+// `indexVsBaselineSupportedScopes`.
+var deltaVsPriorSupportedScopes = map[types.OverlayScope]bool{
+	types.OverlayScopeGroup: true,
+}
+
 // indexVsRollingMeanSupportedScopes is the supported scope set for
 // OVERLAY_INDEX_VS_ROLLING_MEAN. The kind emits one entry per host
 // group key (the ordered windowed series) — Scope=GROUP is the only
@@ -654,6 +665,25 @@ func validateOverlayLevelWithinPredict(env *Envelope, req *types.Request, spec *
 		}
 		return
 	}
+	// DELTA_VS_PRIOR carries the identical windowed lag carrier and so
+	// the identical Level / Within prohibition — the carrier folds across
+	// the ordered axis without a prefix-bucket denominator whether the
+	// finalize step divides or subtracts. Run the gate before the
+	// no-crosstab short-circuit so the rule still fires when
+	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
+	if spec.Kind == types.OverlayKindDeltaVsPrior {
+		if spec.Level != 0 || spec.Within != 0 {
+			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
+				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
+				map[string]any{
+					"index":  index,
+					"kind":   string(spec.Kind),
+					"level":  spec.Level,
+					"within": spec.Within,
+				})
+		}
+		return
+	}
 	// INDEX_VS_ROLLING_MEAN is a windowed-SERIES kind (req.Groups,
 	// no req.Crosstab); its Level / Within gate mirrors INDEX_VS_PRIOR
 	// because the rolling-window carrier folds across the ordered axis
@@ -928,6 +958,8 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		validateOverlayIndexVsMargin(env, req, spec, index)
 	case types.OverlayKindIndexVsPrior:
 		validateOverlayIndexVsPrior(env, req, spec, index)
+	case types.OverlayKindDeltaVsPrior:
+		validateOverlayDeltaVsPrior(env, req, spec, index)
 	case types.OverlayKindIndexVsRollingMean:
 		validateOverlayIndexVsRollingMean(env, req, spec, index)
 	case types.OverlayKindIndexVsSibling:
@@ -1160,6 +1192,98 @@ func validateOverlayIndexVsPrior(env *Envelope, req *types.Request, spec *types.
 	// TOTAL scopes are not meaningful for the per-group statistic the
 	// kind emits.
 	if !indexVsPriorSupportedScopes[spec.Scope] {
+		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
+			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"scope": string(spec.Scope),
+			})
+		return
+	}
+}
+
+// validateOverlayDeltaVsPrior enforces the per-kind contract for
+// OVERLAY_DELTA_VS_PRIOR — the additive twin of OVERLAY_INDEX_VS_PRIOR
+// and the second consumer of the `Ref.Prior` arm of the discriminated
+// OverlayRef union. The contract is the index twin's, unchanged:
+//
+//   - Ref.Prior populated → accepted. Ref.Prior.Lag MUST be zero (v1
+//     ships lag-1 only via the implicit-default arm; the slot is
+//     forward-compat for future window-N priors).
+//   - Ref entirely empty → accepted (the implicit-default authoring
+//     shape — both spellings spell "lag-1 prior").
+//   - Any other ref-family pointer populated (Margin / Sibling /
+//     BaselineIndex / Population / Stage / Slot) → reject with
+//     PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+//   - Host must be SERIES-shaped (Request.Crosstab nil AND
+//     Request.Groups non-empty).
+//   - Scope must be GROUP.
+//
+// Written out rather than delegating to validateOverlayIndexVsPrior for
+// the same reason validateOverlayDeltaVsBaseline does not delegate to
+// validateOverlayIndexVsBaseline: the two kinds are free to diverge,
+// and a shared validator would make one kind's contract change silently
+// rewrite the other's.
+//
+// Level / Within rule lives in validateOverlayLevelWithinPredict — the
+// kind is in the implicit-margin / windowed family because the lag
+// carrier folds across the ordered axis without a prefix-bucket
+// denominator, so non-zero Level / Within values fire
+// PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
+// (processing.validateOverlayLevelWithinRuntime) enforces the same
+// rule.
+func validateOverlayDeltaVsPrior(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+	// Ref family: Prior populated OR entire Ref empty. Any other family
+	// pointer is a shape mismatch.
+	if spec.Ref.Margin != nil ||
+		spec.Ref.Sibling != nil ||
+		spec.Ref.BaselineIndex != nil ||
+		spec.Ref.Population != nil ||
+		spec.Ref.Stage != nil ||
+		spec.Ref.Slot != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires Ref.Prior or an empty Ref (windowed lag-1 prior; no Margin / Sibling / BaselineIndex / Population / Stage / Slot)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Ref.Prior populated: Lag MUST be zero for v1. The slot is reserved
+	// for future window-N priors; non-zero values land in a later story
+	// and the carrier widens from a single f64 to a small ring buffer
+	// then.
+	if spec.Ref.Prior != nil && spec.Ref.Prior.Lag != 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" Ref.Prior.Lag must be zero (v1 ships lag-1 only; the slot is reserved for future window-N priors)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+				"lag":   spec.Ref.Prior.Lag,
+			})
+		return
+	}
+
+	// Host must be SERIES-shaped. A SERIES host is a grouped Process
+	// result — Request.Groups is non-empty AND Request.Crosstab is nil
+	// (an active crosstab routes the request down the MATRIX-host path).
+	if req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+			"overlay "+string(spec.Kind)+" requires a SERIES host (grouped Process result: Request.Groups non-empty, Request.Crosstab nil)",
+			map[string]any{
+				"index": index,
+				"kind":  string(spec.Kind),
+			})
+		return
+	}
+
+	// Scope must be GROUP. DELTA_VS_PRIOR emits one entry per host group
+	// key (the ordered windowed series) — CELL / ROW / COLUMN / MATRIX /
+	// TOTAL scopes are not meaningful for the per-group statistic the
+	// kind emits.
+	if !deltaVsPriorSupportedScopes[spec.Scope] {
 		env.AddError(string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 			"overlay "+string(spec.Kind)+" does not support scope "+string(spec.Scope)+" (supports: group)",
 			map[string]any{
