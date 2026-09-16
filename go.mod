@@ -9,7 +9,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/afero v1.15.0
-	github.com/urfave/cli/v3 v3.10.1
+	github.com/urfave/cli/v3 v3.11.0
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0
