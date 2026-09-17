@@ -24,12 +24,13 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `08_moving_avg.json` | `WIN_MOVING_AVG` | Bounded centered moving average |
 | `09_ewma.json` | `WIN_EWMA` | Exponentially weighted moving average (`alpha=0.3`) |
 | `10_pct_change.json` | `WIN_PCT_CHANGE` | Percent change vs `params.periods` rows ago |
+| `11_delta.json` | `WIN_DELTA` | Point difference vs `params.periods` rows ago (same units as the field) |
 
 ## Frame requirements
 
 | Operator | Frame |
 |---|---|
-| `LAG`, `LEAD`, `PCT_CHANGE`, `ROW_NUMBER`, `RANK`, `DENSE_RANK` | forbidden |
+| `LAG`, `LEAD`, `PCT_CHANGE`, `DELTA`, `ROW_NUMBER`, `RANK`, `DENSE_RANK` | forbidden |
 | `RUNNING_SUM`, `RUNNING_AVG` | required (`preceding: null` = unbounded) |
 | `MOVING_AVG` | required, both bounds set |
 | `EWMA` | required (typically unbounded preceding to current) |

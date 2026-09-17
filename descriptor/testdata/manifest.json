@@ -7066,6 +7066,10 @@
         "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ."
       },
       {
+        "name": "op-win-delta",
+        "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of WIN_PCT_CHANGE."
+      },
+      {
         "name": "op-win-dense-rank",
         "description": "Dense rank with no gaps after ties (1, 2, 2, 3, ...) within the ordered partition."
       },
@@ -7318,7 +7322,7 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 166,
+    "examples_count": 167,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -9669,4 +9673,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3a072e911ea948a339a5280773aa31cbf8b191a10d1e571c247fde4e4aa82ae0
+// golden-hash: c2d60c3477b2b8a394f15eca9f59c07c835e220472480a2b7807d3684f953094

@@ -6,8 +6,8 @@ from a sliding or anchored frame around the current record
 (`WIN_LAG`, `WIN_LEAD`, `WIN_RANK`, `WIN_RUNNING_*`, `WIN_EWMA`, …).
 
 The recipe mirrors the aggregator recipe; the window-specific moving
-parts are the frame contract, the windows registry, and the streamability
-case.
+parts are the frame contract and the windows registry. Streamability is
+not one of them — see step 3.
 
 ## 1. Declare the type constant
 
@@ -39,28 +39,27 @@ are part of the operator's contract and ride in the operator's struct
 parameters; the orchestrator's window-pass invokes the implementation
 per row in declared order.
 
-## 3. Declare streamability
+## 3. Streamability — nothing to do
 
-Window operators that need a full forward / backward pass (lead-based,
-percent-rank style) are not streamable. Add the case in
-`types/streamability.go`:
+No window operator streams today. `WindowType.Streamable()` in
+`types/streamability.go` is an unconditional `return false`, because every
+`WIN_*` operator needs a sort over the row set:
 
 ```go
 func (t WindowType) Streamable() bool {
-    switch t {
-    // ...
-    case WIN_PERCENT_RANK:
-        return false
-    }
+    return false
 }
 ```
 
-Add the matching row to `types/streamability_test.go` so
-`TestStreamability_WindowsKnown` passes.
+There is **no per-type case to add and no table row to write**.
+`TestStreamability_WindowsKnown` iterates `types.AllWindowTypes()` and asserts
+every constant answers `false`, so a new operator is covered the moment step 1
+lands. If a future window operator genuinely streams, that is when the method
+grows a `switch` and the test grows a table — not before.
 
 ## 4. Capability declaration
 
-Add a row to `descriptor/capabilities_windows.go` with the operator's
+Add a row to `descriptor/capabilities_window_ops.go` with the operator's
 params, accepted field types, and streamable hint.
 `TestManifestOperatorsComplete` enforces a capability row per registered
 window operator.
@@ -70,15 +69,28 @@ window operator.
 Add tests in `processing/window/<name>_test.go`. Cover the empty-frame,
 single-row, null-bearing, and order-sensitive cases.
 
-## 6. Update the window-operations skill
+## 6. Write the atomic skill
 
-Add a section in `skills/window-design.md` covering the operator's
-frame contract, parameter shape, and output column naming. The
-`TestSkillsCoverAllWindowTypes` gate enforces presence.
+The gated target is the **atomic** skill `skills/op-win-<kebab>.md`, not a
+section in `skills/window-design.md` — `TestSkillsCoverAllWindowTypes` and
+`TestOperatorHasAtomicSkill` both key off that stem. Frontmatter `name:` must
+equal the file stem; `category: WIN`; `operator:` the full constant. The
+required `##` sections are `## Params`, `## Inputs`, `## Output`,
+`## Gotchas`, `## See`, and the body budget is 1,200 characters
+(`TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`).
+
+Add the operator to `skills/window-design.md` only where the topical prose
+would otherwise be wrong (the frame-forbidden list, a family gotcha) — per-op
+detail belongs in the atomic file.
 
 ## 7. Update CLAUDE.md
 
-Bump the registered-window count in CLAUDE.md's "Skill Pack" section.
+There is **no registered-window count to bump** — CLAUDE.md forbids hardcoded
+component counts because the manifest is the source of truth. CLAUDE.md's
+Update Demand row for windows is generic over `descriptor/capabilities_*.go`,
+so a new window operator normally needs no CLAUDE.md edit at all. Edit it only
+if the operator introduces a contract CLAUDE.md states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
 
 ## 8. Run the gates
 

@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "category": "windows",
+    "description": "Point difference versus the row one period earlier in the date-ordered partition — the same comparison as 10_pct_change, in the field's own units instead of as a ratio.",
+    "name": "win_delta",
+    "operators": [
+      "WIN_DELTA"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "sort": [
+    {
+      "field": "order_date"
+    }
+  ],
+  "windows": [
+    {
+      "type": "WIN_DELTA",
+      "field": "revenue",
+      "label": "revenue_delta",
+      "order_by": [
+        {
+          "field": "order_date"
+        }
+      ],
+      "params": {
+        "periods": 1
+      }
+    }
+  ]
+}
