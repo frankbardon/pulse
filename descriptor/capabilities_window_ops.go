@@ -108,7 +108,19 @@ func windowCapabilities() []Operator {
 			},
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per row (NaN when previous value is zero or missing)",
+			EmitsTypeNote: "one float per row; null (not NaN) when the previous value is zero or missing",
+			Streamable:    false,
+		},
+		{
+			Name:        string(types.WIN_DELTA),
+			Category:    "window",
+			Description: "Point DIFFERENCE (current minus the row Periods positions earlier in the ordered partition), in the field's own units. The subtraction counterpart of WIN_PCT_CHANGE, which emits a RATIO instead; a zero previous value is a legitimate delta here and is never nulled.",
+			Params: []Param{
+				{Name: "periods", Type: "int", Required: false, Default: 1, Description: "Lookback offset (≥ 1) for the comparison row."},
+			},
+			AcceptsTypes:  numericFieldTypesNoDecimal,
+			EmitsType:     "f64",
+			EmitsTypeNote: "one float per row; null (not NaN) when no comparison row exists — the first Periods rows of each partition, or a missing value on either side",
 			Streamable:    false,
 		},
 	}

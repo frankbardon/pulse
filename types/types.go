@@ -348,11 +348,13 @@ const (
 	WIN_MOVING_AVG  WindowType = "WIN_MOVING_AVG"
 	WIN_EWMA        WindowType = "WIN_EWMA"
 	WIN_PCT_CHANGE  WindowType = "WIN_PCT_CHANGE"
+	WIN_DELTA       WindowType = "WIN_DELTA"
 )
 
 // AllWindowTypes returns all defined window types in alphabetical order.
 func AllWindowTypes() []WindowType {
 	return []WindowType{
+		WIN_DELTA,
 		WIN_DENSE_RANK,
 		WIN_EWMA,
 		WIN_LAG,

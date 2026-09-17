@@ -314,3 +314,37 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 	t.Log("Per-package coverage floor enforcement is a placeholder. " +
 		"Run 'make cover' to check coverage manually.")
 }
+
+// claudeMdSizeCeiling is the maximum size of CLAUDE.md in bytes.
+//
+// TestClaudeMdSizeBudget exists because nothing in this repo ever said to take
+// something OUT of CLAUDE.md. Every row of the Update Demand table says
+// "update CLAUDE.md in the same PR", so each new contract appended prose and
+// none removed any; the file reached 244,155 bytes — a quarter of a megabyte
+// loaded into context before a session has read a single line of Go.
+//
+// The ceiling turns that one-way ratchet into DISPLACEMENT. When a contract
+// addition pushes CLAUDE.md over the limit, the fix is to move the long form
+// into .claude/reference/ and leave a pointer behind, not to raise the number.
+// CLAUDE.md carries the always-load half of each contract; .claude/reference/
+// carries the half you load when you are about to change that surface.
+//
+// The gate is deliberately self-listing: its name starts with "TestClaudeMd",
+// so TestClaudeMdMentionsAllNonSkippableGates requires it to appear by name in
+// CLAUDE.md's "## Non-Skippable CI Gates" section — the gate that stops the
+// file growing is itself documented in the file it guards.
+//
+// Non-skippable CI gate.
+const claudeMdSizeCeiling = 50_000
+
+func TestClaudeMdSizeBudget(t *testing.T) {
+	size := len(readClaudeMd(t))
+	if size > claudeMdSizeCeiling {
+		t.Errorf("CLAUDE.md is %d bytes, over the %d-byte ceiling by %d. "+
+			"Do NOT raise the ceiling: move long-form prose into .claude/reference/ "+
+			"(see CLAUDE.md's \"Reference Docs\" index) and leave a pointer plus the "+
+			"always-load half behind. CLAUDE.md is loaded into every session's context; "+
+			"a reference file is loaded only when the work requires it.",
+			size, claudeMdSizeCeiling, size-claudeMdSizeCeiling)
+	}
+}

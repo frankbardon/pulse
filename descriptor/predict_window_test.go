@@ -532,3 +532,123 @@ func TestPredictWindow_PctChangePeriodsParams(t *testing.T) {
 		t.Fatalf("expected periods bound error, got %+v", env.Errors)
 	}
 }
+
+// --- WIN_DELTA -------------------------------------------------------------
+//
+// WIN_DELTA shares WIN_PCT_CHANGE's predict contract: no frame, a required
+// numeric Field, and periods >= 1. Each of the three maps in predict_window.go
+// is a separate registration, so each is asserted separately — missing one is a
+// silent predict gap, not a build failure.
+
+func TestPredictWindow_DeltaFrameRejected(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Windows: []*types.Window{
+			{
+				Type:    types.WIN_DELTA,
+				Field:   "revenue",
+				OrderBy: []types.OrderKey{{Field: "ts"}},
+				Frame:   &types.FrameSpec{Mode: "rows", Preceding: ptrInt(1)},
+			},
+		},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if !envHasErrorContaining(env, "frame is not allowed") {
+		t.Fatalf("expected frame-not-allowed error for WIN_DELTA, got %+v", env.Errors)
+	}
+}
+
+func TestPredictWindow_DeltaFieldRequired(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Windows: []*types.Window{
+			{
+				Type:    types.WIN_DELTA,
+				OrderBy: []types.OrderKey{{Field: "ts"}},
+			},
+		},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if !envHasErrorContaining(env, "field is required") {
+		t.Fatalf("expected field-required error for WIN_DELTA, got %+v", env.Errors)
+	}
+}
+
+func TestPredictWindow_DeltaNumericFieldRequired(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Windows: []*types.Window{
+			{
+				Type:    types.WIN_DELTA,
+				Field:   "region",
+				OrderBy: []types.OrderKey{{Field: "ts"}},
+			},
+		},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if !envHasErrorContaining(env, "must be numeric") {
+		t.Fatalf("expected non-numeric field error for WIN_DELTA, got %+v", env.Errors)
+	}
+}
+
+func TestPredictWindow_DeltaPeriodsParams(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	for _, tc := range []struct {
+		name    string
+		params  string
+		wantErr string
+	}{
+		{name: "zero", params: `{"periods": 0}`, wantErr: "params.periods must be >= 1"},
+		{name: "negative", params: `{"periods": -2}`, wantErr: "params.periods must be >= 1"},
+		{name: "malformed", params: `{"periods": "two"}`, wantErr: "malformed params"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &types.Request{
+				Windows: []*types.Window{
+					{
+						Type:    types.WIN_DELTA,
+						Field:   "revenue",
+						OrderBy: []types.OrderKey{{Field: "ts"}},
+						Params:  json.RawMessage(tc.params),
+					},
+				},
+			}
+			env := PredictFromBytes(data, req, nil)
+			if !envHasErrorContaining(env, tc.wantErr) {
+				t.Fatalf("expected %q, got %+v", tc.wantErr, env.Errors)
+			}
+			// The message must name WIN_DELTA, not the operator it shares a case with.
+			if !envHasErrorContaining(env, "(WIN_DELTA)") {
+				t.Fatalf("expected the error to name WIN_DELTA, got %+v", env.Errors)
+			}
+		})
+	}
+}
+
+func TestPredictWindow_DeltaValid(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+
+	req := &types.Request{
+		Windows: []*types.Window{
+			{
+				Type:    types.WIN_DELTA,
+				Field:   "revenue",
+				OrderBy: []types.OrderKey{{Field: "ts"}},
+				Params:  json.RawMessage(`{"periods": 2}`),
+			},
+		},
+	}
+	env := PredictFromBytes(data, req, nil)
+	if len(env.Errors) != 0 {
+		t.Fatalf("expected a clean predict for WIN_DELTA, got %+v", env.Errors)
+	}
+}

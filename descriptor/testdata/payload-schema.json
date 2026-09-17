@@ -2567,6 +2567,7 @@
     },
     "WindowType": {
       "enum": [
+        "WIN_DELTA",
         "WIN_DENSE_RANK",
         "WIN_EWMA",
         "WIN_LAG",
@@ -2624,4 +2625,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: f9dc620d30d30a4e03ddcc46844c48c09122ad3757e6564ce32db345bfe4f682
+// golden-hash: 7fbed487d13d98c19ce49c1630b7ed6267d3701691b9730af0b67f2249f00b96

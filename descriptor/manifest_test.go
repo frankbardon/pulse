@@ -96,11 +96,14 @@ func TestManifestIncludesComponents(t *testing.T) {
 	}
 }
 
-// TestManifestWindowsCount verifies all 10 window types are present.
+// TestManifestWindowsCount verifies every registered window type is present.
+// The expected count is DERIVED from types.AllWindowTypes(), never hardcoded:
+// the registry is the single source of truth, and a literal here would have to
+// be bumped by hand every time an operator lands.
 func TestManifestWindowsCount(t *testing.T) {
 	m := BuildManifest()
-	if len(m.Components.Windows) != 10 {
-		t.Errorf("Windows count = %d, want 10", len(m.Components.Windows))
+	if want := len(types.AllWindowTypes()); len(m.Components.Windows) != want {
+		t.Errorf("Windows count = %d, want %d", len(m.Components.Windows), want)
 	}
 }
 

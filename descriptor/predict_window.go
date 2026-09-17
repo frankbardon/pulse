@@ -25,6 +25,7 @@ var windowFrameRejected = map[types.WindowType]bool{
 	types.WIN_RANK:       true,
 	types.WIN_DENSE_RANK: true,
 	types.WIN_PCT_CHANGE: true,
+	types.WIN_DELTA:      true,
 }
 
 // windowNumericFieldRequired lists window types whose source field MUST be numeric.
@@ -37,6 +38,7 @@ var windowNumericFieldRequired = map[types.WindowType]bool{
 	types.WIN_MOVING_AVG:  true,
 	types.WIN_EWMA:        true,
 	types.WIN_PCT_CHANGE:  true,
+	types.WIN_DELTA:       true,
 }
 
 // windowFieldRequired reports whether the operator requires a Field at all.
@@ -49,6 +51,7 @@ var windowFieldRequired = map[types.WindowType]bool{
 	types.WIN_MOVING_AVG:  true,
 	types.WIN_EWMA:        true,
 	types.WIN_PCT_CHANGE:  true,
+	types.WIN_DELTA:       true,
 }
 
 // orderableFieldTypes lists encoding field types that can serve as ORDER BY keys.
@@ -406,7 +409,10 @@ func validateWindowParams(env *Envelope, i int, w *types.Window) {
 			)
 		}
 
-	case types.WIN_PCT_CHANGE:
+	// WIN_PCT_CHANGE and WIN_DELTA share one params shape (periods >= 1), so they
+	// share one case — as WIN_LAG / WIN_LEAD do above. The rendered messages are
+	// unchanged for WIN_PCT_CHANGE: string(w.Type) is its own constant.
+	case types.WIN_PCT_CHANGE, types.WIN_DELTA:
 		if len(w.Params) == 0 {
 			return
 		}
@@ -416,7 +422,7 @@ func validateWindowParams(env *Envelope, i int, w *types.Window) {
 		if err := json.Unmarshal(w.Params, &p); err != nil {
 			env.AddError(
 				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] (WIN_PCT_CHANGE): malformed params: "+err.Error(),
+				"window["+idx+"] ("+string(w.Type)+"): malformed params: "+err.Error(),
 				map[string]any{"window_index": i},
 			)
 			return
@@ -424,7 +430,7 @@ func validateWindowParams(env *Envelope, i int, w *types.Window) {
 		if p.Periods != nil && *p.Periods <= 0 {
 			env.AddError(
 				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] (WIN_PCT_CHANGE): params.periods must be >= 1",
+				"window["+idx+"] ("+string(w.Type)+"): params.periods must be >= 1",
 				map[string]any{"window_index": i, "periods": *p.Periods},
 			)
 		}
