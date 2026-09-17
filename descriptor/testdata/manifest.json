@@ -3094,6 +3094,38 @@
       ],
       "windows": [
         {
+          "name": "WIN_DELTA",
+          "category": "window",
+          "description": "Point DIFFERENCE (current minus the row Periods positions earlier in the ordered partition), in the field's own units. The subtraction counterpart of WIN_PCT_CHANGE, which emits a RATIO instead; a zero previous value is a legitimate delta here and is never nulled.",
+          "params": [
+            {
+              "name": "periods",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Lookback offset (≥ 1) for the comparison row."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "nullable_u16",
+            "nullable_u4",
+            "nullable_u8",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row; null (not NaN) when no comparison row exists — the first Periods rows of each partition, or a missing value on either side",
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          }
+        },
+        {
           "name": "WIN_DENSE_RANK",
           "category": "window",
           "description": "Dense rank with no gaps after ties (1, 2, 2, 3, …) within the ordered partition.",
@@ -3286,7 +3318,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per row (NaN when previous value is zero or missing)",
+          "emits_type_note": "one float per row; null (not NaN) when the previous value is zero or missing",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -5462,6 +5494,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_DELTA",
           "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
@@ -5536,6 +5569,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_DELTA",
           "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
@@ -5610,6 +5644,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_DELTA",
           "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
@@ -5684,6 +5719,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_DELTA",
           "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
@@ -5758,6 +5794,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_DELTA",
           "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
@@ -5832,6 +5869,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_DELTA",
           "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
@@ -5914,6 +5952,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_DELTA",
           "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
@@ -9630,4 +9669,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6df1a6da17f54047fad3d3bc666b7b5349711538d70535e90cc22d8dbdf088b8
+// golden-hash: 3a072e911ea948a339a5280773aa31cbf8b191a10d1e571c247fde4e4aa82ae0
