@@ -48,6 +48,16 @@ type Config struct {
 	// is exactly the per-session override we want. When false, only the unbound
 	// global tools remain — useful for embedders that bind themselves.
 	BindOnInspect bool
+
+	// DisableCohortScan skips the startup filesystem walk that enumerates
+	// every .pulse file under the data root as an exact-match pulse://
+	// resource. The pulse:// resource TEMPLATE is registered either way, so
+	// every cohort stays READABLE by URI — what a disabled scan withholds is
+	// the enumeration in resources/list, nothing else. Set it when the data
+	// root is large, remote or volatile enough that walking it at startup
+	// costs more than the listing is worth. The zero value keeps the scan, so
+	// an existing Register call is unchanged.
+	DisableCohortScan bool
 }
 
 // Core projects the adapter Config onto the SDK-free core Config consumed by
@@ -74,7 +84,7 @@ func Register(server *mcpsdk.Server, p *pulse.Pulse, cfg Config) error {
 	}
 
 	registerTools(server, p, cfg)
-	registerResources(server, p)
+	registerResources(server, p, cfg)
 	registerPrompts(server)
 
 	return nil

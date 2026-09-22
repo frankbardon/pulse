@@ -75,6 +75,8 @@ Directory roots auto-loaded at `pulse.New` time:
 - `PULSE_RANGE_TABLES_DIR` — named labeled-date-range tables (`{label,start,end}` sets referenced by `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`). Same sidecar exclusion.
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render via `RenderTemplate` / `RenderTemplateRequest`, then predict the rendered request. See `request-templating`.
 
+Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) suppresses the startup walk that enumerates `pulse://<path>` resources. **On such a server `resources/list` names no cohorts and that is not evidence there are none** — a `resources/read pulse://<path>` and `pulse_inspect` both still resolve, so ask the user for the cohort path instead of concluding the data root is empty.
+
 Both table kinds surface under `manifest.extensions.{label_tables,range_tables}` — check there before assuming a named table exists. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken` flags a file that has gone malformed since load).
 
 ## Source-format CLI flags

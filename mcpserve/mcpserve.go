@@ -45,6 +45,14 @@ type Options struct {
 	// Version is the server identity advertised during initialize and threaded
 	// into the adapter Config. Defaults to defaultVersion when empty.
 	Version string
+
+	// DisableCohortScan skips the startup filesystem walk that enumerates the
+	// data root's .pulse files as exact-match pulse:// resources. Cohorts stay
+	// readable through the pulse:// template either way — only the
+	// resources/list enumeration is withheld. Leave it false (the zero value,
+	// the pre-knob behaviour) unless walking the root at startup is itself the
+	// cost you are avoiding.
+	DisableCohortScan bool
 }
 
 // newServer builds a bare go-sdk server and mounts the full Pulse surface onto
@@ -59,8 +67,9 @@ func newServer(p *pulse.Pulse, opts Options) (*mcpsdk.Server, error) {
 		Version: version,
 	}, nil)
 	if err := gosdk.Register(srv, p, gosdk.Config{
-		Version:       version,
-		BindOnInspect: opts.BindOnOpen,
+		Version:           version,
+		BindOnInspect:     opts.BindOnOpen,
+		DisableCohortScan: opts.DisableCohortScan,
 	}); err != nil {
 		return nil, fmt.Errorf("registering mcp surface: %w", err)
 	}

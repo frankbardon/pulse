@@ -15,7 +15,7 @@ stdio streams, and shuts it down on session close.
 ## Synopsis
 
 ```
-pulse mcp [--data-dir PATH] [--bind-on-open]
+pulse mcp [--data-dir PATH] [--bind-on-open] [--no-cohort-scan]
 ```
 
 The command reads stdin, writes MCP responses on stdout, and writes a
@@ -27,6 +27,7 @@ one-line startup notice (and any subsequent diagnostics) on stderr.
 |---|---|---|---|
 | `--data-dir`     | string | from `PULSE_DATA_DIR` env var | Cohort base directory |
 | `--bind-on-open` | bool   | true | Register session-scoped JSON-schema-bound tool variants on successful `pulse_inspect` |
+| `--no-cohort-scan` | bool | false | Skip the startup walk that enumerates `.pulse` files as `pulse://` resources (env: `PULSE_MCP_NO_COHORT_SCAN`) |
 
 `--data-dir` is **required** in one of its two forms (env var or
 flag). The MCP server fails to start otherwise:
@@ -52,6 +53,31 @@ adapter, `mcp/gosdk/bind.go`); see
 [Adding an MCP tool](../internals/adding-mcp-tool.md) for the
 LLM-facing implications.
 
+## --no-cohort-scan
+
+At startup the server walks the data directory once and registers every
+`.pulse` file it finds as an exact-match `pulse://<path>` resource, so
+`resources/list` enumerates the available cohorts. On a large, remote or
+volatile data root that walk is the most expensive thing startup does,
+and the enumeration is not always worth it — a client that already knows
+which cohort it wants never reads the list.
+
+`--no-cohort-scan` (or `PULSE_MCP_NO_COHORT_SCAN=1`) skips the walk. The
+`pulse://{+path}` resource **template** is registered either way, so
+every cohort stays readable by URI:
+
+```
+resources/read  pulse://surveys/2026.pulse   # works with or without the scan
+resources/list                               # lists cohorts only WITH the scan
+```
+
+Nothing else changes: the static `pulse://schema` resource, the
+`pulse-skill://` resources, every tool, and `pulse_inspect` (the tool
+route to the same header+schema JSON) are unaffected.
+
+Embedders reach the same knob as `gosdk.Config{DisableCohortScan: true}`
+or `mcpserve.Options{DisableCohortScan: true}`; both default to scanning.
+
 ## Wiring it into Claude Desktop
 
 `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -76,7 +102,8 @@ Restart the client. The Pulse tools (`pulse_manifest`, `pulse_inspect`,
 `pulse_examples_search`, `pulse_examples_get`, `pulse_errors_lookup`,
 `pulse_skills_list`, `pulse_skills_get`) and resources
 (`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource
-list.
+list. The per-cohort `pulse://*.pulse` entries come from the startup
+scan — see [`--no-cohort-scan`](#--no-cohort-scan).
 
 ## Wiring it into Claude Code
 
@@ -117,6 +144,19 @@ PULSE_DATA_DIR=/tmp/pulse-data ./bin/pulse mcp
 
 ```bash
 PULSE_DATA_DIR=/tmp/pulse-data ./bin/pulse mcp --bind-on-open=false
+```
+
+### Skip the cohort scan on a large data root
+
+```bash
+PULSE_DATA_DIR=/mnt/cohorts ./bin/pulse mcp --no-cohort-scan
+# Stderr: pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: false)
+```
+
+Or from an MCP client config, which sets `env` rather than `args`:
+
+```jsonc
+"env": { "PULSE_DATA_DIR": "/mnt/cohorts", "PULSE_MCP_NO_COHORT_SCAN": "1" }
 ```
 
 ### Inspect what the server registers

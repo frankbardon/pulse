@@ -111,7 +111,7 @@ Fifteen tools, registered at server start. Names and order match `mcp/toolmeta/m
 
 | URI scheme | Yields |
 |---|---|
-| `pulse://<path>` | One resource per `.pulse` file under the data directory. Read returns `descriptor.InspectResult` JSON (header + schema only — no record bytes). |
+| `pulse://<path>` | One resource per `.pulse` file under the data directory. Read returns `descriptor.InspectResult` JSON (header + schema only — no record bytes). The per-file entries are produced by a startup scan the operator can disable (`pulse mcp --no-cohort-scan`); a read by URI resolves either way. |
 | `pulse-skill://<name>` | One per embedded skill. Read returns the markdown body. |
 
 Resources are registered once at server start. Files added afterwards do not appear until the server restarts. Listing is cheap because the server only reads header bytes.

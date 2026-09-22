@@ -32,6 +32,7 @@ emits the manifest documented at [`pulse manifest`](manifest.md).
 | `PULSE_IMPORTS_DIR`     | `pulse import auto / list / drop`                                    | no | Managed-imports subdir under the data root. Defaults to `imports` |
 | `PULSE_IMPORT_TTL`      | `pulse import auto`                                                  | no | Default TTL for managed imports. Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. Defaults to `7d` |
 | `PULSE_LABEL_TABLES_DIR`| `pulse api sample --labels`, `pulse api facet --labels`              | no | Directory of JSON files auto-loaded as label tables at `pulse.New` time; each `*.json` becomes one table keyed by its filename |
+| `PULSE_MCP_NO_COHORT_SCAN`| `pulse mcp`                                                        | no | Skip the startup walk that enumerates `.pulse` files as `pulse://` resources. Same as `--no-cohort-scan`; cohorts stay readable by URI, only `resources/list` loses them |
 
 `PULSE_DATA_DIR` is the only required `PULSE_*` environment variable.
 The Makefile auto-loads a repo-root `.env` file so you can keep these

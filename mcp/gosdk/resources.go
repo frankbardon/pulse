@@ -39,17 +39,18 @@ const (
 
 // registerResources mounts the resource surface on the caller-supplied server:
 // the static payload-schema resource, the embedded skill set, and the
-// discovered cohort files. Each known skill / cohort is registered as an
+// discovered cohort files (unless cfg.DisableCohortScan). Each known skill /
+// cohort is registered as an
 // exact-match static resource (so resources/list enumerates concrete URIs); the
 // two URI schemes are additionally backed by RFC 6570 resource templates so a
 // read of any pulse:// or pulse-skill:// URI resolves even when it was not
 // enumerated at registration time. Static resources are matched before
 // templates, so the reserved pulse://schema resource always wins over the
 // cohort template.
-func registerResources(s *mcpsdk.Server, p *pulse.Pulse) {
+func registerResources(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
 	registerSchemaResource(s)
 	registerSkillResources(s)
-	registerCohortResources(s, p)
+	registerCohortResources(s, p, cfg)
 }
 
 // registerSchemaResource exposes descriptor.BuildPayloadSchema() as a static
@@ -91,9 +92,13 @@ func registerSkillResources(s *mcpsdk.Server) {
 // exact-match static resource plus a scheme-level template. Both paths funnel
 // into the cohortReader closure, which derives the cohort path from the
 // requested URI and serves its inspect JSON.
-func registerCohortResources(s *mcpsdk.Server, p *pulse.Pulse) {
+//
+// cfg.DisableCohortScan suppresses the discovery walk only: the template is
+// registered unconditionally, so a read of any pulse://<path> still resolves —
+// the client just has to know the path instead of picking it off resources/list.
+func registerCohortResources(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
 	reader := cohortReader(p)
-	for _, name := range scanPulseFiles(p.Fs()) {
+	for _, name := range cohortNames(p, cfg) {
 		s.AddResource(&mcpsdk.Resource{
 			URI:         CohortURIScheme + name,
 			Name:        name,
@@ -107,6 +112,15 @@ func registerCohortResources(s *mcpsdk.Server, p *pulse.Pulse) {
 		MIMEType:    "application/json",
 		Description: "Pulse cohort header and schema as JSON, addressed by path (pulse://<path>.pulse)",
 	}, reader)
+}
+
+// cohortNames is the discovery list registerCohortResources enumerates: the
+// scanned .pulse files, or nothing at all when the scan is disabled.
+func cohortNames(p *pulse.Pulse, cfg Config) []string {
+	if cfg.DisableCohortScan {
+		return nil
+	}
+	return scanPulseFiles(p.Fs())
 }
 
 func scanPulseFiles(fsys afero.Fs) []string {
