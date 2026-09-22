@@ -5,6 +5,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -535,5 +536,117 @@ func TestRegister_AuthorRequestPromptContent(t *testing.T) {
 	}
 	if !strings.Contains(text, "pulse_examples_search") {
 		t.Errorf("author-request prompt missing pulse_examples_search reference")
+	}
+}
+
+// countingFs counts filesystem Open calls so a test can prove whether the
+// startup cohort scan walked the data directory at all. afero.Walk reaches a
+// directory's entries through Open, so any Open during Register is the walk's
+// signature — the cohort scan is the only thing Register touches the
+// filesystem for.
+type countingFs struct {
+	afero.Fs
+	mu    sync.Mutex
+	opens int
+}
+
+func (c *countingFs) Open(name string) (afero.File, error) {
+	c.mu.Lock()
+	c.opens++
+	c.mu.Unlock()
+	return c.Fs.Open(name)
+}
+
+func (c *countingFs) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.opens
+}
+
+func (c *countingFs) reset() {
+	c.mu.Lock()
+	c.opens = 0
+	c.mu.Unlock()
+}
+
+// TestRegister_CohortScanWalksTheDataDirByDefault pins the cost the knob
+// exists to remove: with the default Config, Register walks the data directory.
+// It is the enabled arm of
+// TestRegister_DisableCohortScanSkipsTheWalkButKeepsCohortsReadable.
+func TestRegister_CohortScanWalksTheDataDirByDefault(t *testing.T) {
+	fs := &countingFs{Fs: afero.NewMemMapFs()}
+	writeTestCohort(t, fs, "demo.pulse")
+	p := newPulse(t, fs)
+
+	fs.reset()
+	if err := gosdk.Register(newServer(), p, gosdk.Config{Version: "9.9.9"}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if got := fs.count(); got == 0 {
+		t.Fatal("default Register performed no filesystem Open: the cohort scan is not running, so the disabled arm proves nothing")
+	}
+}
+
+// TestRegister_DisableCohortScanSkipsTheWalkButKeepsCohortsReadable asserts the
+// knob's whole contract: no startup filesystem walk, no enumerated cohort
+// resources, and every cohort still READABLE through the pulse:// template.
+func TestRegister_DisableCohortScanSkipsTheWalkButKeepsCohortsReadable(t *testing.T) {
+	fs := &countingFs{Fs: afero.NewMemMapFs()}
+	writeTestCohort(t, fs, "demo.pulse")
+	p := newPulse(t, fs)
+
+	srv := newServer()
+	fs.reset()
+	if err := gosdk.Register(srv, p, gosdk.Config{Version: "9.9.9", DisableCohortScan: true}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if got := fs.count(); got != 0 {
+		t.Errorf("Register with DisableCohortScan opened the filesystem %d times, want 0", got)
+	}
+
+	c, cancel := connect(t, srv)
+	defer cancel()
+	ctx := context.Background()
+
+	resOut, err := c.ListResources(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	uris := map[string]bool{}
+	for _, r := range resOut.Resources {
+		uris[r.URI] = true
+	}
+	if uris["pulse://demo.pulse"] {
+		t.Error("DisableCohortScan still enumerated pulse://demo.pulse")
+	}
+	// The rest of the resource surface is untouched: the knob withholds the
+	// cohort ENUMERATION only.
+	if !uris[gosdk.SchemaResourceURI] {
+		t.Errorf("missing static schema resource %q", gosdk.SchemaResourceURI)
+	}
+	if !uris["pulse-skill://session-bootstrap"] {
+		t.Error("missing skill resource pulse-skill://session-bootstrap")
+	}
+
+	// Both templates stay registered, so a client that knows a cohort path can
+	// still read it.
+	rtOut, err := c.ListResourceTemplates(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListResourceTemplates: %v", err)
+	}
+	templates := map[string]bool{}
+	for _, rt := range rtOut.ResourceTemplates {
+		templates[rt.URITemplate] = true
+	}
+	if !templates[gosdk.CohortURITemplate] {
+		t.Errorf("missing cohort template %q: %v", gosdk.CohortURITemplate, templates)
+	}
+
+	readOut, err := c.ReadResource(ctx, &mcpsdk.ReadResourceParams{URI: "pulse://demo.pulse"})
+	if err != nil {
+		t.Fatalf("ReadResource(pulse://demo.pulse) with DisableCohortScan: %v", err)
+	}
+	if len(readOut.Contents) == 0 || !strings.Contains(readOut.Contents[0].Text, "score") {
+		t.Errorf("cohort read did not return the cohort schema: %+v", readOut.Contents)
 	}
 }

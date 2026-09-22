@@ -35,6 +35,12 @@ func MCPCommand(version string) *cli.Command {
 				Sources: cli.EnvVars("PULSE_DATA_DIR"),
 			},
 			&cli.BoolFlag{
+				Name: "no-cohort-scan",
+				Usage: "Skip the startup walk of the data directory that enumerates .pulse files as pulse:// resources. " +
+					"Cohorts stay readable by URI; only the resources/list enumeration is withheld.",
+				Sources: cli.EnvVars("PULSE_MCP_NO_COHORT_SCAN"),
+			},
+			&cli.BoolFlag{
 				Name:  "bind-on-open",
 				Usage: "Register session-scoped schema-bound tool variants on successful pulse_inspect (default true). Disable for clients that bind tool schemas themselves.",
 				Value: true,
@@ -52,7 +58,8 @@ func MCPCommand(version string) *cli.Command {
 			}
 
 			bindOnOpen := cmd.Bool("bind-on-open")
-			fmt.Fprintf(os.Stderr, "pulse mcp: serving over stdio (data dir: %s, bind-on-open: %v)\n", dataDir, bindOnOpen)
+			noCohortScan := cmd.Bool("no-cohort-scan")
+			fmt.Fprintf(os.Stderr, "pulse mcp: serving over stdio (data dir: %s, bind-on-open: %v, cohort-scan: %v)\n", dataDir, bindOnOpen, !noCohortScan)
 
 			// Construct a bare go-sdk server and mount the full Pulse surface
 			// through the single registration path (the gosdk adapter), then
@@ -63,8 +70,9 @@ func MCPCommand(version string) *cli.Command {
 				Version: version,
 			}, nil)
 			if err := gosdk.Register(srv, p, gosdk.Config{
-				Version:       version,
-				BindOnInspect: bindOnOpen,
+				Version:           version,
+				BindOnInspect:     bindOnOpen,
+				DisableCohortScan: noCohortScan,
 			}); err != nil {
 				return fmt.Errorf("registering mcp surface: %w", err)
 			}
