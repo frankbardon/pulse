@@ -17,11 +17,11 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `u4` |
+| `Field` | numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, `u4` |
 
 ## Output
 
-Scalar `float64` — population stddev (n-denominator). Per-group when wired under a grouper.
+Scalar `float64` — population stddev (n-denominator); `decimal128` input yields a decimal-scaled result. Per-group when wired under a grouper.
 
 ## Components
 
@@ -40,7 +40,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Population stddev (`n` denominator), not sample (`n-1`). For sample variance use `AGG_WELFORD`.
-- `decimal128` rejected — promote via `ATTR_FORMULA` cast.
+- `decimal128` is supported, but not by Welford: a decimal two-pass (mean, then Σ(x−μ)², then decimal `Sqrt`). An overflowing intermediate drops the WHOLE aggregate to an f64 pass and warns `PULSE_DECIMAL_PRECISION_LOSS`. The decimal claim therefore rests partly on an f64 fallback.
 - Single-row group → 0.
 
 ## See

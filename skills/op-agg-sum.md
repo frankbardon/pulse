@@ -17,7 +17,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `packed_bool`, `u4` |
+| `Field` | numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, `u4` |
 
 Decimal128 sums stay in decimal (banker-rounded precision propagation); all other numerics emit float64.
 

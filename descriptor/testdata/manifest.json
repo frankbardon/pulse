@@ -218,6 +218,15 @@
           "deterministic": true,
           "expensive": false
         }
+      },
+      {
+        "name": "widen",
+        "description": "Widen a set column of a single-file cohort to a wider set rung, rewriting the cohort in place (destructive, non-interactive, atomic)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
       }
     ],
     "operations": [
@@ -267,6 +276,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -322,6 +332,7 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -396,6 +407,7 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -551,6 +563,7 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -649,6 +662,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -708,6 +722,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -748,6 +763,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -798,6 +814,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -949,6 +966,7 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -1014,6 +1032,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -1395,6 +1414,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -1445,10 +1465,12 @@
         {
           "name": "AGG_STDDEV",
           "category": "aggregator",
-          "description": "Population standard deviation via Welford's online algorithm.",
+          "description": "Population standard deviation via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
             "packed_bool",
@@ -1458,7 +1480,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1503,6 +1525,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "decimal128",
             "f32",
             "f64",
@@ -1539,10 +1562,12 @@
         {
           "name": "AGG_VARIANCE",
           "category": "aggregator",
-          "description": "Population variance via Welford's online algorithm.",
+          "description": "Population variance via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
             "packed_bool",
@@ -1552,7 +1577,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1599,6 +1624,7 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -1699,6 +1725,7 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
             "packed_bool",
@@ -6070,7 +6097,9 @@
           "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
-          "AGG_SUM"
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -6273,12 +6302,28 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
           "AGG_MODE",
           "AGG_NULL_COUNT",
-          "AGG_RATIO"
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_RATIO",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
+          "AGG_ZSCORE"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -9667,4 +9712,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a0ddefdd03c2bb1aa5ba5577c455cccfe77ed077a4983283a6b7647e01aa1a0a
+// golden-hash: 77fcbb24e55ea7bb8bb6f3510783f35ad5845c7846b7eb223715472e329a68af

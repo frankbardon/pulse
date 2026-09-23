@@ -57,14 +57,29 @@ var numericFieldTypesNoDecimal = []string{
 }
 
 // numericFieldTypesAnalytics widens numericFieldTypes with the
-// bit-packed boolean encoding (packed_bool). The bit-packed types store
-// small non-negative integers (0/1 for packed_bool, 0..15 for u4) which
-// the analytics aggregators consume as proportions or ordinal means
-// without an ATTR_FORMULA cast. Matches
-// encoding.FieldType.IsNumericForAnalytics apart from datetime, which no
-// aggregator declares yet.
+// bit-packed boolean encoding (packed_bool) and the second temporal
+// ordinal (datetime). The bit-packed types store small non-negative
+// integers (0/1 for packed_bool, 0..15 for u4) which the analytics
+// aggregators consume as proportions or ordinal means without an
+// ATTR_FORMULA cast.
+//
+// EQUAL to encoding.FieldType.IsNumericForAnalytics, in both directions,
+// and TestCapabilities_AnalyticsListsMatchNumericPredicate holds it
+// there. The predicate is not decoration: every aggregator carrying this
+// list reads its column through Record.NumericValue, which answers for
+// exactly the types the decoder writes into the float64 values map.
+//
+// `datetime` (type byte 17, epoch SECONDS) used to be missing while
+// `date` (epoch days) was present — an asymmetry the runtime never made.
+// Both decode through the same encoding.decodeFixed branch and both
+// reach collectValues identically, so the manifest was simply telling a
+// caller that AGG_SUM could not sum a column it sums fine. Note that the
+// day-truncation adapter (processing/date_field.go) sits on the date
+// FAMILY grouper/filter boundary, not on the aggregation path: a
+// datetime aggregate is in seconds, a date aggregate in days.
 var numericFieldTypesAnalytics = []string{
 	"date",
+	"datetime",
 	"decimal128",
 	"f32",
 	"f64",
@@ -78,12 +93,22 @@ var numericFieldTypesAnalytics = []string{
 
 // numericFieldTypesAnalyticsNoDecimal mirrors numericFieldTypesAnalytics
 // without decimal128 — for aggregators that operate purely in float64
-// (stddev, variance, skewness, kurtosis, zscore) and for the three
-// order-statistic aggregators (AGG_RANGE, AGG_MEDIAN, AGG_PERCENTILE)
-// that predict refuses on a decimal field with
+// (skewness, kurtosis, zscore, the weighted and interval family) and for
+// the three order-statistic aggregators (AGG_RANGE, AGG_MEDIAN,
+// AGG_PERCENTILE) that predict refuses on a decimal field with
 // PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
+//
+// AGG_VARIANCE and AGG_STDDEV are NOT here. They read the decimal-
+// carrying list, because processing/aggregator_decimal.go computes both
+// in decimal128 two-pass form and predict has always permitted the
+// pairing (decimalSupportedAggregations). Carrying them here was an
+// under-declaration, not a restriction anything enforced.
+//
+// Carries datetime for the same reason the parent list does; the two
+// lists differ in decimal128 and nothing else.
 var numericFieldTypesAnalyticsNoDecimal = []string{
 	"date",
+	"datetime",
 	"f32",
 	"f64",
 	"packed_bool",
@@ -282,11 +307,15 @@ func aggregatorCapabilities() []Operator {
 			),
 		},
 		{
-			Name:          string(types.AGG_STDDEV),
-			Category:      "aggregator",
-			Description:   "Population standard deviation via Welford's online algorithm.",
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
-			EmitsTypeNote: "scalar float64",
+			Name:        string(types.AGG_STDDEV),
+			Category:    "aggregator",
+			Description: "Population standard deviation via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
+			// decimal128 included: predict permits the pairing
+			// (decimalSupportedAggregations) and
+			// processing/aggregator_decimal.go implements it.
+			// Gated by TestCapabilities_DecimalDeclaredOnlyWhereSupported.
+			AcceptsTypes:  numericFieldTypesAnalytics,
+			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(Mergeable,
 				ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},
@@ -356,11 +385,12 @@ func aggregatorCapabilities() []Operator {
 			),
 		},
 		{
-			Name:          string(types.AGG_VARIANCE),
-			Category:      "aggregator",
-			Description:   "Population variance via Welford's online algorithm.",
-			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
-			EmitsTypeNote: "scalar float64",
+			Name:        string(types.AGG_VARIANCE),
+			Category:    "aggregator",
+			Description: "Population variance via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
+			// decimal128 included — see AGG_STDDEV.
+			AcceptsTypes:  numericFieldTypesAnalytics,
+			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(Mergeable,
 				ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values."},

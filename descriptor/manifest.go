@@ -249,6 +249,7 @@ func commands() []Command {
 		{Name: "index list", Description: "List every sidecar point-lookup index built for a cohort", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "index verify", Description: "Report whether a cohort's sidecar point-lookup index is still fresh", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "index drop", Description: "Remove a cohort's sidecar point-lookup index", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "widen", Description: "Widen a set column of a single-file cohort to a wider set rung, rewriting the cohort in place (destructive, non-interactive, atomic)", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 	}
 }
 
