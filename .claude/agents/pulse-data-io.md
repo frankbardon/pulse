@@ -20,8 +20,8 @@ You are the Pulse data/IO engineer. One job: change format/codec/IO code without
 - 9-byte header: magic `PULSE\x00\x00\x00` + `0x01` version byte. `encoding.MagicBytes`, `encoding.HeaderSize = 9`.
 - Schema block: name + type byte + nullable flag byte + offset + bit position + optional description (≤1000 bytes).
 - Per-record null bitmap when `Schema.HasBitmap()`; `ceil(field_count/8)` bytes; LSB-first; `1` = null.
-- 17 field types: `u4`, `u8` / `u16` / `u32` / `u64`, `f32` / `f64`, `date`, `packed_bool`, `categorical_u8` / `u16` / `u32`, `decimal128`, `set_u8` / `u16` / `u32` / `u64`. Bit-packed return `ByteSize() == 0`. `categorical_*` + `set_*` carry inline dictionary.
-- `set_*` on-wire is a fixed-width bitmask; empty mask is a valid "no selection" distinct from null.
+- Field types (`encoding/field_type.go` const block is the registry; never hardcode a count): `u4`, `u8` / `u16` / `u32` / `u64`, `f32` / `f64`, `date`, `datetime`, `packed_bool`, `categorical_u8` / `u16` / `u32`, `decimal128`, `set_u8` / `u16` / `u32` / `u64` / `u128` / `u256`. Bit-packed return `ByteSize() == 0`. `categorical_*` + `set_*` carry inline dictionary. `date` is epoch DAYS (`uint32`), `datetime` epoch SECONDS (`uint64`) — never interchangeable.
+- `set_*` on-wire is a fixed-width bitmask; empty mask is a valid "no selection" distinct from null. The wide rungs (`set_u128` 16 B ≤128, `set_u256` 32 B ≤256) exceed `uint64`: they carry an `encoding.SetMask` (`[4]uint64` value type) and the `uint64` `Read/WriteFieldValue` API REFUSES them (`FieldType.IsWideSet()`) rather than truncating. 256 is a hard ceiling.
 - decimal128 + set_* nulls via bitmap only — no in-band sentinel.
 - Shard archive: zip magic `PK\x03\x04` dispatch at `pulse.Open`. `_schema.pulse` reserved entry with SHRD trailer plus per-shard standalone payloads. Strict structural cohesion at insert; categorical dicts union-merge with byte rewrite on divergence. Width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.
 
