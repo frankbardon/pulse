@@ -51,7 +51,10 @@ func (a *setPopcountAttribute) Compute(records []*Record, field string) ([]float
 }
 
 func (a *setPopcountAttribute) Row(r *Record, field string) (float64, error) {
-	m, ok := r.SetValue(field)
+	m, ok, err := narrowSetValue(r, field)
+	if err != nil {
+		return 0, err
+	}
 	if !ok {
 		return 0, nil
 	}
@@ -129,7 +132,10 @@ func (a *setHasAttribute) Compute(records []*Record, field string) ([]float64, e
 }
 
 func (a *setHasAttribute) Row(r *Record, field string) (float64, error) {
-	m, ok := r.SetValue(field)
+	m, ok, err := narrowSetValue(r, field)
+	if err != nil {
+		return 0, err
+	}
 	if !ok {
 		return 0, nil
 	}

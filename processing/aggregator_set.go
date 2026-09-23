@@ -12,8 +12,10 @@ import (
 // AGG_SET_FREQUENCY, AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 // AGG_SET_DISTINCT_VALUES.
 //
-// Set values arrive through Record.SetValue (uint64 mask). Bit i is set
-// when dictionary entry i is selected. Bitwise OR (union) and AND
+// Set values arrive through Record.SetMaskValue, narrowed to the uint64
+// bitmask these aggregators still hold by narrowSetValue, which errors
+// rather than truncating a mask wider than 64 bits. Bit i is set when
+// dictionary entry i is selected. Bitwise OR (union) and AND
 // (intersection) are associative + commutative, so the orchestrator's
 // per-shard parallel reducer works for free. AGG_SET_INTERSECTION'S
 // margin is recompute-only (AND across cells ≠ AND across all rows in
@@ -53,9 +55,10 @@ func setAggDict(agg *types.Aggregation, schema *encoding.Schema) (*encoding.Dict
 }
 
 // resolveMaskLabels walks the bits of mask and returns dictionary
-// labels in ascending bit order. Mirrors resolveSetLabels in record.go
-// (kept private to that file). Empty mask returns an empty slice (not
-// nil) so JSON emits `[]` rather than `null`.
+// labels in ascending bit order. The narrow-mask twin of
+// encoding.SetMask.Labels, which Record.SetLabels delegates to. Empty
+// mask returns an empty slice (not nil) so JSON emits `[]` rather than
+// `null`.
 func resolveMaskLabels(mask uint64, dict *encoding.Dictionary) []string {
 	if dict == nil {
 		return []string{}
@@ -102,7 +105,10 @@ func newSetUnionAggregator(agg *types.Aggregation, schema *encoding.Schema) (Agg
 func (a *setUnionAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	a.mask = 0
 	for _, r := range records {
-		m, ok := r.SetValue(field)
+		m, ok, err := narrowSetValue(r, field)
+		if err != nil {
+			return 0, err
+		}
 		if !ok {
 			continue
 		}
@@ -114,7 +120,10 @@ func (a *setUnionAggregator) Aggregate(records []*Record, field string) (float64
 }
 
 func (a *setUnionAggregator) UpdateRow(r *Record, field string) error {
-	m, ok := r.SetValue(field)
+	m, ok, err := narrowSetValue(r, field)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
@@ -200,7 +209,10 @@ func (a *setIntersectionAggregator) Aggregate(records []*Record, field string) (
 	a.mask = 0
 	a.seen = false
 	for _, r := range records {
-		m, ok := r.SetValue(field)
+		m, ok, err := narrowSetValue(r, field)
+		if err != nil {
+			return 0, err
+		}
 		if !ok {
 			continue
 		}
@@ -218,7 +230,10 @@ func (a *setIntersectionAggregator) Aggregate(records []*Record, field string) (
 }
 
 func (a *setIntersectionAggregator) UpdateRow(r *Record, field string) error {
-	m, ok := r.SetValue(field)
+	m, ok, err := narrowSetValue(r, field)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
@@ -325,7 +340,10 @@ func (a *setFrequencyAggregator) Aggregate(records []*Record, field string) (flo
 		a.counts[i] = 0
 	}
 	for _, r := range records {
-		m, ok := r.SetValue(field)
+		m, ok, err := narrowSetValue(r, field)
+		if err != nil {
+			return 0, err
+		}
 		if !ok {
 			continue
 		}
@@ -337,7 +355,10 @@ func (a *setFrequencyAggregator) Aggregate(records []*Record, field string) (flo
 }
 
 func (a *setFrequencyAggregator) UpdateRow(r *Record, field string) error {
-	m, ok := r.SetValue(field)
+	m, ok, err := narrowSetValue(r, field)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
@@ -495,7 +516,10 @@ func newSetCardinalitySumAggregator(agg *types.Aggregation, schema *encoding.Sch
 func (a *setCardinalitySumAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	a.total = 0
 	for _, r := range records {
-		m, ok := r.SetValue(field)
+		m, ok, err := narrowSetValue(r, field)
+		if err != nil {
+			return 0, err
+		}
 		if !ok {
 			continue
 		}
@@ -507,7 +531,10 @@ func (a *setCardinalitySumAggregator) Aggregate(records []*Record, field string)
 }
 
 func (a *setCardinalitySumAggregator) UpdateRow(r *Record, field string) error {
-	m, ok := r.SetValue(field)
+	m, ok, err := narrowSetValue(r, field)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
@@ -570,7 +597,10 @@ func (a *setCardinalityAvgAggregator) Aggregate(records []*Record, field string)
 	a.total = 0
 	a.n = 0
 	for _, r := range records {
-		m, ok := r.SetValue(field)
+		m, ok, err := narrowSetValue(r, field)
+		if err != nil {
+			return 0, err
+		}
 		if !ok {
 			continue
 		}
@@ -585,7 +615,10 @@ func (a *setCardinalityAvgAggregator) Aggregate(records []*Record, field string)
 }
 
 func (a *setCardinalityAvgAggregator) UpdateRow(r *Record, field string) error {
-	m, ok := r.SetValue(field)
+	m, ok, err := narrowSetValue(r, field)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
@@ -673,7 +706,10 @@ func newSetDistinctValuesAggregator(agg *types.Aggregation, schema *encoding.Sch
 func (a *setDistinctValuesAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	a.seen = make(map[uint64]struct{})
 	for _, r := range records {
-		m, ok := r.SetValue(field)
+		m, ok, err := narrowSetValue(r, field)
+		if err != nil {
+			return 0, err
+		}
 		if !ok {
 			continue
 		}
@@ -684,7 +720,10 @@ func (a *setDistinctValuesAggregator) Aggregate(records []*Record, field string)
 }
 
 func (a *setDistinctValuesAggregator) UpdateRow(r *Record, field string) error {
-	m, ok := r.SetValue(field)
+	m, ok, err := narrowSetValue(r, field)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}

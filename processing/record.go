@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 )
 
 // Record represents a single data row with field accessors.
@@ -12,8 +13,13 @@ type Record struct {
 	nulls  map[string]bool
 
 	// wide carries typed values for fields whose representation does not
-	// fit in float64: decimal128. Keyed by field name; absent for narrow
-	// fields. Values are encoding.Decimal128.
+	// fit in float64. Keyed by field name; absent for plain numeric
+	// fields. Three value shapes live here: encoding.Decimal128 for
+	// decimal128 columns, a plain uint64 bitmask for the narrow set rungs
+	// (set_u8..set_u64, whose storage is deliberately unchanged), and an
+	// encoding.SetMask for the wide rungs (set_u128, set_u256). Read set
+	// fields through SetMaskValue, never by type-asserting this map: the
+	// assertion that fails is indistinguishable from a null field.
 	wide map[string]any
 
 	// allValuesCache memoizes the result of AllValues(). It is populated on
@@ -48,7 +54,7 @@ func NewRecordWithNulls(schema *encoding.Schema, values map[string]float64, null
 }
 
 // NewRecordWithWide creates a record with typed wide values for fields
-// that do not fit in float64 (decimal128).
+// that do not fit in float64 (decimal128, set bitmasks).
 func NewRecordWithWide(schema *encoding.Schema, values map[string]float64, nulls map[string]bool, wide map[string]any) *Record {
 	if nulls == nil {
 		nulls = make(map[string]bool)
@@ -65,7 +71,9 @@ func NewRecordWithWide(schema *encoding.Schema, values map[string]float64, nulls
 }
 
 // WideValue returns the typed wide value for the named field, if present.
-// Wide values are populated for decimal128 fields.
+// Wide values are populated for decimal128 and set-typed fields; see the
+// wide field's doc comment for the shapes. Set fields have a dedicated
+// accessor — SetMaskValue — and callers should prefer it.
 func (r *Record) WideValue(name string) (any, bool) {
 	if r.nulls[name] {
 		return nil, false
@@ -75,7 +83,8 @@ func (r *Record) WideValue(name string) (any, bool) {
 }
 
 // SetWide assigns a typed wide value to a field. Used by readers and
-// feature operators that produce non-float values (decimal128).
+// feature operators that produce non-float values (decimal128, set
+// bitmasks).
 func (r *Record) SetWide(name string, v any) {
 	if r.wide == nil {
 		r.wide = make(map[string]any)
@@ -126,40 +135,124 @@ func (r *Record) IsNull(name string) bool {
 	return true
 }
 
-// SetValue returns the raw bitmask for a set-typed field. Bit i is set
-// when dictionary entry i is selected. Returns (0, false) when the field
-// is null, missing, or not a set type.
+// setMaskFromWideValue lifts a value out of the wide map into the shared
+// SetMask type. Narrow rungs (set_u8..set_u64) store a plain uint64 so
+// per-record memory for existing cohorts does not grow; the wide rungs
+// (set_u128, set_u256) store an encoding.SetMask directly. Anything else
+// is not a set value and reports false.
+func setMaskFromWideValue(v any) (encoding.SetMask, bool) {
+	switch m := v.(type) {
+	case encoding.SetMask:
+		return m, true
+	case uint64:
+		return encoding.SetMaskFromUint64(m), true
+	}
+	return encoding.SetMask{}, false
+}
+
+// SetMaskValue returns the membership bitmask for a set-typed field. It
+// is the single accessor for set fields at every rung — narrow
+// (set_u8..set_u64) and wide (set_u128, set_u256) alike. Bit i is set
+// when dictionary entry i is selected. Returns (zero mask, false) when
+// the field is null, missing, or does not carry a set value.
 //
-// The mask is sourced from the typed wide map so bit-level precision is
-// preserved across all four width tiers (set_u8/u16/u32/u64) — callers
-// that need exact-bit semantics MUST NOT read set fields via NumericValue
-// because the float64 echo loses high bits for set_u64.
-func (r *Record) SetValue(name string) (uint64, bool) {
+// Narrow storage is unchanged: a narrow rung still holds a uint64 in the
+// wide map, and SetMaskValue widens it on read through
+// encoding.SetMaskFromUint64 — register work that allocates nothing.
+// Wide rungs are returned as stored. encoding.SetMask is a fixed-array
+// VALUE with no aliasing, so the returned mask is safe to retain past
+// the record; there is deliberately no reuse or invalidation contract.
+//
+// This REPLACES the former SetValue (uint64, bool). That accessor
+// reported a failed `v.(uint64)` type assertion with the same (0, false)
+// it used for a null field, so a wide mask reaching it read as "selected
+// nothing" — wrong answers, no error, green tests. There is no exported
+// uint64 set accessor any more, by design. Operators that still hold
+// uint64 state narrow through narrowSetValue, which refuses rather than
+// truncates.
+//
+// Callers that need exact-bit semantics MUST NOT read set fields via
+// NumericValue: the float64 echo loses high bits from set_u64 upward.
+func (r *Record) SetMaskValue(name string) (encoding.SetMask, bool) {
 	if r.nulls[name] {
-		return 0, false
+		return encoding.SetMask{}, false
 	}
 	if r.wide == nil {
-		return 0, false
+		return encoding.SetMask{}, false
 	}
 	v, ok := r.wide[name]
 	if !ok {
-		return 0, false
+		return encoding.SetMask{}, false
 	}
-	mask, ok := v.(uint64)
+	return setMaskFromWideValue(v)
+}
+
+// narrowSetValue bridges a set field to the uint64 bitmask the set
+// operators still hold internally. It is the ONLY narrowing path in
+// processing/ and it REFUSES rather than truncates: a mask carrying a
+// bit at or above 64 returns a PROCESSING_RUNTIME error naming the field
+// and the offending bit, instead of a plausible-looking low word.
+//
+// ok == false means null or missing — the signal the operators already
+// skip on — and is never used for a mask the caller cannot represent.
+// Every call site is temporary: as each operator family widens to
+// encoding.SetMask it drops this bridge and consumes SetMaskValue.
+func narrowSetValue(r *Record, name string) (uint64, bool, error) {
+	// Fast path: narrow storage is already the uint64 the caller wants, so
+	// skip the widen-then-narrow round trip through the 32-byte SetMask.
+	// This is a pure shortcut — TestNarrowSetValue_AgreesWithSetMaskValue
+	// pins it to SetMaskValue across every record state so the two cannot
+	// drift apart.
+	if !r.nulls[name] && r.wide != nil {
+		if low, isNarrow := r.wide[name].(uint64); isNarrow {
+			return low, true, nil
+		}
+	}
+	return narrowSetValueSlow(r, name)
+}
+
+// narrowSetValueSlow is narrowSetValue's cold half: null, missing,
+// non-set, and the wide-mask refusal. Split out so narrowSetValue's
+// narrow fast path stays inline-eligible.
+func narrowSetValueSlow(r *Record, name string) (uint64, bool, error) {
+	m, ok := r.SetMaskValue(name)
 	if !ok {
-		return 0, false
+		return 0, false, nil
 	}
-	return mask, true
+	low, fits := m.Uint64()
+	if !fits {
+		return 0, false, wideSetNarrowError(name, m)
+	}
+	return low, true, nil
+}
+
+// wideSetNarrowError builds narrowSetValue's refusal. It is a separate
+// function so narrowSetValue itself stays inline-eligible — the error
+// path is cold and must not cost the narrow path a call frame.
+func wideSetNarrowError(name string, m encoding.SetMask) error {
+	return errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
+		"field "+name+" carries a set mask wider than 64 bits and this operator cannot read it yet",
+		map[string]any{
+			"field":        name,
+			"highest_bit":  m.HighestBit(),
+			"population_n": m.PopCount(),
+		})
 }
 
 // SetLabels decodes a set-typed field's bitmask into a slice of resolved
-// dictionary labels in bit order (i.e. dictionary insertion order, which
-// is also the bit-assignment order). Returns (nil, false) when the field
-// is null, missing, not a set type, or has no dictionary. Empty mask
-// returns ([]string{}, true) — the field is present but the respondent
-// picked nothing.
+// dictionary labels in ascending bit order (i.e. dictionary insertion
+// order, which is also the bit-assignment order). Returns (nil, false)
+// when the field is null, missing, not a set type, or has no dictionary.
+// An empty mask returns ([]string{}, true) — the field is present but
+// the respondent picked nothing.
+//
+// The walk is bounded by the DICTIONARY size, not by 64 and not by the
+// mask width, so a wide rung resolves every selected member and a bit
+// past the dictionary (corrupt or mid-remap payload) is skipped rather
+// than resolved or fatal. encoding.SetMask.Labels is the single
+// implementation.
 func (r *Record) SetLabels(name string) ([]string, bool) {
-	mask, ok := r.SetValue(name)
+	mask, ok := r.SetMaskValue(name)
 	if !ok {
 		return nil, false
 	}
@@ -167,30 +260,7 @@ func (r *Record) SetLabels(name string) ([]string, bool) {
 	if f == nil || !f.Type.IsSet() || f.Dictionary == nil {
 		return nil, false
 	}
-	return resolveSetLabels(mask, f.Dictionary), true
-}
-
-// resolveSetLabels walks the bits of a set mask in ascending bit order
-// and returns the dictionary labels for set bits. Bit i ↔ dict entry i.
-// Bits beyond dict.Len() are ignored (the writer must not set them; the
-// reader stays defensive against a corrupt or remapped payload).
-func resolveSetLabels(mask uint64, dict *encoding.Dictionary) []string {
-	if mask == 0 || dict == nil {
-		return []string{}
-	}
-	dictLen := dict.Count()
-	out := make([]string, 0, 8)
-	for i := 0; i < dictLen && i < 64; i++ {
-		if mask&(uint64(1)<<uint(i)) == 0 {
-			continue
-		}
-		label := dict.Resolve(uint32(i))
-		if label == "" {
-			continue
-		}
-		out = append(out, label)
-	}
-	return out
+	return mask.Labels(f.Dictionary), true
 }
 
 // StringValue returns the resolved string value for categorical fields.
@@ -254,8 +324,8 @@ func (r *Record) AllValues() map[string]any {
 		}
 		f := r.schema.Field(k)
 		if f != nil && f.Type.IsSet() && f.Dictionary != nil {
-			if mask, ok := v.(uint64); ok {
-				out[k] = resolveSetLabels(mask, f.Dictionary)
+			if mask, ok := setMaskFromWideValue(v); ok {
+				out[k] = mask.Labels(f.Dictionary)
 				continue
 			}
 		}
@@ -309,7 +379,9 @@ func (r *Record) SetNullField(name string) {
 }
 
 // SetWideField implements encoding.ReusableRecord. Stores a typed wide
-// value (decimal128) without invalidating the AllValues cache.
+// value (decimal128, or a set bitmask as uint64 for the narrow rungs /
+// encoding.SetMask for the wide ones) without invalidating the
+// AllValues cache.
 func (r *Record) SetWideField(name string, v any) {
 	if r.wide == nil {
 		r.wide = make(map[string]any)

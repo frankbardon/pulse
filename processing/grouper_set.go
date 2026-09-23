@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"math/bits"
 	"sort"
 	"strings"
 
@@ -113,7 +112,10 @@ func (g *setValueGrouper) trackSetValueRow(mask uint64, key string) {
 // valid bucket key of "" and does NOT trigger ErrGrouperKeyNull; only a
 // null / missing field does.
 func (g *setValueGrouper) KeyFor(r *Record) (string, error) {
-	m, ok := r.SetValue(g.field)
+	m, ok, err := narrowSetValue(r, g.field)
+	if err != nil {
+		return "", err
+	}
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
@@ -137,7 +139,10 @@ func (g *setValueGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
 	if err != nil || !ok {
 		return key, ok, err
 	}
-	m, ok2 := r.SetValue(g.field)
+	m, ok2, mErr := narrowSetValue(r, g.field)
+	if mErr != nil {
+		return "", false, mErr
+	}
 	if !ok2 {
 		return key, ok, nil
 	}
@@ -160,7 +165,10 @@ func (g *setValueGrouper) Group(records []*Record, _ string) (map[string][]*Reco
 		if !ok {
 			continue
 		}
-		m, mok := r.SetValue(g.field)
+		m, mok, mErr := narrowSetValue(r, g.field)
+		if mErr != nil {
+			return nil, mErr
+		}
 		if !mok {
 			// keyForOrSkip already cleared null/skip cases; guard the
 			// cast anyway so the tracker stays safe under contract drift.
@@ -273,18 +281,15 @@ func newSetPerElementGrouper(grp *types.Group, schema *encoding.Schema) (Grouper
 // second dictionary lookup. Labels and indices are byte-equal to the
 // resolveMaskLabels output by construction (same bit walk, same
 // empty-label skip).
-func resolveMaskLabelsWithIndices(mask uint64, dict *encoding.Dictionary) ([]string, []int) {
+func resolveMaskLabelsWithIndices(mask encoding.SetMask, dict *encoding.Dictionary) ([]string, []int) {
 	if dict == nil {
 		return []string{}, []int{}
 	}
 	dictLen := dict.Count()
-	pop := bits.OnesCount64(mask)
+	pop := mask.PopCount()
 	labels := make([]string, 0, pop)
 	indices := make([]int, 0, pop)
-	for i := 0; i < dictLen && i < 64; i++ {
-		if mask&(uint64(1)<<uint(i)) == 0 {
-			continue
-		}
+	for i, ok := mask.NextBit(0); ok && i < dictLen; i, ok = mask.NextBit(i + 1) {
 		label := dict.Resolve(uint32(i))
 		if label == "" {
 			continue
@@ -315,7 +320,7 @@ func (g *setPerElementGrouper) trackSetPerElementRow(label string, dictIndex int
 }
 
 func (g *setPerElementGrouper) KeysForRow(r *Record, field string) ([]string, bool, error) {
-	m, ok := r.SetValue(field)
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return nil, false, nil
 	}

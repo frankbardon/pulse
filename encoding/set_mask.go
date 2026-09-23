@@ -212,6 +212,16 @@ func (m SetMask) Labels(dict *Dictionary) []string {
 	if count <= 0 {
 		return out
 	}
+	// Size the result up front. The walk yields at most one label per set
+	// bit and at most one per dictionary entry, so the smaller of the two
+	// is an exact upper bound — without it the append chain reallocates
+	// log2(n) times per call, which Record.AllValues pays once per row
+	// per set field under expression evaluation.
+	capHint := m.PopCount()
+	if capHint > count {
+		capHint = count
+	}
+	out = make([]string, 0, capHint)
 	for bit, ok := m.NextBit(0); ok && bit < count; bit, ok = m.NextBit(bit + 1) {
 		label := dict.Resolve(uint32(bit))
 		if label == "" {

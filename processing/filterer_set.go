@@ -77,7 +77,10 @@ func (f *setContainsAnyFilterer) Build(filter *types.Filterer, schema *encoding.
 		return func(record *Record) (bool, error) { return false, nil }, nil
 	}
 	return func(record *Record) (bool, error) {
-		m, ok := record.SetValue(field)
+		m, ok, err := narrowSetValue(record, field)
+		if err != nil {
+			return false, err
+		}
 		if !ok {
 			return false, nil
 		}
@@ -98,7 +101,10 @@ func (f *setContainsAllFilterer) Build(filter *types.Filterer, schema *encoding.
 	}
 	field := filter.Field
 	return func(record *Record) (bool, error) {
-		m, ok := record.SetValue(field)
+		m, ok, err := narrowSetValue(record, field)
+		if err != nil {
+			return false, err
+		}
 		if !ok {
 			return false, nil
 		}
@@ -120,7 +126,10 @@ func (f *setContainsNoneFilterer) Build(filter *types.Filterer, schema *encoding
 	}
 	field := filter.Field
 	return func(record *Record) (bool, error) {
-		m, ok := record.SetValue(field)
+		m, ok, err := narrowSetValue(record, field)
+		if err != nil {
+			return false, err
+		}
 		if !ok {
 			return true, nil
 		}
@@ -142,7 +151,10 @@ func (f *setEqualsFilterer) Build(filter *types.Filterer, schema *encoding.Schem
 	}
 	field := filter.Field
 	return func(record *Record) (bool, error) {
-		m, ok := record.SetValue(field)
+		m, ok, err := narrowSetValue(record, field)
+		if err != nil {
+			return false, err
+		}
 		if !ok {
 			return false, nil
 		}
