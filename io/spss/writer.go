@@ -105,6 +105,13 @@ type Writer struct {
 	columns []string
 	rows    [][]string
 
+	// source is what a convert told us about ITS source: the declared
+	// schema the rows were rendered from and the source's own metadata
+	// sidecar emitter. Zero on the export path and on a convert from a
+	// source that declares neither, where the row path infers as before.
+	// See SetConvertSource.
+	source pio.ConvertSource
+
 	// out is the emitted file, and done reports that the encode has run.
 	// Close writes out; a second Close is a no-op rather than a second
 	// encode.
@@ -131,6 +138,7 @@ var (
 	_ pio.CohortWriter         = (*Writer)(nil)
 	_ pio.CohortValidator      = (*Writer)(nil)
 	_ pio.TargetWarningEmitter = (*Writer)(nil)
+	_ pio.SourceAwareWriter    = (*Writer)(nil)
 )
 
 // NewWriter creates a `.sav` writer that lands its bytes at path on fs.
@@ -151,6 +159,36 @@ func NewWriterToBuffer(opts WriterOptions) *Writer {
 
 // SetPulseSchema receives the source cohort's schema. pio.SchemaAwareWriter.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) { w.schema = s }
+
+// SetConvertSource receives the convert source's declared facts.
+// pio.SourceAwareWriter.
+//
+// It is the ROW path's half of the fidelity story, and the reason a
+// `pulse convert survey.sav out.sav` is not strictly worse than
+// `pulse import` + `pulse export spss` over the same file. The row path
+// rebuilds a cohort from rendered text, and two things it needs are not in
+// that text:
+//
+//   - the DECLARED schema. Without it the rebuilt cohort is inferred from
+//     the cells, so a multiple-dichotomy battery's `set_*` column comes
+//     back at whatever rung its observed tokens need — a 206-member
+//     set_u256 whose respondents ticked eleven distinct options re-infers
+//     as a narrow rung, or as a categorical, and every unticked member
+//     vanishes from the dictionary. The selections survive and the
+//     declaration does not.
+//   - the metadata SIDECAR. It is the only home of the code / label /
+//     dictionary-ID triple, and its `derived` registry is what tells this
+//     writer that a `set_*` column is SYNTHESISED and must be folded back
+//     into its constituents rather than expanded into member variables of
+//     its own. Without it the writer synthesises a default dictionary,
+//     expands the set, and every member name collides with the constituent
+//     column already in the cohort: PULSE_SPSS_NAME_COLLISION, which
+//     refused every multiple-dichotomy convert outright.
+//
+// Nothing here changes the COHORT path: a `pulse export spss` already reads
+// both from the cohort and its sidecar on disk, and this value stays zero
+// there.
+func (w *Writer) SetConvertSource(src pio.ConvertSource) { w.source = src }
 
 // WriteHeader records the emitted column names.
 //
@@ -483,8 +521,32 @@ func (w *Writer) encodeRows(ctx context.Context) error {
 	mem := afero.NewMemMapFs()
 	job := pio.NewImportJob(&rowReader{columns: w.columns, rows: w.rows}, rowPathCohort)
 	job.FS = mem
+	// A DECLARED schema replaces inference outright. pio.ConvertSource
+	// guarantees field i is emitted cell i, which is the binding
+	// ImportJob.Schema needs, and a declared schema is not
+	// inference-originated so no out-of-sample null promotion applies —
+	// the same posture ImportJob takes for a pio.SchemaAwareReader source.
+	if w.source.Schema != nil {
+		job.Schema = w.source.Schema
+	}
 	if _, err := job.Run(ctx); err != nil {
 		return err
+	}
+	// The sidecar is written AFTER the cohort and against THAT cohort, for
+	// the reason pio.SidecarEmitter states: the document is fingerprinted
+	// over the bytes it describes, so those bytes have to exist first. That
+	// is also what makes the copy fresh rather than stale — the source's
+	// own sidecar is fingerprinted over the SOURCE cohort, which this
+	// intermediate is not, and LoadSidecar would refuse it.
+	//
+	// A failure here fails the convert. The sidecar is the only record of
+	// the derived-column registry and the value codes; continuing without
+	// it would emit a `.sav` that looks authoritative and has silently lost
+	// the fold — the exact condition this channel exists to remove.
+	if w.source.Sidecar != nil {
+		if err := w.source.Sidecar.WriteSidecar(mem, rowPathCohort); err != nil {
+			return err
+		}
 	}
 	return w.encodeCohort(ctx, mem, rowPathCohort)
 }

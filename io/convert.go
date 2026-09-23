@@ -100,6 +100,13 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 
 	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
 
+	// Hand the SOURCE's declared facts to a target that rebuilds a cohort
+	// from the row stream (io/spss's `.sav` writer). Must happen BEFORE
+	// WriteHeader, like every other push-shaped optional interface, and
+	// only when the rows about to be emitted are faithful to the schema.
+	// See ConvertSource for what a recipient is then entitled to assume.
+	j.offerConvertSource(schema, !inferredSchema, includeMask, augmentInsertAfter, replaceFields)
+
 	// Hand Response.Overlays to overlay-aware writers so the export
 	// half embeds the layers in the format-native sidecar. Same tri-
 	// state semantics as ExportJob.Run — *false opts out, nil / *true
@@ -336,6 +343,94 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		Warnings:       warnings,
 		SourceWarnings: j.sourceWarnings(),
 	}, nil
+}
+
+// offerConvertSource hands the source's declared facts to a
+// SourceAwareWriter target, when there are any and when the row stream is
+// faithful enough for them to describe it.
+//
+// A target that does not implement the interface is not called at all, so
+// its convert output is byte-identical to the pre-interface shape.
+//
+// # What is carried, and what is not
+//
+// The SCHEMA is carried only when it is DECLARED — a pio.SchemaAwareReader
+// source's own dictionary, or the caller's explicit ConvertJob.Schema.
+// When convert inferred the schema itself there is nothing authoritative to
+// preserve, and re-inferring on the far side is the same guess made over
+// the same values: inference stays the fallback for a genuinely
+// schema-less source.
+//
+// The SIDECAR is carried whenever the source emits one, independently of
+// where the schema came from — it is source metadata, not a type decision.
+//
+// # Why faithfulness gates both
+//
+// A recipient rebuilds a cohort from the rows. A projection
+// (ConvertJob.Includes) drops columns from those rows, and a label binding
+// rewrites or inserts cells; in either case field i of the schema is no
+// longer cell i of the row, and the sidecar describes variables the
+// rebuilt cohort no longer has. Handing over facts that do not describe
+// the stream is worse than handing over none: the recipient would rebuild
+// a cohort whose columns are mis-bound, which is the silent wrong answer
+// rather than a loud one. So an unfaithful stream carries NOTHING and the
+// target infers, exactly as it did before this channel existed.
+func (j *ConvertJob) offerConvertSource(
+	schema *encoding.Schema,
+	declared bool,
+	includeMask []bool,
+	augmentInsertAfter []bool,
+	replaceFields map[int]bool,
+) {
+	saw, ok := j.Target.(SourceAwareWriter)
+	if !ok {
+		return
+	}
+	if schema == nil || !faithfulRowStream(includeMask, augmentInsertAfter, replaceFields) {
+		return
+	}
+
+	src := ConvertSource{}
+	if se, ok := j.Source.(SidecarEmitter); ok {
+		src.Sidecar = se
+	}
+	if declared {
+		// Re-base CsvColumnIdx onto the EMITTED row rather than the
+		// source's own column order: the recipient's rows come from
+		// convert's loop, which writes one cell per schema field in
+		// field order. Copied rather than mutated in place — the same
+		// *encoding.Schema is reported on ConvertReport.Schema and, with
+		// KeepPulseAt set, drives the intermediate import.
+		fields := make([]encoding.Field, len(schema.Fields))
+		copy(fields, schema.Fields)
+		for i := range fields {
+			fields[i].CsvColumnIdx = i
+		}
+		src.Schema = &encoding.Schema{Fields: fields}
+	}
+	if src.Schema == nil && src.Sidecar == nil {
+		return
+	}
+	saw.SetConvertSource(src)
+}
+
+// faithfulRowStream reports whether the emitted row is one cell per schema
+// field, in field order. See offerConvertSource for why that is the gate.
+func faithfulRowStream(includeMask, augmentInsertAfter []bool, replaceFields map[int]bool) bool {
+	if len(replaceFields) > 0 {
+		return false
+	}
+	for _, on := range includeMask {
+		if !on {
+			return false
+		}
+	}
+	for _, on := range augmentInsertAfter {
+		if on {
+			return false
+		}
+	}
+	return true
 }
 
 // sourceSchema pulls the authoritative schema off a SchemaAwareReader

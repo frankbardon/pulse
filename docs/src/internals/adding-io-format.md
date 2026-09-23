@@ -482,6 +482,59 @@ import path, and encodes that. Buffering rather than streaming is
 inherent: an intermediate cohort cannot be written until the last row has
 been seen.
 
+### What the row path lost: `io.SourceAwareWriter`
+
+A target that rebuilds a cohort from the row stream re-derives a schema
+by **inferring** it from the text the source just rendered, and inference
+cannot recover what the source *declared*. Two things went missing on
+`pulse convert survey.sav out.sav` because of it, and neither was
+recoverable downstream:
+
+- the **declared schema**. A `set_*` column round-trips as `"Q1A|Q1C"`
+  tokens, so a re-inferred rung is only as wide as the options somebody
+  actually ticked; a value-labelled numeric came back as a string column
+  of bare numerals.
+- the **metadata sidecar**. It is the only home of the code / label /
+  dictionary-ID triple *and* of the derived-column registry, so the
+  rebuilt cohort could not tell a synthesised multiple-dichotomy `set_*`
+  column from a real one. `io/spss` then expanded it into member
+  variables that collided by name with the constituents already in the
+  cohort — `PULSE_SPSS_NAME_COLLISION`, which refused every
+  multiple-dichotomy convert outright.
+
+```go
+type ConvertSource struct {
+    Schema  *encoding.Schema // the source's DECLARED schema, or nil
+    Sidecar SidecarEmitter   // the source Reader itself, or nil
+}
+
+type SourceAwareWriter interface {
+    Writer
+    SetConvertSource(src ConvertSource)
+}
+```
+
+`ConvertJob.Run` type-asserts it and calls `SetConvertSource` **before**
+`WriteHeader`; a target that does not implement it is never consulted and
+its convert output is byte-identical to the pre-interface shape.
+
+**What you may assume, and what you may not.** The facts are offered only
+when the row stream is *faithful* to the schema — one cell per field, in
+field order, with no `Includes` projection and no label binding inserting
+or rewriting cells — so `Schema.Fields[i]` describes emitted column `i`
+and `CsvColumnIdx` is `i`. `Schema` is nil when convert **inferred** the
+schema itself: there is nothing declared to preserve, and re-inferring is
+the same guess over the same values. `Sidecar` is the source `Reader`, so
+write it against the cohort **you** just built (`WriteSidecar(fs, path)`
+re-fingerprints the document); the source's own copy is fingerprinted
+over the source cohort and a read path would correctly refuse it as
+stale.
+
+This is deliberately *not* `SchemaAwareWriter`. `SetPulseSchema` means
+"here is the cohort you are exporting from" and the typed-column adapters
+answer it by changing what they emit; this one means "here is what your
+source declared, for the cohort you are about to rebuild".
+
 ### Encode-side diagnostics: `io.TargetWarningEmitter`
 
 The write-side mirror of `SourceWarningEmitter`, and distinct from
