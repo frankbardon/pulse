@@ -527,6 +527,10 @@ type ExportReport struct {
 
 // ConvertReport summarizes the result of a convert operation.
 //
+// RowErrors is a PARTIAL-failure channel, exactly as on ImportReport and
+// ExportReport: when a non-empty source yields zero converted rows,
+// ConvertJob.Run returns a coded error and no report.
+//
 // OverlayWarnings carries the warn-and-skip codes the target Writer
 // surfaced through OverlayWarningEmitter — see ExportReport.OverlayWarnings.
 type ConvertReport struct {

@@ -12,6 +12,17 @@ import (
 
 // Run executes the convert job, streaming from source to target.
 // If KeepPulseAt is set, also writes an intermediate .pulse file.
+//
+// Total failure is an ERROR, not a zero-row report, exactly as on
+// ImportJob.Run and ExportJob.Run. If the pass reads at least one row and
+// converts none of them, Run returns a nil report and a coded error —
+// PULSE_EXPORT_ROW_ERROR, since every RowError convert can record comes
+// from Target.WriteRow, or the first row error's own code when it carries
+// one — with rows_read, rows_failed, first_row and first_error in details,
+// and no KeepPulseAt intermediate is written. Partial conversion is
+// unchanged: some rows out, some on ConvertReport.RowErrors, nil error. A
+// source with no data rows converts to an empty target and is a success.
+// See totalRowFailure.
 func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
@@ -184,6 +195,20 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// A pass that read rows and converted none of them is total failure,
+	// not an empty convert. Refuse BEFORE the KeepPulseAt intermediate is
+	// written: that re-import reads the SOURCE rather than the converted
+	// rows, so a target-side total failure would otherwise leave a
+	// perfectly good cohort on disk under a command that errored.
+	//
+	// The fallback code is PULSE_EXPORT_ROW_ERROR, by provenance. Convert's
+	// row loop hands raw cell text through and never objects to it; every
+	// RowError it can record comes from Target.WriteRow. Naming the import
+	// code here would point the caller at a source that said nothing.
+	if failure := totalRowFailure("convert", converted, rowNum, rowErrors, perrors.PULSE_EXPORT_ROW_ERROR); failure != nil {
+		return nil, failure
 	}
 
 	// Write intermediate pulse file if requested.

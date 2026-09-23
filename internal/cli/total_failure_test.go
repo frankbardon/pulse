@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	perrors "github.com/frankbardon/pulse/errors"
+	pformat "github.com/frankbardon/pulse/io/format"
+	"github.com/spf13/afero"
 )
 
 // seedTotalFailureImport writes a CSV whose every data row is unparseable
@@ -91,5 +93,46 @@ func TestImportCLI_TotalFailure_EnvelopeCarriesRealCode(t *testing.T) {
 	}
 	if got := env.Errors[0].Details["rows_failed"]; got != float64(3) {
 		t.Errorf("details[rows_failed] = %v, want 3", got)
+	}
+}
+
+// TestExportTargets_EmitNothingBeforeClose is why the io leaves do NOT
+// close the writer on an error return, and why E3-S7 left that alone.
+//
+// The concern raised was that `runExport` / the convert leaf return before
+// writer.Close() on a Run error, leaving a partially-written target file
+// unclosed — and that the total-failure verdict makes that path far more
+// reachable. It turns out the premise does not hold here: every adapter
+// newWriterForFormat can build buffers its output in memory and emits the
+// file exactly once, inside Close (afero.WriteFile, not an incrementally
+// written handle). Skipping Close therefore writes NOTHING and leaks no
+// handle, while ADDING a close-on-error would write a zero-row target next
+// to a hard error — precisely the trap the import arm avoids by refusing
+// before its cohort write.
+//
+// This test pins the property the decision rests on. An adapter that
+// starts streaming to disk before Close breaks it, and must then bring its
+// own cleanup rather than silently leaving a truncated file behind.
+func TestExportTargets_EmitNothingBeforeClose(t *testing.T) {
+	formats := []string{
+		pformat.CSV, pformat.TSV, pformat.NDJSON, pformat.JSONArray,
+		pformat.Parquet, pformat.Arrow, pformat.Excel, pformat.SPSS,
+	}
+	for _, format := range formats {
+		t.Run(format, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			const path = "out.target"
+			w, err := newWriterForFormat(format, fs, path, writerOptions{})
+			if err != nil {
+				t.Fatalf("newWriterForFormat(%s): %v", format, err)
+			}
+			if err := w.WriteHeader([]string{"n"}); err != nil {
+				t.Fatalf("WriteHeader: %v", err)
+			}
+			// No Close — this is the io leaves' error path.
+			if ok, _ := afero.Exists(fs, path); ok {
+				t.Errorf("%s wrote %s before Close; the leaves' error return would leave a truncated file behind", format, path)
+			}
+		})
 	}
 }

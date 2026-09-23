@@ -318,13 +318,18 @@ refuses a value — lands on `ImportReport.RowErrors` /
 contract and it is unchanged.
 
 What is not partial is a pass that read rows and got **none** of them
-through. `ImportJob.Run` and `ExportJob.Run` classify that as total
-failure and return a coded error with **no report**:
+through. `ImportJob.Run`, `ExportJob.Run` and `ConvertJob.Run` classify
+that as total failure and return a coded error with **no report**:
 `PULSE_IMPORT_ROW_ERROR` / `PULSE_EXPORT_ROW_ERROR` (or the first row
 error's own code when it carries one), with `rows_read`, `rows_failed`,
-`first_row` and `first_error` in `Details`. The import additionally
-writes no `.pulse` file. A source or cohort with **no rows at all** is
-an empty cohort and stays a success.
+`first_row` and `first_error` in `Details`. Import additionally writes
+no `.pulse` file, and convert writes no `KeepPulseAt` intermediate. A
+source or cohort with **no rows at all** is an empty cohort and stays a
+success.
+
+Convert falls back to the EXPORT code by provenance: its row loop hands
+raw cell text through and never objects to it, so every `RowError` it
+can record came out of your `WriteRow`.
 
 This matters when you write an adapter because a format-wide mistake —
 a column type your writer has no mapping for, a cell shape your reader

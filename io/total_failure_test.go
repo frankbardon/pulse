@@ -331,3 +331,124 @@ func TestExportJob_PartialFailure_Unchanged(t *testing.T) {
 		t.Errorf("RowErrors = %d, want 1", len(rep.RowErrors))
 	}
 }
+
+// TestConvertJob_EveryRowFailed_ReturnsCodedError is the convert arm.
+//
+// `pulse convert` is source-format → target-format (a `.pulse` source is
+// reserved and excluded from SupportedImport), so every RowError it can
+// record comes from the TARGET writer: the row loop hands raw cell text
+// through and only WriteRow can refuse. The verdict therefore falls back
+// to PULSE_EXPORT_ROW_ERROR, by provenance — PULSE_IMPORT_ROW_ERROR would
+// point the caller at a source that never objected.
+func TestConvertJob_EveryRowFailed_ReturnsCodedError(t *testing.T) {
+	job := &ConvertJob{
+		Source: &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}, {"3"}}},
+		Target: &failingWriter{},
+		Schema: &encoding.Schema{Fields: []encoding.Field{
+			{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
+		}},
+		FS: afero.NewMemMapFs(),
+	}
+	rep, err := job.Run(context.Background())
+	if err == nil {
+		t.Fatalf("Run returned nil with RowsConverted = %d and %d row errors", rep.RowsConverted, len(rep.RowErrors))
+	}
+	ce := codedFrom(t, err)
+	if ce.Code != perrors.PULSE_EXPORT_ROW_ERROR {
+		t.Errorf("code = %s, want %s", ce.Code, perrors.PULSE_EXPORT_ROW_ERROR)
+	}
+	if got := ce.Details["rows_failed"]; got != 3 {
+		t.Errorf("details[rows_failed] = %v, want 3", got)
+	}
+	if got := ce.Details["rows_read"]; got != 3 {
+		t.Errorf("details[rows_read] = %v, want 3", got)
+	}
+	if got := ce.Details["first_row"]; got != 1 {
+		t.Errorf("details[first_row] = %v, want 1", got)
+	}
+}
+
+// TestConvertJob_EveryRowFailed_PrefersTheRowErrorsOwnCode mirrors the
+// export arm: a target that knows why it refused keeps its own code.
+func TestConvertJob_EveryRowFailed_PrefersTheRowErrorsOwnCode(t *testing.T) {
+	job := &ConvertJob{
+		Source: &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}}},
+		Target: &codedFailingWriter{code: perrors.PULSE_SPSS_EXPORT_UNSUPPORTED},
+		Schema: &encoding.Schema{Fields: []encoding.Field{
+			{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
+		}},
+		FS: afero.NewMemMapFs(),
+	}
+	if _, err := job.Run(context.Background()); err == nil {
+		t.Fatal("Run returned nil; every row was refused")
+	} else if ce := codedFrom(t, err); ce.Code != perrors.PULSE_SPSS_EXPORT_UNSUPPORTED {
+		t.Errorf("code = %s, want %s", ce.Code, perrors.PULSE_SPSS_EXPORT_UNSUPPORTED)
+	}
+}
+
+// TestConvertJob_EveryRowFailed_WritesNoIntermediatePulse pins the
+// placement of the verdict. KeepPulseAt's re-import reads the SOURCE, not
+// the converted rows, so a target-side total failure would otherwise
+// leave a perfectly good cohort on disk under a command that errored —
+// the same trap the import arm avoids by refusing before its write.
+func TestConvertJob_EveryRowFailed_WritesNoIntermediatePulse(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	job := &ConvertJob{
+		Source:      &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}}},
+		Target:      &failingWriter{},
+		KeepPulseAt: "mid.pulse",
+		Schema: &encoding.Schema{Fields: []encoding.Field{
+			{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
+		}},
+		FS: fs,
+	}
+	if _, err := job.Run(context.Background()); err == nil {
+		t.Fatal("Run returned nil; every row was refused")
+	}
+	if ok, _ := afero.Exists(fs, "mid.pulse"); ok {
+		t.Error("mid.pulse was written despite total convert failure")
+	}
+}
+
+// TestConvertJob_PartialFailure_Unchanged pins the convert partial arm.
+func TestConvertJob_PartialFailure_Unchanged(t *testing.T) {
+	job := &ConvertJob{
+		Source: &stringRowsReader{header: []string{"n"}, rows: [][]string{{"1"}, {"2"}, {"3"}}},
+		Target: &failingWriter{failOn: map[int]bool{2: true}},
+		Schema: &encoding.Schema{Fields: []encoding.Field{
+			{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
+		}},
+		FS: afero.NewMemMapFs(),
+	}
+	rep, err := job.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run: %v — partial failure must keep returning nil", err)
+	}
+	if rep.RowsConverted != 2 {
+		t.Errorf("RowsConverted = %d, want 2", rep.RowsConverted)
+	}
+	if len(rep.RowErrors) != 1 {
+		t.Errorf("RowErrors = %d, want 1", len(rep.RowErrors))
+	}
+}
+
+// TestConvertJob_EmptySource_StaysLegitimate pins the convert boundary: a
+// source with no data rows converts to an empty target, through a writer
+// that would have refused every row.
+func TestConvertJob_EmptySource_StaysLegitimate(t *testing.T) {
+	job := &ConvertJob{
+		Source: &stringRowsReader{header: []string{"n"}},
+		Target: &failingWriter{},
+		Schema: &encoding.Schema{Fields: []encoding.Field{
+			{Name: "n", Type: encoding.FieldTypeU8, CsvColumnIdx: 0},
+		}},
+		FS: afero.NewMemMapFs(),
+	}
+	rep, err := job.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run: %v — an empty source converts to an empty target, not a failure", err)
+	}
+	if rep.RowsConverted != 0 || len(rep.RowErrors) != 0 {
+		t.Fatalf("RowsConverted = %d, RowErrors = %v; want 0 and none", rep.RowsConverted, rep.RowErrors)
+	}
+}
