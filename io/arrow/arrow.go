@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
@@ -574,9 +575,13 @@ func AppendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.Over
 func (w *Writer) appendCell(c int, v any) error {
 	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
 		f := w.pulseSchema.Fields[c]
-		switch f.Type {
-		case encoding.FieldTypeDecimal128:
+		switch {
+		case f.Type == encoding.FieldTypeDecimal128:
 			return w.appendDecimal(c, f, v)
+		case f.Type.IsSet():
+			if done, err := w.appendSet(c, v); done {
+				return err
+			}
 		}
 	}
 	if w.strBs[c] != nil {
@@ -599,6 +604,46 @@ func (w *Writer) appendCell(c int, v any) error {
 
 func (w *Writer) appendDecimal(c int, f encoding.Field, v any) error {
 	return AppendDecimal128(w.bldr.Field(c), f, v)
+}
+
+// appendSet appends one cell of a Pulse set column to its LIST<UTF8>
+// builder. io/export.go hands the exporter a single pio.DefaultSetDelimiter
+// -joined token string for every set rung (the external form of a set is
+// width-agnostic, so this is identical for set_u8 and set_u256); the list
+// builder needs those tokens as separate elements. Without this arm the
+// cell fell through to AppendValueFromString, which parses the string as
+// JSON, rejects "VISA|MC", and turns EVERY row into a RowError — the
+// export then reports success having written zero rows.
+//
+// done=false means this column is not actually backed by a list builder
+// (a projected or label-augmented export can desynchronize the Pulse
+// schema from the Arrow column list); the caller falls through to the
+// generic path rather than erroring.
+func (w *Writer) appendSet(c int, v any) (bool, error) {
+	lb, ok := w.bldr.Field(c).(*array.ListBuilder)
+	if !ok {
+		return false, nil
+	}
+	sb, ok := lb.ValueBuilder().(*array.StringBuilder)
+	if !ok {
+		return false, nil
+	}
+	s, _ := v.(string)
+	if v == nil {
+		lb.AppendNull()
+		return true, nil
+	}
+	// A present cell with no tokens is an EMPTY selection — an empty
+	// list, not a null. Append(true) opens a list of length zero.
+	lb.Append(true)
+	for _, tok := range strings.Split(s, pio.DefaultSetDelimiter) {
+		tok = strings.TrimSpace(tok)
+		if tok == "" {
+			continue
+		}
+		sb.Append(tok)
+	}
+	return true, nil
 }
 
 // Close flushes any pending batch, closes the underlying Arrow IPC writer,

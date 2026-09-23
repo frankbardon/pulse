@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -168,6 +169,20 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 				} else {
 					values[i] = d.String(f.Scale)
 				}
+				continue
+			}
+
+			if f.Type.IsWideSet() {
+				// set_u128 / set_u256 masks do not fit the uint64
+				// value API — ReadFieldValue refuses them outright,
+				// which would end the export loop as if the file had
+				// ended and emit zero rows. Read the raw mask instead.
+				m, err := encoding.ReadSetMask(r, f.Type)
+				if err != nil {
+					hitEOF = true
+					break
+				}
+				values[i] = formatSetMask(m, f.Dictionary)
 				continue
 			}
 
@@ -527,9 +542,35 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 		}
 		return strconv.FormatUint(raw, 10)
 
+	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16,
+		encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
+		// The narrow rungs carry their bitmask in the uint64 value API;
+		// lift it into the shared SetMask so all six rungs format
+		// through one code path. The external form of a set is a
+		// delimiter-joined token list at EVERY width — emitting the
+		// numeric mask instead re-imports as an opaque categorical.
+		return formatSetMask(encoding.SetMaskFromUint64(raw), dict)
+
 	default:
 		return strconv.FormatUint(raw, 10)
 	}
+}
+
+// formatSetMask renders a set membership mask as the canonical external
+// form: the selected dictionary labels joined by DefaultSetDelimiter, in
+// ascending BIT order (which is dictionary-index order, not the order
+// the tokens appeared in the source cell). An empty mask renders as the
+// empty string — a present cell with nothing selected; null state is
+// applied separately by the export loop from the per-record bitmap.
+//
+// Bits past the dictionary are skipped by SetMask.Labels rather than
+// resolved or treated as fatal: that is a corrupt or mid-remap payload,
+// and an export must not take the whole file down over one cell.
+func formatSetMask(m encoding.SetMask, dict *encoding.Dictionary) string {
+	if dict == nil {
+		return ""
+	}
+	return strings.Join(m.Labels(dict), DefaultSetDelimiter)
 }
 
 // formatPackedValue formats bit-packed types.

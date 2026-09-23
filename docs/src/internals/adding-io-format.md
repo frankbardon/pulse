@@ -106,6 +106,34 @@ does not), share the type map with neighbouring formats via the
 `io/arrow` package the way Parquet already does. CSV / TSV / NDJSON
 / JSON-array share `io/jsonshared` for value coercion.
 
+### The external form of a `set_*` cell
+
+A set column's *external* form is its selected **labels**, never the
+bitmask. `ExportJob.Run` hands a Writer one string per set cell:
+the selected dictionary labels joined with `pio.DefaultSetDelimiter`
+(`"|"`), in ascending **bit** order — which is dictionary-index
+order, not the order the tokens appeared in the source. An empty
+selection is the empty string. This is the exact inverse of the
+import obligation above, which is what makes a set column survive
+`cohort → format → cohort`.
+
+**The form is width-agnostic.** Every rung from `set_u8` to
+`set_u256` externalizes identically; a 206-label cell is simply a
+longer token list. A Writer therefore never branches on the rung —
+but it MUST branch on `Type.IsSet()` if its native type for a set is
+a list (`io/arrow`'s `LIST<UTF8>`), because the joined string has to
+be split back into elements before it reaches a list builder.
+Handing the joined string to a list builder's generic
+`AppendValueFromString` makes it parse as JSON, fail on every row,
+and produce an export that reports success having written no rows.
+
+On the decode side the wide rungs (`set_u128` / `set_u256`) do not
+fit the `uint64` value API at all: `encoding.ReadFieldValue` refuses
+them with `ENCODING_TYPE_MISMATCH`, so the export loop reads them
+with `encoding.ReadSetMask` instead. A format that walks cohort
+bytes itself (`io.CohortWriter`, below) has to make the same split —
+branch on `FieldType.IsWideSet()`.
+
 ### Authoritative schemas: `io.SchemaAwareReader`
 
 By default `ImportJob.Run` samples up to `SampleRows` rows and votes
