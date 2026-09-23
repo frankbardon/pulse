@@ -322,8 +322,11 @@ func newDummyPlanFiltered(schema *encoding.Schema, target string, predictorField
 			}
 			n := f.Dictionary.Count()
 			// A dictionary can outgrow the mask width only through a
-			// corrupt file; clamp so a bit index can never exceed the
-			// on-wire mask, matching profileRecords' own clamp.
+			// corrupt file or a column that was never widened; clamp so
+			// a bit index can never exceed the on-wire mask, matching
+			// profileRecords' own clamp — which also WARNS, so the
+			// clamp is reported once per capture rather than here, once
+			// per target.
 			if max := int(f.Type.MaxSetEntries()); n > max {
 				n = max
 			}
@@ -506,16 +509,23 @@ func (r *dummyRecord) NumericValue(name string) (float64, bool) {
 		}
 		return 1, true
 	case dummySetOption:
-		// wide carries the exact uint64 mask (see
+		// wide carries the exact membership mask (see
 		// encoding.RecordReader.readRecord); values' float64 echo is not
 		// used because set_u64 bits exceed float64's 2^53 exact range.
 		// A missing entry means the mask was not decoded (null field or
 		// no wide map) — missing, not empty.
-		mask, present := r.wide[col.Field].(uint64)
+		//
+		// It arrives as a uint64 on the narrow rungs and as an
+		// encoding.SetMask on the wide ones, so it is resolved through
+		// setMaskFromWideEntry and never type-asserted: an assertion
+		// that fails is indistinguishable here from a null row, so every
+		// row of a wide predictor would be deleted listwise and the
+		// design column would simply cease to exist.
+		mask, present := setMaskFromWideEntry(r.wide, col.Field)
 		if !present {
 			return 0, false
 		}
-		if mask&(uint64(1)<<col.Bit) != 0 {
+		if mask.Has(int(col.Bit)) {
 			return 1, true
 		}
 		return 0, true

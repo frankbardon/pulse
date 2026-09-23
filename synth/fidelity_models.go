@@ -773,11 +773,18 @@ func admitRecoveryRows(rows []syntheticRow, d *modelDrawer, terms []*recoveryTer
 func recoveryIndicator(row *syntheticRow, col dummyColumn) float64 {
 	switch col.Kind {
 	case dummySetOption:
-		mask, present := row.wide[col.Field].(uint64)
+		// setMaskFromWideEntry, never a `.(uint64)` assertion: a wide
+		// rung decodes to an encoding.SetMask, and a failed assertion
+		// returns 0 for every row — which this function's caller then
+		// diagnoses as "design column is constant over the admitted
+		// synthetic rows", a message describing a degenerate GENERATION.
+		// The reader would be misattributing its own defect to the
+		// cohort it is auditing.
+		mask, present := setMaskFromWideEntry(row.wide, col.Field)
 		if !present {
 			return 0
 		}
-		if mask&(uint64(1)<<col.Bit) != 0 {
+		if mask.Has(int(col.Bit)) {
 			return 1
 		}
 		return 0

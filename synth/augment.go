@@ -322,6 +322,32 @@ func setMaskFromWide(v any) encoding.SetMask {
 	return encoding.SetMask{}
 }
 
+// setMaskFromWideEntry is setMaskFromWide's presence-reporting half, for
+// the call sites that must distinguish "this row selected nothing" from
+// "this row's mask never decoded". ok is false for a nil map, an absent
+// key (the decoder DELETES the wide entry for a null set field) and any
+// value that is not one of the two mask shapes — so a caller that treats
+// !ok as MISSING keeps the listwise-deletion semantics the model fit and
+// its residual replay both depend on.
+//
+// It is deliberately the same switch as setMaskFromWide rather than a
+// second one: a rung added to encoding must not need an edit here, and
+// two switches over the same shapes drift.
+func setMaskFromWideEntry(wide map[string]any, name string) (encoding.SetMask, bool) {
+	if wide == nil {
+		return encoding.SetMask{}, false
+	}
+	v, present := wide[name]
+	if !present {
+		return encoding.SetMask{}, false
+	}
+	switch v.(type) {
+	case encoding.SetMask, uint64:
+		return setMaskFromWide(v), true
+	}
+	return encoding.SetMask{}, false
+}
+
 // decodedFieldValue converts one field's decoded (values/nulls/wide)
 // entry back into the same value shape writeFieldValueForField's sampler
 // path already accepts (float64 for numeric/date, string for

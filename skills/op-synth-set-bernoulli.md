@@ -32,6 +32,7 @@ Per-row `map[string]bool` (every declared option; true = selected), assembled in
 - `options` count over `MaxSetEntries()` → `PULSE_IMPORT_SET_OVERFLOW` at schema build.
 - `SpecFromProfile` fills this from `FieldProfile.Set.Options` and wires `SetCategoricalPairs`/`SetNumericPairs`/`SetSetPairs` from `Conditional.Set*Pairs` only when the paired field also reconstructed to its expected distribution (`weighted_categorical` / `normal` / `set_bernoulli`).
 - A profile captured without `--conditional` has no joint sections — every option draws its own marginal, byte-for-byte the pre-joint behaviour.
+- `SpecFromProfile` carries EVERY captured member, at every rung — `FieldProfile.Set.Options` is bit-ordered and uncapped below `MaxSetEntries()`, so a 206-member `set_u256` round-trips member-for-member. A translation that stopped at 64 would generate a plausible cohort whose high members are simply never selected.
 - Go map iteration order is never used for bit assignment (dictionary pre-populated in `options` order), so the seeded stream stays byte-identical.
 
 ## See

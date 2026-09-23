@@ -412,7 +412,12 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 // _synthetic=false (source) and _synthetic=true (synthetic) partitions
 // of mergedSchema's records, in a single decode pass — the same
 // wide[fieldName].(uint64) mask-reading discipline
-// synth/profile.go's marginal/joint capture already uses. Every
+// synth/profile.go's marginal/joint capture already uses — through
+// setMaskFromWide, which covers the narrow rungs' uint64 and the wide
+// rungs' encoding.SetMask alike. A `.(uint64)` assertion here would
+// read BOTH partitions of a wide column as empty, so every per-option
+// delta would come back exactly 0.0 and the section would certify a
+// generation it never measured. Every
 // dictionary entry within fieldName's type's MaxSetEntries bound gets
 // an entry, in bit/dictionary order, mirroring SetProfile.Options'
 // own ordering contract.
@@ -452,9 +457,9 @@ func computeSetFieldFidelity(mergedSchema *encoding.Schema, records []byte, fiel
 		} else {
 			srcN++
 		}
-		mask, _ := wide[fieldName].(uint64)
+		mask := setMaskFromWide(wide[fieldName])
 		for i := 0; i < n; i++ {
-			if mask&(uint64(1)<<uint(i)) == 0 {
+			if !mask.Has(i) {
 				continue
 			}
 			if synthetic {
@@ -906,9 +911,9 @@ func computeSyntheticSetOptionCategoricalJoint(mergedSchema *encoding.Schema, ro
 		if cv == "" {
 			continue
 		}
-		mask, _ := row.wide[setField].(uint64)
+		mask := setMaskFromWide(row.wide[setField])
 		sel := "not_selected"
-		if mask&(uint64(1)<<optIdx) != 0 {
+		if mask.Has(int(optIdx)) {
 			sel = "selected"
 		}
 		counts[[2]string{sel, cv}]++
@@ -985,9 +990,9 @@ func computeSyntheticSetOptionConditionalNumeric(mergedSchema *encoding.Schema, 
 		if row.nulls[setField] || row.nulls[numField] {
 			continue
 		}
-		mask, _ := row.wide[setField].(uint64)
+		mask := setMaskFromWide(row.wide[setField])
 		sel := "not_selected"
-		if mask&(uint64(1)<<optIdx) != 0 {
+		if mask.Has(int(optIdx)) {
 			sel = "selected"
 		}
 		a := accs[sel]
@@ -1066,14 +1071,14 @@ func computeSyntheticSetSetJoint(mergedSchema *encoding.Schema, rows []synthetic
 		if row.nulls[setA] || row.nulls[setB] {
 			continue
 		}
-		maskA, _ := row.wide[setA].(uint64)
-		maskB, _ := row.wide[setB].(uint64)
+		maskA := setMaskFromWide(row.wide[setA])
+		maskB := setMaskFromWide(row.wide[setB])
 		selA := "not_selected"
-		if maskA&(uint64(1)<<optIdxA) != 0 {
+		if maskA.Has(int(optIdxA)) {
 			selA = "selected"
 		}
 		selB := "not_selected"
-		if maskB&(uint64(1)<<optIdxB) != 0 {
+		if maskB.Has(int(optIdxB)) {
 			selB = "selected"
 		}
 		counts[[2]string{selA, selB}]++

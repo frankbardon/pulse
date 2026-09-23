@@ -21,6 +21,8 @@ Cohort read ONCE; fits do NOT run per row. The scan only retains a bounded Algor
 
 One reference level per categorical drops into the intercept (full level set + intercept is rank-deficient). Set options are all kept — a multi-select is not a partition.
 
+**A `set_*` predictor is read through `setMaskFromWideEntry`, at EVERY rung.** The retained snapshot holds an `encoding.SetMask` per set column, not a `uint64`, because a wide rung (`set_u128` / `set_u256`) decodes to a mask and a `.(uint64)` assertion there returns `present == false`. That is MISSING, not empty, so every row of the column is deleted listwise, the candidate explains nothing, and the target is reported as `carries no predictors` — a COMPLETE and entirely ordinary outcome elsewhere, which is why the loss carries no signal at all. The design-column reader (`dummyRecord`) and the recovery refit's own reader (`recoveryIndicator`) use the same helper; the recovery arm's failure mode is worse still, since it surfaces as `design column is constant over the admitted synthetic rows` — a message about a degenerate GENERATION, blaming the cohort for the reader's defect.
+
 ```
 {field, intercept, predictors, references, n_obs, r2, residual_std, shrinkage_alpha}
   predictors[] = {kind, field, level, coefficient}    kind ∈ categorical_level | set_option | numeric

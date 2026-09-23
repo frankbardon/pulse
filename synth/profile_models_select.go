@@ -364,12 +364,12 @@ func (s *candidateSurvey) observeCategorical(fi int, levelID uint32, targets []f
 // observeSet folds one retained row's set mask into the survey, updating
 // the selected arm for every option the row carries and the
 // not-selected arm for every option it does not.
-func (s *candidateSurvey) observeSet(fi int, mask uint64, targets []float64, present []bool) {
+func (s *candidateSurvey) observeSet(fi int, mask encoding.SetMask, targets []float64, present []bool) {
 	f := &s.fields[fi]
 	nt := len(s.targets)
 	for bit := 0; bit < f.groups; bit++ {
 		sel := 0
-		if mask&(uint64(1)<<uint(bit)) != 0 {
+		if mask.Has(bit) {
 			sel = 1
 		}
 		f.counts[bit] += sel
