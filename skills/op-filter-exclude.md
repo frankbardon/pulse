@@ -34,7 +34,7 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 - Null rows PASS this filter (asymmetric vs `FILTER_INCLUDE`). For null-aware logic use `FILTER_NULL`.
 - Unknown categorical label in `Values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
 - For "everything not in this small set" prefer `FILTER_INCLUDE` against the complement when the dictionary is small.
-- `set_*` rejected at build time with `PROCESSING_CONFIG`: the compared value is the mask's lossy float echo. Use `FILTER_SET_CONTAINS_NONE`.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no comparable scalar at any rung. Use `FILTER_SET_CONTAINS_NONE`.
 
 ## See
 

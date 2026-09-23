@@ -301,13 +301,14 @@ OPTION rather than once per field:
   options of the same field.
 
 Cardinality stays bounded without a new, separate cap: a set field's
-option count is capped by its own type (8/16/32/64 for
-`set_u8`/`u16`/`u32`/`u64`), and `ContingencyCellCap` still bounds every
-individual cell table exactly as it does for two plain categorical
-fields. Thin combinations (`n` below `synth.MinPairObservations`, 30)
-still ship — never dropped — appending the same warning shape every
-other pair kind uses. `synth from-profile` does not yet sample from any
-of these three sections — a later addition.
+option count is capped by its own type (8/16/32/64/128/256 for
+`set_u8`/`u16`/`u32`/`u64`/`u128`/`u256`), and `ContingencyCellCap`
+still bounds every individual cell table exactly as it does for two
+plain categorical fields. Thin combinations (`n` below
+`synth.MinPairObservations`, 30) still ship — never dropped —
+appending the same warning shape every other pair kind uses. `synth
+from-profile` does not yet sample from any of these three sections — a
+later addition.
 
 ## `--fit-shape`: mixture-of-normals shape fitting for numeric fields
 

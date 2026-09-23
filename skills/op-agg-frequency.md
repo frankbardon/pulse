@@ -41,7 +41,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Smart default for categorical_* and packed_bool fields.
 - High-cardinality fields blow memory — pair with `FILTER_INCLUDE` first or use `AGG_DISTINCT_COUNT`.
 - `mode_value` returned in Components; for the mode alone use `AGG_MODE`.
-- `set_*` rejected at build time with `PROCESSING_CONFIG`: a set field's numeric value is its bitmask's low 64 bits, not a quantity. Use `AGG_SET_FREQUENCY` for per-member counts.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask is not a quantity at any rung. Use `AGG_SET_FREQUENCY` for per-member counts.
 
 ## See
 
