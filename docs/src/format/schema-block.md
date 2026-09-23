@@ -16,8 +16,8 @@ field_record × field_count
 ```
 
 Each `field_record` is variable-width (it includes UTF-8 name and
-description strings, and may include a categorical dictionary or
-decimal/H3 metadata). The reader walks them sequentially.
+description strings, and may include an inline dictionary or decimal
+`(precision, scale)` metadata). The reader walks them sequentially.
 
 ## Per-field record
 
@@ -27,41 +27,54 @@ In write order — see `WriteSchema` /  `ReadSchema` in
 | # | Field | Size | Encoding |
 |---|---|---|---|
 | 1 | type            | 1 byte  | `FieldType` byte (see [Field Types](field-types.md)) |
-| 2 | name_length     | 2 bytes | u16 little-endian |
-| 3 | name            | name_length bytes | UTF-8 |
-| 4 | byte_offset     | 4 bytes | u32 LE — offset within a record |
-| 5 | bit_position    | 1 byte  | u8 — bit position within `byte_offset` (bit-packed types only) |
-| 6 | csv_column_idx  | 2 bytes | u16 LE — source column index at import time |
-| 7 | description     | 2 bytes length + UTF-8 | Capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`) |
-| 8 | (decimal only) precision | 1 byte | `decimal128` and `nullable_decimal128` only |
-| 9 | (decimal only) scale | 1 byte | same |
-| 10 | (categorical only) dictionary | variable | See [Dictionary Blocks](dictionaries.md) |
+| 2 | nullable        | 1 byte  | `1` = the field participates in the per-record null bitmap, `0` = it does not. **Immediately after the type byte** |
+| 3 | name_length     | 2 bytes | u16 little-endian |
+| 4 | name            | name_length bytes | UTF-8 |
+| 5 | byte_offset     | 4 bytes | u32 LE — offset within a record |
+| 6 | bit_position    | 1 byte  | u8 — slot within the field's byte (bit-packed types only; `0` otherwise) |
+| 7 | csv_column_idx  | 2 bytes | u16 LE — source column index at import time |
+| 8 | description     | 2 bytes length + UTF-8 | Capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`) |
+| 9 | (decimal only) precision | 1 byte | `decimal128` only |
+| 10 | (decimal only) scale | 1 byte | same |
+| 11 | (dictionary types only) dictionary | variable | `categorical_*` and `set_*`. See [Dictionary Blocks](dictionaries.md) |
 
 Order matters: every reader walks these in the listed order, so a
 malformed record stops the parse with `ENCODING_INVALID`.
 
+The nullable flag is **not** a type variant. There are no `nullable_*`
+field types — any type may carry the flag, and the flag alone decides
+whether the schema has a null bitmap at all
+([Record Layout → The null bitmap](records.md#the-null-bitmap)).
+
 ## Byte offsets and bit positions
 
 `byte_offset` is the offset of this field's first byte within a
-record. For bit-packed types (`packed_bool`, `nullable_bool`,
-`nullable_u4`), `byte_offset` plus `bit_position` together locate the
-field's bits within a byte that may be shared with adjacent fields.
+record. For the two bit-packed types (`u4`, `packed_bool`),
+`byte_offset` plus `bit_position` together locate the field's bits
+within its own byte — a bit-packed field still consumes one whole byte
+of the record stride.
 
-For non-packed types, `bit_position` is always `0`.
+For every other type, `bit_position` is always `0`.
 
-Record layout mechanics — including the bit-packing rule, record-size
-computation, and how the encoder packs adjacent sub-byte fields — are
-in [Record Layout](records.md).
+`byte_offset` is a reader convenience, not the authority: record stride
+is derived from the type bytes alone (`Schema.RecordByteSize`).
+
+Record layout mechanics — the bit-packing rule, record-size
+computation and the trailing null bitmap — are in
+[Record Layout](records.md).
 
 ## Conditional trailers
 
 Two trailers attach only to specific field types:
 
-- **`decimal128` / `nullable_decimal128`** get a `(precision, scale)`
-  pair (`u8`, `u8`). Both ≤ 38.
-- **Categorical types** (`categorical_u8`, `categorical_u16`,
-  `categorical_u32`) get a full dictionary block in line — see
-  [Dictionary Blocks](dictionaries.md).
+- **`decimal128`** gets a `(precision, scale)` pair (`u8`, `u8`). Both
+  ≤ 38.
+- **Dictionary-bearing types** (`FieldType.HasDictionary()` — the three
+  `categorical_*` and all six `set_*` rungs) get a full dictionary
+  block inline; see [Dictionary Blocks](dictionaries.md). A
+  dictionary-bearing field with no dictionary still writes an empty
+  one (a `u32` zero count), so the trailer's presence is decided by the
+  TYPE, never by whether values were seen.
 
 A field with none of the above writes nothing after the description.
 

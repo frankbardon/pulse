@@ -54,7 +54,7 @@ Three carry rules you cannot guess:
 - `constant` — coerced ONCE at spec-compile time to the field's own ROW shape: bool → 1/0 on any scalar, array or object of option names → a `set_*` mask, string REQUIRED for a categorical, verbatim string for `decimal128` (`ParseDecimal128` is exact). The only sampler taking its value from the document, so the only one that can put a Go `bool` where the expr environment promises `float64`; a shape the row cannot hold is refused at parse.
 - `set_bernoulli` — `options` also PRE-REGISTERS the field's dictionary at schema-build time. A determinism requirement, not an optimisation (see Set profiling).
 
-17 of the 18 field types are reachable — **`datetime` is NOT**: `fieldTypeFromName` (`synth/writer.go`) has no case for it, so `"type": "datetime"` refuses with `unknown field type`. Use `date` (epoch days) or `u64` epoch seconds. `decimal128` needs `params.scale` matching the declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
+19 of the 20 field types are reachable — **`datetime` is NOT**: `fieldTypeFromName` (`synth/writer.go`) has no case for it, so `"type": "datetime"` refuses with `unknown field type`. Use `date` (epoch days) or `u64` epoch seconds. `decimal128` needs `params.scale` matching the declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
 
 ### Constraints and structural rules → `synth-structural-rules`
 
