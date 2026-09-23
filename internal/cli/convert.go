@@ -86,6 +86,17 @@ func ConvertCommand() *cli.Command {
 				return err
 			}
 
+			// Same split as runExport: no Close on an error return
+			// (that would emit a zero-row target), but a writer
+			// holding an OS temp file still needs releasing. See
+			// pio.DiscardableWriter.
+			emitted := false
+			defer func() {
+				if !emitted {
+					_ = pio.DiscardWriter(writer)
+				}
+			}()
+
 			job := pio.NewConvertJob(reader, writer)
 			job.FS = fs
 			job.SampleRows = sampleRows
@@ -110,6 +121,7 @@ func ConvertCommand() *cli.Command {
 				return err
 			}
 
+			emitted = true
 			if err := writer.Close(); err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err)

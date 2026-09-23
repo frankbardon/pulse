@@ -38,6 +38,45 @@ type Writer interface {
 	Close() error
 }
 
+// DiscardableWriter is an optional extension of Writer for targets that
+// hold resources a Go GC cannot reclaim — an OS temp file, a handle —
+// before Close is ever reached.
+//
+// It exists because the io CLI leaves deliberately do NOT close the
+// writer when the job returns an error. Every adapter buffers its output
+// and emits it exactly once inside Close (afero.WriteFile, not an
+// incrementally written handle), so skipping Close writes NOTHING, which
+// is the correct outcome for a hard failure; adding a close-on-error
+// would put a zero-row target next to the error instead. That reasoning
+// is about DATA, and it is unchanged.
+//
+// Resources are the separate question, and exactly one adapter answers
+// it differently: io/excel drives an excelize StreamWriter whose buffer
+// spills to os.CreateTemp past excelize.StreamChunkSize (16 MiB), and
+// only excelize.File.Close removes those files. Discard is the
+// release-without-emitting half of Close — drop the buffers and any
+// temp files, write nothing to the target, and stay safe to call before
+// a Close that must also write nothing.
+//
+// An adapter that buffers purely on the Go heap needs no implementation;
+// the absent interface is the correct answer and DiscardWriter leaves
+// such a target alone.
+type DiscardableWriter interface {
+	Writer
+	Discard() error
+}
+
+// DiscardWriter releases a writer's non-heap resources without emitting
+// its target, for writers that implement DiscardableWriter. It is a
+// no-op for every other writer — and specifically does NOT fall back to
+// Close, which would write the file the caller is erroring out of.
+func DiscardWriter(w Writer) error {
+	if dw, ok := w.(DiscardableWriter); ok {
+		return dw.Discard()
+	}
+	return nil
+}
+
 // SchemaAwareWriter is an optional extension of Writer for targets that
 // emit native typed columns (Arrow, Parquet, Excel) and want the source
 // .pulse schema to drive column-type selection. ExportJob calls

@@ -23,6 +23,14 @@ import (
 // unchanged: some rows out, some on ConvertReport.RowErrors, nil error. A
 // source with no data rows converts to an empty target and is a success.
 // See totalRowFailure.
+//
+// A categorical dictionary that OVERFLOWS its rung is the other refusal.
+// It is a capacity violation rather than a row condition — past the limit
+// every further unseen category is lost for the rest of the file — so Run
+// stops at the offending cell with PULSE_IMPORT_CATEGORICAL_OVERFLOW
+// (row / column / type / max_entries / value in details), before any
+// KeepPulseAt intermediate is written. ImportJob fails the same condition
+// under the same code.
 func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
@@ -169,7 +177,39 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			if f.Type.IsCategorical() && dicts[i] != nil {
 				isNull := raw == "" || strings.EqualFold(raw, "null") || strings.EqualFold(raw, "na") || strings.EqualFold(raw, "n/a")
 				if !isNull {
-					dicts[i].AddWithLimit(raw, f.Type.MaxCategoricalEntries())
+					// A full dictionary is a CAPACITY violation, not a
+					// per-row data condition: once the rung is at its
+					// limit every further unseen category is lost for
+					// the REST of the file. Discarding this error made
+					// the convert report success while ConvertReport.
+					// Schema carried a short dictionary, and — with
+					// KeepPulseAt set — the intermediate re-import hit
+					// the same wall per row and dropped those rows from
+					// the cohort with its report discarded below.
+					//
+					// Refusing here, inside the read loop, also keeps
+					// the KeepPulseAt ordering the total-row-failure
+					// check documents: no intermediate cohort is
+					// written under a command that errored.
+					//
+					// The code is AddWithLimit's own
+					// PULSE_IMPORT_CATEGORICAL_OVERFLOW, by provenance:
+					// the overflow happens on convert's IMPORT half,
+					// reading the source, and ImportJob already fails
+					// the same condition under the same code.
+					if _, derr := dicts[i].AddWithLimit(raw, f.Type.MaxCategoricalEntries()); derr != nil {
+						return perrors.NewCodedErrorWithDetails(
+							perrors.PULSE_IMPORT_CATEGORICAL_OVERFLOW,
+							fmt.Sprintf("row %d, column %q: %v", rowNum, f.Name, derr),
+							map[string]any{
+								"row":         rowNum,
+								"column":      f.Name,
+								"type":        string(f.Type),
+								"max_entries": f.Type.MaxCategoricalEntries(),
+								"value":       raw,
+							},
+						)
+					}
 				}
 				values[i] = raw
 			} else {

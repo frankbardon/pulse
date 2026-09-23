@@ -73,7 +73,7 @@ The bitmap is the sole null mechanism. No type has an inline sentinel — `decim
 
 ## Width overflow
 
-- `PULSE_IMPORT_CATEGORICAL_OVERFLOW` / `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` — categorical width exceeded or dict unbounded.
+- `PULSE_IMPORT_CATEGORICAL_OVERFLOW` / `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` — categorical width exceeded or dict unbounded. Import AND convert both refuse on it: a full dictionary is a capacity violation, not a row condition, so every later unseen category would be lost for the rest of the file. `ConvertJob.Run` stops at the offending cell (`row` / `column` / `type` / `max_entries` / `value` in details) and writes no `--keep-pulse` intermediate.
 - `PULSE_IMPORT_SET_OVERFLOW` — `set_*` cardinality exceeded width.
 - `PULSE_SHARD_DICT_WIDTH_OVERFLOW` — shard insert would expand union dict past declared width. For a `set_*` field this now fires only past `set_u256`; below that the archive auto-widens (see Sharded cohorts → Cohesion).
 

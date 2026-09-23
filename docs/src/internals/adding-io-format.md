@@ -351,6 +351,16 @@ Convert falls back to the EXPORT code by provenance: its row loop hands
 raw cell text through and never objects to it, so every `RowError` it
 can record came out of your `WriteRow`.
 
+Convert has one refusal of its own, and it is not row-shaped. A
+categorical dictionary that fills its rung mid-pass raises
+`PULSE_IMPORT_CATEGORICAL_OVERFLOW` — the IMPORT-half code, by the same
+provenance rule, since the overflow happens reading the source — and
+`ConvertJob.Run` stops there with no report and no `KeepPulseAt`
+intermediate. It is fatal rather than partial because capacity is not a
+property of the row: past the limit every further unseen category is
+dropped for the rest of the file, which used to leave a `ConvertReport`
+whose schema carried a silently short dictionary.
+
 This matters when you write an adapter because a format-wide mistake —
 a column type your writer has no mapping for, a cell shape your reader
 never parses — fails identically on every row. Before the verdict
@@ -505,6 +515,42 @@ faithful re-emission from a reconstruction.
 > which the `.sav` row path does — has raised none of its diagnostics by
 > the time the job builds its report. Because the accessor is pure,
 > asking twice cannot double the set.
+
+### Releasing without emitting: `io.DiscardableWriter`
+
+Most adapters need nothing here, and the absent implementation is the
+correct answer.
+
+```go
+type DiscardableWriter interface {
+    Writer
+    Discard() error
+}
+```
+
+The io CLI leaves deliberately do **not** call `writer.Close()` when the
+job returns an error. Every adapter buffers its output and emits it
+exactly once inside `Close` (`afero.WriteFile`, not an incrementally
+written handle), so skipping `Close` writes *nothing* — the correct
+outcome for a hard failure. Adding a `defer writer.Close()` would put a
+zero-row target next to the error instead, which is precisely the
+silent-success trap the total-failure verdict exists to close.
+`TestExportTargets_EmitNothingBeforeClose` pins that property across all
+eight adapters, header **and** rows.
+
+That reasoning is about DATA. Resources are a separate question, and one
+adapter answers it differently: `io/excel` drives an excelize
+`StreamWriter` whose buffer spills to an `os.CreateTemp` file past
+`excelize.StreamChunkSize` (16 MiB), and only `excelize.File.Close`
+removes those files. `Discard` is the release-without-emitting half of
+`Close` — drop the buffers and any temp files, write nothing, and leave
+the writer inert so a later `Close` also writes nothing.
+
+`internal/cli/export.go` and `internal/cli/convert.go` run
+`pio.DiscardWriter(writer)` on every error return. It is a no-op for a
+writer that does not implement the interface, and it never falls back to
+`Close`. Implement `Discard` only if your writer holds something the Go
+GC cannot reclaim; if you buffer on the heap, do nothing.
 
 ### Predicting a refusal: `io.CohortValidator`
 

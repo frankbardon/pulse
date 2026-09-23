@@ -495,9 +495,34 @@ func (w *Writer) Close() error {
 	return w.file.Close()
 }
 
+// Discard releases the workbook and any excelize temp files WITHOUT
+// writing the target. pio.DiscardableWriter.
+//
+// The excelize StreamWriter spills its buffer to an os.CreateTemp file
+// once it passes excelize.StreamChunkSize, and excelize.File.Close is
+// the only thing that removes those files — so an export that errors
+// after a large number of rows, on a path that correctly refuses to
+// Close (closing would emit a zero-row workbook next to the error),
+// used to leave one behind. Discard is that path's release.
+//
+// It leaves the writer inert: the subsequent Close the happy path would
+// have run becomes a no-op, so a discarded export can never resurrect a
+// target file.
+func (w *Writer) Discard() error {
+	if w.file == nil {
+		w.sw = nil
+		return nil
+	}
+	f := w.file
+	w.file = nil
+	w.sw = nil
+	return f.Close()
+}
+
 // Ensure interfaces are satisfied at compile time.
 var _ pio.Reader = (*Reader)(nil)
 var _ pio.ResetReader = (*Reader)(nil)
 var _ pio.Writer = (*Writer)(nil)
 var _ pio.SchemaAwareWriter = (*Writer)(nil)
+var _ pio.DiscardableWriter = (*Writer)(nil)
 var _ pio.OverlayAwareWriter = (*Writer)(nil)

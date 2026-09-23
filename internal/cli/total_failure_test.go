@@ -129,6 +129,14 @@ func TestExportTargets_EmitNothingBeforeClose(t *testing.T) {
 			if err := w.WriteHeader([]string{"n"}); err != nil {
 				t.Fatalf("WriteHeader: %v", err)
 			}
+			// Rows too: the error returns that matter most fire
+			// INSIDE the row loop (the total-failure verdict,
+			// convert's categorical-overflow refusal), so a
+			// header-only writer would not exercise the case.
+			// A writer that refuses the row without a schema has
+			// still emitted nothing, which is what is asserted.
+			_ = w.WriteRow([]any{"1"})
+			_ = w.WriteRow([]any{"2"})
 			// No Close — this is the io leaves' error path.
 			if ok, _ := afero.Exists(fs, path); ok {
 				t.Errorf("%s wrote %s before Close; the leaves' error return would leave a truncated file behind", format, path)
