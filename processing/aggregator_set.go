@@ -778,3 +778,48 @@ var (
 	_ MetaAggregator = (*setCardinalityAvgAggregator)(nil)
 	_ MetaAggregator = (*setDistinctValuesAggregator)(nil)
 )
+
+// rejectSetFieldForNumericAggregator refuses an aggregator bound to a
+// set column when that aggregator reads Record.NumericValue. AGG_
+// FREQUENCY / AGG_MODE / AGG_DISTINCT_COUNT collect their input through
+// the orchestrator's valueAggregator shortcut, i.e. a []float64 of
+// "non-null numbers", and a set column has no such number: the decoder
+// echoes the mask into the numeric map as the LOW 64 BITS for set_u128
+// / set_u256 (encoding.decodeFixed) and as a float64 that has already
+// lost precision above 2^53 for set_u64.
+//
+// Both untreated outcomes are SILENT. Before NumericValue refused set
+// fields these three tallied the echo — a "modal value" that was really
+// a bitmask reinterpreted as a quantity. After the refusal they collect
+// nothing and report 0 distinct values over a fully answered column.
+// Refusing at construction is the only outcome a caller can see.
+//
+// This matches what they now DECLARE: descriptor/capabilities_
+// aggregators.go gives each of them AcceptsTypes: nonSetFieldTypes.
+// AGG_COUNT / AGG_NULL_COUNT are deliberately NOT here — they ask
+// presence, not value, through FieldPresent (processing/record_
+// presence.go), and they keep every set rung in their declaration.
+//
+// A nil schema (registry probe construction) has nothing to check.
+func rejectSetFieldForNumericAggregator(agg *types.Aggregation, schema *encoding.Schema) error {
+	if schema == nil || agg == nil || agg.Field == "" {
+		return nil
+	}
+	f := schema.Field(agg.Field)
+	if f == nil || !f.Type.IsSet() {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		string(agg.Type)+": field "+agg.Field+" is a set column ("+f.Type.String()+
+			"); its numeric value is the low 64 bits of the membership bitmask, not a quantity. Use AGG_SET_FREQUENCY for per-member counts, AGG_SET_DISTINCT_VALUES for distinct combinations, or AGG_COUNT for answered rows.",
+		map[string]any{
+			"field":      agg.Field,
+			"type":       f.Type.String(),
+			"aggregator": string(agg.Type),
+			"alternates": []string{
+				string(types.AGG_SET_FREQUENCY),
+				string(types.AGG_SET_DISTINCT_VALUES),
+				string(types.AGG_COUNT),
+			},
+		})
+}

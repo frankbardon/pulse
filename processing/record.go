@@ -2,7 +2,6 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 )
 
 // Record represents a single data row with field accessors.
@@ -189,10 +188,12 @@ func setMaskFromWideValue(v any) (encoding.SetMask, bool) {
 // This REPLACES the former SetValue (uint64, bool). That accessor
 // reported a failed `v.(uint64)` type assertion with the same (0, false)
 // it used for a null field, so a wide mask reaching it read as "selected
-// nothing" — wrong answers, no error, green tests. There is no exported
-// uint64 set accessor any more, by design. Operators that still hold
-// uint64 state narrow through narrowSetValue, which refuses rather than
-// truncates.
+// nothing" — wrong answers, no error, green tests. There is no uint64
+// set accessor any more, exported or otherwise, by design: the
+// temporary narrowing bridge every set operator leaned on during the
+// widening (narrowSetValue) is gone now that no operator holds uint64
+// set state. Anything that needs the low word asks the returned
+// SetMask for it and handles the !fits case itself.
 //
 // Callers that need exact-bit semantics MUST NOT read set fields via
 // NumericValue: the float64 echo loses high bits from set_u64 upward.
@@ -208,58 +209,6 @@ func (r *Record) SetMaskValue(name string) (encoding.SetMask, bool) {
 		return encoding.SetMask{}, false
 	}
 	return setMaskFromWideValue(v)
-}
-
-// narrowSetValue bridges a set field to the uint64 bitmask the set
-// operators still hold internally. It is the ONLY narrowing path in
-// processing/ and it REFUSES rather than truncates: a mask carrying a
-// bit at or above 64 returns a PROCESSING_RUNTIME error naming the field
-// and the offending bit, instead of a plausible-looking low word.
-//
-// ok == false means null or missing — the signal the operators already
-// skip on — and is never used for a mask the caller cannot represent.
-// Every call site is temporary: as each operator family widens to
-// encoding.SetMask it drops this bridge and consumes SetMaskValue.
-func narrowSetValue(r *Record, name string) (uint64, bool, error) {
-	// Fast path: narrow storage is already the uint64 the caller wants, so
-	// skip the widen-then-narrow round trip through the 32-byte SetMask.
-	// This is a pure shortcut — TestNarrowSetValue_AgreesWithSetMaskValue
-	// pins it to SetMaskValue across every record state so the two cannot
-	// drift apart.
-	if !r.nulls[name] && r.wide != nil {
-		if low, isNarrow := r.wide[name].(uint64); isNarrow {
-			return low, true, nil
-		}
-	}
-	return narrowSetValueSlow(r, name)
-}
-
-// narrowSetValueSlow is narrowSetValue's cold half: null, missing,
-// non-set, and the wide-mask refusal. Split out so narrowSetValue's
-// narrow fast path stays inline-eligible.
-func narrowSetValueSlow(r *Record, name string) (uint64, bool, error) {
-	m, ok := r.SetMaskValue(name)
-	if !ok {
-		return 0, false, nil
-	}
-	low, fits := m.Uint64()
-	if !fits {
-		return 0, false, wideSetNarrowError(name, m)
-	}
-	return low, true, nil
-}
-
-// wideSetNarrowError builds narrowSetValue's refusal. It is a separate
-// function so narrowSetValue itself stays inline-eligible — the error
-// path is cold and must not cost the narrow path a call frame.
-func wideSetNarrowError(name string, m encoding.SetMask) error {
-	return errors.NewCodedErrorWithDetails(errors.PROCESSING_RUNTIME,
-		"field "+name+" carries a set mask wider than 64 bits and this operator cannot read it yet",
-		map[string]any{
-			"field":        name,
-			"highest_bit":  m.HighestBit(),
-			"population_n": m.PopCount(),
-		})
 }
 
 // SetLabels decodes a set-typed field's bitmask into a slice of resolved

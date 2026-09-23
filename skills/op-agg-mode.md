@@ -17,7 +17,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any cohort field type (categorical_*, numeric, date, packed_bool, set_*, decimal128) |
+| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128) |
 
 ## Output
 
@@ -42,6 +42,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - First-seen tie-break — order-sensitive when ties present (`tie_count > 0` flags it).
 - High-cardinality fields blow memory; pre-filter or use `AGG_DISTINCT_COUNT`.
 - For the full histogram use `AGG_FREQUENCY`.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no modal scalar. Use `AGG_SET_DISTINCT_VALUES` or `AGG_SET_FREQUENCY`.
 
 ## See
 

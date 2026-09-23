@@ -17,7 +17,7 @@ None. `Group.Label` renames the output column; `Group.Include` allow-lists fan-o
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | `set_u8`/`u16`/`u32`/`u64` |
+| `Field` | any set rung — `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256` |
 
 ## Output
 

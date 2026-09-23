@@ -32,6 +32,7 @@ One `float64` per record — `50 + 10 * zscore`. Null source → null output.
 - Zero stddev → `NaN`.
 - `decimal128` rejected.
 - Not a percentile — same shape as the underlying distribution. For rank-style scoring use `ATTR_PERCENTILE` or `ATTR_NORMALIZED`.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise. Use `ATTR_SET_POPCOUNT` for set size or `ATTR_SET_HAS` for membership.
 
 ## See
 

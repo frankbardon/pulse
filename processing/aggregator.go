@@ -410,7 +410,10 @@ type frequencyAggregator struct {
 	frozenFinalized bool
 }
 
-func newFrequencyAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newFrequencyAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
+	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
+		return nil, err
+	}
 	return &frequencyAggregator{}, nil
 }
 
@@ -628,7 +631,10 @@ type modeAggregator struct {
 	frozenFinalized bool
 }
 
-func newModeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newModeAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
+	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
+		return nil, err
+	}
 	return &modeAggregator{}, nil
 }
 
@@ -785,7 +791,10 @@ type distinctCountAggregator struct {
 	frozenFinalized   bool
 }
 
-func newDistinctCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newDistinctCountAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
+	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
+		return nil, err
+	}
 	return &distinctCountAggregator{}, nil
 }
 

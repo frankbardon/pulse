@@ -19,6 +19,15 @@ func newIncludeFilterer() FiltererBuilder {
 }
 
 func (f *includeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
+	// The value this filterer compares is Record.NumericValue, which
+	// refuses set columns: the mask's float echo is the low 64 bits
+	// for a wide rung and lossy above 2^53 even for set_u64. Without
+	// this guard a set field matched the echo before that refusal and
+	// drops every row after it — two silent wrong answers where the
+	// declaration (nonSetFieldTypes) now says neither is offered.
+	if err := rejectSetFieldForNumericFilter(filter, schema); err != nil {
+		return nil, err
+	}
 	field := schema.Field(filter.Field)
 	isCategorical := field != nil && field.Type.IsCategorical() && field.Dictionary != nil
 
@@ -57,6 +66,15 @@ func newExcludeFilterer() FiltererBuilder {
 }
 
 func (f *excludeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
+	// The value this filterer compares is Record.NumericValue, which
+	// refuses set columns: the mask's float echo is the low 64 bits
+	// for a wide rung and lossy above 2^53 even for set_u64. Without
+	// this guard a set field matched the echo before that refusal and
+	// drops every row after it — two silent wrong answers where the
+	// declaration (nonSetFieldTypes) now says neither is offered.
+	if err := rejectSetFieldForNumericFilter(filter, schema); err != nil {
+		return nil, err
+	}
 	field := schema.Field(filter.Field)
 	isCategorical := field != nil && field.Type.IsCategorical() && field.Dictionary != nil
 

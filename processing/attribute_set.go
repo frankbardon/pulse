@@ -161,3 +161,39 @@ func (a *setHasAttribute) Row(r *Record, field string) (float64, error) {
 	}
 	return 0, nil
 }
+
+// rejectSetFieldForNumericAttribute refuses a numeric attribute bound to
+// a set column. ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED /
+// ATTR_PERCENTILE read Record.NumericValue on every row, and a set
+// column has no meaningful number there — the echo is the LOW 64 BITS of
+// the membership bitmask for set_u128 / set_u256, and a float64 that has
+// already lost precision above 2^53 for set_u64.
+//
+// These four factories ignored their schema argument entirely, so the
+// refusal had nowhere to live: a set column produced a whole emitted
+// attribute column of zeroes (NumericValue returns ok=false for every
+// row, PrePass sees n=0, and the standardisation divides by a zero
+// stddev) with no error anywhere. That is the silent class this guard
+// closes; it needs no descriptor change, because all four already
+// declare numericFieldTypesNoDecimal, which has never carried a set
+// rung.
+//
+// A nil schema (registry probe construction) has nothing to check.
+func rejectSetFieldForNumericAttribute(attr *types.Attribute, schema *encoding.Schema) error {
+	if schema == nil || attr == nil || attr.Field == "" {
+		return nil
+	}
+	f := schema.Field(attr.Field)
+	if f == nil || !f.Type.IsSet() {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		string(attr.Type)+": field "+attr.Field+" is a set column ("+f.Type.String()+
+			"); it has no numeric value to standardise. Use ATTR_SET_POPCOUNT for set size or ATTR_SET_HAS for membership.",
+		map[string]any{
+			"field":      attr.Field,
+			"type":       f.Type.String(),
+			"attribute":  string(attr.Type),
+			"alternates": []string{string(types.ATTR_SET_POPCOUNT), string(types.ATTR_SET_HAS)},
+		})
+}

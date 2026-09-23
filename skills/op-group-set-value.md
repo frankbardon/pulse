@@ -15,7 +15,7 @@ None. `Group.Label` overrides the output column name; `Group.Include []string` a
 
 ## Inputs
 
-`Field` — `set_u8`/`set_u16`/`set_u32`/`set_u64`.
+`Field` — any set rung: `set_u8`/`set_u16`/`set_u32`/`set_u64`/`set_u128`/`set_u256`.
 
 ## Output
 
@@ -25,7 +25,7 @@ Non-empty `Include` is order-significant: buckets emit in listed composite-key o
 
 ## Components
 
-Floor `{total_n, n_null}` + `n_empty_mask` (int, records whose set mask was the empty zero-bit selection) and `buckets` (`[]bucket` of `{key, mask, count, labels}` per emission). `Mergeable`; `StreamableGrouper`, so eligible for fused crosstab.
+Floor `{total_n, n_null}` + `n_empty_mask` (int, empty zero-bit selections) and `buckets` (`[]bucket` of `{key, count, labels}` per emission) plus **exactly one of** `mask` (uint64, when the selection fits 64 bits) or `mask_words` (`[]uint64`, low word first, when a `set_u128`/`set_u256` selection reaches bit 64+). Mutually exclusive: a `mask` holding only a wide selection's low word is a plausible wrong number. `Mergeable`; `StreamableGrouper`, so eligible for fused crosstab.
 
 ## Gotchas
 

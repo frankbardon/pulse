@@ -39,7 +39,7 @@ type fieldClassification struct {
 	Categorical   []string // categorical_u8/u16/u32
 	Date          []string // date
 	Bool          []string // packed_bool
-	Set           []string // set_u8/u16/u32/u64 multi-select bitmasks
+	Set           []string // set_u8/u16/u32/u64/u128/u256 multi-select bitmasks
 	NumericOrDate []string // window OrderBy targets
 }
 

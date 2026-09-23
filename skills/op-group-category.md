@@ -15,7 +15,7 @@ None. `Group.Label` overrides the output column name; `Group.Include []string` a
 
 ## Inputs
 
-`Field` — any cohort field type.
+`Field` — any cohort field type EXCEPT `set_*`.
 
 ## Output
 
@@ -32,6 +32,7 @@ Floor `{total_n, n_null}` + `dict_size` (int, distinct values observed) and `buc
 - `Include` matches the post-dictionary label; zero-record values drop, never emit empty.
 - High-cardinality fields blow memory — pair with `FILTER_INCLUDE`.
 - `GROUP_RANGE`/`GROUP_ROUNDED` for numeric binning.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — bucketing a bitmask's float echo is a plausible wrong partition. Use `GROUP_SET_VALUE` or `GROUP_SET_PER_ELEMENT`.
 
 ## See
 

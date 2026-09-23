@@ -477,7 +477,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -524,10 +526,6 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -630,10 +628,6 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -894,10 +888,6 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -961,7 +951,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -1145,7 +1137,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -1193,7 +1187,9 @@
           "description": "Average popcount per contributing row — typical number of selections.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1232,7 +1228,9 @@
           "description": "Sum of popcounts across contributing rows — total selections seen.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1266,7 +1264,9 @@
           "description": "Count of distinct exact mask values seen; each combination is atomic.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1310,7 +1310,9 @@
           "description": "Per-bit row count: how many rows had each set label selected.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1354,7 +1356,9 @@
           "description": "Bitwise-AND a set field across rows; returns the resolved labels for every bit set in every contributing row.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1398,7 +1402,9 @@
           "description": "Bitwise-OR a set field across rows; returns the resolved labels for every bit set in any contributing row.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1867,7 +1873,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -2018,7 +2026,9 @@
             }
           ],
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2036,7 +2046,9 @@
           "description": "Per-row popcount of a set field — the number of selected labels.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2150,10 +2162,6 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -2202,7 +2210,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -2254,7 +2264,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -2306,10 +2318,6 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -2358,7 +2366,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -2437,7 +2447,9 @@
           "description": "Keep records where the set field has every bit in the supplied Values labels set.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2471,7 +2483,9 @@
           "description": "Keep records where the set field shares at least one bit with the supplied Values labels.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2505,7 +2519,9 @@
           "description": "Keep records where the set field shares no bits with the supplied Values labels (null rows pass).",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2539,7 +2555,9 @@
           "description": "Keep records whose set field mask exactly matches the supplied Values labels.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2587,7 +2605,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -2624,7 +2644,7 @@
         {
           "name": "GROUP_CATEGORY",
           "category": "grouper",
-          "description": "Partition records by exact field value; ideal for categorical fields.",
+          "description": "Partition records by exact field value; ideal for categorical fields. Set columns are not partitionable by value here — use GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -2641,10 +2661,6 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
             "u64",
@@ -3019,7 +3035,9 @@
           "description": "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Implements MultiKeyStreamingGrouper.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -3058,7 +3076,9 @@
           "description": "Partition rows by the exact set mask (one bucket per unique combination). Bucket key = sorted label list joined with \"|\".",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -3085,7 +3105,7 @@
               {
                 "name": "buckets",
                 "type": "[]bucket",
-                "description": "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, count, labels} plus exactly one of mask (uint64, when the selection fits 64 bits) or mask_words ([]uint64, little-endian low word first, when a set_u128/set_u256 selection reaches bit 64 or above). The two are mutually exclusive: a uint64 mask carrying only the low word of a wide selection would be a plausible wrong number."
               }
             ],
             "mergeability": "mergeable"
@@ -3145,7 +3165,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -3344,7 +3366,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -3380,7 +3404,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -3682,7 +3708,9 @@
             "nullable_u4",
             "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
@@ -6179,9 +6207,6 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_SET_CARDINALITY_AVG",
@@ -6197,10 +6222,8 @@
           "ATTR_SET_POPCOUNT"
         ],
         "compatible_filterers": [
-          "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
-          "FILTER_INCLUDE",
           "FILTER_NULL",
           "FILTER_SET_CONTAINS_ALL",
           "FILTER_SET_CONTAINS_ANY",
@@ -6209,7 +6232,6 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY",
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
@@ -6228,9 +6250,6 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_SET_CARDINALITY_AVG",
@@ -6246,10 +6265,8 @@
           "ATTR_SET_POPCOUNT"
         ],
         "compatible_filterers": [
-          "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
-          "FILTER_INCLUDE",
           "FILTER_NULL",
           "FILTER_SET_CONTAINS_ALL",
           "FILTER_SET_CONTAINS_ANY",
@@ -6258,7 +6275,6 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY",
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
@@ -6277,9 +6293,6 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_SET_CARDINALITY_AVG",
@@ -6295,10 +6308,8 @@
           "ATTR_SET_POPCOUNT"
         ],
         "compatible_filterers": [
-          "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
-          "FILTER_INCLUDE",
           "FILTER_NULL",
           "FILTER_SET_CONTAINS_ALL",
           "FILTER_SET_CONTAINS_ANY",
@@ -6307,7 +6318,6 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY",
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
@@ -6326,9 +6336,6 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_SET_CARDINALITY_AVG",
@@ -6344,10 +6351,8 @@
           "ATTR_SET_POPCOUNT"
         ],
         "compatible_filterers": [
-          "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
-          "FILTER_INCLUDE",
           "FILTER_NULL",
           "FILTER_SET_CONTAINS_ALL",
           "FILTER_SET_CONTAINS_ANY",
@@ -6356,7 +6361,6 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY",
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
@@ -6410,12 +6414,88 @@
       {
         "name": "set_u128",
         "categorical": false,
-        "sharded_capable": true
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO",
+          "AGG_SET_CARDINALITY_AVG",
+          "AGG_SET_CARDINALITY_SUM",
+          "AGG_SET_DISTINCT_VALUES",
+          "AGG_SET_FREQUENCY",
+          "AGG_SET_INTERSECTION",
+          "AGG_SET_UNION"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_SET_HAS",
+          "ATTR_SET_POPCOUNT"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_NULL",
+          "FILTER_SET_CONTAINS_ALL",
+          "FILTER_SET_CONTAINS_ANY",
+          "FILTER_SET_CONTAINS_NONE",
+          "FILTER_SET_EQUALS",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_SET_PER_ELEMENT",
+          "GROUP_SET_VALUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "set_u256",
         "categorical": false,
-        "sharded_capable": true
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO",
+          "AGG_SET_CARDINALITY_AVG",
+          "AGG_SET_CARDINALITY_SUM",
+          "AGG_SET_DISTINCT_VALUES",
+          "AGG_SET_FREQUENCY",
+          "AGG_SET_INTERSECTION",
+          "AGG_SET_UNION"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_SET_HAS",
+          "ATTR_SET_POPCOUNT"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_NULL",
+          "FILTER_SET_CONTAINS_ALL",
+          "FILTER_SET_CONTAINS_ANY",
+          "FILTER_SET_CONTAINS_NONE",
+          "FILTER_SET_EQUALS",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_SET_PER_ELEMENT",
+          "GROUP_SET_VALUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       }
     ],
     "skills": [
@@ -9438,7 +9518,7 @@
             {
               "name": "buckets",
               "type": "[]bucket",
-              "description": "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, count, labels} plus exactly one of mask (uint64, when the selection fits 64 bits) or mask_words ([]uint64, little-endian low word first, when a set_u128/set_u256 selection reaches bit 64 or above). The two are mutually exclusive: a uint64 mask carrying only the low word of a wide selection would be a plausible wrong number."
             }
           ],
           "mergeability": "mergeable"
@@ -9691,4 +9771,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 672a1379701d26f358034deceda167cb852bee58b26df97c1a1290e640ddf303
+// golden-hash: 8eba6c2711b85851e3ce148d49d043553085f8710466c7f16797beb0b78aba35

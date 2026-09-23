@@ -208,6 +208,14 @@ type categoryGrouper struct {
 }
 
 func newCategoryGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
+	// GROUP_CATEGORY partitions on Record.NumericValue, which refuses set
+	// columns. Bucketing the mask's float echo was a plausible wrong
+	// partition; dropping every row after the refusal is a plausible empty
+	// one. Both are silent, so it refuses here and declares
+	// nonSetFieldTypes in descriptor/capabilities_groupers.go.
+	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
+		return nil, err
+	}
 	return &categoryGrouper{
 		schema:  schema,
 		field:   grp.Field,

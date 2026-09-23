@@ -78,6 +78,14 @@ var defaultRules = map[encoding.FieldType]defaultRule{
 	encoding.FieldTypeSetU16: {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
 	encoding.FieldTypeSetU32: {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
 	encoding.FieldTypeSetU64: {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
+
+	// Wide rungs default identically. Width is a storage decision, not a
+	// semantic one — the same question ("respondents per option") is
+	// being asked of a 206-member multi-response as of an 8-member one,
+	// and a rung-dependent default would make a widened column answer
+	// differently to the same request.
+	encoding.FieldTypeSetU128: {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
+	encoding.FieldTypeSetU256: {Agg: types.AGG_SET_FREQUENCY, Group: types.GROUP_SET_PER_ELEMENT, FamilyTag: "set default"},
 }
 
 // defaultRangeInterval is the bucket width applied to a newly-defaulted

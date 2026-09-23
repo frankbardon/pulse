@@ -1,6 +1,10 @@
 package descriptor
 
-import "github.com/frankbardon/pulse/types"
+import (
+	"strings"
+
+	"github.com/frankbardon/pulse/types"
+)
 
 // numericFieldTypes is the canonical list of cohort field types that
 // participate in numeric aggregations. Sorted alphabetically for golden
@@ -92,12 +96,16 @@ var numericFieldTypesStrictScalar = []string{
 	"u8",
 }
 
-// allCohortFieldTypes lists every field type without restriction (used by
-// COUNT, MODE, FREQUENCY, DISTINCT_COUNT which operate on any field).
+// allCohortFieldTypes lists every field type without restriction (used
+// by AGG_COUNT / AGG_NULL_COUNT / FILTER_NULL and the other operators
+// that ask only whether a field ANSWERED, which every type can do).
 // "every field type" is literal: a registered field type missing from
 // this list under-declares the operators that carry it, so the manifest
 // would tell a caller that AGG_COUNT cannot count a column it counts
 // fine. Keep it in step with encoding's FieldType registry.
+//
+// Operators that need the field's NUMBER rather than its presence take
+// nonSetFieldTypes instead — see its doc comment.
 var allCohortFieldTypes = []string{
 	"categorical_u16",
 	"categorical_u32",
@@ -113,7 +121,9 @@ var allCohortFieldTypes = []string{
 	"nullable_u4",
 	"nullable_u8",
 	"packed_bool",
+	"set_u128",
 	"set_u16",
+	"set_u256",
 	"set_u32",
 	"set_u64",
 	"set_u8",
@@ -126,11 +136,54 @@ var allCohortFieldTypes = []string{
 // setFieldTypes lists the bitmask multi-select field types. Used by every
 // AGG_SET_* / FILTER_SET_* / GROUP_SET_* / ATTR_SET_* operator — they
 // reject non-set fields at construction time.
+//
+// Every registered rung belongs here, narrow and wide alike: the set
+// operators read encoding.SetMask, which is width-agnostic, so a list
+// that stopped at set_u64 would tell a caller AGG_SET_UNION cannot fold
+// a column it folds fine.
 var setFieldTypes = []string{
+	"set_u128",
 	"set_u16",
+	"set_u256",
 	"set_u32",
 	"set_u64",
 	"set_u8",
+}
+
+// nonSetFieldTypes is allCohortFieldTypes minus every set rung. It
+// belongs to the operators that accept "any field" in the sense of "any
+// field that has a NUMBER" — they read Record.NumericValue, which
+// refuses set columns outright.
+//
+// A set column has no meaningful numeric value: the decoder's float64
+// echo is the LOW 64 BITS of the membership bitmask for set_u128 /
+// set_u256 and is already lossy above 2^53 for set_u64. Declaring a set
+// type on such an operator promises something the runtime cannot keep,
+// and BOTH of its failure modes are silent — before the NumericValue
+// refusal these operators matched the echo (a plausible wrong answer),
+// after it they drop every row (a plausible empty answer). The
+// declaration is therefore part of the fix, alongside the construction
+// -time refusals in processing/ (rejectSetFieldForNumericFilter,
+// rejectSetFieldForNumericGrouper, rejectSetFieldForNumericAggregator,
+// rejectSetFieldForNumericAttribute).
+//
+// Callers wanting set semantics use the AGG_SET_* / FILTER_SET_* /
+// GROUP_SET_* / ATTR_SET_* families instead.
+var nonSetFieldTypes = nonSetSubset(allCohortFieldTypes)
+
+// nonSetSubset returns names with every "set_" prefixed entry removed,
+// preserving order. Derived from allCohortFieldTypes rather than
+// written out so a newly registered rung cannot land in one list and
+// miss the other.
+func nonSetSubset(names []string) []string {
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		if strings.HasPrefix(n, "set_") {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // universalAggFloorKeys is the {n, n_null} pair every aggregator's
@@ -247,7 +300,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_FREQUENCY),
 			Category:      "aggregator",
 			Description:   "Per-distinct-value count of the field (returned as map in Details).",
-			AcceptsTypes:  allCohortFieldTypes,
+			AcceptsTypes:  nonSetFieldTypes,
 			EmitsTypeNote: "map[string]int64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(Partial,
@@ -302,7 +355,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_MODE),
 			Category:      "aggregator",
 			Description:   "Most-frequent value of the field (ties broken by first-seen order).",
-			AcceptsTypes:  allCohortFieldTypes,
+			AcceptsTypes:  nonSetFieldTypes,
 			EmitsTypeNote: "string (echoes the dictionary value or stringified scalar)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(Partial,
@@ -345,7 +398,7 @@ func aggregatorCapabilities() []Operator {
 			Name:          string(types.AGG_DISTINCT_COUNT),
 			Category:      "aggregator",
 			Description:   "Count of distinct non-null values across the input set.",
-			AcceptsTypes:  allCohortFieldTypes,
+			AcceptsTypes:  nonSetFieldTypes,
 			EmitsTypeNote: "scalar int64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(Partial,

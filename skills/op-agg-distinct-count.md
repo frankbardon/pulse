@@ -17,7 +17,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any cohort field type (categorical_*, numeric, date, packed_bool, set_*, decimal128) |
+| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128) |
 
 ## Output
 
@@ -38,7 +38,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - High-cardinality fields → memory growth proportional to distinct values.
 - Counts non-null only; nulls collapsed.
-- For exact-mask distinct counts on `set_*` use `AGG_SET_DISTINCT_VALUES`.
+- `set_*` rejected at build time with `PROCESSING_CONFIG`; for exact-mask distinct counts use `AGG_SET_DISTINCT_VALUES`.
 
 ## See
 

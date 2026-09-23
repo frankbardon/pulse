@@ -55,10 +55,11 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 // AcceptsTypes: numericFieldTypesNoDecimal, which has never included a
 // set rung. This is the grouper twin of the FILTER_RANGE refusal.
 //
-// GROUP_CATEGORY is deliberately NOT included: it declares
-// allCohortFieldTypes and stringifies whatever scalar it is given, so
-// narrowing it would be a capability change rather than a guard. A nil
-// schema (registry probe construction) has nothing to check.
+// GROUP_CATEGORY calls this too. It used to be excluded because
+// narrowing it was a capability change rather than a guard; that
+// capability change has since been made — it declares nonSetFieldTypes
+// now — so the guard and the declaration agree. A nil schema (registry
+// probe construction) has nothing to check.
 func rejectSetFieldForNumericGrouper(grp *types.Group, schema *encoding.Schema) error {
 	if schema == nil || grp == nil || grp.Field == "" {
 		return nil
@@ -229,8 +230,7 @@ func (g *setValueGrouper) Group(records []*Record, _ string) (map[string][]*Reco
 //     set_u256 selection reaches bit 64 or above. The two keys are
 //     mutually exclusive on purpose: a uint64 "mask" carrying the low
 //     word of a wide selection would be a plausible wrong number, and
-//     this operator refuses rather than truncates (the same posture as
-//     processing.narrowSetValue).
+//     this operator refuses rather than truncates.
 //   - buckets[].count: row count for that mask.
 //   - buckets[].labels: dictionary-decoded labels for the bits set in
 //     mask, sorted in ascending bit order (encoding.SetMask.Labels, the

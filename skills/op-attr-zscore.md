@@ -32,6 +32,7 @@ One `float64` per record — `(value − pop_mean) / pop_stddev`. Null source �
 - Zero stddev → `NaN` (constant field).
 - `decimal128` rejected; for aggregate z use `AGG_ZSCORE` instead.
 - Under sharded cohorts the two-pass runs per-shard along the `Mergeable` path — produces global standardization.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise. Use `ATTR_SET_POPCOUNT` for set size or `ATTR_SET_HAS` for membership.
 
 ## See
 

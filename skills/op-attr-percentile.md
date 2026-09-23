@@ -33,6 +33,7 @@ One `float64` per record in `(0, 100]` — the row's percentile within the filte
 - For streaming-friendly relative position use `ATTR_NORMALIZED` (min-max) as a proxy.
 - `decimal128` rejected.
 - Under shard archives the sort runs per-shard along the `Mergeable` path; pass 2 emits global ranks once shards merge.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise. Use `ATTR_SET_POPCOUNT` for set size or `ATTR_SET_HAS` for membership.
 
 ## See
 

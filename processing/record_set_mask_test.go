@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	perrors "github.com/frankbardon/pulse/errors"
 )
 
 // ---------------------------------------------------------------------
@@ -218,109 +217,6 @@ func TestRecord_WideSetIsNeverReportedAsNull(t *testing.T) {
 	}
 }
 
-// The narrowing bridge the not-yet-widened operators use must REFUSE a
-// mask it cannot represent, never hand back a plausible zero.
-func TestNarrowSetValue_RefusesAMaskItCannotRepresent(t *testing.T) {
-	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
-	for _, bit := range []int{64, 127, 128, 255} {
-		t.Run(fmt.Sprintf("bit%d", bit), func(t *testing.T) {
-			r := makeWideSetRecord(schema, maskWithBits(bit))
-			low, ok, err := narrowSetValue(r, "tags")
-			if err == nil {
-				t.Fatalf("narrowSetValue err = nil for bit %d — silent truncation to (%#x, %v)", bit, low, ok)
-			}
-			if ok {
-				t.Errorf("narrowSetValue ok = true alongside an error")
-			}
-			if !perrors.HasCode(err, perrors.PROCESSING_RUNTIME) {
-				t.Errorf("error = %v, want a PROCESSING_RUNTIME coded error", err)
-			}
-		})
-	}
-}
-
-// A wide mask that happens to carry a low bit too must still be refused
-// — truncating it would drop a real selection.
-func TestNarrowSetValue_RefusesMixedLowAndHighBits(t *testing.T) {
-	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
-	r := makeWideSetRecord(schema, maskWithBits(3, 200))
-	if _, _, err := narrowSetValue(r, "tags"); err == nil {
-		t.Fatalf("narrowSetValue err = nil for bits {3,200}; bit 3 alone would look like a valid selection")
-	}
-}
-
-func TestNarrowSetValue_NarrowPassesThroughAndNullIsNotAnError(t *testing.T) {
-	schema := makeWideSetSchema(t, encoding.FieldTypeSetU64, 64)
-
-	r := NewRecordWithWide(schema, map[string]float64{}, nil,
-		map[string]any{"tags": uint64(0b1011)})
-	low, ok, err := narrowSetValue(r, "tags")
-	if err != nil {
-		t.Fatalf("narrowSetValue err = %v, want nil", err)
-	}
-	if !ok || low != 0b1011 {
-		t.Errorf("narrowSetValue = (%#b, %v), want (0b1011, true)", low, ok)
-	}
-
-	null := NewRecordWithWide(schema, map[string]float64{},
-		map[string]bool{"tags": true}, map[string]any{})
-	low, ok, err = narrowSetValue(null, "tags")
-	if err != nil {
-		t.Fatalf("narrowSetValue on a null field err = %v, want nil", err)
-	}
-	if ok || low != 0 {
-		t.Errorf("narrowSetValue on a null field = (%#x, %v), want (0, false)", low, ok)
-	}
-}
-
-// narrowSetValue takes a fast path straight off the wide map for narrow
-// uint64 storage. That shortcut must stay observationally identical to
-// the canonical SetMaskValue accessor for every record state, or the two
-// drift and the null semantics fork.
-func TestNarrowSetValue_AgreesWithSetMaskValue(t *testing.T) {
-	schema := makeWideSetSchema(t, encoding.FieldTypeSetU256, 256)
-	states := []struct {
-		name  string
-		nulls map[string]bool
-		wide  map[string]any
-	}{
-		{"narrow_zero", nil, map[string]any{"tags": uint64(0)}},
-		{"narrow_bits", nil, map[string]any{"tags": uint64(0b1011)}},
-		{"narrow_high_bit", nil, map[string]any{"tags": uint64(1) << 63}},
-		{"wide_low_only", nil, map[string]any{"tags": maskWithBits(3)}},
-		{"wide_empty", nil, map[string]any{"tags": encoding.SetMask{}}},
-		{"missing", nil, map[string]any{}},
-		{"null_marked", map[string]bool{"tags": true}, map[string]any{}},
-		{"null_marked_with_value", map[string]bool{"tags": true}, map[string]any{"tags": uint64(7)}},
-		{"non_set_wide_value", nil, map[string]any{"tags": encoding.Decimal128{}}},
-	}
-	for _, st := range states {
-		t.Run(st.name, func(t *testing.T) {
-			r := NewRecordWithWide(schema, map[string]float64{}, st.nulls, st.wide)
-
-			mask, maskOK := r.SetMaskValue("tags")
-			low, narrowOK, err := narrowSetValue(r, "tags")
-			if err != nil {
-				t.Fatalf("narrowSetValue err = %v; no state here exceeds 64 bits", err)
-			}
-			if narrowOK != maskOK {
-				t.Fatalf("narrowSetValue ok = %v, SetMaskValue ok = %v — the fast path forked",
-					narrowOK, maskOK)
-			}
-			wantLow, fits := mask.Uint64()
-			if !fits {
-				t.Fatalf("test state %q unexpectedly exceeds 64 bits", st.name)
-			}
-			if !maskOK {
-				wantLow = 0
-			}
-			if low != wantLow {
-				t.Errorf("narrowSetValue low = %#x, SetMaskValue low = %#x", low, wantLow)
-			}
-		})
-	}
-}
-
 // ---------------------------------------------------------------------
 // Label resolution bounds on the dictionary, not on 64
 // ---------------------------------------------------------------------
@@ -515,27 +411,6 @@ func BenchmarkRecord_SetMaskValue_Narrow(b *testing.B) {
 	}
 	if acc != b.N {
 		b.Fatalf("SetMaskValue succeeded %d/%d times", acc, b.N)
-	}
-}
-
-func BenchmarkNarrowSetValue(b *testing.B) {
-	schema := &encoding.Schema{Fields: []encoding.Field{
-		{Name: "tags", Type: encoding.FieldTypeSetU64},
-	}}
-	r := NewRecordWithWide(schema, map[string]float64{}, nil,
-		map[string]any{"tags": uint64(0x0F0F0F0F0F0F0F0F)})
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	acc := 0
-	for i := 0; i < b.N; i++ {
-		m, ok, err := narrowSetValue(r, "tags")
-		if err == nil && ok && m != 0 {
-			acc++
-		}
-	}
-	if acc != b.N {
-		b.Fatalf("narrowSetValue succeeded %d/%d times", acc, b.N)
 	}
 }
 

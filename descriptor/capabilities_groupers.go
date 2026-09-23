@@ -54,8 +54,8 @@ func grouperCapabilities() []Operator {
 		{
 			Name:          string(types.GROUP_CATEGORY),
 			Category:      "grouper",
-			Description:   "Partition records by exact field value; ideal for categorical fields.",
-			AcceptsTypes:  allCohortFieldTypes,
+			Description:   "Partition records by exact field value; ideal for categorical fields. Set columns are not partitionable by value here — use GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT.",
+			AcceptsTypes:  nonSetFieldTypes,
 			EmitsTypeNote: "string group key per row",
 			Streamable:    true,
 			ComponentSchema: groupSchema(Mergeable,
@@ -204,7 +204,7 @@ func grouperCapabilities() []Operator {
 			Streamable:    true,
 			ComponentSchema: groupSchema(Mergeable,
 				ComponentKey{Name: "n_empty_mask", Type: "int", Description: "Records whose set mask was the empty selection (zero-bit mask is a valid distinct bucket from null)."},
-				ComponentKey{Name: "buckets", Type: "[]bucket", Description: "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."},
+				ComponentKey{Name: "buckets", Type: "[]bucket", Description: "Per-bucket records, ordered by emission; each entry carries {key, count, labels} plus exactly one of mask (uint64, when the selection fits 64 bits) or mask_words ([]uint64, little-endian low word first, when a set_u128/set_u256 selection reaches bit 64 or above). The two are mutually exclusive: a uint64 mask carrying only the low word of a wide selection would be a plausible wrong number."},
 			),
 		},
 		{
