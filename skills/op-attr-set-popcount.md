@@ -24,7 +24,7 @@ None.
 
 ## Output
 
-One small integer per record (encoded as `u8`, range 0..set width). Empty mask → `0` (valid, distinct from null). Null source → null output.
+One integer per record, 0..set width **inclusive** — 0..256 at `set_u256`, hence `emits_type` `u16`, not `u8`. Empty mask → `0` (valid, distinct from null). Null source → null output.
 
 ## Gotchas
 
@@ -32,6 +32,7 @@ One small integer per record (encoded as `u8`, range 0..set width). Empty mask �
 - Use as a downstream filterable signal ("respondents who selected ≥ 3 issues") — pair with `FILTER_GTE` after this attribute, or precompute as `FEAT` if you need it before the filterers slot.
 - For the SUM of popcounts across rows use `AGG_SET_CARDINALITY_SUM`; for the average use `AGG_SET_CARDINALITY_AVG`.
 - For "did this row select label X" use `ATTR_SET_HAS`.
+- A fully-selected `set_u256` gives 256, one past a `u8`'s 255 — size any destination column from `emits_type`, not from the rung's byte width.
 
 ## See
 

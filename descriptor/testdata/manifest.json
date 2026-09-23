@@ -2053,8 +2053,8 @@
             "set_u64",
             "set_u8"
           ],
-          "emits_type": "u8",
-          "emits_type_note": "one small integer per record (0..set width)",
+          "emits_type": "u16",
+          "emits_type_note": "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -9771,4 +9771,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8eba6c2711b85851e3ce148d49d043553085f8710466c7f16797beb0b78aba35
+// golden-hash: fbd4b199b1decb61911f8d2e46ee9d4c5bcd1dfdedbd567ca3394ee1f8a4e86a

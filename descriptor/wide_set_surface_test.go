@@ -310,3 +310,87 @@ func TestFacet_WideSetRejectsNumericStats(t *testing.T) {
 		})
 	}
 }
+
+// maxUnsignedValue returns the largest value an unsigned integer field
+// type can hold, or (0, false) for a type that is not one. Derived from
+// the type's own width so a new rung cannot make it stale.
+func maxUnsignedValue(ft encoding.FieldType) (uint64, bool) {
+	switch ft {
+	case encoding.FieldTypeU4:
+		return 15, true
+	case encoding.FieldTypeU8:
+		return 1<<8 - 1, true
+	case encoding.FieldTypeU16:
+		return 1<<16 - 1, true
+	case encoding.FieldTypeU32:
+		return 1<<32 - 1, true
+	case encoding.FieldTypeU64:
+		return 1<<64 - 1, true
+	}
+	return 0, false
+}
+
+// widestSetRung returns the largest MaxSetEntries across every
+// registered set type — the largest popcount ATTR_SET_POPCOUNT can
+// produce. Walked from the registry rather than written down.
+func widestSetRung(t *testing.T) uint32 {
+	t.Helper()
+	var widest uint32
+	for i := range 256 {
+		ft := encoding.FieldType(i)
+		if !ft.IsKnown() {
+			break
+		}
+		if ft.IsSet() && ft.MaxSetEntries() > widest {
+			widest = ft.MaxSetEntries()
+		}
+	}
+	if widest == 0 {
+		t.Fatal("no registered set type found")
+	}
+	return widest
+}
+
+// TestCapabilities_SetPopcountEmitsTypeHoldsWidestRung pins the one
+// number ATTR_SET_POPCOUNT's declaration has to be able to hold: a
+// fully-selected column at the widest registered rung.
+//
+// The declaration was "u8" when set_u64 was the top rung — popcount
+// 0..64 fits a byte with room to spare. It stopped fitting the moment
+// set_u256 landed: a 256-member selection is 256, and u8 stops at 255.
+// Exactly one value overflows, at exactly one rung, only when every
+// member is ticked — the shape that ships.
+//
+// EmitsType is advisory manifest metadata with no runtime consumer
+// (descriptor/operator.go), so this is a wrong declaration rather than a
+// truncation; processing/attribute_set_popcount_range_test.go pins the
+// wire side. Asserted against the registry so adding a wider rung fails
+// here instead of quietly re-breaking the declaration.
+func TestCapabilities_SetPopcountEmitsTypeHoldsWidestRung(t *testing.T) {
+	var op *Operator
+	for _, o := range attributeCapabilities() {
+		if o.Name == string(types.ATTR_SET_POPCOUNT) {
+			op = &o
+			break
+		}
+	}
+	if op == nil {
+		t.Fatal("attributeCapabilities has no ATTR_SET_POPCOUNT entry")
+	}
+	if op.EmitsType == "" {
+		t.Fatal("ATTR_SET_POPCOUNT declares no EmitsType")
+	}
+	ft, ok := encoding.ParseFieldType(op.EmitsType)
+	if !ok {
+		t.Fatalf("ATTR_SET_POPCOUNT EmitsType %q is not a registered field type", op.EmitsType)
+	}
+	max, ok := maxUnsignedValue(ft)
+	if !ok {
+		t.Fatalf("ATTR_SET_POPCOUNT EmitsType %q is not an unsigned integer type", op.EmitsType)
+	}
+	widest := widestSetRung(t)
+	if max < uint64(widest) {
+		t.Errorf("ATTR_SET_POPCOUNT EmitsType = %q (max %d) but a fully-selected column at the widest rung has popcount %d — the declaration cannot hold its own output",
+			op.EmitsType, max, widest)
+	}
+}
