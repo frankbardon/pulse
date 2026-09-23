@@ -1054,19 +1054,21 @@
         {
           "name": "AGG_RATIO",
           "category": "aggregator",
-          "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored. Denominator-zero yields NaN.",
+          "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN.",
           "params": [
             {
               "name": "numerator_field",
-              "type": "string",
+              "type": "field",
               "required": true,
-              "description": "Schema field summed as the numerator."
+              "description": "Schema field summed as the numerator. Read through the row's numeric channel, so a non-numeric field contributes its encoded value (a categorical contributes its dictionary code) rather than erroring.",
+              "field_filter": "any"
             },
             {
               "name": "denominator_field",
-              "type": "string",
+              "type": "field",
               "required": true,
-              "description": "Schema field summed as the denominator."
+              "description": "Schema field summed as the denominator. Same numeric-channel read as the numerator.",
+              "field_filter": "any"
             }
           ],
           "accepts_types": [
@@ -1091,6 +1093,7 @@
             "u64",
             "u8"
           ],
+          "ignores_field": true,
           "emits_type_note": "scalar float64 (NaN when denominator sum == 0)",
           "streamable": true,
           "component_schema": {
@@ -9664,4 +9667,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d03be8b9c2bdb10502f65cd31531cd10745ab125de33b9cd9fe6a7ac24fe01fe
+// golden-hash: a0ddefdd03c2bb1aa5ba5577c455cccfe77ed077a4983283a6b7647e01aa1a0a

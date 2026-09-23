@@ -179,9 +179,16 @@ it only `warnings` moves. See [profile create](profile-create.md).
 
 Every runnable leaf the binary exposes, with the page that documents it
 in depth. A leaf whose "Documented in" column names no dedicated page is
-covered by the surrounding topic page or by `--help`; the list itself is
-the contract, and `TestSkillsCoverAllCliLeaves` fails if a new leaf is
-added without naming it somewhere under `skills/` or `docs/src/`.
+covered by the surrounding topic page or by `--help`.
+
+The list itself is the contract, and it is enforced **in both
+directions** by `TestSkillsCoverAllCliLeaves`: a leaf added to
+`buildApp()` without a row here fails the gate, and a row here that names
+a command the binary does not actually mount fails it too. The second
+direction is the one that matters when a registration is deleted — the
+documented command would otherwise stay listed while answering "command
+not found". Group nodes that carry no action of their own (`pulse api`,
+`pulse shard`, `pulse index`) are not leaves and are deliberately absent.
 
 | Leaf | Purpose | Documented in |
 |---|---|---|

@@ -372,11 +372,16 @@ func widestSetRung(t *testing.T) uint32 {
 // Exactly one value overflows, at exactly one rung, only when every
 // member is ticked — the shape that ships.
 //
-// EmitsType is advisory manifest metadata with no runtime consumer
-// (descriptor/operator.go), so this is a wrong declaration rather than a
+// EmitsType never narrows a value on the wire — the attribute channel is
+// float64 end to end — so this was a wrong declaration rather than a
 // truncation; processing/attribute_set_popcount_range_test.go pins the
 // wire side. Asserted against the registry so adding a wider rung fails
-// here instead of quietly re-breaking the declaration.
+// here instead of quietly re-breaking the declaration. This is the
+// STATIC half: it reads the declaration against the registry without
+// executing anything, and so still fires in a no-execute package.
+// processing.TestManifestEmitsTypeHoldsAtRuntime is the dynamic half —
+// it runs every operator that declares an EmitsType and checks the
+// values produced.
 func TestCapabilities_SetPopcountEmitsTypeHoldsWidestRung(t *testing.T) {
 	var op *Operator
 	for _, o := range attributeCapabilities() {

@@ -19,9 +19,11 @@ import (
 // float64 echo of a set field is the low 64 bits of the bitmask, which
 // is a plausible wrong number rather than an error.
 
-// Derive scalar uint8 per row = popcount(mask). Null input rows yield
-// 0 (consistent with other row-local attribute paths that surface 0
-// for null inputs through Compute).
+// Derive a scalar count per row = popcount(mask). The value is an int
+// widened to float64 like every attribute output — never a byte: a
+// fully-selected column at the widest rung counts 256, past a uint8.
+// Null input rows yield 0 (consistent with other row-local attribute
+// paths that surface 0 for null inputs through Compute).
 
 type setPopcountAttribute struct{}
 

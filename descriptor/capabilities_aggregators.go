@@ -501,21 +501,28 @@ func aggregatorCapabilities() []Operator {
 		{
 			Name:        string(types.AGG_RATIO),
 			Category:    "aggregator",
-			Description: "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored. Denominator-zero yields NaN.",
+			Description: "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN.",
 			Params: []Param{
 				{
 					Name:        "numerator_field",
-					Type:        "string",
+					Type:        "field",
 					Required:    true,
-					Description: "Schema field summed as the numerator.",
+					FieldFilter: "any",
+					Description: "Schema field summed as the numerator. Read through the row's numeric channel, so a non-numeric field contributes its encoded value (a categorical contributes its dictionary code) rather than erroring.",
 				},
 				{
 					Name:        "denominator_field",
-					Type:        "string",
+					Type:        "field",
 					Required:    true,
-					Description: "Schema field summed as the denominator.",
+					FieldFilter: "any",
+					Description: "Schema field summed as the denominator. Same numeric-channel read as the numerator.",
 				},
 			},
+			// IgnoresField, and AcceptsTypes therefore says only that no
+			// type is refused in a slot the operator discards. The wire
+			// form still requires Aggregation.Field; every type is equally
+			// fine there because none of them is read.
+			IgnoresField:  true,
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "scalar float64 (NaN when denominator sum == 0)",
 			Streamable:    true,

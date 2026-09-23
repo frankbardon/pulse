@@ -109,11 +109,13 @@ func attributeCapabilities() []Operator {
 			// is one past u8's 255 ceiling. u8 was right while set_u64
 			// topped the ladder and became wrong the moment set_u256
 			// landed, at exactly one value, only when every member is
-			// ticked. EmitsType has no runtime consumer (see
-			// descriptor/operator.go), so nothing was truncated on the
-			// wire — the attribute channel is float64 end to end — but a
-			// caller sizing a destination column from the manifest would
-			// have built one that cannot hold the answer.
+			// ticked. Nothing was truncated on the wire — the attribute
+			// channel is float64 end to end — but a caller sizing a
+			// destination column from the manifest would have built one
+			// that cannot hold the answer. The declaration is now checked
+			// against a real run by
+			// processing.TestManifestEmitsTypeHoldsAtRuntime, which
+			// probes a fully-selected column at the widest rung.
 			EmitsType:     "u16",
 			EmitsTypeNote: "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256)",
 			Streamable:    true,
