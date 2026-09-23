@@ -109,6 +109,10 @@ func (s *Service) reduceParallelBuffered(
 		grouperFactory = f
 	}
 
+	// Primary-field null tally for Run.NullRecords — resolved once,
+	// through the same helper the per-shard reducer uses.
+	primaryNullField := primaryNullFieldFor(req)
+
 	// Per-worker partial slots. The hot loop writes only to its own
 	// index; no synchronisation is required during decode. publishMu
 	// gates only the final slice-header write per worker so the Go
@@ -158,7 +162,11 @@ func (s *Service) reduceParallelBuffered(
 			}
 		}
 
-		out := &shardPartial{}
+		out := &shardPartial{
+			aggN:           make([]int64, len(specs)),
+			aggNNull:       make([]int64, len(specs)),
+			filterCounters: processing.NewFilterPassCounters(req.Filterers),
+		}
 		if buildErr == nil && grouperInst == nil {
 			ungroupedAggs = make([]processing.OnlineAggregator, len(specs))
 			for i, sp := range specs {
@@ -193,16 +201,9 @@ func (s *Service) reduceParallelBuffered(
 			}
 			out.totalRows++
 
-			pass := true
-			for _, fn := range filterFns {
-				ok, err := fn(rec)
-				if err != nil {
-					return err
-				}
-				if !ok {
-					pass = false
-					break
-				}
+			pass, ferr := processing.ApplyFilterPass(rec, req.Filterers, filterFns, out.filterCounters)
+			if ferr != nil {
+				return ferr
 			}
 			// Even when the record is filtered out we still need to
 			// account for the publish-on-last-record check below — the
@@ -213,12 +214,33 @@ func (s *Service) reduceParallelBuffered(
 			if pass {
 				out.filteredRows++
 
+				// Run.NullRecords' primary-field tally. This worker
+				// loop used to skip it entirely, so a DecodeWorkers run
+				// reported NullRecords: 0 over a column that was null
+				// on a third of its rows while the serial path and the
+				// ShardWorkers path both reported the real count.
+				if primaryNullField != "" && rec.IsNull(primaryNullField) {
+					out.nullRecords++
+				}
+
 				for _, ra := range rowLocalAttrs {
 					val, err := ra.computer.Row(rec, ra.attr.Field)
 					if err != nil {
 						return err
 					}
 					rec.Set(ra.label, val)
+				}
+
+				// Universal floor per aggregator slot, tallied AFTER
+				// row-local attributes land so a slot aggregating an
+				// attribute label sees the same presence the serial
+				// orchestrator sees.
+				for i := range specs {
+					if processing.FieldPresent(rec, specs[i].agg.Field) {
+						out.aggN[i]++
+					} else {
+						out.aggNNull[i]++
+					}
 				}
 
 				if grouperInst == nil {

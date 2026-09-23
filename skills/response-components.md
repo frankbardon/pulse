@@ -92,7 +92,24 @@ Predict surfaces per-slot `BufferedComponents` = `(Mergeability == None)`; check
 
 `pulse.ProcessStream` chunks carry `Components *types.ResponseComponents` beside the row payload. `Mergeable`: every chunk is the running state — render it, or fold consumer-side through the same `MergeOnline` path the orchestrator uses. `Partial`: chunks 1..N-1 carry per-chunk partial maps, consumer-side union supported but optional, terminal chunk authoritative. `None`: chunks 1..N-1 emit `Operator: nil` on the affected entry, so consumers MUST wait for the terminal chunk — predict flags the slot `BufferedComponents: true` upfront.
 
-**In every class the terminal chunk is byte-equal to the buffered `Process` result for the same Request** — streaming is presentation over one compute path, never a divergent one. `pulse.Options.ShardWorkers` / `pulse.Options.DecodeWorkers` partials fold identically: mergeable without buffering, partial allocates, none falls back to single-pass at the terminal merge.
+**In every class the terminal chunk is byte-equal to the buffered `Process` result for the same Request** — streaming is presentation over one compute path, never a divergent one.
+
+## Concurrency knobs
+
+`Response.Components` is keyed to the REQUEST, never to a worker count. `pulse.Options.ShardWorkers` (per-shard archive fan-out) and `pulse.Options.DecodeWorkers` (per-segment single-file fan-out) share one reducer, and both emit the same blocks a serial run emits:
+
+| Block | Parallel arms |
+|---|---|
+| `Aggregations` | **ungrouped:** emitted, per-slot. Floor `{n, n_null}` from per-worker tallies summed on merge; `Operator` read off the MERGED aggregator. **grouped:** not emitted — parity with serial, which does not emit it either (per-group components is an unlanded surface). |
+| `Filterers` | emitted, per-slot. `{n_in, n_out, n_null_input}` are plain tallies and sum slot-wise. |
+| `Run` | emitted. `ShardCount` is the shard count on the archive arm, 0 on the single-file arm. |
+| `Groupers` | **not emitted on a grouped parallel run** — the remaining gap. |
+
+Why no per-operator components merge exists: the parallel arms fold OPERATOR STATE (`MergeableAggregator.MergeOnline`), so after the merge each slot holds the whole cohort's state and its `Components()` is what a serial instance would report. `processing.CanMergeRequest` has already refused anything whose state cannot fold, so the `Mergeable` / `Partial` / `None` classes need no second gate on the parallel path — an operator that clears that gate folds its components with its state. Mergeable folds without buffering, partial allocates, none never reaches the arm at all.
+
+**Known gap — `Groupers` on a grouped parallel run.** Each shard/segment builds its OWN grouper instance and the fold happens at the bucket-key level, so no merged grouper exists to ask for `MetaGrouper.Components()`. Bucket layout, edge values and dictionary mappings are per-operator state that would have to be merged per grouper kind. The block is therefore ABSENT rather than reconstructed from one arbitrary worker's instance: an absent component is recoverable, a fabricated bucket layout is not. Force `ShardWorkers: 1` / `DecodeWorkers: 1` if a grouped request needs it.
+
+The floor is tallied through `processing.FieldPresent`, never `Record.NumericValue` — a set column has no numeric value but every row carrying a mask (the empty mask included) has answered, and asking the value question moves a whole set column into `n_null`.
 
 ## Overlay parity reads
 
