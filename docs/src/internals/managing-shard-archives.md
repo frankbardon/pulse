@@ -39,6 +39,34 @@ appends the payload:
 pulse shard add q1_2019.pulse 20190122.pulse
 ```
 
+### Set-width auto-widen
+
+When the dictionary union outgrows a `set_*` field's bitmask, the add
+does **not** fail. The field is promoted to the narrowest rung that
+holds the union — across the canonical `_schema.pulse` *and* every
+shard payload already in the archive — and the merge proceeds. The
+alternative, refusing, forces a full re-import to reach a layout a
+mechanical re-stride already produces.
+
+The rewrite is atomic (temp file + fsync + rename), so a failure
+mid-rewrite leaves the original archive byte-identical and openable at
+its old rung. It is also **never silent**: every widen emits a
+mandatory `PULSE_SHARD_SET_WIDENED` warning naming the field, the old
+rung, the new rung and the number of shards rewritten, on the `--json`
+envelope's `warnings` array and on the text output.
+
+```
+Added 20190122.pulse to q1_2019.pulse (now 4 shard(s))
+  WARN   [PULSE_SHARD_SET_WIDENED] set field "media" was widened from set_u64 to set_u128 ...
+```
+
+A union above `set_u256` has nowhere left to widen to and still fails
+with `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. Categorical widths are
+untouched — a categorical's width is fixed at folder creation.
+
+`pulse shard verify` reports per-set-field width headroom so a widen is
+foreseeable before you pay for it.
+
 ## 3. List shards
 
 Reads `_schema.pulse` + central directory, prints basenames + per-shard
@@ -93,6 +121,8 @@ For maintainers extending the sharding internals, the surface lives in:
 | `service/shard_iter.go` | Multi-shard row iterator |
 | `service/shard_reduce.go` | Parallel reducer for mergeable ops |
 | `service/shard_admin.go` | `create` / `add` / `remove` / `list` / `extract` |
+| `service/shard_widen.go` | Set-width auto-widen on `add` + the mandatory warning |
+| `encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
 | `service/shard_compact.go` | `compact` |
 | `service/shard_verify.go` | `verify` |
 | `service/anchor_overlay.go` | Anchor-syntax overlay |
@@ -101,7 +131,10 @@ For maintainers extending the sharding internals, the surface lives in:
 Width overflow on a categorical dictionary grown by an append surfaces
 as `PULSE_SHARD_DICT_WIDTH_OVERFLOW`; the stricter prefix-only
 validator (`PULSE_SHARD_DICT_DIVERGENCE`) is retained for the
-`pulse shard verify` strict path.
+`pulse shard verify` strict path. The set-width auto-widen planner is
+`encoding.PlanSetWidening` and its executor is `service/shard_widen.go`
+over E4-S1's `encoding/widen.go` engine; `encoding.SetWidthHeadroomFor`
+feeds `verify`'s headroom report.
 
 ## Run the gates
 

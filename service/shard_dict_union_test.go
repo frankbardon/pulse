@@ -148,7 +148,7 @@ func TestShardArchiveDictUnionAddShard(t *testing.T) {
 	if err := afero.WriteFile(fsys, "add.pulse", add, 0o644); err != nil {
 		t.Fatalf("WriteFile add: %v", err)
 	}
-	if err := svc.AddShard(context.Background(), "arch.pulse", "add.pulse"); err != nil {
+	if _, err := svc.AddShard(context.Background(), "arch.pulse", "add.pulse"); err != nil {
 		t.Fatalf("AddShard divergent: %v", err)
 	}
 

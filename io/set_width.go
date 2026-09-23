@@ -4,10 +4,11 @@ import "github.com/frankbardon/pulse/encoding"
 
 // Set-width selection, exported so there is exactly ONE ladder.
 //
-// The rung table itself is setLadder in infer.go, derived off
+// The rung table itself is encoding.SetLadder, derived off
 // FieldType.MaxSetEntries so a rung's capacity cannot drift from the
-// bitmask width it names. What this file adds is the entry point a
-// package OUTSIDE io can reach.
+// bitmask width it names. These are thin aliases retained so existing
+// io callers keep their import, and so the two packages cannot disagree
+// about which rung holds N elements.
 //
 // It exists because io/spss/mrset.go carried a second, independent copy
 // of the ladder for the derived multiple-dichotomy column. A duplicated
@@ -27,15 +28,7 @@ import "github.com/frankbardon/pulse/encoding"
 // tokens and a declared response set of N constituents land on the same
 // rung by construction rather than by agreement.
 func SetTypeFor(elements int) (encoding.FieldType, bool) {
-	if elements <= 0 {
-		return 0, false
-	}
-	for _, ft := range setLadder {
-		if elements <= int(ft.MaxSetEntries()) {
-			return ft, true
-		}
-	}
-	return 0, false
+	return encoding.SetTypeFor(elements)
 }
 
 // WidestSetType returns the top rung of the ladder — the widest set_*
@@ -45,7 +38,7 @@ func SetTypeFor(elements int) (encoding.FieldType, bool) {
 // than writing "set_u256" into a string, so the message cannot outlive
 // the type it names.
 func WidestSetType() encoding.FieldType {
-	return setLadder[len(setLadder)-1]
+	return encoding.WidestSetType()
 }
 
 // MaxSetElements returns how many elements the widest rung addresses —

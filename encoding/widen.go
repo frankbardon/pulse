@@ -76,6 +76,50 @@ func CheckSetWiden(from, to FieldType) error {
 	return nil
 }
 
+// WidenSchemaSetField returns a copy of s in which the named set field
+// carries the wider rung target, with every field's ByteOffset
+// recomputed for the new stride.
+//
+// It is the SCHEMA half of a widen, split out because the shard
+// auto-widen path has to publish a widened canonical `_schema.pulse`
+// that has no records of its own alongside shard payloads widened by
+// WidenSetFieldBytes. Both go through this one function, so the
+// canonical schema block and every shard's schema block cannot end up
+// describing different layouts — a divergence that would pass
+// ValidateStructuralCohesion nowhere and decode as garbage everywhere.
+//
+// Names, nullability, descriptions, CSV indices, decimal metadata and
+// the inline dictionary pointer ride across by value, so bit i still
+// means dictionary entry i. The input schema is never modified.
+func WidenSchemaSetField(s *Schema, field string, target FieldType) (*Schema, error) {
+	if s == nil {
+		return nil, errors.NewCodedError(errors.ENCODING_INVALID,
+			"widen: nil schema")
+	}
+	idx := -1
+	for i := range s.Fields {
+		if s.Fields[i].Name == field {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			fmt.Sprintf("widen: no field named %q in the cohort schema", field),
+			map[string]any{"field": field, "field_count": len(s.Fields)})
+	}
+	if err := CheckSetWiden(s.Fields[idx].Type, target); err != nil {
+		return nil, err
+	}
+	out := &Schema{Fields: append([]Field(nil), s.Fields...)}
+	out.Fields[idx].Type = target
+	offsets, _ := widenFieldOffsets(out)
+	for i := range out.Fields {
+		out.Fields[i].ByteOffset = offsets[i]
+	}
+	return out, nil
+}
+
 // WidenSetFieldBytes rewrites a single-file .pulse cohort held in memory
 // so the named set field is stored at the wider rung target, returning
 // the new cohort bytes. The input slice is never modified.
@@ -196,23 +240,19 @@ func widenSetFieldStream(dst io.Writer, src io.Reader, field string, target Fiel
 			map[string]any{"field": field, "field_count": len(srcSchema.Fields)})
 	}
 	from := srcSchema.Fields[idx].Type
-	if err := CheckSetWiden(from, target); err != nil {
-		return nil, err
-	}
 
 	// The destination schema differs from the source in exactly two ways:
 	// the widened field's type byte, and the byte offsets the new stride
-	// implies. Names, nullability, descriptions, CSV indices, decimal
-	// metadata and — critically — the inline dictionary pointer all ride
-	// across by value, so bit i still means dictionary entry i.
-	dstSchema := &Schema{Fields: append([]Field(nil), srcSchema.Fields...)}
-	dstSchema.Fields[idx].Type = target
+	// implies. WidenSchemaSetField is the sole author of both — including
+	// the admission check — so a schema-only widen and a bytes widen
+	// cannot describe different layouts.
+	dstSchema, err := WidenSchemaSetField(srcSchema, field, target)
+	if err != nil {
+		return nil, err
+	}
 
 	srcOffsets, srcPayload := widenFieldOffsets(srcSchema)
 	dstOffsets, dstPayload := widenFieldOffsets(dstSchema)
-	for i := range dstSchema.Fields {
-		dstSchema.Fields[i].ByteOffset = dstOffsets[i]
-	}
 
 	bitmapBytes := srcSchema.BitmapByteSize()
 	srcStride := srcPayload + bitmapBytes

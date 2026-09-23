@@ -75,7 +75,7 @@ The bitmap is the sole null mechanism. No type has an inline sentinel — `decim
 
 - `PULSE_IMPORT_CATEGORICAL_OVERFLOW` / `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` — categorical width exceeded or dict unbounded.
 - `PULSE_IMPORT_SET_OVERFLOW` — `set_*` cardinality exceeded width.
-- `PULSE_SHARD_DICT_WIDTH_OVERFLOW` — shard insert would expand union dict past declared width.
+- `PULSE_SHARD_DICT_WIDTH_OVERFLOW` — shard insert would expand union dict past declared width. For a `set_*` field this now fires only past `set_u256`; below that the archive auto-widens (see Sharded cohorts → Cohesion).
 
 Mitigation: pick widths with growth headroom up front.
 
@@ -93,6 +93,8 @@ A `.pulse` path resolves to one of two shapes, dispatched on the leading 4 bytes
 - Descriptions: **tolerant**. Divergence → `PULSE_SHARD_DESCRIPTION_DIVERGENCE` (warning); canonical wins.
 - Categorical / set dictionaries: union-merge. Canonical entries first; new entries appended; incoming records byte-rewritten with remapped indices.
 - Prefix-only validator raises `PULSE_SHARD_DICT_DIVERGENCE` when embedders coordinate dicts upstream.
+- **`set_*` auto-widen.** A union that outgrows a set field's bitmask widens the field to the narrowest rung that holds it, across `_schema.pulse` and **every** shard payload, instead of refusing the add. The whole-archive rewrite is atomic (temp + fsync + rename) and emits a mandatory `PULSE_SHARD_SET_WIDENED` warning naming field, old rung, new rung and shards rewritten — read it: an archive-wide re-stride costs far more than an append. Past `set_u256` there is nowhere to widen to and `PULSE_SHARD_DICT_WIDTH_OVERFLOW` stands. Categorical widths are unaffected; they stay fixed at folder creation.
+- `pulse shard verify` reports **set-width headroom** per set field (entries used, capacity, headroom, next rung) so an impending widen is foreseeable rather than a surprise the next `shard add` bills for.
 
 ### Anchor syntax
 

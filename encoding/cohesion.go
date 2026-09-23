@@ -304,19 +304,7 @@ func MergeDictUnion(canonical, incoming *Schema) (*Schema, map[int]DictRemap, er
 		// incoming entries not already in canonical, in incoming
 		// order. The remap follows from the resulting index
 		// assignments.
-		unionVals := make([]string, len(cv))
-		copy(unionVals, cv)
-		canonicalIndex := make(map[string]uint32, len(cv))
-		for idx, v := range cv {
-			canonicalIndex[v] = uint32(idx)
-		}
-		for _, v := range nv {
-			if _, ok := canonicalIndex[v]; ok {
-				continue
-			}
-			canonicalIndex[v] = uint32(len(unionVals))
-			unionVals = append(unionVals, v)
-		}
+		unionVals, canonicalIndex := unionDictValues(cv, nv)
 
 		maxEntries := cf.Type.MaxDictEntries()
 		if uint32(len(unionVals)) > maxEntries {
@@ -369,6 +357,188 @@ func MergeDictUnion(canonical, incoming *Schema) (*Schema, map[int]DictRemap, er
 		return extended, remaps, nil
 	}
 	return canonical, remaps, nil
+}
+
+// unionDictValues builds the merged dictionary two shards imply:
+// canonical entries first in their existing order, then any incoming
+// entry not already present, in incoming order. It also returns the
+// value → union-index map the remap is derived from.
+//
+// MergeDictUnion and PlanSetWidening both call it. They must agree on
+// the union SIZE to the entry — the plan decides which rung the archive
+// is rewritten to and the merge then has to fit inside that rung — and
+// a second, independently-coded union would disagree silently: the plan
+// would widen to set_u128, the merge would overflow at 129, and the
+// archive would already have been re-laid-out.
+func unionDictValues(canonical, incoming []string) ([]string, map[string]uint32) {
+	unionVals := make([]string, len(canonical))
+	copy(unionVals, canonical)
+	index := make(map[string]uint32, len(canonical)+len(incoming))
+	for i, v := range canonical {
+		index[v] = uint32(i)
+	}
+	for _, v := range incoming {
+		if _, ok := index[v]; ok {
+			continue
+		}
+		index[v] = uint32(len(unionVals))
+		unionVals = append(unionVals, v)
+	}
+	return unionVals, index
+}
+
+// SetWidenPlan describes the rung promotion one set field needs before
+// a shard can join an archive: the merged dictionary the two schemas
+// imply no longer fits the rung both currently declare.
+type SetWidenPlan struct {
+	// FieldIndex is the field's position in both schemas (structural
+	// cohesion has already established they are the same position).
+	FieldIndex int
+	// Field is the field name, for diagnostics.
+	Field string
+	// From is the rung both schemas currently declare.
+	From FieldType
+	// To is the narrowest rung that holds the merged dictionary.
+	To FieldType
+	// UnionEntries is the size of the merged dictionary that forced it.
+	UnionEntries int
+}
+
+// PlanSetWidening reports which set fields must be promoted to a wider
+// rung before canonical and incoming can be dictionary-union-merged,
+// in field order.
+//
+// It answers the question MergeDictUnion cannot: MergeDictUnion sees a
+// union that exceeds the declared bitmask width and can only refuse
+// (PULSE_SHARD_DICT_WIDTH_OVERFLOW), because widening is an archive-wide
+// byte rewrite and nothing at the schema layer may perform one. Running
+// this FIRST lets the caller widen the whole archive and then merge into
+// a rung that fits.
+//
+// An empty plan and a nil error is the ordinary case: every merged
+// dictionary already fits.
+//
+// Errors:
+//   - PULSE_SHARD_DICT_WIDTH_OVERFLOW when the union exceeds the WIDEST
+//     rung. There is nowhere left to widen to, so this stays fatal — it
+//     is the one set-width overflow auto-widen does not remove.
+//   - PULSE_SHARD_SCHEMA_MISMATCH on nil schemas, differing field counts
+//     or a per-field type divergence (run ValidateStructuralCohesion first).
+//
+// Categorical fields are ignored entirely: a categorical's width is
+// fixed at folder creation by contract, and its capacity (256 / 65 536 /
+// 2^32) is not a bitmask a record rewrite can widen the same way.
+func PlanSetWidening(canonical, incoming *Schema) ([]SetWidenPlan, error) {
+	if canonical == nil || incoming == nil {
+		return nil, errors.NewCodedError(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			"set-widen planning requires non-nil canonical and incoming schemas")
+	}
+	if len(canonical.Fields) != len(incoming.Fields) {
+		return nil, errors.NewCodedError(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			"set-widen planning requires identical field counts; run ValidateStructuralCohesion first")
+	}
+
+	var plans []SetWidenPlan
+	for i := range canonical.Fields {
+		cf := &canonical.Fields[i]
+		nf := &incoming.Fields[i]
+		if !cf.Type.IsSet() {
+			continue
+		}
+		if cf.Type != nf.Type {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+				fmt.Sprintf("field %q set width differs", cf.Name),
+				map[string]any{"field": cf.Name,
+					"canonical_type": cf.Type.String(), "incoming_type": nf.Type.String()})
+		}
+
+		unionVals, _ := unionDictValues(dictValuesOrEmpty(cf.Dictionary), dictValuesOrEmpty(nf.Dictionary))
+		if uint32(len(unionVals)) <= cf.Type.MaxSetEntries() {
+			continue
+		}
+		target, ok := SetTypeFor(len(unionVals))
+		if !ok {
+			widest := WidestSetType()
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
+				fmt.Sprintf("field %q dictionary union (%d entries) exceeds the widest set rung %s (%d entries); there is no wider type to widen to",
+					cf.Name, len(unionVals), widest, widest.MaxSetEntries()),
+				map[string]any{
+					"field":         cf.Name,
+					"type":          cf.Type.String(),
+					"widest_type":   widest.String(),
+					"capacity":      widest.MaxSetEntries(),
+					"union_entries": len(unionVals),
+				})
+		}
+		plans = append(plans, SetWidenPlan{
+			FieldIndex:   i,
+			Field:        cf.Name,
+			From:         cf.Type,
+			To:           target,
+			UnionEntries: len(unionVals),
+		})
+	}
+	return plans, nil
+}
+
+// SetWidthHeadroom reports how much of one set field's bitmask capacity
+// the canonical dictionary has consumed, and which rung it would be
+// widened to next.
+//
+// It exists so an impending archive-wide widen is FORESEEABLE. The
+// widen itself is correct but expensive (every record of every shard is
+// re-laid-out), and without this a caller learns the field was one entry
+// from its ceiling only by paying for the rewrite.
+type SetWidthHeadroom struct {
+	Field string `json:"field"`
+	// Type is the rung the field currently declares.
+	Type string `json:"type"`
+	// Used is the number of dictionary entries in the canonical schema.
+	Used int `json:"used"`
+	// Capacity is the rung's bitmask width.
+	Capacity int `json:"capacity"`
+	// Headroom is Capacity - Used: how many more distinct members the
+	// archive can absorb before the next `shard add` widens it.
+	Headroom int `json:"headroom"`
+	// NextType is the rung a widen would promote to, or "" when the
+	// field is already at the widest rung — at which point Headroom is
+	// the hard remainder and an overflow is fatal, not widenable.
+	NextType string `json:"next_type,omitempty"`
+}
+
+// SetWidthHeadroomFor returns one SetWidthHeadroom per set field in s,
+// in field order. A schema with no set fields returns nil.
+func SetWidthHeadroomFor(s *Schema) []SetWidthHeadroom {
+	if s == nil {
+		return nil
+	}
+	var out []SetWidthHeadroom
+	for i := range s.Fields {
+		f := &s.Fields[i]
+		if !f.Type.IsSet() {
+			continue
+		}
+		used := len(dictValuesOrEmpty(f.Dictionary))
+		capacity := int(f.Type.MaxSetEntries())
+		// One member past this rung's capacity is by definition the
+		// next rung — and at the top of the ladder there is no such
+		// rung, so SetTypeFor reports false and NextType stays empty.
+		// The ladder is the only authority here; a separate
+		// "am I the widest" branch would be a second one.
+		next := ""
+		if nt, ok := SetTypeFor(capacity + 1); ok {
+			next = nt.String()
+		}
+		out = append(out, SetWidthHeadroom{
+			Field:    f.Name,
+			Type:     f.Type.String(),
+			Used:     used,
+			Capacity: capacity,
+			Headroom: capacity - used,
+			NextType: next,
+		})
+	}
+	return out
 }
 
 // dictValuesOrEmpty returns the dictionary's values in insertion

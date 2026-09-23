@@ -1006,6 +1006,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_SET_WIDENED: {
+		Message: "A `shard add` merged a dictionary that outgrew a set_* field's bitmask, so the field was promoted to a wider rung and every record of every shard in the archive was re-laid-out. The archive is correct and no action is required; the warning exists because the rewrite is expensive and must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed — the archive was widened in place and remains openable. To avoid the rewrite next time, import the source at the wider set rung up front, and watch `pulse shard verify`'s set-width headroom to see a widen coming.",
+			},
+		},
+	},
 	PULSE_SHARD_RESERVED_NAME: {
 		Message: "Cannot insert a shard whose basename collides with the reserved canonical schema entry (`_schema.pulse`); the reserved name is addressable only through the archive's canonical-schema channel.",
 		Fixups: []Fixup{

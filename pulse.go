@@ -1567,11 +1567,32 @@ func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shar
 // incoming shard introduces is reflected in the rewritten
 // `_schema.pulse` payload before the new shard payload is appended.
 // v1 reads the whole archive into memory and writes it back via
-// temp+rename — semantically equivalent to true in-place append and
-// crash-safe at the canonical-path level.
-func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) error {
+// temp+fsync+rename — semantically equivalent to true in-place append
+// and crash-safe at the canonical-path level.
+//
+// A merged dictionary that outgrows a set_* field's bitmask WIDENS the
+// field across the canonical schema and every shard payload instead of
+// refusing the add, and reports it as a mandatory PULSE_SHARD_SET_WIDENED
+// warning on the returned result — the rewrite is far cheaper than the
+// re-import it replaces but far more expensive than an append, and a
+// caller must be able to tell which one it paid for. A union above the
+// widest set rung stays fatal (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
+//
+// AddShard returns a result rather than a bare error precisely so that
+// warning has nowhere to be dropped.
+func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
 	return p.svc.AddShard(ctx, archivePath, shardPath)
 }
+
+// AddShardResult carries the outcome of AddShard: the archive's new
+// shard count, any set-field widenings the add forced, and the
+// non-fatal warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE,
+// PULSE_SHARD_SET_WIDENED) to lift onto a --json envelope.
+type AddShardResult = service.AddShardResult
+
+// SetWidening records one set field promoted to a wider rung during an
+// AddShard, with the shard and record counts the rewrite cost.
+type SetWidening = service.SetWidening
 
 // RemoveShard rewrites the archive omitting the named shard. The
 // canonical schema is preserved (dictionary entries are never
@@ -1627,6 +1648,13 @@ func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*Ve
 // (per-field description drift, aggregate-record-count mismatch). An
 // empty Errors slice means the archive is structurally sound.
 type VerifyResult = service.VerifyResult
+
+// SetWidthHeadroom reports how much of a set field's bitmask capacity
+// the canonical dictionary has consumed, and which rung a widen would
+// promote it to. VerifyShardArchive returns one per set field so an
+// impending archive-wide widen is foreseeable rather than a surprise
+// the next `shard add` bills for.
+type SetWidthHeadroom = encoding.SetWidthHeadroom
 
 // resolveCohortPath builds the file path from a Cohort specification.
 func resolveCohortPath(c *types.Cohort) string {

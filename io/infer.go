@@ -31,24 +31,22 @@ const defaultSetInferenceMinPct = 30
 // cell inside CSV is unparseable through the CSV reader).
 var setInferenceDelimiterPriority = []string{"|", ";"}
 
-// setLadder is the set-width ladder, narrowest rung first. Inference
-// only ever produces a member of this list — there is no variable-width
-// set type — and it always picks the FIRST rung whose MaxSetEntries
-// holds the observed vocabulary. Capacities are read off the type so
-// the ladder and the bitmask widths cannot drift apart.
+// The set-width ladder is encoding.SetLadder — narrowest rung first,
+// capacities read off FieldType.MaxSetEntries so the ladder and the
+// bitmask widths cannot drift apart. Inference reaches it through
+// SetTypeFor (io/set_width.go): it only ever produces a member of that
+// list, always the FIRST rung whose capacity holds the observed
+// vocabulary.
 //
 // The top of the ladder is the inference ceiling: a column with more
 // distinct tokens than set_u256 addresses (256) is NOT classified as a
 // set. The ceiling moved from 64 when set_u128 / set_u256 landed; it
 // did not disappear.
-var setLadder = []encoding.FieldType{
-	encoding.FieldTypeSetU8,
-	encoding.FieldTypeSetU16,
-	encoding.FieldTypeSetU32,
-	encoding.FieldTypeSetU64,
-	encoding.FieldTypeSetU128,
-	encoding.FieldTypeSetU256,
-}
+//
+// It lives in encoding/ rather than here because the shard auto-widen
+// path has to choose the same rung and cannot import io. One table, two
+// readers — a second copy is the failure io/set_width.go's own doc
+// comment records.
 
 // DefaultSetDelimiter is the delimiter assumed by convertValue when no
 // per-column delimiter has been recorded (explicit-schema imports that
@@ -434,7 +432,7 @@ func probeSetClassification(values []string, minPct int) (encoding.FieldType, st
 		// One gate, one source of truth: the column is a set iff the
 		// ladder has a rung that holds the observed vocabulary. A
 		// separately-coded numeric ceiling here could drift from
-		// setLadder and classify a column as a set that setWidth then
+		// the shared ladder and classify a column as a set that setWidth then
 		// types as a categorical — with a delimiter recorded for it.
 		ft := setWidth(len(uniq))
 		if len(uniq) == 0 || !ft.IsSet() {

@@ -4960,7 +4960,7 @@
         ]
       }
     ],
-    "error_codes_count": 226,
+    "error_codes_count": 227,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5108,6 +5108,7 @@
       "PULSE_SHARD_NAME_COLLISION",
       "PULSE_SHARD_RESERVED_NAME",
       "PULSE_SHARD_SCHEMA_MISMATCH",
+      "PULSE_SHARD_SET_WIDENED",
       "PULSE_SPSS_CARDINALITY_HIGH",
       "PULSE_SPSS_CATEGORICAL_OVERFLOW",
       "PULSE_SPSS_CATEGORICAL_USER_MISSING",
@@ -9662,4 +9663,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 786e32046221bb104b587f521cae9eb6d1e41deb40c4169990a6486d77cb9d81
+// golden-hash: a841f9e422d0577705e8098540d835148c9a9d1656a7d70d76a30236b0d15032

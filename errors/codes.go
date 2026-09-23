@@ -573,6 +573,15 @@ const (
 	// downstream consumer.
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
 
+	// PULSE_SHARD_SET_WIDENED is emitted as a WARNING (not an error)
+	// when `pulse shard add` promotes a set_* field to a wider rung
+	// because the merged dictionary outgrew the declared bitmask.
+	// Widening re-lays-out EVERY record of EVERY shard in the archive,
+	// so it is expensive; the warning is mandatory rather than advisory
+	// precisely because an expensive whole-archive rewrite that happens
+	// silently is indistinguishable from a cheap append.
+	PULSE_SHARD_SET_WIDENED Code = "PULSE_SHARD_SET_WIDENED"
+
 	// PULSE_SHARD_RESERVED_NAME indicates a caller attempted to insert
 	// a shard whose basename collides with the reserved canonical
 	// schema entry name (`_schema.pulse`). The reserved name is
@@ -2426,6 +2435,7 @@ var allCodes = []Code{
 	PULSE_SHARD_DICT_DIVERGENCE,
 	PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
+	PULSE_SHARD_SET_WIDENED,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_CHAIN_NOT_MERGEABLE,
