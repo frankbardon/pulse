@@ -331,9 +331,12 @@ func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("operator keys mismatch:\n  runtime: %v\n  manifest: %v", got, want)
 	}
-	mask, _ := entry.Operator["mask_union"].(uint64)
-	if mask != 0b1111 {
-		t.Errorf("mask_union = %b, want 1111", mask)
+	// mask_union is the four-word little-endian projection of the union
+	// mask (words[0] = bits 0-63), one shape at every set rung — see
+	// processing.setMaskComponentWords.
+	words, _ := entry.Operator["mask_union"].([]uint64)
+	if !reflect.DeepEqual(words, []uint64{0b1111, 0, 0, 0}) {
+		t.Errorf("mask_union = %v, want [15 0 0 0]", words)
 	}
 	popcount, _ := entry.Operator["popcount"].(int)
 	if popcount != 4 {

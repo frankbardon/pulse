@@ -1,8 +1,6 @@
 package processing
 
 import (
-	"math/bits"
-
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -12,21 +10,30 @@ import (
 // AGG_SET_FREQUENCY, AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 // AGG_SET_DISTINCT_VALUES.
 //
-// Set values arrive through Record.SetMaskValue, narrowed to the uint64
-// bitmask these aggregators still hold by narrowSetValue, which errors
-// rather than truncating a mask wider than 64 bits. Bit i is set when
-// dictionary entry i is selected. Bitwise OR (union) and AND
-// (intersection) are associative + commutative, so the orchestrator's
-// per-shard parallel reducer works for free. AGG_SET_INTERSECTION'S
-// margin is recompute-only (AND across cells ≠ AND across all rows in
-// general); the others are summable.
+// Every one of them holds encoding.SetMask — the single in-memory set
+// representation for every rung from set_u8 to set_u256 — and reads it
+// through the single accessor, Record.SetMaskValue. There is ONE body
+// per operator across all widths: no uint64 arm, no wide arm, no
+// narrowing bridge. Bit i is set when dictionary entry i is selected.
+// Bitwise OR (union) and AND (intersection) are associative +
+// commutative at 256 bits exactly as they were at 64, so the
+// orchestrator's per-shard and per-segment parallel reducers work for
+// free. AGG_SET_INTERSECTION's margin is recompute-only (AND across
+// cells ≠ AND across all rows in general); the others are summable.
+//
+// SetMask is a fixed [4]uint64 VALUE — it never allocates, copies by
+// assignment, and aliases nothing — so an accumulating aggregator holds
+// its own mask across a multi-record fold with no defensive copy and no
+// reuse contract.
 //
 // UNION / INTERSECTION / FREQUENCY also satisfy RichAggregator: the
 // scalar float64 they return through Aggregate / Finalize is a sensible
 // fallback (popcount for the masks, max-bin count for frequency), and
 // Rich() supplies the typed value (resolved labels, label→count map)
 // that the processor / streaming path / crosstab cell builder routes
-// into Response.Data and CrosstabResult.Matrix cells.
+// into Response.Data and CrosstabResult.Matrix cells. Both payloads are
+// dictionary-bounded, never 64-bounded, so a 206-member set resolves
+// every selected member.
 
 // setAggDict resolves the dictionary for the field this aggregator
 // targets. Every set aggregator constructs once at factory time and
@@ -54,28 +61,22 @@ func setAggDict(agg *types.Aggregation, schema *encoding.Schema) (*encoding.Dict
 	return f.Dictionary, nil
 }
 
-// resolveMaskLabels walks the bits of mask and returns dictionary
-// labels in ascending bit order. The narrow-mask twin of
-// encoding.SetMask.Labels, which Record.SetLabels delegates to. Empty
-// mask returns an empty slice (not nil) so JSON emits `[]` rather than
-// `null`.
-func resolveMaskLabels(mask uint64, dict *encoding.Dictionary) []string {
-	if dict == nil {
-		return []string{}
-	}
-	dictLen := dict.Count()
-	out := make([]string, 0, bits.OnesCount64(mask))
-	for i := 0; i < dictLen && i < 64; i++ {
-		if mask&(uint64(1)<<uint(i)) == 0 {
-			continue
-		}
-		label := dict.Resolve(uint32(i))
-		if label == "" {
-			continue
-		}
-		out = append(out, label)
-	}
-	return out
+// setMaskComponentWords projects a SetMask into the wire form the
+// mask_union / mask_intersection component keys carry: a []uint64 of
+// exactly encoding.SetMaskWords words, LOW WORD FIRST (words[0] is bits
+// 0–63), matching SetMask's documented word order.
+//
+// The length is fixed rather than trimmed to the rung's width so the
+// key has one shape at every width — a set_u8 column and a set_u256
+// column emit the same four-word array, and a consumer indexes
+// words[bit/64] without first asking how wide the column was. A single
+// uint64 could not carry a mask past bit 63: emitting its low word
+// would have made every wide-set union quietly report a subset of the
+// selections it actually saw, with popcount and labels beside it
+// telling a different story.
+func setMaskComponentWords(m encoding.SetMask) []uint64 {
+	w := m.Words()
+	return w[:]
 }
 
 // Bitwise OR across rows. Result = mask of every bit set in any row.
@@ -83,14 +84,14 @@ func resolveMaskLabels(mask uint64, dict *encoding.Dictionary) []string {
 
 type setUnionAggregator struct {
 	dict *encoding.Dictionary
-	mask uint64
+	mask encoding.SetMask
 
 	// frozen* mirror the post-Aggregate / post-Finalize state so
 	// Components() works on both buffered and streaming code paths.
 	// The set Finalize methods do not reset live state today, but the
 	// frozen-mirror pattern keeps the components map stable across any
 	// future Finalize-reset.
-	frozenMask      uint64
+	frozenMask      encoding.SetMask
 	frozenHasResult bool
 }
 
@@ -103,36 +104,30 @@ func newSetUnionAggregator(agg *types.Aggregation, schema *encoding.Schema) (Agg
 }
 
 func (a *setUnionAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	a.mask = 0
+	a.mask = encoding.SetMask{}
 	for _, r := range records {
-		m, ok, err := narrowSetValue(r, field)
-		if err != nil {
-			return 0, err
-		}
+		m, ok := r.SetMaskValue(field)
 		if !ok {
 			continue
 		}
-		a.mask |= m
+		a.mask = a.mask.Union(m)
 	}
 	a.frozenMask = a.mask
 	a.frozenHasResult = true
-	return float64(bits.OnesCount64(a.mask)), nil
+	return float64(a.mask.PopCount()), nil
 }
 
 func (a *setUnionAggregator) UpdateRow(r *Record, field string) error {
-	m, ok, err := narrowSetValue(r, field)
-	if err != nil {
-		return err
-	}
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return nil
 	}
-	a.mask |= m
+	a.mask = a.mask.Union(m)
 	return nil
 }
 
 func (a *setUnionAggregator) Finalize() (float64, error) {
-	out := float64(bits.OnesCount64(a.mask))
+	out := float64(a.mask.PopCount())
 	a.frozenMask = a.mask
 	a.frozenHasResult = true
 	return out, nil
@@ -143,33 +138,30 @@ func (a *setUnionAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok {
 		return mergeTypeMismatch("AGG_SET_UNION")
 	}
-	a.mask |= b.mask
+	a.mask = a.mask.Union(b.mask)
 	return nil
 }
 
 func (a *setUnionAggregator) Rich() (any, error) {
-	return resolveMaskLabels(a.mask, a.dict), nil
+	return a.mask.Labels(a.dict), nil
 }
 
 // Components returns {mask_union, popcount, labels} — the union mask
-// from the frozen mirror, its popcount, and the decoded dictionary
-// labels (same path as Rich()). Reads the frozen mirror stamped by
-// Aggregate / Finalize so any future streaming Finalize-reset on
-// (mask) does not erase the values before Components() runs. Empty
-// input (no rows seen) collapses to {0, 0, []string{}} — matches
-// Rich()'s concrete-empty contract.
+// as its four constituent words, its popcount, and the decoded
+// dictionary labels (same path as Rich()). Reads the frozen mirror
+// stamped by Aggregate / Finalize so any future streaming
+// Finalize-reset does not erase the values before Components() runs.
+// Empty input (no rows seen) collapses to the zero mask, popcount 0 and
+// an empty label slice — matches Rich()'s concrete-empty contract.
 func (a *setUnionAggregator) Components() (map[string]any, error) {
+	m := a.frozenMask
 	if !a.frozenHasResult {
-		return map[string]any{
-			"mask_union": uint64(0),
-			"popcount":   0,
-			"labels":     []string{},
-		}, nil
+		m = encoding.SetMask{}
 	}
 	return map[string]any{
-		"mask_union": a.frozenMask,
-		"popcount":   bits.OnesCount64(a.frozenMask),
-		"labels":     resolveMaskLabels(a.frozenMask, a.dict),
+		"mask_union": setMaskComponentWords(m),
+		"popcount":   m.PopCount(),
+		"labels":     m.Labels(a.dict),
 	}, nil
 }
 
@@ -184,7 +176,7 @@ func (a *setUnionAggregator) Components() (map[string]any, error) {
 
 type setIntersectionAggregator struct {
 	dict *encoding.Dictionary
-	mask uint64
+	mask encoding.SetMask
 	seen bool
 
 	// frozen* mirror the post-Aggregate / post-Finalize state. Mirrors
@@ -192,7 +184,7 @@ type setIntersectionAggregator struct {
 	// (empty intersection) from "rows seen, intersection collapsed to
 	// 0 mask" — both render as popcount 0 but the components map
 	// reflects the raw mask in either case.
-	frozenMask      uint64
+	frozenMask      encoding.SetMask
 	frozenSeen      bool
 	frozenHasResult bool
 }
@@ -206,13 +198,10 @@ func newSetIntersectionAggregator(agg *types.Aggregation, schema *encoding.Schem
 }
 
 func (a *setIntersectionAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	a.mask = 0
+	a.mask = encoding.SetMask{}
 	a.seen = false
 	for _, r := range records {
-		m, ok, err := narrowSetValue(r, field)
-		if err != nil {
-			return 0, err
-		}
+		m, ok := r.SetMaskValue(field)
 		if !ok {
 			continue
 		}
@@ -221,19 +210,16 @@ func (a *setIntersectionAggregator) Aggregate(records []*Record, field string) (
 			a.seen = true
 			continue
 		}
-		a.mask &= m
+		a.mask = a.mask.Intersect(m)
 	}
 	a.frozenMask = a.mask
 	a.frozenSeen = a.seen
 	a.frozenHasResult = true
-	return float64(bits.OnesCount64(a.mask)), nil
+	return float64(a.mask.PopCount()), nil
 }
 
 func (a *setIntersectionAggregator) UpdateRow(r *Record, field string) error {
-	m, ok, err := narrowSetValue(r, field)
-	if err != nil {
-		return err
-	}
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return nil
 	}
@@ -242,12 +228,12 @@ func (a *setIntersectionAggregator) UpdateRow(r *Record, field string) error {
 		a.seen = true
 		return nil
 	}
-	a.mask &= m
+	a.mask = a.mask.Intersect(m)
 	return nil
 }
 
 func (a *setIntersectionAggregator) Finalize() (float64, error) {
-	out := float64(bits.OnesCount64(a.mask))
+	out := float64(a.mask.PopCount())
 	a.frozenMask = a.mask
 	a.frozenSeen = a.seen
 	a.frozenHasResult = true
@@ -267,7 +253,7 @@ func (a *setIntersectionAggregator) MergeOnline(other OnlineAggregator) error {
 		a.seen = true
 		return nil
 	}
-	a.mask &= b.mask
+	a.mask = a.mask.Intersect(b.mask)
 	return nil
 }
 
@@ -275,26 +261,23 @@ func (a *setIntersectionAggregator) Rich() (any, error) {
 	if !a.seen {
 		return []string{}, nil
 	}
-	return resolveMaskLabels(a.mask, a.dict), nil
+	return a.mask.Labels(a.dict), nil
 }
 
 // Components returns {mask_intersection, popcount, labels} — the
-// intersection mask from the frozen mirror, its popcount, and the
-// decoded dictionary labels (same path as Rich()). Empty input (no
-// non-null row contributed) collapses to {0, 0, []string{}} — matches
-// Rich()'s concrete-empty contract.
+// intersection mask as its four constituent words, its popcount, and
+// the decoded dictionary labels (same path as Rich()). Empty input (no
+// non-null row contributed) collapses to the zero mask, popcount 0 and
+// an empty label slice — matches Rich()'s concrete-empty contract.
 func (a *setIntersectionAggregator) Components() (map[string]any, error) {
+	m := a.frozenMask
 	if !a.frozenHasResult || !a.frozenSeen {
-		return map[string]any{
-			"mask_intersection": uint64(0),
-			"popcount":          0,
-			"labels":            []string{},
-		}, nil
+		m = encoding.SetMask{}
 	}
 	return map[string]any{
-		"mask_intersection": a.frozenMask,
-		"popcount":          bits.OnesCount64(a.frozenMask),
-		"labels":            resolveMaskLabels(a.frozenMask, a.dict),
+		"mask_intersection": setMaskComponentWords(m),
+		"popcount":          m.PopCount(),
+		"labels":            m.Labels(a.dict),
 	}, nil
 }
 
@@ -326,8 +309,16 @@ func newSetFrequencyAggregator(agg *types.Aggregation, schema *encoding.Schema) 
 	if dict != nil {
 		width = dict.Count()
 	}
-	if width > 64 {
-		width = 64
+	// The counter slice is PRE-SIZED to the dictionary, capped at the
+	// set address space (encoding.SetMaskBits = 256) rather than at 64.
+	// This is a sizing decision only, not a correctness one: foldMask
+	// grows the slice on demand and MergeOnline reconciles
+	// differently-grown slices, so a 64-cap here still counts member
+	// 205 correctly — it just reallocates on the first row that selects
+	// past the cap. Falsifying the cap alone does not move any
+	// assertion; the bit walk in foldMask is where correctness lives.
+	if width > encoding.SetMaskBits {
+		width = encoding.SetMaskBits
 	}
 	return &setFrequencyAggregator{
 		dict:   dict,
@@ -340,10 +331,7 @@ func (a *setFrequencyAggregator) Aggregate(records []*Record, field string) (flo
 		a.counts[i] = 0
 	}
 	for _, r := range records {
-		m, ok, err := narrowSetValue(r, field)
-		if err != nil {
-			return 0, err
-		}
+		m, ok := r.SetMaskValue(field)
 		if !ok {
 			continue
 		}
@@ -355,10 +343,7 @@ func (a *setFrequencyAggregator) Aggregate(records []*Record, field string) (flo
 }
 
 func (a *setFrequencyAggregator) UpdateRow(r *Record, field string) error {
-	m, ok, err := narrowSetValue(r, field)
-	if err != nil {
-		return err
-	}
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return nil
 	}
@@ -366,16 +351,18 @@ func (a *setFrequencyAggregator) UpdateRow(r *Record, field string) error {
 	return nil
 }
 
-func (a *setFrequencyAggregator) foldMask(m uint64) {
-	for m != 0 {
-		i := bits.TrailingZeros64(m)
+// foldMask increments the per-bit counter for every selected member.
+// The walk is encoding.SetMask.NextBit, which covers the whole 256-bit
+// address space, so a member at bit 205 is counted exactly like a
+// member at bit 5.
+func (a *setFrequencyAggregator) foldMask(m encoding.SetMask) {
+	for i, ok := m.NextBit(0); ok; i, ok = m.NextBit(i + 1) {
 		if i >= len(a.counts) {
 			grown := make([]uint64, i+1)
 			copy(grown, a.counts)
 			a.counts = grown
 		}
 		a.counts[i]++
-		m &= m - 1
 	}
 }
 
@@ -497,7 +484,9 @@ func (a *setFrequencyAggregator) Components() (map[string]any, error) {
 }
 
 // Sum of popcounts across contributing rows. Scalar; summable; no rich
-// value.
+// value. Popcount is SetMask.PopCount — the sum over all four words —
+// so a row selecting more than 64 members contributes its true
+// cardinality, not the population of its low word.
 
 type setCardinalitySumAggregator struct {
 	total uint64
@@ -516,14 +505,11 @@ func newSetCardinalitySumAggregator(agg *types.Aggregation, schema *encoding.Sch
 func (a *setCardinalitySumAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	a.total = 0
 	for _, r := range records {
-		m, ok, err := narrowSetValue(r, field)
-		if err != nil {
-			return 0, err
-		}
+		m, ok := r.SetMaskValue(field)
 		if !ok {
 			continue
 		}
-		a.total += uint64(bits.OnesCount64(m))
+		a.total += uint64(m.PopCount())
 	}
 	a.frozenTotal = a.total
 	a.frozenHasResult = true
@@ -531,14 +517,11 @@ func (a *setCardinalitySumAggregator) Aggregate(records []*Record, field string)
 }
 
 func (a *setCardinalitySumAggregator) UpdateRow(r *Record, field string) error {
-	m, ok, err := narrowSetValue(r, field)
-	if err != nil {
-		return err
-	}
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return nil
 	}
-	a.total += uint64(bits.OnesCount64(m))
+	a.total += uint64(m.PopCount())
 	return nil
 }
 
@@ -597,14 +580,11 @@ func (a *setCardinalityAvgAggregator) Aggregate(records []*Record, field string)
 	a.total = 0
 	a.n = 0
 	for _, r := range records {
-		m, ok, err := narrowSetValue(r, field)
-		if err != nil {
-			return 0, err
-		}
+		m, ok := r.SetMaskValue(field)
 		if !ok {
 			continue
 		}
-		a.total += uint64(bits.OnesCount64(m))
+		a.total += uint64(m.PopCount())
 		a.n++
 	}
 	a.freeze()
@@ -615,14 +595,11 @@ func (a *setCardinalityAvgAggregator) Aggregate(records []*Record, field string)
 }
 
 func (a *setCardinalityAvgAggregator) UpdateRow(r *Record, field string) error {
-	m, ok, err := narrowSetValue(r, field)
-	if err != nil {
-		return err
-	}
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return nil
 	}
-	a.total += uint64(bits.OnesCount64(m))
+	a.total += uint64(m.PopCount())
 	a.n++
 	return nil
 }
@@ -680,10 +657,16 @@ func (a *setCardinalityAvgAggregator) MergeOnline(other OnlineAggregator) error 
 
 // Distinct exact mask values seen — treats each (possibly empty)
 // combination as atomic. Mergeable via set union of seen masks.
+//
+// The seen map is keyed by encoding.SetMask itself: a [4]uint64 array
+// in a struct is comparable, so two rows count as the same combination
+// only when all 256 bits agree. Keying on a narrowed uint64 would have
+// collapsed every pair of combinations differing only above bit 63 into
+// one bucket.
 
 type setDistinctValuesAggregator struct {
 	dict *encoding.Dictionary
-	seen map[uint64]struct{}
+	seen map[encoding.SetMask]struct{}
 
 	// frozen* mirror the post-Aggregate / post-Finalize state. The
 	// declared schema surfaces the bitwise-OR union of every distinct
@@ -691,7 +674,7 @@ type setDistinctValuesAggregator struct {
 	// superset of "any bit any row contributed". The frozen union is
 	// stamped at the freeze point so Components() returns a stable
 	// snapshot even if a future Finalize-reset wipes `seen`.
-	frozenMaskUnion uint64
+	frozenMaskUnion encoding.SetMask
 	frozenHasResult bool
 }
 
@@ -704,12 +687,9 @@ func newSetDistinctValuesAggregator(agg *types.Aggregation, schema *encoding.Sch
 }
 
 func (a *setDistinctValuesAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	a.seen = make(map[uint64]struct{})
+	a.seen = make(map[encoding.SetMask]struct{})
 	for _, r := range records {
-		m, ok, err := narrowSetValue(r, field)
-		if err != nil {
-			return 0, err
-		}
+		m, ok := r.SetMaskValue(field)
 		if !ok {
 			continue
 		}
@@ -720,15 +700,12 @@ func (a *setDistinctValuesAggregator) Aggregate(records []*Record, field string)
 }
 
 func (a *setDistinctValuesAggregator) UpdateRow(r *Record, field string) error {
-	m, ok, err := narrowSetValue(r, field)
-	if err != nil {
-		return err
-	}
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return nil
 	}
 	if a.seen == nil {
-		a.seen = make(map[uint64]struct{})
+		a.seen = make(map[encoding.SetMask]struct{})
 	}
 	a.seen[m] = struct{}{}
 	return nil
@@ -747,30 +724,28 @@ func (a *setDistinctValuesAggregator) Finalize() (float64, error) {
 // across either path.
 func (a *setDistinctValuesAggregator) freeze() {
 	a.frozenHasResult = true
-	var union uint64
+	var union encoding.SetMask
 	for m := range a.seen {
-		union |= m
+		union = union.Union(m)
 	}
 	a.frozenMaskUnion = union
 }
 
 // Components returns {mask_union, popcount, labels} — the bitwise-OR
-// union of every distinct mask seen, its popcount, and the decoded
-// dictionary labels (same path as resolveMaskLabels). Reads the
-// frozen mirror so streaming Finalize-reset does not erase the value.
-// Empty input (no rows seen) collapses to {0, 0, []string{}}.
+// union of every distinct mask seen (as its four constituent words),
+// its popcount, and the decoded dictionary labels. Reads the frozen
+// mirror so streaming Finalize-reset does not erase the value. Empty
+// input (no rows seen) collapses to the zero mask, popcount 0 and an
+// empty label slice.
 func (a *setDistinctValuesAggregator) Components() (map[string]any, error) {
+	m := a.frozenMaskUnion
 	if !a.frozenHasResult {
-		return map[string]any{
-			"mask_union": uint64(0),
-			"popcount":   0,
-			"labels":     []string{},
-		}, nil
+		m = encoding.SetMask{}
 	}
 	return map[string]any{
-		"mask_union": a.frozenMaskUnion,
-		"popcount":   bits.OnesCount64(a.frozenMaskUnion),
-		"labels":     resolveMaskLabels(a.frozenMaskUnion, a.dict),
+		"mask_union": setMaskComponentWords(m),
+		"popcount":   m.PopCount(),
+		"labels":     m.Labels(a.dict),
 	}, nil
 }
 
@@ -783,7 +758,7 @@ func (a *setDistinctValuesAggregator) MergeOnline(other OnlineAggregator) error 
 		return nil
 	}
 	if a.seen == nil {
-		a.seen = make(map[uint64]struct{}, len(b.seen))
+		a.seen = make(map[encoding.SetMask]struct{}, len(b.seen))
 	}
 	for m := range b.seen {
 		a.seen[m] = struct{}{}

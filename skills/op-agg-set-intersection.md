@@ -29,7 +29,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 | Key | Type | Notes |
 |---|---|---|
-| `mask_intersection` | uint64 | Bitwise AND across contributing rows |
+| `mask_intersection` | `[]uint64` | Bitwise AND across contributing rows; 4 little-endian words, `words[0]` = bits 0-63 |
 | `popcount` | int | Bits set in `mask_intersection` |
 | `labels` | `[]string` | Resolved dictionary labels |
 

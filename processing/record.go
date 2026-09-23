@@ -98,9 +98,32 @@ func (r *Record) SetWide(name string, v any) {
 
 // NumericValue returns the numeric value for the named field.
 // Returns the value and true if present and non-null, or 0 and false if null or missing.
+//
+// A SET-TYPED FIELD IS NEVER NUMERIC HERE and always reports false,
+// even though the decoder does write a float64 echo of the mask into
+// the values map. The echo is not a number the caller can use: from
+// set_u64 upward it loses bits to float64's 53-bit mantissa, and for a
+// wide rung (set_u128 / set_u256) it is only the LOW 64 BITS of the
+// mask. Both failures are silent — a set of 206 members read through
+// this accessor returns a perfectly plausible float that is simply the
+// wrong selection. Refusing is the only signal available: the accessor
+// has no error channel, so it answers the honest question ("is there a
+// number here?") with no, exactly as StringValue already answers for a
+// non-categorical field. Read set fields through SetMaskValue.
+//
+// The guard costs nothing on the common path: a record with no wide
+// fields skips the map probe entirely, and a decimal128 wide value
+// still returns its float echo because setMaskFromWideValue rejects it.
 func (r *Record) NumericValue(name string) (float64, bool) {
 	if r.nulls[name] {
 		return 0, false
+	}
+	if len(r.wide) > 0 {
+		if wv, present := r.wide[name]; present {
+			if _, isSet := setMaskFromWideValue(wv); isSet {
+				return 0, false
+			}
+		}
 	}
 	v, ok := r.values[name]
 	return v, ok

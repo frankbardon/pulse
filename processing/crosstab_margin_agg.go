@@ -282,7 +282,7 @@ func admitRecords(bucket []*Record, memberA, memberB map[*Record]struct{}, cellF
 				return false
 			}
 		}
-		_, ok := r.NumericValue(cellField)
+		ok := FieldPresent(r, cellField)
 		return ok
 	}
 

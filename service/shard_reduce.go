@@ -533,7 +533,18 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			if label == "" {
 				label = fmt.Sprintf("%s_%s", req.Aggregations[i].Type, req.Aggregations[i].Field)
 			}
-			row[label] = val
+			// Lift through the Rich-or-scalar dispatch the serial
+			// Processor uses. Finalize() alone returns a
+			// RichAggregator's scalar FALLBACK, so writing it straight
+			// into the row made AGG_SET_UNION emit a popcount and
+			// AGG_SET_FREQUENCY a max-bin count under either parallel
+			// knob while the serial path emitted labels and a
+			// label→count map — the same request answering in two
+			// different shapes depending on worker count.
+			row[label], err = processing.DispatchAggregatorResult(oa, val)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if len(merged.aggs) > 0 {
 			resp.Data = []map[string]any{row}
@@ -562,7 +573,11 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 				if label == "" {
 					label = fmt.Sprintf("%s_%s", req.Aggregations[i].Type, req.Aggregations[i].Field)
 				}
-				row[label] = val
+				// Same Rich-or-scalar lift as the ungrouped arm above.
+				row[label], err = processing.DispatchAggregatorResult(oa, val)
+				if err != nil {
+					return nil, err
+				}
 			}
 			row[grp.Field] = key
 			data = append(data, row)

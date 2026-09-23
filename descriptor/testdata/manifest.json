@@ -1287,8 +1287,8 @@
               },
               {
                 "name": "mask_union",
-                "type": "uint64",
-                "description": "Bitwise OR of every contributing row's set mask."
+                "type": "[]uint64",
+                "description": "Bitwise OR of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
               },
               {
                 "name": "popcount",
@@ -1375,8 +1375,8 @@
               },
               {
                 "name": "mask_intersection",
-                "type": "uint64",
-                "description": "Bitwise AND of every contributing row's set mask."
+                "type": "[]uint64",
+                "description": "Bitwise AND of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
               },
               {
                 "name": "popcount",
@@ -1419,8 +1419,8 @@
               },
               {
                 "name": "mask_union",
-                "type": "uint64",
-                "description": "Bitwise OR of every contributing row's set mask."
+                "type": "[]uint64",
+                "description": "Bitwise OR of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
               },
               {
                 "name": "popcount",
@@ -8850,8 +8850,8 @@
             },
             {
               "name": "mask_union",
-              "type": "uint64",
-              "description": "Bitwise OR of every contributing row's set mask."
+              "type": "[]uint64",
+              "description": "Bitwise OR of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
             },
             {
               "name": "popcount",
@@ -8910,8 +8910,8 @@
             },
             {
               "name": "mask_intersection",
-              "type": "uint64",
-              "description": "Bitwise AND of every contributing row's set mask."
+              "type": "[]uint64",
+              "description": "Bitwise AND of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
             },
             {
               "name": "popcount",
@@ -8940,8 +8940,8 @@
             },
             {
               "name": "mask_union",
-              "type": "uint64",
-              "description": "Bitwise OR of every contributing row's set mask."
+              "type": "[]uint64",
+              "description": "Bitwise OR of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
             },
             {
               "name": "popcount",
@@ -9691,4 +9691,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: afe08cc10699e2ff6ba1782d28519ade035a007dafb87af826b43982822a2fae
+// golden-hash: 672a1379701d26f358034deceda167cb852bee58b26df97c1a1290e640ddf303

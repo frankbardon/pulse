@@ -297,7 +297,7 @@ func (f *nullFilterer) Build(filter *types.Filterer, _ *encoding.Schema) (Filter
 
 	field := filter.Field
 	return func(record *Record) (bool, error) {
-		_, present := record.NumericValue(field)
+		present := FieldPresent(record, field)
 		if keepNull {
 			return !present, nil
 		}

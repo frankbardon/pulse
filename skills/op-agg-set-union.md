@@ -31,7 +31,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 | Key | Type | Notes |
 |---|---|---|
-| `mask_union` | uint64 | Bitwise OR across contributing rows |
+| `mask_union` | `[]uint64` | Bitwise OR across contributing rows; 4 little-endian words, `words[0]` = bits 0-63 |
 | `popcount` | int | Bits set in `mask_union` |
 | `labels` | `[]string` | Resolved dictionary labels |
 
