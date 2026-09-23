@@ -109,11 +109,15 @@ type SchemaAwareWriter interface {
 // shown the battery did not.
 //
 // The row form for "no selection" is a cell of ONE BARE DELIMITER
-// ("|"). The empty string cannot serve, because it is a null token and
-// is consumed before any dictionary is consulted. That the bare
-// delimiter works is not a trick but the composition of two documented
-// behaviours in the shared import path, and BOTH are part of this
-// contract:
+// ("|") — the exported constant EmptySetCell. The empty string cannot
+// serve, because it is a null token and is consumed before any
+// dictionary is consulted. It is no longer a SchemaAwareReader
+// peculiarity: ExportJob.Run writes the same marker for every format,
+// so the convention is one contract shared by the whole adapter set
+// (see EmptySetCell and docs/src/internals/adding-io-format.md). That
+// the bare delimiter works is not a trick but the composition of two
+// documented behaviours in the shared import path, and BOTH are part
+// of this contract:
 //
 //   - isNullToken (io/import.go) recognises exactly "", "na", "n/a" and
 //     "null", case-insensitively. "|" is not among them, so the cell

@@ -504,9 +504,21 @@ func (w *Writer) WriteRow(values []any) error {
 func (w *Writer) appendCell(c int, v any) error {
 	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
 		f := w.pulseSchema.Fields[c]
-		switch f.Type {
-		case encoding.FieldTypeDecimal128:
+		switch {
+		case f.Type == encoding.FieldTypeDecimal128:
 			return parrow.AppendDecimal128(w.bldr.Field(c), f, v)
+		case f.Type.IsSet():
+			// A Pulse set maps to LIST<UTF8> (parrow.TypeFromPulse), and
+			// io/export.go hands over ONE delimiter-joined token string
+			// per cell. Without this arm the string reached the list
+			// builder's AppendValueFromString, which parses it as JSON,
+			// failed on every row, and made a Parquet export of any set
+			// column report success having written zero rows. The
+			// helper is shared with io/arrow so both encode a set — and
+			// its null / empty-selection distinction — identically.
+			if done, err := parrow.AppendSetList(w.bldr.Field(c), v); done {
+				return err
+			}
 		}
 	}
 	if w.strBs[c] != nil {

@@ -55,6 +55,36 @@ var setLadder = []encoding.FieldType{
 // skipped the inference pass). Always |.
 const DefaultSetDelimiter = "|"
 
+// EmptySetCell is the external form of a PRESENT set_* cell with no
+// element selected — a bare DefaultSetDelimiter, carrying no token.
+//
+// A set column has three states, not two: some elements selected, NO
+// element selected, and null. The empty string cannot spell the middle
+// one, because isNullToken consumes it before any dictionary is
+// consulted; a cell that means "answered, ticked nothing" would
+// re-import as "never answered" and quietly shrink the denominator of
+// every rate computed over the column.
+//
+// One marker serves every adapter — flat text (csv / tsv / excel) and
+// JSON alike — so the convention is stated once and cannot drift
+// between formats. It survives a third-party round trip because it is
+// ordinary cell TEXT: unlike CSV's `,,` versus `,"",`, a spreadsheet or
+// a generic CSV writer has nothing to normalise away. The structured
+// adapters additionally carry the distinction natively (an Arrow or
+// Parquet LIST cell is null via its validity bit and empty via a
+// zero-length list; ndjson / jsonarray accept a JSON `[]`), and the
+// readers map those spellings back onto this marker so the shared
+// import path sees one form.
+//
+// It costs nothing at the other two states: a null cell is still "" and
+// a NON-EMPTY cell is still its delimiter-joined tokens, byte for byte.
+//
+// The composition that makes it work is documented on SchemaAwareReader
+// in io.go and must be kept: isNullToken does not recognise "|", and
+// splitSetTokens drops empty tokens, so "|" yields zero tokens — mask
+// 0, with no dictionary mutation.
+const EmptySetCell = DefaultSetDelimiter
+
 // InferenceWarning records a non-fatal observation during inference.
 type InferenceWarning struct {
 	Column  string
@@ -383,9 +413,20 @@ func probeSetClassification(values []string, minPct int) (encoding.FieldType, st
 		}
 		uniq := map[string]struct{}{}
 		totalTokens := 0
+		// Cells that yield no token at all are EMPTY SELECTIONS
+		// (EmptySetCell), not evidence against setness — they are the
+		// convention's own spelling of "answered, ticked nothing" and
+		// they only reach inference because export stopped writing them
+		// as nulls. Counting them in the average-cardinality denominator
+		// below would sink a column of mostly-unanswered multi-selects
+		// into a categorical of literal "|" strings.
+		tokenBearing := 0
 		for _, v := range values {
 			toks := splitSetTokens(v, delim)
 			totalTokens += len(toks)
+			if len(toks) > 0 {
+				tokenBearing++
+			}
 			for _, t := range toks {
 				uniq[t] = struct{}{}
 			}
@@ -401,8 +442,9 @@ func probeSetClassification(values []string, minPct int) (encoding.FieldType, st
 		}
 		// Average post-split cardinality must exceed 1, ruling out
 		// columns that only occasionally carry a delimiter inside a
-		// free-text categorical string.
-		if float64(totalTokens)/float64(len(values)) <= 1.0 {
+		// free-text categorical string. Averaged over the cells that
+		// carry a token; see tokenBearing above.
+		if tokenBearing == 0 || float64(totalTokens)/float64(tokenBearing) <= 1.0 {
 			continue
 		}
 		return ft, delim, true

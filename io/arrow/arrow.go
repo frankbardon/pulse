@@ -607,20 +607,44 @@ func (w *Writer) appendDecimal(c int, f encoding.Field, v any) error {
 }
 
 // appendSet appends one cell of a Pulse set column to its LIST<UTF8>
+// builder, delegating to the shared AppendSetList so the Parquet writer
+// encodes a set identically.
+func (w *Writer) appendSet(c int, v any) (bool, error) {
+	return AppendSetList(w.bldr.Field(c), v)
+}
+
+// AppendSetList appends one cell of a Pulse set column to a LIST<UTF8>
 // builder. io/export.go hands the exporter a single pio.DefaultSetDelimiter
 // -joined token string for every set rung (the external form of a set is
 // width-agnostic, so this is identical for set_u8 and set_u256); the list
 // builder needs those tokens as separate elements. Without this arm the
-// cell fell through to AppendValueFromString, which parses the string as
+// cell falls through to AppendValueFromString, which parses the string as
 // JSON, rejects "VISA|MC", and turns EVERY row into a RowError — the
 // export then reports success having written zero rows.
+//
+// # The three states of a set cell
+//
+// A set column has three states and Arrow can carry all three natively,
+// so this is where the distinction is made rather than deferred to text:
+//
+//   - null — the validity bit. ExportJob.Run spells a bitmap-null cell
+//     "" (and a CohortWriter-free caller may pass nil); both land on
+//     AppendNull.
+//   - EMPTY SELECTION — a zero-length list. Its external form is
+//     pio.EmptySetCell, a bare delimiter carrying no token, which
+//     Append(true) followed by no element reproduces exactly.
+//   - a selection — one list element per token.
+//
+// Reading "" as an empty list rather than as a null is what used to
+// collapse "ticked none of these" into "skipped the question" the
+// moment a cohort went through Arrow or Parquet.
 //
 // done=false means this column is not actually backed by a list builder
 // (a projected or label-augmented export can desynchronize the Pulse
 // schema from the Arrow column list); the caller falls through to the
 // generic path rather than erroring.
-func (w *Writer) appendSet(c int, v any) (bool, error) {
-	lb, ok := w.bldr.Field(c).(*array.ListBuilder)
+func AppendSetList(b array.Builder, v any) (bool, error) {
+	lb, ok := b.(*array.ListBuilder)
 	if !ok {
 		return false, nil
 	}
@@ -628,13 +652,17 @@ func (w *Writer) appendSet(c int, v any) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-	s, _ := v.(string)
 	if v == nil {
 		lb.AppendNull()
 		return true, nil
 	}
-	// A present cell with no tokens is an EMPTY selection — an empty
-	// list, not a null. Append(true) opens a list of length zero.
+	s, _ := v.(string)
+	if s == "" {
+		// The null cell. An empty SELECTION arrives as
+		// pio.EmptySetCell, never as the empty string.
+		lb.AppendNull()
+		return true, nil
+	}
 	lb.Append(true)
 	for _, tok := range strings.Split(s, pio.DefaultSetDelimiter) {
 		tok = strings.TrimSpace(tok)

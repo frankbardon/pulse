@@ -33,6 +33,17 @@ func ValueToString(v any) string {
 		}
 		return "false"
 	case []any:
+		if len(val) == 0 {
+			// A present array with no elements is an EMPTY SELECTION,
+			// not a null — the JSON-native spelling of the state
+			// io.EmptySetCell carries in flat text. Joining zero parts
+			// would yield "", which the shared import path reads as a
+			// null token before any dictionary is consulted, so a
+			// respondent who ticked none of the boxes would come back
+			// indistinguishable from one who never saw the question.
+			// The bare delimiter splits to zero tokens: mask 0.
+			return SetArrayDelimiter
+		}
 		parts := make([]string, 0, len(val))
 		for _, el := range val {
 			switch el.(type) {

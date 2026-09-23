@@ -112,10 +112,72 @@ A set column's *external* form is its selected **labels**, never the
 bitmask. `ExportJob.Run` hands a Writer one string per set cell:
 the selected dictionary labels joined with `pio.DefaultSetDelimiter`
 (`"|"`), in ascending **bit** order — which is dictionary-index
-order, not the order the tokens appeared in the source. An empty
-selection is the empty string. This is the exact inverse of the
-import obligation above, which is what makes a set column survive
-`cohort → format → cohort`.
+order, not the order the tokens appeared in the source. This is the
+exact inverse of the import obligation above, which is what makes a
+set column survive `cohort → format → cohort`.
+
+#### The three states, and the one marker that carries them
+
+A set cell is not two-valued. It has **null** (no answer), an
+**empty mask** (answered, selected nothing) and a selection, and all
+three are distinct inside the cohort: null rides the per-record null
+bitmap, an empty mask is a real zero-width selection. For survey
+data the middle state is load-bearing — "ticked none of these" and
+"skipped the question" give different denominators — so an adapter
+that collapses them corrupts an analysis without failing anything.
+
+The external forms, identical at every rung from `set_u8` to
+`set_u256`:
+
+| State | Flat text (`csv` / `tsv` / `excel`) | JSON (`ndjson` / `jsonarray`) | `arrow` / `parquet` |
+|---|---|---|---|
+| null | `""` (any `isNullToken` spelling) | `null` | validity bit clear |
+| empty mask | `pio.EmptySetCell` — a bare `"|"`, no token | `"|"` on write, `[]` also accepted on read | zero-length `LIST<UTF8>` |
+| selection | `A|B` | `"A|B"` | `["A","B"]` |
+
+`pio.EmptySetCell` is one marker for every format, so the convention
+cannot drift between adapters, and it survives a round trip through a
+third-party tool because it is ordinary cell **text**: unlike CSV's
+`,,` versus `,"",`, a spreadsheet or a generic CSV writer has nothing
+to normalise away. It costs nothing at the other two states — a null
+cell is still `""` and a **non-empty** cell is still its joined
+tokens, byte for byte.
+
+It works by the composition of two documented behaviours in the
+shared import path, and **both are part of the contract**:
+`isNullToken` recognises exactly `""`, `na`, `n/a` and `null`, so
+`"|"` reaches value conversion instead of being read as null; and
+`splitSetTokens` trims each part and drops the empty ones, so `"|"`
+yields zero tokens — mask 0, with no dictionary mutation. Widening
+the null-token set to cover a lone delimiter, or making
+`splitSetTokens` retain empty tokens, re-collapses the two states
+SILENTLY: both spellings keep importing and only the meaning changes.
+
+**Implementer obligations.**
+
+- A Writer that stringifies (`csv`, `tsv`, `excel`, and the JSON
+  adapters via `jsonshared.CoerceValue`) needs no set-specific code:
+  the marker is already in the string `ExportJob.Run` hands over.
+- A Writer with a native list type MUST route set cells through
+  `parrow.AppendSetList` (or reproduce it): `nil` and `""` are the
+  **null** cell and take the validity bit; anything else opens a
+  list, empty for the marker. Reading `""` as an empty list is the
+  bug this replaced.
+- A Reader with a native list type must render a present zero-length
+  list as `pio.EmptySetCell`, not `""` — `""` is a null token and the
+  null cell already has its own channel one level up. `io/arrow`'s
+  `formatStringListSlice` is the reference.
+- A Reader over JSON must map `[]` to the marker
+  (`jsonshared.ValueToString`), so a producer that does not know the
+  convention and simply emits `[]` still imports as an empty
+  selection.
+
+The matrix that pins all of this for every adapter at a narrow rung
+and a wide rung is `io/settristate/`.
+
+`categorical_*` has the same empty-string-vs-null collapse and was
+deliberately left alone: its cell text is arbitrary, so it has no
+free marker and would need a real out-of-band null channel.
 
 **The form is width-agnostic.** Every rung from `set_u8` to
 `set_u256` externalizes identically; a 206-label cell is simply a

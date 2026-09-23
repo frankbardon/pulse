@@ -38,6 +38,18 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 
 `set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 20 types participate identically.
 
+**A set cell has THREE states and every import/export format keeps them apart.** Null (no answer), **empty mask** (answered, selected nothing) and a selection are distinct data — "ticked none of these" and "skipped the question" give different denominators. External forms, identical at every rung from `set_u8` to `set_u256`:
+
+| State | Flat text (`csv` / `tsv` / `excel`) | JSON (`ndjson` / `jsonarray`) | `arrow` / `parquet` |
+|---|---|---|---|
+| null | `""` (any null token) | `null` | validity bit clear |
+| empty mask | **`\|`** — a bare delimiter, no token | `"\|"` on write, `[]` also accepted on read | zero-length `LIST<UTF8>` |
+| selection | `A\|B` | `"A\|B"` | `["A","B"]` |
+
+One marker (`io.EmptySetCell`, a bare `io.DefaultSetDelimiter`) serves every format, so the convention cannot drift between them, and it survives a third-party round trip because it is ordinary cell text — unlike CSV's `,,` versus `,"",`, a spreadsheet has nothing to normalise away. It works because `isNullToken` does not recognise `\|` and the token splitter drops empty tokens, so `\|` yields zero tokens and no dictionary entry. Widening the null-token set to cover a lone delimiter, or retaining empty tokens, re-collapses the two states SILENTLY — both spellings keep importing and only the meaning changes.
+
+`categorical_*` still collapses empty-string-vs-null this way; only `set_*` is fixed.
+
 `date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by `GROUP_DATE` / `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`, which day-truncate `datetime` to the UTC calendar day. Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to `type-date` / `type-datetime`.
 
 ## Selection heuristics

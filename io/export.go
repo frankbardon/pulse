@@ -559,18 +559,29 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 // formatSetMask renders a set membership mask as the canonical external
 // form: the selected dictionary labels joined by DefaultSetDelimiter, in
 // ascending BIT order (which is dictionary-index order, not the order
-// the tokens appeared in the source cell). An empty mask renders as the
-// empty string — a present cell with nothing selected; null state is
-// applied separately by the export loop from the per-record bitmap.
+// the tokens appeared in the source cell). An empty mask renders as
+// EmptySetCell — a bare delimiter, NOT the empty string: a present cell
+// with nothing selected is a different answer from an absent one, and
+// the export loop spells null "" from the per-record bitmap. Collapsing
+// the two here is what used to turn "ticked none of these" into
+// "skipped the question" on re-import.
+//
+// A dictionary-less set field cannot resolve any label, but it is still
+// a PRESENT cell, so it takes the empty-selection form for the same
+// reason rather than impersonating a null.
 //
 // Bits past the dictionary are skipped by SetMask.Labels rather than
 // resolved or treated as fatal: that is a corrupt or mid-remap payload,
 // and an export must not take the whole file down over one cell.
 func formatSetMask(m encoding.SetMask, dict *encoding.Dictionary) string {
 	if dict == nil {
-		return ""
+		return EmptySetCell
 	}
-	return strings.Join(m.Labels(dict), DefaultSetDelimiter)
+	labels := m.Labels(dict)
+	if len(labels) == 0 {
+		return EmptySetCell
+	}
+	return strings.Join(labels, DefaultSetDelimiter)
 }
 
 // formatPackedValue formats bit-packed types.

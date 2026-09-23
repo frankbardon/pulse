@@ -11,6 +11,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/decimal128"
 
 	"github.com/frankbardon/pulse/encoding"
+	pio "github.com/frankbardon/pulse/io"
 )
 
 // Pulse field metadata key carried as an Arrow Field.Metadata pair so a
@@ -338,9 +339,17 @@ func formatStringListLarge(elements arrow.Array, offsets []int64, idx int) strin
 // range with "|", skipping nulls. Non-string element arrays fall back
 // to the generic FormatValue path which produces the Arrow library's
 // canonical representation per element.
+//
+// A ZERO-LENGTH list is not the empty string. FormatValue is only
+// reached for a non-null position, so a present list of no elements is
+// an EMPTY SELECTION and renders as pio.EmptySetCell — the bare
+// delimiter the shared import path reads back as mask 0. Returning ""
+// here would hand the importer a null token and silently turn "ticked
+// none of these" into "skipped the question"; the null cell already has
+// its own spelling, from the validity bit one level up.
 func formatStringListSlice(elements arrow.Array, start, end int) string {
 	if start >= end {
-		return ""
+		return pio.EmptySetCell
 	}
 	parts := make([]string, 0, end-start)
 	switch ea := elements.(type) {

@@ -173,9 +173,13 @@ func TestExportJob_WideSetRoundTripsThroughText(t *testing.T) {
 
 // TestFormatSetMask_BitOrderAndEmpty pins the formatter directly: bits
 // emit in ascending order regardless of the order they were set, an
-// empty mask formats as the empty string (a present, empty selection —
-// null is applied separately from the record bitmap), and a bit past
-// the dictionary is skipped rather than resolved or fatal.
+// empty mask formats as EmptySetCell (a present, empty selection —
+// null is applied separately from the record bitmap and spells ""),
+// and a bit past the dictionary is skipped rather than resolved or
+// fatal.
+//
+// The empty-mask expectation was "" until the three-state convention
+// landed; see EmptySetCell for why the empty string could not carry it.
 func TestFormatSetMask_BitOrderAndEmpty(t *testing.T) {
 	dict := encoding.NewDictionary()
 	for _, s := range []string{"alpha", "beta", "gamma"} {
@@ -190,8 +194,9 @@ func TestFormatSetMask_BitOrderAndEmpty(t *testing.T) {
 		t.Errorf("formatSetMask = %q, want %q", got, "alpha|gamma")
 	}
 
-	if got := formatSetMask(encoding.SetMask{}, dict); got != "" {
-		t.Errorf("empty mask formatted as %q, want the empty string", got)
+	if got := formatSetMask(encoding.SetMask{}, dict); got != EmptySetCell {
+		t.Errorf("empty mask formatted as %q, want %q (the empty-selection marker, "+
+			"not the null cell)", got, EmptySetCell)
 	}
 
 	// A bit beyond the dictionary is a corrupt or mid-remap payload.
@@ -217,8 +222,11 @@ func TestFormatFieldValue_NarrowSetUsesLabels(t *testing.T) {
 		if got := formatFieldValue(ft, 0b101, dict); got != "VISA|AMEX" {
 			t.Errorf("%s: formatFieldValue(0b101) = %q, want %q", ft, got, "VISA|AMEX")
 		}
-		if got := formatFieldValue(ft, 0, dict); got != "" {
-			t.Errorf("%s: empty mask = %q, want the empty string", ft, got)
+		// Also corrected by the three-state convention: an all-zero
+		// narrow mask is an empty SELECTION, and must not leave the
+		// exporter wearing the null cell's spelling.
+		if got := formatFieldValue(ft, 0, dict); got != EmptySetCell {
+			t.Errorf("%s: empty mask = %q, want %q", ft, got, EmptySetCell)
 		}
 	}
 }
