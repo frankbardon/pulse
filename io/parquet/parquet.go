@@ -55,7 +55,19 @@ type Reader struct {
 	tbl     arrow.Table
 	pqFile  *file.Reader
 	arrowSc *arrow.Schema
+
+	// nulls is the per-column null mask for the row most recently
+	// handed to the ReadRows callback — the pio.NullAwareReader
+	// channel, read off the Arrow validity bits the Parquet definition
+	// levels decode to. The []string row renders a null and a present
+	// empty string alike as "". Rebuilt in place per row; valid only
+	// inside the callback.
+	nulls []bool
 }
+
+// RowNulls implements pio.NullAwareReader. Entry i is the validity bit
+// of the current row's column i, not a reading of the cell text.
+func (r *Reader) RowNulls() []bool { return r.nulls }
 
 // NewReader creates a Parquet reader from a filesystem path.
 func NewReader(fs afero.Fs, path string, opts ...Option) *Reader {
@@ -196,6 +208,10 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 
 	// Iterate over rows.
 	row := make([]string, numCols)
+	if cap(r.nulls) < numCols {
+		r.nulls = make([]bool, numCols)
+	}
+	r.nulls = r.nulls[:numCols]
 	rowIdx := 0
 	for rowIdx < numRows {
 		select {
@@ -205,7 +221,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 
 		for c := 0; c < numCols; c++ {
-			row[c] = getValueAsString(cols[c].chunks, rowIdx)
+			row[c], r.nulls[c] = getValueAsString(cols[c].chunks, rowIdx)
 		}
 
 		if err := fn(row); err != nil {
@@ -220,20 +236,26 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	return nil
 }
 
-// getValueAsString extracts a value from chunked arrays at the given row index.
-func getValueAsString(chunks []arrow.Array, rowIdx int) string {
+// getValueAsString extracts a value from chunked arrays at the given row
+// index, returning the rendered text and whether the value was NULL.
+//
+// The two answers are returned separately because they are separate
+// facts: a null and a present empty string both render "", and only the
+// validity bit tells them apart (pio.NullAwareReader). A row index past
+// the end of every chunk reports null — there is no value there.
+func getValueAsString(chunks []arrow.Array, rowIdx int) (string, bool) {
 	// Find which chunk and local index.
 	offset := rowIdx
 	for _, chunk := range chunks {
 		if offset < chunk.Len() {
 			if chunk.IsNull(offset) {
-				return ""
+				return "", true
 			}
-			return parrow.FormatValue(chunk, offset)
+			return parrow.FormatValue(chunk, offset), false
 		}
 		offset -= chunk.Len()
 	}
-	return ""
+	return "", true
 }
 
 // Close releases underlying resources.
@@ -347,7 +369,15 @@ type Writer struct {
 	strBs   []*array.StringBuilder // cached per-column builders
 	pending int                    // rows currently buffered in bldr
 	closed  bool
+
+	// explicitNulls records that the caller marks null cells itself —
+	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// ConvertJob. See the arrow Writer's field of the same name.
+	explicitNulls bool
 }
+
+// SetExplicitNulls implements pio.NullAwareWriter.
+func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // SetPulseSchema records the source .pulse schema so subsequent
 // initWriter can build native typed Parquet columns. Implements
@@ -522,11 +552,13 @@ func (w *Writer) appendCell(c int, v any) error {
 		}
 	}
 	if w.strBs[c] != nil {
-		var s string
-		if v != nil {
-			s = fmt.Sprintf("%v", v)
+		// A string column's null is the validity bit, not "" — see the
+		// io/arrow writer's identical arm and pio.NullAwareWriter.
+		if pio.IsNullCell(v, w.explicitNulls) {
+			w.strBs[c].AppendNull()
+			return nil
 		}
-		w.strBs[c].Append(s)
+		w.strBs[c].Append(fmt.Sprintf("%v", v))
 		return nil
 	}
 	if v == nil {
@@ -609,6 +641,8 @@ func pulseTypeToArrow(ft encoding.FieldType) arrow.DataType {
 var _ pio.Reader = (*Reader)(nil)
 var _ pio.ResetReader = (*Reader)(nil)
 var _ pio.Writer = (*Writer)(nil)
+var _ pio.NullAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareReader = (*Reader)(nil)
 var _ pio.SchemaAwareWriter = (*Writer)(nil)
 var _ pio.OverlayAwareWriter = (*Writer)(nil)
 

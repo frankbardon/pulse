@@ -238,6 +238,155 @@ type SchemaAwareReader interface {
 	PulseSchema() (*encoding.Schema, error)
 }
 
+// The null cell, and why a categorical needs a channel the text has not
+//
+// A `.pulse` categorical column has THREE states in the same sense a
+// set_* column does: an ordinary value, the EMPTY STRING as a value,
+// and null. The byte format already keeps them apart — null rides the
+// per-record null bitmap and the empty string is an ordinary dictionary
+// entry — so any collapse happens in this package, not in the format.
+//
+// set_* could solve its version of this with an in-band marker
+// (EmptySetCell, a bare delimiter, which no legal selection can spell).
+// A categorical cannot: ANY text is a legal categorical value, so every
+// candidate sentinel makes some real value unrepresentable, which is a
+// worse bug than the one it fixes. The distinction therefore has to
+// ride OUT OF BAND, in a channel beside the cell text.
+//
+// # The row-level convention: nil is the null cell
+//
+// ExportJob.Run spells a bitmap-null cell as an untyped Go nil in the
+// []any row, and a present empty string as "". That is the whole
+// convention, and it is free for the adapters that cannot use it:
+// io/csv and io/tsv already render nil as "", so their bytes are
+// unchanged.
+//
+// ConvertJob does NOT write from a cohort — it copies source TEXT, in
+// which "" is the null token isNullToken recognises and no nil is ever
+// produced. The two verbs therefore disagree about what "" means, and a
+// writer must not guess which one is calling it. NullAwareWriter is how
+// it is told: ExportJob.Run calls SetExplicitNulls(true) and ConvertJob
+// does not, so a writer's null policy follows its caller's provenance
+// rather than the cell's spelling.
+//
+// # The read-back channel: NullAwareReader
+//
+// Reader.ReadRows yields []string, which has no null channel at all —
+// a JSON null, an Arrow validity bit and an empty JSON string all
+// arrive as "". NullAwareReader is the out-of-band half: a source whose
+// format HAS a native null channel reports it per row, and ImportJob
+// believes it over the text.
+//
+// # The adapter matrix, including the honest gaps
+//
+// Carries the distinction end to end (implements NullAwareReader):
+// ndjson and jsonarray (JSON null vs ""), arrow and parquet (the
+// validity bit vs a present empty string).
+//
+// Does NOT carry it, deliberately and documented rather than silently:
+//
+//   - csv, tsv — RFC 4180 has one spelling for an absent value. Go's
+//     encoding/csv does not preserve the unquoted-empty vs
+//     quoted-empty distinction on read (LazyQuotes and the default
+//     reader both yield ""), so there is no channel to use even if the
+//     writer emitted one. A null and an empty-string categorical both
+//     export as an empty field and both re-import as NULL.
+//   - excel — the WRITER already distinguishes them: a nil cell is
+//     written as a genuinely blank cell (CellTypeUnset) and "" as an
+//     empty string cell, so the artefact carries the distinction. The
+//     READER loses it: excelize's row API (GetRows / Rows.Columns)
+//     yields []string with no cell-presence channel, and the per-cell
+//     GetCellType probe that would recover it is O(rows) per call —
+//     quadratic over a sheet. Recovering it needs a different read
+//     path, not a different interface, so excel collapses to NULL like
+//     the delimited pair.
+//   - spss — has its own fidelity model (the metadata sidecar and
+//     pio.CohortWriter) and does not ride the row path in either
+//     direction.
+//
+// The collapse direction matters and is asserted: a format that cannot
+// carry the distinction reads BOTH states back as NULL. Losing the
+// empty string into null is the pre-existing behaviour and is
+// recoverable from the source; inventing an empty-string value where
+// the cohort had a null would be new data.
+
+// NullAwareReader is an optional extension of Reader for sources whose
+// format carries an explicit null channel — JSON null, an Arrow or
+// Parquet validity bit — that the []string row cannot express.
+//
+// ImportJob.Run and ImportJob.Predict type-assert it. A source that
+// does not implement it takes the unchanged text path, where
+// isNullToken alone decides, byte-for-byte.
+//
+// # Contract
+//
+// RowNulls describes the row MOST RECENTLY passed to the ReadRows
+// callback and is only valid for the duration of that call —
+// implementations reuse the slice. Its length is the row's length;
+// entry i is true when column i was null IN THE SOURCE, which is a
+// different question from whether the cell text is empty.
+//
+// # How ImportJob reads it
+//
+// A declared null is always null, whatever the text says. A cell the
+// source declares PRESENT is a null only if the type cannot hold its
+// text: the empty string is a legal value for a dictionary-bearing
+// non-set type and nothing else, so that is the single case where an
+// empty cell survives as a value. An empty cell in a u32 or a date
+// column is still a null, because "" is not a number and reading it as
+// one would turn a recoverable null into a per-row import error.
+// set_* is excluded deliberately: its present-but-empty state already
+// has the EmptySetCell spelling and must keep it, so that the set
+// tri-state behaves identically on every adapter.
+type NullAwareReader interface {
+	Reader
+	// RowNulls reports which columns of the current row were null in
+	// the source. Valid only inside the ReadRows callback.
+	RowNulls() []bool
+}
+
+// NullAwareWriter is an optional extension of Writer for targets whose
+// format has a native null channel and which therefore need to know
+// which caller is handing them rows.
+//
+// ExportJob.Run calls SetExplicitNulls(true) before WriteHeader: its
+// rows come from a `.pulse` cohort, where the null bitmap is authority,
+// nil is the ONLY null cell and "" is an ordinary value. ConvertJob
+// never calls it: its rows are source text, where "" is the null token
+// and no nil is produced. A writer that is never told stays on the text
+// convention, which is what keeps every convert byte-identical.
+//
+// Use IsNullCell rather than testing the flag by hand, so the two
+// conventions are spelled once.
+type NullAwareWriter interface {
+	Writer
+	// SetExplicitNulls declares that the caller marks null cells with
+	// an untyped nil and means "" literally.
+	SetExplicitNulls(on bool)
+}
+
+// IsNullCell reports whether one cell of a row handed to Writer.WriteRow
+// is the ABSENT cell, under whichever of the two conventions applies.
+//
+// explicit is the flag NullAwareWriter.SetExplicitNulls set: true on the
+// export path (nil alone is null; "" is a value), false on the convert
+// path (nil and "" are both the absent cell, matching isNullToken's
+// reading of the source text).
+//
+// Only "" is treated as absent on the text path — never "na" / "null" —
+// because that is exactly what the writers did before the null channel
+// existed, and widening it here would change what a convert emits.
+func IsNullCell(v any, explicit bool) bool {
+	if v == nil {
+		return true
+	}
+	if explicit {
+		return false
+	}
+	s, ok := v.(string)
+	return ok && s == ""
+}
+
 // OverlayAwareWriter is an optional extension of Writer for targets that
 // can embed Response.Overlays in the exported artefact (Arrow / Parquet /
 // Excel / NDJSON per research/export-embedding-shape.md). The ExportJob

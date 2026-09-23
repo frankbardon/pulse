@@ -24,7 +24,18 @@ type Reader struct {
 	pending map[string]any // first object, buffered for the first ReadRows call.
 	rowNum  int
 	closed  bool
+
+	// nulls is the per-column null mask for the row most recently
+	// handed to the ReadRows callback — the pio.NullAwareReader
+	// channel. JSON distinguishes a null from an empty string and the
+	// []string row does not. Rebuilt in place by the emit closure;
+	// valid only inside the callback.
+	nulls []bool
 }
+
+// RowNulls implements pio.NullAwareReader. Entry i is true when the
+// current row's column i was JSON null, or absent from the object.
+func (r *Reader) RowNulls() []bool { return r.nulls }
 
 // NewReader creates a Reader from a filesystem path.
 func NewReader(fs afero.Fs, path string) *Reader {
@@ -157,10 +168,19 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 
 	emit := func(obj map[string]any) error {
 		row := make([]string, len(r.header))
+		if cap(r.nulls) < len(r.header) {
+			r.nulls = make([]bool, len(r.header))
+		}
+		r.nulls = r.nulls[:len(r.header)]
 		for i, key := range r.header {
-			if v, ok := obj[key]; ok {
+			v, ok := obj[key]
+			if ok {
 				row[i] = jsonshared.ValueToString(v)
 			}
+			// Absent, or present with a JSON null, is the null cell;
+			// present with "" is an empty string VALUE. See
+			// pio.NullAwareReader.
+			r.nulls[i] = !ok || v == nil
 		}
 		if err := fn(row); err != nil {
 			if err == pio.ErrStopIteration() {
@@ -239,7 +259,15 @@ type Writer struct {
 	started  bool
 	firstRow bool
 	closed   bool
+
+	// explicitNulls records that the caller marks null cells itself —
+	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// ConvertJob. See the ndjson Writer's field of the same name.
+	explicitNulls bool
 }
+
+// SetExplicitNulls implements pio.NullAwareWriter.
+func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // NewWriter creates a Writer targeting a filesystem path.
 func NewWriter(fs afero.Fs, path string) *Writer {
@@ -282,7 +310,11 @@ func (w *Writer) WriteRow(values []any) error {
 
 		var v any
 		if i < len(values) {
-			v = jsonshared.CoerceValue(values[i])
+			if w.explicitNulls {
+				v = jsonshared.CoerceValueExplicitNull(values[i])
+			} else {
+				v = jsonshared.CoerceValue(values[i])
+			}
 		}
 		valBytes, err := json.Marshal(v)
 		if err != nil {
@@ -315,3 +347,6 @@ func (w *Writer) Close() error {
 func (w *Writer) Bytes() []byte {
 	return w.buf.Bytes()
 }
+
+var _ pio.NullAwareReader = (*Reader)(nil)
+var _ pio.NullAwareWriter = (*Writer)(nil)

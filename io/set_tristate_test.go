@@ -148,6 +148,21 @@ func tristateCells(tokens int) (rows [][]string, wantSel []string) {
 		[]string{nonEmpty, EmptySetCell, ""}
 }
 
+// exportedCellText renders one collected export cell the way a target
+// WITHOUT a null channel renders it: since the export loop spells the
+// null cell as an untyped nil (see NullAwareWriter), csv / tsv / any
+// other text target turn that nil back into "". The set assertions
+// below are about the EMPTY-MASK spelling, which is unaffected; the
+// nil convention itself is asserted directly in
+// TestExportJob_NullCellIsNilNotEmptyString.
+func exportedCellText(v any) string {
+	if v == nil {
+		return ""
+	}
+	s, _ := v.(string)
+	return s
+}
+
 // importTristate writes a three-record cohort carrying all three states
 // under an explicit schema and returns the filesystem holding it.
 func importTristate(t *testing.T, ft encoding.FieldType, tokens int, rows [][]string) afero.Fs {
@@ -209,13 +224,16 @@ func TestExportJob_SetEmptyMaskIsNotNull(t *testing.T) {
 			t.Fatalf("%s: exported %d rows, want 3", rung.Type, len(w.rows))
 		}
 		for i, want := range wantSel {
-			got, ok := w.rows[i][1].(string)
-			if !ok {
-				t.Fatalf("%s row %d: exported cell is %T, want string", rung.Type, i, w.rows[i][1])
-			}
-			if got != want {
+			if got := exportedCellText(w.rows[i][1]); got != want {
 				t.Errorf("%s row %d: exported %q, want %q", rung.Type, i, got, want)
 			}
+		}
+		// The null cell leaves the export loop as an untyped nil, not
+		// as "": a categorical dictionary can hold "" as a value, so
+		// the row-level convention has to keep them apart for every
+		// type. A set cell's own empty-selection marker is unaffected.
+		if w.rows[2][1] != nil {
+			t.Errorf("%s: null cell exported as %#v, want an untyped nil", rung.Type, w.rows[2][1])
 		}
 		// The load-bearing inequality, stated on its own so a future
 		// convention change cannot quietly re-collapse the two.
@@ -242,7 +260,7 @@ func TestExportJob_SetThreeStatesRoundTrip(t *testing.T) {
 		}
 		back := make([][]string, 0, len(w.rows))
 		for _, r := range w.rows {
-			back = append(back, []string{r[0].(string), r[1].(string)})
+			back = append(back, []string{exportedCellText(r[0]), exportedCellText(r[1])})
 		}
 
 		fs2 := importTristate(t, rung.Type, rung.Tokens, back)

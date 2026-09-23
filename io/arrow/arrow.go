@@ -31,7 +31,21 @@ type Reader struct {
 	fileReader *ipc.FileReader
 	arrowSc    *arrow.Schema
 	batches    []arrow.RecordBatch
+
+	// nulls is the per-column null mask for the row most recently
+	// handed to the ReadRows callback — the pio.NullAwareReader
+	// channel, read straight off the Arrow validity bits. The []string
+	// row renders both a null and a present empty string as "", so
+	// without this a categorical cell that genuinely held "" came back
+	// as a null. Rebuilt in place per row; valid only inside the
+	// callback.
+	nulls []bool
 }
+
+// RowNulls implements pio.NullAwareReader. Entry i is the validity bit
+// of the current row's column i — Arrow's own answer, not a reading of
+// the cell text.
+func (r *Reader) RowNulls() []bool { return r.nulls }
 
 // NewReader creates an Arrow IPC reader that loads from the given filesystem
 // path on first read. The file is not opened until ReadHeader, ReadRows, or
@@ -149,6 +163,10 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	}
 	numCols := len(hostColIdx)
 	row := make([]string, numCols)
+	if cap(r.nulls) < numCols {
+		r.nulls = make([]bool, numCols)
+	}
+	r.nulls = r.nulls[:numCols]
 
 	for _, batch := range r.batches {
 		nRows := int(batch.NumRows())
@@ -167,7 +185,8 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			}
 
 			for c := 0; c < numCols; c++ {
-				if cols[c].IsNull(i) {
+				r.nulls[c] = cols[c].IsNull(i)
+				if r.nulls[c] {
 					row[c] = ""
 					continue
 				}
@@ -323,6 +342,12 @@ type Writer struct {
 	// rule (§ 3.2).
 	overlaysEmitted bool
 
+	// explicitNulls records that the caller marks null cells itself —
+	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// ConvertJob. false keeps the text convention in which "" is the
+	// source null token, so a convert's Arrow output is unchanged.
+	explicitNulls bool
+
 	// Lazily-initialized arrow writer state. Built on first WriteRow once
 	// the schema (column names) is known. Reused across all batches.
 	alloc   memory.Allocator
@@ -340,6 +365,9 @@ type Writer struct {
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
 }
+
+// SetExplicitNulls implements pio.NullAwareWriter.
+func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // SetOverlays records the Response.Overlays layers the export pipeline
 // wants the writer to embed in the Arrow file. The layers ride as a
@@ -585,11 +613,17 @@ func (w *Writer) appendCell(c int, v any) error {
 		}
 	}
 	if w.strBs[c] != nil {
-		var s string
-		if v != nil {
-			s = fmt.Sprintf("%v", v)
+		// A string column's null is the validity bit, not "". Arrow can
+		// carry a null AND a present empty string, and a `.pulse`
+		// categorical dictionary can hold "" as a genuine value, so
+		// appending "" for both erased a distinction both formats have.
+		// Which spelling means "absent" depends on the caller, not on
+		// the cell — see pio.NullAwareWriter.
+		if pio.IsNullCell(v, w.explicitNulls) {
+			w.strBs[c].AppendNull()
+			return nil
 		}
-		w.strBs[c].Append(s)
+		w.strBs[c].Append(fmt.Sprintf("%v", v))
 		return nil
 	}
 	// No string builder and no recognized typed column — append the
@@ -733,4 +767,6 @@ var _ pio.Reader = (*Reader)(nil)
 var _ pio.ResetReader = (*Reader)(nil)
 var _ pio.Writer = (*Writer)(nil)
 var _ pio.SchemaAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareReader = (*Reader)(nil)
 var _ pio.OverlayAwareWriter = (*Writer)(nil)

@@ -73,11 +73,7 @@ func TestExport_SetDelimiterIsCanonicalNotPerColumn(t *testing.T) {
 	}
 	want := []string{"red|blue", EmptySetCell, ""}
 	for i, w := range want {
-		got, ok := target.rows[i][1].(string)
-		if !ok {
-			t.Fatalf("row %d colours is %T, want string", i, target.rows[i][1])
-		}
-		if got != w {
+		if got := exportedCellText(target.rows[i][1]); got != w {
 			t.Errorf("row %d colours = %q, want %q", i, got, w)
 		}
 	}

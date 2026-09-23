@@ -195,9 +195,11 @@ SILENTLY: both spellings keep importing and only the meaning changes.
 The matrix that pins all of this for every adapter at a narrow rung
 and a wide rung is `io/settristate/`.
 
-`categorical_*` has the same empty-string-vs-null collapse and was
-deliberately left alone: its cell text is arbitrary, so it has no
-free marker and would need a real out-of-band null channel.
+`categorical_*` has the same empty-string-vs-null collapse and it
+does have a real out-of-band null channel now — see "The categorical
+null cell" below. The two mechanisms do not overlap: a set cell's
+present-but-empty state stays on the `pio.EmptySetCell` marker at
+every adapter, including the four with a null channel.
 
 **The form is width-agnostic.** Every rung from `set_u8` to
 `set_u256` externalizes identically; a 206-label cell is simply a
@@ -215,6 +217,66 @@ them with `ENCODING_TYPE_MISMATCH`, so the export loop reads them
 with `encoding.ReadSetMask` instead. A format that walks cohort
 bytes itself (`io.CohortWriter`, below) has to make the same split —
 branch on `FieldType.IsWideSet()`.
+
+### The categorical null cell: `io.NullAwareWriter` / `io.NullAwareReader`
+
+`categorical_*` has the same two-states-that-look-alike problem and it
+cannot be solved the same way. A set's `"|"` marker works because no
+legal selection can spell it; **any** text is a legal categorical
+value, so every candidate sentinel makes some real value
+unrepresentable — a worse bug than the one it would fix. The `.pulse`
+format already keeps the pair apart (null rides the bitmap, `""` is an
+ordinary dictionary entry), so the distinction has to ride **out of
+band**, beside the cell rather than inside it.
+
+| State | export row (`[]any`) | JSON | `arrow` / `parquet` | flat text |
+|---|---|---|---|---|
+| value | `"red"` | `"red"` | `"red"` | `red` |
+| empty-string value | `""` | `""` | present `""` | *(collapses)* |
+| null | `nil` | `null` | validity bit clear | *(collapses)* |
+
+**Write side.** `ExportJob.Run` spells a bitmap-null cell as an
+untyped **`nil`** and an empty-string value as `""`, then declares the
+convention with `io.NullAwareWriter.SetExplicitNulls(true)`.
+`ConvertJob` never makes that call, because its rows are source TEXT
+in which `""` *is* the null token `isNullToken` recognises — so a
+writer's null policy follows the caller's provenance, never the cell's
+spelling. Use `pio.IsNullCell(v, explicit)` rather than testing the
+flag by hand. A Writer that ignores the interface entirely keeps the
+text convention and is unaffected; `io/csv` and `io/tsv` already
+render `nil` as `""`, so their bytes did not move.
+
+**Read side.** `Reader.ReadRows` yields `[]string`, which has no null
+channel at all — a JSON null, an Arrow validity bit and an empty JSON
+string all arrive as `""`. A source whose format HAS the channel
+implements `io.NullAwareReader.RowNulls() []bool`, valid for the row
+currently in the callback, and `ImportJob` believes it over the text:
+a declared null is null whatever the text says, and a cell the source
+declares PRESENT keeps `""` as a value **only** where the type can
+hold it — a dictionary-bearing non-set type, and nothing else. `""`
+in a `u32` or a `date` column is still a null, because reading it as a
+value would turn a recoverable null into a per-row import error.
+`set_*` is excluded on purpose: its present-but-empty state already
+has the `pio.EmptySetCell` spelling and must behave identically on
+every adapter.
+
+**The adapter matrix, gaps included.**
+
+| Adapter | Carries null vs `""` | How |
+|---|---|---|
+| `ndjson`, `jsonarray` | yes | JSON `null` vs `""`, via `jsonshared.CoerceValueExplicitNull` on write and key-presence on read |
+| `arrow`, `parquet` | yes | `AppendNull` vs `Append("")`; `Array.IsNull` on read |
+| `csv`, `tsv` | **no** | RFC 4180 has one spelling for an absent value, and Go's `encoding/csv` does not preserve unquoted-empty vs quoted-empty on read |
+| `excel` | **no** (write side only) | the writer already emits a genuinely blank cell for `nil` and an empty-string cell for `""`, so the artefact carries it; excelize's row API (`GetRows` / `Rows.Columns`) drops it, and the per-cell `GetCellType` probe that recovers it is O(rows) per call |
+| `spss` | n/a | does not ride the row path — `io.CohortWriter` reads the bitmap itself |
+
+A gap is documented and asserted, never silent, and its **direction is
+part of the contract**: an adapter that cannot carry the distinction
+reads BOTH states back as **null**. Losing an empty string into null
+is the pre-existing behaviour and is recoverable from the source;
+inventing an empty-string value where the cohort held a null would be
+new data. `io/nullcell/` pins every row of that table, including the
+three gaps — flipping an entry fails the matrix.
 
 ### Authoritative schemas: `io.SchemaAwareReader`
 

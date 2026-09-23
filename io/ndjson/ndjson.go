@@ -42,7 +42,21 @@ type Reader struct {
 	// Reset and Close.
 	pending    map[string]any
 	hasPending bool
+
+	// nulls is the per-column null mask for the row most recently
+	// handed to the ReadRows callback — the pio.NullAwareReader
+	// channel. JSON distinguishes a null from an empty string and the
+	// []string row does not, so without this a categorical cell
+	// spelled "" and one spelled null both re-import as null. Rebuilt
+	// in place by emitObj; valid only inside the callback.
+	nulls []bool
 }
+
+// RowNulls implements pio.NullAwareReader. Entry i is true when the
+// current row's column i was JSON null — or absent from the object
+// entirely, which is the same "no value here" in NDJSON, where each
+// line carries its own key set.
+func (r *Reader) RowNulls() []bool { return r.nulls }
 
 // NewReader creates an NDJSON reader from a filesystem path.
 func NewReader(fs afero.Fs, path string) *Reader {
@@ -202,12 +216,21 @@ func (r *Reader) emitObj(obj map[string]any, fn func(row []string) error) error 
 	// the empty cell; a key this object has but the header does not is
 	// dropped, because the first object defines the column set.
 	row := make([]string, len(r.header))
+	if cap(r.nulls) < len(r.header) {
+		r.nulls = make([]bool, len(r.header))
+	}
+	r.nulls = r.nulls[:len(r.header)]
 	for i, key := range r.header {
-		if v, ok := obj[key]; ok {
+		v, ok := obj[key]
+		if ok {
 			row[i] = jsonshared.ValueToString(v)
 		} else {
 			row[i] = ""
 		}
+		// A key that is absent, or present with a JSON null, is the
+		// null cell. A key present with "" is an empty string VALUE
+		// and must not be conflated with it — see pio.NullAwareReader.
+		r.nulls[i] = !ok || v == nil
 	}
 
 	if err := fn(row); err != nil {
@@ -330,7 +353,17 @@ type Writer struct {
 	// overlaysWritten guards against double-flush of the trailer when
 	// Close() is invoked more than once (idempotent contract).
 	overlaysWritten bool
+
+	// explicitNulls records that the caller marks null cells itself —
+	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// ConvertJob. false keeps the text convention (jsonshared.
+	// CoerceValue, where "" is the source null token), so a convert is
+	// byte-identical.
+	explicitNulls bool
 }
+
+// SetExplicitNulls implements pio.NullAwareWriter.
+func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // NewWriter creates an NDJSON writer targeting a filesystem path.
 func NewWriter(fs afero.Fs, path string) *Writer {
@@ -359,10 +392,14 @@ func (w *Writer) WriteRow(values []any) error {
 		return fmt.Errorf("ndjson.Writer: WriteHeader must be called before WriteRow")
 	}
 
+	coerce := jsonshared.CoerceValue
+	if w.explicitNulls {
+		coerce = jsonshared.CoerceValueExplicitNull
+	}
 	obj := make(map[string]any, len(w.columns))
 	for i, col := range w.columns {
 		if i < len(values) {
-			obj[col] = jsonshared.CoerceValue(values[i])
+			obj[col] = coerce(values[i])
 		} else {
 			obj[col] = nil
 		}
@@ -413,3 +450,5 @@ func (w *Writer) Bytes() []byte {
 // Ensure interfaces are satisfied at compile time.
 var _ pio.Writer = (*Writer)(nil)
 var _ pio.OverlayAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareReader = (*Reader)(nil)

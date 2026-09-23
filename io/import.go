@@ -169,6 +169,13 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		setDelimiterFor = func(string) string { return DefaultSetDelimiter }
 	}
 
+	// Optional source-declared null channel. A []string row cannot tell
+	// a JSON null from an empty JSON string, or an Arrow validity bit
+	// from a present empty cell; a NullAwareReader reports the
+	// difference alongside the row. Nil for every other source, which
+	// leaves the text path byte-identical. See NullAwareReader.
+	nullSource, _ := j.Source.(NullAwareReader)
+
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		select {
 		case <-ctx.Done():
@@ -176,6 +183,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		default:
 		}
 		rowNum++
+
+		var declaredNulls []bool
+		if nullSource != nil {
+			declaredNulls = nullSource.RowNulls()
+		}
 
 		for i := range wideUsed {
 			wideUsed[i] = false
@@ -190,7 +202,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 				raw = strings.TrimSpace(row[colIdx])
 			}
 
-			nullCell := isNullToken(raw)
+			nullCell := isNullCell(raw, f.Type, declaredNulls, colIdx)
 			if nullCell {
 				if !f.Nullable {
 					if !inferredSchema {
@@ -430,15 +442,25 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	// reported schema matches what Run would write. Free — no extra read.
 	rowCount := 0
 	promoted := make([]bool, len(schema.Fields))
+	// The same source-declared null channel Run consults, for the same
+	// reason: a predicted schema that promoted a field to nullable on
+	// an empty cell the source calls PRESENT would not match the one
+	// Run writes.
+	nullSource, _ := j.Source.(NullAwareReader)
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		rowCount++
 		if inferredSchema {
+			var declaredNulls []bool
+			if nullSource != nil {
+				declaredNulls = nullSource.RowNulls()
+			}
 			for i := range schema.Fields {
 				if schema.Fields[i].Nullable {
 					continue
 				}
 				colIdx := schema.Fields[i].CsvColumnIdx
-				if colIdx < len(row) && isNullToken(strings.TrimSpace(row[colIdx])) {
+				if colIdx < len(row) &&
+					isNullCell(strings.TrimSpace(row[colIdx]), schema.Fields[i].Type, declaredNulls, colIdx) {
 					schema.Fields[i].Nullable = true
 					promoted[i] = true
 				}
@@ -546,6 +568,42 @@ func readerSchema(source Reader) (*encoding.Schema, error) {
 		}
 	}
 	return schema, nil
+}
+
+// isNullCell is the one place the import decides a cell is absent. It
+// fuses the text null tokens with the optional source-declared null
+// channel (NullAwareReader), and both ImportJob.Run and
+// ImportJob.Predict call it so a predicted schema cannot disagree with
+// the written one about which cells are null.
+//
+// declaredNulls is nil for a source that does not implement
+// NullAwareReader, and that case is exactly the old behaviour: only
+// isNullToken decides.
+//
+// With a channel, two rules apply:
+//
+//   - A DECLARED null is null, whatever the text. The source knows.
+//   - A cell the source declares PRESENT keeps its text as a value only
+//     where the type can hold it. The empty string is a legal value for
+//     a dictionary-bearing non-set type and for nothing else, so that
+//     is the single case where an empty cell survives as a value; in a
+//     u32 or a date column "" is still a null, because reading it as a
+//     value would turn a recoverable null into a per-row import error.
+//
+// set_* is excluded deliberately. Its present-but-empty state already
+// has the EmptySetCell spelling that every adapter shares, and routing
+// it through a second mechanism here would make the set tri-state
+// behave differently on the four adapters that have a null channel.
+func isNullCell(raw string, ft encoding.FieldType, declaredNulls []bool, colIdx int) bool {
+	if colIdx >= 0 && colIdx < len(declaredNulls) {
+		if declaredNulls[colIdx] {
+			return true
+		}
+		if raw == "" && ft.HasDictionary() && !ft.IsSet() {
+			return false
+		}
+	}
+	return isNullToken(raw)
 }
 
 // isNullToken reports whether raw is one of the recognized null-sentinel

@@ -60,6 +60,14 @@ func ValueToString(v any) string {
 
 // CoerceValue attempts to convert string values to native JSON types
 // (number, boolean, null) for cleaner JSON output.
+//
+// The empty string becomes JSON null. That is correct for the TEXT
+// path — io.ConvertJob copies source cells, where "" is the null token
+// io/import.go's isNullToken recognises — and wrong for the export
+// path, where a cohort's categorical dictionary can hold "" as a
+// genuine value and the null cell has its own spelling (an untyped
+// nil). CoerceValueExplicitNull is that second convention; a writer
+// picks between them from io.NullAwareWriter, never from the value.
 func CoerceValue(v any) any {
 	s, ok := v.(string)
 	if !ok {
@@ -83,4 +91,24 @@ func CoerceValue(v any) any {
 	}
 
 	return s
+}
+
+// CoerceValueExplicitNull is CoerceValue for callers that mark the null
+// cell themselves: an untyped nil is the ONLY null, and "" is an empty
+// JSON string rather than JSON null.
+//
+// io.ExportJob.Run is that caller — it spells a bitmap-null cell nil
+// and calls io.NullAwareWriter.SetExplicitNulls, because a `.pulse`
+// categorical distinguishes "answered with a blank" from "did not
+// answer" and JSON can carry both. Every other coercion (number,
+// boolean, passthrough) is identical to CoerceValue, so a non-empty
+// cell's JSON type does not move.
+func CoerceValueExplicitNull(v any) any {
+	if v == nil {
+		return nil
+	}
+	if s, ok := v.(string); ok && s == "" {
+		return s
+	}
+	return CoerceValue(v)
 }

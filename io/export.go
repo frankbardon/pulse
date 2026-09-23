@@ -75,6 +75,17 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		saw.SetPulseSchema(schema)
 	}
 
+	// Declare the export null convention to writers whose format has a
+	// native null channel: rows come from a cohort, so the per-record
+	// null bitmap is the authority, an untyped nil is the ONLY null
+	// cell and "" is an ordinary categorical value. ConvertJob makes no
+	// such call — its rows are source text where "" IS the null token —
+	// which is what keeps every convert byte-identical. See
+	// NullAwareWriter.
+	if naw, ok := j.Target.(NullAwareWriter); ok {
+		naw.SetExplicitNulls(true)
+	}
+
 	// Hand Response.Overlays to overlay-aware writers so the format-
 	// native sidecar (Arrow / Parquet LIST<STRUCT>, Excel sheets,
 	// NDJSON trailer, CSV warn-and-skip) lands before WriteHeader.
@@ -217,7 +228,17 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			}
 			for i, f := range schema.Fields {
 				if f.Nullable && encoding.BitmapIsNull(bitmap, i) {
-					values[i] = ""
+					// The null cell is an untyped nil, NOT "". A
+					// categorical dictionary can hold the empty string
+					// as a genuine value, so spelling a null "" here
+					// made "answered with a blank" and "did not
+					// answer" the same cell for every adapter
+					// downstream — the format distinguishes them and
+					// only this loop erased it. Adapters without a
+					// null channel (csv, tsv) already render nil as
+					// "", so their bytes are unchanged. See
+					// NullAwareWriter.
+					values[i] = nil
 				}
 			}
 		}
