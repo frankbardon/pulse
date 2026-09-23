@@ -41,8 +41,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/spsstest"
+	pio "github.com/frankbardon/pulse/io"
 	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
 )
@@ -185,6 +187,111 @@ func TestConvertCLI_SavWideSetReachesEveryTarget(t *testing.T) {
 	}
 }
 
+// TestExportPredict_EveryTargetReportsTheWideSetField is the target-aware
+// predict criterion stated across ALL of them rather than only the one
+// that can refuse.
+//
+// spss is the sole io.CohortValidator, so it is the only target whose
+// predict consults the writer at all. The criterion's teeth are therefore
+// in the other seven: a target that does not implement the interface must
+// be predicted EXACTLY as before — the wide field present in the reported
+// schema at its real type, no TargetWarnings invented, and above all no
+// refusal. A false refusal is worse than silence, and a predict that
+// quietly stopped reporting a set_u256 column would make `pulse export
+// predict` answer for a narrower cohort than the one on disk.
+func TestExportPredict_EveryTargetReportsTheWideSetField(t *testing.T) {
+	dir := t.TempDir()
+	cohort := filepath.Join(dir, "wide.pulse")
+	if err := os.WriteFile(cohort, wideSetPulse(t), 0o644); err != nil {
+		t.Fatalf("writing the cohort: %v", err)
+	}
+
+	for _, format := range []string{
+		pformat.CSV, pformat.TSV, pformat.NDJSON, pformat.JSONArray,
+		pformat.Parquet, pformat.Arrow, pformat.Excel, pformat.SPSS,
+	} {
+		t.Run(format, func(t *testing.T) {
+			fs := afero.NewOsFs()
+			w, err := newWriterForFormat(format, fs, filepath.Join(dir, "out."+format), writerOptions{})
+			if err != nil {
+				t.Fatalf("newWriterForFormat(%s): %v", format, err)
+			}
+			job := pio.NewExportJob(cohort, w)
+			job.FS = fs
+
+			rep, err := job.Predict(context.Background())
+			if err != nil {
+				t.Fatalf("predict refused a wide-set export to %s, which it can carry: %v", format, err)
+			}
+			f := rep.Schema.Field("wide")
+			if f == nil {
+				t.Fatalf("the predicted schema for %s has no wide field", format)
+			}
+			if f.Type != encoding.FieldTypeSetU256 {
+				t.Errorf("%s: predicted type = %s, want set_u256 — predict must report the cohort's own width",
+					format, f.Type)
+			}
+			if got := len(f.Dictionary.Values()); got != 206 {
+				t.Errorf("%s: predicted dictionary = %d entries, want 206", format, got)
+			}
+
+			// Only the .sav target consults the writer, and the one
+			// diagnostic it is entitled to raise here is the absent
+			// sidecar: this cohort was never SPSS-derived.
+			for _, warn := range rep.TargetWarnings {
+				if format != pformat.SPSS {
+					t.Errorf("%s does not implement io.CohortValidator yet raised %s", format, warn.Code)
+					continue
+				}
+				if warn.Code != perrors.PULSE_SPSS_SIDECAR_ABSENT {
+					t.Errorf("spss predict raised %s for a wide set the export accepts: %s", warn.Code, warn.Message)
+				}
+			}
+			// And the .sav arm must actually have CONSULTED the validator.
+			// Asserting only that the warnings are acceptable passes just
+			// as well when no validator ran at all, which would make this
+			// whole test blind to the one target it is really about.
+			if format == pformat.SPSS && !hasCode(rep.TargetWarnings, perrors.PULSE_SPSS_SIDECAR_ABSENT) {
+				t.Errorf("spss predict raised no %s over a cohort with no sidecar; io.CohortValidator was not consulted",
+					perrors.PULSE_SPSS_SIDECAR_ABSENT)
+			}
+		})
+	}
+}
+
+// wideSetPulse builds a one-record `.pulse` cohort whose only column is a
+// 206-entry set_u256 with bits 3, 70 and 200 selected. No sidecar: the
+// point is the SCHEMA a predict reports, and a cohort that never came from
+// SPSS is the honest shape for asking eight different targets about one.
+func wideSetPulse(t *testing.T) []byte {
+	t.Helper()
+	dict := encoding.NewDictionary()
+	for i := 0; i < 206; i++ {
+		if _, err := dict.Add(wideVarName(i)); err != nil {
+			t.Fatalf("building the dictionary: %v", err)
+		}
+	}
+	s := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "wide", Type: encoding.FieldTypeSetU256, Dictionary: dict},
+	}}
+
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, s); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+	var m encoding.SetMask
+	for _, b := range []int{3, 70, 200} {
+		m = m.WithBit(b)
+	}
+	if err := encoding.WriteSetMask(&buf, encoding.FieldTypeSetU256, m); err != nil {
+		t.Fatalf("WriteSetMask: %v", err)
+	}
+	return buf.Bytes()
+}
+
 // readBackFirstRow reads an emitted target with the reader for its own
 // format and returns the header plus the first row.
 func readBackFirstRow(t *testing.T, format, path string) ([]string, []string) {
@@ -214,6 +321,15 @@ func readBackFirstRow(t *testing.T, format, path string) ([]string, []string) {
 		t.Fatalf("the %s target carries no rows", format)
 	}
 	return header, first
+}
+
+func hasCode(warns []*perrors.CodedError, code perrors.Code) bool {
+	for _, w := range warns {
+		if w.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 func exists(path string) bool {
