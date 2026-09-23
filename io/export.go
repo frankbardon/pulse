@@ -22,6 +22,17 @@ import (
 const exportReadBufferSize = 64 << 10
 
 // Run executes the export job, converting a .pulse file to a tabular target.
+//
+// Total failure is an ERROR, not a zero-row report. If the cohort yields at
+// least one record and the target accepts none of them, Run returns a nil
+// report and a coded error (PULSE_EXPORT_ROW_ERROR, or the first row
+// error's own code when it carries one) whose details name the record
+// count, the failure count and the first failure. Partial failure is
+// unchanged: some rows out, some on ExportReport.RowErrors, nil error. An
+// empty cohort exports zero rows legitimately. See totalRowFailure.
+//
+// The CohortWriter arm does not participate: it replaces the row loop, so
+// it reports its own count and raises its own errors.
 func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	if j.FS == nil {
 		return nil, fmt.Errorf("ExportJob.FS is required")
@@ -219,6 +230,16 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		}
 		exported++
 		row++
+	}
+
+	// A cohort that yielded rows none of which the target accepted is
+	// total failure, not an empty export. Arrow and Parquet set-column
+	// exports produced exactly this — RowsExported 0, one RowError per
+	// record, nil error — and every caller read it as success. An empty
+	// cohort still exports legitimately: it reaches here with rowsRead 0
+	// and no row errors. See totalRowFailure.
+	if failure := totalRowFailure("export", exported, row, rowErrors, errors.PULSE_EXPORT_ROW_ERROR); failure != nil {
+		return nil, failure
 	}
 
 	report := &ExportReport{

@@ -282,11 +282,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_ROW_ERROR: {
-		Message: "A row could not be imported due to a per-cell encoding or parse failure.",
+		Message: "A row could not be imported due to a per-cell encoding or parse failure. Raised per row on ImportReport.RowErrors while SOME rows still import — and raised as the FATAL return of ImportJob.Run when a non-empty source yields zero importable rows, in which case details carry `rows_read`, `rows_failed`, `first_row` and `first_error`, and no .pulse file is written. A source with no data rows at all is an empty cohort, not this error.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Inspect the reported row index in details; pick a wider or nullable field type, or pre-clean the source value before re-importing.",
+				Hint:   "Inspect the reported row index in details; pick a wider or nullable field type, or pre-clean the source value before re-importing. When every row failed, `first_error` names the one cell conversion to fix first — it is usually a single column whose declared type the whole source disagrees with.",
 			},
 		},
 	},
@@ -300,11 +300,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXPORT_ROW_ERROR: {
-		Message: "A row could not be exported due to a per-cell value-to-string conversion failure.",
+		Message: "A row could not be exported due to a per-cell value-to-string conversion failure, or because the target format's writer refused it. Raised per row on ExportReport.RowErrors while SOME rows still export — and raised as the FATAL return of ExportJob.Run when a non-empty cohort yields zero exported rows, in which case details carry `rows_read`, `rows_failed`, `first_row` and `first_error`. An empty cohort exports zero rows legitimately and is not this error.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-import the source data to regenerate the .pulse file; the dictionary or encoding state is inconsistent.",
+				Hint:   "Re-import the source data to regenerate the .pulse file; the dictionary or encoding state is inconsistent. When every row failed, suspect the TARGET rather than the cohort — `first_error` is the writer's own refusal, and a column type the format cannot represent rejects every row identically.",
 			},
 		},
 	},

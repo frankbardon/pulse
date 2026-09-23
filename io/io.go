@@ -471,6 +471,12 @@ type OverlayWarningEmitter interface {
 
 // ImportReport summarizes the result of an import operation.
 //
+// RowErrors records the rows that did not make it. It is a PARTIAL-failure
+// channel only: a report exists precisely because some rows did import.
+// When a non-empty source yields zero importable rows, ImportJob.Run
+// returns a coded error and no report at all, so a caller that checks only
+// the error return can no longer read total failure as success.
+//
 // PromotedFields names the columns an inferred import widened to nullable
 // because a null cell fell outside the bounded inference sample window
 // (see ImportJob.InferredSchema). Empty for explicit-schema imports and
@@ -493,6 +499,10 @@ type ImportReport struct {
 }
 
 // ExportReport summarizes the result of an export operation.
+//
+// RowErrors is a PARTIAL-failure channel, exactly as on ImportReport: when
+// a non-empty cohort yields zero exported rows, ExportJob.Run returns a
+// coded error and no report.
 //
 // OverlayWarnings carries the warn-and-skip codes the target Writer
 // surfaced through the optional OverlayWarningEmitter contract (currently

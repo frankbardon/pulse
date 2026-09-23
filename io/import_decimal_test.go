@@ -3,9 +3,11 @@ package io
 import (
 	"bytes"
 	"context"
+	stderrors "errors"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/spf13/afero"
 )
 
@@ -97,6 +99,15 @@ func TestImport_DecimalRoundTrip(t *testing.T) {
 	}
 }
 
+// TestImport_DecimalReject pins the four decimal literals the parser
+// refuses.
+//
+// Each fixture is a ONE-row source, so every one of them is now a TOTAL
+// import failure and Run returns a coded error instead of a report with
+// a lone RowErrors entry — see totalRowFailure. Before E3-S7 this test
+// asserted `err == nil` and reached into rep.RowErrors; that shape is
+// exactly what let a wholly-failed import pass for success, so the
+// assertion moved onto the error return.
 func TestImport_DecimalReject(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -109,11 +120,12 @@ func TestImport_DecimalReject(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		job := &ImportJob{Source: src, Target: "t.pulse", Schema: schema, FS: fs}
 		rep, err := job.Run(context.Background())
-		if err != nil {
-			t.Fatalf("Run %q: %v", raw, err)
+		if err == nil {
+			t.Fatalf("Run %q: nil error with RowsImported = %d; the only row failed", raw, rep.RowsImported)
 		}
-		if len(rep.RowErrors) == 0 {
-			t.Errorf("Run %q: expected row error, got none", raw)
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IMPORT_ROW_ERROR {
+			t.Errorf("Run %q: err = %v, want a %s CodedError", raw, err, perr.PULSE_IMPORT_ROW_ERROR)
 		}
 	}
 }

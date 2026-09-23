@@ -14,6 +14,15 @@ import (
 )
 
 // Run executes the import job, converting tabular source into a .pulse file.
+//
+// Total failure is an ERROR, not a zero-row report. If the row pass reads
+// at least one row and converts none of them, Run returns a nil report and
+// a coded error (PULSE_IMPORT_ROW_ERROR, or the first row error's own code
+// when it carries one) whose details name the row count, the failure count
+// and the first failure — and no .pulse file is written. Partial failure
+// is unchanged: some rows in, some on ImportReport.RowErrors, nil error. A
+// source with no data rows at all is an empty cohort, which is a legitimate
+// outcome and not an error. See totalRowFailure.
 func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	if j.FS == nil {
 		return nil, fmt.Errorf("ImportJob.FS is required")
@@ -308,6 +317,15 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// A pass that read rows and converted none of them is total failure,
+	// not an empty import. Refuse BEFORE the cohort is written: a zero-row
+	// .pulse left next to a hard error is a trap for whatever opens it
+	// next. An empty source (no rows, no row errors) is untouched by this
+	// and still produces a legitimate empty cohort. See totalRowFailure.
+	if failure := totalRowFailure("import", rowsImported, rowNum, rowErrors, errors.PULSE_IMPORT_ROW_ERROR); failure != nil {
+		return nil, failure
 	}
 
 	// Now write schema (dictionaries are populated, promotions applied).

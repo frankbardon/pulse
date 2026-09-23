@@ -33,6 +33,7 @@ External data into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel
 - `charset` is the recourse when a `.sav` is wrong about itself (stale record `7/20`; no declaration, failing the strict UTF-8 default). Decode-side only — the declaration is retained for export.
 - **No missing-value mode here.** Default is the fidelity split: numeric user-missing → null + a `<var>_missing` sibling recording why. The only alternative discards those siblings; ask for it explicitly with `pulse import spss --spss-missing=null`.
 - Nullability is inferred from the first N rows. A later null promotes the field (`promoted_fields` + `PULSE_IMPORT_NULL_PROMOTED`); an explicit schema raises `PULSE_IMPORT_ROW_ERROR` instead.
+- **Zero rows out of a non-empty source is a FATAL `PULSE_IMPORT_ROW_ERROR`, not an empty import** — details carry `rows_read` / `rows_failed` / `first_row` / `first_error`, and no cohort is written. Export mirrors it with `PULSE_EXPORT_ROW_ERROR`. PARTIAL failure is unchanged (rows land, the rest ride `row_errors`, no error), and a source with no data rows stays a legitimate empty cohort.
 - Passthrough skips copy + sidecar; `pulse_drop` is a no-op on it. MCP success rebinds session-scoped tools from the new cohort (as `tool-inspect`).
 
 ## See
