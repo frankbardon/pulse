@@ -510,9 +510,28 @@ func cloneSchemaForArchive(s *encoding.Schema) *encoding.Schema {
 }
 
 // recordCountFromBytes derives the shard's record count from its
-// payload bytes against the canonical schema's per-record size. Bit-
-// packed-only schemas (ByteSize() == 0) return 0; that mirrors
-// PeekShardRecordCount's conservative fallback.
+// payload bytes against the canonical schema's per-record stride. It
+// reads the shard's own header and schema block only to position the
+// reader at the first record and to reject a payload that is not a
+// valid single-file cohort; the stride itself comes from the canonical
+// schema, which per-shard structural cohesion guarantees agrees with
+// the shard's own.
+//
+// The arithmetic is deliberately NOT written here. It is
+// encoding.Schema.RecordCountForPayload — the one derivation behind
+// every "how many records does this hold" answer — because a local
+// sum of FieldType.ByteSize() drops the trailing per-record null
+// bitmap and scores bit-packed fields (u4, packed_bool, ByteSize()==0)
+// as zero bytes wide, which is exactly how this call site used to bake
+// an inflated aggregate_record_count into `_schema.pulse`.
+//
+// A truncated tail FLOORS silently, matching
+// Archive.PeekShardRecordCount on the read side. Every caller here
+// (CreateShardArchive, AddShard, RemoveShard, CompactShardArchive)
+// returns a bare error with no warning channel, and refreshing cached
+// metadata must not be the operation that fails on an archive that
+// still opens and still processes. `pulse shard verify` is the
+// diagnostic arm that owns reporting a short tail.
 func recordCountFromBytes(payload []byte, schema *encoding.Schema) (int64, error) {
 	r := bytes.NewReader(payload)
 	if err := encoding.ReadHeader(r); err != nil {
@@ -523,14 +542,13 @@ func recordCountFromBytes(payload []byte, schema *encoding.Schema) (int64, error
 		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"recordCountFromBytes: reading shard schema")
 	}
-	recordSize := 0
-	for _, f := range schema.Fields {
-		recordSize += f.Type.ByteSize()
-	}
-	if recordSize == 0 {
+	count, _, ok := schema.RecordCountForPayload(int64(r.Len()))
+	if !ok {
+		// Field-less schema (non-positive stride): no records to
+		// count, matching PeekShardRecordCount's zero fallback.
 		return 0, nil
 	}
-	return int64(r.Len()) / int64(recordSize), nil
+	return count, nil
 }
 
 // readSchemaDocEntry parses the archive's reserved `_schema.pulse`
