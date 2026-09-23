@@ -156,18 +156,18 @@ func TestImportJob_EveryRowFailed_ReturnsCodedError(t *testing.T) {
 // total-failure check must not cross. Zero data rows and zero row errors
 // is an empty cohort, which is a legitimate outcome.
 //
-// The second arm is the live NDJSON landmine: ndjson.Reader.ReadHeader
-// consumes the first object to derive column names and ReadRows resumes
-// after it, so a one-record file presents zero data rows to the import.
-// That is a separate (pre-existing) bug, and this story must not convert
-// it into a hard error.
+// The second arm is a reader that declares a header and then yields no
+// rows at all. That used to be reachable by accident — ndjson.Reader
+// ate its first object, so a one-record file presented zero data rows —
+// and the accident is gone, but the shape is still legitimate for any
+// source whose header is out-of-band (a CSV with only a header line).
 func TestImportJob_EmptySource_StaysLegitimate(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		rows [][]string
 	}{
 		{"no data rows at all", nil},
-		{"header consumed the only record (ndjson shape)", [][]string{}},
+		{"header declared, no rows yielded", [][]string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fs := afero.NewMemMapFs()

@@ -17,7 +17,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | strict scalar numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `nullable_u8`/`nullable_u16` |
+| `Field` | strict scalar numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64` |
 
 `decimal128`, `date`, and bit-packed types rejected.
 

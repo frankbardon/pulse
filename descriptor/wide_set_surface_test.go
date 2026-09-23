@@ -95,24 +95,35 @@ func TestDefaults_WideSetsMatchNarrow(t *testing.T) {
 	}
 }
 
-// TestCapabilities_AllCohortFieldTypesCarriesEverySetRung keeps the
+// TestCapabilities_AllCohortFieldTypesMatchesRegistry keeps the
 // "literal every field type" promise in allCohortFieldTypes' own doc
-// comment honest for the set family: a registered rung missing from the
+// comment honest in BOTH directions: a registered type missing from the
 // list under-declares AGG_COUNT / AGG_NULL_COUNT / FILTER_NULL, which
-// do handle set columns, and the under-declaration is silent.
+// handle every column shape, and a listed name encoding does not
+// register over-declares them with a shape the codec rejects. Both
+// failures are silent at the only place anyone reads them — the
+// manifest.
 //
-// Deliberately scoped to set rungs. allCohortFieldTypes also carries
-// five legacy `nullable_*` names encoding no longer registers and omits
-// `u4`; that pre-existing drift is a separate change from this one and
-// is not asserted here.
-func TestCapabilities_AllCohortFieldTypesCarriesEverySetRung(t *testing.T) {
-	for _, name := range registeredFieldTypeNames(t) {
-		if len(name) < 4 || name[:4] != "set_" {
-			continue
-		}
+// This started as a set-rung-only assertion (E2-S4) whose doc comment
+// named the rest of the drift: five legacy `nullable_*` names and a
+// missing `u4`. Generalising it to exact registry equality subsumes the
+// set case and closes the rest, and it cannot go stale because the
+// expectation is walked off encoding's own FieldType registry rather
+// than written down here.
+func TestCapabilities_AllCohortFieldTypesMatchesRegistry(t *testing.T) {
+	registered := registeredFieldTypeNames(t)
+	for _, name := range registered {
 		if !slices.Contains(allCohortFieldTypes, name) {
-			t.Errorf("allCohortFieldTypes missing registered set rung %q", name)
+			t.Errorf("allCohortFieldTypes missing registered field type %q", name)
 		}
+	}
+	for _, name := range allCohortFieldTypes {
+		if !slices.Contains(registered, name) {
+			t.Errorf("allCohortFieldTypes carries %q, which encoding does not register", name)
+		}
+	}
+	if !slices.IsSorted(allCohortFieldTypes) {
+		t.Errorf("allCohortFieldTypes is not sorted; manifest determinism depends on it: %v", allCohortFieldTypes)
 	}
 }
 

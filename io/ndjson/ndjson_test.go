@@ -55,9 +55,13 @@ func TestNdjsonReader_ReadRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadRows: %v", err)
 	}
-	// First object was consumed by ReadHeader; remaining are 2 rows.
-	if len(rows) != 2 {
-		t.Fatalf("got %d rows, want 2", len(rows))
+	// All three objects are rows: the one ReadHeader decoded to derive
+	// the column names is replayed as the first row.
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3", len(rows))
+	}
+	if rows[0][0] != "alice" || rows[2][0] != "charlie" {
+		t.Errorf("rows = %v, want alice..charlie", rows)
 	}
 }
 
@@ -135,7 +139,7 @@ func TestNdjsonReader_MixedKeys(t *testing.T) {
 		t.Fatalf("header len = %d, want 2", len(header))
 	}
 
-	// Second row has name=bob but no age, so age should be empty.
+	// The second object has name=bob but no age, so age is empty.
 	nameIdx := -1
 	ageIdx := -1
 	for i, h := range header {
@@ -150,12 +154,18 @@ func TestNdjsonReader_MixedKeys(t *testing.T) {
 		t.Fatalf("missing expected header fields")
 	}
 
-	// row[0] is the second JSON line (bob), row[1] is charlie
-	if rows[0][nameIdx] != "bob" {
-		t.Errorf("row 0 name = %q, want bob", rows[0][nameIdx])
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3", len(rows))
 	}
-	if rows[0][ageIdx] != "" {
-		t.Errorf("row 0 age = %q, want empty", rows[0][ageIdx])
+	// rows[0] is the header-defining object, which is a record too.
+	if rows[0][nameIdx] != "alice" || rows[0][ageIdx] != "30" {
+		t.Errorf("row 0 = %v, want [alice 30]", rows[0])
+	}
+	if rows[1][nameIdx] != "bob" {
+		t.Errorf("row 1 name = %q, want bob", rows[1][nameIdx])
+	}
+	if rows[1][ageIdx] != "" {
+		t.Errorf("row 1 age = %q, want empty", rows[1][ageIdx])
 	}
 }
 
@@ -202,10 +212,9 @@ func TestNdjsonImportExportRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Import: %v", err)
 	}
-	if importReport.RowsImported != 2 {
-		// First object consumed by header; 2 data rows remain.
-		// Actually with Reset, all 3 should be imported.
-		t.Logf("imported %d rows", importReport.RowsImported)
+	// All three objects are records; none is spent on the column names.
+	if importReport.RowsImported != 3 {
+		t.Fatalf("imported %d rows, want 3", importReport.RowsImported)
 	}
 
 	// Export back to NDJSON.
@@ -219,14 +228,14 @@ func TestNdjsonImportExportRoundTrip(t *testing.T) {
 	}
 	writer.Close()
 
-	if exportReport.RowsExported < 2 {
-		t.Errorf("exported %d, want at least 2", exportReport.RowsExported)
+	if exportReport.RowsExported != 3 {
+		t.Errorf("exported %d, want 3", exportReport.RowsExported)
 	}
 
 	exported := string(writer.Bytes())
 	lines := strings.Split(strings.TrimSpace(exported), "\n")
-	if len(lines) < 2 {
-		t.Fatalf("got %d lines, want at least 2", len(lines))
+	if len(lines) != 3 {
+		t.Fatalf("got %d lines, want 3", len(lines))
 	}
 
 	// Each line should contain the field names.
@@ -302,9 +311,10 @@ func TestNdjsonExport_CategoricalResolved(t *testing.T) {
 
 	exported := string(writer.Bytes())
 	exportedLines := strings.Split(strings.TrimSpace(exported), "\n")
-	if len(exportedLines) != 99 {
-		// First JSON object is consumed by ReadHeader; 99 data rows remain.
-		t.Fatalf("got %d lines, want 99", len(exportedLines))
+	// 100 source objects, 100 exported lines — the first object is a
+	// record as well as the column declaration.
+	if len(exportedLines) != 100 {
+		t.Fatalf("got %d lines, want 100", len(exportedLines))
 	}
 
 	// Check that values are actual color strings, not IDs.
@@ -396,16 +406,15 @@ func TestConvertJob_NdjsonToCsv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if report.RowsConverted != 2 {
-		// First object consumed by header, 2 data rows remain.
-		t.Logf("converted %d rows", report.RowsConverted)
+	if report.RowsConverted != 3 {
+		t.Fatalf("converted %d rows, want 3", report.RowsConverted)
 	}
 	csvWriter.Close()
 
 	got := string(csvWriter.Bytes())
 	lines := strings.Split(strings.TrimSpace(got), "\n")
-	if len(lines) < 2 {
-		t.Fatalf("got %d lines, want at least 2 (header + data)", len(lines))
+	if len(lines) != 4 {
+		t.Fatalf("got %d lines, want 4 (header + 3 records)", len(lines))
 	}
 }
 
@@ -425,8 +434,8 @@ func TestNdjsonReader_Reset(t *testing.T) {
 		count1++
 		return nil
 	})
-	if count1 != 1 {
-		t.Fatalf("first read: %d rows, want 1", count1)
+	if count1 != 2 {
+		t.Fatalf("first read: %d rows, want 2", count1)
 	}
 
 	// Reset and read again.
@@ -440,8 +449,8 @@ func TestNdjsonReader_Reset(t *testing.T) {
 		count2++
 		return nil
 	})
-	if count2 != 1 {
-		t.Fatalf("second read: %d rows, want 1", count2)
+	if count2 != 2 {
+		t.Fatalf("second read: %d rows, want 2", count2)
 	}
 }
 
@@ -486,9 +495,9 @@ func TestNdjsonReader_NullValues(t *testing.T) {
 		rows = append(rows, row)
 		return nil
 	})
-	// The second line is the only data row (first consumed by header).
-	if len(rows) != 1 {
-		t.Fatalf("got %d rows, want 1", len(rows))
+	// Both lines are data rows.
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
 	}
 }
 
@@ -519,11 +528,14 @@ func TestNdjsonReader_BooleanValues(t *testing.T) {
 		rows = append(rows, row)
 		return nil
 	})
-	if len(rows) != 1 {
-		t.Fatalf("got %d rows, want 1", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
 	}
-	if rows[0][flagIdx] != "false" {
-		t.Errorf("flag = %q, want false", rows[0][flagIdx])
+	if rows[0][flagIdx] != "true" {
+		t.Errorf("row 0 flag = %q, want true", rows[0][flagIdx])
+	}
+	if rows[1][flagIdx] != "false" {
+		t.Errorf("row 1 flag = %q, want false", rows[1][flagIdx])
 	}
 }
 
@@ -547,12 +559,15 @@ func TestNdjsonReader_NumberValues(t *testing.T) {
 		rows = append(rows, row)
 		return nil
 	})
-	if len(rows) != 1 {
-		t.Fatalf("got %d rows, want 1", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
 	}
-	// First object (val=42) was consumed by header; second (val=3.14) is in rows.
-	if rows[0][valIdx] != "3.14" {
-		t.Errorf("val = %q, want 3.14", rows[0][valIdx])
+	// The header-defining object (val=42) is a row too.
+	if rows[0][valIdx] != "42" {
+		t.Errorf("row 0 val = %q, want 42", rows[0][valIdx])
+	}
+	if rows[1][valIdx] != "3.14" {
+		t.Errorf("row 1 val = %q, want 3.14", rows[1][valIdx])
 	}
 }
 
@@ -579,8 +594,8 @@ func TestNdjsonReader_FromFS(t *testing.T) {
 		rows = append(rows, row)
 		return nil
 	})
-	if len(rows) != 1 {
-		t.Fatalf("got %d rows, want 1", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
 	}
 }
 
@@ -617,9 +632,9 @@ func TestNdjsonReader_ReadRowsWithoutInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadRows: %v", err)
 	}
-	// ReadRows should auto-init and read header.
-	if len(rows) != 1 {
-		t.Fatalf("got %d rows, want 1", len(rows))
+	// ReadRows auto-inits, reads the header, and still yields both rows.
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
 	}
 }
 
@@ -630,8 +645,7 @@ func TestNdjsonReader_ReadRowsWithoutInit(t *testing.T) {
 // still rejected with a typed parse error.
 func TestNdjsonReader_ArrayValue(t *testing.T) {
 	t.Run("ScalarArrayAccepted", func(t *testing.T) {
-		// First line consumed by ReadHeader; second line yields the
-		// row whose array gets pipe-joined.
+		// Both lines yield rows; each array gets pipe-joined.
 		data := "{\"name\":\"alice\",\"tags\":[\"a\",\"b\"]}\n" +
 			"{\"name\":\"bob\",\"tags\":[\"c\",\"d\"]}\n"
 		r := NewReaderFromBytes([]byte(data))
@@ -651,8 +665,14 @@ func TestNdjsonReader_ArrayValue(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadRows: %v", err)
 		}
-		if len(rows) != 1 || rows[0][1] != "c|d" {
-			t.Errorf("rows[0] = %v, want [bob c|d]", rows[0])
+		if len(rows) != 2 {
+			t.Fatalf("got %d rows, want 2", len(rows))
+		}
+		if rows[0][1] != "a|b" {
+			t.Errorf("rows[0] = %v, want [alice a|b]", rows[0])
+		}
+		if rows[1][1] != "c|d" {
+			t.Errorf("rows[1] = %v, want [bob c|d]", rows[1])
 		}
 	})
 	t.Run("NestedObjectInArrayRejected", func(t *testing.T) {

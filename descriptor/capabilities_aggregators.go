@@ -6,90 +6,103 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// Field-type declaration policy
+//
+// Every name below MUST round-trip through encoding.ParseFieldType.
+// Nullability is orthogonal to type (CLAUDE.md, byte-layout invariants):
+// `encoding.Field.Nullable` is a per-field FLAG that enrols the field in
+// the per-record null bitmap, and it never produces a distinct type. The
+// `nullable_u4` / `nullable_u8` / `nullable_u16` / `nullable_bool` /
+// `nullable_decimal128` spellings these lists once carried were stale
+// aliases for `u4` / `u8` / `u16` / `packed_bool` / `decimal128`, not
+// narrower claims — nothing parsed them, so they reached `accepts_types`
+// in the manifest naming column shapes the codec rejects on sight while
+// `u4`, which every one of these operators reads, was named nowhere at
+// all. Gated by TestCapabilities_AcceptsTypesAreRegisteredNames and
+// TestCapabilities_NoNullableTypeNames.
+//
+// Sorted (byte order, so `u4` falls between `u32` and `u64`) for golden
+// stability; TestCapabilities_AllCohortFieldTypesMatchesRegistry pins it.
+
 // numericFieldTypes is the canonical list of cohort field types that
-// participate in numeric aggregations. Sorted alphabetically for golden
-// stability.
+// participate in numeric aggregations, decimal128 included. Consumers
+// read the field through Record.NumericValue, which decimal128 answers
+// via the float64 echo the decoder writes alongside the exact value.
 var numericFieldTypes = []string{
 	"date",
+	"decimal128",
 	"f32",
 	"f64",
-	"nullable_decimal128",
-	"nullable_u16",
-	"nullable_u4",
-	"nullable_u8",
 	"u16",
 	"u32",
+	"u4",
 	"u64",
 	"u8",
 }
 
 // numericFieldTypesNoDecimal lists numeric types excluding the
 // fixed-point decimal types. Used by aggregators that operate in float64
-// space (variance, stddev, skewness, kurtosis).
+// space (variance, stddev, skewness, kurtosis) and by the window /
+// attribute / feature families. Mirrors predict_window.isNumericType,
+// which gates the same set at predict time and has always admitted u4.
 var numericFieldTypesNoDecimal = []string{
 	"date",
 	"f32",
 	"f64",
-	"nullable_u16",
-	"nullable_u4",
-	"nullable_u8",
 	"u16",
 	"u32",
+	"u4",
 	"u64",
 	"u8",
 }
 
-// numericFieldTypesAnalytics widens numericFieldTypes with the bit-packed
-// integer encodings (nullable_bool, packed_bool). These types store small
-// non-negative integers (0/1 for the booleans, 0..14 for nullable_u4 with
-// 0x0F as null sentinel) which the analytics aggregators consume as
-// proportions or ordinal means without an ATTR_FORMULA cast. Sorted
-// alphabetically for golden stability.
+// numericFieldTypesAnalytics widens numericFieldTypes with the
+// bit-packed boolean encoding (packed_bool). The bit-packed types store
+// small non-negative integers (0/1 for packed_bool, 0..15 for u4) which
+// the analytics aggregators consume as proportions or ordinal means
+// without an ATTR_FORMULA cast. Matches
+// encoding.FieldType.IsNumericForAnalytics apart from datetime, which no
+// aggregator declares yet.
 var numericFieldTypesAnalytics = []string{
 	"date",
+	"decimal128",
 	"f32",
 	"f64",
-	"nullable_bool",
-	"nullable_decimal128",
-	"nullable_u16",
-	"nullable_u4",
-	"nullable_u8",
 	"packed_bool",
 	"u16",
 	"u32",
+	"u4",
 	"u64",
 	"u8",
 }
 
 // numericFieldTypesAnalyticsNoDecimal mirrors numericFieldTypesAnalytics
-// without the decimal128 types — for aggregators that operate purely in
-// float64 (stddev, variance, skewness, kurtosis, zscore).
+// without decimal128 — for aggregators that operate purely in float64
+// (stddev, variance, skewness, kurtosis, zscore) and for the three
+// order-statistic aggregators (AGG_RANGE, AGG_MEDIAN, AGG_PERCENTILE)
+// that predict refuses on a decimal field with
+// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
 var numericFieldTypesAnalyticsNoDecimal = []string{
 	"date",
 	"f32",
 	"f64",
-	"nullable_bool",
-	"nullable_u16",
-	"nullable_u4",
-	"nullable_u8",
 	"packed_bool",
 	"u16",
 	"u32",
+	"u4",
 	"u64",
 	"u8",
 }
 
 // numericFieldTypesStrictScalar is the strict scalar numeric family —
 // u8/u16/u32/u64/f32/f64 only. Excludes decimal128, date, and every
-// bit-packed encoding (nullable_u4, nullable_bool, packed_bool). Used by
-// aggregators that drive a single float64 hot path with no per-type
-// branch (AGG_WELFORD — see processing/aggregator_welford.go's factory
-// gate, which mirrors the TEST_WELCH field-type policy).
+// bit-packed encoding (u4, packed_bool). Used by aggregators that drive
+// a single float64 hot path with no per-type branch (AGG_WELFORD — see
+// processing/aggregator_welford.go's factory gate, which admits exactly
+// these six and mirrors the TEST_WELCH field-type policy).
 var numericFieldTypesStrictScalar = []string{
 	"f32",
 	"f64",
-	"nullable_u16",
-	"nullable_u8",
 	"u16",
 	"u32",
 	"u64",
@@ -102,7 +115,9 @@ var numericFieldTypesStrictScalar = []string{
 // "every field type" is literal: a registered field type missing from
 // this list under-declares the operators that carry it, so the manifest
 // would tell a caller that AGG_COUNT cannot count a column it counts
-// fine. Keep it in step with encoding's FieldType registry.
+// fine. Equality with encoding's FieldType registry is asserted by
+// TestCapabilities_AllCohortFieldTypesMatchesRegistry, so this list
+// cannot drift in either direction again.
 //
 // Operators that need the field's NUMBER rather than its presence take
 // nonSetFieldTypes instead — see its doc comment.
@@ -115,11 +130,6 @@ var allCohortFieldTypes = []string{
 	"decimal128",
 	"f32",
 	"f64",
-	"nullable_bool",
-	"nullable_decimal128",
-	"nullable_u16",
-	"nullable_u4",
-	"nullable_u8",
 	"packed_bool",
 	"set_u128",
 	"set_u16",
@@ -129,6 +139,7 @@ var allCohortFieldTypes = []string{
 	"set_u8",
 	"u16",
 	"u32",
+	"u4",
 	"u64",
 	"u8",
 }
@@ -285,10 +296,15 @@ func aggregatorCapabilities() []Operator {
 			),
 		},
 		{
-			Name:          string(types.AGG_RANGE),
-			Category:      "aggregator",
-			Description:   "Spread (max minus min) of the field across the input set.",
-			AcceptsTypes:  numericFieldTypesAnalytics,
+			Name:        string(types.AGG_RANGE),
+			Category:    "aggregator",
+			Description: "Spread (max minus min) of the field across the input set.",
+			// No decimal128: predict refuses this pairing with
+			// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL
+			// (decimalSupportedAggregations), so offering it in the
+			// manifest would be a promise predict itself declines.
+			// Gated by TestCapabilities_DecimalDeclaredOnlyWhereSupported.
+			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(Mergeable,
@@ -325,10 +341,11 @@ func aggregatorCapabilities() []Operator {
 			),
 		},
 		{
-			Name:           string(types.AGG_MEDIAN),
-			Category:       "aggregator",
-			Description:    "50th percentile of the field; requires sorting the full value set.",
-			AcceptsTypes:   numericFieldTypesAnalytics,
+			Name:        string(types.AGG_MEDIAN),
+			Category:    "aggregator",
+			Description: "50th percentile of the field; requires sorting the full value set.",
+			// No decimal128 — see AGG_RANGE.
+			AcceptsTypes:   numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
@@ -437,7 +454,8 @@ func aggregatorCapabilities() []Operator {
 					Description: "Percentile to compute, in [0, 100]. e.g. 95 for p95.",
 				},
 			},
-			AcceptsTypes:   numericFieldTypesAnalytics,
+			// No decimal128 — see AGG_RANGE.
+			AcceptsTypes:   numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote:  "scalar float64",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",

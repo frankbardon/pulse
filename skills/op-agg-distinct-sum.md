@@ -17,7 +17,7 @@ examples_tags: [cardinality-analysis, streaming-friendly]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric, no `decimal128` (incl. `nullable_*`, `date`, `packed_bool`) |
+| `Field` | numeric, no `decimal128` (incl. `u4`, `date`, `packed_bool`) |
 | `distinct_by` | any numeric-coded field, `categorical_*` included |
 
 ## Output

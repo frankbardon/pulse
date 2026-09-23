@@ -514,3 +514,49 @@ func TestConvert_CsvToJsonArray(t *testing.T) {
 		t.Fatalf("got %d objects, want 3", len(parsed))
 	}
 }
+
+// TestReader_FirstElementReachesTheRowPass is the jsonarray half of the
+// NDJSON dropped-first-record audit. ReadHeader derives the column names
+// from the first array element, which is a RECORD as well — it is
+// buffered in Reader.pending and replayed by ReadRows. A one-element
+// array is the sharpest form: there is nothing after the header source,
+// so a reader that forgot to replay would import nothing at all.
+func TestReader_FirstElementReachesTheRowPass(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data string
+		want [][]string
+	}{
+		{"one element", `[{"name":"alice","age":30}]`, [][]string{{"alice", "30"}}},
+		{"two elements", `[{"name":"alice","age":30},{"name":"bob","age":25}]`,
+			[][]string{{"alice", "30"}, {"bob", "25"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewReaderFromBytes([]byte(tc.data))
+			defer r.Close()
+
+			header, err := r.ReadHeader()
+			if err != nil {
+				t.Fatalf("ReadHeader: %v", err)
+			}
+			if len(header) != 2 {
+				t.Fatalf("header = %v, want [name age]", header)
+			}
+			var rows [][]string
+			if err := r.ReadRows(context.Background(), func(row []string) error {
+				rows = append(rows, append([]string(nil), row...))
+				return nil
+			}); err != nil {
+				t.Fatalf("ReadRows: %v", err)
+			}
+			if len(rows) != len(tc.want) {
+				t.Fatalf("got %d rows, want %d", len(rows), len(tc.want))
+			}
+			for i := range tc.want {
+				if rows[i][0] != tc.want[i][0] || rows[i][1] != tc.want[i][1] {
+					t.Errorf("row %d = %v, want %v", i, rows[i], tc.want[i])
+				}
+			}
+		})
+	}
+}

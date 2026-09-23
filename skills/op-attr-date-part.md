@@ -21,7 +21,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | `date` (or `nullable_date`) |
+| `Field` | `date` |
 | `Label` | required — new column name |
 
 ## Output

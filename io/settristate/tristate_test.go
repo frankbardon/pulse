@@ -55,43 +55,34 @@ func schemaFor(t *testing.T, r rung) *encoding.Schema {
 	}}
 }
 
-// sourceRows returns the fixture: ONE filler record followed by the
-// three states under test — a non-empty selection, an empty selection,
-// and a null, in that order.
+// sourceRows returns the fixture: the three states under test — a
+// non-empty selection, an empty selection, and a null, in that order.
 //
-// The filler exists for io/ndjson alone. NDJSON has no header line, so
-// its Reader derives the column names from the FIRST object and
-// ReadRows resumes after it; a fresh reader handed straight to
-// ImportJob therefore never yields record 1. That is a pre-existing
-// adapter bug and not this story's to fix (an inferred ndjson import
-// loses its first record today), but it would otherwise eat whichever
-// state happened to be first here. Every assertion below reads the
-// TRAILING three cells, so the filler is invisible to the matrix and
-// identical for every format.
+// This used to carry a leading filler record for io/ndjson alone, whose
+// Reader derived the column names from the FIRST object and then
+// resumed the row pass after it, losing that record. The filler is gone
+// with the bug, so every adapter now sees exactly the three states and
+// every assertion below indexes them directly.
 func sourceRows(r rung) [][]string {
 	return [][]string{
-		{"0", token(1)},
 		{"1", token(0) + pio.DefaultSetDelimiter + token(r.Tokens-1)},
 		{"2", pio.EmptySetCell},
 		{"3", ""},
 	}
 }
 
-// fixtureRecords is len(sourceRows); trailingThree is what the
-// assertions look at.
-const (
-	fixtureRecords = 4
-	trailingThree  = 3
-)
+// fixtureRecords is len(sourceRows): one record per state, and every
+// adapter must carry all of them.
+const fixtureRecords = 3
 
-// lastThree narrows a per-record slice to the three states under test,
-// tolerating the one record io/ndjson consumes as its header.
-func lastThree[T any](t *testing.T, what string, xs []T) []T {
+// exactly asserts a per-record slice carries one entry per fixture
+// state and returns it. No adapter may swallow a record.
+func exactly[T any](t *testing.T, what string, xs []T) []T {
 	t.Helper()
-	if len(xs) < trailingThree {
-		t.Fatalf("%s: %d records, want at least %d", what, len(xs), trailingThree)
+	if len(xs) != fixtureRecords {
+		t.Fatalf("%s: %d records, want exactly %d", what, len(xs), fixtureRecords)
 	}
-	return xs[len(xs)-trailingThree:]
+	return xs
 }
 
 // mockReader is a minimal pio.Reader / ResetReader over in-memory rows.
@@ -309,7 +300,7 @@ func exportThrough(t *testing.T, a adapter, r rung) (afero.Fs, []string) {
 	if err := rd.Close(); err != nil {
 		t.Fatalf("%s/%s reader Close: %v", a.Name, r.Type, err)
 	}
-	return fs, lastThree(t, a.Name+"/"+r.Type.String(), cells)
+	return fs, exactly(t, a.Name+"/"+r.Type.String(), cells)
 }
 
 // TestAdapters_ThreeSetStatesAreDistinctOnTheWay_Out asserts that every
@@ -350,7 +341,7 @@ func TestAdapters_ThreeSetStatesRoundTrip(t *testing.T) {
 		for _, r := range rungs {
 			t.Run(a.Name+"/"+r.Type.String(), func(t *testing.T) {
 				fs, _ := exportThrough(t, a, r)
-				before := lastThree(t, "source", readStates(t, fs, "src.pulse", "sel"))
+				before := exactly(t, "source", readStates(t, fs, "src.pulse", "sel"))
 
 				job := pio.NewImportJob(a.Reader(fs, a.Path), "rt.pulse")
 				job.FS = fs
@@ -359,12 +350,12 @@ func TestAdapters_ThreeSetStatesRoundTrip(t *testing.T) {
 				if err != nil {
 					t.Fatalf("re-import: %v", err)
 				}
-				if rep.RowsImported < trailingThree {
-					t.Fatalf("re-imported %d rows, want at least %d (errors %v)",
-						rep.RowsImported, trailingThree, rep.RowErrors)
+				if rep.RowsImported != fixtureRecords {
+					t.Fatalf("re-imported %d rows, want %d (errors %v)",
+						rep.RowsImported, fixtureRecords, rep.RowErrors)
 				}
 
-				after := lastThree(t, "round-tripped", readStates(t, fs, "rt.pulse", "sel"))
+				after := exactly(t, "round-tripped", readStates(t, fs, "rt.pulse", "sel"))
 				for i := range before {
 					if after[i].Null != before[i].Null || !after[i].Mask.Equal(before[i].Mask) {
 						t.Errorf("row %d: round-tripped %s, want %s", i, after[i], before[i])
@@ -387,9 +378,6 @@ func TestJSONAdapters_NativeEmptyArrayIsAnEmptySelection(t *testing.T) {
 		t.Run(r.Type.String(), func(t *testing.T) {
 			hi := token(r.Tokens - 1)
 			doc := "" +
-				// Leading filler: io/ndjson reads the first object as
-				// its header. See sourceRows.
-				`{"id":0,"sel":["` + token(1) + `"]}` + "\n" +
 				`{"id":1,"sel":["` + token(0) + `","` + hi + `"]}` + "\n" +
 				`{"id":2,"sel":[]}` + "\n" +
 				`{"id":3,"sel":null}` + "\n"
@@ -405,12 +393,12 @@ func TestJSONAdapters_NativeEmptyArrayIsAnEmptySelection(t *testing.T) {
 			if err != nil {
 				t.Fatalf("import: %v", err)
 			}
-			if rep.RowsImported < trailingThree {
-				t.Fatalf("imported %d rows, want at least %d (errors %v)",
-					rep.RowsImported, trailingThree, rep.RowErrors)
+			if rep.RowsImported != fixtureRecords {
+				t.Fatalf("imported %d rows, want %d (errors %v)",
+					rep.RowsImported, fixtureRecords, rep.RowErrors)
 			}
 
-			got := lastThree(t, "native ndjson", readStates(t, fs, "native.pulse", "sel"))
+			got := exactly(t, "native ndjson", readStates(t, fs, "native.pulse", "sel"))
 			if got[0].Null || got[0].Mask.PopCount() != 2 {
 				t.Errorf("token array stored as %s, want a two-bit mask", got[0])
 			}

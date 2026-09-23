@@ -33,12 +33,32 @@ If the reader needs schema inference (header sample, then full
 import), also implement `io.ResetReader.Reset()` so the import job
 can rewind after sampling.
 
+### Headerless formats: the first record is still a record
+
+Some formats carry no header line at all — NDJSON and a top-level JSON
+array both derive their column names from the keys of the **first
+object**. That object is a RECORD as well as a column declaration, so
+`ReadHeader` must buffer it and `ReadRows` must replay it as row one.
+
+Getting this wrong is invisible: no error, no warning, every import
+one row short and a single-record file importing nothing. `io/ndjson`
+and `io/jsonarray` both keep the decoded first object in a `pending`
+field and emit it before resuming the scan; copy that shape.
+
+Only the first object's KEYS define the column set. Replaying the
+record does not widen the columns, and a key that first appears in a
+later object is still not a column.
+
 ## 2. Tests
 
 Add `io/<format>/<format>_test.go` with the standard round-trip
 checks: write rows, read them back, verify equality. Hermetic tests
 should use `afero.NewMemMapFs()` — see [Testing
 Conventions](../contributing/testing.md).
+
+For a headerless format, assert the record COUNT on a one-record and a
+many-record source, and assert the first record's VALUES — a count
+alone passes on a reader that drops record one and duplicates another.
 
 ## 3. Register and wire it up
 

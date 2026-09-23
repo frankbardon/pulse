@@ -12,17 +12,16 @@ import (
 )
 
 // TestNdjsonImport_SingleRecordIsNotATotalRowFailure guards the boundary
-// of the total-failure verdict E3-S7 added to pio.ImportJob.Run against a
-// live landmine.
+// of the total-failure verdict E3-S7 added to pio.ImportJob.Run.
 //
-// ndjson.Reader.ReadHeader derives the column names by consuming the FIRST
-// JSON object and ReadRows resumes after it, so an INFERRED import of a
-// one-record file sees zero data rows. That dropped record is a separate,
-// pre-existing bug. What matters here is where the refusal comes from:
-// inference already refuses a zero-row sample with
-// PULSE_IMPORT_SCHEMA_AMBIGUOUS, long before the row pass runs, so the new
-// check neither fires nor is needed. A PULSE_IMPORT_ROW_ERROR here would
-// mean the verdict had swallowed an empty source.
+// The shape was written when ndjson.Reader.ReadHeader still ATE the first
+// object: a one-record file then presented zero data rows, inference
+// refused the empty sample with PULSE_IMPORT_SCHEMA_AMBIGUOUS, and the
+// only thing worth asserting was that the new verdict had not turned
+// that into a PULSE_IMPORT_ROW_ERROR. The dropped record is fixed, so the
+// boundary now has a real answer: one record in, one row imported. The
+// verdict must fire on neither count — it is not a total row failure and
+// it is no longer an ambiguous sample, because there IS a row to sample.
 func TestNdjsonImport_SingleRecordIsNotATotalRowFailure(t *testing.T) {
 	data := []byte(`{"name":"alice","age":30}` + "\n")
 
@@ -30,19 +29,22 @@ func TestNdjsonImport_SingleRecordIsNotATotalRowFailure(t *testing.T) {
 	job := pio.NewImportJob(NewReaderFromBytes(data), "one.pulse")
 	job.FS = fs
 
-	_, err := job.Run(context.Background())
-	if err == nil {
-		t.Skip("the dropped-first-record bug appears fixed; this boundary no longer reproduces")
+	rep, err := job.Run(context.Background())
+	if err != nil {
+		var ce *perr.CodedError
+		if stderrors.As(err, &ce) {
+			t.Fatalf("Run: %s: %v — a one-record source imports one row", ce.Code, err)
+		}
+		t.Fatalf("Run: %v — a one-record source imports one row", err)
 	}
-	var ce *perr.CodedError
-	if !stderrors.As(err, &ce) {
-		t.Fatalf("err = %v, want a CodedError", err)
+	if rep.RowsImported != 1 {
+		t.Fatalf("RowsImported = %d, want 1 (errors %v)", rep.RowsImported, rep.RowErrors)
 	}
-	if ce.Code == perr.PULSE_IMPORT_ROW_ERROR {
-		t.Fatalf("the total-failure verdict fired on a source with no data rows and no row errors: %v", err)
+	if len(rep.RowErrors) != 0 {
+		t.Errorf("RowErrors = %v, want none", rep.RowErrors)
 	}
-	if ce.Code != perr.PULSE_IMPORT_SCHEMA_AMBIGUOUS {
-		t.Errorf("code = %s, want %s (inference refuses a zero-row sample)", ce.Code, perr.PULSE_IMPORT_SCHEMA_AMBIGUOUS)
+	if ok, _ := afero.Exists(fs, "one.pulse"); !ok {
+		t.Error("one.pulse was not written")
 	}
 }
 

@@ -65,22 +65,24 @@ type RegressionModifier struct {
 func regressionCapabilities() []RegressionMeta {
 	// All three engines consume the analytics-numeric set: integer /
 	// float / decimal families plus the bit-packed integer encodings
-	// (nullable_u4, nullable_bool, packed_bool) and date. Runtime
-	// collection routes every entry through Record.NumericValue, which
-	// hands the fit algorithms float64 + null status uniformly.
+	// (u4, packed_bool) and date. Runtime collection routes every entry
+	// through Record.NumericValue, which hands the fit algorithms
+	// float64 + null status uniformly, and the predict-side gate is
+	// encoding.FieldType.IsNumericForAnalytics (predict_regression.go).
+	//
+	// Nullability is orthogonal to type — the `nullable_*` spellings
+	// this list once carried were stale aliases for `u4` / `u8` / `u16`
+	// / `packed_bool` / `decimal128`, every one of which is named here
+	// directly. See capabilities_aggregators.go's declaration policy.
 	numericTypes := []string{
 		"date",
 		"decimal128",
 		"f32",
 		"f64",
-		"nullable_bool",
-		"nullable_decimal128",
-		"nullable_u16",
-		"nullable_u4",
-		"nullable_u8",
 		"packed_bool",
 		"u16",
 		"u32",
+		"u4",
 		"u64",
 		"u8",
 	}

@@ -50,7 +50,7 @@ pulse profile create --input PATH --output PATH
 | `packed_bool` | The same numeric summary (a boolean falls to the numeric accumulator), but **reconstructed as `bernoulli`, not as a clamped normal** — see "Boolean fields" below |
 | Categorical | Cardinality, plus the top-K most-frequent values with their observed weights. The tail below the cut is **not** retained as an `"other"` bucket — `synth from-profile` renormalises the retained weights, so a 1,900-level field regenerates as `--top-k` levels and the tail's share is redistributed across them. (The `"other"` spelling that *does* appear in `conditional.*` tables and in `--fit-models` designs is a different, per-section collapse.) |
 | `date` | Min, max, count |
-| `nullable_*` | Null count alongside the above |
+| Any **nullable** field (`Field.Nullable`, any type) | Null count alongside the above. Nullability is a per-field flag, not a type — there are no `nullable_*` types |
 
 ## Boolean fields
 
