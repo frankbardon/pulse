@@ -571,10 +571,10 @@ func TestDataEncoder_SetColumnKeepsItsThreeStates(t *testing.T) {
 	}}
 	plan := planFor(t, s, WriterOptions{})
 	sav := encodeCases(t, plan, s,
-		Case{{Mask: 0b01}}, // tv only
-		Case{{Mask: 0b11}}, // both
-		Case{{Mask: 0}},    // answered, nothing selected
-		Case{{Null: true}}, // never asked
+		Case{{Mask: maskOf(0)}},    // tv only
+		Case{{Mask: maskOf(0, 1)}}, // both
+		Case{{Mask: maskOf()}},     // answered, nothing selected
+		Case{{Null: true}},         // never asked
 	)
 
 	head, rows := savRows(t, sav)
@@ -900,8 +900,8 @@ func TestWriteCohort_ReadsEveryStorageType(t *testing.T) {
 		}
 	}
 	// A set carries its mask at full width beside the float echo.
-	if c[12].Mask != 0b10 {
-		t.Errorf("set Mask = %b, want 10", c[12].Mask)
+	if !c[12].Mask.Equal(maskOf(1)) {
+		t.Errorf("set Mask = %v, want bit 1 only", setBits(c[12].Mask))
 	}
 	// A datetime is SIGNED: the day before the epoch is not 1.8e19.
 	if c[10].Num != -86400 {

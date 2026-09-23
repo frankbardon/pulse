@@ -109,13 +109,23 @@ type CaseValue struct {
 	//     1970 stays before 1970 (the on-wire u64 is two's complement, which
 	//     is exactly what encoding.FormatDateTime reinterprets).
 	//   - categorical_* — the dictionary ID.
-	//   - set_* — the mask, echoed as a float; see Mask.
+	//   - set_* — the LOW 64 bits of the mask, echoed as a float; see Mask.
 	Num float64
 
-	// Mask is a set_* column's bitmask at full width. Num echoes it, but a
-	// set_u64 mask above 2^53 does not survive the float, and bit 63 of a
-	// selection is data.
-	Mask uint64
+	// Mask is a set_* column's bitmask at full width, for every rung from
+	// set_u8 through set_u256. Num echoes only its low word and is
+	// deliberately lossy there: a set_u64 mask above 2^53 does not survive
+	// the float, bit 63 of a selection is data, and a set_u128 / set_u256
+	// selection above bit 63 is not in Num at all.
+	//
+	// It is an encoding.SetMask and not a uint64 for that last reason. A
+	// uint64 here could carry a 206-option battery's low word only, and
+	// every member at or above bit 64 would export as "not selected" —
+	// a well-formed `.sav` reporting that nobody ever picked anything past
+	// option 64. See .claude/reference/byte-layout.md (Wide-set word
+	// order): the wide rungs reach the decode hand-off as a SetMask
+	// precisely so that narrowing cannot happen by accident.
+	Mask encoding.SetMask
 
 	// Null reports that the cohort's null bitmap marks this field missing for
 	// this record. It is authoritative: Num and Mask are zero when it is set,
@@ -269,6 +279,23 @@ func (e *DataEncoder) checkColumns() error {
 					" byte(s) but it declares a width of "+strconv.Itoa(col.Width))
 			}
 		}
+		// A set member's bit is bounded against ITS OWN RUNG here, once,
+		// and here rather than on the per-case path for a reason worth
+		// more than the cycles: planCohort is the seam `pulse export
+		// predict` runs, so a bound that lives in WriteCase is a refusal
+		// io.CohortValidator cannot see — predict answers "fine" and the
+		// export fails on record 1. A cohort declaring more dictionary
+		// entries than its set type addresses (a set_u8 with ten of them)
+		// genuinely has no `.sav` form, and that is a schema fact.
+		if col.Encoding == EncodeSetMember {
+			ft := e.schema.Fields[col.Field].Type
+			max := int(ft.MaxSetEntries())
+			if col.SetBit < 0 || col.SetBit >= max {
+				return cannotWrite(col, "it is a set member standing for bit "+strconv.Itoa(col.SetBit)+
+					" of the "+ft.String()+" column "+strconv.Quote(e.schema.Fields[col.Field].Name)+
+					", which addresses bits 0.."+strconv.Itoa(max-1))
+			}
+		}
 		// The folded reason sibling is bounded here, once, so putNull can
 		// index the case without a check on the per-case path.
 		if col.MissingField >= len(e.schema.Fields) {
@@ -386,11 +413,16 @@ func (e *DataEncoder) writeColumn(col *ColumnPlan, c Case) error {
 			e.putSysmis(col)
 			return nil
 		}
-		if col.SetBit < 0 || col.SetBit >= 64 {
+		// The bit was bounded against its own rung at plan time (see
+		// checkColumns), so this is the residual safety net rather than the
+		// check: SetMask.Has answers false out of range rather than
+		// panicking, and an unbounded bit would otherwise read as "not
+		// selected" silently.
+		if col.SetBit < 0 || col.SetBit >= encoding.SetMaskBits {
 			return cannotWrite(col, "it is a set member standing for bit "+strconv.Itoa(col.SetBit)+
 				", which is not a bit a set_* mask has")
 		}
-		if v.Mask&(1<<uint(col.SetBit)) != 0 {
+		if v.Mask.Has(col.SetBit) {
 			e.putNumber(col, col.CountedValue)
 		} else {
 			e.putNumber(col, 0)
@@ -775,6 +807,23 @@ func readCohortCase(r io.Reader, s *encoding.Schema, c Case) error {
 			}
 			c[i].Num = d.Float64(f.Scale)
 
+		case f.Type.IsWideSet():
+			// set_u128 / set_u256 have no uint64 reading at all —
+			// encoding.ReadFieldValue REFUSES them rather than handing back
+			// the low word, so the wide wire API is the only way through.
+			// Reading a 206-option battery any other way is the silent
+			// truncation .claude/reference/byte-layout.md names.
+			m, err := encoding.ReadSetMask(r, f.Type)
+			if err != nil {
+				return cohortReadError(err, i, len(s.Fields))
+			}
+			c[i].Mask = m
+			// The documented lossy echo: Num is the low 64 bits, so a set
+			// field is never absent from the numeric view, and Mask is the
+			// authority.
+			low, _ := m.Uint64()
+			c[i].Num = float64(low)
+
 		default:
 			raw, err := encoding.ReadFieldValue(r, f.Type)
 			if err != nil {
@@ -782,7 +831,7 @@ func readCohortCase(r io.Reader, s *encoding.Schema, c Case) error {
 			}
 			c[i].Num = cohortNumber(f.Type, raw)
 			if f.Type.IsSet() {
-				c[i].Mask = raw
+				c[i].Mask = encoding.SetMaskFromUint64(raw)
 			}
 		}
 	}

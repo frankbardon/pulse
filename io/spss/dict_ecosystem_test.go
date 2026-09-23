@@ -198,9 +198,9 @@ func TestEmittedFile_ValuesReadInReadStatAndForeign(t *testing.T) {
 	}}
 	const day = 19786 // 2024-03-04
 	cases := []Case{
-		{{Num: 1}, {Num: 1234.5}, {Num: 0}, {Num: day}, {Mask: 0b01}},
-		{{Num: 2}, {Num: -0.25}, {Num: 1}, {Num: day + 1}, {Mask: 0b11}},
-		{{Num: 3}, {Null: true}, {Num: 0}, {Num: day + 2}, {Mask: 0}},
+		{{Num: 1}, {Num: 1234.5}, {Num: 0}, {Num: day}, {Mask: maskOf(0)}},
+		{{Num: 2}, {Num: -0.25}, {Num: 1}, {Num: day + 1}, {Mask: maskOf(0, 1)}},
+		{{Num: 3}, {Null: true}, {Num: 0}, {Num: day + 2}, {Mask: maskOf()}},
 	}
 
 	dir := t.TempDir()
