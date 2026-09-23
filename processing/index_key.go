@@ -57,13 +57,18 @@ import (
 //   - ALLOW — packed_bool: a 1-bit bool, decoded range {0,1}. Exact
 //     under the same "well-defined injective 1-byte encoding" rationale
 //     as u4.
-//   - REJECT — set_u8/u16/u32/u64: a multi-select bitmask has no single
-//     unambiguous equality value for a point key — the empty selection,
-//     a single member, and every multi-member combination are all
-//     legal, distinct bitmask states, and "does this row's set contain
-//     X" is a membership predicate (FILTER_SET), not a point-lookup
-//     equality key. Rejected with a set_*-specific message — see
-//     IndexKeyRejectionMessage.
+//   - REJECT — every set_* rung, narrow and wide alike: a multi-select
+//     bitmask has no single unambiguous equality value for a point key
+//     — the empty selection, a single member, and every multi-member
+//     combination are all legal, distinct bitmask states, and "does
+//     this row's set contain X" is a membership predicate (FILTER_SET),
+//     not a point-lookup equality key. The rejection keys off
+//     FieldType.IsSet(), NOT off an enumeration, so a newly registered
+//     rung inherits it without an edit here — phrased that way
+//     deliberately, because the enumeration this line used to carry
+//     ("set_u8/u16/u32/u64") went stale the moment set_u128 and
+//     set_u256 landed while the behaviour stayed right. Rejected with a
+//     set_*-specific message — see IndexKeyRejectionMessage.
 func IsIndexKeyableFieldType(ft encoding.FieldType) bool {
 	if ft.IsCategorical() {
 		return true
