@@ -599,8 +599,9 @@ type ImportJob struct {
 	// inferring set_* field types during the inference pass. A column
 	// is classified as set_* when at least this percentage of non-
 	// null sampled cells contain the inferred delimiter, the
-	// post-split unique token count fits in set_u64 (≤64), and the
-	// average post-split cardinality is > 1. Zero is treated as 30%.
+	// post-split unique token count fits the widest set rung (≤256),
+	// and the average post-split cardinality is > 1. Zero is treated
+	// as 30%.
 	// Ignored when Schema is supplied, and inert when the Source is a
 	// SchemaAwareReader that yields a schema.
 	SetInferenceMinPct int
