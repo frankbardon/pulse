@@ -1244,6 +1244,53 @@ func (p *Pulse) DropIndex(ctx context.Context, path string, keyFields []string) 
 	return err
 }
 
+// WidenReport re-exports encoding.WidenReport — the outcome of a
+// WidenSetField call: the field's identity, the rung it moved from and
+// to, the number of records re-laid-out and the record stride on each
+// side of the rewrite.
+type WidenReport = encoding.WidenReport
+
+// WidenSetField widens the set column named field in the cohort at path
+// to the wider set rung named by targetType ("set_u16", "set_u32",
+// "set_u64", "set_u128", "set_u256"), rewriting the cohort IN PLACE and
+// returning a report of what moved.
+//
+// A widen changes the field's stride, so every record is re-laid-out
+// and every field after the widened one moves. The rewrite is atomic —
+// temp file beside the cohort, fsync, rename — so any failure leaves
+// the original byte-identical; see encoding.WidenSetFieldFile.
+//
+// targetType is a type NAME rather than an encoding.FieldType because
+// this is the boundary where a caller-supplied string arrives (a CLI
+// flag, an embedder's config), and the resolution rule belongs to the
+// library: an unknown name is ENCODING_TYPE_MISMATCH, never a silent
+// fallback to some default type. Callers holding an encoding.FieldType
+// pass its String(); the name table round-trips by contract.
+//
+// Refusals are coded errors reusing existing codes — SERVICE_RESOURCE
+// (no such cohort), SERVICE_VALIDATION (the path is a shard archive or
+// an anchored shard within one), ENCODING_INVALID (no such field) and
+// ENCODING_TYPE_MISMATCH (not a set, not wider, or already at the
+// widest rung). See service.Service.WidenSetField.
+//
+// Sidecars are not rebuilt: a widened cohort changes length, so the
+// point-lookup index and the SPSS metadata sidecar invalidate
+// themselves through their own fingerprints on the next read.
+func (p *Pulse) WidenSetField(ctx context.Context, path, field, targetType string) (*WidenReport, error) {
+	target, ok := encoding.ParseFieldType(targetType)
+	if !ok {
+		return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+			fmt.Sprintf("widen: %q is not a known field type name", targetType),
+			map[string]any{"target": targetType, "field": field, "cohort": path})
+	}
+	rep, err := p.svc.WidenSetField(ctx, path, field, target)
+	if err != nil {
+		return nil, err
+	}
+	p.touchManaged(ctx, path)
+	return rep, nil
+}
+
 // ExamplesSearch returns summaries from the embedded request-example
 // library matching the given filters. An empty filter is treated as
 // "no constraint" for that dimension. Query is case-insensitive

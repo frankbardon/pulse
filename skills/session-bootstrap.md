@@ -44,6 +44,7 @@ Lowercase the operator family prefix and map through this table. Skills carry no
 | a `.sav` / `.zsav` source, or a cohort carrying a `.spss.json` sidecar | `spss-cohorts` |
 | `mcp_tools[i].name` | `tool-<name minus `pulse_`>` — one atomic skill per tool |
 | `pulse_lookup` / `pulse index build` / `pulse index list` / `pulse index verify` / `pulse index drop` / `pulse api lookup` | `tool-lookup` (MCP surface), `cohort-schema-design` (sidecar format) |
+| a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | `cohort-schema-design` (set rungs) |
 | `error_codes[i]` | `pulse_errors_lookup` — the tool is the surface, not a skill |
 | Request slot `Joins` | `join-design` |
 | Request slot `Crosstab` | `crosstab-guide` |
