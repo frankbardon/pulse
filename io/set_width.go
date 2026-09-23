@@ -18,6 +18,14 @@ import "github.com/frankbardon/pulse/encoding"
 // typing a 206-token column as set_u256. Nothing errored; a convenience
 // column simply was not there, with a warning explaining that no wider
 // type existed.
+//
+// io/arrow/types.go was the third site and is folded in too: it named
+// every rung in TypeFromPulse and seeded TypeToPulse with a literal
+// narrowest rung. Its failure mode was the quieter one — an unlisted
+// rung fell through to the default arm and mapped a set column to
+// Float64 — so it now tests FieldType.IsSet() as a class and reads the
+// seed off encoding.SetLadder(). TestTypes_NamesNoIndividualSetRung
+// keeps it that way.
 
 // SetTypeFor returns the narrowest set_* type with a bit for each of
 // `elements` elements, and reports false when no rung is wide enough
