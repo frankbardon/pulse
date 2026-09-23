@@ -2,7 +2,11 @@ package cli
 
 import (
 	"context"
+	stderrors "errors"
 
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/errors"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -77,11 +81,44 @@ func WidenCommand() *cli.Command {
 				StrideBefore: rep.StrideBefore,
 				StrideAfter:  rep.StrideAfter,
 			}
+
+			// Sidecar hint. A widen changes the cohort's byte LENGTH,
+			// so the point-lookup index and the SPSS metadata sidecar
+			// beside it both self-invalidate through their own size
+			// fingerprints — neither can serve stale data. What was
+			// missing is that nothing SAID so, and a corpus that quietly
+			// stops answering lookups is a bad way to find out.
+			//
+			// Reporting only, never rebuilding: an automatic rebuild
+			// would attach unbounded work to a bounded operation, with
+			// no way for the caller to decline it.
+			//
+			// A discovery failure is reported as an envelope WARNING
+			// rather than an error, because the widen has already
+			// succeeded and its exit code must say so. Swallowing it
+			// would be the silence this whole hint exists to end.
+			sidecars, sidecarErr := p.InvalidatedSidecars(ctx, input)
+			out.InvalidatedSidecars = sidecars
+
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, out)
+				env := descriptor.NewEnvelope(out)
+				if sidecarErr != nil {
+					addSidecarScanWarning(env, input, sidecarErr)
+				}
+				return writeJSON(cmd.Writer, env)
 			}
 			writeText(cmd.Writer, "Widened %s field %q: %s -> %s (%d record(s) rewritten, stride %d -> %d bytes)\n",
 				out.Cohort, out.Field, out.From, out.To, out.Records, out.StrideBefore, out.StrideAfter)
+			if sidecarErr != nil {
+				writeText(cmd.Writer, "  WARN   could not enumerate sidecars beside %s: %v\n", input, sidecarErr)
+			}
+			if len(sidecars) > 0 {
+				writeText(cmd.Writer, "Invalidated sidecars (not rebuilt — rebuilding is yours to schedule):\n")
+				for _, sc := range sidecars {
+					writeText(cmd.Writer, "  %s  [%s]\n", sc.Path, sc.Kind)
+					writeText(cmd.Writer, "    %s\n", sc.Rebuild)
+				}
+			}
 			return nil
 		},
 	}
@@ -103,4 +140,28 @@ type widenOutput struct {
 	Records      int64  `json:"records"`
 	StrideBefore int    `json:"stride_before"`
 	StrideAfter  int    `json:"stride_after"`
+	// InvalidatedSidecars names the sidecar documents beside the cohort
+	// that the rewrite invalidated, each with the command that rebuilds
+	// it. Structured rather than prose because a consumer must not have
+	// to parse a sentence to learn which file to rebuild.
+	//
+	// omitempty, and the text arm prints nothing in the same case: a
+	// cohort with no sidecars is the overwhelmingly common one, and an
+	// empty section there is pure noise.
+	InvalidatedSidecars []pulse.StaleSidecar `json:"invalidated_sidecars,omitempty"`
+}
+
+// addSidecarScanWarning records a failed sidecar enumeration on the
+// envelope's warnings array, preserving the coded error's own code when
+// it carries one so `pulse errors lookup` still works on it.
+func addSidecarScanWarning(env *descriptor.Envelope, cohort string, err error) {
+	code := "WIDEN_SIDECAR_SCAN"
+	var coded *errors.CodedError
+	if stderrors.As(err, &coded) {
+		code = string(coded.Code)
+	}
+	env.AddWarning(code,
+		"the widen succeeded but the sidecars beside the cohort could not be enumerated; "+
+			"any point-lookup index or SPSS metadata sidecar here is now stale and must be rebuilt manually",
+		map[string]any{"cohort": cohort, "error": err.Error()})
 }

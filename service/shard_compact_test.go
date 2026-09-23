@@ -50,7 +50,7 @@ func TestShardArchiveCompactReclaimsOrphans(t *testing.T) {
 		})
 
 		archive := "arch.pulse"
-		if err := svc.CreateShardArchive(context.Background(), archive,
+		if _, err := svc.CreateShardArchive(context.Background(), archive,
 			[]string{shardA, shardB, shardC}); err != nil {
 			t.Fatalf("CreateShardArchive: %v", err)
 		}

@@ -72,7 +72,7 @@ func TestShardArchiveDictUnionMerge(t *testing.T) {
 		t.Fatalf("WriteFile b: %v", err)
 	}
 
-	if err := svc.CreateShardArchive(context.Background(), "arch.pulse",
+	if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse",
 		[]string{"a.pulse", "b.pulse"}); err != nil {
 		t.Fatalf("CreateShardArchive with divergent dicts: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestShardArchiveDictUnionAddShard(t *testing.T) {
 	if err := afero.WriteFile(fsys, "seed.pulse", seed, 0o644); err != nil {
 		t.Fatalf("WriteFile seed: %v", err)
 	}
-	if err := svc.CreateShardArchive(context.Background(), "arch.pulse",
+	if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse",
 		[]string{"seed.pulse"}); err != nil {
 		t.Fatalf("CreateShardArchive seed: %v", err)
 	}

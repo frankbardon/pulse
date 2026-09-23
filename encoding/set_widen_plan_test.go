@@ -187,10 +187,30 @@ func TestPlanSetWidening(t *testing.T) {
 		if _, err := PlanSetWidening(nil, setSchema(t, FieldTypeSetU8, nil)); err == nil {
 			t.Error("nil canonical: expected an error")
 		}
+		// A set column meeting a NON-set column is still fatal: only the
+		// rung dimension relaxes.
+		canonical := setSchema(t, FieldTypeSetU8, []string{"a"})
+		notASet := setSchema(t, FieldTypeSetU8, []string{"a"})
+		notASet.Fields[1].Type = FieldTypeU64
+		notASet.Fields[1].Dictionary = nil
+		if _, err := PlanSetWidening(canonical, notASet); err == nil {
+			t.Error("set meeting a non-set column: expected PULSE_SHARD_SCHEMA_MISMATCH")
+		}
+	})
+
+	// Divergent set RUNGS are no longer a refusal: they plan a widen to
+	// the wider of the two, which is what lets an archive seeded at one
+	// rung accept a re-import that inferred another. See
+	// cohesion_set_rung_test.go for the full direction matrix.
+	t.Run("divergent set rungs plan a widen to the wider rung", func(t *testing.T) {
 		canonical := setSchema(t, FieldTypeSetU8, []string{"a"})
 		incoming := setSchema(t, FieldTypeSetU16, []string{"a"})
-		if _, err := PlanSetWidening(canonical, incoming); err == nil {
-			t.Error("divergent set rungs: expected PULSE_SHARD_SCHEMA_MISMATCH")
+		plans, err := PlanSetWidening(canonical, incoming)
+		if err != nil {
+			t.Fatalf("divergent set rungs must plan, not error: %v", err)
+		}
+		if len(plans) != 1 || plans[0].To != FieldTypeSetU16 {
+			t.Fatalf("plans = %+v, want one promotion to set_u16", plans)
 		}
 	})
 }

@@ -249,7 +249,7 @@ func TestServiceWidenSetField_RefusesShardArchive(t *testing.T) {
 	}
 	svc := New(cfg)
 	ctx := context.Background()
-	if err := svc.CreateShardArchive(ctx, "archive.pulse", []string{"a.pulse", "b.pulse"}); err != nil {
+	if _, err := svc.CreateShardArchive(ctx, "archive.pulse", []string{"a.pulse", "b.pulse"}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 	before, err := afero.ReadFile(cfg.Fs(), "archive.pulse")

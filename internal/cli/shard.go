@@ -55,20 +55,34 @@ func shardCreateCmd() *cli.Command {
 			if err != nil {
 				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
 			}
-			if err := p.CreateShardArchive(ctx, archive, includes); err != nil {
-				return cliError(cmd, jsonOut, "SHARD_CREATE_ERROR", err.Error())
+			result, err := p.CreateShardArchive(ctx, archive, includes)
+			if err != nil {
+				return cliCodedError(cmd, jsonOut, "SHARD_CREATE_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
 				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
 			}
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, map[string]any{
+				// The widen warning rides the envelope's `warnings`
+				// array on create for the same reason it does on add:
+				// that is where the --json contract says warnings live,
+				// and a generic consumer would never find it inside
+				// `data`.
+				env := descriptor.NewEnvelope(map[string]any{
 					"archive": archive,
 					"shards":  shards,
+					"widened": result.Widened,
 				})
+				for _, w := range result.Warnings {
+					env.AddWarning(w.Code, w.Message, w.Details)
+				}
+				return writeJSON(cmd.Writer, env)
 			}
 			writeText(cmd.Writer, "Created %s with %d shard(s)\n", archive, len(shards))
+			for _, w := range result.Warnings {
+				writeText(cmd.Writer, "  WARN   [%s] %s\n", w.Code, w.Message)
+			}
 			return nil
 		},
 	}

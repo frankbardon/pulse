@@ -254,7 +254,7 @@ func TestWidenCLI_RefusesShardArchiveWithoutTouchingIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}
-	if err := p.CreateShardArchive(context.Background(), archive, []string{shardA, shardB}); err != nil {
+	if _, err := p.CreateShardArchive(context.Background(), archive, []string{shardA, shardB}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 	before, err := os.ReadFile(archive)

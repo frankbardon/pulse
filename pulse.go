@@ -1558,9 +1558,26 @@ func (p *Pulse) Fs() afero.Fs {
 // archive is written atomically (temp file + rename) so partial
 // writes never appear at archivePath. See service.CreateShardArchive
 // for the full error surface.
-func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) error {
+//
+// Set-width auto-widen applies at CREATE exactly as it does at ADD: a
+// set column whose merged dictionary outgrows its bitmask, or whose rung
+// differs between two of the seeded shards, is promoted rather than
+// refused, and the promotion is reported as a mandatory
+// PULSE_SHARD_SET_WIDENED warning on the returned result. One rule, no
+// asymmetry — the same two files must not produce an archive when
+// passed together and an error when passed one after the other.
+//
+// CreateShardArchive returns a result rather than a bare error precisely
+// so that warning has nowhere to be dropped.
+func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*CreateShardArchiveResult, error) {
 	return p.svc.CreateShardArchive(ctx, archivePath, shardPaths)
 }
+
+// CreateShardArchiveResult carries the outcome of CreateShardArchive:
+// the archive's shard count, any set-field widenings the seed forced,
+// and the non-fatal warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE,
+// PULSE_SHARD_SET_WIDENED) to lift onto a --json envelope.
+type CreateShardArchiveResult = service.CreateShardArchiveResult
 
 // AddShard validates the incoming single-file shard against the
 // archive's canonical schema and appends it. Dict growth that the
@@ -1590,8 +1607,11 @@ func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) (*A
 // PULSE_SHARD_SET_WIDENED) to lift onto a --json envelope.
 type AddShardResult = service.AddShardResult
 
-// SetWidening records one set field promoted to a wider rung during an
-// AddShard, with the shard and record counts the rewrite cost.
+// SetWidening records one set field promoted to a wider rung during a
+// CreateShardArchive or an AddShard, with the shard and record counts
+// the rewrite cost. From == To marks the one-shard case: the arriving
+// shard declared a narrower rung and was promoted to the archive's,
+// leaving the archive itself untouched.
 type SetWidening = service.SetWidening
 
 // RemoveShard rewrites the archive omitting the named shard. The

@@ -284,7 +284,7 @@ func TestWideSet_ShardWorkersParity(t *testing.T) {
 	}
 
 	const archive = "wide_set_archive.pulse"
-	if err := svc.CreateShardArchive(context.Background(), archive, shardPaths); err != nil {
+	if _, err := svc.CreateShardArchive(context.Background(), archive, shardPaths); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 

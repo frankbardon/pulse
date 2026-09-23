@@ -396,11 +396,27 @@ type SetWidenPlan struct {
 	FieldIndex int
 	// Field is the field name, for diagnostics.
 	Field string
-	// From is the rung both schemas currently declare.
+	// From is the rung the CANONICAL schema declares. From == To means
+	// the archive itself does not move — only the incoming shard is
+	// promoted to meet it.
 	From FieldType
-	// To is the narrowest rung that holds the merged dictionary.
+	// IncomingFrom is the rung the ARRIVING shard declares. It may be
+	// narrower than From (the shard is promoted to canonical), wider
+	// than From (the archive is promoted to the shard), or equal.
+	//
+	// The two sides are recorded separately because the executor widens
+	// them separately: a payload already at To must not be handed to
+	// WidenSetFieldBytes, which refuses a non-widening target, and a
+	// caller reading the warning needs to tell an archive-wide rewrite
+	// from a one-shard re-stride.
+	IncomingFrom FieldType
+	// To is the rung both sides carry after the plan is applied: the
+	// widest of From, IncomingFrom and the narrowest rung holding the
+	// merged dictionary. It is never narrower than either input rung —
+	// narrowing would drop every selection above the target's ceiling.
 	To FieldType
-	// UnionEntries is the size of the merged dictionary that forced it.
+	// UnionEntries is the size of the merged dictionary the two schemas
+	// imply.
 	UnionEntries int
 }
 
@@ -415,15 +431,40 @@ type SetWidenPlan struct {
 // this FIRST lets the caller widen the whole archive and then merge into
 // a rung that fits.
 //
-// An empty plan and a nil error is the ordinary case: every merged
-// dictionary already fits.
+// TWO forces produce a plan, and they compose:
+//
+//  1. The merged DICTIONARY outgrows the declared bitmask, the original
+//     case.
+//  2. The two schemas DECLARE DIFFERENT RUNGS for the same set column.
+//     A re-import of a new period infers the rung its own data needs, so
+//     an archive seeded at set_u64 legitimately meets a set_u128 shard —
+//     and refusing that would force a full re-import of every prior
+//     period to reach a layout a mechanical re-stride already produces.
+//
+// Because of (2) this function must run BEFORE ValidateStructuralCohesion
+// rather than after it: cohesion is strict on the type byte and on every
+// ByteOffset a rung change shifts, so a divergent rung is fatal there. The
+// contract is that the caller applies the returned plans and THEN runs
+// cohesion over the reconciled schemas, which stays strict on everything
+// else. Only the set-rung dimension relaxes.
+//
+// The target rung is never narrower than either declared rung: To is the
+// widest of canonical's rung, incoming's rung and the narrowest rung
+// holding the union. Narrowing would drop every selection above the
+// target's ceiling, and it would do so SILENTLY — the record still
+// decodes, to a smaller and entirely plausible selection.
+//
+// An empty plan and a nil error is the ordinary case: the rungs agree
+// and every merged dictionary already fits.
 //
 // Errors:
 //   - PULSE_SHARD_DICT_WIDTH_OVERFLOW when the union exceeds the WIDEST
 //     rung. There is nowhere left to widen to, so this stays fatal — it
 //     is the one set-width overflow auto-widen does not remove.
-//   - PULSE_SHARD_SCHEMA_MISMATCH on nil schemas, differing field counts
-//     or a per-field type divergence (run ValidateStructuralCohesion first).
+//   - PULSE_SHARD_SCHEMA_MISMATCH on nil schemas, differing field counts,
+//     or a set column meeting a non-set column of the same position.
+//     Other structural divergence is ValidateStructuralCohesion's to
+//     report; run it over the reconciled schemas.
 //
 // Categorical fields are ignored entirely: a categorical's width is
 // fixed at folder creation by contract, and its capacity (256 / 65 536 /
@@ -445,35 +486,54 @@ func PlanSetWidening(canonical, incoming *Schema) ([]SetWidenPlan, error) {
 		if !cf.Type.IsSet() {
 			continue
 		}
-		if cf.Type != nf.Type {
+		// A set column meeting a NON-set column is a structural
+		// mismatch, not a width question: only the rung dimension
+		// relaxes here, and nothing else about cohesion does.
+		if !nf.Type.IsSet() {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
-				fmt.Sprintf("field %q set width differs", cf.Name),
+				fmt.Sprintf("field %q is %s in the canonical schema and %s in the incoming shard",
+					cf.Name, cf.Type, nf.Type),
 				map[string]any{"field": cf.Name,
 					"canonical_type": cf.Type.String(), "incoming_type": nf.Type.String()})
 		}
 
-		unionVals, _ := unionDictValues(dictValuesOrEmpty(cf.Dictionary), dictValuesOrEmpty(nf.Dictionary))
-		if uint32(len(unionVals)) <= cf.Type.MaxSetEntries() {
-			continue
+		// The floor is the WIDER of the two declared rungs. Taking the
+		// narrower would drop every selection above its ceiling on
+		// whichever side declared more capacity, and that loss is
+		// silent: the record still decodes, to a smaller, plausible
+		// selection.
+		floor := cf.Type
+		if nf.Type.MaxSetEntries() > floor.MaxSetEntries() {
+			floor = nf.Type
 		}
-		target, ok := SetTypeFor(len(unionVals))
-		if !ok {
-			widest := WidestSetType()
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
-				fmt.Sprintf("field %q dictionary union (%d entries) exceeds the widest set rung %s (%d entries); there is no wider type to widen to",
-					cf.Name, len(unionVals), widest, widest.MaxSetEntries()),
-				map[string]any{
-					"field":         cf.Name,
-					"type":          cf.Type.String(),
-					"widest_type":   widest.String(),
-					"capacity":      widest.MaxSetEntries(),
-					"union_entries": len(unionVals),
-				})
+
+		unionVals, _ := unionDictValues(dictValuesOrEmpty(cf.Dictionary), dictValuesOrEmpty(nf.Dictionary))
+		target := floor
+		if uint32(len(unionVals)) > floor.MaxSetEntries() {
+			fitted, ok := SetTypeFor(len(unionVals))
+			if !ok {
+				widest := WidestSetType()
+				return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
+					fmt.Sprintf("field %q dictionary union (%d entries) exceeds the widest set rung %s (%d entries); there is no wider type to widen to",
+						cf.Name, len(unionVals), widest, widest.MaxSetEntries()),
+					map[string]any{
+						"field":         cf.Name,
+						"type":          floor.String(),
+						"widest_type":   widest.String(),
+						"capacity":      widest.MaxSetEntries(),
+						"union_entries": len(unionVals),
+					})
+			}
+			target = fitted
+		}
+		if target == cf.Type && target == nf.Type {
+			continue
 		}
 		plans = append(plans, SetWidenPlan{
 			FieldIndex:   i,
 			Field:        cf.Name,
 			From:         cf.Type,
+			IncomingFrom: nf.Type,
 			To:           target,
 			UnionEntries: len(unionVals),
 		})

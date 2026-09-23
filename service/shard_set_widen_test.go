@@ -76,7 +76,7 @@ func setWidenFixture(t *testing.T) (*Service, afero.Fs) {
 	if err := afero.WriteFile(fsys, "seed.pulse", seed, 0o644); err != nil {
 		t.Fatalf("WriteFile seed: %v", err)
 	}
-	if err := svc.CreateShardArchive(context.Background(), "arch.pulse", []string{"seed.pulse"}); err != nil {
+	if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse", []string{"seed.pulse"}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 
@@ -293,7 +293,7 @@ func TestAddShard_UnionAboveTheWidestRungStaysFatal(t *testing.T) {
 	if err := afero.WriteFile(fsys, "seed.pulse", seed, 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := svc.CreateShardArchive(ctx, "arch.pulse", []string{"seed.pulse"}); err != nil {
+	if _, err := svc.CreateShardArchive(ctx, "arch.pulse", []string{"seed.pulse"}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 	add := writeSetShard(t, encoding.FieldTypeSetU256, addDict, [][2]uint64{{2, 1}})
@@ -387,7 +387,7 @@ func TestAddShard_NoWidenWhenTheUnionFits(t *testing.T) {
 	if err := afero.WriteFile(fsys, "seed.pulse", seed, 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := svc.CreateShardArchive(ctx, "arch.pulse", []string{"seed.pulse"}); err != nil {
+	if _, err := svc.CreateShardArchive(ctx, "arch.pulse", []string{"seed.pulse"}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 	add := writeSetShard(t, encoding.FieldTypeSetU8, []string{"tv", "print"},
