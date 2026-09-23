@@ -6406,6 +6406,16 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
+      },
+      {
+        "name": "set_u128",
+        "categorical": false,
+        "sharded_capable": true
+      },
+      {
+        "name": "set_u256",
+        "categorical": false,
+        "sharded_capable": true
       }
     ],
     "skills": [
@@ -6419,7 +6429,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Field-type selection for .pulse cohorts — 18 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Field-type selection for .pulse cohorts — 20 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "compose-requests",
@@ -7282,8 +7292,16 @@
         "description": "1-bit boolean; bit-packed with adjacent packed_bool / u4 fields."
       },
       {
+        "name": "type-set-u128",
+        "description": "16-byte multi-select bitmask over an inline dictionary of up to 128 labels."
+      },
+      {
         "name": "type-set-u16",
         "description": "2-byte multi-select bitmask over an inline dictionary of up to 16 labels."
+      },
+      {
+        "name": "type-set-u256",
+        "description": "32-byte multi-select bitmask over an inline dictionary of up to 256 labels — the widest set rung."
       },
       {
         "name": "type-set-u32",
@@ -9673,4 +9691,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c2d60c3477b2b8a394f15eca9f59c07c835e220472480a2b7807d3684f953094
+// golden-hash: afe08cc10699e2ff6ba1782d28519ade035a007dafb87af826b43982822a2fae

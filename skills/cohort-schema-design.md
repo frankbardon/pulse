@@ -1,17 +1,17 @@
 ---
 name: cohort-schema-design
-description: Field-type selection for .pulse cohorts — 18 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
+description: Field-type selection for .pulse cohorts — 20 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
-covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64]
+covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64, set_u128, set_u256]
 ---
 
 # Cohort schema design
 
 Pick the right `.pulse` field type, decide nullability, address shards. The schema lives in the cohort header; `pulse_inspect` is the surface for reading it.
 
-## Field-type matrix (all 18)
+## Field-type matrix (all 20)
 
 | Name | Bytes | Dict? | Bit-packed? | Notes |
 |---|---|---|---|---|
@@ -33,14 +33,16 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `set_u16` | 2 | shared, ≤16 | no | |
 | `set_u32` | 4 | shared, ≤32 | no | |
 | `set_u64` | 8 | shared, ≤64 | no | |
+| `set_u128` | 16 | shared, ≤128 | no | |
+| `set_u256` | 32 | shared, ≤256 | no | widest rung; 256 is a hard ceiling |
 
-`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 18 types participate identically.
+`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 20 types participate identically.
 
 `date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by `GROUP_DATE` / `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`, which day-truncate `datetime` to the UTC calendar day. Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to `type-date` / `type-datetime`.
 
 ## Selection heuristics
 
-Counts / IDs → smallest unsigned width that fits the max. Measurements → `f32`; scores or wide dynamic range → `f64`. Money → `decimal128` (see `financial-cohorts`). Booleans → `packed_bool`; small ordinals (Likert, grades) → `u4`. Strings → always categorical, width by distinct cardinality. Multi-select → `set_*`, width by distinct-label cap. Sometimes-missing → pick the base type, then `Nullable: true`.
+Counts / IDs → smallest unsigned width that fits the max. Measurements → `f32`; scores or wide dynamic range → `f64`. Money → `decimal128` (see `financial-cohorts`). Booleans → `packed_bool`; small ordinals (Likert, grades) → `u4`. Strings → always categorical, width by distinct cardinality. Multi-select → `set_*`, smallest width whose cap covers the distinct labels — the width is paid by every record, and above 256 labels there is no set type at all. Sometimes-missing → pick the base type, then `Nullable: true`.
 
 ## Nullability + per-record bitmap
 

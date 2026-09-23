@@ -113,10 +113,10 @@ func TestManifestIncludesCohortTypes(t *testing.T) {
 		t.Fatal("CohortTypes is empty")
 	}
 
-	// Must have 18 field types — the original 13, plus
-	// set_u8/u16/u32/u64, plus datetime.
-	if len(m.CohortTypes) != 18 {
-		t.Errorf("CohortTypes count = %d, want 18", len(m.CohortTypes))
+	// Must have 20 field types — the original 13, plus
+	// set_u8/u16/u32/u64, plus datetime, plus set_u128/u256.
+	if len(m.CohortTypes) != 20 {
+		t.Errorf("CohortTypes count = %d, want 20", len(m.CohortTypes))
 	}
 
 	// The walk is registry-bounded, so a newly registered field type

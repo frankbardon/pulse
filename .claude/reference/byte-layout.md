@@ -1,6 +1,6 @@
 # Byte layout — sidecar files, SPSS fidelity, and projected decode
 
-Relocated verbatim from CLAUDE.md (section `### Byte-layout invariants`). CLAUDE.md keeps the always-load half inline — the 9-byte header, the schema block, the dictionary blocks, the record data, the per-record null bitmap, the 18 field types and the shard archive variant. Everything below is the long form it points at: the three sidecar files that sit BESIDE a `.pulse` cohort and are not `.pulse` layouts, the SPSS fidelity model in both directions, and the default-on projected buffered decode.
+Relocated verbatim from CLAUDE.md (section `### Byte-layout invariants`). CLAUDE.md keeps the always-load half inline — the 9-byte header, the schema block, the dictionary blocks, the record data, the per-record null bitmap, the 20 field types and the shard archive variant. Everything below is the long form it points at: the three sidecar files that sit BESIDE a `.pulse` cohort and are not `.pulse` layouts, the SPSS fidelity model in both directions, and the default-on projected buffered decode.
 
 Load it before changing any of them — CLAUDE.md's Update Demand table names this file as a required companion for a `.pulse` file-format change, a registered field type, shard archive layout, the sidecar point-lookup index or its manifest, a registered I/O format (SPSS in particular), and the projection contract.
 

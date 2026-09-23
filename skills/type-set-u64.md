@@ -12,7 +12,7 @@ Fixed-width: 8 bytes per record, little-endian. Not bit-packed (the value is con
 
 ## Range
 
-Up to `MaxSetEntries()` = `64` distinct labels in the inline dictionary — the widest set width Pulse supports. 2^64 selection patterns are representable on the wire. **Empty mask (`0x0`) is a valid value meaning "no labels selected" — it is NOT null.** Overflow on import → `PULSE_IMPORT_SET_OVERFLOW`.
+Up to `MaxSetEntries()` = `64` distinct labels in the inline dictionary — the widest rung reachable through the `uint64` value API; wider dictionaries go to `type-set-u128` / `type-set-u256`. 2^64 selection patterns are representable on the wire. **Empty mask (`0x0`) is a valid value meaning "no labels selected" — it is NOT null.** Overflow on import → `PULSE_IMPORT_SET_OVERFLOW`.
 
 ## Null
 
