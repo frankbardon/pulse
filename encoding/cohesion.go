@@ -103,7 +103,7 @@ func ValidateStructuralCohesion(canonical, incoming *Schema) ([]CohesionWarning,
 		}
 		// Dictionary-bearing width identity is already enforced by the
 		// Type-byte check (FieldTypeCategoricalU8/U16/U32 and
-		// FieldTypeSetU8/U16/U32/U64 are distinct bytes). The explicit
+		// FieldTypeSetU8/U16/U32/U64/U128/U256 are distinct bytes). The explicit
 		// case below makes the contract self-documenting for reviewers
 		// and surfaces a clearer error message if the type check ever
 		// loosens.

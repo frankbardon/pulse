@@ -15,8 +15,9 @@ const equivalenceRecordsPerSchema = 1000
 
 // encodeRecord serializes one logical record (fieldValues + null bitmap)
 // for the given schema. fieldValues is keyed by field name; for
-// decimal128 the value must be a *big.Int mantissa, for f32/f64 the
-// float-bits uint64, and for everything else a uint64 raw payload.
+// decimal128 the value must be a *big.Int mantissa, for the wide set
+// rungs (set_u128 / set_u256) a SetMask, for f32/f64 the float-bits
+// uint64, and for everything else a uint64 raw payload.
 // nulls is keyed by field name; only nullable fields may appear there.
 // The returned byte slice is exactly schema.RecordByteSize() bytes long
 // when no error occurs.
@@ -46,6 +47,14 @@ func encodeRecord(t *testing.T, schema *Schema, fieldValues map[string]any, null
 				t.Fatalf("decimal128 mantissa for %s out of range: %v", f.Name, err)
 			}
 			if err := WriteDecimal128(&buf, d); err != nil {
+				t.Fatalf("write %s: %v", f.Name, err)
+			}
+		case FieldTypeSetU128, FieldTypeSetU256:
+			// The wide rungs deliberately refuse the uint64 value API, so
+			// the fixture writes them through the wide-set wire helper —
+			// the only writer that states the normative word order.
+			m, _ := fieldValues[f.Name].(SetMask)
+			if err := WriteSetMask(&buf, f.Type, m); err != nil {
 				t.Fatalf("write %s: %v", f.Name, err)
 			}
 		default:
@@ -428,6 +437,53 @@ func perTypeFixtures() []perTypeFixture {
 		})
 	}
 
+	// Wide set rungs. These do NOT ride the uint64 value API (it refuses
+	// them), so their fixtures carry a SetMask and the on-wire payload is
+	// 16 / 32 bytes. The trailing `id` canary is what catches a
+	// mis-strided decode: get the width wrong and it reads the wrong
+	// bytes rather than erroring.
+	wideSetCases := []struct {
+		ft       FieldType
+		capacity int
+	}{
+		{FieldTypeSetU128, 128},
+		{FieldTypeSetU256, 256},
+	}
+	for _, c := range wideSetCases {
+		c := c
+		out = append(out, perTypeFixture{
+			name: fmt.Sprintf("%s_nonnull", c.ft.String()),
+			schema: &Schema{Fields: []Field{
+				{Name: "tags", Type: c.ft, Dictionary: buildSetDict(c.capacity)},
+				{Name: "id", Type: FieldTypeU16},
+			}},
+			genFunc: func(r *rand.Rand, idx int) (map[string]any, map[string]bool) {
+				return map[string]any{
+					"tags": setMaskWide(r, idx, c.capacity),
+					"id":   uint64(r.Intn(65536)),
+				}, nil
+			},
+		})
+		out = append(out, perTypeFixture{
+			name: fmt.Sprintf("%s_nullable", c.ft.String()),
+			schema: &Schema{Fields: []Field{
+				{Name: "tags", Type: c.ft, Dictionary: buildSetDict(c.capacity), Nullable: true},
+				{Name: "id", Type: FieldTypeU16},
+			}},
+			genFunc: func(r *rand.Rand, idx int) (map[string]any, map[string]bool) {
+				vals := map[string]any{
+					"tags": setMaskWide(r, idx, c.capacity),
+					"id":   uint64(r.Intn(65536)),
+				}
+				var nulls map[string]bool
+				if idx%5 == 0 {
+					nulls = map[string]bool{"tags": true}
+				}
+				return vals, nulls
+			},
+		})
+	}
+
 	return out
 }
 
@@ -526,6 +582,48 @@ func setMask(r *rand.Rand, idx, capacity int) uint64 {
 	}
 }
 
+// setMaskWide returns a SetMask for a wide set field of the given
+// capacity (128 or 256), biased toward the edge cases a [4]uint64
+// implementation breaks on: empty, full, bit 0 only, the highest legal
+// bit, and every word boundary in turn.
+func setMaskWide(r *rand.Rand, idx, capacity int) SetMask {
+	var m SetMask
+	switch idx % 11 {
+	case 0:
+		return m // empty set (distinct from null)
+	case 1:
+		for b := 0; b < capacity; b++ {
+			m = m.WithBit(b)
+		}
+		return m // full mask — every word saturated
+	case 2:
+		return m.WithBit(0)
+	case 3:
+		return m.WithBit(capacity - 1) // highest legal bit
+	case 4:
+		// Every word boundary: the first and last bit of each word the
+		// rung carries.
+		for w := 0; w*64 < capacity; w++ {
+			m = m.WithBit(w * 64).WithBit(w*64 + 63)
+		}
+		return m
+	case 5:
+		// Only the HIGH words populated — the case a uint64-truncating
+		// decoder reports as an empty selection.
+		for b := 64; b < capacity; b += 7 {
+			m = m.WithBit(b)
+		}
+		return m
+	default:
+		for w := 0; w*64 < capacity; w++ {
+			words := m.Words()
+			words[w] = r.Uint64()
+			m = SetMaskFromWords(words)
+		}
+		return m
+	}
+}
+
 // generatePerTypeRecords synthesises equivalenceRecordsPerSchema records
 // for one per-type fixture.
 func generatePerTypeRecords(t *testing.T, f perTypeFixture, seed int64) [][]byte {
@@ -546,7 +644,9 @@ func generatePerTypeRecords(t *testing.T, f perTypeFixture, seed int64) [][]byte
 //   - bit-packed runs (u4 pair, then packed_bool run)
 //   - every categorical width
 //   - decimal128 (nullable)
-//   - every set width (mix of nullable / non-nullable)
+//   - every set width including the wide rungs (mix of nullable /
+//     non-nullable), so a mis-strided 16- or 32-byte set shifts every
+//     field after it
 //
 // The mix produces leading / mid / trailing skip patterns under any
 // projection subset.
@@ -573,6 +673,8 @@ func bigMixedSchema() *Schema {
 		{Name: "tags_u16", Type: FieldTypeSetU16, Dictionary: buildSetDict(16), Nullable: true},
 		{Name: "tags_u32", Type: FieldTypeSetU32, Dictionary: buildSetDict(32)},
 		{Name: "tags_u64", Type: FieldTypeSetU64, Dictionary: buildSetDict(64), Nullable: true},
+		{Name: "tags_u128", Type: FieldTypeSetU128, Dictionary: buildSetDict(128), Nullable: true},
+		{Name: "tags_u256", Type: FieldTypeSetU256, Dictionary: buildSetDict(256)},
 		{Name: "u16_b", Type: FieldTypeU16, Nullable: true},
 		{Name: "u32_b", Type: FieldTypeU32},
 		{Name: "f64_b", Type: FieldTypeF64},
@@ -590,33 +692,35 @@ func generateBigSchemaRecords(t *testing.T, schema *Schema, seed int64) [][]byte
 	out := make([][]byte, 0, equivalenceRecordsPerSchema)
 	for i := 0; i < equivalenceRecordsPerSchema; i++ {
 		vals := map[string]any{
-			"u8_a":     uint64(r.Intn(256)),
-			"u8_b":     uint64(r.Intn(256)),
-			"u16_a":    uint64(r.Intn(65536)),
-			"u4_lo":    uint8(r.Intn(16)),
-			"u4_hi":    uint8(r.Intn(16)),
-			"pb_0":     r.Intn(2) == 1,
-			"pb_1":     r.Intn(2) == 1,
-			"u32_a":    uint64(r.Uint32()),
-			"f32_a":    uint64(math.Float32bits(float32(r.NormFloat64()) * 10)),
-			"date_a":   uint64(r.Uint32()),
-			"u64_a":    r.Uint64(),
-			"dt_a":     uint64(r.Int63n(4102444800)), // epoch seconds through 2100
-			"f64_a":    math.Float64bits(r.NormFloat64() * 100),
-			"cat_u8":   uint64(r.Intn(200)),
-			"cat_u16":  uint64(r.Intn(5000)),
-			"cat_u32":  uint64(r.Intn(50000)),
-			"amount":   decimalMantissa(r, i),
-			"tags_u8":  setMask(r, i, 8),
-			"tags_u16": setMask(r, i, 16),
-			"tags_u32": setMask(r, i, 32),
-			"tags_u64": setMask(r, i, 64),
-			"u16_b":    uint64(r.Intn(65536)),
-			"u32_b":    uint64(r.Uint32()),
-			"f64_b":    math.Float64bits(r.NormFloat64() * 100),
-			"u8_c":     uint64(r.Intn(256)),
-			"u64_b":    r.Uint64(),
-			"u16_c":    uint64(r.Intn(65536)),
+			"u8_a":      uint64(r.Intn(256)),
+			"u8_b":      uint64(r.Intn(256)),
+			"u16_a":     uint64(r.Intn(65536)),
+			"u4_lo":     uint8(r.Intn(16)),
+			"u4_hi":     uint8(r.Intn(16)),
+			"pb_0":      r.Intn(2) == 1,
+			"pb_1":      r.Intn(2) == 1,
+			"u32_a":     uint64(r.Uint32()),
+			"f32_a":     uint64(math.Float32bits(float32(r.NormFloat64()) * 10)),
+			"date_a":    uint64(r.Uint32()),
+			"u64_a":     r.Uint64(),
+			"dt_a":      uint64(r.Int63n(4102444800)), // epoch seconds through 2100
+			"f64_a":     math.Float64bits(r.NormFloat64() * 100),
+			"cat_u8":    uint64(r.Intn(200)),
+			"cat_u16":   uint64(r.Intn(5000)),
+			"cat_u32":   uint64(r.Intn(50000)),
+			"amount":    decimalMantissa(r, i),
+			"tags_u8":   setMask(r, i, 8),
+			"tags_u16":  setMask(r, i, 16),
+			"tags_u32":  setMask(r, i, 32),
+			"tags_u64":  setMask(r, i, 64),
+			"tags_u128": setMaskWide(r, i, 128),
+			"tags_u256": setMaskWide(r, i, 256),
+			"u16_b":     uint64(r.Intn(65536)),
+			"u32_b":     uint64(r.Uint32()),
+			"f64_b":     math.Float64bits(r.NormFloat64() * 100),
+			"u8_c":      uint64(r.Intn(256)),
+			"u64_b":     r.Uint64(),
+			"u16_c":     uint64(r.Intn(65536)),
 		}
 		// Edge cases: u4 boundaries.
 		if i%47 == 0 {
@@ -626,7 +730,7 @@ func generateBigSchemaRecords(t *testing.T, schema *Schema, seed int64) [][]byte
 
 		// Null pattern: every other record marks a rotating subset of
 		// nullable fields as null. The pattern is deterministic per index.
-		nullable := []string{"u8_b", "u32_a", "date_a", "f64_a", "amount", "tags_u16", "tags_u64", "u16_b"}
+		nullable := []string{"u8_b", "u32_a", "date_a", "f64_a", "amount", "tags_u16", "tags_u64", "u16_b", "tags_u128"}
 		var nulls map[string]bool
 		switch i % 8 {
 		case 0:
@@ -647,7 +751,9 @@ func generateBigSchemaRecords(t *testing.T, schema *Schema, seed int64) [][]byte
 		case 6:
 			nulls = map[string]bool{nullable[4]: true} // decimal128 null
 		case 7:
-			nulls = map[string]bool{nullable[5]: true, nullable[6]: true} // set nulls
+			// Narrow AND wide set nulls in the same row: the wide rung's
+			// null must ride the bitmap alone, with no in-band sentinel.
+			nulls = map[string]bool{nullable[5]: true, nullable[6]: true, nullable[8]: true}
 		}
 		out = append(out, encodeRecord(t, schema, vals, nulls))
 	}

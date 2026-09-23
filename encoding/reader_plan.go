@@ -29,8 +29,10 @@ import (
 //   - Caller-supplied maps are cleared in place before population.
 //   - Decimal128 fields populate wide[name] with the typed Decimal128
 //     value (only when wide != nil and the field is retained).
-//   - Set-typed fields populate wide[name] with the raw uint64 mask
-//     (only when wide != nil and the field is retained).
+//   - Narrow set fields (set_u8..set_u64) populate wide[name] with the
+//     raw uint64 mask; the wide rungs (set_u128 / set_u256) populate it
+//     with a SetMask. Both only when wide != nil and the field is
+//     retained.
 //   - Null surfacing clears values[name] back to 0 and deletes wide[name]
 //     for nullable fields the bitmap marks null AND the caller retains.
 func (rr *RecordReader) ReadRecordWithWidePlan(
@@ -175,6 +177,22 @@ func (rr *RecordReader) decodeFieldGroup(
 			values[field.Name] = d.Float64(field.Scale)
 			if wide != nil {
 				wide[field.Name] = d
+			}
+
+		case FieldTypeSetU128, FieldTypeSetU256:
+			// Mirrors readRecord's wide-set arm exactly: the mask is read
+			// through the wide-set wire API (ReadFieldValue refuses these
+			// rungs) and lands in the wide map as a SetMask.
+			m, err := ReadSetMask(rr.r, field.Type)
+			if err != nil {
+				return err
+			}
+			if !keepField {
+				continue
+			}
+			values[field.Name] = setMaskFloatEcho(m)
+			if wide != nil {
+				wide[field.Name] = m
 			}
 
 		default:
