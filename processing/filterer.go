@@ -99,6 +99,13 @@ func (f *rangeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"range filter requires exactly 2 values (min, max)")
 	}
+	// FILTER_RANGE declares numeric field types only. Without this guard a
+	// set column would be compared through its float64 echo — the low 64
+	// bits of the membership bitmask read as a quantity, which is a
+	// plausible wrong verdict rather than an error.
+	if err := rejectSetFieldForNumericFilter(filter, schema); err != nil {
+		return nil, err
+	}
 
 	minVal, err := strconv.ParseFloat(filter.Values[0], 64)
 	if err != nil {

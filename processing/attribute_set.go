@@ -2,7 +2,7 @@ package processing
 
 import (
 	"encoding/json"
-	"math/bits"
+	"fmt"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -12,6 +12,12 @@ import (
 // Set-typed attributes — ATTR_SET_POPCOUNT, ATTR_SET_HAS. Both are
 // RowLocalAttribute: a single row's set mask determines the derived
 // value, no population pass required.
+//
+// Both read the row through Record.SetMaskValue and have ONE body
+// covering every set rung from set_u8 to set_u256 — no narrow arm and
+// no wide arm. Neither may read a set column through NumericValue: the
+// float64 echo of a set field is the low 64 bits of the bitmask, which
+// is a plausible wrong number rather than an error.
 
 // Derive scalar uint8 per row = popcount(mask). Null input rows yield
 // 0 (consistent with other row-local attribute paths that surface 0
@@ -51,14 +57,11 @@ func (a *setPopcountAttribute) Compute(records []*Record, field string) ([]float
 }
 
 func (a *setPopcountAttribute) Row(r *Record, field string) (float64, error) {
-	m, ok, err := narrowSetValue(r, field)
-	if err != nil {
-		return 0, err
-	}
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return 0, nil
 	}
-	return float64(bits.OnesCount64(m)), nil
+	return float64(m.PopCount()), nil
 }
 
 // Derive bool (0/1) per row = whether the named label's bit is set.
@@ -69,8 +72,12 @@ type setHasParams struct {
 	Label string `json:"label"`
 }
 
+// setHasAttribute tests one dictionary bit per row. bit is the
+// dictionary ID resolved at construction, or -1 when no schema was
+// available to resolve it — SetMask.Has(-1) is false, so an unresolved
+// label reports ABSENT rather than silently testing dictionary entry 0.
 type setHasAttribute struct {
-	bit uint
+	bit int
 }
 
 func newSetHasAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -91,8 +98,10 @@ func newSetHasAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 			"ATTR_SET_HAS requires non-empty params.label")
 	}
 	if schema == nil {
-		// Tolerated for registry tests; runtime always has schema.
-		return &setHasAttribute{}, nil
+		// Tolerated for registry tests; runtime always has schema. The
+		// label cannot be resolved to a bit, so the attribute reports
+		// absent for every row instead of guessing bit 0.
+		return &setHasAttribute{bit: -1}, nil
 	}
 	f := schema.Field(attr.Field)
 	if f == nil {
@@ -112,11 +121,22 @@ func newSetHasAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"ATTR_SET_HAS: label "+params.Label+" not in dictionary for field "+attr.Field)
 	}
-	if id >= 64 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_SET_HAS: label "+params.Label+" maps to bit exceeding set width")
+	// Guard against the DECLARED RUNG's capacity, not against 64: a
+	// set_u128 / set_u256 column legitimately carries members above bit
+	// 63, while a bit beyond the rung can never be set on any row.
+	if capacity := int(f.Type.MaxSetEntries()); int(id) >= capacity {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("ATTR_SET_HAS: label %q maps to bit %d, beyond the %d-member capacity of %s field %q",
+				params.Label, id, capacity, f.Type, attr.Field),
+			map[string]any{
+				"field":    attr.Field,
+				"type":     f.Type.String(),
+				"capacity": capacity,
+				"bit":      int(id),
+				"label":    params.Label,
+			})
 	}
-	return &setHasAttribute{bit: uint(id)}, nil
+	return &setHasAttribute{bit: int(id)}, nil
 }
 
 func (a *setHasAttribute) Compute(records []*Record, field string) ([]float64, error) {
@@ -132,14 +152,11 @@ func (a *setHasAttribute) Compute(records []*Record, field string) ([]float64, e
 }
 
 func (a *setHasAttribute) Row(r *Record, field string) (float64, error) {
-	m, ok, err := narrowSetValue(r, field)
-	if err != nil {
-		return 0, err
-	}
+	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return 0, nil
 	}
-	if (m>>a.bit)&1 == 1 {
+	if m.Has(a.bit) {
 		return 1, nil
 	}
 	return 0, nil
