@@ -106,15 +106,19 @@ func ValidateJoin(leftData, rightData io.ReadSeeker, req *types.Request) *Envelo
 			continue
 		}
 		if !joinTypesCompatible(lf.Type, rf.Type) {
-			env.AddError(string(errors.PULSE_JOIN_TYPE_MISMATCH),
-				"join key types are not compatible",
-				map[string]any{
-					"left_field":  pair.LeftField,
-					"left_type":   lf.Type.String(),
-					"right_field": pair.RightField,
-					"right_type":  rf.Type.String(),
-					"index":       i,
-				})
+			details := map[string]any{
+				"left_field":  pair.LeftField,
+				"left_type":   lf.Type.String(),
+				"right_field": pair.RightField,
+				"right_type":  rf.Type.String(),
+				"index":       i,
+			}
+			msg := "join key types are not compatible"
+			if lf.Type.IsSet() || rf.Type.IsSet() {
+				msg = joinKeySetRejection
+				details["reason"] = "set_key"
+			}
+			env.AddError(string(errors.PULSE_JOIN_TYPE_MISMATCH), msg, details)
 		}
 	}
 
@@ -169,9 +173,23 @@ func schemaInfo(s *encoding.Schema) *PredictSchemaInfo {
 	return info
 }
 
+// joinKeySetRejection mirrors processing.joinKeySetRejection verbatim
+// — duplicated rather than imported because descriptor must stay free
+// of processing imports (TestPredictNoExecutionImports). Predict and
+// runtime must give a caller the SAME sentence for the same refusal,
+// so TestValidateJoin_SetKeyRejectedMessageMatchesProcessing pins the
+// two strings together.
+const joinKeySetRejection = "a set_* column cannot be a join key: a multi-select bitmask has no single unambiguous equality value (empty selection, single-member and multi-member masks are all distinct legal states), and its numeric echo is lossy — use a FILTER_SET_* membership predicate instead"
+
 // joinTypesCompatible mirrors processing.typesCompatibleForJoin —
 // kept here so descriptor stays free of processing imports.
 func joinTypesCompatible(a, b encoding.FieldType) bool {
+	// Mirrors processing's set rejection: a set column is never a join
+	// key, not even against an identical rung. Keyed off
+	// FieldType.IsSet() so a new rung inherits it.
+	if a.IsSet() || b.IsSet() {
+		return false
+	}
 	if a == b {
 		return true
 	}

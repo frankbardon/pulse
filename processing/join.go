@@ -114,14 +114,21 @@ func NewHashJoinIterator(left RecordIterator, right []*Record, leftSchema, right
 		lf := leftSchema.Field(pair.LeftField)
 		rf := rightSchema.Field(pair.RightField)
 		if !typesCompatibleForJoin(lf.Type, rf.Type) {
-			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_TYPE_MISMATCH,
-				"join key types are not compatible",
-				map[string]any{
-					"left_field":  pair.LeftField,
-					"left_type":   lf.Type.String(),
-					"right_field": pair.RightField,
-					"right_type":  rf.Type.String(),
-				})
+			details := map[string]any{
+				"left_field":  pair.LeftField,
+				"left_type":   lf.Type.String(),
+				"right_field": pair.RightField,
+				"right_type":  rf.Type.String(),
+			}
+			msg := "join key types are not compatible"
+			if lf.Type.IsSet() || rf.Type.IsSet() {
+				// Same rung on both sides still lands here, so say why
+				// rather than leave "not compatible" reading as a typo.
+				msg = joinKeySetRejection
+				details["reason"] = "set_key"
+			}
+			return nil, nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_JOIN_TYPE_MISMATCH, msg, details)
 		}
 	}
 
@@ -213,11 +220,41 @@ func (h *HashJoinIterator) Reset() {
 	h.leftRec = nil
 }
 
+// joinKeySetRejection is the shared explanation for refusing a set
+// column as a join key. It is the join twin of
+// IndexKeyRejectionMessage: a multi-select bitmask has no single
+// unambiguous equality value — the empty selection, a single member
+// and every multi-member combination are all legal, distinct states —
+// so "does this row's set contain X" is a membership predicate
+// (FILTER_SET_*), never a key.
+//
+// The equality that WOULD have been used is worse than merely
+// ambiguous: joinKeyOf stringifies Record.values, which for a set
+// column holds the LOSSY float64 echo of the mask — the low 64 bits
+// for set_u128 / set_u256, and a value that has already lost mantissa
+// bits above 2^53 for set_u64. Two different selections collapse onto
+// one key and rows join that share no answer at all, with no error
+// and no warning.
+const joinKeySetRejection = "a set_* column cannot be a join key: a multi-select bitmask has no single unambiguous equality value (empty selection, single-member and multi-member masks are all distinct legal states), and its numeric echo is lossy — use a FILTER_SET_* membership predicate instead"
+
 // joinKeyOf produces the composite hash key for one record. Returns
 // ok=false when any key field is null — inner join drops these rows.
 // The build flag is informational; semantics are identical for both
-// sides. Categorical fields resolve to dict strings; numeric fields
-// stringify via canonical float formatting.
+// sides. Categorical fields resolve to dict strings; decimal128
+// fields stringify their EXACT 128-bit mantissa bytes; other numeric
+// fields stringify via canonical float formatting.
+//
+// decimal128 gets the exact-bytes treatment for the same reason
+// KeyFieldOnWireBytes gives it one (processing/index_key.go): the
+// value in Record.values is only the Float64(scale) echo, so two
+// decimals whose difference falls below float64's mantissa spacing
+// would share a key and join as equal. Nothing is lost by
+// special-casing it — typesCompatibleForJoin admits decimal128 only
+// against decimal128 (it is not in joinNumericFamily), so a decimal
+// key is never normalised against another family's float formatting.
+//
+// Set columns never reach here: typesCompatibleForJoin rejects them
+// at NewHashJoinIterator. See joinKeySetRejection.
 func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build bool) (string, bool) {
 	var parts []string
 	for _, pair := range spec.On {
@@ -238,6 +275,19 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 				return "", false
 			}
 			parts = append(parts, f.Dictionary.Resolve(uint32(v)))
+			continue
+		}
+		if f.Type == encoding.FieldTypeDecimal128 {
+			wv, ok := rec.WideValue(field)
+			if !ok {
+				return "", false
+			}
+			d, ok := wv.(encoding.Decimal128)
+			if !ok {
+				return "", false
+			}
+			enc := encoding.EncodeDecimal128(d)
+			parts = append(parts, string(enc[:]))
 			continue
 		}
 		v, ok := rec.values[field]
@@ -264,6 +314,13 @@ func joinRenameRight(spec *types.JoinSpec, name string) string {
 // match within their family. Decimal128 keys reject across the type
 // boundary (precision differences matter).
 func typesCompatibleForJoin(a, b encoding.FieldType) bool {
+	// A set column is never a join key, not even against an identical
+	// rung. See joinKeySetRejection for why. The check keys off
+	// FieldType.IsSet() rather than an enumeration so a newly
+	// registered rung inherits the rejection without an edit here.
+	if a.IsSet() || b.IsSet() {
+		return false
+	}
 	if a == b {
 		return true
 	}
