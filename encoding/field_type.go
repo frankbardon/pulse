@@ -28,6 +28,8 @@ const (
 	FieldTypeSetU32                          // 15 (≤32 members)
 	FieldTypeSetU64                          // 16 (≤64 members)
 	FieldTypeDateTime                        // 17 (epoch seconds, 8-byte u64)
+	FieldTypeSetU128                         // 18 (16-byte bitmask, ≤128 members)
+	FieldTypeSetU256                         // 19 (32-byte bitmask, ≤256 members)
 
 	fieldTypeCount // sentinel
 )
@@ -45,8 +47,10 @@ func (ft FieldType) ByteSize() int {
 		return 4
 	case FieldTypeU64, FieldTypeF64, FieldTypeSetU64, FieldTypeDateTime:
 		return 8
-	case FieldTypeDecimal128:
+	case FieldTypeDecimal128, FieldTypeSetU128:
 		return 16
+	case FieldTypeSetU256:
+		return 32
 	case FieldTypeU4, FieldTypePackedBool:
 		return 0 // bit-packed
 	default:
@@ -93,6 +97,10 @@ func (ft FieldType) String() string {
 		return "set_u64"
 	case FieldTypeDateTime:
 		return "datetime"
+	case FieldTypeSetU128:
+		return "set_u128"
+	case FieldTypeSetU256:
+		return "set_u256"
 	default:
 		return fmt.Sprintf("unknown(%d)", ft)
 	}
@@ -142,6 +150,10 @@ func ParseFieldType(name string) (FieldType, bool) {
 		return FieldTypeSetU64, true
 	case "datetime":
 		return FieldTypeDateTime, true
+	case "set_u128":
+		return FieldTypeSetU128, true
+	case "set_u256":
+		return FieldTypeSetU256, true
 	}
 	return 0, false
 }
@@ -247,14 +259,29 @@ func (ft FieldType) MaxCategoricalEntries() uint32 {
 
 // IsSet reports whether the field type is a bitmask-over-dictionary set
 // (multi-select) type. Set fields share the categorical dictionary block
-// shape but the on-wire payload is a fixed-width unsigned integer whose
-// bit i corresponds to dictionary entry i.
+// shape but the on-wire payload is a fixed-width bitmask whose bit i
+// corresponds to dictionary entry i.
+//
+// The narrow rungs (set_u8..set_u64) fit a uint64 and ride the scalar
+// value API; the wide rungs (set_u128, set_u256) are 16- and 32-byte
+// little-endian bitmasks that do NOT fit a uint64 and are rejected by
+// Read/WriteFieldValue — see IsWideSet.
 func (ft FieldType) IsSet() bool {
 	switch ft {
-	case FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64:
+	case FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64,
+		FieldTypeSetU128, FieldTypeSetU256:
 		return true
 	}
 	return false
+}
+
+// IsWideSet reports whether the field type is a set rung whose bitmask
+// is too wide for the uint64 scalar value API (set_u128, set_u256).
+// Callers that hand a set value through Read/WriteFieldValue must branch
+// on this: the uint64 path would silently truncate the mask to its low
+// 64 bits, dropping selections without any error.
+func (ft FieldType) IsWideSet() bool {
+	return ft == FieldTypeSetU128 || ft == FieldTypeSetU256
 }
 
 // MaxSetEntries returns the maximum dictionary size (= bitmask capacity)
@@ -269,6 +296,10 @@ func (ft FieldType) MaxSetEntries() uint32 {
 		return 32
 	case FieldTypeSetU64:
 		return 64
+	case FieldTypeSetU128:
+		return 128
+	case FieldTypeSetU256:
+		return 256
 	default:
 		return 0
 	}

@@ -19,8 +19,12 @@ func TestFieldTypeDateTime_TypeByte(t *testing.T) {
 	if !FieldTypeDateTime.IsKnown() {
 		t.Error("FieldTypeDateTime.IsKnown() = false, want true")
 	}
-	if FieldType(18).IsKnown() {
-		t.Error("FieldType(18).IsKnown() = true, want false (sentinel is 18)")
+	// The first byte past the registry sentinel is always unknown. The
+	// bound is derived, not literal: set_u128 / set_u256 were appended at
+	// bytes 18 and 19 after this test was written, and a literal 18 here
+	// would have asserted a registered type was unknown.
+	if FieldType(fieldTypeCount).IsKnown() {
+		t.Errorf("FieldType(%d).IsKnown() = true, want false (sentinel)", fieldTypeCount)
 	}
 }
 

@@ -12,6 +12,8 @@ import (
 // For bit-packed types (U4, PackedBool), use WriteBit/WriteNibble instead.
 // For decimal128 (16-byte type), use the dedicated WriteDecimal128 helper;
 // this function will reject those types with ENCODING_TYPE_MISMATCH.
+// The wide set rungs (set_u128, set_u256) are rejected the same way:
+// their bitmask is wider than the uint64 this API speaks.
 func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 	switch ft {
 	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
@@ -33,6 +35,11 @@ func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 	case FieldTypeDecimal128:
 		return errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("use 16-byte API for %s", ft))
+	case FieldTypeSetU128, FieldTypeSetU256:
+		// A 128/256-bit mask cannot ride the uint64 value API: writing
+		// it here would silently persist only the low 64 bits.
+		return errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
+			fmt.Sprintf("use wide-set API for %s", ft))
 	default:
 		return errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("unknown field type %d", ft))
@@ -41,6 +48,8 @@ func WriteFieldValue(w io.Writer, ft FieldType, val uint64) error {
 
 // ReadFieldValue reads a single field value from r, returning raw bits as uint64.
 // For bit-packed types (U4, PackedBool), use ReadBit/ReadNibble instead.
+// decimal128 and the wide set rungs (set_u128, set_u256) exceed the
+// uint64 return and are rejected with ENCODING_TYPE_MISMATCH.
 func ReadFieldValue(r io.Reader, ft FieldType) (uint64, error) {
 	switch ft {
 	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
@@ -73,6 +82,11 @@ func ReadFieldValue(r io.Reader, ft FieldType) (uint64, error) {
 	case FieldTypeDecimal128:
 		return 0, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("use 16-byte API for %s", ft))
+	case FieldTypeSetU128, FieldTypeSetU256:
+		// Mirrors the write arm: a uint64 return cannot carry the mask,
+		// so refuse rather than hand back a truncated selection.
+		return 0, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
+			fmt.Sprintf("use wide-set API for %s", ft))
 	default:
 		return 0, errors.NewCodedError(errors.ENCODING_TYPE_MISMATCH,
 			fmt.Sprintf("unknown field type %d", ft))

@@ -59,8 +59,14 @@ func representativeFieldSpecs() map[string]FieldSpec {
 // undeclarableFieldTypes names the encoding field types a Spec cannot
 // declare today, with the reason. datetime has no fieldTypeFromName case
 // (see skills/synthetic-data.md) so no spec reaches the writer with it.
+// The wide set rungs (set_u128, set_u256) were registered in encoding
+// before synth learned to draw them — their entries come out of this map
+// and gain a representative FieldSpec above on the day fieldTypeFromName
+// and the set sampler grow past 64 bits.
 var undeclarableFieldTypes = map[string]string{
 	"datetime": "fieldTypeFromName has no case for it",
+	"set_u128": "fieldTypeFromName has no case for it",
+	"set_u256": "fieldTypeFromName has no case for it",
 }
 
 // declarableTypeNames walks the encoding.FieldType enum by value so a
