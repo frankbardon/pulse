@@ -20,7 +20,7 @@ An option draws independently unless `Spec.SetCategoricalPairs` / `SetNumericPai
 
 ## Inputs
 
-Field `type:` — `set_u8`/`u16`/`u32`/`u64`; `options` length must not exceed the type's `MaxSetEntries()` (8/16/32/64).
+Field `type:` — any set rung, `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256`; `options` length must not exceed the type's `MaxSetEntries()` (8/16/32/64/128/256). The draw is width-agnostic — a member above bit 64 gets the same independent Bernoulli as one below it.
 
 ## Output
 

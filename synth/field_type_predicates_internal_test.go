@@ -56,11 +56,17 @@ func TestFieldTypePredicates_ClassifyEveryDeclarableType(t *testing.T) {
 		"set_u16":         {},
 		"set_u32":         {},
 		"set_u64":         {},
+		// The wide rungs answer exactly as the narrow ones do: the row
+		// value is the same map[string]bool at every width, so nothing
+		// about the copula, the boolean arm or the discrete arm changes
+		// when the bitmask outgrows a uint64.
+		"set_u128": {},
+		"set_u256": {},
 	}
 
 	declarable := declarableTypeNames(t)
-	if len(declarable) < 17 {
-		t.Fatalf("expected at least 17 declarable field types, got %d: %v", len(declarable), declarable)
+	if len(declarable) < 19 {
+		t.Fatalf("expected at least 19 declarable field types, got %d: %v", len(declarable), declarable)
 	}
 	seen := make(map[string]bool, len(declarable))
 	for _, name := range declarable {

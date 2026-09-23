@@ -305,6 +305,23 @@ func reencodeRecords(r io.Reader, from, to *encoding.Schema, synthetic bool, out
 	return count, nil
 }
 
+// setMaskFromWide lifts a decoded set field's wide-map value into the
+// shared encoding.SetMask. The narrow rungs (set_u8..set_u64) store a
+// plain uint64 there and the wide rungs (set_u128, set_u256) store a
+// SetMask; anything else — a decimal128, or a field the decoder never
+// populated — yields an empty mask, which for a set field is the honest
+// "no selection". Mirrors processing.setMaskFromWideValue; synth cannot
+// import processing.
+func setMaskFromWide(v any) encoding.SetMask {
+	switch m := v.(type) {
+	case encoding.SetMask:
+		return m
+	case uint64:
+		return encoding.SetMaskFromUint64(m)
+	}
+	return encoding.SetMask{}
+}
+
 // decodedFieldValue converts one field's decoded (values/nulls/wide)
 // entry back into the same value shape writeFieldValueForField's sampler
 // path already accepts (float64 for numeric/date, string for
@@ -323,19 +340,26 @@ func decodedFieldValue(f *encoding.Field, values map[string]float64, nulls map[s
 		}
 		return name, false
 	case f.Type.IsSet():
-		// wide[f.Name] carries the raw uint64 bitmask
-		// (encoding.decodeSetMask via RecordReader.ReadRecordWithWide).
+		// wide[f.Name] carries the membership bitmask, in one of TWO
+		// shapes (RecordReader.ReadRecordWithWide): a plain uint64 for
+		// the narrow rungs, an encoding.SetMask for the wide ones
+		// (set_u128 / set_u256). Both are lifted through
+		// setMaskFromWide rather than type-asserted to uint64 — an
+		// assertion that fails yields the zero value, so a wide rung
+		// would re-encode as "selected nothing" on every row with no
+		// error anywhere.
+		//
 		// Resolved to the SELECTED labels only, walked in ascending bit
 		// order off f.Dictionary.Values() — a deterministic slice, so
 		// this never depends on Go map iteration order the way a
 		// map[string]bool built here would. writeFieldValueForField's
 		// []string arm re-adds each label to the merged (pre-populated)
 		// dictionary via a no-op AddWithLimit lookup.
-		mask, _ := wide[f.Name].(uint64)
+		mask := setMaskFromWide(wide[f.Name])
 		var selected []string
 		if f.Dictionary != nil {
 			for i, opt := range f.Dictionary.Values() {
-				if mask&(uint64(1)<<uint(i)) != 0 {
+				if mask.Has(i) {
 					selected = append(selected, opt)
 				}
 			}
