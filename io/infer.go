@@ -31,6 +31,25 @@ const defaultSetInferenceMinPct = 30
 // cell inside CSV is unparseable through the CSV reader).
 var setInferenceDelimiterPriority = []string{"|", ";"}
 
+// setLadder is the set-width ladder, narrowest rung first. Inference
+// only ever produces a member of this list — there is no variable-width
+// set type — and it always picks the FIRST rung whose MaxSetEntries
+// holds the observed vocabulary. Capacities are read off the type so
+// the ladder and the bitmask widths cannot drift apart.
+//
+// The top of the ladder is the inference ceiling: a column with more
+// distinct tokens than set_u256 addresses (256) is NOT classified as a
+// set. The ceiling moved from 64 when set_u128 / set_u256 landed; it
+// did not disappear.
+var setLadder = []encoding.FieldType{
+	encoding.FieldTypeSetU8,
+	encoding.FieldTypeSetU16,
+	encoding.FieldTypeSetU32,
+	encoding.FieldTypeSetU64,
+	encoding.FieldTypeSetU128,
+	encoding.FieldTypeSetU256,
+}
+
 // DefaultSetDelimiter is the delimiter assumed by convertValue when no
 // per-column delimiter has been recorded (explicit-schema imports that
 // skipped the inference pass). Always |.
@@ -266,8 +285,9 @@ func inferColumnTypeWithOpts(colName string, values []string, minPct int,
 
 	// Set inference: probe known delimiters in priority order. A
 	// classification fires when the delimiter appears in at least
-	// minPct% of cells AND post-split unique tokens fit in set_u64
-	// (≤64) AND average post-split cardinality > 1 (rules out
+	// minPct% of cells AND post-split unique tokens fit the widest
+	// set rung (≤maxSetInferenceTokens, i.e. set_u256's 256) AND
+	// average post-split cardinality > 1 (rules out
 	// "occasional pipe in a categorical string" misclassifications).
 	if ft, delim, ok := probeSetClassification(nonNullValues, minPct); ok {
 		return ft, hasNulls, delim, nil, nil
@@ -370,7 +390,13 @@ func probeSetClassification(values []string, minPct int) (encoding.FieldType, st
 				uniq[t] = struct{}{}
 			}
 		}
-		if len(uniq) == 0 || len(uniq) > 64 {
+		// One gate, one source of truth: the column is a set iff the
+		// ladder has a rung that holds the observed vocabulary. A
+		// separately-coded numeric ceiling here could drift from
+		// setLadder and classify a column as a set that setWidth then
+		// types as a categorical — with a delimiter recorded for it.
+		ft := setWidth(len(uniq))
+		if len(uniq) == 0 || !ft.IsSet() {
 			continue
 		}
 		// Average post-split cardinality must exceed 1, ruling out
@@ -379,7 +405,7 @@ func probeSetClassification(values []string, minPct int) (encoding.FieldType, st
 		if float64(totalTokens)/float64(len(values)) <= 1.0 {
 			continue
 		}
-		return setWidth(len(uniq)), delim, true
+		return ft, delim, true
 	}
 	return 0, "", false
 }
@@ -404,21 +430,24 @@ func splitSetTokens(raw, delim string) []string {
 	return out
 }
 
-// setWidth selects the smallest set_* width that fits unique tokens.
-// Mirrors categoricalWidth in spirit; cardinality > 64 falls back to
-// categorical (caller-side probe filters this case before invocation).
+// setWidth walks setLadder and returns the smallest set_* rung that
+// fits unique tokens. Mirrors categoricalWidth in spirit; a vocabulary
+// above the widest rung returns a NON-set type, which is how
+// probeSetClassification detects the ceiling (it tests IsSet on the
+// result rather than re-deriving the number).
+//
+// The smallest fitting rung is chosen, so a 206-token column lands on
+// set_u256 and spends 32 bytes a record to carry 206 bits. That waste
+// is deliberate: the alternative is demoting a multi-select column to a
+// categorical, which collapses every cell into one opaque joined
+// string.
 func setWidth(unique int) encoding.FieldType {
-	switch {
-	case unique <= 8:
-		return encoding.FieldTypeSetU8
-	case unique <= 16:
-		return encoding.FieldTypeSetU16
-	case unique <= 32:
-		return encoding.FieldTypeSetU32
-	case unique <= 64:
-		return encoding.FieldTypeSetU64
+	for _, ft := range setLadder {
+		if unique <= int(ft.MaxSetEntries()) {
+			return ft
+		}
 	}
-	// Caller already gated; reaching here is a programming bug.
+	// Past the ceiling. The caller falls back to categorical.
 	return encoding.FieldTypeCategoricalU8
 }
 

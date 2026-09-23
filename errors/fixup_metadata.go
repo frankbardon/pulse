@@ -328,11 +328,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_SET_OVERFLOW: {
-		Message: "A multi-select column's observed dictionary exceeds the largest set width (set_u64 holds at most 64 entries).",
+		Message: "A multi-select column's observed dictionary exceeds the largest set width (set_u256 holds at most 256 entries).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Denormalize to one row per (record, element) pair, or wait for set_u128. If the dictionary is actually bounded, raise --sample-rows or supply a force_type schema hint.",
+				Hint:   "Widen the set type up the ladder (set_u64 -> set_u128 -> set_u256) and re-import; above 256 entries, denormalize to one row per (record, element) pair. If the dictionary is actually bounded, raise --sample-rows or supply a force_type schema hint.",
 			},
 		},
 	},

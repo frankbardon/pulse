@@ -156,9 +156,10 @@ const (
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW Code = "PULSE_IMPORT_CATEGORICAL_OVERFLOW"
 
 	// PULSE_IMPORT_SET_OVERFLOW indicates the dictionary inferred for a
-	// set-typed column exceeds the largest available set width (64
-	// entries for set_u64). Surfaced by the importer when a multi-select
-	// column's observed vocabulary cannot fit any set tier.
+	// set-typed column exceeds the declared set width — or, at the top
+	// of the ladder, the largest available one (256 entries for
+	// set_u256). Surfaced by the importer when a multi-select column's
+	// observed vocabulary cannot fit the column's set tier.
 	PULSE_IMPORT_SET_OVERFLOW Code = "PULSE_IMPORT_SET_OVERFLOW"
 
 	// PULSE_IMPORT_CATEGORICAL_UNBOUNDED indicates sample suggests unbounded cardinality.

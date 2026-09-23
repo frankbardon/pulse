@@ -66,7 +66,12 @@ func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 		// Multi-select / repeated-string columns map to Pulse's
 		// set_u* family; the import pipeline picks the smallest
 		// width that fits the observed dictionary (set_u8 first,
-		// widened by AddWithLimit during the row pass). Element
+		// widened by AddWithLimit against MaxSetEntries as the
+		// dictionary fills). The ladder runs set_u8 -> set_u16 ->
+		// set_u32 -> set_u64 -> set_u128 -> set_u256, so a list
+		// column with up to 256 distinct elements imports natively;
+		// past 256 the set probe declines and the column falls back
+		// to a categorical. Element
 		// types other than string are not supported today —
 		// FormatValue falls through to the generic stringifier,
 		// which produces a representation the convertValue set
@@ -115,12 +120,19 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 		return arrow.FixedWidthTypes.Boolean
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		return arrow.BinaryTypes.String
-	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
+	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32,
+		encoding.FieldTypeSetU64, encoding.FieldTypeSetU128, encoding.FieldTypeSetU256:
 		// Pulse set columns are bitmask-over-shared-dictionary on
 		// the wire, but the natural Arrow analogue for round-trip
 		// export is LIST<UTF8> — one element per selected token.
 		// Conversion lives in the exporter; FieldFromPulse uses the
 		// canonical List type carrying nullable string elements.
+		//
+		// Every rung maps to the SAME Arrow type: the external form
+		// is a token list, so it is width-agnostic and a 206-label
+		// cell is just a longer list. The wide rungs must be named
+		// here explicitly — falling through to the default arm would
+		// map a set_u256 column to Float64 and destroy it silently.
 		return arrow.ListOf(arrow.BinaryTypes.String)
 	case encoding.FieldTypeDecimal128:
 		// Caller-resolved precision/scale; default 38/0 when not provided.
