@@ -14,28 +14,27 @@ package cli
 // label at bit 200: a mask narrowed anywhere in the pipeline still carries
 // V03, and still loses V200.
 //
-// The `.sav` target is the deliberate exception and is asserted on its own
-// terms, as a REFUSAL. `pulse convert` has no cohort, so the `.sav` writer
-// takes its row path: it buffers the rows, builds an intermediate cohort,
-// and that cohort has no metadata sidecar by construction. Without one the
-// derived set column is indistinguishable from a real cohort field, so the
-// synthesised path emits it as an SPSS variable under names its 206
-// constituents already hold — PULSE_SPSS_NAME_COLLISION. That is
-// pre-existing and width-independent (it is the same divergence
-// TestRoundTrip_IgnoreSidecarRefusesRatherThanLosingTheSet records), it is
-// CODED, and it is the acceptable half of this criterion: handled, or
-// reported. The handled half for `.sav` is `pulse export spss`, which has
-// a sidecar and is covered at 206 constituents in io/spss.
+// The `.sav` target used to be the deliberate exception, asserted as a
+// REFUSAL: `pulse convert` builds no cohort, so the `.sav` writer took its
+// row path — buffer the rows, rebuild a cohort, and that cohort had no
+// metadata sidecar by construction. Without one the derived set column was
+// indistinguishable from a real cohort field, so the synthesised path
+// emitted it as an SPSS variable under names its 206 constituents already
+// held (PULSE_SPSS_NAME_COLLISION). The convert now CARRIES the source's
+// declared schema and its sidecar into that intermediate cohort
+// (pio.ConvertSource), so the derived column is recognised and folded on
+// the way out exactly as `pulse export spss` folds it, and `.sav` takes
+// the same generic assertion as every other target: the set survives, bit
+// 200 included.
 //
-// The refusal is asserted by CODE rather than waved through a generic
-// "any error will do" branch, because a generic branch passes whatever the
-// export happens to do — including breaking for a reason that has nothing
-// to do with sets.
+// `--ignore-sidecar` is still the documented divergence — see
+// TestRoundTrip_IgnoreSidecarRefusesRatherThanLosingTheSet — because that
+// flag suppresses the sidecar READ, which is the one thing carrying it
+// cannot answer for.
 
 import (
 	"bytes"
 	"context"
-	goerrors "errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,25 +145,6 @@ func TestConvertCLI_SavWideSetReachesEveryTarget(t *testing.T) {
 			out := filepath.Join(dir, "out"+tc.ext)
 
 			_, err := runConvert(t, in, out)
-
-			if tc.format == pformat.SPSS {
-				if err == nil {
-					t.Fatalf("`pulse convert x.sav out.sav` succeeded; the row path has no sidecar, " +
-						"so the derived set column and its constituents must collide")
-				}
-				code, ok := codedCode(err)
-				if !ok {
-					t.Fatalf("the refusal is UNCODED, which no caller can look up: %v", err)
-				}
-				if code != perrors.PULSE_SPSS_NAME_COLLISION {
-					t.Errorf("code = %s, want %s — a refusal for some other reason is not this criterion's answer",
-						code, perrors.PULSE_SPSS_NAME_COLLISION)
-				}
-				if exists(out) {
-					t.Errorf("a refused convert still wrote %s", out)
-				}
-				return
-			}
 
 			if err != nil {
 				t.Fatalf("convert to %s failed: %v", tc.format, err)
@@ -332,11 +312,6 @@ func hasCode(warns []*perrors.CodedError, code perrors.Code) bool {
 	return false
 }
 
-func exists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
 func indexOfFold(hay []string, needle string) int {
 	for i, h := range hay {
 		if strings.EqualFold(h, needle) {
@@ -344,13 +319,4 @@ func indexOfFold(hay []string, needle string) int {
 		}
 	}
 	return -1
-}
-
-// codedCode reports the coded error's code, if the error carries one.
-func codedCode(err error) (perrors.Code, bool) {
-	var ce *perrors.CodedError
-	if goerrors.As(err, &ce) {
-		return ce.Code, true
-	}
-	return "", false
 }
