@@ -76,7 +76,7 @@ SPSS is the one source that DECLARES a multi-select; every other path guesses fr
 - Mask uses the **declared counted value**, never a guessed `1`. A user-missing code sets no bit, and is not evidence of an answer.
 - Set name loses its `$` (`$media` → `media`) — a sigil is no legal expr-lang identifier. Full name on `derived[].set_name`.
 - **Three row states:** option(s) selected → bits set; answered, nothing selected → **empty mask**, a real "none of these", NOT null; all constituents missing → null.
-- `PULSE_SPSS_MR_SET_NOT_DERIVED` — WARNING, import succeeds — on >**64 constituents** (no wider set type), an undeclared or duplicated member, a counted value that will not compare against a numeric member, or a constituent whose field name holds the set delimiter `|` or IS a null token. The additive design paying out: a set that does not derive costs ergonomics, never data.
+- `PULSE_SPSS_MR_SET_NOT_DERIVED` — WARNING, import succeeds — on >**256 constituents** (`set_u256` is the widest rung; a 206-option battery derives), an undeclared or duplicated member, a counted value that will not compare against a numeric member, or a constituent whose field name holds the set delimiter `|` or IS a null token. The additive design paying out: a set that does not derive costs ergonomics, never data.
 
 **Multiple-CATEGORY sets derive nothing — a fidelity call.** N answer SLOTS over a shared value-label set, so slot ORDER ("first choice" vs "third") and a REPEATED code (two slots both `2`) are real; a bitmask is unordered and idempotent. Members import as ordinary `categorical_*` as if the definition were absent; only the definition rides the sidecar.
 

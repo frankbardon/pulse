@@ -354,8 +354,13 @@ func TestMRSet_NullabilityIsScannedNotAssumed(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestMRSet_WidthFollowsTheConstituentCount walks the set-type ladder and
-// the acceptance criterion at its top: over 64 constituents, constituents
-// only plus a warning naming the set.
+// the acceptance criterion at its top: over maxSetElements constituents,
+// constituents only plus a warning naming the set.
+//
+// The ceiling moved from 64 to 256 with set_u128 / set_u256; the shape of
+// the refusal above it did not. Every rung is walked here against a
+// literal expectation, and TestMRSet_WidthLadderIsTheSharedOne walks the
+// same boundaries against pio.SetTypeFor so the two cannot drift.
 func TestMRSet_WidthFollowsTheConstituentCount(t *testing.T) {
 	for _, tc := range []struct {
 		members int
@@ -370,14 +375,19 @@ func TestMRSet_WidthFollowsTheConstituentCount(t *testing.T) {
 		{32, encoding.FieldTypeSetU32, true},
 		{33, encoding.FieldTypeSetU64, true},
 		{64, encoding.FieldTypeSetU64, true},
-		{65, 0, false},
+		{65, encoding.FieldTypeSetU128, true},
+		{128, encoding.FieldTypeSetU128, true},
+		{129, encoding.FieldTypeSetU256, true},
+		{206, encoding.FieldTypeSetU256, true},
+		{256, encoding.FieldTypeSetU256, true},
+		{257, 0, false},
 	} {
 		t.Run(tc.want.String()+"/"+itoa(tc.members), func(t *testing.T) {
 			r := NewReaderFromBytes(buildFixture(t, wideMDSpec(tc.members)))
 			header, rows := readHeaderAndRows(t, r)
 
 			// Constituents are present at every size — that is what makes
-			// the over-64 refusal cost ergonomics and not data.
+			// a past-the-ceiling refusal cost ergonomics and not data.
 			for i := 0; i < tc.members; i++ {
 				if !containsString(header, wideMemberName(i)) {
 					t.Fatalf("constituent %q missing from header %q", wideMemberName(i), header)
@@ -393,7 +403,7 @@ func TestMRSet_WidthFollowsTheConstituentCount(t *testing.T) {
 				if f != nil {
 					t.Errorf("a %d-constituent set derived a %s column; over %d there is no set type wide enough", tc.members, f.Type, maxSetElements)
 				}
-				assertMRSetWarning(t, r, "$wide", "more than the 64")
+				assertMRSetWarning(t, r, "$wide", "more than the "+itoa(maxSetElements))
 				return
 			}
 			if f == nil {

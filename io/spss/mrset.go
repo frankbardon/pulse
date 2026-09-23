@@ -117,9 +117,12 @@ package spss
 // nothing else. Failing the import to protect a convenience column would
 // throw away data. The refusals:
 //
-//   - more than 64 constituents — a set_u64 has 64 bits, and there is no
-//     wider set type to widen to (the acceptance criterion this file was
-//     written against names this case explicitly);
+//   - more than maxSetElements constituents — the widest set type Pulse
+//     has still has a fixed number of bits, and a set naming more
+//     constituents than that has no honest mask. The ceiling is read off
+//     the shared ladder (pio.MaxSetElements), not written down here: it
+//     moved from 64 to 256 when set_u128 / set_u256 landed, and a
+//     206-option battery that used to be refused now derives;
 //   - a member no record type 2 declares, or one named twice (one bit
 //     cannot be two variables);
 //   - a counted value that will not parse against a numeric member;
@@ -203,11 +206,26 @@ const setElementDelimiter = pio.DefaultSetDelimiter
 // An empty string cannot serve, because it IS a null token and is consumed
 // before any dictionary is consulted. That is why the two states need two
 // spellings.
-const setEmptySelection = setElementDelimiter
+//
+// It is pio.EmptySetCell, the convention every adapter spells the
+// middle state with, so the SPSS derived column and a CSV cell cannot
+// drift apart on what "answered, ticked nothing" looks like.
+const setEmptySelection = pio.EmptySetCell
 
 // maxSetElements is the widest `set_*` bitmask Pulse has, and therefore the
 // most constituents a set can have and still derive a column.
-const maxSetElements = 64
+//
+// It is READ OFF the shared width ladder rather than written down. This
+// package used to carry its own copy of both the number and the rung
+// table, and the copy is what made the motivating defect silent: the
+// wide rungs landed, inference started typing 206-token columns as
+// set_u256, and the SPSS importer went on refusing every battery over 64
+// constituents while explaining that no wider type existed.
+var maxSetElements = pio.MaxSetElements()
+
+// widestSetType is the rung maxSetElements belongs to, named in the
+// refusal so the diagnostic cannot outlive the type it cites.
+var widestSetType = pio.WidestSetType()
 
 // mrSetElement is one bit of a derived set column.
 type mrSetElement struct {
@@ -262,8 +280,9 @@ type mrSetColumn struct {
 	// retained for diagnostics and for the description.
 	counted string
 
-	// fieldType is the resolved set width: the narrowest of set_u8 /
-	// set_u16 / set_u32 / set_u64 that has a bit per constituent.
+	// fieldType is the resolved set width: the narrowest rung of the
+	// shared ladder (pio.SetTypeFor) with a bit per constituent, up to
+	// set_u256.
 	fieldType encoding.FieldType
 
 	// elements are the bits in order. Element i occupies bit i and
@@ -351,25 +370,6 @@ func stripSetSigil(name string) string {
 	return strings.TrimSpace(strings.TrimPrefix(name, "$"))
 }
 
-// setTypeFor picks the narrowest set type with a bit per element, mirroring
-// categoricalTypeFor. It reports false above 64, where there is no wider set
-// type to widen to.
-func setTypeFor(elements int) (encoding.FieldType, bool) {
-	switch {
-	case elements <= 0:
-		return 0, false
-	case elements <= int(encoding.FieldTypeSetU8.MaxSetEntries()):
-		return encoding.FieldTypeSetU8, true
-	case elements <= int(encoding.FieldTypeSetU16.MaxSetEntries()):
-		return encoding.FieldTypeSetU16, true
-	case elements <= int(encoding.FieldTypeSetU32.MaxSetEntries()):
-		return encoding.FieldTypeSetU32, true
-	case elements <= int(encoding.FieldTypeSetU64.MaxSetEntries()):
-		return encoding.FieldTypeSetU64, true
-	}
-	return 0, false
-}
-
 // ---------------------------------------------------------------------------
 // Planning the derived columns
 // ---------------------------------------------------------------------------
@@ -434,7 +434,8 @@ func planMRSet(d *dictionary, set *mrDichotomySet,
 	if len(members) > maxSetElements {
 		return nil, mrSetNotDerived(set, len(members),
 			"it names "+strconv.Itoa(len(members))+" constituent variables, more than the "+
-				strconv.Itoa(maxSetElements)+" bits a set_u64 mask has, and there is no wider set type to widen to; "+
+				strconv.Itoa(maxSetElements)+" bits a "+widestSetType.String()+
+				" mask has, which is the widest set type Pulse has; "+
 				"all "+strconv.Itoa(len(members))+" constituents are imported as ordinary columns")
 	}
 
@@ -517,7 +518,7 @@ func planMRSet(d *dictionary, set *mrDichotomySet,
 		col.elements = append(col.elements, e)
 	}
 
-	ft, ok := setTypeFor(len(col.elements))
+	ft, ok := pio.SetTypeFor(len(col.elements))
 	if !ok {
 		// Unreachable: the member count was bounded above and every member
 		// contributed exactly one element. Kept so the resolution is total

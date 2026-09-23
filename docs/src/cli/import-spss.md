@@ -93,7 +93,7 @@ is **always** `null` for an SPSS import — see
 | system-missing (sysmis) | null (bitmap bit) | The one missing state the format has a sentinel for |
 | numeric user-missing values | null, plus a generated `<var>_missing` sibling column | See [Missing values](#missing-values) — the analytic column stays arithmetically clean and the reason is kept beside it |
 | categorical user-missing values (string, or a value-labelled numeric) | ordinary dictionary entries, flagged in the sidecar | See [Categorical user-missing codes](#categorical-user-missing-codes) — the value *is* the label, so nothing is lost and a sibling would be redundant |
-| multiple-**dichotomy** response set (records `7/5`, `7/7`, `7/19`) | every constituent variable **as its own column**, plus an extra `set_u8`/`u16`/`u32`/`u64` convenience column | See [Multiple-response sets](#multiple-response-sets) — the derived column is *additive*, because a bit cannot tell "not selected" from "not asked" |
+| multiple-**dichotomy** response set (records `7/5`, `7/7`, `7/19`) | every constituent variable **as its own column**, plus an extra `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256` convenience column | See [Multiple-response sets](#multiple-response-sets) — the derived column is *additive*, because a bit cannot tell "not selected" from "not asked" |
 | multiple-**category** response set | N separate `categorical_*` columns, definition on the sidecar | Positional and duplicate-tolerant, so it is genuinely not a set |
 
 ## Missing values
@@ -314,9 +314,11 @@ This is the one mapping in the whole adapter where SPSS *declares* what
 every other ingest path has to guess. A CSV importer looking at
 `"tv|radio"` runs `io/infer.go`'s delimited-token heuristic and votes; a
 `.sav` states the set outright. And Pulse has a type built for the shape:
-`set_u8`/`u16`/`u32`/`u64`, a fixed-width bitmask over an inline
-dictionary, with `FILTER_SET_*`, `GROUP_SET_PER_ELEMENT` and
-`AGG_SET_FREQUENCY` over it.
+`set_u8`/`u16`/`u32`/`u64`/`u128`/`u256`, a fixed-width bitmask over an
+inline dictionary, with `FILTER_SET_*`, `GROUP_SET_PER_ELEMENT` and
+`AGG_SET_FREQUENCY` over it. The narrowest rung with a bit per
+constituent is chosen, so a three-option battery costs one byte a record
+and a 206-option one costs thirty-two.
 
 ### The derived column is additive — that is the whole design
 
@@ -394,9 +396,13 @@ option. And when the answer raises a question the mask cannot settle —
   selecting nothing but having answered the battery is an **empty
   mask** — a real "none of these" answer, distinct from null. A row whose
   every constituent is missing is **null**: nothing is known.
-- **Over 64 constituents, no derived column.** A `set_u64` has 64 bits
-  and there is nothing wider. The import emits the constituents and warns
-  `PULSE_SPSS_MR_SET_NOT_DERIVED` naming the set.
+- **Over 256 constituents, no derived column.** `set_u256` is the widest
+  set type Pulse has, so a battery naming more constituents than that has
+  no honest mask. The import emits the constituents and warns
+  `PULSE_SPSS_MR_SET_NOT_DERIVED` naming the set. The ceiling was 64 until
+  `set_u128` / `set_u256` landed; a 206-option battery derives now, and
+  the importer reads the ceiling off the same width ladder `io/infer.go`
+  uses rather than carrying a copy.
 
 ### When a set does not derive
 
@@ -409,7 +415,7 @@ convenience column would be the wrong trade — which is why the same
 
 | Reason | Code |
 |---|---|
-| more than 64 constituents | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
+| more than 256 constituents (the `set_u256` ceiling) | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
 | a member no record type 2 declares, or one named twice | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
 | a counted value that will not compare against a numeric member | `PULSE_SPSS_MR_SET_NOT_DERIVED` |
 | a constituent whose name contains `\|` or *is* a null token (`NA`, `N/A`, `NULL`) | `PULSE_SPSS_MR_SET_NOT_DERIVED` |

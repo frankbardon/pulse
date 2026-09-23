@@ -472,11 +472,14 @@ func splitSetTokens(raw, delim string) []string {
 	return out
 }
 
-// setWidth walks setLadder and returns the smallest set_* rung that
-// fits unique tokens. Mirrors categoricalWidth in spirit; a vocabulary
-// above the widest rung returns a NON-set type, which is how
-// probeSetClassification detects the ceiling (it tests IsSet on the
-// result rather than re-deriving the number).
+// setWidth returns the smallest set_* rung that fits unique tokens, or
+// a NON-set type when the vocabulary is past the ceiling — which is how
+// probeSetClassification detects it (it tests IsSet on the result rather
+// than re-deriving the number). Mirrors categoricalWidth in spirit.
+//
+// The rung itself comes from SetTypeFor, the exported ladder, so
+// inference and the SPSS multiple-response importer cannot disagree
+// about how wide a set of N elements is.
 //
 // The smallest fitting rung is chosen, so a 206-token column lands on
 // set_u256 and spends 32 bytes a record to carry 206 bits. That waste
@@ -484,12 +487,11 @@ func splitSetTokens(raw, delim string) []string {
 // categorical, which collapses every cell into one opaque joined
 // string.
 func setWidth(unique int) encoding.FieldType {
-	for _, ft := range setLadder {
-		if unique <= int(ft.MaxSetEntries()) {
-			return ft
-		}
+	if ft, ok := SetTypeFor(unique); ok {
+		return ft
 	}
-	// Past the ceiling. The caller falls back to categorical.
+	// Past the ceiling (or nothing to hold). The caller falls back to
+	// categorical.
 	return encoding.FieldTypeCategoricalU8
 }
 
