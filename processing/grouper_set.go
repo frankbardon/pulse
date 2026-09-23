@@ -41,17 +41,58 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 	return f.Dictionary, nil
 }
 
+// rejectSetFieldForNumericGrouper refuses a value-axis grouper bound to
+// a set column. GROUP_RANGE / GROUP_ROUNDED / GROUP_QUANTILE bucket
+// Record.NumericValue, and a set column is echoed into the numeric map
+// as a float64 alongside its authoritative mask in the wide map — the
+// LOW 64 BITS for set_u128 / set_u256 (encoding.decodeFixed), and a
+// float64 that has already lost precision above 2^53 for set_u64. That
+// echo is a plausible number, never an error, so a range over a set
+// column would return buckets nobody could tell were wrong.
+//
+// Refusing at construction matches what these three operators already
+// DECLARE: descriptor/capabilities_groupers.go gives each of them
+// AcceptsTypes: numericFieldTypesNoDecimal, which has never included a
+// set rung. This is the grouper twin of the FILTER_RANGE refusal.
+//
+// GROUP_CATEGORY is deliberately NOT included: it declares
+// allCohortFieldTypes and stringifies whatever scalar it is given, so
+// narrowing it would be a capability change rather than a guard. A nil
+// schema (registry probe construction) has nothing to check.
+func rejectSetFieldForNumericGrouper(grp *types.Group, schema *encoding.Schema) error {
+	if schema == nil || grp == nil || grp.Field == "" {
+		return nil
+	}
+	f := schema.Field(grp.Field)
+	if f == nil || !f.Type.IsSet() {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		string(grp.Type)+": field "+grp.Field+" is a set column ("+f.Type.String()+
+			"); use GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT",
+		map[string]any{
+			"field":    grp.Field,
+			"type":     f.Type.String(),
+			"grouper":  string(grp.Type),
+			"alternts": []string{string(types.GROUP_SET_VALUE), string(types.GROUP_SET_PER_ELEMENT)},
+		})
+}
+
 // Atomic mask = bucket. Key stringified as sorted label list
 // (pipe-delimited). Empty mask = "" key, matching how other groupers
 // stringify the zero value.
 
 // setValueBucketStat carries the per-bucket aggregates Components()
 // emits for GROUP_SET_VALUE: the raw mask value and the row count.
-// labels are derived from mask at emission time via resolveMaskLabels
-// (the same path the buffered Group() / streaming KeyFor route uses)
-// so we never duplicate the dictionary-decode logic.
+// labels are derived from mask at emission time via encoding.SetMask.
+// Labels (the same path the buffered Group() / streaming KeyFor route
+// uses) so we never duplicate the dictionary-decode logic.
+//
+// mask is an encoding.SetMask, not a uint64: a set_u128 / set_u256
+// column carries selections above bit 63 and a uint64 here would hold
+// the low word only — a plausible number, never an error.
 type setValueBucketStat struct {
-	mask  uint64
+	mask  encoding.SetMask
 	count int
 }
 
@@ -93,7 +134,7 @@ func newSetValueGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 // (streaming) so the two code paths fill liveBuckets / nEmptyMask
 // identically. The bucket key carries no mask signal (sorted labels
 // joined by "|"), so we stash the raw mask alongside the count.
-func (g *setValueGrouper) trackSetValueRow(mask uint64, key string) {
+func (g *setValueGrouper) trackSetValueRow(mask encoding.SetMask, key string) {
 	if g.liveBuckets == nil {
 		g.liveBuckets = make(map[string]setValueBucketStat)
 	}
@@ -101,7 +142,7 @@ func (g *setValueGrouper) trackSetValueRow(mask uint64, key string) {
 	stat.mask = mask
 	stat.count++
 	g.liveBuckets[key] = stat
-	if mask == 0 {
+	if mask.IsEmpty() {
 		g.nEmptyMask++
 	}
 }
@@ -112,14 +153,11 @@ func (g *setValueGrouper) trackSetValueRow(mask uint64, key string) {
 // valid bucket key of "" and does NOT trigger ErrGrouperKeyNull; only a
 // null / missing field does.
 func (g *setValueGrouper) KeyFor(r *Record) (string, error) {
-	m, ok, err := narrowSetValue(r, g.field)
-	if err != nil {
-		return "", err
-	}
+	m, ok := r.SetMaskValue(g.field)
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	labels := resolveMaskLabels(m, g.dict)
+	labels := m.Labels(g.dict)
 	sort.Strings(labels)
 	key := strings.Join(labels, "|")
 	if !includeAccepts(g.include, key) {
@@ -139,10 +177,7 @@ func (g *setValueGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
 	if err != nil || !ok {
 		return key, ok, err
 	}
-	m, ok2, mErr := narrowSetValue(r, g.field)
-	if mErr != nil {
-		return "", false, mErr
-	}
+	m, ok2 := r.SetMaskValue(g.field)
 	if !ok2 {
 		return key, ok, nil
 	}
@@ -165,13 +200,10 @@ func (g *setValueGrouper) Group(records []*Record, _ string) (map[string][]*Reco
 		if !ok {
 			continue
 		}
-		m, mok, mErr := narrowSetValue(r, g.field)
-		if mErr != nil {
-			return nil, mErr
-		}
+		m, mok := r.SetMaskValue(g.field)
 		if !mok {
-			// keyForOrSkip already cleared null/skip cases; guard the
-			// cast anyway so the tracker stays safe under contract drift.
+			// keyForOrSkip already cleared null/skip cases; re-checking
+			// keeps the tracker safe under contract drift.
 			continue
 		}
 		g.trackSetValueRow(m, key)
@@ -188,11 +220,22 @@ func (g *setValueGrouper) Group(records []*Record, _ string) (map[string][]*Reco
 //     distinct from null/missing per ErrGrouperKeyNull semantics).
 //   - buckets[].key: bucket key the grouper emits (sorted labels
 //     joined by "|", empty string for the zero-mask bucket).
-//   - buckets[].mask: raw set mask shared by every row in the bucket.
+//   - buckets[].mask: raw set mask shared by every row in the bucket,
+//     as a uint64. Emitted ONLY when the mask fits 64 bits — which is
+//     every mask a set_u8..set_u64 column can hold, so narrow cohorts
+//     are byte-identical to before.
+//   - buckets[].mask_words: the mask as its four little-endian 64-bit
+//     words (low word first). Emitted INSTEAD of mask when a set_u128 /
+//     set_u256 selection reaches bit 64 or above. The two keys are
+//     mutually exclusive on purpose: a uint64 "mask" carrying the low
+//     word of a wide selection would be a plausible wrong number, and
+//     this operator refuses rather than truncates (the same posture as
+//     processing.narrowSetValue).
 //   - buckets[].count: row count for that mask.
 //   - buckets[].labels: dictionary-decoded labels for the bits set in
-//     mask, sorted in ascending bit order (same path as resolveMaskLabels,
-//     i.e. same path Rich() uses on the set aggregators).
+//     mask, sorted in ascending bit order (encoding.SetMask.Labels, the
+//     same walk Rich() uses on the set aggregators; bounded by the
+//     dictionary, so every member of a 206-entry dictionary resolves).
 //
 // Reads g.liveBuckets / g.nEmptyMask, populated by Group() (buffered)
 // or KeyForRow (streaming). Returns an empty buckets slice (not nil)
@@ -212,12 +255,17 @@ func (g *setValueGrouper) Components() (map[string]any, error) {
 	buckets := make([]map[string]any, 0, len(keys))
 	for _, k := range keys {
 		stat := g.liveBuckets[k]
-		buckets = append(buckets, map[string]any{
+		b := map[string]any{
 			"key":    k,
-			"mask":   stat.mask,
 			"count":  stat.count,
-			"labels": resolveMaskLabels(stat.mask, g.dict),
-		})
+			"labels": stat.mask.Labels(g.dict),
+		}
+		if low, fits := stat.mask.Uint64(); fits {
+			b["mask"] = low
+		} else {
+			b["mask_words"] = stat.mask.Words()
+		}
+		buckets = append(buckets, b)
 	}
 	return map[string]any{
 		"n_empty_mask": g.nEmptyMask,
