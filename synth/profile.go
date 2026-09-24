@@ -779,6 +779,25 @@ type setAcc struct {
 	selected []int
 }
 
+// setMaskWidthWarning is the one place the "this set capture had to
+// degrade" line is built. A set field whose dictionary is wider than its
+// own rung's mask loses every member past the cap from the marginal,
+// from every conditional pair and from the fidelity report, and the loss
+// looks exactly like an option nobody ever selects — so it is stated in
+// terms of what the caller will NOT find, and the fix (`pulse widen`) is
+// named rather than implied.
+//
+// The wording is load-bearing: warning_summary.go classifies on "set
+// field " plus "beyond the mask width", and a reword is a change to that
+// table. Both numbers ride the message because the gap between them is
+// the size of the finding.
+func setMaskWidthWarning(field string, ft encoding.FieldType, dictSize, maskWidth int) string {
+	return fmt.Sprintf("set field %q: dictionary carries %d option(s) but the %s mask addresses %d — "+
+		"%d option(s) beyond the mask width get no marginal, no conditional pair capture and no "+
+		"fidelity comparison; widen the field to recover them",
+		field, dictSize, ft, maskWidth, dictSize-maskWidth)
+}
+
 // ProfileBytes summarizes a .pulse file given its raw bytes.
 func ProfileBytes(data []byte, opts ProfileOptions) (*Profile, error) {
 	r := bytes.NewReader(data)
@@ -882,7 +901,16 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 			if f.Dictionary != nil {
 				n = f.Dictionary.Count()
 			}
+			// The dictionary can outgrow the rung's mask, and when it
+			// does the members past the cap get NO marginal, no pair
+			// capture and no fidelity comparison. That clamp was silent
+			// until E5-S2, which made it indistinguishable in the
+			// document from a cohort that genuinely never selects them —
+			// the plausible-looking-output failure class this package
+			// exists to make visible. It is reported, never repaired:
+			// widening is `pulse widen`'s job, not the profiler's.
 			if max := int(f.Type.MaxSetEntries()); n > max {
+				warnings = append(warnings, setMaskWidthWarning(f.Name, f.Type, n, max))
 				n = max
 			}
 			setAccs[f.Name] = &setAcc{selected: make([]int, n)}
@@ -1162,15 +1190,24 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 					continue
 				}
 				sa.count++
-				// wide[f.Name] carries the exact uint64 mask (see
+				// wide[f.Name] carries the exact membership mask (see
 				// encoding.RecordReader.readRecord) — required for
 				// set_u64, whose bits can exceed float64's 2^53 exact-
 				// integer range; values[f.Name]'s float64 echo is not
 				// used here for that reason.
-				mask, _ := wide[f.Name].(uint64)
-				for i := range sa.selected {
-					if mask&(uint64(1)<<uint(i)) != 0 {
-						sa.selected[i]++
+				//
+				// It arrives in one of TWO shapes — a plain uint64 for
+				// the narrow rungs, an encoding.SetMask for the wide
+				// ones — so it goes through setMaskFromWide rather than
+				// a `.(uint64)` assertion. An assertion that fails
+				// yields the zero value, which for a set field is a
+				// perfectly plausible "selected nothing": every member
+				// of every wide column would capture a 0.0 marginal
+				// with no error anywhere.
+				mask := setMaskFromWide(wide[f.Name])
+				for bit := range mask.Bits() {
+					if bit < len(sa.selected) {
+						sa.selected[bit]++
 					}
 				}
 			default:
@@ -1303,14 +1340,20 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				if nulls[sf] {
 					continue
 				}
-				mask, _ := wide[sf].(uint64)
+				// setMaskFromWide, never a `.(uint64)` assertion: a
+				// wide rung lands in the wide map as an
+				// encoding.SetMask and a failed assertion reads the
+				// whole row as "selected nothing", which collapses
+				// every cell of every wide member into the
+				// not_selected arm without a word of complaint.
+				mask := setMaskFromWide(wide[sf])
 				perOpt := setCatAccs[sf]
 				for i, opt := range setOptionNames[sf] {
 					if opt == "" {
 						continue
 					}
 					sel := "not_selected"
-					if mask&(uint64(1)<<uint(i)) != 0 {
+					if mask.Has(i) {
 						sel = "selected"
 					}
 					perCat := perOpt[opt]
@@ -1329,14 +1372,14 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				if nulls[sf] {
 					continue
 				}
-				mask, _ := wide[sf].(uint64)
+				mask := setMaskFromWide(wide[sf])
 				perOpt := setNumAccs[sf]
 				for i, opt := range setOptionNames[sf] {
 					if opt == "" {
 						continue
 					}
 					sel := "not_selected"
-					if mask&(uint64(1)<<uint(i)) != 0 {
+					if mask.Has(i) {
 						sel = "selected"
 					}
 					perNum := perOpt[opt]
@@ -1359,20 +1402,20 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 				if nulls[sfA] {
 					continue
 				}
-				maskA, _ := wide[sfA].(uint64)
+				maskA := setMaskFromWide(wide[sfA])
 				perOptA := setSetAccs[sfA]
 				for bi := ai + 1; bi < len(jointSetFieldNames); bi++ {
 					sfB := jointSetFieldNames[bi]
 					if nulls[sfB] {
 						continue
 					}
-					maskB, _ := wide[sfB].(uint64)
+					maskB := setMaskFromWide(wide[sfB])
 					for oi, optA := range setOptionNames[sfA] {
 						if optA == "" {
 							continue
 						}
 						selA := "not_selected"
-						if maskA&(uint64(1)<<uint(oi)) != 0 {
+						if maskA.Has(oi) {
 							selA = "selected"
 						}
 						perFieldB := perOptA[optA][sfB]
@@ -1381,7 +1424,7 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 								continue
 							}
 							selB := "not_selected"
-							if maskB&(uint64(1)<<uint(oj)) != 0 {
+							if maskB.Has(oj) {
 								selB = "selected"
 							}
 							acc := perFieldB[optB]

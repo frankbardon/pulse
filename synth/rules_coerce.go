@@ -30,7 +30,7 @@ import (
 //
 //	scalar        u4 u8 u16 u32 u64 f32 f64 date packed_bool decimal128
 //	categorical   categorical_u8 categorical_u16 categorical_u32
-//	set           set_u8 set_u16 set_u32 set_u64
+//	set           set_u8 set_u16 set_u32 set_u64 set_u128 set_u256
 //
 //	result \ target | scalar                  | categorical      | set
 //	----------------+-------------------------+------------------+-----------------

@@ -25,7 +25,38 @@ type Reader struct {
 	header  []string
 	started bool
 	lineNum int
+
+	// pending holds the object ReadHeader decoded to derive the column
+	// names, buffered so the row pass can still emit it. NDJSON has no
+	// header line: the first object is a RECORD that happens to also
+	// declare the columns. Without this buffer the scanner is already
+	// past it when ReadRows starts and the record is lost silently — a
+	// 60-line file imported 59 rows and a one-line file imported none.
+	//
+	// The DECODED object is held rather than the raw line, which mirrors
+	// jsonarray.Reader and means the first record is parsed exactly once
+	// whichever route the caller takes. hasPending is the flag, because
+	// an empty object `{}` is a legitimate (empty, non-nil) record.
+	//
+	// Owned by ReadHeader, consumed once by ReadRows, cleared by init,
+	// Reset and Close.
+	pending    map[string]any
+	hasPending bool
+
+	// nulls is the per-column null mask for the row most recently
+	// handed to the ReadRows callback — the pio.NullAwareReader
+	// channel. JSON distinguishes a null from an empty string and the
+	// []string row does not, so without this a categorical cell
+	// spelled "" and one spelled null both re-import as null. Rebuilt
+	// in place by emitObj; valid only inside the callback.
+	nulls []bool
 }
+
+// RowNulls implements pio.NullAwareReader. Entry i is true when the
+// current row's column i was JSON null — or absent from the object
+// entirely, which is the same "no value here" in NDJSON, where each
+// line carries its own key set.
+func (r *Reader) RowNulls() []bool { return r.nulls }
 
 // NewReader creates an NDJSON reader from a filesystem path.
 func NewReader(fs afero.Fs, path string) *Reader {
@@ -61,6 +92,8 @@ func (r *Reader) init() error {
 	r.started = false
 	r.header = nil
 	r.lineNum = 0
+	r.pending = nil
+	r.hasPending = false
 	return nil
 }
 
@@ -130,6 +163,11 @@ func decodeLine(line []byte) (map[string]any, []string, error) {
 }
 
 // ReadHeader returns column names derived from the keys of the first JSON object.
+//
+// The object is a record as well as a column declaration, so its raw
+// bytes are buffered and replayed as the first row of the following
+// ReadRows pass. Only the KEYS of this object define the column set —
+// a key appearing for the first time in a later object is not a column.
 func (r *Reader) ReadHeader() ([]string, error) {
 	if err := r.init(); err != nil {
 		return nil, err
@@ -146,12 +184,15 @@ func (r *Reader) ReadHeader() ([]string, error) {
 			continue
 		}
 
-		_, keys, err := decodeLine(line)
+		obj, keys, err := decodeLine(line)
 		if err != nil {
 			return nil, fmt.Errorf("ndjson.Reader: parsing header (line %d): %w", r.lineNum, err)
 		}
 
 		r.header = keys
+		// The object is a record too — hand it to the row pass instead
+		// of letting the scanner leave it behind.
+		r.pending, r.hasPending = obj, true
 		r.started = true
 		return r.header, nil
 	}
@@ -164,7 +205,47 @@ func (r *Reader) ReadHeader() ([]string, error) {
 	return nil, nil
 }
 
-// ReadRows streams rows to fn. ReadHeader must be called first.
+// errStop is an internal sentinel used to unwind ReadRows when fn
+// returned pio.ErrStopIteration.
+var errStop = fmt.Errorf("ndjson: stop")
+
+// emitObj hands one decoded object to fn as a row in header order.
+// Returns errStop when fn asked to stop iterating.
+func (r *Reader) emitObj(obj map[string]any, fn func(row []string) error) error {
+	// Build row in header order. A key absent from this object yields
+	// the empty cell; a key this object has but the header does not is
+	// dropped, because the first object defines the column set.
+	row := make([]string, len(r.header))
+	if cap(r.nulls) < len(r.header) {
+		r.nulls = make([]bool, len(r.header))
+	}
+	r.nulls = r.nulls[:len(r.header)]
+	for i, key := range r.header {
+		v, ok := obj[key]
+		if ok {
+			row[i] = jsonshared.ValueToString(v)
+		} else {
+			row[i] = ""
+		}
+		// A key that is absent, or present with a JSON null, is the
+		// null cell. A key present with "" is an empty string VALUE
+		// and must not be conflated with it — see pio.NullAwareReader.
+		r.nulls[i] = !ok || v == nil
+	}
+
+	if err := fn(row); err != nil {
+		if err == pio.ErrStopIteration() {
+			return errStop
+		}
+		return err
+	}
+	return nil
+}
+
+// ReadRows streams rows to fn. ReadHeader is auto-called if not yet
+// invoked. The object ReadHeader consumed to derive the column names is
+// replayed as the FIRST row here — NDJSON has no header line, so that
+// object is a record too and dropping it is silent data loss.
 func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) error {
 	if r.scanner == nil {
 		if err := r.init(); err != nil {
@@ -173,6 +254,22 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	}
 	if !r.started {
 		if _, err := r.ReadHeader(); err != nil {
+			return err
+		}
+	}
+
+	if r.hasPending {
+		obj := r.pending
+		r.pending, r.hasPending = nil, false
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if err := r.emitObj(obj, fn); err != nil {
+			if err == errStop {
+				return nil
+			}
 			return err
 		}
 	}
@@ -199,18 +296,8 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			)
 		}
 
-		// Build row in header order.
-		row := make([]string, len(r.header))
-		for i, key := range r.header {
-			if v, ok := obj[key]; ok {
-				row[i] = jsonshared.ValueToString(v)
-			} else {
-				row[i] = ""
-			}
-		}
-
-		if err := fn(row); err != nil {
-			if err == pio.ErrStopIteration() {
+		if err := r.emitObj(obj, fn); err != nil {
+			if err == errStop {
 				return nil
 			}
 			return err
@@ -228,16 +315,22 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 func (r *Reader) Close() error {
 	r.scanner = nil
 	r.buf = nil
+	r.pending = nil
+	r.hasPending = false
 	return nil
 }
 
-// Reset rewinds the reader to the beginning.
+// Reset rewinds the reader to the beginning. The buffered first record
+// is discarded with everything else; the next ReadHeader re-reads and
+// re-buffers it, so a second pass yields the same rows as the first.
 func (r *Reader) Reset() error {
 	r.scanner = nil
 	r.buf = nil
 	r.header = nil
 	r.started = false
 	r.lineNum = 0
+	r.pending = nil
+	r.hasPending = false
 	return nil
 }
 
@@ -260,7 +353,17 @@ type Writer struct {
 	// overlaysWritten guards against double-flush of the trailer when
 	// Close() is invoked more than once (idempotent contract).
 	overlaysWritten bool
+
+	// explicitNulls records that the caller marks null cells itself —
+	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// ConvertJob. false keeps the text convention (jsonshared.
+	// CoerceValue, where "" is the source null token), so a convert is
+	// byte-identical.
+	explicitNulls bool
 }
+
+// SetExplicitNulls implements pio.NullAwareWriter.
+func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // NewWriter creates an NDJSON writer targeting a filesystem path.
 func NewWriter(fs afero.Fs, path string) *Writer {
@@ -289,10 +392,14 @@ func (w *Writer) WriteRow(values []any) error {
 		return fmt.Errorf("ndjson.Writer: WriteHeader must be called before WriteRow")
 	}
 
+	coerce := jsonshared.CoerceValue
+	if w.explicitNulls {
+		coerce = jsonshared.CoerceValueExplicitNull
+	}
 	obj := make(map[string]any, len(w.columns))
 	for i, col := range w.columns {
 		if i < len(values) {
-			obj[col] = jsonshared.CoerceValue(values[i])
+			obj[col] = coerce(values[i])
 		} else {
 			obj[col] = nil
 		}
@@ -343,3 +450,5 @@ func (w *Writer) Bytes() []byte {
 // Ensure interfaces are satisfied at compile time.
 var _ pio.Writer = (*Writer)(nil)
 var _ pio.OverlayAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareReader = (*Reader)(nil)

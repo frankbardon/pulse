@@ -123,6 +123,24 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 		return err
 	}
 
+	// The leaves do NOT Close the writer on an error return — every
+	// adapter emits its file exactly once inside Close, so skipping it
+	// writes nothing, while a close-on-error would put a zero-row target
+	// next to a hard error. That is a DATA decision and it stands
+	// (TestExportTargets_EmitNothingBeforeClose).
+	//
+	// Resources are the separate question. A writer holding an OS temp
+	// file (io/excel's excelize StreamWriter spills past 16 MiB) still
+	// needs releasing on that path, so every error return below runs
+	// pio.DiscardWriter — release, never emit. emitted is flipped
+	// immediately before the Close that owns the output.
+	emitted := false
+	defer func() {
+		if !emitted {
+			_ = pio.DiscardWriter(writer)
+		}
+	}()
+
 	job := pio.NewExportJob(input, writer)
 	job.FS = fs
 	job.Includes = includes
@@ -153,6 +171,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 			}
 			return perr
 		}
+		emitted = true
 		if err := writer.Close(); err != nil {
 			if jsonOut {
 				return writeCodedErrorEnvelope(cmd.Writer, "EXPORT_ERROR", err)
@@ -170,6 +189,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 		return err
 	}
 
+	emitted = true
 	if err := writer.Close(); err != nil {
 		if jsonOut {
 			return writeCodedErrorEnvelope(cmd.Writer, "EXPORT_ERROR", err)

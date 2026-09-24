@@ -1244,6 +1244,53 @@ func (p *Pulse) DropIndex(ctx context.Context, path string, keyFields []string) 
 	return err
 }
 
+// WidenReport re-exports encoding.WidenReport — the outcome of a
+// WidenSetField call: the field's identity, the rung it moved from and
+// to, the number of records re-laid-out and the record stride on each
+// side of the rewrite.
+type WidenReport = encoding.WidenReport
+
+// WidenSetField widens the set column named field in the cohort at path
+// to the wider set rung named by targetType ("set_u16", "set_u32",
+// "set_u64", "set_u128", "set_u256"), rewriting the cohort IN PLACE and
+// returning a report of what moved.
+//
+// A widen changes the field's stride, so every record is re-laid-out
+// and every field after the widened one moves. The rewrite is atomic —
+// temp file beside the cohort, fsync, rename — so any failure leaves
+// the original byte-identical; see encoding.WidenSetFieldFile.
+//
+// targetType is a type NAME rather than an encoding.FieldType because
+// this is the boundary where a caller-supplied string arrives (a CLI
+// flag, an embedder's config), and the resolution rule belongs to the
+// library: an unknown name is ENCODING_TYPE_MISMATCH, never a silent
+// fallback to some default type. Callers holding an encoding.FieldType
+// pass its String(); the name table round-trips by contract.
+//
+// Refusals are coded errors reusing existing codes — SERVICE_RESOURCE
+// (no such cohort), SERVICE_VALIDATION (the path is a shard archive or
+// an anchored shard within one), ENCODING_INVALID (no such field) and
+// ENCODING_TYPE_MISMATCH (not a set, not wider, or already at the
+// widest rung). See service.Service.WidenSetField.
+//
+// Sidecars are not rebuilt: a widened cohort changes length, so the
+// point-lookup index and the SPSS metadata sidecar invalidate
+// themselves through their own fingerprints on the next read.
+func (p *Pulse) WidenSetField(ctx context.Context, path, field, targetType string) (*WidenReport, error) {
+	target, ok := encoding.ParseFieldType(targetType)
+	if !ok {
+		return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+			fmt.Sprintf("widen: %q is not a known field type name", targetType),
+			map[string]any{"target": targetType, "field": field, "cohort": path})
+	}
+	rep, err := p.svc.WidenSetField(ctx, path, field, target)
+	if err != nil {
+		return nil, err
+	}
+	p.touchManaged(ctx, path)
+	return rep, nil
+}
+
 // ExamplesSearch returns summaries from the embedded request-example
 // library matching the given filters. An empty filter is treated as
 // "no constraint" for that dimension. Query is case-insensitive
@@ -1511,20 +1558,61 @@ func (p *Pulse) Fs() afero.Fs {
 // archive is written atomically (temp file + rename) so partial
 // writes never appear at archivePath. See service.CreateShardArchive
 // for the full error surface.
-func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) error {
+//
+// Set-width auto-widen applies at CREATE exactly as it does at ADD: a
+// set column whose merged dictionary outgrows its bitmask, or whose rung
+// differs between two of the seeded shards, is promoted rather than
+// refused, and the promotion is reported as a mandatory
+// PULSE_SHARD_SET_WIDENED warning on the returned result. One rule, no
+// asymmetry — the same two files must not produce an archive when
+// passed together and an error when passed one after the other.
+//
+// CreateShardArchive returns a result rather than a bare error precisely
+// so that warning has nowhere to be dropped.
+func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*CreateShardArchiveResult, error) {
 	return p.svc.CreateShardArchive(ctx, archivePath, shardPaths)
 }
+
+// CreateShardArchiveResult carries the outcome of CreateShardArchive:
+// the archive's shard count, any set-field widenings the seed forced,
+// and the non-fatal warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE,
+// PULSE_SHARD_SET_WIDENED) to lift onto a --json envelope.
+type CreateShardArchiveResult = service.CreateShardArchiveResult
 
 // AddShard validates the incoming single-file shard against the
 // archive's canonical schema and appends it. Dict growth that the
 // incoming shard introduces is reflected in the rewritten
 // `_schema.pulse` payload before the new shard payload is appended.
 // v1 reads the whole archive into memory and writes it back via
-// temp+rename — semantically equivalent to true in-place append and
-// crash-safe at the canonical-path level.
-func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) error {
+// temp+fsync+rename — semantically equivalent to true in-place append
+// and crash-safe at the canonical-path level.
+//
+// A merged dictionary that outgrows a set_* field's bitmask WIDENS the
+// field across the canonical schema and every shard payload instead of
+// refusing the add, and reports it as a mandatory PULSE_SHARD_SET_WIDENED
+// warning on the returned result — the rewrite is far cheaper than the
+// re-import it replaces but far more expensive than an append, and a
+// caller must be able to tell which one it paid for. A union above the
+// widest set rung stays fatal (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
+//
+// AddShard returns a result rather than a bare error precisely so that
+// warning has nowhere to be dropped.
+func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
 	return p.svc.AddShard(ctx, archivePath, shardPath)
 }
+
+// AddShardResult carries the outcome of AddShard: the archive's new
+// shard count, any set-field widenings the add forced, and the
+// non-fatal warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE,
+// PULSE_SHARD_SET_WIDENED) to lift onto a --json envelope.
+type AddShardResult = service.AddShardResult
+
+// SetWidening records one set field promoted to a wider rung during a
+// CreateShardArchive or an AddShard, with the shard and record counts
+// the rewrite cost. From == To marks the one-shard case: the arriving
+// shard declared a narrower rung and was promoted to the archive's,
+// leaving the archive itself untouched.
+type SetWidening = service.SetWidening
 
 // RemoveShard rewrites the archive omitting the named shard. The
 // canonical schema is preserved (dictionary entries are never
@@ -1580,6 +1668,13 @@ func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*Ve
 // (per-field description drift, aggregate-record-count mismatch). An
 // empty Errors slice means the archive is structurally sound.
 type VerifyResult = service.VerifyResult
+
+// SetWidthHeadroom reports how much of a set field's bitmask capacity
+// the canonical dictionary has consumed, and which rung a widen would
+// promote it to. VerifyShardArchive returns one per set field so an
+// impending archive-wide widen is foreseeable rather than a surprise
+// the next `shard add` bills for.
+type SetWidthHeadroom = encoding.SetWidthHeadroom
 
 // resolveCohortPath builds the file path from a Cohort specification.
 func resolveCohortPath(c *types.Cohort) string {

@@ -148,6 +148,8 @@ func TestBuildDecodePlan_PerFieldTypeAlone(t *testing.T) {
 		FieldTypeCategoricalU8, FieldTypeCategoricalU16, FieldTypeCategoricalU32,
 		FieldTypeDecimal128,
 		FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64,
+		FieldTypeSetU128, FieldTypeSetU256,
+		FieldTypeDateTime,
 	}
 	for _, ft := range types {
 		t.Run(ft.String(), func(t *testing.T) {
@@ -197,6 +199,9 @@ func TestBuildDecodePlan_PerFieldTypeAloneSkipped(t *testing.T) {
 		{FieldTypeSetU16, 2},
 		{FieldTypeSetU32, 4},
 		{FieldTypeSetU64, 8},
+		{FieldTypeSetU128, 16},
+		{FieldTypeSetU256, 32},
+		{FieldTypeDateTime, 8},
 	}
 	for _, tc := range cases {
 		t.Run(tc.ft.String(), func(t *testing.T) {

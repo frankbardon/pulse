@@ -35,7 +35,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Widen the field type (u8 -> u16, f32 -> f64) or pre-clean the source data to fit the declared type, then re-import.",
+				Hint:   "Widen the field type (u8 -> u16, f32 -> f64) or pre-clean the source data to fit the declared type, then re-import. For a set_* column an in-place widen is available instead: pulse widen COHORT --field F --to set_u128|set_u256.",
 			},
 		},
 	},
@@ -282,11 +282,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_ROW_ERROR: {
-		Message: "A row could not be imported due to a per-cell encoding or parse failure.",
+		Message: "A row could not be imported due to a per-cell encoding or parse failure. Raised per row on ImportReport.RowErrors while SOME rows still import — and raised as the FATAL return of ImportJob.Run when a non-empty source yields zero importable rows, in which case details carry `rows_read`, `rows_failed`, `first_row` and `first_error`, and no .pulse file is written. A source with no data rows at all is an empty cohort, not this error.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Inspect the reported row index in details; pick a wider or nullable field type, or pre-clean the source value before re-importing.",
+				Hint:   "Inspect the reported row index in details; pick a wider or nullable field type, or pre-clean the source value before re-importing. When every row failed, `first_error` names the one cell conversion to fix first — it is usually a single column whose declared type the whole source disagrees with.",
 			},
 		},
 	},
@@ -300,11 +300,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXPORT_ROW_ERROR: {
-		Message: "A row could not be exported due to a per-cell value-to-string conversion failure.",
+		Message: "A row could not be exported due to a per-cell value-to-string conversion failure, or because the target format's writer refused it. Raised per row on ExportReport.RowErrors while SOME rows still export — and raised as the FATAL return of ExportJob.Run when a non-empty cohort yields zero exported rows, in which case details carry `rows_read`, `rows_failed`, `first_row` and `first_error`. An empty cohort exports zero rows legitimately and is not this error.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-import the source data to regenerate the .pulse file; the dictionary or encoding state is inconsistent.",
+				Hint:   "Re-import the source data to regenerate the .pulse file; the dictionary or encoding state is inconsistent. When every row failed, suspect the TARGET rather than the cohort — `first_error` is the writer's own refusal, and a column type the format cannot represent rejects every row identically.",
 			},
 		},
 	},
@@ -328,11 +328,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_SET_OVERFLOW: {
-		Message: "A multi-select column's observed dictionary exceeds the largest set width (set_u64 holds at most 64 entries).",
+		Message: "A multi-select column's observed dictionary exceeds the largest set width (set_u256 holds at most 256 entries).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Denormalize to one row per (record, element) pair, or wait for set_u128. If the dictionary is actually bounded, raise --sample-rows or supply a force_type schema hint.",
+				Hint:   "Widen the set type up the ladder (set_u64 -> set_u128 -> set_u256) and re-import; above 256 entries, denormalize to one row per (record, element) pair. If the dictionary is actually bounded, raise --sample-rows or supply a force_type schema hint.",
 			},
 		},
 	},
@@ -1003,6 +1003,15 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema", "Fields", "*", "Description"},
 				Hint:   "Update the source data's per-field description to match the canonical archive's, or accept the warning (downstream consumers see the canonical description).",
+			},
+		},
+	},
+	PULSE_SHARD_SET_WIDENED: {
+		Message: "A `shard add` merged a dictionary that outgrew a set_* field's bitmask, so the field was promoted to a wider rung and every record of every shard in the archive was re-laid-out. The archive is correct and no action is required; the warning exists because the rewrite is expensive and must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed — the archive was widened in place and remains openable. To avoid the rewrite next time, import the source at the wider set rung up front, and watch `pulse shard verify`'s set-width headroom to see a widen coming.",
 			},
 		},
 	},

@@ -54,10 +54,15 @@ Hash join needs equi-keys to compare byte-equal after normalisation. The v1 type
 
 Rejects:
 
-- `decimal128` ↔ any other type. Decimal keys must match exactly because precision/scale matter for hash bucketing.
+- **Any `set_*` column, on either side, even at identical rungs.** A bitmask has no unambiguous equality value (empty, single-member and multi-member masks are all distinct legal states), and the key that would have been used is the lossy `float64` echo of the mask — low 64 bits for `set_u128`/`set_u256`, past the 53-bit mantissa for `set_u64` — so different selections collapse onto one key and unrelated rows join silently. Use `FILTER_SET_*`. Join twin of the point-lookup index-key rejection. Carrying a set column **through** a join (non-key) is unaffected.
+- `decimal128` ↔ any other type — precision/scale matter for hash bucketing.
 - `categorical_*` ↔ a non-categorical numeric type.
 
-Mismatches surface `PULSE_JOIN_TYPE_MISMATCH` with offending left/right field names + types in `details`. Fix by re-importing one side with a matching type.
+`decimal128` keys compare on their **exact 128-bit mantissa bytes**, not the `Float64(scale)` echo — otherwise two decimals closer than float64's spacing share a key. Safe to special-case: `decimal128` is admitted only against `decimal128`.
+
+Mismatches surface `PULSE_JOIN_TYPE_MISMATCH` with the offending field names + types in `details`; a set-key rejection adds `details.reason = "set_key"` and its own sentence, since "not compatible" reads as a typo when both sides carry the same rung. Fix by re-importing one side with a matching type.
+
+**Known limit:** a `u64` key above 2^53 rides that same `float64` echo, so two ids rounding to one float join as equal. Unfixed — it needs the whole unsigned-int/float/date family renormalised together.
 
 ## Field collisions and `As` prefix
 

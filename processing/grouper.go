@@ -208,6 +208,14 @@ type categoryGrouper struct {
 }
 
 func newCategoryGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
+	// GROUP_CATEGORY partitions on Record.NumericValue, which refuses set
+	// columns. Bucketing the mask's float echo was a plausible wrong
+	// partition; dropping every row after the refusal is a plausible empty
+	// one. Both are silent, so it refuses here and declares
+	// nonSetFieldTypes in descriptor/capabilities_groupers.go.
+	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
+		return nil, err
+	}
 	return &categoryGrouper{
 		schema:  schema,
 		field:   grp.Field,
@@ -348,7 +356,10 @@ type roundedGrouper struct {
 	liveBuckets map[string]roundedBucketStat
 }
 
-func newRoundedGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
+func newRoundedGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
+	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
+		return nil, err
+	}
 	if grp.Interval <= 0 {
 		grp.Interval = 1 // default to 1
 	}
@@ -499,7 +510,10 @@ type rangeGrouper struct {
 	overflowCount  int
 }
 
-func newRangeGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
+func newRangeGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
+	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
+		return nil, err
+	}
 	if grp.Interval <= 0 {
 		grp.Interval = 1 // default to 1
 	}
@@ -688,7 +702,10 @@ type quantileGrouper struct {
 	frozenEdges     []float64
 }
 
-func newQuantileGrouper(grp *types.Group, _ *encoding.Schema) (Grouper, error) {
+func newQuantileGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) {
+	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
+		return nil, err
+	}
 	buckets := int(grp.Interval)
 	if buckets <= 0 {
 		buckets = 4

@@ -72,7 +72,7 @@ func TestShardArchiveReservedName(t *testing.T) {
 	adminWriteShardFile(t, fsys, good, schema, [][]uint64{{1, math.Float64bits(1.0)}})
 	adminWriteShardFile(t, fsys, reserved, schema, [][]uint64{{2, math.Float64bits(2.0)}})
 
-	err := svc.CreateShardArchive(context.Background(), "arch.pulse", []string{good, reserved})
+	_, err := svc.CreateShardArchive(context.Background(), "arch.pulse", []string{good, reserved})
 	if err == nil {
 		t.Fatal("CreateShardArchive with reserved basename: expected error")
 	}
@@ -87,7 +87,7 @@ func TestShardArchiveReservedName(t *testing.T) {
 	}
 	adminWriteShardFile(t, fsys, filepath.Join(nestedDir, reserved), schema,
 		[][]uint64{{3, math.Float64bits(3.0)}})
-	err = svc.CreateShardArchive(context.Background(), "arch.pulse",
+	_, err = svc.CreateShardArchive(context.Background(), "arch.pulse",
 		[]string{good, filepath.Join(nestedDir, reserved)})
 	if !errors.HasCode(err, errors.PULSE_SHARD_RESERVED_NAME) {
 		t.Errorf("Create reserved (nested path): code = %v, want PULSE_SHARD_RESERVED_NAME", err)
@@ -95,11 +95,11 @@ func TestShardArchiveReservedName(t *testing.T) {
 
 	// AddShard against an existing archive must reject reserved basename
 	// too, surfacing the precheck before any archive read happens.
-	err = svc.CreateShardArchive(context.Background(), "arch.pulse", []string{good})
+	_, err = svc.CreateShardArchive(context.Background(), "arch.pulse", []string{good})
 	if err != nil {
 		t.Fatalf("seed Create: %v", err)
 	}
-	err = svc.AddShard(context.Background(), "arch.pulse", reserved)
+	_, err = svc.AddShard(context.Background(), "arch.pulse", reserved)
 	if !errors.HasCode(err, errors.PULSE_SHARD_RESERVED_NAME) {
 		t.Errorf("Add reserved: code = %v, want PULSE_SHARD_RESERVED_NAME", err)
 	}
@@ -126,7 +126,7 @@ func TestShardArchiveNameCollision(t *testing.T) {
 	adminWriteShardFile(t, fsys, pathA, schema, [][]uint64{{1, math.Float64bits(10.0)}})
 	adminWriteShardFile(t, fsys, pathB, schema, [][]uint64{{2, math.Float64bits(20.0)}})
 
-	err := svc.CreateShardArchive(context.Background(), "arch.pulse", []string{pathA, pathB})
+	_, err := svc.CreateShardArchive(context.Background(), "arch.pulse", []string{pathA, pathB})
 	if err == nil {
 		t.Fatal("CreateShardArchive duplicate basename: expected error")
 	}
@@ -137,10 +137,10 @@ func TestShardArchiveNameCollision(t *testing.T) {
 	// AddShard against an archive that already contains the basename.
 	// Seed the archive with shard.pulse, then attempt to add another
 	// file from a different directory but with the same basename.
-	if err := svc.CreateShardArchive(context.Background(), "arch.pulse", []string{pathA}); err != nil {
+	if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse", []string{pathA}); err != nil {
 		t.Fatalf("seed Create: %v", err)
 	}
-	err = svc.AddShard(context.Background(), "arch.pulse", pathB)
+	_, err = svc.AddShard(context.Background(), "arch.pulse", pathB)
 	if err == nil {
 		t.Fatal("AddShard duplicate basename: expected error")
 	}
@@ -162,7 +162,7 @@ func TestShardArchiveAnchorSyntax(t *testing.T) {
 	svc := New(cfg)
 
 	schema, shardA, shardB := adminTwoSimpleShards(t, fsys)
-	if err := svc.CreateShardArchive(context.Background(), "arch.pulse",
+	if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse",
 		[]string{shardA, shardB}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestShardArchiveAddCrashRecovery(t *testing.T) {
 		})
 
 		archive := filepath.Join(dir, "arch.pulse")
-		if err := svc.CreateShardArchive(context.Background(), archive,
+		if _, err := svc.CreateShardArchive(context.Background(), archive,
 			[]string{shardA}); err != nil {
 			t.Fatalf("CreateShardArchive: %v", err)
 		}
@@ -288,7 +288,7 @@ func TestShardArchiveAddCrashRecovery(t *testing.T) {
 		// AddShard should leave only `arch.pulse` plus the shard
 		// sources after success — no `*.pulse.tmp-*` files.
 		before := listDirNames(t, dir)
-		if err := svc.AddShard(context.Background(), archive, shardB); err != nil {
+		if _, err := svc.AddShard(context.Background(), archive, shardB); err != nil {
 			t.Fatalf("AddShard: %v", err)
 		}
 		after := listDirNames(t, dir)
@@ -328,7 +328,7 @@ func TestShardArchiveAddCrashRecovery(t *testing.T) {
 		}
 		svc := New(cfg)
 		archive := "arch.pulse"
-		if err := svc.CreateShardArchive(context.Background(), archive,
+		if _, err := svc.CreateShardArchive(context.Background(), archive,
 			[]string{shardA}); err != nil {
 			t.Fatalf("CreateShardArchive: %v", err)
 		}
@@ -351,7 +351,7 @@ func TestShardArchiveAddCrashRecovery(t *testing.T) {
 		}
 		failSvc := New(failCfg)
 
-		err = failSvc.AddShard(context.Background(), archive, shardB)
+		_, err = failSvc.AddShard(context.Background(), archive, shardB)
 		if err == nil {
 			t.Fatal("AddShard with failing Rename: expected error")
 		}
@@ -417,7 +417,7 @@ func TestShardArchiveCreateRoundTrip(t *testing.T) {
 
 	schema, shardA, shardB := adminTwoSimpleShards(t, fsys)
 	_ = schema
-	if err := svc.CreateShardArchive(context.Background(), "arch.pulse",
+	if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse",
 		[]string{shardA, shardB}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
@@ -450,7 +450,7 @@ func TestShardArchiveExtractRoundTrip(t *testing.T) {
 	svc := New(cfg)
 
 	_, shardA, shardB := adminTwoSimpleShards(t, fsys)
-	if err := svc.CreateShardArchive(context.Background(), "arch.pulse",
+	if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse",
 		[]string{shardA, shardB}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
@@ -489,7 +489,7 @@ func TestShardArchiveRemoveDropsShard(t *testing.T) {
 	svc := New(cfg)
 
 	_, shardA, shardB := adminTwoSimpleShards(t, fsys)
-	if err := svc.CreateShardArchive(context.Background(), "arch.pulse",
+	if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse",
 		[]string{shardA, shardB}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}

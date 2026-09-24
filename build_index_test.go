@@ -84,7 +84,7 @@ func TestBuildIndex_ShardArchiveRejected(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	if err := p.CreateShardArchive(context.Background(), "archive.pulse", []string{"shard1.pulse", "shard2.pulse"}); err != nil {
+	if _, err := p.CreateShardArchive(context.Background(), "archive.pulse", []string{"shard1.pulse", "shard2.pulse"}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 

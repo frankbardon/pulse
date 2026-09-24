@@ -8,6 +8,15 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// aggSetWordsOf is the expectation-side twin of setMaskComponentWords: it
+// builds the fixed four-word []uint64 the mask_union / mask_intersection
+// component keys carry, from a low-64-bit literal. Written independently
+// of the production helper so a change to the word order shows up as a
+// failing expectation rather than as two helpers agreeing on a new lie.
+func aggSetWordsOf(low uint64) []uint64 {
+	return []uint64{low, 0, 0, 0}
+}
+
 // runSetAggregateForComponents drives Aggregate over the supplied
 // records via the buffered path and returns the emitted operator-
 // specific map plus scalar. Mirrors runAggregateForComponents in
@@ -36,7 +45,7 @@ func runSetAggregateForComponents(t *testing.T, aggType types.AggregationType,
 // multi-row, single-row, and empty input. mask_union must be the
 // bitwise OR of every contributing row's set mask; popcount must match
 // the bit count; labels must be the dictionary-decoded slice (ascending
-// bit order, matches resolveMaskLabels semantics).
+// bit order, matches encoding.SetMask.Labels semantics).
 func TestMetaAggregator_SetUnion_Components(t *testing.T) {
 	schema := makeSetTestSchema(t)
 	tests := []struct {
@@ -51,7 +60,7 @@ func TestMetaAggregator_SetUnion_Components(t *testing.T) {
 				makeSetRecord(schema, 0b0110), // MC, AMEX
 			},
 			want: map[string]any{
-				"mask_union": uint64(0b0111),
+				"mask_union": aggSetWordsOf(0b0111),
 				"popcount":   3,
 				"labels":     []string{"VISA", "MC", "AMEX"},
 			},
@@ -60,7 +69,7 @@ func TestMetaAggregator_SetUnion_Components(t *testing.T) {
 			name: "singleRow",
 			recs: []*Record{makeSetRecord(schema, 0b1000)},
 			want: map[string]any{
-				"mask_union": uint64(0b1000),
+				"mask_union": aggSetWordsOf(0b1000),
 				"popcount":   1,
 				"labels":     []string{"DISC"},
 			},
@@ -69,7 +78,7 @@ func TestMetaAggregator_SetUnion_Components(t *testing.T) {
 			name: "empty",
 			recs: nil,
 			want: map[string]any{
-				"mask_union": uint64(0),
+				"mask_union": aggSetWordsOf(0),
 				"popcount":   0,
 				"labels":     []string{},
 			},
@@ -104,7 +113,7 @@ func TestMetaAggregator_SetIntersection_Components(t *testing.T) {
 				makeSetRecord(schema, 0b1011), // VISA, MC, DISC
 			},
 			want: map[string]any{
-				"mask_intersection": uint64(0b0011),
+				"mask_intersection": aggSetWordsOf(0b0011),
 				"popcount":          2,
 				"labels":            []string{"VISA", "MC"},
 			},
@@ -113,7 +122,7 @@ func TestMetaAggregator_SetIntersection_Components(t *testing.T) {
 			name: "singleRow",
 			recs: []*Record{makeSetRecord(schema, 0b0101)},
 			want: map[string]any{
-				"mask_intersection": uint64(0b0101),
+				"mask_intersection": aggSetWordsOf(0b0101),
 				"popcount":          2,
 				"labels":            []string{"VISA", "AMEX"},
 			},
@@ -126,7 +135,7 @@ func TestMetaAggregator_SetIntersection_Components(t *testing.T) {
 				makeSetRecord(schema, 0b1000),
 			},
 			want: map[string]any{
-				"mask_intersection": uint64(0),
+				"mask_intersection": aggSetWordsOf(0),
 				"popcount":          0,
 				"labels":            []string{},
 			},
@@ -135,7 +144,7 @@ func TestMetaAggregator_SetIntersection_Components(t *testing.T) {
 			name: "empty",
 			recs: nil,
 			want: map[string]any{
-				"mask_intersection": uint64(0),
+				"mask_intersection": aggSetWordsOf(0),
 				"popcount":          0,
 				"labels":            []string{},
 			},
@@ -328,7 +337,7 @@ func TestMetaAggregator_SetDistinctValues_Components(t *testing.T) {
 			},
 			// Union = 0b0011 | 0b0100 = 0b0111 → VISA, MC, AMEX
 			want: map[string]any{
-				"mask_union": uint64(0b0111),
+				"mask_union": aggSetWordsOf(0b0111),
 				"popcount":   3,
 				"labels":     []string{"VISA", "MC", "AMEX"},
 			},
@@ -337,7 +346,7 @@ func TestMetaAggregator_SetDistinctValues_Components(t *testing.T) {
 			name: "singleRow",
 			recs: []*Record{makeSetRecord(schema, 0b1001)},
 			want: map[string]any{
-				"mask_union": uint64(0b1001),
+				"mask_union": aggSetWordsOf(0b1001),
 				"popcount":   2,
 				"labels":     []string{"VISA", "DISC"},
 			},
@@ -346,7 +355,7 @@ func TestMetaAggregator_SetDistinctValues_Components(t *testing.T) {
 			name: "empty",
 			recs: nil,
 			want: map[string]any{
-				"mask_union": uint64(0),
+				"mask_union": aggSetWordsOf(0),
 				"popcount":   0,
 				"labels":     []string{},
 			},
@@ -404,9 +413,10 @@ func TestMetaAggregator_SetOps_InterfaceLock(t *testing.T) {
 // Components() reads post-finalize state safely even when the
 // dictionary holds entries beyond the mask width (e.g. 9 dictionary
 // entries on a set_u8 with the upper bits never observed). The
-// resolveMaskLabels helper clamps to min(dictLen, 64) so emission is
-// non-panicking regardless of dictionary shape; this is the runtime-
-// safety contract the story names.
+// encoding.SetMask.Labels walk is bounded by dict.Count() and skips a
+// bit past the dictionary tail, so emission is non-panicking regardless
+// of dictionary shape; this is the runtime-safety contract the story
+// names.
 func TestMetaAggregator_SetOps_DictWidthOverflowGuard(t *testing.T) {
 	// Build a schema where the dictionary holds 9 entries but the
 	// declared field type is set_u8 (8-bit max). The aggregator should

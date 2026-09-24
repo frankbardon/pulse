@@ -95,7 +95,13 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 			sub := buf[cursor : cursor+n]
 			cursor += n
 			rec.SetNumeric(field.Name, decodeFixed(field.Type, sub))
-			if field.Type.IsSet() {
+			if field.Type.IsWideSet() {
+				m, err := SetMaskFromBytes(field.Type, sub)
+				if err != nil {
+					return err
+				}
+				rec.SetWideField(field.Name, m)
+			} else if field.Type.IsSet() {
 				rec.SetWideField(field.Name, decodeSetMask(field.Type, sub))
 			}
 		}
@@ -142,7 +148,9 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 // Side effects match ReadRecordReused field-for-field:
 //   - null → SetNullField(name) + SetNumeric(name, 0);
 //   - decimal128 → SetNumeric(mean-ish scalar) + SetWideField(Decimal128);
-//   - set_* → SetNumeric(float64 echo) + SetWideField(uint64 mask).
+//   - set_u8..set_u64 → SetNumeric(float64 echo) + SetWideField(uint64
+//     mask); set_u128 / set_u256 → SetNumeric(low-64-bit echo) +
+//     SetWideField(SetMask).
 //
 // Unlike ReadRecordReused, this path does NOT read the whole record
 // stride: each DecodeFields group reads only its own on-wire bytes into
@@ -282,7 +290,13 @@ func (rr *RecordReader) decodeFieldGroupReused(rec ReusableRecord, keep FieldFil
 				continue
 			}
 			rec.SetNumeric(field.Name, decodeFixed(field.Type, sub))
-			if field.Type.IsSet() {
+			if field.Type.IsWideSet() {
+				m, err := SetMaskFromBytes(field.Type, sub)
+				if err != nil {
+					return err
+				}
+				rec.SetWideField(field.Name, m)
+			} else if field.Type.IsSet() {
 				rec.SetWideField(field.Name, decodeSetMask(field.Type, sub))
 			}
 		}
@@ -325,9 +339,17 @@ func (rr *RecordReader) decodeBitmapReused(rec ReusableRecord, keep FieldFilter)
 	return nil
 }
 
-// fixedWidthBytes returns the on-wire width of a fixed-size scalar
-// field type. Returns 0 for variable / bit-packed / 16-byte / unknown
-// types so callers can fall through to typed readers.
+// fixedWidthBytes returns the on-wire width of a field type the
+// buffer-once decoder can consume as one contiguous run of bytes.
+// Returns 0 for bit-packed, decimal128 and unknown types so callers
+// fall through to their own explicit case (decimal128) or raise
+// ENCODING_INVALID (unknown).
+//
+// The wide set rungs DO answer here (16 and 32 bytes): unlike
+// decimal128 they have no dedicated case in the caller's switch, and a
+// 0 would make a legal field type indistinguishable from an unknown
+// type byte. Their payload is still handed to SetMaskFromBytes rather
+// than decoded here — this function only sizes the run.
 func fixedWidthBytes(ft FieldType) int {
 	switch ft {
 	case FieldTypeU8, FieldTypeCategoricalU8, FieldTypeSetU8:
@@ -338,6 +360,10 @@ func fixedWidthBytes(ft FieldType) int {
 		return 4
 	case FieldTypeU64, FieldTypeF64, FieldTypeSetU64, FieldTypeDateTime:
 		return 8
+	case FieldTypeSetU128:
+		return 16
+	case FieldTypeSetU256:
+		return 32
 	default:
 		return 0
 	}
@@ -361,14 +387,25 @@ func decodeFixed(ft FieldType, buf []byte) float64 {
 		return float64(math.Float32frombits(binary.LittleEndian.Uint32(buf)))
 	case FieldTypeF64:
 		return math.Float64frombits(binary.LittleEndian.Uint64(buf))
+	case FieldTypeSetU128, FieldTypeSetU256:
+		// Wide sets echo their LOW 64 bits — words[0] is the low word and
+		// occupies the first 8 bytes of the payload, so this is exactly
+		// setMaskFloatEcho of the mask the wide map carries. Deliberately
+		// lossy; the SetMask in the wide map is authoritative.
+		return float64(binary.LittleEndian.Uint64(buf[:8]))
 	}
 	return 0
 }
 
-// decodeSetMask returns the full uint64 bitmask payload for a set-typed
-// field. Used to populate the wide map so consumers get bit-level
-// precision (the float64 echo in values map can lose high bits for
-// set_u64).
+// decodeSetMask returns the full uint64 bitmask payload for a NARROW
+// set-typed field (set_u8..set_u64). Used to populate the wide map so
+// consumers get bit-level precision (the float64 echo in values map can
+// lose high bits for set_u64).
+//
+// The wide rungs are absent on purpose: their mask does not fit a
+// uint64, so they route through SetMaskFromBytes and land in the wide
+// map as a SetMask. A wide rung reaching here would read as an empty
+// selection, so callers must branch on FieldType.IsWideSet() first.
 func decodeSetMask(ft FieldType, buf []byte) uint64 {
 	switch ft {
 	case FieldTypeSetU8:

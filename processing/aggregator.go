@@ -172,11 +172,20 @@ func sumDeviationPowers(vals []float64, m float64, wantM4 bool) (m2, m3, m4 floa
 }
 
 // countAggregator counts non-null values for a field. The streaming path
-// uses the n field; the buffered path ignores it (collectValues + len).
+// uses the n field; the buffered path ignores it (a presence walk + len).
 //
 // Components emission is floor-only — see MetaAggregator wiring below;
 // the scalar value IS the universal floor n, so no operator-specific
 // keys ride.
+//
+// AGG_COUNT accepts EVERY cohort field type, set columns included, so it
+// counts through FieldPresent rather than through the collectValues /
+// valueAggregator shortcut. A set field has no numeric value to collect
+// — NumericValue refuses it — and routing the count through a []float64
+// of "non-null numbers" would have reported 0 answered respondents for
+// a whole multi-select column while the universal floor beside it
+// reported the true n. That divergence is why countAggregator, like
+// nullCountAggregator, deliberately does NOT implement valueAggregator.
 type countAggregator struct {
 	n int64
 }
@@ -186,12 +195,13 @@ func newCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, e
 }
 
 func (a *countAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	vals := collectValues(records, field)
-	return a.aggregateValues(vals)
-}
-
-func (a *countAggregator) aggregateValues(vals []float64) (float64, error) {
-	return float64(len(vals)), nil
+	var n int64
+	for _, r := range records {
+		if FieldPresent(r, field) {
+			n++
+		}
+	}
+	return float64(n), nil
 }
 
 // sumAggregator sums non-null values. The sum field is the running
@@ -400,7 +410,10 @@ type frequencyAggregator struct {
 	frozenFinalized bool
 }
 
-func newFrequencyAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newFrequencyAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
+	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
+		return nil, err
+	}
 	return &frequencyAggregator{}, nil
 }
 
@@ -618,7 +631,10 @@ type modeAggregator struct {
 	frozenFinalized bool
 }
 
-func newModeAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newModeAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
+	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
+		return nil, err
+	}
 	return &modeAggregator{}, nil
 }
 
@@ -775,7 +791,10 @@ type distinctCountAggregator struct {
 	frozenFinalized   bool
 }
 
-func newDistinctCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
+func newDistinctCountAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
+	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
+		return nil, err
+	}
 	return &distinctCountAggregator{}, nil
 }
 
@@ -910,7 +929,7 @@ func newNullCountAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregato
 func (a *nullCountAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	var nNull int64
 	for _, r := range records {
-		if _, ok := r.NumericValue(field); !ok {
+		if !FieldPresent(r, field) {
 			nNull++
 		}
 	}

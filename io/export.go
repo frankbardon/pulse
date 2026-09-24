@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -21,6 +22,17 @@ import (
 const exportReadBufferSize = 64 << 10
 
 // Run executes the export job, converting a .pulse file to a tabular target.
+//
+// Total failure is an ERROR, not a zero-row report. If the cohort yields at
+// least one record and the target accepts none of them, Run returns a nil
+// report and a coded error (PULSE_EXPORT_ROW_ERROR, or the first row
+// error's own code when it carries one) whose details name the record
+// count, the failure count and the first failure. Partial failure is
+// unchanged: some rows out, some on ExportReport.RowErrors, nil error. An
+// empty cohort exports zero rows legitimately. See totalRowFailure.
+//
+// The CohortWriter arm does not participate: it replaces the row loop, so
+// it reports its own count and raises its own errors.
 func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	if j.FS == nil {
 		return nil, fmt.Errorf("ExportJob.FS is required")
@@ -61,6 +73,17 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	// follow-up — see ExportJob.Includes doc.
 	if saw, ok := j.Target.(SchemaAwareWriter); ok {
 		saw.SetPulseSchema(schema)
+	}
+
+	// Declare the export null convention to writers whose format has a
+	// native null channel: rows come from a cohort, so the per-record
+	// null bitmap is the authority, an untyped nil is the ONLY null
+	// cell and "" is an ordinary categorical value. ConvertJob makes no
+	// such call — its rows are source text where "" IS the null token —
+	// which is what keeps every convert byte-identical. See
+	// NullAwareWriter.
+	if naw, ok := j.Target.(NullAwareWriter); ok {
+		naw.SetExplicitNulls(true)
 	}
 
 	// Hand Response.Overlays to overlay-aware writers so the format-
@@ -171,6 +194,20 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 				continue
 			}
 
+			if f.Type.IsWideSet() {
+				// set_u128 / set_u256 masks do not fit the uint64
+				// value API — ReadFieldValue refuses them outright,
+				// which would end the export loop as if the file had
+				// ended and emit zero rows. Read the raw mask instead.
+				m, err := encoding.ReadSetMask(r, f.Type)
+				if err != nil {
+					hitEOF = true
+					break
+				}
+				values[i] = formatSetMask(m, f.Dictionary)
+				continue
+			}
+
 			raw, err := encoding.ReadFieldValue(r, f.Type)
 			if err != nil {
 				hitEOF = true
@@ -191,7 +228,17 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			}
 			for i, f := range schema.Fields {
 				if f.Nullable && encoding.BitmapIsNull(bitmap, i) {
-					values[i] = ""
+					// The null cell is an untyped nil, NOT "". A
+					// categorical dictionary can hold the empty string
+					// as a genuine value, so spelling a null "" here
+					// made "answered with a blank" and "did not
+					// answer" the same cell for every adapter
+					// downstream — the format distinguishes them and
+					// only this loop erased it. Adapters without a
+					// null channel (csv, tsv) already render nil as
+					// "", so their bytes are unchanged. See
+					// NullAwareWriter.
+					values[i] = nil
 				}
 			}
 		}
@@ -204,6 +251,16 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		}
 		exported++
 		row++
+	}
+
+	// A cohort that yielded rows none of which the target accepted is
+	// total failure, not an empty export. Arrow and Parquet set-column
+	// exports produced exactly this — RowsExported 0, one RowError per
+	// record, nil error — and every caller read it as success. An empty
+	// cohort still exports legitimately: it reaches here with rowsRead 0
+	// and no row errors. See totalRowFailure.
+	if failure := totalRowFailure("export", exported, row, rowErrors, errors.PULSE_EXPORT_ROW_ERROR); failure != nil {
+		return nil, failure
 	}
 
 	report := &ExportReport{
@@ -527,9 +584,46 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 		}
 		return strconv.FormatUint(raw, 10)
 
+	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16,
+		encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
+		// The narrow rungs carry their bitmask in the uint64 value API;
+		// lift it into the shared SetMask so all six rungs format
+		// through one code path. The external form of a set is a
+		// delimiter-joined token list at EVERY width — emitting the
+		// numeric mask instead re-imports as an opaque categorical.
+		return formatSetMask(encoding.SetMaskFromUint64(raw), dict)
+
 	default:
 		return strconv.FormatUint(raw, 10)
 	}
+}
+
+// formatSetMask renders a set membership mask as the canonical external
+// form: the selected dictionary labels joined by DefaultSetDelimiter, in
+// ascending BIT order (which is dictionary-index order, not the order
+// the tokens appeared in the source cell). An empty mask renders as
+// EmptySetCell — a bare delimiter, NOT the empty string: a present cell
+// with nothing selected is a different answer from an absent one, and
+// the export loop spells null "" from the per-record bitmap. Collapsing
+// the two here is what used to turn "ticked none of these" into
+// "skipped the question" on re-import.
+//
+// A dictionary-less set field cannot resolve any label, but it is still
+// a PRESENT cell, so it takes the empty-selection form for the same
+// reason rather than impersonating a null.
+//
+// Bits past the dictionary are skipped by SetMask.Labels rather than
+// resolved or treated as fatal: that is a corrupt or mid-remap payload,
+// and an export must not take the whole file down over one cell.
+func formatSetMask(m encoding.SetMask, dict *encoding.Dictionary) string {
+	if dict == nil {
+		return EmptySetCell
+	}
+	labels := m.Labels(dict)
+	if len(labels) == 0 {
+		return EmptySetCell
+	}
+	return strings.Join(labels, DefaultSetDelimiter)
 }
 
 // formatPackedValue formats bit-packed types.

@@ -49,16 +49,24 @@ func representativeFieldSpecs() map[string]FieldSpec {
 		"categorical_u32": cat("categorical_u32"),
 		"decimal128": {Name: "x", Type: "decimal128", Distribution: DistNormal,
 			Scale: 2, Params: map[string]any{"mean": 10.0, "std": 1.0}},
-		"set_u8":  set("set_u8"),
-		"set_u16": set("set_u16"),
-		"set_u32": set("set_u32"),
-		"set_u64": set("set_u64"),
+		"set_u8":   set("set_u8"),
+		"set_u16":  set("set_u16"),
+		"set_u32":  set("set_u32"),
+		"set_u64":  set("set_u64"),
+		"set_u128": set("set_u128"),
+		"set_u256": set("set_u256"),
 	}
 }
 
 // undeclarableFieldTypes names the encoding field types a Spec cannot
 // declare today, with the reason. datetime has no fieldTypeFromName case
 // (see skills/synthetic-data.md) so no spec reaches the writer with it.
+//
+// The wide set rungs USED to be listed here. They are declarable as of
+// E5-S1: fieldTypeFromName resolves the whole set family through
+// encoding.ParseFieldType, so a rung added to encoding becomes
+// declarable without an edit here and lands in the sentinel table via
+// representativeFieldSpecs above.
 var undeclarableFieldTypes = map[string]string{
 	"datetime": "fieldTypeFromName has no case for it",
 }
@@ -95,8 +103,8 @@ func declarableTypeNames(t *testing.T) []string {
 func TestSentinelFor_MatchesDrawnRowValueForEveryDeclarableType(t *testing.T) {
 	specs := representativeFieldSpecs()
 	names := declarableTypeNames(t)
-	if len(names) < 17 {
-		t.Fatalf("expected at least 17 declarable field types, got %d: %v", len(names), names)
+	if len(names) < 19 {
+		t.Fatalf("expected at least 19 declarable field types, got %d: %v", len(names), names)
 	}
 	for _, name := range names {
 		fs, ok := specs[name]

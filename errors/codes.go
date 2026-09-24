@@ -156,9 +156,10 @@ const (
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW Code = "PULSE_IMPORT_CATEGORICAL_OVERFLOW"
 
 	// PULSE_IMPORT_SET_OVERFLOW indicates the dictionary inferred for a
-	// set-typed column exceeds the largest available set width (64
-	// entries for set_u64). Surfaced by the importer when a multi-select
-	// column's observed vocabulary cannot fit any set tier.
+	// set-typed column exceeds the declared set width — or, at the top
+	// of the ladder, the largest available one (256 entries for
+	// set_u256). Surfaced by the importer when a multi-select column's
+	// observed vocabulary cannot fit the column's set tier.
 	PULSE_IMPORT_SET_OVERFLOW Code = "PULSE_IMPORT_SET_OVERFLOW"
 
 	// PULSE_IMPORT_CATEGORICAL_UNBOUNDED indicates sample suggests unbounded cardinality.
@@ -571,6 +572,15 @@ const (
 	// the canonical description in `_schema.pulse` wins for any
 	// downstream consumer.
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
+
+	// PULSE_SHARD_SET_WIDENED is emitted as a WARNING (not an error)
+	// when `pulse shard add` promotes a set_* field to a wider rung
+	// because the merged dictionary outgrew the declared bitmask.
+	// Widening re-lays-out EVERY record of EVERY shard in the archive,
+	// so it is expensive; the warning is mandatory rather than advisory
+	// precisely because an expensive whole-archive rewrite that happens
+	// silently is indistinguishable from a cheap append.
+	PULSE_SHARD_SET_WIDENED Code = "PULSE_SHARD_SET_WIDENED"
 
 	// PULSE_SHARD_RESERVED_NAME indicates a caller attempted to insert
 	// a shard whose basename collides with the reserved canonical
@@ -2425,6 +2435,7 @@ var allCodes = []Code{
 	PULSE_SHARD_DICT_DIVERGENCE,
 	PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
+	PULSE_SHARD_SET_WIDENED,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_CHAIN_NOT_MERGEABLE,

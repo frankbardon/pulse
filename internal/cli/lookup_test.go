@@ -306,7 +306,7 @@ func TestAPILookupCLI_ShardArchiveRejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newPulse: %v", err)
 	}
-	if err := p.CreateShardArchive(context.Background(), archive, []string{shard1, shard2}); err != nil {
+	if _, err := p.CreateShardArchive(context.Background(), archive, []string{shard1, shard2}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 

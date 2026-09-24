@@ -218,6 +218,15 @@
           "deterministic": true,
           "expensive": false
         }
+      },
+      {
+        "name": "widen",
+        "description": "Widen a set column of a single-file cohort to a wider set rung, rewriting the cohort in place (destructive, non-interactive, atomic)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
       }
     ],
     "operations": [
@@ -267,16 +276,14 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -325,15 +332,13 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -402,15 +407,13 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -471,18 +474,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -518,18 +519,10 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -570,15 +563,13 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -624,18 +615,10 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -679,15 +662,13 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -741,16 +722,14 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -784,16 +763,13 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -838,16 +814,14 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -888,18 +862,10 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -955,18 +921,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1002,16 +966,13 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1071,16 +1032,13 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1115,19 +1073,21 @@
         {
           "name": "AGG_RATIO",
           "category": "aggregator",
-          "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored. Denominator-zero yields NaN.",
+          "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored — the two summed fields come from Params. Denominator-zero yields NaN.",
           "params": [
             {
               "name": "numerator_field",
-              "type": "string",
+              "type": "field",
               "required": true,
-              "description": "Schema field summed as the numerator."
+              "description": "Schema field summed as the numerator. Read through the row's numeric channel, so a non-numeric field contributes its encoded value (a categorical contributes its dictionary code) rather than erroring.",
+              "field_filter": "any"
             },
             {
               "name": "denominator_field",
-              "type": "string",
+              "type": "field",
               "required": true,
-              "description": "Schema field summed as the denominator."
+              "description": "Schema field summed as the denominator. Same numeric-channel read as the numerator.",
+              "field_filter": "any"
             }
           ],
           "accepts_types": [
@@ -1139,21 +1099,20 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
+          "ignores_field": true,
           "emits_type_note": "scalar float64 (NaN when denominator sum == 0)",
           "streamable": true,
           "component_schema": {
@@ -1193,7 +1152,9 @@
           "description": "Average popcount per contributing row — typical number of selections.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1232,7 +1193,9 @@
           "description": "Sum of popcounts across contributing rows — total selections seen.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1266,7 +1229,9 @@
           "description": "Count of distinct exact mask values seen; each combination is atomic.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1287,8 +1252,8 @@
               },
               {
                 "name": "mask_union",
-                "type": "uint64",
-                "description": "Bitwise OR of every contributing row's set mask."
+                "type": "[]uint64",
+                "description": "Bitwise OR of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
               },
               {
                 "name": "popcount",
@@ -1310,7 +1275,9 @@
           "description": "Per-bit row count: how many rows had each set label selected.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1354,7 +1321,9 @@
           "description": "Bitwise-AND a set field across rows; returns the resolved labels for every bit set in every contributing row.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1375,8 +1344,8 @@
               },
               {
                 "name": "mask_intersection",
-                "type": "uint64",
-                "description": "Bitwise AND of every contributing row's set mask."
+                "type": "[]uint64",
+                "description": "Bitwise AND of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
               },
               {
                 "name": "popcount",
@@ -1398,7 +1367,9 @@
           "description": "Bitwise-OR a set field across rows; returns the resolved labels for every bit set in any contributing row.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -1419,8 +1390,8 @@
               },
               {
                 "name": "mask_union",
-                "type": "uint64",
-                "description": "Bitwise OR of every contributing row's set mask."
+                "type": "[]uint64",
+                "description": "Bitwise OR of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
               },
               {
                 "name": "popcount",
@@ -1443,15 +1414,13 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1496,23 +1465,22 @@
         {
           "name": "AGG_STDDEV",
           "category": "aggregator",
-          "description": "Population standard deviation via Welford's online algorithm.",
+          "description": "Population standard deviation via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1557,16 +1525,14 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1596,23 +1562,22 @@
         {
           "name": "AGG_VARIANCE",
           "category": "aggregator",
-          "description": "Population variance via Welford's online algorithm.",
+          "description": "Population variance via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
+            "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1659,15 +1624,13 @@
           ],
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1712,8 +1675,6 @@
           "accepts_types": [
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u8",
             "u16",
             "u32",
             "u64",
@@ -1764,15 +1725,13 @@
           "params": null,
           "accepts_types": [
             "date",
+            "datetime",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1861,18 +1820,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1892,11 +1849,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1916,11 +1871,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1941,11 +1894,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1965,11 +1916,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -1990,11 +1939,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2018,7 +1965,9 @@
             }
           ],
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2036,13 +1985,15 @@
           "description": "Per-row popcount of a set field — the number of selected labels.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
           ],
-          "emits_type": "u8",
-          "emits_type_note": "one small integer per record (0..set width)",
+          "emits_type": "u16",
+          "emits_type_note": "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -2057,11 +2008,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2081,11 +2030,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2144,18 +2091,10 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2196,18 +2135,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2248,18 +2185,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2300,18 +2235,10 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2352,18 +2279,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2397,14 +2322,12 @@
           "params": null,
           "accepts_types": [
             "date",
+            "decimal128",
             "f32",
             "f64",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2437,7 +2360,9 @@
           "description": "Keep records where the set field has every bit in the supplied Values labels set.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2471,7 +2396,9 @@
           "description": "Keep records where the set field shares at least one bit with the supplied Values labels.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2505,7 +2432,9 @@
           "description": "Keep records where the set field shares no bits with the supplied Values labels (null rows pass).",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2539,7 +2468,9 @@
           "description": "Keep records whose set field mask exactly matches the supplied Values labels.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -2581,18 +2512,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2624,7 +2553,7 @@
         {
           "name": "GROUP_CATEGORY",
           "category": "grouper",
-          "description": "Partition records by exact field value; ideal for categorical fields.",
+          "description": "Partition records by exact field value; ideal for categorical fields. Set columns are not partitionable by value here — use GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -2635,18 +2564,10 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
-            "set_u16",
-            "set_u32",
-            "set_u64",
-            "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2827,11 +2748,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2890,11 +2809,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -2972,11 +2889,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3019,7 +2934,9 @@
           "description": "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Implements MultiKeyStreamingGrouper.",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -3058,7 +2975,9 @@
           "description": "Partition rows by the exact set mask (one bucket per unique combination). Bucket key = sorted label list joined with \"|\".",
           "params": null,
           "accepts_types": [
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8"
@@ -3085,7 +3004,7 @@
               {
                 "name": "buckets",
                 "type": "[]bucket",
-                "description": "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, count, labels} plus exactly one of mask (uint64, when the selection fits 64 bits) or mask_words ([]uint64, little-endian low word first, when a set_u128/set_u256 selection reaches bit 64 or above). The two are mutually exclusive: a uint64 mask carrying only the low word of a wide selection would be a plausible wrong number."
               }
             ],
             "mergeability": "mergeable"
@@ -3110,11 +3029,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3139,18 +3056,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3177,11 +3092,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3215,11 +3128,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3253,11 +3164,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3277,11 +3186,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3309,11 +3216,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3338,18 +3243,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3374,18 +3277,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3405,11 +3306,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3429,11 +3328,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3468,11 +3365,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3523,11 +3418,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3570,11 +3463,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3594,11 +3485,9 @@
             "date",
             "f32",
             "f64",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -3676,18 +3565,16 @@
             "decimal128",
             "f32",
             "f64",
-            "nullable_bool",
-            "nullable_decimal128",
-            "nullable_u16",
-            "nullable_u4",
-            "nullable_u8",
             "packed_bool",
+            "set_u128",
             "set_u16",
+            "set_u256",
             "set_u32",
             "set_u64",
             "set_u8",
             "u16",
             "u32",
+            "u4",
             "u64",
             "u8"
           ],
@@ -4380,14 +4267,10 @@
           "decimal128",
           "f32",
           "f64",
-          "nullable_bool",
-          "nullable_decimal128",
-          "nullable_u16",
-          "nullable_u4",
-          "nullable_u8",
           "packed_bool",
           "u16",
           "u32",
+          "u4",
           "u64",
           "u8"
         ],
@@ -4523,14 +4406,10 @@
           "decimal128",
           "f32",
           "f64",
-          "nullable_bool",
-          "nullable_decimal128",
-          "nullable_u16",
-          "nullable_u4",
-          "nullable_u8",
           "packed_bool",
           "u16",
           "u32",
+          "u4",
           "u64",
           "u8"
         ],
@@ -4663,14 +4542,10 @@
           "decimal128",
           "f32",
           "f64",
-          "nullable_bool",
-          "nullable_decimal128",
-          "nullable_u16",
-          "nullable_u4",
-          "nullable_u8",
           "packed_bool",
           "u16",
           "u32",
+          "u4",
           "u64",
           "u8"
         ],
@@ -5115,7 +4990,7 @@
         ]
       }
     ],
-    "error_codes_count": 226,
+    "error_codes_count": 227,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5263,6 +5138,7 @@
       "PULSE_SHARD_NAME_COLLISION",
       "PULSE_SHARD_RESERVED_NAME",
       "PULSE_SHARD_SCHEMA_MISMATCH",
+      "PULSE_SHARD_SET_WIDENED",
       "PULSE_SPSS_CARDINALITY_HIGH",
       "PULSE_SPSS_CATEGORICAL_OVERFLOW",
       "PULSE_SPSS_CATEGORICAL_USER_MISSING",
@@ -5892,7 +5768,76 @@
       {
         "name": "u4",
         "categorical": false,
-        "sharded_capable": true
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
+          "AGG_COUNT",
+          "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
+          "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
+          "AGG_MODE",
+          "AGG_NULL_COUNT",
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_RATIO",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
+          "AGG_ZSCORE"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_NORMALIZED",
+          "ATTR_PERCENTILE",
+          "ATTR_REG_FITTED",
+          "ATTR_REG_LEVERAGE",
+          "ATTR_REG_RESIDUAL",
+          "ATTR_TSCORE",
+          "ATTR_ZSCORE"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXCLUDE",
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_INCLUDE",
+          "FILTER_NULL",
+          "FILTER_RANGE",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_QUANTILE",
+          "GROUP_RANGE",
+          "GROUP_ROUNDED"
+        ],
+        "compatible_windows": [
+          "WIN_DELTA",
+          "WIN_DENSE_RANK",
+          "WIN_EWMA",
+          "WIN_LAG",
+          "WIN_LEAD",
+          "WIN_MOVING_AVG",
+          "WIN_PCT_CHANGE",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER",
+          "WIN_RUNNING_AVG",
+          "WIN_RUNNING_SUM"
+        ],
+        "compatible_features": [
+          "FEAT_BUCKETIZE",
+          "FEAT_LOG",
+          "FEAT_POLY",
+          "FEAT_SQRT",
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       },
       {
         "name": "date",
@@ -6143,12 +6088,18 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AVERAGE",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_FREQUENCY",
+          "AGG_MAX",
+          "AGG_MIN",
           "AGG_MODE",
           "AGG_NULL_COUNT",
-          "AGG_RATIO"
+          "AGG_RATIO",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -6159,6 +6110,7 @@
           "FILTER_FALSE",
           "FILTER_INCLUDE",
           "FILTER_NULL",
+          "FILTER_RANGE",
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
@@ -6179,9 +6131,6 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_SET_CARDINALITY_AVG",
@@ -6197,10 +6146,8 @@
           "ATTR_SET_POPCOUNT"
         ],
         "compatible_filterers": [
-          "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
-          "FILTER_INCLUDE",
           "FILTER_NULL",
           "FILTER_SET_CONTAINS_ALL",
           "FILTER_SET_CONTAINS_ANY",
@@ -6209,7 +6156,6 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY",
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
@@ -6228,9 +6174,6 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_SET_CARDINALITY_AVG",
@@ -6246,10 +6189,8 @@
           "ATTR_SET_POPCOUNT"
         ],
         "compatible_filterers": [
-          "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
-          "FILTER_INCLUDE",
           "FILTER_NULL",
           "FILTER_SET_CONTAINS_ALL",
           "FILTER_SET_CONTAINS_ANY",
@@ -6258,7 +6199,6 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY",
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
@@ -6277,9 +6217,6 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_SET_CARDINALITY_AVG",
@@ -6295,10 +6232,8 @@
           "ATTR_SET_POPCOUNT"
         ],
         "compatible_filterers": [
-          "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
-          "FILTER_INCLUDE",
           "FILTER_NULL",
           "FILTER_SET_CONTAINS_ALL",
           "FILTER_SET_CONTAINS_ANY",
@@ -6307,7 +6242,6 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY",
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
@@ -6326,9 +6260,6 @@
         "sharded_capable": true,
         "compatible_aggregators": [
           "AGG_COUNT",
-          "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
-          "AGG_MODE",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_SET_CARDINALITY_AVG",
@@ -6344,10 +6275,8 @@
           "ATTR_SET_POPCOUNT"
         ],
         "compatible_filterers": [
-          "FILTER_EXCLUDE",
           "FILTER_EXPRESSION",
           "FILTER_FALSE",
-          "FILTER_INCLUDE",
           "FILTER_NULL",
           "FILTER_SET_CONTAINS_ALL",
           "FILTER_SET_CONTAINS_ANY",
@@ -6356,7 +6285,6 @@
           "FILTER_TRUE"
         ],
         "compatible_groupers": [
-          "GROUP_CATEGORY",
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
@@ -6374,12 +6302,28 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_CI_LOWER",
+          "AGG_CI_UPPER",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
+          "AGG_DISTINCT_SUM",
           "AGG_FREQUENCY",
+          "AGG_KURTOSIS",
+          "AGG_MAX",
+          "AGG_MEDIAN",
+          "AGG_MIN",
           "AGG_MODE",
           "AGG_NULL_COUNT",
-          "AGG_RATIO"
+          "AGG_PERCENTILE",
+          "AGG_RANGE",
+          "AGG_RATIO",
+          "AGG_SKEWNESS",
+          "AGG_STDDEV",
+          "AGG_SUM",
+          "AGG_VARIANCE",
+          "AGG_WEIGHTED_MEAN",
+          "AGG_ZSCORE"
         ],
         "compatible_attributes": [
           "ATTR_FORMULA"
@@ -6406,6 +6350,92 @@
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
+      },
+      {
+        "name": "set_u128",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO",
+          "AGG_SET_CARDINALITY_AVG",
+          "AGG_SET_CARDINALITY_SUM",
+          "AGG_SET_DISTINCT_VALUES",
+          "AGG_SET_FREQUENCY",
+          "AGG_SET_INTERSECTION",
+          "AGG_SET_UNION"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_SET_HAS",
+          "ATTR_SET_POPCOUNT"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_NULL",
+          "FILTER_SET_CONTAINS_ALL",
+          "FILTER_SET_CONTAINS_ANY",
+          "FILTER_SET_CONTAINS_NONE",
+          "FILTER_SET_EQUALS",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_SET_PER_ELEMENT",
+          "GROUP_SET_VALUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
+      },
+      {
+        "name": "set_u256",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_NULL_COUNT",
+          "AGG_RATIO",
+          "AGG_SET_CARDINALITY_AVG",
+          "AGG_SET_CARDINALITY_SUM",
+          "AGG_SET_DISTINCT_VALUES",
+          "AGG_SET_FREQUENCY",
+          "AGG_SET_INTERSECTION",
+          "AGG_SET_UNION"
+        ],
+        "compatible_attributes": [
+          "ATTR_FORMULA",
+          "ATTR_SET_HAS",
+          "ATTR_SET_POPCOUNT"
+        ],
+        "compatible_filterers": [
+          "FILTER_EXPRESSION",
+          "FILTER_FALSE",
+          "FILTER_NULL",
+          "FILTER_SET_CONTAINS_ALL",
+          "FILTER_SET_CONTAINS_ANY",
+          "FILTER_SET_CONTAINS_NONE",
+          "FILTER_SET_EQUALS",
+          "FILTER_TRUE"
+        ],
+        "compatible_groupers": [
+          "GROUP_SET_PER_ELEMENT",
+          "GROUP_SET_VALUE"
+        ],
+        "compatible_windows": [
+          "WIN_DENSE_RANK",
+          "WIN_RANK",
+          "WIN_ROW_NUMBER"
+        ],
+        "compatible_features": [
+          "FEAT_TRAIN_TEST_SPLIT"
+        ]
       }
     ],
     "skills": [
@@ -6419,7 +6449,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Field-type selection for .pulse cohorts — 18 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Field-type selection for .pulse cohorts — 20 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "compose-requests",
@@ -7282,8 +7312,16 @@
         "description": "1-bit boolean; bit-packed with adjacent packed_bool / u4 fields."
       },
       {
+        "name": "type-set-u128",
+        "description": "16-byte multi-select bitmask over an inline dictionary of up to 128 labels."
+      },
+      {
         "name": "type-set-u16",
         "description": "2-byte multi-select bitmask over an inline dictionary of up to 16 labels."
+      },
+      {
+        "name": "type-set-u256",
+        "description": "32-byte multi-select bitmask over an inline dictionary of up to 256 labels — the widest set rung."
       },
       {
         "name": "type-set-u32",
@@ -7520,7 +7558,8 @@
         "v1: inner join only — left/outer/anti return PULSE_JOIN_KIND_NOT_IMPLEMENTED.",
         "v1: no spill — the right (build) side is fully materialised in memory.",
         "v1: build side is always the spec.Right cohort; smaller-side detection arrives in a follow-up.",
-        "Per-OnPair type compatibility: identical types match, categorical_* match each other, the unsigned-int + float + date family is interchangeable. decimal128 keys reject cross-type comparisons.",
+        "Per-OnPair type compatibility: identical types match, categorical_* match each other, the unsigned-int + float + date family is interchangeable. decimal128 keys reject cross-type comparisons and compare on their exact 128-bit mantissa, never the float64 echo.",
+        "set_* columns cannot be a join key at any rung — PULSE_JOIN_TYPE_MISMATCH with details.reason=\"set_key\", even when both sides carry the identical rung. A multi-select bitmask has no unambiguous equality value; use a FILTER_SET_* membership predicate. Carrying a set column THROUGH a join is unaffected.",
         "Joined records flow through the standard processor pipeline (filter / attribute / group / aggregator)."
       ]
     },
@@ -8832,8 +8871,8 @@
             },
             {
               "name": "mask_union",
-              "type": "uint64",
-              "description": "Bitwise OR of every contributing row's set mask."
+              "type": "[]uint64",
+              "description": "Bitwise OR of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
             },
             {
               "name": "popcount",
@@ -8892,8 +8931,8 @@
             },
             {
               "name": "mask_intersection",
-              "type": "uint64",
-              "description": "Bitwise AND of every contributing row's set mask."
+              "type": "[]uint64",
+              "description": "Bitwise AND of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
             },
             {
               "name": "popcount",
@@ -8922,8 +8961,8 @@
             },
             {
               "name": "mask_union",
-              "type": "uint64",
-              "description": "Bitwise OR of every contributing row's set mask."
+              "type": "[]uint64",
+              "description": "Bitwise OR of every contributing row's set mask, as four little-endian 64-bit words (words[0] = bits 0-63). Fixed length at every set rung, so a 256-bit mask is carried whole and a consumer indexes words[bit/64] without knowing the column width."
             },
             {
               "name": "popcount",
@@ -9420,7 +9459,7 @@
             {
               "name": "buckets",
               "type": "[]bucket",
-              "description": "Per-bucket records, ordered by emission; each entry carries {key, mask, count, labels}."
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, count, labels} plus exactly one of mask (uint64, when the selection fits 64 bits) or mask_words ([]uint64, little-endian low word first, when a set_u128/set_u256 selection reaches bit 64 or above). The two are mutually exclusive: a uint64 mask carrying only the low word of a wide selection would be a plausible wrong number."
             }
           ],
           "mergeability": "mergeable"
@@ -9673,4 +9712,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c2d60c3477b2b8a394f15eca9f59c07c835e220472480a2b7807d3684f953094
+// golden-hash: 77fcbb24e55ea7bb8bb6f3510783f35ad5845c7846b7eb223715472e329a68af

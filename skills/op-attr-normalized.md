@@ -19,7 +19,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `nullable_*` |
+| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `u4` |
 | `Label` | required — new column name |
 
 ## Output
@@ -33,6 +33,7 @@ One `float64` per record in `[0, 1]`. Null source → null output.
 - Outlier-sensitive — one extreme value compresses the rest of the range. For robust scaling prefer `ATTR_PERCENTILE` (rank-based) or `ATTR_ZSCORE` (centered).
 - `decimal128` rejected.
 - Frequently used as a feature input for downstream `ATTR_FORMULA` or external ML — but no in-slot chaining; stage via Compose / ProcessChain.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise. Use `ATTR_SET_POPCOUNT` for set size or `ATTR_SET_HAS` for membership.
 
 ## See
 

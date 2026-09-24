@@ -31,10 +31,57 @@ const defaultSetInferenceMinPct = 30
 // cell inside CSV is unparseable through the CSV reader).
 var setInferenceDelimiterPriority = []string{"|", ";"}
 
+// The set-width ladder is encoding.SetLadder — narrowest rung first,
+// capacities read off FieldType.MaxSetEntries so the ladder and the
+// bitmask widths cannot drift apart. Inference reaches it through
+// SetTypeFor (io/set_width.go): it only ever produces a member of that
+// list, always the FIRST rung whose capacity holds the observed
+// vocabulary.
+//
+// The top of the ladder is the inference ceiling: a column with more
+// distinct tokens than set_u256 addresses (256) is NOT classified as a
+// set. The ceiling moved from 64 when set_u128 / set_u256 landed; it
+// did not disappear.
+//
+// It lives in encoding/ rather than here because the shard auto-widen
+// path has to choose the same rung and cannot import io. One table, two
+// readers — a second copy is the failure io/set_width.go's own doc
+// comment records.
+
 // DefaultSetDelimiter is the delimiter assumed by convertValue when no
 // per-column delimiter has been recorded (explicit-schema imports that
 // skipped the inference pass). Always |.
 const DefaultSetDelimiter = "|"
+
+// EmptySetCell is the external form of a PRESENT set_* cell with no
+// element selected — a bare DefaultSetDelimiter, carrying no token.
+//
+// A set column has three states, not two: some elements selected, NO
+// element selected, and null. The empty string cannot spell the middle
+// one, because isNullToken consumes it before any dictionary is
+// consulted; a cell that means "answered, ticked nothing" would
+// re-import as "never answered" and quietly shrink the denominator of
+// every rate computed over the column.
+//
+// One marker serves every adapter — flat text (csv / tsv / excel) and
+// JSON alike — so the convention is stated once and cannot drift
+// between formats. It survives a third-party round trip because it is
+// ordinary cell TEXT: unlike CSV's `,,` versus `,"",`, a spreadsheet or
+// a generic CSV writer has nothing to normalise away. The structured
+// adapters additionally carry the distinction natively (an Arrow or
+// Parquet LIST cell is null via its validity bit and empty via a
+// zero-length list; ndjson / jsonarray accept a JSON `[]`), and the
+// readers map those spellings back onto this marker so the shared
+// import path sees one form.
+//
+// It costs nothing at the other two states: a null cell is still "" and
+// a NON-EMPTY cell is still its delimiter-joined tokens, byte for byte.
+//
+// The composition that makes it work is documented on SchemaAwareReader
+// in io.go and must be kept: isNullToken does not recognise "|", and
+// splitSetTokens drops empty tokens, so "|" yields zero tokens — mask
+// 0, with no dictionary mutation.
+const EmptySetCell = DefaultSetDelimiter
 
 // InferenceWarning records a non-fatal observation during inference.
 type InferenceWarning struct {
@@ -266,8 +313,9 @@ func inferColumnTypeWithOpts(colName string, values []string, minPct int,
 
 	// Set inference: probe known delimiters in priority order. A
 	// classification fires when the delimiter appears in at least
-	// minPct% of cells AND post-split unique tokens fit in set_u64
-	// (≤64) AND average post-split cardinality > 1 (rules out
+	// minPct% of cells AND post-split unique tokens fit the widest
+	// set rung (≤maxSetInferenceTokens, i.e. set_u256's 256) AND
+	// average post-split cardinality > 1 (rules out
 	// "occasional pipe in a categorical string" misclassifications).
 	if ft, delim, ok := probeSetClassification(nonNullValues, minPct); ok {
 		return ft, hasNulls, delim, nil, nil
@@ -363,23 +411,41 @@ func probeSetClassification(values []string, minPct int) (encoding.FieldType, st
 		}
 		uniq := map[string]struct{}{}
 		totalTokens := 0
+		// Cells that yield no token at all are EMPTY SELECTIONS
+		// (EmptySetCell), not evidence against setness — they are the
+		// convention's own spelling of "answered, ticked nothing" and
+		// they only reach inference because export stopped writing them
+		// as nulls. Counting them in the average-cardinality denominator
+		// below would sink a column of mostly-unanswered multi-selects
+		// into a categorical of literal "|" strings.
+		tokenBearing := 0
 		for _, v := range values {
 			toks := splitSetTokens(v, delim)
 			totalTokens += len(toks)
+			if len(toks) > 0 {
+				tokenBearing++
+			}
 			for _, t := range toks {
 				uniq[t] = struct{}{}
 			}
 		}
-		if len(uniq) == 0 || len(uniq) > 64 {
+		// One gate, one source of truth: the column is a set iff the
+		// ladder has a rung that holds the observed vocabulary. A
+		// separately-coded numeric ceiling here could drift from
+		// the shared ladder and classify a column as a set that setWidth then
+		// types as a categorical — with a delimiter recorded for it.
+		ft := setWidth(len(uniq))
+		if len(uniq) == 0 || !ft.IsSet() {
 			continue
 		}
 		// Average post-split cardinality must exceed 1, ruling out
 		// columns that only occasionally carry a delimiter inside a
-		// free-text categorical string.
-		if float64(totalTokens)/float64(len(values)) <= 1.0 {
+		// free-text categorical string. Averaged over the cells that
+		// carry a token; see tokenBearing above.
+		if tokenBearing == 0 || float64(totalTokens)/float64(tokenBearing) <= 1.0 {
 			continue
 		}
-		return setWidth(len(uniq)), delim, true
+		return ft, delim, true
 	}
 	return 0, "", false
 }
@@ -404,21 +470,26 @@ func splitSetTokens(raw, delim string) []string {
 	return out
 }
 
-// setWidth selects the smallest set_* width that fits unique tokens.
-// Mirrors categoricalWidth in spirit; cardinality > 64 falls back to
-// categorical (caller-side probe filters this case before invocation).
+// setWidth returns the smallest set_* rung that fits unique tokens, or
+// a NON-set type when the vocabulary is past the ceiling — which is how
+// probeSetClassification detects it (it tests IsSet on the result rather
+// than re-deriving the number). Mirrors categoricalWidth in spirit.
+//
+// The rung itself comes from SetTypeFor, the exported ladder, so
+// inference and the SPSS multiple-response importer cannot disagree
+// about how wide a set of N elements is.
+//
+// The smallest fitting rung is chosen, so a 206-token column lands on
+// set_u256 and spends 32 bytes a record to carry 206 bits. That waste
+// is deliberate: the alternative is demoting a multi-select column to a
+// categorical, which collapses every cell into one opaque joined
+// string.
 func setWidth(unique int) encoding.FieldType {
-	switch {
-	case unique <= 8:
-		return encoding.FieldTypeSetU8
-	case unique <= 16:
-		return encoding.FieldTypeSetU16
-	case unique <= 32:
-		return encoding.FieldTypeSetU32
-	case unique <= 64:
-		return encoding.FieldTypeSetU64
+	if ft, ok := SetTypeFor(unique); ok {
+		return ft
 	}
-	// Caller already gated; reaching here is a programming bug.
+	// Past the ceiling (or nothing to hold). The caller falls back to
+	// categorical.
 	return encoding.FieldTypeCategoricalU8
 }
 

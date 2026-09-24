@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"math/bits"
 
 	"github.com/frankbardon/pulse/errors"
 )
@@ -165,6 +164,25 @@ func applyRemap(rec []byte, e rewriteEntry) error {
 			return err
 		}
 		binary.LittleEndian.PutUint64(rec[e.offset:e.offset+8], newMask)
+	case FieldTypeSetU128, FieldTypeSetU256:
+		// The wide rungs cannot round-trip through a uint64: a bit above
+		// 63 would be dropped by the read and never written back, which
+		// produces a record that still parses and has silently lost a
+		// selection. They go through the SetMask wire API instead, which
+		// is the only statement of the normative word order.
+		width := e.ftype.ByteSize()
+		slot := rec[e.offset : e.offset+width]
+		old, err := SetMaskFromBytes(e.ftype, slot)
+		if err != nil {
+			return err
+		}
+		newMask, err := remapSetMaskWide(old, e.remap, e.ftype.MaxSetEntries())
+		if err != nil {
+			return err
+		}
+		if err := PutSetMask(slot, e.ftype, newMask); err != nil {
+			return err
+		}
 	default:
 		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
 			"shard rewrite: non-dictionary field in remap plan",
@@ -173,28 +191,48 @@ func applyRemap(rec []byte, e rewriteEntry) error {
 	return nil
 }
 
-// remapSetMask rewrites a set field's bitmask under a dict remap. For
-// every set bit i, the new mask has bit remap[i] set (or bit i when no
-// remap entry exists). width is the field type's bit capacity and
-// gates the new bit position so a remap that promotes a value past the
-// declared width surfaces as PULSE_SHARD_DICT_WIDTH_OVERFLOW — the
-// dict-union path already enforces this at the schema level, but the
-// rewrite stays defensive against a corrupted remap.
+// remapSetMask rewrites a NARROW set field's bitmask (set_u8..set_u64,
+// all of which store their mask in a uint64) under a dict remap. It is
+// a thin adapter over remapSetMaskWide so the bit arithmetic has ONE
+// implementation: a narrow rung's width is <= 64, so every surviving bit
+// is below 64 by the time the overflow check has passed and the low word
+// is the whole answer.
 func remapSetMask(mask uint64, remap DictRemap, width uint32) (uint64, error) {
-	var out uint64
-	for mask != 0 {
-		i := uint32(bits.TrailingZeros64(mask))
+	out, err := remapSetMaskWide(SetMaskFromUint64(mask), remap, width)
+	if err != nil {
+		return 0, err
+	}
+	low, _ := out.Uint64()
+	return low, nil
+}
+
+// remapSetMaskWide rewrites a set field's bitmask under a dict remap.
+// For every set bit i, the new mask has bit remap[i] set (or bit i when
+// no remap entry exists). width is the field type's bit capacity
+// (FieldType.MaxSetEntries) and gates the new bit position so a remap
+// that promotes a value past the declared width surfaces as
+// PULSE_SHARD_DICT_WIDTH_OVERFLOW — the dict-union path already enforces
+// this at the schema level, but the rewrite stays defensive against a
+// corrupted remap.
+//
+// Bits move independently and in both directions across the 64-bit word
+// boundaries, so this walks the whole mask rather than one word: a
+// canonical dictionary that reorders an entry from index 1 to index 70
+// moves that record's bit from words[0] into words[1].
+func remapSetMaskWide(mask SetMask, remap DictRemap, width uint32) (SetMask, error) {
+	var out SetMask
+	for bit, ok := mask.NextBit(0); ok; bit, ok = mask.NextBit(bit + 1) {
+		i := uint32(bit)
 		newBit := i
 		if v, ok := remap[i]; ok {
 			newBit = v
 		}
 		if newBit >= width {
-			return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
+			return SetMask{}, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 				"shard rewrite: remapped set bit position exceeds field width",
 				map[string]any{"width": width, "new_bit": newBit, "old_bit": i})
 		}
-		out |= uint64(1) << newBit
-		mask &= mask - 1
+		out = out.WithBit(int(newBit))
 	}
 	return out, nil
 }

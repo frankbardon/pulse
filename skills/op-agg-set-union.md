@@ -17,7 +17,7 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | `set_u8`, `set_u16`, `set_u32`, `set_u64` |
+| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256` |
 
 Non-set fields rejected at construction time.
 
@@ -31,7 +31,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 | Key | Type | Notes |
 |---|---|---|
-| `mask_union` | uint64 | Bitwise OR across contributing rows |
+| `mask_union` | `[]uint64` | Bitwise OR across contributing rows; 4 little-endian words, `words[0]` = bits 0-63 |
 | `popcount` | int | Bits set in `mask_union` |
 | `labels` | `[]string` | Resolved dictionary labels |
 

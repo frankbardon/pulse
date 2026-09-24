@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,34 +9,55 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/fs"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
 )
 
-// E2-S4 — set-width breadth for the fan-out equivalence harness.
+// Set-width breadth for the fan-out equivalence harness.
 //
-// The E2-S3 service test (crosstab_fused_fanout_test.go) drives one
-// real cohort carrying a set_u8 field. Width matters at the DECODE
-// boundary, not inside processing: processing.Record.SetValue hands the
-// grouper a uint64 mask whatever the on-wire width was, so a
-// processing-level table over the four widths would be vacuous. These
-// cases therefore go through a real .pulse file per width, with a
-// selected bit ABOVE the previous width's ceiling so a truncating
-// decode (mask read as the wrong integer size) drops a label the
-// buffered path keeps.
+// crosstab_fused_fanout_test.go drives one real cohort carrying a
+// set_u8 field; these cases run the same crosstab at every registered
+// set rung through a real .pulse file, selecting a bit ABOVE the
+// previous rung's ceiling so a truncating decode (a mask read at the
+// wrong width) drops a label the buffered path keeps.
+//
+// This used to be justified by "width matters only at the decode
+// boundary, because processing.Record.SetValue hands the grouper a
+// uint64 whatever the on-wire width was". Both halves of that are now
+// false. SetValue is gone — processing.Record.SetMaskValue is the one
+// set accessor and it returns an encoding.SetMask — and the wide rungs
+// (set_u128, set_u256) carry a genuinely different in-memory shape on
+// the Record than the narrow ones, whose uint64 storage is unchanged.
+// So a processing-level width table is NOT vacuous any more and it does
+// exist: processing/grouper_set_wide_test.go
+// (TestGroupSetWide_NarrowRungsAreUnchanged) runs the group-key
+// derivation across all six rungs with no file in sight. The two tables
+// answer different questions and both are needed — that one asks
+// whether the KEY covers every word, this one asks whether the bytes
+// survive the round trip.
 
-// setWidthLabels builds n synthetic dictionary labels, L00..L(n-1).
+// setWidthLabels builds n synthetic dictionary labels, L000..L(n-1).
+// Zero-padded to three digits so the dictionary stays readable past 64
+// members and so lexicographic order tracks bit order.
 func setWidthLabels(n int) []string {
 	out := make([]string, 0, n)
 	for i := 0; i < n; i++ {
-		out = append(out, fmt.Sprintf("L%02d", i))
+		out = append(out, setWidthLabel(i))
 	}
 	return out
 }
 
+// setWidthLabel is the dictionary label for bit i.
+func setWidthLabel(i int) string { return fmt.Sprintf("L%03d", i) }
+
 // setWidthSchema is the setFanoutSchema shape with the set field's
 // width and dictionary size parameterised: region (categorical_u8),
 // tags (set_uN over labelCount labels), value (f64).
+//
+// labelCount is deliberately allowed past 64: a set_u128 / set_u256
+// dictionary is exactly the case the narrow rungs cannot express.
 func setWidthSchema(t *testing.T, setType encoding.FieldType, labelCount int) *encoding.Schema {
 	t.Helper()
 	regionDict := encoding.NewDictionary()
@@ -63,11 +85,70 @@ func setWidthSchema(t *testing.T, setType encoding.FieldType, labelCount int) *e
 	}
 }
 
+// writeWideSetPulseFile writes a complete .pulse file whose records are
+// described as []any per field: a uint64 for every type the uint64 value
+// API accepts, and an encoding.SetMask for the wide set rungs, which
+// encoding.WriteFieldValue refuses outright rather than persisting a
+// truncated low word.
+func writeWideSetPulseFile(t *testing.T, schema *encoding.Schema, records [][]any) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatalf("WriteHeader: %v", err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatalf("WriteSchema: %v", err)
+	}
+	for ri, rec := range records {
+		for fi, field := range schema.Fields {
+			switch v := rec[fi].(type) {
+			case encoding.SetMask:
+				if err := encoding.WriteSetMask(&buf, field.Type, v); err != nil {
+					t.Fatalf("WriteSetMask record[%d] field[%d]: %v", ri, fi, err)
+				}
+			case uint64:
+				if err := encoding.WriteFieldValue(&buf, field.Type, v); err != nil {
+					t.Fatalf("WriteFieldValue record[%d] field[%d]: %v", ri, fi, err)
+				}
+			default:
+				t.Fatalf("record[%d] field[%d]: unsupported value type %T", ri, fi, rec[fi])
+			}
+		}
+	}
+	return buf.Bytes()
+}
+
+// setupWideSetTestFS is setupTestFS with the wide-capable record writer.
+func setupWideSetTestFS(t *testing.T, path string, schema *encoding.Schema, records [][]any) *fs.Config {
+	t.Helper()
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), path, writeWideSetPulseFile(t, schema, records), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	return cfg
+}
+
+// setWidthMaskValue renders a mask for the rung under test in the shape
+// writeWideSetPulseFile wants: a uint64 for the narrow rungs (their
+// storage is unchanged) and an encoding.SetMask for the wide ones.
+func setWidthMaskValue(ft encoding.FieldType, bits ...int) any {
+	var m encoding.SetMask
+	for _, b := range bits {
+		m = m.WithBit(b)
+	}
+	if ft.IsWideSet() {
+		return m
+	}
+	low, _ := m.Uint64()
+	return low
+}
+
 // TestCrosstabFused_SetWidthFanOutMatchesBuffered runs the fan-out
 // crosstab over a real cohort at every set width. Each width selects a
 // bit that only exists at that width (bit 11 for u16, bit 19 for u32,
-// bit 39 for u64), so a decode that truncates the mask to a narrower
-// integer loses that label on the fused path only.
+// bit 39 for u64, bit 100 for u128, bit 200 for u256), so a decode that
+// truncates the mask to a narrower integer loses that label on the
+// fused path only.
 func TestCrosstabFused_SetWidthFanOutMatchesBuffered(t *testing.T) {
 	cases := []struct {
 		name string
@@ -81,25 +162,27 @@ func TestCrosstabFused_SetWidthFanOutMatchesBuffered(t *testing.T) {
 		{name: "set_u16", typ: encoding.FieldTypeSetU16, labels: 12, highBit: 11},
 		{name: "set_u32", typ: encoding.FieldTypeSetU32, labels: 20, highBit: 19},
 		{name: "set_u64", typ: encoding.FieldTypeSetU64, labels: 40, highBit: 39},
+		{name: "set_u128", typ: encoding.FieldTypeSetU128, labels: 110, highBit: 100},
+		{name: "set_u256", typ: encoding.FieldTypeSetU256, labels: 206, highBit: 200},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			schema := setWidthSchema(t, tc.typ, tc.labels)
-			high := uint64(1) << tc.highBit
-			records := [][]uint64{
+			mask := func(bits ...int) any { return setWidthMaskValue(tc.typ, bits...) }
+			records := [][]any{
 				// north: bits 0+1 plus the width's top bit -> 3 labels.
-				{0, 0b11 | high, math.Float64bits(10)},
+				{uint64(0), mask(0, 1, tc.highBit), uint64(math.Float64bits(10))},
 				// north: bit 0 alone.
-				{0, 0b1, math.Float64bits(20)},
+				{uint64(0), mask(0), uint64(math.Float64bits(20))},
 				// south: bit 1 plus the top bit.
-				{1, 0b10 | high, math.Float64bits(30)},
+				{uint64(1), mask(1, tc.highBit), uint64(math.Float64bits(30))},
 				// south: empty mask — a valid "no selection".
-				{1, 0, math.Float64bits(40)},
+				{uint64(1), mask(), uint64(math.Float64bits(40))},
 				// south: the top bit alone.
-				{1, high, math.Float64bits(50)},
+				{uint64(1), mask(tc.highBit), uint64(math.Float64bits(50))},
 			}
-			cfg := setupTestFS(t, "widths.pulse", schema, records)
+			cfg := setupWideSetTestFS(t, "widths.pulse", schema, records)
 			ctx := context.Background()
 
 			buildReq := func() *types.Request {
@@ -141,7 +224,7 @@ func TestCrosstabFused_SetWidthFanOutMatchesBuffered(t *testing.T) {
 			if m == nil {
 				t.Fatal("fused response missing Matrix payload")
 			}
-			highLabel := fmt.Sprintf("L%02d", tc.highBit)
+			highLabel := setWidthLabel(tc.highBit)
 			idx := -1
 			for i, rk := range m.RowKeys {
 				if s, _ := rk[0].(string); s == highLabel {

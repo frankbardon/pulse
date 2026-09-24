@@ -22,7 +22,7 @@ import (
 // float64 precision on well-conditioned inputs.
 
 func (a *countAggregator) UpdateRow(r *Record, field string) error {
-	if _, ok := r.NumericValue(field); ok {
+	if FieldPresent(r, field) {
 		a.n++
 	}
 	return nil
@@ -416,7 +416,7 @@ func (a *modeAggregator) Finalize() (float64, error) {
 }
 
 func (a *nullCountAggregator) UpdateRow(r *Record, field string) error {
-	if _, ok := r.NumericValue(field); !ok {
+	if !FieldPresent(r, field) {
 		a.nNull++
 	}
 	return nil

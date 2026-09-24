@@ -33,12 +33,32 @@ If the reader needs schema inference (header sample, then full
 import), also implement `io.ResetReader.Reset()` so the import job
 can rewind after sampling.
 
+### Headerless formats: the first record is still a record
+
+Some formats carry no header line at all — NDJSON and a top-level JSON
+array both derive their column names from the keys of the **first
+object**. That object is a RECORD as well as a column declaration, so
+`ReadHeader` must buffer it and `ReadRows` must replay it as row one.
+
+Getting this wrong is invisible: no error, no warning, every import
+one row short and a single-record file importing nothing. `io/ndjson`
+and `io/jsonarray` both keep the decoded first object in a `pending`
+field and emit it before resuming the scan; copy that shape.
+
+Only the first object's KEYS define the column set. Replaying the
+record does not widen the columns, and a key that first appears in a
+later object is still not a column.
+
 ## 2. Tests
 
 Add `io/<format>/<format>_test.go` with the standard round-trip
 checks: write rows, read them back, verify equality. Hermetic tests
 should use `afero.NewMemMapFs()` — see [Testing
 Conventions](../contributing/testing.md).
+
+For a headerless format, assert the record COUNT on a one-record and a
+many-record source, and assert the first record's VALUES — a count
+alone passes on a reader that drops record one and duplicates another.
 
 ## 3. Register and wire it up
 
@@ -105,6 +125,158 @@ If the new format has a native type system (Arrow / Parquet do, CSV
 does not), share the type map with neighbouring formats via the
 `io/arrow` package the way Parquet already does. CSV / TSV / NDJSON
 / JSON-array share `io/jsonshared` for value coercion.
+
+### The external form of a `set_*` cell
+
+A set column's *external* form is its selected **labels**, never the
+bitmask. `ExportJob.Run` hands a Writer one string per set cell:
+the selected dictionary labels joined with `pio.DefaultSetDelimiter`
+(`"|"`), in ascending **bit** order — which is dictionary-index
+order, not the order the tokens appeared in the source. This is the
+exact inverse of the import obligation above, which is what makes a
+set column survive `cohort → format → cohort`.
+
+#### The three states, and the one marker that carries them
+
+A set cell is not two-valued. It has **null** (no answer), an
+**empty mask** (answered, selected nothing) and a selection, and all
+three are distinct inside the cohort: null rides the per-record null
+bitmap, an empty mask is a real zero-width selection. For survey
+data the middle state is load-bearing — "ticked none of these" and
+"skipped the question" give different denominators — so an adapter
+that collapses them corrupts an analysis without failing anything.
+
+The external forms, identical at every rung from `set_u8` to
+`set_u256`:
+
+| State | Flat text (`csv` / `tsv` / `excel`) | JSON (`ndjson` / `jsonarray`) | `arrow` / `parquet` |
+|---|---|---|---|
+| null | `""` (any `isNullToken` spelling) | `null` | validity bit clear |
+| empty mask | `pio.EmptySetCell` — a bare `"|"`, no token | `"|"` on write, `[]` also accepted on read | zero-length `LIST<UTF8>` |
+| selection | `A|B` | `"A|B"` | `["A","B"]` |
+
+`pio.EmptySetCell` is one marker for every format, so the convention
+cannot drift between adapters, and it survives a round trip through a
+third-party tool because it is ordinary cell **text**: unlike CSV's
+`,,` versus `,"",`, a spreadsheet or a generic CSV writer has nothing
+to normalise away. It costs nothing at the other two states — a null
+cell is still `""` and a **non-empty** cell is still its joined
+tokens, byte for byte.
+
+It works by the composition of two documented behaviours in the
+shared import path, and **both are part of the contract**:
+`isNullToken` recognises exactly `""`, `na`, `n/a` and `null`, so
+`"|"` reaches value conversion instead of being read as null; and
+`splitSetTokens` trims each part and drops the empty ones, so `"|"`
+yields zero tokens — mask 0, with no dictionary mutation. Widening
+the null-token set to cover a lone delimiter, or making
+`splitSetTokens` retain empty tokens, re-collapses the two states
+SILENTLY: both spellings keep importing and only the meaning changes.
+
+**Implementer obligations.**
+
+- A Writer that stringifies (`csv`, `tsv`, `excel`, and the JSON
+  adapters via `jsonshared.CoerceValue`) needs no set-specific code:
+  the marker is already in the string `ExportJob.Run` hands over.
+- A Writer with a native list type MUST route set cells through
+  `parrow.AppendSetList` (or reproduce it): `nil` and `""` are the
+  **null** cell and take the validity bit; anything else opens a
+  list, empty for the marker. Reading `""` as an empty list is the
+  bug this replaced.
+- A Reader with a native list type must render a present zero-length
+  list as `pio.EmptySetCell`, not `""` — `""` is a null token and the
+  null cell already has its own channel one level up. `io/arrow`'s
+  `formatStringListSlice` is the reference.
+- A Reader over JSON must map `[]` to the marker
+  (`jsonshared.ValueToString`), so a producer that does not know the
+  convention and simply emits `[]` still imports as an empty
+  selection.
+
+The matrix that pins all of this for every adapter at a narrow rung
+and a wide rung is `io/settristate/`.
+
+`categorical_*` has the same empty-string-vs-null collapse and it
+does have a real out-of-band null channel now — see "The categorical
+null cell" below. The two mechanisms do not overlap: a set cell's
+present-but-empty state stays on the `pio.EmptySetCell` marker at
+every adapter, including the four with a null channel.
+
+**The form is width-agnostic.** Every rung from `set_u8` to
+`set_u256` externalizes identically; a 206-label cell is simply a
+longer token list. A Writer therefore never branches on the rung —
+but it MUST branch on `Type.IsSet()` if its native type for a set is
+a list (`io/arrow`'s `LIST<UTF8>`), because the joined string has to
+be split back into elements before it reaches a list builder.
+Handing the joined string to a list builder's generic
+`AppendValueFromString` makes it parse as JSON, fail on every row,
+and produce an export that reports success having written no rows.
+
+On the decode side the wide rungs (`set_u128` / `set_u256`) do not
+fit the `uint64` value API at all: `encoding.ReadFieldValue` refuses
+them with `ENCODING_TYPE_MISMATCH`, so the export loop reads them
+with `encoding.ReadSetMask` instead. A format that walks cohort
+bytes itself (`io.CohortWriter`, below) has to make the same split —
+branch on `FieldType.IsWideSet()`.
+
+### The categorical null cell: `io.NullAwareWriter` / `io.NullAwareReader`
+
+`categorical_*` has the same two-states-that-look-alike problem and it
+cannot be solved the same way. A set's `"|"` marker works because no
+legal selection can spell it; **any** text is a legal categorical
+value, so every candidate sentinel makes some real value
+unrepresentable — a worse bug than the one it would fix. The `.pulse`
+format already keeps the pair apart (null rides the bitmap, `""` is an
+ordinary dictionary entry), so the distinction has to ride **out of
+band**, beside the cell rather than inside it.
+
+| State | export row (`[]any`) | JSON | `arrow` / `parquet` | flat text |
+|---|---|---|---|---|
+| value | `"red"` | `"red"` | `"red"` | `red` |
+| empty-string value | `""` | `""` | present `""` | *(collapses)* |
+| null | `nil` | `null` | validity bit clear | *(collapses)* |
+
+**Write side.** `ExportJob.Run` spells a bitmap-null cell as an
+untyped **`nil`** and an empty-string value as `""`, then declares the
+convention with `io.NullAwareWriter.SetExplicitNulls(true)`.
+`ConvertJob` never makes that call, because its rows are source TEXT
+in which `""` *is* the null token `isNullToken` recognises — so a
+writer's null policy follows the caller's provenance, never the cell's
+spelling. Use `pio.IsNullCell(v, explicit)` rather than testing the
+flag by hand. A Writer that ignores the interface entirely keeps the
+text convention and is unaffected; `io/csv` and `io/tsv` already
+render `nil` as `""`, so their bytes did not move.
+
+**Read side.** `Reader.ReadRows` yields `[]string`, which has no null
+channel at all — a JSON null, an Arrow validity bit and an empty JSON
+string all arrive as `""`. A source whose format HAS the channel
+implements `io.NullAwareReader.RowNulls() []bool`, valid for the row
+currently in the callback, and `ImportJob` believes it over the text:
+a declared null is null whatever the text says, and a cell the source
+declares PRESENT keeps `""` as a value **only** where the type can
+hold it — a dictionary-bearing non-set type, and nothing else. `""`
+in a `u32` or a `date` column is still a null, because reading it as a
+value would turn a recoverable null into a per-row import error.
+`set_*` is excluded on purpose: its present-but-empty state already
+has the `pio.EmptySetCell` spelling and must behave identically on
+every adapter.
+
+**The adapter matrix, gaps included.**
+
+| Adapter | Carries null vs `""` | How |
+|---|---|---|
+| `ndjson`, `jsonarray` | yes | JSON `null` vs `""`, via `jsonshared.CoerceValueExplicitNull` on write and key-presence on read |
+| `arrow`, `parquet` | yes | `AppendNull` vs `Append("")`; `Array.IsNull` on read |
+| `csv`, `tsv` | **no** | RFC 4180 has one spelling for an absent value, and Go's `encoding/csv` does not preserve unquoted-empty vs quoted-empty on read |
+| `excel` | **no** (write side only) | the writer already emits a genuinely blank cell for `nil` and an empty-string cell for `""`, so the artefact carries it; excelize's row API (`GetRows` / `Rows.Columns`) drops it, and the per-cell `GetCellType` probe that recovers it is O(rows) per call |
+| `spss` | n/a | does not ride the row path — `io.CohortWriter` reads the bitmap itself |
+
+A gap is documented and asserted, never silent, and its **direction is
+part of the contract**: an adapter that cannot carry the distinction
+reads BOTH states back as **null**. Losing an empty string into null
+is the pre-existing behaviour and is recoverable from the source;
+inventing an empty-string value where the cohort held a null would be
+new data. `io/nullcell/` pins every row of that table, including the
+three gaps — flipping an entry fails the matrix.
 
 ### Authoritative schemas: `io.SchemaAwareReader`
 
@@ -220,6 +392,44 @@ itself trigger a parse, and calling it twice must not double the set.
 Readers that do not implement the interface contribute `nil`, keeping
 every pre-existing report byte-identical.
 
+### Total failure is fatal, partial failure is not
+
+A per-row refusal — your reader cannot convert a cell, or your writer
+refuses a value — lands on `ImportReport.RowErrors` /
+`ExportReport.RowErrors` and the job carries on. That is the PARTIAL
+contract and it is unchanged.
+
+What is not partial is a pass that read rows and got **none** of them
+through. `ImportJob.Run`, `ExportJob.Run` and `ConvertJob.Run` classify
+that as total failure and return a coded error with **no report**:
+`PULSE_IMPORT_ROW_ERROR` / `PULSE_EXPORT_ROW_ERROR` (or the first row
+error's own code when it carries one), with `rows_read`, `rows_failed`,
+`first_row` and `first_error` in `Details`. Import additionally writes
+no `.pulse` file, and convert writes no `KeepPulseAt` intermediate. A
+source or cohort with **no rows at all** is an empty cohort and stays a
+success.
+
+Convert falls back to the EXPORT code by provenance: its row loop hands
+raw cell text through and never objects to it, so every `RowError` it
+can record came out of your `WriteRow`.
+
+Convert has one refusal of its own, and it is not row-shaped. A
+categorical dictionary that fills its rung mid-pass raises
+`PULSE_IMPORT_CATEGORICAL_OVERFLOW` — the IMPORT-half code, by the same
+provenance rule, since the overflow happens reading the source — and
+`ConvertJob.Run` stops there with no report and no `KeepPulseAt`
+intermediate. It is fatal rather than partial because capacity is not a
+property of the row: past the limit every further unseen category is
+dropped for the rest of the file, which used to leave a `ConvertReport`
+whose schema carried a silently short dictionary.
+
+This matters when you write an adapter because a format-wide mistake —
+a column type your writer has no mapping for, a cell shape your reader
+never parses — fails identically on every row. Before the verdict
+existed, three such bugs shipped looking like successful zero-row runs.
+Your adapter needs no code for this; just do not swallow the per-row
+error, because the verdict is computed from the row-error slice.
+
 ### Source metadata with no Pulse home: `io.SidecarEmitter`
 
 A source format may declare things a `.pulse` file has nowhere to put.
@@ -334,6 +544,59 @@ import path, and encodes that. Buffering rather than streaming is
 inherent: an intermediate cohort cannot be written until the last row has
 been seen.
 
+### What the row path lost: `io.SourceAwareWriter`
+
+A target that rebuilds a cohort from the row stream re-derives a schema
+by **inferring** it from the text the source just rendered, and inference
+cannot recover what the source *declared*. Two things went missing on
+`pulse convert survey.sav out.sav` because of it, and neither was
+recoverable downstream:
+
+- the **declared schema**. A `set_*` column round-trips as `"Q1A|Q1C"`
+  tokens, so a re-inferred rung is only as wide as the options somebody
+  actually ticked; a value-labelled numeric came back as a string column
+  of bare numerals.
+- the **metadata sidecar**. It is the only home of the code / label /
+  dictionary-ID triple *and* of the derived-column registry, so the
+  rebuilt cohort could not tell a synthesised multiple-dichotomy `set_*`
+  column from a real one. `io/spss` then expanded it into member
+  variables that collided by name with the constituents already in the
+  cohort — `PULSE_SPSS_NAME_COLLISION`, which refused every
+  multiple-dichotomy convert outright.
+
+```go
+type ConvertSource struct {
+    Schema  *encoding.Schema // the source's DECLARED schema, or nil
+    Sidecar SidecarEmitter   // the source Reader itself, or nil
+}
+
+type SourceAwareWriter interface {
+    Writer
+    SetConvertSource(src ConvertSource)
+}
+```
+
+`ConvertJob.Run` type-asserts it and calls `SetConvertSource` **before**
+`WriteHeader`; a target that does not implement it is never consulted and
+its convert output is byte-identical to the pre-interface shape.
+
+**What you may assume, and what you may not.** The facts are offered only
+when the row stream is *faithful* to the schema — one cell per field, in
+field order, with no `Includes` projection and no label binding inserting
+or rewriting cells — so `Schema.Fields[i]` describes emitted column `i`
+and `CsvColumnIdx` is `i`. `Schema` is nil when convert **inferred** the
+schema itself: there is nothing declared to preserve, and re-inferring is
+the same guess over the same values. `Sidecar` is the source `Reader`, so
+write it against the cohort **you** just built (`WriteSidecar(fs, path)`
+re-fingerprints the document); the source's own copy is fingerprinted
+over the source cohort and a read path would correctly refuse it as
+stale.
+
+This is deliberately *not* `SchemaAwareWriter`. `SetPulseSchema` means
+"here is the cohort you are exporting from" and the typed-column adapters
+answer it by changing what they emit; this one means "here is what your
+source declared, for the cohort you are about to rebuild".
+
 ### Encode-side diagnostics: `io.TargetWarningEmitter`
 
 The write-side mirror of `SourceWarningEmitter`, and distinct from
@@ -367,6 +630,42 @@ faithful re-emission from a reconstruction.
 > which the `.sav` row path does — has raised none of its diagnostics by
 > the time the job builds its report. Because the accessor is pure,
 > asking twice cannot double the set.
+
+### Releasing without emitting: `io.DiscardableWriter`
+
+Most adapters need nothing here, and the absent implementation is the
+correct answer.
+
+```go
+type DiscardableWriter interface {
+    Writer
+    Discard() error
+}
+```
+
+The io CLI leaves deliberately do **not** call `writer.Close()` when the
+job returns an error. Every adapter buffers its output and emits it
+exactly once inside `Close` (`afero.WriteFile`, not an incrementally
+written handle), so skipping `Close` writes *nothing* — the correct
+outcome for a hard failure. Adding a `defer writer.Close()` would put a
+zero-row target next to the error instead, which is precisely the
+silent-success trap the total-failure verdict exists to close.
+`TestExportTargets_EmitNothingBeforeClose` pins that property across all
+eight adapters, header **and** rows.
+
+That reasoning is about DATA. Resources are a separate question, and one
+adapter answers it differently: `io/excel` drives an excelize
+`StreamWriter` whose buffer spills to an `os.CreateTemp` file past
+`excelize.StreamChunkSize` (16 MiB), and only `excelize.File.Close`
+removes those files. `Discard` is the release-without-emitting half of
+`Close` — drop the buffers and any temp files, write nothing, and leave
+the writer inert so a later `Close` also writes nothing.
+
+`internal/cli/export.go` and `internal/cli/convert.go` run
+`pio.DiscardWriter(writer)` on every error return. It is a no-op for a
+writer that does not implement the interface, and it never falls back to
+`Close`. Implement `Discard` only if your writer holds something the Go
+GC cannot reclaim; if you buffer on the heap, do nothing.
 
 ### Predicting a refusal: `io.CohortValidator`
 

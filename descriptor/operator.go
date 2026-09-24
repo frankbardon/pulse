@@ -26,10 +26,39 @@ type Operator struct {
 	// "categorical_u16", "date"). Empty means "no field input".
 	AcceptsTypes []string `json:"accepts_types"`
 
+	// IgnoresField marks an operator that never reads the request slot's
+	// own Field — it takes its inputs from Params instead (AGG_RATIO
+	// reads Params.numerator_field / denominator_field).
+	//
+	// Without it, AcceptsTypes is ambiguous in the one way that matters:
+	// a client cannot tell "every type is welcome here" from "this slot
+	// is not read at all", and the full AcceptsTypes list reads as a
+	// type claim about a slot the operator discards. When IgnoresField is
+	// set, AcceptsTypes says only that no type is REFUSED (the request
+	// wire form still requires a field name), and the operator's real
+	// type constraints live on its Params entries, which carry
+	// Type=="field" plus a FieldFilter.
+	//
+	// The claim is held two ways: descriptor's
+	// TestCapabilities_IgnoresFieldDeclarationsAreCoherent checks the
+	// declaration shape, and processing's
+	// TestAggregators_IgnoredFieldSlotIsReallyIgnored runs the operator
+	// with different Field values and requires an identical result.
+	IgnoresField bool `json:"ignores_field,omitempty"`
+
 	// EmitsType is the field type produced for single-output operators.
 	// Empty when the operator's emit type is conditional on input or
 	// when it does not emit a typed column (e.g. an aggregator emits a
 	// scalar).
+	//
+	// No execution path reads this: attribute outputs are float64 end to
+	// end, window outputs land in a map[string]any and feature outputs in
+	// feature.Output.Values. It is a claim MCP clients size destination
+	// columns from, and the only thing that can contradict it is
+	// processing.TestManifestEmitsTypeHoldsAtRuntime, which runs every
+	// operator that declares one and checks the values it really emits
+	// against the declared domain. A new declaration must arrive with a
+	// probe there or that gate fails.
 	EmitsType string `json:"emits_type,omitempty"`
 
 	// EmitsTypeNote provides context when EmitsType is empty or

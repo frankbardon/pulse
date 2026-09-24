@@ -2,14 +2,16 @@ package encoding
 
 import "testing"
 
-func TestFieldTypes_All18Present(t *testing.T) {
-	// Verify we have exactly 18 field types (0..17). Bytes 13–16 are the
+func TestFieldTypes_All20Present(t *testing.T) {
+	// Verify we have exactly 20 field types (0..19). Bytes 13–16 are the
 	// set_u8/u16/u32/u64 multi-select family added alongside the
 	// categorical family — same inline dictionary block, fixed-width
 	// bitmask payload. Byte 17 is datetime, an 8-byte epoch-seconds u64
-	// appended additively (no existing byte moved).
-	if fieldTypeCount != 18 {
-		t.Fatalf("expected 18 field types, got %d", fieldTypeCount)
+	// appended additively (no existing byte moved). Bytes 18–19 are the
+	// wide set rungs set_u128 / set_u256 (16- and 32-byte bitmasks),
+	// likewise appended without moving anything.
+	if fieldTypeCount != 20 {
+		t.Fatalf("expected 20 field types, got %d", fieldTypeCount)
 	}
 
 	types := []FieldType{
@@ -21,6 +23,7 @@ func TestFieldTypes_All18Present(t *testing.T) {
 		FieldTypeDecimal128,
 		FieldTypeSetU8, FieldTypeSetU16, FieldTypeSetU32, FieldTypeSetU64,
 		FieldTypeDateTime,
+		FieldTypeSetU128, FieldTypeSetU256,
 	}
 	if len(types) != int(fieldTypeCount) {
 		t.Fatalf("type list has %d entries, sentinel says %d", len(types), fieldTypeCount)
@@ -55,6 +58,8 @@ func TestFieldType_ByteSize(t *testing.T) {
 		{FieldTypeSetU32, 4},
 		{FieldTypeSetU64, 8},
 		{FieldTypeDateTime, 8},
+		{FieldTypeSetU128, 16},
+		{FieldTypeSetU256, 32},
 	}
 	for _, tc := range cases {
 		if got := tc.ft.ByteSize(); got != tc.want {
@@ -86,6 +91,8 @@ func TestFieldType_String(t *testing.T) {
 		{FieldTypeSetU32, "set_u32"},
 		{FieldTypeSetU64, "set_u64"},
 		{FieldTypeDateTime, "datetime"},
+		{FieldTypeSetU128, "set_u128"},
+		{FieldTypeSetU256, "set_u256"},
 		{FieldType(255), "unknown(255)"},
 	}
 	for _, tc := range cases {

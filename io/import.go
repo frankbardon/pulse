@@ -14,6 +14,15 @@ import (
 )
 
 // Run executes the import job, converting tabular source into a .pulse file.
+//
+// Total failure is an ERROR, not a zero-row report. If the row pass reads
+// at least one row and converts none of them, Run returns a nil report and
+// a coded error (PULSE_IMPORT_ROW_ERROR, or the first row error's own code
+// when it carries one) whose details name the row count, the failure count
+// and the first failure — and no .pulse file is written. Partial failure
+// is unchanged: some rows in, some on ImportReport.RowErrors, nil error. A
+// source with no data rows at all is an empty cohort, which is a legitimate
+// outcome and not an error. See totalRowFailure.
 func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	if j.FS == nil {
 		return nil, fmt.Errorf("ImportJob.FS is required")
@@ -140,11 +149,13 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// PULSE_IMPORT_NULL_PROMOTED warning.
 	promoted := make([]bool, len(schema.Fields))
 
-	// Reusable per-row scratch slices. Narrow types share the uint64 slice;
-	// wide types (decimal128) write 16 raw bytes via a parallel slice.
-	// Single goroutine via ReadRows callback, so reuse is safe.
+	// Reusable per-row scratch slices. Narrow types share the uint64
+	// slice; wide types (decimal128, set_u128, set_u256) write raw bytes
+	// via a parallel slice sized for the widest of them (32 bytes, a
+	// set_u256 mask) and sliced down to the field's own ByteSize on
+	// write. Single goroutine via ReadRows callback, so reuse is safe.
 	vals := make([]uint64, len(schema.Fields))
-	wideBytes := make([][16]byte, len(schema.Fields))
+	wideBytes := make([]wideFieldBytes, len(schema.Fields))
 	wideUsed := make([]bool, len(schema.Fields))
 	nullMask := make([]bool, len(schema.Fields))
 
@@ -158,6 +169,13 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		setDelimiterFor = func(string) string { return DefaultSetDelimiter }
 	}
 
+	// Optional source-declared null channel. A []string row cannot tell
+	// a JSON null from an empty JSON string, or an Arrow validity bit
+	// from a present empty cell; a NullAwareReader reports the
+	// difference alongside the row. Nil for every other source, which
+	// leaves the text path byte-identical. See NullAwareReader.
+	nullSource, _ := j.Source.(NullAwareReader)
+
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		select {
 		case <-ctx.Done():
@@ -165,6 +183,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		default:
 		}
 		rowNum++
+
+		var declaredNulls []bool
+		if nullSource != nil {
+			declaredNulls = nullSource.RowNulls()
+		}
 
 		for i := range wideUsed {
 			wideUsed[i] = false
@@ -179,7 +202,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 				raw = strings.TrimSpace(row[colIdx])
 			}
 
-			nullCell := isNullToken(raw)
+			nullCell := isNullCell(raw, f.Type, declaredNulls, colIdx)
 			if nullCell {
 				if !f.Nullable {
 					if !inferredSchema {
@@ -207,7 +230,15 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 				}
 				nullMask[i] = true
 				if isWideFieldType(f.Type) {
-					wideBytes[i] = encoding.EncodeDecimal128(encoding.ZeroDecimal128())
+					// Null rides the per-record bitmap; the payload is
+					// a zeroed placeholder of the field's FULL width.
+					// For a set that zero is also the empty mask, which
+					// is only reachable as a VALUE on a non-null cell.
+					wideBytes[i] = wideFieldBytes{}
+					if f.Type == encoding.FieldTypeDecimal128 {
+						enc := encoding.EncodeDecimal128(encoding.ZeroDecimal128())
+						copy(wideBytes[i][:], enc[:])
+					}
 					wideUsed[i] = true
 				} else {
 					vals[i] = 0
@@ -216,7 +247,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			}
 
 			if isWideFieldType(f.Type) {
-				wb, err := convertValueWide(raw, f, dicts[i])
+				wb, err := convertValueWide(raw, f, dicts[i], setDelimiterFor(f.Name))
 				if err != nil {
 					rowErrors = append(rowErrors, RowError{
 						Row: rowNum,
@@ -257,7 +288,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		// are not retained across iterations.
 		for i, f := range schema.Fields {
 			if wideUsed[i] {
-				if _, err := recordsBuf.Write(wideBytes[i][:]); err != nil {
+				// Slice to the field's own width: 16 for decimal128 and
+				// set_u128, 32 for set_u256. Writing the whole scratch
+				// array would pad every decimal by 16 zero bytes and
+				// desynchronize the stride for the rest of the file.
+				if _, err := recordsBuf.Write(wideBytes[i][:f.Type.ByteSize()]); err != nil {
 					return err
 				}
 				continue
@@ -294,6 +329,15 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// A pass that read rows and converted none of them is total failure,
+	// not an empty import. Refuse BEFORE the cohort is written: a zero-row
+	// .pulse left next to a hard error is a trap for whatever opens it
+	// next. An empty source (no rows, no row errors) is untouched by this
+	// and still produces a legitimate empty cohort. See totalRowFailure.
+	if failure := totalRowFailure("import", rowsImported, rowNum, rowErrors, errors.PULSE_IMPORT_ROW_ERROR); failure != nil {
+		return nil, failure
 	}
 
 	// Now write schema (dictionaries are populated, promotions applied).
@@ -398,15 +442,25 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	// reported schema matches what Run would write. Free — no extra read.
 	rowCount := 0
 	promoted := make([]bool, len(schema.Fields))
+	// The same source-declared null channel Run consults, for the same
+	// reason: a predicted schema that promoted a field to nullable on
+	// an empty cell the source calls PRESENT would not match the one
+	// Run writes.
+	nullSource, _ := j.Source.(NullAwareReader)
 	err := j.Source.ReadRows(ctx, func(row []string) error {
 		rowCount++
 		if inferredSchema {
+			var declaredNulls []bool
+			if nullSource != nil {
+				declaredNulls = nullSource.RowNulls()
+			}
 			for i := range schema.Fields {
 				if schema.Fields[i].Nullable {
 					continue
 				}
 				colIdx := schema.Fields[i].CsvColumnIdx
-				if colIdx < len(row) && isNullToken(strings.TrimSpace(row[colIdx])) {
+				if colIdx < len(row) &&
+					isNullCell(strings.TrimSpace(row[colIdx]), schema.Fields[i].Type, declaredNulls, colIdx) {
 					schema.Fields[i].Nullable = true
 					promoted[i] = true
 				}
@@ -516,6 +570,42 @@ func readerSchema(source Reader) (*encoding.Schema, error) {
 	return schema, nil
 }
 
+// isNullCell is the one place the import decides a cell is absent. It
+// fuses the text null tokens with the optional source-declared null
+// channel (NullAwareReader), and both ImportJob.Run and
+// ImportJob.Predict call it so a predicted schema cannot disagree with
+// the written one about which cells are null.
+//
+// declaredNulls is nil for a source that does not implement
+// NullAwareReader, and that case is exactly the old behaviour: only
+// isNullToken decides.
+//
+// With a channel, two rules apply:
+//
+//   - A DECLARED null is null, whatever the text. The source knows.
+//   - A cell the source declares PRESENT keeps its text as a value only
+//     where the type can hold it. The empty string is a legal value for
+//     a dictionary-bearing non-set type and for nothing else, so that
+//     is the single case where an empty cell survives as a value; in a
+//     u32 or a date column "" is still a null, because reading it as a
+//     value would turn a recoverable null into a per-row import error.
+//
+// set_* is excluded deliberately. Its present-but-empty state already
+// has the EmptySetCell spelling that every adapter shares, and routing
+// it through a second mechanism here would make the set tri-state
+// behave differently on the four adapters that have a null channel.
+func isNullCell(raw string, ft encoding.FieldType, declaredNulls []bool, colIdx int) bool {
+	if colIdx >= 0 && colIdx < len(declaredNulls) {
+		if declaredNulls[colIdx] {
+			return true
+		}
+		if raw == "" && ft.HasDictionary() && !ft.IsSet() {
+			return false
+		}
+	}
+	return isNullToken(raw)
+}
+
 // isNullToken reports whether raw is one of the recognized null-sentinel
 // tokens. Matching is case-insensitive: "", "null", "na", "n/a" (any case).
 // The fixed set is small enough that a single ToLower + length-gated switch
@@ -537,39 +627,99 @@ func isNullToken(raw string) bool {
 	return false
 }
 
-// isWideFieldType reports whether the field type uses the 16-byte wide
-// import path (decimal128).
+// maxWideFieldBytes is the widest payload the raw-bytes import path can
+// carry: 32 bytes, the on-wire width of a set_u256 mask. decimal128 and
+// set_u128 use the first 16 bytes and leave the rest untouched, so every
+// caller MUST slice by the field's own FieldType.ByteSize() rather than
+// writing the whole array — a fixed 32-byte write would shift every
+// column after a decimal by 16 bytes on every record.
+const maxWideFieldBytes = encoding.SetMaskWords * 8
+
+// wideFieldBytes is the scratch cell for one raw-bytes field value.
+type wideFieldBytes = [maxWideFieldBytes]byte
+
+// isWideFieldType reports whether the field type bypasses the uint64
+// convertValue path and writes raw bytes instead — decimal128 (16 bytes)
+// and the wide set rungs set_u128 (16) / set_u256 (32), whose bitmasks
+// do not fit a uint64 at all.
 func isWideFieldType(ft encoding.FieldType) bool {
-	return ft == encoding.FieldTypeDecimal128
+	return ft == encoding.FieldTypeDecimal128 || ft.IsWideSet()
 }
 
-// convertValueWide converts a non-null string value to the 16-byte
-// representation for wide field types. Null cells are handled by the
-// caller before this is called.
-func convertValueWide(raw string, f encoding.Field, _ *encoding.Dictionary) ([16]byte, error) {
-	switch f.Type {
-	case encoding.FieldTypeDecimal128:
+// convertValueWide converts a non-null string value to the raw on-wire
+// bytes of a wide field type. Null cells are handled by the caller
+// before this is called. Only the leading f.Type.ByteSize() bytes of the
+// result are meaningful; the caller slices to that width.
+func convertValueWide(raw string, f encoding.Field, dict *encoding.Dictionary, setDelim string) (wideFieldBytes, error) {
+	var out wideFieldBytes
+	switch {
+	case f.Type == encoding.FieldTypeDecimal128:
 		d, parsedScale, err := encoding.ParseDecimal128(raw)
 		if err != nil {
-			return [16]byte{}, err
+			return out, err
 		}
 		// Rescale to the field's declared scale.
 		if parsedScale != f.Scale {
 			d, err = d.Rescale(parsedScale, f.Scale)
 			if err != nil {
-				return [16]byte{}, err
+				return out, err
 			}
 		}
 		if !d.FitsPrecision(f.Precision) {
-			return [16]byte{}, errors.NewCodedErrorWithDetails(
+			return out, errors.NewCodedErrorWithDetails(
 				errors.PULSE_DECIMAL_OVERFLOW,
 				"decimal value exceeds field precision",
 				map[string]any{"value": raw, "precision": f.Precision, "scale": f.Scale})
 		}
-		return encoding.EncodeDecimal128(d), nil
+		enc := encoding.EncodeDecimal128(d)
+		copy(out[:], enc[:])
+		return out, nil
+
+	case f.Type.IsWideSet():
+		// Identical token -> bit assignment to the narrow rungs; the
+		// only difference is that the mask leaves the uint64 API and
+		// lands on the wire through encoding.PutSetMask.
+		mask, err := setMaskFromCell(raw, f.Type, dict, setDelim)
+		if err != nil {
+			return out, err
+		}
+		if err := encoding.PutSetMask(out[:f.Type.ByteSize()], f.Type, mask); err != nil {
+			return out, err
+		}
+		return out, nil
+
 	default:
-		return [16]byte{}, fmt.Errorf("not a wide field type: %s", f.Type)
+		return out, fmt.Errorf("not a wide field type: %s", f.Type)
 	}
+}
+
+// setMaskFromCell splits a present (non-null) cell into tokens, interns
+// each one in the field's dictionary and returns the membership mask.
+// It is the single token -> bit assignment for ALL six set rungs: the
+// narrow ones narrow the result back to a uint64, the wide ones write
+// the mask whole. Keeping one implementation is what stops a bit from
+// landing on a different dictionary entry either side of 64.
+func setMaskFromCell(raw string, ft encoding.FieldType, dict *encoding.Dictionary, setDelim string) (encoding.SetMask, error) {
+	var mask encoding.SetMask
+	if dict == nil {
+		return mask, fmt.Errorf("no dictionary for set field")
+	}
+	delim := setDelim
+	if delim == "" {
+		delim = DefaultSetDelimiter
+	}
+	maxEntries := ft.MaxSetEntries()
+	for _, tok := range splitSetTokens(raw, delim) {
+		id, err := dict.AddWithLimit(tok, maxEntries)
+		if err != nil {
+			return mask, errors.NewCodedErrorWithDetails(
+				errors.PULSE_IMPORT_SET_OVERFLOW,
+				fmt.Sprintf("set dictionary overflowed %s (max %d entries)", ft, maxEntries),
+				map[string]any{"type": string(ft), "max_entries": maxEntries, "token": tok})
+		}
+		mask = mask.WithBit(int(id))
+	}
+	return mask, nil
 }
 
 // setDelimiterFor returns the configured delimiter for a set-typed
@@ -674,27 +824,25 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, 
 		return uint64(id), nil
 
 	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
-		if dict == nil {
-			return 0, fmt.Errorf("no dictionary for set field")
+		// The narrow rungs store their bitmask in a uint64 and keep the
+		// Read/WriteFieldValue path, but the token -> bit assignment is
+		// the SAME code the wide rungs run (setMaskFromCell). The
+		// narrowing is safe by construction: AddWithLimit caps the
+		// dictionary at ft.MaxSetEntries() <= 64, so no bit at or above
+		// 64 can exist. The ok check is a guard against that invariant
+		// being broken elsewhere, not an expected branch.
+		mask, err := setMaskFromCell(raw, ft, dict, setDelim)
+		if err != nil {
+			return 0, err
 		}
-		delim := setDelim
-		if delim == "" {
-			delim = DefaultSetDelimiter
+		low, ok := mask.Uint64()
+		if !ok {
+			return 0, errors.NewCodedErrorWithDetails(
+				errors.PULSE_IMPORT_SET_OVERFLOW,
+				fmt.Sprintf("set mask has bit %d beyond the 64 bits %s stores", mask.HighestBit(), ft),
+				map[string]any{"type": string(ft), "max_entries": ft.MaxSetEntries(), "highest_bit": mask.HighestBit()})
 		}
-		tokens := splitSetTokens(raw, delim)
-		var mask uint64
-		maxEntries := ft.MaxSetEntries()
-		for _, tok := range tokens {
-			id, err := dict.AddWithLimit(tok, maxEntries)
-			if err != nil {
-				return 0, errors.NewCodedErrorWithDetails(
-					errors.PULSE_IMPORT_SET_OVERFLOW,
-					fmt.Sprintf("set dictionary overflowed %s (max %d entries)", ft, maxEntries),
-					map[string]any{"type": string(ft), "max_entries": maxEntries, "token": tok})
-			}
-			mask |= uint64(1) << id
-		}
-		return mask, nil
+		return low, nil
 
 	default:
 		return 0, fmt.Errorf("unsupported field type: %s", ft)

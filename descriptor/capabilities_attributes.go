@@ -100,12 +100,24 @@ func attributeCapabilities() []Operator {
 			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
 		},
 		{
-			Name:          string(types.ATTR_SET_POPCOUNT),
-			Category:      "attribute",
-			Description:   "Per-row popcount of a set field — the number of selected labels.",
-			AcceptsTypes:  setFieldTypes,
-			EmitsType:     "u8",
-			EmitsTypeNote: "one small integer per record (0..set width)",
+			Name:         string(types.ATTR_SET_POPCOUNT),
+			Category:     "attribute",
+			Description:  "Per-row popcount of a set field — the number of selected labels.",
+			AcceptsTypes: setFieldTypes,
+			// u16, not u8. The popcount of a fully-selected column is the
+			// rung's width, and the widest rung is set_u256 — 256, which
+			// is one past u8's 255 ceiling. u8 was right while set_u64
+			// topped the ladder and became wrong the moment set_u256
+			// landed, at exactly one value, only when every member is
+			// ticked. Nothing was truncated on the wire — the attribute
+			// channel is float64 end to end — but a caller sizing a
+			// destination column from the manifest would have built one
+			// that cannot hold the answer. The declaration is now checked
+			// against a real run by
+			// processing.TestManifestEmitsTypeHoldsAtRuntime, which
+			// probes a fully-selected column at the widest rung.
+			EmitsType:     "u16",
+			EmitsTypeNote: "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256)",
 			Streamable:    true,
 		},
 		{

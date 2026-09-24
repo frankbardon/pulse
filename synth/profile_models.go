@@ -362,10 +362,19 @@ type modelFitter struct {
 // is kept separately from the float64 echo because a set_u64's bits
 // exceed float64's 2^53 exact-integer range — the same reason
 // profileRecords reads set fields out of `wide` rather than `values`.
+//
+// It is an encoding.SetMask rather than a uint64 so the snapshot is
+// rung-agnostic: a wide rung (set_u128 / set_u256) decodes to a SetMask,
+// and retaining it as a uint64 meant every wide row was recorded as
+// MISSING and the candidate was dropped from selection in silence — a
+// target reported as carrying no predictors, which is an ordinary and
+// legitimate outcome elsewhere and therefore carries no signal at all.
+// SetMask is a fixed 32-byte value with no reuse contract, so it is
+// copied by plain assignment like the float64 beside it.
 type modelRow struct {
 	values []float64
 	nulls  []bool
-	masks  []uint64
+	masks  []encoding.SetMask
 }
 
 // fieldFit is one target's fit: its dummy expansion, the engine
@@ -719,13 +728,13 @@ func (f *modelFitter) retain(values map[string]float64, nulls map[string]bool, w
 			// would make the replayed residual disagree with the fit,
 			// which read the same absent mask as missing and dropped
 			// the row.
-			mask, present := wide[name].(uint64)
+			mask, present := setMaskFromWideEntry(wide, name)
 			if !present {
 				row.nulls[i] = true
 				continue
 			}
 			if row.masks == nil {
-				row.masks = make([]uint64, len(f.snapFields))
+				row.masks = make([]encoding.SetMask, len(f.snapFields))
 			}
 			row.masks[i] = mask
 		}

@@ -132,6 +132,26 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 				wide[field.Name] = d
 			}
 
+		case FieldTypeSetU128, FieldTypeSetU256:
+			// The wide rungs cannot ride ReadFieldValue's uint64 return —
+			// it refuses them rather than hand back a truncated selection.
+			// The authoritative value is the SetMask in the wide map; the
+			// values echo is deliberately lossy (see setMaskFloatEcho).
+			m, err := ReadSetMask(rr.r, field.Type)
+			if err != nil {
+				if err == io.EOF || isEOF(err) {
+					return io.EOF
+				}
+				return err
+			}
+			if !keepField {
+				continue
+			}
+			values[field.Name] = setMaskFloatEcho(m)
+			if wide != nil {
+				wide[field.Name] = m
+			}
+
 		default:
 			raw, err := ReadFieldValue(rr.r, field.Type)
 			if err != nil {
@@ -204,6 +224,25 @@ func isEOF(err error) bool {
 		}
 	}
 	return false
+}
+
+// setMaskFloatEcho returns the float64 echo a wide set field writes into
+// the values map. It is the LOW 64 bits and nothing else, which makes a
+// set_u128 whose selections all sit below bit 64 echo exactly what a
+// set_u64 carrying the same selections echoes — the same byte-identity
+// the wire word order gives (see the SetMask doc comment).
+//
+// The echo is DELIBERATELY lossy and is not a value any caller may treat
+// as the selection: two masks differing only above bit 63 echo the same
+// float64, and a mask with bits only above 63 echoes 0, which a narrow
+// rung would read as an empty selection. It exists so a set field is
+// never ABSENT from the values map — a missing key reads as "field not
+// decoded", which is a different and worse failure than a lossy echo.
+// The authoritative value is the SetMask in the wide map; the same
+// caution already applies to set_u64 above 2^53.
+func setMaskFloatEcho(m SetMask) float64 {
+	low, _ := m.Uint64()
+	return float64(low)
 }
 
 // rawToFloat64 converts raw uint64 bits to float64 based on field type.

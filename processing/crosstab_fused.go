@@ -901,7 +901,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 	// into, so hoisting it out keeps the fan-out from re-probing the same
 	// field N*M times. Identical to the per-update probe the single-key
 	// predecessor performed at each call site.
-	_, cellValuePresent := rec.NumericValue(s.cellField)
+	cellValuePresent := FieldPresent(rec, s.cellField)
 	cellValueNull := !cellValuePresent
 
 	// Grand margin counts every filter-passing record ONCE, regardless of
@@ -1196,7 +1196,7 @@ func (s *FusedCrosstabState) updateAuxMargins(rec *Record, cellValuePresent bool
 	// hoisted out of the fan-out: the value is a property of the record,
 	// not of the slot it routes into.
 	for i, aux := range s.auxAggs {
-		_, ok := rec.NumericValue(aux.Field)
+		ok := FieldPresent(rec, aux.Field)
 		s.auxPresent[i] = ok
 	}
 

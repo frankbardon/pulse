@@ -19,7 +19,7 @@ examples_tags: [streaming-friendly, comparison]
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `packed_bool`, `nullable_*` |
+| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4` |
 | `weight_field` | numeric, same family as `Field` |
 
 ## Output

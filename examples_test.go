@@ -363,6 +363,7 @@ func buildShardedTransactionsFixture(p *pulse.Pulse, fs afero.Fs, dataDir string
 	}
 
 	archivePath := filepath.Join(dataDir, "transactions_sharded.pulse")
-	return p.CreateShardArchive(context.Background(), archivePath,
+	_, err = p.CreateShardArchive(context.Background(), archivePath,
 		[]string{wave1Path, wave2Path})
+	return err
 }

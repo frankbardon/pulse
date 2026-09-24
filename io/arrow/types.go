@@ -11,6 +11,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/decimal128"
 
 	"github.com/frankbardon/pulse/encoding"
+	pio "github.com/frankbardon/pulse/io"
 )
 
 // Pulse field metadata key carried as an Arrow Field.Metadata pair so a
@@ -63,15 +64,24 @@ func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 	case arrow.DECIMAL128:
 		return encoding.FieldTypeDecimal128
 	case arrow.LIST, arrow.LARGE_LIST, arrow.FIXED_SIZE_LIST:
-		// Multi-select / repeated-string columns map to Pulse's
-		// set_u* family; the import pipeline picks the smallest
-		// width that fits the observed dictionary (set_u8 first,
-		// widened by AddWithLimit during the row pass). Element
-		// types other than string are not supported today —
-		// FormatValue falls through to the generic stringifier,
-		// which produces a representation the convertValue set
-		// path will fail to parse meaningfully.
-		return encoding.FieldTypeSetU8
+		// Multi-select / repeated-string columns map to Pulse's set_*
+		// family. An Arrow LIST<UTF8> declares "a list of strings" and
+		// says NOTHING about how many distinct elements the data holds,
+		// so no rung can be chosen from the type alone — only a data
+		// pass can, and that is io/infer.go's, through the one
+		// selector every caller shares (encoding.SetTypeFor). What
+		// this arm returns is therefore a SEED, and it is read off the
+		// canonical ladder rather than written down: a rung constant
+		// here would be a third width table beside encoding.SetLadder()
+		// and io/spss/mrset.go's old copy, and a duplicated width table
+		// does not fail loudly when it falls behind — it goes on
+		// refusing widths the other copy already types.
+		//
+		// Element types other than string are not supported today:
+		// FormatValue falls through to the generic stringifier, which
+		// produces a representation the convertValue set path will fail
+		// to parse meaningfully.
+		return encoding.SetLadder()[0]
 	default:
 		return encoding.FieldTypeF64
 	}
@@ -81,6 +91,23 @@ func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 // constructing an Arrow schema for export. Nullability is carried by the
 // arrow.Field's Nullable flag, not the data type.
 func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
+	// Every set rung, tested as a CLASS rather than enumerated.
+	//
+	// Pulse set columns are bitmask-over-shared-dictionary on the wire,
+	// but the natural Arrow analogue for round-trip export is
+	// LIST<UTF8> — one element per selected token. Conversion lives in
+	// the exporter; FieldFromPulse uses the canonical List type
+	// carrying nullable string elements.
+	//
+	// The external form is a token list and is therefore width-blind: a
+	// 206-label cell is just a longer list, so every rung maps here
+	// identically. Listing the rungs instead left the mapping one edit
+	// behind every new rung, and the failure was silent — an unlisted
+	// rung fell through to the default arm and exported a set column as
+	// Float64. IsSet() cannot fall behind the ladder.
+	if ft.IsSet() {
+		return arrow.ListOf(arrow.BinaryTypes.String)
+	}
 	switch ft {
 	case encoding.FieldTypeU4, encoding.FieldTypeU8:
 		return arrow.PrimitiveTypes.Uint8
@@ -115,13 +142,6 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 		return arrow.FixedWidthTypes.Boolean
 	case encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		return arrow.BinaryTypes.String
-	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
-		// Pulse set columns are bitmask-over-shared-dictionary on
-		// the wire, but the natural Arrow analogue for round-trip
-		// export is LIST<UTF8> — one element per selected token.
-		// Conversion lives in the exporter; FieldFromPulse uses the
-		// canonical List type carrying nullable string elements.
-		return arrow.ListOf(arrow.BinaryTypes.String)
 	case encoding.FieldTypeDecimal128:
 		// Caller-resolved precision/scale; default 38/0 when not provided.
 		return &arrow.Decimal128Type{Precision: int32(encoding.MaxDecimalPrecision), Scale: 0}
@@ -326,9 +346,17 @@ func formatStringListLarge(elements arrow.Array, offsets []int64, idx int) strin
 // range with "|", skipping nulls. Non-string element arrays fall back
 // to the generic FormatValue path which produces the Arrow library's
 // canonical representation per element.
+//
+// A ZERO-LENGTH list is not the empty string. FormatValue is only
+// reached for a non-null position, so a present list of no elements is
+// an EMPTY SELECTION and renders as pio.EmptySetCell — the bare
+// delimiter the shared import path reads back as mask 0. Returning ""
+// here would hand the importer a null token and silently turn "ticked
+// none of these" into "skipped the question"; the null cell already has
+// its own spelling, from the validity bit one level up.
 func formatStringListSlice(elements arrow.Array, start, end int) string {
 	if start >= end {
-		return ""
+		return pio.EmptySetCell
 	}
 	parts := make([]string, 0, end-start)
 	switch ea := elements.(type) {

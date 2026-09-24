@@ -28,7 +28,10 @@ type zscoreAttribute struct {
 	finalized   bool
 }
 
-func newZScoreAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
+func newZScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
+	if err := rejectSetFieldForNumericAttribute(attr, schema); err != nil {
+		return nil, err
+	}
 	return &zscoreAttribute{}, nil
 }
 
@@ -97,7 +100,10 @@ type tscoreAttribute struct {
 	finalStdDev float64
 }
 
-func newTScoreAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
+func newTScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
+	if err := rejectSetFieldForNumericAttribute(attr, schema); err != nil {
+		return nil, err
+	}
 	return &tscoreAttribute{}, nil
 }
 
@@ -163,7 +169,10 @@ type normalizedAttribute struct {
 	rng      float64
 }
 
-func newNormalizedAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
+func newNormalizedAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
+	if err := rejectSetFieldForNumericAttribute(attr, schema); err != nil {
+		return nil, err
+	}
 	return &normalizedAttribute{}, nil
 }
 
@@ -303,7 +312,10 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 
 type percentileAttribute struct{}
 
-func newPercentileAttribute(_ *types.Attribute, _ *encoding.Schema) (AttributeComputer, error) {
+func newPercentileAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
+	if err := rejectSetFieldForNumericAttribute(attr, schema); err != nil {
+		return nil, err
+	}
 	return &percentileAttribute{}, nil
 }
 

@@ -530,7 +530,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 
 		for i := range entries {
 			e := &entries[i]
-			if _, ok := r.NumericValue(e.agg.Field); ok {
+			if FieldPresent(r, e.agg.Field) {
 				e.n++
 			} else {
 				e.nNull++
@@ -1134,7 +1134,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		for i := range entries {
 			e := &entries[i]
-			if _, ok := r.NumericValue(e.agg.Field); ok {
+			if FieldPresent(r, e.agg.Field) {
 				e.n++
 			} else {
 				e.nNull++
@@ -1728,7 +1728,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		}
 		var f floor
 		for _, r := range records {
-			if _, ok := r.NumericValue(field); ok {
+			if FieldPresent(r, field) {
 				f.n++
 			} else {
 				f.nNull++
@@ -1832,6 +1832,25 @@ func dispatchAggregatorResult(agg any, scalar float64) (any, error) {
 		}
 	}
 	return scalar, nil
+}
+
+// DispatchAggregatorResult is the exported form of
+// dispatchAggregatorResult, for reducers that live outside this package
+// and finalise merged aggregator state themselves — the per-shard
+// (service.processShardArchiveParallel) and per-segment
+// (service.reduceParallelBuffered) parallel arms, both of which build
+// their response row from Finalize() directly rather than through the
+// Processor.
+//
+// They MUST lift through this function. A RichAggregator's Finalize()
+// returns only the scalar FALLBACK — popcount for AGG_SET_UNION, the
+// max-bin count for AGG_SET_FREQUENCY — so a reducer that writes the
+// float64 straight into the row emits a bare number where the serial
+// path emits resolved labels or a label→count map. The arms then
+// disagree on the SHAPE of Response.Data for the same request, decided
+// by a concurrency knob.
+func DispatchAggregatorResult(agg any, scalar float64) (any, error) {
+	return dispatchAggregatorResult(agg, scalar)
 }
 
 // dispatchAggregatorCellResult is the MatrixCell.Value-bound sibling of

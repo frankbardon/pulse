@@ -11,6 +11,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 
 	"github.com/frankbardon/pulse/encoding"
+	pio "github.com/frankbardon/pulse/io"
 )
 
 func TestArrow_TypeToPulseListUTF8(t *testing.T) {
@@ -27,6 +28,12 @@ func TestArrow_TypeFromPulseSetU8(t *testing.T) {
 	}
 }
 
+// TestArrow_FormatValueListUTF8JoinsWithPipe pins the LIST<UTF8> read
+// form. The ZERO-LENGTH list expectation was "" until the three-state
+// set convention landed: FormatValue is reached only for a non-null
+// position, so a present list of no elements is an EMPTY SELECTION and
+// must render as pio.EmptySetCell. Returning "" handed the shared
+// import path a null token and collapsed the two states.
 func TestArrow_FormatValueListUTF8JoinsWithPipe(t *testing.T) {
 	alloc := memory.NewGoAllocator()
 	sc := arrow.NewSchema([]arrow.Field{
@@ -55,7 +62,7 @@ func TestArrow_FormatValueListUTF8JoinsWithPipe(t *testing.T) {
 		want string
 	}{
 		{0, "VISA|MC"},
-		{1, ""},
+		{1, pio.EmptySetCell},
 		{2, "AMEX"},
 	}
 	for _, c := range cases {

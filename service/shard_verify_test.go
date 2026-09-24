@@ -28,7 +28,7 @@ func TestShardArchiveVerify(t *testing.T) {
 		svc := New(cfg)
 
 		_, shardA, shardB := adminTwoSimpleShards(t, fsys)
-		if err := svc.CreateShardArchive(context.Background(), "arch.pulse",
+		if _, err := svc.CreateShardArchive(context.Background(), "arch.pulse",
 			[]string{shardA, shardB}); err != nil {
 			t.Fatalf("CreateShardArchive: %v", err)
 		}

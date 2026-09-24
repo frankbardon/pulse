@@ -164,6 +164,21 @@ var warningKinds = []warningKind{
 		},
 	},
 	{
+		// A set field whose dictionary is wider than its own rung's
+		// mask (setMaskWidthWarning). The capture ran and the document
+		// looks complete; the members past the cap are simply absent
+		// from every marginal, every conditional pair and the fidelity
+		// report, which is indistinguishable from an option nobody
+		// selects. ATTENTION, for the reason the always-null column
+		// above gets it: a requested capture did not happen and nothing
+		// else in the output says so.
+		kind:      "set options beyond the mask width",
+		attention: true,
+		match: func(w string) bool {
+			return hasAll(w, "set field ", "beyond the mask width")
+		},
+	},
+	{
 		// A conditional pair still declaring the RETIRED `bernoulli`
 		// wire flag over a target whose own marginal is not a bernoulli
 		// step. The flag is read by nothing (the cell draw follows the

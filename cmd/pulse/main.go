@@ -60,6 +60,7 @@ func buildApp() *cli.Command {
 			pcli.ProfileCommand(),
 			pcli.ShardCommand(),
 			pcli.IndexCommand(),
+			pcli.WidenCommand(),
 		},
 	}
 }

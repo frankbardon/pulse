@@ -23,6 +23,16 @@ import (
 type VerifyResult struct {
 	Errors   []*errors.CodedError       `json:"errors"`
 	Warnings []encoding.CohesionWarning `json:"warnings"`
+
+	// SetWidthHeadroom reports, per set_* field in the canonical
+	// schema, how much bitmask capacity is left and which rung a widen
+	// would promote it to. It is not a verdict — an archive with zero
+	// headroom is perfectly valid — it is FORESIGHT: `shard add` widens
+	// a set field across every shard payload when the merged dictionary
+	// outgrows the rung, and without this the only way to discover the
+	// field was one member from its ceiling is to pay for the rewrite.
+	// Nil for archives with no set fields.
+	SetWidthHeadroom []encoding.SetWidthHeadroom `json:"set_width_headroom,omitempty"`
 }
 
 // VerifyShardArchive walks the archive at archivePath and re-validates
@@ -38,7 +48,9 @@ type VerifyResult struct {
 //     divergence emits PULSE_SHARD_DESCRIPTION_DIVERGENCE warnings.
 //  4. Calls encoding.ValidateDictPrefixRule. Any prefix-rule violation
 //     surfaces as PULSE_SHARD_DICT_DIVERGENCE.
-//  5. Re-peeks the shard's record count and sums across the archive.
+//  5. Reports per-set-field width headroom on the result, so an
+//     impending `shard add` auto-widen is foreseeable.
+//  6. Re-peeks the shard's record count and sums across the archive.
 //     A drift against the canonical AggregateRecordCount emits a
 //     warning (the live per-shard sum is authoritative per the design
 //     contract).
@@ -66,7 +78,9 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 		return nil, err
 	}
 
-	result := &VerifyResult{}
+	result := &VerifyResult{
+		SetWidthHeadroom: encoding.SetWidthHeadroomFor(canonicalDoc.Schema),
+	}
 	var liveAggregate uint64
 
 	for _, e := range arch.Entries() {

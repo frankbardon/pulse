@@ -1,12 +1,14 @@
 # Dictionary Blocks
 
-**Audience:** anyone decoding categorical fields, sizing a categorical
-type during import, or chasing a dictionary-overflow error.
+**Audience:** anyone decoding categorical or set fields, sizing one of
+those types during import, or chasing a dictionary-overflow error.
 
-Categorical fields (`categorical_u8`, `categorical_u16`,
-`categorical_u32`) store their string-to-ID mapping inline, immediately
-after the field's schema entry. The dictionary is part of the schema
-block, not the record data.
+Dictionary-bearing fields — the three `categorical_*` types and all six
+`set_*` rungs (`FieldType.HasDictionary()`) — store their string-to-ID
+mapping inline, immediately after the field's schema entry. The
+dictionary is part of the schema block, not the record data, and the
+BLOCK is byte-identical for both families; only what the record stores
+against it differs.
 
 > **LLM agents using MCP:** the `cohort-schema-design` skill covers
 > when to pick which categorical width; the `import-best-practices`
@@ -37,6 +39,30 @@ The import path samples the source (`--sample-rows`, default 500) to
 estimate cardinality and picks the smallest width that fits. You can
 also force a width by editing the schema template (`pulse import
 schema-template SOURCE`).
+
+## Set fields share the block, not the capacity
+
+A `categorical_*` record value is one dictionary **ID**; a `set_*`
+record value is a fixed-width **bitmask** where bit `i` means entry `i`
+is selected. So a set's dictionary capacity is its mask width, not an
+ID range (`FieldType.MaxSetEntries()`):
+
+| Type | Max entries | Bytes per record value |
+|---|---|---|
+| `set_u8`   | 8   | 1 |
+| `set_u16`  | 16  | 2 |
+| `set_u32`  | 32  | 4 |
+| `set_u64`  | 64  | 8 |
+| `set_u128` | 128 | 16 |
+| `set_u256` | 256 | 32 |
+
+`set_u256` is a hard ceiling — there is deliberately no wider rung, so
+a 257-option column has no set type and stays as its constituent
+columns. Overflow on import is `PULSE_IMPORT_SET_OVERFLOW` (not the
+categorical code below). Inference picks the smallest rung that fits,
+so a dictionary can be narrower than its rung's capacity — a 206-option
+`set_u256` wastes 50 bit slots, accepted knowingly over a
+variable-width set type.
 
 ## Overflow and unbounded errors
 

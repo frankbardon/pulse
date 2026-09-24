@@ -1565,7 +1565,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 	// than per-bucket). Cheap: one NumericValue probe per record.
 	var n, nNull int
 	for _, r := range bucket {
-		if _, ok := r.NumericValue(slot.Field); ok {
+		if FieldPresent(r, slot.Field) {
 			n++
 		} else {
 			nNull++

@@ -379,13 +379,21 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 			filteredRecords: 10,
 		}
 	}
+	// Every one of the ten set fixture records is PRESENT: eight carry a
+	// non-empty mask and two carry the empty mask, which is a valid "no
+	// selection" and not a null (set nulls ride the per-record bitmap
+	// only). The floor is therefore N=10 / NNull=0. It read N=0 /
+	// NNull=10 while the floor asked its presence question through
+	// Record.NumericValue, which has no answer for a set column — a
+	// whole multi-select column reported as entirely null. The floor now
+	// asks processing.FieldPresent.
 	set := func() aggParityFixture {
 		return aggParityFixture{
 			schema:          setSchema,
 			field:           "tags",
 			records:         setRecs,
-			expectedN:       0,
-			expectedNull:    10,
+			expectedN:       10,
+			expectedNull:    0,
 			filteredRecords: 10,
 		}
 	}

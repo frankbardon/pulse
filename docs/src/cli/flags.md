@@ -179,9 +179,16 @@ it only `warnings` moves. See [profile create](profile-create.md).
 
 Every runnable leaf the binary exposes, with the page that documents it
 in depth. A leaf whose "Documented in" column names no dedicated page is
-covered by the surrounding topic page or by `--help`; the list itself is
-the contract, and `TestSkillsCoverAllCliLeaves` fails if a new leaf is
-added without naming it somewhere under `skills/` or `docs/src/`.
+covered by the surrounding topic page or by `--help`.
+
+The list itself is the contract, and it is enforced **in both
+directions** by `TestSkillsCoverAllCliLeaves`: a leaf added to
+`buildApp()` without a row here fails the gate, and a row here that names
+a command the binary does not actually mount fails it too. The second
+direction is the one that matters when a registration is deleted — the
+documented command would otherwise stay listed while answering "command
+not found". Group nodes that carry no action of their own (`pulse api`,
+`pulse shard`, `pulse index`) are not leaves and are deliberately absent.
 
 | Leaf | Purpose | Documented in |
 |---|---|---|
@@ -240,6 +247,7 @@ added without naming it somewhere under `skills/` or `docs/src/`.
 | `pulse skills show` | Print one skill's markdown | `--help` |
 | `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns | [synth from-profile](synth-from-profile.md) |
 | `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
+| `pulse widen` | Widen a set column of a single-file cohort to a wider set rung (`--field`, `--to`), rewriting the cohort in place. Destructive and non-interactive, but atomic — temp file, fsync, rename — so a refusal or a failure leaves the cohort byte-identical. Refuses a narrower or equal target, a non-set column, a column already at `set_u256`, and a shard archive (whose widen spans the canonical schema plus every shard payload, so it is not this leaf's operation); each refusal carries its own error code, usable with `pulse errors lookup`. On success it names any sidecar the rewrite invalidated — the point-lookup index, the SPSS metadata sidecar — and the exact command that rebuilds it (`data.invalidated_sidecars` under `--json`); it rebuilds nothing, and prints nothing when there are none | `--help` |
 
 ## Help
 

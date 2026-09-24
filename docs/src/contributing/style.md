@@ -28,8 +28,8 @@ copy that file's rules when in doubt.
 - **Error codes** use `DOMAIN_CATEGORY` format, organised by the six
   domains listed in CLAUDE.md (`ENCODING`, `PROCESSING`, `SERVICE`,
   `DATA`, `CLI`, `PULSE`).
-- **Field types** use lowercase snake (`u8`, `nullable_bool`,
-  `categorical_u16`, `decimal128`).
+- **Field types** use lowercase snake (`u8`, `packed_bool`,
+  `categorical_u16`, `decimal128`, `set_u256`).
 
 ## Structural bans
 

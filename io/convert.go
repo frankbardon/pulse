@@ -12,6 +12,25 @@ import (
 
 // Run executes the convert job, streaming from source to target.
 // If KeepPulseAt is set, also writes an intermediate .pulse file.
+//
+// Total failure is an ERROR, not a zero-row report, exactly as on
+// ImportJob.Run and ExportJob.Run. If the pass reads at least one row and
+// converts none of them, Run returns a nil report and a coded error —
+// PULSE_EXPORT_ROW_ERROR, since every RowError convert can record comes
+// from Target.WriteRow, or the first row error's own code when it carries
+// one — with rows_read, rows_failed, first_row and first_error in details,
+// and no KeepPulseAt intermediate is written. Partial conversion is
+// unchanged: some rows out, some on ConvertReport.RowErrors, nil error. A
+// source with no data rows converts to an empty target and is a success.
+// See totalRowFailure.
+//
+// A categorical dictionary that OVERFLOWS its rung is the other refusal.
+// It is a capacity violation rather than a row condition — past the limit
+// every further unseen category is lost for the rest of the file — so Run
+// stops at the offending cell with PULSE_IMPORT_CATEGORICAL_OVERFLOW
+// (row / column / type / max_entries / value in details), before any
+// KeepPulseAt intermediate is written. ImportJob fails the same condition
+// under the same code.
 func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
@@ -80,6 +99,13 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	}
 
 	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
+
+	// Hand the SOURCE's declared facts to a target that rebuilds a cohort
+	// from the row stream (io/spss's `.sav` writer). Must happen BEFORE
+	// WriteHeader, like every other push-shaped optional interface, and
+	// only when the rows about to be emitted are faithful to the schema.
+	// See ConvertSource for what a recipient is then entitled to assume.
+	j.offerConvertSource(schema, !inferredSchema, includeMask, augmentInsertAfter, replaceFields)
 
 	// Hand Response.Overlays to overlay-aware writers so the export
 	// half embeds the layers in the format-native sidecar. Same tri-
@@ -158,7 +184,39 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			if f.Type.IsCategorical() && dicts[i] != nil {
 				isNull := raw == "" || strings.EqualFold(raw, "null") || strings.EqualFold(raw, "na") || strings.EqualFold(raw, "n/a")
 				if !isNull {
-					dicts[i].AddWithLimit(raw, f.Type.MaxCategoricalEntries())
+					// A full dictionary is a CAPACITY violation, not a
+					// per-row data condition: once the rung is at its
+					// limit every further unseen category is lost for
+					// the REST of the file. Discarding this error made
+					// the convert report success while ConvertReport.
+					// Schema carried a short dictionary, and — with
+					// KeepPulseAt set — the intermediate re-import hit
+					// the same wall per row and dropped those rows from
+					// the cohort with its report discarded below.
+					//
+					// Refusing here, inside the read loop, also keeps
+					// the KeepPulseAt ordering the total-row-failure
+					// check documents: no intermediate cohort is
+					// written under a command that errored.
+					//
+					// The code is AddWithLimit's own
+					// PULSE_IMPORT_CATEGORICAL_OVERFLOW, by provenance:
+					// the overflow happens on convert's IMPORT half,
+					// reading the source, and ImportJob already fails
+					// the same condition under the same code.
+					if _, derr := dicts[i].AddWithLimit(raw, f.Type.MaxCategoricalEntries()); derr != nil {
+						return perrors.NewCodedErrorWithDetails(
+							perrors.PULSE_IMPORT_CATEGORICAL_OVERFLOW,
+							fmt.Sprintf("row %d, column %q: %v", rowNum, f.Name, derr),
+							map[string]any{
+								"row":         rowNum,
+								"column":      f.Name,
+								"type":        string(f.Type),
+								"max_entries": f.Type.MaxCategoricalEntries(),
+								"value":       raw,
+							},
+						)
+					}
 				}
 				values[i] = raw
 			} else {
@@ -184,6 +242,20 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// A pass that read rows and converted none of them is total failure,
+	// not an empty convert. Refuse BEFORE the KeepPulseAt intermediate is
+	// written: that re-import reads the SOURCE rather than the converted
+	// rows, so a target-side total failure would otherwise leave a
+	// perfectly good cohort on disk under a command that errored.
+	//
+	// The fallback code is PULSE_EXPORT_ROW_ERROR, by provenance. Convert's
+	// row loop hands raw cell text through and never objects to it; every
+	// RowError it can record comes from Target.WriteRow. Naming the import
+	// code here would point the caller at a source that said nothing.
+	if failure := totalRowFailure("convert", converted, rowNum, rowErrors, perrors.PULSE_EXPORT_ROW_ERROR); failure != nil {
+		return nil, failure
 	}
 
 	// Write intermediate pulse file if requested.
@@ -271,6 +343,94 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		Warnings:       warnings,
 		SourceWarnings: j.sourceWarnings(),
 	}, nil
+}
+
+// offerConvertSource hands the source's declared facts to a
+// SourceAwareWriter target, when there are any and when the row stream is
+// faithful enough for them to describe it.
+//
+// A target that does not implement the interface is not called at all, so
+// its convert output is byte-identical to the pre-interface shape.
+//
+// # What is carried, and what is not
+//
+// The SCHEMA is carried only when it is DECLARED — a pio.SchemaAwareReader
+// source's own dictionary, or the caller's explicit ConvertJob.Schema.
+// When convert inferred the schema itself there is nothing authoritative to
+// preserve, and re-inferring on the far side is the same guess made over
+// the same values: inference stays the fallback for a genuinely
+// schema-less source.
+//
+// The SIDECAR is carried whenever the source emits one, independently of
+// where the schema came from — it is source metadata, not a type decision.
+//
+// # Why faithfulness gates both
+//
+// A recipient rebuilds a cohort from the rows. A projection
+// (ConvertJob.Includes) drops columns from those rows, and a label binding
+// rewrites or inserts cells; in either case field i of the schema is no
+// longer cell i of the row, and the sidecar describes variables the
+// rebuilt cohort no longer has. Handing over facts that do not describe
+// the stream is worse than handing over none: the recipient would rebuild
+// a cohort whose columns are mis-bound, which is the silent wrong answer
+// rather than a loud one. So an unfaithful stream carries NOTHING and the
+// target infers, exactly as it did before this channel existed.
+func (j *ConvertJob) offerConvertSource(
+	schema *encoding.Schema,
+	declared bool,
+	includeMask []bool,
+	augmentInsertAfter []bool,
+	replaceFields map[int]bool,
+) {
+	saw, ok := j.Target.(SourceAwareWriter)
+	if !ok {
+		return
+	}
+	if schema == nil || !faithfulRowStream(includeMask, augmentInsertAfter, replaceFields) {
+		return
+	}
+
+	src := ConvertSource{}
+	if se, ok := j.Source.(SidecarEmitter); ok {
+		src.Sidecar = se
+	}
+	if declared {
+		// Re-base CsvColumnIdx onto the EMITTED row rather than the
+		// source's own column order: the recipient's rows come from
+		// convert's loop, which writes one cell per schema field in
+		// field order. Copied rather than mutated in place — the same
+		// *encoding.Schema is reported on ConvertReport.Schema and, with
+		// KeepPulseAt set, drives the intermediate import.
+		fields := make([]encoding.Field, len(schema.Fields))
+		copy(fields, schema.Fields)
+		for i := range fields {
+			fields[i].CsvColumnIdx = i
+		}
+		src.Schema = &encoding.Schema{Fields: fields}
+	}
+	if src.Schema == nil && src.Sidecar == nil {
+		return
+	}
+	saw.SetConvertSource(src)
+}
+
+// faithfulRowStream reports whether the emitted row is one cell per schema
+// field, in field order. See offerConvertSource for why that is the gate.
+func faithfulRowStream(includeMask, augmentInsertAfter []bool, replaceFields map[int]bool) bool {
+	if len(replaceFields) > 0 {
+		return false
+	}
+	for _, on := range includeMask {
+		if !on {
+			return false
+		}
+	}
+	for _, on := range augmentInsertAfter {
+		if on {
+			return false
+		}
+	}
+	return true
 }
 
 // sourceSchema pulls the authoritative schema off a SchemaAwareReader

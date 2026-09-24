@@ -42,14 +42,17 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 		return encoding.FieldTypeCategoricalU32, true
 	case "decimal128":
 		return encoding.FieldTypeDecimal128, true
-	case "set_u8":
-		return encoding.FieldTypeSetU8, true
-	case "set_u16":
-		return encoding.FieldTypeSetU16, true
-	case "set_u32":
-		return encoding.FieldTypeSetU32, true
-	case "set_u64":
-		return encoding.FieldTypeSetU64, true
+	}
+	// The set family is resolved from the codec's own name table rather
+	// than listed above, so the rung ladder lives in exactly one place
+	// (encoding.ParseFieldType + FieldType.MaxSetEntries) and a rung
+	// added to encoding becomes declarable here without an edit. The
+	// IsSet guard is what keeps the delegation narrow: every other name
+	// encoding knows and synth has no write path for — datetime today —
+	// stays undeclarable, which is the property
+	// synth/constraints_internal_test.go's undeclarableFieldTypes pins.
+	if ft, ok := encoding.ParseFieldType(name); ok && ft.IsSet() {
+		return ft, true
 	}
 	return 0, false
 }
@@ -531,6 +534,13 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 // ordinary spec-driven generation.
 func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, isNull bool) error {
 	ft := field.Type
+	// Sets are dispatched before the type switch so the encode path
+	// carries no rung table of its own: writeSetFieldValue works off
+	// MaxSetEntries / IsWideSet and therefore covers every rung the
+	// codec registers, narrow and wide alike.
+	if ft.IsSet() {
+		return writeSetFieldValue(buf, field, val, isNull)
+	}
 	switch ft {
 	case encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
 		if isNull {
@@ -598,51 +608,6 @@ func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, 
 			return err
 		}
 		return encoding.WriteFieldValue(buf, ft, uint64(id))
-	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
-		if isNull {
-			return encoding.WriteFieldValue(buf, ft, 0)
-		}
-		if field.Dictionary == nil {
-			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
-				fmt.Sprintf("field %q: set field missing dictionary", field.Name), nil)
-		}
-		var mask uint64
-		switch sel := val.(type) {
-		case map[string]bool:
-			// Iterate the dictionary's OWN fixed order (never a Go map
-			// range) so bit assignment cannot depend on map iteration
-			// randomization — see buildSchema's pre-registration
-			// comment for the full determinism rationale.
-			for _, opt := range field.Dictionary.Values() {
-				if !sel[opt] {
-					continue
-				}
-				id, ok := field.Dictionary.IDFor(opt)
-				if !ok {
-					continue
-				}
-				mask |= uint64(1) << id
-			}
-		case []string:
-			// The re-encode (AugmentFromProfile) path: a decoded row's
-			// currently-selected labels, already ordered by the source
-			// dictionary's own ascending bit order (see
-			// decodedFieldValue in augment.go). AddWithLimit is a no-op
-			// lookup for every label the merged dictionary was already
-			// pre-populated with at buildMergedSchema time.
-			for _, opt := range sel {
-				id, aerr := field.Dictionary.AddWithLimit(opt, ft.MaxSetEntries())
-				if aerr != nil {
-					return errors.WrapCodedError(aerr, errors.PULSE_IMPORT_SET_OVERFLOW,
-						fmt.Sprintf("field %q: encoding set value", field.Name))
-				}
-				mask |= uint64(1) << id
-			}
-		default:
-			return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
-				fmt.Sprintf("field %q: set value must be map[string]bool or []string", field.Name), nil)
-		}
-		return encoding.WriteFieldValue(buf, ft, mask)
 	case encoding.FieldTypeDecimal128:
 		if isNull {
 			return encoding.WriteDecimal128(buf, encoding.ZeroDecimal128())
@@ -663,6 +628,97 @@ func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, 
 	}
 	return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
 		fmt.Sprintf("field %q: cannot encode type %s", field.Name, ft), nil)
+}
+
+// writeSetFieldValue encodes one set field's membership at whatever
+// width its rung declares. It is rung-agnostic by construction: the
+// mask is accumulated as an encoding.SetMask (a 256-bit value covering
+// every rung), capacity comes from ft.MaxSetEntries(), and only the
+// final hand-off to the byte stream branches — on ft.IsWideSet(), not
+// on a rung table. Adding a rung to encoding therefore needs no edit
+// here.
+//
+// A null still writes a full-width all-zero payload: set nulls ride the
+// per-record null bitmap only, with no in-band sentinel, and an
+// all-zero mask read back on a non-null row is a valid empty selection.
+func writeSetFieldValue(buf *bytes.Buffer, field *encoding.Field, val any, isNull bool) error {
+	ft := field.Type
+	if isNull {
+		return putSetMaskAtRung(buf, ft, encoding.SetMask{})
+	}
+	if field.Dictionary == nil {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+			fmt.Sprintf("field %q: set field missing dictionary", field.Name), nil)
+	}
+	var mask encoding.SetMask
+	switch sel := val.(type) {
+	case map[string]bool:
+		// Iterate the dictionary's OWN fixed order (never a Go map
+		// range) so bit assignment cannot depend on map iteration
+		// randomization — see buildSchema's pre-registration comment
+		// for the full determinism rationale.
+		for _, opt := range field.Dictionary.Values() {
+			if !sel[opt] {
+				continue
+			}
+			id, ok := field.Dictionary.IDFor(opt)
+			if !ok {
+				continue
+			}
+			mask = mask.WithBit(int(id))
+		}
+	case []string:
+		// The re-encode (AugmentFromProfile) path: a decoded row's
+		// currently-selected labels, already ordered by the source
+		// dictionary's own ascending bit order (see decodedFieldValue
+		// in augment.go). AddWithLimit is a no-op lookup for every
+		// label the merged dictionary was already pre-populated with at
+		// buildMergedSchema time.
+		for _, opt := range sel {
+			id, aerr := field.Dictionary.AddWithLimit(opt, ft.MaxSetEntries())
+			if aerr != nil {
+				return errors.WrapCodedError(aerr, errors.PULSE_IMPORT_SET_OVERFLOW,
+					fmt.Sprintf("field %q: encoding set value", field.Name))
+			}
+			mask = mask.WithBit(int(id))
+		}
+	default:
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_TYPE_MISMATCH,
+			fmt.Sprintf("field %q: set value must be map[string]bool or []string", field.Name), nil)
+	}
+	return putSetMaskAtRung(buf, ft, mask)
+}
+
+// putSetMaskAtRung writes mask as the rung's fixed-width payload.
+//
+// The narrow rungs (set_u8..set_u64) keep their uint64 storage and
+// WriteFieldValue path — encoding.WriteSetMask refuses them on purpose,
+// because routing one through the wide API would lay down a different
+// number of bytes than the schema stride reserves. The wide rungs go
+// the other way for the mirror-image reason.
+//
+// The capacity check is not redundant with the dictionary limit: a
+// caller can hand in an encoding.Field whose dictionary was populated
+// without AddWithLimit, and the previous uint64 encoder answered that
+// by OR-ing the bit into a uint64 and letting WriteFieldValue truncate
+// it away. A dropped selection is indistinguishable from one never
+// made, so it is refused instead.
+func putSetMaskAtRung(buf *bytes.Buffer, ft encoding.FieldType, mask encoding.SetMask) error {
+	if ft.IsWideSet() {
+		// WriteSetMask applies the same capacity check itself.
+		return encoding.WriteSetMask(buf, ft, mask)
+	}
+	low, exact := mask.Uint64()
+	if !exact || !mask.FitsFieldType(ft) {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			fmt.Sprintf("set mask has bit %d beyond the capacity of %s", mask.HighestBit(), ft),
+			map[string]any{
+				"type":        ft.String(),
+				"capacity":    ft.MaxSetEntries(),
+				"highest_bit": mask.HighestBit(),
+			})
+	}
+	return encoding.WriteFieldValue(buf, ft, low)
 }
 
 func toFloat64(v any) float64 {

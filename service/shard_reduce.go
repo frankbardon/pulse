@@ -178,6 +178,36 @@ type shardPartial struct {
 	// Response.Components.Run.NullRecords. Merger sums across shards.
 	nullRecords int64
 
+	// aggN / aggNNull carry the UNIVERSAL FLOOR of
+	// Response.Components.Aggregations — one {n, n_null} pair per
+	// req.Aggregations slot, indexed by slot position. Both are plain
+	// per-record tallies, so the merge is a slot-wise sum and is
+	// associative and commutative: any partition of the record stream
+	// across workers or shards yields the serial totals.
+	//
+	// They exist because nullRecords above is a SINGLE primary-field
+	// counter. It answers Run.NullRecords and nothing else, so before
+	// these fields the parallel arms emitted no per-slot floor at all
+	// while the serial path emitted one entry per aggregator — the
+	// same request returning a different Components shape depending on
+	// a concurrency knob.
+	//
+	// Presence is asked through processing.FieldPresent, never through
+	// NumericValue: a set-typed column has no numeric value but does
+	// have presence, and asking the wrong question would move every
+	// respondent in a set column into n_null.
+	aggN     []int64
+	aggNNull []int64
+
+	// filterCounters carries the per-slot {n_in, n_out, n_null_input}
+	// triple behind Response.Components.Filterers, one entry per
+	// req.Filterers slot. Produced and folded by the processing
+	// package's own walk (ApplyFilterPass / MergeFilterPassCounters)
+	// so the counter semantics — the n_in invariant, the null-input
+	// tally that is independent of pass/fail, the AND short-circuit —
+	// have exactly one implementation.
+	filterCounters []processing.FilterPassCounters
+
 	aggs   []processing.OnlineAggregator
 	groups map[string][]processing.OnlineAggregator
 	// keyOrder preserves the order distinct group keys were first seen
@@ -249,20 +279,15 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		streamGrp = sg
 	}
 
-	// Resolve the primary aggregation field for the per-shard
-	// null counter. Convention matches processing/run_components.go's
-	// primaryNullFieldName helper: first aggregator's Field, else the
-	// first grouper's Field. The per-shard tally accumulates into
-	// shardPartial.nullRecords and the merger sums across shards.
-	primaryNullField := ""
-	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
-		primaryNullField = req.Aggregations[0].Field
-	}
-	if primaryNullField == "" && grouperSpec != nil {
-		primaryNullField = grouperSpec.Field
-	}
+	// Resolve the primary aggregation field for the per-shard null
+	// counter (see primaryNullFieldFor).
+	primaryNullField := primaryNullFieldFor(req)
 
-	out := &shardPartial{}
+	out := &shardPartial{
+		aggN:           make([]int64, len(specs)),
+		aggNNull:       make([]int64, len(specs)),
+		filterCounters: processing.NewFilterPassCounters(req.Filterers),
+	}
 	var aggsUngrouped []processing.OnlineAggregator
 	if streamGrp == nil {
 		aggsUngrouped = make([]processing.OnlineAggregator, len(specs))
@@ -300,16 +325,9 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
 		out.totalRows++
 
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(rec)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
+		pass, ferr := processing.ApplyFilterPass(rec, req.Filterers, filterFns, out.filterCounters)
+		if ferr != nil {
+			return nil, ferr
 		}
 		if !pass {
 			continue
@@ -326,6 +344,18 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 				return nil, err
 			}
 			rec.Set(ra.label, val)
+		}
+
+		// Universal floor, tallied AFTER row-local attributes land so a
+		// slot aggregating an attribute label sees the same presence
+		// the serial orchestrator sees. Ordering mirrors
+		// processing.processStreaming exactly.
+		for i := range specs {
+			if processing.FieldPresent(rec, specs[i].agg.Field) {
+				out.aggN[i]++
+			} else {
+				out.aggNNull[i]++
+			}
 		}
 
 		if streamGrp == nil {
@@ -369,6 +399,28 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		}
 	}
 	return out, nil
+}
+
+// primaryNullFieldFor resolves the field whose per-record null tally
+// feeds Response.Components.Run.NullRecords: the first aggregator's
+// Field, else the first grouper's Field, else empty (no tally).
+// Convention matches processing/run_components.go's
+// primaryNullFieldName. Shared by BOTH parallel reducers — the
+// per-shard one (shard_reduce.go) and the per-segment one
+// (parallel_reduce.go) — because two copies of a convention is how
+// the DecodeWorkers arm ended up reporting NullRecords: 0 while the
+// other two paths reported the real count.
+func primaryNullFieldFor(req *types.Request) string {
+	if req == nil {
+		return ""
+	}
+	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil && req.Aggregations[0].Field != "" {
+		return req.Aggregations[0].Field
+	}
+	if len(req.Groups) > 0 && req.Groups[0] != nil {
+		return req.Groups[0].Field
+	}
+	return ""
 }
 
 // aggSpec carries the resolved factory for one aggregator slot.
@@ -453,6 +505,21 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		merged.filteredRows += p.filteredRows
 		merged.nullRecords += p.nullRecords
 
+		// Universal-floor and filter counters are plain tallies: the
+		// fold is a slot-wise sum, associative and commutative, so no
+		// ordering guarantee is needed here (unlike the Welford merge
+		// below, which is why this function walks partials in shard
+		// insertion order regardless).
+		for slot := range merged.aggN {
+			if slot < len(p.aggN) {
+				merged.aggN[slot] += p.aggN[slot]
+			}
+			if slot < len(p.aggNNull) {
+				merged.aggNNull[slot] += p.aggNNull[slot]
+			}
+		}
+		processing.MergeFilterPassCounters(merged.filterCounters, p.filterCounters)
+
 		if merged.aggs != nil {
 			if len(p.aggs) != len(merged.aggs) {
 				return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -533,11 +600,26 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			if label == "" {
 				label = fmt.Sprintf("%s_%s", req.Aggregations[i].Type, req.Aggregations[i].Field)
 			}
-			row[label] = val
+			// Lift through the Rich-or-scalar dispatch the serial
+			// Processor uses. Finalize() alone returns a
+			// RichAggregator's scalar FALLBACK, so writing it straight
+			// into the row made AGG_SET_UNION emit a popcount and
+			// AGG_SET_FREQUENCY a max-bin count under either parallel
+			// knob while the serial path emitted labels and a
+			// label→count map — the same request answering in two
+			// different shapes depending on worker count.
+			row[label], err = processing.DispatchAggregatorResult(oa, val)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if len(merged.aggs) > 0 {
 			resp.Data = []map[string]any{row}
 		}
+		if err := attachMergedAggregationComponents(resp, req, merged, disableComponents); err != nil {
+			return nil, err
+		}
+		attachMergedFiltererComponents(resp, req, merged, disableComponents)
 		attachMergedRunComponents(resp, merged, shardCount, disableComponents)
 		return resp, nil
 	}
@@ -562,15 +644,88 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 				if label == "" {
 					label = fmt.Sprintf("%s_%s", req.Aggregations[i].Type, req.Aggregations[i].Field)
 				}
-				row[label] = val
+				// Same Rich-or-scalar lift as the ungrouped arm above.
+				row[label], err = processing.DispatchAggregatorResult(oa, val)
+				if err != nil {
+					return nil, err
+				}
 			}
 			row[grp.Field] = key
 			data = append(data, row)
 		}
 		resp.Data = data
 	}
+	// The GROUPED arm deliberately emits no Components.Aggregations.
+	// That is parity, not an omission: processGrouped and
+	// processStreamingGrouped both leave the slice nil too (per-group
+	// components emission is a separate, unlanded surface), so emitting
+	// a cohort-wide floor here would make the parallel arm the only
+	// path in the engine that answers the question — and answer it at
+	// the wrong granularity, since a grouped request's floor is
+	// per-group. Components.Groupers is likewise not emitted: the
+	// per-shard grouper instances are never merged (the fold happens at
+	// the bucket-key level), so no merged grouper exists to ask. An
+	// absent component beats a fabricated one.
+	attachMergedFiltererComponents(resp, req, merged, disableComponents)
 	attachMergedRunComponents(resp, merged, shardCount, disableComponents)
 	return resp, nil
+}
+
+// attachMergedAggregationComponents emits one
+// Response.Components.Aggregations entry per req.Aggregations slot
+// from the merged partial — the universal floor {n, n_null} off the
+// merged per-slot tallies, and the operator-specific map off the
+// MERGED aggregator instance.
+//
+// Reading the operator map off the merged instance is what makes this
+// correct without a components-level merge: the parallel arms fold
+// OPERATOR STATE via MergeableAggregator.MergeOnline, so after
+// mergeShardPartials each slot holds the complete cohort state and its
+// Components() is byte-for-byte what a serial instance would report.
+// processing.CanMergeRequest has already refused any request whose
+// operator state cannot fold, so no mergeability-class gate is needed
+// here — every operator that clears that gate folds its components
+// with its state.
+//
+// No-op when disableComponents is true, so the build cost is skipped
+// rather than incurred and discarded.
+func attachMergedAggregationComponents(resp *types.Response, req *types.Request, merged *shardPartial, disableComponents bool) error {
+	if resp == nil || merged == nil || disableComponents || merged.aggs == nil {
+		return nil
+	}
+	for i, oa := range merged.aggs {
+		var slot *types.Aggregation
+		if i < len(req.Aggregations) {
+			slot = req.Aggregations[i]
+		}
+		var n, nNull int
+		if i < len(merged.aggN) {
+			n = int(merged.aggN[i])
+		}
+		if i < len(merged.aggNNull) {
+			nNull = int(merged.aggNNull[i])
+		}
+		entry, err := processing.BuildAggregationComponents(oa, slot, n, nNull)
+		if err != nil {
+			return err
+		}
+		processing.AttachAggregationComponents(resp, entry)
+	}
+	return nil
+}
+
+// attachMergedFiltererComponents emits the per-slot
+// {n_in, n_out, n_null_input} triple from the merged filter counters.
+// Rendering goes through the processing package's own builder so the
+// parallel arms and the serial paths cannot disagree on the shape.
+// An empty filter chain leaves the slice nil and the wire form
+// byte-identical.
+func attachMergedFiltererComponents(resp *types.Response, req *types.Request, merged *shardPartial, disableComponents bool) {
+	if resp == nil || merged == nil || disableComponents {
+		return
+	}
+	processing.AttachFiltererComponents(resp,
+		processing.BuildFiltererComponents(req.Filterers, merged.filterCounters))
 }
 
 // attachMergedRunComponents writes Response.Components.Run from a

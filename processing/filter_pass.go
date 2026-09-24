@@ -143,3 +143,74 @@ func attachFiltererComponents(resp *types.Response, entries []types.FiltererComp
 	}
 	resp.Components.Filterers = append(resp.Components.Filterers, entries...)
 }
+
+// ---------------------------------------------------------------
+// Exported surface for service/'s parallel reducers.
+//
+// The per-shard (Options.ShardWorkers) and per-segment
+// (Options.DecodeWorkers) reducers live in service/ but must produce
+// the SAME Response.Components a serial run produces — the contract is
+// keyed to the request, not to a concurrency knob. Rather than let
+// service/ re-derive the counter semantics (the n_in invariant, the
+// null-input tally that is independent of pass/fail, the AND
+// short-circuit), the walk above is exported verbatim. A second
+// implementation of these rules is a second set of numbers waiting to
+// drift.
+// ---------------------------------------------------------------
+
+// FilterPassCounters is the exported handle on one filterer slot's
+// universal-floor counters. Values are produced by
+// NewFilterPassCounters and consumed by ApplyFilterPass /
+// MergeFilterPassCounters / BuildFiltererComponents; the fields stay
+// unexported so the increment rules have exactly one implementation.
+type FilterPassCounters = filterPassCounters
+
+// NewFilterPassCounters allocates one counter slot per filterer.
+// Returns nil for an empty chain so callers keep the no-filter fast
+// path allocation-free.
+func NewFilterPassCounters(filterers []*types.Filterer) []FilterPassCounters {
+	return newFilterPassCounters(filterers)
+}
+
+// ApplyFilterPass is the exported form of the per-record filter walk.
+// See applyFilterPass for the counter-increment contract.
+func ApplyFilterPass(
+	record *Record,
+	filterers []*types.Filterer,
+	filterFns []FilterFunc,
+	counters []FilterPassCounters,
+) (bool, error) {
+	return applyFilterPass(record, filterers, filterFns, counters)
+}
+
+// MergeFilterPassCounters folds src into dst slot-wise. All three
+// counters are plain per-record tallies, so the fold is a sum and is
+// both associative and commutative — a partition of the record stream
+// across workers produces the same totals as a single pass in any
+// merge order.
+//
+// A length mismatch is a programming error (both slices come from
+// NewFilterPassCounters over the same request) and is ignored rather
+// than panicking in a hot merge; the shorter slice bounds the walk.
+func MergeFilterPassCounters(dst, src []FilterPassCounters) {
+	n := len(dst)
+	if len(src) < n {
+		n = len(src)
+	}
+	for i := 0; i < n; i++ {
+		dst[i].nIn += src[i].nIn
+		dst[i].nOut += src[i].nOut
+		dst[i].nNullInput += src[i].nNullInput
+	}
+}
+
+// BuildFiltererComponents is the exported form of the post-pass
+// renderer. Returns nil for an empty chain.
+func BuildFiltererComponents(filterers []*types.Filterer, counters []FilterPassCounters) []types.FiltererComponents {
+	return buildFiltererComponents(filterers, counters)
+}
+
+// AttachFiltererComponents is the exported form of the attach helper.
+func AttachFiltererComponents(resp *types.Response, entries []types.FiltererComponents) {
+	attachFiltererComponents(resp, entries)
+}

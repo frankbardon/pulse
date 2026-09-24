@@ -13,15 +13,19 @@ examples_tags: [proportion-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `numerator_field` | string | (required) | Schema field summed as the numerator. |
-| `denominator_field` | string | (required) | Schema field summed as the denominator. |
+| `numerator_field` | field (any type) | (required) | Schema field summed as the numerator. |
+| `denominator_field` | field (any type) | (required) | Schema field summed as the denominator. |
 
 ## Inputs
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | ignored |
-| `numerator_field` / `denominator_field` | any cohort field; coerced to float64 |
+| `Field` | IGNORED — manifest marks the entry `ignores_field` |
+| `numerator_field` / `denominator_field` | any cohort field, read through the numeric channel (a categorical contributes its dictionary code) |
+
+The wire form still requires `Field`; the manifest's `accepts_types` on
+this operator says only that no type is refused there, not that any type
+is read.
 
 ## Output
 

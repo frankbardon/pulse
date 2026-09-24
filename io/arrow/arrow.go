@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
@@ -30,7 +31,21 @@ type Reader struct {
 	fileReader *ipc.FileReader
 	arrowSc    *arrow.Schema
 	batches    []arrow.RecordBatch
+
+	// nulls is the per-column null mask for the row most recently
+	// handed to the ReadRows callback — the pio.NullAwareReader
+	// channel, read straight off the Arrow validity bits. The []string
+	// row renders both a null and a present empty string as "", so
+	// without this a categorical cell that genuinely held "" came back
+	// as a null. Rebuilt in place per row; valid only inside the
+	// callback.
+	nulls []bool
 }
+
+// RowNulls implements pio.NullAwareReader. Entry i is the validity bit
+// of the current row's column i — Arrow's own answer, not a reading of
+// the cell text.
+func (r *Reader) RowNulls() []bool { return r.nulls }
 
 // NewReader creates an Arrow IPC reader that loads from the given filesystem
 // path on first read. The file is not opened until ReadHeader, ReadRows, or
@@ -148,6 +163,10 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	}
 	numCols := len(hostColIdx)
 	row := make([]string, numCols)
+	if cap(r.nulls) < numCols {
+		r.nulls = make([]bool, numCols)
+	}
+	r.nulls = r.nulls[:numCols]
 
 	for _, batch := range r.batches {
 		nRows := int(batch.NumRows())
@@ -166,7 +185,8 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			}
 
 			for c := 0; c < numCols; c++ {
-				if cols[c].IsNull(i) {
+				r.nulls[c] = cols[c].IsNull(i)
+				if r.nulls[c] {
 					row[c] = ""
 					continue
 				}
@@ -322,6 +342,12 @@ type Writer struct {
 	// rule (§ 3.2).
 	overlaysEmitted bool
 
+	// explicitNulls records that the caller marks null cells itself —
+	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// ConvertJob. false keeps the text convention in which "" is the
+	// source null token, so a convert's Arrow output is unchanged.
+	explicitNulls bool
+
 	// Lazily-initialized arrow writer state. Built on first WriteRow once
 	// the schema (column names) is known. Reused across all batches.
 	alloc   memory.Allocator
@@ -339,6 +365,9 @@ type Writer struct {
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
 }
+
+// SetExplicitNulls implements pio.NullAwareWriter.
+func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // SetOverlays records the Response.Overlays layers the export pipeline
 // wants the writer to embed in the Arrow file. The layers ride as a
@@ -574,17 +603,27 @@ func AppendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.Over
 func (w *Writer) appendCell(c int, v any) error {
 	if w.pulseSchema != nil && c < len(w.pulseSchema.Fields) {
 		f := w.pulseSchema.Fields[c]
-		switch f.Type {
-		case encoding.FieldTypeDecimal128:
+		switch {
+		case f.Type == encoding.FieldTypeDecimal128:
 			return w.appendDecimal(c, f, v)
+		case f.Type.IsSet():
+			if done, err := w.appendSet(c, v); done {
+				return err
+			}
 		}
 	}
 	if w.strBs[c] != nil {
-		var s string
-		if v != nil {
-			s = fmt.Sprintf("%v", v)
+		// A string column's null is the validity bit, not "". Arrow can
+		// carry a null AND a present empty string, and a `.pulse`
+		// categorical dictionary can hold "" as a genuine value, so
+		// appending "" for both erased a distinction both formats have.
+		// Which spelling means "absent" depends on the caller, not on
+		// the cell — see pio.NullAwareWriter.
+		if pio.IsNullCell(v, w.explicitNulls) {
+			w.strBs[c].AppendNull()
+			return nil
 		}
-		w.strBs[c].Append(s)
+		w.strBs[c].Append(fmt.Sprintf("%v", v))
 		return nil
 	}
 	// No string builder and no recognized typed column — append the
@@ -599,6 +638,74 @@ func (w *Writer) appendCell(c int, v any) error {
 
 func (w *Writer) appendDecimal(c int, f encoding.Field, v any) error {
 	return AppendDecimal128(w.bldr.Field(c), f, v)
+}
+
+// appendSet appends one cell of a Pulse set column to its LIST<UTF8>
+// builder, delegating to the shared AppendSetList so the Parquet writer
+// encodes a set identically.
+func (w *Writer) appendSet(c int, v any) (bool, error) {
+	return AppendSetList(w.bldr.Field(c), v)
+}
+
+// AppendSetList appends one cell of a Pulse set column to a LIST<UTF8>
+// builder. io/export.go hands the exporter a single pio.DefaultSetDelimiter
+// -joined token string for every set rung (the external form of a set is
+// width-agnostic, so this is identical for set_u8 and set_u256); the list
+// builder needs those tokens as separate elements. Without this arm the
+// cell falls through to AppendValueFromString, which parses the string as
+// JSON, rejects "VISA|MC", and turns EVERY row into a RowError — the
+// export then reports success having written zero rows.
+//
+// # The three states of a set cell
+//
+// A set column has three states and Arrow can carry all three natively,
+// so this is where the distinction is made rather than deferred to text:
+//
+//   - null — the validity bit. ExportJob.Run spells a bitmap-null cell
+//     "" (and a CohortWriter-free caller may pass nil); both land on
+//     AppendNull.
+//   - EMPTY SELECTION — a zero-length list. Its external form is
+//     pio.EmptySetCell, a bare delimiter carrying no token, which
+//     Append(true) followed by no element reproduces exactly.
+//   - a selection — one list element per token.
+//
+// Reading "" as an empty list rather than as a null is what used to
+// collapse "ticked none of these" into "skipped the question" the
+// moment a cohort went through Arrow or Parquet.
+//
+// done=false means this column is not actually backed by a list builder
+// (a projected or label-augmented export can desynchronize the Pulse
+// schema from the Arrow column list); the caller falls through to the
+// generic path rather than erroring.
+func AppendSetList(b array.Builder, v any) (bool, error) {
+	lb, ok := b.(*array.ListBuilder)
+	if !ok {
+		return false, nil
+	}
+	sb, ok := lb.ValueBuilder().(*array.StringBuilder)
+	if !ok {
+		return false, nil
+	}
+	if v == nil {
+		lb.AppendNull()
+		return true, nil
+	}
+	s, _ := v.(string)
+	if s == "" {
+		// The null cell. An empty SELECTION arrives as
+		// pio.EmptySetCell, never as the empty string.
+		lb.AppendNull()
+		return true, nil
+	}
+	lb.Append(true)
+	for _, tok := range strings.Split(s, pio.DefaultSetDelimiter) {
+		tok = strings.TrimSpace(tok)
+		if tok == "" {
+			continue
+		}
+		sb.Append(tok)
+	}
+	return true, nil
 }
 
 // Close flushes any pending batch, closes the underlying Arrow IPC writer,
@@ -660,4 +767,6 @@ var _ pio.Reader = (*Reader)(nil)
 var _ pio.ResetReader = (*Reader)(nil)
 var _ pio.Writer = (*Writer)(nil)
 var _ pio.SchemaAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareWriter = (*Writer)(nil)
+var _ pio.NullAwareReader = (*Reader)(nil)
 var _ pio.OverlayAwareWriter = (*Writer)(nil)
