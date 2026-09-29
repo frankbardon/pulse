@@ -1760,6 +1760,28 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED: {
+		Message: "An OVERLAY_PAIRWISE_* spec asked for a distinct-key slab sample size (`params.n_source = \"n_within_distinct\"`) over a pair axis whose summed-across dims include a fan-out grouper (`types.GroupType.FansOut()` — today GROUP_SET_PER_ELEMENT). The slab fixes the first `n_within_depth + 1` pair-axis dims and sums the cells after them; summing per-cell DISTINCT cardinalities equals the slab's true distinct count only when those cells PARTITION the key set. Under a fan-out grouper one key lands in two summed cells, so the n over-states the sample size — silently, and liberally, which is the exact failure the distinct mode exists to remove. A fan-out grouper at depth <= n_within_depth is fine (it sits inside the FIXED prefix and multiplies slabs, not cells), as is one on the opposite axis at any depth. Plain `n_within` is never refused: record counts are additive. Details carry the offending `dim_index`, `group_type`, `field` and `axis` alongside `index`, `kind`, `n_source` and `n_within_depth`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "n_within_depth"},
+				Hint:     "Raise `n_within_depth` so the fan-out dim named in Details (`dim_index`) falls INSIDE the fixed prefix rather than being summed across. The prefix covers dim positions 0..n_within_depth, so `n_within_depth >= dim_index` makes each fan-out bucket its own slab — every slab then partitions its own keys and the distinct sum is exact. It must stay strictly below the pair-axis dim count.",
+				Examples: []any{0, 1, 2},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Crosstab", "Rows"},
+				Hint:   "Move the fan-out grouper (today only GROUP_SET_PER_ELEMENT) to an OUTER position on the pair axis so the fixed prefix can cover it, or replace it with GROUP_SET_VALUE, which maps each record to exactly one composite bucket and therefore partitions. The same applies to Crosstab.Columns when the overlay Scope is `column`.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "n_source"},
+				Hint:     "Switch to a sample-size mode that does not sum distinct cardinalities. `n_within` sums per-cell RECORD counts, which are additive under any grouper — correct, but it counts records rather than respondents. `cell_n_unweighted`, `row_margin_n` and `column_margin_n` read a single figure and never sum across a fan-out dim.",
+				Examples: []any{"n_within", "cell_n_unweighted", "row_margin_n", "column_margin_n"},
+			},
+		},
+	},
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED: {
 		Message: "CSV export does not support overlay embedding; %d overlay layer(s) dropped. Warning-class — the host CSV body is written verbatim (byte-identical to a pre-overlay export) and the dropped overlay layers are reported via this warning so callers can audit which layers fell off. CSV is the LCD of tabular formats and consumer tools (Excel, R, pandas, awk) cannot uniformly parse any overlay convention — research/export-embedding-shape.md § 7 locks the warn-and-skip semantic. The TSV adapter shares the CSV writer surface and inherits the same warn-and-skip behaviour; the warning code stays CSV-flavoured. Details carry `layer_count`, `layer_names`, and `layer_kinds` so a renderer can surface the dropped layer slate without re-reading the source Response.",
 		Fixups: []Fixup{

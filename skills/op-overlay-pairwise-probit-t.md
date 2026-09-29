@@ -29,6 +29,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to
 - RAW p-values only — direction / thresholds / min-n are the embedder's job.
 - `p_source` mismatch fails silently: `cell_value` over a 0..100 percentage pushes proportions outside `[0,1]` and every pair skips.
 - **`n_within_distinct` counts the slab in distinct KEYS, not records** — identical semantics and identical admission to `op-overlay-pairwise-prop-z`: `AGG_DISTINCT_SUM` (`distinct_count`) or `AGG_DISTINCT_COUNT` (`cardinality`) cells only; anything else, including the `distinct_count` `AGG_FREQUENCY` / `AGG_MODE` emit for distinct VALUES, is refused up front with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- **A distinct slab must PARTITION.** A fan-out grouper among the pair-axis dims the slab sums across (depth > `n_within_depth`) is refused with `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`; inside the fixed prefix, or on the opposite axis, it is fine. Detail: `op-overlay-pairwise-prop-z`.
 - **Null rules, both documented because they differ.** `AGG_DISTINCT_SUM` registers a key only when key AND value are non-null; `AGG_DISTINCT_COUNT` counts distinct non-null values. The n leg counts exactly what the cell counted.
 - Flagged buffered in `OverlayStreamability`; the HOST crosstab still FUSES on a mergeable cell aggregator.
 

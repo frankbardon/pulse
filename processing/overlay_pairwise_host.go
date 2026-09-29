@@ -293,22 +293,38 @@ func PairwiseDistinctNAdmitted() []types.AggregationType {
 	return []types.AggregationType{types.AGG_DISTINCT_SUM, types.AGG_DISTINCT_COUNT}
 }
 
-// cellAggregatorIdentitySignatures maps a discriminating component key
-// SET onto the aggregator that emits exactly it. Only the aggregators
-// whose ComponentSchema carries "distinct_count" or "cardinality" need
-// an entry — anything else cannot be confused for a distinct-key figure
+// cellAggregatorIdentitySignatures maps an OPERATOR component key set
+// onto the aggregator that emits exactly it. Only the aggregators whose
+// ComponentSchema carries "distinct_count" or "cardinality" need an
+// entry — anything else cannot be confused for a distinct-key figure
 // and classifies as unidentified.
 //
-// Signatures come from descriptor/capabilities_aggregators.go:
+// Signatures restate the OPERATOR half of each aggregator's
+// ComponentSchema in descriptor/capabilities_aggregators.go, i.e. the
+// declared keys MINUS the universal floor {n, n_null} every aggregator
+// emits:
 //
 //	AGG_DISTINCT_COUNT {cardinality}
 //	AGG_DISTINCT_SUM   {sum, distinct_count}
 //	AGG_FREQUENCY      {distinct_count, mode_value, mode_count}
 //	AGG_MODE           {value, count, distinct_count, tie_count}
 //
-// descriptor/ cannot be imported from processing/ (the no-execute
-// boundary runs the other way), so the discriminators are restated here
-// and pinned by TestPairwiseCellAggregatorIdentity.
+// The restatement exists because the capability table is descriptor's
+// and importing it into the runtime path is not worth the edge; the two
+// are cross-checked by TestPairwiseCellAggregatorSignaturesMatchCapabilities,
+// which reads the same public manifest projection and fails if a
+// capability schema moves without this table moving with it. Without
+// that gate a renamed component key would silently downgrade every
+// admitted cell to "unidentified" — or worse, promote one.
+//
+// The match is EXACT set equality, not subset containment. A subset
+// test admits any aggregator whose keys are a superset of a signature:
+// an extension aggregator declaring {sum, distinct_count, ...} would
+// classify as AGG_DISTINCT_SUM and have its figure read as a distinct
+// respondent count. Exact equality narrows that to an extension
+// declaring EXACTLY {sum, distinct_count} — still admitted, and
+// accepted as a known residual: closing it needs per-registration
+// provenance, which the components block does not carry.
 var cellAggregatorIdentitySignatures = []struct {
 	agg  types.AggregationType
 	keys []string
@@ -334,7 +350,7 @@ func (h *CrosstabHostView) CellAggregatorIdentity() (types.AggregationType, bool
 				continue
 			}
 			for _, sig := range cellAggregatorIdentitySignatures {
-				if componentKeysPresent(cell, sig.keys) {
+				if componentKeysEqual(cell, sig.keys) {
 					return sig.agg, true
 				}
 			}
@@ -359,7 +375,32 @@ func (h *CrosstabHostView) AdmitsDistinctKeyN() (types.AggregationType, string, 
 	return agg, key, true
 }
 
-func componentKeysPresent(cell map[string]any, keys []string) bool {
+// componentFloorKeys are the universal-floor component keys every
+// aggregator emits (descriptor's universalAggFloorKeys). They carry no
+// operator identity, so the signature match strips them before
+// comparing — the signatures restate the OPERATOR half only.
+var componentFloorKeys = map[string]bool{"n": true, "n_null": true}
+
+// componentKeysEqual reports whether cell's operator key set — its keys
+// MINUS the universal floor — is exactly the set `keys`.
+//
+// Exact, not subset. A subset test classifies any cell whose keys are a
+// SUPERSET of a signature as that aggregator, so an extension
+// aggregator emitting {sum, distinct_count, weighted_sum} would be read
+// as AGG_DISTINCT_SUM and its "distinct_count" reported as a distinct
+// respondent base. That is a silently wrong sample size, which is the
+// failure class the distinct-n admission gate exists to remove.
+func componentKeysEqual(cell map[string]any, keys []string) bool {
+	operatorKeys := 0
+	for k := range cell {
+		if componentFloorKeys[k] {
+			continue
+		}
+		operatorKeys++
+	}
+	if operatorKeys != len(keys) {
+		return false
+	}
 	for _, k := range keys {
 		if _, ok := cell[k]; !ok {
 			return false

@@ -4990,7 +4990,7 @@
         ]
       }
     ],
-    "error_codes_count": 227,
+    "error_codes_count": 228,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5101,6 +5101,7 @@
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
       "PULSE_OVERLAY_DICT_PREFIX_DRIFT",
+      "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED",
       "PULSE_OVERLAY_EXPECTED_LOW",
       "PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED",
       "PULSE_OVERLAY_FORMULA_INVALID_IDENT",
@@ -9712,4 +9713,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 77fcbb24e55ea7bb8bb6f3510783f35ad5845c7846b7eb223715472e329a68af
+// golden-hash: 28d878f2e7bee8b5c6f32a8709dea02a6dcda19d276fdee211f36ca6b6ace51e

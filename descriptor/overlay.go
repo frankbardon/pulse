@@ -121,6 +121,21 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" n_within_depth must be >= 0",
 			map[string]any{"index": index, "kind": string(spec.Kind), "n_within_depth": params.NWithinDepth})
+		return
+	}
+
+	// Distinct-key slab partition gate. A distinct cardinality summed
+	// across cells equals the slab's true distinct count only when
+	// those cells partition the key set; a fan-out grouper among the
+	// summed-across pair-axis dims breaks that and inflates n silently.
+	// Static property of the request shape, so predict can refuse it
+	// without reading a record — but predict alone does not stop
+	// pulse.Process, so processing.applyOverlaysToResponse carries the
+	// runtime twin under the same code.
+	if v, bad := types.CheckPairwiseSlabPartition(req.Crosstab, spec.Scope, params); bad {
+		env.AddError(string(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED),
+			v.Message(spec.Kind, params),
+			v.Details(spec.Kind, params, index))
 	}
 }
 
