@@ -156,9 +156,19 @@ func pairwiseDescription(test string) string {
 		"index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other " +
 		"axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test " +
 		"degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts " +
-		"pairs to same-bucket comparisons; n_source selects the sample-size leg (cell n / margins / n_within / " +
-		"weight sum); n_within_depth pins the within-group denominator; p_source picks percentage vs proportion " +
-		"cell values. Reads Response.Components.Crosstab — a components-disabled host fires " +
+		"pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), " +
+		"cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY " +
+		"modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell " +
+		"aggregator's distinct-key cardinality instead of a record count and are admitted only on an " +
+		"AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell " +
+		"aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY " +
+		"and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the " +
+		"within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion " +
+		"cell values. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must " +
+		"PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires " +
+		"PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / " +
+		"column_margin_distinct accumulate over raw records and are exact by construction, never gated. " +
+		"Reads Response.Components.Crosstab — a components-disabled host fires " +
 		"PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are " +
 		"the embedder's presentation concern. Buffered (inferential)."
 }

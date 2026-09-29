@@ -13,7 +13,7 @@ Intra-matrix pairwise along one axis of the SAME crosstab: `row` scope pairs row
 
 ## Params
 
-`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source` (enum, default `cell_n_unweighted`) — sample-size leg (see `op-overlay-pairwise-prop-z`). `params.n_within_depth` (int, default `0`) — within-group denominator depth for `n_source=n_within` / `n_within_distinct`; ignored by the margin modes. `params.p_source` (enum, default `cell_value_pct`) — `cell_value_pct` or `cell_value`.
+`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source`, `params.n_within_depth` and `params.p_source` are the family-wide vocabulary, identical to `op-overlay-pairwise-prop-z`: `pairwise-n-sources`.
 
 ## Host shape
 
@@ -28,12 +28,9 @@ MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to
 - `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - RAW p-values only — direction / thresholds / min-n are the embedder's job.
 - `p_source` mismatch fails silently: `cell_value` over a 0..100 percentage pushes proportions outside `[0,1]` and every pair skips.
-- **`n_within_distinct` counts the slab in distinct KEYS, not records** — identical semantics and identical admission to `op-overlay-pairwise-prop-z`: `AGG_DISTINCT_SUM` (`distinct_count`) or `AGG_DISTINCT_COUNT` (`cardinality`) cells only; anything else, including the `distinct_count` `AGG_FREQUENCY` / `AGG_MODE` emit for distinct VALUES, is refused up front with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- **A distinct slab must PARTITION.** A fan-out grouper among the pair-axis dims the slab sums across (depth > `n_within_depth`) is refused with `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`; inside the fixed prefix, or on the opposite axis, it is fine. Detail: `op-overlay-pairwise-prop-z`.
-- **`row_margin_distinct` / `column_margin_distinct` read the MARGIN leg in distinct KEYS** — off `RowMarginComponents[r]` / `ColumnMarginComponents[c]`, same admission as `n_within_distinct`. **Exact by construction and never partition-gated**: a margin accumulates over raw records, once each, so nothing is summed for a fan-out grouper to double-count. A nil / absent margin entry skips the pair with `PULSE_OVERLAY_REF_ZERO`, never a zero n. Detail: `op-overlay-pairwise-prop-z`.
-- **Null rules, both documented because they differ.** `AGG_DISTINCT_SUM` registers a key only when key AND value are non-null; `AGG_DISTINCT_COUNT` counts distinct non-null values. The n leg counts exactly what the cell counted.
+- **Distinct-KEY n modes carry the same admission and the same slab partition refusal as on prop-Z** — `AGG_DISTINCT_SUM` / `AGG_DISTINCT_COUNT` cells only, `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED` for a fan-out grouper at a summed-across depth, margin modes never gated. Full rules: `pairwise-n-sources`.
 - Flagged buffered in `OverlayStreamability`; the HOST crosstab still FUSES on a mergeable cell aggregator.
 
 ## See
 
-- Skills: `overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-test-t`.
+- Skills: `overlay-system`, `pairwise-n-sources`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-test-t`.

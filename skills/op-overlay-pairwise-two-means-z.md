@@ -15,7 +15,7 @@ Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope 
 
 `Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis.
 
-`n_source` / `p_source` ignored — n and moments come from the Welford triple. Ignored is not unvalidated: naming `n_source=n_within_distinct` still runs the distinct-cell admission and the slab-partition gate (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`), so a mode this kind would silently drop is refused instead. Detail: `op-overlay-pairwise-prop-z`.
+`n_source` / `p_source` ignored — n and moments come from the Welford triple. Ignored is not unvalidated: naming a distinct-KEY `n_source` still runs the cell-aggregator admission and the slab-partition gate (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`), so a mode this kind would silently drop is refused instead. Detail: `pairwise-n-sources`.
 
 ## Host shape
 
@@ -34,4 +34,4 @@ MATRIX — pair × opposite-axis grid of two-sided p-values (layout as `op-overl
 
 ## See
 
-- Skills: `overlay-system`, `crosstab-guide`, `op-overlay-pairwise-welch-t`, `op-agg-welford`, `op-test-z-two-sample`.
+- Skills: `overlay-system`, `pairwise-n-sources`, `crosstab-guide`, `op-overlay-pairwise-welch-t`, `op-agg-welford`, `op-test-z-two-sample`.
