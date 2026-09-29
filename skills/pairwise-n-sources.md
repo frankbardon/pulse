@@ -9,7 +9,7 @@ covers: [OVERLAY, PairwiseOverlayParams, n_source, p_source]
 
 # Pairwise sample-size sources
 
-All four `OVERLAY_PAIRWISE_*` kinds decode one shared `OverlaySpec.Params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`. Per-kind math stays in the atomics; this vocabulary is identical across all four, so it lives here once.
+All four `OVERLAY_PAIRWISE_*` kinds decode one shared `OverlaySpec.Params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`. Per-kind math stays in the atomics; this vocabulary lives here once.
 
 Every mode reads `Response.Components.Crosstab`; a components-disabled host fires `PULSE_OVERLAY_COMPONENTS_REQUIRED` first. An unreadable leg SKIPS the pair (aggregated `PULSE_OVERLAY_REF_ZERO`), never a zero n.
 
@@ -25,17 +25,17 @@ Every mode reads `Response.Components.Crosstab`; a components-disabled host fire
 | `n_within_distinct` | that slab, in distinct KEYS |
 | `row_margin_distinct` / `column_margin_distinct` | `RowMarginComponents[r]` / `ColumnMarginComponents[c]`, in distinct KEYS |
 
-`OVERLAY_PAIRWISE_WELCH_T` and `OVERLAY_PAIRWISE_TWO_MEANS_Z` IGNORE `n_source` — n comes from the Welford triple. Ignored is not unvalidated: a named distinct mode still runs admission and the partition gate, so a mode the kind would silently drop is refused instead. `n_within_depth` applies to `n_within` and `n_within_distinct` only (`types.PairwiseNSourceUsesWithinDepth`); margin modes ignore it, and `>=` the pair-axis dim count is refused.
+`OVERLAY_PAIRWISE_WELCH_T` and `OVERLAY_PAIRWISE_TWO_MEANS_Z` REFUSE both selectors — every `n_source` and every `p_source`, not just the distinct ones. n and both moments come from the Welford triple, so either would be a silent no-op: `PULSE_OVERLAY_PARAM_MISSING` at predict. Predict ONLY, unlike the partition gate below: an inert param cannot make a wrong number, so a runtime twin would only break a working `Process`. (A DISTINCT mode is still refused at runtime, by admission.) `n_within_depth` applies to `n_within` and `n_within_distinct` only (`types.PairwiseNSourceUsesWithinDepth`); margin modes ignore it, and `>=` the pair-axis dim count is refused.
 
 ## Distinct keys versus records
 
-Use a distinct mode when one respondent contributes several records and n must be respondents, not rows. They split on one property: `n_within_distinct` SUMS per-cell cardinalities (`types.PairwiseNSourceSumsDistinctCells`); the margin modes read ONE already-accumulated figure.
+Use a distinct mode when one respondent contributes several records and n must be respondents, not rows. They split on one property: `n_within_distinct` SUMS per-cell cardinalities (`types.PairwiseNSourceSumsDistinctCells`); the margin modes read ONE accumulated figure.
 
 ## Admission
 
 Distinct modes are admitted on the cell aggregator's IDENTITY, UP FRONT — not per pair — with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator and the admitted set: `AGG_DISTINCT_SUM` (figure on `distinct_count`) and `AGG_DISTINCT_COUNT` (on `cardinality`).
 
-Everything else is refused, including `AGG_FREQUENCY` and `AGG_MODE`, which BOTH emit a component literally spelled `distinct_count` — theirs counts distinct VALUES of the measure field (answer codes), not keys. A key-presence probe would read the answer-code count and call it a sample size, so identity is an exact component-key-set match against each aggregator's `ComponentSchema`; the per-cell probe in the slab accessors sits on top of that, not in place of it.
+Everything else is refused, including `AGG_FREQUENCY` and `AGG_MODE`, which BOTH emit a component spelled `distinct_count` — theirs counts distinct VALUES of the measure field (answer codes), not keys. A key-presence probe would read the answer-code count and call it a sample size, so identity is an exact component-key-set match against each aggregator's `ComponentSchema`; the per-cell probe in the slab accessors sits on top of that, not in place of it.
 
 ## Null rules
 
@@ -53,11 +53,11 @@ The two MARGIN distinct modes are exact by construction and deliberately NOT gat
 
 ## Why it is enforced rather than documented
 
-The failure is silent and liberal: n too large, every p-value too small, nothing in the response says so. So it is a refusal, with TWO arms — `descriptor.validateOverlayPairwise` at predict time and `processing.applyOverlaysToResponse` at runtime, because `pulse.Process` does not run predict. Both call `types.CheckPairwiseSlabPartition` for one shared message and Details map, so they cannot drift.
+The failure is silent and liberal: n too large, every p-value too small, nothing in the response says so. So it is a refusal with TWO arms — `descriptor.validateOverlayPairwise` and `processing.applyOverlaysToResponse`, because `pulse.Process` does not run predict. Both call `types.CheckPairwiseSlabPartition`, so message and Details cannot drift.
 
 ## Direct-caller bypass
 
-`processing.ApplyOverlaysWithExtensions` is EXPORTED. A caller that hand-builds a `CrosstabHostView` and drives the fold itself bypasses BOTH gates — predict never ran, and the runtime twin lives at the response hook that caller skipped, keyed off the pair-axis grouper type the materialised host does not carry. Admission survives, but classifies the cell aggregator from the component key SHAPE of the host supplied — so a host carrying `AGG_FREQUENCY` figures under a distinct-bearing key shape has its distinct ANSWER-CODE count read as a sample size. Accepted: the exported entry is for embedders who own their host. Drive the fold through `pulse.Process` for both gates.
+`processing.ApplyOverlaysWithExtensions` is EXPORTED. A caller hand-building a `CrosstabHostView` bypasses BOTH gates — predict never ran, and the runtime twin lives at the response hook that caller skipped, keyed off a pair-axis grouper type the materialised host does not carry. Admission survives but classifies the cell aggregator from the host's component key SHAPE, so `AGG_FREQUENCY` figures under a distinct-bearing shape have their ANSWER-CODE count read as a sample size. Accepted: the exported entry is for embedders who own their host. Drive the fold through `pulse.Process` for both gates.
 
 ## p_source
 

@@ -55,7 +55,9 @@ var pairwiseSupportedScopes = map[types.OverlayScope]bool{
 // validateOverlayPairwise validates the shared contract for every
 // OVERLAY_PAIRWISE_* kind: implicit-margin (empty Ref), MATRIX host,
 // ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
-// p_source modes, non-negative pair_along_dim / n_within_depth). The
+// p_source modes, non-negative pair_along_dim / n_within_depth) — plus the
+// per-kind rule that the two Welford-input kinds accept NEITHER mode
+// selector, because both legs come from the triple. The
 // per-cell components requirement (PULSE_OVERLAY_COMPONENTS_REQUIRED) and
 // the Welford-shape requirement are runtime conditions — they depend on
 // the materialised host, not the request shape, so the handler raises
@@ -99,6 +101,62 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 			map[string]any{"index": index, "kind": string(spec.Kind)})
 		return
 	}
+	// Welford-input inertness. OVERLAY_PAIRWISE_WELCH_T and
+	// OVERLAY_PAIRWISE_TWO_MEANS_Z read the mean, the variance AND the
+	// n out of the AGG_WELFORD triple, so neither mode selector ever
+	// reaches the math: setting one changed nothing while the caller
+	// believed they had moved the n leg or the proportion leg. Refused
+	// rather than ignored.
+	//
+	// Deliberately NOT scoped to the distinct-key modes. If the
+	// selector is meaningless on these kinds it is meaningless for
+	// every mode, and refusing three of nine would leave a rule nobody
+	// can state. This is a behaviour break: a request naming any
+	// n_source / p_source on a Welford kind predicted clean before and
+	// refuses now.
+	//
+	// Runs BEFORE the known-mode checks on purpose — "unknown n_source"
+	// would tell the caller a known one would work, and none would.
+	//
+	// n_within_depth is deliberately excluded. It is equally inert
+	// here, but only BECAUSE n_source is: a non-zero depth without a
+	// slab n_source is just as inert on the proportion kinds, so a
+	// Welford-only refusal would be the incoherence this gate avoids.
+	// It is also a plain int whose zero value is meaningful, so
+	// "was it set?" is not observable after decode.
+	//
+	// Predict-only, by decision. Unlike the slab partition gate below,
+	// no wrong NUMBER can come of this — the param is inert, so the
+	// p-values are correct either way and a runtime twin would convert
+	// a currently-succeeding pulse.Process into a hard failure for no
+	// correctness gain. The runtime arm keeps only the distinct-key
+	// cell-aggregator admission in processing.runPairwiseOverlay, whose
+	// three modes are new in this release and can break no existing
+	// caller.
+	if types.PairwiseKindUsesWelford(spec.Kind) {
+		const welfordReason = "n, mean and variance all come from the AGG_WELFORD triple {mean, variance, n}, so the mode selector is inert on this kind"
+		refused := false
+		if params.NSource != "" {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+welfordReason+
+					". Remove n_source, or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a proportion and a separate n leg",
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
+					"n_source": params.NSource, "reason": welfordReason})
+			refused = true
+		}
+		if params.PSource != "" {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" does not accept p_source ("+params.PSource+"): "+welfordReason+
+					". Remove p_source, or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which derive a proportion leg",
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
+					"p_source": params.PSource, "reason": welfordReason})
+			refused = true
+		}
+		if refused {
+			return
+		}
+	}
+
 	if !types.ValidPairwiseNSource(params.NSource) {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" has unknown n_source: "+params.NSource,

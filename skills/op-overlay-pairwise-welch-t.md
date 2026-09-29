@@ -15,7 +15,7 @@ Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope 
 
 `Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis.
 
-`n_source` / `p_source` ignored — n and moments come from the Welford triple. Ignored is not unvalidated: naming a distinct-KEY `n_source` still runs the cell-aggregator admission and the slab-partition gate (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`), so a mode this kind would silently drop is refused instead. Detail: `pairwise-n-sources`.
+`n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert. `n_within_depth` stays accepted and inert. Detail: `pairwise-n-sources`.
 
 ## Host shape
 

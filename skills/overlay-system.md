@@ -31,7 +31,7 @@ Additive, read-only decorations on a primary result. Specs ride `Request.Overlay
 
 Authoritative list + count: `types.AllOverlayKinds()` / `pulse_manifest.overlays`; never hardcode. Per-kind math in the atomics. Families (drop `OVERLAY_`):
 
-Share (`SHARE_OF_ROW`/`_COL`/`_TOTAL`); margin compare (`INDEX_`/`DELTA_`/`ZSCORE_VS_MARGIN`, `*_VS_TOTAL`, `RANK`); matrix inferential (`CHISQ_*`, `FISHER_EXACT_CELL`, `PROP_Z_CELL`, `T_CELL`, `Z_CELL`); intra-matrix pairwise (`PAIRWISE_PROP_Z`/`_PROBIT_T`/`_WELCH_T`/`_TWO_MEANS_Z`, sharing one `n_source` / `p_source` vocabulary — nine modes, three distinct-KEY: `pairwise-n-sources`); SERIES self-compare (baseline / sibling / prior / `YOY` / rolling); FACET population (`*_VS_POP`); Compose vs-ref + panel (`*_VS_REF`, `PROP_Z_PANEL`, `PANEL_INDEX_VS_REF`); chain (`*_VS_STAGE`); `FORMULA`.
+Share (`SHARE_OF_ROW`/`_COL`/`_TOTAL`); margin compare (`INDEX_`/`DELTA_`/`ZSCORE_VS_MARGIN`, `*_VS_TOTAL`, `RANK`); matrix inferential (`CHISQ_*`, `FISHER_EXACT_CELL`, `PROP_Z_CELL`, `T_CELL`, `Z_CELL`); intra-matrix pairwise (`PAIRWISE_PROP_Z`/`_PROBIT_T`/`_WELCH_T`/`_TWO_MEANS_Z`, sharing one `n_source` / `p_source` vocabulary — nine modes, three distinct-KEY, Welford pair refuses both: `pairwise-n-sources`); SERIES self-compare (baseline / sibling / prior / `YOY` / rolling); FACET population (`*_VS_POP`); Compose vs-ref + panel (`*_VS_REF`, `PROP_Z_PANEL`, `PANEL_INDEX_VS_REF`); chain (`*_VS_STAGE`); `FORMULA`.
 
 ## Host-arm wiring
 
@@ -53,7 +53,7 @@ Routing is dispatcher-stamped, service-distributed: the chain and Compose dispat
 
 `types.OverlayStreamability` — one row per kind. Descriptive SERIES stream, inferential (χ²/KS/Fisher/parity/Welch) buffer. Every MATRIX-host kind is `false`: the crosstab fold runs AFTER the matrix is finalised, so it is not in-pass.
 
-That flag does NOT pick the crosstab's execution path. **`Request.Overlays` no longer forces buffered** — `CanFuseCrosstab` ignores the slot; `RunCrosstabFused` folds at its exit through the same hook. The one reason an overlay-carrying crosstab buffers is the CELL-AGGREGATOR arm: `AGG_WELFORD` is non-mergeable, so the two kinds reading its triple (`OVERLAY_PAIRWISE_WELCH_T`, `OVERLAY_PAIRWISE_TWO_MEANS_Z`) stay buffered — pinned by `TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`. `OVERLAY_PAIRWISE_PROP_Z` over `AGG_WEIGHTED_MEAN` fuses. `pulse predict --json` classifies per spec.
+That flag does NOT pick the crosstab's execution path. **`Request.Overlays` no longer forces buffered** — `CanFuseCrosstab` ignores the slot; `RunCrosstabFused` folds at its exit through the same hook. The one reason an overlay-carrying crosstab buffers is the CELL-AGGREGATOR arm: `AGG_WELFORD` is non-mergeable, so the two kinds reading its triple stay buffered — pinned by `TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`. `OVERLAY_PAIRWISE_PROP_Z` over `AGG_WEIGHTED_MEAN` fuses. `pulse predict --json` classifies per spec.
 
 ## Parity overlays — Welford migration (v0.20.0)
 
