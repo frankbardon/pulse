@@ -106,7 +106,12 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	// Fires for the Welford-input kinds too, exactly as the
 	// n_within_depth range guard below does: those kinds ignore NSource,
 	// so a request that names one would otherwise be silently dropped.
-	if params.NSource == types.PairwiseNSourceNWithinDistinct {
+	//
+	// Keyed off PairwiseNSourceReadsDistinctKeys, not one constant: the
+	// MARGIN distinct modes read the same figure off the same cell
+	// aggregator and need the same admission. Only the SLAB mode needs
+	// the separate partition gate.
+	if types.PairwiseNSourceReadsDistinctKeys(params.NSource) {
 		if _, _, ok := host.AdmitsDistinctKeyN(); !ok {
 			observed, identified := host.CellAggregatorIdentity()
 			observedName := string(observed)
@@ -120,7 +125,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			}
 			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_INTERNAL,
-				"overlay "+string(spec.Kind)+" n_source=n_within_distinct requires a distinct-key cell aggregator; observed cell aggregator "+
+				"overlay "+string(spec.Kind)+" n_source="+params.NSource+" requires a distinct-key cell aggregator; observed cell aggregator "+
 					observedName+", admitted: "+joinCommaSpace(admittedNames),
 				map[string]any{
 					"code":                      string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
@@ -324,6 +329,14 @@ func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayPara
 		return host.RowMarginN(r)
 	case types.PairwiseNSourceColumnMarginN:
 		return host.ColumnMarginN(c)
+	case types.PairwiseNSourceRowMarginDistinct:
+		// Exact by construction — the margin accumulates over raw
+		// records, so no partition precondition applies. A nil / absent
+		// margin components entry returns ok=false and the pair skips;
+		// it must never fall through to a zero sample size.
+		return host.RowMarginDistinctN(r)
+	case types.PairwiseNSourceColumnMarginDistinct:
+		return host.ColumnMarginDistinctN(c)
 	case types.PairwiseNSourceCellWeightSum:
 		f, ok := host.CellWeightSum(r, c)
 		if !ok {

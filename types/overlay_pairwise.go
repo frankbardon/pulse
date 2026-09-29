@@ -44,6 +44,24 @@ const (
 	PairwiseNSourceNWithin         = "n_within"
 	PairwiseNSourceCellWeightSum   = "cell_weight_sum"
 
+	// PairwiseNSourceRowMarginDistinct / ...ColumnMarginDistinct are the
+	// distinct-KEY siblings of row_margin_n / column_margin_n: the same
+	// margin leg, read as the cell aggregator's distinct-key cardinality
+	// out of CrosstabComponents.RowMarginComponents[r] /
+	// ColumnMarginComponents[c] instead of the record count in
+	// RowMarginCounts / ColumnMarginCounts.
+	//
+	// They carry the SAME cell-aggregator admission as n_within_distinct
+	// (AGG_DISTINCT_SUM at "distinct_count" / AGG_DISTINCT_COUNT at
+	// "cardinality") and they are EXACT BY CONSTRUCTION: a margin
+	// accumulates over the raw records that reached the margin key, once
+	// each, so there is no per-cell summing step for a fan-out grouper to
+	// double-count through. That is why they are deliberately NOT covered
+	// by PairwiseNSourceSumsDistinctCells and never reach the slab
+	// partition gate — gating them would refuse correct requests.
+	PairwiseNSourceRowMarginDistinct    = "row_margin_distinct"
+	PairwiseNSourceColumnMarginDistinct = "column_margin_distinct"
+
 	// PairwiseNSourceNWithinDistinct is n_within's distinct-KEY sibling:
 	// the same fixed-prefix slab, accumulating the cell aggregator's
 	// distinct-key cardinality instead of its record count. Admitted only
@@ -63,10 +81,36 @@ func PairwiseNSourceUsesWithinDepth(s string) bool {
 	return s == PairwiseNSourceNWithin || s == PairwiseNSourceNWithinDistinct
 }
 
+// PairwiseNSourceReadsDistinctKeys reports whether s reads a DISTINCT-KEY
+// cardinality off the components block rather than a record count. Every
+// such mode shares one precondition — the CELL aggregator must be one
+// that actually carries a distinct-KEY figure — so the up-front admission
+// gate in processing keys off this predicate and a fourth distinct mode
+// does not need the gate rewritten.
+//
+// Strictly wider than PairwiseNSourceSumsDistinctCells: the margin modes
+// read distinct keys but never SUM per-cell cardinalities, so they are
+// admitted the same way and gated differently.
+func PairwiseNSourceReadsDistinctKeys(s string) bool {
+	switch s {
+	case PairwiseNSourceNWithinDistinct,
+		PairwiseNSourceRowMarginDistinct,
+		PairwiseNSourceColumnMarginDistinct:
+		return true
+	}
+	return false
+}
+
 // PairwiseNSourceSumsDistinctCells reports whether s accumulates a slab
 // by SUMMING per-cell DISTINCT-KEY cardinalities.
 //
-// Deliberately NOT PairwiseNSourceUsesWithinDepth. Plain n_within sums
+// Deliberately narrower than PairwiseNSourceReadsDistinctKeys. The margin
+// distinct modes read ONE figure accumulated over the raw records that
+// reached the margin key — no cell is summed into another, so no key can
+// land in two summed buckets and the figure is exact under any grouper.
+// Gating them would refuse correct requests.
+//
+// Deliberately NOT PairwiseNSourceUsesWithinDepth either. Plain n_within sums
 // per-cell RECORD counts, and record counts are additive under any
 // grouper — a record that fans into two buckets is genuinely two
 // contributions to the record total, so the sum is right. Distinct-key
@@ -197,6 +241,8 @@ func ValidPairwiseNSource(s string) bool {
 		PairwiseNSourceCellValueWeight,
 		PairwiseNSourceRowMarginN,
 		PairwiseNSourceColumnMarginN,
+		PairwiseNSourceRowMarginDistinct,
+		PairwiseNSourceColumnMarginDistinct,
 		PairwiseNSourceNWithin,
 		PairwiseNSourceNWithinDistinct,
 		PairwiseNSourceCellWeightSum:

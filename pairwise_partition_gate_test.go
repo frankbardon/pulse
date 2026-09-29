@@ -148,10 +148,16 @@ func TestPairwisePartitionGate_FanOutInPrefixRuns(t *testing.T) {
 	}
 }
 
-// TestPairwisePartitionGate_NWithinAndMarginsUnaffected pins the two
+// TestPairwisePartitionGate_NWithinAndMarginsUnaffected pins the
 // non-gated families on the OFFENDING axis shape: plain n_within (its
-// record counts are additive) and the record-count margin modes (their
-// distinct siblings arrive in E1-S4 and are gated there, not here).
+// record counts are additive) and EVERY margin mode, record-count and
+// distinct-key alike. The distinct margin modes are the load-bearing
+// entries — they read the same distinct-key figure n_within_distinct
+// does, off the same admitted cell aggregator, and are refused two
+// tests up when the slab sums it. A margin does not sum it: it
+// accumulates over the raw records that reached the margin key, once
+// each, so it is exact under a fan-out grouper and gating it would
+// refuse a correct request.
 func TestPairwisePartitionGate_NWithinAndMarginsUnaffected(t *testing.T) {
 	memFs := afero.NewMemMapFs()
 	writePairwiseDistinctCohort(t, memFs)
@@ -164,6 +170,8 @@ func TestPairwisePartitionGate_NWithinAndMarginsUnaffected(t *testing.T) {
 		types.PairwiseNSourceNWithin,
 		types.PairwiseNSourceRowMarginN,
 		types.PairwiseNSourceColumnMarginN,
+		types.PairwiseNSourceRowMarginDistinct,
+		types.PairwiseNSourceColumnMarginDistinct,
 		types.PairwiseNSourceCellNUnweighted,
 	} {
 		nSource := nSource

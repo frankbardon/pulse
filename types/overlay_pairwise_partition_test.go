@@ -147,8 +147,10 @@ func TestCheckPairwiseSlabPartition_Table(t *testing.T) {
 			wantBad: false,
 		},
 		{
-			// Margin distinct modes arrive in E1-S4 and are gated
-			// separately; the record-count margin modes never are.
+			// The margin modes — record-count AND distinct-key alike.
+			// A margin accumulates over raw records rather than folding
+			// cells, so there is no summing step for the fan-out dim to
+			// double-count through: exact by construction, never gated.
 			name:    "row_margin_n is NOT gated",
 			rows:    []*Group{flat("segment"), fanOut("brand")},
 			cols:    []*Group{flat("wave")},
@@ -163,6 +165,49 @@ func TestCheckPairwiseSlabPartition_Table(t *testing.T) {
 			cols:    []*Group{flat("wave")},
 			scope:   OverlayScopeRow,
 			nSource: PairwiseNSourceColumnMarginN,
+			depth:   0,
+			wantBad: false,
+		},
+		{
+			// The E1-S4 modes, over the SAME offending axis shape that
+			// refuses n_within_distinct two cases up. Gating these
+			// would refuse a correct request: the row margin counts
+			// each respondent once whatever `brand` does.
+			name:    "row_margin_distinct is NOT gated",
+			rows:    []*Group{flat("segment"), fanOut("brand")},
+			cols:    []*Group{flat("wave")},
+			scope:   OverlayScopeRow,
+			nSource: PairwiseNSourceRowMarginDistinct,
+			depth:   0,
+			wantBad: false,
+		},
+		{
+			name:    "column_margin_distinct is NOT gated",
+			rows:    []*Group{flat("segment"), fanOut("brand")},
+			cols:    []*Group{flat("wave")},
+			scope:   OverlayScopeRow,
+			nSource: PairwiseNSourceColumnMarginDistinct,
+			depth:   0,
+			wantBad: false,
+		},
+		{
+			name:    "column_margin_distinct is NOT gated at column scope either",
+			rows:    []*Group{flat("wave")},
+			cols:    []*Group{flat("segment"), fanOut("brand")},
+			scope:   OverlayScopeColumn,
+			nSource: PairwiseNSourceColumnMarginDistinct,
+			depth:   0,
+			wantBad: false,
+		},
+		{
+			// n_within_depth is meaningless for a margin mode, but a
+			// caller may leave one set from an earlier edit. It must
+			// not drag the margin mode into the slab gate.
+			name:    "row_margin_distinct with a stray n_within_depth is still NOT gated",
+			rows:    []*Group{flat("segment"), fanOut("brand")},
+			cols:    []*Group{flat("wave")},
+			scope:   OverlayScopeRow,
+			nSource: PairwiseNSourceRowMarginDistinct,
 			depth:   0,
 			wantBad: false,
 		},
@@ -262,16 +307,63 @@ func TestPairwiseNSourceSumsDistinctCells_NotUsesWithinDepth(t *testing.T) {
 	if !PairwiseNSourceSumsDistinctCells(PairwiseNSourceNWithinDistinct) {
 		t.Error("n_within_distinct sums distinct cardinalities — it must be gated")
 	}
+	// The margin distinct modes are the interesting entries here: they
+	// READ distinct keys, so a predicate written as "is this a distinct
+	// mode?" would gate them — and gating them refuses a request that
+	// is exact by construction, because a margin accumulates over raw
+	// records rather than folding cells.
 	for _, s := range []string{
 		"",
 		PairwiseNSourceCellNUnweighted,
 		PairwiseNSourceCellValueWeight,
 		PairwiseNSourceRowMarginN,
 		PairwiseNSourceColumnMarginN,
+		PairwiseNSourceRowMarginDistinct,
+		PairwiseNSourceColumnMarginDistinct,
 		PairwiseNSourceCellWeightSum,
 	} {
 		if PairwiseNSourceSumsDistinctCells(s) {
 			t.Errorf("n_source %q does not sum distinct cardinalities but is gated", s)
+		}
+	}
+}
+
+// TestPairwiseNSourceReadsDistinctKeys keeps the ADMISSION predicate
+// and the PARTITION predicate apart. Both margin distinct modes must be
+// admitted like n_within_distinct (same cell aggregators, same figure)
+// and gated unlike it (nothing is summed, so nothing can double-count).
+func TestPairwiseNSourceReadsDistinctKeys(t *testing.T) {
+	distinct := []string{
+		PairwiseNSourceNWithinDistinct,
+		PairwiseNSourceRowMarginDistinct,
+		PairwiseNSourceColumnMarginDistinct,
+	}
+	for _, s := range distinct {
+		if !PairwiseNSourceReadsDistinctKeys(s) {
+			t.Errorf("n_source %q reads a distinct-key figure but is not admitted through the gate", s)
+		}
+		if !ValidPairwiseNSource(s) {
+			t.Errorf("n_source %q is not accepted by ValidPairwiseNSource", s)
+		}
+	}
+	for _, s := range []string{
+		"",
+		PairwiseNSourceCellNUnweighted,
+		PairwiseNSourceCellValueWeight,
+		PairwiseNSourceRowMarginN,
+		PairwiseNSourceColumnMarginN,
+		PairwiseNSourceNWithin,
+		PairwiseNSourceCellWeightSum,
+	} {
+		if PairwiseNSourceReadsDistinctKeys(s) {
+			t.Errorf("n_source %q reads RECORD counts but is routed through the distinct admission gate", s)
+		}
+	}
+	// The margin modes do NOT read n_within_depth either — only the
+	// slab modes do, and the depth range guard keys off that.
+	for _, s := range []string{PairwiseNSourceRowMarginDistinct, PairwiseNSourceColumnMarginDistinct} {
+		if PairwiseNSourceUsesWithinDepth(s) {
+			t.Errorf("margin mode %q must not be subject to the n_within_depth range guard", s)
 		}
 	}
 }

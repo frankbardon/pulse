@@ -409,19 +409,80 @@ func componentKeysEqual(cell map[string]any, keys []string) bool {
 	return true
 }
 
+// pairwiseDistinctNKeyProbe is the ordered key probe the distinct-n
+// readers use once the ADMISSION gate has established the cell
+// aggregator is one of the two that carry a distinct-KEY figure. Order
+// matches pairwiseDistinctNKey's two entries; it is a convenience on
+// top of admission, never a substitute for it.
+var pairwiseDistinctNKeyProbe = []string{"distinct_count", "cardinality"}
+
 // distinctCellN reads one cell's distinct-key figure, trying
 // "distinct_count" then "cardinality". A nil / absent / non-numeric
 // slot contributes ZERO rather than failing the slab — a crosstab cell
 // no record reached carries no components at all, and that is a true
 // zero, not an unreadable leg.
 func (h *CrosstabHostView) distinctCellN(rowIdx, colIdx int) int {
-	if f, ok := h.CellComponentFloat(rowIdx, colIdx, "distinct_count"); ok {
-		return int(f)
-	}
-	if f, ok := h.CellComponentFloat(rowIdx, colIdx, "cardinality"); ok {
-		return int(f)
+	for _, key := range pairwiseDistinctNKeyProbe {
+		if f, ok := h.CellComponentFloat(rowIdx, colIdx, key); ok {
+			return int(f)
+		}
 	}
 	return 0
+}
+
+// marginDistinctN reads a distinct-key cardinality out of ONE margin
+// components map.
+//
+// The zero-vs-unreadable rule inverts here relative to distinctCellN,
+// deliberately. A slab cell no record reached is a true zero and must
+// not fail the whole slab; a MARGIN entry that is nil or carries no
+// distinct key is not a zero-sized margin, it is a leg that was never
+// emitted (components disabled, or the margin display flag off).
+// Returning 0 there would hand the test a silently wrong sample size,
+// so it returns ok=false and the pair skips with the aggregated
+// PULSE_OVERLAY_REF_ZERO warning instead.
+func marginDistinctN(comp map[string]any) (int, bool) {
+	for _, key := range pairwiseDistinctNKeyProbe {
+		v, present := comp[key]
+		if !present {
+			continue
+		}
+		f, ok := componentToFloat(v)
+		if !ok {
+			return 0, false
+		}
+		return int(f), true
+	}
+	return 0, false
+}
+
+// RowMarginDistinctN is RowMarginN's distinct-key twin: the per-row
+// margin read as the cell aggregator's distinct-KEY cardinality out of
+// CrosstabComponents.RowMarginComponents[rowIdx].
+//
+// EXACT BY CONSTRUCTION, and that is the whole point of the mode. The
+// row margin recomputes the cell aggregator over the raw records that
+// reached the row key — once each, whatever the column axis does — so
+// no key is ever counted twice and no partition precondition applies.
+// Summing RowSlabDistinctN across a fan-out column axis WOULD
+// double-count; this reads the accumulated figure instead.
+func (h *CrosstabHostView) RowMarginDistinctN(rowIdx int) (int, bool) {
+	if h == nil || h.components == nil ||
+		rowIdx < 0 || rowIdx >= len(h.components.RowMarginComponents) {
+		return 0, false
+	}
+	return marginDistinctN(h.components.RowMarginComponents[rowIdx])
+}
+
+// ColumnMarginDistinctN is ColumnMarginN's distinct-key twin, reading
+// CrosstabComponents.ColumnMarginComponents[colIdx]. Same
+// exact-by-construction property as RowMarginDistinctN.
+func (h *CrosstabHostView) ColumnMarginDistinctN(colIdx int) (int, bool) {
+	if h == nil || h.components == nil ||
+		colIdx < 0 || colIdx >= len(h.components.ColumnMarginComponents) {
+		return 0, false
+	}
+	return marginDistinctN(h.components.ColumnMarginComponents[colIdx])
 }
 
 // ColumnSlabDistinctN is ColumnSlabN's distinct-key twin: the same

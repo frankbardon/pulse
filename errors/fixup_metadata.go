@@ -1777,8 +1777,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "n_source"},
-				Hint:     "Switch to a sample-size mode that does not sum distinct cardinalities. `n_within` sums per-cell RECORD counts, which are additive under any grouper — correct, but it counts records rather than respondents. `cell_n_unweighted`, `row_margin_n` and `column_margin_n` read a single figure and never sum across a fan-out dim.",
-				Examples: []any{"n_within", "cell_n_unweighted", "row_margin_n", "column_margin_n"},
+				Hint:     "Switch to a sample-size mode that does not sum distinct cardinalities. To KEEP the distinct-key count, use `row_margin_distinct` / `column_margin_distinct`: a margin accumulates over raw records rather than folding cells, so it is exact under a fan-out grouper and is never gated — at the cost of a margin-wide denominator instead of a slab one. `n_within` sums per-cell RECORD counts, which are additive under any grouper — correct, but it counts records rather than respondents. `cell_n_unweighted`, `row_margin_n` and `column_margin_n` read a single figure and never sum across a fan-out dim.",
+				Examples: []any{"row_margin_distinct", "column_margin_distinct", "n_within", "cell_n_unweighted", "row_margin_n", "column_margin_n"},
 			},
 		},
 	},

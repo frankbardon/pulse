@@ -247,8 +247,9 @@ func TestCrosstabOverlays_DistinctSlabAccepts(t *testing.T) {
 			params: `{"n_source":"n_within","n_within_depth":0}`,
 		},
 		{
-			// The MARGIN modes are out of scope for this gate (their
-			// distinct siblings arrive in E1-S4 and are gated there).
+			// The MARGIN modes are out of scope for this gate — a
+			// margin accumulates over raw records rather than folding
+			// cells, so no key can land in two summed buckets.
 			name:   "row_margin_n over the same fan-out inner level",
 			rows:   []*types.Group{pgFlat("segment"), pgFan("brand")},
 			cols:   []*types.Group{pgFlat("wave")},
@@ -261,6 +262,40 @@ func TestCrosstabOverlays_DistinctSlabAccepts(t *testing.T) {
 			cols:   []*types.Group{pgFlat("wave")},
 			scope:  types.OverlayScopeRow,
 			params: `{"n_source":"column_margin_n"}`,
+		},
+		{
+			// The DISTINCT margin modes, over the SAME axis shape the
+			// gate refuses n_within_distinct on. They read distinct
+			// keys but are exact by construction, so refusing them
+			// would refuse a correct request.
+			name:   "row_margin_distinct over the same fan-out inner level",
+			rows:   []*types.Group{pgFlat("segment"), pgFan("brand")},
+			cols:   []*types.Group{pgFlat("wave")},
+			scope:  types.OverlayScopeRow,
+			params: `{"n_source":"row_margin_distinct"}`,
+		},
+		{
+			name:   "column_margin_distinct over the same fan-out inner level",
+			rows:   []*types.Group{pgFlat("segment"), pgFan("brand")},
+			cols:   []*types.Group{pgFlat("wave")},
+			scope:  types.OverlayScopeRow,
+			params: `{"n_source":"column_margin_distinct"}`,
+		},
+		{
+			name:   "column_margin_distinct at column scope over a fan-out inner level",
+			rows:   []*types.Group{pgFlat("wave")},
+			cols:   []*types.Group{pgFlat("segment"), pgFan("brand")},
+			scope:  types.OverlayScopeColumn,
+			params: `{"n_source":"column_margin_distinct"}`,
+		},
+		{
+			// A stray n_within_depth left over from an earlier edit
+			// must not drag a margin mode into the slab gate.
+			name:   "row_margin_distinct with a stray n_within_depth",
+			rows:   []*types.Group{pgFlat("segment"), pgFan("brand")},
+			cols:   []*types.Group{pgFlat("wave")},
+			scope:  types.OverlayScopeRow,
+			params: `{"n_source":"row_margin_distinct","n_within_depth":0}`,
 		},
 	}
 
