@@ -242,6 +242,49 @@ func TestStreamability_GroupsKnown(t *testing.T) {
 	}
 }
 
+// TestGroupFanOutKnown pins GroupType.FansOut() for every registered
+// group type. Adding a GroupType without deciding its fan-out status
+// fails here; the runtime half of the contract (does the constructed
+// grouper implement processing.MultiKeyStreamingGrouper?) is asserted
+// by TestGrouperFanOutMatchesTypes in processing/.
+func TestGroupFanOutKnown(t *testing.T) {
+	expected := map[GroupType]bool{
+		GROUP_CATEGORY:    false,
+		GROUP_DATE:        false,
+		GROUP_DATE_RANGES: false,
+		GROUP_QUANTILE:    false,
+		GROUP_RANGE:       false,
+		GROUP_ROUNDED:     false,
+		GROUP_SET_VALUE:   false,
+
+		// The one built-in that fans a record into many buckets.
+		GROUP_SET_PER_ELEMENT: true,
+	}
+	for _, g := range AllGroupTypes() {
+		want, ok := expected[g]
+		if !ok {
+			t.Fatalf("grouper %s missing from fan-out table — decide whether a single record can reach more than one of its buckets", g)
+		}
+		if got := g.FansOut(); got != want {
+			t.Errorf("%s.FansOut() = %v, want %v", g, got, want)
+		}
+	}
+	if len(expected) != len(AllGroupTypes()) {
+		t.Fatalf("grouper fan-out table size mismatch: %d entries, %d types", len(expected), len(AllGroupTypes()))
+	}
+}
+
+// TestGroupFanOutUnknownType asserts an unregistered GroupType falls
+// through to false rather than panicking — the safe answer, since a
+// caller gating on FansOut() treats false as "one bucket per record".
+func TestGroupFanOutUnknownType(t *testing.T) {
+	for _, g := range []GroupType{"", "GROUP_NOT_A_THING", "AGG_COUNT", "group_set_per_element"} {
+		if got := g.FansOut(); got {
+			t.Errorf("GroupType(%q).FansOut() = true, want false for an unregistered type", g)
+		}
+	}
+}
+
 func TestStreamability_WindowsKnown(t *testing.T) {
 	for _, w := range AllWindowTypes() {
 		if w.Streamable() {

@@ -11,7 +11,7 @@ examples_tags: [cardinality-analysis, cohort-analysis]
 
 ## Params
 
-None. `Group.Label` renames the output column; `Group.Include` allow-lists fan-out labels (each matched independently) and fixes emission order.
+None. `Group.Label` renames the output column; `Group.Include` allow-lists fan-out labels and fixes emission order.
 
 ## Inputs
 
@@ -21,7 +21,7 @@ None. `Group.Label` renames the output column; `Group.Include` allow-lists fan-o
 
 ## Output
 
-One string key per set bit per row. Smart default for `set_*`. Implements `MultiKeyStreamingGrouper`. Non-empty `Include` overrides dict-index emission order; zero-record labels dropped.
+One string key per set bit per row. Smart default for `set_*`. `GroupType.FansOut()` true — implements `MultiKeyStreamingGrouper`. Non-empty `Include` overrides dict-index emission order; zero-record labels dropped.
 
 ## Components
 
