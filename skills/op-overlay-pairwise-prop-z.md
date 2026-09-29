@@ -13,7 +13,7 @@ One host-matrix slot against another ALONG one axis of the SAME crosstab — the
 
 ## Params
 
-`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix — leave empty. Any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one. Unset = every pair. `params.n_source` (enum, default `cell_n_unweighted`) — `cell_n_unweighted` / `cell_value_weighted` / `row_margin_n` / `column_margin_n` / `n_within` / `cell_weight_sum`. `params.n_within_depth` (int, default `0`) — with `n_source=n_within`, fixes the first depth+1 pair-axis dims in the denominator (mirrors `CrosstabSpec.NormalizeWithin`). `params.p_source` (enum, default `cell_value_pct`) — `cell_value_pct` (0..100, ÷100) or `cell_value` (already 0..1).
+`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix — leave empty. Any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one. Unset = every pair. `params.n_source` (enum, default `cell_n_unweighted`) — `cell_n_unweighted` / `cell_value_weighted` / `row_margin_n` / `column_margin_n` / `n_within` / `n_within_distinct` / `cell_weight_sum`. `params.n_within_depth` (int, default `0`) — with `n_source=n_within` or `n_within_distinct`, fixes the first depth+1 pair-axis dims in the denominator (mirrors `CrosstabSpec.NormalizeWithin`); `>=` the pair-axis dim count is refused. `params.p_source` (enum, default `cell_value_pct`) — `cell_value_pct` (0..100, ÷100) or `cell_value` (already 0..1).
 
 ## Host shape
 
@@ -29,6 +29,8 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 - RAW p-values only — direction, thresholds and min-n flags are the embedder's job; every input is already on the response.
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.
 - **`p_source` mismatch fails silently and totally.** `cell_value` over a real 0..100 percentage drives pooled p outside `[0,1]`, so EVERY pair skips and the layer returns empty.
+- **`n_within_distinct` counts the slab in distinct KEYS, not records** — same slab as `n_within`, distinct-key cardinality instead of `CellCounts`. Use it when a respondent contributes several records. Admitted ONLY on an `AGG_DISTINCT_SUM` cell (read at `distinct_count`) or `AGG_DISTINCT_COUNT` (read at `cardinality`); every other cell aggregator is refused UP FRONT with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator. `AGG_FREQUENCY` and `AGG_MODE` spell a key `distinct_count` too, but theirs counts distinct VALUES of the measure field — admission is on aggregator IDENTITY precisely so that never lands as an n.
+- **Null rules, one per admitted aggregator — the n leg counts exactly what the CELL counted.** `AGG_DISTINCT_SUM` registers a key only when the KEY and the VALUE are both non-null; `AGG_DISTINCT_COUNT`'s `cardinality` counts distinct NON-NULL values. A slab cell with no components contributes zero, never a skip.
 - Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (`AGG_WEIGHTED_MEAN`, including over a `GROUP_SET_PER_ELEMENT` axis).
 
 ## See

@@ -260,3 +260,184 @@ func componentToFloat(v any) (float64, bool) {
 	}
 	return 0, false
 }
+
+// --- Distinct-key sample sizes (n_within_distinct) -------------------
+//
+// n_within_distinct reuses the n_within slab geometry but accumulates a
+// DISTINCT-KEY cardinality instead of CellCounts. Two cell aggregators
+// carry such a figure and they spell it differently:
+//
+//	AGG_DISTINCT_SUM   -> "distinct_count" (distinct keys that summed)
+//	AGG_DISTINCT_COUNT -> "cardinality"    (distinct non-null values)
+//
+// AGG_FREQUENCY and AGG_MODE also emit a key literally spelled
+// "distinct_count", but theirs counts distinct VALUES OF THE MEASURE
+// FIELD — the number of answer codes, not respondents. Reading it as a
+// sample size is the silent wrong number this mode exists to remove, so
+// the slab accessors below are only ever reached AFTER
+// AdmitsDistinctKeyN has identified the cell aggregator. The key probe
+// in distinctCellN is a convenience, NOT the safety property: do not
+// "simplify" the admission gate away on the grounds that the probe
+// already picks a key.
+
+// pairwiseDistinctNKey names, per ADMITTED cell aggregator, the
+// component key carrying its distinct-KEY cardinality.
+var pairwiseDistinctNKey = map[types.AggregationType]string{
+	types.AGG_DISTINCT_SUM:   "distinct_count",
+	types.AGG_DISTINCT_COUNT: "cardinality",
+}
+
+// PairwiseDistinctNAdmitted returns the admitted cell aggregators in a
+// stable order, for diagnostics that must name the admitted set.
+func PairwiseDistinctNAdmitted() []types.AggregationType {
+	return []types.AggregationType{types.AGG_DISTINCT_SUM, types.AGG_DISTINCT_COUNT}
+}
+
+// cellAggregatorIdentitySignatures maps a discriminating component key
+// SET onto the aggregator that emits exactly it. Only the aggregators
+// whose ComponentSchema carries "distinct_count" or "cardinality" need
+// an entry — anything else cannot be confused for a distinct-key figure
+// and classifies as unidentified.
+//
+// Signatures come from descriptor/capabilities_aggregators.go:
+//
+//	AGG_DISTINCT_COUNT {cardinality}
+//	AGG_DISTINCT_SUM   {sum, distinct_count}
+//	AGG_FREQUENCY      {distinct_count, mode_value, mode_count}
+//	AGG_MODE           {value, count, distinct_count, tie_count}
+//
+// descriptor/ cannot be imported from processing/ (the no-execute
+// boundary runs the other way), so the discriminators are restated here
+// and pinned by TestPairwiseCellAggregatorIdentity.
+var cellAggregatorIdentitySignatures = []struct {
+	agg  types.AggregationType
+	keys []string
+}{
+	{types.AGG_DISTINCT_COUNT, []string{"cardinality"}},
+	{types.AGG_DISTINCT_SUM, []string{"sum", "distinct_count"}},
+	{types.AGG_FREQUENCY, []string{"distinct_count", "mode_value", "mode_count"}},
+	{types.AGG_MODE, []string{"distinct_count", "value", "count", "tie_count"}},
+}
+
+// CellAggregatorIdentity classifies the host's CELL aggregator from the
+// component key set it emitted. Returns ok=false when components are
+// absent, every cell slot is nil, or the key set matches no known
+// distinct-bearing aggregator (the safe default: an unidentified cell
+// aggregator is never admitted as a distinct-key sample size).
+func (h *CrosstabHostView) CellAggregatorIdentity() (types.AggregationType, bool) {
+	if h == nil || h.components == nil {
+		return "", false
+	}
+	for _, row := range h.components.CellComponents {
+		for _, cell := range row {
+			if len(cell) == 0 {
+				continue
+			}
+			for _, sig := range cellAggregatorIdentitySignatures {
+				if componentKeysPresent(cell, sig.keys) {
+					return sig.agg, true
+				}
+			}
+			return "", false
+		}
+	}
+	return "", false
+}
+
+// AdmitsDistinctKeyN reports whether the host's cell aggregator carries
+// a distinct-KEY cardinality, returning that aggregator and the
+// component key its figure rides on.
+func (h *CrosstabHostView) AdmitsDistinctKeyN() (types.AggregationType, string, bool) {
+	agg, ok := h.CellAggregatorIdentity()
+	if !ok {
+		return "", "", false
+	}
+	key, admitted := pairwiseDistinctNKey[agg]
+	if !admitted {
+		return agg, "", false
+	}
+	return agg, key, true
+}
+
+func componentKeysPresent(cell map[string]any, keys []string) bool {
+	for _, k := range keys {
+		if _, ok := cell[k]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// distinctCellN reads one cell's distinct-key figure, trying
+// "distinct_count" then "cardinality". A nil / absent / non-numeric
+// slot contributes ZERO rather than failing the slab — a crosstab cell
+// no record reached carries no components at all, and that is a true
+// zero, not an unreadable leg.
+func (h *CrosstabHostView) distinctCellN(rowIdx, colIdx int) int {
+	if f, ok := h.CellComponentFloat(rowIdx, colIdx, "distinct_count"); ok {
+		return int(f)
+	}
+	if f, ok := h.CellComponentFloat(rowIdx, colIdx, "cardinality"); ok {
+		return int(f)
+	}
+	return 0
+}
+
+// ColumnSlabDistinctN is ColumnSlabN's distinct-key twin: the same
+// fixed-prefix walk across columns at a fixed row, summing each cell's
+// distinct-key cardinality instead of its record count. Returns
+// (0, false) when components / CellComponents are absent or the anchor
+// key does not reach `prefix` positions; (sum, true) otherwise.
+func (h *CrosstabHostView) ColumnSlabDistinctN(rowIdx, colIdx, prefix int) (int, bool) {
+	if h == nil || h.components == nil || len(h.components.CellComponents) == 0 {
+		return 0, false
+	}
+	if rowIdx < 0 || rowIdx >= len(h.components.CellComponents) {
+		return 0, false
+	}
+	anchor := h.columnKey(colIdx)
+	if anchor == nil || prefix <= 0 || prefix > len(anchor) {
+		return 0, false
+	}
+	row := h.components.CellComponents[rowIdx]
+	total := 0
+	for c := 0; c < len(row); c++ {
+		k := h.columnKey(c)
+		if k == nil || len(k) < prefix {
+			continue
+		}
+		if axisKeyPrefixEqual(anchor, k, prefix) {
+			total += h.distinctCellN(rowIdx, c)
+		}
+	}
+	return total, true
+}
+
+// RowSlabDistinctN is RowSlabN's distinct-key twin: the same
+// fixed-prefix walk across rows at a fixed column, summing each cell's
+// distinct-key cardinality instead of its record count.
+func (h *CrosstabHostView) RowSlabDistinctN(rowIdx, colIdx, prefix int) (int, bool) {
+	if h == nil || h.components == nil || len(h.components.CellComponents) == 0 {
+		return 0, false
+	}
+	anchor := h.rowKey(rowIdx)
+	if anchor == nil || prefix <= 0 || prefix > len(anchor) {
+		return 0, false
+	}
+	total := 0
+	for rIdx := 0; rIdx < len(h.components.CellComponents); rIdx++ {
+		k := h.rowKey(rIdx)
+		if k == nil || len(k) < prefix {
+			continue
+		}
+		if !axisKeyPrefixEqual(anchor, k, prefix) {
+			continue
+		}
+		row := h.components.CellComponents[rIdx]
+		if colIdx < 0 || colIdx >= len(row) {
+			continue
+		}
+		total += h.distinctCellN(rIdx, colIdx)
+	}
+	return total, true
+}

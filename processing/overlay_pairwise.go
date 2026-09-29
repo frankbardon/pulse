@@ -92,6 +92,46 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			map[string]any{"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE), "kind": string(spec.Kind)})
 	}
 
+	// Distinct-key n admission — refused UP FRONT, on the cell
+	// aggregator's IDENTITY, never per pair. AGG_FREQUENCY and AGG_MODE
+	// both emit a component literally spelled "distinct_count" that
+	// counts distinct VALUES OF THE MEASURE FIELD; only
+	// AGG_DISTINCT_SUM's means distinct KEYS, and AGG_DISTINCT_COUNT
+	// spells its figure "cardinality". A key-PRESENCE gate would read
+	// the number of distinct answer codes and call it a sample size, so
+	// the gate identifies the aggregator instead. The per-cell key probe
+	// inside the slab accessors is a convenience on top of this decision,
+	// not a substitute for it: do not simplify this gate away.
+	//
+	// Fires for the Welford-input kinds too, exactly as the
+	// n_within_depth range guard below does: those kinds ignore NSource,
+	// so a request that names one would otherwise be silently dropped.
+	if params.NSource == types.PairwiseNSourceNWithinDistinct {
+		if _, _, ok := host.AdmitsDistinctKeyN(); !ok {
+			observed, identified := host.CellAggregatorIdentity()
+			observedName := string(observed)
+			if !identified {
+				observedName = "unidentified"
+			}
+			admitted := PairwiseDistinctNAdmitted()
+			admittedNames := make([]string, len(admitted))
+			for i, a := range admitted {
+				admittedNames[i] = string(a)
+			}
+			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_INTERNAL,
+				"overlay "+string(spec.Kind)+" n_source=n_within_distinct requires a distinct-key cell aggregator; observed cell aggregator "+
+					observedName+", admitted: "+joinCommaSpace(admittedNames),
+				map[string]any{
+					"code":                      string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+					"kind":                      string(spec.Kind),
+					"n_source":                  params.NSource,
+					"observed_cell_aggregator":  observedName,
+					"admitted_cell_aggregators": admittedNames,
+				})
+		}
+	}
+
 	rowScope := spec.Scope == types.OverlayScopeRow
 
 	pairs, perr := buildPairwisePairs(spec, host, params, rowScope)
@@ -157,7 +197,7 @@ func buildPairwisePairs(spec *types.OverlaySpec, host *CrosstabHostView, params 
 		labelAt = func(i int) string { return stringifyOverlayAxisKey(host.rowKey(i)) }
 	}
 
-	if params.NSource == types.PairwiseNSourceNWithin && params.NWithinDepth >= depth {
+	if types.PairwiseNSourceUsesWithinDepth(params.NSource) && params.NWithinDepth >= depth {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"overlay "+string(spec.Kind)+" n_within_depth exceeds pair-axis dim count",
 			map[string]any{"code": string(errors.PULSE_OVERLAY_PARAM_MISSING), "kind": string(spec.Kind),
@@ -296,6 +336,17 @@ func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayPara
 			return host.RowSlabN(r, c, prefix)
 		}
 		return host.ColumnSlabN(r, c, prefix)
+	case types.PairwiseNSourceNWithinDistinct:
+		// Same slab geometry as n_within, accumulating the cell
+		// aggregator's distinct-KEY cardinality. Admission already
+		// established the cell aggregator is one of the two that carry
+		// one (runPairwiseOverlay), so an unreadable slab here means a
+		// missing anchor key, not a wrong aggregator.
+		prefix := params.NWithinDepth + 1
+		if rowScope {
+			return host.RowSlabDistinctN(r, c, prefix)
+		}
+		return host.ColumnSlabDistinctN(r, c, prefix)
 	default:
 		return host.CellN(r, c)
 	}
@@ -389,6 +440,20 @@ func stringifyOverlayAxisKey(k types.AxisKey) string {
 		}
 		return joinPipe(parts)
 	}
+}
+
+// joinCommaSpace joins parts with ", ". Kept alongside joinPipe rather
+// than reaching for strings.Join so the file stays consistent with the
+// no-Sprintf posture of the surrounding diagnostics.
+func joinCommaSpace(parts []string) string {
+	out := ""
+	for i, p := range parts {
+		if i > 0 {
+			out += ", "
+		}
+		out += p
+	}
+	return out
 }
 
 func joinPipe(parts []string) string {

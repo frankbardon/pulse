@@ -22,9 +22,9 @@ type PairwiseOverlayParams struct {
 	// the Welford-input kinds (welch / two-means read n from the triple).
 	NSource string `json:"n_source,omitempty"`
 
-	// NWithinDepth, with NSource=n_within, fixes the first NWithinDepth+1
-	// pair-axis dim positions in the denominator (mirrors
-	// CrosstabSpec.NormalizeWithin). Must be >= 0.
+	// NWithinDepth, with NSource=n_within or n_within_distinct, fixes the
+	// first NWithinDepth+1 pair-axis dim positions in the denominator
+	// (mirrors CrosstabSpec.NormalizeWithin). Must be >= 0.
 	NWithinDepth int `json:"n_within_depth,omitempty"`
 
 	// PSource selects how the proportion leg is derived for the
@@ -42,7 +42,25 @@ const (
 	PairwiseNSourceColumnMarginN   = "column_margin_n"
 	PairwiseNSourceNWithin         = "n_within"
 	PairwiseNSourceCellWeightSum   = "cell_weight_sum"
+
+	// PairwiseNSourceNWithinDistinct is n_within's distinct-KEY sibling:
+	// the same fixed-prefix slab, accumulating the cell aggregator's
+	// distinct-key cardinality instead of its record count. Admitted only
+	// on an AGG_DISTINCT_SUM cell (read at "distinct_count") or an
+	// AGG_DISTINCT_COUNT cell (read at "cardinality"); every other cell
+	// aggregator is refused, because AGG_FREQUENCY and AGG_MODE spell a
+	// DISTINCT-VALUE figure with the same "distinct_count" key and reading
+	// it as a sample size is silently wrong.
+	PairwiseNSourceNWithinDistinct = "n_within_distinct"
 )
+
+// PairwiseNSourceUsesWithinDepth reports whether s is one of the
+// fixed-prefix slab modes that read NWithinDepth. Both the depth
+// range guard and the slab accumulators key off this, so adding a
+// third slab mode does not need the guard rewritten.
+func PairwiseNSourceUsesWithinDepth(s string) bool {
+	return s == PairwiseNSourceNWithin || s == PairwiseNSourceNWithinDistinct
+}
 
 // Pairwise proportion source modes (PairwiseOverlayParams.PSource).
 const (
@@ -60,6 +78,7 @@ func ValidPairwiseNSource(s string) bool {
 		PairwiseNSourceRowMarginN,
 		PairwiseNSourceColumnMarginN,
 		PairwiseNSourceNWithin,
+		PairwiseNSourceNWithinDistinct,
 		PairwiseNSourceCellWeightSum:
 		return true
 	}
