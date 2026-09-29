@@ -869,6 +869,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_FANOUT_MISMATCH: {
+		Message: "A grouper registration's FansOut declaration disagrees with whether its factory returns processing.MultiKeyStreamingGrouper.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Set FansOut=true when the returned grouper implements MultiKeyStreamingGrouper (KeysForRow fans one record into several buckets), FansOut=false when it maps each record to exactly one key. Declaring false for a multi-key grouper is the silent over-count the check exists to prevent — fix the declaration, not the check.",
+			},
+		},
+	},
 	PULSE_EXTENSION_FACTORY_PANIC: {
 		Message: "An embedder factory panicked during probe-validation at registration time.",
 		Fixups: []Fixup{

@@ -4990,7 +4990,7 @@
         ]
       }
     ],
-    "error_codes_count": 228,
+    "error_codes_count": 229,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5056,6 +5056,7 @@
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
       "PULSE_EXTENSION_FACTORY_PANIC",
+      "PULSE_EXTENSION_FANOUT_MISMATCH",
       "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA",
       "PULSE_EXTENSION_NAME_COLLISION",
       "PULSE_EXTENSION_NAME_INVALID",
@@ -9717,4 +9718,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 802a4a359c98238eab617ff6a5b5de907afd597b0ea1b8d529187dc0ef03899d
+// golden-hash: f72a12552239c0065c28312be267c55de52d88e9e9040cba81b5c864fed29c9f

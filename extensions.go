@@ -241,13 +241,37 @@ type FiltererRegistration struct {
 // GrouperRegistration installs a custom GROUP_* operator. Set
 // Streamable=true when the factory returns a processing.Grouper that
 // also implements processing.StreamingGrouper (KeyForRow).
+//
+// Set FansOut=true when the factory returns a value that also
+// implements processing.MultiKeyStreamingGrouper — see the field
+// comment. Probe-validation at registration time enforces the claim in
+// BOTH directions via PULSE_EXTENSION_FANOUT_MISMATCH, mirroring the
+// Streamable contract on AggregatorRegistration.
 type GrouperRegistration struct {
 	Name        types.GroupType
 	Description string
 	Factory     processing.GrouperFactory
 	Streamable  bool
-	Accepts     []encoding.FieldType
-	Params      []ParamMeta
+	// FansOut declares that a single record can land in MORE THAN ONE
+	// bucket of this grouper — the embedder-registered sibling of
+	// types.GroupType.FansOut(), which knows built-in constants only.
+	//
+	// The runtime expression of the same fact is the optional
+	// processing.MultiKeyStreamingGrouper interface (KeysForRow). A
+	// registration whose factory returns that interface MUST declare
+	// FansOut=true, and one that declares FansOut=true MUST return it:
+	// probe-validation at pulse.New() rejects either mismatch with
+	// PULSE_EXTENSION_FANOUT_MISMATCH.
+	//
+	// The declaration exists because consumers that reason about
+	// per-record denominators cannot assert a runtime interface —
+	// under a fan-out grouper the bucket counts SUM to more than the
+	// record total, so an n taken from a slab total double-counts
+	// records. Omitting the field defaults it to false, so a multi-key
+	// factory is refused rather than silently over-counting.
+	FansOut bool
+	Accepts []encoding.FieldType
+	Params  []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc

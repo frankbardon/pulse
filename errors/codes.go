@@ -473,6 +473,21 @@ const (
 	// attribute interface.
 	PULSE_EXTENSION_STREAMABLE_MISMATCH Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
 
+	// PULSE_EXTENSION_FANOUT_MISMATCH indicates a grouper registration's
+	// FansOut declaration disagrees with what its factory returns. The
+	// runtime fact is the optional processing.MultiKeyStreamingGrouper
+	// interface (KeysForRow); the declaration is
+	// GrouperRegistration.FansOut, the embedder-side sibling of
+	// types.GroupType.FansOut(), which knows built-in constants only.
+	// BOTH directions are rejected at pulse.New() probe-validation time:
+	// declared-true-but-single-key (a consumer would needlessly refuse a
+	// sound request) and declared-false-but-multi-key (a fan-out grouper
+	// invisible to the per-record-denominator gates, which is the silent
+	// over-count the declaration exists to prevent). Details carry the
+	// category, name, declared value and observed value. Wired into
+	// extensions_probe.probeGroupers.
+	PULSE_EXTENSION_FANOUT_MISMATCH Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
@@ -2449,6 +2464,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_NAME_COLLISION,
 	PULSE_EXTENSION_DUPLICATE,
 	PULSE_EXTENSION_STREAMABLE_MISMATCH,
+	PULSE_EXTENSION_FANOUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,

@@ -96,16 +96,29 @@ func probeAggregators(regs []AggregatorRegistration) error {
 	return nil
 }
 
-// probeGroupers validates every registered grouper. When ComponentsFunc
-// is supplied the probe invokes it against a constructed instance and
-// confirms the emitted key set matches the declared schema. Mirrors
-// probeAggregators in shape.
+// probeGroupers validates every registered grouper. The declared
+// FansOut trait is cross-checked against the constructed instance's
+// processing.MultiKeyStreamingGrouper implementation in BOTH
+// directions — mirroring the Streamable/OnlineAggregator check in
+// probeAggregators — because a fan-out grouper the per-record-
+// denominator gates cannot see produces a silently inflated n. A
+// factory panic is caught by safeBuildGrouper first, so it still
+// surfaces as PULSE_EXTENSION_FACTORY_PANIC rather than as a fan-out
+// mismatch.
+//
+// When ComponentsFunc is supplied the probe invokes it against a
+// constructed instance and confirms the emitted key set matches the
+// declared schema. Mirrors probeAggregators in shape.
 func probeGroupers(regs []GrouperRegistration) error {
 	probeSchema := &encoding.Schema{}
 	for _, reg := range regs {
 		instance, err := safeBuildGrouper(reg, probeSchema)
 		if err != nil {
 			return err
+		}
+		_, observedFansOut := instance.(processing.MultiKeyStreamingGrouper)
+		if reg.FansOut != observedFansOut {
+			return grouperFanOutMismatch(reg, observedFansOut)
 		}
 		if reg.ComponentsFunc != nil {
 			if err := verifyComponentSchemaPresence(
@@ -195,6 +208,31 @@ func probeAttributes(regs []AttributeRegistration) error {
 		}
 	}
 	return nil
+}
+
+// grouperFanOutMismatch builds the PULSE_EXTENSION_FANOUT_MISMATCH
+// coded error for either direction of the disagreement. The details
+// payload mirrors the PULSE_EXTENSION_STREAMABLE_MISMATCH shape —
+// category + name — and adds the declared and observed values so the
+// embedder can see which half to change.
+func grouperFanOutMismatch(reg GrouperRegistration, observed bool) error {
+	var msg string
+	if reg.FansOut {
+		msg = fmt.Sprintf("grouper %q declares FansOut=true but factory does not return processing.MultiKeyStreamingGrouper", reg.Name)
+	} else {
+		msg = fmt.Sprintf("grouper %q declares FansOut=false but factory returns processing.MultiKeyStreamingGrouper", reg.Name)
+	}
+	return errors.NewCodedErrorWithDetails(
+		errors.PULSE_EXTENSION_FANOUT_MISMATCH,
+		msg,
+		map[string]any{
+			"category": "grouper",
+			"name":     string(reg.Name),
+			"declared": reg.FansOut,
+			"observed": observed,
+			"required": "processing.MultiKeyStreamingGrouper",
+		},
+	)
 }
 
 func attributeModeMismatch(reg AttributeRegistration, want string) error {

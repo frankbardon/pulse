@@ -157,6 +157,19 @@ additionally carry `ComponentSchema` + `ComponentsFunc` on the same
 contract as `AggregatorRegistration`. Filterers are always row-local
 streamable; windows always run buffered.
 
+`GrouperRegistration` additionally carries `FansOut bool` — the
+embedder-side sibling of `types.GroupType.FansOut()`, which knows
+built-in constants only. Set it `true` when the factory returns a
+value that also implements `processing.MultiKeyStreamingGrouper`
+(`KeysForRow`), i.e. when one record can land in more than one bucket.
+Consumers that reason about per-record denominators need the fact:
+under a fan-out grouper the bucket counts SUM to more than the record
+total, so an `n` taken from a slab total double-counts records. The
+probe verifies the claim in BOTH directions
+(`PULSE_EXTENSION_FANOUT_MISMATCH`), and omitting the field defaults it
+to `false` — so a multi-key factory is refused rather than silently
+admitted as single-key.
+
 ### Test (tier-1 / tier-2)
 
 ```go
@@ -442,7 +455,9 @@ flowchart TD
     C -->|panic / nil return| F1[PULSE_EXTENSION_FACTORY_PANIC]
     C --> D{Streamable declared?}
     D -->|yes, interface missing| F2[PULSE_EXTENSION_STREAMABLE_MISMATCH]
-    D -->|no, or interface satisfied| E{Components contract?}
+    D -->|no, or interface satisfied| D2{Grouper FansOut matches MultiKeyStreamingGrouper?}
+    D2 -->|either direction disagrees| F5[PULSE_EXTENSION_FANOUT_MISMATCH]
+    D2 -->|agrees, or not a grouper| E{Components contract?}
     E -->|emitter, no schema| F3[PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA]
     E -->|emitter, key divergence| F4[PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH]
     E -->|all clear| G[snapshot + runtime overlay]
@@ -455,8 +470,12 @@ carrying only the operator `Name`. The probe never feeds real records.
 Factory panics or nil returns surface as
 `PULSE_EXTENSION_FACTORY_PANIC`. Streamability declarations that do
 not match the returned interface surface as
-`PULSE_EXTENSION_STREAMABLE_MISMATCH`. The components-contract failures
-are listed in the table above.
+`PULSE_EXTENSION_STREAMABLE_MISMATCH`. A grouper whose `FansOut`
+declaration disagrees with whether its factory returns
+`processing.MultiKeyStreamingGrouper` — in EITHER direction — surfaces
+as `PULSE_EXTENSION_FANOUT_MISMATCH`; a factory panic is caught first,
+so a panicking factory never reports a fan-out mismatch. The
+components-contract failures are listed in the table above.
 
 ## Manifest visibility and the extensions snapshot
 
@@ -671,6 +690,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
+| `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `processing.MultiKeyStreamingGrouper`, either direction |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |
