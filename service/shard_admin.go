@@ -573,6 +573,9 @@ func readSinglePulseSchema(data []byte) (*encoding.Schema, error) {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"reading shard schema")
 	}
+	if err := encoding.RefuseGroups(schema, "shard archive", errors.PULSE_SHARD_SCHEMA_MISMATCH); err != nil {
+		return nil, err
+	}
 	return schema, nil
 }
 

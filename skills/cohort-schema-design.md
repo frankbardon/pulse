@@ -79,13 +79,17 @@ The bitmap is the sole null mechanism. No type has an inline sentinel — `decim
 
 Mitigation: pick widths with growth headroom up front.
 
+## Parent groups (format 0x02)
+
+A denormalised join repeats its parent block on every child row. A **parent group** stores each distinct tuple of its member fields once, in a dictionary in the schema block, and each row carries a 4-byte index — N independent groups per cohort, a field in at most one. A **constant group** holds one entry and no per-row index (a column with one value everywhere). Members keep their own types, nullability and dictionaries; decode is indistinguishable from the ungrouped cohort, so requests, filters, groupers and exports address member fields by name exactly as before. Worth it only when the group is wider than its 4-byte index and repeats heavily — a narrow or rarely-repeating group makes the file bigger and the resident dictionary costs memory. Shard archives and `pulse widen` do not accept grouped cohorts yet (coded refusal). Byte layout: `.claude/reference/byte-layout.md` (Parent groups).
+
 ## Field descriptions
 
 Capped at 1000 bytes per field; over-cap → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`. Empty, sub-10-character, or generic ("n/a", "tbd", "unknown", "field", "data", "value", "column") → `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (warning; error under `--strict`). Style: concise, third-person, present-tense — what the field represents, its units, its domain semantics.
 
 ## Sharded cohorts
 
-A `.pulse` path resolves to one of two shapes, dispatched on the leading 4 bytes. **Single-file:** magic `PULSE\x00\x00\x00` + format byte `0x01` or `0x02`, then schema, dicts, records (`0x02` adds a length-prefixed schema extension block before the records; writers emit `0x01` unless the schema needs `0x02`; `0x01` cohorts stay readable forever, and a binary older than `0x02` refuses a `0x02` cohort loud). **Shard archive:** uncompressed Zip64 (Method 0), magic `PK\x03\x04`, a reserved `_schema.pulse` entry (header-only canonical schema + `SHRD` trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Old single-file readers fail loud on archive magic.
+A `.pulse` path resolves to one of two shapes, dispatched on the leading 4 bytes. **Single-file:** magic `PULSE\x00\x00\x00` + format byte `0x01` or `0x02`, then schema, dicts, records (`0x02` adds a length-prefixed schema extension block carrying parent groups before the records; writers emit `0x01` unless the schema declares a group; `0x01` cohorts stay readable forever, and a binary older than `0x02` refuses a `0x02` cohort loud). **Shard archive:** uncompressed Zip64 (Method 0), magic `PK\x03\x04`, a reserved `_schema.pulse` entry (header-only canonical schema + `SHRD` trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Old single-file readers fail loud on archive magic.
 
 ### Cohesion
 

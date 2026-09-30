@@ -929,7 +929,10 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	var src *rowSource
 	var cont *continuationAcc
 	if opts.RunContinuation {
-		src = newRowSource(schema)
+		var err error
+		if src, err = newRowSource(schema); err != nil {
+			return nil, err
+		}
 		cont = newContinuationAcc(schema)
 	}
 	seg := 0
@@ -1253,7 +1256,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			break
 		}
 		if cont != nil {
-			if err := cont.observe(src.buf); err != nil {
+			if err := cont.observe(src.row); err != nil {
 				return nil, err
 			}
 		}

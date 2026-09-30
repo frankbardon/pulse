@@ -281,8 +281,8 @@ func TestFormatV1Golden_ReadableForever(t *testing.T) {
 // TestFormatV2_RoundTrip: a 0x02 file reads back with the version, the
 // schema and every record identical to its 0x01 twin, and its bytes are
 // exactly the 0x01 bytes with the version byte bumped and an empty
-// length-prefixed extension block between the last descriptor and the
-// first record.
+// length-prefixed extension block (u64 length 2, then u16
+// section_count 0) between the last descriptor and the first record.
 func TestFormatV2_RoundTrip(t *testing.T) {
 	s := formatGoldenSchema()
 	recs := encodeFormatGoldenRecords(t, s)
@@ -293,10 +293,10 @@ func TestFormatV2_RoundTrip(t *testing.T) {
 	want := append([]byte{}, v1[:HeaderSize-1]...)
 	want = append(want, 0x02)
 	want = append(want, v1[HeaderSize:schemaEnd]...)
-	want = append(want, 0, 0, 0, 0)
+	want = append(want, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 	want = append(want, recs...)
 	if !bytes.Equal(v2, want) {
-		t.Fatal("0x02 layout drifted: want 0x01 descriptors + u32(0) extension length before the records")
+		t.Fatal("0x02 layout drifted: want 0x01 descriptors + u64(2) extension length + u16(0) section count before the records")
 	}
 
 	r := bytes.NewReader(v2)
@@ -324,8 +324,8 @@ func TestFormatV2_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRecordLocator(v2): %v", err)
 	}
-	if loc.RecordRegionStart != int64(schemaEnd+4) || loc.TotalRecords != 3 {
-		t.Fatalf("locator start/total = %d/%d, want %d/3", loc.RecordRegionStart, loc.TotalRecords, schemaEnd+4)
+	if loc.RecordRegionStart != int64(schemaEnd+10) || loc.TotalRecords != 3 {
+		t.Fatalf("locator start/total = %d/%d, want %d/3", loc.RecordRegionStart, loc.TotalRecords, schemaEnd+10)
 	}
 
 	// Writing the decoded schema back out lands at 0x01: the version is a
@@ -337,7 +337,7 @@ func TestFormatV2_RoundTrip(t *testing.T) {
 
 // TestFormatV2_ReadAsV1Misplaces documents why the version must be
 // threaded: parsing a 0x02 schema block with the 0x01 layout leaves the
-// reader 4 bytes early, inside the extension block.
+// reader 10 bytes early, inside the extension block.
 func TestFormatV2_ReadAsV1Misplaces(t *testing.T) {
 	s := formatGoldenSchema()
 	recs := encodeFormatGoldenRecords(t, s)
@@ -346,8 +346,8 @@ func TestFormatV2_ReadAsV1Misplaces(t *testing.T) {
 	if _, err := ReadSchema(r, FormatVersionV1); err != nil {
 		t.Fatal(err)
 	}
-	if r.Len() != len(recs)+4 {
-		t.Fatalf("remaining = %d, want %d (record region + unread extension)", r.Len(), len(recs)+4)
+	if r.Len() != len(recs)+10 {
+		t.Fatalf("remaining = %d, want %d (record region + unread extension)", r.Len(), len(recs)+10)
 	}
 }
 
@@ -360,25 +360,22 @@ func v2PreambleBytes(t *testing.T) []byte {
 	return b.Bytes()
 }
 
-// TestReadSchema_V2ExtensionPayloadRefused: until a 0x02 payload is
-// defined, a non-empty extension is refused loud, never skipped.
+// TestReadSchema_V2ExtensionPayloadRefused: extension bytes that are
+// not a well-formed section list are refused loud, never skipped.
 func TestReadSchema_V2ExtensionPayloadRefused(t *testing.T) {
 	data := v2PreambleBytes(t)
-	data = data[:len(data)-4]
-	data = append(data, 3, 0, 0, 0, 0xAA, 0xBB, 0xCC)
+	data = data[:len(data)-10]
+	data = append(data, 3, 0, 0, 0, 0, 0, 0, 0, 0xAA, 0xBB, 0xCC)
 	_, _, err := ReadPreamble(bytes.NewReader(data))
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.ENCODING_INVALID {
 		t.Fatalf("err = %v, want ENCODING_INVALID", err)
 	}
-	if ce.Details["extension_length"] != uint32(3) {
-		t.Fatalf("details[extension_length] = %#v, want 3", ce.Details["extension_length"])
-	}
 }
 
 func TestReadSchema_V2TruncatedExtension(t *testing.T) {
 	data := v2PreambleBytes(t)
-	for cut := 1; cut <= 4; cut++ {
+	for cut := 1; cut <= 10; cut++ {
 		_, _, err := ReadPreamble(bytes.NewReader(data[:len(data)-cut]))
 		if !errors.HasCode(err, errors.ENCODING_INVALID) {
 			t.Fatalf("cut %d: err = %v, want ENCODING_INVALID", cut, err)

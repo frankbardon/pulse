@@ -24,6 +24,12 @@ the obvious value (`u32` = 4, `f64` = 8, `decimal128` = 16,
 `set_u256` = 32); the bit-packed types (`u4`, `packed_bool`) return
 `0` and are counted as one byte each.
 
+A cohort with [parent groups](parent-groups.md) (format `0x02`) stores
+member fields in the schema block instead: its record size counts a
+4-byte index per indexed group, the non-member fields, and a bitmap
+narrowed to the non-member fields. It is still fixed and still derived
+from the schema alone.
+
 **Stride is a pure function of the type bytes.** The per-field
 `ByteOffset` stored in the schema is a convenience for readers, not
 the source of truth — a type byte with the wrong width silently

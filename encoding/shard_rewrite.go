@@ -46,6 +46,11 @@ func RewriteShardCategoricals(shardBytes []byte, targetSchema *Schema, remap map
 			"shard rewrite: invalid schema block",
 			map[string]any{"cause": err.Error()})
 	}
+	for _, sch := range []*Schema{srcSchema, targetSchema} {
+		if err := RefuseGroups(sch, "shard categorical rewrite", errors.PULSE_SHARD_SCHEMA_MISMATCH); err != nil {
+			return nil, err
+		}
+	}
 	if len(srcSchema.Fields) != len(targetSchema.Fields) {
 		return nil, errors.NewCodedError(errors.PULSE_SHARD_SCHEMA_MISMATCH,
 			"shard rewrite: targetSchema field count differs from shard schema")

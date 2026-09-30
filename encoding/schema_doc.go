@@ -80,6 +80,12 @@ func ReadSchemaDoc(r io.Reader) (*SchemaDoc, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Shard archives do not carry parent groups yet: the read path
+	// decodes every shard with this canonical schema, so a grouped one
+	// would apply its dictionaries to shards that do not share them.
+	if err := RefuseGroups(schema, "shard archive", errors.PULSE_SHARD_SCHEMA_MISMATCH); err != nil {
+		return nil, err
+	}
 	doc := &SchemaDoc{Schema: schema}
 
 	// Peek the next four bytes to detect the SHRD marker. A short read

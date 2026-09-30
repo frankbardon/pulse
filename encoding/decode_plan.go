@@ -86,7 +86,15 @@ func (DecodeFields) isSegment() {}
 // never returns an error today, but the signature carries one for
 // forward-compatibility with future shape validation (e.g. once
 // extension-driven retained sets carry wildcard tokens).
+//
+// A grouped (0x02) schema's plan walks its LOGICAL row — the stream a
+// RecordReader over that schema decodes — so it is the plan of
+// Logical(): SkipBytes widths are logical widths, and the empty plan
+// covers the logical stride.
 func (s *Schema) BuildDecodePlan(retained []string) (*DecodePlan, error) {
+	if s.HasGroups() {
+		return s.Logical().BuildDecodePlan(retained)
+	}
 	plan := &DecodePlan{}
 
 	// Materialize retained as a hash set for O(1) lookup. A nil retained

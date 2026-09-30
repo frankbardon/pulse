@@ -153,6 +153,19 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 
 	_, schemaAware := j.Target.(SchemaAwareWriter)
 
+	// A grouped (0x02) cohort stores parent-group members in the schema
+	// block's dictionaries, not the row: read its LOGICAL record stream,
+	// which is byte-for-byte the row the ungrouped twin stores, and walk
+	// the logical schema's fields and bitmap exactly as for 0x01.
+	if schema.HasGroups() {
+		lr, logical, err := encoding.NewLogicalStream(r, schema)
+		if err != nil {
+			return nil, err
+		}
+		r = bufio.NewReaderSize(lr, exportReadBufferSize)
+		schema = logical
+	}
+
 	// Read and export records until EOF. The values slice is hoisted out of
 	// the loop and reused per row; every Writer implementation either
 	// stringifies, marshals, or copies values before returning, so retaining

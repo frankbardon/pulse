@@ -19,10 +19,10 @@ import (
 
 // upgradeToV2 rewrites a 0x01 cohort's bytes into the 0x02 layout with
 // an empty schema extension block: version byte 0x02, the same field
-// descriptors, then u32(0), then the unchanged record region. No 0x02
-// feature exists yet, so this is the only way to hold a 0x02 cohort —
-// and it is exactly what every reader must thread the header version
-// through to parse.
+// descriptors, then u64(2) + u16(0) (an extension holding zero
+// sections), then the unchanged record region. It holds a 0x02 cohort
+// that uses no 0x02 feature — exactly what every reader must thread the
+// header version through to parse.
 func upgradeToV2(t *testing.T, v1 []byte) []byte {
 	t.Helper()
 	r := bytes.NewReader(v1)
@@ -33,7 +33,7 @@ func upgradeToV2(t *testing.T, v1 []byte) []byte {
 	out := append([]byte{}, v1[:encoding.HeaderSize-1]...)
 	out = append(out, encoding.FormatVersionV2)
 	out = append(out, v1[encoding.HeaderSize:end]...)
-	out = append(out, 0, 0, 0, 0)
+	out = append(out, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 	return append(out, v1[end:]...)
 }
 
@@ -312,10 +312,10 @@ func TestFormatV2_FacadeRefusesUnknownExtension(t *testing.T) {
 	if _, err := encoding.ReadSchema(r, encoding.FormatVersionV1); err != nil {
 		t.Fatal(err)
 	}
-	extAt := len(raw) - r.Len() // start of the u32 extension length
+	extAt := len(raw) - r.Len() // start of the u64 extension length
 	bad := append([]byte{}, raw[:extAt]...)
-	bad = append(bad, 4, 0, 0, 0, 0xDE, 0xAD, 0xBE, 0xEF)
-	bad = append(bad, raw[extAt+4:]...)
+	bad = append(bad, 4, 0, 0, 0, 0, 0, 0, 0, 0xDE, 0xAD, 0xBE, 0xEF)
+	bad = append(bad, raw[extAt+10:]...)
 
 	for _, pr := range formatProbes(ctx) {
 		t.Run(pr.name, func(t *testing.T) {

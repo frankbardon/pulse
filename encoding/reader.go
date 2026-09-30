@@ -10,6 +10,10 @@ import (
 type RecordReader struct {
 	r      io.Reader
 	schema *Schema
+	// groups is the logical-stream wrapper over a grouped (0x02)
+	// cohort's physical rows; nil for an ungrouped schema. schema is
+	// then the grouped schema's Logical() view.
+	groups *logicalReader
 
 	// recBuf is a reusable per-record scratch buffer owned by the
 	// RecordReader. ReadRecordReused reads the whole record stride into
@@ -50,8 +54,45 @@ type RecordReader struct {
 
 // NewRecordReader creates a RecordReader. The reader must be positioned
 // immediately after the header and schema (i.e., at the first record byte).
+//
+// For a grouped (0x02) schema the reader decodes the LOGICAL record
+// stream: r is wrapped so every physical row is expanded into the exact
+// row the ungrouped twin stores, and every decode path (map, reuse,
+// plan, run-skip) then runs unchanged over the logical schema — same
+// field indices, same values, same nulls. Exactly one physical row is
+// consumed per record, so r's position after a record is the end of
+// that physical record.
 func NewRecordReader(r io.Reader, schema *Schema) *RecordReader {
+	if schema != nil && schema.HasGroups() {
+		lr, logical, err := NewLogicalStream(r, schema)
+		if err != nil {
+			return &RecordReader{r: errReader{err}, schema: schema.Logical()}
+		}
+		rr := &RecordReader{r: lr, schema: logical}
+		rr.groups, _ = lr.(*logicalReader)
+		return rr
+	}
 	return &RecordReader{r: r, schema: schema}
+}
+
+// errReader fails every read with err (a grouped schema whose layout
+// could not be compiled).
+type errReader struct{ err error }
+
+func (e errReader) Read([]byte) (int, error) { return 0, e.err }
+
+// GroupIndex reports the dictionary entry index group g (a position in
+// the grouped schema's Groups) resolved to on the record just decoded:
+// every member of g carries that entry's values. ok is false for an
+// ungrouped schema, before the first record, or when the last record
+// was skipped whole by a decode plan. It is the row -> entry map a
+// per-entry precompute (filter precompute) tests instead of decoding the
+// members.
+func (rr *RecordReader) GroupIndex(g int) (uint32, bool) {
+	if rr.groups == nil {
+		return 0, false
+	}
+	return rr.groups.GroupIndex(g)
 }
 
 // ReadRecord reads a single record from the stream, populating the values and

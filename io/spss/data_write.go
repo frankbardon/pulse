@@ -753,10 +753,17 @@ func (p *DictionaryPlan) SetCaseCount(n int64) error {
 // [encoding.ReadSchema] — and is read to EOF. A record that ends part way
 // through is a truncated cohort and is reported rather than written as a
 // short case.
+//
+// A grouped (0x02) cohort is read through its logical record stream, so
+// each case decodes from exactly the row the ungrouped twin stores.
 func (e *DataEncoder) WriteCohort(r io.Reader) error {
-	c := NewCase(e.schema)
+	r, schema, err := encoding.NewLogicalStream(r, e.schema)
+	if err != nil {
+		return err
+	}
+	c := NewCase(schema)
 	for {
-		err := readCohortCase(r, e.schema, c)
+		err := readCohortCase(r, schema, c)
 		if err == io.EOF {
 			return nil
 		}

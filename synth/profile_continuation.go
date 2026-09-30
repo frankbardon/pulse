@@ -76,13 +76,28 @@ type FieldContinuation struct {
 // also holds that row's raw on-wire bytes for the continuation
 // accumulator — no second read, and one read call per row instead of
 // one per field.
+//
+// buf holds the PHYSICAL row (what the decode reads). row is what the
+// continuation accumulator compares: the physical row itself for an
+// ungrouped cohort, the expanded LOGICAL row for a grouped (0x02) one —
+// the bytes the run-skip decode actually compares, field by field.
 type rowSource struct {
 	buf []byte
 	br  bytes.Reader
+	x   *encoding.RowExpander
+	row []byte
 }
 
-func newRowSource(schema *encoding.Schema) *rowSource {
-	return &rowSource{buf: make([]byte, schema.RecordByteSize())}
+func newRowSource(schema *encoding.Schema) (*rowSource, error) {
+	s := &rowSource{buf: make([]byte, schema.RecordByteSize())}
+	if schema.HasGroups() {
+		x, err := encoding.NewRowExpander(schema)
+		if err != nil {
+			return nil, err
+		}
+		s.x = x
+	}
+	return s, nil
 }
 
 // next loads the segment's next row. A clean end and a truncated final
@@ -96,6 +111,15 @@ func (s *rowSource) next(r io.Reader) error {
 		return err
 	}
 	s.br.Reset(s.buf)
+	if s.x == nil {
+		s.row = s.buf
+		return nil
+	}
+	row, err := s.x.Expand(s.row, s.buf)
+	if err != nil {
+		return err
+	}
+	s.row = row
 	return nil
 }
 
@@ -103,7 +127,8 @@ func (s *rowSource) next(r io.Reader) error {
 // and null bit repeat. Its geometry is a pure function of the schema:
 // one on-wire span per field (a bit-packed field consumes one whole
 // byte, decimal128 sixteen, every other type its fixed width) followed
-// by the null bitmap.
+// by the null bitmap — of the LOGICAL row, so a grouped cohort's
+// members are measured from their expanded bytes.
 type continuationAcc struct {
 	schema *encoding.Schema
 	off    []int
@@ -118,6 +143,7 @@ type continuationAcc struct {
 }
 
 func newContinuationAcc(schema *encoding.Schema) *continuationAcc {
+	schema = schema.Logical()
 	a := &continuationAcc{
 		schema: schema,
 		off:    make([]int, len(schema.Fields)),

@@ -28,14 +28,27 @@ type Field struct {
 
 // Schema holds all field descriptors for a .pulse file.
 type Schema struct {
+	// Fields is the LOGICAL schema: every field, in original order. A
+	// field index anywhere in the API is a position in this slice.
 	Fields []Field
+	// Groups are the parent-group descriptors (format 0x02, see
+	// group.go). Empty for every 0x01 cohort. When non-empty, member
+	// fields are stored in the groups' dictionaries rather than in the
+	// row, and RecordByteSize / BitmapByteSize / HasBitmap describe the
+	// PHYSICAL (reduced) row; Logical() is the ungrouped view.
+	Groups []Group
 }
 
-// HasBitmap reports whether any field in the schema is marked nullable.
-// When true, every record carries a trailing null bitmap of
-// ceil(field_count/8) bytes after the payload; when false, records have
-// no bitmap (legacy fixed-stride path, zero overhead).
+// HasBitmap reports whether the record carries a per-record null
+// bitmap: whether any field stored IN THE ROW is nullable. Without
+// groups that is any field; with groups, member fields' null bits ride
+// their dictionary entry, so only the row fields count — a cohort whose
+// every nullable field is a group member has no per-row bitmap.
 func (s *Schema) HasBitmap() bool {
+	if s.HasGroups() {
+		_, _, has := s.groupedRowSizes()
+		return has
+	}
 	for i := range s.Fields {
 		if s.Fields[i].Nullable {
 			return true
@@ -45,8 +58,14 @@ func (s *Schema) HasBitmap() bool {
 }
 
 // BitmapByteSize returns the number of bytes the null bitmap occupies
-// per record, or 0 when no field is nullable.
+// per record, or 0 when no field is nullable. With groups it is the
+// NARROWED bitmap: ceil(row_field_count/8), bit j = the j-th row field
+// (fields in no group, logical order).
 func (s *Schema) BitmapByteSize() int {
+	if s.HasGroups() {
+		_, bm, _ := s.groupedRowSizes()
+		return bm
+	}
 	if !s.HasBitmap() {
 		return 0
 	}
@@ -59,7 +78,15 @@ func (s *Schema) BitmapByteSize() int {
 // schema declares at least one nullable field, the trailing null bitmap
 // of ceil(field_count/8) bytes is appended to every record and included
 // in the stride.
+//
+// With groups it is the PHYSICAL stride: one GroupIndexWidth index per
+// indexed group, plus the row fields, plus the narrowed bitmap. It is
+// still fixed and a pure function of the schema.
 func (s *Schema) RecordByteSize() int {
+	if s.HasGroups() {
+		body, bm, _ := s.groupedRowSizes()
+		return body + bm
+	}
 	stride := 0
 	for i := range s.Fields {
 		ft := s.Fields[i].Type
@@ -108,11 +135,11 @@ func (s *Schema) SetField(name string) (*Dictionary, bool) {
 // is chosen — never a global flag — so a schema that uses no 0x02
 // feature is always written at 0x01, byte-identical to a pre-0x02 file.
 //
-// Nothing requires 0x02 yet: the group descriptor that will (E3-S2 of
-// the join-redundancy effort) adds its "is any group declared" test
-// HERE, alongside its payload in [writeSchemaExtension] /
-// [readSchemaExtension].
+// A schema requires 0x02 exactly when it declares a parent group.
 func (s *Schema) RequiredFormatVersion() byte {
+	if s.HasGroups() {
+		return FormatVersionV2
+	}
 	return FormatVersionV1
 }
 
@@ -137,15 +164,13 @@ func (s *Schema) RequiredFormatVersion() byte {
 //	  (if categorical) dictionary block
 //
 // A 0x02 schema block is the 0x01 block followed by the schema
-// extension block:
+// extension block (see group_wire.go for the payload):
 //
-//	u32 extension_length
-//	extension_length bytes of extension payload
+//	u64 extension_length
+//	extension_length bytes of extension payload (tagged sections)
 //
 // The length prefix is what makes the record region's start derivable
-// without understanding the payload. This binary defines no payload
-// yet, so it writes extension_length = 0 and refuses a non-zero one on
-// read (see [readSchemaExtension]).
+// without understanding the payload.
 func WriteSchema(w io.Writer, s *Schema) error {
 	if req := s.RequiredFormatVersion(); req != FormatVersion {
 		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
@@ -168,35 +193,6 @@ func writeSchemaVersion(w io.Writer, s *Schema, v byte) error {
 	default:
 		return unsupportedVersionError(v)
 	}
-}
-
-// writeSchemaExtension writes the 0x02 schema extension block: a u32
-// length prefix and the payload. EXTENSION POINT: the group descriptor
-// (E3-S2) serialises its payload here; today the payload is empty.
-func writeSchemaExtension(w io.Writer, _ *Schema) error {
-	if err := binary.Write(w, binary.LittleEndian, uint32(0)); err != nil {
-		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing schema extension length")
-	}
-	return nil
-}
-
-// readSchemaExtension reads the 0x02 schema extension block into s.
-// EXTENSION POINT: the group descriptor (E3-S2) parses its payload
-// here. Until a payload is defined, any non-empty extension is refused
-// loud — silently skipping bytes this binary cannot interpret would
-// drop whatever meaning they carry (e.g. which fields live in a group
-// dictionary rather than the row).
-func readSchemaExtension(r io.Reader, _ *Schema) error {
-	var extLen uint32
-	if err := binary.Read(r, binary.LittleEndian, &extLen); err != nil {
-		return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading schema extension length")
-	}
-	if extLen != 0 {
-		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
-			"schema extension block carries a payload this binary does not understand",
-			map[string]any{"extension_length": extLen, "version": FormatVersionV2})
-	}
-	return nil
 }
 
 // writeFieldDescriptors writes field_count and every field descriptor —

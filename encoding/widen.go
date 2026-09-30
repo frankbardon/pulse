@@ -96,6 +96,11 @@ func WidenSchemaSetField(s *Schema, field string, target FieldType) (*Schema, er
 		return nil, errors.NewCodedError(errors.ENCODING_INVALID,
 			"widen: nil schema")
 	}
+	// The field copy below would drop the groups and describe the
+	// logical row as if it were the physical one.
+	if err := RefuseGroups(s, "set-field widen", errors.ENCODING_INVALID); err != nil {
+		return nil, err
+	}
 	idx := -1
 	for i := range s.Fields {
 		if s.Fields[i].Name == field {
