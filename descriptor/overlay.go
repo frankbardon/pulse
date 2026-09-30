@@ -62,7 +62,7 @@ var pairwiseSupportedScopes = map[types.OverlayScope]bool{
 // the Welford-shape requirement are runtime conditions — they depend on
 // the materialised host, not the request shape, so the handler raises
 // them, not predict.
-func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	// Ref must be empty — the pairwise test compares two slots of the
 	// host matrix inline; no external reference family applies.
 	if spec.Ref.Margin != nil ||
@@ -190,7 +190,15 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 	// without reading a record — but predict alone does not stop
 	// pulse.Process, so processing.applyOverlaysToResponse carries the
 	// runtime twin under the same code.
-	if v, bad := types.CheckPairwiseSlabPartition(req.Crosstab, spec.Scope, params); bad {
+	//
+	// opts carries the extensions snapshot, which is how an
+	// embedder-registered fan-out grouper reaches this arm: descriptor/
+	// may not import processing/ and so cannot assert
+	// MultiKeyStreamingGrouper itself. The runtime twin reads the live
+	// registry instead; both hand their resolver to the SAME
+	// types-side predicate, which tries the built-in constant first.
+	if v, bad := types.CheckPairwiseSlabPartitionWith(req.Crosstab, spec.Scope, params,
+		snapshotGroupFanOut(extensionsFromOpts(opts))); bad {
 		env.AddError(string(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED),
 			v.Message(spec.Kind, params),
 			v.Details(spec.Kind, params, index))
@@ -1022,7 +1030,7 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		types.OverlayKindPairwisePropZ,
 		types.OverlayKindPairwiseTwoMeansZ,
 		types.OverlayKindPairwiseWelchT:
-		validateOverlayPairwise(env, req, spec, index)
+		validateOverlayPairwise(env, req, spec, opts, index)
 	case types.OverlayKindFormula:
 		validateFormulaOverlay(env, req, spec, opts, index)
 	case types.OverlayKindIndexVsBaseline:
@@ -3211,5 +3219,20 @@ func validateOverlayTwoSampleStatParams(env *Envelope, spec *types.OverlaySpec, 
 					"param": key,
 				})
 		}
+	}
+}
+
+// snapshotGroupFanOut adapts the extensions snapshot to the types-side
+// extension-grouper resolver the pairwise slab-partition gate takes.
+// A nil snapshot yields a nil resolver, which the gate reads as "no
+// extension groupers registered" — the same thing the runtime arm does
+// for a nil ExtensionRegistry, so a host with no extensions has the two
+// arms agreeing by construction.
+func snapshotGroupFanOut(snap *ExtensionsSnapshot) types.ExtensionGroupFanOutFunc {
+	if snap == nil {
+		return nil
+	}
+	return func(t types.GroupType) (bool, bool) {
+		return snap.GrouperFanOut(string(t))
 	}
 }

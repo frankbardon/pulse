@@ -490,6 +490,9 @@ components-contract failures are listed in the table above.
     "aggregators": [
       {"name": "AGG_ACME_BRAND_SCORE", "namespace": "ACME", "streamable": true, "...": "..."}
     ],
+    "groupers": [
+      {"name": "GROUP_ACME_PANEL", "namespace": "ACME", "streamable": true, "fans_out": true}
+    ],
     "expr_functions": [
       {"name": "rank_familiarity", "signature": "rank_familiarity(value float64, total_pop bool) float64"}
     ],
@@ -514,6 +517,52 @@ LLM agents that call `pulse_manifest` see both the built-in set and
 the embedder additions in one fetch. The schema-bound MCP tools (after
 `pulse_inspect`) also include custom operator names in their enum
 lists.
+
+### The snapshot carries `fans_out`
+
+`descriptor.OperatorMeta` carries `FansOut bool`
+(`json:"fans_out,omitempty"`) alongside `Streamable`, and
+`buildExtensionsSnapshot` fills it from
+`GrouperRegistration.FansOut`. It is grouper-only and omitted
+everywhere else; absent reads as `false`, which is also the
+registration default.
+
+This is not cosmetic manifest detail — it is the only route the fact
+has into the no-execute layer. `descriptor/` may not import
+`processing/` (`TestPredictNoExecutionImports`), so predict cannot
+assert `MultiKeyStreamingGrouper` on a constructed grouper the way the
+probe does. Without the projection, a predict-time rule that reasons
+about per-record denominators sees every extension grouper as
+single-key.
+
+The consumer today is the distinct-key slab partition gate on the
+`OVERLAY_PAIRWISE_*` family (`params.n_source = "n_within_distinct"`),
+which refuses a pair axis whose summed-across dims include a fan-out
+grouper, because summing per-cell DISTINCT counts over cells that do
+not partition the key set over-states `n`. Both arms of that gate
+resolve a grouper the same way:
+
+1. a built-in constant answers from `types.GroupType.FansOut()`;
+2. anything else asks the extension side — the snapshot at predict
+   (`ExtensionsSnapshot.GrouperFanOut`), the live registry at runtime
+   (`processing.ExtensionRegistry.GrouperFanOut`, fed by
+   `ExtensionRegistry.FansOut`);
+3. a name in NEITHER passes. It cannot execute — the runtime refuses
+   to build an unknown group type — so no wrong number can come of it,
+   and refusing here would bury the accurate unknown-operator error
+   under a partition diagnostic about a grouper that does not exist.
+
+Two sources, one order: `types.CheckPairwiseSlabPartitionWith` owns
+steps 1–3 and each arm supplies only its own step-2 resolver, so
+predict and runtime cannot drift on the same request. The
+`ExtensionRegistry.FansOut` map holds an entry for every registered
+grouper including the `false` ones, so a missing key means
+"registered nowhere" rather than "declared single-key".
+
+Because the probe already verified the declaration against the factory
+at `pulse.New` (`PULSE_EXTENSION_FANOUT_MISMATCH`), both arms trust it
+without reconstructing the grouper — which matters for the runtime
+arm, whose overlay hook has no schema in reach.
 
 ## FieldInputs hook (buffered-projection introspection)
 

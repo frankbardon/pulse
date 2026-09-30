@@ -153,11 +153,50 @@ type PairwiseSlabPartitionViolation struct {
 //     never sums across the opposite axis — each opposite coordinate is
 //     its own denominator.
 //
-// Extension groupers are NOT covered: GroupType.FansOut() only knows
-// built-in constants and a registered extension grouper falls through
-// to false. Closing that needs the extensions snapshot, not a
-// name-prefix heuristic.
+// Extension groupers ARE covered, through the resolveExt callback of
+// CheckPairwiseSlabPartitionWith — this built-in-only entry point is
+// the nil-resolver case, kept for callers with no registry in reach.
 func CheckPairwiseSlabPartition(ct *CrosstabSpec, scope OverlayScope, params PairwiseOverlayParams) (PairwiseSlabPartitionViolation, bool) {
+	return CheckPairwiseSlabPartitionWith(ct, scope, params, nil)
+}
+
+// ExtensionGroupFanOutFunc answers the fan-out question for a group
+// type that is NOT a Pulse built-in — an embedder registration. It is
+// the bridge that lets both gate arms reach the same fact by different
+// routes: predict adapts descriptor.ExtensionsSnapshot.Groupers,
+// runtime adapts processing.ExtensionRegistry.FansOut.
+//
+// known=false means the name resolves to no registered grouper at
+// all. See groupFansOut for what the gate does with that.
+type ExtensionGroupFanOutFunc func(GroupType) (fansOut bool, known bool)
+
+// groupFansOut is the SINGLE resolution order both gate arms share:
+// a built-in answers from GroupType.FansOut(); anything else asks the
+// extension resolver.
+//
+// A name in NEITHER — no built-in, no registration — is reported as
+// non-fan-out, i.e. the gate stays silent. That is deliberate. Such a
+// grouper cannot execute: the runtime refuses to build it
+// ("unknown group type", PROCESSING_CONFIG), so no wrong n can come of
+// it and there is no silent failure to prevent. Refusing here would
+// instead emit a partition diagnostic that asserts a fan-out property
+// of a grouper that does not exist, and would bury the accurate
+// unknown-operator error under a misleading one. Fail silent only
+// where silence cannot produce a number.
+func groupFansOut(t GroupType, resolveExt ExtensionGroupFanOutFunc) bool {
+	if fansOut, known := ResolveBuiltinGroupFanOut(t); known {
+		return fansOut
+	}
+	if resolveExt == nil {
+		return false
+	}
+	fansOut, known := resolveExt(t)
+	return known && fansOut
+}
+
+// CheckPairwiseSlabPartitionWith is CheckPairwiseSlabPartition with an
+// extension-grouper resolver. resolveExt may be nil.
+func CheckPairwiseSlabPartitionWith(ct *CrosstabSpec, scope OverlayScope, params PairwiseOverlayParams, resolveExt ExtensionGroupFanOutFunc) (PairwiseSlabPartitionViolation, bool) {
 	var zero PairwiseSlabPartitionViolation
 	if ct == nil || !PairwiseNSourceSumsDistinctCells(params.NSource) {
 		return zero, false
@@ -182,7 +221,7 @@ func CheckPairwiseSlabPartition(ct *CrosstabSpec, scope OverlayScope, params Pai
 	}
 	for d := start; d < len(axisGroups); d++ {
 		g := axisGroups[d]
-		if g == nil || !g.Type.FansOut() {
+		if g == nil || !groupFansOut(g.Type, resolveExt) {
 			continue
 		}
 		return PairwiseSlabPartitionViolation{

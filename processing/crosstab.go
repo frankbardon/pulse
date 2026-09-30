@@ -1052,7 +1052,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	// funnel through here. It runs BEFORE the MATRIX-payload guard below
 	// so a shape=long host refuses identically to the way predict does —
 	// the refusal is a property of the request, not of the payload.
-	if err := checkPairwiseSlabPartition(req); err != nil {
+	if err := checkPairwiseSlabPartition(req, exts); err != nil {
 		return err
 	}
 	if resp == nil || resp.Crosstab == nil || resp.Crosstab.Matrix == nil {
@@ -1109,7 +1109,14 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 // cannot drift apart. A malformed Params blob is NOT diagnosed here:
 // runPairwiseOverlay already surfaces PULSE_OVERLAY_PARAM_MISSING for
 // it, and raising a second, worse-targeted error first would bury it.
-func checkPairwiseSlabPartition(req *types.Request) error {
+//
+// exts carries the embedder's grouper registrations, so a custom
+// fan-out grouper is gated exactly like GROUP_SET_PER_ELEMENT. The
+// predict arm reaches the same fact through
+// descriptor.ExtensionsSnapshot instead — different route, one
+// resolution order, because both call
+// types.CheckPairwiseSlabPartitionWith.
+func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry) error {
 	if req == nil || req.Crosstab == nil {
 		return nil
 	}
@@ -1122,7 +1129,8 @@ func checkPairwiseSlabPartition(req *types.Request) error {
 		if err != nil {
 			continue
 		}
-		v, bad := types.CheckPairwiseSlabPartition(req.Crosstab, spec.Scope, params)
+		v, bad := types.CheckPairwiseSlabPartitionWith(req.Crosstab, spec.Scope, params,
+			exts.ExtensionGroupFanOut())
 		if !bad {
 			continue
 		}

@@ -391,3 +391,32 @@ func (t TestType) Streamable() bool {
 	}
 	return false
 }
+
+// builtinGroupTypes is the membership set behind
+// ResolveBuiltinGroupFanOut. Derived once from AllGroupTypes() so a
+// newly-added built-in constant joins it without a second edit.
+var builtinGroupTypes = func() map[GroupType]bool {
+	all := AllGroupTypes()
+	m := make(map[GroupType]bool, len(all))
+	for _, g := range all {
+		m[g] = true
+	}
+	return m
+}()
+
+// ResolveBuiltinGroupFanOut answers the fan-out question for a
+// Pulse-shipped group type, and reports whether the name is one at
+// all. It exists because GroupType.FansOut() cannot distinguish "a
+// built-in that maps each record to one bucket" from "a name this
+// package has never heard of" — both read false, and a caller that
+// must fall through to an embedder registration needs the difference.
+//
+// known=false means the name is not in AllGroupTypes(); the caller
+// decides whether an extension registration answers it (see
+// CheckPairwiseSlabPartitionWith) and what an unregistered name means.
+func ResolveBuiltinGroupFanOut(t GroupType) (fansOut bool, known bool) {
+	if !builtinGroupTypes[t] {
+		return false, false
+	}
+	return t.FansOut(), true
+}

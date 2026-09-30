@@ -49,7 +49,7 @@ Summing per-cell distinct cardinalities equals the slab's true count only when i
 
 Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_depth` sits inside the FIXED prefix, multiplying slabs rather than cells, so each slab still partitions its own keys — the shape the mode exists for; and one on the OPPOSITE axis at any depth, which the slab never sums across. Fix a refusal by raising `n_within_depth` past the offending dim, or switch to `n_within` — record counts ARE additive.
 
-The two MARGIN distinct modes are exact by construction and deliberately NOT gated: a margin accumulates over the raw records that reached the margin key, once each, so there is no per-cell summing step to double-count through. Extension groupers are not covered — `GroupType.FansOut()` knows built-in constants only.
+The two MARGIN distinct modes are exact by construction and deliberately NOT gated: a margin accumulates over the raw records that reached the margin key, once each, so there is no per-cell summing step to double-count through. Extension groupers are covered too, via `GrouperRegistration.FansOut`.
 
 ## Why it is enforced rather than documented
 

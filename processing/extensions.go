@@ -41,6 +41,23 @@ type ExtensionRegistry struct {
 	// fallback path consults the per-type Streamable() method.
 	Streamable map[string]bool
 
+	// FansOut is the per-grouper fan-out declaration recorded from
+	// pulse.GrouperRegistration.FansOut — true when one record can
+	// land in MORE THAN ONE bucket, so the bucket counts SUM to more
+	// than the record total. Grouper-only: no other category fans out.
+	//
+	// Built-in entries are NOT stored here; types.GroupType.FansOut()
+	// answers those, and types.CheckPairwiseSlabPartitionWith owns the
+	// built-in-first resolution order shared with the predict arm.
+	// A registered grouper always has an entry (false included), so a
+	// missing key means "registered nowhere", not "declared false".
+	//
+	// Probe-validated against processing.MultiKeyStreamingGrouper at
+	// pulse.New (PULSE_EXTENSION_FANOUT_MISMATCH), so the runtime may
+	// trust the declaration without reconstructing the grouper — which
+	// matters because the overlay hook has no schema in reach.
+	FansOut map[types.GroupType]bool
+
 	// ExprFunctions are merged into the runtime expression environment
 	// used by ATTR_FORMULA and FILTER_EXPRESSION. Each entry is
 	// callable from a request expression under its declared Name. The
@@ -275,6 +292,32 @@ func (r *ExtensionRegistry) LookupPostTest(t types.TestType) (PostTestFactory, b
 	}
 	f, ok := postTestRegistry[t]
 	return f, ok
+}
+
+// GrouperFanOut reports the fan-out fact declared for an
+// extension-registered grouper, and whether the registry carries a
+// declaration for t at all. Nil-receiver-safe: ok=false.
+//
+// Built-in group types deliberately return ok=false — they are not in
+// the map and types.GroupType.FansOut() is their authority. Callers
+// go through types.CheckPairwiseSlabPartitionWith, which tries the
+// built-in first and only then this resolver.
+func (r *ExtensionRegistry) GrouperFanOut(t types.GroupType) (fansOut bool, ok bool) {
+	if r == nil || r.FansOut == nil {
+		return false, false
+	}
+	v, found := r.FansOut[t]
+	return v, found
+}
+
+// ExtensionGroupFanOut adapts GrouperFanOut to the types-side resolver
+// signature the pairwise slab-partition gate takes. Returns nil for a
+// nil registry, which the gate reads as "no extension groupers".
+func (r *ExtensionRegistry) ExtensionGroupFanOut() types.ExtensionGroupFanOutFunc {
+	if r == nil {
+		return nil
+	}
+	return r.GrouperFanOut
 }
 
 // IsStreamable consults the Streamable overlay first, then the

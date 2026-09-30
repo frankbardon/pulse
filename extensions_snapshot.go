@@ -60,11 +60,17 @@ func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
 		}
 	}
 	for _, r := range ext.Groupers {
+		// FansOut is grouper-only and rides the snapshot because
+		// descriptor/ cannot assert processing.MultiKeyStreamingGrouper
+		// itself (TestPredictNoExecutionImports). Probe-validated at
+		// pulse.New, so the declaration here is already known to match
+		// the factory.
 		snap.Groupers = append(snap.Groupers, descriptor.OperatorMeta{
 			Name:        string(r.Name),
 			Namespace:   parseNamespace(string(r.Name)),
 			Description: r.Description,
 			Streamable:  r.Streamable,
+			FansOut:     r.FansOut,
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Params:      paramMetaSnapshot(r.Params),
 		})
