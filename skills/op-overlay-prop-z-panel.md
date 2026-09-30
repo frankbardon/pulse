@@ -19,11 +19,11 @@ Compose-only multi-reference. Buffered.
 
 - `row_margin_value` (default) — the row-margin VALUE off the payload; keeps the legacy `<= 0` fall back to the cell value.
 - `cell_n_unweighted` — counted `n` from the slot's `Components.Crosstab`, BY KEY. No fallback; unreadable ⇒ skip the cell.
-- `n_within` — the SAME payload row margin, optionally summed over a row-key prefix. No fallback.
+- `row_margin_value_within` — the SAME payload row margin, optionally summed over a row-key prefix. No fallback.
 
-`n_within_depth` (`*int`) is read by `n_within` alone, and the pointer is load-bearing: omitted ⇒ the exact per-slot row margin (no summing), `d` ⇒ margins summed over that slot's rows agreeing on the first `d+1` dims. Depth `0` ≠ omitted. Negative, or set with any other mode, ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms; past a slot's row depth ⇒ same code at RUNTIME only, naming that slot. Slots may declare DIFFERENT row depths and one out-of-range slot refuses the whole spec (dropping it would change `M`).
+`n_within_depth` (`*int`) is read by `row_margin_value_within` alone, and the pointer is load-bearing: omitted ⇒ the exact per-slot row margin (no summing), `d` ⇒ margins summed over that slot's rows agreeing on the first `d+1` dims. Depth `0` ≠ omitted. Negative, or set with any other mode, ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms; past a slot's row depth ⇒ same code at RUNTIME only, naming that slot. Slots may declare DIFFERENT row depths and one out-of-range slot refuses the whole spec (dropping it would change `M`).
 
-`row_margin_n` is the `OVERLAY_PAIRWISE_*` spelling (a record COUNT — different carrier), NOT an alias: unknown here ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms. `n_within` IS shared with that family by NAME only — there it sums `CellCounts` over a PAIR-axis slab at one fixed opposite index.
+`row_margin_n` and `n_within` are `OVERLAY_PAIRWISE_*` spellings, NOT aliases: unknown here ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms. There `n_within` sums `CellCounts` over a PAIR-axis slab at ONE fixed opposite index — one column; the panel's leg sums a slot's ROW margins across ALL columns, so the two differ by roughly the column count.
 
 ## Host shape
 

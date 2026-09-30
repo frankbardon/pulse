@@ -19,7 +19,7 @@ import (
 // would get the unsummed per-row margin, a smaller and entirely
 // plausible number.
 func TestDecodePanelParams_NWithinDepthOmittedIsNotZero(t *testing.T) {
-	omitted, err := DecodePanelParams(json.RawMessage(`{"n_source":"n_within"}`))
+	omitted, err := DecodePanelParams(json.RawMessage(`{"n_source":"row_margin_value_within"}`))
 	if err != nil {
 		t.Fatalf("decode omitted: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestDecodePanelParams_NWithinDepthOmittedIsNotZero(t *testing.T) {
 		t.Fatalf("omitted n_within_depth decoded to %v, want nil", *omitted.NWithinDepth)
 	}
 
-	zero, err := DecodePanelParams(json.RawMessage(`{"n_source":"n_within","n_within_depth":0}`))
+	zero, err := DecodePanelParams(json.RawMessage(`{"n_source":"row_margin_value_within","n_within_depth":0}`))
 	if err != nil {
 		t.Fatalf("decode zero: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestDecodePanelParams_NWithinDepthOmittedIsNotZero(t *testing.T) {
 		t.Fatalf("n_within_depth = %d, want 0", *zero.NWithinDepth)
 	}
 
-	two, err := DecodePanelParams(json.RawMessage(`{"n_source":"n_within","n_within_depth":2}`))
+	two, err := DecodePanelParams(json.RawMessage(`{"n_source":"row_margin_value_within","n_within_depth":2}`))
 	if err != nil {
 		t.Fatalf("decode two: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestDecodePanelParamsMap_NWithinDepthBothCarriers(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := DecodePanelParamsMap(map[string]any{
-				"n_source":       PanelNSourceNWithin,
+				"n_source":       PanelNSourceRowMarginValueWithin,
 				"n_within_depth": tc.val,
 			})
 			if err != nil {
@@ -93,9 +93,9 @@ func TestPanelOverlayParams_NWithinDepthMarshalRoundTrip(t *testing.T) {
 		in   PanelOverlayParams
 		want string
 	}{
-		{"omitted", PanelOverlayParams{NSource: PanelNSourceNWithin}, `{"n_source":"n_within"}`},
-		{"explicit zero", PanelOverlayParams{NSource: PanelNSourceNWithin, NWithinDepth: &zero},
-			`{"n_source":"n_within","n_within_depth":0}`},
+		{"omitted", PanelOverlayParams{NSource: PanelNSourceRowMarginValueWithin}, `{"n_source":"row_margin_value_within"}`},
+		{"explicit zero", PanelOverlayParams{NSource: PanelNSourceRowMarginValueWithin, NWithinDepth: &zero},
+			`{"n_source":"row_margin_value_within","n_within_depth":0}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			raw, err := json.Marshal(tc.in)
@@ -125,8 +125,8 @@ func TestPanelOverlayParams_NWithinDepthMarshalRoundTrip(t *testing.T) {
 // added later that forgets to join the set gets a hard refusal rather
 // than an inert param.
 func TestPanelNSourceUsesWithinDepth(t *testing.T) {
-	if !PanelNSourceUsesWithinDepth(PanelNSourceNWithin) {
-		t.Errorf("%q must consume n_within_depth", PanelNSourceNWithin)
+	if !PanelNSourceUsesWithinDepth(PanelNSourceRowMarginValueWithin) {
+		t.Errorf("%q must consume n_within_depth", PanelNSourceRowMarginValueWithin)
 	}
 	for _, mode := range []string{"", PanelNSourceRowMarginValue, PanelNSourceCellNUnweighted, "nonsense"} {
 		if PanelNSourceUsesWithinDepth(mode) {
@@ -140,21 +140,21 @@ func TestPanelNSourceUsesWithinDepth(t *testing.T) {
 // runtime switch but omitted from ValidPanelNSource would be refused
 // at both gates and never reachable — the failure E1-S4's own
 // falsification found on the axis-pairing family.
-func TestValidPanelNSource_AcceptsNWithin(t *testing.T) {
-	if !ValidPanelNSource(PanelNSourceNWithin) {
-		t.Fatalf("ValidPanelNSource(%q) = false", PanelNSourceNWithin)
+func TestValidPanelNSource_AcceptsRowMarginValueWithin(t *testing.T) {
+	if !ValidPanelNSource(PanelNSourceRowMarginValueWithin) {
+		t.Fatalf("ValidPanelNSource(%q) = false", PanelNSourceRowMarginValueWithin)
 	}
-	if PanelNSourceNWithin != "n_within" {
-		t.Fatalf("PanelNSourceNWithin = %q, want the wire value \"n_within\"", PanelNSourceNWithin)
+	if PanelNSourceRowMarginValueWithin != "row_margin_value_within" {
+		t.Fatalf("PanelNSourceRowMarginValueWithin = %q, want the wire value \"row_margin_value_within\"", PanelNSourceRowMarginValueWithin)
 	}
 	var found bool
 	for _, s := range PanelNSources() {
-		if s == PanelNSourceNWithin {
+		if s == PanelNSourceRowMarginValueWithin {
 			found = true
 		}
 	}
 	if !found {
 		t.Fatalf("PanelNSources() = %v, omits %q; the diagnostic would not suggest it",
-			PanelNSources(), PanelNSourceNWithin)
+			PanelNSources(), PanelNSourceRowMarginValueWithin)
 	}
 }

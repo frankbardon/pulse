@@ -66,7 +66,7 @@ func TestDecodePanelParams_MalformedRefused(t *testing.T) {
 		{"not json", json.RawMessage(`n_source=n_within`)},
 		{"array", json.RawMessage(`[1,2]`)},
 		{"bare number", json.RawMessage(`5`)},
-		{"bare string", json.RawMessage(`"n_within"`)},
+		{"bare string", json.RawMessage(`"row_margin_value_within"`)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

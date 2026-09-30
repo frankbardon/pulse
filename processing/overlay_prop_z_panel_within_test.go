@@ -74,7 +74,7 @@ func TestApplyPropZPanel_NWithinOmittedDepthMatchesBaselineBytes(t *testing.T) {
 		t.Fatal("fixture gained components; it must stay components-free to prove n_within is a payload read")
 	}
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin}
 
 	layer, warns, err := applyPropZPanel(&spec, ref, targets, 0, []int{1, 2})
 	if err != nil {
@@ -119,12 +119,12 @@ func TestApplyPropZPanel_NWithinOmittedDepthIsNotDepthZero(t *testing.T) {
 		t.Fatal("fixture cannot distinguish the exact margin from the depth-0 slab")
 	}
 
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin}
 	omitted, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("omitted depth: %v", err)
 	}
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 0}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 0}
 	zero, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("depth 0: %v", err)
@@ -158,7 +158,7 @@ func TestApplyPropZPanel_NWithinOmittedDepthIsNotDepthZero(t *testing.T) {
 func TestApplyPropZPanel_NWithinDepthSumsOnlyThePrefixSlab(t *testing.T) {
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 0}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 0}
 
 	layer, warns, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
@@ -202,13 +202,13 @@ func TestApplyPropZPanel_NWithinMaxDepthEqualsExactMargin(t *testing.T) {
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
 
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin}
 	omitted, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("omitted depth: %v", err)
 	}
 	// Row depth is 2, so depth 1 (prefix 2) is the deepest accepted.
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 1}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 1}
 	deepest, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
 		t.Fatalf("depth 1: %v", err)
@@ -247,7 +247,7 @@ func TestApplyPropZPanel_NWithinResolvesSlabsPerSlot(t *testing.T) {
 	), []types.AxisKey{{"b", "x"}, {"a", "y"}, {"a", "x"}})
 
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 0}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 0}
 
 	// Reference row 0 is ("a","x"): ref slab 100 + 60 = 160, target
 	// slab 90 + 30 = 120. Reading the REFERENCE's slab for the target
@@ -310,7 +310,7 @@ func TestApplyPropZPanel_NWithinDoesNotFallBackToCellValue(t *testing.T) {
 	}
 
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin}
 	ref, target := build()
 	layer, warns, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 3, []int{7})
 	if err != nil {
@@ -334,8 +334,8 @@ func TestApplyPropZPanel_NWithinDoesNotFallBackToCellValue(t *testing.T) {
 			continue
 		}
 		found = true
-		if w.Details["n_source"] != types.PanelNSourceNWithin {
-			t.Errorf("Details[n_source] = %v, want %q", w.Details["n_source"], types.PanelNSourceNWithin)
+		if w.Details["n_source"] != types.PanelNSourceRowMarginValueWithin {
+			t.Errorf("Details[n_source] = %v, want %q", w.Details["n_source"], types.PanelNSourceRowMarginValueWithin)
 		}
 		if w.Details["panel_index"] != 0 {
 			t.Errorf("Details[panel_index] = %v, want 0 (the reference)", w.Details["panel_index"])
@@ -376,7 +376,7 @@ func TestApplyPropZPanel_NWithinPresentZeroMarginIsNotASkip(t *testing.T) {
 		[3]float64{100, 100, 100},
 	)
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin}
 
 	layer, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err != nil {
@@ -405,7 +405,7 @@ func TestApplyPropZPanel_NWithinDepthOutOfRangeRefused(t *testing.T) {
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
 	// Row depth is 2, so depth 2 (prefix 3) is one past the end.
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 2}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 2}
 
 	_, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 	if err == nil {
@@ -446,7 +446,7 @@ func TestApplyPropZPanel_NWithinDepthRefusesOnTheShallowestSlot(t *testing.T) {
 	), []types.AxisKey{{"a"}, {"b"}, {"c"}})
 
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 1}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 1}
 
 	// Authored at Compose slots 3 (reference) and 7 (target), so a
 	// diagnostic reporting the panel's internal ordering would send
@@ -475,7 +475,7 @@ func TestApplyPropZPanel_NWithinDepthRefusesOnTheShallowestSlot(t *testing.T) {
 	// The guard is PER SLOT, not a uniformity check: the same pair of
 	// slots at depth 0 (prefix 1) is in range for both and must not
 	// be refused, even though their depths still differ.
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 0}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 0}
 	if _, _, err := applyPropZPanel(&spec, ref, []*types.Response{shallow}, 3, []int{7}); err != nil {
 		t.Fatalf("depth 0 is in range for a 1-dim axis; differing slot depths alone must not refuse: %v", err)
 	}
@@ -538,7 +538,7 @@ func TestApplyPropZPanel_NWithinDepthRefusedWithoutAWithinMode(t *testing.T) {
 func TestApplyPropZPanel_NegativeNWithinDepthRefused(t *testing.T) {
 	ref, target := panelTwoDimSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": -1}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": -1}
 
 	_, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 	var coded *pulseerrors.CodedError
@@ -555,7 +555,7 @@ func TestApplyPropZPanel_NegativeNWithinDepthRefused(t *testing.T) {
 func TestApplyPropZPanel_CapFiresBeforeNWithinDepthFault(t *testing.T) {
 	ref, targets := panelBaselineSlots()
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, &types.OverlayOptions{MaxPanelTargets: 1})
-	spec.Params = map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": -1}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": -1}
 
 	_, _, err := applyPropZPanel(&spec, ref, targets, 0, []int{1, 2})
 	var coded *pulseerrors.CodedError

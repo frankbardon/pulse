@@ -20,20 +20,21 @@ func TestValidPanelNSource(t *testing.T) {
 		{"", true},
 		{PanelNSourceRowMarginValue, true},
 		{PanelNSourceCellNUnweighted, true},
-		{PanelNSourceNWithin, true},
+		{PanelNSourceRowMarginValueWithin, true},
 
-		// n_within is spelled the same on both families (E4-S1), and
-		// the wire values are asserted equal below so the collision
-		// can never become accidental. It is NOT the same quantity:
-		// the panel sums each slot's ROW MARGINS over a row-key
-		// prefix, the axis-pairing family sums CellCounts over a
-		// PAIR-axis slab at a fixed opposite index. See the constant.
-		{PairwiseNSourceNWithin, true},
-
-		// Rejected. Both are the crosstab family's modes:
+		// Rejected. The crosstab family's modes:
 		// PairwiseOverlayParams and PanelOverlayParams are separate
 		// types precisely so each host offers only the modes it can
 		// actually serve, and a shared struct would have leaked these.
+		// n_within was the panel's spelling for one story (E4-S1) and
+		// is RETIRED. It belongs to the axis-pairing family, where it
+		// sums CellCounts over a PAIR-axis slab at ONE fixed opposite
+		// index; the panel's leg sums a slot's ROW margins, i.e. ALL
+		// columns, so the two differ by roughly the column count.
+		// Re-admitting it as an alias would restore exactly the
+		// ambiguity row_margin_value_within was minted to remove.
+		{PairwiseNSourceNWithin, false},
+		{"n_within", false},
 		{PairwiseNSourceColumnMarginN, false},
 		{PairwiseNSourceRowMarginDistinct, false},
 		{PairwiseNSourceRowMarginN, false},
@@ -45,13 +46,18 @@ func TestValidPanelNSource(t *testing.T) {
 			t.Errorf("ValidPanelNSource(%q) = %v, want %v", tc.in, got, tc.want)
 		}
 	}
-	// The one shared spelling is shared DELIBERATELY. Pinning the two
-	// constants equal means a later rename on either family has to
-	// come back here and restate the decision rather than silently
-	// splitting a name two hosts' docs claim is one.
-	if PanelNSourceNWithin != PairwiseNSourceNWithin {
-		t.Fatalf("panel %q and pairwise %q have diverged; restate the shared-name decision",
-			PanelNSourceNWithin, PairwiseNSourceNWithin)
+	// The two families' within-prefix legs are spelled DIFFERENTLY,
+	// and the difference is pinned so a later "tidy-up" that collapses
+	// them has to restate the decision. They are not the same
+	// quantity: the panel sums a slot's ROW margins over a row-key
+	// prefix (all columns), the axis-pairing family sums CellCounts
+	// over a PAIR-axis slab at ONE fixed opposite index (one column).
+	// One wire name for both would differ by roughly the column count
+	// and never say so.
+	if PanelNSourceRowMarginValueWithin == PairwiseNSourceNWithin {
+		t.Fatalf("panel and pairwise within-prefix modes share the wire name %q;"+
+			" they are different quantities and must not collide",
+			PanelNSourceRowMarginValueWithin)
 	}
 }
 
@@ -76,7 +82,7 @@ func TestPanelNSources_MatchesValidatorMinusEmpty(t *testing.T) {
 	want := map[string]bool{
 		PanelNSourceRowMarginValue:  true,
 		PanelNSourceCellNUnweighted: true,
-		PanelNSourceNWithin:         true,
+		PanelNSourceRowMarginValueWithin:         true,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("PanelNSources() = %v, want exactly %d entries", got, len(want))
@@ -146,10 +152,10 @@ func TestPanelNSourcePredicates_AreDisjoint(t *testing.T) {
 	// leg's <= 0 cell-value fallback either. Being in NEITHER set is
 	// the whole claim, and it is the one a later mode is most likely
 	// to break by copying row_margin_value's predicates wholesale.
-	if PanelNSourceReadsComponents(PanelNSourceNWithin) {
+	if PanelNSourceReadsComponents(PanelNSourceRowMarginValueWithin) {
 		t.Error("n_within reads MatrixPayload.RowMargins and must not demand components")
 	}
-	if PanelNSourceFallsBackToCellValue(PanelNSourceNWithin) {
+	if PanelNSourceFallsBackToCellValue(PanelNSourceRowMarginValueWithin) {
 		t.Error("n_within must NOT inherit the legacy cell-value fallback: a summed slab has no single cell value to borrow")
 	}
 }

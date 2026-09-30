@@ -1127,8 +1127,12 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"the COUNTED universal-floor \"n\" out of Response.Components.Crosstab.CellComponents[r][c] on every slot, " +
 				"resolved BY KEY (slots share a key SET, not an ORDER), with NO cell-value fallback — an unreadable leg skips " +
 				"the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index; " +
-				"n_within reads the SAME payload row margin as the default but scoped to a ROW-KEY PREFIX, and carries no " +
-				"fallback either. n_within_depth (*int) is read by n_within alone — the pointer is load-bearing because " +
+				"row_margin_value_within reads the SAME payload row margin as the default but scoped to a ROW-KEY PREFIX, " +
+				"and carries no fallback either. It is spelled row_margin_value_within, NOT n_within: n_within belongs to " +
+				"the OVERLAY_PAIRWISE_* family, where it sums CellCounts over a PAIR-axis slab at ONE fixed opposite index, " +
+				"while this leg sums a slot's ROW margins across ALL columns — the two differ by roughly the column count " +
+				"and n_within is refused here like any other unknown mode. " +
+				"n_within_depth (*int) is read by row_margin_value_within alone — the pointer is load-bearing because " +
 				"depth 0 is a meaningful value: omitted means the EXACT per-slot row margin with no summing, while d sums " +
 				"that slot's row margins over every row agreeing on the first d+1 dim positions (axisKeyPrefixEqual, the " +
 				"same value-stringifying comparison the MATRIX arm's RowSlabN uses). A negative depth, or a depth set " +

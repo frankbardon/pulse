@@ -27,9 +27,9 @@ func TestValidateCompose_PanelNWithinDepthAccepted(t *testing.T) {
 		name   string
 		params map[string]any
 	}{
-		{"omitted depth", map[string]any{"n_source": types.PanelNSourceNWithin}},
-		{"depth 0", map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 0}},
-		{"depth 3", map[string]any{"n_source": types.PanelNSourceNWithin, "n_within_depth": 3}},
+		{"omitted depth", map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin}},
+		{"depth 0", map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 0}},
+		{"depth 3", map[string]any{"n_source": types.PanelNSourceRowMarginValueWithin, "n_within_depth": 3}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env := ValidateCompose(composePanelRequest(tc.params))
@@ -69,8 +69,8 @@ func TestValidateCompose_PanelNWithinDepthRefusedWithoutAWithinMode(t *testing.T
 				// The diagnostic must name the mode that WOULD read
 				// it, or the caller's only remaining move is to
 				// delete the key they deliberately wrote.
-				if !strings.Contains(e.Message, types.PanelNSourceNWithin) {
-					t.Errorf("message does not name %q: %q", types.PanelNSourceNWithin, e.Message)
+				if !strings.Contains(e.Message, types.PanelNSourceRowMarginValueWithin) {
+					t.Errorf("message does not name %q: %q", types.PanelNSourceRowMarginValueWithin, e.Message)
 				}
 				if e.Details["n_within_depth"] == nil {
 					t.Errorf("Details omit n_within_depth: %+v", e.Details)
@@ -104,7 +104,7 @@ func TestValidateCompose_PanelNWithinDepthRefusedWithoutAWithinMode(t *testing.T
 // one renderer branch handles both families.
 func TestValidateCompose_PanelNegativeNWithinDepthRefused(t *testing.T) {
 	env := ValidateCompose(composePanelRequest(map[string]any{
-		"n_source":       types.PanelNSourceNWithin,
+		"n_source":       types.PanelNSourceRowMarginValueWithin,
 		"n_within_depth": -1,
 	}))
 	if !envHasCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {

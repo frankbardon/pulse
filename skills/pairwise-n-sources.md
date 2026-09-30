@@ -65,4 +65,4 @@ Proportion-input kinds only. `cell_value_pct` (default) divides the cell value b
 
 ## See
 
-`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `examples/overlays/42_crosstab_pairwise_distinct_n.json`. The Compose-host `op-overlay-prop-z-panel` reuses these NAMES over other carriers: `row_margin_value` (a payload VALUE, not `row_margin_n`) and an `n_within` summing that slot's ROW MARGINS over a row-key prefix, not `CellCounts` over a pair-axis slab.
+`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `examples/overlays/42_crosstab_pairwise_distinct_n.json`. The Compose-host `op-overlay-prop-z-panel` spells its own legs: `row_margin_value` (a payload VALUE, not `row_margin_n`) and `row_margin_value_within` (that slot's ROW margins summed over a row-key prefix — ALL columns, not `CellCounts` over a pair-axis slab at one fixed opposite index). Neither `row_margin_n` nor `n_within` is accepted there.

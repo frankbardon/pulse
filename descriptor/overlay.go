@@ -283,7 +283,7 @@ func validateOverlayPanel(env *Envelope, kind types.OverlayKind, params types.Pa
 		}
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(kind)+" n_within_depth is not read by n_source "+nSource+
-				" (it applies to "+types.PanelNSourceNWithin+" only)",
+				" (it applies to "+types.PanelNSourceRowMarginValueWithin+" only)",
 			map[string]any{"index": index, "kind": string(kind),
 				"n_source": params.NSource, "n_within_depth": *params.NWithinDepth})
 		return

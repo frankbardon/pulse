@@ -35,8 +35,8 @@ type PanelOverlayParams struct {
 	// is the leg the panel has always used.
 	NSource string `json:"n_source,omitempty"`
 
-	// NWithinDepth scopes the n_within leg to a ROW-KEY PREFIX on each
-	// slot's OWN row axis. The panel pairs across SLOTS, which carry
+	// NWithinDepth scopes the row_margin_value_within leg to a
+	// ROW-KEY PREFIX on each slot's OWN row axis. The panel pairs across SLOTS, which carry
 	// no dim tuple, so — unlike the OVERLAY_PAIRWISE_* family, where
 	// the depth indexes the pair axis — there is no pair axis to
 	// index here.
@@ -110,23 +110,37 @@ const (
 	// fallback: an unreadable leg skips the coordinate.
 	PanelNSourceCellNUnweighted = "cell_n_unweighted"
 
-	// PanelNSourceNWithin is the WITHIN-PREFIX margin leg: the slot's
-	// row margin, optionally summed over a row-key prefix slab.
+	// PanelNSourceRowMarginValueWithin is the WITHIN-PREFIX margin
+	// leg: the slot's row-margin VALUE, optionally summed over a
+	// row-key prefix slab.
 	//
-	// CARRIER. It reads the same place PanelNSourceRowMarginValue
-	// does — the margin CELL's value off MatrixPayload.RowMargins —
-	// so with NWithinDepth omitted it IS the legacy leg's number, and
-	// the two agree byte-for-byte wherever that margin is present.
-	// The name denotes the SCOPE (a within-prefix denominator, the
-	// same Pulse-W `normalize_within` notion CrosstabHostView.RowSlabN
-	// serves on the MATRIX arm), not the carrier.
+	// CARRIER, and it is in the name. It reads exactly where
+	// PanelNSourceRowMarginValue reads — the margin CELL's value off
+	// MatrixPayload.RowMargins — so with NWithinDepth omitted it IS
+	// the legacy leg's number and the two agree byte-for-byte
+	// wherever that margin is present. The `_within` suffix denotes
+	// the SCOPE (a within-prefix denominator, the same Pulse-W
+	// `normalize_within` notion CrosstabHostView.RowSlabN serves on
+	// the MATRIX arm).
 	//
-	// It therefore shares only its NAME with the axis-pairing
-	// family's n_within, which sums CrosstabComponents.CellCounts —
-	// record COUNTS — across a slab of the PAIR axis. Two differences
-	// at once: this one reads a payload VALUE, and "row" means the
-	// slot's own row axis because the panel pairs across slots. Say
-	// so wherever the mode is named.
+	// It was spelled `n_within` on this branch and is NOT any more.
+	// The axis-pairing family's PairwiseNSourceNWithin owns that
+	// string and means something else: it sums
+	// CrosstabComponents.CellCounts — record COUNTS — over a slab of
+	// the PAIR axis at ONE fixed opposite index. This one sums a
+	// slot's ROW margins, i.e. ALL columns. The two therefore differ
+	// by roughly the column count, silently, which is precisely the
+	// one-name-two-quantities hazard `row_margin_value` was split out
+	// of `row_margin_n` to remove one story earlier. `n_within` is an
+	// UNKNOWN mode on the panel and must never be re-admitted as an
+	// alias: accepting both spellings would restore the ambiguity the
+	// rename exists to destroy. The PARAM keeps its name —
+	// `n_within_depth` scopes a within-prefix leg on both families
+	// and denotes the same thing on each.
+	//
+	// E4-S3's distinct-key sibling is spelled
+	// `row_margin_distinct_within` for the same reason;
+	// `n_within_distinct` stays the crosstab family's spelling.
 	//
 	// It does NOT carry the legacy <= 0 cell-value fallback; see
 	// PanelNSourceFallsBackToCellValue. A row margin that was never
@@ -134,7 +148,10 @@ const (
 	// substituting the cell value, and — once a depth is set — a
 	// single coordinate's cell value is not even the same dimension
 	// as a slab-wide sample size.
-	PanelNSourceNWithin = "n_within"
+	//
+	// With an explicit NWithinDepth it SUMS across rows, which is
+	// gated by CheckPanelSlabPartitionWith.
+	PanelNSourceRowMarginValueWithin = "row_margin_value_within"
 )
 
 // panelNSources is the ordered valid set, empty excluded. Diagnostics
@@ -142,7 +159,7 @@ const (
 var panelNSources = []string{
 	PanelNSourceRowMarginValue,
 	PanelNSourceCellNUnweighted,
-	PanelNSourceNWithin,
+	PanelNSourceRowMarginValueWithin,
 }
 
 // PanelNSources returns the valid PanelOverlayParams.NSource modes in
@@ -160,14 +177,23 @@ func PanelNSources() []string {
 // mode. Empty counts as valid (defaults to row_margin_value).
 func ValidPanelNSource(s string) bool {
 	switch s {
-	case "", PanelNSourceRowMarginValue, PanelNSourceCellNUnweighted, PanelNSourceNWithin:
+	case "", PanelNSourceRowMarginValue, PanelNSourceCellNUnweighted, PanelNSourceRowMarginValueWithin:
 		return true
 	}
 	return false
 }
 
 // PanelNSourceUsesWithinDepth reports whether s CONSUMES
-// PanelOverlayParams.NWithinDepth. Both arms key their
+// PanelOverlayParams.NWithinDepth. It is also the SUMMING predicate:
+// every panel mode that reads a depth accumulates across rows when
+// one is set, so CheckPanelSlabPartitionWith keys its gate off this
+// same predicate rather than a second, narrower one. (The
+// axis-pairing family DOES need the narrower
+// PairwiseNSourceSumsDistinctCells, because its n_within sums record
+// COUNTS, which are additive under a fan-out grouper. A panel margin
+// is whatever the slot's cell aggregator emitted — a distinct count,
+// a percentage, a weighted sum — so the panel cannot claim
+// additivity for it and does not try.) Both arms key their
 // "n_within_depth without a mode that reads it" refusal off this
 // predicate, so the accepted combination is stated once.
 //
@@ -179,7 +205,7 @@ func ValidPanelNSource(s string) bool {
 // key. (The axis-pairing family's int field cannot make that
 // distinction, which is why its equivalent no-op is still open.)
 func PanelNSourceUsesWithinDepth(s string) bool {
-	return s == PanelNSourceNWithin
+	return s == PanelNSourceRowMarginValueWithin
 }
 
 // PanelNSourceReadsComponents reports whether s reads
@@ -203,8 +229,8 @@ func PanelNSourceReadsComponents(s string) bool {
 // because removing it would change the default path's output, and the
 // default must stay byte-identical to the pre-params baseline.
 //
-// n_within is excluded too, even though it reads the SAME payload
-// margin the legacy leg does. Two reasons, and the second is the
+// row_margin_value_within is excluded too, even though it reads the
+// SAME payload margin the legacy leg does. Two reasons, and the second is the
 // decisive one. A margin that was never emitted is not a zero-sized
 // one — the posture RowMarginDistinctN already takes. And once
 // NWithinDepth is set the leg is a SUM ACROSS ROWS, so substituting

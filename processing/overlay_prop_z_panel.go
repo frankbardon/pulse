@@ -43,7 +43,8 @@ import (
 // and refuse a components-disabled slot with
 // PULSE_OVERLAY_COMPONENTS_REQUIRED rather than falling back.
 //
-// n_within_depth (*int, nil = omitted) scopes the n_within leg to each
+// n_within_depth (*int, nil = omitted) scopes the row_margin_value_within
+// leg to each
 // slot's OWN row-key prefix. The panel pairs across SLOTS, which carry
 // no dim tuple, so there is no pair axis for a depth to index the way
 // the OVERLAY_PAIRWISE_* family's does. Omitted ⇒ the exact per-slot
@@ -223,7 +224,7 @@ func panelSampleSize(
 	cellValue float64,
 ) (float64, bool) {
 	switch nSource {
-	case types.PanelNSourceNWithin:
+	case types.PanelNSourceRowMarginValueWithin:
 		// Omitted depth: the EXACT per-slot row margin. Same carrier
 		// and same number as the legacy leg wherever that margin is
 		// present — and deliberately NOT its <= 0 cell-value
@@ -363,7 +364,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" n_within_depth is not read by n_source "+nSource+
-				" (it applies to "+types.PanelNSourceNWithin+" only)",
+				" (it applies to "+types.PanelNSourceRowMarginValueWithin+" only)",
 			map[string]any{
 				"kind":           string(spec.Kind),
 				"n_source":       params.NSource,
