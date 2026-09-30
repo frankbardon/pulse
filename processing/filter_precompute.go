@@ -399,7 +399,7 @@ func (v *exprPurityVisitor) Visit(node *exprast.Node) {
 
 // exprPureSetBuiltins are the set built-ins setExprOptions registers.
 var exprPureSetBuiltins = map[string]bool{
-	"contains": true, "has_any": true, "has_all": true, "has_none": true,
+	"has_any": true, "has_all": true, "has_none": true,
 	"popcount": true, "set_union": true, "set_intersect": true,
 	"set_diff": true, "set_xor": true,
 }

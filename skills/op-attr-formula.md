@@ -32,7 +32,7 @@ One `float64` per record (bools → `1.0` / `0.0`). Null binds `nil`: guard `x ?
 
 - **No in-slot chaining** — cannot reference another attribute's label; stage via Compose / ProcessChain.
 - Compiled once per request; syntax / type error → `PROCESSING_RUNTIME` at build.
-- Categorical surfaces as STRING (`==` / `in`); `set_*` as `[]string` (`contains`, `has_any`, `popcount`).
+- Categorical → STRING (`==` / `in`); `set_*` → `[]string` (`"a" in tags`, `has_any(tags, "a", "b")`).
 - No `sqrt` / `log` / `exp` / trig — use `**` or FEAT.
 - Embedder `ExprFunctions` + `lookup(...)` tables visible.
 

@@ -1,15 +1,15 @@
 ---
 name: synthetic-data
-description: `pulse_synth_from_schema` vs `pulse_synth_from_profile`, multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules.
+description: `pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [pulse_synth_from_schema, pulse_synth_from_profile, synth, distributions, correlations, models, determinism]
+covers: [synth from-schema, synth from-profile, profile create, synth, distributions, correlations, models, determinism]
 ---
 
 # Synthetic data
 
-Pulse synthesizes deterministic `.pulse` cohorts via `pulse_synth_from_schema` / `pulse_synth_from_profile` (matching CLI leaves).
+Pulse synthesizes deterministic `.pulse` cohorts via the CLI leaves `pulse synth from-schema` / `pulse synth from-profile` (library `Pulse.Synth`).
 
 The CONTRACT surface — rules not inferable from the code you are editing, whose violation is SILENT. Per-distribution params: atomic `op-synth-*`. `rules[]` / `constraints[]`: `synth-structural-rules`. The measurements behind each rule and every closed design question: `docs/src/cli/synth-calibration.md`.
 
@@ -19,8 +19,8 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 
 | Mode | Input | When |
 |---|---|---|
-| `pulse_synth_from_schema` | hand-written JSON spec | caller knows desired shape — fixtures, CI seeds, demos |
-| `pulse_synth_from_profile` | profile JSON + the source cohort it was captured from | tagged top-up: add rows matching a real cohort's marginals, source untouched |
+| `pulse synth from-schema` | hand-written JSON spec | caller knows desired shape — fixtures, CI seeds, demos |
+| `pulse synth from-profile` | profile JSON + the source cohort it was captured from | tagged top-up: add rows matching a real cohort's marginals, source untouched |
 
 **Privacy.** Synth does NOT preserve privacy. A profile without DP noise leaks the empirical distribution — top-K categoricals reveal rare values, percentiles reveal ranges, coefficients expose structure. Add a calibrated noise mechanism if the source is sensitive.
 
@@ -75,7 +75,7 @@ Gates: `TestSynth_CorrelationReconstructionWithinTolerance`, `TestSynth_CopulaPr
 
 ## Profile mode
 
-Capture via `pulse_profile_create`; synth via `pulse_synth_from_profile`. Per field:
+Capture via `pulse profile create` (`Pulse.Profile`); synth via `pulse synth from-profile`. Per field:
 
 - Numeric: mean, std, min, max, optional percentiles, null-rate, plus `discrete` (per-level histogram) for a capped integer column. Categorical: top-K + frequencies, cardinality, null-rate. Date: range, weekday histogram, null-rate. `set_*`: below.
 - Pairwise: strongest `|rho|` (capped by `--correlation-top-k`).

@@ -11,7 +11,8 @@ profile: per-field type, descriptive statistics, top-K categorical
 entries, optional pairwise correlations. **The profile retains no
 individual rows from the source.**
 
-> **LLM agents using MCP:** see the `pulse_profile` MCP tool.
+> **No MCP tool.** Profile capture is CLI (`pulse profile create`) and
+> library (`Pulse.Profile`) only; see the `synthetic-data` skill.
 
 ## Synopsis
 

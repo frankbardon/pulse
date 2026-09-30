@@ -763,7 +763,7 @@ func setMaskFromCell(raw string, ft encoding.FieldType, dict *encoding.Dictionar
 			return mask, errors.NewCodedErrorWithDetails(
 				errors.PULSE_IMPORT_SET_OVERFLOW,
 				fmt.Sprintf("set dictionary overflowed %s (max %d entries)", ft, maxEntries),
-				map[string]any{"type": string(ft), "max_entries": maxEntries, "token": tok})
+				map[string]any{"type": ft.String(), "max_entries": maxEntries, "token": tok})
 		}
 		mask = mask.WithBit(int(id))
 	}
@@ -888,7 +888,7 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, 
 			return 0, errors.NewCodedErrorWithDetails(
 				errors.PULSE_IMPORT_SET_OVERFLOW,
 				fmt.Sprintf("set mask has bit %d beyond the 64 bits %s stores", mask.HighestBit(), ft),
-				map[string]any{"type": string(ft), "max_entries": ft.MaxSetEntries(), "highest_bit": mask.HighestBit()})
+				map[string]any{"type": ft.String(), "max_entries": ft.MaxSetEntries(), "highest_bit": mask.HighestBit()})
 		}
 		return low, nil
 

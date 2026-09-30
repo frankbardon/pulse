@@ -21,7 +21,7 @@ examples_tags: [cohort-analysis, feature-engineering, streaming-friendly]
 |---|---|
 | `Field` | unused — expression names fields directly. May be empty. |
 
-Categorical → STRING; `set_*` → `[]string`; `decimal128` → `Decimal128`.
+Categorical → STRING; `set_*` → `[]string` (`has_any(tags, "a")`); `decimal128` → `Decimal128`.
 
 ## Output
 
@@ -33,7 +33,7 @@ Floor only: universal `{n_in, n_out, n_null_input}` (`response-components`). `n_
 
 ## Gotchas
 
-- Compiled once per request; syntax / type error → `PROCESSING_RUNTIME` before any row.
+- Compiled once; syntax / type error → `PROCESSING_RUNTIME` before any row.
 - Null binds `nil`: `x == nil`, `x ?? 0`; `==` false, `!=` true. `>` / `+` / `len` on nil → whole predicate UNKNOWN, row dropped (guard `x != nil && x > 5`).
 - Error or non-bool on a non-null row → `PROCESSING_RUNTIME`.
 - Cannot reference attribute output — filters run before attributes.

@@ -27,5 +27,5 @@ func BenchmarkConvertInferred(b *testing.B) {
 type discardWriter struct{}
 
 func (discardWriter) WriteHeader([]string) error { return nil }
-func (discardWriter) WriteRow([]any) error      { return nil }
-func (discardWriter) Close() error              { return nil }
+func (discardWriter) WriteRow([]any) error       { return nil }
+func (discardWriter) Close() error               { return nil }

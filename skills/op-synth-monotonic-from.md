@@ -32,7 +32,7 @@ Per-row `float64` `start + i * step` for row `i`. RNG state untouched, so seeded
 - Consumes NO RNG — adding / removing a `monotonic_from` field is the only spec edit preserving byte-equality of every other field's stream.
 - Rejected rows still advance the counter, so a post-constraint cohort has gaps. For dense IDs, sanitize constraints.
 - Casting overflow is SILENT — `start=250, step=10, row_count=10` overflows `u8` after row 1. Declare wide enough, or use `u64`.
-- Pairs with `pulse_synth_from_schema` for fixtures; `Seed` is irrelevant here.
+- Pairs with `pulse synth from-schema` for fixtures; `Seed` is irrelevant here.
 
 ## See
 

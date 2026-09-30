@@ -85,7 +85,7 @@ func reflectiveExprTrampoline(fn any) func(args ...any) (any, error) {
 // registered) the `lookup` builtin on top.
 //
 // Contributions:
-//   - set helpers (`contains`, `has_any`, `has_all`, `has_none`,
+//   - set helpers (`has_any`, `has_all`, `has_none`,
 //     `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`)
 //     are always registered. Record.AllValues() resolves set fields to
 //     []string of labels, so the helpers consume []string operands.

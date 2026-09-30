@@ -46,11 +46,11 @@ Rule: if a downstream filterer or test needs the derived value filterable, use F
 
 Evaluates an `expr-lang/expr` (v1.17.x) string per row.
 
-- **Field refs** by bare name. Numeric → number. Categorical → dictionary string (use `==` / `in`, not the index). `set_*` → sorted `[]string` of selected labels; helpers `contains`, `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor` consume naturally.
-- **Operators**: arithmetic (`+ - * / % **`), comparison, logical (`and or not`), membership / pattern (`in`, `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
+- **Field refs** by bare name. Numeric → number. Categorical → dictionary string (use `==` / `in`, not the index). `set_*` → sorted `[]string` of labels: `"a" in tags`, `has_any(tags, "a", "b")`; also `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`.
+- **Operators**: arithmetic (`+ - * / % **`), comparison, logical (`and or not`), membership / pattern (`in`; string-only `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
 - **Functions**: numeric (`abs`, `ceil`, `floor`, `round`, `min`, `max`, `sum`, `mean`, `median`), cast (`int`, `float`, `string`), collection (`len`, `keys`, `values`, `concat`, `sort`, `uniq`, `filter`, `map`, `reduce`, `all`, `any`), string (`join`, `split`, `replace`, `trim`, `lower`, `upper`, `hasPrefix`, `hasSuffix`, `indexOf`), JSON / time (`toJSON`, `fromJSON`, `now`, `date`, `duration`). **No** `sqrt` / `log` / `exp` / `pow` / trig — use `**` for powers (`x ** 0.5`) or pre-compute upstream.
 - **Extensions.** `pulse.Options.Extensions.ExprFunctions` injects custom functions; `LookupTables` reaches `lookup(table, keys...)`. Per `docs/src/internals/extension-points.md`.
-- **Null binds `nil`** (compiled once per request). Guard with `??`; unguarded arithmetic on nil raises `PROCESSING_RUNTIME`.
+- **Null binds `nil`** (compiled once). Guard with `??`; unguarded arithmetic on nil raises `PROCESSING_RUNTIME`.
 
 Two common patterns:
 

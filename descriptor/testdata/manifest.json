@@ -7219,7 +7219,7 @@
       },
       {
         "name": "synthetic-data",
-        "description": "`pulse_synth_from_schema` vs `pulse_synth_from_profile`, multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules."
+        "description": "`pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules."
       },
       {
         "name": "tool-compose",
@@ -9746,4 +9746,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 21bb02d657e7952b09132b005b92a9d499b1fc23ecd2652de96bd43e651da3fd
+// golden-hash: b3a4816cea093076544b95cb9ec6f7d732b0c9f4e6b91cf5100dee2b5ce547f2

@@ -79,19 +79,15 @@ func (p *Processor) RunCrosstabFused(_ context.Context, req *types.Request, iter
 		return nil, err
 	}
 
-	// NOTE: We intentionally do NOT call EnableReuse(iter) here, even
-	// though the FusedCrosstabState consumes each record inline and
-	// retains no pointer past Update. The streamingIterator's reuse
-	// fast path (ReadRecordReused) walks every schema field — it does
-	// NOT honour the projection installed by
-	// service.applyCrosstabProjection. On wide cohorts (the 200-field
-	// canonical bench) skipping projection costs an order of magnitude
-	// more than the per-record map allocation the non-reuse path
-	// incurs. The non-reuse Next path routes through
-	// ReadRecordWithWidePlan whenever a DecodePlan was installed, so
-	// the per-record decode budget collapses to the retained subset.
-	// Plumbing a projected-reuse decoder is the long-term cleanup; the
-	// trade-off here favours the dramatically larger projection win.
+	// NOTE: this loop does not call EnableReuse(iter). Projection is NOT
+	// the reason: both service iterator arms honour the DecodePlan that
+	// service.applyCrosstabProjection installs — the reuse arm through
+	// ReadRecordReusedWithPlan, the non-reuse arm by decoding a FRESH
+	// positional Record through that same plan-aware decoder (no per-row
+	// maps). The only difference left is one Record allocation per row.
+	// (Shard archives: shardIterator, same two arms.) Opting in looks
+	// safe — FusedCrosstabState retains no pointer past Update — but it
+	// is unmeasured; benchmark on peak heap before switching.
 	for iter.Next() {
 		rec := iter.Record()
 		state.AddTotalRow()
