@@ -701,6 +701,34 @@ func (p *Pulse) Export(ctx context.Context, job *pio.ExportJob) (*pio.ExportRepo
 	return job.Run(ctx)
 }
 
+// ExportTransfer compresses a cohort's exact bytes into a zstd transfer
+// artifact (`.pulse.zst`) for moving it between machines. The job's FS
+// field is set to the Pulse instance's filesystem if not already set.
+//
+// Compression is TRANSPORT-ONLY: the artifact is never opened as a
+// cohort (every read surface refuses it with PULSE_COHORT_COMPRESSED),
+// and ImportTransfer turns it back into a byte-identical `.pulse` at
+// rest. Works for single-file cohorts (0x01 and 0x02) and whole shard
+// archives alike, streaming in bounded memory.
+func (p *Pulse) ExportTransfer(ctx context.Context, job *pio.TransferExportJob) (*pio.TransferReport, error) {
+	if job.FS == nil {
+		job.FS = p.fsys
+	}
+	return job.Run(ctx)
+}
+
+// ImportTransfer decompresses a transfer artifact produced by
+// ExportTransfer into a byte-identical `.pulse` at rest (temp file,
+// fsync, rename — a damaged artifact leaves nothing behind). The job's
+// FS field is set to the Pulse instance's filesystem if not already set.
+// The returned report's SHA256 matches the sender's.
+func (p *Pulse) ImportTransfer(ctx context.Context, job *pio.TransferImportJob) (*pio.TransferReport, error) {
+	if job.FS == nil {
+		job.FS = p.fsys
+	}
+	return job.Run(ctx)
+}
+
 // Convert chains import and export with no intermediate file on disk.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
 //

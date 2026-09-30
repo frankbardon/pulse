@@ -428,6 +428,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse export parquet` | Export `.pulse` to Parquet | `--help` |
 | `pulse export predict` | Validate an export without writing output | [export spss](export-spss.md) |
 | `pulse export spss` | Export `.pulse` to SPSS `.sav` | [export spss](export-spss.md) |
+| `pulse export transfer` | Compress a cohort or shard archive (any format version) into a zstd transfer artifact, `<input>.zst` by default; `--level` 1..22 (default 3). Transport only — the artifact is never opened as a cohort | [transfer compression](../format/transfer.md) |
 | `pulse export tsv` | Export `.pulse` to TSV | `--help` |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
 | `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
@@ -441,6 +442,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse import predict` | Validate an import without writing output | [import spss](import-spss.md) |
 | `pulse import schema-template` | Emit an editable schema template from input data | [import spss](import-spss.md) |
 | `pulse import spss` | Import SPSS `.sav` / `.zsav` into `.pulse` | [import spss](import-spss.md) |
+| `pulse import transfer` | Decompress a `pulse export transfer` artifact into a byte-identical `.pulse` at rest (temp file, fsync, rename); refuses an existing `--output` without `--overwrite` | [transfer compression](../format/transfer.md) |
 | `pulse import tsv` | Import TSV into `.pulse` | `--help` |
 | `pulse index build` | Build a point-lookup sidecar index | [index](index.md) |
 | `pulse index drop` | Remove a cohort's sidecar index (destructive, no prompt) | [index](index.md) |

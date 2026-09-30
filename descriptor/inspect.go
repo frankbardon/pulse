@@ -201,7 +201,7 @@ func Inspect(fileData io.ReadSeeker, opts *InspectOptions) *Envelope {
 		if stderrors.As(err, &ce) {
 			details = ce.Details
 		}
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse file header: "+err.Error(), details)
+		env.AddError(string(headerErrorCode(err)), "invalid pulse file header: "+err.Error(), details)
 		return env
 	}
 
@@ -274,6 +274,17 @@ func deriveSingleFileRecordCount(rs io.ReadSeeker, schema *encoding.Schema) (cou
 		return 0, 0, false
 	}
 	return schema.RecordCountForPayload(end - payloadStart)
+}
+
+// headerErrorCode is the envelope code for a ReadHeader failure:
+// ENCODING_INVALID, except a zstd transfer artifact, which keeps
+// PULSE_COHORT_COMPRESSED so the envelope names the fix ("decompress
+// first") instead of a generic invalid-file verdict.
+func headerErrorCode(err error) errors.Code {
+	if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+		return errors.PULSE_COHORT_COMPRESSED
+	}
+	return errors.ENCODING_INVALID
 }
 
 // InspectFromBytes inspects either a single-file .pulse cohort or a

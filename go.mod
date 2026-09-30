@@ -6,6 +6,7 @@ require (
 	github.com/apache/arrow-go/v18 v18.7.0
 	github.com/expr-lang/expr v1.17.8
 	github.com/google/jsonschema-go v0.4.3
+	github.com/klauspost/compress v1.19.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/afero v1.15.0
@@ -24,7 +25,6 @@ require (
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/klauspost/compress v1.19.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.27 // indirect
 	github.com/richardlehane/mscfb v1.0.7 // indirect

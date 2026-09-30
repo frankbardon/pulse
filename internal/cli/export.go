@@ -48,6 +48,7 @@ func ExportCommand() *cli.Command {
 			exportFormatCmd("arrow"),
 			exportFormatCmd("excel"),
 			exportSPSSCmd(),
+			exportTransferCmd(),
 			exportPredictCmd(),
 		},
 	}

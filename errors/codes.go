@@ -598,6 +598,23 @@ const (
 	// until repaired (typically via re-creation from constituent shards).
 	PULSE_ARCHIVE_CORRUPT Code = "PULSE_ARCHIVE_CORRUPT"
 
+	// PULSE_COHORT_COMPRESSED indicates a cohort path that holds a
+	// zstd-compressed transfer artifact (`.pulse.zst`) instead of a
+	// `.pulse` cohort. Compression is transport-only: a compressed file is
+	// never opened as a cohort, so every read surface refuses it with this
+	// code rather than a generic ENCODING_INVALID. Decompress it with
+	// `pulse import transfer` / Pulse.ImportTransfer first.
+	PULSE_COHORT_COMPRESSED Code = "PULSE_COHORT_COMPRESSED"
+
+	// PULSE_TRANSFER_INVALID indicates a transfer compress / decompress
+	// request the transport contract refuses: a compression level outside
+	// 1..22, a compress source that is not a Pulse cohort (or is already a
+	// transfer artifact), a decompress source that is not a zstd stream, a
+	// corrupt or truncated stream, decompressed bytes that are not a Pulse
+	// cohort, or an existing output without overwrite. details["reason"]
+	// names which.
+	PULSE_TRANSFER_INVALID Code = "PULSE_TRANSFER_INVALID"
+
 	// PULSE_SHARD_MISSING indicates the central directory references an
 	// entry that is not addressable inside the archive, or a caller
 	// requested a shard by name that does not exist. Distinct from
@@ -2545,6 +2562,8 @@ var allCodes = []Code{
 	PULSE_LOOKUP_MISS,
 	PULSE_ARCHIVE_MAGIC_INVALID,
 	PULSE_ARCHIVE_CORRUPT,
+	PULSE_COHORT_COMPRESSED,
+	PULSE_TRANSFER_INVALID,
 	PULSE_SHARD_MISSING,
 	PULSE_SHARD_HEADER_INVALID,
 	PULSE_SHARD_SCHEMA_MISMATCH,

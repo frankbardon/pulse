@@ -51,6 +51,7 @@
 - [Dictionary Blocks](format/dictionaries.md)
 - [Record Layout](format/records.md)
 - [Parent Groups (0x02)](format/parent-groups.md)
+- [Transfer Compression](format/transfer.md)
 
 # MCP Integration
 

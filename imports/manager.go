@@ -262,6 +262,12 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		}
 		format = pformat.FromExt(spec.SourcePath)
 	}
+	// A zstd transfer artifact is neither a tabular source nor a cohort:
+	// name the fix instead of "unknown format" or a passthrough that
+	// every read surface would refuse later.
+	if (format == "" || format == pformat.Pulse) && spec.InlineBytes == nil && m.isTransferArtifact(spec.SourcePath) {
+		return nil, encoding.CompressedCohortError()
+	}
 	if format == "" {
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_FORMAT_UNKNOWN,
 			fmt.Sprintf("cannot detect import format from %q; pass an explicit format hint", spec.SourcePath),
@@ -572,6 +578,27 @@ func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, erro
 	}
 	job.Groups = spec.Groups
 	return job, nil
+}
+
+// isTransferArtifact reports whether path (rooted, or absolute inside the
+// jail) begins with the zstd magic. Any failure reads as "no" and leaves
+// the normal flow to report it.
+func (m *Manager) isTransferArtifact(path string) bool {
+	readFs := m.afs
+	if filepath.IsAbs(path) {
+		if m.checkJail(path) != nil {
+			return false
+		}
+		readFs = m.srcFs
+	}
+	f, err := readFs.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	var magic [4]byte
+	n, _ := f.Read(magic[:])
+	return encoding.IsZstdMagic(magic[:n])
 }
 
 func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {

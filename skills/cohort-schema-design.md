@@ -127,6 +127,10 @@ Materializing ops (percentile / median aggs, `ATTR_PERCENTILE`, `GROUP_QUANTILE`
 
 No concurrent-writer protection: two writers race, last wins. Readers snapshot at open. Caller owns single-writer architecture or an advisory lock.
 
+### Moving a cohort (transport-only compression)
+
+Compress only to move it: `pulse export transfer` writes `<cohort>.zst` (one standard zstd stream of the exact bytes — single-file or archive, any format version); `pulse import transfer` restores a byte-identical `.pulse` (sha256 in both reports). Never at rest — random access, mmap, lookup and parallel decode need the raw bytes, so any read surface refuses an artifact with `PULSE_COHORT_COMPRESSED`. CLI/library only, no MCP tool. Parent groups and zstd remove the same repetition: a sorted flat cohort compresses to about what a grouped one does. Detail: `docs/src/format/transfer.md`.
+
 ## Sidecar index
 
 `Pulse.Lookup` / `pulse index build` use a **separate file** — `cohort.pulse.<keyhash>.idx`; the `.pulse` layout above stays untouched. Format **v3**, in order: 9-byte header (magic `PULSEIDX` + version `0x03`, its own magic/version distinct from `encoding.MagicBytes` / `FormatVersion`) → 32-byte SHA-256 source fingerprint → key-spec (ordered key columns + field types) → `SourceSize` (u64) + `SourceModTime` (i64 Unix ns) staleness snapshot → `u32 bucket_count` → fixed-width `bucket_count × u64` offset table (directly addressable, O(1) single-bucket seek) → self-delimited bucket data, FNV-1a hash buckets → `[]uint64` row-id multimap.

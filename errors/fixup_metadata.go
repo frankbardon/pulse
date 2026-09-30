@@ -1047,6 +1047,25 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COHORT_COMPRESSED: {
+		Message: "The path holds a zstd-compressed transfer artifact (`.pulse.zst`), not a cohort. Compression is transport-only: Pulse never opens a compressed file as a cohort, because fixed-stride random access, mmap, point lookup and parallel decode all need the uncompressed bytes at rest.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Cohort", "Filename"},
+				Hint:   "Decompress first: `pulse import transfer --input cohort.pulse.zst --output cohort.pulse` (library: Pulse.ImportTransfer), then pass the resulting .pulse path. The result is byte-identical to the cohort that was exported.",
+			},
+		},
+	},
+	PULSE_TRANSFER_INVALID: {
+		Message: "The transfer compress or decompress request was refused; details.reason names why (level, not_a_cohort, already_compressed, not_zstd, corrupt_stream, output_exists).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "level: pass a zstd level in 1..22 (default 3). not_a_cohort / already_compressed: `pulse export transfer` takes an uncompressed .pulse cohort or shard archive. not_zstd: `pulse import transfer` takes a .pulse.zst produced by `pulse export transfer`; an uncompressed .pulse needs no import. corrupt_stream: the artifact was truncated or damaged in transit — re-transfer it. output_exists: remove the output or pass --overwrite.",
+			},
+		},
+	},
 	PULSE_SHARD_MISSING: {
 		Message: "The named shard is not present in the archive's central directory.",
 		Fixups: []Fixup{

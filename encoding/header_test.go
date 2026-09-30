@@ -145,3 +145,22 @@ func TestHeaderRead_UnsupportedVersion(t *testing.T) {
 		}
 	}
 }
+
+// TestReadHeader_ZstdArtifactRefused: a zstd transfer artifact handed to
+// ReadHeader — full-length or shorter than a header — is refused with
+// PULSE_COHORT_COMPRESSED, never a generic ENCODING_INVALID; any other
+// bad magic keeps ENCODING_INVALID.
+func TestReadHeader_ZstdArtifactRefused(t *testing.T) {
+	long := append(ZstdMagic[:], 0x24, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05)
+	for name, in := range map[string][]byte{"full": long, "short": ZstdMagic[:]} {
+		_, err := ReadHeader(bytes.NewReader(in))
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_COHORT_COMPRESSED {
+			t.Fatalf("%s: err = %v, want PULSE_COHORT_COMPRESSED", name, err)
+		}
+	}
+	_, err := ReadHeader(bytes.NewReader([]byte("NOTPULSE\x01")))
+	if !errors.HasCode(err, errors.ENCODING_INVALID) || errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+		t.Fatalf("bad magic: err = %v, want ENCODING_INVALID only", err)
+	}
+}

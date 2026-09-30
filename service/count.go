@@ -71,6 +71,9 @@ func (s *Service) CountRecords(ctx context.Context, path string) (uint64, error)
 	cr := &countingReader{r: f}
 	pulseVersion, err := encoding.ReadHeader(cr)
 	if err != nil {
+		if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+			return 0, err
+		}
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("invalid pulse file: %s", path))
 	}

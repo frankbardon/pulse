@@ -43,6 +43,27 @@ const FormatVersion byte = FormatVersionV1
 // reads and writes.
 const MaxFormatVersion byte = FormatVersionV2
 
+// ZstdMagic is the zstd frame magic (0xFD2FB528 little-endian, RFC 8878)
+// that opens a `.pulse.zst` transfer artifact. It is NOT a cohort layout
+// and there is no third magic-byte variant: Pulse never reads a
+// compressed cohort. [ReadHeader] recognises these four bytes only so it
+// can refuse with PULSE_COHORT_COMPRESSED ("decompress first") instead of
+// a generic ENCODING_INVALID.
+var ZstdMagic = [4]byte{0x28, 0xB5, 0x2F, 0xFD}
+
+// IsZstdMagic reports whether b begins with [ZstdMagic].
+func IsZstdMagic(b []byte) bool {
+	return len(b) >= len(ZstdMagic) && [4]byte(b[:4]) == ZstdMagic
+}
+
+// CompressedCohortError is the ONE coded refusal for a cohort path that
+// holds a zstd transfer artifact rather than a `.pulse` cohort.
+func CompressedCohortError() *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_COHORT_COMPRESSED,
+		"file is a zstd-compressed transfer artifact, not a cohort: decompress first with `pulse import transfer` (library: Pulse.ImportTransfer) and open the resulting .pulse",
+		map[string]any{"codec": "zstd"})
+}
+
 // HeaderSize is the total byte size of the file header (magic + version).
 const HeaderSize = 9
 
@@ -103,10 +124,15 @@ func writeHeaderVersion(w io.Writer, v byte) error {
 // parsing a v2 schema as v1 would misplace every record.
 //
 // A version outside [SupportedFormatVersions] is ENCODING_INVALID with
-// the offending byte under details["version"].
+// the offending byte under details["version"]. A zstd transfer artifact
+// ([ZstdMagic]) is PULSE_COHORT_COMPRESSED ([CompressedCohortError]):
+// error classification only — nothing is ever decompressed here.
 func ReadHeader(r io.Reader) (byte, error) {
 	var hdr [HeaderSize]byte
 	n, err := io.ReadFull(r, hdr[:])
+	if IsZstdMagic(hdr[:n]) {
+		return 0, CompressedCohortError()
+	}
 	if err != nil || n != HeaderSize {
 		return 0, errors.NewCodedError(errors.ENCODING_INVALID, "truncated pulse header")
 	}

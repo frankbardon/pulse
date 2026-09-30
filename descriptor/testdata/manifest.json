@@ -4999,7 +4999,7 @@
         ]
       }
     ],
-    "error_codes_count": 238,
+    "error_codes_count": 240,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5040,6 +5040,7 @@
       "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
+      "PULSE_COHORT_COMPRESSED",
       "PULSE_COMPOSE_LABEL_COLLISION",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
       "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS",
@@ -5242,6 +5243,7 @@
       "PULSE_TEST_TUKEY_REQUIRES_K_GE_3",
       "PULSE_TEST_UNKNOWN_TYPE",
       "PULSE_TEST_VARIANCE_ZERO",
+      "PULSE_TRANSFER_INVALID",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
       "SERVICE_REGISTRY",
@@ -9744,4 +9746,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b553cf6e8d7c140d45eeb9e26c0658904b23972c601072f7cf2821436bbac369
+// golden-hash: 21bb02d657e7952b09132b005b92a9d499b1fc23ecd2652de96bd43e651da3fd

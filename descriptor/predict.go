@@ -556,7 +556,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Read header only.
 	pulseVersion, err := encoding.ReadHeader(fileData)
 	if err != nil {
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse file header: "+err.Error(), nil)
+		env.AddError(string(headerErrorCode(err)), "invalid pulse file header: "+err.Error(), nil)
 		result.Valid = false
 		return env
 	}

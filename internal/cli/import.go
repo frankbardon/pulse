@@ -59,6 +59,7 @@ func ImportCommand() *cli.Command {
 			importFormatCmd("arrow"),
 			importSPSSCmd(),
 			importExcelCmd(),
+			importTransferCmd(),
 			importPredictCmd(),
 			importSchemaTemplateCmd(),
 			importAutoCmd(),

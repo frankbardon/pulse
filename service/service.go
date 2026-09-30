@@ -335,6 +335,11 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
+		// A zstd transfer artifact keeps its own code: "decompress
+		// first" is the fix, and ENCODING_INVALID would hide it.
+		if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+			return nil, err
+		}
 		// Keep the cause's message: Error() prints only the outermost
 		// message, and an unsupported format version must say so (and
 		// that a newer Pulse is needed) rather than just "invalid".
