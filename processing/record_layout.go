@@ -37,21 +37,34 @@ type recordLayout struct {
 	nSchema int
 	// n is the number of storage slots.
 	n int
-	// index maps a field name to its storage slot. For a name that
-	// appears more than once in the schema it names the FIRST
-	// occurrence — the same field Schema.Field(name) returns.
+	// index maps a field name to its storage slot.
 	index map[string]int
 	// slotOf maps a schema position to its storage slot (-1 = not
 	// stored); fieldOf maps a slot back to its schema position. Both are
-	// nil for a full layout, where slot == position.
+	// nil for a full layout over a schema with unique field names, where
+	// slot == position.
+	//
+	// A name that appears more than once in the schema gets ONE slot,
+	// shared by every occurrence: slotOf maps each occurrence to it and
+	// fieldOf names the FIRST occurrence — the field Schema.Field(name)
+	// returns, and so the one whose dictionary resolves the value. That
+	// makes the slot behave exactly as the former map key did: the last
+	// occurrence the decoder writes wins the value and the wide value, a
+	// null on ANY occurrence marks the name null. Nothing in the import
+	// path rejects duplicate column names, so this is reachable.
 	slotOf  []int32
 	fieldOf []int32
-	// wideSlot maps a storage slot to its slot in Record.aux.wide, or -1
-	// when the field's type never carries a wide value (only decimal128
-	// and set_* do). Sparse slots keep a schema with a handful of wide
-	// columns from paying 16 bytes per field per record.
-	wideSlot []int32
-	nWide    int
+	// wideKind is the typed wide storage a slot owns (wideNone for a
+	// type that never carries a wide value — only decimal128 and set_*
+	// do), and wideOff its offset into that storage: an index into
+	// recordAux.decs for wideDecimal, a word offset into the set-word
+	// tail of Record.vals for the set kinds (1 word for a narrow rung, 2 for set_u128, 4 for
+	// set_u256). Sparse, so a schema with a handful of wide columns does
+	// not pay for them per field.
+	wideKind []uint8
+	wideOff  []int32
+	nDecs    int
+	nWords   int
 }
 
 // emptyLayout serves a nil schema and a zero-value Record: no slots,
@@ -105,36 +118,77 @@ func layoutFor(s *encoding.Schema) *recordLayout {
 // (every field when keep is nil).
 func buildLayout(s *encoding.Schema, keep encoding.FieldFilter) *recordLayout {
 	nSchema := len(s.Fields)
-	l := &recordLayout{nSchema: nSchema}
-	if keep == nil {
+	l := &recordLayout{nSchema: nSchema, index: make(map[string]int, nSchema)}
+	// The identity mapping (slot == position) holds only for a full
+	// layout whose names are unique; anything else records the mapping.
+	identity := keep == nil
+	if identity {
+		for i := range s.Fields {
+			if _, dup := l.index[s.Fields[i].Name]; dup {
+				identity = false
+				break
+			}
+			l.index[s.Fields[i].Name] = i
+		}
+	}
+	if identity {
 		l.n = nSchema
 	} else {
+		clear(l.index)
 		l.slotOf = make([]int32, nSchema)
 		for i := range s.Fields {
-			if keep(s.Fields[i].Name) {
-				l.slotOf[i] = int32(len(l.fieldOf))
-				l.fieldOf = append(l.fieldOf, int32(i))
-			} else {
+			name := s.Fields[i].Name
+			if keep != nil && !keep(name) {
 				l.slotOf[i] = -1
+				continue
 			}
+			if slot, dup := l.index[name]; dup {
+				l.slotOf[i] = int32(slot)
+				continue
+			}
+			l.index[name] = len(l.fieldOf)
+			l.slotOf[i] = int32(len(l.fieldOf))
+			l.fieldOf = append(l.fieldOf, int32(i))
 		}
 		l.n = len(l.fieldOf)
 	}
-	l.index = make(map[string]int, l.n)
-	l.wideSlot = make([]int32, l.n)
+	l.wideKind = make([]uint8, l.n)
+	l.wideOff = make([]int32, l.n)
 	for slot := 0; slot < l.n; slot++ {
-		f := &s.Fields[l.field(slot)]
-		if _, dup := l.index[f.Name]; !dup {
-			l.index[f.Name] = slot
-		}
-		if f.Type == encoding.FieldTypeDecimal128 || f.Type.IsSet() {
-			l.wideSlot[slot] = int32(l.nWide)
-			l.nWide++
-		} else {
-			l.wideSlot[slot] = -1
+		kind, words := wideKindOf(s.Fields[l.field(slot)].Type)
+		l.wideKind[slot] = kind
+		switch kind {
+		case wideDecimal:
+			l.wideOff[slot] = int32(l.nDecs)
+			l.nDecs++
+		case wideNarrowSet, wideWideSet:
+			l.wideOff[slot] = int32(l.nWords)
+			l.nWords += words
 		}
 	}
 	return l
+}
+
+// Wide storage kinds. A slot's kind is fixed by its field type.
+const (
+	wideNone      uint8 = iota
+	wideDecimal         // encoding.Decimal128 in recordAux.decs
+	wideNarrowSet       // set_u8..set_u64: one uint64 word
+	wideWideSet         // set_u128 / set_u256: 2 or 4 words, an encoding.SetMask
+)
+
+// wideKindOf returns the typed wide storage kind for ft and, for a set
+// rung, the uint64 words it occupies.
+func wideKindOf(ft encoding.FieldType) (kind uint8, words int) {
+	switch {
+	case ft == encoding.FieldTypeDecimal128:
+		return wideDecimal, 0
+	case ft.IsWideSet():
+		return wideWideSet, ft.ByteSize() / 8
+	case ft.IsSet():
+		return wideNarrowSet, 1
+	}
+	return wideNone, 0
 }
 
 // pos resolves name to its storage slot, or -1 when the name has none:

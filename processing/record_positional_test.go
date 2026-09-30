@@ -52,6 +52,11 @@ func recordMaps(r *Record) (map[string]float64, map[string]bool, map[string]any)
 // legacyRecord is a verbatim model of the map-backed Record this story
 // replaced: the same three maps, the same mutator side effects, the same
 // accessor logic. The positional Record is checked against it op by op.
+//
+// One deliberate departure: setNullField (the decoder's null signal)
+// also deletes the wide entry, as the map DECODER always did for a
+// bitmap-null field. The map-backed Record's own SetNullField kept it
+// hidden behind the null mark, where a later Set could resurface it.
 type legacyRecord struct {
 	schema *encoding.Schema
 	values map[string]float64
@@ -69,7 +74,7 @@ func newLegacy(s *encoding.Schema) *legacyRecord {
 func (r *legacyRecord) set(n string, v float64)        { r.values[n] = v; delete(r.nulls, n); r.cache = nil }
 func (r *legacyRecord) setNull(n string)               { r.nulls[n] = true; delete(r.values, n); r.cache = nil }
 func (r *legacyRecord) setNumeric(n string, v float64) { r.values[n] = v }
-func (r *legacyRecord) setNullField(n string)          { r.nulls[n] = true }
+func (r *legacyRecord) setNullField(n string)          { r.nulls[n] = true; delete(r.wide, n) }
 func (r *legacyRecord) setWideField(n string, v any)   { r.wide[n] = v }
 func (r *legacyRecord) setWide(n string, v any)        { r.wide[n] = v; delete(r.nulls, n); r.cache = nil }
 func (r *legacyRecord) clearForRow()                   { clear(r.nulls); clear(r.wide); r.cache = nil }
@@ -241,6 +246,10 @@ func TestRecord_PositionalMatchesLegacyMapSemantics(t *testing.T) {
 		uint64(0),
 		encoding.SetMaskFromUint64(3).WithBit(99),
 		encoding.SetMask{},
+		// Past set_u128's rung: must stay boxed, never truncated.
+		encoding.SetMaskFromUint64(1).WithBit(200),
+		// Above 2^53: the float echo would lose it; WideValue must not.
+		uint64(1<<63 | 1<<53 | 1),
 	}
 	keepSome := func(n string) bool { return n == "cat" || n == "s8" || n == "u" }
 	bindings := []struct {
@@ -255,6 +264,16 @@ func TestRecord_PositionalMatchesLegacyMapSemantics(t *testing.T) {
 	}
 }
 
+// schemaIndex returns name's FIRST position in schema, or -1.
+func schemaIndex(schema *encoding.Schema, name string) int {
+	for i := range schema.Fields {
+		if schema.Fields[i].Name == name {
+			return i
+		}
+	}
+	return -1
+}
+
 func driveAgainstLegacy(t *testing.T, schema *encoding.Schema, binding *RecordBinding, names []string, wides []any) {
 	for seed := int64(1); seed <= 40; seed++ {
 		rng := rand.New(rand.NewSource(seed))
@@ -264,7 +283,7 @@ func driveAgainstLegacy(t *testing.T, schema *encoding.Schema, binding *RecordBi
 			n := names[rng.Intn(len(names)-1)] // never mutate ""
 			v := float64(rng.Intn(7))
 			var op string
-			switch rng.Intn(9) {
+			switch rng.Intn(11) {
 			case 0:
 				op = "Set"
 				got.Set(n, v)
@@ -305,6 +324,25 @@ func driveAgainstLegacy(t *testing.T, schema *encoding.Schema, binding *RecordBi
 				op = "AllValues"
 				_ = got.AllValues()
 				_ = want.allValues()
+			case 9, 10:
+				// The decoder's typed set writes, keyed by schema position.
+				// An off-schema name has no position and cannot reach them.
+				idx := schemaIndex(schema, n)
+				if idx < 0 {
+					op = "skip"
+					break
+				}
+				if rng.Intn(2) == 0 {
+					op = "SetNarrowSetAt"
+					m := uint64(rng.Int63()) << uint(rng.Intn(2))
+					got.SetNarrowSetAt(idx, m)
+					want.setWideField(n, m)
+				} else {
+					op = "SetWideSetAt"
+					m := encoding.SetMaskFromUint64(uint64(rng.Intn(50))).WithBit(rng.Intn(256))
+					got.SetWideSetAt(idx, m)
+					want.setWideField(n, m)
+				}
 			}
 			assertMatchesLegacy(t, fmt.Sprintf("seed %d step %d %s(%q)", seed, step, op, n), got, want, names)
 		}
@@ -526,14 +564,17 @@ func TestRecord_ReuseDecodeStaysPositional(t *testing.T) {
 		if err := rr.ReadRecordReused(rec); err != nil {
 			t.Fatalf("row %d: %v", row, err)
 		}
-		if rec.aux == nil || rec.aux.wide == nil {
-			t.Fatalf("row %d: wide slots not populated", row)
+		if rec.aux == nil || rec.aux.decs == nil {
+			t.Fatalf("row %d: typed decimal storage not populated", row)
 		}
 		if rec.aux.ovVals != nil || rec.aux.ovNulls != nil || rec.aux.ovWide != nil {
 			t.Fatalf("row %d: reuse decode allocated overflow maps", row)
 		}
-		if len(rec.aux.wide) != 3 {
-			t.Fatalf("row %d: %d wide slots, want 3 (decimal + two sets)", row, len(rec.aux.wide))
+		// One decimal; set_u8 (1 word) + set_u128 (2 words).
+		// Mask words ride the spare capacity of vals, past its length.
+		if words := cap(rec.vals) - len(rec.vals); len(rec.aux.decs) != 1 || words != 3 {
+			t.Fatalf("row %d: %d decimal slots / %d mask words, want 1 / 3",
+				row, len(rec.aux.decs), words)
 		}
 	}
 }

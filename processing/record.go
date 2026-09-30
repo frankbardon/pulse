@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"math"
 	"math/bits"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -22,9 +23,13 @@ import (
 //     "has a value", "is null", "has a wide value" — so a field absent
 //     from the record (projected out, never written) is distinguishable
 //     from one present and zero, exactly as a missing map key was;
-//   - aux.wide holds typed wide values (encoding.Decimal128, a uint64
-//     mask for the narrow set rungs, an encoding.SetMask for set_u128 /
-//     set_u256) in one slot per wide-capable schema field only.
+//   - typed wide values are stored UNBOXED, for wide-capable fields
+//     only: an encoding.Decimal128 per decimal128 field in aux.decs, and
+//     the mask words of every set field (one uint64 for set_u8..set_u64,
+//     two for set_u128, four for set_u256) in the spare capacity of vals
+//     past len(vals) (see wordAt). The reuse decoders hand set masks over
+//     through encoding.TypedSetRecord, so decoding a set field allocates
+//     nothing, and a set-bearing record needs no aux at all.
 //
 // Name → slot resolution goes through a recordLayout built once per
 // binding and shared by every Record under it (record_layout.go), never
@@ -43,16 +48,23 @@ import (
 // map[string]float64 / map[string]bool / map[string]any triple had,
 // including the asymmetries (SetNull drops the value but not a wide
 // value; SetNumeric does not clear a null mark; ClearForRow keeps
-// values and clears null and wide marks).
+// values and clears null and wide marks). One deliberate change: the
+// decoder's null signal (SetNullField / SetNullFieldAt) drops the wide
+// value, as the map DECODER's delete always did.
 type Record struct {
 	schema *encoding.Schema
 	layout *recordLayout
 
-	// vals is indexed by schema position; len(vals) == len(schema.Fields)
-	// at construction.
+	// vals is indexed by storage slot; len(vals) is the layout's slot
+	// count. Its CAPACITY is len + recordLayout.nWords: the tail past
+	// len(vals) holds set-mask words bit-for-bit (math.Float64bits /
+	// Float64frombits are exact reinterpretations, never arithmetic), so
+	// set masks share the value allocation instead of paying their own
+	// slice header and allocation. Every range over vals sees only the
+	// slots.
 	vals []float64
 	// bits holds three planes of recordWords(len(vals)) words each:
-	// planeHas, planeNull, planeWide. Bit i of a plane is field i.
+	// planeHas, planeNull, planeWide. Bit i of a plane is slot i.
 	bits []uint64
 
 	// aux carries the sparse parts: wide slots and the off-schema
@@ -69,18 +81,24 @@ type Record struct {
 
 // recordAux is the sparse side of a Record.
 type recordAux struct {
-	// wide is indexed by recordLayout.wideSlot; presence is planeWide.
-	// Three value shapes live here: encoding.Decimal128 for decimal128
-	// columns, a plain uint64 bitmask for the narrow set rungs
-	// (set_u8..set_u64), and an encoding.SetMask for the wide rungs
-	// (set_u128, set_u256). Read set fields through SetMaskValue, never
-	// by type-asserting: the assertion that fails is indistinguishable
-	// from a null field.
-	wide []any
+	// decs is the typed decimal storage, addressed by
+	// recordLayout.wideOff; presence is planeWide. (Set masks live in the
+	// tail of Record.vals.) Three value shapes are observable through
+	// WideValue, exactly as the former map[string]any stored them:
+	// encoding.Decimal128 for decimal128 columns, a plain uint64 bitmask
+	// for the narrow set rungs set_u8..set_u64 (one word), and an
+	// encoding.SetMask for the wide rungs set_u128 / set_u256 (two or four
+	// words). Read set fields through SetMaskValue, never by
+	// type-asserting WideValue: the assertion that fails is
+	// indistinguishable from a null field.
+	decs []encoding.Decimal128
 
-	// Overflow for names with no schema position (and, for ovWide only,
-	// a wide value written to a schema field whose type has no wide
-	// slot). Same semantics the former per-record maps had.
+	// Overflow for names with no slot. ovWide additionally holds a wide
+	// value written to a slot that cannot store it typed and exactly — a
+	// field type with no wide storage, a value of another dynamic type
+	// than the slot's kind (a SetMask on a narrow rung, say), or a mask
+	// with bits past the rung — with that slot's planeWide bit cleared.
+	// Same semantics the former per-record maps had.
 	ovVals  map[string]float64
 	ovNulls map[string]bool
 	ovWide  map[string]any
@@ -104,7 +122,7 @@ func newPositionalRecord(schema *encoding.Schema) *Record {
 func newRecordWithLayout(schema *encoding.Schema, l *recordLayout) *Record {
 	r := &Record{schema: schema, layout: l}
 	if l.n > 0 {
-		r.vals = make([]float64, l.n)
+		r.vals = make([]float64, l.n, l.n+l.nWords)
 		r.bits = make([]uint64, planeCount*recordWords(l.n))
 	}
 	return r
@@ -188,14 +206,18 @@ func (r *Record) fieldAt(i int) *encoding.Field {
 	return &r.schema.Fields[r.layout.field(i)]
 }
 
-// wideAt returns the wide value of slot i, wherever it lives.
+// wideAt returns the wide value of slot i, wherever it lives. A typed
+// value is boxed on the way out; only WideValue, AllValues and the test
+// helpers read it this way — SetMaskValue and NumericValue never box.
 func (r *Record) wideAt(i int) (any, bool) {
-	if slot := r.layout.wideSlot[i]; slot >= 0 {
-		if !r.test(planeWide, i) {
-			return nil, false
-		}
-		return r.aux.wide[slot], true
+	if r.test(planeWide, i) {
+		return r.boxWideAt(i), true
 	}
+	return r.ovWideOf(i)
+}
+
+// ovWideOf returns slot i's wide value from the overflow map.
+func (r *Record) ovWideOf(i int) (any, bool) {
 	if r.aux == nil || len(r.aux.ovWide) == 0 {
 		return nil, false
 	}
@@ -203,21 +225,159 @@ func (r *Record) wideAt(i int) (any, bool) {
 	return v, ok
 }
 
-func (r *Record) putWideAt(i int, v any) {
-	if slot := r.layout.wideSlot[i]; slot >= 0 {
-		a := r.auxOrNew()
-		if a.wide == nil {
-			a.wide = make([]any, r.layout.nWide)
-		}
-		a.wide[slot] = v
-		r.setBit(planeWide, i)
-		return
+// hasWideAt reports whether slot i carries a wide value, without boxing.
+func (r *Record) hasWideAt(i int) bool {
+	if r.test(planeWide, i) {
+		return true
 	}
+	_, ok := r.ovWideOf(i)
+	return ok
+}
+
+// boxWideAt boxes slot i's typed wide value (planeWide must be set) in
+// the dynamic type the former map stored: Decimal128, uint64 or SetMask.
+func (r *Record) boxWideAt(i int) any {
+	off := r.layout.wideOff[i]
+	switch r.layout.wideKind[i] {
+	case wideDecimal:
+		return r.aux.decs[off]
+	case wideNarrowSet:
+		return r.wordAt(int(off))
+	default:
+		return r.maskWordsAt(i)
+	}
+}
+
+// maskWordsAt reads a wide-rung slot's words back into a SetMask.
+func (r *Record) maskWordsAt(i int) encoding.SetMask {
+	off := int(r.layout.wideOff[i])
+	var w [encoding.SetMaskWords]uint64
+	tail := r.wordTail()[off:]
+	for k := range r.fieldAt(i).Type.ByteSize() / 8 {
+		w[k] = math.Float64bits(tail[k])
+	}
+	return encoding.SetMaskFromWords(w)
+}
+
+// setMaskAt returns slot i's set mask. isSet is false when the wide
+// value is not a set value (a decimal); present is false when the slot
+// carries no wide value at all.
+func (r *Record) setMaskAt(i int) (m encoding.SetMask, isSet, present bool) {
+	if r.test(planeWide, i) {
+		switch r.layout.wideKind[i] {
+		case wideNarrowSet:
+			return encoding.SetMaskFromUint64(r.wordAt(int(r.layout.wideOff[i]))), true, true
+		case wideWideSet:
+			return r.maskWordsAt(i), true, true
+		}
+		return encoding.SetMask{}, false, true
+	}
+	v, ok := r.ovWideOf(i)
+	if !ok {
+		return encoding.SetMask{}, false, false
+	}
+	m, isSet = setMaskFromWideValue(v)
+	return m, isSet, true
+}
+
+func (r *Record) decsOrNew() []encoding.Decimal128 {
+	a := r.auxOrNew()
+	if a.decs == nil {
+		a.decs = make([]encoding.Decimal128, r.layout.nDecs)
+	}
+	return a.decs
+}
+
+// wordAt / setWordAt address set-mask word off in the tail of vals
+// (past len(vals), within its capacity). Bit-exact: the word is
+// reinterpreted, never converted.
+func (r *Record) wordAt(off int) uint64 {
+	return math.Float64bits(r.vals[:cap(r.vals)][len(r.vals)+off])
+}
+
+func (r *Record) setWordAt(off int, w uint64) {
+	r.vals[:cap(r.vals)][len(r.vals)+off] = math.Float64frombits(w)
+}
+
+// wordTail is the whole set-word tail of vals, for multi-word access.
+func (r *Record) wordTail() []float64 {
+	return r.vals[len(r.vals):cap(r.vals)]
+}
+
+// typedWideStored marks slot i's typed value present and retires any
+// overflow value the slot held before.
+func (r *Record) typedWideStored(i int) {
+	r.setBit(planeWide, i)
+	if r.aux != nil && len(r.aux.ovWide) > 0 {
+		delete(r.aux.ovWide, r.fieldAt(i).Name)
+	}
+}
+
+// putNarrowAt stores a narrow-rung mask in slot i (kind wideNarrowSet).
+func (r *Record) putNarrowAt(i int, m uint64) {
+	r.setWordAt(int(r.layout.wideOff[i]), m)
+	r.typedWideStored(i)
+}
+
+// putMaskAt stores a wide-rung mask in slot i (kind wideWideSet). It
+// reports false, storing nothing, when m has bits past the slot's rung:
+// truncating would silently drop selections, so the caller keeps such a
+// value boxed instead.
+func (r *Record) putMaskAt(i int, m encoding.SetMask) bool {
+	n := r.fieldAt(i).Type.ByteSize() / 8
+	w := m.Words()
+	for k := n; k < encoding.SetMaskWords; k++ {
+		if w[k] != 0 {
+			return false
+		}
+	}
+	tail := r.wordTail()[r.layout.wideOff[i]:]
+	for k := range n {
+		tail[k] = math.Float64frombits(w[k])
+	}
+	r.typedWideStored(i)
+	return true
+}
+
+// putWideAt stores v as slot i's wide value: typed when the slot's kind
+// holds v's dynamic type exactly, otherwise boxed in the overflow map
+// with the typed presence bit cleared. Either way WideValue returns v
+// with its dynamic type unchanged.
+func (r *Record) putWideAt(i int, v any) {
+	switch r.layout.wideKind[i] {
+	case wideDecimal:
+		if d, ok := v.(encoding.Decimal128); ok {
+			r.decsOrNew()[r.layout.wideOff[i]] = d
+			r.typedWideStored(i)
+			return
+		}
+	case wideNarrowSet:
+		if m, ok := v.(uint64); ok {
+			r.putNarrowAt(i, m)
+			return
+		}
+	case wideWideSet:
+		if m, ok := v.(encoding.SetMask); ok && r.putMaskAt(i, m) {
+			return
+		}
+	}
+	r.clearBit(planeWide, i)
 	a := r.auxOrNew()
 	if a.ovWide == nil {
 		a.ovWide = make(map[string]any)
 	}
 	a.ovWide[r.fieldAt(i).Name] = v
+}
+
+// dropWide removes a wide value by name, wherever it lives — the former
+// `delete(r.wide, name)`.
+func (r *Record) dropWide(name string) {
+	if i := r.pos(name); i >= 0 {
+		r.clearBit(planeWide, i)
+	}
+	if r.aux != nil && len(r.aux.ovWide) > 0 {
+		delete(r.aux.ovWide, name)
+	}
 }
 
 // ---- name-keyed primitives (the former map operations) ---------------
@@ -383,10 +543,8 @@ func (r *Record) NumericValue(name string) (float64, bool) {
 		if r.test(planeNull, i) {
 			return 0, false
 		}
-		if wv, present := r.wideAt(i); present {
-			if _, isSet := setMaskFromWideValue(wv); isSet {
-				return 0, false
-			}
+		if _, isSet, _ := r.setMaskAt(i); isSet {
+			return 0, false
 		}
 		if r.test(planeHas, i) {
 			return r.vals[i], true
@@ -428,6 +586,9 @@ func (r *Record) IsNull(name string) bool {
 	}
 	if _, ok := r.getValue(name); ok {
 		return false
+	}
+	if i := r.pos(name); i >= 0 {
+		return !r.hasWideAt(i)
 	}
 	if _, ok := r.getWide(name); ok {
 		return false
@@ -478,6 +639,10 @@ func setMaskFromWideValue(v any) (encoding.SetMask, bool) {
 func (r *Record) SetMaskValue(name string) (encoding.SetMask, bool) {
 	if r.nullMarked(name) {
 		return encoding.SetMask{}, false
+	}
+	if i := r.pos(name); i >= 0 {
+		m, isSet, _ := r.setMaskAt(i)
+		return m, isSet
 	}
 	v, ok := r.getWide(name)
 	if !ok {
@@ -608,11 +773,11 @@ func (r *Record) AllValues() map[string]any {
 		}
 	}
 	for i := range r.vals {
-		if r.layout.wideSlot[i] < 0 || !r.test(planeWide, i) || r.test(planeNull, i) {
+		if !r.test(planeWide, i) || r.test(planeNull, i) {
 			continue
 		}
 		f := r.fieldAt(i)
-		out[f.Name] = allValuesWide(f, r.aux.wide[r.layout.wideSlot[i]])
+		out[f.Name] = allValuesWide(f, r.boxWideAt(i))
 	}
 	if r.aux != nil {
 		for k, v := range r.aux.ovWide {
@@ -696,10 +861,20 @@ func (r *Record) SetNumeric(name string, value float64) {
 }
 
 // SetNullField implements encoding.ReusableRecord. Marks a field as null
-// in the reuse path; does not invalidate the AllValues cache (reuse path
-// resets the cache once per row via ClearForRow).
+// in the reuse path and drops its wide value; does not invalidate the
+// AllValues cache (reuse path resets the cache once per row via
+// ClearForRow).
+//
+// Dropping the wide value mirrors the map decoder, which deletes the
+// wide entry of a field the bitmap reports null. Every accessor already
+// hides a wide value behind the null mark, but a later Set(name, v) —
+// which clears the mark — would otherwise resurface the decoded mask or
+// decimal of a null field (and NumericValue would then refuse v as a set
+// value). Unlike SetNull, this is a DECODE signal: the field has no
+// value on this row, typed or not.
 func (r *Record) SetNullField(name string) {
 	r.markNull(name)
+	r.dropWide(name)
 }
 
 // SetWideField implements encoding.ReusableRecord. Stores a typed wide
@@ -717,6 +892,7 @@ func (r *Record) SetWideField(name string, v any) {
 var (
 	_ encoding.ReusableRecord        = (*Record)(nil)
 	_ encoding.IndexedReusableRecord = (*Record)(nil)
+	_ encoding.TypedSetRecord        = (*Record)(nil)
 )
 
 // SetNumericAt implements encoding.IndexedReusableRecord: a slice store
@@ -742,12 +918,17 @@ func (r *Record) SetNumericAt(idx int, value float64) {
 
 // SetNullFieldAt implements encoding.IndexedReusableRecord; the
 // positional twin of SetNullField.
+// Like SetNullField it drops the wide value.
 func (r *Record) SetNullFieldAt(idx int) {
 	if s := r.layout.slot(idx); s >= 0 {
 		r.setBit(planeNull, s)
+		r.clearBit(planeWide, s)
+		if r.aux != nil && len(r.aux.ovWide) > 0 {
+			delete(r.aux.ovWide, r.fieldAt(s).Name)
+		}
 		return
 	}
-	r.markNull(r.schema.Fields[idx].Name)
+	r.SetNullField(r.schema.Fields[idx].Name)
 }
 
 // SetWideFieldAt implements encoding.IndexedReusableRecord; the
@@ -758,6 +939,28 @@ func (r *Record) SetWideFieldAt(idx int, v any) {
 		return
 	}
 	r.putWide(r.schema.Fields[idx].Name, v)
+}
+
+// SetNarrowSetAt implements encoding.TypedSetRecord: the unboxed twin of
+// SetWideFieldAt(idx, mask) for a set_u8..set_u64 field. A slot of any
+// other kind (a projected-out position, a schema whose duplicate name
+// resolved to a differently typed first occurrence) takes the boxed path,
+// so the stored value is identical either way.
+func (r *Record) SetNarrowSetAt(idx int, mask uint64) {
+	if s := r.layout.slot(idx); s >= 0 && r.layout.wideKind[s] == wideNarrowSet {
+		r.putNarrowAt(s, mask)
+		return
+	}
+	r.SetWideFieldAt(idx, mask)
+}
+
+// SetWideSetAt implements encoding.TypedSetRecord: the unboxed twin of
+// SetWideFieldAt(idx, m) for a set_u128 / set_u256 field.
+func (r *Record) SetWideSetAt(idx int, m encoding.SetMask) {
+	if s := r.layout.slot(idx); s >= 0 && r.layout.wideKind[s] == wideWideSet && r.putMaskAt(s, m) {
+		return
+	}
+	r.SetWideFieldAt(idx, m)
 }
 
 // ClearForRow implements encoding.ReusableRecord. Resets per-row state
@@ -810,7 +1013,7 @@ func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset i
 	for i := range r.vals {
 		hasV := r.test(planeHas, i)
 		isNull := r.test(planeNull, i)
-		wv, hasW := r.wideAt(i)
+		hasW := r.hasWideAt(i)
 		if !hasV && !isNull && !hasW {
 			continue
 		}
@@ -819,13 +1022,19 @@ func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset i
 			j = dst.pos(rename(r.fieldAt(i).Name))
 		}
 		if j >= 0 {
+			// j is a dst STORAGE SLOT (dst.pos, or offset+i under the
+			// identity layout the positional shortcut requires), so write
+			// through the slot primitives — not the *At methods, which
+			// take a schema position and would re-map it.
 			if hasV {
-				dst.SetNumericAt(j, r.vals[i])
+				dst.vals[j] = r.vals[i]
+				dst.setBit(planeHas, j)
 			}
 			if isNull {
-				dst.SetNullFieldAt(j)
+				dst.setBit(planeNull, j)
 			}
-			if hasW {
+			if hasW && !r.copyTypedWide(dst, j, i) {
+				wv, _ := r.wideAt(i)
 				dst.putWideAt(j, wv)
 			}
 			continue
@@ -838,6 +1047,7 @@ func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset i
 			dst.markNull(name)
 		}
 		if hasW {
+			wv, _ := r.wideAt(i)
 			dst.putWide(name, wv)
 		}
 	}
@@ -855,6 +1065,35 @@ func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset i
 	for k, v := range r.aux.ovWide {
 		dst.putWide(rename(k), v)
 	}
+}
+
+// copyTypedWide copies slot i's typed wide value into dst slot j without
+// boxing, when both slots are the same kind and rung. It reports false
+// (copying nothing) otherwise, and the caller takes the boxed path.
+func (r *Record) copyTypedWide(dst *Record, j, i int) bool {
+	kind := r.layout.wideKind[i]
+	if !r.test(planeWide, i) || dst.layout.wideKind[j] != kind {
+		return false
+	}
+	switch kind {
+	case wideDecimal:
+		dst.decsOrNew()[dst.layout.wideOff[j]] = r.aux.decs[r.layout.wideOff[i]]
+	case wideNarrowSet:
+		dst.setWordAt(int(dst.layout.wideOff[j]), r.wordAt(int(r.layout.wideOff[i])))
+	case wideWideSet:
+		n := r.fieldAt(i).Type.ByteSize() / 8
+		if dst.fieldAt(j).Type.ByteSize()/8 != n {
+			return false
+		}
+		src, off := int(r.layout.wideOff[i]), int(dst.layout.wideOff[j])
+		for k := range n {
+			dst.setWordAt(off+k, r.wordAt(src+k))
+		}
+	default:
+		return false
+	}
+	dst.typedWideStored(j)
+	return true
 }
 
 // RecordIterator provides sequential access to records.

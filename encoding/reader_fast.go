@@ -52,12 +52,57 @@ type ReusableRecord interface {
 // numeric echo and the typed wide value.
 //
 // When a record implements both interfaces the index-keyed methods win
-// and the name-keyed ones are never called by the reuse decoders.
+// and the name-keyed ones are never called by the reuse decoders. A
+// record that also implements TypedSetRecord receives set masks through
+// it instead of SetWideFieldAt.
 type IndexedReusableRecord interface {
 	SetNumericAt(idx int, value float64)
 	SetNullFieldAt(idx int)
 	SetWideFieldAt(idx int, value any)
 	ClearForRow()
+}
+
+// TypedSetRecord is an optional extension of IndexedReusableRecord that
+// takes a set field's mask with its concrete type instead of through
+// `any`. Boxing a uint64 mask (256 and above) or an encoding.SetMask into
+// an interface costs one heap allocation per set field per row; a record
+// implementing this interface stores the mask in typed storage and the
+// reuse decoders never box it. Decimal128 needs no typed twin: it is a
+// single-pointer struct, which Go stores in an interface without
+// allocating.
+//
+// The decoder checks for this interface once per decode call (a row on
+// the full-stride path, a group on the plan path) and, when it is
+// present, calls SetNarrowSetAt for set_u8..set_u64 and SetWideSetAt for
+// set_u128 / set_u256 IN PLACE OF SetWideFieldAt. The value, and the
+// SetNumericAt echo written before it, are identical to the boxed path.
+type TypedSetRecord interface {
+	SetNarrowSetAt(idx int, mask uint64)
+	SetWideSetAt(idx int, m SetMask)
+}
+
+// putSetField writes a set field's wide value: typed when the sink
+// supports it, boxed through SetWideFieldAt otherwise.
+func putSetField(sink IndexedReusableRecord, typed TypedSetRecord, ft FieldType, fi int, sub []byte) error {
+	if ft.IsWideSet() {
+		m, err := SetMaskFromBytes(ft, sub)
+		if err != nil {
+			return err
+		}
+		if typed != nil {
+			typed.SetWideSetAt(fi, m)
+		} else {
+			sink.SetWideFieldAt(fi, m)
+		}
+		return nil
+	}
+	mask := decodeSetMask(ft, sub)
+	if typed != nil {
+		typed.SetNarrowSetAt(fi, mask)
+	} else {
+		sink.SetWideFieldAt(fi, mask)
+	}
+	return nil
 }
 
 // nameKeyedShim adapts a name-keyed ReusableRecord to the index-keyed
@@ -142,6 +187,7 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 // running walk over rr.schema.Fields — the same walk that advances the
 // byte cursor. No name is consulted.
 func (rr *RecordReader) decodeStrideIndexed(sink IndexedReusableRecord, buf []byte) error {
+	typed, _ := sink.(TypedSetRecord)
 	cursor := 0
 	fields := rr.schema.Fields
 	for fi := range fields {
@@ -186,14 +232,10 @@ func (rr *RecordReader) decodeStrideIndexed(sink IndexedReusableRecord, buf []by
 			sub := buf[cursor : cursor+n]
 			cursor += n
 			sink.SetNumericAt(fi, decodeFixed(field.Type, sub))
-			if field.Type.IsWideSet() {
-				m, err := SetMaskFromBytes(field.Type, sub)
-				if err != nil {
+			if field.Type.IsSet() {
+				if err := putSetField(sink, typed, field.Type, fi, sub); err != nil {
 					return err
 				}
-				sink.SetWideFieldAt(fi, m)
-			} else if field.Type.IsSet() {
-				sink.SetWideFieldAt(fi, decodeSetMask(field.Type, sub))
 			}
 		}
 	}
@@ -325,6 +367,7 @@ func groupOnWireBytes(fields []*Field) int {
 // indices[k] is the schema position of fields[k] (DecodeFields.Indices,
 // resolved by segmentIndices); every sink write is keyed by it.
 func (rr *RecordReader) decodeFieldGroupReused(sink IndexedReusableRecord, keep FieldFilter, fields []*Field, indices []int) error {
+	typed, _ := sink.(TypedSetRecord)
 	groupBytes := groupOnWireBytes(fields)
 	if groupBytes <= 0 {
 		return nil
@@ -391,14 +434,10 @@ func (rr *RecordReader) decodeFieldGroupReused(sink IndexedReusableRecord, keep 
 				continue
 			}
 			sink.SetNumericAt(fi, decodeFixed(field.Type, sub))
-			if field.Type.IsWideSet() {
-				m, err := SetMaskFromBytes(field.Type, sub)
-				if err != nil {
+			if field.Type.IsSet() {
+				if err := putSetField(sink, typed, field.Type, fi, sub); err != nil {
 					return err
 				}
-				sink.SetWideFieldAt(fi, m)
-			} else if field.Type.IsSet() {
-				sink.SetWideFieldAt(fi, decodeSetMask(field.Type, sub))
 			}
 		}
 	}
