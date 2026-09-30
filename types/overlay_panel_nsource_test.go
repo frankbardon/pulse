@@ -80,9 +80,10 @@ func TestPanelNSources_MatchesValidatorMinusEmpty(t *testing.T) {
 		}
 	}
 	want := map[string]bool{
-		PanelNSourceRowMarginValue:  true,
-		PanelNSourceCellNUnweighted: true,
-		PanelNSourceRowMarginValueWithin:         true,
+		PanelNSourceRowMarginValue:          true,
+		PanelNSourceCellNUnweighted:         true,
+		PanelNSourceRowMarginValueWithin:    true,
+		PanelNSourceRowMarginDistinctWithin: true,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("PanelNSources() = %v, want exactly %d entries", got, len(want))

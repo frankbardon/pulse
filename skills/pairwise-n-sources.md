@@ -51,7 +51,7 @@ Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_de
 
 The two MARGIN distinct modes are exact by construction and deliberately NOT gated: a margin accumulates over the raw records that reached the margin key, once each, so there is no per-cell summing to double-count through. Extension groupers are covered too (`GrouperRegistration.FansOut`).
 
-The Compose-host panel raises the SAME code on its own host (`types.CheckPanelSlabPartition`): `row_margin_value_within` with an explicit `n_within_depth` sums each SLOT's row margins, so `axis` is always `row` and Details add `panel_index`/`slot_index`/`slot_label`. It gates its margin leg where this family's `n_within` is ungated, because a panel margin is whatever that slot's cell aggregator emitted — no additivity to claim. See `op-overlay-prop-z-panel`.
+The Compose-host panel raises the SAME code on its own host (`types.CheckPanelSlabPartition`). BOTH its within-prefix modes are gated (`types.PanelNSourceUsesWithinDepth` — there is deliberately no narrower panel `SumsDistinct` predicate), `axis` is always `row`, and Details add `panel_index`/`slot_index`/`slot_label`. It gates its margin leg where this family's `n_within` is ungated, because a panel margin is whatever that slot's cell aggregator emitted — no additivity to claim. See `op-overlay-prop-z-panel`.
 
 ## Why it is enforced rather than documented
 
@@ -65,6 +65,12 @@ The failure is silent and liberal: n too large, every p-value too small, nothing
 
 Proportion-input kinds only. `cell_value_pct` (default) divides the cell value by 100; `cell_value` takes it as already 0..1. A mismatch fails silently: `cell_value` over a real 0..100 percentage puts every proportion out of range and the layer returns empty.
 
+## The panel shares the vocabulary, not the spellings
+
+The Compose-host `op-overlay-prop-z-panel` reads the same DISTINCT-KEY quantity through the same admission rule above, but NO within-prefix mode name is shared. Its legs: `row_margin_value` (a payload VALUE, not `row_margin_n`), `row_margin_value_within` (that slot's ROW margins summed over a row-key prefix — ALL columns, not `CellCounts` over a pair-axis slab at one fixed opposite index) and `row_margin_distinct_within` (the same slab, read from `RowMarginComponents` as distinct KEYS — a different CARRIER, hence not `..._value_distinct_...`). `row_margin_n`, `n_within` and `n_within_distinct` are all UNKNOWN there and refused, because each would differ from the panel's leg by roughly the column count.
+
+What IS shared: the admitted set (`AGG_DISTINCT_SUM` at `distinct_count`, `AGG_DISTINCT_COUNT` at `cardinality`), exact-identity matching, and the null rules. What the panel ADDS: every slot is judged, and one unadmitted slot — or two slots naming DIFFERENT admitted aggregators — refuses the WHOLE spec. The crosstab arm has one host, so one cell aggregator; a panel pairs across slots and two legs must never be counted in different units.
+
 ## See
 
-`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `examples/overlays/42_crosstab_pairwise_distinct_n.json`. The Compose-host `op-overlay-prop-z-panel` spells its own legs: `row_margin_value` (a payload VALUE, not `row_margin_n`) and `row_margin_value_within` (that slot's ROW margins summed over a row-key prefix — ALL columns, not `CellCounts` over a pair-axis slab at one fixed opposite index). Neither `row_margin_n` nor `n_within` is accepted there.
+`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-overlay-prop-z-panel`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `examples/overlays/42_crosstab_pairwise_distinct_n.json`.

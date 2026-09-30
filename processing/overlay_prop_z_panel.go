@@ -2,6 +2,7 @@ package processing
 
 import (
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
@@ -43,7 +44,17 @@ import (
 // and refuse a components-disabled slot with
 // PULSE_OVERLAY_COMPONENTS_REQUIRED rather than falling back.
 //
-// n_within_depth (*int, nil = omitted) scopes the row_margin_value_within
+// row_margin_distinct_within is that leg's DISTINCT-KEY sibling: it
+// reads each slot's row margin out of the margin COMPONENTS as the
+// cell aggregator's distinct-key cardinality, not off the payload. It
+// is admitted UP FRONT on every slot's cell-aggregator IDENTITY —
+// AGG_DISTINCT_SUM (distinct_count) and AGG_DISTINCT_COUNT
+// (cardinality) only — and one unadmitted or divergent slot refuses
+// the WHOLE spec, for the same reason the depth range guard does:
+// dropping a slot changes M, and pairing two legs counted in
+// different units is worse than refusing.
+//
+// n_within_depth (*int, nil = omitted) scopes a within-prefix
 // leg to each
 // slot's OWN row-key prefix. The panel pairs across SLOTS, which carry
 // no dim tuple, so there is no pair axis for a depth to index the way
@@ -140,10 +151,34 @@ func panelSlotRequestIndex(panelIdx, refIdx int, targetIdxs []int) int {
 	return -1
 }
 
+// panelSlotLabel names a PANEL position with the label the caller
+// authored — spec.Reference for panel 0, spec.Targets[i-1] otherwise.
+// Falls back to the panel index when the label is unavailable, so a
+// diagnostic never reads "slot " with nothing after it.
+func panelSlotLabel(spec *types.ComposeOverlaySpec, panelIdx int) string {
+	if spec != nil {
+		if panelIdx == 0 {
+			if spec.Reference != "" {
+				return spec.Reference
+			}
+		} else if panelIdx-1 < len(spec.Targets) && spec.Targets[panelIdx-1] != "" {
+			return spec.Targets[panelIdx-1]
+		}
+	}
+	return "#" + strconv.Itoa(panelIdx)
+}
+
 // panelRowMarginSlabLookup builds ONE slot's within-prefix margin
-// lookup: `row-key string → summed row-margin VALUE over every row of
+// lookup: `row-key string → summed row-margin figure over every row of
 // that slot whose key agrees with it on the first `prefix` dim
 // positions`.
+//
+// `margins` is the per-slot BASE map the active within-prefix mode
+// reads: the payload row-margin VALUEs for row_margin_value_within,
+// the margin components' distinct-KEY cardinalities for
+// row_margin_distinct_within. One slab walk serves both, so the two
+// modes cannot drift on what "the same slab" means — only on what
+// each row contributes to it.
 //
 // Built once per slot, before the coordinate walk, so the fold stays
 // O(rows²) per slot instead of O(rows) per coordinate.
@@ -197,6 +232,42 @@ func panelRowMarginSlabLookup(slot *ComposeSlotView, margins map[string]float64,
 	return out
 }
 
+// panelRowMarginDistinctLookup builds ONE slot's `row-key string →
+// row-margin DISTINCT-KEY cardinality` map — the components-side twin
+// of matrixRowMarginLookup, which reads the payload.
+//
+// Keyed by the canonical row-key string, not by index, for the reason
+// E3-S3 established: slots share a key SET, never a key ORDER, and the
+// panel iterates the REFERENCE matrix's order. Components are indexed
+// POSITIONALLY per slot, so the slot's OWN row index is resolved first
+// and the figure is filed under the key that index carries.
+//
+// A row whose margin was never emitted — components off for that
+// margin, or the margin display flag off — is OMITTED rather than
+// filed as zero. RowMarginDistinctN already draws that line; carrying
+// it here is what makes the coordinate SKIP with an n_missing warning
+// instead of testing against a silently fabricated sample size of 0.
+func panelRowMarginDistinctLookup(slot *ComposeSlotView) map[string]float64 {
+	out := map[string]float64{}
+	rows := slot.RowCount()
+	for i := 0; i < rows; i++ {
+		key := slot.RowKey(i)
+		if key == nil {
+			continue
+		}
+		n, ok := slot.RowMarginDistinctN(i)
+		if !ok {
+			continue
+		}
+		keyStr := axisKeyToString(key)
+		if _, seen := out[keyStr]; seen {
+			continue
+		}
+		out[keyStr] = float64(n)
+	}
+	return out
+}
+
 // panelSampleSize resolves ONE slot's sample-size leg at one
 // coordinate, per the n_source mode.
 //
@@ -210,9 +281,14 @@ func panelRowMarginSlabLookup(slot *ComposeSlotView, margins map[string]float64,
 //
 // `slots`, `rowIdxLookups` and `colIdxLookups` are nil for the legacy
 // mode and are only touched by the components arm.
-// `rowSlabLookups` is nil unless n_within was given an explicit
-// NWithinDepth — a nil slab lookup under n_within IS the omitted-depth
-// form, which reads the exact per-slot row margin with no summing.
+// `withinBaseLookups` is the per-slot base margin map for whichever
+// within-prefix mode is active — payload VALUEs for
+// row_margin_value_within, margin-components distinct-KEY
+// cardinalities for row_margin_distinct_within — and is nil for every
+// other mode. `rowSlabLookups` is nil unless a within-prefix mode was
+// given an explicit NWithinDepth; a nil slab lookup under one of them
+// IS the omitted-depth form, which reads the exact per-slot margin
+// with no summing.
 func panelSampleSize(
 	nSource string,
 	slots *ComposeHostView,
@@ -220,22 +296,31 @@ func panelSampleSize(
 	rowIdxLookups, colIdxLookups []map[string]int,
 	rowKeyStr, colKeyStr string,
 	rowMarginLookups []map[string]float64,
+	withinBaseLookups []map[string]float64,
 	rowSlabLookups []map[string]float64,
 	cellValue float64,
 ) (float64, bool) {
 	switch nSource {
-	case types.PanelNSourceRowMarginValueWithin:
-		// Omitted depth: the EXACT per-slot row margin. Same carrier
-		// and same number as the legacy leg wherever that margin is
-		// present — and deliberately NOT its <= 0 cell-value
-		// fallback, so an unemitted margin skips rather than
-		// borrowing the cell value. A present margin of 0 is a real
-		// 0 and the prop-Z kernel reports the degenerate pair.
+	case types.PanelNSourceRowMarginValueWithin, types.PanelNSourceRowMarginDistinctWithin:
+		// ONE case for both within-prefix modes, deliberately. They
+		// differ ONLY in which carrier fills withinBaseLookups; the
+		// scope rules — omitted depth means the exact per-slot
+		// margin, an explicit depth means the prefix slab — are
+		// identical, and a second copy of them here is how the two
+		// would start disagreeing about what a depth means.
+		//
+		// Omitted depth: the EXACT per-slot row margin. For the
+		// VALUE leg that is the same carrier and the same number as
+		// the legacy leg wherever that margin is present — and
+		// deliberately NOT its <= 0 cell-value fallback, so an
+		// unemitted margin skips rather than borrowing the cell
+		// value. A present margin of 0 is a real 0 and the prop-Z
+		// kernel reports the degenerate pair.
 		if rowSlabLookups == nil {
-			if panelIdx < 0 || panelIdx >= len(rowMarginLookups) {
+			if panelIdx < 0 || panelIdx >= len(withinBaseLookups) {
 				return 0, false
 			}
-			v, ok := rowMarginLookups[panelIdx][rowKeyStr]
+			v, ok := withinBaseLookups[panelIdx][rowKeyStr]
 			return v, ok
 		}
 		if panelIdx < 0 || panelIdx >= len(rowSlabLookups) {
@@ -364,7 +449,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" n_within_depth is not read by n_source "+nSource+
-				" (it applies to "+types.PanelNSourceRowMarginValueWithin+" only)",
+				" (it applies to "+strings.Join(types.PanelNSourcesUsingWithinDepth(), ", ")+" only)",
 			map[string]any{
 				"kind":           string(spec.Kind),
 				"n_source":       params.NSource,
@@ -497,12 +582,115 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		}
 	}
 
+	// Distinct-key n admission — refused UP FRONT, on each slot's CELL
+	// aggregator IDENTITY, never per coordinate. The MATRIX arm's rule
+	// verbatim (processing/overlay_pairwise.go): AGG_FREQUENCY and
+	// AGG_MODE both emit a component literally spelled
+	// "distinct_count" that counts distinct VALUES OF THE MEASURE
+	// FIELD — answer codes, not respondents — so a key-PRESENCE probe
+	// would read the answer-code count and call it a sample size. The
+	// gate identifies the aggregator instead; the key probe inside
+	// RowMarginDistinctN is a convenience on top of this decision, not
+	// a substitute for it.
+	//
+	// WHOLESALE, NOT PER SLOT, and for the panel that is two rules:
+	//
+	//  1. One UNADMITTED slot refuses the whole spec. Dropping it would
+	//     change M, and M sets the length and the pair ordering of
+	//     every cell's flattened upper-triangular vector — the same
+	//     call the depth range guard and the partition gate already
+	//     make.
+	//  2. Slots that are each admitted but DISAGREE on which
+	//     aggregator they are refuse too. AGG_DISTINCT_SUM's
+	//     distinct_count counts keys that contributed to a sum;
+	//     AGG_DISTINCT_COUNT's cardinality counts distinct non-null
+	//     VALUES. Both are distinct-key figures and neither is wrong,
+	//     but they are not the same UNIT, and a pair whose two legs
+	//     are counted in different units is exactly the silent wrong
+	//     number this effort exists to remove. The MATRIX arm needs no
+	//     such rule: it has one host, so one cell aggregator.
+	if types.PanelNSourceReadsDistinctKeys(params.NSource) {
+		admitted := PairwiseDistinctNAdmitted()
+		admittedNames := make([]string, len(admitted))
+		for i, a := range admitted {
+			admittedNames[i] = string(a)
+		}
+		var first types.AggregationType
+		for s := 0; s < m; s++ {
+			agg, _, ok := slots.Slot(s).AdmitsDistinctKeyN()
+			if !ok {
+				observed, identified := slots.Slot(s).CellAggregatorIdentity()
+				observedName := string(observed)
+				if !identified {
+					observedName = "unidentified"
+				}
+				return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+					errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+					"overlay "+string(spec.Kind)+" n_source="+params.NSource+
+						" requires a distinct-key cell aggregator on every slot; observed cell aggregator "+
+						observedName+" on slot "+panelSlotLabel(spec, s)+", admitted: "+
+						strings.Join(admittedNames, ", "),
+					map[string]any{
+						"kind":                      string(spec.Kind),
+						"n_source":                  params.NSource,
+						"observed_cell_aggregator":  observedName,
+						"admitted_cell_aggregators": admittedNames,
+						"panel_index":               s,
+						"slot_index":                panelSlotRequestIndex(s, refIdx, targetIdxs),
+						"slot_label":                panelSlotLabel(spec, s),
+					})
+			}
+			if s == 0 {
+				first = agg
+				continue
+			}
+			if agg == first {
+				continue
+			}
+			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+				"overlay "+string(spec.Kind)+" n_source="+params.NSource+
+					" requires ONE distinct-key cell aggregator across the panel; slot "+
+					panelSlotLabel(spec, 0)+" is "+string(first)+" and slot "+
+					panelSlotLabel(spec, s)+" is "+string(agg)+
+					", which count different things ("+string(types.AGG_DISTINCT_SUM)+
+					" counts keys that summed, "+string(types.AGG_DISTINCT_COUNT)+
+					" counts distinct non-null values), so the two legs of a pair would be"+
+					" counted in different units. Give every slot the same cell aggregator",
+				map[string]any{
+					"kind":                      string(spec.Kind),
+					"n_source":                  params.NSource,
+					"reference_cell_aggregator": string(first),
+					"observed_cell_aggregator":  string(agg),
+					"admitted_cell_aggregators": admittedNames,
+					"panel_index":               s,
+					"slot_index":                panelSlotRequestIndex(s, refIdx, targetIdxs),
+					"slot_label":                panelSlotLabel(spec, s),
+				})
+		}
+	}
+
 	// The within-prefix slab, built only when n_within was given an
 	// explicit depth. nil rowSlabLookups under n_within is the
 	// omitted-depth form — the exact per-slot row margin, no summing —
 	// and it must stay nil rather than degenerate to a prefix of 1,
 	// because depth 0 is prefix 1 and the two answers differ whenever
 	// the row axis has more than one dim.
+	// The per-slot BASE margin map the active within-prefix mode
+	// reads. Both modes then share ONE slab walk below, so the
+	// carrier is the only thing that differs between them.
+	var withinBaseLookups []map[string]float64
+	if types.PanelNSourceUsesWithinDepth(params.NSource) {
+		if types.PanelNSourceReadsDistinctKeys(params.NSource) {
+			withinBaseLookups = make([]map[string]float64, m)
+			for s := 0; s < m; s++ {
+				withinBaseLookups[s] = panelRowMarginDistinctLookup(slots.Slot(s))
+			}
+		} else {
+			withinBaseLookups = rowMarginLookups
+		}
+	}
+
 	var rowSlabLookups []map[string]float64
 	if types.PanelNSourceUsesWithinDepth(params.NSource) && params.NWithinDepth != nil {
 		prefix := *params.NWithinDepth + 1
@@ -540,7 +728,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 
 		rowSlabLookups = make([]map[string]float64, m)
 		for s := 0; s < m; s++ {
-			rowSlabLookups[s] = panelRowMarginSlabLookup(slots.Slot(s), rowMarginLookups[s], prefix)
+			rowSlabLookups[s] = panelRowMarginSlabLookup(slots.Slot(s), withinBaseLookups[s], prefix)
 		}
 	}
 
@@ -577,7 +765,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				}
 				nSize, nok := panelSampleSize(params.NSource, slots, s,
 					rowIdxLookups, colIdxLookups, rowKeyStr, colKeyStr,
-					rowMarginLookups, rowSlabLookups, v)
+					rowMarginLookups, withinBaseLookups, rowSlabLookups, v)
 				if !nok {
 					anyMissing = true
 					nMissing = true

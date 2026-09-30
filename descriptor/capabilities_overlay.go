@@ -1128,11 +1128,32 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"resolved BY KEY (slots share a key SET, not an ORDER), with NO cell-value fallback — an unreadable leg skips " +
 				"the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index; " +
 				"row_margin_value_within reads the SAME payload row margin as the default but scoped to a ROW-KEY PREFIX, " +
-				"and carries no fallback either. It is spelled row_margin_value_within, NOT n_within: n_within belongs to " +
+				"and carries no fallback either; row_margin_distinct_within is that leg's DISTINCT-KEY sibling, reading the " +
+				"slot's row margin out of Response.Components.Crosstab.RowMarginComponents as the cell aggregator's " +
+				"distinct-KEY cardinality rather than off the payload — a different CARRIER, which is why it is not spelled " +
+				"row_margin_value_distinct_within, and the mode to use when one respondent contributes several records and n " +
+				"must be respondents rather than rows. It is admitted UP FRONT on every slot's CELL aggregator IDENTITY, by " +
+				"exact component-key-set match: AGG_DISTINCT_SUM (figure on distinct_count) and AGG_DISTINCT_COUNT (on " +
+				"cardinality) only. AGG_FREQUENCY and AGG_MODE also emit a key literally spelled distinct_count, but theirs " +
+				"counts distinct VALUES of the measure field — answer codes, not respondents — so a key-presence probe would " +
+				"read an answer-code count as a sample size; anything else fires " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE naming the observed aggregator, the admitted set and the offending " +
+				"panel_index / slot_index / slot_label. TWO refusals are WHOLESALE rather than per slot: one unadmitted slot " +
+				"refuses the whole spec, and slots that are each admitted but name DIFFERENT aggregators refuse too, because " +
+				"AGG_DISTINCT_SUM counts keys that summed while AGG_DISTINCT_COUNT counts distinct non-null values — not the " +
+				"same unit, and the two legs of a pair must never be counted in different units. Dropping a slot instead " +
+				"would change M and with it the length and pair ordering of every cell's output vector. Admission is RUNTIME " +
+				"only: it classifies from materialised components, which a no-execute validator cannot see. Its null rules " +
+				"are the MATRIX arm's verbatim — a margin that was never emitted SKIPS the coordinate with n_missing rather " +
+				"than reading as a zero-sized sample. It is spelled row_margin_value_within, NOT n_within: n_within belongs to " +
 				"the OVERLAY_PAIRWISE_* family, where it sums CellCounts over a PAIR-axis slab at ONE fixed opposite index, " +
 				"while this leg sums a slot's ROW margins across ALL columns — the two differ by roughly the column count " +
 				"and n_within is refused here like any other unknown mode. " +
-				"n_within_depth (*int) is read by row_margin_value_within alone — the pointer is load-bearing because " +
+				"n_within_distinct is likewise the OVERLAY_PAIRWISE_* family's spelling and is NOT accepted here: that one " +
+				"sums per-CELL distinct cardinalities over a PAIR-axis slab at ONE fixed opposite index, while " +
+				"row_margin_distinct_within reads a slot's ROW margins across ALL columns. " +
+				"n_within_depth (*int) is read by the within-prefix modes alone (row_margin_value_within and " +
+				"row_margin_distinct_within, types.PanelNSourcesUsingWithinDepth()) — the pointer is load-bearing because " +
 				"depth 0 is a meaningful value: omitted means the EXACT per-slot row margin with no summing, while d sums " +
 				"that slot's row margins over every row agreeing on the first d+1 dim positions (axisKeyPrefixEqual, the " +
 				"same value-stringifying comparison the MATRIX arm's RowSlabN uses). A negative depth, or a depth set " +
@@ -1142,7 +1163,9 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"slot refuses the WHOLE spec rather than dropping out, because dropping it would change M and with it the " +
 				"length and pair ordering of every cell's output vector. An explicit depth makes the leg a SUM ACROSS ROWS, " +
 				"so the summed-across row-axis dims must PARTITION the key set: a fan-out grouper on ANY slot's row axis at " +
-				"a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED on BOTH arms, naming the " +
+				"a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED on BOTH arms for EITHER " +
+				"within-prefix mode (the gate keys off types.PanelNSourceUsesWithinDepth, not a narrower distinct-only " +
+				"predicate), naming the " +
 				"offender by panel_index, slot_index and slot_label, and one offending slot refuses the whole spec. A " +
 				"fan-out INSIDE the fixed prefix is accepted (it multiplies slabs, not cells), and an OMITTED depth is " +
 				"never gated because it sums nothing. Unlike the axis-pairing family, whose plain n_within is ungated " +

@@ -20,16 +20,23 @@ Compose-only multi-reference. Buffered.
 - `row_margin_value` (default) — the row-margin VALUE off the payload; keeps the legacy `<= 0` fall back to the cell value.
 - `cell_n_unweighted` — counted `n` from the slot's `Components.Crosstab`, BY KEY. No fallback; unreadable ⇒ skip the cell.
 - `row_margin_value_within` — the SAME payload row margin, optionally summed over a row-key prefix. No fallback.
+- `row_margin_distinct_within` — that leg's DISTINCT-KEY sibling: the row margin out of `RowMarginComponents` as the cell aggregator's distinct-KEY cardinality. A different CARRIER, hence not `row_margin_value_distinct_within`. Use it when one respondent contributes several records and n must be RESPONDENTS. No fallback.
 
-`n_within_depth` (`*int`) is read by `row_margin_value_within` alone, and the pointer is load-bearing: omitted ⇒ the exact per-slot row margin (no summing), `d` ⇒ margins summed over that slot's rows agreeing on the first `d+1` dims. Depth `0` ≠ omitted. Negative, or set with any other mode, ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms; past a slot's row depth ⇒ same code at RUNTIME only, naming that slot. Slots may declare DIFFERENT row depths and one out-of-range slot refuses the whole spec (dropping it would change `M`).
+`n_within_depth` (`*int`) is read by the two `_within` modes alone (`types.PanelNSourcesUsingWithinDepth()`), and the pointer is load-bearing: omitted ⇒ the exact per-slot row margin (no summing), `d` ⇒ margins summed over that slot's rows agreeing on the first `d+1` dims. Depth `0` ≠ omitted. Negative, or set with any other mode, ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms; past a slot's row depth ⇒ same code at RUNTIME only, naming that slot. Slots may declare DIFFERENT row depths and one out-of-range slot refuses the whole spec (dropping it would change `M`).
 
 An explicit depth SUMS across rows, so they must partition the key set. A fan-out grouper (`GroupType.FansOut()` or an extension declaring it) on ANY slot's row axis at depth `> n_within_depth` ⇒ `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, both arms, Details `panel_index`/`slot_index`/`slot_label`/`dim_index`; one offending slot refuses the whole spec. Inside the prefix is fine (it multiplies slabs, not cells); omitted depth is never gated. Pairwise `n_within` is ungated (record counts are additive) — a panel row margin is whatever the slot's cell aggregator emitted, so this host cannot claim that.
 
-`row_margin_n` and `n_within` are `OVERLAY_PAIRWISE_*` spellings, NOT aliases: unknown here ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms. There `n_within` sums `CellCounts` over a PAIR-axis slab at ONE fixed opposite index — one column; the panel's leg sums a slot's ROW margins across ALL columns, so the two differ by roughly the column count.
+`row_margin_n`, `n_within` and `n_within_distinct` are `OVERLAY_PAIRWISE_*` spellings, NOT aliases: unknown here ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms. There `n_within` sums `CellCounts` over a PAIR-axis slab at ONE fixed opposite index — one column; the panel's leg sums a slot's ROW margins across ALL columns, so the two differ by roughly the column count.
+
+## Admission (distinct mode)
+
+`row_margin_distinct_within` is admitted UP FRONT, per slot, on the cell aggregator's EXACT identity signature — `AGG_DISTINCT_SUM` (`distinct_count`) and `AGG_DISTINCT_COUNT` (`cardinality`) only. `AGG_FREQUENCY` / `AGG_MODE` also emit a key spelled `distinct_count`, but theirs counts distinct answer CODES, so presence is never the test. Anything else ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator + admitted set + `panel_index`/`slot_index`/`slot_label`. RUNTIME only — predict cannot see materialised components.
+
+Two WHOLESALE refusals, never a per-slot drop (dropping changes `M`): one unadmitted slot, AND slots that are each admitted but name DIFFERENT aggregators — keys-that-summed vs distinct non-null values are not the same UNIT, and a pair's two legs must never be counted in different units.
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab per slot, order `{Reference, Targets…}`. `cell_n_unweighted` needs components on EVERY slot: disabled / non-crosstab ⇒ `PULSE_OVERLAY_COMPONENTS_REQUIRED`, unresolved ⇒ `PULSE_OVERLAY_SLOT_NOT_CROSSTAB`. Mode-scoped — the default never gates.
+COMPOSE — MATRIX crosstab per slot, order `{Reference, Targets…}`. `cell_n_unweighted` and `row_margin_distinct_within` need components on EVERY slot: disabled / non-crosstab ⇒ `PULSE_OVERLAY_COMPONENTS_REQUIRED`, unresolved ⇒ `PULSE_OVERLAY_SLOT_NOT_CROSSTAB`. Mode-scoped — the default never gates.
 
 ## Output
 
@@ -40,6 +47,7 @@ MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-ma
 - Pairs byte-equal `OVERLAY_PROP_Z_CELL` (shared `twoProportionZ`).
 - Degenerate `(pooled ∈ {0,1}, se == 0)` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
 - Absent value → nil slice + `REF_ZERO` `ref_missing`; an unreadable counted n adds `n_missing` + `slot_index`.
+- An unemitted distinct MARGIN is not a zero-sized one: the coordinate skips (`n_missing`) rather than testing against 0.
 
 ## See
 

@@ -35,7 +35,9 @@ type PanelOverlayParams struct {
 	// is the leg the panel has always used.
 	NSource string `json:"n_source,omitempty"`
 
-	// NWithinDepth scopes the row_margin_value_within leg to a
+	// NWithinDepth scopes a WITHIN-PREFIX leg
+	// (PanelNSourceUsesWithinDepth — row_margin_value_within and
+	// row_margin_distinct_within) to a
 	// ROW-KEY PREFIX on each slot's OWN row axis. The panel pairs across SLOTS, which carry
 	// no dim tuple, so — unlike the OVERLAY_PAIRWISE_* family, where
 	// the depth indexes the pair axis — there is no pair axis to
@@ -152,6 +154,53 @@ const (
 	// With an explicit NWithinDepth it SUMS across rows, which is
 	// gated by CheckPanelSlabPartitionWith.
 	PanelNSourceRowMarginValueWithin = "row_margin_value_within"
+
+	// PanelNSourceRowMarginDistinctWithin is the DISTINCT-KEY sibling
+	// of PanelNSourceRowMarginValueWithin: the slot's row margin read
+	// as the cell aggregator's distinct-KEY cardinality, optionally
+	// summed over a row-key prefix slab.
+	//
+	// CARRIER, again, and again it is in the name. The `_value_`
+	// sibling reads MatrixPayload.RowMargins — a margin CELL's VALUE,
+	// whatever the slot's aggregator emitted. This one reads
+	// CrosstabComponents.RowMarginComponents through the per-slot
+	// components view. A different CARRIER is not a variant of the
+	// same leg, which is why it is `row_margin_distinct_within` and
+	// not `row_margin_value_distinct_within`.
+	//
+	// It is deliberately NOT spelled `n_within_distinct`. That string
+	// belongs to the axis-pairing family
+	// (PairwiseNSourceNWithinDistinct), where it sums per-CELL
+	// distinct cardinalities over a slab of the PAIR axis at ONE
+	// fixed opposite index. This one reads a slot's ROW margins, i.e.
+	// ALL columns — the two differ by roughly the column count,
+	// silently, the same one-name-two-quantities hazard the
+	// `row_margin_value_within` rename destroyed one story earlier.
+	// `n_within_distinct` is an UNKNOWN mode on the panel and must
+	// never be re-admitted as an alias.
+	//
+	// ADMISSION. The figure exists only for a cell aggregator that
+	// counts distinct KEYS, and only two do: AGG_DISTINCT_SUM (on
+	// component key `distinct_count`) and AGG_DISTINCT_COUNT (on
+	// `cardinality`). AGG_FREQUENCY and AGG_MODE also emit a key
+	// literally spelled `distinct_count`, but theirs counts distinct
+	// VALUES of the measure field — answer codes, not respondents —
+	// so admission is by EXACT aggregator-identity signature, never by
+	// key presence. Every slot is judged UP FRONT and one unadmitted
+	// slot refuses the WHOLE spec; see
+	// processing.applyPropZPanel.
+	//
+	// Requires components on every slot, exactly as
+	// PanelNSourceCellNUnweighted does, and carries no cell-value
+	// fallback: an unemitted margin skips the coordinate.
+	//
+	// With an explicit NWithinDepth it SUMS across rows, so it is
+	// gated by CheckPanelSlabPartitionWith on the same terms as its
+	// `_value_` sibling. It inherits that gate by joining
+	// PanelNSourceUsesWithinDepth — there is deliberately no narrower
+	// panel-side "sums distinct cells" predicate, because the panel
+	// cannot observe additivity for any margin it reads.
+	PanelNSourceRowMarginDistinctWithin = "row_margin_distinct_within"
 )
 
 // panelNSources is the ordered valid set, empty excluded. Diagnostics
@@ -160,6 +209,7 @@ var panelNSources = []string{
 	PanelNSourceRowMarginValue,
 	PanelNSourceCellNUnweighted,
 	PanelNSourceRowMarginValueWithin,
+	PanelNSourceRowMarginDistinctWithin,
 }
 
 // PanelNSources returns the valid PanelOverlayParams.NSource modes in
@@ -177,7 +227,8 @@ func PanelNSources() []string {
 // mode. Empty counts as valid (defaults to row_margin_value).
 func ValidPanelNSource(s string) bool {
 	switch s {
-	case "", PanelNSourceRowMarginValue, PanelNSourceCellNUnweighted, PanelNSourceRowMarginValueWithin:
+	case "", PanelNSourceRowMarginValue, PanelNSourceCellNUnweighted,
+		PanelNSourceRowMarginValueWithin, PanelNSourceRowMarginDistinctWithin:
 		return true
 	}
 	return false
@@ -205,7 +256,30 @@ func ValidPanelNSource(s string) bool {
 // key. (The axis-pairing family's int field cannot make that
 // distinction, which is why its equivalent no-op is still open.)
 func PanelNSourceUsesWithinDepth(s string) bool {
-	return s == PanelNSourceRowMarginValueWithin
+	return s == PanelNSourceRowMarginValueWithin ||
+		s == PanelNSourceRowMarginDistinctWithin
+}
+
+// panelNSourcesUsingWithinDepth is PanelNSourceUsesWithinDepth's set
+// form, in declaration order, for the diagnostic that must NAME the
+// modes a depth applies to. Derived from the enum and filtered through
+// the predicate itself so a new within-prefix mode cannot be added to
+// one without appearing in the other.
+func panelNSourcesUsingWithinDepth() []string {
+	out := make([]string, 0, 2)
+	for _, m := range panelNSources {
+		if PanelNSourceUsesWithinDepth(m) {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// PanelNSourcesUsingWithinDepth returns the modes that CONSUME
+// NWithinDepth, for the "n_within_depth is not read by n_source X"
+// refusal both arms raise. Returns a copy.
+func PanelNSourcesUsingWithinDepth() []string {
+	return panelNSourcesUsingWithinDepth()
 }
 
 // PanelNSourceReadsComponents reports whether s reads
@@ -215,7 +289,22 @@ func PanelNSourceUsesWithinDepth(s string) bool {
 // payload-read default — a panel that has never needed components must
 // not start refusing when a caller spells its existing behaviour out.
 func PanelNSourceReadsComponents(s string) bool {
-	return s == PanelNSourceCellNUnweighted
+	return s == PanelNSourceCellNUnweighted ||
+		s == PanelNSourceRowMarginDistinctWithin
+}
+
+// PanelNSourceReadsDistinctKeys reports whether s reads a DISTINCT-KEY
+// cardinality rather than a record count or a payload value, and is
+// therefore subject to the cell-aggregator admission gate.
+//
+// A separate predicate from PanelNSourceReadsComponents on purpose:
+// cell_n_unweighted reads components too, but it reads the universal
+// FLOOR counter "n", which every aggregator emits and which means the
+// same thing under all of them. Only a distinct-key figure can be
+// confused with a different quantity of the same name, so only the
+// distinct modes are admitted on the cell aggregator's identity.
+func PanelNSourceReadsDistinctKeys(s string) bool {
+	return s == PanelNSourceRowMarginDistinctWithin
 }
 
 // PanelNSourceFallsBackToCellValue reports whether s substitutes the
