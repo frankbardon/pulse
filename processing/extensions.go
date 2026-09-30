@@ -188,7 +188,7 @@ func BuildFilters(filterers []*types.Filterer, schema *encoding.Schema, exts *Ex
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, fn)
+		out = append(out, wrapFilterPrecompute(fn, f, schema, exts))
 	}
 	return out, nil
 }

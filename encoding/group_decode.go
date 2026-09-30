@@ -102,6 +102,7 @@ func (gg *gGroup) memberNull(entry []byte, k int) bool {
 // groupedDecoder is the compiled physical-row decoder of one grouped
 // schema, owned by one RecordReader.
 type groupedDecoder struct {
+	src    *Schema // the grouped schema (RecordReader.schema is its Logical view)
 	stride int
 	body   int
 	rows   []gRowOp
@@ -180,6 +181,7 @@ func newGroupedDecoder(s *Schema) (*groupedDecoder, error) {
 	}
 	groupOf, _ := s.memberSets()
 	d := &groupedDecoder{
+		src:    s,
 		stride: s.RecordByteSize(),
 		idx:    make([]uint32, len(s.Groups)),
 		last:   make([]uint32, len(s.Groups)),
@@ -613,18 +615,28 @@ func (rr *RecordReader) readGrouped(rec ReusableRecord, keep FieldFilter, plan *
 	rr.groups.fresh = false
 	sink := rr.indexedSink(rec)
 	rs, runSkip := sink.(RunSkipRecord)
+	gi, _ := rec.(GroupIndexRecord)
 
 	if !runSkip {
 		sink.ClearForRow()
 		if sel.skipAll {
 			d.read = false
+			if gi != nil {
+				gi.SetGroupIndices(d.src, nil)
+			}
 			return mapEOF(advanceReader(raw, d.stride))
 		}
 		buf, err := d.readRow(raw)
 		if err != nil {
 			return err
 		}
-		return d.decodeAll(sink, sel, buf)
+		if err := d.decodeAll(sink, sel, buf); err != nil {
+			return err
+		}
+		if gi != nil {
+			gi.SetGroupIndices(d.src, d.idx)
+		}
+		return nil
 	}
 
 	canKeep := d.prevValid && d.prevSink == rs && d.prevPlan == plan
@@ -632,6 +644,9 @@ func (rr *RecordReader) readGrouped(rec ReusableRecord, keep FieldFilter, plan *
 	kept := rs.BeginRunRow(rr.token(), canKeep)
 	if sel.skipAll {
 		d.read = false
+		if gi != nil {
+			gi.SetGroupIndices(d.src, nil)
+		}
 		if err := advanceReader(raw, d.stride); err != nil {
 			return mapEOF(err)
 		}
@@ -661,5 +676,8 @@ func (rr *RecordReader) readGrouped(rec ReusableRecord, keep FieldFilter, plan *
 	d.buf, d.prev = d.prev, buf
 	copy(d.last, d.idx)
 	d.prevValid, d.prevSink, d.prevPlan = true, rs, plan
+	if gi != nil {
+		gi.SetGroupIndices(d.src, d.idx)
+	}
 	return nil
 }

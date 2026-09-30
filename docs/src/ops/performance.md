@@ -64,6 +64,28 @@ fields) to 1.4x (80) faster than the ungrouped file when sorted, and up
 to 2.2x faster unsorted; a four-field projection costs the same at every
 parent width, 2.5–3.3x under the ungrouped file. Results are identical.
 
+### Filters on grouped cohorts
+
+A filter whose fields all belong to ONE parent group is evaluated once
+per distinct parent tuple, not once per row: its verdict per dictionary
+entry is computed the first time a row carrying that entry reaches it,
+then every later row is a bit test on its entry index. Every built-in
+filterer qualifies, and so does `FILTER_EXPRESSION` when it calls only
+pure functions; a filter mixing a parent field with a child field (or
+two groups) is evaluated per row as before. Results and
+`Response.Components` filterer counts are identical either way.
+
+On the synthetic 12.5x-fanout join (66 parent / 29 child fields,
+100,000 rows, 8,000 parents) the filter does 8,000 evaluations instead
+of 100,000. A cheap `FILTER_INCLUDE` on a parent categorical goes from
+~35 to ~22 ns/row for the filter pass (sorted; 43 → 30 scattered) —
+invisible end to end, where decode dominates. A `FILTER_EXPRESSION` on a
+parent field goes from ~7 µs to ~0.6 µs/row for the filter pass and
+from ~20 µs to ~1.2 µs/row end to end (sorted; ~22 → ~1.7 scattered).
+The verdict table costs two bits per dictionary entry per filter (27 KB
+for a 109,000-entry group). The ungrouped (`0x01`) cohort and child-field
+filters are unchanged.
+
 ## Buffered path: when Pulse has to materialise
 
 `pulse api predict` reports `Streamable=false` and lists every

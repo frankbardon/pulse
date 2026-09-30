@@ -83,6 +83,28 @@ type TypedSetRecord interface {
 	SetWideSetAt(idx int, m SetMask)
 }
 
+// GroupIndexRecord is an optional extension of IndexedReusableRecord
+// for grouped (0x02) schemas. After the reuse decoders
+// (ReadRecordReused / ReadRecordReusedWithPlan) finish a grouped row,
+// they hand the record the row's dictionary entry per group:
+// idx[g] is the entry of Schema.Groups[g] every member of g carries on
+// this row (0 for a constant group), and schema is the reader's schema —
+// the one whose group dictionaries the entries address. idx is the
+// reader's own buffer — an implementation copies it and must not retain
+// the slice. A nil idx means "no index for this row" (the row was
+// skipped whole by a plan that decodes nothing); an implementation then
+// reports no index, and it must also report none when schema is not the
+// schema it resolves group dictionaries against, since an entry index is
+// meaningless against any other dictionary.
+//
+// It is how a per-dictionary-entry precompute (filter precompute) learns
+// which entry a row holds without encoding/ importing processing/ and
+// without the precompute reaching into reader internals. An ungrouped
+// schema never calls it; neither do the map decoders.
+type GroupIndexRecord interface {
+	SetGroupIndices(schema *Schema, idx []uint32)
+}
+
 // putSetField writes a set field's wide value: typed when the sink
 // supports it, boxed through SetWideFieldAt otherwise.
 func putSetField(sink IndexedReusableRecord, typed TypedSetRecord, ft FieldType, fi int, sub []byte) error {

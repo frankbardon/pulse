@@ -1288,7 +1288,7 @@ func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc,
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, fn)
+		out = append(out, wrapFilterPrecompute(fn, f, p.schema, p.exts))
 	}
 	return out, nil
 }

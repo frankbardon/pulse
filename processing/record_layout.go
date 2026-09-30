@@ -65,6 +65,11 @@ type recordLayout struct {
 	wideOff  []int32
 	nDecs    int
 	nWords   int
+	// nGroups is len(schema.Groups): the words past the set-mask words
+	// in the tail of Record.vals that hold the row's parent-group entry
+	// indices (see Record.SetGroupIndices). Zero for an ungrouped schema,
+	// which therefore pays nothing.
+	nGroups int
 }
 
 // emptyLayout serves a nil schema and a zero-value Record: no slots,
@@ -152,6 +157,7 @@ func buildLayout(s *encoding.Schema, keep encoding.FieldFilter) *recordLayout {
 		}
 		l.n = len(l.fieldOf)
 	}
+	l.nGroups = len(s.Groups)
 	l.wideKind = make([]uint8, l.n)
 	l.wideOff = make([]int32, l.n)
 	for slot := 0; slot < l.n; slot++ {

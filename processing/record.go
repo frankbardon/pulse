@@ -85,6 +85,15 @@ type Record struct {
 	// schema-field mutation that is not a reuse-path decode write
 	// (resetRun), so the next BeginRunRow forces a full repopulate.
 	runOwner uint64
+
+	// groupIdxOK reports that the group-index words in the tail of vals
+	// (past the set-mask words; see SetGroupIndices) hold the parent-group
+	// entries of the row the record currently carries. Set only by the
+	// grouped reuse decoder; cleared by ClearForRow and by every
+	// schema-field mutation that is not a decode write (resetRun), so a
+	// record whose member values were changed after decode — a feature or
+	// attribute writing a member's name — never reports a stale entry.
+	groupIdxOK bool
 }
 
 // recordAux is the sparse side of a Record.
@@ -129,8 +138,8 @@ func newPositionalRecord(schema *encoding.Schema) *Record {
 
 func newRecordWithLayout(schema *encoding.Schema, l *recordLayout) *Record {
 	r := &Record{schema: schema, layout: l}
-	if l.n > 0 {
-		r.vals = make([]float64, l.n, l.n+l.nWords)
+	if l.n > 0 || l.nGroups > 0 {
+		r.vals = make([]float64, l.n, l.n+l.nWords+l.nGroups)
 		r.bits = make([]uint64, planeCount*recordWords(l.n))
 	}
 	return r
@@ -205,7 +214,7 @@ func (r *Record) clearBit(plane, i int) {
 // resetRun withdraws the record from run-skip: a schema field was
 // mutated outside the reuse decoders' index-keyed writes, so the next
 // row must be repopulated in full.
-func (r *Record) resetRun() { r.runOwner = 0 }
+func (r *Record) resetRun() { r.runOwner = 0; r.groupIdxOK = false }
 
 func (r *Record) auxOrNew() *recordAux {
 	if r.aux == nil {
@@ -604,19 +613,28 @@ func (r *Record) IsNull(name string) bool {
 	if name == "" {
 		return false
 	}
-	if r.nullMarked(name) {
-		return true
-	}
-	if _, ok := r.getValue(name); ok {
-		return false
-	}
+	// One name resolution, then the same three questions the former maps
+	// answered in order: null-marked, has a value, has a wide value.
 	if i := r.pos(name); i >= 0 {
+		if r.test(planeNull, i) {
+			return true
+		}
+		if r.test(planeHas, i) {
+			return false
+		}
 		return !r.hasWideAt(i)
 	}
-	if _, ok := r.getWide(name); ok {
+	if r.aux == nil {
+		return true
+	}
+	if r.aux.ovNulls[name] {
+		return true
+	}
+	if _, ok := r.aux.ovVals[name]; ok {
 		return false
 	}
-	return true
+	_, ok := r.aux.ovWide[name]
+	return !ok
 }
 
 // setMaskFromWideValue lifts a stored wide value into the shared
@@ -917,6 +935,7 @@ var (
 	_ encoding.IndexedReusableRecord = (*Record)(nil)
 	_ encoding.TypedSetRecord        = (*Record)(nil)
 	_ encoding.RunSkipRecord         = (*Record)(nil)
+	_ encoding.GroupIndexRecord      = (*Record)(nil)
 )
 
 // SetNumericAt implements encoding.IndexedReusableRecord: a slice store
@@ -1001,6 +1020,7 @@ func (r *Record) SetWideSetAt(idx int, m encoding.SetMask) {
 // decode overwrites them.
 func (r *Record) ClearForRow() {
 	r.runOwner = 0
+	r.groupIdxOK = false
 	if len(r.vals) > 0 {
 		w := recordWords(len(r.vals))
 		clear(r.bits[planeNull*w : planeCount*w])
@@ -1053,6 +1073,42 @@ func (r *Record) BeginRunRow(token uint64, keep bool) bool {
 func (r *Record) identityLayout() bool {
 	return r.schema != nil && r.layout != nil && r.layout.slotOf == nil &&
 		r.layout.n == len(r.schema.Fields)
+}
+
+// SetGroupIndices implements encoding.GroupIndexRecord: the grouped
+// reuse decoder hands over the row's dictionary entry per parent group
+// after it has written the row. The entries are stored bit-exactly in
+// the tail of vals past the set-mask words — no allocation, and nothing
+// at all for an ungrouped schema, whose layout reserves no words. A nil
+// idx, one whose length does not match, or indices that address another
+// schema's dictionaries than the record's own (schema != Schema(), by
+// identity) leave the record reporting no index (GroupIndex ok=false),
+// which every consumer treats as "evaluate this row the ordinary way".
+func (r *Record) SetGroupIndices(schema *encoding.Schema, idx []uint32) {
+	n := r.layout.nGroups
+	if idx == nil || schema != r.schema || len(idx) != n || n == 0 {
+		r.groupIdxOK = false
+		return
+	}
+	off := len(r.vals) + r.layout.nWords
+	tail := r.vals[:cap(r.vals)][off : off+n]
+	for g, e := range idx {
+		tail[g] = math.Float64frombits(uint64(e))
+	}
+	r.groupIdxOK = true
+}
+
+// GroupIndex reports the dictionary entry of parent group g (a position
+// in Schema().Groups) the record's row carries, as the grouped reuse
+// decoder reported it. ok is false for an ungrouped schema, a record not
+// populated by that decoder (a map decode, a synthetic or joined
+// record), a row skipped whole, and a record any of whose schema fields
+// was mutated since decode.
+func (r *Record) GroupIndex(g int) (uint32, bool) {
+	if !r.groupIdxOK || g < 0 || g >= r.layout.nGroups {
+		return 0, false
+	}
+	return uint32(math.Float64bits(r.vals[:cap(r.vals)][len(r.vals)+r.layout.nWords+g])), true
 }
 
 // ClearNullAt implements encoding.RunSkipRecord: clears field idx's null

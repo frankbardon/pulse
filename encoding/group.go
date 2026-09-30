@@ -268,6 +268,74 @@ func (s *Schema) DecodeGroupEntry(g, e int, sink IndexedReusableRecord) error {
 	return nil
 }
 
+// GroupEntryDecoder writes a chosen subset of one group's members from
+// any entry into a record, with the member geometry resolved once. It is
+// DecodeGroupEntry restricted to the members a per-entry consumer (filter
+// precompute) actually reads, at O(chosen members) per entry instead of
+// O(all members²): DecodeGroupEntry re-derives each member's offset and
+// the entry geometry per member, which dominates on a wide parent block.
+type GroupEntryDecoder struct {
+	s       *Schema
+	g       int
+	count   int
+	width   int
+	bmOff   int
+	members []gMember // the chosen members; off is the offset in the entry
+	slots   []int     // member slot of each chosen member (its null bit)
+}
+
+// NewGroupEntryDecoder compiles a decoder for the members of group g at
+// the given LOGICAL field indices (each must be a member of g).
+func (s *Schema) NewGroupEntryDecoder(g int, fields []int) (*GroupEntryDecoder, error) {
+	if g < 0 || g >= len(s.Groups) {
+		return nil, groupErr("group out of range", map[string]any{"group": g})
+	}
+	width, bmOff := s.groupEntryGeometry(g)
+	d := &GroupEntryDecoder{s: s, g: g, width: width, bmOff: bmOff, count: s.GroupEntryCount(g)}
+	for _, fi := range fields {
+		off, found := 0, false
+		for k, m := range s.Groups[g].Members {
+			f := &s.Fields[m.Field]
+			w := onWireWidth(f.Type)
+			if m.Field == fi {
+				d.members = append(d.members, gMember{fi: fi, off: off, w: w, nullable: f.Nullable, field: f})
+				d.slots = append(d.slots, k)
+				found = true
+				break
+			}
+			off += w
+		}
+		if !found {
+			return nil, groupErr("field is not a member of the group", map[string]any{"group": g, "field_index": fi})
+		}
+	}
+	return d, nil
+}
+
+// Decode writes the chosen members of entry e into sink with exactly
+// DecodeGroupEntry's side effects for those members.
+func (d *GroupEntryDecoder) Decode(e int, sink IndexedReusableRecord) error {
+	if e < 0 || e >= d.count {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			"group entry out of range",
+			map[string]any{"group": d.g, "entry": e})
+	}
+	typed, _ := sink.(TypedSetRecord)
+	entry := d.s.Groups[d.g].Entries[e*d.width : (e+1)*d.width]
+	for i := range d.members {
+		m := &d.members[i]
+		if d.bmOff >= 0 && m.nullable && BitmapIsNull(entry[d.bmOff:], d.slots[i]) {
+			sink.SetNullFieldAt(m.fi)
+			sink.SetNumericAt(m.fi, 0)
+			continue
+		}
+		if err := writeFieldBytes(sink, typed, m.field, m.fi, entry[m.off:m.off+m.w]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // groupedRowSizes returns the physical body size (indices + row fields),
 // the narrowed bitmap size and whether any row field is nullable.
 func (s *Schema) groupedRowSizes() (body, bm int, hasBM bool) {
