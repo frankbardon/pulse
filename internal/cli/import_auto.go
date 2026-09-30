@@ -39,7 +39,7 @@ func importAutoCmd() *cli.Command {
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name (ignored for non-Excel)"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage + " (ignored for non-SPSS)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing managed handle"},
-			&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group, as on `import <format> --group`: KEY[,KEY...]:MEMBER[,MEMBER...] or MEMBER[,MEMBER...]. Repeatable, one group per flag; judged at the default ratio floor, findings reported as warnings (writes format 0x02)"},
+			&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group, as on 'import <format> --group': KEY[,KEY...]:MEMBER[,MEMBER...] or MEMBER[,MEMBER...]. Repeatable, one group per flag; judged at the default ratio floor, findings reported as warnings (writes format 0x02)"},
 			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

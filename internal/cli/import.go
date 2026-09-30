@@ -224,10 +224,10 @@ func importPredictCmd() *cli.Command {
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "suggest-groups", Usage: "Detect candidate parent groups (a key and the fields it determines) and measure each over every row: ratio, resident dictionary bytes, projected file size and a ready-to-paste --group value. Suggests only; nothing is declared"},
-			&cli.StringSliceFlag{Name: "group", Usage: "Evaluate a parent-group declaration exactly as `import <format> --group` would apply it (same syntax, repeatable): its verdict and measured figures, or the error the import would fail with"},
-			&cli.BoolFlag{Name: "elide-constants", Usage: "Report the fields `import <format> --elide-constants` would elide and the bytes saved"},
+			&cli.StringSliceFlag{Name: "group", Usage: "Evaluate a parent-group declaration exactly as 'import <format> --group' would apply it (same syntax, repeatable): its verdict and measured figures, or the error the import would fail with"},
+			&cli.BoolFlag{Name: "elide-constants", Usage: "Report the fields 'import <format> --elide-constants' would elide and the bytes saved"},
 			&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encoding.DefaultDedupRatioFloor, Usage: "Ratio floor the --group and --suggest-groups verdicts are judged against"},
-			&cli.BoolFlag{Name: "strict", Usage: "Fail as `import <format> --strict` would when a --group draws a viability warning"},
+			&cli.BoolFlag{Name: "strict", Usage: "Fail as 'import <format> --strict' would when a --group draws a viability warning"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
