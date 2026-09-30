@@ -186,10 +186,9 @@ func (c *rollingCarrier) rollingMean() float64 {
 func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 	if len(spec.Params) == 0 {
 		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" requires Params[\"window\"] (positive integer); Params is missing or empty",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"kind":  string(spec.Kind),
 				"param": "window",
 			})
@@ -197,10 +196,9 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 	var m map[string]any
 	if err := json.Unmarshal(spec.Params, &m); err != nil {
 		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"window\"",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"kind":  string(spec.Kind),
 				"param": "window",
 			})
@@ -208,10 +206,9 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 	raw, present := m["window"]
 	if !present {
 		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" requires Params[\"window\"] (positive integer)",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"kind":  string(spec.Kind),
 				"param": "window",
 			})
@@ -223,10 +220,9 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 		// canonical "value out of valid range" code; reusing it keeps
 		// the error code surface narrow.
 		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 			"overlay "+string(spec.Kind)+" Params[\"window\"] must be a positive integer",
 			map[string]any{
-				"code":   string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"kind":   string(spec.Kind),
 				"param":  "window",
 				"window": raw,
@@ -234,10 +230,9 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 	}
 	if window <= 0 {
 		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 			"overlay "+string(spec.Kind)+" Params[\"window\"] must be > 0",
 			map[string]any{
-				"code":   string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"kind":   string(spec.Kind),
 				"param":  "window",
 				"window": window,
@@ -311,10 +306,9 @@ func coerceIntegralNumber(v any) (int, bool) {
 func applyIndexVsRollingMean(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil SeriesHostView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}

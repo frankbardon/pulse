@@ -31,8 +31,8 @@ import (
 //
 // Discrete arm only: χ² goodness-of-fit requires categorical buckets to
 // form the observed × expected contingency. A numeric host (no discrete
-// payload) emits a coded PROCESSING_INTERNAL error carrying
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — the validator rejects
+// payload) emits a coded PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// error — the validator rejects
 // numeric hosts at predict time so this runtime arm is defense in
 // depth.
 //
@@ -83,8 +83,9 @@ import (
 // expected count is below 5.
 //
 // Defense in depth: nil spec / host / pop fail closed with a coded
-// PROCESSING_INTERNAL error carrying PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-// in the Details map — mirrors the INDEX_VS_POP / ZSCORE_VS_POP guard.
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE error — the code IS the
+// CodedError's own Code; a nil spec is a caller bug with no user-facing
+// code and stays PROCESSING_INTERNAL. Mirrors the INDEX_VS_POP / ZSCORE_VS_POP guard.
 // Numeric host (no discrete payload) fails with the same code — the
 // per-kind validator rejects numeric hosts at predict time; this
 // runtime arm is defense in depth.
@@ -96,19 +97,17 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 	}
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil FacetField host",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
 	if pop == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil FacetPopulationView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -119,10 +118,9 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 	// validator would emit.
 	if host.Kind != "discrete" || host.Discrete == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a discrete FacetField host (χ² goodness-of-fit needs categorical buckets)",
 			map[string]any{
-				"code":      string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind":      string(spec.Kind),
 				"host_kind": host.Kind,
 			})

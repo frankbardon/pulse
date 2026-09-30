@@ -64,7 +64,7 @@ func requireSchemaDivergent(t *testing.T, err error, wantReference, wantTargetLa
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
 	}
 	if got, _ := coded.Details["reference"].(string); got != wantReference {
@@ -93,7 +93,7 @@ func requireSlotShapeDivergent(t *testing.T, err error, wantReference, wantTarge
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT)
 	}
 	if got, _ := coded.Details["reference"].(string); got != wantReference {
@@ -272,7 +272,7 @@ func TestValidateOverlay_SlotNotCrosstab_MatrixRequiredKindAgainstSeriesTarget(t
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB)
 	}
 	if got, _ := coded.Details["kind"].(string); got != string(types.OverlayKindTCell) {
@@ -656,7 +656,7 @@ func TestValidateOverlay_SchemaDivergent_TripleVsScalar(t *testing.T) {
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
 	}
 	if got, _ := coded.Details["reference_cell_shape"].(string); got != "welford_triple" {
@@ -705,7 +705,7 @@ func TestValidateOverlay_SchemaDivergent_ScalarVsTriple(t *testing.T) {
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
 	}
 	if got, _ := coded.Details["reference_cell_shape"].(string); got != "scalar" {
@@ -741,7 +741,7 @@ func TestValidateOverlay_SchemaDivergent_TripleVsForeignStruct(t *testing.T) {
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
 	}
 	if got, _ := coded.Details["reference_cell_shape"].(string); got != "welford_triple" {

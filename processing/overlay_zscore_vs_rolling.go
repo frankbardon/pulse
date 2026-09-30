@@ -160,10 +160,9 @@ func (c *rollingCarrier) rollingSampleSD() float64 {
 func applyZScoreVsRolling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil SeriesHostView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}

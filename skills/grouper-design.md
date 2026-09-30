@@ -49,7 +49,7 @@ Supported by `GROUP_CATEGORY` (label string), `GROUP_SET_VALUE` (pipe-joined com
 The fused path computes a row × column matrix in-decode (~30–47% faster; peak heap 8.8–20.8× lower than buffered across 25k→400k rows — quote peak heap, never `B/op`). Gate: `processing.CanFuseCrosstab(req, schema, ext)`. Activates when the cell aggregator is mergeable + non-recompute AND every row/column grouper implements EITHER per-record keying interface.
 
 - `StreamableGrouper.KeyFor` (one bucket per record): `GROUP_CATEGORY`, `GROUP_RANGE`, `GROUP_ROUNDED`, `GROUP_DATE`, `GROUP_SET_VALUE`.
-- `MultiKeyStreamingGrouper.KeysForRow` (N buckets per record): `GROUP_SET_PER_ELEMENT` — fusable at ANY axis position, on either or both axes, several per axis. Axis keys are the cartesian product of each position's key set; each accumulator updates once per distinct key at its own depth.
+- `MultiKeyStreamingGrouper.KeysForRow` (N buckets per record, `GroupType.FansOut()` true): `GROUP_SET_PER_ELEMENT` — fusable at ANY axis position, on either or both axes, several per axis. Axis keys are the cartesian product of each position's key set; each accumulator updates once per distinct key at its own depth.
 - Neither: `GROUP_QUANTILE` (needs a finalize-time sorted view) — the only grouper that forces buffered.
 
 `Request.Overlays` does NOT force buffered — the fused exit folds layers through the same hook the buffered exit uses (`crosstab-guide`, `overlay-system`).

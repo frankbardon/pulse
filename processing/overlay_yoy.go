@@ -121,10 +121,9 @@ var yoySupportedFrequencies = []string{
 func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil SeriesHostView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -136,10 +135,9 @@ func applyYoY(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer
 	if kinds := host.GrouperKinds(); len(kinds) > 0 {
 		if kinds[0] != types.GROUP_DATE {
 			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 				"overlay "+string(spec.Kind)+" requires a SERIES host whose first grouper is GROUP_DATE; got "+string(kinds[0]),
 				map[string]any{
-					"code":         string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 					"kind":         string(spec.Kind),
 					"host_grouper": string(kinds[0]),
 					"required":     string(types.GROUP_DATE),
@@ -304,20 +302,18 @@ func extractYoYFrequency(spec *types.OverlaySpec) (string, error) {
 	frequency, present := readYoYFrequencyFromParams(spec.Params)
 	if !present {
 		return "", errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
 			"overlay "+string(spec.Kind)+" requires Params[\"frequency\"] (one of: annual | quarterly | monthly | weekly | daily | hourly); not found on OverlaySpec.Params or host GROUP_DATE.Params",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING),
 				"kind":  string(spec.Kind),
 				"param": "frequency",
 			})
 	}
 	if !isYoYSupportedFrequency(frequency) {
 		return "", errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
 			"overlay "+string(spec.Kind)+" Params[\"frequency\"] value is not in the supported set (annual | quarterly | monthly | weekly | daily | hourly): "+frequency,
 			map[string]any{
-				"code":      string(errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY),
 				"kind":      string(spec.Kind),
 				"frequency": frequency,
 				"supported": append([]string(nil), yoySupportedFrequencies...),

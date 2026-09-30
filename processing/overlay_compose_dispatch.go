@@ -196,6 +196,30 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 // inherits the reference slot's host shape. The stub emits no
 // warnings and no per-coordinate values.
 func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	return ApplyComposeOverlaysWithRequests(specs, responses, labels, nil, nil)
+}
+
+// ApplyComposeOverlaysWithRequests is ApplyComposeOverlays with the
+// AUTHORED per-slot requests and the embedder's extension registry in
+// reach. `requests` parallels `responses` (ComposedRequest.Requests
+// order, nil holes tolerated); both extra arguments may be nil.
+//
+// It exists because one COMPOSE-host gate cannot be answered from
+// responses alone. The panel's within-prefix slab gate turns on the
+// declared GROUPER TYPE of each slot's Crosstab.Rows, and a
+// materialised MatrixPayload records its row KEYS but never the
+// grouper that produced them — so a fan-out row axis is invisible
+// downstream of execution. See overlay_compose_partition.go.
+//
+// Additive rather than a signature change on ApplyComposeOverlays:
+// that entry point shipped, and an embedder driving the fold by hand
+// keeps working. The cost of the nil-requests call is that the panel
+// slab gate cannot run — the same documented bypass
+// ApplyOverlaysWithExtensions carries, and for the same reason. The
+// service-side fold (service.(*Service).applyComposeOverlays) calls
+// THIS entry point, so every request that reaches Pulse through
+// pulse.Compose / pulse.ComposeParallel is gated.
+func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string, requests []*types.Request, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -223,10 +247,9 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		refIdx := byIndex[spec.Reference]
 		if len(spec.Targets) == 0 {
 			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_TARGET_UNKNOWN,
 				"compose overlay spec must declare at least one target slot label",
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_TARGET_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 					"which": "targets",
@@ -241,6 +264,23 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 			}
 			targetIdxs = append(targetIdxs, byIndex[label])
 			targetResps = append(targetResps, tResp)
+		}
+		// Panel within-prefix slab partition gate — the RUNTIME twin
+		// of descriptor.validateOverlayPanel's arm, under the same
+		// code and the same words. It runs here, at the dispatcher,
+		// because the offending fact is the authored row-axis GROUPER
+		// TYPE, which neither the handler signature nor any
+		// materialised *Response carries.
+		//
+		// Ordered to mirror the predict arm: after reference / target
+		// label resolution (Gate 1 + 2) and BEFORE the shape and
+		// schema walk (Gate 4), which is where predict's params gate
+		// sits. The gate declines whenever an earlier refusal is due
+		// — over-cap, undecodable params, unknown n_source — so the
+		// handler keeps ownership of those diagnostics and the cap
+		// keeps firing first.
+		if err := checkPanelSlabPartition(spec, i, refIdx, targetIdxs, requests, exts); err != nil {
+			return nil, nil, err
 		}
 		// Strict cross-Request key-set alignment. Runs AFTER reference
 		// + targets have resolved to concrete *Response objects but

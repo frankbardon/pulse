@@ -89,16 +89,16 @@ import (
 // Defense in depth: the descriptor validator rejects ref / scope
 // shape mismatches at predict time. The handler still defends against
 // a nil host (caller passed nil into ApplyOverlaysSeries) by returning
-// a coded PROCESSING_INTERNAL error — that branch is unreachable in
+// a coded PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE error — that branch
+// is unreachable in
 // practice because ApplyOverlaysSeries short-circuits empty specs
 // before dispatch, but the defense is cheap.
 func applyIndexVsTotal(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil SeriesHostView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}

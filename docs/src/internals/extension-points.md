@@ -157,6 +157,19 @@ additionally carry `ComponentSchema` + `ComponentsFunc` on the same
 contract as `AggregatorRegistration`. Filterers are always row-local
 streamable; windows always run buffered.
 
+`GrouperRegistration` additionally carries `FansOut bool` — the
+embedder-side sibling of `types.GroupType.FansOut()`, which knows
+built-in constants only. Set it `true` when the factory returns a
+value that also implements `processing.MultiKeyStreamingGrouper`
+(`KeysForRow`), i.e. when one record can land in more than one bucket.
+Consumers that reason about per-record denominators need the fact:
+under a fan-out grouper the bucket counts SUM to more than the record
+total, so an `n` taken from a slab total double-counts records. The
+probe verifies the claim in BOTH directions
+(`PULSE_EXTENSION_FANOUT_MISMATCH`), and omitting the field defaults it
+to `false` — so a multi-key factory is refused rather than silently
+admitted as single-key.
+
 ### Test (tier-1 / tier-2)
 
 ```go
@@ -442,7 +455,9 @@ flowchart TD
     C -->|panic / nil return| F1[PULSE_EXTENSION_FACTORY_PANIC]
     C --> D{Streamable declared?}
     D -->|yes, interface missing| F2[PULSE_EXTENSION_STREAMABLE_MISMATCH]
-    D -->|no, or interface satisfied| E{Components contract?}
+    D -->|no, or interface satisfied| D2{Grouper FansOut matches MultiKeyStreamingGrouper?}
+    D2 -->|either direction disagrees| F5[PULSE_EXTENSION_FANOUT_MISMATCH]
+    D2 -->|agrees, or not a grouper| E{Components contract?}
     E -->|emitter, no schema| F3[PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA]
     E -->|emitter, key divergence| F4[PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH]
     E -->|all clear| G[snapshot + runtime overlay]
@@ -455,8 +470,12 @@ carrying only the operator `Name`. The probe never feeds real records.
 Factory panics or nil returns surface as
 `PULSE_EXTENSION_FACTORY_PANIC`. Streamability declarations that do
 not match the returned interface surface as
-`PULSE_EXTENSION_STREAMABLE_MISMATCH`. The components-contract failures
-are listed in the table above.
+`PULSE_EXTENSION_STREAMABLE_MISMATCH`. A grouper whose `FansOut`
+declaration disagrees with whether its factory returns
+`processing.MultiKeyStreamingGrouper` — in EITHER direction — surfaces
+as `PULSE_EXTENSION_FANOUT_MISMATCH`; a factory panic is caught first,
+so a panicking factory never reports a fan-out mismatch. The
+components-contract failures are listed in the table above.
 
 ## Manifest visibility and the extensions snapshot
 
@@ -470,6 +489,9 @@ are listed in the table above.
   "extensions": {
     "aggregators": [
       {"name": "AGG_ACME_BRAND_SCORE", "namespace": "ACME", "streamable": true, "...": "..."}
+    ],
+    "groupers": [
+      {"name": "GROUP_ACME_PANEL", "namespace": "ACME", "streamable": true, "fans_out": true}
     ],
     "expr_functions": [
       {"name": "rank_familiarity", "signature": "rank_familiarity(value float64, total_pop bool) float64"}
@@ -495,6 +517,52 @@ LLM agents that call `pulse_manifest` see both the built-in set and
 the embedder additions in one fetch. The schema-bound MCP tools (after
 `pulse_inspect`) also include custom operator names in their enum
 lists.
+
+### The snapshot carries `fans_out`
+
+`descriptor.OperatorMeta` carries `FansOut bool`
+(`json:"fans_out,omitempty"`) alongside `Streamable`, and
+`buildExtensionsSnapshot` fills it from
+`GrouperRegistration.FansOut`. It is grouper-only and omitted
+everywhere else; absent reads as `false`, which is also the
+registration default.
+
+This is not cosmetic manifest detail — it is the only route the fact
+has into the no-execute layer. `descriptor/` may not import
+`processing/` (`TestPredictNoExecutionImports`), so predict cannot
+assert `MultiKeyStreamingGrouper` on a constructed grouper the way the
+probe does. Without the projection, a predict-time rule that reasons
+about per-record denominators sees every extension grouper as
+single-key.
+
+The consumer today is the distinct-key slab partition gate on the
+`OVERLAY_PAIRWISE_*` family (`params.n_source = "n_within_distinct"`),
+which refuses a pair axis whose summed-across dims include a fan-out
+grouper, because summing per-cell DISTINCT counts over cells that do
+not partition the key set over-states `n`. Both arms of that gate
+resolve a grouper the same way:
+
+1. a built-in constant answers from `types.GroupType.FansOut()`;
+2. anything else asks the extension side — the snapshot at predict
+   (`ExtensionsSnapshot.GrouperFanOut`), the live registry at runtime
+   (`processing.ExtensionRegistry.GrouperFanOut`, fed by
+   `ExtensionRegistry.FansOut`);
+3. a name in NEITHER passes. It cannot execute — the runtime refuses
+   to build an unknown group type — so no wrong number can come of it,
+   and refusing here would bury the accurate unknown-operator error
+   under a partition diagnostic about a grouper that does not exist.
+
+Two sources, one order: `types.CheckPairwiseSlabPartitionWith` owns
+steps 1–3 and each arm supplies only its own step-2 resolver, so
+predict and runtime cannot drift on the same request. The
+`ExtensionRegistry.FansOut` map holds an entry for every registered
+grouper including the `false` ones, so a missing key means
+"registered nowhere" rather than "declared single-key".
+
+Because the probe already verified the declaration against the factory
+at `pulse.New` (`PULSE_EXTENSION_FANOUT_MISMATCH`), both arms trust it
+without reconstructing the grouper — which matters for the runtime
+arm, whose overlay hook has no schema in reach.
 
 ## FieldInputs hook (buffered-projection introspection)
 
@@ -671,6 +739,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
+| `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `processing.MultiKeyStreamingGrouper`, either direction |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |

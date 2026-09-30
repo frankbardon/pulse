@@ -122,10 +122,9 @@ func (p *Pulse) ApplySeriesOverlays(ctx context.Context, req *SeriesOverlayReque
 	for i := range req.Overlays {
 		if req.Overlays[i].Scope != types.OverlayScopeGroup {
 			return nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
 				"overlay "+string(req.Overlays[i].Kind)+" on a caller-materialised series requires scope group",
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 					"index": i,
 					"kind":  string(req.Overlays[i].Kind),
 					"scope": string(req.Overlays[i].Scope),

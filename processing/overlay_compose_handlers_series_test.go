@@ -501,7 +501,7 @@ func TestApplyTVsRef_MixedShapeRejected(t *testing.T) {
 	if !ok {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
 		t.Errorf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
 	}
 }

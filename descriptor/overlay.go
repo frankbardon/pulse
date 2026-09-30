@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -55,12 +56,14 @@ var pairwiseSupportedScopes = map[types.OverlayScope]bool{
 // validateOverlayPairwise validates the shared contract for every
 // OVERLAY_PAIRWISE_* kind: implicit-margin (empty Ref), MATRIX host,
 // ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
-// p_source modes, non-negative pair_along_dim / n_within_depth). The
+// p_source modes, non-negative pair_along_dim / n_within_depth) — plus the
+// per-kind rule that the two Welford-input kinds accept NEITHER mode
+// selector, because both legs come from the triple. The
 // per-cell components requirement (PULSE_OVERLAY_COMPONENTS_REQUIRED) and
 // the Welford-shape requirement are runtime conditions — they depend on
 // the materialised host, not the request shape, so the handler raises
 // them, not predict.
-func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	// Ref must be empty — the pairwise test compares two slots of the
 	// host matrix inline; no external reference family applies.
 	if spec.Ref.Margin != nil ||
@@ -99,6 +102,62 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 			map[string]any{"index": index, "kind": string(spec.Kind)})
 		return
 	}
+	// Welford-input inertness. OVERLAY_PAIRWISE_WELCH_T and
+	// OVERLAY_PAIRWISE_TWO_MEANS_Z read the mean, the variance AND the
+	// n out of the AGG_WELFORD triple, so neither mode selector ever
+	// reaches the math: setting one changed nothing while the caller
+	// believed they had moved the n leg or the proportion leg. Refused
+	// rather than ignored.
+	//
+	// Deliberately NOT scoped to the distinct-key modes. If the
+	// selector is meaningless on these kinds it is meaningless for
+	// every mode, and refusing three of nine would leave a rule nobody
+	// can state. This is a behaviour break: a request naming any
+	// n_source / p_source on a Welford kind predicted clean before and
+	// refuses now.
+	//
+	// Runs BEFORE the known-mode checks on purpose — "unknown n_source"
+	// would tell the caller a known one would work, and none would.
+	//
+	// n_within_depth is deliberately excluded. It is equally inert
+	// here, but only BECAUSE n_source is: a non-zero depth without a
+	// slab n_source is just as inert on the proportion kinds, so a
+	// Welford-only refusal would be the incoherence this gate avoids.
+	// It is also a plain int whose zero value is meaningful, so
+	// "was it set?" is not observable after decode.
+	//
+	// Predict-only, by decision. Unlike the slab partition gate below,
+	// no wrong NUMBER can come of this — the param is inert, so the
+	// p-values are correct either way and a runtime twin would convert
+	// a currently-succeeding pulse.Process into a hard failure for no
+	// correctness gain. The runtime arm keeps only the distinct-key
+	// cell-aggregator admission in processing.runPairwiseOverlay, whose
+	// three modes are new in this release and can break no existing
+	// caller.
+	if types.PairwiseKindUsesWelford(spec.Kind) {
+		const welfordReason = "n, mean and variance all come from the AGG_WELFORD triple {mean, variance, n}, so the mode selector is inert on this kind"
+		refused := false
+		if params.NSource != "" {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+welfordReason+
+					". Remove n_source, or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a proportion and a separate n leg",
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
+					"n_source": params.NSource, "reason": welfordReason})
+			refused = true
+		}
+		if params.PSource != "" {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" does not accept p_source ("+params.PSource+"): "+welfordReason+
+					". Remove p_source, or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which derive a proportion leg",
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
+					"p_source": params.PSource, "reason": welfordReason})
+			refused = true
+		}
+		if refused {
+			return
+		}
+	}
+
 	if !types.ValidPairwiseNSource(params.NSource) {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" has unknown n_source: "+params.NSource,
@@ -121,7 +180,151 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" n_within_depth must be >= 0",
 			map[string]any{"index": index, "kind": string(spec.Kind), "n_within_depth": params.NWithinDepth})
+		return
 	}
+
+	// Distinct-key slab partition gate. A distinct cardinality summed
+	// across cells equals the slab's true distinct count only when
+	// those cells partition the key set; a fan-out grouper among the
+	// summed-across pair-axis dims breaks that and inflates n silently.
+	// Static property of the request shape, so predict can refuse it
+	// without reading a record — but predict alone does not stop
+	// pulse.Process, so processing.applyOverlaysToResponse carries the
+	// runtime twin under the same code.
+	//
+	// opts carries the extensions snapshot, which is how an
+	// embedder-registered fan-out grouper reaches this arm: descriptor/
+	// may not import processing/ and so cannot assert
+	// MultiKeyStreamingGrouper itself. The runtime twin reads the live
+	// registry instead; both hand their resolver to the SAME
+	// types-side predicate, which tries the built-in constant first.
+	if v, bad := types.CheckPairwiseSlabPartitionWith(req.Crosstab, spec.Scope, params,
+		snapshotGroupFanOut(extensionsFromOpts(opts))); bad {
+		env.AddError(string(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED),
+			v.Message(spec.Kind, params),
+			v.Details(spec.Kind, params, index))
+	}
+}
+
+// validateOverlayPanel validates the params blob of the COMPOSE-host
+// OVERLAY_PROP_Z_PANEL, the multi-reference sibling of the
+// OVERLAY_PAIRWISE_* family. Malformed params fire
+// PULSE_OVERLAY_PARAM_MISSING with the same Details shape
+// validateOverlayPairwise emits, so one renderer branch handles both
+// families.
+//
+// Nothing else about the panel is checked here. The kind's structural
+// contract — reference / target slot resolution, MATRIX host on every
+// slot, axis-schema agreement and the MaxPanelTargets cap — is
+// COMPOSE-shaped and lives in validateComposeOverlaySpec
+// (descriptor/compose.go), which is also where this helper is called
+// from: ComposedRequest.Overlays is the only slot the panel can
+// actually execute out of.
+//
+// It is deliberately NOT wired into validateOverlaySpec's per-kind
+// switch. A panel spec on Request.Overlays is a WRONG-HOST spec, and
+// the honest diagnostic there names the host, not the params — the
+// FACET-host arm of that switch is the precedent. Predict is silent on
+// that shape today (the runtime refuses it with
+// PULSE_OVERLAY_KIND_UNKNOWN); closing that gap is its own change and
+// answering it with a params error would point at the wrong fix.
+//
+// Params carrier note: the raw slot differs per host —
+// OverlaySpec.Params is json.RawMessage, ComposeOverlaySpec.Params is
+// map[string]any — so the caller does the decode with the matching
+// types.DecodePanelParams* entry point and hands the error here. Both
+// entry points funnel into one decoder, so the two hosts cannot
+// disagree about what a params blob means.
+func validateOverlayPanel(env *Envelope, kind types.OverlayKind, params types.PanelOverlayParams, err error, index int, slots []types.PanelSlabPartitionSlot, resolveExt types.ExtensionGroupFanOutFunc) {
+	if err != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(kind)+" has malformed Params: "+err.Error(),
+			map[string]any{"index": index, "kind": string(kind)})
+		return
+	}
+
+	// Unknown n_source. Named rather than ignored: the panel accepts
+	// unknown params KEYS (forward compatibility against an older
+	// binary), but an unknown VALUE in a key it does know is a typo in
+	// configuration the caller believes is applied, and silently
+	// running the default would hand back the legacy number under the
+	// caller's impression that they had moved the n leg.
+	//
+	// The Details carry the offending value AND the valid set, because
+	// the whole set is two entries long and a renderer that can show it
+	// turns "unknown n_source" into a one-click fix.
+	if !types.ValidPanelNSource(params.NSource) {
+		valid := types.PanelNSources()
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(kind)+" has unknown n_source: "+params.NSource+
+				" (valid: "+strings.Join(valid, ", ")+")",
+			map[string]any{"index": index, "kind": string(kind),
+				"n_source": params.NSource, "valid_n_sources": valid})
+		return
+	}
+
+	// n_within_depth shape. Both checks are pure spec configuration —
+	// no host is reachable from here — so both are predict-safe and
+	// both carry a runtime twin in applyPropZPanel, because
+	// pulse.Compose does not run predict.
+	//
+	// Set alongside a mode that does not consume it, the depth is
+	// INERT, and an inert param the caller believes is applied is the
+	// silent no-op this family refuses. The panel can make that
+	// refusal only because PanelOverlayParams.NWithinDepth is a *int:
+	// "written" is distinguishable from "zero", so the check cannot
+	// misfire on a caller who never named the key. (The axis-pairing
+	// family's plain int cannot make that distinction, which is why
+	// its equivalent no-op is still open — this is not a fix for it.)
+	if params.NWithinDepth != nil && !types.PanelNSourceUsesWithinDepth(params.NSource) {
+		nSource := params.NSource
+		if nSource == "" {
+			nSource = types.PanelNSourceRowMarginValue
+		}
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(kind)+" n_within_depth is not read by n_source "+nSource+
+				" (it applies to "+strings.Join(types.PanelNSourcesUsingWithinDepth(), ", ")+" only)",
+			map[string]any{"index": index, "kind": string(kind),
+				"n_source": params.NSource, "n_within_depth": *params.NWithinDepth})
+		return
+	}
+	if params.NWithinDepth != nil && *params.NWithinDepth < 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(kind)+" n_within_depth must be >= 0",
+			map[string]any{"index": index, "kind": string(kind),
+				"n_source": params.NSource, "n_within_depth": *params.NWithinDepth})
+		return
+	}
+
+	// Within-prefix slab partition gate. An explicit n_within_depth
+	// turns the leg into a SUM ACROSS ROWS, and a summed slab equals
+	// the slab's true sample size only when its rows partition the key
+	// set — a fan-out grouper among the summed-across row-axis dims
+	// lands one record in two summed rows and n comes out too large,
+	// silently and liberally.
+	//
+	// Unlike the range guard below it, this IS predict-safe: the
+	// offending fact is the declared GROUPER TYPE on each slot's
+	// authored Crosstab.Rows, a static property of the request that
+	// needs no materialised axis. Predict alone does not stop
+	// pulse.Compose, so processing.checkPanelSlabPartition carries the
+	// runtime twin under the same code and the same words.
+	//
+	// resolveExt is how an embedder-registered fan-out grouper reaches
+	// this arm — descriptor/ may not import processing/ and so cannot
+	// assert MultiKeyStreamingGrouper itself.
+	if v, bad := types.CheckPanelSlabPartitionWith(slots, params, resolveExt); bad {
+		env.AddError(string(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED),
+			v.Message(kind, params),
+			v.Details(kind, params, index))
+		return
+	}
+
+	// The depth-vs-actual-row-axis-depth range guard is deliberately
+	// NOT here. It is per SLOT and needs each slot's materialised row
+	// keys, which a no-execute validator cannot see; the MATRIX arm
+	// draws the same line (descriptor checks `< 0`, buildPairwisePairs
+	// checks the range against the live host).
 }
 
 // chiSqColSupportedScopes is the supported scope set for
@@ -949,7 +1152,7 @@ func validateOverlaySpec(env *Envelope, req *types.Request, spec *types.OverlayS
 		types.OverlayKindPairwisePropZ,
 		types.OverlayKindPairwiseTwoMeansZ,
 		types.OverlayKindPairwiseWelchT:
-		validateOverlayPairwise(env, req, spec, index)
+		validateOverlayPairwise(env, req, spec, opts, index)
 	case types.OverlayKindFormula:
 		validateFormulaOverlay(env, req, spec, opts, index)
 	case types.OverlayKindIndexVsBaseline:
@@ -3138,5 +3341,20 @@ func validateOverlayTwoSampleStatParams(env *Envelope, spec *types.OverlaySpec, 
 					"param": key,
 				})
 		}
+	}
+}
+
+// snapshotGroupFanOut adapts the extensions snapshot to the types-side
+// extension-grouper resolver the pairwise slab-partition gate takes.
+// A nil snapshot yields a nil resolver, which the gate reads as "no
+// extension groupers registered" — the same thing the runtime arm does
+// for a nil ExtensionRegistry, so a host with no extensions has the two
+// arms agreeing by construction.
+func snapshotGroupFanOut(snap *ExtensionsSnapshot) types.ExtensionGroupFanOutFunc {
+	if snap == nil {
+		return nil
+	}
+	return func(t types.GroupType) (bool, bool) {
+		return snap.GrouperFanOut(string(t))
 	}
 }

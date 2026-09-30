@@ -31,15 +31,23 @@ type ExtensionsManifest struct {
 // (parsed from the registered name) and Mode (attribute-only) so
 // reviewers can group operators by source without re-parsing.
 type OperatorMeta struct {
-	Name        string              `json:"name"`
-	Namespace   string              `json:"namespace"`
-	Description string              `json:"description,omitempty"`
-	Streamable  bool                `json:"streamable"`
-	Accepts     []string            `json:"accepts,omitempty"`
-	Emits       string              `json:"emits,omitempty"`
-	Mode        string              `json:"mode,omitempty"`
-	Tier        string              `json:"tier,omitempty"`
-	Params      []OperatorParamMeta `json:"params,omitempty"`
+	Name        string `json:"name"`
+	Namespace   string `json:"namespace"`
+	Description string `json:"description,omitempty"`
+	Streamable  bool   `json:"streamable"`
+	// FansOut is the grouper-only projection of
+	// pulse.GrouperRegistration.FansOut — the embedder-side sibling of
+	// types.GroupType.FansOut(), which knows built-in constants only.
+	// True means one record can land in more than one bucket, so the
+	// bucket counts SUM to more than the record total. Omitted (and
+	// meaningless) for every other operator category; absent reads as
+	// false, which is also the registration default.
+	FansOut bool                `json:"fans_out,omitempty"`
+	Accepts []string            `json:"accepts,omitempty"`
+	Emits   string              `json:"emits,omitempty"`
+	Mode    string              `json:"mode,omitempty"`
+	Tier    string              `json:"tier,omitempty"`
+	Params  []OperatorParamMeta `json:"params,omitempty"`
 }
 
 // OperatorParamMeta is the manifest-friendly mirror of pulse.ParamMeta.
@@ -297,4 +305,28 @@ func snapshotHasName(metas []OperatorMeta, name string) bool {
 		}
 	}
 	return false
+}
+
+// GrouperFanOut reports the fan-out fact an embedder declared for the
+// grouper registered under name, and whether the snapshot carries such
+// a grouper at all. Nil-snapshot-safe: ok=false.
+//
+// This is the descriptor half of the bridge that keeps predict free of
+// service/ and processing/ imports (TestPredictNoExecutionImports).
+// The runtime half is processing.ExtensionRegistry.GrouperFanOut; both
+// feed types.CheckPairwiseSlabPartitionWith, which owns the built-in-
+// first resolution order so the two arms cannot drift.
+//
+// Takes a plain string rather than types.GroupType so the accessor
+// stays usable from the manifest side, where names are untyped.
+func (s *ExtensionsSnapshot) GrouperFanOut(name string) (fansOut bool, ok bool) {
+	if s == nil {
+		return false, false
+	}
+	for _, m := range s.Groupers {
+		if m.Name == name {
+			return m.FansOut, true
+		}
+	}
+	return false, false
 }

@@ -192,12 +192,9 @@ func assertBaselineIndexCodedError(t *testing.T, err error, wantBaselineIndex, w
 	if coded.Details == nil {
 		t.Fatalf("coded.Details is nil; want map carrying code + baseline_index + series_length")
 	}
-	codeRaw, ok := coded.Details["code"].(string)
-	if !ok {
-		t.Fatalf("coded.Details[code] = %v (%T); want string", coded.Details["code"], coded.Details["code"])
-	}
+	codeRaw := string(coded.Code)
 	if codeRaw != string(pulseerrors.PULSE_OVERLAY_REF_UNKNOWN) {
-		t.Fatalf("coded.Details[code] = %q; want %q",
+		t.Fatalf("coded.Code = %q; want %q",
 			codeRaw, pulseerrors.PULSE_OVERLAY_REF_UNKNOWN)
 	}
 	gotBI, ok := coded.Details["baseline_index"].(int)

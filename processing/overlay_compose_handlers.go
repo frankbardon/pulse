@@ -343,10 +343,9 @@ func applyIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		// practice. We surface a coded error so the failure mode stays
 		// observable.
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"overlay "+string(spec.Kind)+" requires MATRIX-shape or SERIES-shape slots for reference and target",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),
 				"ref_index":    refIdx,
 				"target_index": targetIdx,
@@ -455,10 +454,9 @@ func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	targetMx := readMatrix(target)
 	if refMx == nil || targetMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"overlay "+string(spec.Kind)+" requires MATRIX-shape or SERIES-shape slots for reference and target",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),
 				"ref_index":    refIdx,
 				"target_index": targetIdx,
@@ -576,10 +574,9 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 	targetMx := readMatrix(target)
 	if refMx == nil || targetMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"overlay "+string(spec.Kind)+" requires MATRIX-shape slots for reference and target",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),
 				"ref_index":    refIdx,
 				"target_index": targetIdx,
@@ -783,10 +780,9 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 	targetMx := readMatrix(target)
 	if refMx == nil || targetMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"overlay "+string(spec.Kind)+" requires MATRIX-shape slots for reference and target",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),
 				"ref_index":    refIdx,
 				"target_index": targetIdx,
@@ -859,10 +855,9 @@ func applyTCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 			// mismatched pair slips through.
 			if tHasTriple != rHasTriple {
 				return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_INTERNAL,
+					errors.PULSE_OVERLAY_SCHEMA_DIVERGENT,
 					"overlay "+string(spec.Kind)+" detected divergent cell shapes (triple vs scalar) at runtime",
 					map[string]any{
-						"code":         string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT),
 						"kind":         string(spec.Kind),
 						"ref_index":    refIdx,
 						"target_index": targetIdx,
@@ -969,10 +964,9 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	targetMx := readMatrix(target)
 	if refMx == nil || targetMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"overlay "+string(spec.Kind)+" requires MATRIX-shape slots for reference and target",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),
 				"ref_index":    refIdx,
 				"target_index": targetIdx,
@@ -1126,10 +1120,9 @@ func applyRank(spec *types.ComposeOverlaySpec, reference *types.Response, target
 	targetMx := readMatrix(target)
 	if targetMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"overlay "+string(spec.Kind)+" requires a MATRIX-shape target slot",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),
 				"target_index": targetIdx,
 			})

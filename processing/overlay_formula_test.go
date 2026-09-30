@@ -88,7 +88,7 @@ func requireFormulaCoded(t *testing.T, err error, wantCarrierCode errors.Code) *
 	if coded.Details == nil {
 		t.Fatalf("CodedError.Details nil; want %q under Details[\"code\"]", wantCarrierCode)
 	}
-	got, _ := coded.Details["code"].(string)
+	got := string(coded.Code)
 	if got != string(wantCarrierCode) {
 		t.Fatalf("Details[\"code\"] = %q, want %q", got, wantCarrierCode)
 	}

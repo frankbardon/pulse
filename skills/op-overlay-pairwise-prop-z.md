@@ -13,7 +13,7 @@ One host-matrix slot against another ALONG one axis of the SAME crosstab — the
 
 ## Params
 
-`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix — leave empty. Any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one. Unset = every pair. `params.n_source` (enum, default `cell_n_unweighted`) — `cell_n_unweighted` / `cell_value_weighted` / `row_margin_n` / `column_margin_n` / `n_within` / `cell_weight_sum`. `params.n_within_depth` (int, default `0`) — with `n_source=n_within`, fixes the first depth+1 pair-axis dims in the denominator (mirrors `CrosstabSpec.NormalizeWithin`). `params.p_source` (enum, default `cell_value_pct`) — `cell_value_pct` (0..100, ÷100) or `cell_value` (already 0..1).
+`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix; any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. `params.n_source` (default `cell_n_unweighted`), `params.n_within_depth` (default `0`) and `params.p_source` (default `cell_value_pct`) are the family-wide vocabulary — nine sample-size modes, three of them distinct-KEY: `pairwise-n-sources`.
 
 ## Host shape
 
@@ -26,11 +26,12 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 ## Gotchas
 
 - Reuses `twoProportionZ` — byte-for-byte equal to `OVERLAY_PROP_Z_CELL` / `TEST_PROP_Z` on the same (success, n).
-- RAW p-values only — direction, thresholds and min-n flags are the embedder's job; every input is already on the response.
+- RAW p-values only — direction, thresholds and min-n flags are the embedder's job.
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.
 - **`p_source` mismatch fails silently and totally.** `cell_value` over a real 0..100 percentage drives pooled p outside `[0,1]`, so EVERY pair skips and the layer returns empty.
+- **The three distinct-KEY n modes are admitted only on an `AGG_DISTINCT_SUM` or `AGG_DISTINCT_COUNT` cell** — `AGG_FREQUENCY` / `AGG_MODE` spell a `distinct_count` too, but theirs counts answer codes. `n_within_distinct` additionally refuses a fan-out grouper at a summed-across depth (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, predict AND runtime); the margin modes are exact by construction and never gated. Null rules and the direct-caller bypass: `pairwise-n-sources`.
 - Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (`AGG_WEIGHTED_MEAN`, including over a `GROUP_SET_PER_ELEMENT` axis).
 
 ## See
 
-- Skills: `overlay-system`, `crosstab-guide`, `op-overlay-pairwise-probit-t`, `op-overlay-prop-z-cell`, `op-test-prop-z`.
+- Skills: `overlay-system`, `pairwise-n-sources`, `crosstab-guide`, `op-overlay-pairwise-probit-t`, `op-overlay-prop-z-cell`, `op-test-prop-z`.

@@ -156,9 +156,19 @@ func pairwiseDescription(test string) string {
 		"index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other " +
 		"axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test " +
 		"degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts " +
-		"pairs to same-bucket comparisons; n_source selects the sample-size leg (cell n / margins / n_within / " +
-		"weight sum); n_within_depth pins the within-group denominator; p_source picks percentage vs proportion " +
-		"cell values. Reads Response.Components.Crosstab — a components-disabled host fires " +
+		"pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), " +
+		"cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY " +
+		"modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell " +
+		"aggregator's distinct-key cardinality instead of a record count and are admitted only on an " +
+		"AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell " +
+		"aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY " +
+		"and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the " +
+		"within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion " +
+		"cell values. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must " +
+		"PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires " +
+		"PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / " +
+		"column_margin_distinct accumulate over raw records and are exact by construction, never gated. " +
+		"Reads Response.Components.Crosstab — a components-disabled host fires " +
 		"PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are " +
 		"the embedder's presentation concern. Buffered (inferential)."
 }
@@ -530,7 +540,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
-			Description: pairwiseDescription("two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"),
+			Description: pairwiseDescription("two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
 		}
 	case types.OverlayKindPairwiseWelchT:
 		return OverlayCapability{
@@ -538,7 +548,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
-			Description: pairwiseDescription("Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"),
+			Description: pairwiseDescription("Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
 		}
 	case types.OverlayKindFormula:
 		return OverlayCapability{
@@ -1107,8 +1117,70 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Options.MaxPanelTargets is the per-request override surface. Degenerate inputs (pooled ∈ {0, 1}, missing row " +
 				"margin) produce NaN at the affected pair position with one PULSE_OVERLAY_REF_ZERO warning per (cell, pair) " +
 				"tuple. Cells where any slot is absent surface an empty per-cell vector with one PULSE_OVERLAY_REF_ZERO " +
-				"warning carrying ref_missing: true. Inherently buffered — inferential overlays stay buffered as a family " +
-				"per PRD §2 Non-Goals.",
+				"warning carrying ref_missing: true. Params: the slot decodes into types.PanelOverlayParams — absent params " +
+				"and {} are identical to the pre-params baseline, unknown keys are tolerated, and a blob that does not decode " +
+				"fires PULSE_OVERLAY_PARAM_MISSING at descriptor.ValidateCompose (ComposedRequest.Overlays is the only slot " +
+				"this kind executes from). n_source selects where each SLOT's sample-size leg is read, once per slot at the " +
+				"tested coordinate, before any pairing — \"row\" therefore names each slot's own axis, never a pair axis. Three " +
+				"modes: row_margin_value (the default; empty means this) reads the slot's row-margin VALUE off the " +
+				"MatrixPayload by row key and keeps the historical <= 0 fall back to the CELL VALUE; cell_n_unweighted reads " +
+				"the COUNTED universal-floor \"n\" out of Response.Components.Crosstab.CellComponents[r][c] on every slot, " +
+				"resolved BY KEY (slots share a key SET, not an ORDER), with NO cell-value fallback — an unreadable leg skips " +
+				"the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index; " +
+				"row_margin_value_within reads the SAME payload row margin as the default but scoped to a ROW-KEY PREFIX, " +
+				"and carries no fallback either; row_margin_distinct_within is that leg's DISTINCT-KEY sibling, reading the " +
+				"slot's row margin out of Response.Components.Crosstab.RowMarginComponents as the cell aggregator's " +
+				"distinct-KEY cardinality rather than off the payload — a different CARRIER, which is why it is not spelled " +
+				"row_margin_value_distinct_within, and the mode to use when one respondent contributes several records and n " +
+				"must be respondents rather than rows. It is admitted UP FRONT on every slot's CELL aggregator IDENTITY, by " +
+				"exact component-key-set match: AGG_DISTINCT_SUM (figure on distinct_count) and AGG_DISTINCT_COUNT (on " +
+				"cardinality) only. AGG_FREQUENCY and AGG_MODE also emit a key literally spelled distinct_count, but theirs " +
+				"counts distinct VALUES of the measure field — answer codes, not respondents — so a key-presence probe would " +
+				"read an answer-code count as a sample size; anything else fires " +
+				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE naming the observed aggregator, the admitted set and the offending " +
+				"panel_index / slot_index / slot_label. TWO refusals are WHOLESALE rather than per slot: one unadmitted slot " +
+				"refuses the whole spec, and slots that are each admitted but name DIFFERENT aggregators refuse too, because " +
+				"AGG_DISTINCT_SUM counts keys that summed while AGG_DISTINCT_COUNT counts distinct non-null values — not the " +
+				"same unit, and the two legs of a pair must never be counted in different units. Dropping a slot instead " +
+				"would change M and with it the length and pair ordering of every cell's output vector. Admission is RUNTIME " +
+				"only: it classifies from materialised components, which a no-execute validator cannot see. Its null rules " +
+				"are the MATRIX arm's verbatim — a margin that was never emitted SKIPS the coordinate with n_missing rather " +
+				"than reading as a zero-sized sample. It is spelled row_margin_value_within, NOT n_within: n_within belongs to " +
+				"the OVERLAY_PAIRWISE_* family, where it sums CellCounts over a PAIR-axis slab at ONE fixed opposite index, " +
+				"while this leg sums a slot's ROW margins across ALL columns — the two differ by roughly the column count " +
+				"and n_within is refused here like any other unknown mode. " +
+				"n_within_distinct is likewise the OVERLAY_PAIRWISE_* family's spelling and is NOT accepted here: that one " +
+				"sums per-CELL distinct cardinalities over a PAIR-axis slab at ONE fixed opposite index, while " +
+				"row_margin_distinct_within reads a slot's ROW margins across ALL columns. " +
+				"n_within_depth (*int) is read by the within-prefix modes alone (row_margin_value_within and " +
+				"row_margin_distinct_within, types.PanelNSourcesUsingWithinDepth()) — the pointer is load-bearing because " +
+				"depth 0 is a meaningful value: omitted means the EXACT per-slot row margin with no summing, while d sums " +
+				"that slot's row margins over every row agreeing on the first d+1 dim positions (axisKeyPrefixEqual, the " +
+				"same value-stringifying comparison the MATRIX arm's RowSlabN uses). A negative depth, or a depth set " +
+				"alongside a mode that does not read it, fires PULSE_OVERLAY_PARAM_MISSING on BOTH arms — an inert param " +
+				"the caller believes is applied is a silent no-op. A depth past a slot's row-axis dim count fires the same " +
+				"code at RUNTIME only, naming that slot: slots may declare DIFFERENT row-axis depths, and one out-of-range " +
+				"slot refuses the WHOLE spec rather than dropping out, because dropping it would change M and with it the " +
+				"length and pair ordering of every cell's output vector. An explicit depth makes the leg a SUM ACROSS ROWS, " +
+				"so the summed-across row-axis dims must PARTITION the key set: a fan-out grouper on ANY slot's row axis at " +
+				"a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED on BOTH arms for EITHER " +
+				"within-prefix mode (the gate keys off types.PanelNSourceUsesWithinDepth, not a narrower distinct-only " +
+				"predicate), naming the " +
+				"offender by panel_index, slot_index and slot_label, and one offending slot refuses the whole spec. A " +
+				"fan-out INSIDE the fixed prefix is accepted (it multiplies slabs, not cells), and an OMITTED depth is " +
+				"never gated because it sums nothing. Unlike the axis-pairing family, whose plain n_within is ungated " +
+				"because record counts are additive, the panel gates its margin leg too: a panel row margin is whatever " +
+				"that slot's cell aggregator emitted, so the host cannot claim additivity for it. The " +
+				"components requirement is MODE-SCOPED: only a counted mode gates, so the legacy default never starts " +
+				"refusing. A slot with components disabled, or whose response is not a crosstab, fires " +
+				"PULSE_OVERLAY_COMPONENTS_REQUIRED; an unresolved slot keeps the structural PULSE_OVERLAY_SLOT_NOT_CROSSTAB. " +
+				"row_margin_n is the OVERLAY_PAIRWISE_* family's mode name and is NOT accepted here, not even as an alias: " +
+				"that family reads CrosstabComponents.RowMarginCounts (a record COUNT) while this host reads a payload margin " +
+				"VALUE that a percentage normalization makes no count at all, so it is refused as an unknown mode. Any " +
+				"unknown n_source fires PULSE_OVERLAY_PARAM_MISSING naming the value and the valid set " +
+				"(types.PanelNSources()), on the predict arm AND the runtime twin, because pulse.Compose does not run " +
+				"predict. MaxPanelTargets is an Options knob, never a param, and its cap refusal fires before both params " +
+				"checks. Inherently buffered — inferential overlays stay buffered as a family per PRD §2 Non-Goals.",
 		}
 	case types.OverlayKindRank:
 		return OverlayCapability{

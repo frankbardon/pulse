@@ -634,10 +634,9 @@ func TestOverlay_FacetChisqVsPop_NumericHostRejected(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *CodedError, got %T", err)
 	}
-	if got, ok := coded.Details["code"].(string); !ok ||
-		got != string(pulseerrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
-		t.Errorf("Details[\"code\"] = %v, want %s",
-			coded.Details["code"], pulseerrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+		t.Errorf("err.Code = %v, want %s",
+			got, pulseerrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
 	}
 }
 
@@ -783,10 +782,9 @@ func TestOverlay_FacetKsVsPop_CategoricalHostRejected(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *CodedError, got %T", applyErr)
 	}
-	if got, ok := coded.Details["code"].(string); !ok ||
-		got != string(pulseerrors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
-		t.Errorf("Details[\"code\"] = %v, want %s",
-			coded.Details["code"], pulseerrors.PULSE_OVERLAY_SCOPE_UNSUPPORTED)
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
+		t.Errorf("err.Code = %v, want %s",
+			got, pulseerrors.PULSE_OVERLAY_SCOPE_UNSUPPORTED)
 	}
 }
 

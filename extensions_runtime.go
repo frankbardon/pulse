@@ -27,6 +27,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 
 	r := &processing.ExtensionRegistry{
 		Streamable:  make(map[string]bool),
+		FansOut:     make(map[types.GroupType]bool),
 		FieldInputs: make(map[string]processing.FieldInputsFunc),
 	}
 
@@ -109,6 +110,11 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		for _, reg := range ext.Groupers {
 			r.Groupers[reg.Name] = wrapGrouperFactory(reg)
 			r.Streamable[processing.StreamabilityKey("grouper", string(reg.Name))] = reg.Streamable
+			// Runtime half of the fan-out bridge. The predict half is
+			// the same fact on descriptor.ExtensionsSnapshot.Groupers;
+			// both are read through types.CheckPairwiseSlabPartitionWith
+			// so the two gate arms cannot diverge.
+			r.FansOut[reg.Name] = reg.FansOut
 			addFieldInputs("grouper", string(reg.Name), reg.FieldInputs)
 		}
 	}

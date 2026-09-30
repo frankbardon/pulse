@@ -304,6 +304,38 @@ func (t GroupType) Streamable() bool {
 	return false
 }
 
+// FansOut reports whether a single record can land in MORE THAN ONE
+// bucket of this group type. GROUP_SET_PER_ELEMENT is the only
+// built-in that does: a row whose set field selected N labels
+// contributes to N buckets, one per label. Every other grouper maps a
+// record to exactly one key (or skips it).
+//
+// The runtime expression of the same fact is the optional
+// processing.MultiKeyStreamingGrouper interface, asserted on a
+// constructed grouper. That assertion is unreachable from descriptor/
+// (TestPredictNoExecutionImports forbids importing processing/), so
+// the fact is declared here on the type and cross-checked against the
+// runtime interface by TestGrouperFanOutMatchesTypes in processing/.
+//
+// Consumers that reason about per-record denominators need this:
+// under a fan-out grouper the bucket counts SUM to more than the
+// record total, so an n taken from a slab total double-counts records.
+//
+// The default branch returns false so a newly-added group type must
+// opt in explicitly — and the processing/ parity gate fails if a new
+// grouper implements MultiKeyStreamingGrouper without flipping it.
+func (t GroupType) FansOut() bool {
+	switch t {
+	case GROUP_SET_PER_ELEMENT:
+		return true
+	case GROUP_CATEGORY, GROUP_DATE, GROUP_DATE_RANGES,
+		GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED,
+		GROUP_SET_VALUE:
+		return false
+	}
+	return false
+}
+
 // Streamable reports whether this window type can be computed without
 // buffering. All window operators run over the post-aggregate row set in
 // a final pass; none stream today.
@@ -358,4 +390,33 @@ func (t TestType) Streamable() bool {
 		return false
 	}
 	return false
+}
+
+// builtinGroupTypes is the membership set behind
+// ResolveBuiltinGroupFanOut. Derived once from AllGroupTypes() so a
+// newly-added built-in constant joins it without a second edit.
+var builtinGroupTypes = func() map[GroupType]bool {
+	all := AllGroupTypes()
+	m := make(map[GroupType]bool, len(all))
+	for _, g := range all {
+		m[g] = true
+	}
+	return m
+}()
+
+// ResolveBuiltinGroupFanOut answers the fan-out question for a
+// Pulse-shipped group type, and reports whether the name is one at
+// all. It exists because GroupType.FansOut() cannot distinguish "a
+// built-in that maps each record to one bucket" from "a name this
+// package has never heard of" — both read false, and a caller that
+// must fall through to an embedder registration needs the difference.
+//
+// known=false means the name is not in AllGroupTypes(); the caller
+// decides whether an extension registration answers it (see
+// CheckPairwiseSlabPartitionWith) and what an unregistered name means.
+func ResolveBuiltinGroupFanOut(t GroupType) (fansOut bool, known bool) {
+	if !builtinGroupTypes[t] {
+		return false, false
+	}
+	return t.FansOut(), true
 }

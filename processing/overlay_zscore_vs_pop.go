@@ -76,8 +76,9 @@ import (
 // to the discrete or numeric arm depending on the host's FacetField.Kind.
 //
 // Defense in depth: nil spec / host / pop fail closed with a coded
-// PROCESSING_INTERNAL error carrying PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-// in the Details map — mirrors the INDEX_VS_POP guard. An unknown host
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE error — the code IS the
+// CodedError's own Code; a nil spec is a caller bug with no user-facing
+// code and stays PROCESSING_INTERNAL. Mirrors the INDEX_VS_POP guard. An unknown host
 // kind emits an empty layer rather than failing the whole request (the
 // per-kind validator should have rejected the request at predict time).
 func applyZScoreVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) (types.OverlayLayer, []types.OverlayWarning, error) {
@@ -88,19 +89,17 @@ func applyZScoreVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Face
 	}
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil FacetField host",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
 	if pop == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil FacetPopulationView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}

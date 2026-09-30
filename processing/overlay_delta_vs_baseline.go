@@ -82,7 +82,7 @@ import (
 // Defense in depth: the descriptor validator rejects ref / scope shape
 // mismatches at predict time. The handler defends against a nil host
 // (caller passed nil into ApplyOverlaysSeries) by returning the resolver's
-// coded PROCESSING_INTERNAL error — that branch is unreachable in
+// coded PULSE_OVERLAY_* error — that branch is unreachable in
 // practice because ApplyOverlaysSeries short-circuits empty specs before
 // dispatch, but the defense matches the INDEX_VS_BASELINE / INDEX_VS_TOTAL
 // safety pattern.

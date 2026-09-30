@@ -92,16 +92,16 @@ import (
 // Defense in depth: the descriptor validator rejects ref / scope
 // shape mismatches at predict time. The handler still defends against
 // a nil host or empty `Sibling.{Field,Value}` (callers bypassing
-// predict) by returning a coded PROCESSING_INTERNAL error — that
+// predict) by returning a coded PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// error — that
 // branch is unreachable in practice but the defense is cheap and
 // matches the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES safety pattern.
 func applyDeltaVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil SeriesHostView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -110,10 +110,9 @@ func applyDeltaVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 		// predict time. A direct programmatic caller bypassing predict
 		// gets a coded error that surfaces the same failure mode.
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires Ref.Sibling.{Field,Value} both non-empty",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}

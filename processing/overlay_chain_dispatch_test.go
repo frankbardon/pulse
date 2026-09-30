@@ -216,12 +216,10 @@ func TestApplyChainOverlays_StageRefOutOfRange_CodedError(t *testing.T) {
 	if !ok {
 		t.Fatalf("err = %T, want *errors.CodedError", err)
 	}
-	if got, want := ce.Code, pulseerrors.PROCESSING_INTERNAL; got != want {
-		t.Errorf("err.Code = %q, want %q", got, want)
-	}
-	// Details carry the canonical Target-arm code + which arm fired.
-	if got := ce.Details["code"]; got != string(pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN) {
-		t.Errorf("Details.code = %v, want %q",
+	// The CodedError carries the canonical Target-arm code itself; the
+	// `which` Detail still names the arm that fired.
+	if got := string(ce.Code); got != string(pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN) {
+		t.Errorf("err.Code = %v, want %q",
 			got, pulseerrors.PULSE_OVERLAY_TARGET_UNKNOWN)
 	}
 	if got := ce.Details["which"]; got != "target" {
@@ -251,8 +249,8 @@ func TestApplyChainOverlays_StageRefUnknownName_CodedError(t *testing.T) {
 	if got := ce.Details["which"]; got != "ref" {
 		t.Errorf("Details.which = %v, want \"ref\"", got)
 	}
-	if got := ce.Details["code"]; got != string(pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN) {
-		t.Errorf("Details.code = %v, want %q",
+	if got := string(ce.Code); got != string(pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN) {
+		t.Errorf("err.Code = %v, want %q",
 			got, pulseerrors.PULSE_OVERLAY_REFERENCE_UNKNOWN)
 	}
 	if got := ce.Details["stage_name"]; got != "does_not_exist" {
@@ -262,7 +260,7 @@ func TestApplyChainOverlays_StageRefUnknownName_CodedError(t *testing.T) {
 
 // TestApplyChainOverlays_UnknownKind_CodedError asserts that a spec
 // naming an OverlayKind without a CHAIN-host handler entry fires the
-// PROCESSING_INTERNAL + PULSE_OVERLAY_KIND_UNKNOWN coded shape (same
+// PULSE_OVERLAY_KIND_UNKNOWN coded shape (same
 // envelope shape the MATRIX / SERIES / FACET dispatchers emit).
 func TestApplyChainOverlays_UnknownKind_CodedError(t *testing.T) {
 	stages := []*types.Response{chainStageOf(types.OverlayShapeSeries)}
@@ -286,11 +284,8 @@ func TestApplyChainOverlays_UnknownKind_CodedError(t *testing.T) {
 	if !ok {
 		t.Fatalf("err = %T, want *errors.CodedError", err)
 	}
-	if got, want := ce.Code, pulseerrors.PROCESSING_INTERNAL; got != want {
-		t.Errorf("err.Code = %q, want %q", got, want)
-	}
-	if got := ce.Details["code"]; got != string(pulseerrors.PULSE_OVERLAY_KIND_UNKNOWN) {
-		t.Errorf("Details.code = %v, want %q",
+	if got := string(ce.Code); got != string(pulseerrors.PULSE_OVERLAY_KIND_UNKNOWN) {
+		t.Errorf("err.Code = %v, want %q",
 			got, pulseerrors.PULSE_OVERLAY_KIND_UNKNOWN)
 	}
 	if got := ce.Details["host"]; got != "chain" {

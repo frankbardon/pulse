@@ -318,7 +318,7 @@ func TestOverlay_YoY_FrequencyMissingRejected(t *testing.T) {
 			if !ok {
 				t.Fatalf("err type = %T, want *errors.CodedError", err)
 			}
-			if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING); got != want {
+			if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING); got != want {
 				t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 			}
 			if got, want := coded.Details["param"], "frequency"; got != want {
@@ -347,7 +347,7 @@ func TestOverlay_YoY_FrequencyIncompatibleRejected(t *testing.T) {
 			if !ok {
 				t.Fatalf("err type = %T, want *errors.CodedError", err)
 			}
-			if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY); got != want {
+			if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY); got != want {
 				t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 			}
 			if got, want := coded.Details["frequency"], freq; got != want {
@@ -386,7 +386,7 @@ func TestOverlay_YoY_NonDateGrouperRejected(t *testing.T) {
 	if !ok {
 		t.Fatalf("err type = %T, want *errors.CodedError", err)
 	}
-	if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
+	if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
 		t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 	}
 	if got, want := coded.Details["host_grouper"], string(types.GROUP_CATEGORY); got != want {
@@ -480,7 +480,7 @@ func TestOverlay_YoY_NilHostReturnsCoded(t *testing.T) {
 	if !ok {
 		t.Fatalf("err type = %T, want *errors.CodedError", err)
 	}
-	if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
+	if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
 		t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 	}
 }
@@ -500,7 +500,7 @@ func TestOverlay_YoY_BufferedPath_RejectsNonDateHost(t *testing.T) {
 	if !ok {
 		t.Fatalf("err type = %T, want *errors.CodedError", err)
 	}
-	if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
+	if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
 		t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 	}
 }

@@ -82,8 +82,10 @@ import (
 // either arm).
 //
 // Defense in depth: nil spec / host / pop fail closed with a coded
-// PROCESSING_INTERNAL error carrying PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
-// in the Details map (mirrors INDEX_VS_POP / ZSCORE_VS_POP / CHISQ_VS_POP).
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE error — the code IS the
+// CodedError's own Code (mirrors INDEX_VS_POP / ZSCORE_VS_POP / CHISQ_VS_POP).
+// A nil spec is a caller bug with no user-facing code and stays
+// PROCESSING_INTERNAL.
 // Categorical host (no numeric payload) fails with
 // PULSE_OVERLAY_SCOPE_UNSUPPORTED — the per-kind validator rejects
 // categorical hosts at predict time; this runtime arm is defense in depth.
@@ -95,19 +97,17 @@ func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPop
 	}
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil FacetField host",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
 	if pop == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil FacetPopulationView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -119,10 +119,9 @@ func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPop
 	// distributions: no continuous CDF to compare).
 	if host.Kind != "numeric" || host.Numeric == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
 			"overlay "+string(spec.Kind)+" requires a numeric FacetField host (KS is undefined on categorical distributions)",
 			map[string]any{
-				"code":      string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 				"kind":      string(spec.Kind),
 				"host_kind": host.Kind,
 			})
@@ -139,10 +138,9 @@ func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPop
 		// to match the categorical-host rejection above (the population's
 		// numeric arm is structurally unavailable).
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
 			"overlay "+string(spec.Kind)+" requires a numeric FacetPopulationView (population arm has no numeric payload)",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED),
 				"kind": string(spec.Kind),
 			})
 	}

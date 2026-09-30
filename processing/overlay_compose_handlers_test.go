@@ -827,7 +827,7 @@ func TestApplyTCell_MixedShapeRejected(t *testing.T) {
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT) {
 		t.Errorf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SCHEMA_DIVERGENT)
 	}
 }
@@ -877,7 +877,7 @@ func TestApplyIndexVsRef_NonMatrixSlotErrors(t *testing.T) {
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB)
 	}
 }

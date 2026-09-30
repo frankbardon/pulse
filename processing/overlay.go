@@ -379,10 +379,9 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 		handler, ok := overlayHandlers[spec.Kind]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_KIND_UNKNOWN,
 				"overlay kind has no runtime handler: "+string(spec.Kind),
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 				})
@@ -440,10 +439,9 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, host *CrosstabHo
 		// margins inline).
 		if spec.Level != 0 || spec.Within != 0 {
 			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",
 				map[string]any{
-					"code":   string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 					"index":  specIndex,
 					"kind":   string(spec.Kind),
 					"level":  spec.Level,
@@ -460,10 +458,9 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, host *CrosstabHo
 	levelAxisDepth, withinAxisDepth := overlayLevelWithinAxisDepths(spec, host)
 	if spec.Level < 0 || (levelAxisDepth > 0 && spec.Level >= levelAxisDepth) {
 		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 			"overlay "+string(spec.Kind)+" Level is out of range for the host axis",
 			map[string]any{
-				"code":             string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"index":            specIndex,
 				"kind":             string(spec.Kind),
 				"level":            spec.Level,
@@ -472,10 +469,9 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, host *CrosstabHo
 	}
 	if spec.Within < 0 || (withinAxisDepth > 0 && spec.Within >= withinAxisDepth) {
 		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 			"overlay "+string(spec.Kind)+" Within is out of range for the host opposite axis",
 			map[string]any{
-				"code":              string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"index":             specIndex,
 				"kind":              string(spec.Kind),
 				"within":            spec.Within,
@@ -600,10 +596,9 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 	// the orchestrator gets a consistent failure mode.
 	if rowCount < 2 || colCount < 2 {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a host contingency of at least 2 rows × 2 columns",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 				"rows": rowCount,
 				"cols": colCount,
@@ -653,10 +648,9 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 	// Grand-total guard: every expected cell is undefined when N == 0.
 	if grand <= 0 {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-zero grand total; got 0",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -812,10 +806,9 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 	// the column axis.
 	if colCount < 2 {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a host contingency of at least 2 columns",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 				"rows": rowCount,
 				"cols": colCount,
@@ -1023,10 +1016,9 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 	// slice). Mirrors CHISQ_ROW's shape guard but only over the row axis.
 	if rowCount < 2 {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a host contingency of at least 2 rows",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 				"rows": rowCount,
 				"cols": colCount,
@@ -1198,10 +1190,9 @@ func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires Ref.Margin",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -1859,10 +1850,9 @@ func buildOverlayDenominators(
 func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires Ref.Margin",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -2007,10 +1997,9 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires Ref.Margin",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -2158,10 +2147,9 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires Ref.Margin",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -2310,10 +2298,9 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires Ref.Margin",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
@@ -2472,10 +2459,9 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires Ref.Margin",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}

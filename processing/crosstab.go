@@ -1036,12 +1036,24 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // ResponseWarning per types.OverlayWarning the handlers emitted (mirrors the
 // label-resolver promotion in service/process_labels.go).
 //
-// On unknown overlay kind, ApplyOverlays returns a PROCESSING_INTERNAL
-// CodedError whose details carry the canonical
-// errors.PULSE_OVERLAY_KIND_UNKNOWN code.
+// On unknown overlay kind, ApplyOverlays returns a CodedError whose own
+// Code is the canonical errors.PULSE_OVERLAY_KIND_UNKNOWN — every overlay
+// fault carries its real code so `pulse errors lookup` resolves it.
 func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry) error {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
+	}
+	// Distinct-key slab partition gate — the RUNTIME twin of the predict
+	// arm in descriptor.validateOverlayPairwise. It lives here rather
+	// than in runPairwiseOverlay because the offending fact is the
+	// pair-axis GROUPER TYPE, which the materialised CrosstabHostView
+	// does not carry; and it lives at this hook rather than at either
+	// crosstab exit because both the buffered arm and the fused arm
+	// funnel through here. It runs BEFORE the MATRIX-payload guard below
+	// so a shape=long host refuses identically to the way predict does —
+	// the refusal is a property of the request, not of the payload.
+	if err := checkPairwiseSlabPartition(req, exts); err != nil {
+		return err
 	}
 	if resp == nil || resp.Crosstab == nil || resp.Crosstab.Matrix == nil {
 		// shape=long or no crosstab result — validator should have
@@ -1080,6 +1092,56 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 			Message: w.Message,
 			Details: w.Details,
 		})
+	}
+	return nil
+}
+
+// checkPairwiseSlabPartition refuses an OVERLAY_PAIRWISE_* spec whose
+// distinct-key slab sums across a FAN-OUT pair-axis dim. Summing
+// per-cell distinct cardinalities equals the slab's true distinct count
+// only when those cells partition the key set; under a fan-out grouper
+// one key lands in two summed cells and n comes out too large —
+// silently, and liberally, which is the failure n_within_distinct
+// exists to remove.
+//
+// The predicate, the message and the Details map all live on
+// types.CheckPairwiseSlabPartition so this arm and the predict arm
+// cannot drift apart. A malformed Params blob is NOT diagnosed here:
+// runPairwiseOverlay already surfaces PULSE_OVERLAY_PARAM_MISSING for
+// it, and raising a second, worse-targeted error first would bury it.
+//
+// exts carries the embedder's grouper registrations, so a custom
+// fan-out grouper is gated exactly like GROUP_SET_PER_ELEMENT. The
+// predict arm reaches the same fact through
+// descriptor.ExtensionsSnapshot instead — different route, one
+// resolution order, because both call
+// types.CheckPairwiseSlabPartitionWith.
+func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry) error {
+	if req == nil || req.Crosstab == nil {
+		return nil
+	}
+	for i := range req.Overlays {
+		spec := &req.Overlays[i]
+		if !types.IsPairwiseOverlayKind(spec.Kind) {
+			continue
+		}
+		params, err := types.DecodePairwiseParams(spec.Params)
+		if err != nil {
+			continue
+		}
+		v, bad := types.CheckPairwiseSlabPartitionWith(req.Crosstab, spec.Scope, params,
+			exts.ExtensionGroupFanOut())
+		if !bad {
+			continue
+		}
+		// Like the rest of the overlay family this raises the canonical
+		// PULSE_OVERLAY_* code directly as the CodedError's own Code, so
+		// the runtime refusal carries the same errors[0].code the predict
+		// envelope does and `pulse errors lookup` resolves it.
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED,
+			v.Message(spec.Kind, params),
+			v.Details(spec.Kind, params, i))
 	}
 	return nil
 }

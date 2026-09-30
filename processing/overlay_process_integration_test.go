@@ -175,7 +175,7 @@ func TestProcess_OverlayKindUnknown(t *testing.T) {
 	if !ok {
 		t.Fatalf("err type = %T, want *pulseerrors.CodedError", err)
 	}
-	if got, want := coded.Details["code"], string(pulseerrors.PULSE_OVERLAY_KIND_UNKNOWN); got != want {
+	if got, want := string(coded.Code), string(pulseerrors.PULSE_OVERLAY_KIND_UNKNOWN); got != want {
 		t.Fatalf("err.Details[\"code\"] = %v, want %v", got, want)
 	}
 	if got := coded.Details["host"]; got != "series" {

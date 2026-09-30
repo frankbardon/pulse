@@ -15,7 +15,7 @@ Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope 
 
 `Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis.
 
-`n_source` / `p_source` ignored — n and moments come from the Welford triple.
+`n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert. `n_within_depth` stays accepted and inert. Detail: `pairwise-n-sources`.
 
 ## Host shape
 
@@ -34,4 +34,4 @@ MATRIX — pair × opposite-axis grid of two-sided p-values (layout as `op-overl
 
 ## See
 
-- Skills: `overlay-system`, `crosstab-guide`, `op-overlay-pairwise-welch-t`, `op-agg-welford`, `op-test-z-two-sample`.
+- Skills: `overlay-system`, `pairwise-n-sources`, `crosstab-guide`, `op-overlay-pairwise-welch-t`, `op-agg-welford`, `op-test-z-two-sample`.

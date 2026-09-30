@@ -290,8 +290,8 @@ func TestApplyKSVsPop_CategoricalHostRejected(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *CodedError, got %T", applyErr)
 	}
-	if got, ok := coded.Details["code"].(string); !ok || got != string(pulseerrors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
-		t.Errorf("error Details[\"code\"] = %v, want %s", coded.Details["code"], pulseerrors.PULSE_OVERLAY_SCOPE_UNSUPPORTED)
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
+		t.Errorf("err.Code = %v, want %s", got, pulseerrors.PULSE_OVERLAY_SCOPE_UNSUPPORTED)
 	}
 }
 

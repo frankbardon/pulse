@@ -31,8 +31,8 @@ import (
 //   - ApplyOverlaysFacet walks `specs` in matching order, dispatches
 //     each via facetOverlayHandlers, and returns one OverlayLayer per
 //     spec in matching order plus a flat warnings slice. Unknown kinds
-//     short-circuit with the same PROCESSING_INTERNAL +
-//     PULSE_OVERLAY_KIND_UNKNOWN details shape the MATRIX / SERIES
+//     short-circuit with the same
+//     PULSE_OVERLAY_KIND_UNKNOWN coded-error shape the MATRIX / SERIES
 //     paths emit.
 //
 // Service-side wiring: the service layer (`service/facet_rich.go`)
@@ -147,7 +147,7 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 //   - When specs is non-empty, pop SHOULD be the result of a
 //     successful `ResolveFacetPopulation` call — a nil pop indicates
 //     the caller bypassed the resolver. Handlers fail closed with
-//     a coded PROCESSING_INTERNAL error on a nil pop; the resolver
+//     a coded PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE error on a nil pop; the resolver
 //     itself surfaces `PULSE_OVERLAY_REF_UNKNOWN` for the unknown-
 //     field case BEFORE this dispatch is reached.
 //
@@ -173,10 +173,9 @@ func ApplyOverlaysFacet(specs []types.OverlaySpec, host *types.FacetField, pop *
 		handler, ok := facetOverlayHandlers[spec.Kind]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_KIND_UNKNOWN,
 				"overlay kind has no FACET runtime handler: "+string(spec.Kind),
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 					"host":  "facet",

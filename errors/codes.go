@@ -473,6 +473,21 @@ const (
 	// attribute interface.
 	PULSE_EXTENSION_STREAMABLE_MISMATCH Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
 
+	// PULSE_EXTENSION_FANOUT_MISMATCH indicates a grouper registration's
+	// FansOut declaration disagrees with what its factory returns. The
+	// runtime fact is the optional processing.MultiKeyStreamingGrouper
+	// interface (KeysForRow); the declaration is
+	// GrouperRegistration.FansOut, the embedder-side sibling of
+	// types.GroupType.FansOut(), which knows built-in constants only.
+	// BOTH directions are rejected at pulse.New() probe-validation time:
+	// declared-true-but-single-key (a consumer would needlessly refuse a
+	// sound request) and declared-false-but-multi-key (a fan-out grouper
+	// invisible to the per-record-denominator gates, which is the silent
+	// over-count the declaration exists to prevent). Details carry the
+	// category, name, declared value and observed value. Wired into
+	// extensions_probe.probeGroupers.
+	PULSE_EXTENSION_FANOUT_MISMATCH Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
@@ -1205,6 +1220,34 @@ const (
 	// deferred. Details carry `{kind, observed, cap}` so the renderer
 	// can surface both the offending size and the cap.
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
+
+	// PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED indicates an
+	// OVERLAY_PAIRWISE_* spec asked for a DISTINCT-KEY slab sample size
+	// (`params.n_source = "n_within_distinct"`) over a pair axis whose
+	// summed-across dims include a FAN-OUT grouper
+	// (types.GroupType.FansOut() — today GROUP_SET_PER_ELEMENT).
+	//
+	// The slab fixes the first `n_within_depth + 1` pair-axis dims and
+	// sums the remaining cells. Summing per-cell DISTINCT cardinalities
+	// equals the slab's true distinct count only when those cells
+	// PARTITION the key set; under a fan-out grouper one key can land in
+	// two summed cells, so the n over-states the sample size — silently,
+	// and in the same liberal direction the distinct mode exists to
+	// remove. Refused rather than documented: a fix whose own failure
+	// mode is a silent liberal error defeats itself.
+	//
+	// A fan-out grouper at depth <= n_within_depth is NOT an error: it
+	// sits inside the FIXED prefix, so it multiplies slabs rather than
+	// cells and each slab still partitions its own keys. Nor is one on
+	// the OPPOSITE axis at any depth — the slab never sums across it.
+	// Plain `n_within` is never refused: record counts ARE additive.
+	//
+	// Raised at predict time by descriptor.ValidateOverlays and at
+	// runtime by the crosstab overlay hook (both crosstab arms funnel
+	// through it), with the same code on both. Details carry
+	// `{index, kind, n_source, n_within_depth, dim_index, group_type,
+	// field, axis}` so a renderer can name the offending dim.
+	PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED Code = "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED"
 
 	// PULSE_INDEX_MISSING indicates a LookupRequest named a field with
 	// no sidecar point-lookup index on disk at the path
@@ -2421,6 +2464,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_NAME_COLLISION,
 	PULSE_EXTENSION_DUPLICATE,
 	PULSE_EXTENSION_STREAMABLE_MISMATCH,
+	PULSE_EXTENSION_FANOUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
@@ -2501,6 +2545,7 @@ var allCodes = []Code{
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 	PULSE_OVERLAY_DICT_PREFIX_DRIFT,
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
+	PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED,
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED,
 	PULSE_INDEX_MISSING,
 	PULSE_LOOKUP_NOT_FOUND,

@@ -67,7 +67,7 @@ func requireKeySetDivergent(t *testing.T, err error, wantMissing, wantExtra []st
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	if got, _ := coded.Details["code"].(string); got != string(pulseerrors.PULSE_OVERLAY_KEY_SET_DIVERGENT) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_KEY_SET_DIVERGENT) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_KEY_SET_DIVERGENT)
 	}
 	if got, _ := coded.Details["reference"].(string); got != wantReference {

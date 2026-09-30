@@ -258,7 +258,7 @@ func TestApplyPanelIndexVsRef_OverCap_17Targets_Rejected(t *testing.T) {
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("error is not a CodedError: %v", err)
 	}
-	gotCode, _ := coded.Details["code"].(string)
+	gotCode := string(coded.Code)
 	if gotCode != string(pulseerrors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP) {
 		t.Errorf("error code = %q, want %q", gotCode, pulseerrors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP)
 	}
@@ -359,7 +359,7 @@ func TestApplyPanelIndexVsRef_CustomMaxPanelTargets(t *testing.T) {
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("error is not a CodedError: %v", err)
 	}
-	if code, _ := coded.Details["code"].(string); code != string(pulseerrors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP) {
+	if code := string(coded.Code); code != string(pulseerrors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP) {
 		t.Errorf("error code = %q, want %q", code, pulseerrors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP)
 	}
 	if capDetail, _ := coded.Details["cap"].(int); capDetail != 2 {
