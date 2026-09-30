@@ -15,11 +15,12 @@ import (
 
 // joinFixture is a synthetic denormalised parent/child join: every line
 // row repeats its customer's block (cust_id → name, region, tier) and
-// its product's block (prod_id → category). 40 customers at ~13 lines
-// each, 10 products; cust_tier is null for every fifth customer, so a
-// group member carries null bits.
+// its product's block (prod_id → category, price). 40 customers at ~13
+// lines each, 10 products; cust_tier is null for every fifth customer,
+// so a group member carries null bits. Both blocks are wider than the
+// 4-byte index, so both pass the viability gate's width floor.
 func joinFixture(n int) ([]string, [][]string) {
-	cols := []string{"line_id", "cust_id", "cust_name", "cust_region", "cust_tier", "prod_id", "prod_cat", "qty"}
+	cols := []string{"line_id", "cust_id", "cust_name", "cust_region", "cust_tier", "prod_id", "prod_cat", "prod_price", "qty"}
 	regions := []string{"north", "south", "east", "west"}
 	cats := []string{"widget", "gadget", "gizmo"}
 	var rows [][]string
@@ -38,6 +39,7 @@ func joinFixture(n int) ([]string, [][]string) {
 			tier,
 			fmt.Sprint(500 + p),
 			cats[p%3],
+			fmt.Sprintf("%d.25", 10+p),
 			fmt.Sprint(1 + i%9),
 		})
 	}
@@ -46,7 +48,7 @@ func joinFixture(n int) ([]string, [][]string) {
 
 var joinGroups = []GroupDecl{
 	{Key: []string{"cust_id"}, Members: []string{"cust_name", "cust_region", "cust_tier"}},
-	{Key: []string{"prod_id"}, Members: []string{"prod_cat"}},
+	{Key: []string{"prod_id"}, Members: []string{"prod_cat", "prod_price"}},
 }
 
 // runGroupImport imports rows from src with the given declarations and
@@ -119,9 +121,23 @@ func TestImportJob_Groups(t *testing.T) {
 		{Label: "group 1 [key: cust_id]", Key: []string{"cust_id"}, Members: []string{"cust_name", "cust_region", "cust_tier"},
 			Fields: []string{"cust_id", "cust_name", "cust_region", "cust_tier"}, EntryCount: 40,
 			EntryWidth: schema.GroupEntryWidth(0), MemberRowBytes: schema.GroupMemberRowBytes(0), IndexWidth: 4},
-		{Label: "group 2 [key: prod_id]", Key: []string{"prod_id"}, Members: []string{"prod_cat"},
-			Fields: []string{"prod_id", "prod_cat"}, EntryCount: 10,
+		{Label: "group 2 [key: prod_id]", Key: []string{"prod_id"}, Members: []string{"prod_cat", "prod_price"},
+			Fields: []string{"prod_id", "prod_cat", "prod_price"}, EntryCount: 10,
 			EntryWidth: schema.GroupEntryWidth(1), MemberRowBytes: schema.GroupMemberRowBytes(1), IndexWidth: 4},
+	}
+	// Both groups pass the viability gate: the report carries the
+	// measured numbers, and there is no warning.
+	for g, rows := range []int64{600, 600} {
+		v := encoding.AssessGroup(schema, g, rows, encoding.DefaultDedupRatioFloor)
+		want[g].Verdict = encoding.GroupVerdictAdmitted
+		want[g].DictionaryBytes = v.DictionaryBytes
+		want[g].Ratio = v.Ratio
+		want[g].BreakEvenRatio = v.BreakEvenRatio
+		want[g].RatioFloor = encoding.DefaultDedupRatioFloor
+		want[g].ByteDelta = v.ByteDelta
+	}
+	if want[0].Ratio != 15 || want[1].Ratio != 60 || want[0].ByteDelta >= 0 || len(rep.GroupWarnings) != 0 {
+		t.Fatalf("ratios %v/%v, delta %d, warnings %v", want[0].Ratio, want[1].Ratio, want[0].ByteDelta, rep.GroupWarnings)
 	}
 	if !reflect.DeepEqual(rep.Groups, want) {
 		t.Fatalf("report groups = %+v\nwant %+v", rep.Groups, want)
@@ -243,7 +259,7 @@ func TestImportJob_Groups_KeyViolation(t *testing.T) {
 	cols := []string{"line_id", "cust_id", "cust_name", "qty"}
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "line_id", Type: encoding.FieldTypeU16, CsvColumnIdx: 0},
-		{Name: "cust_id", Type: encoding.FieldTypeU16, CsvColumnIdx: 1},
+		{Name: "cust_id", Type: encoding.FieldTypeU32, CsvColumnIdx: 1}, // u32 + u8: wider than the index
 		{Name: "cust_name", Type: encoding.FieldTypeCategoricalU8, CsvColumnIdx: 2},
 		{Name: "qty", Type: encoding.FieldTypeU8, CsvColumnIdx: 3},
 	}}
@@ -304,7 +320,7 @@ func TestImportJob_Groups_WithElision(t *testing.T) {
 	for i := range rows {
 		rows[i] = append(rows[i], "b-1", "feed")
 	}
-	decls := []GroupDecl{{Key: []string{"cust_id"}, Members: []string{"cust_name", "src"}}}
+	decls := []GroupDecl{{Key: []string{"cust_id"}, Members: []string{"cust_name", "cust_region", "src"}}}
 	elide := func(j *ImportJob) { j.ElideConstants = true }
 	rep, _, fs, err := runGroupImport(t, newMockReader(cols, rows), decls, elide)
 	if err != nil {

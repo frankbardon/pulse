@@ -83,6 +83,13 @@ func writeSchemaExtension(w io.Writer, s *Schema) error {
 	return nil
 }
 
+// groupDescriptorBytes is the on-wire size of one group's descriptor in
+// the GROUPS section, dictionary entries excluded: kind, index_width
+// and flags (3), member_count (2), 3 per member, entry_width and
+// entry_count (8). It is what a group costs beyond its entries, and it
+// must track writeGroupsSection exactly (TestGroupDescriptorBytes).
+func groupDescriptorBytes(members int) int { return 13 + 3*members }
+
 func writeGroupsSection(b *bytes.Buffer, s *Schema) {
 	le := binary.LittleEndian
 	b.Write(le.AppendUint16(nil, uint16(len(s.Groups))))

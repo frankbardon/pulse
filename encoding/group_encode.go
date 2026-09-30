@@ -23,6 +23,12 @@ type GroupSpec struct {
 	// declaration that is not actually a parent group is an error, not
 	// a silently larger dictionary. Empty means every member is key.
 	Key []string
+	// Ordinal, when > 0, is the 1-based position Label reports instead
+	// of the spec's position in the list it was passed in. A caller
+	// that drops a declared group before encoding (the viability gate)
+	// sets it so the surviving groups keep the names the user declared
+	// them under. Never written to the file.
+	Ordinal int
 }
 
 // Label is the display name error details and reports use for spec g
@@ -30,10 +36,14 @@ type GroupSpec struct {
 // slot, so a group is named by its 1-based declaration position and
 // its key (or, with no key, its members): "group 2 [key: order_id]".
 func (sp GroupSpec) Label(g int) string {
-	if len(sp.Key) > 0 {
-		return fmt.Sprintf("group %d [key: %s]", g+1, strings.Join(sp.Key, ","))
+	n := g + 1
+	if sp.Ordinal > 0 {
+		n = sp.Ordinal
 	}
-	return fmt.Sprintf("group %d [%s]", g+1, strings.Join(sp.Members, ","))
+	if len(sp.Key) > 0 {
+		return fmt.Sprintf("group %d [key: %s]", n, strings.Join(sp.Key, ","))
+	}
+	return fmt.Sprintf("group %d [%s]", n, strings.Join(sp.Members, ","))
 }
 
 // declErr is a declaration-level refusal: the spec list, not the data,

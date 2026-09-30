@@ -32,6 +32,8 @@ var importFlags = []cli.Flag{
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
 	&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
+	&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encoding.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
+	&cli.BoolFlag{Name: "strict", Usage: "Treat parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) as errors: the import fails and writes nothing"},
 }
 
 // importLeaf finishes an import leaf. Slice flags are not split on ','
@@ -139,6 +141,8 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.FS = fs
 	job.SampleRows = sampleRows
 	job.ElideConstants = cmd.Bool("elide-constants")
+	job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
+	job.StrictDedup = cmd.Bool("strict")
 	for _, decl := range cmd.StringSlice("group") {
 		g, err := pio.ParseGroupDecl(decl)
 		if err != nil {
@@ -170,7 +174,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	}
 
 	if jsonOut {
-		return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
+		return writeEnvelopeWithWarnings(cmd.Writer, report, append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...))
 	}
 
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)
@@ -178,8 +182,14 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 		writeText(cmd.Writer, "Elided constant fields (stored once, format 0x02): %s\n", strings.Join(report.ElidedConstants, ", "))
 	}
 	for _, g := range report.Groups {
-		writeText(cmd.Writer, "Parent %s: %d distinct tuples of %s (format 0x02)\n", g.Label, g.EntryCount, strings.Join(g.Fields, ", "))
+		if g.Verdict == encoding.GroupVerdictDroppedTooNarrow {
+			writeText(cmd.Writer, "Parent %s: dropped, %d-byte members no wider than the %d-byte index\n", g.Label, g.MemberRowBytes, g.IndexWidth)
+			continue
+		}
+		writeText(cmd.Writer, "Parent %s: %d distinct tuples of %s (format 0x02), ratio %.2fx, %d dictionary bytes resident, %+d bytes vs undeduped\n",
+			g.Label, g.EntryCount, strings.Join(g.Fields, ", "), g.Ratio, g.DictionaryBytes, g.ByteDelta)
 	}
+	writeSourceWarnings(cmd.Writer, report.GroupWarnings)
 	if len(report.RowErrors) > 0 {
 		writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))
 	}

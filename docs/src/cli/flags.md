@@ -98,6 +98,10 @@ categorical field, low-quality field description) as errors. On
 execute. Useful in CI gates that want the strictest possible
 validation.
 
+`import <format>` also takes `--strict`, with a narrower meaning: it
+escalates the parent-group viability warnings only — see
+[`--strict` (import)](#--strict-import).
+
 ### `--echo-request`
 
 Available on: `api process`, `api process-chain`, `api compose`,
@@ -238,6 +242,36 @@ silently turned into a larger dictionary. A field in two groups is
 `PULSE_GROUP_FIELD_UNKNOWN`, a malformed value
 `PULSE_GROUP_DECLARATION_INVALID`; all three fail before the row pass.
 More than 2^32 distinct tuples is `PULSE_GROUP_ENTRIES_EXHAUSTED`.
+
+Every declared group passes a **per-group viability gate**. A group
+whose members are no wider than the 4-byte index can never save space:
+it is dropped (its members stay in the row) with a
+`PULSE_GROUP_TOO_NARROW` warning naming both widths. A group whose
+dedup ratio (rows per distinct tuple) is below `--dedup-ratio-floor`,
+or that makes the file no smaller, is still written, with a
+`PULSE_DEDUP_LOW_RATIO` warning carrying the ratio, the resident
+dictionary bytes and the byte delta. Other groups on the same import
+are unaffected. The text output prints each group's ratio, resident
+dictionary bytes and byte delta; `--json` reports them per group under
+`Groups` and the findings in `warnings`.
+
+### `--dedup-ratio-floor`
+
+Available on: every `import <format>` leaf. Default `2`.
+
+The rows-per-distinct-tuple floor below which a `--group` draws
+`PULSE_DEDUP_LOW_RATIO`. A floor of `1` disables it, leaving only the
+check that the group actually makes the file smaller. The group is
+written either way unless `--strict` is set.
+
+### `--strict` (import)
+
+Available on: every `import <format>` leaf.
+
+Turns the parent-group viability warnings (`PULSE_GROUP_TOO_NARROW`,
+`PULSE_DEDUP_LOW_RATIO`) into errors: the import fails with that code
+(`errors[0].code` under `--json`) and writes nothing. Other import
+warnings are unaffected.
 Groups are named in errors and output by position and key
 (`group 1 [key: cust_id]`) — the format stores no group name. Each group
 is printed with its distinct-tuple count, and reported under `Groups`

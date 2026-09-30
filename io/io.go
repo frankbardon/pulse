@@ -694,6 +694,13 @@ type ImportReport struct {
 	// the entry / member / index widths a viability check weighs. Empty
 	// (and omitted from JSON) when no group was declared.
 	Groups []GroupReport `json:"Groups,omitempty"`
+	// GroupWarnings carries the viability gate's findings, one per
+	// flagged group: PULSE_GROUP_TOO_NARROW (the group was dropped) and
+	// PULSE_DEDUP_LOW_RATIO (the group was written anyway), each with
+	// its numbers in Details. Empty (and omitted from JSON) when every
+	// declared group passed. Under ImportJob.StrictDedup a finding is
+	// returned as Run's error instead and there is no report.
+	GroupWarnings []*errors.CodedError `json:"GroupWarnings,omitempty"`
 }
 
 // ExportReport summarizes the result of an export operation.
@@ -857,7 +864,23 @@ type ImportJob struct {
 	// pass; the dictionaries are built in one pass over the imported
 	// rows. Composes with ElideConstants: declared members are never
 	// elided. Empty (the default) writes the 0x01 cohort unchanged.
+	//
+	// Every declared group passes the per-group viability gate
+	// (encoding.DedupGate): one no wider than its u32 index is dropped
+	// with PULSE_GROUP_TOO_NARROW; one below DedupRatioFloor rows per
+	// distinct tuple, or that makes the file no smaller, is written with
+	// PULSE_DEDUP_LOW_RATIO. Both land in ImportReport.GroupWarnings.
 	Groups []GroupDecl
+	// DedupRatioFloor is the rows-per-distinct-tuple floor below which
+	// a declared group draws PULSE_DEDUP_LOW_RATIO. Zero (the default)
+	// selects encoding.DefaultDedupRatioFloor (2); a value in (0, 1]
+	// disables the floor, leaving only the grows-the-file check.
+	DedupRatioFloor float64
+	// StrictDedup turns the viability gate's warnings into errors: Run
+	// fails with the finding's own code (PULSE_GROUP_TOO_NARROW or
+	// PULSE_DEDUP_LOW_RATIO) and writes nothing. It governs the gate
+	// only — other import warnings are unaffected.
+	StrictDedup bool
 }
 
 // NewImportJob creates an ImportJob with default settings.

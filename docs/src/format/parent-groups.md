@@ -142,10 +142,43 @@ group whose every member is key.
   declaration order; with `--elide-constants` the constant group follows
   them, and declared members are never elided.
 - **Report.** `ImportReport.Groups` lists each declared group's label,
-  fields, `entry_count`, `entry_width`, `member_row_bytes` and
-  `index_width`. A group whose dictionary costs more than its members
-  saved still writes; it is reported, not refused.
+  fields, verdict, `entry_count`, `entry_width`, `member_row_bytes`,
+  `index_width`, `dictionary_bytes`, `ratio`, `break_even_ratio`,
+  `ratio_floor` and `byte_delta` — see the viability gate below.
 - **Zero groups** write the `0x01` cohort byte for byte.
+
+## Viability gate
+
+A badly chosen group does not fail — it quietly makes the file bigger
+(every row still pays the 4-byte index, and the dictionary holds one
+entry per distinct tuple) and holds its whole dictionary in memory
+whenever the cohort is open. Each declared group is therefore judged on
+its own numbers (`encoding.DedupGate`, shared by import and
+retro-dedup); one group can be admitted while another on the same
+import is not.
+
+| Check | When | Outcome |
+|---|---|---|
+| Width floor: members' bytes per row ≤ the 4-byte index | before the row pass | group **dropped** (members stay in the row), `PULSE_GROUP_TOO_NARROW` with both widths |
+| Ratio floor: rows ÷ distinct tuples below the floor (default 2) | after the dictionary is built | group **written**, `PULSE_DEDUP_LOW_RATIO` |
+| Grows the file: deduped bytes ≥ undeduped bytes, at any floor | after the dictionary is built | group **written**, `PULSE_DEDUP_LOW_RATIO` with `grows_file: true` |
+
+Per group, `deduped = rows × 4 + entry_count × entry_width + (13 + 3 ×
+members)` and `undeduped = rows × member_row_bytes`; `byte_delta` is
+their difference (negative is a saving) and `dictionary_bytes =
+entry_count × entry_width` is the resident cost. The warning carries
+those, the ratio, the floor and the break-even ratio
+(`entry_width ÷ (member_row_bytes − 4)`).
+
+Ratio alone never refuses a group: a deliberately deduped low-ratio
+group is a legitimate choice. The floor is a judgement — at 2, each
+stored tuple is shared by two rows on average and a wide parent block
+at least halves; below it most of the parent data becomes resident for
+a shrinking saving — and it is overridable with `--dedup-ratio-floor`
+(`ImportJob.DedupRatioFloor`; a floor of 1 leaves only the grows-the-file
+check). `--strict` (`ImportJob.StrictDedup`) turns either finding into
+a fatal error carrying the same code, and nothing is written. Constant
+groups from `--elide-constants` are not gated.
 
 Shard archives, set-field widening and the shard categorical rewrite do
 not accept grouped cohorts yet: they refuse with a coded error rather

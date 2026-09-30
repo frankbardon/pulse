@@ -4990,7 +4990,7 @@
         ]
       }
     ],
-    "error_codes_count": 234,
+    "error_codes_count": 236,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5051,6 +5051,7 @@
       "PULSE_DECIMAL_DIVIDE_BY_ZERO",
       "PULSE_DECIMAL_OVERFLOW",
       "PULSE_DECIMAL_PRECISION_LOSS",
+      "PULSE_DEDUP_LOW_RATIO",
       "PULSE_EXPORT_FIELD_UNKNOWN",
       "PULSE_EXPORT_ROW_ERROR",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
@@ -5070,6 +5071,7 @@
       "PULSE_GROUP_FIELD_CONFLICT",
       "PULSE_GROUP_FIELD_UNKNOWN",
       "PULSE_GROUP_MEMBER_NOT_CONSTANT",
+      "PULSE_GROUP_TOO_NARROW",
       "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
       "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
       "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
@@ -9723,4 +9725,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c570b8529f9470b39baf4dc49be442d3b005c6e2ed976945b1a28c5f32a34480
+// golden-hash: a0b38a44e96e7b7e219eea1d089b234bb5f4743f6693dada9df9b69d2d894703

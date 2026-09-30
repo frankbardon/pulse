@@ -214,6 +214,21 @@ const (
 	// distinct tuples).
 	PULSE_GROUP_ENTRIES_EXHAUSTED Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
 
+	// PULSE_GROUP_TOO_NARROW indicates a declared indexed parent group
+	// whose members occupy no more bytes per row than the u32 index that
+	// would replace them: it can never save space, so the viability gate
+	// drops it (its members stay row fields) and reports both widths.
+	// An error instead of a warning under --strict.
+	PULSE_GROUP_TOO_NARROW Code = "PULSE_GROUP_TOO_NARROW"
+
+	// PULSE_DEDUP_LOW_RATIO indicates a parent group whose measured
+	// dedup ratio (rows per distinct tuple) is below the ratio floor, or
+	// whose dictionary makes the file no smaller than storing the
+	// members per row. A warning carrying the ratio, the resident
+	// dictionary bytes and the byte delta; the group is still written.
+	// Never a refusal on ratio alone — an error only under --strict.
+	PULSE_DEDUP_LOW_RATIO Code = "PULSE_DEDUP_LOW_RATIO"
+
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
 	// was requested on a categorical field.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
@@ -2449,6 +2464,8 @@ var allCodes = []Code{
 	PULSE_GROUP_FIELD_CONFLICT,
 	PULSE_GROUP_MEMBER_NOT_CONSTANT,
 	PULSE_GROUP_ENTRIES_EXHAUSTED,
+	PULSE_GROUP_TOO_NARROW,
+	PULSE_DEDUP_LOW_RATIO,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,

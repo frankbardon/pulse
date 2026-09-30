@@ -105,11 +105,13 @@ func ParseGroupDecl(s string) (GroupDecl, error) {
 	}
 }
 
-// GroupReport describes one declared group as written. It carries what
-// a per-group viability check needs, all derived from the written
-// schema: the dictionary (EntryCount × EntryWidth bytes in the schema
-// block) against the per-row saving (MemberRowBytes − IndexWidth, times
-// ImportReport.RowsImported).
+// GroupReport describes one declared group: its verdict from the
+// per-group viability gate (encoding.DedupGate) and the numbers behind
+// it. A dropped group (verdict dropped_too_narrow) was not formed — its
+// members stay row fields — and carries only its widths; an admitted
+// or low_ratio group was written and carries the measured ratio, the
+// dictionary it holds resident and the byte delta versus storing its
+// members per row.
 type GroupReport struct {
 	// Label names the group in errors and output ("group 1 [key: id]").
 	Label string `json:"label"`
@@ -118,6 +120,12 @@ type GroupReport struct {
 	Key     []string `json:"key,omitempty"`
 	Members []string `json:"members"`
 	Fields  []string `json:"fields"`
+	// Verdict is admitted, low_ratio (written, with a
+	// PULSE_DEDUP_LOW_RATIO warning) or dropped_too_narrow (not
+	// written, PULSE_GROUP_TOO_NARROW). Reason is the code behind a
+	// non-admitted verdict.
+	Verdict string `json:"verdict"`
+	Reason  string `json:"reason,omitempty"`
 	// EntryCount is the number of distinct tuples stored.
 	EntryCount int `json:"entry_count"`
 	// EntryWidth is the bytes per dictionary entry (member bytes plus a
@@ -127,41 +135,79 @@ type GroupReport struct {
 	MemberRowBytes int `json:"member_row_bytes"`
 	// IndexWidth is the bytes of the per-row index that replaces them.
 	IndexWidth int `json:"index_width"`
+	// DictionaryBytes is EntryCount × EntryWidth, resident in memory
+	// whenever the cohort is open.
+	DictionaryBytes int64 `json:"dictionary_bytes"`
+	// Ratio is rows ÷ EntryCount; BreakEvenRatio the ratio below which
+	// the group grows the file; RatioFloor the floor it was judged
+	// against.
+	Ratio          float64 `json:"ratio"`
+	BreakEvenRatio float64 `json:"break_even_ratio"`
+	RatioFloor     float64 `json:"ratio_floor"`
+	// ByteDelta is the grouped bytes (indexes + dictionary + descriptor)
+	// minus the members stored per row: negative is a saving.
+	ByteDelta int64 `json:"byte_delta"`
 }
 
-// groupReports describes the first len(decls) groups of the written
-// schema — declared groups come first, in declaration order.
-func groupReports(written *encoding.Schema, decls []GroupDecl) []GroupReport {
+// groupReports describes every declaration, in declaration order,
+// from the width screen (one view per declaration) and the ratio
+// assessment (one view per ADMITTED declaration, in order). Admitted
+// declarations are the written schema's first groups.
+func groupReports(written *encoding.Schema, decls []GroupDecl, screen, ratio []encoding.GroupViability) []GroupReport {
 	if len(decls) == 0 {
 		return nil
 	}
 	out := make([]GroupReport, len(decls))
-	for g, d := range decls {
+	wg := 0
+	for i, d := range decls {
+		v := screen[i]
+		admitted := v.Verdict != encoding.GroupVerdictDroppedTooNarrow
+		if admitted {
+			v = ratio[wg]
+		}
 		gr := GroupReport{
-			Label:          d.spec().Label(g),
-			Key:            d.Key,
-			Members:        d.Members,
-			EntryCount:     written.GroupEntryCount(g),
-			EntryWidth:     written.GroupEntryWidth(g),
-			MemberRowBytes: written.GroupMemberRowBytes(g),
-			IndexWidth:     encoding.GroupIndexWidth,
+			Label:           v.Label,
+			Key:             d.Key,
+			Members:         d.Members,
+			Verdict:         v.Verdict,
+			Reason:          v.Reason,
+			EntryCount:      v.EntryCount,
+			EntryWidth:      v.EntryWidth,
+			MemberRowBytes:  v.MemberRowBytes,
+			IndexWidth:      v.IndexWidth,
+			DictionaryBytes: v.DictionaryBytes,
+			Ratio:           v.Ratio,
+			BreakEvenRatio:  v.BreakEvenRatio,
+			RatioFloor:      v.RatioFloor,
+			ByteDelta:       v.ByteDelta,
 		}
-		for _, m := range written.Groups[g].Members {
-			gr.Fields = append(gr.Fields, written.Fields[m.Field].Name)
+		if admitted {
+			for _, m := range written.Groups[wg].Members {
+				gr.Fields = append(gr.Fields, written.Fields[m.Field].Name)
+			}
+			wg++
+		} else {
+			gr.Fields = append(append(gr.Fields, d.Key...), d.Members...)
 		}
-		out[g] = gr
+		out[i] = gr
 	}
 	return out
 }
 
-// groupMemberNames is every field some declaration claims — the
-// reserved set constant elision must not touch.
-func groupMemberNames(decls []GroupDecl) []string {
+// groupMemberNames is every field an admitted group claims — the
+// reserved set constant elision must not touch. A group the gate
+// dropped reserves nothing: its members are ordinary row fields again.
+func groupMemberNames(specs []encoding.GroupSpec) []string {
 	var out []string
-	for _, d := range decls {
-		out = append(append(out, d.Key...), d.Members...)
+	for _, sp := range specs {
+		out = append(out, sp.Members...)
 	}
 	return out
+}
+
+// dedupGate is the viability policy this job's options select.
+func (j *ImportJob) dedupGate() encoding.DedupGate {
+	return encoding.DedupGate{RatioFloor: j.DedupRatioFloor, Strict: j.StrictDedup}
 }
 
 // withSourceRow adds details["source_row"] — the 1-based data row of the

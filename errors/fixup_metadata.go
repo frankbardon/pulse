@@ -444,6 +444,31 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_GROUP_TOO_NARROW: {
+		Message: "A declared parent group's members occupy no more bytes per row than the 4-byte index that would replace them, so grouping could only grow the file; the group was dropped and its members stay in the row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Drop the group, or add the other fields that repeat with it (the rest of the parent block) so its members outweigh the index; details.member_row_bytes must exceed details.index_width.",
+			},
+		},
+	},
+	PULSE_DEDUP_LOW_RATIO: {
+		Message: "A parent group's dedup ratio (rows per distinct tuple) is below the ratio floor, or its dictionary makes the file no smaller; the group was still written, with its dictionary resident in memory.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Drop the group if details.byte_delta is not negative or details.dictionary_bytes is too much to hold resident; a ratio near 1 means the tuples are nearly unique per row.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"StrictDedup"},
+				Hint:   "To keep a deliberately low-ratio group, re-run without --strict (it then writes with this warning) or lower --dedup-ratio-floor; a floor of 1 leaves only the grows-the-file check.",
+			},
+		},
+	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
 		Message: "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field.",
 		Fixups: []Fixup{
