@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 )
@@ -24,6 +25,24 @@ type GroupSpec struct {
 	Key []string
 }
 
+// Label is the display name error details and reports use for spec g
+// (0-based position in the spec list). The format has no group-name
+// slot, so a group is named by its 1-based declaration position and
+// its key (or, with no key, its members): "group 2 [key: order_id]".
+func (sp GroupSpec) Label(g int) string {
+	if len(sp.Key) > 0 {
+		return fmt.Sprintf("group %d [key: %s]", g+1, strings.Join(sp.Key, ","))
+	}
+	return fmt.Sprintf("group %d [%s]", g+1, strings.Join(sp.Members, ","))
+}
+
+// declErr is a declaration-level refusal: the spec list, not the data,
+// is wrong. Codes are PULSE_GROUP_* so a caller can tell a bad
+// declaration from a corrupt file (ENCODING_INVALID).
+func declErr(code errors.Code, msg string, details map[string]any) error {
+	return errors.NewCodedErrorWithDetails(code, "parent group: "+msg, details)
+}
+
 // GroupEncoder turns logical rows (the 0x01 row of an ungrouped schema)
 // into physical rows of the grouped schema, building each group's
 // dictionary as it goes: a row's tuple is looked up, or appended as a
@@ -34,6 +53,7 @@ type GroupEncoder struct {
 	schema *Schema
 	l      *rowLayout
 	groups []encGroup
+	labels []string
 	rows   int64
 }
 
@@ -50,9 +70,11 @@ type encGroup struct {
 
 // NewGroupEncoder prepares an encoder that groups flat (a schema without
 // groups — pass a grouped schema's Logical() view) by specs. Field
-// names are resolved here: an unknown name, a field named by two
-// groups, a key naming a non-member, or a shape the format cannot hold
-// is ENCODING_INVALID naming the field and groups.
+// names are resolved here: an unknown name is PULSE_GROUP_FIELD_UNKNOWN,
+// a field named by two groups PULSE_GROUP_FIELD_CONFLICT (naming both
+// groups by Label), and an empty group, a field named twice in one
+// group or a key naming a non-member PULSE_GROUP_DECLARATION_INVALID. A
+// shape the format cannot hold (e.g. a zero stride) is ENCODING_INVALID.
 func NewGroupEncoder(flat *Schema, specs []GroupSpec) (*GroupEncoder, error) {
 	if flat.HasGroups() {
 		return nil, groupErr("encoder input must be an ungrouped schema (use Logical())", nil)
@@ -64,20 +86,32 @@ func NewGroupEncoder(flat *Schema, specs []GroupSpec) (*GroupEncoder, error) {
 	owner := make(map[int]int)
 	out := &Schema{Fields: append([]Field(nil), flat.Fields...)}
 	keyed := make([]map[int]bool, len(specs))
+	labels := make([]string, len(specs))
+	for g, sp := range specs {
+		labels[g] = sp.Label(g)
+	}
 	for g, sp := range specs {
 		if len(sp.Members) == 0 {
-			return nil, groupErr("a group needs at least one member", map[string]any{"group": g})
+			return nil, declErr(errors.PULSE_GROUP_DECLARATION_INVALID, labels[g]+" has no members",
+				map[string]any{"group": g, "group_label": labels[g]})
 		}
 		var members []int
 		for _, name := range sp.Members {
 			fi, ok := byName[name]
 			if !ok {
-				return nil, groupErr(fmt.Sprintf("group member %q names no field in the schema", name),
-					map[string]any{"group": g, "field": name})
+				return nil, declErr(errors.PULSE_GROUP_FIELD_UNKNOWN,
+					fmt.Sprintf("%s names field %q, which is not in the schema", labels[g], name),
+					map[string]any{"group": g, "group_label": labels[g], "field": name})
 			}
 			if prev, dup := owner[fi]; dup {
-				return nil, groupErr(fmt.Sprintf("field %q is a member of two groups", name),
-					map[string]any{"field": name, "groups": []int{prev, g}})
+				if prev == g {
+					return nil, declErr(errors.PULSE_GROUP_DECLARATION_INVALID,
+						fmt.Sprintf("%s names field %q twice", labels[g], name),
+						map[string]any{"group": g, "group_label": labels[g], "field": name})
+				}
+				return nil, declErr(errors.PULSE_GROUP_FIELD_CONFLICT,
+					fmt.Sprintf("field %q is a member of two groups: %s and %s", name, labels[prev], labels[g]),
+					map[string]any{"field": name, "groups": []int{prev, g}, "group_labels": []string{labels[prev], labels[g]}})
 			}
 			owner[fi] = g
 			members = append(members, fi)
@@ -86,8 +120,9 @@ func NewGroupEncoder(flat *Schema, specs []GroupSpec) (*GroupEncoder, error) {
 		for _, name := range sp.Key {
 			fi, ok := byName[name]
 			if og, member := owner[fi]; !ok || !member || og != g {
-				return nil, groupErr(fmt.Sprintf("group key %q is not a member of the group", name),
-					map[string]any{"group": g, "field": name})
+				return nil, declErr(errors.PULSE_GROUP_DECLARATION_INVALID,
+					fmt.Sprintf("%s: key %q is not a member of the group", labels[g], name),
+					map[string]any{"group": g, "group_label": labels[g], "field": name})
 			}
 			keyed[g][fi] = true
 		}
@@ -102,7 +137,7 @@ func NewGroupEncoder(flat *Schema, specs []GroupSpec) (*GroupEncoder, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &GroupEncoder{schema: out, l: l, groups: make([]encGroup, len(specs))}
+	e := &GroupEncoder{schema: out, l: l, groups: make([]encGroup, len(specs)), labels: labels}
 	for g := range out.Groups {
 		eg := &e.groups[g]
 		eg.keyOf = map[string]uint32{}
@@ -167,11 +202,13 @@ func (e *GroupEncoder) Schema() *Schema {
 
 // EncodeRow appends the physical row for logical row lrow to dst.
 //
-// Failures are ENCODING_INVALID with details naming the group, the
+// Failures carry details naming the group (index and Label), the
 // offending field and the row index (0-based, counted by this encoder):
-// a constant group whose members change, a keyed group whose non-key
-// member disagrees with the entry its key already selected, or a
-// dictionary that would outgrow MaxGroupEntries.
+// a constant group whose members change, or a keyed group whose non-key
+// member disagrees with the entry its key already selected, is
+// PULSE_GROUP_MEMBER_NOT_CONSTANT; a dictionary that would outgrow
+// MaxGroupEntries is PULSE_GROUP_ENTRIES_EXHAUSTED (never a wrap). A
+// logical row of the wrong width is ENCODING_INVALID.
 func (e *GroupEncoder) EncodeRow(dst, lrow []byte) ([]byte, error) {
 	l := e.l
 	if len(lrow) != l.logStride {
@@ -226,8 +263,9 @@ func (e *GroupEncoder) EncodeRow(dst, lrow []byte) ([]byte, error) {
 			return dst[:start], e.mismatch(g, gs.entries[:gs.width], ent)
 		default:
 			if uint64(gs.count)+1 > MaxGroupEntries {
-				return dst[:start], groupErr("group dictionary would exceed the u32 index space",
-					map[string]any{"group": g, "entry_count": gs.count, "max_entries": MaxGroupEntries, "row": e.rows})
+				return dst[:start], declErr(errors.PULSE_GROUP_ENTRIES_EXHAUSTED,
+					fmt.Sprintf("%s: dictionary would exceed the u32 index space at record %d", e.labels[g], e.rows),
+					map[string]any{"group": g, "group_label": e.labels[g], "entry_count": gs.count, "max_entries": MaxGroupEntries, "row": e.rows})
 			}
 			idx = gs.count
 			gs.entries = append(gs.entries, ent...)
@@ -265,12 +303,13 @@ func (e *GroupEncoder) mismatch(g int, have, got []byte) error {
 			break
 		}
 	}
-	msg := "group member is not constant within the group's key"
+	msg := "member is not constant within the group's key"
 	if s.Groups[g].Kind == GroupKindConstant {
-		msg = "constant group member changes value"
+		msg = "constant member changes value"
 	}
-	return groupErr(fmt.Sprintf("%s: field %q", msg, field),
-		map[string]any{"group": g, "field": field, "row": e.rows})
+	return declErr(errors.PULSE_GROUP_MEMBER_NOT_CONSTANT,
+		fmt.Sprintf("%s: %s: field %q at record %d", e.labels[g], msg, field, e.rows),
+		map[string]any{"group": g, "group_label": e.labels[g], "field": field, "row": e.rows})
 }
 
 // DedupCohort reads a whole cohort (header, schema, records — any

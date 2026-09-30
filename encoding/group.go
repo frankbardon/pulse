@@ -153,6 +153,19 @@ func (s *Schema) GroupEntryWidth(g int) int {
 	return w
 }
 
+// GroupMemberRowBytes returns the on-wire bytes group g's members
+// occupy in a LOGICAL row, null bits excluded: what each row stops
+// carrying when the group is formed, before an indexed group's
+// GroupIndexWidth is added back. With GroupEntryCount and
+// GroupEntryWidth it is everything a viability check needs.
+func (s *Schema) GroupMemberRowBytes(g int) int {
+	w, bm := s.groupEntryGeometry(g)
+	if bm >= 0 {
+		return bm
+	}
+	return w
+}
+
 // groupEntryGeometry returns group g's entry width and the offset of the
 // member null bitmap within an entry (-1 when no member is nullable).
 func (s *Schema) groupEntryGeometry(g int) (width, bmOff int) {

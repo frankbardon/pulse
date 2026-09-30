@@ -31,6 +31,15 @@ var importFlags = []cli.Flag{
 	&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
+	&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
+}
+
+// importLeaf finishes an import leaf. Slice flags are not split on ','
+// here: a --group value carries its own commas (KEY,KEY:MEMBER,MEMBER),
+// and one flag is one group.
+func importLeaf(c *cli.Command) *cli.Command {
+	c.DisableSliceFlagSeparator = true
+	return c
 }
 
 // ImportCommand returns the import command group.
@@ -57,14 +66,14 @@ func ImportCommand() *cli.Command {
 }
 
 func importFormatCmd(format string) *cli.Command {
-	return &cli.Command{
+	return importLeaf(&cli.Command{
 		Name:  format,
 		Usage: fmt.Sprintf("Import %s file into .pulse format", format),
 		Flags: importFlags,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runImport(ctx, cmd, format)
 		},
-	}
+	})
 }
 
 // withImportFlags returns the common import flags plus the format-specific
@@ -76,14 +85,14 @@ func withImportFlags(extra ...cli.Flag) []cli.Flag {
 }
 
 func importExcelCmd() *cli.Command {
-	return &cli.Command{
+	return importLeaf(&cli.Command{
 		Name:  "excel",
 		Usage: "Import Excel file into .pulse format",
 		Flags: withImportFlags(&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"}),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runImport(ctx, cmd, "excel")
 		},
-	}
+	})
 }
 
 // importSPSSCmd is `pulse import spss`. It carries --charset for the same
@@ -96,7 +105,7 @@ func importExcelCmd() *cli.Command {
 // spss.WithCharset was reachable only from the library. That is the gap this
 // flag closes.
 func importSPSSCmd() *cli.Command {
-	return &cli.Command{
+	return importLeaf(&cli.Command{
 		Name:  "spss",
 		Usage: "Import SPSS .sav / .zsav file into .pulse format",
 		Flags: withImportFlags(
@@ -106,7 +115,7 @@ func importSPSSCmd() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runImport(ctx, cmd, "spss")
 		},
-	}
+	})
 }
 
 func runImport(ctx context.Context, cmd *cli.Command, format string) error {
@@ -130,6 +139,16 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.FS = fs
 	job.SampleRows = sampleRows
 	job.ElideConstants = cmd.Bool("elide-constants")
+	for _, decl := range cmd.StringSlice("group") {
+		g, err := pio.ParseGroupDecl(decl)
+		if err != nil {
+			if jsonOut {
+				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
+			}
+			return err
+		}
+		job.Groups = append(job.Groups, g)
+	}
 
 	if schemaPath != "" {
 		schema, err := loadSchemaFromFile(fs, schemaPath)
@@ -157,6 +176,9 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)
 	if len(report.ElidedConstants) > 0 {
 		writeText(cmd.Writer, "Elided constant fields (stored once, format 0x02): %s\n", strings.Join(report.ElidedConstants, ", "))
+	}
+	for _, g := range report.Groups {
+		writeText(cmd.Writer, "Parent %s: %d distinct tuples of %s (format 0x02)\n", g.Label, g.EntryCount, strings.Join(g.Fields, ", "))
 	}
 	if len(report.RowErrors) > 0 {
 		writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))

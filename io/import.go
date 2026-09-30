@@ -95,6 +95,19 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 	_ = inferWarnings
 
+	// Parent-group declarations are checked against the resolved schema
+	// BEFORE the row pass, so a typo'd field name or a field claimed by
+	// two groups fails fast instead of after reading the whole source.
+	// Field names cannot change during the pass (only nullability can),
+	// so this verdict is final; the encoder is rebuilt over the final
+	// schema at write time.
+	specs := groupSpecs(j.Groups)
+	if len(specs) > 0 {
+		if _, err := encoding.NewGroupEncoder(schema, specs); err != nil {
+			return nil, err
+		}
+	}
+
 	// Build dictionaries for categorical and set fields. Both share
 	// the inline-dictionary block on the .pulse codec; set fields use
 	// the dictionary bit-positions as on-wire mask bits.
@@ -343,9 +356,9 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// applied) and the records. No record count prefix — the format is
 	// header + schema + records per §5.3. Record count is derived from file
 	// size and per-record byte size.
-	elision, written, err := writeCohortPayload(&buf, schema, recordsBuf.Bytes(), bitmapBuf.Bytes(), fullBitmapSize, rowsImported, j.ElideConstants)
+	elision, written, err := writeCohortPayload(&buf, schema, recordsBuf.Bytes(), bitmapBuf.Bytes(), fullBitmapSize, rowsImported, j.ElideConstants, j.Groups)
 	if err != nil {
-		return nil, err
+		return nil, withSourceRow(err, rowErrors)
 	}
 
 	// Write to filesystem.
@@ -380,6 +393,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	if elision != nil && elision.Spec != nil {
 		report.ElidedConstants = elision.Fields
 	}
+	report.Groups = groupReports(written, j.Groups)
 	return report, nil
 }
 
@@ -391,14 +405,18 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 // byte-identical to inlining the bitmap after each record, and field
 // bytes alone when no field is nullable.
 //
-// Without elide the output is the 0x01 cohort, unchanged. With elide,
-// every logical row is first folded into an encoding.ConstantDetector —
-// the FULL pass, never the inference sample — and the plan's constant
-// group, if any, is encoded through encoding.GroupEncoder into a 0x02
-// cohort. A plan that elides nothing (too few rows, no constant field,
-// or no net saving) falls through to the 0x01 write. Returns the plan
-// (nil without elide) and the schema actually written.
-func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []byte, bmSize, rows int, elide bool) (*encoding.ConstantPlan, *encoding.Schema, error) {
+// Without elide and without declared groups the output is the 0x01
+// cohort, unchanged. With elide, every logical row is first folded into
+// an encoding.ConstantDetector — the FULL pass, never the inference
+// sample — and the plan's constant group, if any, is appended after the
+// declared groups (whose members are reserved from elision, so the two
+// compose). Any group at all is encoded through encoding.GroupEncoder
+// into a 0x02 cohort in ONE pass over the spooled rows: each row's tuple
+// is looked up in its group's dictionary or appended. With no group
+// (nothing declared, and a plan that elides nothing) the write falls
+// through to 0x01. Returns the plan (nil without elide) and the schema
+// actually written; declared groups are its first len(decls) groups.
+func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []byte, bmSize, rows int, elide bool, decls []GroupDecl) (*encoding.ConstantPlan, *encoding.Schema, error) {
 	hasBM := schema.HasBitmap()
 	fieldStride := schema.RecordByteSize()
 	if hasBM {
@@ -413,6 +431,8 @@ func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []
 		return append(scratch, bms[k*bmSize:(k+1)*bmSize]...)
 	}
 
+	specs := groupSpecs(decls)
+	var plan *encoding.ConstantPlan
 	if elide {
 		det, err := encoding.NewConstantDetector(schema)
 		if err != nil {
@@ -423,36 +443,38 @@ func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []
 				return nil, nil, err
 			}
 		}
-		plan, err := encoding.PlanConstantElision(det, nil)
+		plan, err = encoding.PlanConstantElision(det, groupMemberNames(decls))
 		if err != nil {
 			return nil, nil, err
 		}
-		if plan.Spec == nil {
-			return plan, schema, writeFlatPayload(buf, schema, rows, logicalRow)
+		if plan.Spec != nil {
+			specs = append(specs, *plan.Spec)
 		}
-		enc, err := encoding.NewGroupEncoder(schema, []encoding.GroupSpec{*plan.Spec})
-		if err != nil {
-			return nil, nil, err
-		}
-		// The dictionaries precede the records on the wire, so the
-		// physical rows are spooled (smaller than the logical rows the
-		// import already holds) and the preamble is written last.
-		spool := make([]byte, 0, rows*enc.PhysicalStride())
-		for k := 0; k < rows; k++ {
-			if spool, err = enc.EncodeRow(spool, logicalRow(k)); err != nil {
-				return nil, nil, err
-			}
-		}
-		grouped := enc.Schema()
-		if err := encoding.WritePreamble(buf, grouped); err != nil {
-			return nil, nil, err
-		}
-		if _, err := buf.Write(spool); err != nil {
-			return nil, nil, err
-		}
-		return plan, grouped, nil
 	}
-	return nil, schema, writeFlatPayload(buf, schema, rows, logicalRow)
+	if len(specs) == 0 {
+		return plan, schema, writeFlatPayload(buf, schema, rows, logicalRow)
+	}
+	enc, err := encoding.NewGroupEncoder(schema, specs)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The dictionaries precede the records on the wire, so the
+	// physical rows are spooled (smaller than the logical rows the
+	// import already holds) and the preamble is written last.
+	spool := make([]byte, 0, rows*enc.PhysicalStride())
+	for k := 0; k < rows; k++ {
+		if spool, err = enc.EncodeRow(spool, logicalRow(k)); err != nil {
+			return nil, nil, err
+		}
+	}
+	grouped := enc.Schema()
+	if err := encoding.WritePreamble(buf, grouped); err != nil {
+		return nil, nil, err
+	}
+	if _, err := buf.Write(spool); err != nil {
+		return nil, nil, err
+	}
+	return plan, grouped, nil
 }
 
 // writeFlatPayload writes the ungrouped (0x01) preamble and every

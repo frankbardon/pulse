@@ -394,6 +394,56 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_GROUP_DECLARATION_INVALID: {
+		Message: "A parent-group declaration is malformed: it does not parse as `KEY[,KEY...]:MEMBER[,MEMBER...]` (or `MEMBER[,MEMBER...]`), declares no members, names a field twice within one group, or names a key that is not a member of its group.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups"},
+				Hint:   "Write each group as `--group key1[,key2]:member1[,member2]` (key fields, a colon, then the fields the key determines), or `--group f1,f2` for a plain tuple group with no key check. Name every field once per group; field names containing ',' or ':' cannot be declared from the CLI — use io.ImportJob.Groups.",
+			},
+		},
+	},
+	PULSE_GROUP_FIELD_UNKNOWN: {
+		Message: "A parent-group declaration names a field the cohort's schema does not have.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Use the exact field name from the imported schema (`pulse import predict --json` lists it); names are case-sensitive and match the source column header.",
+			},
+		},
+	},
+	PULSE_GROUP_FIELD_CONFLICT: {
+		Message: "One field is named by two parent-group declarations; groups are independent and a field belongs to at most one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Remove the field from all but one of the groups named in details.group_labels. If the two groups share a key, declare them as one group.",
+			},
+		},
+	},
+	PULSE_GROUP_MEMBER_NOT_CONSTANT: {
+		Message: "A declared parent group is not one: two rows carry the same key tuple but disagree on a non-key member (value or null state). details.field names the member and details.row / details.source_row a row that disagrees with an earlier row of the same key.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Move the field named in details.field out of the group (it varies within the parent), or add it to the group's key if it is part of what identifies the parent. If the source should have been constant per key, fix the upstream join.",
+			},
+		},
+	},
+	PULSE_GROUP_ENTRIES_EXHAUSTED: {
+		Message: "A parent group's dictionary would hold more distinct tuples than its u32 per-row index can address (2^32).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Drop the group: a group with this many distinct tuples is near-unique per row and saves no space. Group only the fields that repeat as a parent block.",
+			},
+		},
+	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: {
 		Message: "A numeric aggregation (SUM, AVERAGE, etc.) was requested on a categorical field.",
 		Fixups: []Fixup{

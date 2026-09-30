@@ -689,6 +689,11 @@ type ImportReport struct {
 	// Empty (and omitted from JSON) when elision was off or elided
 	// nothing, in which case the cohort is 0x01.
 	ElidedConstants []string `json:"ElidedConstants,omitempty"`
+	// Groups describes each ImportJob.Groups declaration as written, in
+	// declaration order: its label, fields, distinct-tuple count and
+	// the entry / member / index widths a viability check weighs. Empty
+	// (and omitted from JSON) when no group was declared.
+	Groups []GroupReport `json:"Groups,omitempty"`
 }
 
 // ExportReport summarizes the result of an export operation.
@@ -843,6 +848,16 @@ type ImportJob struct {
 	// constant the lowest-index one stays in the row. Default false.
 	// See encoding.PlanConstantElision.
 	ElideConstants bool
+	// Groups declares parent groups (see GroupDecl): each stores its
+	// distinct member tuples ONCE in the schema block and every record a
+	// u32 index into them — a format 0x02 cohort, which binaries older
+	// than 0x02 support cannot open. Groups are independent; a field
+	// belongs to at most one. Names are checked against the resolved
+	// schema (inferred, authoritative or explicit alike) before the row
+	// pass; the dictionaries are built in one pass over the imported
+	// rows. Composes with ElideConstants: declared members are never
+	// elided. Empty (the default) writes the 0x01 cohort unchanged.
+	Groups []GroupDecl
 }
 
 // NewImportJob creates an ImportJob with default settings.

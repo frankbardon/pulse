@@ -4990,7 +4990,7 @@
         ]
       }
     ],
-    "error_codes_count": 229,
+    "error_codes_count": 234,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5065,6 +5065,11 @@
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEAT_TARGET_LEAKAGE_RISK",
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_GROUP_DECLARATION_INVALID",
+      "PULSE_GROUP_ENTRIES_EXHAUSTED",
+      "PULSE_GROUP_FIELD_CONFLICT",
+      "PULSE_GROUP_FIELD_UNKNOWN",
+      "PULSE_GROUP_MEMBER_NOT_CONSTANT",
       "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
       "PULSE_IMPORT_CATEGORICAL_UNBOUNDED",
       "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
@@ -9718,4 +9723,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6b84d2a07b5c652a769c6dba883e3592b07a5bec69e4ec60d4a1f0549881e956
+// golden-hash: c570b8529f9470b39baf4dc49be442d3b005c6e2ed976945b1a28c5f32a34480

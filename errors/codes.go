@@ -187,6 +187,33 @@ const (
 	// CLI invocation cannot reach arbitrary files on the host.
 	PULSE_IMPORT_SOURCE_FORBIDDEN Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
 
+	// PULSE_GROUP_DECLARATION_INVALID indicates a parent-group
+	// declaration that is malformed before any field is resolved: a
+	// declaration string that does not parse, a group with no members,
+	// a field named twice within one group, or a key that is not a
+	// member of its own group.
+	PULSE_GROUP_DECLARATION_INVALID Code = "PULSE_GROUP_DECLARATION_INVALID"
+
+	// PULSE_GROUP_FIELD_UNKNOWN indicates a parent-group declaration
+	// names a field the cohort's schema does not have.
+	PULSE_GROUP_FIELD_UNKNOWN Code = "PULSE_GROUP_FIELD_UNKNOWN"
+
+	// PULSE_GROUP_FIELD_CONFLICT indicates one field is named by two
+	// parent-group declarations. Groups are independent: a field belongs
+	// to at most one.
+	PULSE_GROUP_FIELD_CONFLICT Code = "PULSE_GROUP_FIELD_CONFLICT"
+
+	// PULSE_GROUP_MEMBER_NOT_CONSTANT indicates a declared parent group
+	// is not one: two rows carry the same key tuple but disagree on a
+	// non-key member (or a constant group's member changes). The
+	// encoder refuses rather than silently growing the dictionary.
+	PULSE_GROUP_MEMBER_NOT_CONSTANT Code = "PULSE_GROUP_MEMBER_NOT_CONSTANT"
+
+	// PULSE_GROUP_ENTRIES_EXHAUSTED indicates a parent group's
+	// dictionary would exceed the u32 per-row index space (2^32
+	// distinct tuples).
+	PULSE_GROUP_ENTRIES_EXHAUSTED Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
+
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
 	// was requested on a categorical field.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL"
@@ -2417,6 +2444,11 @@ var allCodes = []Code{
 	PULSE_IMPORT_SOURCE_MISSING,
 	PULSE_IMPORT_HANDLE_EXISTS,
 	PULSE_IMPORT_SOURCE_FORBIDDEN,
+	PULSE_GROUP_DECLARATION_INVALID,
+	PULSE_GROUP_FIELD_UNKNOWN,
+	PULSE_GROUP_FIELD_CONFLICT,
+	PULSE_GROUP_MEMBER_NOT_CONSTANT,
+	PULSE_GROUP_ENTRIES_EXHAUSTED,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,

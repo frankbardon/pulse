@@ -1,0 +1,189 @@
+package io
+
+import (
+	stderrors "errors"
+	"strconv"
+	"strings"
+
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
+)
+
+// Import-time parent-group declaration (format 0x02).
+//
+// A parent group is a set of fields that repeat as a unit — the parent
+// block of a denormalised join. Declaring one at import stores each
+// distinct member tuple ONCE in the schema block and gives every row a
+// u32 index into it (see encoding/group.go). Declaration is the only
+// way a group is formed: import infers from a bounded sample, which can
+// nominate a parent block but never confirm one, so nothing here is
+// automatic.
+
+// GroupDecl declares one parent group by field NAME.
+//
+// Key names the fields that identify the parent (e.g. its ID); Members
+// names the fields the key DETERMINES (the parent's attributes). The
+// group stores Key ∪ Members. With a Key, every row that carries a key
+// tuple already seen must agree with that earlier row on every Member —
+// value and null state — or the import fails with
+// PULSE_GROUP_MEMBER_NOT_CONSTANT naming the member and the row: a
+// declaration that is not actually a parent group is refused, never
+// silently turned into a larger dictionary. With no Key, Members is a
+// plain tuple group: each distinct combination is one entry and there
+// is nothing to violate.
+type GroupDecl struct {
+	Key     []string `json:"key,omitempty"`
+	Members []string `json:"members"`
+}
+
+// spec lowers the declaration to the encoder's GroupSpec: Members =
+// Key ∪ Members (key first), Key = Key.
+func (d GroupDecl) spec() encoding.GroupSpec {
+	sp := encoding.GroupSpec{Kind: encoding.GroupKindIndexed}
+	sp.Members = append(append(sp.Members, d.Key...), d.Members...)
+	if len(d.Key) > 0 {
+		sp.Key = append([]string(nil), d.Key...)
+	}
+	return sp
+}
+
+// groupSpecs lowers every declaration.
+func groupSpecs(decls []GroupDecl) []encoding.GroupSpec {
+	if len(decls) == 0 {
+		return nil
+	}
+	out := make([]encoding.GroupSpec, len(decls))
+	for i, d := range decls {
+		out[i] = d.spec()
+	}
+	return out
+}
+
+// ParseGroupDecl parses the CLI form of one group declaration:
+//
+//	KEY[,KEY...]:MEMBER[,MEMBER...]   a keyed group (members determined by the key)
+//	MEMBER[,MEMBER...]                a plain tuple group (no key check)
+//
+// Names are trimmed of surrounding whitespace. An empty name, an empty
+// side of the colon, or more than one colon is
+// PULSE_GROUP_DECLARATION_INVALID. Field names containing ',' or ':'
+// cannot be written in this form; use ImportJob.Groups directly.
+func ParseGroupDecl(s string) (GroupDecl, error) {
+	bad := func(msg string) (GroupDecl, error) {
+		return GroupDecl{}, errors.NewCodedErrorWithDetails(errors.PULSE_GROUP_DECLARATION_INVALID,
+			"parent group declaration "+strconv.Quote(s)+": "+msg,
+			map[string]any{"declaration": s})
+	}
+	names := func(part string) ([]string, bool) {
+		var out []string
+		for _, n := range strings.Split(part, ",") {
+			n = strings.TrimSpace(n)
+			if n == "" {
+				return nil, false
+			}
+			out = append(out, n)
+		}
+		return out, true
+	}
+	switch strings.Count(s, ":") {
+	case 0:
+		m, ok := names(s)
+		if !ok {
+			return bad("expected MEMBER[,MEMBER...] with no empty names")
+		}
+		return GroupDecl{Members: m}, nil
+	case 1:
+		i := strings.IndexByte(s, ':')
+		k, okK := names(s[:i])
+		m, okM := names(s[i+1:])
+		if !okK || !okM {
+			return bad("expected KEY[,KEY...]:MEMBER[,MEMBER...] with no empty names on either side")
+		}
+		return GroupDecl{Key: k, Members: m}, nil
+	default:
+		return bad("more than one ':' — expected KEY[,KEY...]:MEMBER[,MEMBER...]")
+	}
+}
+
+// GroupReport describes one declared group as written. It carries what
+// a per-group viability check needs, all derived from the written
+// schema: the dictionary (EntryCount × EntryWidth bytes in the schema
+// block) against the per-row saving (MemberRowBytes − IndexWidth, times
+// ImportReport.RowsImported).
+type GroupReport struct {
+	// Label names the group in errors and output ("group 1 [key: id]").
+	Label string `json:"label"`
+	// Key and Members are as declared; Fields is every member in
+	// logical (schema) order.
+	Key     []string `json:"key,omitempty"`
+	Members []string `json:"members"`
+	Fields  []string `json:"fields"`
+	// EntryCount is the number of distinct tuples stored.
+	EntryCount int `json:"entry_count"`
+	// EntryWidth is the bytes per dictionary entry (member bytes plus a
+	// member null bitmap when any member is nullable).
+	EntryWidth int `json:"entry_width"`
+	// MemberRowBytes is the bytes the members occupied in each flat row.
+	MemberRowBytes int `json:"member_row_bytes"`
+	// IndexWidth is the bytes of the per-row index that replaces them.
+	IndexWidth int `json:"index_width"`
+}
+
+// groupReports describes the first len(decls) groups of the written
+// schema — declared groups come first, in declaration order.
+func groupReports(written *encoding.Schema, decls []GroupDecl) []GroupReport {
+	if len(decls) == 0 {
+		return nil
+	}
+	out := make([]GroupReport, len(decls))
+	for g, d := range decls {
+		gr := GroupReport{
+			Label:          d.spec().Label(g),
+			Key:            d.Key,
+			Members:        d.Members,
+			EntryCount:     written.GroupEntryCount(g),
+			EntryWidth:     written.GroupEntryWidth(g),
+			MemberRowBytes: written.GroupMemberRowBytes(g),
+			IndexWidth:     encoding.GroupIndexWidth,
+		}
+		for _, m := range written.Groups[g].Members {
+			gr.Fields = append(gr.Fields, written.Fields[m.Field].Name)
+		}
+		out[g] = gr
+	}
+	return out
+}
+
+// groupMemberNames is every field some declaration claims — the
+// reserved set constant elision must not touch.
+func groupMemberNames(decls []GroupDecl) []string {
+	var out []string
+	for _, d := range decls {
+		out = append(append(out, d.Key...), d.Members...)
+	}
+	return out
+}
+
+// withSourceRow adds details["source_row"] — the 1-based data row of the
+// SOURCE, the numbering RowError.Row uses — to a group encode failure
+// that names a record index. Records are the rows that imported, so a
+// record index skips every row-error row before it.
+func withSourceRow(err error, rowErrors []RowError) error {
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Details == nil {
+		return err
+	}
+	rec, ok := ce.Details["row"].(int64)
+	if !ok {
+		return err
+	}
+	src := int(rec) + 1
+	for _, re := range rowErrors {
+		if re.Row > src {
+			break
+		}
+		src++
+	}
+	ce.Details["source_row"] = src
+	return err
+}

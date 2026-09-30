@@ -595,7 +595,7 @@ func TestGroupEncoder_Violations(t *testing.T) {
 		}
 	}
 	var ce *errors.CodedError
-	if !stderrors.As(err, &ce) || ce.Code != errors.ENCODING_INVALID || ce.Details["field"] != "p" || ce.Details["row"] != int64(2) {
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_GROUP_MEMBER_NOT_CONSTANT || ce.Details["field"] != "p" || ce.Details["row"] != int64(2) {
 		t.Fatalf("key violation err = %v (details %v), want field p row 2", err, ce)
 	}
 
@@ -604,7 +604,7 @@ func TestGroupEncoder_Violations(t *testing.T) {
 	for _, r := range [][]byte{{1, 10, 0}, {2, 10, 0}, {3, 10, 5}} {
 		out, err = enc.EncodeRow(out, r)
 	}
-	if !stderrors.As(err, &ce) || ce.Details["field"] != "c" || ce.Details["row"] != int64(2) {
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_GROUP_MEMBER_NOT_CONSTANT || ce.Details["field"] != "c" || ce.Details["row"] != int64(2) {
 		t.Fatalf("constant violation err = %v, want field c row 2", err)
 	}
 
@@ -618,18 +618,29 @@ func TestGroupEncoder_Violations(t *testing.T) {
 			break
 		}
 	}
-	if !stderrors.As(err, &ce) || ce.Details["max_entries"] != uint64(2) {
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_GROUP_ENTRIES_EXHAUSTED || ce.Details["max_entries"] != uint64(2) {
 		t.Fatalf("overflow err = %v, want max_entries 2", err)
 	}
 
-	for name, specs := range map[string][]GroupSpec{
-		"unknown_field":  {{Members: []string{"zz"}}},
-		"two_groups":     {{Members: []string{"k"}}, {Members: []string{"k", "p"}}},
-		"key_not_member": {{Members: []string{"k"}, Key: []string{"p"}}},
+	for name, tc := range map[string]struct {
+		specs []GroupSpec
+		code  errors.Code
+	}{
+		"unknown_field":  {[]GroupSpec{{Members: []string{"zz"}}}, errors.PULSE_GROUP_FIELD_UNKNOWN},
+		"two_groups":     {[]GroupSpec{{Members: []string{"k"}}, {Members: []string{"k", "p"}}}, errors.PULSE_GROUP_FIELD_CONFLICT},
+		"key_not_member": {[]GroupSpec{{Members: []string{"k"}, Key: []string{"p"}}}, errors.PULSE_GROUP_DECLARATION_INVALID},
+		"twice_in_group": {[]GroupSpec{{Members: []string{"k", "k"}}}, errors.PULSE_GROUP_DECLARATION_INVALID},
+		"no_members":     {[]GroupSpec{{}}, errors.PULSE_GROUP_DECLARATION_INVALID},
 	} {
-		if _, err := NewGroupEncoder(flat, specs); !errors.HasCode(err, errors.ENCODING_INVALID) {
-			t.Fatalf("%s: err = %v", name, err)
+		if _, err := NewGroupEncoder(flat, tc.specs); !errors.HasCode(err, tc.code) {
+			t.Fatalf("%s: err = %v, want %s", name, err, tc.code)
 		}
+	}
+	// A conflict names BOTH groups, by label.
+	_, err = NewGroupEncoder(flat, []GroupSpec{{Members: []string{"k", "p"}, Key: []string{"k"}}, {Members: []string{"c", "p"}}})
+	if !stderrors.As(err, &ce) || ce.Details["field"] != "p" ||
+		!reflect.DeepEqual(ce.Details["group_labels"], []string{"group 1 [key: k]", "group 2 [c,p]"}) {
+		t.Fatalf("conflict err = %v (details %v), want both group labels", err, ce)
 	}
 }
 

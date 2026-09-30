@@ -110,6 +110,43 @@ is then byte-identical `0x01`), and keeps the lowest-index field in the
 row when every field is constant. The elided fields are reported in
 `ImportReport.ElidedConstants`.
 
+## Declaring groups at import
+
+`pulse import <format> --group KEY[,KEY...]:MEMBER[,MEMBER...]`
+(repeatable; library: `io.ImportJob.Groups []io.GroupDecl{Key, Members}`)
+declares one indexed group per flag. The group's members are the key
+fields plus the fields they determine; the key fields carry the member
+KEY flag in the descriptor. A declaration without a colon is a tuple
+group whose every member is key.
+
+- **Key semantics.** Non-key members must be functionally determined by
+  the key: two rows with the same key tuple must agree on every other
+  member, byte for byte and null bit for null bit. The encoder checks
+  every row and fails with `PULSE_GROUP_MEMBER_NOT_CONSTANT` (details:
+  `group`, `group_label`, `field`, `row` — the 0-based record — and
+  `source_row` — the 1-based source data row) rather than store a second
+  entry for the same key.
+- **Names.** The format has no group-name slot. Errors and reports name a
+  group by its 1-based declaration position and its key
+  (`group 2 [key: prod_id]`), or its members when it has no key.
+- **When it is checked.** Field names are resolved against the import's
+  final schema — inferred, authoritative (`SchemaAwareReader`: SPSS,
+  Arrow, Parquet) or explicit alike — before the row pass:
+  `PULSE_GROUP_FIELD_UNKNOWN`, `PULSE_GROUP_FIELD_CONFLICT` (details
+  `group_labels` names both), `PULSE_GROUP_DECLARATION_INVALID`.
+- **One pass.** The source is read once. Each group's dictionary is
+  built in a single pass over the imported rows: a row's tuple is looked
+  up in the group's dictionary, or appended. `u32` exhaustion is
+  `PULSE_GROUP_ENTRIES_EXHAUSTED`, never a wraparound.
+- **Composition.** Declared groups come first in the descriptor, in
+  declaration order; with `--elide-constants` the constant group follows
+  them, and declared members are never elided.
+- **Report.** `ImportReport.Groups` lists each declared group's label,
+  fields, `entry_count`, `entry_width`, `member_row_bytes` and
+  `index_width`. A group whose dictionary costs more than its members
+  saved still writes; it is reported, not refused.
+- **Zero groups** write the `0x01` cohort byte for byte.
+
 Shard archives, set-field widening and the shard categorical rewrite do
 not accept grouped cohorts yet: they refuse with a coded error rather
 than reinterpret physical bytes.

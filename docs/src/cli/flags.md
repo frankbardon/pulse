@@ -208,6 +208,48 @@ every field is constant the lowest-index field stays in the row. The
 elided fields are printed, and reported as `ElidedConstants` under
 `--json`. See [parent groups](../format/parent-groups.md).
 
+### `--group`
+
+Available on: `import csv`, `import tsv`, `import ndjson`,
+`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
+`import spss`. Repeatable — one parent group per flag.
+
+`--group KEY[,KEY...]:MEMBER[,MEMBER...]` declares a **parent group**:
+the key fields identify a parent (a customer ID, say) and the members
+are the fields that key determines (its name, region, tier). Each
+distinct tuple is stored once in the schema block and every record
+carries a 4-byte index instead of the members, so a denormalised join
+shrinks by its repeated parent block. `--group F1,F2,...` (no colon) is
+a plain tuple group: each distinct combination is one entry, with no
+key check.
+
+```sh
+pulse import csv -i lines.csv -o lines.pulse \
+  --group cust_id:cust_name,cust_region \
+  --group prod_id:prod_cat
+```
+
+A keyed declaration is **checked, not trusted**: if two rows share a key
+tuple but disagree on a member (value or null state), the import fails
+with `PULSE_GROUP_MEMBER_NOT_CONSTANT` naming the member, the record
+index and the source row — a wrong declaration is refused, never
+silently turned into a larger dictionary. A field in two groups is
+`PULSE_GROUP_FIELD_CONFLICT` (naming both groups), an unknown field
+`PULSE_GROUP_FIELD_UNKNOWN`, a malformed value
+`PULSE_GROUP_DECLARATION_INVALID`; all three fail before the row pass.
+More than 2^32 distinct tuples is `PULSE_GROUP_ENTRIES_EXHAUSTED`.
+Groups are named in errors and output by position and key
+(`group 1 [key: cust_id]`) — the format stores no group name. Each group
+is printed with its distinct-tuple count, and reported under `Groups`
+with `--json` (entry count, entry width, member bytes per row, index
+width). Declared members are never constant-elided, so `--group`
+composes with `--elide-constants`. Field names containing `,` or `:`
+cannot be declared here; use `io.ImportJob.Groups`. The output is a
+format `0x02` cohort that binaries predating `0x02` cannot open; with no
+`--group` the import is unchanged. `pulse_import` (MCP) and managed
+imports do not take groups. See
+[parent groups](../format/parent-groups.md).
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it
