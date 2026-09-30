@@ -228,7 +228,8 @@ func TestPlanConstantElision_EncodesIndistinguishably(t *testing.T) {
 // columns (of 30, 43 of its 176 row bytes) decoded as the flat 0x01
 // file and as its constant-elided 0x02 twin, full reuse decode and
 // run-skip decode. It reports file bytes and ns per row; the elided
-// arm pays the grouped expansion (E3-S7 optimises it).
+// arm decodes the physical row directly (group_decode.go), so its
+// constant members are written once per record and never re-decoded.
 func BenchmarkConstantElisionDecode(b *testing.B) {
 	t := &testing.T{}
 	constant := []string{"u8_b", "u16_a", "pb_1", "cat_u16", "amount", "tags_u64", "tags_u128", "u8_c"}

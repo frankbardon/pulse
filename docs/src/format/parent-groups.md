@@ -70,13 +70,29 @@ across a group boundary needs no repacking.
 
 ## Decode
 
-A reader expands each physical row into its logical row — row-field
-bytes copied, each group's entry spliced in by index, null bits merged
-from the narrowed bitmap and the entries — and then runs the ordinary
-`0x01` decoder. A grouped cohort therefore decodes to exactly what its
-ungrouped twin decodes to. An index past its dictionary is
-`ENCODING_INVALID`. A physical stride of zero (every field
-constant-grouped) is refused at write and read.
+A grouped cohort decodes to exactly what its ungrouped twin decodes to;
+there are two routes to that, chosen by the decoder:
+
+- **Reuse / buffered scans** (the streaming and buffered `Process`
+  paths, parallel decode, shard iteration) read the physical row as it
+  is and write each field at its LOGICAL position — row fields from
+  their bytes, group members from the group's dictionary entry. A group
+  whose index equals the index the record already holds is not touched
+  at all, and a changed index copies the members from a per-entry cache
+  of decoded values (derived at read time, never stored, bounded per
+  reader). Per-row cost therefore tracks the row fields plus the groups
+  that CHANGED, not the width of the parent block; a projection that
+  retains no member of a group never decodes it.
+- **Whole-row consumers** (the map decoder, point lookup, export, the
+  SPSS writer, profile run-continuation) read the logical stream: each
+  physical row expanded into its logical row — row-field bytes copied,
+  each group's entry spliced in by index, null bits merged from the
+  narrowed bitmap and the entries — and then the ordinary `0x01`
+  decoder runs over it.
+
+An index past its dictionary is `ENCODING_INVALID` on both routes. A
+physical stride of zero (every field constant-grouped) is refused at
+write and read.
 
 ## Global-constant elision
 

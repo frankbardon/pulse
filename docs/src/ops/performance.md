@@ -53,6 +53,17 @@ comparing, so the cost there stays within a few percent. Results are
 identical either way. If you control the import, `ORDER BY` the parent
 key.
 
+**Parent-grouped cohorts decode in time independent of the parent
+block's width.** A cohort whose parent block is stored once per parent
+(a `0x02` parent group) is scanned without rebuilding each row: a row
+whose parent did not change costs nothing for the parent block, and a
+changed parent is copied in from decoded values cached per parent
+(bounded to 8 MiB per reader). On a synthetic 12.5x-fanout join with a
+29-field child block, the full-row streaming scan runs 1.2x (10 parent
+fields) to 1.4x (80) faster than the ungrouped file when sorted, and up
+to 2.2x faster unsorted; a four-field projection costs the same at every
+parent width, 2.5–3.3x under the ungrouped file. Results are identical.
+
 ## Buffered path: when Pulse has to materialise
 
 `pulse api predict` reports `Streamable=false` and lists every

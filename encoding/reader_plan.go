@@ -45,6 +45,7 @@ func (rr *RecordReader) ReadRecordWithWidePlan(
 	if plan == nil {
 		return rr.readRecord(values, nulls, wide, keep)
 	}
+	rr.noteLogicalRead()
 
 	// Clear caller-provided maps. Mirrors readRecord.
 	for k := range values {

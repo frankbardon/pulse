@@ -168,6 +168,9 @@ func (rr *RecordReader) indexedSink(rec ReusableRecord) IndexedReusableRecord {
 //     same result, but fields whose bytes repeat the previous row are not
 //     rewritten.
 func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
+	if rr.gd != nil {
+		return rr.readGrouped(rec, nil, nil)
+	}
 	sink := rr.indexedSink(rec)
 	if rs, ok := sink.(RunSkipRecord); ok {
 		return rr.readStrideRunSkip(rs)
@@ -303,6 +306,9 @@ func (rr *RecordReader) decodeStrideIndexed(sink IndexedReusableRecord, buf []by
 func (rr *RecordReader) ReadRecordReusedWithPlan(rec ReusableRecord, keep FieldFilter, plan *DecodePlan) error {
 	if plan == nil {
 		return rr.ReadRecordReused(rec)
+	}
+	if rr.gd != nil {
+		return rr.readGrouped(rec, keep, plan)
 	}
 
 	sink := rr.indexedSink(rec)

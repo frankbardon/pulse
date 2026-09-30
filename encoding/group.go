@@ -36,9 +36,11 @@ import (
 //     when any member is nullable. Entries are fixed-width, so a group's
 //     dictionary is one flat byte slice.
 //
-// Decode expands a physical row back into its logical row (RowExpander)
-// and runs the unchanged 0x01 decoders over it, which is what makes a
-// grouped cohort structurally indistinguishable from its ungrouped twin.
+// Decode yields exactly the ungrouped twin's values. The map decoders
+// expand a physical row back into its logical row (RowExpander) and run
+// the unchanged 0x01 decoders over it; the reuse decoders write the
+// physical row straight into the record at logical positions, skipping
+// groups whose index did not change (group_decode.go).
 
 // GroupKind is the per-group kind byte of the group descriptor.
 type GroupKind uint8

@@ -700,7 +700,8 @@ func TestRefuseGroups_ByteLevelRewriters(t *testing.T) {
 }
 
 // BenchmarkGroupedDecode compares full reuse decode of a 0x01 cohort
-// with its grouped 0x02 twin (expansion + the same decode).
+// with its grouped 0x02 twin (direct physical-row decode), plus the
+// logical-stream expansion alone.
 func BenchmarkGroupedDecode(b *testing.B) {
 	t := &testing.T{}
 	fx := groupFixtures(t)[0]
