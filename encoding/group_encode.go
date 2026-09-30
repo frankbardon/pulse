@@ -322,12 +322,72 @@ func (e *GroupEncoder) mismatch(g int, have, got []byte) error {
 		map[string]any{"group": g, "group_label": e.labels[g], "field": field, "row": e.rows})
 }
 
+// ForEachRecord reads fixed-width records of stride bytes from r and
+// calls fn with each one, returning how many it read. The slice fn
+// receives is reused between calls. A clean end of input between two
+// records ends the walk; input ending MID-record is ENCODING_INVALID
+// (details trailing_bytes, records_read) rather than a silently dropped
+// tail. Every whole-cohort record pass of the dedup family — encoding,
+// constant detection, candidate detection — walks through here, so the
+// three cannot disagree about where a cohort ends.
+func ForEachRecord(r io.Reader, stride int, fn func(rec []byte) error) (int64, error) {
+	if stride <= 0 {
+		return 0, groupErr("record stride must be positive", map[string]any{"stride": stride})
+	}
+	rec := make([]byte, stride)
+	var n int64
+	for {
+		got, err := io.ReadFull(r, rec)
+		if err == io.EOF {
+			return n, nil
+		}
+		if err == io.ErrUnexpectedEOF {
+			return n, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+				"cohort payload ends mid-record",
+				map[string]any{"trailing_bytes": got, "records_read": n})
+		}
+		if err != nil {
+			return n, err
+		}
+		if err := fn(rec); err != nil {
+			return n, err
+		}
+		n++
+	}
+}
+
+// EncodeStream encodes every logical row read from lr (a logical record
+// stream of the encoder's input schema, e.g. from NewLogicalStream) and
+// writes the physical rows to spool, in order. It returns the number of
+// rows encoded. The dictionaries precede the records on the wire, so
+// spool is NOT the cohort: once the stream is drained the caller writes
+// WritePreamble(Schema()) and then the spooled bytes. Holding the spool
+// is the caller's choice — memory (DedupCohort) or a temp file
+// (io.DedupJob, whose memory stays O(dictionaries) whatever the cohort
+// size). A failing row leaves spool holding only the rows before it.
+func (e *GroupEncoder) EncodeStream(spool io.Writer, lr io.Reader) (int64, error) {
+	var phys []byte
+	n, err := ForEachRecord(lr, e.LogicalStride(), func(row []byte) error {
+		var err error
+		if phys, err = e.EncodeRow(phys[:0], row); err != nil {
+			return err
+		}
+		if _, err := spool.Write(phys); err != nil {
+			return errors.WrapCodedError(err, errors.ENCODING_IO, "dedup: spooling records")
+		}
+		return nil
+	})
+	return n, err
+}
+
 // DedupCohort reads a whole cohort (header, schema, records — any
 // version, grouped or not) from src and writes its grouped equivalent,
 // grouped by specs, to dst. The source is read through its LOGICAL
 // stream, so a grouped source is regrouped from scratch. The physical
 // rows are spooled in memory because the dictionaries precede the
-// records on the wire. A truncated trailing record is ENCODING_INVALID
+// records on the wire — it is the small-cohort form of the one encode
+// path (GroupEncoder.EncodeStream) that io.DedupJob drives with a
+// temp-file spool. A truncated trailing record is ENCODING_INVALID
 // rather than silently dropped. Returns the written schema and the
 // record count.
 func DedupCohort(dst io.Writer, src io.Reader, specs []GroupSpec) (*Schema, int64, error) {
@@ -343,31 +403,17 @@ func DedupCohort(dst io.Writer, src io.Reader, specs []GroupSpec) (*Schema, int6
 	if err != nil {
 		return nil, 0, err
 	}
-	row := make([]byte, enc.LogicalStride())
-	var spool []byte
-	for {
-		n, err := io.ReadFull(lr, row)
-		if err == io.EOF {
-			break
-		}
-		if err == io.ErrUnexpectedEOF {
-			return nil, 0, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
-				"dedup: cohort payload ends mid-record",
-				map[string]any{"trailing_bytes": n, "records_read": enc.Rows()})
-		}
-		if err != nil {
-			return nil, 0, err
-		}
-		if spool, err = enc.EncodeRow(spool, row); err != nil {
-			return nil, 0, err
-		}
+	var spool bytes.Buffer
+	rows, err := enc.EncodeStream(&spool, lr)
+	if err != nil {
+		return nil, 0, err
 	}
 	out := enc.Schema()
 	if err := WritePreamble(dst, out); err != nil {
 		return nil, 0, err
 	}
-	if _, err := dst.Write(spool); err != nil {
+	if _, err := spool.WriteTo(dst); err != nil {
 		return nil, 0, errors.WrapCodedError(err, errors.ENCODING_IO, "dedup: writing records")
 	}
-	return out, enc.Rows(), nil
+	return out, rows, nil
 }

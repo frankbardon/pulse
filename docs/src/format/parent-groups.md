@@ -202,6 +202,31 @@ fails predict the same way. Detection only suggests, and `Run` ignores
 `SuggestGroups`. Bounds, cost and limits:
 [`--suggest-groups`](../cli/flags.md#--suggest-groups).
 
+## Converting an existing cohort (retro-dedup)
+
+`pulse dedup COHORT --group KEY:MEMBER,...` (library `Pulse.Dedup`,
+MCP `pulse_dedup`) converts a cohort that is already on disk, so a
+grouped cohort no longer needs the original source. It takes the same
+declarations, `--elide-constants`, `--dedup-ratio-floor` and `--strict`
+as import (elision is CLI + library only, not on `pulse_dedup`). The
+byte work is `io.DedupJob`. The source is read through its LOGICAL
+record stream, so a `0x02` cohort is regrouped from scratch: its
+existing groups are replaced, not extended. The rows go through the same
+`GroupEncoder` and are judged by the same `DedupGate`, so retro-dedup of
+a flat cohort is byte-identical to importing its source with the same
+flags. The physical rows are spooled to a temp file (memory stays
+O(dictionaries)). The ratio floor runs after the pass and before
+anything is written. The cohort is then assembled into a second temp
+file beside the target, fsynced and renamed over it, so any failure or
+refusal leaves the original byte-identical. `--out PATH` writes a new
+file (which must not exist) instead of rewriting in place.
+`--suggest-groups` runs the import-predict detector over the cohort's
+decoded records; alone it writes nothing. An in-place rewrite changes
+the file's length, so the point-lookup index and SPSS sidecar
+self-invalidate. `data.invalidated_sidecars` names each one with its
+rebuild command, and nothing is rebuilt. Shard archives, and an
+anchored shard inside one, are refused with `SERVICE_VALIDATION`.
+
 ## Inspecting a grouped cohort
 
 `pulse cohort inspect` (`Pulse.InspectEnvelope`, `pulse_inspect`)

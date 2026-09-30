@@ -379,6 +379,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse cohort inspect` | Inspect a `.pulse` header and schema | [cohort inspect](cohort-inspect.md) |
 | `pulse convert` | Convert between tabular formats, auto-detected from extensions | [import spss](import-spss.md), [export spss](export-spss.md) |
 | `pulse convert predict` | Validate a conversion without writing output | [export spss](export-spss.md) |
+| `pulse dedup` | Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format `0x02`) — the existing-cohort twin of `pulse import --group`, taking the same `--group`, `--elide-constants`, `--dedup-ratio-floor` and `--strict`. Rewrites in place (destructive, non-interactive, atomic: temp file, fsync, rename, so a refusal or failure leaves the cohort byte-identical) or, with `--out PATH`, writes a new file that must not exist. `--suggest-groups` detects candidates over the cohort's records; alone it writes nothing. An already-grouped cohort is regrouped from scratch. Refuses a shard archive (`SERVICE_VALIDATION`). An in-place rewrite names each invalidated sidecar and its rebuild command (`data.invalidated_sidecars`) and rebuilds nothing | [parent groups](../format/parent-groups.md) |
 | `pulse errors list` | List error codes by domain and/or substring | `--help` |
 | `pulse errors lookup` | Message + fixups for one error code | `--help` |
 | `pulse examples search` | Search the embedded request-example library | `--help` |

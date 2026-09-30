@@ -627,38 +627,9 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 		return err
 	}
 
-	var detection *GroupDetection
-	window := 0
-	var windowBuf []byte
-	nominated := false
-	var cands []*fdTracker
-	var nominees []nominee
+	var detector *candidateDetector
 	if j.SuggestGroups {
-		detection = &GroupDetection{Candidates: []GroupCandidate{}, Suggested: []string{}}
-		window = detectWindow(len(schema.Fields), l.stride)
-		detection.WindowBound = window
-		windowBuf = make([]byte, 0, window*l.stride)
-	}
-	startCandidates := func() {
-		nominated = true
-		n := len(windowBuf) / l.stride
-		detection.WindowRows = n
-		eligible := make([]bool, len(schema.Fields))
-		for i := range eligible {
-			eligible[i] = !reserved[i]
-		}
-		nominees = nominate(&l, windowBuf, eligible, detection)
-		for _, nm := range nominees {
-			t := newFDTracker(&l, []int{nm.key}, nm.members, 0)
-			t.maxRows = detectMemoryBudget / len(nominees) / t.entryCost()
-			cands = append(cands, t)
-		}
-		for r := 0; r < n; r++ {
-			for _, t := range cands {
-				t.observe(windowBuf[r*l.stride : (r+1)*l.stride])
-			}
-		}
-		windowBuf = nil
+		detector = newCandidateDetector(&l, reserved)
 	}
 
 	var (
@@ -702,17 +673,8 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 					map[string]any{"group": g, "group_label": label, "field": schema.Fields[fi].Name, "row": int64(rows)}), rowErrs)
 			}
 		}
-		if detection != nil {
-			if !nominated {
-				windowBuf = append(windowBuf, b...)
-				if len(windowBuf)/l.stride >= window {
-					startCandidates()
-				}
-			} else {
-				for _, t := range cands {
-					t.observe(b)
-				}
-			}
+		if detector != nil {
+			detector.observe(b)
 		}
 		rows++
 		return nil
@@ -721,9 +683,6 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 		return err
 	}
 	report.EstimatedRows = rowNum
-	if detection != nil && !nominated {
-		startCandidates()
-	}
 
 	for _, name := range conv.promotedNames() {
 		report.Warnings = append(report.Warnings, InferenceWarning{
@@ -784,14 +743,102 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 		report.GroupWarnings = append(groupWarns, ratioWarns...)
 	}
 
-	if detection != nil {
-		detection.Rows = int64(rows)
-		if err := measureCandidates(detection, sizing, nominees, cands, gate.Floor(), int64(rows), proj.FlatFileBytes); err != nil {
+	if detector != nil {
+		detection, err := detector.finish(sizing, gate.Floor(), int64(rows), proj.FlatFileBytes)
+		if err != nil {
 			return err
 		}
 		report.GroupCandidates = detection
 	}
 	return nil
+}
+
+// candidateDetector is the two-phase candidate parent-group detection
+// over a stream of measured-layout rows: it buffers the nomination
+// window, nominates from it, then confirms every nominee over the
+// window rows and every row after. It is the ONE detection engine —
+// import predict feeds it converted source rows, retro-dedup
+// (DetectCohortGroups) feeds it a cohort's decoded logical rows — so a
+// suggestion cannot depend on which door the data came in through.
+type candidateDetector struct {
+	l         *measuredLayout
+	reserved  []bool
+	det       *GroupDetection
+	window    int
+	buf       []byte
+	nominated bool
+	nominees  []nominee
+	cands     []*fdTracker
+}
+
+// newCandidateDetector prepares detection over rows of layout l;
+// reserved marks fields already claimed by a declared group, which are
+// never a candidate key or member.
+func newCandidateDetector(l *measuredLayout, reserved []bool) *candidateDetector {
+	d := &candidateDetector{
+		l:        l,
+		reserved: reserved,
+		det:      &GroupDetection{Candidates: []GroupCandidate{}, Suggested: []string{}},
+		window:   detectWindow(len(reserved), l.stride),
+	}
+	d.det.WindowBound = d.window
+	d.buf = make([]byte, 0, d.window*l.stride)
+	return d
+}
+
+// observe folds one measured row (l.stride bytes) in. The row is
+// copied while it is buffered, so the caller may reuse it.
+func (d *candidateDetector) observe(row []byte) {
+	if d.nominated {
+		for _, t := range d.cands {
+			t.observe(row)
+		}
+		return
+	}
+	d.buf = append(d.buf, row...)
+	if len(d.buf)/d.l.stride >= d.window {
+		d.nominate()
+	}
+}
+
+// nominate proposes candidates from the buffered window and replays the
+// window rows into their trackers.
+func (d *candidateDetector) nominate() {
+	d.nominated = true
+	l := d.l
+	n := len(d.buf) / l.stride
+	d.det.WindowRows = n
+	eligible := make([]bool, len(d.reserved))
+	for i := range eligible {
+		eligible[i] = !d.reserved[i]
+	}
+	d.nominees = nominate(l, d.buf, eligible, d.det)
+	for _, nm := range d.nominees {
+		t := newFDTracker(l, []int{nm.key}, nm.members, 0)
+		t.maxRows = detectMemoryBudget / len(d.nominees) / t.entryCost()
+		d.cands = append(d.cands, t)
+	}
+	for r := 0; r < n; r++ {
+		for _, t := range d.cands {
+			t.observe(d.buf[r*l.stride : (r+1)*l.stride])
+		}
+	}
+	d.buf = nil
+}
+
+// finish ends the pass and measures every confirmed candidate over
+// sizing (the flat schema carrying its final dictionaries) against
+// floor. rows is the number of rows observed; flatBytes the flat
+// cohort's exact size.
+func (d *candidateDetector) finish(sizing *encoding.Schema, floor float64, rows, flatBytes int64) (*GroupDetection, error) {
+	if !d.nominated {
+		d.nominate()
+	}
+	d.det.Rows = rows
+	if err := measureCandidates(d.det, sizing, d.nominees, d.cands, floor, rows, flatBytes); err != nil {
+		return nil, err
+	}
+	return d.det, nil
 }
 
 // groupedSizing builds the grouped schema specs would produce over

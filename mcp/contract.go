@@ -121,6 +121,23 @@ type ImportIn struct {
 // spss_missing's opposite: its value is at-rest bytes, and a managed
 // import is a transient TTL'd cache file.
 
+// DedupIn is the input contract for pulse_dedup.
+//
+// The slot policy is pulse_import's (see the note above): groups and
+// suggest_groups earn slots because they are the only way to write, or
+// even see, a deduplicated cohort over MCP; the ratio floor and strict
+// mode change no byte written, so an agent reading group_warnings holds
+// both already; constant elision stays CLI + library only — it is an
+// at-rest opt-in the user makes deliberately (`pulse dedup
+// --elide-constants`). out is the one slot pulse_import has no need
+// of: it is how an agent converts WITHOUT destroying the original.
+type DedupIn struct {
+	Path          string          `json:"path" jsonschema:"Path to the existing single-file .pulse cohort to deduplicate (relative to PULSE_DATA_DIR). Shard archives are refused with SERVICE_VALIDATION."`
+	Groups        []pio.GroupDecl `json:"groups,omitempty" jsonschema:"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]} — the same shape pulse_import takes. Each distinct member tuple is stored ONCE and every row carries a 4-byte index. FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT (cohort untouched) if a member varies within its key. Take declarations from suggest_groups candidates rather than guessing. An already-grouped cohort is regrouped from scratch. Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID."`
+	SuggestGroups bool            `json:"suggest_groups,omitempty" jsonschema:"Detect candidate parent groups over the cohort's records and return them as group_candidates (ratio, resident dictionary bytes, projected size, verdict), each with key/members ready to pass back as a groups entry. With no groups this call is READ-ONLY. The loop is: call with suggest_groups only, read group_candidates.suggested, call again with those as groups."`
+	Out           string          `json:"out,omitempty" jsonschema:"Write the deduplicated cohort to this NEW path (must not exist) and leave the original untouched. Omit to rewrite the cohort IN PLACE (destructive, atomic: a failure leaves it byte-identical). Prefer out unless the user asked for an in-place conversion."`
+}
+
 // DropIn is the input contract for pulse_drop.
 type DropIn struct {
 	Handle string `json:"handle" jsonschema:"Managed handle name to remove"`
@@ -253,6 +270,9 @@ type ExamplesSearchOut struct {
 type ErrorsLookupOut struct {
 	Results []perr.LookupResult `json:"results" jsonschema:"Matching error-code metadata records"`
 }
+
+// DedupOut is the output contract for pulse_dedup.
+type DedupOut = pulse.DedupResult
 
 // DropOut is the output contract for pulse_drop.
 type DropOut struct {

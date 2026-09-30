@@ -90,6 +90,7 @@ func init() {
 	register(toolmeta.ToolExamplesGet, d(toolmeta.ToolExamplesGet), reflect.TypeFor[ExamplesGetIn](), reflect.TypeFor[ExamplesGetOut]())
 	register(toolmeta.ToolErrorsLookup, d(toolmeta.ToolErrorsLookup), reflect.TypeFor[ErrorsLookupIn](), reflect.TypeFor[ErrorsLookupOut]())
 	register(toolmeta.ToolImport, d(toolmeta.ToolImport), reflect.TypeFor[ImportIn](), reflect.TypeFor[ImportOut]())
+	register(toolmeta.ToolDedup, d(toolmeta.ToolDedup), reflect.TypeFor[DedupIn](), reflect.TypeFor[DedupOut]())
 	register(toolmeta.ToolDrop, d(toolmeta.ToolDrop), reflect.TypeFor[DropIn](), reflect.TypeFor[DropOut]())
 	register(toolmeta.ToolImportsList, d(toolmeta.ToolImportsList), reflect.TypeFor[ImportsListIn](), reflect.TypeFor[ImportsListOut]())
 	register(toolmeta.ToolLabelTables, d(toolmeta.ToolLabelTables), reflect.TypeFor[LabelTablesIn](), reflect.TypeFor[LabelTablesOut]())

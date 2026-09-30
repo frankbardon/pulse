@@ -227,6 +227,15 @@
           "deterministic": true,
           "expensive": true
         }
+      },
+      {
+        "name": "dedup",
+        "description": "Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format 0x02), in place or to a new path (destructive in place, non-interactive, atomic)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
       }
     ],
     "operations": [
@@ -5243,6 +5252,10 @@
         "description": "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes."
       },
       {
+        "name": "pulse_dedup",
+        "description": "Deduplicate an EXISTING single-file .pulse cohort: a denormalized join repeats each parent's attributes on every child row, and declaring the parent as a group (`groups`: [{key, members}], the pulse_import shape) stores each distinct parent tuple once with a 4-byte index per row — a smaller format 0x02 cohort that every request answers byte-identically. Do not guess declarations: first call with `suggest_groups: true` alone (READ-ONLY) to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict), then call again with `groups` set to the suggested key/members. With `out` the result goes to a new path and the original is untouched; without it the cohort is rewritten IN PLACE (atomic — any failure, including PULSE_GROUP_MEMBER_NOT_CONSTANT when a member varies within its key, leaves it byte-identical). Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple). An in-place rewrite lists each sidecar it invalidated (point-lookup index, SPSS metadata) under `invalidated_sidecars` with its rebuild command and rebuilds nothing. Shard archives are refused with SERVICE_VALIDATION."
+      },
+      {
         "name": "pulse_drop",
         "description": "Drop a managed-import handle from the pool, deleting the .pulse file and its sidecar. Errors with PULSE_IMPORT_SOURCE_MISSING when the handle is unknown. Pulse-format passthroughs are unaffected (they were never managed)."
       },
@@ -7207,6 +7220,10 @@
       {
         "name": "tool-compose",
         "description": "Execute a batch of processing requests in one round-trip."
+      },
+      {
+        "name": "tool-dedup",
+        "description": "Deduplicate an existing cohort's repeated parent blocks into parent groups (format 0x02), or suggest groups read-only."
       },
       {
         "name": "tool-drop",
@@ -9725,4 +9742,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a1092786350a6d345de86981611373083d68713f3432e9ba43b738b7b0665d42
+// golden-hash: 770263db379c982b879c595fc4153c7831e1bbd7f4683cf8d3ff35e043f2aa76

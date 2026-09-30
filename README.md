@@ -245,6 +245,7 @@ Restart the host. Pulse tools appear in the tool list.
 | `pulse_sample` | Return up to N rows for preview. |
 | `pulse_facet` | Distinct values for a single field. |
 | `pulse_import` | Import a tabular source into a managed `.pulse` handle (TTL-tracked, default 7d). |
+| `pulse_dedup` | Deduplicate an existing cohort into parent groups, or suggest groups (read-only). |
 | `pulse_drop` | Drop a managed handle. |
 | `pulse_imports_list` | Enumerate managed handles with sidecar metadata. |
 | `pulse_examples_search` | Search the embedded request-example library by query, tags, category. |

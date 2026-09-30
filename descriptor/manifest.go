@@ -250,6 +250,7 @@ func commands() []Command {
 		{Name: "index verify", Description: "Report whether a cohort's sidecar point-lookup index is still fresh", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "index drop", Description: "Remove a cohort's sidecar point-lookup index", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "widen", Description: "Widen a set column of a single-file cohort to a wider set rung, rewriting the cohort in place (destructive, non-interactive, atomic)", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "dedup", Description: "Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format 0x02), in place or to a new path (destructive in place, non-interactive, atomic)", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 	}
 }
 

@@ -327,7 +327,13 @@ func writePredictMeasured(cmd *cli.Command, report *pio.PredictReport) {
 			g.Label, g.Verdict, g.EntryCount, g.Ratio, g.DictionaryBytes, g.ByteDelta)
 	}
 	writeSourceWarnings(w, report.GroupWarnings)
-	d := report.GroupCandidates
+	writeGroupCandidates(w, report.GroupCandidates)
+}
+
+// writeGroupCandidates prints a candidate parent-group detection report
+// (import predict --suggest-groups, dedup --suggest-groups). Silent for
+// nil.
+func writeGroupCandidates(w io.Writer, d *pio.GroupDetection) {
 	if d == nil {
 		return
 	}

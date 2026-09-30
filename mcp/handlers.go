@@ -246,6 +246,23 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 	return *res, nil
 }
 
+// HandleDedup runs pulse_dedup: retro-dedup of an existing cohort, or
+// (suggest_groups alone) candidate detection over it.
+func HandleDedup(ctx context.Context, p *pulse.Pulse, in DedupIn) (DedupOut, error) {
+	if in.Path == "" {
+		return DedupOut{}, errMissingArg("path")
+	}
+	res, err := p.Dedup(ctx, in.Path, pulse.DedupOptions{
+		Groups:        in.Groups,
+		SuggestGroups: in.SuggestGroups,
+		Out:           in.Out,
+	})
+	if err != nil {
+		return DedupOut{}, err
+	}
+	return *res, nil
+}
+
 // HandleDrop runs pulse_drop: removes a managed import handle.
 func HandleDrop(ctx context.Context, p *pulse.Pulse, in DropIn) (DropOut, error) {
 	if in.Handle == "" {
