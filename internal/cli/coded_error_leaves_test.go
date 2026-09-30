@@ -33,9 +33,11 @@ func TestLeaves_FatalCodedErrorKeepsItsCode(t *testing.T) {
 		name string
 		root func() *cli.Command
 		args func(t *testing.T, dir, cohort string) []string
-		// want, when set, is the leaf's real code for BOTH fixtures:
+		// want, when set, overrides the ENCODING_INVALID fixture's code:
 		// the archive-only shard leaves refuse a non-zip path as
 		// PULSE_ARCHIVE_MAGIC_INVALID before reading any cohort header.
+		// A zstd transfer artifact is PULSE_COHORT_COMPRESSED on every
+		// leaf, archive-only ones included (encoding.OpenArchive).
 		want string
 	}
 	reqFile := func(t *testing.T, dir, name string, v any) string {
@@ -107,6 +109,9 @@ func TestLeaves_FatalCodedErrorKeepsItsCode(t *testing.T) {
 		{"shard remove", ShardCommand, func(t *testing.T, _, c string) []string {
 			return []string{"shard", "remove", "--json", c, "a.pulse"}
 		}, "PULSE_ARCHIVE_MAGIC_INVALID"},
+		{"shard add", ShardCommand, func(t *testing.T, _, c string) []string {
+			return []string{"shard", "add", "--json", c, c}
+		}, "PULSE_ARCHIVE_MAGIC_INVALID"},
 		{"profile create", ProfileCommand, func(t *testing.T, dir, c string) []string {
 			return []string{"profile", "create", "--json", "-i", c, "-o", filepath.Join(dir, "p.json")}
 		}, ""},
@@ -114,7 +119,7 @@ func TestLeaves_FatalCodedErrorKeepsItsCode(t *testing.T) {
 	for _, lf := range leaves {
 		for fixture, raw := range fixtures {
 			wantCode := fixture
-			if lf.want != "" {
+			if lf.want != "" && fixture != "PULSE_COHORT_COMPRESSED" {
 				wantCode = lf.want
 			}
 			t.Run(lf.name+"/"+fixture, func(t *testing.T) {

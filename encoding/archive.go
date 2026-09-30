@@ -74,15 +74,22 @@ type Archive struct {
 // OpenArchive parses the zip central directory at the tail of r and
 // returns an Archive ready for entry enumeration. The ReaderAt is
 // retained — the caller is responsible for its lifetime. Returns
-// PULSE_ARCHIVE_MAGIC_INVALID when r does not start with the zip magic,
-// and PULSE_ARCHIVE_CORRUPT when the EOCD or central directory cannot
-// be parsed.
+// PULSE_COHORT_COMPRESSED when r is a zstd transfer artifact (every
+// archive entry point — shard verify / compact / remove / add / list /
+// extract — routes through here, so none of them misreports "decompress
+// first" as a bad zip magic), PULSE_ARCHIVE_MAGIC_INVALID when r does
+// not start with the zip magic, and PULSE_ARCHIVE_CORRUPT when the EOCD
+// or central directory cannot be parsed.
 func OpenArchive(r io.ReaderAt, size int64) (*Archive, error) {
 	ok, err := IsArchive(r, size)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
+		var prefix [4]byte
+		if n, _ := r.ReadAt(prefix[:], 0); IsZstdMagic(prefix[:n]) {
+			return nil, CompressedCohortError()
+		}
 		return nil, errors.NewCodedError(errors.PULSE_ARCHIVE_MAGIC_INVALID,
 			"archive does not begin with the zip magic PK\\x03\\x04")
 	}

@@ -75,7 +75,7 @@ receiver's figures can be compared directly.
 
 | Code | When |
 |---|---|
-| `PULSE_COHORT_COMPRESSED` | A transfer artifact was passed where a cohort goes: `Open`, `Process`, `CountRecords`, `Inspect`, `Predict` and every other read surface, and `pulse_import`, which refuses it even when it has been renamed to `.pulse`. The fix is to decompress it first. |
+| `PULSE_COHORT_COMPRESSED` | A transfer artifact was passed where a cohort goes: `Open`, `Process`, `CountRecords`, `Inspect`, `Predict` and every other read surface, every `pulse shard` leaf that takes an archive (`verify`, `compact`, `remove`, `add`, `list`, `extract` — all open it through `encoding.OpenArchive`), and `pulse_import`, which refuses it even when it has been renamed to `.pulse`. The fix is to decompress it first. |
 | `PULSE_TRANSFER_INVALID` | `details.reason` is one of: `level` (outside 1..22); `not_a_cohort` (the export source, or the decompressed bytes, are not a Pulse cohort); `already_compressed`; `not_zstd` (the import source is not a zstd stream — an uncompressed `.pulse` needs no import); `corrupt_stream` (truncated or damaged in transit); `output_exists`. |
 
 ## Compression and parent groups do overlapping work
