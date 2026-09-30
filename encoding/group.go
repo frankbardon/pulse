@@ -390,3 +390,44 @@ func RefuseGroups(s *Schema, operation string, code errors.Code) error {
 		fmt.Sprintf("%s does not yet support cohorts with parent groups (format 0x02); export or re-import the cohort without groups first", operation),
 		map[string]any{"operation": operation, "group_count": len(s.Groups)})
 }
+
+// String names the kind as reports print it: "indexed" or "constant".
+func (k GroupKind) String() string {
+	switch k {
+	case GroupKindIndexed:
+		return "indexed"
+	case GroupKindConstant:
+		return "constant"
+	}
+	return fmt.Sprintf("kind(%d)", uint8(k))
+}
+
+// GroupSpecOf reconstructs the name-level declaration of group g from
+// the descriptor, for display: Members in member (logical field) order,
+// and Key only when the key is a strict subset of the members — the
+// encoder marks every member key when none was declared, so an
+// all-key group reads back as "no key", exactly as the declaration
+// that produced it most likely did. The format carries no group name
+// and no declaration ordinal, so the spec's Label numbers the group by
+// its position in THIS file: a group dropped by the viability gate at
+// import shifts later groups down by one relative to their declared
+// names.
+func (s *Schema) GroupSpecOf(g int) GroupSpec {
+	grp := &s.Groups[g]
+	sp := GroupSpec{Kind: grp.Kind}
+	var key []string
+	for _, m := range grp.Members {
+		if m.Field < 0 || m.Field >= len(s.Fields) {
+			continue
+		}
+		name := s.Fields[m.Field].Name
+		sp.Members = append(sp.Members, name)
+		if m.Key {
+			key = append(key, name)
+		}
+	}
+	if len(key) < len(sp.Members) {
+		sp.Key = key
+	}
+	return sp
+}

@@ -149,3 +149,45 @@ func TestCliImportGroupGate(t *testing.T) {
 		t.Fatalf("floor 13 warnings %+v", env.Warnings)
 	}
 }
+
+// TestCliCohortInspectGroups: the text inspect leaf reports a grouped
+// cohort's physical layout and each group's realized figures, and marks
+// member fields; a 0x01 cohort prints none of it.
+func TestCliCohortInspectGroups(t *testing.T) {
+	dir := t.TempDir()
+	csvPath := writeGroupCSV(t, dir)
+	out := filepath.Join(dir, "out.pulse")
+	if text, err := runApp(t, "import", "csv", "--input", csvPath, "--output", out,
+		"--group", "cust_id:cust_name,cust_region,cust_score"); err != nil {
+		t.Fatalf("import: %v\n%s", err, text)
+	}
+	text, err := runApp(t, "cohort", "inspect", out)
+	if err != nil {
+		t.Fatalf("cohort inspect: %v\n%s", err, text)
+	}
+	for _, want := range []string{
+		"Records: 240",
+		"Format: 0x02 (record stride",
+		"Groups: 1",
+		"group 1 [key: cust_id]  indexed  admitted",
+		"fields: cust_id, cust_name, cust_region, cust_score",
+		"dictionary: 20 entries x",
+		"ratio: 12.00x",
+		"stored in: group 1 (indexed, key)",
+		"stored in: group 1 (indexed)",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("grouped inspect text missing %q:\n%s", want, text)
+		}
+	}
+
+	flat, err := runApp(t, "cohort", "inspect", createTestPulseFile(t, dir))
+	if err != nil {
+		t.Fatalf("cohort inspect flat: %v\n%s", err, flat)
+	}
+	for _, absent := range []string{"Format:", "Groups:", "stored in:"} {
+		if strings.Contains(flat, absent) {
+			t.Errorf("0x01 inspect text carries %q:\n%s", absent, flat)
+		}
+	}
+}

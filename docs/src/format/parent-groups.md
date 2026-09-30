@@ -183,3 +183,29 @@ groups from `--elide-constants` are not gated.
 Shard archives, set-field widening and the shard categorical rewrite do
 not accept grouped cohorts yet: they refuse with a coded error rather
 than reinterpret physical bytes.
+
+## Inspecting a grouped cohort
+
+`pulse cohort inspect` (`Pulse.InspectEnvelope`, `pulse_inspect`)
+reports what an import actually produced, header-only: a `layout`
+object (`pulse_format_version`, `physical_record_stride`,
+`logical_record_stride`) and one `groups` entry per group in file order
+— `label`, `kind` (`indexed` / `constant`), `key` / `members` / `fields`
+(the `--group KEY:MEMBER` shape), `entry_count`, `entry_width`,
+`dictionary_bytes` (the resident dictionary), `member_row_bytes`,
+`index_width`, `ratio`, `break_even_ratio`, `ratio_floor`, `byte_delta`,
+`grows_file` and `verdict`. Each member field also carries a
+`group: {group, key, kind}` marker; `kind: "constant"` is an elided
+field with no per-row bytes.
+
+The ratio needs no scan: the entry count is in the schema block and the
+record count comes from the file length (`RecordCountForPayload`), so
+`ratio = record_count ÷ entry_count`. The figures come from the same
+`encoding.AssessGroup` import uses, so they equal `ImportReport.Groups`
+for the same file. `verdict` re-applies the gate at the DEFAULT floor
+of 2 — a group imported under a different `--dedup-ratio-floor` can
+read differently — and is a figure, never an envelope warning. The file
+stores no group name or declaration ordinal, so a label numbers the
+group by its position in the file (a group dropped as too narrow at
+import shifts later labels down). A `0x01` cohort emits neither key.
+Grouped shard archives are refused at build, so inspect never sees one.

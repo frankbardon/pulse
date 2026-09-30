@@ -1,0 +1,145 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "field_count": 5,
+    "fields": [
+      {
+        "name": "order_id",
+        "type": "u32",
+        "byte_offset": 0,
+        "bit_position": 0,
+        "description": "Synthetic parent key",
+        "description_source": "schema",
+        "categorical": false,
+        "group": {
+          "group": 0,
+          "key": true,
+          "kind": "indexed"
+        }
+      },
+      {
+        "name": "region",
+        "type": "categorical_u8",
+        "byte_offset": 4,
+        "bit_position": 0,
+        "description": "Synthetic parent region",
+        "description_source": "schema",
+        "categorical": true,
+        "dictionary": {
+          "total_entries": 4,
+          "truncated": false,
+          "values": [
+            "north",
+            "south",
+            "east",
+            "west"
+          ]
+        },
+        "group": {
+          "group": 0,
+          "key": false,
+          "kind": "indexed"
+        }
+      },
+      {
+        "name": "order_total",
+        "type": "u64",
+        "byte_offset": 5,
+        "bit_position": 0,
+        "description": "Synthetic parent total",
+        "description_source": "schema",
+        "categorical": false,
+        "group": {
+          "group": 0,
+          "key": false,
+          "kind": "indexed"
+        }
+      },
+      {
+        "name": "qty",
+        "type": "u16",
+        "byte_offset": 13,
+        "bit_position": 0,
+        "description": "Synthetic per-row quantity",
+        "description_source": "schema",
+        "categorical": false
+      },
+      {
+        "name": "tenant",
+        "type": "u8",
+        "byte_offset": 15,
+        "bit_position": 0,
+        "description": "Synthetic constant tenant",
+        "description_source": "schema",
+        "categorical": false,
+        "group": {
+          "group": 1,
+          "key": true,
+          "kind": "constant"
+        }
+      }
+    ],
+    "shards": [],
+    "record_count": 12,
+    "layout": {
+      "pulse_format_version": 2,
+      "physical_record_stride": 6,
+      "logical_record_stride": 16
+    },
+    "groups": [
+      {
+        "group": 0,
+        "label": "group 1 [key: order_id]",
+        "kind": "indexed",
+        "key": [
+          "order_id"
+        ],
+        "members": [
+          "region",
+          "order_total"
+        ],
+        "fields": [
+          "order_id",
+          "region",
+          "order_total"
+        ],
+        "entry_count": 4,
+        "entry_width": 13,
+        "dictionary_bytes": 52,
+        "member_row_bytes": 13,
+        "index_width": 4,
+        "ratio": 3,
+        "break_even_ratio": 1.4444444444444444,
+        "ratio_floor": 2,
+        "byte_delta": -34,
+        "grows_file": false,
+        "verdict": "admitted"
+      },
+      {
+        "group": 1,
+        "label": "group 2 [tenant]",
+        "kind": "constant",
+        "members": [
+          "tenant"
+        ],
+        "fields": [
+          "tenant"
+        ],
+        "entry_count": 1,
+        "entry_width": 1,
+        "dictionary_bytes": 1,
+        "member_row_bytes": 1,
+        "index_width": 0,
+        "ratio": 12,
+        "break_even_ratio": 0,
+        "ratio_floor": 2,
+        "byte_delta": 5,
+        "grows_file": true,
+        "verdict": "admitted"
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 225ce81edd0d3fcb1b5bbe5335d9f04fef732918fae8949ad32a31e189b0d594

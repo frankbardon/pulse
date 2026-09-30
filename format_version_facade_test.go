@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
@@ -77,6 +78,25 @@ func mustJSON(t *testing.T, label string, v any) string {
 	return string(b)
 }
 
+// logicalInspect is the LOGICAL view of an inspect result: a copy with
+// the physical-layout additions a 0x02 cohort carries (Layout, Groups
+// and the per-field Group marker) removed. Inspect deliberately reports
+// how a cohort is stored, so the twins differ there by design; every
+// other key must stay identical, which is what the parity probes pin.
+// The additions themselves are pinned by descriptor's inspect group
+// tests and TestInspect_GroupFiguresMatchImportReport.
+func logicalInspect(res *descriptor.InspectResult) *descriptor.InspectResult {
+	cp := *res
+	cp.Layout, cp.Groups = nil, nil
+	cp.Fields = make([]*descriptor.InspectField, len(res.Fields))
+	for i, f := range res.Fields {
+		fc := *f
+		fc.Group = nil
+		cp.Fields[i] = &fc
+	}
+	return &cp
+}
+
 // formatProbe is one facade read path exercised against a cohort.
 type formatProbe struct {
 	name string
@@ -98,11 +118,22 @@ func formatProbes(ctx context.Context) []formatProbe {
 		}
 	}
 	return []formatProbe{
-		{"Inspect", func(p *Pulse, _ afero.Fs) (any, error) { return p.Inspect(ctx, "cohort.pulse") }},
+		{"Inspect", func(p *Pulse, _ afero.Fs) (any, error) {
+			res, err := p.Inspect(ctx, "cohort.pulse")
+			if err != nil {
+				return nil, err
+			}
+			return logicalInspect(res), nil
+		}},
 		{"InspectEnvelope", func(p *Pulse, _ afero.Fs) (any, error) {
 			env, err := p.InspectEnvelope(ctx, "cohort.pulse", nil)
 			if err == nil && len(env.Errors) > 0 {
 				return nil, fmt.Errorf("%s: %s", env.Errors[0].Code, env.Errors[0].Message)
+			}
+			if err == nil {
+				cp := *env
+				cp.Data = logicalInspect(env.Data.(*descriptor.InspectResult))
+				return &cp, nil
 			}
 			return env, err
 		}},

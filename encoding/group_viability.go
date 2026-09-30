@@ -255,8 +255,8 @@ func (gt DedupGate) AssessRatios(grouped *Schema, specs []GroupSpec, rows int64)
 			views[g] = v
 			continue
 		}
-		grows := v.ByteDelta >= 0
-		if v.Ratio >= floor && !grows {
+		low, grows := v.Finding()
+		if !low {
 			views[g] = v
 			continue
 		}
@@ -303,6 +303,20 @@ func AssessGroup(grouped *Schema, g int, rows int64, floor float64) GroupViabili
 	v.DedupedBytes = rows*int64(idx) + v.DictionaryBytes + int64(v.DescriptorBytes)
 	v.ByteDelta = v.DedupedBytes - v.UndedupedBytes
 	return v
+}
+
+// Finding applies the ratio-floor rule to an assessed indexed group:
+// low is true when the ratio is below RatioFloor or the group makes the
+// file no smaller (grows). It is the ONE judgement AssessRatios and a
+// read-only report (inspect) share, so the two cannot disagree about
+// which group is low-ratio. A constant group, or one measured over zero
+// rows, is never low.
+func (v GroupViability) Finding() (low, grows bool) {
+	if v.IndexWidth == 0 || v.Rows == 0 {
+		return false, false
+	}
+	grows = v.ByteDelta >= 0
+	return v.Ratio < v.RatioFloor || grows, grows
 }
 
 // breakEven is entryWidth ÷ (memberBytes − GroupIndexWidth), or 0 when

@@ -560,3 +560,51 @@ func keysOf(m map[string]json.RawMessage) []string {
 	sort.Strings(out)
 	return out
 }
+
+// TestHandleInspect_ReportsParentGroups: pulse_inspect carries a grouped
+// cohort's layout and per-group figures (it reads the same envelope as
+// the CLI), and the reflected output schema advertises both slots.
+func TestHandleInspect_ReportsParentGroups(t *testing.T) {
+	var grouped bytes.Buffer
+	if _, _, err := encoding.DedupCohort(&grouped, bytes.NewReader(inspectCohortBytes(t, 6)),
+		[]encoding.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"tier"}}}); err != nil {
+		t.Fatalf("DedupCohort: %v", err)
+	}
+	afs := afero.NewMemMapFs()
+	if err := afero.WriteFile(afs, "grouped.pulse", grouped.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: afs})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	out, err := HandleInspect(context.Background(), p, InspectIn{Path: "grouped.pulse"})
+	if err != nil {
+		t.Fatalf("HandleInspect: %v", err)
+	}
+	if out.RecordCount != 6 || out.Layout == nil || len(out.Groups) != 1 {
+		t.Fatalf("record_count=%d layout=%+v groups=%+v", out.RecordCount, out.Layout, out.Groups)
+	}
+	if g := out.Groups[0]; g.EntryCount != 6 || g.Ratio != 1 || strings.Join(g.Fields, ",") != "tier" {
+		t.Errorf("group = %+v", g)
+	}
+	if out.Fields[1].Group == nil || out.Fields[0].Group != nil {
+		t.Errorf("field markers: age=%+v tier=%+v", out.Fields[0].Group, out.Fields[1].Group)
+	}
+
+	ts, ok := SchemaFor(toolmeta.ToolInspect)
+	if !ok {
+		t.Fatalf("no reflected schema for %s", toolmeta.ToolInspect)
+	}
+	var sch struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(ts.OutputSchema, &sch); err != nil {
+		t.Fatalf("unmarshal output schema: %v", err)
+	}
+	for _, key := range []string{"layout", "groups"} {
+		if _, ok := sch.Properties[key]; !ok {
+			t.Errorf("output schema has no %q property", key)
+		}
+	}
+}
