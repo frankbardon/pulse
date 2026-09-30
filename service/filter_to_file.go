@@ -149,6 +149,9 @@ func (s *Service) ResolveCanonicalSchema(_ context.Context, src string) (*encodi
 func readSchemaFromBytes(data []byte) (*encoding.Schema, error) {
 	br := bytes.NewReader(data)
 	pulseVersion, err := encoding.ReadHeader(br)
+	if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+		return nil, err // the one refusal that names its fix
+	}
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"invalid pulse file header")
@@ -203,6 +206,9 @@ func (s *Service) filterToFile(ctx context.Context, src, dst string, plan filter
 func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs, data []byte, dst string, plan filterPlan) (int64, error) {
 	br := bytes.NewReader(data)
 	pulseVersion, err := encoding.ReadHeader(br)
+	if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+		return 0, err // the one refusal that names its fix
+	}
 	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"invalid pulse file header")

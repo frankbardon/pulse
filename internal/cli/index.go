@@ -76,7 +76,7 @@ func indexBuildCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			res, err := p.BuildIndex(ctx, input, keyFields)
@@ -148,7 +148,7 @@ func indexListCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			indexes, err := p.ListIndexes(ctx, input)
@@ -233,7 +233,7 @@ func indexVerifyCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			res, err := p.VerifyIndex(ctx, input, keyFields)
@@ -315,7 +315,7 @@ func indexDropCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			indexPath := encoding.SidecarIndexPath(input, keyFields)

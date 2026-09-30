@@ -56,11 +56,11 @@ func synthFromSchemaCmd() *cli.Command {
 			fs := afero.NewOsFs()
 			raw, err := afero.ReadFile(fs, specPath)
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			spec, err := synth.ParseSpec(raw)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SYNTH_SPEC_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SYNTH_SPEC_ERROR", err)
 			}
 			if rows > 0 {
 				spec.RowCount = rows
@@ -68,12 +68,12 @@ func synthFromSchemaCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{Seed: int64(seed)})
 			if err != nil {
-				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)
@@ -119,7 +119,7 @@ func synthFromProfileCmd() *cli.Command {
 			fs := afero.NewOsFs()
 			raw, err := afero.ReadFile(fs, profPath)
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			var prof synth.Profile
 			if err := json.Unmarshal(raw, &prof); err != nil {
@@ -154,7 +154,7 @@ func synthFromProfileCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			// Capture-time thin-cell warnings (prof.Warnings, written to
 			// the profile document at `profile create` time) and
@@ -183,7 +183,7 @@ func synthFromProfileCmd() *cli.Command {
 				FidelityWarnings:   fidelityWarnings,
 			})
 			if err != nil {
-				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)
@@ -314,7 +314,7 @@ func profileCreateCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			prof, err := p.Profile(ctx, input, pulse.ProfileOptions{
 				TopK:                topK,
@@ -333,15 +333,15 @@ func profileCreateCmd() *cli.Command {
 				Seed:        int64(seed),
 			})
 			if err != nil {
-				return cliError(cmd, jsonOut, "PROFILE_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "PROFILE_ERROR", err)
 			}
 			fs := afero.NewOsFs()
 			out, err := json.MarshalIndent(prof, "", "  ")
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if err := afero.WriteFile(fs, output, out, 0644); err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			// The candidate file is written AFTER the profile document,
 			// so a failing write leaves the capture the caller paid for.
@@ -383,6 +383,18 @@ func cliError(cmd *cli.Command, jsonOut bool, code, msg string) error {
 		return writeErrorEnvelope(cmd.Writer, code, msg)
 	}
 	return fmt.Errorf("%s: %s", code, msg)
+}
+
+// cliErrorFrom is cliError for an error value: the text path is
+// cliError's exact "CODE: message", while the --json path goes through
+// writeCodedErrorEnvelope, so a *errors.CodedError anywhere in the chain
+// surfaces as errors[0].code and code is only the fallback for an
+// uncoded error.
+func cliErrorFrom(cmd *cli.Command, jsonOut bool, code string, err error) error {
+	if jsonOut {
+		return writeCodedErrorEnvelope(cmd.Writer, code, err)
+	}
+	return fmt.Errorf("%s: %s", code, err.Error())
 }
 
 // cliCodedError is cliError for a failure that already carries its own

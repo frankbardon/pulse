@@ -53,7 +53,7 @@ func shardCreateCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			result, err := p.CreateShardArchive(ctx, archive, includes)
 			if err != nil {
@@ -61,7 +61,7 @@ func shardCreateCmd() *cli.Command {
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				// The widen warning rides the envelope's `warnings`
@@ -111,7 +111,7 @@ func shardAddCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			result, err := p.AddShard(ctx, archive, shard)
 			if err != nil {
@@ -119,7 +119,7 @@ func shardAddCmd() *cli.Command {
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				// The widen warning rides the envelope's `warnings`
@@ -169,14 +169,14 @@ func shardRemoveCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if err := p.RemoveShard(ctx, archive, basename); err != nil {
-				return cliError(cmd, jsonOut, "SHARD_REMOVE_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_REMOVE_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, map[string]any{
@@ -209,11 +209,11 @@ func shardListCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, map[string]any{
@@ -255,14 +255,14 @@ func shardCompactCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if err := p.CompactShardArchive(ctx, archive); err != nil {
-				return cliError(cmd, jsonOut, "SHARD_COMPACT_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_COMPACT_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, map[string]any{
@@ -294,11 +294,11 @@ func shardVerifyCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			result, err := p.VerifyShardArchive(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_VERIFY_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_VERIFY_ERROR", err)
 			}
 
 			if jsonOut {

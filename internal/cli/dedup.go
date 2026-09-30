@@ -72,7 +72,7 @@ func DedupCommand() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			res, err := p.Dedup(ctx, input, opts)
 			if err != nil {

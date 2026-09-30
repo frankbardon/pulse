@@ -57,7 +57,7 @@ func apiProcessCmd() *cli.Command {
 			req, err := loadRequest(reqPath)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -65,7 +65,7 @@ func apiProcessCmd() *cli.Command {
 			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, DisableProjection: noProject, Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -74,7 +74,7 @@ func apiProcessCmd() *cli.Command {
 				iter, err := p.ProcessStream(ctx, req)
 				if err != nil {
 					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err.Error())
+						return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err)
 					}
 					return err
 				}
@@ -97,7 +97,7 @@ func apiProcessCmd() *cli.Command {
 			resp, err := p.Process(ctx, req)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err)
 				}
 				return err
 			}
@@ -156,7 +156,7 @@ func apiProcessChainCmd() *cli.Command {
 			chain, err := loadChainRequest(reqPath)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -164,7 +164,7 @@ func apiProcessChainCmd() *cli.Command {
 			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -172,7 +172,7 @@ func apiProcessChainCmd() *cli.Command {
 			resp, err := p.ProcessChain(ctx, chain)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "PROCESS_CHAIN_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_CHAIN_ERROR", err)
 				}
 				return err
 			}
@@ -216,7 +216,7 @@ func apiComposeCmd() *cli.Command {
 			composed, err := loadComposedRequest(reqPath)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -224,7 +224,7 @@ func apiComposeCmd() *cli.Command {
 			p, err := newPulseOpts(pulse.Options{DisableDefaults: noDefaults, DisableComponents: noComponents, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -240,7 +240,7 @@ func apiComposeCmd() *cli.Command {
 			}
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "COMPOSE_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "COMPOSE_ERROR", err)
 				}
 				return err
 			}
@@ -300,7 +300,7 @@ func apiSampleCmd() *cli.Command {
 			p, err := newPulse()
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -309,7 +309,7 @@ func apiSampleCmd() *cli.Command {
 				rows, err := p.Sample(ctx, input, count)
 				if err != nil {
 					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err.Error())
+						return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
 					}
 					return err
 				}
@@ -329,7 +329,7 @@ func apiSampleCmd() *cli.Command {
 			bindings, perr := parseLabelBindings(labelArgs)
 			if perr != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", perr.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", perr)
 				}
 				return perr
 			}
@@ -339,7 +339,7 @@ func apiSampleCmd() *cli.Command {
 			result, err := p.SampleWithRequest(ctx, sampleReq)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
 				}
 				return err
 			}
@@ -397,7 +397,7 @@ func apiFacetCmd() *cli.Command {
 			p, err := newPulse()
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -413,7 +413,7 @@ func apiFacetCmd() *cli.Command {
 				values, err := p.Facet(ctx, input, fields[0])
 				if err != nil {
 					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "FACET_ERROR", err.Error())
+						return writeCodedErrorEnvelope(cmd.Writer, "FACET_ERROR", err)
 					}
 					return err
 				}
@@ -436,7 +436,7 @@ func apiFacetCmd() *cli.Command {
 			req, err := loadFacetRequest(reqPath, input, fields, topK, pcts, includeHist, histBins, histMin, histMax, additive)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", err)
 				}
 				return err
 			}
@@ -444,7 +444,7 @@ func apiFacetCmd() *cli.Command {
 				bindings, perr := parseLabelBindings(labelArgs)
 				if perr != nil {
 					if jsonOut {
-						return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", perr.Error())
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", perr)
 					}
 					return perr
 				}
@@ -453,7 +453,7 @@ func apiFacetCmd() *cli.Command {
 			result, err := p.FacetSchema(ctx, req)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "FACET_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "FACET_ERROR", err)
 				}
 				return err
 			}
@@ -539,7 +539,7 @@ func apiPredictCmd() *cli.Command {
 			req, err := loadRequest(reqPath)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -561,7 +561,7 @@ func apiPredictCmd() *cli.Command {
 			data, err := os.ReadFile(cohortPath)
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
 				}
 				return err
 			}
@@ -641,12 +641,12 @@ func apiLookupCmd() *cli.Command {
 
 			req, err := loadLookupRequest(reqPath, input, keyArgs, returnCols, mode)
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_INPUT", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_INPUT", err)
 			}
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			result, err := p.Lookup(ctx, req)

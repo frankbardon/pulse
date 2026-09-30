@@ -97,7 +97,7 @@ func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *Envelope {
 
 	pulseVersion, err := encoding.ReadHeader(fileData)
 	if err != nil {
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse file header: "+err.Error(), nil)
+		env.AddError(string(headerErrorCode(err)), "invalid pulse file header: "+err.Error(), nil)
 		result.Valid = false
 		return env
 	}

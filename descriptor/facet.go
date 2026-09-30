@@ -85,7 +85,7 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 
 	pulseVersion, err := encoding.ReadHeader(fileData)
 	if err != nil {
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse file header: "+err.Error(), nil)
+		env.AddError(string(headerErrorCode(err)), "invalid pulse file header: "+err.Error(), nil)
 		result.Valid = false
 		return env
 	}

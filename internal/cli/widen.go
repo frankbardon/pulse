@@ -59,7 +59,7 @@ func WidenCommand() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			rep, err := p.WidenSetField(ctx, input, field, target)
