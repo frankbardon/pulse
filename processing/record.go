@@ -361,6 +361,40 @@ func (r *Record) SetWideField(name string, v any) {
 	r.wide[name] = v
 }
 
+// Compile-time proof that *Record satisfies both reuse-decoder contracts.
+// Because it implements IndexedReusableRecord, the encoding reuse
+// decoders drive the index-keyed methods below and never the name-keyed
+// ones above.
+var (
+	_ encoding.ReusableRecord        = (*Record)(nil)
+	_ encoding.IndexedReusableRecord = (*Record)(nil)
+)
+
+// SetNumericAt implements encoding.IndexedReusableRecord. idx is the
+// field's position in the record's schema — the decoder's schema-walk
+// counter — and must index r.schema.Fields. Today the value lands in the
+// name-keyed values map (resolved by a direct slice index, no lookup);
+// positional storage behind this method is the follow-on change. Same
+// no-invalidation contract as SetNumeric.
+func (r *Record) SetNumericAt(idx int, value float64) {
+	r.values[r.schema.Fields[idx].Name] = value
+}
+
+// SetNullFieldAt implements encoding.IndexedReusableRecord; the
+// positional twin of SetNullField.
+func (r *Record) SetNullFieldAt(idx int) {
+	r.nulls[r.schema.Fields[idx].Name] = true
+}
+
+// SetWideFieldAt implements encoding.IndexedReusableRecord; the
+// positional twin of SetWideField.
+func (r *Record) SetWideFieldAt(idx int, v any) {
+	if r.wide == nil {
+		r.wide = make(map[string]any)
+	}
+	r.wide[r.schema.Fields[idx].Name] = v
+}
+
 // ClearForRow implements encoding.ReusableRecord. Resets per-row state
 // so the next ReadRecordReused call starts from a clean slate while
 // keeping the underlying maps allocated.

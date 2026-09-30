@@ -17,6 +17,11 @@ type RecordReader struct {
 	// a running cursor subslice — eliminating the per-field io.ReadFull
 	// that dominates wide-schema decode. Grown on demand, never shrunk.
 	recBuf []byte
+
+	// shim adapts a name-keyed ReusableRecord to the index-keyed reuse
+	// decoder. Held by value so binding a record per row allocates
+	// nothing; see indexedSink.
+	shim nameKeyedShim
 }
 
 // NewRecordReader creates a RecordReader. The reader must be positioned
