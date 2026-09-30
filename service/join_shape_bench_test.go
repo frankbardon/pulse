@@ -165,7 +165,19 @@ func BenchmarkJoinShape_DecodeThroughput(b *testing.B) {
 		{name: "buffered-full", fields: len(schema.Fields), positional: buffered(nil, 0, false), legacy: buffered(nil, 0, true), minSpeedup: 2.5},
 		// MEASURED buffered-projected4: positional 48.5, map 84 ns/field/row, 1.73x.
 		{name: "buffered-projected4", fields: 4, positional: buffered(joinShapeKeep4, 4, false), legacy: buffered(joinShapeKeep4, 4, true), minSpeedup: 1.3},
-		// MEASURED reuse-full: positional 8.8, map 19.8 ns/field/row, 2.25x.
+		// MEASURED reuse-full: positional 8.8, map 19.8 ns/field/row, 2.25x
+		// (E1). Since E2-S1 the positional arm includes run-skip on this
+		// SORTED cohort: 5.8 vs 18.6, 3.2x (arm64).
+		//
+		// CAVEAT: both arms open a fresh mmap per scan, as the production
+		// streamingIterator does, and first touch page-faults the file in.
+		// A CPU profile of this arm puts ~73% of samples in
+		// runtime.memmove under bytes.(*Reader).Read — the fault cost of
+		// copying each row out of the fresh mapping, identical for both
+		// arms — so the ratio here is DILUTED and understates the decode
+		// difference. Kept as-is (it is the production open path and the
+		// E1 thresholds were set on it); for decode CPU alone, use the
+		// in-memory BenchmarkJoinShape_RunSkip.
 		{
 			name:       "reuse-full",
 			fields:     len(schema.Fields),

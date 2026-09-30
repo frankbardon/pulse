@@ -201,86 +201,122 @@ func TestJoinShapeRunSkip_MatchesFullRepopulate(t *testing.T) {
 }
 
 // TestJoinShapeRunSkip_ShardBoundaries: the shard iterator keeps one
-// reuse record across shards and opens a new reader per shard. Shards
-// are cut MID-RUN (the last row of one shard and the first of the next
-// share their parent block), and the result must still equal a full
-// repopulate of the unsplit cohort.
+// reuse record across shards and opens a new reader per shard. Three
+// cut sets:
+//
+//   - sorted/mid-run: shards cut INSIDE a parent's run, so the last row
+//     of one shard and the first of the next share their parent block;
+//   - sorted/parent-boundary: shards cut exactly where the parent key
+//     changes, so shard N+1's first row differs from shard N's last in
+//     the parent block as well (asserted on the bytes, so a fixture
+//     change that moves the parent boundaries fails loudly);
+//   - scattered: the permuted copy, where adjacent rows share little.
+//
+// Every case must equal a full repopulate of the unsplit cohort, row by
+// row, over two passes through Reset.
 func TestJoinShapeRunSkip_ShardBoundaries(t *testing.T) {
-	fsys, path, schema, rows := loadJoinShapeFixture(t)
-	data, err := afero.ReadFile(fsys, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	fsys, schema, rows, paths := joinShapeOrders(t)
 	stride := schema.RecordByteSize()
-	prefix := data[:len(data)-rows*stride]
-	payload := data[len(prefix):]
-	cuts := []int{0, 5, 131, 250, rows} // 5 and 131 fall inside a parent's run
-
-	var doc bytes.Buffer
-	if err := encoding.WriteSchemaDoc(&doc, schema, uint64(rows), uint16(len(cuts)-1)); err != nil {
-		t.Fatal(err)
+	keyOf := func(payload []byte, row int) []byte {
+		f := schema.Fields[0] // p_key
+		return payload[row*stride+f.ByteOffset : row*stride+f.ByteOffset+f.Type.ByteSize()]
 	}
-	var arch bytes.Buffer
-	zw := zip.NewWriter(&arch)
-	put := func(name string, b []byte) {
-		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
+	for _, cc := range []struct {
+		name  string
+		order string
+		cuts  []int
+		// parentChanges: every interior cut must fall where the parent
+		// key changes; otherwise every interior cut must fall inside a
+		// parent's run.
+		parentChanges bool
+	}{
+		{name: "sorted/mid-run", order: "sorted", cuts: []int{0, 5, 131, 257, rows}},
+		// Parents 0 and 1 hold 12 and 13 rows; parents 0-15 hold 200.
+		{name: "sorted/parent-boundary", order: "sorted", cuts: []int{0, 12, 25, 200, rows}, parentChanges: true},
+		{name: "scattered", order: "scattered", cuts: []int{0, 5, 131, 250, rows}, parentChanges: true},
+	} {
+		data, err := afero.ReadFile(fsys, paths[cc.order])
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := w.Write(b); err != nil {
+		prefix := data[:len(data)-rows*stride]
+		payload := data[len(prefix):]
+		for _, c := range cc.cuts[1 : len(cc.cuts)-1] {
+			last, first := payload[(c-1)*stride:c*stride], payload[c*stride:(c+1)*stride]
+			if bytes.Equal(last, first) {
+				t.Fatalf("%s: rows %d and %d are identical; the boundary tests nothing", cc.name, c-1, c)
+			}
+			if changed := !bytes.Equal(keyOf(payload, c-1), keyOf(payload, c)); changed != cc.parentChanges {
+				t.Fatalf("%s: cut %d parent-key change = %v, want %v", cc.name, c, changed, cc.parentChanges)
+			}
+		}
+
+		var doc bytes.Buffer
+		if err := encoding.WriteSchemaDoc(&doc, schema, uint64(rows), uint16(len(cc.cuts)-1)); err != nil {
 			t.Fatal(err)
 		}
-	}
-	put(encoding.ReservedSchemaName, doc.Bytes())
-	var entries []ShardEntry
-	for s := range len(cuts) - 1 {
-		name := fmt.Sprintf("s%d.pulse", s)
-		shard := append(append([]byte(nil), prefix...), payload[cuts[s]*stride:cuts[s+1]*stride]...)
-		put(name, shard)
-		entries = append(entries, ShardEntry{Filename: name, RecordCount: int64(cuts[s+1] - cuts[s])})
-	}
-	if err := zw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	cfg := fs.NewMemMap()
-	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", arch.Bytes(), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, tc := range []struct {
-		name string
-		keep encoding.FieldFilter
-		n    int
-	}{{name: "full"}, {name: "projected4", keep: joinShapeKeep4, n: 4}} {
-		t.Run(tc.name, func(t *testing.T) {
-			plan := baselinePlan(t, schema, tc.keep)
-			it := newShardIter(cfg.Fs(), "arch.pulse", schema, entries)
-			defer it.Close()
-			it.SetReuse(true)
-			if tc.keep != nil {
-				it.SetProjection(tc.keep, tc.n)
+		var arch bytes.Buffer
+		zw := zip.NewWriter(&arch)
+		put := func(name string, b []byte) {
+			w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
+			if err != nil {
+				t.Fatal(err)
 			}
-			for pass := range 2 {
-				rr, release, err := openLegacyReader(fsys, path, schema)
-				if err != nil {
-					t.Fatal(err)
+			if _, err := w.Write(b); err != nil {
+				t.Fatal(err)
+			}
+		}
+		put(encoding.ReservedSchemaName, doc.Bytes())
+		var entries []ShardEntry
+		for s := range len(cc.cuts) - 1 {
+			name := fmt.Sprintf("s%d.pulse", s)
+			shard := append(append([]byte(nil), prefix...), payload[cc.cuts[s]*stride:cc.cuts[s+1]*stride]...)
+			put(name, shard)
+			entries = append(entries, ShardEntry{Filename: name, RecordCount: int64(cc.cuts[s+1] - cc.cuts[s])})
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		cfg := fs.NewMemMap()
+		if err := afero.WriteFile(cfg.Fs(), "arch.pulse", arch.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		for _, tc := range []struct {
+			name string
+			keep encoding.FieldFilter
+			n    int
+		}{{name: "full"}, {name: "projected4", keep: joinShapeKeep4, n: 4}} {
+			t.Run(cc.name+"/"+tc.name, func(t *testing.T) {
+				plan := baselinePlan(t, schema, tc.keep)
+				it := newShardIter(cfg.Fs(), "arch.pulse", schema, entries)
+				defer it.Close()
+				it.SetReuse(true)
+				if tc.keep != nil {
+					it.SetProjection(tc.keep, tc.n)
 				}
-				base := newNoSkipRecord(schema)
-				n := 0
-				for it.Next() {
-					if err := base.read(rr, tc.keep, plan); err != nil {
+				for pass := range 2 {
+					rr, release, err := openLegacyReader(fsys, paths[cc.order], schema)
+					if err != nil {
 						t.Fatal(err)
 					}
-					assertSameRecord(t, fmt.Sprintf("pass %d row %d", pass, n), schema, it.Record(), base.record())
-					n++
+					base := newNoSkipRecord(schema)
+					n := 0
+					for it.Next() {
+						if err := base.read(rr, tc.keep, plan); err != nil {
+							t.Fatal(err)
+						}
+						assertSameRecord(t, fmt.Sprintf("pass %d row %d", pass, n), schema, it.Record(), base.record())
+						n++
+					}
+					release()
+					if it.Err() != nil || n != rows {
+						t.Fatalf("pass %d: %d rows, err %v; want %d", pass, n, it.Err(), rows)
+					}
+					it.Reset()
 				}
-				release()
-				if it.Err() != nil || n != rows {
-					t.Fatalf("pass %d: %d rows, err %v; want %d", pass, n, it.Err(), rows)
-				}
-				it.Reset()
-			}
-		})
+			})
+		}
 	}
 }
 
@@ -296,7 +332,8 @@ func TestJoinShapeRunSkip_ContinuationShape(t *testing.T) {
 	sorted := joinShapeContinuation(data, schema, rows)
 	scattered := joinShapeContinuation(scatterJoinShapeCohort(data, schema, rows), schema, rows)
 	t.Logf("field continuation: sorted %.3f, scattered %.3f", sorted, scattered)
-	if sorted < 0.6 || scattered > 0.4 {
+	// MEASURED (400-row committed fixture): sorted 0.710, scattered 0.208.
+	if sorted < 0.65 || scattered > 0.30 {
 		t.Fatalf("fixture continuation sorted %.3f / scattered %.3f: expected a sorted parent block and a scattered copy", sorted, scattered)
 	}
 }
