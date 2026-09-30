@@ -2,6 +2,7 @@ package processing
 
 import (
 	"math"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -28,6 +29,17 @@ import (
 // TARGET slots only — the reference is always present and does not
 // count against the cap (so an authoring shape with 16 targets remains
 // valid against the default 16 cap; 17 targets fail).
+//
+// Params: types.PanelOverlayParams, carried on
+// ComposeOverlaySpec.Params (a map[string]any, decoded through
+// types.DecodePanelParamsMap so this host and the per-Request host
+// cannot disagree about what a blob means). `n_source` selects each
+// slot's sample-size leg; empty means row_margin_n, the payload row
+// margin the panel has always read, and the whole default path stays
+// byte-identical to the pre-params baseline. Counted modes open a
+// per-slot components channel (processing/overlay_compose_slot_view.go)
+// and refuse a components-disabled slot with
+// PULSE_OVERLAY_COMPONENTS_REQUIRED rather than falling back.
 
 // defaultMaxPanelTargets is the explicit default for
 // OverlayOptions.MaxPanelTargets when the slot is zero / unset.
@@ -75,6 +87,105 @@ func resolveMaxPanelTargets(opts *types.OverlayOptions) int {
 	return opts.MaxPanelTargets
 }
 
+// matrixAxisIndexLookups builds the (row key string → row index) and
+// (column key string → column index) maps for one slot's matrix, using
+// the SAME axisKeyToString canonicalisation every other panel lookup
+// uses. A duplicate key string keeps its FIRST index, matching the
+// first-wins behaviour of buildMatrixCellLookup's map fill.
+func matrixAxisIndexLookups(mx *types.MatrixPayload) (rows, cols map[string]int) {
+	rows = map[string]int{}
+	cols = map[string]int{}
+	if mx == nil {
+		return rows, cols
+	}
+	for i, key := range mx.RowKeys {
+		s := axisKeyToString(key)
+		if _, seen := rows[s]; !seen {
+			rows[s] = i
+		}
+	}
+	for j, key := range mx.ColumnKeys {
+		s := axisKeyToString(key)
+		if _, seen := cols[s]; !seen {
+			cols[s] = j
+		}
+	}
+	return rows, cols
+}
+
+// panelSlotRequestIndex maps a PANEL index back to the Compose request
+// slot index the caller authored, so a diagnostic names the slot the
+// caller can find in their own request rather than the panel's
+// internal ordering. Returns -1 when the mapping is unavailable.
+func panelSlotRequestIndex(panelIdx, refIdx int, targetIdxs []int) int {
+	if panelIdx == 0 {
+		return refIdx
+	}
+	if panelIdx-1 < len(targetIdxs) {
+		return targetIdxs[panelIdx-1]
+	}
+	return -1
+}
+
+// panelSampleSize resolves ONE slot's sample-size leg at one
+// coordinate, per the n_source mode.
+//
+// The two modes differ in more than where they read. row_margin_n
+// always answers (it is a payload read with a value fallback), so the
+// legacy path can never skip a coordinate it used to emit;
+// cell_n_unweighted answers ok=false when the counted figure was not
+// emitted, and the caller skips the coordinate with a warning. See
+// types.PanelNSourceFallsBackToCellValue for why the fallback is not
+// carried forward.
+//
+// `slots`, `rowIdxLookups` and `colIdxLookups` are nil for the legacy
+// mode and are only touched by the components arm.
+func panelSampleSize(
+	nSource string,
+	slots *ComposeHostView,
+	panelIdx int,
+	rowIdxLookups, colIdxLookups []map[string]int,
+	rowKeyStr, colKeyStr string,
+	rowMarginLookups []map[string]float64,
+	cellValue float64,
+) (float64, bool) {
+	switch nSource {
+	case types.PanelNSourceCellNUnweighted:
+		if panelIdx < 0 || panelIdx >= len(rowIdxLookups) || panelIdx >= len(colIdxLookups) {
+			return 0, false
+		}
+		r, rok := rowIdxLookups[panelIdx][rowKeyStr]
+		c, cok := colIdxLookups[panelIdx][colKeyStr]
+		if !rok || !cok {
+			return 0, false
+		}
+		n, ok := slots.Slot(panelIdx).CellN(r, c)
+		if !ok {
+			return 0, false
+		}
+		return float64(n), true
+
+	case "", types.PanelNSourceRowMarginN:
+		nSize := rowMarginLookups[panelIdx][rowKeyStr]
+		if nSize <= 0 {
+			// Same degenerate fallback OVERLAY_PROP_Z_CELL uses:
+			// fall back to the cell value as the sample size so
+			// the per-pair gate stays observable (the pooled
+			// gate will surface NaN rather than silently
+			// producing a meaningless statistic).
+			nSize = cellValue
+		}
+		return nSize, true
+
+	default:
+		// Unreachable — applyPropZPanel refuses an unknown n_source at
+		// entry. Answering ok=false rather than falling through to the
+		// legacy leg keeps a future mode that forgets its case here
+		// from silently reporting the default's number under its name.
+		return 0, false
+	}
+}
+
 // applyPropZPanel is the COMPOSE-host runtime handler for
 // OVERLAY_PROP_Z_PANEL. Multi-reference per-cell pairwise
 // two-proportion z-test across the reference slot plus every target
@@ -107,6 +218,38 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				"kind":     string(spec.Kind),
 				"observed": len(targets),
 				"cap":      cap,
+			})
+	}
+
+	// Params, decoded and validated SECOND — after the cap, before any
+	// matrix work. Mirrors descriptor/compose.go's gate order (Gate 3 =
+	// cap, Gate 3b = params, Gate 4 = the per-slot shape walk), so a
+	// spec that is both over-cap and misconfigured reports the same
+	// failure on both arms.
+	//
+	// A runtime TWIN of the predict gate, not a duplicate of it for its
+	// own sake: descriptor.ValidateCompose is reached only by predict,
+	// and pulse.Compose does not run predict. Without the twin an
+	// unknown n_source would fall through to the legacy leg and hand
+	// back the default number while the caller believed they had moved
+	// the n leg — the silent no-op this family now refuses.
+	params, perr := types.DecodePanelParamsMap(spec.Params)
+	if perr != nil {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING,
+			"overlay "+string(spec.Kind)+" has malformed Params: "+perr.Error(),
+			map[string]any{"kind": string(spec.Kind)})
+	}
+	if !types.ValidPanelNSource(params.NSource) {
+		valid := types.PanelNSources()
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING,
+			"overlay "+string(spec.Kind)+" has unknown n_source: "+params.NSource+
+				" (valid: "+strings.Join(valid, ", ")+")",
+			map[string]any{
+				"kind":            string(spec.Kind),
+				"n_source":        params.NSource,
+				"valid_n_sources": valid,
 			})
 	}
 
@@ -156,6 +299,64 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		rowMarginLookups[i+1] = matrixRowMarginLookup(tm)
 	}
 
+	// Components channel, opened only for the modes that read one.
+	//
+	// The panel-ordered view is built here rather than by the
+	// dispatcher because panel index != Compose slot index: the
+	// handler receives (reference, targets) already resolved, and
+	// prepending the reference reproduces exactly the
+	// panel[0]=reference / panel[i]=targets[i-1] convention the rest of
+	// this function uses.
+	//
+	// It stays nil for the legacy leg. That is the whole reason the
+	// default path cannot start refusing: a panel that has never
+	// needed components must not begin demanding them when a caller
+	// spells its existing behaviour out as `n_source: row_margin_n`.
+	var slots *ComposeHostView
+	var rowIdxLookups, colIdxLookups []map[string]int
+	if types.PanelNSourceReadsComponents(params.NSource) {
+		slots = NewComposeHostView(append([]*types.Response{reference}, targets...))
+		for s := 0; s < m; s++ {
+			state := slots.Slot(s).State()
+			if state.Available() {
+				continue
+			}
+			// SlotAbsent is STRUCTURAL — no components knob changes a
+			// slot that did not resolve — so it keeps the structural
+			// code. Answering it with a components diagnostic would
+			// tell the caller to turn components on and watch nothing
+			// change. Unreachable in practice: the MATRIX gates above
+			// already refuse a nil slot. Defense in depth.
+			code := errors.PULSE_OVERLAY_COMPONENTS_REQUIRED
+			msg := "overlay " + string(spec.Kind) + " n_source " + params.NSource +
+				" requires Response.Components.Crosstab on every slot"
+			if state == ComposeComponentsSlotAbsent {
+				code = errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB
+				msg = "overlay " + string(spec.Kind) + " has an unresolved slot"
+			}
+			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(code, msg,
+				map[string]any{
+					"kind":        string(spec.Kind),
+					"n_source":    params.NSource,
+					"slot_index":  panelSlotRequestIndex(s, refIdx, targetIdxs),
+					"panel_index": s,
+					"state":       state.String(),
+				})
+		}
+		// Components are indexed POSITIONALLY per slot, but the panel
+		// iterates the REFERENCE matrix's key order and every other
+		// read here is by KEY — slots are guaranteed the same key SET,
+		// never the same order. Resolving each slot's own coordinate by
+		// key is what keeps a components read from silently addressing
+		// a different cell than the value read beside it.
+		rowIdxLookups = make([]map[string]int, m)
+		colIdxLookups = make([]map[string]int, m)
+		rowIdxLookups[0], colIdxLookups[0] = matrixAxisIndexLookups(refMx)
+		for i, tm := range targetMxs {
+			rowIdxLookups[i+1], colIdxLookups[i+1] = matrixAxisIndexLookups(tm)
+		}
+	}
+
 	// Use the reference matrix's axis keys as the canonical iteration
 	// shape — the key-set alignment gate already guaranteed every
 	// target carries the same key set.
@@ -178,38 +379,58 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 			values := make([]float64, m)
 			ns := make([]float64, m)
 			anyMissing := false
+			nMissing := false
+			missingSlot := -1
 			for s := 0; s < m; s++ {
 				v, ok := cellLookups[s][lookupKey]
 				if !ok {
 					anyMissing = true
+					missingSlot = s
 					break
 				}
-				nSize := rowMarginLookups[s][rowKeyStr]
-				if nSize <= 0 {
-					// Same degenerate fallback OVERLAY_PROP_Z_CELL uses:
-					// fall back to the cell value as the sample size so
-					// the per-pair gate stays observable (the pooled
-					// gate will surface NaN rather than silently
-					// producing a meaningless statistic).
-					nSize = v
+				nSize, nok := panelSampleSize(params.NSource, slots, s,
+					rowIdxLookups, colIdxLookups, rowKeyStr, colKeyStr,
+					rowMarginLookups, v)
+				if !nok {
+					anyMissing = true
+					nMissing = true
+					missingSlot = s
+					break
 				}
 				values[s] = v
 				ns[s] = nSize
 			}
 			if anyMissing {
+				// One warning shape, two causes, told apart by
+				// `n_missing`. A counted mode that cannot read its leg
+				// is NOT the same condition as an absent cell value,
+				// and a renderer that cannot tell them apart would
+				// advise the caller to fix the wrong slot.
+				msg := "overlay " + string(spec.Kind) + " absent slot value at coordinate; skipping cell"
+				if nMissing {
+					msg = "overlay " + string(spec.Kind) + " n_source " + params.NSource +
+						" unreadable at coordinate; skipping cell"
+				}
+				details := map[string]any{
+					"kind":         string(spec.Kind),
+					"reference":    spec.Reference,
+					"target_label": targetLabel,
+					"row_index":    i,
+					"col_index":    j,
+					"row_key":      rowKeyStr,
+					"col_key":      colKeyStr,
+					"ref_missing":  true,
+				}
+				if nMissing {
+					details["n_missing"] = true
+					details["n_source"] = params.NSource
+					details["panel_index"] = missingSlot
+					details["slot_index"] = panelSlotRequestIndex(missingSlot, refIdx, targetIdxs)
+				}
 				warnings = append(warnings, types.OverlayWarning{
 					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
-					Message: "overlay " + string(spec.Kind) + " absent slot value at coordinate; skipping cell",
-					Details: map[string]any{
-						"kind":         string(spec.Kind),
-						"reference":    spec.Reference,
-						"target_label": targetLabel,
-						"row_index":    i,
-						"col_index":    j,
-						"row_key":      rowKeyStr,
-						"col_key":      colKeyStr,
-						"ref_missing":  true,
-					},
+					Message: msg,
+					Details: details,
 				})
 				continue
 			}

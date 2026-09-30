@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -234,13 +235,33 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 // types.DecodePanelParams* entry point and hands the error here. Both
 // entry points funnel into one decoder, so the two hosts cannot
 // disagree about what a params blob means.
-func validateOverlayPanel(env *Envelope, kind types.OverlayKind, err error, index int) {
-	if err == nil {
+func validateOverlayPanel(env *Envelope, kind types.OverlayKind, params types.PanelOverlayParams, err error, index int) {
+	if err != nil {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(kind)+" has malformed Params: "+err.Error(),
+			map[string]any{"index": index, "kind": string(kind)})
 		return
 	}
-	env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-		"overlay "+string(kind)+" has malformed Params: "+err.Error(),
-		map[string]any{"index": index, "kind": string(kind)})
+
+	// Unknown n_source. Named rather than ignored: the panel accepts
+	// unknown params KEYS (forward compatibility against an older
+	// binary), but an unknown VALUE in a key it does know is a typo in
+	// configuration the caller believes is applied, and silently
+	// running the default would hand back the legacy number under the
+	// caller's impression that they had moved the n leg.
+	//
+	// The Details carry the offending value AND the valid set, because
+	// the whole set is two entries long and a renderer that can show it
+	// turns "unknown n_source" into a one-click fix.
+	if !types.ValidPanelNSource(params.NSource) {
+		valid := types.PanelNSources()
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(kind)+" has unknown n_source: "+params.NSource+
+				" (valid: "+strings.Join(valid, ", ")+")",
+			map[string]any{"index": index, "kind": string(kind),
+				"n_source": params.NSource, "valid_n_sources": valid})
+		return
+	}
 }
 
 // chiSqColSupportedScopes is the supported scope set for

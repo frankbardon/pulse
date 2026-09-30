@@ -295,7 +295,8 @@ func validateComposeOverlaySpec(env *Envelope, result *ComposeValidationResult, 
 
 	// Gate 3b: per-kind params. OVERLAY_PROP_Z_PANEL decodes its
 	// Params slot into types.PanelOverlayParams; a blob that cannot
-	// decode fires PULSE_OVERLAY_PARAM_MISSING rather than being
+	// decode — or that names an n_source mode this binary does not
+	// know — fires PULSE_OVERLAY_PARAM_MISSING rather than being
 	// dropped on the floor.
 	//
 	// Runs AFTER the cap gate on purpose. MaxPanelTargets rides
@@ -308,8 +309,8 @@ func validateComposeOverlaySpec(env *Envelope, result *ComposeValidationResult, 
 	// Non-fatal: the walk continues so one envelope still carries every
 	// offending slot alongside the params complaint.
 	if types.IsPanelOverlayParamsKind(spec.Kind) {
-		_, err := types.DecodePanelParamsMap(spec.Params)
-		validateOverlayPanel(env, spec.Kind, err, specIdx)
+		params, err := types.DecodePanelParamsMap(spec.Params)
+		validateOverlayPanel(env, spec.Kind, params, err, specIdx)
 	}
 
 	// Gate 4: per-target shape + schema match. The reference shape
