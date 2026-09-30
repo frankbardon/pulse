@@ -27,7 +27,8 @@ import (
 //   - Go `Expression: "..."` string literals (a non-literal such as
 //     fmt.Sprintf is skipped);
 //   - inline (single-backtick, outside fenced blocks) spans that call a
-//     set helper or `contains(`, or test `"label" in field`.
+//     set helper or `contains(`, test `"label" in field`, or show a
+//     `field % n` modulo.
 //
 // An example naming a field the synthetic schema lacks fails rather
 // than silently deferring its compile: add the field to docExprSchema.
@@ -92,6 +93,8 @@ var (
 	docInlineCodeRe = regexp.MustCompile("`([^`\n]+)`")
 	docSetCallRe    = regexp.MustCompile(`^(contains|has_any|has_all|has_none|popcount|set_union|set_intersect|set_diff|set_xor)\(.*\)$`)
 	docInLabelRe    = regexp.MustCompile(`^"[^"]+" in [A-Za-z_][A-Za-z0-9_]*$`)
+	// docModRe: an inline `field % n` example (float modulo, expr_mod.go).
+	docModRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]* % [0-9.]+( == [0-9.]+)?$`)
 )
 
 func harvestDocExpressions(t *testing.T) []docExpr {
@@ -152,7 +155,7 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 		}
 		for _, m := range docInlineCodeRe.FindAllStringSubmatch(docFenceRe.ReplaceAllString(text, ""), -1) {
 			span := strings.TrimSpace(m[1])
-			if docSetCallRe.MatchString(span) || docInLabelRe.MatchString(span) {
+			if docSetCallRe.MatchString(span) || docInLabelRe.MatchString(span) || docModRe.MatchString(span) {
 				add(path, span)
 			}
 		}

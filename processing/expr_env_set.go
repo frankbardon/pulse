@@ -28,7 +28,7 @@ import (
 // prepend this to extension-supplied options so the helpers are
 // uniformly visible.
 func setExprOptions() []expr.Option {
-	return []expr.Option{
+	return append([]expr.Option{
 		expr.Function("has_any", setHasAnyBuiltin),
 		expr.Function("has_all", setHasAllBuiltin),
 		expr.Function("has_none", setHasNoneBuiltin),
@@ -37,7 +37,7 @@ func setExprOptions() []expr.Option {
 		expr.Function("set_intersect", setIntersectBuiltin),
 		expr.Function("set_diff", setDiffBuiltin),
 		expr.Function("set_xor", setXorBuiltin),
-	}
+	}, exprModOptions()...) // `%` over float64 fields (expr_mod.go)
 }
 
 // argToStringSet coerces a single argument into a string-set

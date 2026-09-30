@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, streaming-friendly]
 ---
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
+Row-level scalars; no `Response.Components`.
 
 ## Params
 
@@ -21,7 +21,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any referenced field (numeric, categorical_*, date, packed_bool, set_*, decimal128) |
+| `Field` | any referenced field type |
 | `Label` | required — new column name |
 
 ## Output
@@ -30,10 +30,11 @@ One `float64` per record (bools → `1.0` / `0.0`). Null binds `nil`: guard `x ?
 
 ## Gotchas
 
-- **No in-slot chaining** — cannot reference another attribute's label; stage via Compose / ProcessChain.
-- Compiled once per request; syntax / type error → `PROCESSING_RUNTIME` at build.
+- **No in-slot chaining** — no other attribute's label; stage via Compose / ProcessChain.
+- Compiled once; bad syntax / types → `PROCESSING_RUNTIME` at build.
 - Categorical → STRING (`==` / `in`); `set_*` → `[]string` (`"a" in tags`, `has_any(tags, "a", "b")`).
 - No `sqrt` / `log` / `exp` / trig — use `**` or FEAT.
+- `%` on a field: float `math.Mod` (`score % 1`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 - Embedder `ExprFunctions` + `lookup(...)` tables visible.
 
 ## See

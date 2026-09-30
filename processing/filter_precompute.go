@@ -402,6 +402,7 @@ var exprPureSetBuiltins = map[string]bool{
 	"has_any": true, "has_all": true, "has_none": true,
 	"popcount": true, "set_union": true, "set_intersect": true,
 	"set_diff": true, "set_xor": true,
+	exprModFuncName: true, // the builtin `%` rewrites into (expr_mod.go)
 }
 
 // pureFunc reports whether a call to name is a pure function of its
