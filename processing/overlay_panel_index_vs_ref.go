@@ -77,10 +77,9 @@ func applyPanelIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Respo
 	cap := resolveMaxPanelTargets(spec.Options)
 	if len(targets) > cap {
 		return nil, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
 			"compose overlay "+string(spec.Kind)+" exceeded the per-spec MaxPanelTargets cap",
 			map[string]any{
-				"code":     string(errors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP),
 				"kind":     string(spec.Kind),
 				"observed": len(targets),
 				"cap":      cap,

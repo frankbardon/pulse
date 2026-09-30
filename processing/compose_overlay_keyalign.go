@@ -242,10 +242,9 @@ func checkKeySetAlignment(refResp *types.Response, targetResps []*types.Response
 			targetLabel = spec.Targets[i]
 		}
 		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_KEY_SET_DIVERGENT,
 			"compose overlay key set divergent: reference and target produce different per-coordinate key sets",
 			map[string]any{
-				"code":      string(errors.PULSE_OVERLAY_KEY_SET_DIVERGENT),
 				"index":     specIdx,
 				"reference": spec.Reference,
 				"target":    targetLabel,

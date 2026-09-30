@@ -540,7 +540,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
-			Description: pairwiseDescription("two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING"),
+			Description: pairwiseDescription("two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
 		}
 	case types.OverlayKindPairwiseWelchT:
 		return OverlayCapability{
@@ -548,7 +548,7 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
-			Description: pairwiseDescription("Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING"),
+			Description: pairwiseDescription("Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
 		}
 	case types.OverlayKindFormula:
 		return OverlayCapability{

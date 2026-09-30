@@ -37,8 +37,8 @@ import (
 //   - ApplyOverlaysSeries walks `specs` in matching order, dispatches
 //     each via seriesOverlayHandlers, and returns one OverlayLayer per
 //     spec in matching order plus a flat warnings slice. Unknown kinds
-//     short-circuit with the same PROCESSING_INTERNAL + PULSE_OVERLAY_KIND_UNKNOWN
-//     details shape the MATRIX path emits — handlers register through
+//     short-circuit with the same PULSE_OVERLAY_KIND_UNKNOWN
+//     coded-error shape the MATRIX path emits — handlers register through
 //     seriesOverlayHandlers, so a SERIES spec naming a MATRIX-only kind
 //     falls through this branch and the caller gets a coded failure.
 //
@@ -484,10 +484,9 @@ func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]typ
 		handler, ok := seriesOverlayHandlers[spec.Kind]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_KIND_UNKNOWN,
 				"overlay kind has no SERIES runtime handler: "+string(spec.Kind),
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 					"host":  "series",

@@ -98,20 +98,18 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 		}
 		hostField, ok := result.Fields[hostFieldName]
 		if !ok || hostField == nil {
-			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_UNKNOWN,
 				"facet overlay host field "+hostFieldName+" missing from finalised FacetResult",
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 					"field": hostFieldName,
 				})
 		}
 		if spec.Ref.Population == nil || spec.Ref.Population.Cohort == "" {
-			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 				"facet overlay "+string(spec.Kind)+" requires Ref.Population.Cohort",
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 					"index": i,
 					"kind":  string(spec.Kind),
 				})
@@ -149,8 +147,8 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 // descriptor.resolveFacetOverlayHostField helper. Reads spec.Params
 // ["field"] first; when absent falls back to req.Fields[0] when
 // FacetRequest.Fields declares exactly one entry. Returns an error
-// (coded PROCESSING_INTERNAL with PULSE_OVERLAY_PARAM_MISSING or
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE details) when neither slot
+// (coded PULSE_OVERLAY_PARAM_MISSING or
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) when neither slot
 // resolves to a valid host-field name.
 //
 // Defense in depth: the descriptor validator (ValidateFacetOverlays)
@@ -165,10 +163,9 @@ func resolveFacetOverlayHostFieldRuntime(req *types.FacetRequest, spec *types.Ov
 				return requested, nil
 			}
 		}
-		return "", errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return "", errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"facet overlay Params[\"field\"] does not reference any FacetRequest.Fields entry: "+requested,
 			map[string]any{
-				"code":             string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"index":            index,
 				"kind":             string(spec.Kind),
 				"field":            requested,
@@ -178,10 +175,9 @@ func resolveFacetOverlayHostFieldRuntime(req *types.FacetRequest, spec *types.Ov
 	if len(req.Fields) == 1 {
 		return req.Fields[0], nil
 	}
-	return "", errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+	return "", errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
 		"facet overlay requires Params[\"field\"] when FacetRequest.Fields declares multiple fields",
 		map[string]any{
-			"code":             string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"index":            index,
 			"kind":             string(spec.Kind),
 			"param":            "field",

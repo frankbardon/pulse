@@ -234,13 +234,13 @@ func mustParams(t *testing.T, p types.PairwiseOverlayParams) []byte {
 	return raw
 }
 
-// containsCode reports whether err is a *CodedError carrying code in its
-// Details["code"] key (the canonical overlay-code carrier).
+// pairwiseErrHasCode reports whether err is a *CodedError whose own Code
+// is the given canonical overlay code.
 func pairwiseErrHasCode(err error, code errors.Code) bool {
 	coded, ok := err.(*errors.CodedError)
 	if !ok {
 		return false
 	}
-	c, _ := coded.Details["code"].(string)
+	c := string(coded.Code)
 	return c == string(code)
 }

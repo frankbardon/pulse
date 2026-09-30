@@ -50,10 +50,9 @@ func applyZVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targ
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
 	if reference == nil || target == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REFERENCE_UNKNOWN,
 			"overlay "+string(spec.Kind)+" requires non-nil reference and target slots",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
 				"kind":         string(spec.Kind),
 				"ref_index":    refIdx,
 				"target_index": targetIdx,

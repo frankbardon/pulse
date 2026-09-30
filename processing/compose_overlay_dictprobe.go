@@ -196,10 +196,9 @@ func compareAxisPrefix(ref, target []types.AxisKey, fieldName string, spec types
 		// up to AND INCLUDING the divergence so renderers can pinpoint
 		// the offending entry in the dictionary diff payload.
 		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_DICT_PREFIX_DRIFT,
 			"compose overlay dict prefix drift: reference and target slots carry categorical dictionaries that do not share a byte-equal common prefix",
 			map[string]any{
-				"code":                  string(errors.PULSE_OVERLAY_DICT_PREFIX_DRIFT),
 				"index":                 specIdx,
 				"reference":             spec.Reference,
 				"target_label":          targetLabel,

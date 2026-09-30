@@ -444,10 +444,9 @@ func (v *FacetPopulationView) NumericHistogram() (*types.FacetHistogram, bool) {
 func newFacetPopulationUnknownError(field string, result *types.FacetResult) error {
 	available := facetPopulationAvailableFields(result)
 	return errors.NewCodedErrorWithDetails(
-		errors.PROCESSING_INTERNAL,
+		errors.PULSE_OVERLAY_REF_UNKNOWN,
 		"overlay population reference field "+facetPopulationFieldDisplay(field)+" is not present on the host FacetResult",
 		map[string]any{
-			"code":             string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			"field":            field,
 			"available_fields": available,
 		})

@@ -223,10 +223,9 @@ func ApplyComposeOverlays(specs []types.ComposeOverlaySpec, responses []*types.R
 		refIdx := byIndex[spec.Reference]
 		if len(spec.Targets) == 0 {
 			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_TARGET_UNKNOWN,
 				"compose overlay spec must declare at least one target slot label",
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_TARGET_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 					"which": "targets",

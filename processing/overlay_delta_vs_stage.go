@@ -49,20 +49,18 @@ import (
 func applyDeltaVsStage(spec *types.ChainOverlaySpec, target, ref *types.Response, targetIdx, refIdx int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	if target == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil target stage response",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind":         string(spec.Kind),
 				"target_index": targetIdx,
 			})
 	}
 	if ref == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil reference stage response",
 			map[string]any{
-				"code":      string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind":      string(spec.Kind),
 				"ref_index": refIdx,
 			})

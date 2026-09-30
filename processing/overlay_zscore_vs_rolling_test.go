@@ -350,7 +350,7 @@ func TestOverlay_ZScoreVsRolling_MissingWindowParamRejected(t *testing.T) {
 			if !ok {
 				t.Fatalf("err type = %T, want *errors.CodedError", err)
 			}
-			if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_PARAM_MISSING); got != want {
+			if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_PARAM_MISSING); got != want {
 				t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 			}
 			if got, want := coded.Details["param"], "window"; got != want {
@@ -386,7 +386,7 @@ func TestOverlay_ZScoreVsRolling_NonPositiveWindowRejected(t *testing.T) {
 			if !ok {
 				t.Fatalf("err type = %T, want *errors.CodedError", err)
 			}
-			if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE); got != want {
+			if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE); got != want {
 				t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 			}
 		})
@@ -556,7 +556,7 @@ func TestOverlay_ZScoreVsRolling_NilHostReturnsCoded(t *testing.T) {
 	if !ok {
 		t.Fatalf("err type = %T, want *errors.CodedError", err)
 	}
-	if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
+	if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
 		t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 	}
 	_ = context.Background // keep imports stable across small refactors

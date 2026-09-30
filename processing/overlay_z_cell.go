@@ -49,10 +49,9 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 	targetMx := readMatrix(target)
 	if refMx == nil || targetMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"overlay "+string(spec.Kind)+" requires MATRIX-shape slots for reference and target",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":         string(spec.Kind),
 				"ref_index":    refIdx,
 				"target_index": targetIdx,

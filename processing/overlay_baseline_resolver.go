@@ -87,10 +87,9 @@ func ResolveBaselineIndex(host *SeriesHostView, ref *types.OverlayBaselineIndexR
 	seriesLength := host.GroupCount()
 	if host == nil || ref.Position < 0 || ref.Position >= seriesLength {
 		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_UNKNOWN,
 			"overlay baseline-index position is out of range for the host series",
 			map[string]any{
-				"code":           string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 				"baseline_index": ref.Position,
 				"series_length":  seriesLength,
 			})

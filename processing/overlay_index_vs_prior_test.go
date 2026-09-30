@@ -371,7 +371,7 @@ func TestOverlay_IndexVsPrior_NilHostReturnsCoded(t *testing.T) {
 	if !ok {
 		t.Fatalf("err type = %T, want *errors.CodedError", err)
 	}
-	if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
+	if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE); got != want {
 		t.Errorf("err.Details[\"code\"] = %v, want %v", got, want)
 	}
 	_ = context.Background // keep imports stable across small refactors

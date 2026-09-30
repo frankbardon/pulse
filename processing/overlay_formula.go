@@ -504,10 +504,9 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 			out, runErr := expr.Run(program.program, env)
 			if runErr != nil {
 				return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_INTERNAL,
+					errors.PULSE_OVERLAY_FORMULA_TYPE_MISMATCH,
 					"overlay "+string(spec.Kind)+" expression evaluation failed",
 					map[string]any{
-						"code":        string(errors.PULSE_OVERLAY_FORMULA_TYPE_MISMATCH),
 						"kind":        string(spec.Kind),
 						"formula":     program.formula,
 						"row_index":   i,
@@ -518,10 +517,9 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 			stat, ok := coerceFormulaResult(out)
 			if !ok {
 				return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_INTERNAL,
+					errors.PULSE_OVERLAY_FORMULA_TYPE_MISMATCH,
 					"overlay "+string(spec.Kind)+" expression returned a non-numeric value",
 					map[string]any{
-						"code":          string(errors.PULSE_OVERLAY_FORMULA_TYPE_MISMATCH),
 						"kind":          string(spec.Kind),
 						"formula":       program.formula,
 						"returned_type": fmt.Sprintf("%T", out),
@@ -607,10 +605,9 @@ func applyFormulaWithExtensions(spec *types.OverlaySpec, host *CrosstabHostView,
 func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 	if len(spec.Params) == 0 {
 		return "", errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" requires Params[\"formula\"] (non-empty string); Params is missing or empty",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"kind":  string(spec.Kind),
 				"param": formulaParamFormula,
 			})
@@ -618,10 +615,9 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 	var m map[string]any
 	if err := json.Unmarshal(spec.Params, &m); err != nil {
 		return "", errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"formula\"",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"kind":  string(spec.Kind),
 				"param": formulaParamFormula,
 			})
@@ -629,10 +625,9 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 	raw, present := m[formulaParamFormula]
 	if !present {
 		return "", errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" requires Params[\"formula\"] (non-empty string)",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"kind":  string(spec.Kind),
 				"param": formulaParamFormula,
 			})
@@ -640,10 +635,9 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 	formula, ok := raw.(string)
 	if !ok || formula == "" {
 		return "", errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" Params[\"formula\"] must be a non-empty string",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"kind":  string(spec.Kind),
 				"param": formulaParamFormula,
 			})
@@ -704,10 +698,9 @@ func compileFormulaProgramWithExtensions(spec *types.OverlaySpec, formula string
 	program, err := expr.Compile(formula, opts...)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_FORMULA_PARSE_ERROR,
 			"overlay "+string(spec.Kind)+" expression failed to parse",
 			map[string]any{
-				"code":        string(errors.PULSE_OVERLAY_FORMULA_PARSE_ERROR),
 				"kind":        string(spec.Kind),
 				"formula":     formula,
 				"parse_error": err.Error(),

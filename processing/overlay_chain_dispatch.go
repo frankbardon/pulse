@@ -36,7 +36,7 @@ import (
 //     dispatches each via chainOverlayHandlers, and returns one
 //     OverlayLayer per spec in matching order plus a flat warnings
 //     slice. Unknown kinds short-circuit with the same
-//     PROCESSING_INTERNAL + PULSE_OVERLAY_KIND_UNKNOWN details shape
+//     PULSE_OVERLAY_KIND_UNKNOWN coded-error shape
 //     the MATRIX / SERIES / FACET paths emit.
 //
 // Service-side wiring: ChainResponse.Overlays is populated after the
@@ -188,20 +188,18 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 	for i, spec := range specs {
 		if spec == nil {
 			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_KIND_UNKNOWN,
 				"whole-chain overlay spec is nil",
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 					"index": i,
 				})
 		}
 		handler, ok := chainOverlayHandlers[spec.Kind]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_KIND_UNKNOWN,
 				"overlay kind has no CHAIN runtime handler: "+string(spec.Kind),
 				map[string]any{
-					"code":  string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 					"index": i,
 					"kind":  string(spec.Kind),
 					"host":  "chain",
@@ -272,10 +270,9 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 		if targetDefault {
 			if len(stages) == 0 {
 				return 0, errors.NewCodedErrorWithDetails(
-					errors.PROCESSING_INTERNAL,
+					armCode,
 					"chain overlay has no stages to resolve default Target against",
 					map[string]any{
-						"code":  string(armCode),
 						"index": specIdx,
 						"which": whichArm,
 					})
@@ -283,10 +280,9 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 			return len(stages) - 1, nil
 		}
 		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			armCode,
 			"chain overlay Ref must populate exactly one of Index / Name",
 			map[string]any{
-				"code":  string(armCode),
 				"index": specIdx,
 				"which": whichArm,
 			})
@@ -299,10 +295,9 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 		idx := *ref.Index
 		if idx < 0 || idx >= len(stages) {
 			return 0, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				armCode,
 				"chain overlay stage Index out of range",
 				map[string]any{
-					"code":         string(armCode),
 					"index":        specIdx,
 					"which":        whichArm,
 					"stage_index":  idx,
@@ -315,10 +310,9 @@ func resolveChainStageRef(ref types.StageRef, stages []*types.Response, namedInd
 	idx, ok := namedIndex[ref.Name]
 	if !ok {
 		return 0, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			armCode,
 			"chain overlay stage Name not found",
 			map[string]any{
-				"code":       string(armCode),
 				"index":      specIdx,
 				"which":      whichArm,
 				"stage_name": ref.Name,

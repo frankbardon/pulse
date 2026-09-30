@@ -242,7 +242,7 @@ func TestApplyZCell_NonMatrixSlotRejected(t *testing.T) {
 	if !stderrors.As(err, &coded) {
 		t.Fatalf("error is not coded: %T (%v)", err, err)
 	}
-	if got := coded.Details["code"]; got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
+	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
 		t.Errorf("error code = %v, want %v", got, pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB)
 	}
 }

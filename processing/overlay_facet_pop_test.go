@@ -523,12 +523,9 @@ func assertFacetPopulationUnknownError(t *testing.T, err error, wantField string
 	if coded.Details == nil {
 		t.Fatalf("coded.Details is nil; want map carrying code + field + available_fields")
 	}
-	codeRaw, ok := coded.Details["code"].(string)
-	if !ok {
-		t.Fatalf("coded.Details[code] = %v (%T); want string", coded.Details["code"], coded.Details["code"])
-	}
+	codeRaw := string(coded.Code)
 	if codeRaw != string(pulseerrors.PULSE_OVERLAY_REF_UNKNOWN) {
-		t.Fatalf("coded.Details[code] = %q; want %q",
+		t.Fatalf("coded.Code = %q; want %q",
 			codeRaw, pulseerrors.PULSE_OVERLAY_REF_UNKNOWN)
 	}
 	gotField, ok := coded.Details["field"].(string)

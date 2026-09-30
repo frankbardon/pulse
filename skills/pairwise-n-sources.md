@@ -25,7 +25,7 @@ Every mode reads `Response.Components.Crosstab`; a components-disabled host fire
 | `n_within_distinct` | that slab, in distinct KEYS |
 | `row_margin_distinct` / `column_margin_distinct` | `RowMarginComponents[r]` / `ColumnMarginComponents[c]`, in distinct KEYS |
 
-`OVERLAY_PAIRWISE_WELCH_T` and `OVERLAY_PAIRWISE_TWO_MEANS_Z` REFUSE both selectors — every `n_source` and every `p_source`, not just the distinct ones. n and both moments come from the Welford triple, so either would be a silent no-op: `PULSE_OVERLAY_PARAM_MISSING` at predict. Predict ONLY, unlike the partition gate below: an inert param cannot make a wrong number, so a runtime twin would only break a working `Process`. (A DISTINCT mode is still refused at runtime, by admission.) `n_within_depth` applies to `n_within` and `n_within_distinct` only (`types.PairwiseNSourceUsesWithinDepth`); margin modes ignore it, and `>=` the pair-axis dim count is refused.
+`OVERLAY_PAIRWISE_WELCH_T` and `OVERLAY_PAIRWISE_TWO_MEANS_Z` REFUSE both selectors — every `n_source` and every `p_source`, not just the distinct ones. n and both moments come from the Welford triple, so either would be a silent no-op: `PULSE_OVERLAY_PARAM_MISSING` at predict. Predict ONLY, unlike the partition gate below: an inert param cannot make a wrong number, so a runtime twin would only break a working `Process`. (A DISTINCT mode is still refused at runtime, under that SAME code not the admission one.) `n_within_depth` applies to `n_within` and `n_within_distinct` only (`types.PairwiseNSourceUsesWithinDepth`); margin modes ignore it and `>=` the pair-axis dim count is refused.
 
 ## Distinct keys versus records
 
@@ -33,7 +33,7 @@ Use a distinct mode when one respondent contributes several records and n must b
 
 ## Admission
 
-Distinct modes are admitted on the cell aggregator's IDENTITY, UP FRONT — not per pair — with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator and the admitted set: `AGG_DISTINCT_SUM` (figure on `distinct_count`) and `AGG_DISTINCT_COUNT` (on `cardinality`).
+Distinct modes are admitted on the cell aggregator's IDENTITY, UP FRONT, not per pair, with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator and the admitted set: `AGG_DISTINCT_SUM` (figure on `distinct_count`) and `AGG_DISTINCT_COUNT` (on `cardinality`).
 
 Everything else is refused, including `AGG_FREQUENCY` and `AGG_MODE`, which BOTH emit a component spelled `distinct_count` — theirs counts distinct VALUES of the measure field (answer codes), not keys. A key-presence probe would read the answer-code count and call it a sample size, so identity is an exact component-key-set match against each aggregator's `ComponentSchema`; the per-cell probe in the slab accessors sits on top of that, not in place of it.
 

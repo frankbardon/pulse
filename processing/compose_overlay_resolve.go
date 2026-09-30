@@ -162,10 +162,9 @@ func ResolveComposeSlots(req *types.ComposedRequest, responses []*types.Response
 func LookupReference(byLabel map[string]*types.Response, label string, specIdx int) (*types.Response, error) {
 	if label == "" {
 		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REFERENCE_UNKNOWN,
 			"compose overlay reference label is empty",
 			map[string]any{
-				"code":  string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
 				"index": specIdx,
 				"which": "reference",
 			})
@@ -173,10 +172,9 @@ func LookupReference(byLabel map[string]*types.Response, label string, specIdx i
 	resp, ok := byLabel[label]
 	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REFERENCE_UNKNOWN,
 			"compose overlay reference label not found: "+label,
 			map[string]any{
-				"code":       string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
 				"index":      specIdx,
 				"which":      "reference",
 				"slot_label": label,
@@ -188,10 +186,9 @@ func LookupReference(byLabel map[string]*types.Response, label string, specIdx i
 		// slice. The resolver flags it as unknown so the overlay
 		// dispatch fails closed rather than panicking downstream.
 		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REFERENCE_UNKNOWN,
 			"compose overlay reference slot is unavailable (slot failed): "+label,
 			map[string]any{
-				"code":       string(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN),
 				"index":      specIdx,
 				"which":      "reference",
 				"slot_label": label,
@@ -214,10 +211,9 @@ func LookupReference(byLabel map[string]*types.Response, label string, specIdx i
 func LookupTarget(byLabel map[string]*types.Response, label string, specIdx, targetIdx int) (*types.Response, error) {
 	if label == "" {
 		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_TARGET_UNKNOWN,
 			"compose overlay target label is empty",
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_TARGET_UNKNOWN),
 				"index":        specIdx,
 				"target_index": targetIdx,
 				"which":        "target",
@@ -226,10 +222,9 @@ func LookupTarget(byLabel map[string]*types.Response, label string, specIdx, tar
 	resp, ok := byLabel[label]
 	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_TARGET_UNKNOWN,
 			"compose overlay target label not found: "+label,
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_TARGET_UNKNOWN),
 				"index":        specIdx,
 				"target_index": targetIdx,
 				"which":        "target",
@@ -241,10 +236,9 @@ func LookupTarget(byLabel map[string]*types.Response, label string, specIdx, tar
 		// failed and the orchestrator passed a nil entry. Surface
 		// the missing-target coded error.
 		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_TARGET_UNKNOWN,
 			"compose overlay target slot is unavailable (slot failed): "+label,
 			map[string]any{
-				"code":         string(errors.PULSE_OVERLAY_TARGET_UNKNOWN),
 				"index":        specIdx,
 				"target_index": targetIdx,
 				"which":        "target",

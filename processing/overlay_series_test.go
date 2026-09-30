@@ -429,8 +429,8 @@ func TestApplyOverlaysSeries_LooseAlignmentSubset(t *testing.T) {
 
 // TestApplyOverlaysSeries_UnknownKind verifies the defense-in-depth
 // branch: a SeriesSpec naming an unregistered kind triggers a
-// PROCESSING_INTERNAL CodedError whose details carry the canonical
-// PULSE_OVERLAY_KIND_UNKNOWN code. Mirrors the MATRIX path's unknown-
+// CodedError whose own Code is the canonical
+// PULSE_OVERLAY_KIND_UNKNOWN. Mirrors the MATRIX path's unknown-
 // kind defense (TestApplyOverlays_UnknownKind_StubCoded in overlay_test.go).
 func TestApplyOverlaysSeries_UnknownKind(t *testing.T) {
 	host := newStubSeriesHost([]types.AxisKey{{"a"}}, []float64{1.0})
@@ -448,11 +448,8 @@ func TestApplyOverlaysSeries_UnknownKind(t *testing.T) {
 	if !ok {
 		t.Fatalf("err type = %T, want *errors.CodedError", err)
 	}
-	if coded.Code != errors.PROCESSING_INTERNAL {
-		t.Fatalf("err.Code = %q, want %q", coded.Code, errors.PROCESSING_INTERNAL)
-	}
-	if got, want := coded.Details["code"], string(errors.PULSE_OVERLAY_KIND_UNKNOWN); got != want {
-		t.Fatalf("err.Details[\"code\"] = %v, want %v", got, want)
+	if got, want := string(coded.Code), string(errors.PULSE_OVERLAY_KIND_UNKNOWN); got != want {
+		t.Fatalf("err.Code = %v, want %v", got, want)
 	}
 	if got := coded.Details["host"]; got != "series" {
 		t.Fatalf("err.Details[\"host\"] = %v, want %q", got, "series")

@@ -104,13 +104,18 @@ func TestOverlayPairwise_WelfordSelectorsInertAtRuntime(t *testing.T) {
 }
 
 // TestOverlayPairwise_WelfordDistinctSelectorStillRefusedAtRuntime pins
-// the OTHER half. E1-S2's admission gate is keyed on
-// types.PairwiseNSourceReadsDistinctKeys and fires for every pairwise
-// kind including these two, so a distinct-key selector is a runtime
-// error here even though the predict refusal is what a caller should
-// see first. Retained deliberately: the three distinct modes are new in
-// this release, so refusing them at runtime breaks nobody, and the
+// the OTHER half. E1-S2's admission gate fires for every pairwise kind
+// including these two, so a distinct-key selector is a runtime error
+// here. Retained deliberately: the three distinct modes are new in this
+// release, so refusing them at runtime breaks nobody, and the
 // AGG_WELFORD cell carries no distinct-key figure to read.
+//
+// E2-S4 settled WHICH code that refusal carries. Predict refuses any
+// n_source on a Welford kind with PULSE_OVERLAY_PARAM_MISSING; the
+// runtime used to answer PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for
+// the same request, so one request produced two `pulse errors lookup`
+// answers — and the runtime one pointed at the cell aggregator, which
+// is not the fixable thing. Both arms now report PARAM_MISSING.
 func TestOverlayPairwise_WelfordDistinctSelectorStillRefusedAtRuntime(t *testing.T) {
 	for _, kind := range []types.OverlayKind{
 		types.OverlayKindPairwiseWelchT,
@@ -130,8 +135,10 @@ func TestOverlayPairwise_WelfordDistinctSelectorStillRefusedAtRuntime(t *testing
 			if err == nil {
 				t.Fatalf("%s n_source=%s: expected the distinct-key admission refusal, got nil", kind, mode)
 			}
-			if !pairwiseErrHasCode(err, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
-				t.Errorf("%s n_source=%s: error %v does not carry PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", kind, mode, err)
+			// Same code predict raises for the same request — see
+			// TestPairwiseWelfordDistinct_PredictAndRuntimeAgreeOnCode.
+			if !pairwiseErrHasCode(err, errors.PULSE_OVERLAY_PARAM_MISSING) {
+				t.Errorf("%s n_source=%s: error %v does not carry PULSE_OVERLAY_PARAM_MISSING", kind, mode, err)
 			}
 		}
 	}

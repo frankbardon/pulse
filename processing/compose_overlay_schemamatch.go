@@ -364,10 +364,12 @@ func KindRequiresMatrix(kind types.OverlayKind) bool {
 //  3. Per-axis grouper-kind tuples differ ⇒
 //     PULSE_OVERLAY_SCHEMA_DIVERGENT.
 //
+// Each failure is raised with that code as the CodedError's own Code —
+// it is not echoed into Details.
+//
 // Details payload (encoding/json-friendly, no fmt.Sprintf):
 //
 //	SHAPE_DIVERGENT:
-//	  - "code": "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
 //	  - "index": spec index
 //	  - "reference": reference slot label
 //	  - "target_label": target slot label
@@ -375,7 +377,6 @@ func KindRequiresMatrix(kind types.OverlayKind) bool {
 //	  - "target_shape": same enum
 //
 //	SLOT_NOT_CROSSTAB:
-//	  - "code": "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
 //	  - "index": spec index
 //	  - "kind": spec Kind (so the renderer can surface the kind that
 //	    requires MATRIX)
@@ -385,7 +386,6 @@ func KindRequiresMatrix(kind types.OverlayKind) bool {
 //	  - "observed_shape": "series" / "scalar"
 //
 //	SCHEMA_DIVERGENT:
-//	  - "code": "PULSE_OVERLAY_SCHEMA_DIVERGENT"
 //	  - "index": spec index
 //	  - "reference": reference slot label
 //	  - "target_label": target slot label
@@ -404,10 +404,9 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 	// a target violated the contract.
 	if kindRequiresMatrix(spec.Kind) && refSchema.shape != types.OverlayShapeMatrix {
 		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"compose overlay kind requires a MATRIX-shape host but the reference slot is not a crosstab",
 			map[string]any{
-				"code":           string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"index":          specIdx,
 				"kind":           string(spec.Kind),
 				"required_shape": "MATRIX",
@@ -426,10 +425,9 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 		// Gate 1: SLOT_SHAPE_DIVERGENT.
 		if refSchema.shape != tSchema.shape {
 			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT,
 				"compose overlay slot shape divergent: reference and target produce different host result shapes",
 				map[string]any{
-					"code":            string(errors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT),
 					"index":           specIdx,
 					"reference":       spec.Reference,
 					"target_label":    targetLabel,
@@ -444,10 +442,9 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 		// catches a non-MATRIX target paired with a MATRIX reference.
 		if kindRequiresMatrix(spec.Kind) && tSchema.shape != types.OverlayShapeMatrix {
 			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 				"compose overlay kind requires a MATRIX-shape host but a target slot is not a crosstab",
 				map[string]any{
-					"code":           string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 					"index":          specIdx,
 					"kind":           string(spec.Kind),
 					"required_shape": "MATRIX",
@@ -467,10 +464,9 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 		if !axisKindsEqual(refSchema.rowAxis, tSchema.rowAxis) ||
 			!axisKindsEqual(refSchema.colAxis, tSchema.colAxis) {
 			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_SCHEMA_DIVERGENT,
 				"compose overlay schema divergent: reference and target produce structurally different axis schemas",
 				map[string]any{
-					"code":             string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT),
 					"index":            specIdx,
 					"reference":        spec.Reference,
 					"target_label":     targetLabel,
@@ -496,10 +492,9 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 		// the axis-kind arm already accepted).
 		if !cellShapesEqual(refSchema.cellShape, tSchema.cellShape) {
 			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_SCHEMA_DIVERGENT,
 				"compose overlay schema divergent: reference and target produce structurally different cell shapes",
 				map[string]any{
-					"code":                 string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT),
 					"index":                specIdx,
 					"reference":            spec.Reference,
 					"target_label":         targetLabel,

@@ -1036,9 +1036,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // ResponseWarning per types.OverlayWarning the handlers emitted (mirrors the
 // label-resolver promotion in service/process_labels.go).
 //
-// On unknown overlay kind, ApplyOverlays returns a PROCESSING_INTERNAL
-// CodedError whose details carry the canonical
-// errors.PULSE_OVERLAY_KIND_UNKNOWN code.
+// On unknown overlay kind, ApplyOverlays returns a CodedError whose own
+// Code is the canonical errors.PULSE_OVERLAY_KIND_UNKNOWN — every overlay
+// fault carries its real code so `pulse errors lookup` resolves it.
 func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry) error {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
@@ -1134,11 +1134,10 @@ func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry) err
 		if !bad {
 			continue
 		}
-		// Unlike the rest of the overlay family this raises the canonical
-		// PULSE_OVERLAY_* code directly rather than wrapping it in
-		// PROCESSING_INTERNAL with a `details.code` echo, so the runtime
-		// refusal carries the same errors[0].code the predict envelope
-		// does and `pulse errors lookup` resolves it.
+		// Like the rest of the overlay family this raises the canonical
+		// PULSE_OVERLAY_* code directly as the CodedError's own Code, so
+		// the runtime refusal carries the same errors[0].code the predict
+		// envelope does and `pulse errors lookup` resolves it.
 		return errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED,
 			v.Message(spec.Kind, params),

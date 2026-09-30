@@ -250,12 +250,9 @@ func requireDetailCode(t *testing.T, err error, want pulseerrors.Code) {
 	if !errors.As(err, &coded) {
 		t.Fatalf("err is not *pulseerrors.CodedError: %T (%v)", err, err)
 	}
-	got, ok := coded.Details["code"].(string)
-	if !ok {
-		t.Fatalf("CodedError.Details[code] is not a string: %T (%v)", coded.Details["code"], coded.Details)
-	}
+	got := string(coded.Code)
 	if got != string(want) {
-		t.Fatalf("CodedError.Details[code] = %q, want %q", got, string(want))
+		t.Fatalf("CodedError.Code = %q, want %q (details %v)", got, string(want), coded.Details)
 	}
 }
 

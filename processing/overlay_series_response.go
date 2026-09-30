@@ -77,7 +77,7 @@ import (
 // warning-promotion shape labels and stat tests use).
 //
 // On unknown overlay kind, ApplyOverlaysSeries returns a coded
-// PROCESSING_INTERNAL error whose details carry PULSE_OVERLAY_KIND_UNKNOWN.
+// error whose own Code is PULSE_OVERLAY_KIND_UNKNOWN.
 // The error bubbles to the caller; resp.Overlays is left nil.
 func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response) error {
 	if req == nil || len(req.Overlays) == 0 {

@@ -71,25 +71,25 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	params, err := types.DecodePairwiseParams(spec.Params)
 	if err != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
-			map[string]any{"code": string(errors.PULSE_OVERLAY_PARAM_MISSING), "kind": string(spec.Kind)})
+			map[string]any{"kind": string(spec.Kind)})
 	}
 
 	// Components gate — every kind reads per-cell counters / Welford
 	// triples / margin counts. Without them there is no sample-size leg.
 	if !host.HasComponents() {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_COMPONENTS_REQUIRED,
 			"overlay "+string(spec.Kind)+" requires Response.Components.Crosstab; the host was built with components disabled",
-			map[string]any{"code": string(errors.PULSE_OVERLAY_COMPONENTS_REQUIRED), "kind": string(spec.Kind)})
+			map[string]any{"kind": string(spec.Kind)})
 	}
 	// Welford-input kinds need {mean, variance, n} on at least one cell.
 	if welford && !host.HasWelfordCells() {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires AGG_WELFORD cells (Welford triple on CellComponents); host matrix has none",
-			map[string]any{"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE), "kind": string(spec.Kind)})
+			map[string]any{"kind": string(spec.Kind)})
 	}
 
 	// Distinct-key n admission — refused UP FRONT, on the cell
@@ -111,6 +111,37 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	// MARGIN distinct modes read the same figure off the same cell
 	// aggregator and need the same admission. Only the SLAB mode needs
 	// the separate partition gate.
+	// Welford-input arm agreement. A Welford kind reads n, mean and
+	// variance out of the AGG_WELFORD triple, so NSource never reaches
+	// the math and descriptor.validateOverlayPairwise refuses ANY
+	// n_source on these kinds with PULSE_OVERLAY_PARAM_MISSING. That
+	// predict refusal is deliberately NOT twinned in general (E2-S1: a
+	// non-distinct selector stays inert and still runs here, so no
+	// currently-succeeding pulse.Process starts failing).
+	//
+	// A DISTINCT selector is the one case the runtime ALREADY refuses,
+	// on the admission gate immediately below — and it refused under
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, sending the caller to
+	// fix the cell aggregator. That cannot help: predict refuses
+	// n_source on a Welford kind whatever the host holds. So where the
+	// runtime already refuses, it refuses under PREDICT's code, and the
+	// two arms give one `pulse errors lookup` answer. Scoped to the
+	// distinct modes on purpose — widening it would add runtime
+	// failures E2-S1 decided against.
+	if types.PairwiseKindUsesWelford(spec.Kind) && types.PairwiseNSourceReadsDistinctKeys(params.NSource) {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING,
+			"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+
+				"): n, mean and variance all come from the AGG_WELFORD triple {mean, variance, n}, "+
+				"so the mode selector is inert on this kind. Remove n_source, or use "+
+				"OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a separate n leg",
+			map[string]any{
+				"kind":     string(spec.Kind),
+				"param":    "n_source",
+				"n_source": params.NSource,
+			})
+	}
+
 	if types.PairwiseNSourceReadsDistinctKeys(params.NSource) {
 		if _, _, ok := host.AdmitsDistinctKeyN(); !ok {
 			observed, identified := host.CellAggregatorIdentity()
@@ -124,11 +155,10 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 				admittedNames[i] = string(a)
 			}
 			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 				"overlay "+string(spec.Kind)+" n_source="+params.NSource+" requires a distinct-key cell aggregator; observed cell aggregator "+
 					observedName+", admitted: "+joinCommaSpace(admittedNames),
 				map[string]any{
-					"code":                      string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 					"kind":                      string(spec.Kind),
 					"n_source":                  params.NSource,
 					"observed_cell_aggregator":  observedName,
@@ -203,9 +233,9 @@ func buildPairwisePairs(spec *types.OverlaySpec, host *CrosstabHostView, params 
 	}
 
 	if types.PairwiseNSourceUsesWithinDepth(params.NSource) && params.NWithinDepth >= depth {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" n_within_depth exceeds pair-axis dim count",
-			map[string]any{"code": string(errors.PULSE_OVERLAY_PARAM_MISSING), "kind": string(spec.Kind),
+			map[string]any{"kind": string(spec.Kind),
 				"n_within_depth": params.NWithinDepth, "dim_count": depth})
 	}
 
@@ -227,9 +257,9 @@ func buildPairwisePairs(spec *types.OverlaySpec, host *CrosstabHostView, params 
 
 	dim := *params.PairAlongDim
 	if dim >= depth {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" pair_along_dim out of range for pair-axis dim count",
-			map[string]any{"code": string(errors.PULSE_OVERLAY_PARAM_MISSING), "kind": string(spec.Kind),
+			map[string]any{"kind": string(spec.Kind),
 				"pair_along_dim": dim, "dim_count": depth})
 	}
 

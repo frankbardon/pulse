@@ -101,10 +101,9 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	cap := resolveMaxPanelTargets(spec.Options)
 	if len(targets) > cap {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
 			"compose overlay "+string(spec.Kind)+" exceeded the per-spec MaxPanelTargets cap",
 			map[string]any{
-				"code":     string(errors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP),
 				"kind":     string(spec.Kind),
 				"observed": len(targets),
 				"cap":      cap,
@@ -114,10 +113,9 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	refMx := readMatrix(reference)
 	if refMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"overlay "+string(spec.Kind)+" requires a MATRIX-shape reference slot",
 			map[string]any{
-				"code":      string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 				"kind":      string(spec.Kind),
 				"ref_index": refIdx,
 			})
@@ -135,10 +133,9 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				tIdx = targetIdxs[i]
 			}
 			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_INTERNAL,
+				errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 				"overlay "+string(spec.Kind)+" requires MATRIX-shape target slots",
 				map[string]any{
-					"code":          string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 					"kind":          string(spec.Kind),
 					"target_index":  tIdx,
 					"target_offset": i,

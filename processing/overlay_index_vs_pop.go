@@ -104,7 +104,9 @@ import (
 // Defense in depth: the descriptor validator rejects ref / scope
 // mismatches at predict time. The handler still defends against a nil
 // host (caller passed nil into `ApplyOverlaysFacet`) and a nil
-// population view by returning a coded PROCESSING_INTERNAL error.
+// population view by returning a coded
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE error; a nil spec is a
+// caller bug with no user-facing code and stays PROCESSING_INTERNAL.
 // The resolver itself returns a coded PULSE_OVERLAY_REF_UNKNOWN
 // error when the named population FIELD is unknown — that error
 // surfaces from `ResolveFacetPopulation` BEFORE this handler runs, so
@@ -117,19 +119,17 @@ func applyIndexVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 	}
 	if host == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil FacetField host",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
 	if pop == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_INTERNAL,
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires a non-nil FacetPopulationView",
 			map[string]any{
-				"code": string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"kind": string(spec.Kind),
 			})
 	}
