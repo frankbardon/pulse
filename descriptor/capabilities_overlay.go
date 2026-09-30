@@ -1117,7 +1117,11 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Options.MaxPanelTargets is the per-request override surface. Degenerate inputs (pooled ∈ {0, 1}, missing row " +
 				"margin) produce NaN at the affected pair position with one PULSE_OVERLAY_REF_ZERO warning per (cell, pair) " +
 				"tuple. Cells where any slot is absent surface an empty per-cell vector with one PULSE_OVERLAY_REF_ZERO " +
-				"warning carrying ref_missing: true. Inherently buffered — inferential overlays stay buffered as a family " +
+				"warning carrying ref_missing: true. Params: the slot decodes into types.PanelOverlayParams, which carries " +
+				"no configuration fields today — absent params and {} are identical, unknown keys are tolerated, and a blob " +
+				"that does not decode fires PULSE_OVERLAY_PARAM_MISSING at descriptor.ValidateCompose (ComposedRequest.Overlays " +
+				"is the only slot this kind executes from). MaxPanelTargets is an Options knob, never a param, and its cap " +
+				"refusal fires before the params check. Inherently buffered — inferential overlays stay buffered as a family " +
 				"per PRD §2 Non-Goals.",
 		}
 	case types.OverlayKindRank:

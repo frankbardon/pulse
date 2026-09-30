@@ -205,6 +205,44 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 	}
 }
 
+// validateOverlayPanel validates the params blob of the COMPOSE-host
+// OVERLAY_PROP_Z_PANEL, the multi-reference sibling of the
+// OVERLAY_PAIRWISE_* family. Malformed params fire
+// PULSE_OVERLAY_PARAM_MISSING with the same Details shape
+// validateOverlayPairwise emits, so one renderer branch handles both
+// families.
+//
+// Nothing else about the panel is checked here. The kind's structural
+// contract — reference / target slot resolution, MATRIX host on every
+// slot, axis-schema agreement and the MaxPanelTargets cap — is
+// COMPOSE-shaped and lives in validateComposeOverlaySpec
+// (descriptor/compose.go), which is also where this helper is called
+// from: ComposedRequest.Overlays is the only slot the panel can
+// actually execute out of.
+//
+// It is deliberately NOT wired into validateOverlaySpec's per-kind
+// switch. A panel spec on Request.Overlays is a WRONG-HOST spec, and
+// the honest diagnostic there names the host, not the params — the
+// FACET-host arm of that switch is the precedent. Predict is silent on
+// that shape today (the runtime refuses it with
+// PULSE_OVERLAY_KIND_UNKNOWN); closing that gap is its own change and
+// answering it with a params error would point at the wrong fix.
+//
+// Params carrier note: the raw slot differs per host —
+// OverlaySpec.Params is json.RawMessage, ComposeOverlaySpec.Params is
+// map[string]any — so the caller does the decode with the matching
+// types.DecodePanelParams* entry point and hands the error here. Both
+// entry points funnel into one decoder, so the two hosts cannot
+// disagree about what a params blob means.
+func validateOverlayPanel(env *Envelope, kind types.OverlayKind, err error, index int) {
+	if err == nil {
+		return
+	}
+	env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+		"overlay "+string(kind)+" has malformed Params: "+err.Error(),
+		map[string]any{"index": index, "kind": string(kind)})
+}
+
 // chiSqColSupportedScopes is the supported scope set for
 // OVERLAY_CHISQ_COL. The per-column χ² goodness-of-fit test is a COLUMN-
 // scoped inferential overlay (mechanical column-axis twin of
