@@ -80,11 +80,27 @@ On the synthetic 12.5x-fanout join (66 parent / 29 child fields,
 of 100,000. A cheap `FILTER_INCLUDE` on a parent categorical goes from
 ~35 to ~22 ns/row for the filter pass (sorted; 43 → 30 scattered) —
 invisible end to end, where decode dominates. A `FILTER_EXPRESSION` on a
-parent field goes from ~7 µs to ~0.6 µs/row for the filter pass and
-from ~20 µs to ~1.2 µs/row end to end (sorted; ~22 → ~1.7 scattered).
-The verdict table costs two bits per dictionary entry per filter (27 KB
+parent field goes from ~95 to ~19 ns/row for the filter pass (sorted;
+~110 → ~24 scattered) and ~640 → ~580 ns/row end to end. (Before
+expressions compiled once — below — the same filter went from ~7 µs to
+~0.6 µs/row.) The verdict table costs two bits per dictionary entry per filter (27 KB
 for a 109,000-entry group). The ungrouped (`0x01`) cohort and child-field
 filters are unchanged.
+
+### Expressions compile once
+
+`FILTER_EXPRESSION` and `ATTR_FORMULA` compile their expr-lang program
+once per request build — against a prototype of the schema, typed as the
+row values are — and run the cached program per row, with an env holding
+only the fields the expression names. They used to compile per row
+against the whole row, which cost more the wider the schema. On the
+synthetic 12.5x-fanout join (95 fields, 100,000 rows, filter precompute
+off), `p_10 > 1.5 && c_u64_00 < 549755813888` went from ~8.7 µs to ~0.14
+µs/row for the filter pass, and ~24 µs to ~2.1 µs/row end to end (0x01;
+~24 → ~1.1 on 0x02), against ~1.9 / ~1.0 µs/row for the same request
+with a `FILTER_RANGE` instead. `ATTR_FORMULA` `p_10 * 2 + c_u64_00 /
+1024`: ~9.1 µs → ~0.3 µs/row through the Processor, ~24 → ~2.2 µs/row end
+to end. Results are identical. Bench: `BenchmarkExprCompileOnce`.
 
 ## Buffered path: when Pulse has to materialise
 

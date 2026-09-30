@@ -509,9 +509,10 @@ func TestFilterPrecompute_StaleIndexFallsBack(t *testing.T) {
 // not at all when an earlier filter keeps every such row away.
 func TestFilterPrecompute_ErrorEntries(t *testing.T) {
 	s, recs := groupedRecords(t)
-	// p_num is null for every fifth parent: the expression environment
-	// then lacks p_num and compiling the expression fails on that row.
-	expr := &types.Filterer{Type: types.FILTER_EXPRESSION, Expression: "p_num > 3"}
+	// The expression returns a non-bool — a PROCESSING_RUNTIME error —
+	// on every entry whose p_num is at most 3. (A null p_num no longer
+	// errors: it binds nil and the filter drops the row, E5-S5.)
+	bad := &types.Filterer{Type: types.FILTER_EXPRESSION, Expression: `p_num > 3 ? true : "not a bool"`}
 	firstErr := func(fns []FilterFunc) (int, []bool) {
 		var verdicts []bool
 		for i, r := range recs {
@@ -523,12 +524,12 @@ func TestFilterPrecompute_ErrorEntries(t *testing.T) {
 		}
 		return -1, verdicts
 	}
-	pre, err := BuildFilters([]*types.Filterer{expr}, s, nil)
+	pre, err := BuildFilters([]*types.Filterer{bad}, s, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	prev := SetFilterPrecompute(false)
-	row, err := BuildFilters([]*types.Filterer{expr}, s, nil)
+	row, err := BuildFilters([]*types.Filterer{bad}, s, nil)
 	SetFilterPrecompute(prev)
 	if err != nil {
 		t.Fatal(err)
@@ -539,6 +540,7 @@ func TestFilterPrecompute_ErrorEntries(t *testing.T) {
 		t.Fatalf("precomputed first error at row %d (%v), per-row at %d (%v)", pi, pv, ri, rv)
 	}
 
+	expr := &types.Filterer{Type: types.FILTER_EXPRESSION, Expression: "p_num > 3"}
 	chain := []*types.Filterer{{Type: types.FILTER_NULL, Field: "p_num", Values: []string{"is_not_null"}}, expr}
 	fns, err := BuildFilters(chain, s, nil)
 	if err != nil {

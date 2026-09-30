@@ -836,6 +836,53 @@ func (r *Record) AllValues() map[string]any {
 	return out
 }
 
+// exprValue returns AllValues()[name] without building the map — the
+// per-row env of a compiled expression names only the fields it reads.
+// It resolves the same sources in the same precedence (a later AllValues
+// pass overwrites an earlier one): overflow wide, typed wide, overflow
+// value, slot value. Pinned to AllValues by
+// TestRecord_ExprValueMatchesAllValues.
+func (r *Record) exprValue(name string) (any, bool) {
+	if r.allValuesCache != nil {
+		v, ok := r.allValuesCache[name]
+		return v, ok
+	}
+	i := r.pos(name)
+	if r.aux != nil {
+		if v, ok := r.aux.ovWide[name]; ok && !r.nullMarked(name) {
+			var f *encoding.Field
+			if r.schema != nil {
+				f = r.schema.Field(name)
+			}
+			return allValuesWide(f, v), true
+		}
+	}
+	if i >= 0 && r.test(planeWide, i) && !r.test(planeNull, i) {
+		return allValuesWide(r.fieldAt(i), r.boxWideAt(i)), true
+	}
+	if r.aux != nil {
+		if v, ok := r.aux.ovVals[name]; ok && !r.aux.ovNulls[name] {
+			var f *encoding.Field
+			if r.schema != nil {
+				f = r.schema.Field(name)
+			}
+			if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
+				return f.Dictionary.Resolve(uint32(v)), true
+			}
+			return v, true
+		}
+	}
+	if i >= 0 && r.test(planeHas, i) && !r.test(planeNull, i) {
+		f := r.fieldAt(i)
+		v := r.vals[i]
+		if f.Type.IsCategorical() && f.Dictionary != nil {
+			return f.Dictionary.Resolve(uint32(v)), true
+		}
+		return v, true
+	}
+	return nil, false
+}
+
 // allValuesWide renders one wide value for AllValues: a set field with a
 // dictionary becomes its label slice, anything else passes through.
 func allValuesWide(f *encoding.Field, v any) any {

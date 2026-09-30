@@ -988,8 +988,8 @@ func (p *Processor) buildTwoPassAttributes(attrs []*types.Attribute) (twoPass []
 		if factoryErr != nil {
 			return nil, nil, factoryErr
 		}
-		if aware, ok := computer.(ExtensionAware); ok {
-			aware.SetExtensions(p.exts)
+		if err := bindAttribute(computer, p.exts); err != nil {
+			return nil, nil, err
 		}
 		label := attr.Label
 		if label == "" {
@@ -1249,8 +1249,8 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 		if err != nil {
 			return nil, err
 		}
-		if aware, ok := computer.(ExtensionAware); ok {
-			aware.SetExtensions(p.exts)
+		if err := bindAttribute(computer, p.exts); err != nil {
+			return nil, err
 		}
 		rowLocal, ok := computer.(RowLocalAttribute)
 		if !ok {
@@ -1593,8 +1593,8 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 		if err != nil {
 			return err
 		}
-		if aware, ok := computer.(ExtensionAware); ok {
-			aware.SetExtensions(p.exts)
+		if err := bindAttribute(computer, p.exts); err != nil {
+			return err
 		}
 		values, err := computer.Compute(records, attr.Field)
 		if err != nil {

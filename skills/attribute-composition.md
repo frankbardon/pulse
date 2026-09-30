@@ -50,7 +50,7 @@ Evaluates an `expr-lang/expr` (v1.17.x) string per row.
 - **Operators**: arithmetic (`+ - * / % **`), comparison, logical (`and or not`), membership / pattern (`in`, `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
 - **Functions**: numeric (`abs`, `ceil`, `floor`, `round`, `min`, `max`, `sum`, `mean`, `median`), cast (`int`, `float`, `string`), collection (`len`, `keys`, `values`, `concat`, `sort`, `uniq`, `filter`, `map`, `reduce`, `all`, `any`), string (`join`, `split`, `replace`, `trim`, `lower`, `upper`, `hasPrefix`, `hasSuffix`, `indexOf`), JSON / time (`toJSON`, `fromJSON`, `now`, `date`, `duration`). **No** `sqrt` / `log` / `exp` / `pow` / trig — use `**` for powers (`x ** 0.5`) or pre-compute upstream.
 - **Extensions.** `pulse.Options.Extensions.ExprFunctions` injects custom functions; `LookupTables` reaches `lookup(table, keys...)`. Per `docs/src/internals/extension-points.md`.
-- **Null fields are omitted** from the env. Referencing one without `??` raises `PROCESSING_RUNTIME` and drops the row.
+- **Null binds `nil`** (compiled once per request). Guard with `??`; unguarded arithmetic on nil raises `PROCESSING_RUNTIME`.
 
 Two common patterns:
 

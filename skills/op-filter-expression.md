@@ -13,7 +13,7 @@ examples_tags: [cohort-analysis, feature-engineering, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Expression` | string | (required) | `expr-lang/expr` v1.17.x predicate. Must return `bool` — non-bool result → `PROCESSING_RUNTIME`. |
+| `Expression` | string | (required) | `expr-lang/expr` v1.17.x predicate returning `bool`. |
 
 ## Inputs
 
@@ -29,13 +29,15 @@ Row-level predicate. No emitted column.
 
 ## Components
 
-Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per `response-components` contract. `n_null_input` is not field-specific (no fixed input axis). Mergeable.
+Floor only: universal `{n_in, n_out, n_null_input}` (`response-components`). `n_null_input` stays 0 — no fixed input field. Mergeable.
 
 ## Gotchas
 
-- Cannot reference attribute output — filters run before attributes. Compose / ProcessChain to filter on derived columns.
-- Embedder extensions: `Options.Extensions.ExprFunctions` + `LookupTables` are visible. See `docs/src/internals/extension-points.md`.
-- Runtime panic / type mismatch → `PROCESSING_RUNTIME` — drops the row.
+- Compiled once per request; syntax / type error → `PROCESSING_RUNTIME` before any row.
+- Null binds `nil`: `x == nil`, `x ?? 0`; `==` false, `!=` true. `>` / `+` / `len` on nil → whole predicate UNKNOWN, row dropped (guard `x != nil && x > 5`).
+- Error or non-bool on a non-null row → `PROCESSING_RUNTIME`.
+- Cannot reference attribute output — filters run before attributes.
+- Embedder `ExprFunctions` + `LookupTables` visible.
 
 ## See
 

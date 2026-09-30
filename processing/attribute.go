@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 	"time"
 
-	"github.com/expr-lang/expr"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -235,6 +235,10 @@ type formulaAttribute struct {
 	expression string
 	schema     *encoding.Schema
 	exts       *ExtensionRegistry
+
+	once    sync.Once
+	prog    *exprProgram
+	progErr error
 }
 
 func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -250,12 +254,29 @@ func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (Attrib
 // SetExtensions implements ExtensionAware so the Processor can inject
 // the live registry after construction. Custom expr functions and
 // lookup tables registered by the embedder are then visible to the
-// formula expression at compile / evaluation time.
+// formula expression at compile / evaluation time. Every construction
+// site injects before the first Row / Compute, which is when the
+// program compiles.
 func (a *formulaAttribute) SetExtensions(r *ExtensionRegistry) {
 	a.exts = r
 }
 
+// prepare compiles the formula once (see expr_program.go) — against the
+// schema prototype, or on the first record when the formula names a
+// non-schema column. It is called by the Processor's construction sites
+// right after SetExtensions, so a compile error surfaces at build; Row
+// and Compute call it too, for any caller that skips that step.
+func (a *formulaAttribute) prepare() error {
+	a.once.Do(func() {
+		a.prog, a.progErr = newExprProgram(a.expression, "formula", a.schema, a.exts.ExprOptions())
+	})
+	return a.progErr
+}
+
 func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, error) {
+	if err := a.prepare(); err != nil {
+		return nil, err
+	}
 	if len(records) == 0 {
 		return []float64{}, nil
 	}
@@ -271,24 +292,18 @@ func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, 
 	return result, nil
 }
 
-// Row evaluates the formula expression against a single record. Each
-// invocation re-compiles the expression because the env shape may change
-// when records have different sparse-null populations; predict guarantees
-// the expression typechecks against the schema, so compile failures here
-// are user-visible PROCESSING_RUNTIME errors.
+// Row evaluates the compiled formula against a single record. A null
+// referenced field binds as nil (expr_program.go): `x ?? 0` and
+// `x == nil ? a : b` guard it; an operator that cannot take nil raises
+// PROCESSING_RUNTIME "evaluating formula expression" — an attribute has
+// no null output, so the formula never invents a number for the row.
 func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
-	env := r.AllValues()
-	opts := []expr.Option{expr.Env(env)}
-	opts = append(opts, a.exts.ExprOptions()...)
-	program, err := expr.Compile(a.expression, opts...)
-	if err != nil {
-		return 0, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-			fmt.Sprintf("compiling formula expression: %s", a.expression))
+	if err := a.prepare(); err != nil {
+		return 0, err
 	}
-	output, err := expr.Run(program, env)
+	output, _, err := a.prog.runRecord(r)
 	if err != nil {
-		return 0, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-			fmt.Sprintf("evaluating formula expression: %s", a.expression))
+		return 0, err
 	}
 	switch v := output.(type) {
 	case float64:
@@ -308,6 +323,25 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 		return 0, errors.NewCodedError(errors.PROCESSING_RUNTIME,
 			fmt.Sprintf("formula expression returned unsupported type %T", output))
 	}
+}
+
+// attributePreparer is implemented by attributes with build-time work
+// that needs the injected ExtensionRegistry (ATTR_FORMULA's compile).
+type attributePreparer interface {
+	prepare() error
+}
+
+// bindAttribute injects the registry into a freshly built attribute and
+// runs its build-time preparation, so a compile error surfaces before
+// any record is read.
+func bindAttribute(computer AttributeComputer, exts *ExtensionRegistry) error {
+	if aware, ok := computer.(ExtensionAware); ok {
+		aware.SetExtensions(exts)
+	}
+	if p, ok := computer.(attributePreparer); ok {
+		return p.prepare()
+	}
+	return nil
 }
 
 type percentileAttribute struct{}

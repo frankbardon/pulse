@@ -103,6 +103,21 @@ func TestGroupedCohort_FilterPrecomputeParity(t *testing.T) {
 			}
 			return p.Process(ctx, r)
 		}},
+		// E5-S5: an expression over a NULLABLE member used to fail to
+		// compile on every null row. Null now binds nil; the unknown
+		// predicate drops the row — on both formats, both arms.
+		{"NullableMemberExpression", 30, func(p *Pulse) (any, error) {
+			r := buffered()
+			r.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: `parent_weight > 14`}}
+			return p.Process(ctx, r)
+		}},
+		{"NullableMemberFormula", 0, func(p *Pulse) (any, error) {
+			r := buffered()
+			r.Filterers = nil
+			r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: `(parent_weight ?? 0) * 2`, Label: "w2"}}
+			r.Aggregations = append(r.Aggregations, &types.Aggregation{Type: types.AGG_SUM, Field: "w2"})
+			return p.Process(ctx, r)
+		}},
 	}
 	for _, pr := range probes {
 		t.Run(pr.name, func(t *testing.T) {
