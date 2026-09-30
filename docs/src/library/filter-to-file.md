@@ -113,6 +113,29 @@ Combined with the `Watch` API's rename coalescing, downstream
 observers see a single `ChangeCreated` or `ChangeRenamed` event for
 the completed file — no spurious intermediate states.
 
+## Deduped (parent-group) sources
+
+A grouped (`0x02`) source produces a grouped output. The header,
+schema, group descriptors and group dictionaries are copied
+byte-for-byte and the surviving physical rows are copied as-is, so
+every row's dictionary index stays valid. The output opens, inspects
+and processes exactly like the same surviving rows deduped afresh
+with the same groups.
+
+The dictionary is **carried, not pruned**. After a selective filter
+it still holds entries no surviving row references, so `pulse
+inspect` reports a group ratio of surviving rows ÷ carried entries.
+A low ratio there is expected and is not a defect. Pruning would cost
+a second pass and renumber indices, so v1 defers it. To prune,
+re-dedup the output with the same groups (`pulse dedup OUT --group
+...`). It regroups from scratch.
+
+A filter that keeps no rows writes a valid, empty `0x02` cohort (the
+preamble alone). The predicate's field projection narrows only what
+is DECODED to evaluate it. Output rows always carry every field,
+group members included. A filter over one group's members is
+evaluated once per dictionary entry, not once per row.
+
 ## Manifest annotation
 
 `filter_to_file` appears in `Manifest.Operations` with annotations

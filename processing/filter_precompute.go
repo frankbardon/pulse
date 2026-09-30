@@ -34,8 +34,9 @@ import (
 // Where the entry index comes from: the grouped reuse decoder hands the
 // record its row's entries through encoding.GroupIndexRecord
 // (Record.SetGroupIndices). Any record that does not carry a valid index
-// — a map decode (lookup, filter-to-file, the shard reducer, the
-// projection-without-plan fallback), a joined or synthetic record, a
+// — a map decode that does not forward RecordReader.GroupIndex (lookup,
+// the shard reducer, the projection-without-plan fallback; filter-to-
+// file DOES forward it), a joined or synthetic record, a
 // record whose member field was rewritten after decode, an ungrouped
 // schema — is evaluated per row by the unchanged FilterFunc. The
 // fallback is per ROW, so correctness never depends on which arm ran.
