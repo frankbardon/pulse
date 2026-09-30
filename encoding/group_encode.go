@@ -246,19 +246,7 @@ func (e *GroupEncoder) EncodeRow(dst, lrow []byte) ([]byte, error) {
 				}
 			}
 		}
-		key := ent
-		if !eg.keyAll {
-			clear(eg.key)
-			for _, sp := range eg.keySp {
-				copy(eg.key[sp.b:sp.b+sp.n], ent[sp.a:sp.a+sp.n])
-			}
-			for _, mv := range eg.keyBits {
-				if BitmapIsNull(ent[gs.bmOff:], mv.a) {
-					BitmapSetNull(eg.key[eg.keyBM:], mv.b)
-				}
-			}
-			key = eg.key
-		}
+		key := e.entryKey(g, ent)
 		idx, ok := eg.keyOf[string(key)]
 		switch {
 		case ok:
@@ -299,6 +287,88 @@ func (e *GroupEncoder) EncodeRow(dst, lrow []byte) ([]byte, error) {
 	}
 	e.rows++
 	return dst, nil
+}
+
+// entryKey returns the lookup key of entry ent in group g: the entry
+// itself for a group with no declared key, else the key members' bytes
+// and null bits packed into the group's scratch key buffer (valid until
+// the next call for the same group).
+func (e *GroupEncoder) entryKey(g int, ent []byte) []byte {
+	eg := &e.groups[g]
+	if eg.keyAll {
+		return ent
+	}
+	gs := &e.l.groups[g]
+	clear(eg.key)
+	for _, sp := range eg.keySp {
+		copy(eg.key[sp.b:sp.b+sp.n], ent[sp.a:sp.a+sp.n])
+	}
+	for _, mv := range eg.keyBits {
+		if BitmapIsNull(ent[gs.bmOff:], mv.a) {
+			BitmapSetNull(eg.key[eg.keyBM:], mv.b)
+		}
+	}
+	return eg.key
+}
+
+// Seed pre-loads every group dictionary with seed's entries, in order,
+// before any row is encoded: a row whose tuple (or key) is already there
+// gets that entry's index, and a new tuple is appended AFTER them. It is
+// how a shard joins an archive — the archive's canonical dictionary is
+// the seed, so every entry the archive's stored shards reference keeps
+// its index (the union is canonical-first, the prefix rule every shard
+// relies on) and only the arriving shard's rows are renumbered.
+//
+// seed must declare the encoder's exact group layout — same group
+// count, kinds, members and key flags — with the same entry widths;
+// anything else is ENCODING_INVALID (a layout reconciliation is the
+// caller's job, before the encoder is built). Seeding goes through the
+// same key rule EncodeRow uses, so a keyed group whose seed repeats a
+// key is refused as a corrupt dictionary, and the u32 ceiling applies
+// to the seeded count exactly as to an appended one
+// (PULSE_GROUP_ENTRIES_EXHAUSTED). Seed must be called before the
+// first EncodeRow.
+func (e *GroupEncoder) Seed(seed *Schema) error {
+	if e.rows > 0 {
+		return groupErr("Seed must precede the first encoded row", map[string]any{"rows": e.rows})
+	}
+	if len(seed.Groups) != len(e.schema.Groups) {
+		return groupErr("seed schema declares a different group count",
+			map[string]any{"seed_groups": len(seed.Groups), "encoder_groups": len(e.schema.Groups)})
+	}
+	for g := range e.schema.Groups {
+		if err := sameGroupDescriptor(e.schema, seed, g); err != nil {
+			return err
+		}
+		gs := &e.l.groups[g]
+		eg := &e.groups[g]
+		if w := seed.GroupEntryWidth(g); w != gs.width {
+			return groupErr("seed group entry width differs from the encoder's",
+				map[string]any{"group": g, "seed_width": w, "encoder_width": gs.width})
+		}
+		entries := seed.Groups[g].Entries
+		if gs.width <= 0 || len(entries)%gs.width != 0 {
+			return groupErr("seed group dictionary is not a whole number of entries",
+				map[string]any{"group": g, "entry_width": gs.width, "bytes": len(entries)})
+		}
+		for off := 0; off < len(entries); off += gs.width {
+			ent := entries[off : off+gs.width]
+			key := e.entryKey(g, ent)
+			if _, dup := eg.keyOf[string(key)]; dup {
+				return groupErr("seed group dictionary repeats a key",
+					map[string]any{"group": g, "entry": off / gs.width})
+			}
+			if uint64(gs.count)+1 > MaxGroupEntries {
+				return declErr(errors.PULSE_GROUP_ENTRIES_EXHAUSTED,
+					fmt.Sprintf("%s: seed dictionary exceeds the u32 index space", e.labels[g]),
+					map[string]any{"group": g, "group_label": e.labels[g], "entry_count": gs.count, "max_entries": MaxGroupEntries})
+			}
+			eg.keyOf[string(key)] = gs.count
+			gs.entries = append(gs.entries, ent...)
+			gs.count++
+		}
+	}
+	return nil
 }
 
 // mismatch names the first member whose bytes or null bit differ

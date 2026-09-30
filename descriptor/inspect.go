@@ -368,6 +368,18 @@ func inspectArchive(data []byte, opts *InspectOptions) *Envelope {
 	}
 	result.RecordCount = cumulative
 
+	// A grouped archive (format 0x02 shards) reports its parent groups
+	// from the CANONICAL schema — the dictionaries every shard's indices
+	// address and the ones held resident while the archive is open — over
+	// the archive-wide record count: ratio = total records ÷ canonical
+	// entries, the realized dedup of the archive as a whole. Per-shard
+	// figures would be ratios against dictionaries no reader loads.
+	// Header-only: the canonical schema block plus the per-shard lengths
+	// already summed above.
+	if schema.HasGroups() {
+		renderGroups(result, schema, schema.RequiredFormatVersion(), cumulative)
+	}
+
 	return env
 }
 

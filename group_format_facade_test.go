@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/io/spss"
 	"github.com/frankbardon/pulse/types"
@@ -74,8 +73,8 @@ func groupedTwinFS(t *testing.T) (v1, v2 afero.Fs) {
 // Process, streaming, sample, facet, profile (run continuation
 // included), export, lookup, filter-to-file, inspect, predict, count —
 // plus requests that filter, group and aggregate on group MEMBERS.
-// Shard archives do not carry groups yet: building one from a grouped
-// cohort is a coded refusal, never a silently wrong archive.
+// The ShardArchive probe builds an archive from two copies of the cohort
+// (E5-S3: archives carry grouped shards) and must answer identically.
 func TestGroupedCohort_FacadeParity(t *testing.T) {
 	ctx := context.Background()
 	fs1, fs2 := groupedTwinFS(t)
@@ -123,12 +122,6 @@ func TestGroupedCohort_FacadeParity(t *testing.T) {
 					t.Fatalf("New: %v", err)
 				}
 				got, err := pr.run(p, fsys)
-				if pr.name == "ShardArchive" && i == 1 {
-					if !perrors.HasCode(err, perrors.PULSE_SHARD_SCHEMA_MISMATCH) {
-						t.Fatalf("shard archive over a grouped cohort: err = %v, want PULSE_SHARD_SCHEMA_MISMATCH", err)
-					}
-					return
-				}
 				if err != nil {
 					t.Fatalf("%s on cohort %d: %v", pr.name, i+1, err)
 				}

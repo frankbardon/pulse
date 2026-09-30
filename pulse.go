@@ -1569,6 +1569,12 @@ func (p *Pulse) Fs() afero.Fs {
 //
 // CreateShardArchive returns a result rather than a bare error precisely
 // so that warning has nowhere to be dropped.
+//
+// Grouped (format 0x02) shards are accepted: the archive keeps ONE
+// parent-group layout (the first shard's), group dictionaries
+// union-merge canonical-first, and any layout change a shard needs is
+// reported as a mandatory PULSE_SHARD_GROUPS_REWRITTEN warning plus a
+// GroupReconciliation on Regrouped — the same rule AddShard applies.
 func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*CreateShardArchiveResult, error) {
 	return p.svc.CreateShardArchive(ctx, archivePath, shardPaths)
 }
@@ -1597,6 +1603,15 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 //
 // AddShard returns a result rather than a bare error precisely so that
 // warning has nowhere to be dropped.
+//
+// A grouped (format 0x02) shard is conformed to the archive's layout: an
+// ungrouped archive stores it flattened, a grouped archive re-encodes it
+// into its own groups and union-merges the group dictionaries (a union
+// past the u32 index space is PULSE_SHARD_DICT_WIDTH_OVERFLOW). A
+// constant group the shard disagrees with is promoted to indexed across
+// the whole archive; a declared key it violates is refused
+// (PULSE_GROUP_MEMBER_NOT_CONSTANT). Layout changes are reported as a
+// mandatory PULSE_SHARD_GROUPS_REWRITTEN warning and on Regrouped.
 func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
 	return p.svc.AddShard(ctx, archivePath, shardPath)
 }
@@ -1613,6 +1628,12 @@ type AddShardResult = service.AddShardResult
 // shard declared a narrower rung and was promoted to the archive's,
 // leaving the archive itself untouched.
 type SetWidening = service.SetWidening
+
+// GroupReconciliation records one parent-group layout change a
+// CreateShardArchive or AddShard made to fit a shard into the archive
+// (reason incoming_flattened / incoming_regrouped / constant_promoted),
+// with the shards and records the rewrite cost.
+type GroupReconciliation = service.GroupReconciliation
 
 // RemoveShard rewrites the archive omitting the named shard. The
 // canonical schema is preserved (dictionary entries are never

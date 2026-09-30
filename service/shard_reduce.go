@@ -309,6 +309,16 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		out.groups = make(map[string][]processing.OnlineAggregator)
 	}
 
+	// A grouped archive: the reader and the record share the CANONICAL
+	// schema, whose dictionaries every shard's indices address, so each
+	// record is handed its row's parent-group entries and a filter over
+	// one group's members takes the per-entry precompute — the same hook
+	// filter-to-file uses (readGroupIndices).
+	var groupIdx []uint32
+	if schema.HasGroups() {
+		groupIdx = make([]uint32, len(schema.Groups))
+	}
+
 	for {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -324,6 +334,9 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			return nil, err
 		}
 		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
+		if groupIdx != nil && readGroupIndices(rr, groupIdx) {
+			rec.SetGroupIndices(schema, groupIdx)
+		}
 		out.totalRows++
 
 		pass, ferr := processing.ApplyFilterPass(rec, req.Filterers, filterFns, out.filterCounters)

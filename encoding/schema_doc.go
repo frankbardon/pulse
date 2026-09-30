@@ -80,12 +80,11 @@ func ReadSchemaDoc(r io.Reader) (*SchemaDoc, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Shard archives do not carry parent groups yet: the read path
-	// decodes every shard with this canonical schema, so a grouped one
-	// would apply its dictionaries to shards that do not share them.
-	if err := RefuseGroups(schema, "shard archive", errors.PULSE_SHARD_SCHEMA_MISMATCH); err != nil {
-		return nil, err
-	}
+	// A grouped canonical schema is legal: every shard of the archive
+	// shares its group layout (ValidateGroupCohesion) and its row indices
+	// address these canonical dictionaries, of which each shard's own is a
+	// prefix (see shard_groups.go). The read path decodes every shard with
+	// this schema.
 	doc := &SchemaDoc{Schema: schema}
 
 	// Peek the next four bytes to detect the SHRD marker. A short read

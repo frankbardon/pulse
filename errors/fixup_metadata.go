@@ -1112,6 +1112,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_GROUPS_REWRITTEN: {
+		Message: "A `shard create` / `shard add` re-encoded shard bytes to fit the archive's parent-group layout: a grouped shard was stored flattened in an ungrouped archive, a shard was re-encoded into a grouped archive's groups, or a constant group the arriving shard disagreed with was promoted to an indexed group across every shard (details.archive_rewritten). The archive is correct; the warning exists because the rewrite is expensive and must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed — every shard decodes to the same values. To avoid the rewrite, import or `pulse dedup` every shard with the archive's `--group` declarations (and without `--elide-constants` for a column that varies between shards), and watch `pulse shard verify`'s group_index_headroom: a constant group reports zero headroom because its next distinct value promotes it archive-wide.",
+			},
+		},
+	},
 	PULSE_SHARD_RESERVED_NAME: {
 		Message: "Cannot insert a shard whose basename collides with the reserved canonical schema entry (`_schema.pulse`); the reserved name is addressable only through the archive's canonical-schema channel.",
 		Fixups: []Fixup{

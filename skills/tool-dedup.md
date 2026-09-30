@@ -29,7 +29,7 @@ A cohort on disk is a denormalized join (parent attributes repeat on every child
 - Weak groups warn: `PULSE_GROUP_TOO_NARROW` (dropped), `PULSE_DEDUP_LOW_RATIO` (written; floor 2). Floor, strict and constant elision are `pulse dedup` flags only.
 - A grouped cohort is regrouped from scratch.
 - Sidecars are reported, never rebuilt; run each `rebuild` before the next `pulse_lookup`.
-- Shard archives → `SERVICE_VALIDATION`. Output is format 0x02 (older binaries cannot read it).
+- Shard archives → `SERVICE_VALIDATION`: dedup each shard, then `pulse shard create` (it union-merges grouped shards). Output is format 0x02 (older binaries cannot read it).
 
 ## See
 

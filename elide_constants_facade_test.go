@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -79,12 +78,6 @@ func TestElidedConstants_FacadeParity(t *testing.T) {
 					t.Fatalf("New: %v", err)
 				}
 				got, err := pr.run(p, fsys)
-				if pr.name == "ShardArchive" && i == 1 {
-					if !perrors.HasCode(err, perrors.PULSE_SHARD_SCHEMA_MISMATCH) {
-						t.Fatalf("shard archive over an elided cohort: err = %v, want PULSE_SHARD_SCHEMA_MISMATCH", err)
-					}
-					return
-				}
 				if err != nil {
 					t.Fatalf("%s on cohort %d: %v", pr.name, i+1, err)
 				}

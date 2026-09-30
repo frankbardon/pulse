@@ -16,7 +16,7 @@ Schema-only output without running a request: listing fields, debugging dictiona
 
 ## Output
 
-`descriptor.Envelope` wrapping `InspectResult`: fields (name, type, description, categorical dictionary), `record_count`, `shards`. Dictionaries truncated to 100 unless `FullDict: true`. A `0x02` cohort adds `layout` (physical/logical stride), `groups` (`fields`, `entry_count`, resident `dictionary_bytes`, `ratio`, `byte_delta`, `verdict`) and a per-field `group` marker (`kind: constant` = elided).
+`descriptor.Envelope` wrapping `InspectResult`: fields (name, type, description, categorical dictionary), `record_count`, `shards`. Dictionaries truncated to 100 unless `FullDict: true`. A `0x02` cohort adds `layout` (physical/logical stride), `groups` (`fields`, `entry_count`, resident `dictionary_bytes`, `ratio`, `byte_delta`, `verdict`) and a per-field `group` marker (`kind: constant` = elided); a grouped shard archive reports its canonical groups over the archive-wide `record_count`.
 
 MCP (`pulse_inspect`) returns those keys at the top level plus an additive `warnings` array of coded `{code, message, details}` entries — omitted on a clean read.
 

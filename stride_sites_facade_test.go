@@ -3,7 +3,6 @@ package pulse
 import (
 	"bytes"
 	"context"
-	stderrors "errors"
 	"fmt"
 	"testing"
 
@@ -295,12 +294,15 @@ func TestStrideSites_SynthAugmentFromDedupedSource(t *testing.T) {
 	}
 }
 
-// TestStrideSites_ArchiveRewritersRefuseDeduped: shard admin paths
-// that stride through shard payloads by byte offset — create, add
-// (whose cohesion check may re-stride the archive) — REFUSE a deduped
-// cohort with a coded error until shard archives carry groups (E5-S3).
-// The archive a refused add targeted is left byte-identical.
-func TestStrideSites_ArchiveRewritersRefuseDeduped(t *testing.T) {
+// TestStrideSites_ArchiveRewritersFlattenDeduped: shard admin paths
+// that stride through shard payloads by byte offset — create, add —
+// accept a deduped cohort into an UNGROUPED archive by storing its
+// logical (0x01) twin (E5-S3: the archive's layout wins). The stored
+// bytes are exactly those of the flat source, so the archive is
+// byte-identical to one built from the flat cohort under the same
+// name, and the rewrite is reported by the mandatory
+// PULSE_SHARD_GROUPS_REWRITTEN warning.
+func TestStrideSites_ArchiveRewritersFlattenDeduped(t *testing.T) {
 	ctx := context.Background()
 	for _, tw := range strideTwins(t) {
 		t.Run(tw.name, func(t *testing.T) {
@@ -310,30 +312,41 @@ func TestStrideSites_ArchiveRewritersRefuseDeduped(t *testing.T) {
 				t.Fatal(err)
 			}
 			flat, _ := afero.ReadFile(fsys, "cohort.pulse")
-			for name, b := range map[string][]byte{"a.pulse": flat, "b.pulse": flat, "dedup.pulse": v2} {
-				if err := afero.WriteFile(fsys, name, b, 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
 			p, err := New(Options{FS: fsys})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := p.CreateShardArchive(ctx, "arch.pulse", []string{"a.pulse", "b.pulse"}); err != nil {
-				t.Fatalf("CreateShardArchive(flat): %v", err)
+			build := func(arrival []byte) ([]byte, *CreateShardArchiveResult, *AddShardResult) {
+				t.Helper()
+				for name, b := range map[string][]byte{"a.pulse": flat, "b.pulse": flat, "dedup.pulse": arrival} {
+					if err := afero.WriteFile(fsys, name, b, 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := p.CreateShardArchive(ctx, "arch.pulse", []string{"a.pulse", "b.pulse"}); err != nil {
+					t.Fatalf("CreateShardArchive(flat): %v", err)
+				}
+				add, err := p.AddShard(ctx, "arch.pulse", "dedup.pulse")
+				if err != nil {
+					t.Fatalf("AddShard: %v", err)
+				}
+				added, _ := afero.ReadFile(fsys, "arch.pulse")
+				created, err := p.CreateShardArchive(ctx, "arch2.pulse", []string{"a.pulse", "dedup.pulse"})
+				if err != nil {
+					t.Fatalf("CreateShardArchive(flat+arrival): %v", err)
+				}
+				c2, _ := afero.ReadFile(fsys, "arch2.pulse")
+				return append(added, c2...), created, add
 			}
-			before, _ := afero.ReadFile(fsys, "arch.pulse")
-			_, err = p.AddShard(ctx, "arch.pulse", "dedup.pulse")
-			var ce *perrors.CodedError
-			if !stderrors.As(err, &ce) || ce.Code == "" {
-				t.Fatalf("AddShard(deduped) err = %v, want a coded refusal", err)
+			want, _, _ := build(flat)
+			got, created, added := build(v2)
+			if !bytes.Equal(got, want) {
+				t.Fatal("an ungrouped archive holding a deduped arrival differs from one holding its flat twin")
 			}
-			after, _ := afero.ReadFile(fsys, "arch.pulse")
-			if !bytes.Equal(before, after) {
-				t.Fatal("a refused AddShard changed the archive")
-			}
-			if _, err := p.CreateShardArchive(ctx, "arch2.pulse", []string{"a.pulse", "dedup.pulse"}); !perrors.HasCode(err, perrors.PULSE_SHARD_SCHEMA_MISMATCH) {
-				t.Fatalf("CreateShardArchive(flat+deduped) err = %v, want PULSE_SHARD_SCHEMA_MISMATCH", err)
+			for _, ws := range [][]encoding.CohesionWarning{created.Warnings, added.Warnings} {
+				if len(ws) != 1 || ws[0].Code != string(perrors.PULSE_SHARD_GROUPS_REWRITTEN) || ws[0].Details["reason"] != "incoming_flattened" {
+					t.Fatalf("warnings = %+v, want one PULSE_SHARD_GROUPS_REWRITTEN incoming_flattened", ws)
+				}
 			}
 		})
 	}

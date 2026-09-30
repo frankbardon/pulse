@@ -15,12 +15,16 @@ import (
 //     (`archive.pulse#shard.pulse`): a shard inside an archive cannot
 //     be regrouped alone, because every shard shares the canonical
 //     schema.
-//   - SERVICE_VALIDATION — path is a shard archive (zip magic). Grouped
-//     shard payloads are not accepted by the archive tooling yet (the
-//     archive refuses a 0x02 shard with PULSE_SHARD_SCHEMA_MISMATCH), so
-//     deduping an archive is refused here, explicitly, rather than
-//     producing an archive the rest of the shard surface cannot open.
-//     details.layout = "shard_archive".
+//   - SERVICE_VALIDATION — path is a shard archive (zip magic).
+//     details.layout = "shard_archive". Shard archives DO carry grouped
+//     shards (shard create/add union-merge their dictionaries), but an
+//     archive-wide dedup is a different operation from a per-file one:
+//     the viability gate, constant elision and group suggestion would
+//     have to be decided over the union of every shard (a cross-shard
+//     observation pass), and every shard rewritten atomically to one
+//     layout. That is not built; the supported route is to dedup each
+//     source shard (or `shard extract` + dedup) and `shard create` the
+//     results, which reconciles them to one layout.
 //   - SERVICE_RESOURCE — the cohort does not exist / cannot be opened.
 //
 // A nil return means path is a single-file cohort the job may read.
@@ -36,7 +40,7 @@ func (s *Service) DedupPreflight(_ context.Context, path string) error {
 	}
 	if archive {
 		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("dedup does not support shard archive cohorts yet: %s is a shard archive (zip magic), and shard archives do not accept grouped (format 0x02) shards; dedup a single-file cohort, or extract the shards and dedup each before re-archiving is supported", path),
+			fmt.Sprintf("dedup does not support shard archive cohorts: %s is a shard archive (zip magic), and an archive-wide dedup would have to decide groups over every shard at once; dedup each source shard (or `pulse shard extract` then dedup) and `pulse shard create` the results — archives union-merge grouped shards", path),
 			map[string]any{"cohort": path, "layout": "shard_archive"})
 	}
 	return nil

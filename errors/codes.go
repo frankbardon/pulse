@@ -651,6 +651,16 @@ const (
 	// silently is indistinguishable from a cheap append.
 	PULSE_SHARD_SET_WIDENED Code = "PULSE_SHARD_SET_WIDENED"
 
+	// PULSE_SHARD_GROUPS_REWRITTEN is emitted as a WARNING (not an
+	// error) when `pulse shard create` / `shard add` changes a shard's
+	// parent-group layout (format 0x02) to fit the archive: a grouped
+	// shard stored flattened in an ungrouped archive, a shard re-encoded
+	// into a grouped archive's layout, or a constant group promoted to an
+	// indexed group across EVERY shard. Mandatory for the reason
+	// PULSE_SHARD_SET_WIDENED is: an expensive rewrite that happens
+	// silently is indistinguishable from a cheap append.
+	PULSE_SHARD_GROUPS_REWRITTEN Code = "PULSE_SHARD_GROUPS_REWRITTEN"
+
 	// PULSE_SHARD_RESERVED_NAME indicates a caller attempted to insert
 	// a shard whose basename collides with the reserved canonical
 	// schema entry name (`_schema.pulse`). The reserved name is
@@ -2542,6 +2552,7 @@ var allCodes = []Code{
 	PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
 	PULSE_SHARD_SET_WIDENED,
+	PULSE_SHARD_GROUPS_REWRITTEN,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_CHAIN_NOT_MERGEABLE,

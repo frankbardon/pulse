@@ -73,12 +73,6 @@ func TestDedup_RoundTrip(t *testing.T) {
 					t.Fatal(err)
 				}
 				got, err := pr.run(p, fsys)
-				if pr.name == "ShardArchive" && i == 1 {
-					if !perrors.HasCode(err, perrors.PULSE_SHARD_SCHEMA_MISMATCH) {
-						t.Fatalf("shard archive over a deduped cohort: err = %v", err)
-					}
-					return
-				}
 				if err != nil {
 					t.Fatalf("%s on cohort %d: %v", pr.name, i+1, err)
 				}

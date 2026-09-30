@@ -33,6 +33,15 @@ type VerifyResult struct {
 	// field was one member from its ceiling is to pay for the rewrite.
 	// Nil for archives with no set fields.
 	SetWidthHeadroom []encoding.SetWidthHeadroom `json:"set_width_headroom,omitempty"`
+
+	// GroupIndexHeadroom reports, per parent group in the canonical
+	// schema (format 0x02), how many entries its dictionary holds against
+	// its ceiling — the u32 index space for an indexed group, one entry
+	// for a constant group. Foresight in the same sense as
+	// SetWidthHeadroom: a union past the u32 space is fatal
+	// (PULSE_SHARD_DICT_WIDTH_OVERFLOW), and a constant group's next
+	// distinct value promotes it archive-wide. Nil for ungrouped archives.
+	GroupIndexHeadroom []encoding.GroupIndexHeadroom `json:"group_index_headroom,omitempty"`
 }
 
 // VerifyShardArchive walks the archive at archivePath and re-validates
@@ -46,10 +55,16 @@ type VerifyResult struct {
 //     schema. Structural mismatches surface as
 //     PULSE_SHARD_SCHEMA_MISMATCH errors; per-field description
 //     divergence emits PULSE_SHARD_DESCRIPTION_DIVERGENCE warnings.
+//     Structural cohesion includes the parent-group layout: a shard
+//     whose groups differ from the canonical schema's (a 0x01 shard in a
+//     0x02 archive, or the reverse) has a different physical stride and
+//     is refused.
 //  4. Calls encoding.ValidateDictPrefixRule. Any prefix-rule violation
-//     surfaces as PULSE_SHARD_DICT_DIVERGENCE.
-//  5. Reports per-set-field width headroom on the result, so an
-//     impending `shard add` auto-widen is foreseeable.
+//     — categorical, set, or a parent group's entries — surfaces as
+//     PULSE_SHARD_DICT_DIVERGENCE.
+//  5. Reports per-set-field width headroom and per-group index headroom
+//     on the result, so an impending `shard add` auto-widen, a constant
+//     promotion or a u32 overflow is foreseeable.
 //  6. Re-peeks the shard's record count and sums across the archive.
 //     A drift against the canonical AggregateRecordCount emits a
 //     warning (the live per-shard sum is authoritative per the design
@@ -79,7 +94,8 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 	}
 
 	result := &VerifyResult{
-		SetWidthHeadroom: encoding.SetWidthHeadroomFor(canonicalDoc.Schema),
+		SetWidthHeadroom:   encoding.SetWidthHeadroomFor(canonicalDoc.Schema),
+		GroupIndexHeadroom: encoding.GroupIndexHeadroomFor(canonicalDoc.Schema),
 	}
 	var liveAggregate uint64
 

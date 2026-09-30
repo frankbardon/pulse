@@ -180,9 +180,10 @@ check). `--strict` (`ImportJob.StrictDedup`) turns either finding into
 a fatal error carrying the same code, and nothing is written. Constant
 groups from `--elide-constants` are not gated.
 
-Shard archives, set-field widening and the shard categorical rewrite do
-not accept grouped cohorts yet: they refuse with a coded error rather
-than reinterpret physical bytes.
+Set-field widening (`pulse widen`) and the byte-level shard categorical
+rewrite do not accept grouped cohorts: they refuse with a coded error
+rather than reinterpret physical bytes. Shard archives DO carry grouped
+shards — see [Shard archives](#shard-archives) below.
 
 ## Finding and sizing groups before import
 
@@ -225,7 +226,9 @@ decoded records; alone it writes nothing. An in-place rewrite changes
 the file's length, so the point-lookup index and SPSS sidecar
 self-invalidate. `data.invalidated_sidecars` names each one with its
 rebuild command, and nothing is rebuilt. Shard archives, and an
-anchored shard inside one, are refused with `SERVICE_VALIDATION`.
+anchored shard inside one, are refused with `SERVICE_VALIDATION`: an
+archive-wide dedup would have to decide groups over every shard at once.
+Dedup each source shard instead and `pulse shard create` the results.
 
 ## Inspecting a grouped cohort
 
@@ -251,4 +254,39 @@ read differently — and is a figure, never an envelope warning. The file
 stores no group name or declaration ordinal, so a label numbers the
 group by its position in the file (a group dropped as too narrow at
 import shifts later labels down). A `0x01` cohort emits neither key.
-Grouped shard archives are refused at build, so inspect never sees one.
+A grouped shard archive reports its CANONICAL groups — the dictionaries
+every shard's indices address — over the archive-wide record count, so
+`ratio = total records ÷ canonical entries`.
+
+## Shard archives
+
+Every shard of an archive is decoded with the archive's canonical
+schema, so a grouped archive has exactly one parent-group layout (group
+count, kinds, members, key flags) and every shard's row indices address
+the canonical group dictionaries. `pulse shard create` and
+`pulse shard add` apply one merge rule:
+
+- **The archive's layout wins.** A grouped shard added to an ungrouped
+  archive is stored as its ungrouped twin; a shard with other groups (or
+  none) added to a grouped archive is re-encoded into the archive's
+  groups. Only the arriving shard is rewritten.
+- **Group dictionaries union-merge canonical-first**, like categorical
+  dictionaries: stored shards are untouched and keep their indices; the
+  arriving shard's rows are renumbered into the union. A union past the
+  u32 index space is `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.
+- **A constant group** (from `--elide-constants`) that the arriving
+  shard disagrees with is promoted to an indexed group across the whole
+  archive — every shard is re-encoded and each row gains a 4-byte index.
+- **A declared key** that the arriving shard violates (the same key
+  with a different non-key member) is refused with
+  `PULSE_GROUP_MEMBER_NOT_CONSTANT`, exactly as import refuses it.
+
+Every layout change emits the mandatory `PULSE_SHARD_GROUPS_REWRITTEN`
+warning (`details.reason`: `incoming_flattened`, `incoming_regrouped`,
+`constant_promoted`; `details.archive_rewritten`), and the rewrite is
+atomic. A plain dictionary union is the ordinary cost of an add and is
+not reported. `pulse shard verify` refuses a shard whose group layout
+differs from the canonical one, checks the prefix rule on group
+dictionaries, and reports `group_index_headroom` per group. To keep
+appends cheap, import every period with the same `--group` flags and do
+not elide a column that varies between periods.

@@ -99,6 +99,36 @@ untouched — a categorical's width is fixed at folder creation.
 `pulse shard verify` reports per-set-field width headroom so a widen is
 foreseeable before you pay for it.
 
+### Grouped (`0x02`) shards
+
+Shards may be deduped cohorts (`pulse import --group`, `pulse dedup`).
+Every shard is decoded with the canonical schema, so an archive has ONE
+parent-group layout, and `create` / `add` share one merge rule
+(`service/shard_groups.go`, `mergeShard`):
+
+1. The arriving shard is flattened to its ungrouped twin and reconciled
+   exactly as an ungrouped shard — set-rung plan, strict field cohesion,
+   categorical union and remap (null placeholders keep their bytes, since
+   they are part of a group entry's identity).
+2. The archive's layout wins. An ungrouped archive stores a grouped
+   arrival flattened; a grouped archive re-encodes an arrival with other
+   groups (or none) into its own.
+3. Group dictionaries union-merge canonical-first: the encoder is seeded
+   with the canonical dictionaries, so stored shards are untouched and
+   only the arrival is renumbered. A union past the u32 index space is
+   `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.
+4. A constant group the arrival disagrees with is promoted to an indexed
+   group across every shard (a whole-archive rewrite); a declared key the
+   arrival violates is refused with `PULSE_GROUP_MEMBER_NOT_CONSTANT`.
+5. Strict cohesion runs over the reconciled grouped schemas.
+
+Layout changes emit the mandatory `PULSE_SHARD_GROUPS_REWRITTEN`
+warning (`details.reason` = `incoming_flattened` / `incoming_regrouped` /
+`constant_promoted`, `details.archive_rewritten`) and a `regrouped`
+entry in `--json` `data`. `pulse shard verify` refuses a shard whose
+group layout differs from the canonical one, applies the prefix rule to
+group dictionaries, and reports `group_index_headroom`.
+
 ## 3. List shards
 
 Reads `_schema.pulse` + central directory, prints basenames + per-shard
@@ -154,6 +184,8 @@ For maintainers extending the sharding internals, the surface lives in:
 | `service/shard_reduce.go` | Parallel reducer for mergeable ops |
 | `service/shard_admin.go` | `create` / `add` / `remove` / `list` / `extract`; both `create` and `add` plan set-rung reconciliation before strict cohesion |
 | `service/shard_widen.go` | Set-width auto-widen on `create` + `add` + the mandatory warning |
+| `service/shard_groups.go` | The shared `create` / `add` merge (`mergeShard`), grouped-shard reconciliation + `PULSE_SHARD_GROUPS_REWRITTEN` |
+| `encoding/shard_groups.go` | `FlattenCohortBytes`, `ValidateGroupCohesion`, group prefix rule, `GroupIndexHeadroomFor` |
 | `encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
 | `service/shard_compact.go` | `compact` |
 | `service/shard_verify.go` | `verify` |
@@ -171,7 +203,7 @@ feeds `verify`'s headroom report.
 ## Run the gates
 
 ```bash
-go test ./service/ -run TestShardArchive
+go test ./service/ -run 'TestShardArchive|TestShardGroups'
 go test ./encoding/ -run TestShardArchive
 go test ./service/ -run TestCohesion
 ```

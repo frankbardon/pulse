@@ -701,12 +701,20 @@ func TestRefuseGroups_ByteLevelRewriters(t *testing.T) {
 	if _, err := RewriteShardCategoricals(grouped, gs, nil); !errors.HasCode(err, errors.PULSE_SHARD_SCHEMA_MISMATCH) {
 		t.Fatalf("shard rewrite err = %v", err)
 	}
+	// A grouped canonical `_schema.pulse` is legal since E5-S3: shard
+	// archives carry parent groups (shard_groups.go). It must read back
+	// with its groups and the SHRD trailer intact.
 	var doc bytes.Buffer
-	if err := WritePreamble(&doc, gs); err != nil {
+	if err := WriteSchemaDoc(&doc, gs, 1234, 3); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ReadSchemaDoc(bytes.NewReader(doc.Bytes())); !errors.HasCode(err, errors.PULSE_SHARD_SCHEMA_MISMATCH) {
-		t.Fatalf("schema doc err = %v", err)
+	got, err := ReadSchemaDoc(bytes.NewReader(doc.Bytes()))
+	if err != nil {
+		t.Fatalf("grouped schema doc: %v", err)
+	}
+	if len(got.Schema.Groups) != len(gs.Groups) || got.AggregateRecordCount != 1234 || got.ShardCount != 3 ||
+		!bytes.Equal(got.Schema.Groups[0].Entries, gs.Groups[0].Entries) {
+		t.Fatalf("grouped schema doc round trip: groups=%d agg=%d shards=%d", len(got.Schema.Groups), got.AggregateRecordCount, got.ShardCount)
 	}
 }
 
