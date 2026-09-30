@@ -1140,7 +1140,14 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"the caller believes is applied is a silent no-op. A depth past a slot's row-axis dim count fires the same " +
 				"code at RUNTIME only, naming that slot: slots may declare DIFFERENT row-axis depths, and one out-of-range " +
 				"slot refuses the WHOLE spec rather than dropping out, because dropping it would change M and with it the " +
-				"length and pair ordering of every cell's output vector. The " +
+				"length and pair ordering of every cell's output vector. An explicit depth makes the leg a SUM ACROSS ROWS, " +
+				"so the summed-across row-axis dims must PARTITION the key set: a fan-out grouper on ANY slot's row axis at " +
+				"a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED on BOTH arms, naming the " +
+				"offender by panel_index, slot_index and slot_label, and one offending slot refuses the whole spec. A " +
+				"fan-out INSIDE the fixed prefix is accepted (it multiplies slabs, not cells), and an OMITTED depth is " +
+				"never gated because it sums nothing. Unlike the axis-pairing family, whose plain n_within is ungated " +
+				"because record counts are additive, the panel gates its margin leg too: a panel row margin is whatever " +
+				"that slot's cell aggregator emitted, so the host cannot claim additivity for it. The " +
 				"components requirement is MODE-SCOPED: only a counted mode gates, so the legacy default never starts " +
 				"refusing. A slot with components disabled, or whose response is not a crosstab, fires " +
 				"PULSE_OVERLAY_COMPONENTS_REQUIRED; an unresolved slot keeps the structural PULSE_OVERLAY_SLOT_NOT_CROSSTAB. " +

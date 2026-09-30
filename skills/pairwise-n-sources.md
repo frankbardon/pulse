@@ -51,6 +51,8 @@ Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_de
 
 The two MARGIN distinct modes are exact by construction and deliberately NOT gated: a margin accumulates over the raw records that reached the margin key, once each, so there is no per-cell summing to double-count through. Extension groupers are covered too (`GrouperRegistration.FansOut`).
 
+The Compose-host panel raises the SAME code on its own host (`types.CheckPanelSlabPartition`): `row_margin_value_within` with an explicit `n_within_depth` sums each SLOT's row margins, so `axis` is always `row` and Details add `panel_index`/`slot_index`/`slot_label`. It gates its margin leg where this family's `n_within` is ungated, because a panel margin is whatever that slot's cell aggregator emitted — no additivity to claim. See `op-overlay-prop-z-panel`.
+
 ## Why it is enforced rather than documented
 
 The failure is silent and liberal: n too large, every p-value too small, nothing in the response says so. So it is a refusal with TWO arms, `descriptor.validateOverlayPairwise` and `processing.applyOverlaysToResponse`, because `pulse.Process` does not run predict. Both call `types.CheckPairwiseSlabPartition`, so message and Details cannot drift.

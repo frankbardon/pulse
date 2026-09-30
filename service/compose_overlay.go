@@ -123,5 +123,11 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 		}
 		labels[i] = r.Label
 	}
-	return processing.ApplyComposeOverlays(req.Overlays, responses, labels)
+	// The requests-aware entry point, not the bare one: the panel's
+	// within-prefix slab gate turns on each slot's authored
+	// Crosstab.Rows grouper types, which no materialised *Response
+	// carries, and the extension registry is how an embedder's
+	// fan-out grouper reaches that gate. Both are already in hand
+	// here; the dispatcher cannot obtain either on its own.
+	return processing.ApplyComposeOverlaysWithRequests(req.Overlays, responses, labels, requests, s.extensions)
 }

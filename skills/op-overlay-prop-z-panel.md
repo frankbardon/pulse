@@ -23,6 +23,8 @@ Compose-only multi-reference. Buffered.
 
 `n_within_depth` (`*int`) is read by `row_margin_value_within` alone, and the pointer is load-bearing: omitted ⇒ the exact per-slot row margin (no summing), `d` ⇒ margins summed over that slot's rows agreeing on the first `d+1` dims. Depth `0` ≠ omitted. Negative, or set with any other mode, ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms; past a slot's row depth ⇒ same code at RUNTIME only, naming that slot. Slots may declare DIFFERENT row depths and one out-of-range slot refuses the whole spec (dropping it would change `M`).
 
+An explicit depth SUMS across rows, so they must partition the key set. A fan-out grouper (`GroupType.FansOut()` or an extension declaring it) on ANY slot's row axis at depth `> n_within_depth` ⇒ `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, both arms, Details `panel_index`/`slot_index`/`slot_label`/`dim_index`; one offending slot refuses the whole spec. Inside the prefix is fine (it multiplies slabs, not cells); omitted depth is never gated. Pairwise `n_within` is ungated (record counts are additive) — a panel row margin is whatever the slot's cell aggregator emitted, so this host cannot claim that.
+
 `row_margin_n` and `n_within` are `OVERLAY_PAIRWISE_*` spellings, NOT aliases: unknown here ⇒ `PULSE_OVERLAY_PARAM_MISSING` on both arms. There `n_within` sums `CellCounts` over a PAIR-axis slab at ONE fixed opposite index — one column; the panel's leg sums a slot's ROW margins across ALL columns, so the two differ by roughly the column count.
 
 ## Host shape

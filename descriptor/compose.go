@@ -91,6 +91,22 @@ type ComposeValidationResult struct {
 // handled by service.applyComposeLabelDefaults at execution time and
 // is not the descriptor surface's responsibility).
 func ValidateCompose(req *types.ComposedRequest) *Envelope {
+	return ValidateComposeWithOptions(req, nil)
+}
+
+// ValidateComposeWithOptions is ValidateCompose with the predict
+// options in reach — today that means PredictOptions.Extensions, the
+// read-only snapshot through which an embedder-registered grouper's
+// fan-out declaration reaches the panel's within-prefix slab gate.
+// descriptor/ may not import processing/, so the snapshot is the only
+// route; the runtime twin reads the live registry instead and both
+// hand their resolver to the same types-side predicate.
+//
+// Additive rather than a signature change on ValidateCompose: the
+// no-options entry point shipped, and a host with no extensions gets
+// the identical answer either way (a nil snapshot yields a nil
+// resolver, which the gate reads as "no extension groupers").
+func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions) *Envelope {
 	result := &ComposeValidationResult{
 		Valid:                    true,
 		Request:                  req,
@@ -127,8 +143,16 @@ func ValidateCompose(req *types.ComposedRequest) *Envelope {
 		// otherwise have to round-trip to discover.
 	}
 
+	// Authored slot index per resolved label. The panel's
+	// slab-partition diagnostic carries BOTH the panel index and the
+	// authored Compose slot index, because panel 0 is the reference
+	// and is rarely Compose slot 0 — a diagnostic naming only the
+	// panel position sends the caller hunting through their own
+	// request.
+	byIndex := composeBuildLabelSlotIndex(req)
+
 	for i, spec := range req.Overlays {
-		validateComposeOverlaySpec(env, result, &spec, i, byLabel, req)
+		validateComposeOverlaySpec(env, result, &spec, i, byLabel, byIndex, req, opts)
 		// Populate the per-spec cost score in matching order — even when
 		// the spec fails a downstream gate (the cost map is descriptive,
 		// not gated by validity). The cost dispatcher reads the spec's
@@ -210,7 +234,7 @@ func composeOverlayCostForSpec(spec *types.ComposeOverlaySpec) float64 {
 // SlotPair entries. The helper is split out of ValidateCompose so the
 // per-spec coverage can grow kind-by-kind without expanding the
 // outer-loop signature.
-func validateComposeOverlaySpec(env *Envelope, result *ComposeValidationResult, spec *types.ComposeOverlaySpec, specIdx int, byLabel map[string]*types.Request, req *types.ComposedRequest) {
+func validateComposeOverlaySpec(env *Envelope, result *ComposeValidationResult, spec *types.ComposeOverlaySpec, specIdx int, byLabel map[string]*types.Request, byIndex map[string]int, req *types.ComposedRequest, opts *PredictOptions) {
 	// Gate 0: unknown kind. The catalog lookup runs against
 	// types.AllOverlayKinds() so a new kind shows up here automatically
 	// once it's appended to the catalog.
@@ -310,7 +334,35 @@ func validateComposeOverlaySpec(env *Envelope, result *ComposeValidationResult, 
 	// offending slot alongside the params complaint.
 	if types.IsPanelOverlayParamsKind(spec.Kind) {
 		params, err := types.DecodePanelParamsMap(spec.Params)
-		validateOverlayPanel(env, spec.Kind, params, err, specIdx)
+		// The per-slot ROW AXES the within-prefix slab gate needs.
+		// Built in PANEL order — panel[0] is the reference, panel[i]
+		// is Targets[i-1] — so the offender the gate names is the
+		// offender the runtime twin would name. A target label that
+		// did not resolve has already been reported by Gate 2 and
+		// simply contributes no axis: it cannot be judged, and
+		// judging the rest is still strictly more useful than
+		// saying nothing.
+		slots := make([]types.PanelSlabPartitionSlot, 0, 1+len(resolved))
+		slots = append(slots, types.PanelSlabPartitionSlot{
+			Rows:       composeSlotRowAxis(refReq),
+			PanelIndex: 0,
+			SlotIndex:  byIndex[spec.Reference],
+			Label:      spec.Reference,
+		})
+		for j, label := range spec.Targets {
+			tReq, ok := byLabel[label]
+			if !ok {
+				continue
+			}
+			slots = append(slots, types.PanelSlabPartitionSlot{
+				Rows:       composeSlotRowAxis(tReq),
+				PanelIndex: j + 1,
+				SlotIndex:  byIndex[label],
+				Label:      label,
+			})
+		}
+		validateOverlayPanel(env, spec.Kind, params, err, specIdx, slots,
+			snapshotGroupFanOut(extensionsFromOpts(opts)))
 	}
 
 	// Gate 4: per-target shape + schema match. The reference shape
@@ -392,6 +444,39 @@ func validateComposeOverlaySpec(env *Envelope, result *ComposeValidationResult, 
 	}
 
 	_ = req // reserved for future per-spec walks that need siblings
+}
+
+// composeSlotRowAxis returns one Compose slot's crosstab ROW axis, or
+// nil when the slot declares no crosstab. Nil is the right answer for
+// the panel's slab gate: a non-MATRIX slot is refused by the shape
+// walk, and an empty axis has no dim to fan out at.
+func composeSlotRowAxis(req *types.Request) []*types.Group {
+	if req == nil || req.Crosstab == nil {
+		return nil
+	}
+	return req.Crosstab.Rows
+}
+
+// composeBuildLabelSlotIndex maps each slot's resolved label to its
+// authored ComposedRequest.Requests position. Same label rule
+// composeBuildLabelIndex uses; on a collision the FIRST slot wins,
+// matching that helper's map-fill order.
+func composeBuildLabelSlotIndex(req *types.ComposedRequest) map[string]int {
+	out := make(map[string]int, len(req.Requests))
+	for i, src := range req.Requests {
+		if src == nil {
+			continue
+		}
+		label := src.Label
+		if label == "" {
+			label = composeDescriptorDefaultLabel(i)
+		}
+		if _, dup := out[label]; dup {
+			continue
+		}
+		out[label] = i
+	}
+	return out
 }
 
 // composeBuildLabelIndex walks ComposedRequest.Requests and produces a

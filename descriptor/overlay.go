@@ -235,7 +235,7 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 // types.DecodePanelParams* entry point and hands the error here. Both
 // entry points funnel into one decoder, so the two hosts cannot
 // disagree about what a params blob means.
-func validateOverlayPanel(env *Envelope, kind types.OverlayKind, params types.PanelOverlayParams, err error, index int) {
+func validateOverlayPanel(env *Envelope, kind types.OverlayKind, params types.PanelOverlayParams, err error, index int, slots []types.PanelSlabPartitionSlot, resolveExt types.ExtensionGroupFanOutFunc) {
 	if err != nil {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(kind)+" has malformed Params: "+err.Error(),
@@ -293,6 +293,30 @@ func validateOverlayPanel(env *Envelope, kind types.OverlayKind, params types.Pa
 			"overlay "+string(kind)+" n_within_depth must be >= 0",
 			map[string]any{"index": index, "kind": string(kind),
 				"n_source": params.NSource, "n_within_depth": *params.NWithinDepth})
+		return
+	}
+
+	// Within-prefix slab partition gate. An explicit n_within_depth
+	// turns the leg into a SUM ACROSS ROWS, and a summed slab equals
+	// the slab's true sample size only when its rows partition the key
+	// set — a fan-out grouper among the summed-across row-axis dims
+	// lands one record in two summed rows and n comes out too large,
+	// silently and liberally.
+	//
+	// Unlike the range guard below it, this IS predict-safe: the
+	// offending fact is the declared GROUPER TYPE on each slot's
+	// authored Crosstab.Rows, a static property of the request that
+	// needs no materialised axis. Predict alone does not stop
+	// pulse.Compose, so processing.checkPanelSlabPartition carries the
+	// runtime twin under the same code and the same words.
+	//
+	// resolveExt is how an embedder-registered fan-out grouper reaches
+	// this arm — descriptor/ may not import processing/ and so cannot
+	// assert MultiKeyStreamingGrouper itself.
+	if v, bad := types.CheckPanelSlabPartitionWith(slots, params, resolveExt); bad {
+		env.AddError(string(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED),
+			v.Message(kind, params),
+			v.Details(kind, params, index))
 		return
 	}
 
