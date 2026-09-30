@@ -1,5 +1,5 @@
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "data": {
     "data": [
       {
@@ -13,6 +13,45 @@
       "total_rows": 6,
       "filtered_rows": 6,
       "cohort_file": "two_shards.pulse"
+    },
+    "components": {
+      "aggregations": [
+        {
+          "label": "score_sum",
+          "n": 6,
+          "n_null": 0,
+          "operator": {
+            "sum": 210
+          }
+        },
+        {
+          "label": "score_count",
+          "n": 6,
+          "n_null": 0
+        },
+        {
+          "label": "score_min",
+          "n": 6,
+          "n_null": 0,
+          "operator": {
+            "min": 10
+          }
+        },
+        {
+          "label": "score_max",
+          "n": 6,
+          "n_null": 0,
+          "operator": {
+            "max": 60
+          }
+        }
+      ],
+      "run": {
+        "total_records": 6,
+        "filtered_records": 6,
+        "null_records": 0,
+        "shard_count": 2
+      }
     }
   },
   "errors": [],

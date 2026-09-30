@@ -72,3 +72,17 @@ backward-compatibility break, not a stale golden:** do not run
 The `-update` flag exists only to create the file; to cover more of the
 `0x01` surface, add a second fixture rather than rewriting this one, so
 the bytes an earlier binary wrote stay under test.
+
+## Shard-archive fixtures are generator-pinned snapshots
+
+`testdata/sharding/*.pulse` are produced by `internal/shardfixtures`
+(`go run ./testdata/sharding/build_fixtures.go` writes them) and
+`TestShardFixtures_MatchGenerator` fails when the committed bytes and the
+generator disagree. Unlike the `0x01` golden these are snapshots of the
+CURRENT writer: they once went stale across the nullable-flag
+schema-block change (a declared clean break) and stopped opening, with
+nothing noticing. Regenerate with the command above or
+`go test ./internal/shardfixtures/ -update`, then `git add -f` them
+(`*.pulse` is gitignored). The two JSON envelopes beside them are pinned
+to live CLI output by `TestShardingSnapshots_MatchCLIOutput`
+(`go test ./internal/cli/ -run TestShardingSnapshots -update`).
