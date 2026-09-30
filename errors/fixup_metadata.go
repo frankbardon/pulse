@@ -303,6 +303,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_WIDTH_PROMOTED: {
+		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number (lossless — every value already imported is exact in f64). Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema, a column_type_overrides column or an authoritative source schema: their overflow stays a row error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action is required — the cohort holds every row at the promoted width. To make the width explicit, raise --sample-rows so inference sees the wide values, or pin the type with column_type_overrides / an explicit --schema (which then refuses, rather than promotes, any value past it).",
+			},
+		},
+	},
 	PULSE_EXPORT_ROW_ERROR: {
 		Message: "A row could not be exported due to a per-cell value-to-string conversion failure, or because the target format's writer refused it. Raised per row on ExportReport.RowErrors while SOME rows still export — and raised as the FATAL return of ExportJob.Run when a non-empty cohort yields zero exported rows, in which case details carry `rows_read`, `rows_failed`, `first_row` and `first_error`. An empty cohort exports zero rows legitimately and is not this error.",
 		Fixups: []Fixup{

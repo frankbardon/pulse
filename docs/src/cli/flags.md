@@ -316,8 +316,32 @@ every row as the import would. That measured roughly 1.2x-1.4x the
 import's own time on synthetic 12- and 102-column sources, against
 about 0.15x for plain predict. It does not spool the rows, so memory is
 bounded by the window and the candidate dictionaries, not the file.
-`--json` adds `Projection`, `Groups`, `GroupWarnings`, `ElidedConstants`
-and `GroupCandidates` to `data`; `format_version` stays `"1.1"`.
+When a field outgrows its sample-inferred width mid-file (see
+`PULSE_IMPORT_WIDTH_PROMOTED` below) the measured pass stops measuring,
+finishes the file to find every promotion, then rewinds and measures
+again at the final widths, so such a source is read twice. Only the
+measured pass sees the full-file widths: plain `import predict` reports
+the sample-inferred schema.
+`--json` adds `Projection`, `Groups`, `GroupWarnings`, `ElidedConstants`,
+`GroupCandidates` and `WidthWarnings` to `data`; `format_version` stays
+`"1.1"`.
+
+### Width promotion (inferred imports)
+
+Not a flag: every inferred `import <format>`, `import auto` and
+`pulse_import` does it. Inference sizes `categorical_*` rungs and integer
+widths from the first `--sample-rows` rows. A later value that outgrows
+them promotes the field to the narrowest type that holds it instead of
+dropping the row: `categorical_u8` → `u16` → `u32`; `u4` → `u8` → `u16`
+→ `u32` → `u64` for a larger non-negative integer; `u4`..`u32` → `f64`
+for a negative, fractional or signed number (lossless for every value
+already read). Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
+warning (`field`, `from`, `to`, `source_row`) in the envelope `warnings`
+and `data.WidthWarnings` (`width_warnings` on `import auto` /
+`pulse_import`). A `--schema`, a `column_type_overrides` column or an
+authoritative source schema (SPSS, Arrow, Parquet) never promotes: its
+overflow stays a `PULSE_IMPORT_ROW_ERROR`. So does a non-number, a
+non-integer in a `u64` column, and a dictionary past `categorical_u32`.
 
 ### `--dedup-ratio-floor`
 

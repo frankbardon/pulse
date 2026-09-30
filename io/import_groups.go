@@ -205,6 +205,41 @@ func groupMemberNames(specs []encoding.GroupSpec) []string {
 	return out
 }
 
+// screenGroups validates the declared groups against schema and runs
+// the viability gate's width screen before the row pass (fail fast).
+// widenable marks fields the row pass may still promote: a promotion
+// only ever widens a group, so a --strict refusal of a group with a
+// widenable member is not final yet. Such a screen runs non-strict and
+// rescreen reports that the caller must repeat it, strict, over the
+// final schema after the pass. With nothing declared everything is
+// nil.
+func (j *ImportJob) screenGroups(schema *encoding.Schema, widenable []bool) (specs []encoding.GroupSpec, views []encoding.GroupViability, warns []*errors.CodedError, rescreen bool, err error) {
+	declared := groupSpecs(j.Groups)
+	if len(declared) == 0 {
+		return nil, nil, nil, false, nil
+	}
+	if _, err := encoding.NewGroupEncoder(schema, declared); err != nil {
+		return nil, nil, nil, false, err
+	}
+	gate := j.dedupGate()
+	if gate.Strict {
+		byName := make(map[string]int, len(schema.Fields))
+		for i := range schema.Fields {
+			byName[schema.Fields[i].Name] = i
+		}
+		for _, sp := range declared {
+			for _, m := range sp.Members {
+				if fi, ok := byName[m]; ok && widenable[fi] {
+					rescreen = true
+				}
+			}
+		}
+		gate.Strict = !rescreen
+	}
+	specs, views, warns, err = gate.ScreenWidths(schema, declared)
+	return specs, views, warns, rescreen, err
+}
+
 // dedupGate is the viability policy this job's options select.
 func (j *ImportJob) dedupGate() encoding.DedupGate {
 	return encoding.DedupGate{RatioFloor: j.DedupRatioFloor, Strict: j.StrictDedup}

@@ -151,6 +151,12 @@ type Result struct {
 	// io.ImportReport.PromotedFields; each also rides a
 	// PULSE_IMPORT_NULL_PROMOTED warning.
 	PromotedFields []string `json:"promoted_fields,omitempty"`
+	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
+	// field the import widened past its sample-inferred width
+	// (categorical_* rung, integer width, or integer → f64), each with
+	// field / from / to / source_row. Mirrors
+	// io.ImportReport.WidthWarnings; omitted when nothing widened.
+	WidthWarnings []*perr.CodedError `json:"width_warnings,omitempty"`
 	// SourceWarnings carries the non-fatal coded diagnostics the source
 	// adapter raised through io.SourceWarningEmitter — today the
 	// PULSE_SPSS_* family from the `.sav` dictionary walk, schema

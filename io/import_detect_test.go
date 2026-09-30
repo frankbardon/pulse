@@ -25,8 +25,9 @@ import (
 // 500-row inference sample — so an inferred import promotes it to
 // nullable mid-pass. The row count clears the 10,000-row nomination
 // window so the late cust_flag break lands on the full pass only.
-// cust_name outgrows the categorical_u8 the 500-row sample would infer,
-// so jobs over it take orderLinesTypes.
+// cust_name outgrows the categorical_u8 the 500-row sample infers (the
+// 257th customer is row 3,073), so an inferred import promotes it to
+// categorical_u16 mid-pass (PULSE_IMPORT_WIDTH_PROMOTED).
 func orderLinesFixture(n int) ([]string, [][]string) {
 	cols := []string{"line_id", "cust_id", "cust_name", "cust_tier", "cust_score", "cust_flag", "prod_id", "prod_cat", "prod_price", "qty", "channel"}
 	var rows [][]string
@@ -52,16 +53,9 @@ func orderLinesFixture(n int) ([]string, [][]string) {
 	return cols, rows
 }
 
-// orderLinesTypes widens the one column the inference sample
-// under-sizes.
-func orderLinesTypes(j *ImportJob) {
-	j.ColumnTypeOverrides = map[string]encoding.FieldType{"cust_name": encoding.FieldTypeCategoricalU16}
-}
-
 func predictJob(t *testing.T, src Reader, mutate ...func(*ImportJob)) (*PredictReport, error) {
 	t.Helper()
 	job := NewImportJob(src, "unused.pulse")
-	orderLinesTypes(job)
 	for _, m := range mutate {
 		m(job)
 	}
@@ -143,19 +137,35 @@ func TestImportPredict_SuggestGroups_FindsJoinParents(t *testing.T) {
 // candidate reports is what importing with that declaration produces —
 // the gate's numbers, the exact file size — and the projection's flat
 // size is the flat import's. Covers a member promoted to nullable past
-// the inference sample.
+// the inference sample, and one (cust_name) promoted past its inferred
+// categorical_u8 width — which makes predict re-measure from the top.
 func TestImportPredict_SuggestedMatchesImport(t *testing.T) {
 	cols, rows := orderLinesFixture(14000)
 	rep, err := predictJob(t, newMockReader(cols, rows), suggest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, flat, _, err := runGroupImport(t, newMockReader(cols, rows), nil, orderLinesTypes)
+	flatRep, flat, _, err := runGroupImport(t, newMockReader(cols, rows), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := rep.Projection.FlatFileBytes; got != int64(len(flat)) {
 		t.Errorf("flat_file_bytes %d, flat import wrote %d", got, len(flat))
+	}
+	// The width promotion the sample could not foresee: predict reports
+	// the promoted schema and the same warning the import raises.
+	if len(rep.WidthWarnings) != 1 || !reflect.DeepEqual(rep.WidthWarnings[0].Details, map[string]any{
+		"field": "cust_name", "from": "categorical_u8", "to": "categorical_u16", "source_row": 3073,
+	}) {
+		t.Fatalf("predict width warnings = %v", rep.WidthWarnings)
+	}
+	if !reflect.DeepEqual(rep.WidthWarnings, flatRep.WidthWarnings) {
+		t.Errorf("predict width warnings %v, import %v", rep.WidthWarnings, flatRep.WidthWarnings)
+	}
+	for i := range rep.Schema.Fields {
+		if p, w := rep.Schema.Fields[i], flatRep.Schema.Fields[i]; p.Type != w.Type || p.Nullable != w.Nullable || p.ByteOffset != w.ByteOffset {
+			t.Errorf("field %s: predict %s/%v/@%d, import %s/%v/@%d", p.Name, p.Type, p.Nullable, p.ByteOffset, w.Type, w.Nullable, w.ByteOffset)
+		}
 	}
 	promoted := false
 	for _, f := range rep.Schema.Fields {
@@ -163,6 +173,15 @@ func TestImportPredict_SuggestedMatchesImport(t *testing.T) {
 	}
 	if !promoted {
 		t.Fatal("fixture did not promote cust_score past the inference sample")
+	}
+	nullWarns := 0
+	for _, w := range rep.Warnings {
+		if w.Column == "cust_score" {
+			nullWarns++
+		}
+	}
+	if nullWarns != 1 {
+		t.Errorf("cust_score null-promotion warnings = %d, want exactly 1 across the re-measure", nullWarns)
 	}
 	if rep.Projection.RowsImported != 14000 || rep.EstimatedRows != 14000 {
 		t.Errorf("rows imported %d estimated %d", rep.Projection.RowsImported, rep.EstimatedRows)
@@ -173,7 +192,7 @@ func TestImportPredict_SuggestedMatchesImport(t *testing.T) {
 			t.Fatal(err)
 		}
 		c := candidateByKey(t, rep.GroupCandidates, decl.Key[0])
-		ir, raw, _, err := runGroupImport(t, newMockReader(cols, rows), []GroupDecl{decl}, orderLinesTypes)
+		ir, raw, _, err := runGroupImport(t, newMockReader(cols, rows), []GroupDecl{decl})
 		if err != nil {
 			t.Fatalf("import with suggested %q: %v", s, err)
 		}
@@ -250,7 +269,7 @@ func TestImportPredict_DeclaredKeyViolation(t *testing.T) {
 	cols, rows := orderLinesFixture(14000)
 	bad := []GroupDecl{{Key: []string{"cust_id"}, Members: []string{"cust_name", "cust_flag"}}}
 	_, perr := predictJob(t, newMockReader(cols, rows), func(j *ImportJob) { j.Groups = bad })
-	_, _, _, rerr := runGroupImport(t, newMockReader(cols, rows), bad, orderLinesTypes)
+	_, _, _, rerr := runGroupImport(t, newMockReader(cols, rows), bad)
 	var pce, rce *perrors.CodedError
 	if !stderrors.As(perr, &pce) || !stderrors.As(rerr, &rce) {
 		t.Fatalf("want coded errors, predict %v, import %v", perr, rerr)

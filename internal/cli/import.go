@@ -175,10 +175,11 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	}
 
 	if jsonOut {
-		return writeEnvelopeWithWarnings(cmd.Writer, report, append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...))
+		return writeEnvelopeWithWarnings(cmd.Writer, report, append(append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...), report.WidthWarnings...))
 	}
 
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)
+	writeSourceWarnings(cmd.Writer, report.WidthWarnings)
 	if len(report.ElidedConstants) > 0 {
 		writeText(cmd.Writer, "Elided constant fields (stored once, format 0x02): %s\n", strings.Join(report.ElidedConstants, ", "))
 	}
@@ -292,10 +293,11 @@ func importPredictCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, report, append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...))
+				return writeEnvelopeWithWarnings(cmd.Writer, report, append(append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...), report.WidthWarnings...))
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
+			writeSourceWarnings(cmd.Writer, report.WidthWarnings)
 			writeText(cmd.Writer, "Estimated rows: %d\n", report.EstimatedRows)
 			for _, w := range report.Warnings {
 				writeText(cmd.Writer, "Warning [%s]: %s\n", w.Column, w.Message)

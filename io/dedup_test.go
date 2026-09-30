@@ -294,7 +294,7 @@ func TestDedupJob_ElideConstants(t *testing.T) {
 // suggestion-only run writes nothing.
 func TestDedupJob_SuggestGroups(t *testing.T) {
 	cols, rows := orderLinesFixture(14000)
-	fs, flat := flatCohortFS(t, cols, rows, orderLinesTypes)
+	fs, flat := flatCohortFS(t, cols, rows)
 	pred, err := predictJob(t, newMockReader(cols, rows), suggest)
 	if err != nil {
 		t.Fatal(err)

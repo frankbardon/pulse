@@ -34,21 +34,43 @@ type rowConverter struct {
 	// promoted[i]: field i was widened to nullable by an out-of-sample
 	// null during this pass.
 	promoted []bool
+
+	// widenable[i]: field i's type is inference-originated and may be
+	// promoted to a wider type when a value outgrows it (see
+	// import_widen.go). widened records every rung step taken, in pass
+	// order; pending holds the steps the caller has not yet applied to
+	// the rows it already holds (takePending).
+	widenable []bool
+	widened   []widening
+	pending   []widening
 }
 
-func newRowConverter(schema *encoding.Schema, inferred bool, dicts map[int]*encoding.Dictionary, delimFor func(string) string) *rowConverter {
+func newRowConverter(schema *encoding.Schema, inferred bool, dicts map[int]*encoding.Dictionary, delimFor func(string) string, widenable []bool) *rowConverter {
 	n := len(schema.Fields)
-	return &rowConverter{
-		schema:   schema,
-		inferred: inferred,
-		dicts:    dicts,
-		delimFor: delimFor,
-		vals:     make([]uint64, n),
-		wide:     make([]wideFieldBytes, n),
-		wideUsed: make([]bool, n),
-		null:     make([]bool, n),
-		promoted: make([]bool, n),
+	if widenable == nil {
+		widenable = make([]bool, n)
 	}
+	return &rowConverter{
+		schema:    schema,
+		inferred:  inferred,
+		dicts:     dicts,
+		delimFor:  delimFor,
+		vals:      make([]uint64, n),
+		wide:      make([]wideFieldBytes, n),
+		wideUsed:  make([]bool, n),
+		null:      make([]bool, n),
+		promoted:  make([]bool, n),
+		widenable: widenable,
+	}
+}
+
+// takePending returns the rung steps taken since the last call, in
+// order, and forgets them. A caller holding converted rows re-strides
+// them for each step (widenBufferedColumn) before writing the next row.
+func (c *rowConverter) takePending() []widening {
+	p := c.pending
+	c.pending = nil
+	return p
 }
 
 // convert converts row (1-based source data row rowNum) into the
@@ -123,6 +145,25 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 		}
 
 		v, err := convertValue(raw, f.Type, c.dicts[i], c.delimFor(f.Name))
+		if err != nil && c.widenable[i] {
+			// A sample-inferred width this value outgrows is promoted,
+			// not refused. The step sticks even if a later column fails
+			// this row: a categorical's dictionary already holds more
+			// entries than the old rung addresses, and Predict's
+			// measured pass takes the same steps in the same order.
+			for err != nil {
+				to, ok := widenTarget(f.Type, raw, c.dicts[i])
+				if !ok {
+					break
+				}
+				step := widening{field: i, from: f.Type, to: to, row: rowNum}
+				c.widened = append(c.widened, step)
+				c.pending = append(c.pending, step)
+				c.schema.Fields[i].Type = to
+				f = c.schema.Fields[i]
+				v, err = convertValue(raw, f.Type, c.dicts[i], c.delimFor(f.Name))
+			}
+		}
 		if err != nil {
 			return rowErr(f, err.Error())
 		}

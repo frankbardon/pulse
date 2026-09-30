@@ -553,21 +553,64 @@ func nominate(l *measuredLayout, window []byte, eligible []bool, det *GroupDetec
 
 // predictMeasured is Predict's measured pass over an already-resolved
 // schema. The reader is positioned at the first data row.
-func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema, inferred bool, delimFor func(string) string, report *PredictReport) error {
+//
+// A width promotion (import_widen.go) changes the layout every tracker
+// and detector has been measuring in, so the pass does not try to
+// re-lay them out: once a field widens it stops measuring, converts
+// the rest of the source only to find every remaining promotion, then
+// rewinds and measures again from the top over the final types. The
+// second pass takes no promotion — the same rows in the same order fit
+// the final widths — so its figures are the ones Run's write produces.
+// A source that never outgrows its inferred widths is read once, as
+// before.
+func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema, inferred bool, widenable []bool, delimFor func(string) string, report *PredictReport) error {
+	nullable := make([]bool, len(schema.Fields))
+	for i := range schema.Fields {
+		nullable[i] = schema.Fields[i].Nullable
+	}
+	start := *report
+	steps, err := j.measuredPass(ctx, schema, inferred, widenable, delimFor, report)
+	if err != nil {
+		return err
+	}
+	if len(steps) > 0 {
+		rr, ok := j.Source.(ResetReader)
+		if !ok {
+			return fmt.Errorf("import predict: a width promotion needs a ResetReader source to re-measure")
+		}
+		if err := rr.Reset(); err != nil {
+			return fmt.Errorf("resetting reader after width promotion: %w", err)
+		}
+		if _, err := j.Source.ReadHeader(); err != nil {
+			return err
+		}
+		// Back to the pre-pass nullability (so the re-measure reports
+		// its null promotions again), at the final widths.
+		for i := range schema.Fields {
+			schema.Fields[i].Nullable = nullable[i]
+		}
+		relayoutOffsets(schema)
+		*report = start
+		again, err := j.measuredPass(ctx, schema, inferred, widenable, delimFor, report)
+		if err != nil {
+			return err
+		}
+		if len(again) > 0 {
+			return fmt.Errorf("import predict: field %q widened again on the re-measure", schema.Fields[again[0].field].Name)
+		}
+	}
+	report.WidthWarnings = widthWarnings(schema, steps)
+	return nil
+}
+
+// measuredPass is one measured pass. It returns the width promotions
+// the pass took; when there are any, the report's measured figures are
+// incomplete and predictMeasured re-runs the pass at the final widths.
+func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, inferred bool, widenable []bool, delimFor func(string) string, report *PredictReport) ([]widening, error) {
 	gate := j.dedupGate()
-	var (
-		specs      []encoding.GroupSpec
-		screen     []encoding.GroupViability
-		groupWarns []*errors.CodedError
-	)
-	if declared := groupSpecs(j.Groups); len(declared) > 0 {
-		if _, err := encoding.NewGroupEncoder(schema, declared); err != nil {
-			return err
-		}
-		var err error
-		if specs, screen, groupWarns, err = gate.ScreenWidths(schema, declared); err != nil {
-			return err
-		}
+	specs, screen, groupWarns, rescreen, err := j.screenGroups(schema, widenable)
+	if err != nil {
+		return nil, err
 	}
 
 	// Private dictionaries: the reported schema is left exactly as the
@@ -586,7 +629,7 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 		}
 		dicts[i] = d
 	}
-	conv := newRowConverter(schema, inferred, dicts, delimFor)
+	conv := newRowConverter(schema, inferred, dicts, delimFor, widenable)
 	l := newMeasuredLayout(schema)
 	byName := make(map[string]int, len(schema.Fields))
 	for i := range schema.Fields {
@@ -624,7 +667,7 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 	}
 	det, err := encoding.NewConstantDetector(twin)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var detector *candidateDetector
@@ -650,7 +693,14 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 		if nullSource != nil {
 			declaredNulls = nullSource.RowNulls()
 		}
-		if re := conv.convert(rowNum, row, declaredNulls); re != nil {
+		re := conv.convert(rowNum, row, declaredNulls)
+		if len(conv.widened) > 0 {
+			// The layout just changed under every tracker: finish
+			// the source for its promotions only (see
+			// predictMeasured).
+			return nil
+		}
+		if re != nil {
 			rowErrs = append(rowErrs, RowError{Row: re.Row})
 			return nil
 		}
@@ -680,9 +730,19 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if len(conv.widened) > 0 {
+		return conv.widened, nil
 	}
 	report.EstimatedRows = rowNum
+	if rescreen {
+		// The strict verdict deferred past the pass; no field widened,
+		// so the pre-pass verdicts stand and only strictness is added.
+		if _, _, _, err := j.dedupGate().ScreenWidths(schema, groupSpecs(j.Groups)); err != nil {
+			return nil, err
+		}
+	}
 
 	for _, name := range conv.promotedNames() {
 		report.Warnings = append(report.Warnings, InferenceWarning{
@@ -699,7 +759,7 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 	}
 	flatPre, err := preambleBytes(sizing)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	proj := &ImportProjection{
 		RowsImported:  rows,
@@ -715,7 +775,7 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 	if j.ElideConstants {
 		plan, err := encoding.PlanConstantElisionFor(sizing, det.ConstantFields(), int64(rows), groupMemberNames(specs))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if plan.Spec != nil {
 			report.ElidedConstants = plan.Fields
@@ -726,18 +786,18 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 	grouped := sizing
 	if len(allSpecs) > 0 {
 		if grouped, err = groupedSizing(sizing, allSpecs, declTrackers); err != nil {
-			return err
+			return nil, err
 		}
 		pre, err := preambleBytes(grouped)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		proj.ProjectedFileBytes = pre + int64(rows)*int64(grouped.RecordByteSize())
 	}
 	if len(j.Groups) > 0 {
 		ratio, ratioWarns, err := gate.AssessRatios(grouped, specs, int64(rows))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		report.Groups = groupReports(grouped, j.Groups, screen, ratio)
 		report.GroupWarnings = append(groupWarns, ratioWarns...)
@@ -746,11 +806,11 @@ func (j *ImportJob) predictMeasured(ctx context.Context, schema *encoding.Schema
 	if detector != nil {
 		detection, err := detector.finish(sizing, gate.Floor(), int64(rows), proj.FlatFileBytes)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		report.GroupCandidates = detection
 	}
-	return nil
+	return nil, nil
 }
 
 // candidateDetector is the two-phase candidate parent-group detection

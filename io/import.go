@@ -106,20 +106,17 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// runs here as well: a declared group no wider than its index is
 	// dropped (PULSE_GROUP_TOO_NARROW) before a row is read, and under
 	// StrictDedup the import stops here.
+	//
+	// A sample-inferred width can still be promoted by the row pass (see
+	// import_widen.go), and that can only widen a group. So the width
+	// screen is re-run over the final schema whenever a field widened,
+	// and a --strict refusal is deferred to that re-run when a declared
+	// member is widenable — the pre-pass verdict may not be the final one.
 	gate := j.dedupGate()
-	var (
-		specs      []encoding.GroupSpec
-		groupViews []encoding.GroupViability
-		groupWarns []*errors.CodedError
-	)
-	if declared := groupSpecs(j.Groups); len(declared) > 0 {
-		if _, err := encoding.NewGroupEncoder(schema, declared); err != nil {
-			return nil, err
-		}
-		var err error
-		if specs, groupViews, groupWarns, err = gate.ScreenWidths(schema, declared); err != nil {
-			return nil, err
-		}
+	widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides)
+	specs, groupViews, groupWarns, rescreen, err := j.screenGroups(schema, widenable)
+	if err != nil {
+		return nil, err
 	}
 
 	// Build dictionaries for categorical and set fields. Both share
@@ -182,7 +179,13 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 
 	// Per-row conversion (promotion of out-of-sample nulls included) is
 	// shared with the detecting import predict; see rowConverter.
-	conv := newRowConverter(schema, inferredSchema, dicts, setDelimiterFor)
+	conv := newRowConverter(schema, inferredSchema, dicts, setDelimiterFor, widenable)
+	// bufTypes is the field layout the rows already in recordsBuf were
+	// written with; a promotion re-strides them to the new width.
+	bufTypes := make([]encoding.FieldType, len(schema.Fields))
+	for i := range schema.Fields {
+		bufTypes[i] = schema.Fields[i].Type
+	}
 
 	// Optional source-declared null channel. A []string row cannot tell
 	// a JSON null from an empty JSON string, or an Arrow validity bit
@@ -191,7 +194,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// leaves the text path byte-identical. See NullAwareReader.
 	nullSource, _ := j.Source.(NullAwareReader)
 
-	err := j.Source.ReadRows(ctx, func(row []string) error {
+	err = j.Source.ReadRows(ctx, func(row []string) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -204,7 +207,17 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			declaredNulls = nullSource.RowNulls()
 		}
 
-		if re := conv.convert(rowNum, row, declaredNulls); re != nil {
+		re := conv.convert(rowNum, row, declaredNulls)
+		// A width promotion this row forced re-strides every row
+		// already held, BEFORE this one is appended at the new width —
+		// whether or not this row itself goes on to import.
+		for _, step := range conv.takePending() {
+			if err := widenBufferedColumn(&recordsBuf, rowsImported, bufTypes, step.field, step.to); err != nil {
+				return err
+			}
+			bufTypes[step.field] = step.to
+		}
+		if re != nil {
 			rowErrors = append(rowErrors, *re)
 			return nil // skip row, continue processing
 		}
@@ -240,6 +253,17 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// and still produces a legitimate empty cohort. See totalRowFailure.
 	if failure := totalRowFailure("import", rowsImported, rowNum, rowErrors, errors.PULSE_IMPORT_ROW_ERROR); failure != nil {
 		return nil, failure
+	}
+
+	// A promoted width moved every later field's offset, and may have
+	// made a declared group wide enough to admit.
+	if len(conv.widened) > 0 {
+		relayoutOffsets(schema)
+	}
+	if len(conv.widened) > 0 || rescreen {
+		if specs, groupViews, groupWarns, err = gate.ScreenWidths(schema, groupSpecs(j.Groups)); err != nil {
+			return nil, err
+		}
 	}
 
 	// Now write header + schema (dictionaries are populated, promotions
@@ -283,6 +307,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		Schema:         written,
 		RowErrors:      rowErrors,
 		PromotedFields: promotedFields,
+		WidthWarnings:  widthWarnings(schema, conv.widened),
 		SourceWarnings: j.sourceWarnings(),
 	}
 	if elision != nil && elision.Spec != nil {
@@ -451,7 +476,8 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 			}
 			return DefaultSetDelimiter
 		}
-		if err := j.predictMeasured(ctx, schema, inferredSchema, delimFor, report); err != nil {
+		widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides)
+		if err := j.predictMeasured(ctx, schema, inferredSchema, widenable, delimFor, report); err != nil {
 			return nil, err
 		}
 		report.SourceWarnings = j.sourceWarnings()

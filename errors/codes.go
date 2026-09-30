@@ -142,6 +142,18 @@ const (
 	// non-nullable field remains a PULSE_IMPORT_ROW_ERROR.
 	PULSE_IMPORT_NULL_PROMOTED Code = "PULSE_IMPORT_NULL_PROMOTED"
 
+	// PULSE_IMPORT_WIDTH_PROMOTED is a WARNING-class code emitted once per
+	// field when an inferred import meets a value, past the bounded
+	// inference sample, that the sample-inferred width cannot hold — a
+	// categorical_* dictionary outgrowing its rung, an integer past its
+	// u4..u32 width, or a non-integer number in an integer column. The
+	// field is promoted to the narrowest type that holds it (details:
+	// field, from, to, source_row) and the row imports instead of
+	// becoming a PULSE_IMPORT_ROW_ERROR. Never emitted for an explicit
+	// schema, a ColumnTypeOverrides column or an authoritative source
+	// schema, whose overflow stays a row error.
+	PULSE_IMPORT_WIDTH_PROMOTED Code = "PULSE_IMPORT_WIDTH_PROMOTED"
+
 	// PULSE_EXPORT_ROW_ERROR indicates a per-row export error.
 	PULSE_EXPORT_ROW_ERROR Code = "PULSE_EXPORT_ROW_ERROR"
 
@@ -2449,6 +2461,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
 	PULSE_IMPORT_ROW_ERROR,
 	PULSE_IMPORT_NULL_PROMOTED,
+	PULSE_IMPORT_WIDTH_PROMOTED,
 	PULSE_EXPORT_ROW_ERROR,
 	PULSE_EXPORT_FIELD_UNKNOWN,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,

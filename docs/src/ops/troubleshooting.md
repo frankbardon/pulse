@@ -115,6 +115,21 @@ schema with [`pulse import schema-template`](../getting-started/first-cohort.md)
 (which already reports the accurate `nullable` flag) and re-import with
 `--schema`.
 
+## `PULSE_IMPORT_WIDTH_PROMOTED`
+
+A warning, not an error. Inference sizes each `categorical_*` rung and
+integer width from the first `--sample-rows` rows. When a later value
+does not fit — the 257th distinct value of a `categorical_u8` parent-name
+column, `70000` in a column the sample saw as `u8`, `-3` or `2.5` in an
+integer column — Pulse promotes the field to the narrowest type that
+holds it and imports the row. Details name the `field`, the inferred
+`from` type, the written `to` type and the first `source_row` that forced
+it. No value changes.
+
+**Fix (optional):** raise `--sample-rows`, or pin the type with
+`column_type_overrides` / `--schema`. A pinned type is a contract: a
+value past it is then a `PULSE_IMPORT_ROW_ERROR`, never a promotion.
+
 ## `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
 
 A warning by default, an error under `--strict`. The description is

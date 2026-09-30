@@ -676,6 +676,13 @@ type ImportReport struct {
 	Schema         *encoding.Schema
 	RowErrors      []RowError
 	PromotedFields []string
+	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
+	// field the row pass promoted past its sample-inferred width
+	// (categorical_* rung, integer width, or integer → f64), with
+	// field / from / to / source_row in Details. Empty (and omitted from
+	// JSON) when nothing outgrew its inferred width — always, for an
+	// explicit or authoritative schema. See import_widen.go.
+	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
 	// SourceWarnings carries the non-fatal diagnostics the source
 	// Reader surfaced through the optional SourceWarningEmitter
 	// contract — today the PULSE_SPSS_* family raised by the `.sav`
@@ -790,6 +797,12 @@ type PredictReport struct {
 	// converts every row exactly as Run does, so each figure is what the
 	// import would produce, not a sample estimate.
 	//
+	// WidthWarnings are the PULSE_IMPORT_WIDTH_PROMOTED warnings Run
+	// would raise (see ImportReport.WidthWarnings), and Schema carries
+	// the promoted types. Only the measured pass converts values, so a
+	// plain predict never reports a width promotion: its Schema is the
+	// sample-inferred one.
+	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
 	// Projection sizes the file the import would write.
 	Projection *ImportProjection `json:"Projection,omitempty"`
 	// Groups / GroupWarnings are what ImportReport.Groups /

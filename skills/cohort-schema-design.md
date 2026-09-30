@@ -73,11 +73,13 @@ The bitmap is the sole null mechanism. No type has an inline sentinel — `decim
 
 ## Width overflow
 
-- `PULSE_IMPORT_CATEGORICAL_OVERFLOW` / `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` — categorical width exceeded or dict unbounded. Import AND convert both refuse on it: a full dictionary is a capacity violation, not a row condition, so every later unseen category would be lost for the rest of the file. `ConvertJob.Run` stops at the offending cell (`row` / `column` / `type` / `max_entries` / `value` in details) and writes no `--keep-pulse` intermediate.
+- `PULSE_IMPORT_CATEGORICAL_OVERFLOW` / `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` — categorical width exceeded or dict unbounded. A full DECLARED rung is a capacity violation, not a row condition: every later unseen category would be lost for the rest of the file (an import row-errors each one; an INFERRED rung promotes instead, below). `ConvertJob.Run` refuses outright — it stops at the offending cell (`row` / `column` / `type` / `max_entries` / `value` in details) and writes no `--keep-pulse` intermediate.
 - `PULSE_IMPORT_SET_OVERFLOW` — `set_*` cardinality exceeded width.
 - `PULSE_SHARD_DICT_WIDTH_OVERFLOW` — shard insert would expand union dict past declared width. For a `set_*` field this now fires only past `set_u256`; below that the archive auto-widens (see Sharded cohorts → Cohesion).
 
-Mitigation: pick widths with growth headroom up front.
+**Inferred widths promote; declared widths refuse.** Inference sizes `categorical_*` rungs (≤200 distinct in the sample → `u8`) and integer widths from the first `--sample-rows` rows. On the full row pass an INFERRED field whose value outgrows that is promoted to the narrowest type holding it: `categorical_u8` → `u16` → `u32`; `u4` → `u8` → `u16` → `u32` → `u64` for a non-negative integer; `u4`..`u32` → `f64` for any other number (never from `u64`, where f64 is not exact). Rows already read are re-strided in memory — the cohort is byte-identical to one inferred from the whole file, and a cohort that never overflows is unchanged. One `PULSE_IMPORT_WIDTH_PROMOTED` per field (`ImportReport.WidthWarnings` / `width_warnings`). A declared width — `--schema`, `column_type_overrides`, an authoritative SPSS / Arrow / Parquet schema — never promotes: its overflow stays a per-row `PULSE_IMPORT_ROW_ERROR`, as does a non-number and a dictionary past `categorical_u32`. Parent-group widths, the viability gate and constant elision are judged on the promoted widths; `import predict` sees them only on its measured pass.
+
+Mitigation for declared widths: pick them with growth headroom up front.
 
 ## Parent groups (format 0x02)
 
