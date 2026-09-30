@@ -210,6 +210,10 @@ type parallelDecodeContext struct {
 	plan              *encoding.DecodePlan
 	keep              encoding.FieldFilter
 	projectMapHint    int
+	// binding mints each worker's fresh positional Record: projected to
+	// keep when a plan is installed (O(retained fields) per record),
+	// full otherwise. Built once here, shared read-only by every worker.
+	binding *processing.RecordBinding
 }
 
 // parallelDecodeMmap segments the record region into worker-count
@@ -314,22 +318,28 @@ func parallelDecodeMmap(
 					return err
 				}
 
-				mapHint := pctx.projectMapHint
-				if mapHint <= 0 {
-					mapHint = len(pctx.schema.Fields)
-				}
-				values := make(map[string]float64, mapHint)
-				nulls := make(map[string]bool)
-				wide := make(map[string]any)
-
+				// A FRESH positional Record per row, decoded by schema
+				// position through the index-keyed decoder; rr is built
+				// over pctx.schema, the record's schema. The
+				// projection-without-plan case (defensive) keeps the map
+				// decode, converted on construction.
+				var rec *processing.Record
 				var derr error
 				switch {
 				case pctx.plan != nil:
-					derr = rr.ReadRecordWithWidePlan(values, nulls, wide, pctx.keep, pctx.plan)
+					rec = pctx.binding.NewRecord()
+					derr = rr.ReadRecordReusedWithPlan(rec, pctx.keep, pctx.plan)
 				case pctx.keep != nil:
+					values := make(map[string]float64, pctx.projectMapHint)
+					nulls := make(map[string]bool)
+					wide := make(map[string]any)
 					derr = rr.ReadRecordWithWideProjected(values, nulls, wide, pctx.keep)
+					if derr == nil {
+						rec = processing.NewRecordWithWide(pctx.schema, values, nulls, wide)
+					}
 				default:
-					derr = rr.ReadRecordWithWide(values, nulls, wide)
+					rec = pctx.binding.NewRecord()
+					derr = rr.ReadRecordReused(rec)
 				}
 				if derr != nil {
 					if derr == io.EOF {
@@ -352,7 +362,6 @@ func parallelDecodeMmap(
 					return derr
 				}
 
-				rec := processing.NewRecordWithWide(pctx.schema, values, nulls, wide)
 				if err := cb(rec); err != nil {
 					return err
 				}
@@ -527,6 +536,18 @@ func buildParallelDecodeContext(
 		plan:              plan,
 		keep:              keep,
 		projectMapHint:    projectMapHint,
+		binding:           recordBindingFor(schema, plan, keep),
 	}
 	return pctx, cleanupFn, true, nil
+}
+
+// recordBindingFor returns the binding a buffered decode mints its fresh
+// per-row Records from: projected to keep when a DecodePlan drives the
+// decode (the plan writes only keep's fields, so the record is sized to
+// them), the shared full-schema binding otherwise.
+func recordBindingFor(schema *encoding.Schema, plan *encoding.DecodePlan, keep encoding.FieldFilter) *processing.RecordBinding {
+	if plan == nil {
+		return processing.BindRecords(schema, nil)
+	}
+	return processing.BindRecords(schema, keep)
 }

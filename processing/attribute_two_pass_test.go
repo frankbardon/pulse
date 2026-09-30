@@ -37,10 +37,7 @@ func runStreamingAndBuffered(t *testing.T, schema *encoding.Schema, records []*R
 	// streaming run leaking into the buffered comparison.
 	bufRecs := make([]*Record, len(records))
 	for i, r := range records {
-		clone := make(map[string]float64, len(r.values))
-		for k, v := range r.values {
-			clone[k] = v
-		}
+		clone, _, _ := recordMaps(r)
 		bufRecs[i] = NewRecord(schema, clone)
 	}
 	buf := NewProcessor(schema)

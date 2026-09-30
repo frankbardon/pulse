@@ -70,8 +70,14 @@ type HashJoinIterator struct {
 	spec      *types.JoinSpec
 	rightHash map[string][]*Record
 	matches   []*Record
-	cursor    int
-	leftRec   *Record
+
+	// leftSchema / rightSchema are the schemas joined was derived from;
+	// a side record built over one of them copies into the joined
+	// record by position.
+	leftSchema  *encoding.Schema
+	rightSchema *encoding.Schema
+	cursor      int
+	leftRec     *Record
 }
 
 // NewHashJoinIterator builds the right-side hash table eagerly from
@@ -150,10 +156,12 @@ func NewHashJoinIterator(left RecordIterator, right []*Record, leftSchema, right
 	}
 
 	return &HashJoinIterator{
-		left:      left,
-		joined:    joinedSchema,
-		spec:      spec,
-		rightHash: rightHash,
+		left:        left,
+		joined:      joinedSchema,
+		leftSchema:  leftSchema,
+		rightSchema: rightSchema,
+		spec:        spec,
+		rightHash:   rightHash,
 	}, joinedSchema, nil
 }
 
@@ -187,28 +195,23 @@ func (h *HashJoinIterator) Next() bool {
 // cursor-1 (Next() already advanced past it).
 func (h *HashJoinIterator) Record() *Record {
 	rightRec := h.matches[h.cursor-1]
-	values := make(map[string]float64, len(h.joined.Fields))
-	nulls := make(map[string]bool)
-	wide := make(map[string]any)
-	for k, v := range h.leftRec.values {
-		values[k] = v
-	}
-	for k, v := range h.leftRec.nulls {
-		nulls[k] = v
-	}
-	for k, v := range h.leftRec.wide {
-		wide[k] = v
-	}
-	for k, v := range rightRec.values {
-		values[joinRenameRight(h.spec, k)] = v
-	}
-	for k, v := range rightRec.nulls {
-		nulls[joinRenameRight(h.spec, k)] = v
-	}
-	for k, v := range rightRec.wide {
-		wide[joinRenameRight(h.spec, k)] = v
-	}
-	return NewRecordWithWide(h.joined, values, nulls, wide)
+	out := newPositionalRecord(h.joined)
+	// JoinedSchema lays the left fields down first, then the (renamed)
+	// right fields, so a side record built over the schema the join was
+	// bound with copies by position; anything else — and every
+	// off-schema overflow entry — resolves by name.
+	h.leftRec.copyStateInto(out, joinIdentity, 0, h.leftRec.schema == h.leftSchema)
+	h.copyRight(rightRec, out)
+	return out
+}
+
+func joinIdentity(name string) string { return name }
+
+// copyRight copies a matched right record into the joined record under
+// the right-side rename.
+func (h *HashJoinIterator) copyRight(rightRec, out *Record) {
+	rename := func(name string) string { return joinRenameRight(h.spec, name) }
+	rightRec.copyStateInto(out, rename, len(h.leftSchema.Fields), rightRec.schema == h.rightSchema)
 }
 
 // Reset rewinds the left iterator and clears per-row state. Right-
@@ -266,11 +269,11 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 		if f == nil {
 			return "", false
 		}
-		if rec.nulls[field] {
+		if rec.nullMarked(field) {
 			return "", false
 		}
 		if f.Type.IsCategorical() && f.Dictionary != nil {
-			v, ok := rec.values[field]
+			v, ok := rec.rawValue(field)
 			if !ok {
 				return "", false
 			}
@@ -290,7 +293,7 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 			parts = append(parts, string(enc[:]))
 			continue
 		}
-		v, ok := rec.values[field]
+		v, ok := rec.rawValue(field)
 		if !ok {
 			return "", false
 		}

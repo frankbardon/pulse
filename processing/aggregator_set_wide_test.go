@@ -591,7 +591,7 @@ func TestRecordNumericValue_RefusesSetFields(t *testing.T) {
 	// would be 0 (the low word is empty), which is indistinguishable
 	// from a row that selected nothing.
 	wide := aggWideRecord(wideSchema, aggMask(200))
-	wide.values["tags"] = 0 // the low-64 echo the decoder writes
+	wide.SetNumeric("tags", 0) // the low-64 echo the decoder writes
 	if v, ok := wide.NumericValue("tags"); ok {
 		t.Errorf("NumericValue on set_u256 returned (%v, true); want refusal", v)
 	}
@@ -601,7 +601,7 @@ func TestRecordNumericValue_RefusesSetFields(t *testing.T) {
 
 	// Narrow rungs refuse identically — one rule at every width.
 	narrow := makeSetRecord(narrowSchema, 0b1011)
-	narrow.values["tags"] = 11
+	narrow.SetNumeric("tags", 11)
 	if v, ok := narrow.NumericValue("tags"); ok {
 		t.Errorf("NumericValue on set_u8 returned (%v, true); want refusal", v)
 	}

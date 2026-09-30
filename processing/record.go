@@ -1,97 +1,361 @@
 package processing
 
 import (
+	"math/bits"
+
 	"github.com/frankbardon/pulse/encoding"
 )
 
 // Record represents a single data row with field accessors.
 // It provides both numeric and string access for processing operations.
+//
+// # Storage
+//
+// A Record stores its row POSITIONALLY, in storage slots. Under the
+// full layout a field's slot is its position in the schema (the index
+// into Schema.Fields); under a projected layout (BindRecords) only the
+// retained fields have slots, densely numbered. For slot i:
+//
+//   - vals[i] holds the field's numeric value (the float64 echo for
+//     decimal128 and set_* fields);
+//   - bits carries three presence planes of ceil(n/64) words each —
+//     "has a value", "is null", "has a wide value" — so a field absent
+//     from the record (projected out, never written) is distinguishable
+//     from one present and zero, exactly as a missing map key was;
+//   - aux.wide holds typed wide values (encoding.Decimal128, a uint64
+//     mask for the narrow set rungs, an encoding.SetMask for set_u128 /
+//     set_u256) in one slot per wide-capable schema field only.
+//
+// Name → slot resolution goes through a recordLayout built once per
+// binding and shared by every Record under it (record_layout.go), never
+// per row and never per record.
+//
+// A name with no slot — an attribute label injected
+// mid-pipeline, a feature or window output column, a key written on a
+// synthetic test record, a schema field outside a projection — lands in
+// the aux overflow maps (ovVals,
+// ovNulls, ovWide), which are allocated only when such a write happens.
+// A record that only ever holds schema fields allocates no map at all.
+// The routing is a pure function of (schema, name), so a given name is
+// always stored on the same side.
+//
+// Every public accessor keeps the semantics the former
+// map[string]float64 / map[string]bool / map[string]any triple had,
+// including the asymmetries (SetNull drops the value but not a wide
+// value; SetNumeric does not clear a null mark; ClearForRow keeps
+// values and clears null and wide marks).
 type Record struct {
 	schema *encoding.Schema
-	values map[string]float64
-	nulls  map[string]bool
+	layout *recordLayout
 
-	// wide carries typed values for fields whose representation does not
-	// fit in float64. Keyed by field name; absent for plain numeric
-	// fields. Three value shapes live here: encoding.Decimal128 for
-	// decimal128 columns, a plain uint64 bitmask for the narrow set rungs
-	// (set_u8..set_u64, whose storage is deliberately unchanged), and an
-	// encoding.SetMask for the wide rungs (set_u128, set_u256). Read set
-	// fields through SetMaskValue, never by type-asserting this map: the
-	// assertion that fails is indistinguishable from a null field.
-	wide map[string]any
+	// vals is indexed by schema position; len(vals) == len(schema.Fields)
+	// at construction.
+	vals []float64
+	// bits holds three planes of recordWords(len(vals)) words each:
+	// planeHas, planeNull, planeWide. Bit i of a plane is field i.
+	bits []uint64
+
+	// aux carries the sparse parts: wide slots and the off-schema
+	// overflow maps. nil until the first write that needs it.
+	aux *recordAux
 
 	// allValuesCache memoizes the result of AllValues(). It is populated on
 	// the first call and reused on subsequent calls. Callers must not mutate
 	// the returned map; mutations would persist across calls. Cache is
-	// invalidated when the underlying values map changes (see attribute
-	// injection in processor.go).
+	// invalidated by every mutator that is not a reuse-path decode write
+	// (see attribute injection in processor.go).
 	allValuesCache map[string]any
 }
 
-// NewRecord creates a record with the given schema and field values.
-func NewRecord(schema *encoding.Schema, values map[string]float64) *Record {
-	return &Record{
-		schema: schema,
-		values: values,
-		nulls:  make(map[string]bool),
-		wide:   make(map[string]any),
+// recordAux is the sparse side of a Record.
+type recordAux struct {
+	// wide is indexed by recordLayout.wideSlot; presence is planeWide.
+	// Three value shapes live here: encoding.Decimal128 for decimal128
+	// columns, a plain uint64 bitmask for the narrow set rungs
+	// (set_u8..set_u64), and an encoding.SetMask for the wide rungs
+	// (set_u128, set_u256). Read set fields through SetMaskValue, never
+	// by type-asserting: the assertion that fails is indistinguishable
+	// from a null field.
+	wide []any
+
+	// Overflow for names with no schema position (and, for ovWide only,
+	// a wide value written to a schema field whose type has no wide
+	// slot). Same semantics the former per-record maps had.
+	ovVals  map[string]float64
+	ovNulls map[string]bool
+	ovWide  map[string]any
+}
+
+const (
+	planeHas = iota
+	planeNull
+	planeWide
+	planeCount
+)
+
+func recordWords(n int) int { return (n + 63) >> 6 }
+
+// newPositionalRecord allocates an empty positional record bound to
+// schema's shared layout: every field absent, no overflow.
+func newPositionalRecord(schema *encoding.Schema) *Record {
+	return newRecordWithLayout(schema, layoutFor(schema))
+}
+
+func newRecordWithLayout(schema *encoding.Schema, l *recordLayout) *Record {
+	r := &Record{schema: schema, layout: l}
+	if l.n > 0 {
+		r.vals = make([]float64, l.n)
+		r.bits = make([]uint64, planeCount*recordWords(l.n))
 	}
+	return r
+}
+
+// NewRecord creates a record with the given schema and field values.
+//
+// This is the SLOW PATH: the map is converted to positional storage on
+// entry (one name lookup per entry) and is not retained, so mutating it
+// afterwards does not affect the record. Hot paths build an empty record
+// with NewReusableRecord and populate it by position.
+func NewRecord(schema *encoding.Schema, values map[string]float64) *Record {
+	r := newPositionalRecord(schema)
+	r.loadMaps(values, nil, nil)
+	return r
 }
 
 // NewRecordWithNulls creates a record with explicit null tracking.
+// Slow path; see NewRecord. A nulls entry mapped to false is not a null.
 func NewRecordWithNulls(schema *encoding.Schema, values map[string]float64, nulls map[string]bool) *Record {
-	if nulls == nil {
-		nulls = make(map[string]bool)
-	}
-	return &Record{
-		schema: schema,
-		values: values,
-		nulls:  nulls,
-		wide:   make(map[string]any),
-	}
+	r := newPositionalRecord(schema)
+	r.loadMaps(values, nulls, nil)
+	return r
 }
 
 // NewRecordWithWide creates a record with typed wide values for fields
-// that do not fit in float64 (decimal128, set bitmasks).
+// that do not fit in float64 (decimal128, set bitmasks). Slow path; see
+// NewRecord.
 func NewRecordWithWide(schema *encoding.Schema, values map[string]float64, nulls map[string]bool, wide map[string]any) *Record {
-	if nulls == nil {
-		nulls = make(map[string]bool)
+	r := newPositionalRecord(schema)
+	r.loadMaps(values, nulls, wide)
+	return r
+}
+
+// loadMaps converts the map-taking constructors' inputs. The three
+// stores are independent, so the order is immaterial.
+func (r *Record) loadMaps(values map[string]float64, nulls map[string]bool, wide map[string]any) {
+	for k, v := range values {
+		r.putValue(k, v)
 	}
-	if wide == nil {
-		wide = make(map[string]any)
+	for k, isNull := range nulls {
+		if isNull {
+			r.markNull(k)
+		}
 	}
-	return &Record{
-		schema: schema,
-		values: values,
-		nulls:  nulls,
-		wide:   wide,
+	for k, v := range wide {
+		r.putWide(k, v)
 	}
 }
 
-// WideValue returns the typed wide value for the named field, if present.
-// Wide values are populated for decimal128 and set-typed fields; see the
-// wide field's doc comment for the shapes. Set fields have a dedicated
-// accessor — SetMaskValue — and callers should prefer it.
-func (r *Record) WideValue(name string) (any, bool) {
-	if r.nulls[name] {
+// ---- positional primitives -------------------------------------------
+
+func (r *Record) pos(name string) int {
+	if r.layout == nil {
+		return -1
+	}
+	return r.layout.pos(name)
+}
+
+func (r *Record) test(plane, i int) bool {
+	return r.bits[plane*recordWords(len(r.vals))+i>>6]&(1<<uint(i&63)) != 0
+}
+
+func (r *Record) setBit(plane, i int) {
+	r.bits[plane*recordWords(len(r.vals))+i>>6] |= 1 << uint(i&63)
+}
+
+func (r *Record) clearBit(plane, i int) {
+	r.bits[plane*recordWords(len(r.vals))+i>>6] &^= 1 << uint(i&63)
+}
+
+func (r *Record) auxOrNew() *recordAux {
+	if r.aux == nil {
+		r.aux = &recordAux{}
+	}
+	return r.aux
+}
+
+// fieldAt returns the schema field stored in slot i.
+func (r *Record) fieldAt(i int) *encoding.Field {
+	return &r.schema.Fields[r.layout.field(i)]
+}
+
+// wideAt returns the wide value of slot i, wherever it lives.
+func (r *Record) wideAt(i int) (any, bool) {
+	if slot := r.layout.wideSlot[i]; slot >= 0 {
+		if !r.test(planeWide, i) {
+			return nil, false
+		}
+		return r.aux.wide[slot], true
+	}
+	if r.aux == nil || len(r.aux.ovWide) == 0 {
 		return nil, false
 	}
-	v, ok := r.wide[name]
+	v, ok := r.aux.ovWide[r.fieldAt(i).Name]
 	return v, ok
+}
+
+func (r *Record) putWideAt(i int, v any) {
+	if slot := r.layout.wideSlot[i]; slot >= 0 {
+		a := r.auxOrNew()
+		if a.wide == nil {
+			a.wide = make([]any, r.layout.nWide)
+		}
+		a.wide[slot] = v
+		r.setBit(planeWide, i)
+		return
+	}
+	a := r.auxOrNew()
+	if a.ovWide == nil {
+		a.ovWide = make(map[string]any)
+	}
+	a.ovWide[r.fieldAt(i).Name] = v
+}
+
+// ---- name-keyed primitives (the former map operations) ---------------
+
+// getValue is the former `v, ok := r.values[name]`.
+func (r *Record) getValue(name string) (float64, bool) {
+	if i := r.pos(name); i >= 0 {
+		if r.test(planeHas, i) {
+			return r.vals[i], true
+		}
+		return 0, false
+	}
+	if r.aux == nil {
+		return 0, false
+	}
+	v, ok := r.aux.ovVals[name]
+	return v, ok
+}
+
+// putValue is the former `r.values[name] = v`.
+func (r *Record) putValue(name string, v float64) {
+	if i := r.pos(name); i >= 0 {
+		r.vals[i] = v
+		r.setBit(planeHas, i)
+		return
+	}
+	a := r.auxOrNew()
+	if a.ovVals == nil {
+		a.ovVals = make(map[string]float64)
+	}
+	a.ovVals[name] = v
+}
+
+// dropValue is the former `delete(r.values, name)`.
+func (r *Record) dropValue(name string) {
+	if i := r.pos(name); i >= 0 {
+		r.vals[i] = 0
+		r.clearBit(planeHas, i)
+		return
+	}
+	if r.aux != nil {
+		delete(r.aux.ovVals, name)
+	}
+}
+
+// nullMarked is the former `r.nulls[name]`.
+func (r *Record) nullMarked(name string) bool {
+	if i := r.pos(name); i >= 0 {
+		return r.test(planeNull, i)
+	}
+	return r.aux != nil && r.aux.ovNulls[name]
+}
+
+// markNull is the former `r.nulls[name] = true`.
+func (r *Record) markNull(name string) {
+	if i := r.pos(name); i >= 0 {
+		r.setBit(planeNull, i)
+		return
+	}
+	a := r.auxOrNew()
+	if a.ovNulls == nil {
+		a.ovNulls = make(map[string]bool)
+	}
+	a.ovNulls[name] = true
+}
+
+// unmarkNull is the former `delete(r.nulls, name)`.
+func (r *Record) unmarkNull(name string) {
+	if i := r.pos(name); i >= 0 {
+		r.clearBit(planeNull, i)
+		return
+	}
+	if r.aux != nil {
+		delete(r.aux.ovNulls, name)
+	}
+}
+
+// getWide is the former `v, ok := r.wide[name]`.
+func (r *Record) getWide(name string) (any, bool) {
+	if i := r.pos(name); i >= 0 {
+		return r.wideAt(i)
+	}
+	if r.aux == nil {
+		return nil, false
+	}
+	v, ok := r.aux.ovWide[name]
+	return v, ok
+}
+
+// putWide is the former `r.wide[name] = v`.
+func (r *Record) putWide(name string, v any) {
+	if i := r.pos(name); i >= 0 {
+		r.putWideAt(i, v)
+		return
+	}
+	a := r.auxOrNew()
+	if a.ovWide == nil {
+		a.ovWide = make(map[string]any)
+	}
+	a.ovWide[name] = v
+}
+
+// rawValue returns the stored numeric value with none of NumericValue's
+// guards (no null check, no set refusal) — the former direct
+// `r.values[name]` read. For in-package callers that reason about the
+// raw echo themselves (join keys).
+func (r *Record) rawValue(name string) (float64, bool) {
+	return r.getValue(name)
+}
+
+// injectValue writes a value without touching the null mark and
+// invalidates the AllValues cache — the former
+// `r.values[label] = v; r.invalidateAllValuesCache()` attribute
+// injection in processor.go.
+func (r *Record) injectValue(name string, v float64) {
+	r.putValue(name, v)
+	r.invalidateAllValuesCache()
+}
+
+// ---- public accessors -------------------------------------------------
+
+// WideValue returns the typed wide value for the named field, if present.
+// Wide values are populated for decimal128 and set-typed fields; see
+// recordAux.wide for the shapes. Set fields have a dedicated
+// accessor — SetMaskValue — and callers should prefer it.
+func (r *Record) WideValue(name string) (any, bool) {
+	if r.nullMarked(name) {
+		return nil, false
+	}
+	return r.getWide(name)
 }
 
 // SetWide assigns a typed wide value to a field. Used by readers and
 // feature operators that produce non-float values (decimal128, set
 // bitmasks).
 func (r *Record) SetWide(name string, v any) {
-	if r.wide == nil {
-		r.wide = make(map[string]any)
-	}
-	r.wide[name] = v
-	if r.nulls[name] {
-		delete(r.nulls, name)
-	}
+	r.putWide(name, v)
+	r.unmarkNull(name)
 	r.invalidateAllValuesCache()
 }
 
@@ -100,7 +364,7 @@ func (r *Record) SetWide(name string, v any) {
 //
 // A SET-TYPED FIELD IS NEVER NUMERIC HERE and always reports false,
 // even though the decoder does write a float64 echo of the mask into
-// the values map. The echo is not a number the caller can use: from
+// the record. The echo is not a number the caller can use: from
 // set_u64 upward it loses bits to float64's 53-bit mantissa, and for a
 // wide rung (set_u128 / set_u256) it is only the LOW 64 BITS of the
 // mask. Both failures are silent — a set of 206 members read through
@@ -110,31 +374,47 @@ func (r *Record) SetWide(name string, v any) {
 // number here?") with no, exactly as StringValue already answers for a
 // non-categorical field. Read set fields through SetMaskValue.
 //
-// The guard costs nothing on the common path: a record with no wide
-// fields skips the map probe entirely, and a decimal128 wide value
-// still returns its float echo because setMaskFromWideValue rejects it.
+// The refusal keys off the stored wide VALUE, not the schema type: a
+// decimal128 wide value still returns its float echo because
+// setMaskFromWideValue rejects it. The guard costs one bit test on the
+// common path.
 func (r *Record) NumericValue(name string) (float64, bool) {
-	if r.nulls[name] {
-		return 0, false
-	}
-	if len(r.wide) > 0 {
-		if wv, present := r.wide[name]; present {
+	if i := r.pos(name); i >= 0 {
+		if r.test(planeNull, i) {
+			return 0, false
+		}
+		if wv, present := r.wideAt(i); present {
 			if _, isSet := setMaskFromWideValue(wv); isSet {
 				return 0, false
 			}
 		}
+		if r.test(planeHas, i) {
+			return r.vals[i], true
+		}
+		return 0, false
 	}
-	v, ok := r.values[name]
+	if r.aux == nil {
+		return 0, false
+	}
+	if r.aux.ovNulls[name] {
+		return 0, false
+	}
+	if wv, present := r.aux.ovWide[name]; present {
+		if _, isSet := setMaskFromWideValue(wv); isSet {
+			return 0, false
+		}
+	}
+	v, ok := r.aux.ovVals[name]
 	return v, ok
 }
 
 // IsNull reports whether the named field is null on this record. A field
 // is null when explicitly marked via SetNull / SetNullField (the on-wire
-// bitmap signal during decode), or when the field is absent from both
-// the values map and the wide map. Used by the orchestrator's filter
-// pass to track the n_null_input universal-floor counter per
-// FiltererComponents slot without coupling each filterer to a particular
-// null-detection path.
+// bitmap signal during decode), or when the field carries neither a
+// value nor a wide value. Used by the orchestrator's filter pass to
+// track the n_null_input universal-floor counter per FiltererComponents
+// slot without coupling each filterer to a particular null-detection
+// path.
 //
 // FILTER_EXPRESSION carries no Field and callers MUST skip the IsNull
 // check for that filterer kind — expression filters do not have a
@@ -143,21 +423,19 @@ func (r *Record) IsNull(name string) bool {
 	if name == "" {
 		return false
 	}
-	if r.nulls[name] {
+	if r.nullMarked(name) {
 		return true
 	}
-	if _, ok := r.values[name]; ok {
+	if _, ok := r.getValue(name); ok {
 		return false
 	}
-	if r.wide != nil {
-		if _, ok := r.wide[name]; ok {
-			return false
-		}
+	if _, ok := r.getWide(name); ok {
+		return false
 	}
 	return true
 }
 
-// setMaskFromWideValue lifts a value out of the wide map into the shared
+// setMaskFromWideValue lifts a stored wide value into the shared
 // SetMask type. Narrow rungs (set_u8..set_u64) store a plain uint64 so
 // per-record memory for existing cohorts does not grow; the wide rungs
 // (set_u128, set_u256) store an encoding.SetMask directly. Anything else
@@ -178,8 +456,8 @@ func setMaskFromWideValue(v any) (encoding.SetMask, bool) {
 // when dictionary entry i is selected. Returns (zero mask, false) when
 // the field is null, missing, or does not carry a set value.
 //
-// Narrow storage is unchanged: a narrow rung still holds a uint64 in the
-// wide map, and SetMaskValue widens it on read through
+// Narrow storage is unchanged: a narrow rung still holds a uint64 wide
+// value, and SetMaskValue widens it on read through
 // encoding.SetMaskFromUint64 — register work that allocates nothing.
 // Wide rungs are returned as stored. encoding.SetMask is a fixed-array
 // VALUE with no aliasing, so the returned mask is safe to retain past
@@ -198,13 +476,10 @@ func setMaskFromWideValue(v any) (encoding.SetMask, bool) {
 // Callers that need exact-bit semantics MUST NOT read set fields via
 // NumericValue: the float64 echo loses high bits from set_u64 upward.
 func (r *Record) SetMaskValue(name string) (encoding.SetMask, bool) {
-	if r.nulls[name] {
+	if r.nullMarked(name) {
 		return encoding.SetMask{}, false
 	}
-	if r.wide == nil {
-		return encoding.SetMask{}, false
-	}
-	v, ok := r.wide[name]
+	v, ok := r.getWide(name)
 	if !ok {
 		return encoding.SetMask{}, false
 	}
@@ -238,24 +513,42 @@ func (r *Record) SetLabels(name string) ([]string, bool) {
 // StringValue returns the resolved string value for categorical fields.
 // For non-categorical fields, returns the empty string and false.
 func (r *Record) StringValue(name string) (string, bool) {
-	if r.nulls[name] {
+	i := r.pos(name)
+	if i < 0 {
+		return r.stringValueOverflow(name)
+	}
+	if r.test(planeNull, i) {
 		return "", false
 	}
-
-	f := r.schema.Field(name)
-	if f == nil {
-		return "", false
-	}
-
+	f := r.fieldAt(i)
 	if !f.Type.IsCategorical() || f.Dictionary == nil {
 		return "", false
 	}
+	if !r.test(planeHas, i) {
+		return "", false
+	}
+	resolved := f.Dictionary.Resolve(uint32(r.vals[i]))
+	if resolved == "" {
+		return "", false
+	}
+	return resolved, true
+}
 
-	v, ok := r.values[name]
+// stringValueOverflow is StringValue for a name with no slot. Such a
+// name can still be a schema field (one outside a projection written by
+// name), so the schema is consulted exactly as the map-backed form did.
+func (r *Record) stringValueOverflow(name string) (string, bool) {
+	if r.aux == nil || r.aux.ovNulls[name] || r.schema == nil {
+		return "", false
+	}
+	f := r.schema.Field(name)
+	if f == nil || !f.Type.IsCategorical() || f.Dictionary == nil {
+		return "", false
+	}
+	v, ok := r.aux.ovVals[name]
 	if !ok {
 		return "", false
 	}
-
 	resolved := f.Dictionary.Resolve(uint32(v))
 	if resolved == "" {
 		return "", false
@@ -271,45 +564,105 @@ func (r *Record) Schema() *encoding.Schema {
 // AllValues returns all field values as a map (for expression evaluation).
 //
 // The returned map is cached on the Record after the first call and reused on
-// subsequent calls; callers MUST NOT mutate it. If a caller mutates the
-// underlying values map directly (e.g., the processor injecting computed
-// attributes), it must call invalidateAllValuesCache to discard the cache.
+// subsequent calls; callers MUST NOT mutate it. Every non-reuse mutator
+// (Set, SetNull, SetWide, attribute injection) discards the cache; the
+// reuse-path decode writes rely on ClearForRow discarding it once per row.
+//
+// Content: every non-null field carrying a value (categoricals resolved
+// to their dictionary label), then every non-null field carrying a wide
+// value (set fields as their label slice), the wide entry winning where
+// a field has both.
 func (r *Record) AllValues() map[string]any {
 	if r.allValuesCache != nil {
 		return r.allValuesCache
 	}
-	out := make(map[string]any, len(r.values)+len(r.wide))
-	for k, v := range r.values {
-		if r.nulls[k] {
+	out := make(map[string]any, r.valueCountHint())
+	for i := range r.vals {
+		if !r.test(planeHas, i) || r.test(planeNull, i) {
 			continue
 		}
-		f := r.schema.Field(k)
-		if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
-			out[k] = f.Dictionary.Resolve(uint32(v))
+		f := r.fieldAt(i)
+		v := r.vals[i]
+		if f.Type.IsCategorical() && f.Dictionary != nil {
+			out[f.Name] = f.Dictionary.Resolve(uint32(v))
 		} else {
-			out[k] = v
+			out[f.Name] = v
 		}
 	}
-	for k, v := range r.wide {
-		if r.nulls[k] {
-			continue
-		}
-		f := r.schema.Field(k)
-		if f != nil && f.Type.IsSet() && f.Dictionary != nil {
-			if mask, ok := setMaskFromWideValue(v); ok {
-				out[k] = mask.Labels(f.Dictionary)
+	if r.aux != nil {
+		for k, v := range r.aux.ovVals {
+			if r.aux.ovNulls[k] {
 				continue
 			}
+			// An overflow name can be a schema field outside a
+			// projection; resolve it exactly as the map-backed form did.
+			var f *encoding.Field
+			if r.schema != nil {
+				f = r.schema.Field(k)
+			}
+			if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
+				out[k] = f.Dictionary.Resolve(uint32(v))
+			} else {
+				out[k] = v
+			}
 		}
-		out[k] = v
+	}
+	for i := range r.vals {
+		if r.layout.wideSlot[i] < 0 || !r.test(planeWide, i) || r.test(planeNull, i) {
+			continue
+		}
+		f := r.fieldAt(i)
+		out[f.Name] = allValuesWide(f, r.aux.wide[r.layout.wideSlot[i]])
+	}
+	if r.aux != nil {
+		for k, v := range r.aux.ovWide {
+			if r.nullMarked(k) {
+				continue
+			}
+			var f *encoding.Field
+			if r.schema != nil {
+				f = r.schema.Field(k)
+			}
+			out[k] = allValuesWide(f, v)
+		}
 	}
 	r.allValuesCache = out
 	return out
 }
 
+// allValuesWide renders one wide value for AllValues: a set field with a
+// dictionary becomes its label slice, anything else passes through.
+func allValuesWide(f *encoding.Field, v any) any {
+	if f != nil && f.Type.IsSet() && f.Dictionary != nil {
+		if mask, ok := setMaskFromWideValue(v); ok {
+			return mask.Labels(f.Dictionary)
+		}
+	}
+	return v
+}
+
+// valueCountHint sizes the AllValues map: present values plus wide
+// values, the same hint the map-backed form used.
+func (r *Record) valueCountHint() int {
+	n := 0
+	if len(r.vals) > 0 {
+		w := recordWords(len(r.vals))
+		for _, word := range r.bits[planeHas*w : planeHas*w+w] {
+			n += bits.OnesCount64(word)
+		}
+		for _, word := range r.bits[planeWide*w : planeWide*w+w] {
+			n += bits.OnesCount64(word)
+		}
+	}
+	if r.aux != nil {
+		n += len(r.aux.ovVals) + len(r.aux.ovWide)
+	}
+	return n
+}
+
 // invalidateAllValuesCache discards the cached result of AllValues. Call this
-// after directly mutating the Record's values map so the next AllValues call
-// reflects the new state.
+// after mutating the Record outside the public mutators so the next
+// AllValues call reflects the new state.
 func (r *Record) invalidateAllValuesCache() {
 	r.allValuesCache = nil
 }
@@ -320,18 +673,17 @@ func (r *Record) invalidateAllValuesCache() {
 // stream so downstream stages (filters, attributes, groupers, aggregators)
 // can reference them by label.
 func (r *Record) Set(name string, value float64) {
-	r.values[name] = value
-	if r.nulls[name] {
-		delete(r.nulls, name)
-	}
+	r.putValue(name, value)
+	r.unmarkNull(name)
 	r.invalidateAllValuesCache()
 }
 
-// SetNull marks the named field as null. Used by feature operators to
-// propagate input nulls into the derived column.
+// SetNull marks the named field as null and drops its value (a wide
+// value, if any, is left in place and masked by the null mark). Used by
+// feature operators to propagate input nulls into the derived column.
 func (r *Record) SetNull(name string) {
-	r.nulls[name] = true
-	delete(r.values, name)
+	r.markNull(name)
+	r.dropValue(name)
 	r.invalidateAllValuesCache()
 }
 
@@ -340,14 +692,14 @@ func (r *Record) SetNull(name string) {
 // Intended only for the streaming reuse path that calls ClearForRow before
 // each row.
 func (r *Record) SetNumeric(name string, value float64) {
-	r.values[name] = value
+	r.putValue(name, value)
 }
 
 // SetNullField implements encoding.ReusableRecord. Marks a field as null
 // in the reuse path; does not invalidate the AllValues cache (reuse path
 // resets the cache once per row via ClearForRow).
 func (r *Record) SetNullField(name string) {
-	r.nulls[name] = true
+	r.markNull(name)
 }
 
 // SetWideField implements encoding.ReusableRecord. Stores a typed wide
@@ -355,10 +707,7 @@ func (r *Record) SetNullField(name string) {
 // encoding.SetMask for the wide ones) without invalidating the
 // AllValues cache.
 func (r *Record) SetWideField(name string, v any) {
-	if r.wide == nil {
-		r.wide = make(map[string]any)
-	}
-	r.wide[name] = v
+	r.putWide(name, v)
 }
 
 // Compile-time proof that *Record satisfies both reuse-decoder contracts.
@@ -370,57 +719,141 @@ var (
 	_ encoding.IndexedReusableRecord = (*Record)(nil)
 )
 
-// SetNumericAt implements encoding.IndexedReusableRecord. idx is the
-// field's position in the record's schema — the decoder's schema-walk
-// counter — and must index r.schema.Fields. Today the value lands in the
-// name-keyed values map (resolved by a direct slice index, no lookup);
-// positional storage behind this method is the follow-on change. Same
-// no-invalidation contract as SetNumeric.
+// SetNumericAt implements encoding.IndexedReusableRecord: a slice store
+// plus one presence bit, no name, no hash (a projected layout adds one
+// position → slot load; a position outside the projection falls back to
+// the overflow side by name). idx is the field's position
+// in the READER's schema — the decoder's schema-walk counter — and it
+// indexes this record's positional storage directly, so the record MUST
+// have been built over that same schema or a structurally identical one
+// (same field order). Every in-tree reuse site builds both from one
+// schema (service/stream.go, service/shard_iter.go,
+// service/parallel_decode.go); an idx past the record's schema panics
+// rather than landing on the wrong field.
+// Same no-invalidation contract as SetNumeric.
 func (r *Record) SetNumericAt(idx int, value float64) {
-	r.values[r.schema.Fields[idx].Name] = value
+	if s := r.layout.slot(idx); s >= 0 {
+		r.vals[s] = value
+		r.setBit(planeHas, s)
+		return
+	}
+	r.putValue(r.schema.Fields[idx].Name, value)
 }
 
 // SetNullFieldAt implements encoding.IndexedReusableRecord; the
 // positional twin of SetNullField.
 func (r *Record) SetNullFieldAt(idx int) {
-	r.nulls[r.schema.Fields[idx].Name] = true
+	if s := r.layout.slot(idx); s >= 0 {
+		r.setBit(planeNull, s)
+		return
+	}
+	r.markNull(r.schema.Fields[idx].Name)
 }
 
 // SetWideFieldAt implements encoding.IndexedReusableRecord; the
 // positional twin of SetWideField.
 func (r *Record) SetWideFieldAt(idx int, v any) {
-	if r.wide == nil {
-		r.wide = make(map[string]any)
+	if s := r.layout.slot(idx); s >= 0 {
+		r.putWideAt(s, v)
+		return
 	}
-	r.wide[r.schema.Fields[idx].Name] = v
+	r.putWide(r.schema.Fields[idx].Name, v)
 }
 
 // ClearForRow implements encoding.ReusableRecord. Resets per-row state
 // so the next ReadRecordReused call starts from a clean slate while
-// keeping the underlying maps allocated.
+// keeping the underlying storage allocated.
 //
-// values is left intact because every field is overwritten on every row.
-// nulls and wide are cleared because their entries are sparse.
+// Values (and their presence bits) are left intact because every
+// retained field is overwritten on every row. The null and wide
+// presence planes are cleared — two short word-slice clears — as are
+// the overflow null and wide maps. Stale wide slot contents are left in
+// place: the cleared presence bit already hides them, and the next
+// decode overwrites them.
 func (r *Record) ClearForRow() {
-	if len(r.nulls) > 0 {
-		clear(r.nulls)
+	if len(r.vals) > 0 {
+		w := recordWords(len(r.vals))
+		clear(r.bits[planeNull*w : planeCount*w])
 	}
-	if len(r.wide) > 0 {
-		clear(r.wide)
+	if r.aux != nil {
+		if len(r.aux.ovNulls) > 0 {
+			clear(r.aux.ovNulls)
+		}
+		if len(r.aux.ovWide) > 0 {
+			clear(r.aux.ovWide)
+		}
 	}
 	r.allValuesCache = nil
 }
 
-// NewReusableRecord constructs a Record whose internal maps are sized
-// for the given schema and intended to be reused across many
-// ReadRecordReused calls. Returns a Record that callers must NOT retain
-// past the next iteration step.
+// NewReusableRecord constructs an empty positional Record over schema.
+// It is the record the reuse decoders populate in place across many
+// ReadRecordReused calls — a caller doing so must NOT retain it past
+// the next iteration step — and it is also the cheapest FRESH record:
+// the buffered iterators build one per row and decode into it by
+// position, with no map at all.
 func NewReusableRecord(schema *encoding.Schema) *Record {
-	return &Record{
-		schema: schema,
-		values: make(map[string]float64, len(schema.Fields)),
-		nulls:  make(map[string]bool),
-		wide:   make(map[string]any),
+	return newPositionalRecord(schema)
+}
+
+// copyStateInto copies every value, null mark and wide value r holds
+// into dst, renaming each name through rename. When positional is true
+// the caller guarantees that r's schema field i is dst's schema field
+// offset+i (true for a HashJoinIterator side whose record was built
+// over the schema JoinedSchema was derived from), so schema fields copy
+// by position with no name lookup; otherwise every name resolves
+// through dst's layout. Overflow entries always take the name path.
+func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset int, positional bool) {
+	// The positional shortcut needs slot == schema position on both
+	// sides; a projected layout on either side takes the name path.
+	positional = positional && r.layout.fieldOf == nil && dst.layout.slotOf == nil
+	for i := range r.vals {
+		hasV := r.test(planeHas, i)
+		isNull := r.test(planeNull, i)
+		wv, hasW := r.wideAt(i)
+		if !hasV && !isNull && !hasW {
+			continue
+		}
+		j := offset + i
+		if !positional {
+			j = dst.pos(rename(r.fieldAt(i).Name))
+		}
+		if j >= 0 {
+			if hasV {
+				dst.SetNumericAt(j, r.vals[i])
+			}
+			if isNull {
+				dst.SetNullFieldAt(j)
+			}
+			if hasW {
+				dst.putWideAt(j, wv)
+			}
+			continue
+		}
+		name := rename(r.fieldAt(i).Name)
+		if hasV {
+			dst.putValue(name, r.vals[i])
+		}
+		if isNull {
+			dst.markNull(name)
+		}
+		if hasW {
+			dst.putWide(name, wv)
+		}
+	}
+	if r.aux == nil {
+		return
+	}
+	for k, v := range r.aux.ovVals {
+		dst.putValue(rename(k), v)
+	}
+	for k, isNull := range r.aux.ovNulls {
+		if isNull {
+			dst.markNull(rename(k))
+		}
+	}
+	for k, v := range r.aux.ovWide {
+		dst.putWide(rename(k), v)
 	}
 }
 

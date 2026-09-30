@@ -75,19 +75,7 @@ func encodeIndexedRows(t *testing.T, schema *encoding.Schema, n int) []byte {
 }
 
 func snapshotRecord(r *Record) (map[string]float64, map[string]bool, map[string]any) {
-	v := make(map[string]float64, len(r.values))
-	for k, x := range r.values {
-		v[k] = x
-	}
-	nl := make(map[string]bool, len(r.nulls))
-	for k, x := range r.nulls {
-		nl[k] = x
-	}
-	w := make(map[string]any, len(r.wide))
-	for k, x := range r.wide {
-		w[k] = x
-	}
-	return v, nl, w
+	return recordMaps(r)
 }
 
 // TestRecord_IndexedReusePathMatchesNameKeyed drives a reused *Record

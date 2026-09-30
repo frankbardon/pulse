@@ -53,6 +53,10 @@ type shardIter struct {
 	reuse     bool
 	reusedRec *processing.Record
 
+	// binding mints the buffered path's fresh per-row Records (see
+	// streamingIterator.binding).
+	binding *processing.RecordBinding
+
 	// project / projectSize: optional field-keep filter. Bytes for
 	// excluded fields are still consumed from the reader so byte
 	// offsets stay aligned; only map writes are skipped. nil means
@@ -196,21 +200,34 @@ func (it *shardIter) Next() bool {
 			return true
 		}
 
-		mapHint := len(it.schema.Fields)
-		if it.project != nil && it.projectSize > 0 {
-			mapHint = it.projectSize
-		}
-		values := make(map[string]float64, mapHint)
-		nulls := make(map[string]bool)
-		wide := make(map[string]any)
+		// Buffered path: a FRESH positional Record per row, decoded by
+		// schema position (see streamingIterator.Next). The shard's
+		// reader is built over it.schema, the same schema as the record.
+		var rec *processing.Record
 		var err error
 		switch {
 		case it.plan != nil:
-			err = it.reader.ReadRecordWithWidePlan(values, nulls, wide, it.project, it.plan)
+			if it.binding == nil {
+				it.binding = recordBindingFor(it.schema, it.plan, it.project)
+			}
+			rec = it.binding.NewRecord()
+			err = it.reader.ReadRecordReusedWithPlan(rec, it.project, it.plan)
 		case it.project != nil:
+			// Defensive: projection without a plan. Map decode,
+			// converted on construction.
+			values := make(map[string]float64, it.projectSize)
+			nulls := make(map[string]bool)
+			wide := make(map[string]any)
 			err = it.reader.ReadRecordWithWideProjected(values, nulls, wide, it.project)
+			if err == nil {
+				rec = processing.NewRecordWithWide(it.schema, values, nulls, wide)
+			}
 		default:
-			err = it.reader.ReadRecordWithWide(values, nulls, wide)
+			if it.binding == nil {
+				it.binding = recordBindingFor(it.schema, it.plan, it.project)
+			}
+			rec = it.binding.NewRecord()
+			err = it.reader.ReadRecordReused(rec)
 		}
 		if err == io.EOF {
 			it.reader = nil
@@ -222,7 +239,7 @@ func (it *shardIter) Next() bool {
 			it.done = true
 			return false
 		}
-		it.current = processing.NewRecordWithWide(it.schema, values, nulls, wide)
+		it.current = rec
 		return true
 	}
 }
@@ -258,6 +275,7 @@ func (it *shardIter) SetReuse(reuse bool) {
 func (it *shardIter) SetProjection(keep encoding.FieldFilter, size int) {
 	it.project = keep
 	it.projectSize = size
+	it.binding = nil
 	if keep == nil {
 		it.plan = nil
 		it.planKey = ""

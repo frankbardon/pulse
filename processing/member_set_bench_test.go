@@ -119,7 +119,7 @@ func BenchmarkMemberSet_BuildPredicate_Bitset(b *testing.B) {
 	rec := NewRecord(schema, map[string]float64{"k": 0})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rec.values["k"] = float64(i & 1023)
+		rec.SetNumeric("k", float64(i&1023))
 		_, _ = fn(rec)
 	}
 }
@@ -139,7 +139,7 @@ func BenchmarkMemberSet_BuildPredicate_Uint64(b *testing.B) {
 	rec := NewRecord(schema, map[string]float64{"k": 0})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rec.values["k"] = float64(uint64(i) & 1023)
+		rec.SetNumeric("k", float64(uint64(i)&1023))
 		_, _ = fn(rec)
 	}
 }
