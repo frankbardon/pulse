@@ -1117,12 +1117,26 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"Options.MaxPanelTargets is the per-request override surface. Degenerate inputs (pooled ∈ {0, 1}, missing row " +
 				"margin) produce NaN at the affected pair position with one PULSE_OVERLAY_REF_ZERO warning per (cell, pair) " +
 				"tuple. Cells where any slot is absent surface an empty per-cell vector with one PULSE_OVERLAY_REF_ZERO " +
-				"warning carrying ref_missing: true. Params: the slot decodes into types.PanelOverlayParams, which carries " +
-				"no configuration fields today — absent params and {} are identical, unknown keys are tolerated, and a blob " +
-				"that does not decode fires PULSE_OVERLAY_PARAM_MISSING at descriptor.ValidateCompose (ComposedRequest.Overlays " +
-				"is the only slot this kind executes from). MaxPanelTargets is an Options knob, never a param, and its cap " +
-				"refusal fires before the params check. Inherently buffered — inferential overlays stay buffered as a family " +
-				"per PRD §2 Non-Goals.",
+				"warning carrying ref_missing: true. Params: the slot decodes into types.PanelOverlayParams — absent params " +
+				"and {} are identical to the pre-params baseline, unknown keys are tolerated, and a blob that does not decode " +
+				"fires PULSE_OVERLAY_PARAM_MISSING at descriptor.ValidateCompose (ComposedRequest.Overlays is the only slot " +
+				"this kind executes from). n_source selects where each SLOT's sample-size leg is read, once per slot at the " +
+				"tested coordinate, before any pairing — \"row\" therefore names each slot's own axis, never a pair axis. Two " +
+				"modes: row_margin_value (the default; empty means this) reads the slot's row-margin VALUE off the " +
+				"MatrixPayload by row key and keeps the historical <= 0 fall back to the CELL VALUE; cell_n_unweighted reads " +
+				"the COUNTED universal-floor \"n\" out of Response.Components.Crosstab.CellComponents[r][c] on every slot, " +
+				"resolved BY KEY (slots share a key SET, not an ORDER), with NO cell-value fallback — an unreadable leg skips " +
+				"the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index. The " +
+				"components requirement is MODE-SCOPED: only a counted mode gates, so the legacy default never starts " +
+				"refusing. A slot with components disabled, or whose response is not a crosstab, fires " +
+				"PULSE_OVERLAY_COMPONENTS_REQUIRED; an unresolved slot keeps the structural PULSE_OVERLAY_SLOT_NOT_CROSSTAB. " +
+				"row_margin_n is the OVERLAY_PAIRWISE_* family's mode name and is NOT accepted here, not even as an alias: " +
+				"that family reads CrosstabComponents.RowMarginCounts (a record COUNT) while this host reads a payload margin " +
+				"VALUE that a percentage normalization makes no count at all, so it is refused as an unknown mode. Any " +
+				"unknown n_source fires PULSE_OVERLAY_PARAM_MISSING naming the value and the valid set " +
+				"(types.PanelNSources()), on the predict arm AND the runtime twin, because pulse.Compose does not run " +
+				"predict. MaxPanelTargets is an Options knob, never a param, and its cap refusal fires before both params " +
+				"checks. Inherently buffered — inferential overlays stay buffered as a family per PRD §2 Non-Goals.",
 		}
 	case types.OverlayKindRank:
 		return OverlayCapability{

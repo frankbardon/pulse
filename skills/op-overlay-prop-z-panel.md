@@ -9,30 +9,33 @@ applies_to: compose
 examples_tags: [overlay, compose, hypothesis-test, proportion-analysis]
 ---
 
-Compose-only multi-reference; no `Response.Components`.
+Compose-only multi-reference. Buffered.
 
 ## Params
 
-`Scope` required, must be `cell`. `Reference` = panel index 0; `Targets` = panel indices 1..N. `OverlayOptions.MaxPanelTargets` int, default `16`, caps `len(Targets)` — an `Options` knob, never a param.
+`Scope` = `cell`. `Reference` = panel 0, `Targets` = 1..N. `MaxPanelTargets` (`OverlayOptions`, default 16) caps `len(Targets)` and refuses FIRST (`PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`) — an `Options` knob, never a param.
 
-`Params` decodes to `PanelOverlayParams`: no fields yet, so absent and `{}` are identical. Malformed → `PULSE_OVERLAY_PARAM_MISSING` at `ValidateCompose`.
+`Params` → `PanelOverlayParams`; absent, `{}` and the explicit default stay byte-identical to the pre-params baseline. `n_source` picks each SLOT's n at the tested coordinate ("row" = that slot's own axis, never a pair axis):
+
+- `row_margin_value` (default) — the row-margin VALUE off the payload; keeps the legacy `<= 0` fall back to the cell value.
+- `cell_n_unweighted` — counted `n` from the slot's `Components.Crosstab`, BY KEY. No fallback; unreadable ⇒ skip the cell.
+
+`row_margin_n` is the `OVERLAY_PAIRWISE_*` spelling (a record COUNT — different carrier) and is NOT an alias: unknown here, so `PULSE_OVERLAY_PARAM_MISSING` at `ValidateCompose` AND at runtime, as for any bad mode.
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on every slot. Panel order `{Reference, Targets[0..N-1]}`.
+COMPOSE — MATRIX crosstab per slot, order `{Reference, Targets…}`. `cell_n_unweighted` needs components on EVERY slot: disabled / non-crosstab ⇒ `PULSE_OVERLAY_COMPONENTS_REQUIRED`, unresolved ⇒ `PULSE_OVERLAY_SLOT_NOT_CROSSTAB`. Mode-scoped — the default never gates.
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular pairwise p-values (row-major, no diagonal), length `M(M-1)/2`, `M = N+1`. Pair index `i*(2*M-i-1)/2 + (j-i-1)`. `Baseline` unset.
+MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-major, no diagonal), length `M(M-1)/2`, `M = N+1`. Pair index `i*(2*M-i-1)/2 + (j-i-1)`. `Baseline` unset.
 
 ## Gotchas
 
-- Pairwise byte-equal to `OVERLAY_PROP_Z_CELL` (shared `twoProportionZ`).
-- `len(Targets) > MaxPanelTargets` → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
-- Missing row margin → cell value as n. Degenerate `(pooled ∈ {0,1}, se == 0)` → NaN at the pair + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
-- Reference value absent → nil slice + ONE `PULSE_OVERLAY_REF_ZERO`, `ref_missing=true`.
-- Buffered.
+- Pairs byte-equal `OVERLAY_PROP_Z_CELL` (shared `twoProportionZ`).
+- Degenerate `(pooled ∈ {0,1}, se == 0)` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
+- Absent value → nil slice + `REF_ZERO` `ref_missing`; an unreadable counted n adds `n_missing` + `slot_index`.
 
 ## See
 
-- Skills: `overlay-system`, `compose-requests`, `op-overlay-prop-z-cell`.
+- Skills: `overlay-system`, `pairwise-n-sources`, `compose-requests`, `op-overlay-prop-z-cell`.
