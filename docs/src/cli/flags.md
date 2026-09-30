@@ -217,7 +217,12 @@ elided fields are printed, and reported as `ElidedConstants` under
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
 `import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict`. Repeatable — one parent group per flag.
+`import spss`, `import predict`, `import auto`. Repeatable — one parent
+group per flag. On `import auto` the group is judged at the default
+ratio floor and its findings are always warnings (`--json` puts them in
+`warnings`, the per-group figures under `data.groups`); the floor and
+`--strict` stay on the per-format leaves, since neither changes the
+bytes written.
 On `import predict` the declaration is evaluated, not applied: see
 [`--suggest-groups`](#--suggest-groups).
 
@@ -341,8 +346,9 @@ width). Declared members are never constant-elided, so `--group`
 composes with `--elide-constants`. Field names containing `,` or `:`
 cannot be declared here; use `io.ImportJob.Groups`. The output is a
 format `0x02` cohort that binaries predating `0x02` cannot open; with no
-`--group` the import is unchanged. `pulse_import` (MCP) and managed
-imports do not take groups. See
+`--group` the import is unchanged. `pulse_import` (MCP) takes the same
+declarations as structured `groups: [{key, members}]` entries, plus
+`suggest_groups` to return measured candidates in the same shape. See
 [parent groups](../format/parent-groups.md).
 
 ## Command index
@@ -387,7 +393,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse export spss` | Export `.pulse` to SPSS `.sav` | [export spss](export-spss.md) |
 | `pulse export tsv` | Export `.pulse` to TSV | `--help` |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

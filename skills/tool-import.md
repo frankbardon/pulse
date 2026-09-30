@@ -21,10 +21,12 @@ External data into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel
 | `sheet` | Excel sheet name; inert elsewhere |
 | `charset` | SPSS-only decode override (`windows-1252`/`cp1252`/`1252` fold); empty keeps the file's declaration |
 | `overwrite` | default `false` → `PULSE_IMPORT_HANDLE_EXISTS` |
+| `groups` | parent groups, `[{key: [...], members: [...]}]` (omit `key` for a plain tuple group); unknown entry key → `PULSE_GROUP_DECLARATION_INVALID` |
+| `suggest_groups` | also return measured `group_candidates`; one extra full pass, declares nothing |
 
 ## Output
 
-`descriptor.Envelope` over `handle`, `managed_path`, `format`, `row_count`, `expires_at`, `managed`, plus `promoted_fields` and `source_warnings` (coded source-parse diagnostics, `PULSE_SPSS_*` today) — both omitted when empty. Description >1000 bytes → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`; low-quality → `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (error under `--strict`).
+`descriptor.Envelope` over `handle`, `managed_path`, `format`, `row_count`, `expires_at`, `managed`, plus `promoted_fields` and `source_warnings` (coded source-parse diagnostics, `PULSE_SPSS_*` today), `groups` (per-group verdict, ratio, resident dictionary bytes, byte delta), `group_warnings` (coded `{code, message, details}`) and `group_candidates` — all omitted when empty. Description >1000 bytes → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`; low-quality → `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (error under `--strict`).
 
 ## Gotchas
 
@@ -35,7 +37,7 @@ External data into Pulse — CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel
 - **A blank categorical cell is not always a null.** `ndjson` / `jsonarray` / `arrow` / `parquet` carry the source's own null channel, so JSON `""` (or a set validity bit) imports as an empty-string VALUE and only `null` imports as null. `csv` / `tsv` / `excel` have one spelling for both and import a blank as NULL — a documented gap, and the collapse always goes toward null. A blank in a numeric / date column is a null on every format.
 - Nullability is inferred from the first N rows. A later null promotes the field (`promoted_fields` + `PULSE_IMPORT_NULL_PROMOTED`); an explicit schema raises `PULSE_IMPORT_ROW_ERROR` instead.
 - **Zero rows out of a non-empty source is a FATAL `PULSE_IMPORT_ROW_ERROR`, not an empty import** — details carry `rows_read` / `rows_failed` / `first_row` / `first_error`, and no cohort is written. Export and convert mirror it with `PULSE_EXPORT_ROW_ERROR` (convert's row errors all come from the TARGET writer), and convert writes no `--keep-pulse` intermediate. PARTIAL failure is unchanged (rows land, the rest ride `row_errors`, no error), and a source with no data rows stays a legitimate empty cohort.
-- **No constant elision or parent groups here.** `pulse import <fmt> --elide-constants` / `--group KEY:MEMBER,...` (CLI; `ImportJob.ElideConstants` / `ImportJob.Groups`) write a smaller `0x02` cohort older binaries cannot open (groups pass a per-group viability gate: `PULSE_GROUP_TOO_NARROW`, `PULSE_DEDUP_LOW_RATIO`, `--strict`); `pulse_import` always writes the default layout. To find and size a group first: `pulse import predict --suggest-groups` (or `--group …`) measures it over every row and writes nothing.
+- **Parent groups: suggest, then apply.** Import with `suggest_groups: true`, read `group_candidates.candidates` (`suggested: true` = the non-overlapping viable set), then re-import with those `{key, members}` as `groups` and `overwrite: true`. Groups write a smaller `0x02` cohort older binaries cannot open; a member varying within its key is FATAL `PULSE_GROUP_MEMBER_NOT_CONSTANT`. Weak groups WARN at the default floor 2 (`PULSE_GROUP_TOO_NARROW` dropped, `PULSE_DEDUP_LOW_RATIO` written) — there is no floor/strict knob because neither changes the bytes. Refused on a `.pulse` passthrough. **No constant elision here** — its value is at-rest bytes and a managed import is a TTL'd cache; use `pulse import <fmt> --elide-constants`.
 - Passthrough skips copy + sidecar; `pulse_drop` is a no-op on it. MCP success rebinds session-scoped tools from the new cohort (as `tool-inspect`).
 
 ## See

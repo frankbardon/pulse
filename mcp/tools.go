@@ -1,10 +1,13 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
 	"github.com/frankbardon/pulse"
+	perr "github.com/frankbardon/pulse/errors"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/mcp/toolmeta"
 	"github.com/frankbardon/pulse/types"
 )
@@ -69,6 +72,30 @@ func strictRequestDecode(raw json.RawMessage) (types.Request, error) {
 	return lenientDecode[types.Request](raw)
 }
 
+// strictImportDecode decodes pulse_import's input, holding each `groups`
+// entry to its exact {key, members} shape. The rest of the input stays
+// lenient, as it always was. The strictness is targeted because a
+// misspelled key inside a group is not a harmless drop: `{"keys": [...],
+// "members": [...]}` would decode as a KEYLESS tuple group, which skips
+// the member-constancy check and writes a differently-encoded cohort
+// without a word. An unknown key there is PULSE_GROUP_DECLARATION_INVALID.
+func strictImportDecode(raw json.RawMessage) (ImportIn, error) {
+	var top map[string]json.RawMessage
+	if json.Unmarshal(raw, &top) == nil {
+		if groups, ok := top["groups"]; ok {
+			dec := json.NewDecoder(bytes.NewReader(groups))
+			dec.DisallowUnknownFields()
+			var strict []pio.GroupDecl
+			if err := dec.Decode(&strict); err != nil {
+				return ImportIn{}, perr.NewCodedErrorWithDetails(perr.PULSE_GROUP_DECLARATION_INVALID,
+					`pulse_import groups: each entry is {"key": [field, ...], "members": [field, ...]} with no other keys: `+err.Error(),
+					map[string]any{"slot": "groups"})
+			}
+		}
+	}
+	return lenientDecode[ImportIn](raw)
+}
+
 // strictComposedDecode applies the per-request strict check across a
 // ComposedRequest's Requests slot.
 func strictComposedDecode(raw json.RawMessage) (types.ComposedRequest, error) {
@@ -123,7 +150,7 @@ func invokers(_ Config) map[string]InvokeFunc {
 		toolmeta.ToolExamplesSearch: makeInvoke(lenientDecode[ExamplesSearchIn], HandleExamplesSearch),
 		toolmeta.ToolExamplesGet:    makeInvoke(lenientDecode[ExamplesGetIn], HandleExamplesGet),
 		toolmeta.ToolErrorsLookup:   makeInvoke(lenientDecode[ErrorsLookupIn], HandleErrorsLookup),
-		toolmeta.ToolImport:         makeInvoke(lenientDecode[ImportIn], HandleImport),
+		toolmeta.ToolImport:         makeInvoke(strictImportDecode, HandleImport),
 		toolmeta.ToolDrop:           makeInvoke(lenientDecode[DropIn], HandleDrop),
 		toolmeta.ToolImportsList:    makeInvoke(lenientDecode[ImportsListIn], HandleImportsList),
 		toolmeta.ToolLabelTables:    makeInvoke(lenientDecode[LabelTablesIn], HandleLabelTables),

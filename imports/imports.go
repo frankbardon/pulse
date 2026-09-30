@@ -16,6 +16,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	pio "github.com/frankbardon/pulse/io"
 )
 
 // DefaultImportsDir is the relative directory inside the Pulse fs where
@@ -100,6 +101,34 @@ type Spec struct {
 	// are canonical FieldType strings (e.g. "set_u8",
 	// "categorical_u16"). Persisted onto the sidecar.
 	ColumnTypeOverrides map[string]string
+
+	// Groups declares parent groups exactly as io.ImportJob.Groups does:
+	// each stores its distinct member tuples once in the schema block
+	// and every record a u32 index into them (a format 0x02 cohort).
+	// Every declaration passes the per-group viability gate at its
+	// default ratio floor (encoding.DefaultDedupRatioFloor); findings
+	// ride Result.GroupWarnings and never fail the import. Empty (the
+	// default) writes the 0x01 cohort byte-identically to a Spec without
+	// the field. Rejected with PULSE_GROUP_DECLARATION_INVALID on a
+	// .pulse passthrough, which is never re-encoded.
+	//
+	// There is deliberately NO ratio-floor or strict counterpart here:
+	// neither changes the bytes written — the floor only decides whether
+	// a warning is raised and strict only turns that warning into a
+	// failure — so a caller that reads GroupWarnings already has both.
+	// io.ImportJob carries them for callers that want them.
+	Groups []pio.GroupDecl
+
+	// SuggestGroups runs candidate-group detection (io.ImportJob
+	// SuggestGroups, the engine behind `pulse import predict
+	// --suggest-groups`) over the source before importing it, and
+	// returns the candidates on Result.GroupCandidates. It SUGGESTS
+	// only — the import still writes exactly what Groups declares — and
+	// costs one extra full measured pass over the source. Detection
+	// skips fields already declared in Groups, so the candidates are
+	// additions to the current declaration. Ignored on a .pulse
+	// passthrough.
+	SuggestGroups bool
 }
 
 // Result describes the outcome of a managed-import call. Managed=false
@@ -132,6 +161,21 @@ type Result struct {
 	// carries them rather than stranding them in the adapter. Omitted
 	// when empty, so a clean import's wire shape is unchanged.
 	SourceWarnings []*perr.CodedError `json:"source_warnings,omitempty"`
+	// Groups describes each Spec.Groups declaration as written, in
+	// declaration order — verdict, distinct tuples, ratio, resident
+	// dictionary bytes and byte delta. Mirrors io.ImportReport.Groups;
+	// omitted when nothing was declared.
+	Groups []pio.GroupReport `json:"groups,omitempty"`
+	// GroupWarnings carries the viability gate's findings
+	// (PULSE_GROUP_TOO_NARROW: the group was dropped;
+	// PULSE_DEDUP_LOW_RATIO: it was written anyway), each a coded
+	// {code, message, details} entry. Mirrors
+	// io.ImportReport.GroupWarnings; omitted when every group passed.
+	GroupWarnings []*perr.CodedError `json:"group_warnings,omitempty"`
+	// GroupCandidates is the Spec.SuggestGroups detection report: each
+	// candidate's {key, members} is a ready-to-use Spec.Groups entry.
+	// Omitted unless SuggestGroups was set.
+	GroupCandidates *pio.GroupDetection `json:"group_candidates,omitempty"`
 }
 
 // Sidecar is the JSON payload written next to a managed .pulse file.

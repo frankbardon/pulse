@@ -483,7 +483,7 @@ func TestImportAutoSpec_MapsEveryFlag(t *testing.T) {
 			&cli.BoolFlag{Name: "overwrite"},
 		},
 		Action: func(_ context.Context, c *cli.Command) error {
-			got = importAutoSpec(c, "legacy.sav", 42*time.Second)
+			got, _ = importAutoSpec(c, "legacy.sav", 42*time.Second)
 			return nil
 		},
 	}
@@ -520,7 +520,7 @@ func TestImportAutoSpec_UnsetCharsetIsNotAnOverride(t *testing.T) {
 	cmd := &cli.Command{
 		Flags: []cli.Flag{&cli.StringFlag{Name: "charset"}},
 		Action: func(_ context.Context, c *cli.Command) error {
-			got = importAutoSpec(c, "data.csv", 0)
+			got, _ = importAutoSpec(c, "data.csv", 0)
 			return nil
 		},
 	}

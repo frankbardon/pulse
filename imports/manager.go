@@ -277,6 +277,11 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	//     rooted fs. Sidecar written so the copy participates in the
 	//     normal TTL lifecycle.
 	if format == pformat.Pulse {
+		if len(spec.Groups) > 0 {
+			return nil, perr.NewCodedErrorWithDetails(perr.PULSE_GROUP_DECLARATION_INVALID,
+				"parent groups apply only when a source is converted; a .pulse source is used as-is and never re-encoded",
+				map[string]any{"source_path": spec.SourcePath, "format": format})
+		}
 		if spec.InlineBytes != nil {
 			return nil, perr.NewCodedError(perr.PULSE_IMPORT_FORMAT_UNKNOWN,
 				"inline pulse-format imports are not supported; write the bytes to disk and import by path")
@@ -328,20 +333,28 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		return nil, err
 	}
 
-	reader, err := m.openReader(spec, format)
+	// Detection runs BEFORE the import so a failing measured pass (a
+	// declared member that varies within its key, say) writes nothing.
+	var candidates *pio.GroupDetection
+	if spec.SuggestGroups {
+		pred, jerr := m.newJob(spec, format, os.DevNull)
+		if jerr != nil {
+			return nil, jerr
+		}
+		pred.SuggestGroups = true
+		predReport, predErr := pred.Predict(ctx)
+		_ = pred.Source.Close()
+		if predErr != nil {
+			return nil, predErr
+		}
+		candidates = predReport.GroupCandidates
+	}
+
+	job, err := m.newJob(spec, format, target)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
-
-	job := pio.NewImportJob(reader, target)
-	job.FS = m.afs
-	job.SetInferenceMinPct = m.effectiveSetInferenceMinPct(spec.SetInferenceMinPct)
-	if overrides, oerr := parseColumnTypeOverrides(spec.ColumnTypeOverrides); oerr != nil {
-		return nil, oerr
-	} else if len(overrides) > 0 {
-		job.ColumnTypeOverrides = overrides
-	}
+	defer job.Source.Close()
 	report, err := job.Run(ctx)
 	if err != nil {
 		return nil, err
@@ -372,16 +385,19 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	_, _ = m.Sweep(ctx)
 
 	res := &Result{
-		Handle:         handle,
-		Path:           target,
-		Format:         pformat.Pulse,
-		Managed:        true,
-		RowsImported:   report.RowsImported,
-		ImportedAt:     now,
-		TTLSeconds:     sidecar.TTLSeconds,
-		Schema:         report.Schema,
-		PromotedFields: report.PromotedFields,
-		SourceWarnings: report.SourceWarnings,
+		Handle:          handle,
+		Path:            target,
+		Format:          pformat.Pulse,
+		Managed:         true,
+		RowsImported:    report.RowsImported,
+		ImportedAt:      now,
+		TTLSeconds:      sidecar.TTLSeconds,
+		Schema:          report.Schema,
+		PromotedFields:  report.PromotedFields,
+		SourceWarnings:  report.SourceWarnings,
+		Groups:          report.Groups,
+		GroupWarnings:   report.GroupWarnings,
+		GroupCandidates: candidates,
 	}
 	if !sidecar.ExpiresAt.IsZero() {
 		exp := sidecar.ExpiresAt
@@ -534,6 +550,29 @@ func (m *Manager) IsManagedPath(p string) bool {
 // can import files from anywhere on the host without first copying
 // them under PULSE_DATA_DIR; relative paths continue to resolve
 // against the rooted Pulse fs. Inline byte imports are not yet wired.
+// newJob opens a fresh reader over spec's source and configures the
+// import job every managed conversion runs — the real import and the
+// SuggestGroups detection pass alike, so both see the same schema. The
+// caller owns job.Source.
+func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, error) {
+	overrides, err := parseColumnTypeOverrides(spec.ColumnTypeOverrides)
+	if err != nil {
+		return nil, err
+	}
+	reader, err := m.openReader(spec, format)
+	if err != nil {
+		return nil, err
+	}
+	job := pio.NewImportJob(reader, target)
+	job.FS = m.afs
+	job.SetInferenceMinPct = m.effectiveSetInferenceMinPct(spec.SetInferenceMinPct)
+	if len(overrides) > 0 {
+		job.ColumnTypeOverrides = overrides
+	}
+	job.Groups = spec.Groups
+	return job, nil
+}
+
 func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 	if spec.InlineBytes != nil {
 		return nil, fmt.Errorf("imports: InlineBytes path not yet wired (open issue: add format.NewReaderFromBytes)")

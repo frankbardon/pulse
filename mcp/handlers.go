@@ -223,12 +223,14 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 		return ImportOut{}, errMissingArg("source")
 	}
 	spec := imports.Spec{
-		SourcePath: in.Source,
-		Format:     in.Format,
-		Handle:     in.Handle,
-		Sheet:      in.Sheet,
-		Charset:    in.Charset,
-		Overwrite:  in.Overwrite,
+		SourcePath:    in.Source,
+		Format:        in.Format,
+		Handle:        in.Handle,
+		Sheet:         in.Sheet,
+		Charset:       in.Charset,
+		Overwrite:     in.Overwrite,
+		Groups:        in.Groups,
+		SuggestGroups: in.SuggestGroups,
 	}
 	if in.TTL != "" {
 		d, err := imports.ParseTTL(in.TTL)

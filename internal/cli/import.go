@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -181,14 +182,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	if len(report.ElidedConstants) > 0 {
 		writeText(cmd.Writer, "Elided constant fields (stored once, format 0x02): %s\n", strings.Join(report.ElidedConstants, ", "))
 	}
-	for _, g := range report.Groups {
-		if g.Verdict == encoding.GroupVerdictDroppedTooNarrow {
-			writeText(cmd.Writer, "Parent %s: dropped, %d-byte members no wider than the %d-byte index\n", g.Label, g.MemberRowBytes, g.IndexWidth)
-			continue
-		}
-		writeText(cmd.Writer, "Parent %s: %d distinct tuples of %s (format 0x02), ratio %.2fx, %d dictionary bytes resident, %+d bytes vs undeduped\n",
-			g.Label, g.EntryCount, strings.Join(g.Fields, ", "), g.Ratio, g.DictionaryBytes, g.ByteDelta)
-	}
+	writeGroupReports(cmd.Writer, report.Groups)
 	writeSourceWarnings(cmd.Writer, report.GroupWarnings)
 	if len(report.RowErrors) > 0 {
 		writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))
@@ -199,6 +193,19 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 			errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(report.PromotedFields, ", "))
 	}
 	return nil
+}
+
+// writeGroupReports prints one line per declared parent group as written:
+// the import leaves and `import auto` share it so the text cannot drift.
+func writeGroupReports(w io.Writer, groups []pio.GroupReport) {
+	for _, g := range groups {
+		if g.Verdict == encoding.GroupVerdictDroppedTooNarrow {
+			writeText(w, "Parent %s: dropped, %d-byte members no wider than the %d-byte index\n", g.Label, g.MemberRowBytes, g.IndexWidth)
+			continue
+		}
+		writeText(w, "Parent %s: %d distinct tuples of %s (format 0x02), ratio %.2fx, %d dictionary bytes resident, %+d bytes vs undeduped\n",
+			g.Label, g.EntryCount, strings.Join(g.Fields, ", "), g.Ratio, g.DictionaryBytes, g.ByteDelta)
+	}
 }
 
 func importPredictCmd() *cli.Command {
