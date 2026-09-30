@@ -179,8 +179,31 @@ type ConstantPlan struct {
 // It never changes a value: the plan's group is encoded by GroupEncoder,
 // which refuses a constant member that changes on any row.
 func PlanConstantElision(d *ConstantDetector, reserved []string) (*ConstantPlan, error) {
-	flat := d.schema
-	if d.rows < MinElisionRows {
+	return planConstantElision(d.schema, d.ConstantFields(), d.rows, d.first, reserved)
+}
+
+// PlanConstantElisionFor is PlanConstantElision for a caller that
+// decided constancy itself over EVERY row of a cohort whose final
+// schema is flat: constant lists the constant fields' logical indices
+// (ascending) and rows the row count. The rules and the arithmetic are
+// PlanConstantElision's — only the row the saving is sized on is a
+// zeroed stand-in, which cannot change a byte count because entries are
+// fixed-width. Import predict uses it: it sees every row but not in
+// the final schema's layout (a later null can still promote a field).
+func PlanConstantElisionFor(flat *Schema, constant []int, rows int64, reserved []string) (*ConstantPlan, error) {
+	if flat.HasGroups() {
+		return nil, groupErr("constant elision plans over an ungrouped schema (use Logical())", nil)
+	}
+	stride := 0
+	for i := range flat.Fields {
+		stride += onWireWidth(flat.Fields[i].Type)
+	}
+	stride += flat.BitmapByteSize()
+	return planConstantElision(flat, constant, rows, make([]byte, stride), reserved)
+}
+
+func planConstantElision(flat *Schema, constant []int, rows int64, first []byte, reserved []string) (*ConstantPlan, error) {
+	if rows < MinElisionRows {
 		return &ConstantPlan{Skipped: "too_few_rows"}, nil
 	}
 	skip := make(map[string]bool, len(reserved))
@@ -188,7 +211,7 @@ func PlanConstantElision(d *ConstantDetector, reserved []string) (*ConstantPlan,
 		skip[n] = true
 	}
 	var cand []int
-	for _, fi := range d.ConstantFields() {
+	for _, fi := range constant {
 		if !skip[flat.Fields[fi].Name] {
 			cand = append(cand, fi)
 		}
@@ -218,14 +241,14 @@ func PlanConstantElision(d *ConstantDetector, reserved []string) (*ConstantPlan,
 	if err != nil {
 		return nil, err
 	}
-	if _, err := enc.EncodeRow(nil, d.first); err != nil {
+	if _, err := enc.EncodeRow(nil, first); err != nil {
 		return nil, err
 	}
 	grown, err := preambleGrowth(flat, enc.Schema())
 	if err != nil {
 		return nil, err
 	}
-	saved := d.rows*int64(enc.LogicalStride()-enc.PhysicalStride()) - grown
+	saved := rows*int64(enc.LogicalStride()-enc.PhysicalStride()) - grown
 	if saved <= 0 {
 		return &ConstantPlan{Skipped: "not_smaller", Retained: plan.Retained}, nil
 	}

@@ -184,6 +184,24 @@ Shard archives, set-field widening and the shard categorical rewrite do
 not accept grouped cohorts yet: they refuse with a coded error rather
 than reinterpret physical bytes.
 
+## Finding and sizing groups before import
+
+`pulse import predict --suggest-groups` (library:
+`io.ImportJob.SuggestGroups`, result `PredictReport.GroupCandidates`)
+detects candidate groups. It takes single-field keys and the fields each
+one determines, nominates them over a bounded window of leading rows,
+then confirms and measures them over every row. `import predict --group`
+evaluates a declaration you already have, and
+`import predict --elide-constants` reports the constant plan. Any of the
+three makes predict convert every row through the import's own
+converter. Each group's dictionary is built exactly as `GroupEncoder`
+would build it and judged by `DedupGate`, so the figures, verdicts and
+projected file sizes are the ones the import would report. A declaration
+the import would refuse (`PULSE_GROUP_MEMBER_NOT_CONSTANT`, `--strict`)
+fails predict the same way. Detection only suggests, and `Run` ignores
+`SuggestGroups`. Bounds, cost and limits:
+[`--suggest-groups`](../cli/flags.md#--suggest-groups).
+
 ## Inspecting a grouped cohort
 
 `pulse cohort inspect` (`Pulse.InspectEnvelope`, `pulse_inspect`)

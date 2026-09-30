@@ -202,7 +202,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 }
 
 func importPredictCmd() *cli.Command {
-	return &cli.Command{
+	return importLeaf(&cli.Command{
 		Name:  "predict",
 		Usage: "Validate an import without writing output",
 		Flags: []cli.Flag{
@@ -214,6 +214,11 @@ func importPredictCmd() *cli.Command {
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "suggest-groups", Usage: "Detect candidate parent groups (a key and the fields it determines) and measure each over every row: ratio, resident dictionary bytes, projected file size and a ready-to-paste --group value. Suggests only; nothing is declared"},
+			&cli.StringSliceFlag{Name: "group", Usage: "Evaluate a parent-group declaration exactly as `import <format> --group` would apply it (same syntax, repeatable): its verdict and measured figures, or the error the import would fail with"},
+			&cli.BoolFlag{Name: "elide-constants", Usage: "Report the fields `import <format> --elide-constants` would elide and the bytes saved"},
+			&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encoding.DefaultDedupRatioFloor, Usage: "Ratio floor the --group and --suggest-groups verdicts are judged against"},
+			&cli.BoolFlag{Name: "strict", Usage: "Fail as `import <format> --strict` would when a --group draws a viability warning"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
@@ -245,6 +250,20 @@ func importPredictCmd() *cli.Command {
 			job := pio.NewImportJob(reader, "/dev/null")
 			job.FS = fs
 			job.SampleRows = sampleRows
+			job.SuggestGroups = cmd.Bool("suggest-groups")
+			job.ElideConstants = cmd.Bool("elide-constants")
+			job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
+			job.StrictDedup = cmd.Bool("strict")
+			for _, decl := range cmd.StringSlice("group") {
+				g, gerr := pio.ParseGroupDecl(decl)
+				if gerr != nil {
+					if jsonOut {
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", gerr)
+					}
+					return gerr
+				}
+				job.Groups = append(job.Groups, g)
+			}
 
 			if schemaPath != "" {
 				schema, loadErr := loadSchemaFromFile(fs, schemaPath)
@@ -266,7 +285,7 @@ func importPredictCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, report, report.SourceWarnings)
+				return writeEnvelopeWithWarnings(cmd.Writer, report, append(append([]*errors.CodedError(nil), report.SourceWarnings...), report.GroupWarnings...))
 			}
 
 			writeText(cmd.Writer, "Schema: %d fields\n", len(report.Schema.Fields))
@@ -275,9 +294,72 @@ func importPredictCmd() *cli.Command {
 				writeText(cmd.Writer, "Warning [%s]: %s\n", w.Column, w.Message)
 			}
 			writeSourceWarnings(cmd.Writer, report.SourceWarnings)
+			writePredictMeasured(cmd, report)
 			return nil
 		},
+	})
+}
+
+// writePredictMeasured prints the measured-pass sections of an import
+// predict report (projection, declared groups, elision, candidates).
+func writePredictMeasured(cmd *cli.Command, report *pio.PredictReport) {
+	w := cmd.Writer
+	if p := report.Projection; p != nil {
+		writeText(w, "Rows that would import: %d (%d row errors)\n", p.RowsImported, p.RowErrors)
+		writeText(w, "Flat cohort: %d bytes; as configured: %d bytes\n", p.FlatFileBytes, p.ProjectedFileBytes)
 	}
+	if len(report.ElidedConstants) > 0 {
+		writeText(w, "Would elide constant fields (%d bytes saved): %s\n", report.Projection.ElisionBytesSaved, strings.Join(report.ElidedConstants, ", "))
+	}
+	for _, g := range report.Groups {
+		if g.Verdict == encoding.GroupVerdictDroppedTooNarrow {
+			writeText(w, "Parent %s: would be dropped, %d-byte members no wider than the %d-byte index\n", g.Label, g.MemberRowBytes, g.IndexWidth)
+			continue
+		}
+		writeText(w, "Parent %s: %s, %d distinct tuples, ratio %.2fx, %d dictionary bytes resident, %+d bytes vs undeduped\n",
+			g.Label, g.Verdict, g.EntryCount, g.Ratio, g.DictionaryBytes, g.ByteDelta)
+	}
+	writeSourceWarnings(w, report.GroupWarnings)
+	d := report.GroupCandidates
+	if d == nil {
+		return
+	}
+	writeText(w, "Group detection: nominated over the first %d rows (bound %d), measured over all %d rows; %d key(s) evaluated\n",
+		d.WindowRows, d.WindowBound, d.Rows, d.KeysEvaluated)
+	for _, c := range d.Candidates {
+		mark := " "
+		if c.Suggested {
+			mark = "*"
+		}
+		switch c.Verdict {
+		case pio.CandidateVerdictUnmeasured:
+			writeText(w, "%s %s: %s (%s) members %s\n", mark, c.Label, c.Verdict, c.Reason, strings.Join(c.Members, ","))
+			continue
+		case encoding.GroupVerdictDroppedTooNarrow:
+			writeText(w, "%s %s: %s, %d-byte members no wider than the %d-byte index\n", mark, c.Label, c.Verdict, c.MemberRowBytes, c.IndexWidth)
+			continue
+		}
+		writeText(w, "%s %s: %s, ratio %.2fx, %d distinct, %d dictionary bytes, %+d bytes, file %d bytes\n",
+			mark, c.Label, c.Verdict, c.Ratio, c.EntryCount, c.DictionaryBytes, c.ByteDelta, c.ProjectedFileBytes)
+		if c.Declaration != "" {
+			writeText(w, "    --group %s\n", c.Declaration)
+		}
+		if c.OverlapsWith != "" {
+			writeText(w, "    overlaps %s\n", c.OverlapsWith)
+		}
+		if len(c.RejectedMembers) > 0 {
+			writeText(w, "    varied within the key after the window: %s\n", strings.Join(c.RejectedMembers, ", "))
+		}
+	}
+	if len(d.Suggested) == 0 {
+		writeText(w, "No viable parent group found.\n")
+		return
+	}
+	var flags []string
+	for _, s := range d.Suggested {
+		flags = append(flags, "--group "+s)
+	}
+	writeText(w, "Suggested: %s\n", strings.Join(flags, " "))
 }
 
 func importSchemaTemplateCmd() *cli.Command {

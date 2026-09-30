@@ -199,7 +199,8 @@ boundary. Absent the flag the document is byte-identical. See
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
 `import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`.
+`import spss`, `import predict` (reports what would be elided and the
+bytes saved; writes nothing).
 
 `--elide-constants` stores every field that holds exactly one value — or
 is null — on every imported row once, in the schema block, and drops it
@@ -216,7 +217,9 @@ elided fields are printed, and reported as `ElidedConstants` under
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
 `import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`. Repeatable — one parent group per flag.
+`import spss`, `import predict`. Repeatable — one parent group per flag.
+On `import predict` the declaration is evaluated, not applied: see
+[`--suggest-groups`](#--suggest-groups).
 
 `--group KEY[,KEY...]:MEMBER[,MEMBER...]` declares a **parent group**:
 the key fields identify a parent (a customer ID, say) and the members
@@ -255,9 +258,66 @@ are unaffected. The text output prints each group's ratio, resident
 dictionary bytes and byte delta; `--json` reports them per group under
 `Groups` and the findings in `warnings`.
 
+### `--suggest-groups`
+
+Available on: `import predict`.
+
+Finds candidate parent groups before you import, and measures each one.
+A candidate is a single key field plus every field it determines (the
+same value on every row sharing a key value). Each is reported with its
+fields, verdict, distinct-tuple count, ratio, resident dictionary bytes,
+byte delta and the exact file size with that group declared, next to
+the flat cohort's size. You also get a ready-to-paste `--group` value
+and the structured `{key, members}` form. A candidate below the width
+or ratio floor is listed with its verdict and reason, not hidden.
+`suggested` lists only the admitted candidates that do not share a field
+with a better one. A source with no viable group suggests none.
+
+```sh
+pulse import predict -i lines.csv --suggest-groups
+pulse import predict -i lines.csv --group cust_id:cust_name,cust_tier
+```
+
+**It suggests only.** Nothing is declared until you pass `--group` to
+the import. Candidates are **nominated** over the first rows, up to
+10,000 (fewer on a wide schema; `window_rows` / `window_bound`). The
+500-row inference sample is too small at typical fanouts: it holds a few
+dozen parents, and a column that happens to be constant across so few
+looks like a parent attribute. Candidates are then **confirmed and
+measured over every row**. A member that varies within its key later in
+the file is dropped and listed under `rejected_members`. The figures
+therefore come from the same conversion and the same `encoding.DedupGate`
+arithmetic the import uses, so they are not a sample estimate. They
+equal what `import --group` reports and what `cohort inspect` shows
+afterwards. A dependency can still break in a later re-export of the
+same source; the import catches that with
+`PULSE_GROUP_MEMBER_NOT_CONSTANT`.
+
+Detection has these limits:
+
+- Keys are single fields; composite keys are not detected. Evaluate one
+  with `--group A,B:MEMBERS`.
+- Up to 64 keys are evaluated, highest cardinality first
+  (`keys_over_bound`), and 16 candidates are confirmed
+  (`candidates_over_bound`).
+- A field constant across the window, or declared in a `--group`, is
+  never nominated.
+- Candidate dictionaries share a 512 MiB budget. A candidate that
+  outgrows its share is reported `unmeasured`.
+
+Cost: `import predict` normally reads rows without converting them.
+With `--suggest-groups`, `--group` or `--elide-constants` it converts
+every row as the import would. That measured roughly 1.2x-1.4x the
+import's own time on synthetic 12- and 102-column sources, against
+about 0.15x for plain predict. It does not spool the rows, so memory is
+bounded by the window and the candidate dictionaries, not the file.
+`--json` adds `Projection`, `Groups`, `GroupWarnings`, `ElidedConstants`
+and `GroupCandidates` to `data`; `format_version` stays `"1.1"`.
+
 ### `--dedup-ratio-floor`
 
-Available on: every `import <format>` leaf. Default `2`.
+Available on: every `import <format>` leaf, and `import predict`.
+Default `2`.
 
 The rows-per-distinct-tuple floor below which a `--group` draws
 `PULSE_DEDUP_LOW_RATIO`. A floor of `1` disables it, leaving only the
@@ -266,7 +326,8 @@ written either way unless `--strict` is set.
 
 ### `--strict` (import)
 
-Available on: every `import <format>` leaf.
+Available on: every `import <format>` leaf, and `import predict` (which
+then fails where the import would).
 
 Turns the parent-group viability warnings (`PULSE_GROUP_TOO_NARROW`,
 `PULSE_DEDUP_LOW_RATIO`) into errors: the import fails with that code

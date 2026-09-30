@@ -783,6 +783,26 @@ type PredictReport struct {
 	// CohortValidator, which is every format but `.sav` today, and nil
 	// for a validating target that raised nothing.
 	TargetWarnings []*errors.CodedError
+	// The fields below are filled only by an ImportJob.Predict that runs
+	// the MEASURED pass — the job declares Groups, sets ElideConstants
+	// or sets SuggestGroups — and are nil (omitted from JSON) otherwise,
+	// so a plain predict's report is unchanged. The measured pass
+	// converts every row exactly as Run does, so each figure is what the
+	// import would produce, not a sample estimate.
+	//
+	// Projection sizes the file the import would write.
+	Projection *ImportProjection `json:"Projection,omitempty"`
+	// Groups / GroupWarnings are what ImportReport.Groups /
+	// GroupWarnings would carry for the declared Groups. A declaration
+	// Run would refuse — an unknown field, or a member that varies
+	// within its key (PULSE_GROUP_MEMBER_NOT_CONSTANT) — is Predict's
+	// error too, and StrictDedup fails Predict as it fails Run.
+	Groups        []GroupReport        `json:"Groups,omitempty"`
+	GroupWarnings []*errors.CodedError `json:"GroupWarnings,omitempty"`
+	// ElidedConstants names what ElideConstants would elide.
+	ElidedConstants []string `json:"ElidedConstants,omitempty"`
+	// GroupCandidates is the SuggestGroups detection report.
+	GroupCandidates *GroupDetection `json:"GroupCandidates,omitempty"`
 }
 
 // ImportJob converts tabular source data into a .pulse file.
@@ -881,6 +901,14 @@ type ImportJob struct {
 	// PULSE_DEDUP_LOW_RATIO) and writes nothing. It governs the gate
 	// only — other import warnings are unaffected.
 	StrictDedup bool
+	// SuggestGroups makes Predict detect candidate parent groups —
+	// single-field keys and the fields they determine — and measure
+	// each over the full row pass (PredictReport.GroupCandidates). It
+	// SUGGESTS only: Run ignores it, and a candidate is formed only when
+	// declared through Groups. Costs Predict a full conversion pass (as
+	// Groups and ElideConstants do) plus the bounded detection work
+	// documented on GroupDetection.
+	SuggestGroups bool
 }
 
 // NewImportJob creates an ImportJob with default settings.

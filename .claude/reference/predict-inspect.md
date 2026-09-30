@@ -37,3 +37,7 @@ For a cohort newer than `0x01`, `InspectResult` adds `layout` (`pulse_format_ver
 `PredictResult.Streamable` mirrors the per-type `Streamable()` methods plus schema gates (decimal). Runtime parity is asserted against `processing.CanStreamRequest(req, schema)` by `TestPredict_Streamable_MatchesRuntime`. `DefaultsApplied` is always computed, whatever the request.
 
 Debugging procedure: `docs/src/internals/debugging-predict.md`.
+
+## Import predict is not descriptor predict
+
+`io.ImportJob.Predict` (`pulse import predict`) is the ONLY predict that may read source rows, and none of the rules above bind it — it lives in `io/`, not `descriptor/`. Its measured pass (declared `Groups`, `ElideConstants`, or `SuggestGroups`) converts every row through `rowConverter`, the converter `Run` uses, and derives group figures through `encoding.DedupGate` / `AssessGroup` / `PlanConstantElisionFor` — so import predict, `ImportReport.Groups` and inspect report the same numbers for the same data (`TestImportPredict_DeclaredGroupsMatchImport`, `TestImportPredict_SuggestedMatchesImport`). Candidate detection nominates over a bounded window and confirms on the full pass; it suggests, never declares. Without those three knobs predict keeps its plain row-count pass and its report is unchanged.
