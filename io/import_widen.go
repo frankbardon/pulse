@@ -25,12 +25,23 @@ import (
 //	u4 → u8 → u16 → u32 → u64   (a non-negative integer past the rung)
 //	u4 | u8 | u16 | u32 → f64   (any other number: negative, fractional,
 //	                             signed, past uint64)
+//	f32 → f64                   (a number outside f32's range)
 //
 // The f64 arm is lossless for every value already imported: each fits
-// 32 bits, and f64 holds every integer up to 2^53 exactly. From u64 it
-// would not be, so a u64 field never leaves the integer ladder and such
-// a value stays a row error, as does anything that is not a number, and
-// a categorical past categorical_u32.
+// 32 bits, and f64 holds every integer up to 2^53 and every f32 value
+// exactly. From u64 it would not be, so a u64 field never leaves the
+// integer ladder and such a value stays a row error, as does anything
+// that is not a number, a categorical past categorical_u32, and a
+// packed_bool cell that is not a boolean (no wider type holds both a
+// boolean and an arbitrary value losslessly).
+//
+// The f32 trigger is RANGE, the same test inference used to choose f32
+// (f32Holds, shared with fitsF32): a magnitude past math.MaxFloat32, or
+// a non-zero one below math.SmallestNonzeroFloat32 that f32 would flush
+// to zero. A value inside the range that f32 merely rounds (0.1, or an
+// integer past 2^24) does not promote — inference accepted exactly such
+// values into the sample, and treating rounding as overflow would
+// promote nearly every decimal column.
 //
 // Only inference-originated fields promote. An authoritative schema
 // (SchemaAwareReader), a user-authored ImportJob.Schema and every
@@ -108,6 +119,11 @@ func widenTarget(ft encoding.FieldType, raw string, dict *encoding.Dictionary) (
 		}
 		return encoding.FieldTypeCategoricalU32, true
 
+	case encoding.FieldTypeF32:
+		if _, err := strconv.ParseFloat(raw, 64); err == nil && !f32Holds(raw) {
+			return encoding.FieldTypeF64, true
+		}
+
 	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32:
 		if v, err := strconv.ParseUint(raw, 10, 64); err == nil {
 			for _, r := range intRungs {
@@ -122,6 +138,62 @@ func widenTarget(ft encoding.FieldType, raw string, dict *encoding.Dictionary) (
 		}
 	}
 	return 0, false
+}
+
+// f32Holds reports whether raw, a number, lies inside f32's range: zero,
+// or a magnitude in [math.SmallestNonzeroFloat32, math.MaxFloat32]. It
+// is the per-value test fitsF32 applies to the inference sample, so a
+// field is promoted off f32 by exactly the values that would have kept
+// inference from choosing it.
+func f32Holds(raw string) bool {
+	f, _ := strconv.ParseFloat(raw, 64)
+	// Phrased as the negation of "out of range" so a NaN — which
+	// compares false to everything — holds, exactly as fitsF32 has
+	// always let it through.
+	return !(f != 0 && (math.Abs(f) < math.SmallestNonzeroFloat32 || math.Abs(f) > math.MaxFloat32))
+}
+
+// f32AtRangeEdge reports whether bits, an f32 convertValue produced, is
+// one a value outside f32's range can round to: zero or the smallest
+// subnormal (from an underflow), ±Inf or ±MaxFloat32 (from an overflow).
+// Any other f32 came from an in-range value, so f32Holds — a second
+// parse of the cell — only runs for these.
+func f32AtRangeEdge(bits uint64) bool {
+	r := math.Abs(float64(math.Float32frombits(uint32(bits))))
+	return r == 0 || r == math.SmallestNonzeroFloat32 || r >= math.MaxFloat32
+}
+
+// convertOrWiden converts raw, a present cell of schema field i, at the
+// field's type. When the value does not fit and the field is widenable
+// it steps the field up its ladder (widenTarget) until the value
+// converts or no step applies, writing each step to
+// schema.Fields[i].Type and returning the steps in order; the error is
+// the last conversion's. An f32 cell outside f32's range converts
+// without error at f32 (to ±Inf or zero), so it is tested explicitly.
+//
+// This is the ONE promotion decision: the import row pass
+// (rowConverter), the measured import predict and ConvertJob.Run all
+// call it, so a field widens at the same row to the same type whichever
+// verb reads the source.
+func convertOrWiden(schema *encoding.Schema, i int, raw string, dict *encoding.Dictionary, delim string, widenable bool, rowNum int) (uint64, []widening, error) {
+	ft := schema.Fields[i].Type
+	v, err := convertValue(raw, ft, dict, delim)
+	if !widenable || err == nil && (ft != encoding.FieldTypeF32 || !f32AtRangeEdge(v) || f32Holds(raw)) {
+		return v, nil, err
+	}
+	var steps []widening
+	for {
+		to, ok := widenTarget(ft, raw, dict)
+		if !ok {
+			return v, steps, err
+		}
+		steps = append(steps, widening{field: i, from: ft, to: to, row: rowNum})
+		schema.Fields[i].Type = to
+		ft = to
+		if v, err = convertValue(raw, ft, dict, delim); err == nil {
+			return v, steps, nil
+		}
+	}
 }
 
 // importCellWidth is the bytes one field occupies in an import row: its
@@ -139,7 +211,7 @@ func importCellWidth(ft encoding.FieldType) int {
 // a row's new position is never before its old one, so no row is
 // overwritten before it has been moved. Values are preserved — integers
 // and dictionary IDs zero-extend, and an integer bound for f64 is
-// written as the exactly-equal float.
+// written as the exactly-equal float, an f32 as the exactly-equal f64.
 func widenBufferedColumn(buf *bytes.Buffer, rows int, types []encoding.FieldType, fi int, to encoding.FieldType) error {
 	off, oldStride := 0, 0
 	for i, ft := range types {
@@ -166,7 +238,11 @@ func widenBufferedColumn(buf *bytes.Buffer, rows int, types []encoding.FieldType
 		v := binary.LittleEndian.Uint64(cell[:])
 		copy(b[dst+off+wNew:dst+newStride], b[src+off+wOld:src+oldStride])
 		copy(b[dst:dst+off], b[src:src+off])
-		if to == encoding.FieldTypeF64 {
+		switch {
+		case to != encoding.FieldTypeF64:
+		case types[fi] == encoding.FieldTypeF32:
+			v = math.Float64bits(float64(math.Float32frombits(uint32(v))))
+		default:
 			v = math.Float64bits(float64(v))
 		}
 		binary.LittleEndian.PutUint64(cell[:], v)

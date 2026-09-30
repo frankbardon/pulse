@@ -139,6 +139,9 @@ func ConvertCommand() *cli.Command {
 			} else {
 				warnings = append(warnings, report.TargetWarnings...)
 			}
+			// Width promotions of an inferred schema (import_widen.go)
+			// are the import half's diagnostics; they ride the same list.
+			warnings = append(warnings, report.WidthWarnings...)
 
 			if jsonOut {
 				return writeEnvelopeWithWarnings(cmd.Writer, report, warnings)

@@ -24,13 +24,24 @@ import (
 // source with no data rows converts to an empty target and is a success.
 // See totalRowFailure.
 //
-// A categorical dictionary that OVERFLOWS its rung is the other refusal.
-// It is a capacity violation rather than a row condition — past the limit
-// every further unseen category is lost for the rest of the file — so Run
-// stops at the offending cell with PULSE_IMPORT_CATEGORICAL_OVERFLOW
-// (row / column / type / max_entries / value in details), before any
-// KeepPulseAt intermediate is written. ImportJob fails the same condition
-// under the same code.
+// A categorical dictionary that OVERFLOWS its rung is the other refusal
+// — for a DECLARED schema (an explicit ConvertJob.Schema or a
+// SchemaAwareReader source's). It is a capacity violation rather than a
+// row condition — past the limit every further unseen category is lost
+// for the rest of the file — so Run stops at the offending cell with
+// PULSE_IMPORT_CATEGORICAL_OVERFLOW (row / column / type / max_entries /
+// value in details), before any KeepPulseAt intermediate is written.
+// ImportJob fails the same condition under the same code.
+//
+// An INFERRED schema is promoted instead, by the import's own rule
+// (convertOrWiden, import_widen.go): a categorical past its rung, an
+// integer past its width and an f32 past its range move to the narrowest
+// type that holds the value, ConvertReport.Schema carries the final
+// types, ConvertReport.WidthWarnings one PULSE_IMPORT_WIDTH_PROMOTED per
+// field, and a KeepPulseAt intermediate is imported at those types — the
+// cohort a plain import of the source writes. Only a categorical past
+// categorical_u32 still refuses. Convert passes cell TEXT through, so a
+// promotion never changes what the target receives.
 func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
@@ -81,6 +92,12 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		}
 	}
 	_ = inferWarnings
+
+	// widenable marks the fields the row pass may promote past their
+	// sample-inferred width — every field of an inferred schema, none of
+	// a declared one. See import_widen.go.
+	widenable := widenableFields(schema, inferredSchema, nil)
+	var widened []widening
 
 	// Build dictionaries for categorical fields.
 	dicts := make(map[int]*encoding.Dictionary)
@@ -180,48 +197,54 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 				raw = strings.TrimSpace(row[colIdx])
 			}
 
-			// For categorical fields, add to dictionary and write resolved string.
-			if f.Type.IsCategorical() && dicts[i] != nil {
-				isNull := raw == "" || strings.EqualFold(raw, "null") || strings.EqualFold(raw, "na") || strings.EqualFold(raw, "n/a")
-				if !isNull {
-					// A full dictionary is a CAPACITY violation, not a
-					// per-row data condition: once the rung is at its
-					// limit every further unseen category is lost for
-					// the REST of the file. Discarding this error made
-					// the convert report success while ConvertReport.
-					// Schema carried a short dictionary, and — with
-					// KeepPulseAt set — the intermediate re-import hit
-					// the same wall per row and dropped those rows from
-					// the cohort with its report discarded below.
-					//
-					// Refusing here, inside the read loop, also keeps
-					// the KeepPulseAt ordering the total-row-failure
-					// check documents: no intermediate cohort is
-					// written under a command that errored.
-					//
-					// The code is AddWithLimit's own
-					// PULSE_IMPORT_CATEGORICAL_OVERFLOW, by provenance:
-					// the overflow happens on convert's IMPORT half,
-					// reading the source, and ImportJob already fails
-					// the same condition under the same code.
-					if _, derr := dicts[i].AddWithLimit(raw, f.Type.MaxCategoricalEntries()); derr != nil {
-						return perrors.NewCodedErrorWithDetails(
-							perrors.PULSE_IMPORT_CATEGORICAL_OVERFLOW,
-							fmt.Sprintf("row %d, column %q: %v", rowNum, f.Name, derr),
-							map[string]any{
-								"row":         rowNum,
-								"column":      f.Name,
-								"type":        string(f.Type),
-								"max_entries": f.Type.MaxCategoricalEntries(),
-								"value":       raw,
-							},
-						)
-					}
-				}
-				values[i] = raw
-			} else {
-				values[i] = raw
+			values[i] = raw
+			if !convertTracksWidth(f.Type, widenable[i]) || isNullToken(raw) {
+				continue
 			}
+			// The import half's per-cell decision, shared with
+			// ImportJob (convertOrWiden): a categorical is interned in
+			// its dictionary, and an inferred field whose value
+			// outgrows its sample-inferred width is promoted. The cell
+			// TEXT is what the target receives either way.
+			_, steps, cerr := convertOrWiden(schema, i, raw, dicts[i], DefaultSetDelimiter, widenable[i], rowNum)
+			widened = append(widened, steps...)
+			if cerr == nil || !f.Type.IsCategorical() {
+				// A number that does not convert at all is passed
+				// through as text, as it always has been.
+				continue
+			}
+			// A full dictionary no promotion can relieve is a
+			// CAPACITY violation, not a per-row data condition: once
+			// the rung is at its limit every further unseen category
+			// is lost for the REST of the file. Discarding this error
+			// made the convert report success while ConvertReport.
+			// Schema carried a short dictionary, and — with
+			// KeepPulseAt set — the intermediate re-import hit the
+			// same wall per row and dropped those rows from the
+			// cohort with its report discarded below.
+			//
+			// Refusing here, inside the read loop, also keeps the
+			// KeepPulseAt ordering the total-row-failure check
+			// documents: no intermediate cohort is written under a
+			// command that errored.
+			//
+			// The code is AddWithLimit's own
+			// PULSE_IMPORT_CATEGORICAL_OVERFLOW, by provenance: the
+			// overflow happens on convert's IMPORT half, reading the
+			// source, and ImportJob already fails the same condition
+			// under the same code.
+			ft := schema.Fields[i].Type
+			return perrors.NewCodedErrorWithDetails(
+				perrors.PULSE_IMPORT_CATEGORICAL_OVERFLOW,
+				fmt.Sprintf("row %d, column %q: %v", rowNum, f.Name, cerr),
+				map[string]any{
+					"row":         rowNum,
+					"column":      f.Name,
+					"type":        ft.String(),
+					"max_entries": ft.MaxCategoricalEntries(),
+					"value":       raw,
+				},
+			)
 		}
 
 		out := applyExportLabels(values, schema, j.LabelResolver, augmentInsertAfter, replaceFields, includeMask)
@@ -258,6 +281,14 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		return nil, failure
 	}
 
+	// A promoted width moved every later field's offset. The KeepPulseAt
+	// intermediate is imported at the promoted types (the same schema
+	// object), so it widens nothing itself and is the cohort a plain
+	// import of the source writes.
+	if len(widened) > 0 {
+		relayoutOffsets(schema)
+	}
+
 	// Write intermediate pulse file if requested.
 	if importJob != nil && j.KeepPulseAt != "" {
 		rr, ok := j.Source.(ResetReader)
@@ -274,6 +305,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	report := &ConvertReport{
 		RowsConverted:  converted,
 		Schema:         schema,
+		WidthWarnings:  widthWarnings(schema, widened),
 		RowErrors:      rowErrors,
 		SourceWarnings: j.sourceWarnings(),
 		TargetWarnings: targetWarnings(j.Target),
@@ -431,6 +463,26 @@ func faithfulRowStream(includeMask, augmentInsertAfter []bool, replaceFields map
 		}
 	}
 	return true
+}
+
+// convertTracksWidth reports whether convert's row loop must run a cell
+// through the import half's conversion: every categorical (its
+// dictionary is built here, declared or inferred), and a widenable
+// field of a type that can outgrow its sample-inferred width. Any other
+// cell is passed through as text without being parsed.
+func convertTracksWidth(ft encoding.FieldType, widenable bool) bool {
+	if ft.IsCategorical() {
+		return true
+	}
+	if !widenable {
+		return false
+	}
+	switch ft {
+	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16,
+		encoding.FieldTypeU32, encoding.FieldTypeF32:
+		return true
+	}
+	return false
 }
 
 // sourceSchema pulls the authoritative schema off a SchemaAwareReader

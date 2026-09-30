@@ -326,22 +326,34 @@ the sample-inferred schema.
 `GroupCandidates` and `WidthWarnings` to `data`; `format_version` stays
 `"1.1"`.
 
-### Width promotion (inferred imports)
+### Width promotion (inferred imports and converts)
 
-Not a flag: every inferred `import <format>`, `import auto` and
-`pulse_import` does it. Inference sizes `categorical_*` rungs and integer
+Not a flag: every inferred `import <format>`, `import auto`,
+`pulse_import` and `pulse convert` does it. Inference sizes `categorical_*` rungs and integer
 widths from the first `--sample-rows` rows. A later value that outgrows
 them promotes the field to the narrowest type that holds it instead of
 dropping the row: `categorical_u8` → `u16` → `u32`; `u4` → `u8` → `u16`
 → `u32` → `u64` for a larger non-negative integer; `u4`..`u32` → `f64`
-for a negative, fractional or signed number (lossless for every value
-already read). Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
+for a negative, fractional or signed number; `f32` → `f64` for a value
+outside f32's range — past `MaxFloat32`, or a non-zero magnitude f32
+would flush to zero. That is the range test inference chose `f32` by, so
+a value f32 merely rounds (`0.1`) never promotes. Every step is lossless
+for every value already read. Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
 warning (`field`, `from`, `to`, `source_row`) in the envelope `warnings`
 and `data.WidthWarnings` (`width_warnings` on `import auto` /
 `pulse_import`). A `--schema`, a `column_type_overrides` column or an
 authoritative source schema (SPSS, Arrow, Parquet) never promotes: its
 overflow stays a `PULSE_IMPORT_ROW_ERROR`. So does a non-number, a
-non-integer in a `u64` column, and a dictionary past `categorical_u32`.
+non-integer in a `u64` column, a non-boolean in a `packed_bool` column
+(no type holds both losslessly), and a dictionary past `categorical_u32`.
+
+`pulse convert` copies cell text, so a promotion never changes what the
+target receives. It reports the promoted types in `data.Schema` and the
+warnings in `data.WidthWarnings` and the envelope `warnings`, and a
+`--keep-pulse` intermediate is byte-identical to a plain `import` of the
+source. On a declared schema (`--schema`, or an SPSS / Arrow / Parquet
+source's own) a full categorical rung still stops the convert with the
+fatal `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, and no intermediate is written.
 
 ### `--dedup-ratio-floor`
 

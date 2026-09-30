@@ -551,11 +551,13 @@ func allFloat(values []string) bool {
 	return true
 }
 
-// fitsF32 checks if all float values fit in float32 without loss.
+// fitsF32 checks if all float values lie inside float32's range (see
+// f32Holds — a RANGE test, not an exact-representability one). The
+// import row pass promotes an inferred f32 to f64 on the same per-value
+// test (import_widen.go).
 func fitsF32(values []string) bool {
 	for _, v := range values {
-		f, _ := strconv.ParseFloat(v, 64)
-		if f != 0 && (math.Abs(f) < math.SmallestNonzeroFloat32 || math.Abs(f) > math.MaxFloat32) {
+		if !f32Holds(v) {
 			return false
 		}
 	}

@@ -758,6 +758,12 @@ type ConvertReport struct {
 	// TargetWarnings carries the target Writer's non-fatal diagnostics
 	// — see ExportReport.TargetWarnings.
 	TargetWarnings []*errors.CodedError
+	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
+	// field of an INFERRED schema the row pass promoted past its
+	// sample-inferred width (see ImportReport.WidthWarnings); Schema
+	// carries the promoted types. Nil for a declared schema, and when
+	// nothing outgrew its width.
+	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
 }
 
 // RowError records a per-row error during import or export.

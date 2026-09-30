@@ -144,25 +144,16 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 			continue
 		}
 
-		v, err := convertValue(raw, f.Type, c.dicts[i], c.delimFor(f.Name))
-		if err != nil && c.widenable[i] {
-			// A sample-inferred width this value outgrows is promoted,
-			// not refused. The step sticks even if a later column fails
-			// this row: a categorical's dictionary already holds more
-			// entries than the old rung addresses, and Predict's
-			// measured pass takes the same steps in the same order.
-			for err != nil {
-				to, ok := widenTarget(f.Type, raw, c.dicts[i])
-				if !ok {
-					break
-				}
-				step := widening{field: i, from: f.Type, to: to, row: rowNum}
-				c.widened = append(c.widened, step)
-				c.pending = append(c.pending, step)
-				c.schema.Fields[i].Type = to
-				f = c.schema.Fields[i]
-				v, err = convertValue(raw, f.Type, c.dicts[i], c.delimFor(f.Name))
-			}
+		// A sample-inferred width this value outgrows is promoted, not
+		// refused (convertOrWiden). The step sticks even if a later
+		// column fails this row: a categorical's dictionary already
+		// holds more entries than the old rung addresses, and Predict's
+		// measured pass takes the same steps in the same order.
+		v, steps, err := convertOrWiden(c.schema, i, raw, c.dicts[i], c.delimFor(f.Name), c.widenable[i], rowNum)
+		if len(steps) > 0 {
+			c.widened = append(c.widened, steps...)
+			c.pending = append(c.pending, steps...)
+			f = c.schema.Fields[i]
 		}
 		if err != nil {
 			return rowErr(f, err.Error())
