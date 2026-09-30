@@ -340,29 +340,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 
 	// Now write header + schema (dictionaries are populated, promotions
-	// applied).
-	if err := encoding.WritePreamble(&buf, schema); err != nil {
-		return nil, err
-	}
-
-	// Append the encoded records. No record count prefix — the format is
+	// applied) and the records. No record count prefix — the format is
 	// header + schema + records per §5.3. Record count is derived from file
-	// size and per-record byte size. Interleave the parallel bitmap buffer
-	// after each record's field bytes iff the final schema is nullable;
-	// otherwise the field bytes stand alone (zero-overhead path).
-	if schema.HasBitmap() {
-		recs := recordsBuf.Bytes()
-		bms := bitmapBuf.Bytes()
-		fieldStride := schema.RecordByteSize() - fullBitmapSize
-		for k := 0; k < rowsImported; k++ {
-			if _, err := buf.Write(recs[k*fieldStride : (k+1)*fieldStride]); err != nil {
-				return nil, err
-			}
-			if _, err := buf.Write(bms[k*fullBitmapSize : (k+1)*fullBitmapSize]); err != nil {
-				return nil, err
-			}
-		}
-	} else if _, err := buf.Write(recordsBuf.Bytes()); err != nil {
+	// size and per-record byte size.
+	elision, written, err := writeCohortPayload(&buf, schema, recordsBuf.Bytes(), bitmapBuf.Bytes(), fullBitmapSize, rowsImported, j.ElideConstants)
+	if err != nil {
 		return nil, err
 	}
 
@@ -388,13 +370,103 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		}
 	}
 
-	return &ImportReport{
+	report := &ImportReport{
 		RowsImported:   rowsImported,
-		Schema:         schema,
+		Schema:         written,
 		RowErrors:      rowErrors,
 		PromotedFields: promotedFields,
 		SourceWarnings: j.sourceWarnings(),
-	}, nil
+	}
+	if elision != nil && elision.Spec != nil {
+		report.ElidedConstants = elision.Fields
+	}
+	return report, nil
+}
+
+// writeCohortPayload writes the preamble and the record region of an
+// import to buf. recs holds every row's field bytes (fieldStride each)
+// and bms every row's full-width null bitmap (bmSize each, present when
+// the import reserved one); the LOGICAL row of the final schema is the
+// field bytes followed by the bitmap iff the schema is nullable —
+// byte-identical to inlining the bitmap after each record, and field
+// bytes alone when no field is nullable.
+//
+// Without elide the output is the 0x01 cohort, unchanged. With elide,
+// every logical row is first folded into an encoding.ConstantDetector —
+// the FULL pass, never the inference sample — and the plan's constant
+// group, if any, is encoded through encoding.GroupEncoder into a 0x02
+// cohort. A plan that elides nothing (too few rows, no constant field,
+// or no net saving) falls through to the 0x01 write. Returns the plan
+// (nil without elide) and the schema actually written.
+func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []byte, bmSize, rows int, elide bool) (*encoding.ConstantPlan, *encoding.Schema, error) {
+	hasBM := schema.HasBitmap()
+	fieldStride := schema.RecordByteSize()
+	if hasBM {
+		fieldStride -= bmSize
+	}
+	var scratch []byte
+	logicalRow := func(k int) []byte {
+		if !hasBM {
+			return recs[k*fieldStride : (k+1)*fieldStride]
+		}
+		scratch = append(scratch[:0], recs[k*fieldStride:(k+1)*fieldStride]...)
+		return append(scratch, bms[k*bmSize:(k+1)*bmSize]...)
+	}
+
+	if elide {
+		det, err := encoding.NewConstantDetector(schema)
+		if err != nil {
+			return nil, nil, err
+		}
+		for k := 0; k < rows; k++ {
+			if err := det.Observe(logicalRow(k)); err != nil {
+				return nil, nil, err
+			}
+		}
+		plan, err := encoding.PlanConstantElision(det, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		if plan.Spec == nil {
+			return plan, schema, writeFlatPayload(buf, schema, rows, logicalRow)
+		}
+		enc, err := encoding.NewGroupEncoder(schema, []encoding.GroupSpec{*plan.Spec})
+		if err != nil {
+			return nil, nil, err
+		}
+		// The dictionaries precede the records on the wire, so the
+		// physical rows are spooled (smaller than the logical rows the
+		// import already holds) and the preamble is written last.
+		spool := make([]byte, 0, rows*enc.PhysicalStride())
+		for k := 0; k < rows; k++ {
+			if spool, err = enc.EncodeRow(spool, logicalRow(k)); err != nil {
+				return nil, nil, err
+			}
+		}
+		grouped := enc.Schema()
+		if err := encoding.WritePreamble(buf, grouped); err != nil {
+			return nil, nil, err
+		}
+		if _, err := buf.Write(spool); err != nil {
+			return nil, nil, err
+		}
+		return plan, grouped, nil
+	}
+	return nil, schema, writeFlatPayload(buf, schema, rows, logicalRow)
+}
+
+// writeFlatPayload writes the ungrouped (0x01) preamble and every
+// logical row.
+func writeFlatPayload(buf *bytes.Buffer, schema *encoding.Schema, rows int, logicalRow func(int) []byte) error {
+	if err := encoding.WritePreamble(buf, schema); err != nil {
+		return err
+	}
+	for k := 0; k < rows; k++ {
+		if _, err := buf.Write(logicalRow(k)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Predict validates the import without writing any output.

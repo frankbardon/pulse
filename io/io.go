@@ -684,6 +684,11 @@ type ImportReport struct {
 	// implement it and raised nothing, so the report shape is
 	// unchanged for every pre-existing adapter.
 	SourceWarnings []*errors.CodedError
+	// ElidedConstants names the fields ImportJob.ElideConstants stored
+	// once in the schema block instead of per row, in schema order.
+	// Empty (and omitted from JSON) when elision was off or elided
+	// nothing, in which case the cohort is 0x01.
+	ElidedConstants []string `json:"ElidedConstants,omitempty"`
 }
 
 // ExportReport summarizes the result of an export operation.
@@ -827,6 +832,17 @@ type ImportJob struct {
 	// so its declared nullability is a contract: an unexpected null is
 	// a row error, never a silent widening. See SchemaAwareReader.
 	InferredSchema bool
+	// ElideConstants stores every field that holds exactly one value
+	// (or is null) on EVERY imported row once, in the schema block, and
+	// drops it from each record — a format 0x02 cohort, which binaries
+	// older than 0x02 support cannot open. Constancy is decided over the
+	// full row pass, never the inference sample. Nothing is elided (and
+	// the output stays a byte-identical 0x01 cohort) for fewer than two
+	// rows, when no field is constant, or when declaring the constants
+	// would cost more schema bytes than it saves. When every field is
+	// constant the lowest-index one stays in the row. Default false.
+	// See encoding.PlanConstantElision.
+	ElideConstants bool
 }
 
 // NewImportJob creates an ImportJob with default settings.

@@ -78,6 +78,22 @@ ungrouped twin decodes to. An index past its dictionary is
 `ENCODING_INVALID`. A physical stride of zero (every field
 constant-grouped) is refused at write and read.
 
+## Global-constant elision
+
+`pulse import <format> --elide-constants` (library:
+`io.ImportJob.ElideConstants`, default off) folds every field that holds
+one value on every imported row into a single constant group. Constancy
+is decided over the FULL row pass (`encoding.ConstantDetector`), never
+the bounded inference sample — a column constant across the first 500
+rows may vary later. Two cells are the same value iff their on-wire
+bytes and null bits match: a column null on every row is a null
+constant; a value plus some nulls is not constant. The plan
+(`encoding.PlanConstantElision`) elides nothing below two rows, nothing
+when the schema-block growth would exceed the per-row saving (the file
+is then byte-identical `0x01`), and keeps the lowest-index field in the
+row when every field is constant. The elided fields are reported in
+`ImportReport.ElidedConstants`.
+
 Shard archives, set-field widening and the shard categorical rewrite do
 not accept grouped cohorts yet: they refuse with a coded error rather
 than reinterpret physical bytes.

@@ -191,6 +191,23 @@ high-continuation fields and a one-line advice; pairs never span a shard
 boundary. Absent the flag the document is byte-identical. See
 [profile create](profile-create.md).
 
+### `--elide-constants`
+
+Available on: `import csv`, `import tsv`, `import ndjson`,
+`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
+`import spss`.
+
+`--elide-constants` stores every field that holds exactly one value — or
+is null — on every imported row once, in the schema block, and drops it
+from each record. Constancy is measured over the full row pass, never
+the inference sample. The output is a format `0x02` cohort that binaries
+predating `0x02` cannot open, which is why it is opt-in. Nothing is
+elided (and the cohort stays byte-identical `0x01`) for fewer than two
+rows or when the saving would not repay the schema-block growth; when
+every field is constant the lowest-index field stays in the row. The
+elided fields are printed, and reported as `ElidedConstants` under
+`--json`. See [parent groups](../format/parent-groups.md).
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it

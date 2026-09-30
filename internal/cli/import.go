@@ -30,6 +30,7 @@ var importFlags = []cli.Flag{
 	&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
 	&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
 }
 
 // ImportCommand returns the import command group.
@@ -128,6 +129,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	job := pio.NewImportJob(reader, output)
 	job.FS = fs
 	job.SampleRows = sampleRows
+	job.ElideConstants = cmd.Bool("elide-constants")
 
 	if schemaPath != "" {
 		schema, err := loadSchemaFromFile(fs, schemaPath)
@@ -153,6 +155,9 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	}
 
 	writeText(cmd.Writer, "Imported %d rows to %s\n", report.RowsImported, output)
+	if len(report.ElidedConstants) > 0 {
+		writeText(cmd.Writer, "Elided constant fields (stored once, format 0x02): %s\n", strings.Join(report.ElidedConstants, ", "))
+	}
 	if len(report.RowErrors) > 0 {
 		writeText(cmd.Writer, "Warnings: %d row errors\n", len(report.RowErrors))
 	}
