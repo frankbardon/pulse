@@ -34,8 +34,10 @@ import (
 // ComposeOverlaySpec.Params (a map[string]any, decoded through
 // types.DecodePanelParamsMap so this host and the per-Request host
 // cannot disagree about what a blob means). `n_source` selects each
-// slot's sample-size leg; empty means row_margin_n, the payload row
-// margin the panel has always read, and the whole default path stays
+// slot's sample-size leg; empty means row_margin_value, the payload
+// row-margin VALUE the panel has always read (named `value`, not `n`,
+// because the pairwise family's row_margin_n is a record count and
+// this is not). The whole default path stays
 // byte-identical to the pre-params baseline. Counted modes open a
 // per-slot components channel (processing/overlay_compose_slot_view.go)
 // and refuse a components-disabled slot with
@@ -130,7 +132,7 @@ func panelSlotRequestIndex(panelIdx, refIdx int, targetIdxs []int) int {
 // panelSampleSize resolves ONE slot's sample-size leg at one
 // coordinate, per the n_source mode.
 //
-// The two modes differ in more than where they read. row_margin_n
+// The two modes differ in more than where they read. row_margin_value
 // always answers (it is a payload read with a value fallback), so the
 // legacy path can never skip a coordinate it used to emit;
 // cell_n_unweighted answers ok=false when the counted figure was not
@@ -165,7 +167,7 @@ func panelSampleSize(
 		}
 		return float64(n), true
 
-	case "", types.PanelNSourceRowMarginN:
+	case "", types.PanelNSourceRowMarginValue:
 		nSize := rowMarginLookups[panelIdx][rowKeyStr]
 		if nSize <= 0 {
 			// Same degenerate fallback OVERLAY_PROP_Z_CELL uses:
@@ -311,7 +313,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	// It stays nil for the legacy leg. That is the whole reason the
 	// default path cannot start refusing: a panel that has never
 	// needed components must not begin demanding them when a caller
-	// spells its existing behaviour out as `n_source: row_margin_n`.
+	// spells its existing behaviour out as `n_source: row_margin_value`.
 	var slots *ComposeHostView
 	var rowIdxLookups, colIdxLookups []map[string]int
 	if types.PanelNSourceReadsComponents(params.NSource) {

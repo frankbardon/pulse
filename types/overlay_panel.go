@@ -20,14 +20,19 @@ import (
 // shared struct would silently offer each host the other's modes.
 // Shared vocabulary belongs in shared constants, not a shared struct.
 //
+// A mode name is shared ONLY where the quantity is the same:
+// cell_n_unweighted means a counted n on both hosts, while the panel's
+// margin leg is spelled row_margin_value precisely because it is not
+// the record count the pairwise family's row_margin_n reads.
+//
 // Scope note: this is the OVERLAY_PROP_Z_PANEL params shape only.
 // OVERLAY_PANEL_INDEX_VS_REF is the other multi-reference COMPOSE kind
 // and shares the MaxPanelTargets cap, but it is descriptive rather than
 // inferential and has no sample-size leg, so it is NOT covered here.
 type PanelOverlayParams struct {
 	// NSource selects where each SLOT's sample-size leg is read. One
-	// of the PanelNSource* constants. Empty = row_margin_n, which is
-	// the leg the panel has always used.
+	// of the PanelNSource* constants. Empty = row_margin_value, which
+	// is the leg the panel has always used.
 	NSource string `json:"n_source,omitempty"`
 }
 
@@ -39,22 +44,30 @@ type PanelOverlayParams struct {
 // ever refers to a pair axis. Every mode is read once per slot, at the
 // coordinate being tested, and the pairing happens afterwards.
 const (
-	// PanelNSourceRowMarginN is the legacy default (empty means this):
-	// the slot's per-row margin, read off the MatrixPayload's
-	// RowMargins by row key.
+	// PanelNSourceRowMarginValue is the legacy default (empty means
+	// this): the slot's per-row margin VALUE, read off the
+	// MatrixPayload's RowMargins by row key.
 	//
-	// Same slot as the pairwise family's row_margin_n — the row margin
-	// read as the sample size — but a different CARRIER, and that
-	// difference is load-bearing. The MATRIX host reads
-	// CrosstabComponents.RowMarginCounts, a record count. The COMPOSE
+	// The name says `value`, not `n`, deliberately. It occupies the
+	// same semantic slot as the pairwise family's `row_margin_n` — the
+	// row margin read as the sample size — but a different CARRIER,
+	// and that difference is load-bearing. The MATRIX host reads
+	// CrosstabComponents.RowMarginCounts, a record COUNT. The COMPOSE
 	// host reads the margin CELL's value off the payload, because the
-	// panel predates any components channel on this host. The two
-	// coincide when the cell aggregator counts records (AGG_COUNT) and
-	// diverge when it does not.
+	// panel predates any components channel on this host; under a
+	// percentage normalization that value is not a count at all. The
+	// two coincide only when the cell aggregator counts records
+	// (AGG_COUNT) and diverge when it does not.
+	//
+	// The divergence is real either way — distinct spellings do not
+	// remove it, they stop DISGUISING it. One wire name meaning two
+	// quantities is the hazard this family exists to refuse, so
+	// `row_margin_n` is NOT a panel mode: it is an unknown value here
+	// and is refused like any other.
 	//
 	// It is the ONLY mode carrying the historical `<= 0` fall back to
 	// the cell value; see PanelNSourceFallsBackToCellValue.
-	PanelNSourceRowMarginN = "row_margin_n"
+	PanelNSourceRowMarginValue = "row_margin_value"
 
 	// PanelNSourceCellNUnweighted is the COUNTED per-cell leg: the
 	// universal-floor "n" the slot's cell aggregator emitted at this
@@ -72,7 +85,7 @@ const (
 // panelNSources is the ordered valid set, empty excluded. Diagnostics
 // name it so a caller who mistypes a mode sees what was available.
 var panelNSources = []string{
-	PanelNSourceRowMarginN,
+	PanelNSourceRowMarginValue,
 	PanelNSourceCellNUnweighted,
 }
 
@@ -88,10 +101,10 @@ func PanelNSources() []string {
 }
 
 // ValidPanelNSource reports whether s names a supported panel NSource
-// mode. Empty counts as valid (defaults to row_margin_n).
+// mode. Empty counts as valid (defaults to row_margin_value).
 func ValidPanelNSource(s string) bool {
 	switch s {
-	case "", PanelNSourceRowMarginN, PanelNSourceCellNUnweighted:
+	case "", PanelNSourceRowMarginValue, PanelNSourceCellNUnweighted:
 		return true
 	}
 	return false
@@ -114,7 +127,7 @@ func PanelNSourceReadsComponents(s string) bool {
 // any mode added after it. The substitution is a degenerate-input
 // crutch from before the panel could count anything: a cell value
 // standing in for a sample size is the exact class of silent
-// substitution this family now refuses. It survives on row_margin_n
+// substitution this family now refuses. It survives on row_margin_value
 // because removing it would change the default path's output, and the
 // default must stay byte-identical to the pre-params baseline.
 //
@@ -124,7 +137,7 @@ func PanelNSourceReadsComponents(s string) bool {
 // one"). A genuine counted zero is still a zero, and the prop-Z kernel
 // reports it as a degenerate pair.
 func PanelNSourceFallsBackToCellValue(s string) bool {
-	return s == "" || s == PanelNSourceRowMarginN
+	return s == "" || s == PanelNSourceRowMarginValue
 }
 
 // IsPanelOverlayParamsKind reports whether kind is an overlay kind

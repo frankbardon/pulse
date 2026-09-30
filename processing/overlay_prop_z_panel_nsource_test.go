@@ -14,7 +14,7 @@ import (
 // The panel's selectable n leg (E3-S3).
 //
 // Two properties carry the story. The DEFAULT path — absent params,
-// `{}`, and the explicit `row_margin_n` spelling — must stay
+// `{}`, and the explicit `row_margin_value` spelling — must stay
 // byte-identical to the pre-params baseline, cell-value fallback
 // included. And the counted mode must be observably a DIFFERENT
 // number, refuse a components-disabled slot instead of degrading, and
@@ -60,7 +60,7 @@ func panelCountedSlots() (*types.Response, []*types.Response) {
 // --- Byte identity of the default path -------------------------------
 
 // The story's safety property. E3-S1 pinned "absent" and "{}"; the
-// explicit `row_margin_n` spelling joins them, because the whole point
+// explicit `row_margin_value` spelling joins them, because the whole point
 // of naming the default is that writing it down changes nothing.
 //
 // Byte-identity is asserted against the SAME pre-change literal
@@ -75,7 +75,7 @@ func TestApplyPropZPanel_DefaultNSourceByteIdentical(t *testing.T) {
 		{"params absent", nil},
 		{"params empty object", map[string]any{}},
 		{"n_source empty string", map[string]any{"n_source": ""}},
-		{"n_source row_margin_n", map[string]any{"n_source": types.PanelNSourceRowMarginN}},
+		{"n_source row_margin_value", map[string]any{"n_source": types.PanelNSourceRowMarginValue}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ref, targets := panelBaselineSlots()
@@ -133,7 +133,7 @@ func TestApplyPropZPanel_DefaultKeepsCellValueFallback(t *testing.T) {
 		t.Fatal("fixture cannot distinguish the fallback from a zero n")
 	}
 
-	for _, mode := range []string{"", types.PanelNSourceRowMarginN} {
+	for _, mode := range []string{"", types.PanelNSourceRowMarginValue} {
 		spec.Params = map[string]any{"n_source": mode}
 		layer, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 		if err != nil {
@@ -204,7 +204,7 @@ func TestApplyPropZPanel_CellNUnweightedReadsComponents(t *testing.T) {
 	}
 
 	// And it differs from the legacy leg on the same fixture.
-	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginN}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValue}
 	legacyLayer, _, err := applyPropZPanel(&spec, ref, targets, 0, []int{1, 2})
 	if err != nil {
 		t.Fatalf("legacy applyPropZPanel: %v", err)
@@ -335,7 +335,7 @@ func TestApplyPropZPanel_CountedModeDoesNotFallBackToCellValue(t *testing.T) {
 
 	// The DEFAULT mode reads the payload margin and is untouched by
 	// the missing component, so it still emits at (0, 0).
-	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginN}
+	spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValue}
 	legacy, _, err := applyPropZPanel(&spec, ref, targets, 3, []int{7, 9})
 	if err != nil {
 		t.Fatalf("legacy applyPropZPanel: %v", err)
@@ -403,7 +403,7 @@ func TestApplyPropZPanel_CountedModeRequiresComponents(t *testing.T) {
 			// The SAME host under the default mode still succeeds. The
 			// gate is scoped to the modes that read components, so a
 			// panel that has never needed them cannot start refusing.
-			spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginN}
+			spec.Params = map[string]any{"n_source": types.PanelNSourceRowMarginValue}
 			if _, _, err := applyPropZPanel(&spec, ref, targets, 3, []int{7, 9}); err != nil {
 				t.Fatalf("the default mode must not demand components: %v", err)
 			}
@@ -518,4 +518,39 @@ func itoaPanel(i int) string {
 		i /= 10
 	}
 	return string(b)
+}
+
+// Runtime twin of the predict refusal for the RETIRED panel spelling.
+// pulse.Compose does not run predict, so a predict-only refusal would
+// let `row_margin_n` fall through to the legacy leg and hand back the
+// payload row-margin VALUE under a name that, on the crosstab family,
+// means a record COUNT. That is the exact silent substitution this
+// effort exists to remove, so the runtime must refuse it too.
+func TestApplyPropZPanel_RetiredRowMarginNSpellingRefusedAtRuntime(t *testing.T) {
+	const retired = types.PairwiseNSourceRowMarginN
+	if retired != "row_margin_n" {
+		t.Fatalf("the pairwise wire value moved to %q; this test pins the panel against the OLD panel spelling", retired)
+	}
+	ref, targets := panelBaselineSlots()
+	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
+	spec.Params = map[string]any{"n_source": retired}
+
+	_, _, err := applyPropZPanel(&spec, ref, targets, 0, []int{1, 2})
+	if err == nil {
+		t.Fatal("applyPropZPanel accepted the retired spelling; it must be unknown, not an alias for the legacy leg")
+	}
+	var coded *pulseerrors.CodedError
+	if !stderrors.As(err, &coded) {
+		t.Fatalf("error is not a CodedError: %v", err)
+	}
+	if coded.Code != pulseerrors.PULSE_OVERLAY_PARAM_MISSING {
+		t.Fatalf("code = %q, want %q", coded.Code, pulseerrors.PULSE_OVERLAY_PARAM_MISSING)
+	}
+	if coded.Details["n_source"] != retired {
+		t.Errorf("Details[n_source] = %v, want %q", coded.Details["n_source"], retired)
+	}
+	if !strings.Contains(coded.Message, types.PanelNSourceRowMarginValue) {
+		t.Errorf("the diagnostic must point at the replacement %q: %q",
+			types.PanelNSourceRowMarginValue, coded.Message)
+	}
 }

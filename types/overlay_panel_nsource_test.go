@@ -18,7 +18,7 @@ func TestValidPanelNSource(t *testing.T) {
 		want bool
 	}{
 		{"", true},
-		{PanelNSourceRowMarginN, true},
+		{PanelNSourceRowMarginValue, true},
 		{PanelNSourceCellNUnweighted, true},
 
 		// Rejected. The first three are the crosstab family's modes:
@@ -28,6 +28,7 @@ func TestValidPanelNSource(t *testing.T) {
 		{PairwiseNSourceColumnMarginN, false},
 		{PairwiseNSourceNWithin, false},
 		{PairwiseNSourceRowMarginDistinct, false},
+		{PairwiseNSourceRowMarginN, false},
 		{"ROW_MARGIN_N", false},
 		{"row_margin", false},
 		{"nonsense", false},
@@ -56,7 +57,7 @@ func TestPanelNSources_MatchesValidatorMinusEmpty(t *testing.T) {
 			t.Errorf("PanelNSources() lists %q, which ValidPanelNSource rejects", s)
 		}
 	}
-	want := map[string]bool{PanelNSourceRowMarginN: true, PanelNSourceCellNUnweighted: true}
+	want := map[string]bool{PanelNSourceRowMarginValue: true, PanelNSourceCellNUnweighted: true}
 	if len(got) != len(want) {
 		t.Fatalf("PanelNSources() = %v, want exactly %d entries", got, len(want))
 	}
@@ -71,8 +72,8 @@ func TestPanelNSources_MatchesValidatorMinusEmpty(t *testing.T) {
 	}
 	// Default first: the diagnostic reads as a list and the default
 	// belongs at its head.
-	if got[0] != PanelNSourceRowMarginN {
-		t.Errorf("PanelNSources()[0] = %q, want the default %q", got[0], PanelNSourceRowMarginN)
+	if got[0] != PanelNSourceRowMarginValue {
+		t.Errorf("PanelNSources()[0] = %q, want the default %q", got[0], PanelNSourceRowMarginValue)
 	}
 }
 
@@ -83,7 +84,7 @@ func TestPanelNSources_ReturnsACopy(t *testing.T) {
 	first := PanelNSources()
 	first[0] = "clobbered"
 	second := PanelNSources()
-	if second[0] != PanelNSourceRowMarginN {
+	if second[0] != PanelNSourceRowMarginValue {
 		t.Fatalf("PanelNSources() leaked its backing array: second call = %v", second)
 	}
 }
@@ -104,8 +105,8 @@ func TestPanelNSourcePredicates_AreDisjoint(t *testing.T) {
 	if !PanelNSourceFallsBackToCellValue("") {
 		t.Error("the empty (legacy) mode must keep the cell-value fallback")
 	}
-	if !PanelNSourceFallsBackToCellValue(PanelNSourceRowMarginN) {
-		t.Error("row_margin_n IS the legacy mode and must keep the cell-value fallback")
+	if !PanelNSourceFallsBackToCellValue(PanelNSourceRowMarginValue) {
+		t.Error("row_margin_value IS the legacy mode and must keep the cell-value fallback")
 	}
 	if PanelNSourceFallsBackToCellValue(PanelNSourceCellNUnweighted) {
 		t.Error("cell_n_unweighted must NOT inherit the legacy cell-value fallback")
@@ -113,8 +114,8 @@ func TestPanelNSourcePredicates_AreDisjoint(t *testing.T) {
 	if PanelNSourceReadsComponents("") {
 		t.Error("the empty (legacy) mode must not demand components")
 	}
-	if PanelNSourceReadsComponents(PanelNSourceRowMarginN) {
-		t.Error("row_margin_n reads the payload margin and must not demand components")
+	if PanelNSourceReadsComponents(PanelNSourceRowMarginValue) {
+		t.Error("row_margin_value reads the payload margin and must not demand components")
 	}
 	if !PanelNSourceReadsComponents(PanelNSourceCellNUnweighted) {
 		t.Error("cell_n_unweighted must read components")
@@ -206,4 +207,45 @@ func mustDecodeMap(t *testing.T, m map[string]any) PanelOverlayParams {
 		t.Fatalf("DecodePanelParamsMap(%v): %v", m, err)
 	}
 	return p
+}
+
+// `row_margin_n` is the panel's RETIRED spelling and must be an
+// UNKNOWN mode here, not a hidden alias.
+//
+// It named the panel's payload row-margin leg for the length of one
+// unreleased branch, and it still names the pairwise family's
+// RowMarginCounts record count. Those are two different quantities —
+// the panel's is a MatrixPayload value that a percentage
+// normalization turns into a percentage — so the panel's leg was
+// renamed to row_margin_value rather than documented around. Admitting
+// the old spelling as an alias would put the ambiguity straight back:
+// a caller copying an n_source from a crosstab spec onto a panel spec
+// would get a percentage where they asked for a count, silently.
+//
+// The pairwise constant is deliberately the literal source here: the
+// point is that the OTHER family's wire value does not work on this
+// one, and hardcoding the string would let a pairwise rename hide that.
+func TestValidPanelNSource_RetiredRowMarginNSpellingRefused(t *testing.T) {
+	if ValidPanelNSource(PairwiseNSourceRowMarginN) {
+		t.Fatalf("ValidPanelNSource(%q) = true; the retired spelling must be unknown on the panel, not an alias",
+			PairwiseNSourceRowMarginN)
+	}
+	if PanelNSourceRowMarginValue == PairwiseNSourceRowMarginN {
+		t.Fatalf("the panel and pairwise margin modes share the wire value %q; they measure different quantities",
+			PanelNSourceRowMarginValue)
+	}
+	for _, s := range PanelNSources() {
+		if s == PairwiseNSourceRowMarginN {
+			t.Errorf("PanelNSources() still advertises the retired spelling %q", s)
+		}
+	}
+	// The derived predicates must not recognise it either — a stale
+	// fallback branch would let the old name reach the legacy leg
+	// even while the validator refuses it.
+	if PanelNSourceFallsBackToCellValue(PairwiseNSourceRowMarginN) {
+		t.Errorf("%q still claims the legacy cell-value fallback", PairwiseNSourceRowMarginN)
+	}
+	if PanelNSourceReadsComponents(PairwiseNSourceRowMarginN) {
+		t.Errorf("%q still claims to read components", PairwiseNSourceRowMarginN)
+	}
 }

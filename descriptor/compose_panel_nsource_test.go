@@ -156,3 +156,35 @@ func TestValidateCompose_PanelMalformedBeatsUnknownMode(t *testing.T) {
 		t.Errorf("a decode failure must not be reported as an unknown mode: %q", msgs[0])
 	}
 }
+
+// The RETIRED panel spelling. `row_margin_n` named the panel's payload
+// row-margin leg for the length of one unreleased branch, and it still
+// names the pairwise family's RowMarginCounts record count. The panel's
+// leg is now row_margin_value, and the old spelling must predict as an
+// UNKNOWN mode — not silently resolve to the leg it used to name.
+//
+// Worth its own case because it is the one wrong value a caller is
+// likely to arrive at by reading the crosstab docs, and the one an
+// alias would be most tempting to add.
+func TestValidateCompose_PanelRetiredRowMarginNSpellingRefused(t *testing.T) {
+	const retired = types.PairwiseNSourceRowMarginN
+	if retired != "row_margin_n" {
+		t.Fatalf("the pairwise wire value moved to %q; this test pins the panel against the OLD panel spelling", retired)
+	}
+	env := ValidateCompose(composePanelRequest(map[string]any{"n_source": retired}))
+	if !envHasCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
+		t.Fatalf("predict accepted the retired spelling %q: %+v", retired, env.Errors)
+	}
+	for _, e := range env.Errors {
+		if e.Code != string(errors.PULSE_OVERLAY_PARAM_MISSING) {
+			continue
+		}
+		if !strings.Contains(e.Message, types.PanelNSourceRowMarginValue) {
+			t.Errorf("the diagnostic must point at the replacement %q: %q",
+				types.PanelNSourceRowMarginValue, e.Message)
+		}
+	}
+	if result := env.Data.(*ComposeValidationResult); result.Valid {
+		t.Error("expected Valid=false for the retired spelling")
+	}
+}
