@@ -232,9 +232,8 @@ func TestService_Process_RunComponents_ShardArchive(t *testing.T) {
 	svc := New(cfg)
 	// Force shard-archive parallel reducer (workers != 1, mergeable
 	// request). processShardArchiveParallel populates Run.ShardCount
-	// from the merged partial; the serial path bypasses this and
-	// would leave ShardCount at 0 — that branch is locked separately
-	// by buildShardArchiveForRunComponentsTest's parallelism mode.
+	// from the merged partial; the serial arm stamps the same count in
+	// Service.Process (TestShardWorkers_ComponentsParity_GroupedAndFlatArchives).
 	svc.SetShardWorkers(2)
 
 	req := &types.Request{

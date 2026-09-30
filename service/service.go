@@ -601,12 +601,31 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = path
 	}
+	stampShardCount(resp, cohort)
 
 	if err := s.buildAndApplyLabels(req, resp); err != nil {
 		return nil, err
 	}
 
 	return resp, nil
+}
+
+// stampShardCount writes Components.Run.ShardCount on the SERIAL arm over
+// a shard archive. The processing layer reads records off one iterator
+// and has no shard concept, so every serial exit leaves it 0 while the
+// per-shard parallel reducer reported the real count — the same request
+// answering `shard_count` or not depending on Options.ShardWorkers. The
+// field is a fact about the cohort ("the number of shards processed when
+// the cohort resolved to a shard archive"), not about the execution arm.
+// No-op for a single-file cohort (the omitempty wire form is unchanged)
+// and when Components are disabled (Run is nil).
+func stampShardCount(resp *types.Response, cohort *Cohort) {
+	if resp == nil || resp.Components == nil || resp.Components.Run == nil || cohort == nil {
+		return
+	}
+	if n := len(cohort.Shards()); n > 0 {
+		resp.Components.Run.ShardCount = n
+	}
 }
 
 // processSingleFileParallelMaybe is the per-cohort parallel-decode

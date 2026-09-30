@@ -339,11 +339,13 @@ func TestShardGroups_CreateUnionMergesGroupDictionaries(t *testing.T) {
 		t.Fatalf("group headroom = %+v", vr.GroupIndexHeadroom)
 	}
 
-	// Each arm against the SAME arm over the flat archive (the parallel
-	// shard reducer's Components differ from the serial one's by design).
+	// Every arm against the flat archive's SERIAL answer: Components are
+	// keyed to the request, never to a worker count (E6-S3), so the
+	// parallel shard reducer must match it too.
+	flatSerial := gAnswers(t, svc, "flat.pulse", 1)
 	for _, workers := range []int{1, 2} {
 		gAssertSameAnswers(t, fmt.Sprintf("grouped archive, %d shard worker(s)", workers),
-			gAnswers(t, svc, "arch.pulse", workers), gAnswers(t, svc, "flat.pulse", workers))
+			gAnswers(t, svc, "arch.pulse", workers), flatSerial)
 	}
 
 	// remove + compact keep the canonical (grown) dictionaries and the

@@ -691,11 +691,9 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		return nil, err
 	}
 	ApplyGrouperExtensions(grouperInstance, p.exts)
-	streamGrp, _ := grouperInstance.(StreamingGrouper)
-	multiGrp, _ := grouperInstance.(MultiKeyStreamingGrouper)
-	if streamGrp == nil && multiGrp == nil {
-		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-			fmt.Sprintf("grouper %s does not implement StreamingGrouper or MultiKeyStreamingGrouper", grp.Type))
+	keyer, err := NewGroupKeyer(grouperInstance)
+	if err != nil {
+		return nil, err
 	}
 
 	// Pre-compute aggregator labels so per-key bucket construction is cheap.
@@ -751,13 +749,8 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		return nil, err
 	}
 
-	// Per-group bucket. Keys are insertion-ordered to match buffered
-	// path's map-iteration nondeterminism: callers that need stable
-	// ordering must apply Sort.
-	type bucket struct {
-		online []OnlineAggregator
-	}
-	buckets := make(map[string]*bucket)
+	// Per-group aggregator buckets; FinalizeGroupedStream orders them.
+	buckets := make(map[string][]OnlineAggregator)
 
 	// Track null count on the primary aggregation field for
 	// RunComponents.NullRecords. Resolution mirrors the package-level
@@ -815,25 +808,12 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			r.Set(ra.label, val)
 		}
 
-		var rowKeys []string
-		if multiGrp != nil {
-			keys, ok, err := multiGrp.KeysForRow(r, grp.Field)
-			if err != nil {
-				return nil, err
-			}
-			if !ok || len(keys) == 0 {
-				continue
-			}
-			rowKeys = keys
-		} else {
-			key, ok, err := streamGrp.KeyForRow(r, grp.Field)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				continue // null group key — buffered path skips these too
-			}
-			rowKeys = []string{key}
+		rowKeys, ok, err := keyer.Keys(r, grp.Field)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue // null group key — buffered path skips these too
 		}
 
 		for _, key := range rowKeys {
@@ -852,10 +832,10 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 					}
 					online[i] = oa
 				}
-				b = &bucket{online: online}
+				b = online
 				buckets[key] = b
 			}
-			for i, oa := range b.online {
+			for i, oa := range b {
 				if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
 					return nil, err
 				}
@@ -863,105 +843,26 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 	}
 
-	// Stable-emit by bucket key so row order is deterministic across runs
-	// regardless of Go's map-iteration randomness or streaming-vs-buffered
-	// codepath choice. grouperInstance is the same object KeyForRow /
-	// KeysForRow drove against, so its include filter (if any) yields the
-	// identical include order as the buffered path; no include → sort.Strings.
-	// An explicit req.Sort below still overrides this default ordering.
-	keys := make([]string, 0, len(buckets))
-	for k := range buckets {
-		keys = append(keys, k)
-	}
-	keys = orderKeysByInclude(includeFilterOf(grouperInstance), keys)
-
-	data := make([]map[string]any, 0, len(keys))
-	for _, key := range keys {
-		b := buckets[key]
-		// +1 reserved for the group key written below.
-		row := make(map[string]any, len(specs)+1)
-		for i, oa := range b.online {
-			val, err := oa.Finalize()
-			if err != nil {
-				return nil, err
-			}
-			row[specs[i].label], err = dispatchAggregatorResult(oa, val)
-			if err != nil {
-				return nil, err
-			}
-		}
-		row[grp.Field] = key
-		data = append(data, row)
-	}
-
-	// Apply explicit Sort to grouped output, mirroring processRecords
-	// behavior. The default stable key-order above gives a deterministic
-	// fallback when no Sort is specified.
-	if len(req.Sort) > 0 {
-		window.Sort(data, req.Sort)
-	}
-
-	postResults, err := p.runPostTests(req.PostTests, data)
-	if err != nil {
-		return nil, err
-	}
-
 	_ = ctx
-	resp := &types.Response{
-		Data: data,
-		Metadata: &types.ResponseMetadata{
-			TotalRows:    totalRows,
-			FilteredRows: filteredRows,
+	// Row order, the Rich-or-scalar lift, Sort, post-tests, Components
+	// and the SERIES overlay fold live in the ONE grouped tail the
+	// parallel reducers share, so no worker count can change the answer.
+	// The streaming-grouped path has no shard concept (records flow off
+	// a single iterator whatever the cohort topology); the service stamps
+	// Run.ShardCount on an archive.
+	return FinalizeGroupedStream(req, GroupedTail{
+		Group:             grp,
+		Grouper:           grouperInstance,
+		Buckets:           buckets,
+		TotalRows:         totalRows,
+		FilteredRows:      filteredRows,
+		NullRecords:       primaryNullRecords,
+		FilterCounters:    filterCounters,
+		DisableComponents: p.disableComponents,
+		PostTests: func(rows []map[string]any) ([]*types.TestResult, error) {
+			return p.runPostTests(req.PostTests, rows)
 		},
-		PostTests: postResults,
-	}
-
-	// Components emission block — gated by the processor's
-	// disableComponents flag (see attachAggregationComponents for the
-	// full opt-out contract).
-	if !p.disableComponents {
-		// Streaming grouped path emits one GrouperComponents entry
-		// per Group slot (single-grouper today). Bucket counts ride off
-		// the grouper's live state (populated by KeyForRow per filter-
-		// passing row); TotalN sums the bucket counts; NNull falls out of
-		// filteredRows minus TotalN — every post-filter record that did
-		// NOT land in a bucket (null field value, include-filter rejection,
-		// empty set mask, etc.). The grouper instance is the same object
-		// KeyForRow drove against, so MetaGrouper.Components() reads off
-		// the same map.
-		streamEntry, gerr := buildStreamingGrouperComponents(grouperInstance, grp, int(filteredRows))
-		if gerr != nil {
-			return nil, gerr
-		}
-		attachGrouperComponents(resp, streamEntry)
-
-		// Emit FiltererComponents per slot. Empty filter chains
-		// stay nil so the omitempty wire shape is byte-identical.
-		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
-
-		// Emit RunComponents — typed cohort-level counters. The
-		// streaming-grouped path has no shard concept (records flow off a
-		// single iterator regardless of the underlying cohort topology), so
-		// ShardCount stays 0 and PartialCohortReason stays empty.
-		attachRunComponents(resp, RunCountersInput{
-			TotalRecords:    totalRows,
-			FilteredRecords: filteredRows,
-			NullRecords:     primaryNullRecords,
-		})
-	}
-
-	// SERIES-host overlay hook. Streaming grouped exit calls into the
-	// same post-finalize wiring as the buffered processRecords path.
-	// Streamable overlay kinds (INDEX_VS_TOTAL / SHARE_OF_TOTAL /
-	// ZSCORE_VS_TOTAL) fold against the already-
-	// materialised per-group SeriesPayload at this exit; mixed-mode
-	// requests carrying a non-streamable kind never reach here because
-	// canStream's canStreamOverlays gate forces them to the buffered
-	// path (see processor.go canStream above).
-	if err := applyOverlaysSeriesToResponse(req, resp); err != nil {
-		return nil, err
-	}
-	return resp, nil
+	})
 }
 
 // twoPassAttrEntry pairs an attribute spec with its constructed
@@ -1450,22 +1351,21 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		attachFiltererComponents(resp, buildFiltererComponents(req.Filterers, filterCounters))
 
 		// Emit RunComponents — typed cohort-level counters.
-		// NullRecords resolution: prefer the FIRST aggregator's nNull from
-		// aggComponents (already computed by aggregateWithComponents's
-		// per-field floor cache); fall back to the FIRST grouper's NNull
-		// when no aggregators were declared; fall back to a buffered scan
-		// of the post-filter record slice when neither carries a primary
-		// field. The buffered processRecords path has no shard concept
-		// (the iterator already merged shard archives into a flat record
-		// slice at this point) so ShardCount stays 0 and
-		// PartialCohortReason stays empty.
+		// NullRecords resolution: the FIRST aggregator's nNull from
+		// aggComponents when the ungrouped exit computed it (the per-field
+		// floor cache); otherwise a scan of the post-filter records for
+		// nulls on the primary field (first aggregator's Field, else the
+		// grouper's) — the rule every streaming exit applies. A grouped
+		// run emits no aggComponents, and this used to fall back to the
+		// grouper's NNull instead: a different quantity (it also counts
+		// include rejections, and is about the GROUPER field), so a
+		// grouped request reported a different null_records on the
+		// buffered path than on the streaming one. The buffered path has
+		// no shard concept (the service stamps ShardCount on an archive).
 		var nullRecords int64
-		switch {
-		case len(aggComponents) > 0:
+		if len(aggComponents) > 0 {
 			nullRecords = int64(aggComponents[0].NNull)
-		case len(grpComponents) > 0:
-			nullRecords = int64(grpComponents[0].NNull)
-		default:
+		} else {
 			nullRecords = countNullsBuffered(filtered, primaryNullFieldName(req))
 		}
 		attachRunComponents(resp, RunCountersInput{
