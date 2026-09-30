@@ -34,6 +34,35 @@ type PanelOverlayParams struct {
 	// of the PanelNSource* constants. Empty = row_margin_value, which
 	// is the leg the panel has always used.
 	NSource string `json:"n_source,omitempty"`
+
+	// NWithinDepth scopes the n_within leg to a ROW-KEY PREFIX on each
+	// slot's OWN row axis. The panel pairs across SLOTS, which carry
+	// no dim tuple, so — unlike the OVERLAY_PAIRWISE_* family, where
+	// the depth indexes the pair axis — there is no pair axis to
+	// index here.
+	//
+	// nil (omitted) means the EXACT per-slot row margin, with no
+	// summing at all. A non-nil d sums that slot's row margins over
+	// every row whose key agrees with the coordinate's row on the
+	// first d+1 dim positions.
+	//
+	// A POINTER, not an int, and that is the whole point: depth 0 is
+	// a meaningful value — the coarsest real prefix, one dim fixed —
+	// so an int zero value cannot also carry "absent". Reading 0 as
+	// "omitted" would silently give a caller who asked for the
+	// first-dim slab the unsummed row margin instead, which is a
+	// smaller number that looks entirely plausible.
+	// types.PairwiseOverlayParams.NWithinDepth is a plain int and has
+	// exactly this defect; it is not fixed here (its wire value
+	// shipped) and must not be reproduced.
+	//
+	// Accepted ONLY with an n_source that consumes it
+	// (PanelNSourceUsesWithinDepth). Set alongside any other mode it
+	// would be inert, and an inert param the caller believes is
+	// applied is the silent no-op this family refuses — so both arms
+	// raise PULSE_OVERLAY_PARAM_MISSING instead. Negative values are
+	// refused the same way.
+	NWithinDepth *int `json:"n_within_depth,omitempty"`
 }
 
 // Panel sample-size source modes (PanelOverlayParams.NSource).
@@ -80,6 +109,32 @@ const (
 	// (PULSE_OVERLAY_COMPONENTS_REQUIRED) and has NO cell-value
 	// fallback: an unreadable leg skips the coordinate.
 	PanelNSourceCellNUnweighted = "cell_n_unweighted"
+
+	// PanelNSourceNWithin is the WITHIN-PREFIX margin leg: the slot's
+	// row margin, optionally summed over a row-key prefix slab.
+	//
+	// CARRIER. It reads the same place PanelNSourceRowMarginValue
+	// does — the margin CELL's value off MatrixPayload.RowMargins —
+	// so with NWithinDepth omitted it IS the legacy leg's number, and
+	// the two agree byte-for-byte wherever that margin is present.
+	// The name denotes the SCOPE (a within-prefix denominator, the
+	// same Pulse-W `normalize_within` notion CrosstabHostView.RowSlabN
+	// serves on the MATRIX arm), not the carrier.
+	//
+	// It therefore shares only its NAME with the axis-pairing
+	// family's n_within, which sums CrosstabComponents.CellCounts —
+	// record COUNTS — across a slab of the PAIR axis. Two differences
+	// at once: this one reads a payload VALUE, and "row" means the
+	// slot's own row axis because the panel pairs across slots. Say
+	// so wherever the mode is named.
+	//
+	// It does NOT carry the legacy <= 0 cell-value fallback; see
+	// PanelNSourceFallsBackToCellValue. A row margin that was never
+	// emitted skips the coordinate with a warning rather than
+	// substituting the cell value, and — once a depth is set — a
+	// single coordinate's cell value is not even the same dimension
+	// as a slab-wide sample size.
+	PanelNSourceNWithin = "n_within"
 )
 
 // panelNSources is the ordered valid set, empty excluded. Diagnostics
@@ -87,6 +142,7 @@ const (
 var panelNSources = []string{
 	PanelNSourceRowMarginValue,
 	PanelNSourceCellNUnweighted,
+	PanelNSourceNWithin,
 }
 
 // PanelNSources returns the valid PanelOverlayParams.NSource modes in
@@ -104,10 +160,26 @@ func PanelNSources() []string {
 // mode. Empty counts as valid (defaults to row_margin_value).
 func ValidPanelNSource(s string) bool {
 	switch s {
-	case "", PanelNSourceRowMarginValue, PanelNSourceCellNUnweighted:
+	case "", PanelNSourceRowMarginValue, PanelNSourceCellNUnweighted, PanelNSourceNWithin:
 		return true
 	}
 	return false
+}
+
+// PanelNSourceUsesWithinDepth reports whether s CONSUMES
+// PanelOverlayParams.NWithinDepth. Both arms key their
+// "n_within_depth without a mode that reads it" refusal off this
+// predicate, so the accepted combination is stated once.
+//
+// Why refuse at all rather than ignore the field: an ignored depth is
+// a silent no-op, and the caller reading a denominator they never got
+// cannot tell. The panel can afford the refusal precisely because
+// NWithinDepth is a POINTER here — "set" is distinguishable from
+// "zero", so the check cannot misfire on a caller who never wrote the
+// key. (The axis-pairing family's int field cannot make that
+// distinction, which is why its equivalent no-op is still open.)
+func PanelNSourceUsesWithinDepth(s string) bool {
+	return s == PanelNSourceNWithin
 }
 
 // PanelNSourceReadsComponents reports whether s reads
@@ -130,6 +202,15 @@ func PanelNSourceReadsComponents(s string) bool {
 // substitution this family now refuses. It survives on row_margin_value
 // because removing it would change the default path's output, and the
 // default must stay byte-identical to the pre-params baseline.
+//
+// n_within is excluded too, even though it reads the SAME payload
+// margin the legacy leg does. Two reasons, and the second is the
+// decisive one. A margin that was never emitted is not a zero-sized
+// one — the posture RowMarginDistinctN already takes. And once
+// NWithinDepth is set the leg is a SUM ACROSS ROWS, so substituting
+// one coordinate's cell value for a whole slab's sample size is not
+// the same dimension; a fallback that applied only at omitted depth
+// would make one mode two behaviours.
 //
 // Every COUNTED mode instead answers ok=false and SKIPS the
 // coordinate with a warning — the same posture the MATRIX arm's

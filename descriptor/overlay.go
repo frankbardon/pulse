@@ -262,6 +262,45 @@ func validateOverlayPanel(env *Envelope, kind types.OverlayKind, params types.Pa
 				"n_source": params.NSource, "valid_n_sources": valid})
 		return
 	}
+
+	// n_within_depth shape. Both checks are pure spec configuration —
+	// no host is reachable from here — so both are predict-safe and
+	// both carry a runtime twin in applyPropZPanel, because
+	// pulse.Compose does not run predict.
+	//
+	// Set alongside a mode that does not consume it, the depth is
+	// INERT, and an inert param the caller believes is applied is the
+	// silent no-op this family refuses. The panel can make that
+	// refusal only because PanelOverlayParams.NWithinDepth is a *int:
+	// "written" is distinguishable from "zero", so the check cannot
+	// misfire on a caller who never named the key. (The axis-pairing
+	// family's plain int cannot make that distinction, which is why
+	// its equivalent no-op is still open — this is not a fix for it.)
+	if params.NWithinDepth != nil && !types.PanelNSourceUsesWithinDepth(params.NSource) {
+		nSource := params.NSource
+		if nSource == "" {
+			nSource = types.PanelNSourceRowMarginValue
+		}
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(kind)+" n_within_depth is not read by n_source "+nSource+
+				" (it applies to "+types.PanelNSourceNWithin+" only)",
+			map[string]any{"index": index, "kind": string(kind),
+				"n_source": params.NSource, "n_within_depth": *params.NWithinDepth})
+		return
+	}
+	if params.NWithinDepth != nil && *params.NWithinDepth < 0 {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(kind)+" n_within_depth must be >= 0",
+			map[string]any{"index": index, "kind": string(kind),
+				"n_source": params.NSource, "n_within_depth": *params.NWithinDepth})
+		return
+	}
+
+	// The depth-vs-actual-row-axis-depth range guard is deliberately
+	// NOT here. It is per SLOT and needs each slot's materialised row
+	// keys, which a no-execute validator cannot see; the MATRIX arm
+	// draws the same line (descriptor checks `< 0`, buildPairwisePairs
+	// checks the range against the live host).
 }
 
 // chiSqColSupportedScopes is the supported scope set for

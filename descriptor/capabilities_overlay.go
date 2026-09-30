@@ -1121,12 +1121,22 @@ func overlayCapabilityFor(kind types.OverlayKind) OverlayCapability {
 				"and {} are identical to the pre-params baseline, unknown keys are tolerated, and a blob that does not decode " +
 				"fires PULSE_OVERLAY_PARAM_MISSING at descriptor.ValidateCompose (ComposedRequest.Overlays is the only slot " +
 				"this kind executes from). n_source selects where each SLOT's sample-size leg is read, once per slot at the " +
-				"tested coordinate, before any pairing — \"row\" therefore names each slot's own axis, never a pair axis. Two " +
+				"tested coordinate, before any pairing — \"row\" therefore names each slot's own axis, never a pair axis. Three " +
 				"modes: row_margin_value (the default; empty means this) reads the slot's row-margin VALUE off the " +
 				"MatrixPayload by row key and keeps the historical <= 0 fall back to the CELL VALUE; cell_n_unweighted reads " +
 				"the COUNTED universal-floor \"n\" out of Response.Components.Crosstab.CellComponents[r][c] on every slot, " +
 				"resolved BY KEY (slots share a key SET, not an ORDER), with NO cell-value fallback — an unreadable leg skips " +
-				"the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index. The " +
+				"the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index; " +
+				"n_within reads the SAME payload row margin as the default but scoped to a ROW-KEY PREFIX, and carries no " +
+				"fallback either. n_within_depth (*int) is read by n_within alone — the pointer is load-bearing because " +
+				"depth 0 is a meaningful value: omitted means the EXACT per-slot row margin with no summing, while d sums " +
+				"that slot's row margins over every row agreeing on the first d+1 dim positions (axisKeyPrefixEqual, the " +
+				"same value-stringifying comparison the MATRIX arm's RowSlabN uses). A negative depth, or a depth set " +
+				"alongside a mode that does not read it, fires PULSE_OVERLAY_PARAM_MISSING on BOTH arms — an inert param " +
+				"the caller believes is applied is a silent no-op. A depth past a slot's row-axis dim count fires the same " +
+				"code at RUNTIME only, naming that slot: slots may declare DIFFERENT row-axis depths, and one out-of-range " +
+				"slot refuses the WHOLE spec rather than dropping out, because dropping it would change M and with it the " +
+				"length and pair ordering of every cell's output vector. The " +
 				"components requirement is MODE-SCOPED: only a counted mode gates, so the legacy default never starts " +
 				"refusing. A slot with components disabled, or whose response is not a crosstab, fires " +
 				"PULSE_OVERLAY_COMPONENTS_REQUIRED; an unresolved slot keeps the structural PULSE_OVERLAY_SLOT_NOT_CROSSTAB. " +

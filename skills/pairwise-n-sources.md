@@ -35,7 +35,7 @@ Use a distinct mode when one respondent contributes several records and n must b
 
 Distinct modes are admitted on the cell aggregator's IDENTITY, UP FRONT, not per pair, with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator and the admitted set: `AGG_DISTINCT_SUM` (figure on `distinct_count`) and `AGG_DISTINCT_COUNT` (on `cardinality`).
 
-Everything else is refused, including `AGG_FREQUENCY` and `AGG_MODE`, which BOTH emit a component spelled `distinct_count` — theirs counts distinct VALUES of the measure field (answer codes), not keys. A key-presence probe would read the answer-code count and call it a sample size, so identity is an exact component-key-set match against each aggregator's `ComponentSchema`; the per-cell probe in the slab accessors sits on top of that, not instead of it.
+Everything else is refused, including `AGG_FREQUENCY` and `AGG_MODE`, which BOTH emit a component spelled `distinct_count` — theirs counts distinct VALUES of the measure field (answer codes), not keys. A key-presence probe would read the answer-code count and call it a sample size, so identity is an exact component-key-set match against each aggregator's `ComponentSchema`.
 
 ## Null rules
 
@@ -45,9 +45,9 @@ A slab cell no record reached contributes zero: a true zero, not an unreadable l
 
 ## The slab partition rule
 
-Summing per-cell distinct cardinalities equals the slab's true count only when its cells PARTITION the key set. The slab sums across every dim after the fixed prefix, so a fan-out grouper (`GROUP_SET_PER_ELEMENT`) at a summed-across depth lands one key in two cells and n comes out too large. Refused with `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`.
+Summing per-cell distinct cardinalities equals the slab's true count only when its cells PARTITION the key set. The slab sums across every dim after the fixed prefix, so a fan-out grouper (`GROUP_SET_PER_ELEMENT`) at a summed-across depth lands one key in two cells and n comes out too big. Refused with `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`.
 
-Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_depth` sits inside the FIXED prefix, multiplying slabs rather than cells, so each slab still partitions its own keys — the shape the mode exists for; and one on the OPPOSITE axis at any depth, which the slab never sums across. Fix a refusal by raising `n_within_depth` past the offending dim, or switch to `n_within`: record counts ARE additive.
+Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_depth` sits inside the FIXED prefix, multiplying slabs not cells, so each slab still partitions its own keys — the shape the mode exists for; and one on the OPPOSITE axis at any depth, which the slab never sums across. Fix a refusal by raising `n_within_depth` past the offending dim, or switch to `n_within`: record counts ARE additive.
 
 The two MARGIN distinct modes are exact by construction and deliberately NOT gated: a margin accumulates over the raw records that reached the margin key, once each, so there is no per-cell summing to double-count through. Extension groupers are covered too (`GrouperRegistration.FansOut`).
 
@@ -57,12 +57,12 @@ The failure is silent and liberal: n too large, every p-value too small, nothing
 
 ## Direct-caller bypass
 
-`processing.ApplyOverlaysWithExtensions` is EXPORTED. A caller hand-building a `CrosstabHostView` bypasses BOTH gates: predict never ran, and the runtime twin lives at the response hook that caller skipped, keyed off a pair-axis grouper type the materialised host does not carry. Admission survives but classifies the cell aggregator from the host's component key SHAPE, so `AGG_FREQUENCY` figures under a distinct-bearing shape have their ANSWER-CODE count read as a sample size. Accepted: the exported entry is for embedders who own their host. Drive the fold through `pulse.Process` for both gates.
+`processing.ApplyOverlaysWithExtensions` is EXPORTED. A caller hand-building a `CrosstabHostView` bypasses BOTH gates: predict never ran, and the runtime twin lives at the response hook that caller skipped, keyed off a pair-axis grouper type the materialised host does not carry. Admission survives but classifies from the host's component key SHAPE, so `AGG_FREQUENCY` under a distinct-bearing shape has its ANSWER-CODE count read as a sample size. Accepted: the exported entry is for embedders who own their host; drive the fold through `pulse.Process` for both gates.
 
 ## p_source
 
-Proportion-input kinds only. `cell_value_pct` (default) divides the cell value by 100; `cell_value` takes it as already 0..1. A mismatch fails silently and totally: `cell_value` over a real 0..100 percentage puts every proportion out of range and the layer returns empty.
+Proportion-input kinds only. `cell_value_pct` (default) divides the cell value by 100; `cell_value` takes it as already 0..1. A mismatch fails silently: `cell_value` over a real 0..100 percentage puts every proportion out of range and the layer returns empty.
 
 ## See
 
-`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `examples/overlays/42_crosstab_pairwise_distinct_n.json`. The Compose-host `op-overlay-prop-z-panel` spells its margin leg `row_margin_value` (a payload VALUE), never `row_margin_n`.
+`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `examples/overlays/42_crosstab_pairwise_distinct_n.json`. The Compose-host `op-overlay-prop-z-panel` reuses these NAMES over other carriers: `row_margin_value` (a payload VALUE, not `row_margin_n`) and an `n_within` summing that slot's ROW MARGINS over a row-key prefix, not `CellCounts` over a pair-axis slab.

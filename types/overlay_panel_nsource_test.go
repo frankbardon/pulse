@@ -20,13 +20,21 @@ func TestValidPanelNSource(t *testing.T) {
 		{"", true},
 		{PanelNSourceRowMarginValue, true},
 		{PanelNSourceCellNUnweighted, true},
+		{PanelNSourceNWithin, true},
 
-		// Rejected. The first three are the crosstab family's modes:
+		// n_within is spelled the same on both families (E4-S1), and
+		// the wire values are asserted equal below so the collision
+		// can never become accidental. It is NOT the same quantity:
+		// the panel sums each slot's ROW MARGINS over a row-key
+		// prefix, the axis-pairing family sums CellCounts over a
+		// PAIR-axis slab at a fixed opposite index. See the constant.
+		{PairwiseNSourceNWithin, true},
+
+		// Rejected. Both are the crosstab family's modes:
 		// PairwiseOverlayParams and PanelOverlayParams are separate
 		// types precisely so each host offers only the modes it can
 		// actually serve, and a shared struct would have leaked these.
 		{PairwiseNSourceColumnMarginN, false},
-		{PairwiseNSourceNWithin, false},
 		{PairwiseNSourceRowMarginDistinct, false},
 		{PairwiseNSourceRowMarginN, false},
 		{"ROW_MARGIN_N", false},
@@ -36,6 +44,14 @@ func TestValidPanelNSource(t *testing.T) {
 		if got := ValidPanelNSource(tc.in); got != tc.want {
 			t.Errorf("ValidPanelNSource(%q) = %v, want %v", tc.in, got, tc.want)
 		}
+	}
+	// The one shared spelling is shared DELIBERATELY. Pinning the two
+	// constants equal means a later rename on either family has to
+	// come back here and restate the decision rather than silently
+	// splitting a name two hosts' docs claim is one.
+	if PanelNSourceNWithin != PairwiseNSourceNWithin {
+		t.Fatalf("panel %q and pairwise %q have diverged; restate the shared-name decision",
+			PanelNSourceNWithin, PairwiseNSourceNWithin)
 	}
 }
 
@@ -57,7 +73,11 @@ func TestPanelNSources_MatchesValidatorMinusEmpty(t *testing.T) {
 			t.Errorf("PanelNSources() lists %q, which ValidPanelNSource rejects", s)
 		}
 	}
-	want := map[string]bool{PanelNSourceRowMarginValue: true, PanelNSourceCellNUnweighted: true}
+	want := map[string]bool{
+		PanelNSourceRowMarginValue:  true,
+		PanelNSourceCellNUnweighted: true,
+		PanelNSourceNWithin:         true,
+	}
 	if len(got) != len(want) {
 		t.Fatalf("PanelNSources() = %v, want exactly %d entries", got, len(want))
 	}
@@ -119,6 +139,18 @@ func TestPanelNSourcePredicates_AreDisjoint(t *testing.T) {
 	}
 	if !PanelNSourceReadsComponents(PanelNSourceCellNUnweighted) {
 		t.Error("cell_n_unweighted must read components")
+	}
+
+	// n_within reads the SAME payload margin the legacy leg does, so
+	// it demands no components — but it must not inherit the legacy
+	// leg's <= 0 cell-value fallback either. Being in NEITHER set is
+	// the whole claim, and it is the one a later mode is most likely
+	// to break by copying row_margin_value's predicates wholesale.
+	if PanelNSourceReadsComponents(PanelNSourceNWithin) {
+		t.Error("n_within reads MatrixPayload.RowMargins and must not demand components")
+	}
+	if PanelNSourceFallsBackToCellValue(PanelNSourceNWithin) {
+		t.Error("n_within must NOT inherit the legacy cell-value fallback: a summed slab has no single cell value to borrow")
 	}
 }
 

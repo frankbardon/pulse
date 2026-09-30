@@ -42,6 +42,16 @@ import (
 // per-slot components channel (processing/overlay_compose_slot_view.go)
 // and refuse a components-disabled slot with
 // PULSE_OVERLAY_COMPONENTS_REQUIRED rather than falling back.
+//
+// n_within_depth (*int, nil = omitted) scopes the n_within leg to each
+// slot's OWN row-key prefix. The panel pairs across SLOTS, which carry
+// no dim tuple, so there is no pair axis for a depth to index the way
+// the OVERLAY_PAIRWISE_* family's does. Omitted ⇒ the exact per-slot
+// row margin, no summing; d ⇒ the sum over rows agreeing on the first
+// d+1 dims. Slots may declare DIFFERENT row-axis depths, so the range
+// guard runs per slot and one offending slot refuses the whole spec —
+// dropping it would change M and with it the length and pair ordering
+// of every cell's output vector.
 
 // defaultMaxPanelTargets is the explicit default for
 // OverlayOptions.MaxPanelTargets when the slot is zero / unset.
@@ -129,19 +139,79 @@ func panelSlotRequestIndex(panelIdx, refIdx int, targetIdxs []int) int {
 	return -1
 }
 
+// panelRowMarginSlabLookup builds ONE slot's within-prefix margin
+// lookup: `row-key string → summed row-margin VALUE over every row of
+// that slot whose key agrees with it on the first `prefix` dim
+// positions`.
+//
+// Built once per slot, before the coordinate walk, so the fold stays
+// O(rows²) per slot instead of O(rows) per coordinate.
+//
+// Prefix comparison is axisKeyPrefixEqual — the SAME value-stringifying
+// comparison the MATRIX arm's RowSlabN / ColumnSlabN use, so int /
+// int64 / string round-trip variants of one key collapse identically
+// on both arms. A second comparison here is how the two would start
+// disagreeing about whether two rows are in the same slab.
+//
+// A slab is readable only when EVERY row in it carries a margin. One
+// missing margin would otherwise understate the sum silently, which is
+// indistinguishable from a genuinely smaller subgroup; the key is
+// omitted instead and the caller skips the coordinate with an
+// n_missing warning. Rows shorter than `prefix` cannot be placed in
+// any slab and are skipped — the caller's up-front depth guard has
+// already refused a slot whose declared row depth is too shallow, so
+// this is defense in depth against a ragged axis.
+func panelRowMarginSlabLookup(slot *ComposeSlotView, margins map[string]float64, prefix int) map[string]float64 {
+	out := map[string]float64{}
+	rows := slot.RowCount()
+	for i := 0; i < rows; i++ {
+		anchor := slot.RowKey(i)
+		if len(anchor) < prefix {
+			continue
+		}
+		anchorStr := axisKeyToString(anchor)
+		if _, done := out[anchorStr]; done {
+			continue
+		}
+		sum := 0.0
+		readable := false
+		complete := true
+		for j := 0; j < rows; j++ {
+			k := slot.RowKey(j)
+			if len(k) < prefix || !axisKeyPrefixEqual(anchor, k, prefix) {
+				continue
+			}
+			v, ok := margins[axisKeyToString(k)]
+			if !ok {
+				complete = false
+				break
+			}
+			sum += v
+			readable = true
+		}
+		if readable && complete {
+			out[anchorStr] = sum
+		}
+	}
+	return out
+}
+
 // panelSampleSize resolves ONE slot's sample-size leg at one
 // coordinate, per the n_source mode.
 //
-// The two modes differ in more than where they read. row_margin_value
+// The modes differ in more than where they read. row_margin_value
 // always answers (it is a payload read with a value fallback), so the
 // legacy path can never skip a coordinate it used to emit;
-// cell_n_unweighted answers ok=false when the counted figure was not
-// emitted, and the caller skips the coordinate with a warning. See
+// cell_n_unweighted and n_within answer ok=false when the figure was
+// not emitted, and the caller skips the coordinate with a warning. See
 // types.PanelNSourceFallsBackToCellValue for why the fallback is not
 // carried forward.
 //
 // `slots`, `rowIdxLookups` and `colIdxLookups` are nil for the legacy
 // mode and are only touched by the components arm.
+// `rowSlabLookups` is nil unless n_within was given an explicit
+// NWithinDepth — a nil slab lookup under n_within IS the omitted-depth
+// form, which reads the exact per-slot row margin with no summing.
 func panelSampleSize(
 	nSource string,
 	slots *ComposeHostView,
@@ -149,9 +219,30 @@ func panelSampleSize(
 	rowIdxLookups, colIdxLookups []map[string]int,
 	rowKeyStr, colKeyStr string,
 	rowMarginLookups []map[string]float64,
+	rowSlabLookups []map[string]float64,
 	cellValue float64,
 ) (float64, bool) {
 	switch nSource {
+	case types.PanelNSourceNWithin:
+		// Omitted depth: the EXACT per-slot row margin. Same carrier
+		// and same number as the legacy leg wherever that margin is
+		// present — and deliberately NOT its <= 0 cell-value
+		// fallback, so an unemitted margin skips rather than
+		// borrowing the cell value. A present margin of 0 is a real
+		// 0 and the prop-Z kernel reports the degenerate pair.
+		if rowSlabLookups == nil {
+			if panelIdx < 0 || panelIdx >= len(rowMarginLookups) {
+				return 0, false
+			}
+			v, ok := rowMarginLookups[panelIdx][rowKeyStr]
+			return v, ok
+		}
+		if panelIdx < 0 || panelIdx >= len(rowSlabLookups) {
+			return 0, false
+		}
+		v, ok := rowSlabLookups[panelIdx][rowKeyStr]
+		return v, ok
+
 	case types.PanelNSourceCellNUnweighted:
 		if panelIdx < 0 || panelIdx >= len(rowIdxLookups) || panelIdx >= len(colIdxLookups) {
 			return 0, false
@@ -255,6 +346,41 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 			})
 	}
 
+	// n_within_depth shape, judged before any host is looked at: it is
+	// a property of the SPEC, not of a slot.
+	//
+	// Set alongside a mode that does not consume it, the depth would
+	// be inert — and an inert param the caller believes is applied is
+	// the silent no-op this family refuses. The panel can make that
+	// refusal only because NWithinDepth is a *int: "written" is
+	// distinguishable from "zero", so the check cannot misfire on a
+	// caller who never named the key.
+	if params.NWithinDepth != nil && !types.PanelNSourceUsesWithinDepth(params.NSource) {
+		nSource := params.NSource
+		if nSource == "" {
+			nSource = types.PanelNSourceRowMarginValue
+		}
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING,
+			"overlay "+string(spec.Kind)+" n_within_depth is not read by n_source "+nSource+
+				" (it applies to "+types.PanelNSourceNWithin+" only)",
+			map[string]any{
+				"kind":           string(spec.Kind),
+				"n_source":       params.NSource,
+				"n_within_depth": *params.NWithinDepth,
+			})
+	}
+	if params.NWithinDepth != nil && *params.NWithinDepth < 0 {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING,
+			"overlay "+string(spec.Kind)+" n_within_depth must be >= 0",
+			map[string]any{
+				"kind":           string(spec.Kind),
+				"n_source":       params.NSource,
+				"n_within_depth": *params.NWithinDepth,
+			})
+	}
+
 	refMx := readMatrix(reference)
 	if refMx == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -316,8 +442,19 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	// spells its existing behaviour out as `n_source: row_margin_value`.
 	var slots *ComposeHostView
 	var rowIdxLookups, colIdxLookups []map[string]int
-	if types.PanelNSourceReadsComponents(params.NSource) {
+	// n_within reads the PAYLOAD margins, not components — but it
+	// needs each slot's own row-key tuples and declared row depth, and
+	// ComposeSlotView is where those live (RowKey / RowAxisDepth /
+	// RowCount are payload-side and answer on every state). So the
+	// view is built for it too, while the components GATE below stays
+	// keyed on PanelNSourceReadsComponents alone: widening the gate to
+	// every mode that happens to construct a view would make a
+	// payload-only mode start demanding components.
+	if types.PanelNSourceReadsComponents(params.NSource) ||
+		types.PanelNSourceUsesWithinDepth(params.NSource) {
 		slots = NewComposeHostView(append([]*types.Response{reference}, targets...))
+	}
+	if types.PanelNSourceReadsComponents(params.NSource) {
 		for s := 0; s < m; s++ {
 			state := slots.Slot(s).State()
 			if state.Available() {
@@ -359,6 +496,53 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 		}
 	}
 
+	// The within-prefix slab, built only when n_within was given an
+	// explicit depth. nil rowSlabLookups under n_within is the
+	// omitted-depth form — the exact per-slot row margin, no summing —
+	// and it must stay nil rather than degenerate to a prefix of 1,
+	// because depth 0 is prefix 1 and the two answers differ whenever
+	// the row axis has more than one dim.
+	var rowSlabLookups []map[string]float64
+	if types.PanelNSourceUsesWithinDepth(params.NSource) && params.NWithinDepth != nil {
+		prefix := *params.NWithinDepth + 1
+
+		// Range guard, RUNTIME-only and per SLOT. Slots may declare
+		// DIFFERENT row-axis depths — the panel has N + 1 matrices
+		// where the MATRIX arm has one — so a depth valid for the
+		// reference can be out of range for a target.
+		//
+		// A single offending slot refuses the WHOLE spec rather than
+		// dropping out of the panel. Dropping it would change M, and
+		// M sets the length and the pair ordering of every cell's
+		// flattened upper-triangular vector: the caller would get a
+		// shorter vector with no way to tell which slot left. Pairing
+		// legs counted over different prefixes would be worse still.
+		// The depth is a property of the spec, so it is refused once,
+		// naming the first slot in PANEL order that cannot honour it.
+		for s := 0; s < m; s++ {
+			depth := slots.Slot(s).RowAxisDepth()
+			if prefix <= depth {
+				continue
+			}
+			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_OVERLAY_PARAM_MISSING,
+				"overlay "+string(spec.Kind)+" n_within_depth exceeds a slot's row-axis dim count",
+				map[string]any{
+					"kind":           string(spec.Kind),
+					"n_source":       params.NSource,
+					"n_within_depth": *params.NWithinDepth,
+					"dim_count":      depth,
+					"slot_index":     panelSlotRequestIndex(s, refIdx, targetIdxs),
+					"panel_index":    s,
+				})
+		}
+
+		rowSlabLookups = make([]map[string]float64, m)
+		for s := 0; s < m; s++ {
+			rowSlabLookups[s] = panelRowMarginSlabLookup(slots.Slot(s), rowMarginLookups[s], prefix)
+		}
+	}
+
 	// Use the reference matrix's axis keys as the canonical iteration
 	// shape — the key-set alignment gate already guaranteed every
 	// target carries the same key set.
@@ -392,7 +576,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				}
 				nSize, nok := panelSampleSize(params.NSource, slots, s,
 					rowIdxLookups, colIdxLookups, rowKeyStr, colKeyStr,
-					rowMarginLookups, v)
+					rowMarginLookups, rowSlabLookups, v)
 				if !nok {
 					anyMissing = true
 					nMissing = true
