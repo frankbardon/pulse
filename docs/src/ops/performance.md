@@ -41,6 +41,18 @@ through the pipeline), zero-allocation decoding into reused buffers,
 and an mmap reader for `.pulse` files large enough to benefit from
 demand paging.
 
+**Sorted cohorts decode faster, automatically.** On the record-reuse
+paths the decoder compares each field's bytes against the previous
+row's and skips rewriting the ones that did not change. A cohort that
+is a denormalised join — a parent block repeated across each parent's
+child rows — pays off when it is stored SORTED by the parent key: on a
+synthetic 95-field, 12.5x-fanout join the full-row reuse decode runs
+about 1.5x faster sorted. There is nothing to declare and no option;
+on unsorted data the decoder notices the low repeat rate and stops
+comparing, so the cost there stays within a few percent. Results are
+identical either way. If you control the import, `ORDER BY` the parent
+key.
+
 ## Buffered path: when Pulse has to materialise
 
 `pulse api predict` reports `Streamable=false` and lists every

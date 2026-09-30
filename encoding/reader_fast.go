@@ -54,7 +54,9 @@ type ReusableRecord interface {
 // When a record implements both interfaces the index-keyed methods win
 // and the name-keyed ones are never called by the reuse decoders. A
 // record that also implements TypedSetRecord receives set masks through
-// it instead of SetWideFieldAt.
+// it instead of SetWideFieldAt, and one that implements RunSkipRecord
+// gets BeginRunRow in place of ClearForRow and only its changed fields
+// rewritten (reader_runskip.go).
 type IndexedReusableRecord interface {
 	SetNumericAt(idx int, value float64)
 	SetNullFieldAt(idx int)
@@ -162,11 +164,17 @@ func (rr *RecordReader) indexedSink(rec ReusableRecord) IndexedReusableRecord {
 //     mapEOF; a partial trailing record surfaces as io.EOF as well
 //     (io.ReadFull maps a nonzero short read to io.ErrUnexpectedEOF, which
 //     mapEOF normalizes to io.EOF).
+//   - A record implementing RunSkipRecord is decoded by readStrideRunSkip:
+//     same result, but fields whose bytes repeat the previous row are not
+//     rewritten.
 func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 	sink := rr.indexedSink(rec)
+	if rs, ok := sink.(RunSkipRecord); ok {
+		return rr.readStrideRunSkip(rs)
+	}
 	sink.ClearForRow()
 
-	stride := rr.schema.RecordByteSize()
+	stride := rr.strideLayout().stride
 	if cap(rr.recBuf) < stride {
 		rr.recBuf = make([]byte, stride)
 	}
@@ -179,9 +187,9 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 
 // decodeStrideIndexed decodes one whole record stride already resident
 // in buf into sink. It is the full-decode body of ReadRecordReused, split
-// out so the row bytes and the write loop are separable: a later
-// run-skip can compare buf against the previous row before deciding
-// which fields to repopulate.
+// out so the row bytes and the write loop are separable: run-skip
+// (decodeStrideChanged) compares buf against the previous row instead
+// when it can keep the record's state.
 //
 // The schema position handed to every sink write is fi, the index of the
 // running walk over rr.schema.Fields — the same walk that advances the
@@ -243,7 +251,7 @@ func (rr *RecordReader) decodeStrideIndexed(sink IndexedReusableRecord, buf []by
 	// Trailing null bitmap, if the schema declares any nullable field.
 	// It occupies the last bmSize bytes of the stride we already read.
 	// The bitmap bit index IS the schema position.
-	if bmSize := rr.schema.BitmapByteSize(); bmSize > 0 {
+	if bmSize := rr.strideLayout().bmSize; bmSize > 0 {
 		bitmap := buf[cursor : cursor+bmSize]
 		for i := range fields {
 			if !fields[i].Nullable {
@@ -298,21 +306,16 @@ func (rr *RecordReader) ReadRecordReusedWithPlan(rec ReusableRecord, keep FieldF
 	}
 
 	sink := rr.indexedSink(rec)
+	if rs, ok := sink.(RunSkipRecord); ok {
+		return rr.readPlanRunSkip(rs, keep, plan)
+	}
 	sink.ClearForRow()
 
 	// The trailing bitmap segment, if present, is always the LAST segment
 	// in the plan (BuildDecodePlan appends it after every field-walk
 	// flush). Detect it once so the per-segment dispatch below routes it
 	// to the bitmap decoder rather than the field-group decoder.
-	bitmapIdx := -1
-	if rr.schema.HasBitmap() && len(plan.Segments) > 0 {
-		last := len(plan.Segments) - 1
-		if _, isDecode := plan.Segments[last].(DecodeFields); isDecode {
-			bitmapIdx = last
-		}
-		// A trailing SkipBytes for the bitmap is handled transparently by
-		// advanceReader — no special case needed.
-	}
+	bitmapIdx := rr.planBitmapIdx(plan)
 
 	segs := plan.Segments
 	for i := 0; i < len(segs); i++ {
@@ -341,6 +344,21 @@ func (rr *RecordReader) ReadRecordReusedWithPlan(rec ReusableRecord, keep FieldF
 	return nil
 }
 
+// planBitmapIdx returns the index of plan's trailing bitmap DecodeFields
+// segment, or -1 when the plan decodes no bitmap. The bitmap segment, if
+// present, is always the LAST segment (BuildDecodePlan appends it after
+// every field-walk flush); a trailing SkipBytes for the bitmap is
+// handled transparently by advanceReader — no special case needed.
+func (rr *RecordReader) planBitmapIdx(plan *DecodePlan) int {
+	if rr.schema.HasBitmap() && len(plan.Segments) > 0 {
+		last := len(plan.Segments) - 1
+		if _, isDecode := plan.Segments[last].(DecodeFields); isDecode {
+			return last
+		}
+	}
+	return -1
+}
+
 // groupOnWireBytes returns the on-wire byte width of a contiguous
 // DecodeFields group: 1 byte per bit-packed member (u4, packed_bool —
 // ReadBit/ReadNibble each consume a whole byte) and ByteSize() for every
@@ -367,7 +385,6 @@ func groupOnWireBytes(fields []*Field) int {
 // indices[k] is the schema position of fields[k] (DecodeFields.Indices,
 // resolved by segmentIndices); every sink write is keyed by it.
 func (rr *RecordReader) decodeFieldGroupReused(sink IndexedReusableRecord, keep FieldFilter, fields []*Field, indices []int) error {
-	typed, _ := sink.(TypedSetRecord)
 	groupBytes := groupOnWireBytes(fields)
 	if groupBytes <= 0 {
 		return nil
@@ -379,7 +396,14 @@ func (rr *RecordReader) decodeFieldGroupReused(sink IndexedReusableRecord, keep 
 	if _, err := io.ReadFull(rr.r, buf); err != nil {
 		return err
 	}
+	return decodeGroupBytes(sink, keep, fields, indices, buf)
+}
 
+// decodeGroupBytes decodes one DecodeFields group whose on-wire bytes
+// are already resident in buf: the write loop of decodeFieldGroupReused,
+// shared with the run-skip plan path's write-everything arm.
+func decodeGroupBytes(sink IndexedReusableRecord, keep FieldFilter, fields []*Field, indices []int, buf []byte) error {
+	typed, _ := sink.(TypedSetRecord)
 	cursor := 0
 	for gi, field := range fields {
 		fi := indices[gi]
@@ -462,6 +486,14 @@ func (rr *RecordReader) decodeBitmapReused(sink IndexedReusableRecord, keep Fiel
 	if _, err := io.ReadFull(rr.r, bitmap); err != nil {
 		return err
 	}
+	rr.decodeBitmapBytes(sink, keep, bitmap)
+	return nil
+}
+
+// decodeBitmapBytes surfaces the nulls of a bitmap already resident in
+// bitmap: the write loop of decodeBitmapReused, shared with the run-skip
+// plan path's write-everything arm.
+func (rr *RecordReader) decodeBitmapBytes(sink IndexedReusableRecord, keep FieldFilter, bitmap []byte) {
 	for i := range rr.schema.Fields {
 		field := &rr.schema.Fields[i]
 		if !field.Nullable {
@@ -476,7 +508,6 @@ func (rr *RecordReader) decodeBitmapReused(sink IndexedReusableRecord, keep Fiel
 		sink.SetNullFieldAt(i)
 		sink.SetNumericAt(i, 0)
 	}
-	return nil
 }
 
 // segmentIndices returns the schema position of every field in seg.

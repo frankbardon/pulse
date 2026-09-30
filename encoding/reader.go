@@ -22,6 +22,30 @@ type RecordReader struct {
 	// decoder. Held by value so binding a record per row allocates
 	// nothing; see indexedSink.
 	shim nameKeyedShim
+
+	// Run-skip state (reader_runskip.go). prevRow holds the on-wire
+	// bytes of the last row decoded into prevSink — the whole stride on
+	// the full path, the concatenated DecodeFields groups of prevPlan on
+	// the plan path — and prevValid says it may be compared against.
+	// Swapped with recBuf after each run-skip decode, never copied.
+	runToken uint64
+	// Backoff probe state (runCanKeep / noteKeptRow): rows left to
+	// decode without comparing, and the current probe window's tallies.
+	runBackoff    int
+	runWinRows    int
+	runWinWritten int
+	runWinFields  int
+	prevRow       []byte
+	prevValid     bool
+	prevSink      RunSkipRecord
+	prevPlan      *DecodePlan
+	// layout caches the schema-derived row geometry (stride, bitmap
+	// size, per-field on-wire spans) the reuse decoders need every row;
+	// built once per reader (strideLayout).
+	layout strideLayout
+	// shape caches the per-segment widths of the plan last driven
+	// through the run-skip plan path.
+	shape runPlanShape
 }
 
 // NewRecordReader creates a RecordReader. The reader must be positioned

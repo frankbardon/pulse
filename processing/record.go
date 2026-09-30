@@ -77,6 +77,14 @@ type Record struct {
 	// invalidated by every mutator that is not a reuse-path decode write
 	// (see attribute injection in processor.go).
 	allValuesCache map[string]any
+
+	// runOwner is the token of the reader whose index-keyed decode
+	// writes are, field for field, the record's whole schema-field
+	// state — the precondition for run-skip (encoding.RunSkipRecord).
+	// Zero means "no such reader": set by ClearForRow and by every
+	// schema-field mutation that is not a reuse-path decode write
+	// (resetRun), so the next BeginRunRow forces a full repopulate.
+	runOwner uint64
 }
 
 // recordAux is the sparse side of a Record.
@@ -193,6 +201,11 @@ func (r *Record) setBit(plane, i int) {
 func (r *Record) clearBit(plane, i int) {
 	r.bits[plane*recordWords(len(r.vals))+i>>6] &^= 1 << uint(i&63)
 }
+
+// resetRun withdraws the record from run-skip: a schema field was
+// mutated outside the reuse decoders' index-keyed writes, so the next
+// row must be repopulated in full.
+func (r *Record) resetRun() { r.runOwner = 0 }
 
 func (r *Record) auxOrNew() *recordAux {
 	if r.aux == nil {
@@ -361,6 +374,10 @@ func (r *Record) putWideAt(i int, v any) {
 			return
 		}
 	}
+	// A schema field's wide value now lives in ovWide, which run-skip's
+	// BeginRunRow clears every row; withdraw from run-skip so the next
+	// row rewrites it.
+	r.resetRun()
 	r.clearBit(planeWide, i)
 	a := r.auxOrNew()
 	if a.ovWide == nil {
@@ -373,6 +390,7 @@ func (r *Record) putWideAt(i int, v any) {
 // `delete(r.wide, name)`.
 func (r *Record) dropWide(name string) {
 	if i := r.pos(name); i >= 0 {
+		r.resetRun()
 		r.clearBit(planeWide, i)
 	}
 	if r.aux != nil && len(r.aux.ovWide) > 0 {
@@ -400,6 +418,7 @@ func (r *Record) getValue(name string) (float64, bool) {
 // putValue is the former `r.values[name] = v`.
 func (r *Record) putValue(name string, v float64) {
 	if i := r.pos(name); i >= 0 {
+		r.resetRun()
 		r.vals[i] = v
 		r.setBit(planeHas, i)
 		return
@@ -414,6 +433,7 @@ func (r *Record) putValue(name string, v float64) {
 // dropValue is the former `delete(r.values, name)`.
 func (r *Record) dropValue(name string) {
 	if i := r.pos(name); i >= 0 {
+		r.resetRun()
 		r.vals[i] = 0
 		r.clearBit(planeHas, i)
 		return
@@ -434,6 +454,7 @@ func (r *Record) nullMarked(name string) bool {
 // markNull is the former `r.nulls[name] = true`.
 func (r *Record) markNull(name string) {
 	if i := r.pos(name); i >= 0 {
+		r.resetRun()
 		r.setBit(planeNull, i)
 		return
 	}
@@ -447,6 +468,7 @@ func (r *Record) markNull(name string) {
 // unmarkNull is the former `delete(r.nulls, name)`.
 func (r *Record) unmarkNull(name string) {
 	if i := r.pos(name); i >= 0 {
+		r.resetRun()
 		r.clearBit(planeNull, i)
 		return
 	}
@@ -470,6 +492,7 @@ func (r *Record) getWide(name string) (any, bool) {
 // putWide is the former `r.wide[name] = v`.
 func (r *Record) putWide(name string, v any) {
 	if i := r.pos(name); i >= 0 {
+		r.resetRun()
 		r.putWideAt(i, v)
 		return
 	}
@@ -893,6 +916,7 @@ var (
 	_ encoding.ReusableRecord        = (*Record)(nil)
 	_ encoding.IndexedReusableRecord = (*Record)(nil)
 	_ encoding.TypedSetRecord        = (*Record)(nil)
+	_ encoding.RunSkipRecord         = (*Record)(nil)
 )
 
 // SetNumericAt implements encoding.IndexedReusableRecord: a slice store
@@ -965,7 +989,9 @@ func (r *Record) SetWideSetAt(idx int, m encoding.SetMask) {
 
 // ClearForRow implements encoding.ReusableRecord. Resets per-row state
 // so the next ReadRecordReused call starts from a clean slate while
-// keeping the underlying storage allocated.
+// keeping the underlying storage allocated. The reuse decoders reach it
+// through BeginRunRow, and only when run-skip cannot keep the previous
+// row's state; it also withdraws the record from run-skip.
 //
 // Values (and their presence bits) are left intact because every
 // retained field is overwritten on every row. The null and wide
@@ -974,6 +1000,7 @@ func (r *Record) SetWideSetAt(idx int, m encoding.SetMask) {
 // place: the cleared presence bit already hides them, and the next
 // decode overwrites them.
 func (r *Record) ClearForRow() {
+	r.runOwner = 0
 	if len(r.vals) > 0 {
 		w := recordWords(len(r.vals))
 		clear(r.bits[planeNull*w : planeCount*w])
@@ -987,6 +1014,56 @@ func (r *Record) ClearForRow() {
 		}
 	}
 	r.allValuesCache = nil
+}
+
+// BeginRunRow implements encoding.RunSkipRecord. It keeps the record's
+// schema-field state for a partial rewrite — clearing only the
+// off-schema overflow null / wide marks and the AllValues cache, which
+// the decoder never writes — when keep is true, token is the reader that
+// began the previous row on this record, no schema field has been
+// mutated outside that reader's index-keyed writes since (runOwner is
+// still token), and the layout is the full identity layout (one slot per
+// schema position, no shared slots). Otherwise it does a full
+// ClearForRow and returns false. Either way the record is now owned by
+// token.
+func (r *Record) BeginRunRow(token uint64, keep bool) bool {
+	if keep && token != 0 && r.runOwner == token && r.identityLayout() {
+		if r.aux != nil {
+			if len(r.aux.ovNulls) > 0 {
+				clear(r.aux.ovNulls)
+			}
+			if len(r.aux.ovWide) > 0 {
+				clear(r.aux.ovWide)
+			}
+		}
+		r.allValuesCache = nil
+		return true
+	}
+	r.ClearForRow()
+	r.runOwner = token
+	return false
+}
+
+// identityLayout reports whether every schema position owns its own
+// storage slot, slot == position: the full layout over a schema with
+// unique field names. A projected layout sends unretained positions to
+// the overflow side and a duplicated name shares one slot between
+// positions; either would let a skipped position observe a sibling's
+// write, so run-skip requires this.
+func (r *Record) identityLayout() bool {
+	return r.schema != nil && r.layout != nil && r.layout.slotOf == nil &&
+		r.layout.n == len(r.schema.Fields)
+}
+
+// ClearNullAt implements encoding.RunSkipRecord: clears field idx's null
+// mark without touching its value or wide value. Decoder-only, like the
+// other *At writes, so it does not withdraw the record from run-skip.
+func (r *Record) ClearNullAt(idx int) {
+	if s := r.layout.slot(idx); s >= 0 {
+		r.clearBit(planeNull, s)
+		return
+	}
+	r.unmarkNull(r.schema.Fields[idx].Name)
 }
 
 // NewReusableRecord constructs an empty positional Record over schema.
@@ -1010,6 +1087,7 @@ func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset i
 	// The positional shortcut needs slot == schema position on both
 	// sides; a projected layout on either side takes the name path.
 	positional = positional && r.layout.fieldOf == nil && dst.layout.slotOf == nil
+	dst.resetRun()
 	for i := range r.vals {
 		hasV := r.test(planeHas, i)
 		isNull := r.test(planeNull, i)
