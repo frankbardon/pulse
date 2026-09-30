@@ -60,3 +60,15 @@ to make a test pass instead of fixing the underlying drift in the
 generator. If a golden diff surprises you in code review, that is a
 red flag — ask the contributor to show the generator change that
 justifies the new hash.
+
+## The `0x01` format golden is a compatibility fixture, not a snapshot
+
+`encoding/testdata/format_v1.pulse` is a synthetic `0x01` cohort that
+every build must still read — and that the current writer must still
+reproduce byte-for-byte for the same schema and rows. It exists because
+old cohorts stay readable forever. **A failure there is a
+backward-compatibility break, not a stale golden:** do not run
+`go test ./encoding/ -run TestFormatV1Golden -update` to make it pass.
+The `-update` flag exists only to create the file; to cover more of the
+`0x01` surface, add a second fixture rather than rewriting this one, so
+the bytes an earlier binary wrote stay under test.

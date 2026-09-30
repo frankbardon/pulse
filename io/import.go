@@ -109,11 +109,10 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 
 	// Write the .pulse file.
+	// The header is written together with the schema (WritePreamble,
+	// below): its format version is a function of the FINAL schema's
+	// content, which is not known until every row has been converted.
 	var buf bytes.Buffer
-
-	if err := encoding.WriteHeader(&buf); err != nil {
-		return nil, err
-	}
 
 	// Records are encoded into a separate buffer during the read loop so
 	// the per-row scratch slice can be reused. The records buffer is
@@ -340,8 +339,9 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		return nil, failure
 	}
 
-	// Now write schema (dictionaries are populated, promotions applied).
-	if err := encoding.WriteSchema(&buf, schema); err != nil {
+	// Now write header + schema (dictionaries are populated, promotions
+	// applied).
+	if err := encoding.WritePreamble(&buf, schema); err != nil {
 		return nil, err
 	}
 

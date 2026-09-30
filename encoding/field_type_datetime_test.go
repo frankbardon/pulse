@@ -145,7 +145,7 @@ func TestFieldTypeDateTime_SchemaRoundTrip(t *testing.T) {
 	if err := WriteSchema(&buf, orig); err != nil {
 		t.Fatalf("WriteSchema: %v", err)
 	}
-	got, err := ReadSchema(bytes.NewReader(buf.Bytes()))
+	got, err := ReadSchema(bytes.NewReader(buf.Bytes()), FormatVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestReadSchema_RejectsTypeByteAboveDateTime(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := ReadSchema(&buf); err == nil {
+	if _, err := ReadSchema(&buf, FormatVersion); err == nil {
 		t.Fatal("expected ReadSchema to reject a type byte past the sentinel")
 	} else if !errors.HasCode(err, errors.ENCODING_INVALID) {
 		t.Fatalf("expected ENCODING_INVALID, got %v", err)
@@ -382,10 +382,11 @@ func TestPreDateTimeCohortBytesIdentical(t *testing.T) {
 
 	// And it still reads back.
 	r := bytes.NewReader(buf.Bytes())
-	if err := ReadHeader(r); err != nil {
+	pulseVersion, err := ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	got, err := ReadSchema(r)
+	got, err := ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

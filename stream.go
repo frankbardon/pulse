@@ -308,10 +308,11 @@ func (p *Pulse) SynthStream(ctx context.Context, spec *SynthSpec, opts SynthOpti
 // as the typed encoding.Decimal128 alongside their float64 view.
 func decodeSynthRows(raw []byte) ([]Row, error) {
 	r := bytes.NewReader(raw)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, err
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, err
 	}

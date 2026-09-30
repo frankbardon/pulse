@@ -219,10 +219,11 @@ func WidenSetFieldFile(fsys afero.Fs, path, field string, target FieldType) (*Wi
 // record by record, holding one source and one destination record in
 // memory at a time.
 func widenSetFieldStream(dst io.Writer, src io.Reader, field string, target FieldType) (*WidenReport, error) {
-	if err := ReadHeader(src); err != nil {
+	pulseVersion, err := ReadHeader(src)
+	if err != nil {
 		return nil, err
 	}
-	srcSchema, err := ReadSchema(src)
+	srcSchema, err := ReadSchema(src, pulseVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -267,10 +268,7 @@ func widenSetFieldStream(dst io.Writer, src io.Reader, field string, target Fiel
 	srcSlot := srcOffsets[idx]
 	dstSlot := dstOffsets[idx]
 
-	if err := WriteHeader(dst); err != nil {
-		return nil, err
-	}
-	if err := WriteSchema(dst, dstSchema); err != nil {
+	if err := WritePreamble(dst, dstSchema); err != nil {
 		return nil, err
 	}
 

@@ -82,8 +82,8 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 `.pulse` binary format:
 
-1. **9-byte header:** 8-byte magic `PULSE\x00\x00\x00` + 1-byte format version `0x01` (`encoding.MagicBytes`, `FormatVersion`, `HeaderSize = 9`).
-2. **Schema block:** per-field descriptor — name, type byte, **nullable flag byte** (immediately after the type byte; `1` = participates in the null bitmap), byte offset, bit position, optional description.
+1. **9-byte header:** 8-byte magic `PULSE\x00\x00\x00` + 1-byte format version ∈ `{0x01, 0x02}` (`encoding.MagicBytes`, `FormatVersionV1`/`V2`, `HeaderSize = 9`). **`ReadHeader` RETURNS the version and every `ReadSchema(r, version)` must be handed it** (gated by `TestReadSchemaCallersThreadHeaderVersion`); any other byte is `ENCODING_INVALID` naming it. The version written is a function of schema content (`Schema.RequiredFormatVersion`, `WritePreamble`), never a flag — no schema needs `0x02` yet, so writers emit `0x01` byte-identically. `0x01` cohorts stay readable forever (`encoding/testdata/format_v1.pulse`).
+2. **Schema block:** per-field descriptor — name, type byte, **nullable flag byte** (immediately after the type byte; `1` = participates in the null bitmap), byte offset, bit position, optional description. Under `0x02` a `u32`-length-prefixed extension block follows the last descriptor (empty today; non-empty is refused). Detail: `byte-layout.md` (Format version).
 3. **Dictionary blocks:** inline after the schema, for every dictionary-bearing field.
 4. **Record data:** fixed-width rows, stride derived from the schema.
 5. **Per-record null bitmap (optional).** Present iff the schema has any nullable field (`Schema.HasBitmap()`); every record then carries a trailing `ceil(field_count / 8)` bytes. Field index `i` → byte `i/8`, bit `i%8` (LSB-first); `1` = null. Helpers: `encoding.ReadBitmap` / `WriteBitmap` / `BitmapIsNull` / `BitmapSetNull`, `Schema.BitmapByteSize()`.

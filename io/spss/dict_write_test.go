@@ -26,10 +26,11 @@ func cohortSchema(t *testing.T, fs afero.Fs, cohort string) *encoding.Schema {
 		t.Fatalf("opening cohort %s: %v", cohort, err)
 	}
 	defer f.Close()
-	if err := encoding.ReadHeader(f); err != nil {
+	pulseVersion, err := encoding.ReadHeader(f)
+	if err != nil {
 		t.Fatalf("reading cohort header: %v", err)
 	}
-	s, err := encoding.ReadSchema(f)
+	s, err := encoding.ReadSchema(f, pulseVersion)
 	if err != nil {
 		t.Fatalf("reading cohort schema: %v", err)
 	}

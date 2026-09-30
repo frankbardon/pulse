@@ -202,7 +202,7 @@ func (a *Archive) PeekShardHeader(name string) error {
 			fmt.Sprintf("shard %q does not begin with the Pulse magic", name),
 			map[string]any{"entry": name})
 	}
-	if hdr[len(MagicBytes)] != FormatVersion {
+	if !IsSupportedFormatVersion(hdr[len(MagicBytes)]) {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			fmt.Sprintf("shard %q has unsupported format version", name),
 			map[string]any{"entry": name, "version": hdr[len(MagicBytes)]})

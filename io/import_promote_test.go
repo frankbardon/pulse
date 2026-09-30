@@ -23,10 +23,11 @@ func decodeAll(t *testing.T, fs afero.Fs, path string) (*encoding.Schema, []map[
 		t.Fatalf("read %s: %v", path, err)
 	}
 	r := bytes.NewReader(raw)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

@@ -42,10 +42,11 @@ func FuzzDynamicSchemaReader(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		r := bytes.NewReader(data)
-		if err := ReadHeader(r); err != nil {
+		pulseVersion, err := ReadHeader(r)
+		if err != nil {
 			return
 		}
-		ReadSchema(r)
+		ReadSchema(r, pulseVersion)
 	})
 }
 

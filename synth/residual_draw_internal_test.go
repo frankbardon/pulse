@@ -280,10 +280,11 @@ func TestSpecFromProfile_NoResidualSectionLeavesSpecUntouched(t *testing.T) {
 func decodeCohort(t *testing.T, data []byte) (nums map[string][]float64, cats map[string][]string) {
 	t.Helper()
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}

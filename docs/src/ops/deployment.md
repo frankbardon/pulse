@@ -97,6 +97,9 @@ Embedding](../library/overview.md) for the full surface.
 
 Drop in a new binary and restart the MCP process (or the calling
 client). The `.pulse` file format carries a one-byte version field
-(currently `0x01`); files written by a future binary that introduces
-a new version will be rejected loud at parse time, not silent at row
-decode. See [Header Layout](../format/header.md).
+(`0x01` or `0x02`; every current writer still emits `0x01` unless a
+schema needs a `0x02` feature). Old files stay readable forever; files
+written by a newer binary that introduces a version this one does not
+know are rejected loud at parse time, not silent at row decode — so a
+binary that predates `0x02` refuses `0x02` cohorts, and must be upgraded
+before it reads cohorts written by a `0x02`-writing release. See [Header Layout](../format/header.md).

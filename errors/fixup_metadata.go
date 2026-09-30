@@ -18,6 +18,10 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRequiresReschema,
 				Hint:   "Re-import the source data to regenerate the .pulse file; the existing file is corrupt or was written by an incompatible binary.",
 			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "If details.version is outside details.supported_versions, a newer Pulse wrote the file: upgrade this binary to one that reads that format version, or re-import the source with this binary (old format versions stay readable forever).",
+			},
 		},
 	},
 	ENCODING_IO: {

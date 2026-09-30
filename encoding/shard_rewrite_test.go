@@ -46,10 +46,11 @@ func buildShard(t *testing.T, dictValues []string, records [][2]uint32) ([]byte,
 func decodeShardRecords(t *testing.T, b []byte) (*encoding.Schema, [][2]uint32) {
 	t.Helper()
 	r := bytes.NewReader(b)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}
@@ -104,10 +105,11 @@ func buildShardWithSet(t *testing.T, dictValues []string, records [][2]uint32) (
 func decodeShardRecordsWithSet(t *testing.T, b []byte) (*encoding.Schema, [][2]uint32) {
 	t.Helper()
 	r := bytes.NewReader(b)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}
@@ -438,10 +440,11 @@ type packedRec struct {
 func decodePackedShard(t *testing.T, b []byte) (*encoding.Schema, []packedRec) {
 	t.Helper()
 	r := bytes.NewReader(b)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

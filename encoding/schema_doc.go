@@ -44,10 +44,10 @@ type SchemaDoc struct {
 // where records would otherwise begin and a header-only reader
 // (`Inspect`) ignores them.
 func WriteSchemaDoc(w io.Writer, schema *Schema, agg uint64, shardCount uint16) error {
-	if err := WriteHeader(w); err != nil {
-		return err
-	}
-	if err := WriteSchema(w, schema); err != nil {
+	// The canonical schema carries the version its content requires, like
+	// any shard payload — the SHRD trailer follows the (possibly
+	// extension-bearing) schema block either way.
+	if err := WritePreamble(w, schema); err != nil {
 		return err
 	}
 	if _, err := w.Write(SchemaDocMagic[:]); err != nil {
@@ -72,10 +72,11 @@ func WriteSchemaDoc(w io.Writer, schema *Schema, agg uint64, shardCount uint16) 
 // or single-file cohorts addressed by mistake still parse cleanly,
 // returning AggregateRecordCount=0 and ShardCount=0.
 func ReadSchemaDoc(r io.Reader) (*SchemaDoc, error) {
-	if err := ReadHeader(r); err != nil {
+	pulseVersion, err := ReadHeader(r)
+	if err != nil {
 		return nil, err
 	}
-	schema, err := ReadSchema(r)
+	schema, err := ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -128,12 +129,13 @@ func (a *Archive) PeekShardRecordCount(name string) (int64, error) {
 	}
 	defer rc.Close()
 
-	if err := ReadHeader(rc); err != nil {
+	pulseVersion, err := ReadHeader(rc)
+	if err != nil {
 		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			fmt.Sprintf("shard %q has an invalid header", name),
 			map[string]any{"entry": name, "cause": err.Error()})
 	}
-	schema, err := ReadSchema(rc)
+	schema, err := ReadSchema(rc, pulseVersion)
 	if err != nil {
 		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			fmt.Sprintf("shard %q has an invalid schema block", name),

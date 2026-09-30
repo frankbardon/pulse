@@ -226,11 +226,12 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		return nil, err
 	}
 	r := &sect
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q header", shardName))
 	}
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q schema", shardName))
 	}

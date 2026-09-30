@@ -149,10 +149,11 @@ func TestSuggestRules_WrittenFileGeneratesUnmodified(t *testing.T) {
 func gatedRowStats(t *testing.T, data []byte) (gated, allNull int) {
 	t.Helper()
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
@@ -439,10 +440,11 @@ func TestSuggestRules_NumericGatePredicateFiresOnEveryWireRow(t *testing.T) {
 
 	wire, fired := 0, 0
 	r := bytes.NewReader(out)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}

@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"bytes"
+	stderrors "errors"
 	"io"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -107,13 +108,22 @@ func Inspect(fileData io.ReadSeeker, opts *InspectOptions) *Envelope {
 	env := NewEnvelope(result)
 
 	// Read header.
-	if err := encoding.ReadHeader(fileData); err != nil {
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse file header: "+err.Error(), nil)
+	pulseVersion, err := encoding.ReadHeader(fileData)
+	if err != nil {
+		// Carry the header error's details (an unsupported version names
+		// the offending byte and the accepted set) so the refusal stays
+		// actionable through the envelope.
+		var details map[string]any
+		var ce *errors.CodedError
+		if stderrors.As(err, &ce) {
+			details = ce.Details
+		}
+		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse file header: "+err.Error(), details)
 		return env
 	}
 
 	// Read schema.
-	schema, err := encoding.ReadSchema(fileData)
+	schema, err := encoding.ReadSchema(fileData, pulseVersion)
 	if err != nil {
 		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
 		return env

@@ -138,13 +138,14 @@ func (it *streamingIterator) initFromFile() error {
 
 func (it *streamingIterator) initFromReader(r io.Reader) {
 	// Skip header.
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		it.err = err
 		it.done = true
 		return
 	}
 	// Skip schema (we already have it).
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		it.err = err
 		it.done = true
 		return

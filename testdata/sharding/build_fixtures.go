@@ -219,11 +219,8 @@ func writeSingleShard(canonical *encoding.Schema, s shard, mode dictMode) []byte
 	}
 
 	var buf bytes.Buffer
-	if err := encoding.WriteHeader(&buf); err != nil {
-		fail("WriteHeader(%s): %v", s.Name, err)
-	}
-	if err := encoding.WriteSchema(&buf, shardSchema); err != nil {
-		fail("WriteSchema(%s): %v", s.Name, err)
+	if err := encoding.WritePreamble(&buf, shardSchema); err != nil {
+		fail("WritePreamble(%s): %v", s.Name, err)
 	}
 	for _, r := range s.Records {
 		// id (u32).

@@ -503,12 +503,13 @@ func buildParallelDecodeContext(
 	// byte. We discard the schema return; the cohort already carries
 	// its parsed schema (s.Open replays the same prefix bytes).
 	r := bytes.NewReader(data)
-	if hErr := encoding.ReadHeader(r); hErr != nil {
+	pulseVersion, hErr := encoding.ReadHeader(r)
+	if hErr != nil {
 		_ = cleanupFn()
 		return nil, nil, false, errors.WrapCodedError(hErr, errors.ENCODING_INVALID,
 			fmt.Sprintf("parallel decode: re-reading cohort header: %s", path))
 	}
-	if _, sErr := encoding.ReadSchema(r); sErr != nil {
+	if _, sErr := encoding.ReadSchema(r, pulseVersion); sErr != nil {
 		_ = cleanupFn()
 		return nil, nil, false, errors.WrapCodedError(sErr, errors.ENCODING_INVALID,
 			fmt.Sprintf("parallel decode: re-reading cohort schema: %s", path))

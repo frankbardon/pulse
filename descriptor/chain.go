@@ -95,12 +95,13 @@ func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *Envelope {
 		env.AddError(string(errors.SERVICE_VALIDATION), "chain request requires Cohort for stage 0", nil)
 	}
 
-	if err := encoding.ReadHeader(fileData); err != nil {
+	pulseVersion, err := encoding.ReadHeader(fileData)
+	if err != nil {
 		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse file header: "+err.Error(), nil)
 		result.Valid = false
 		return env
 	}
-	schema, err := encoding.ReadSchema(fileData)
+	schema, err := encoding.ReadSchema(fileData, pulseVersion)
 	if err != nil {
 		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
 		result.Valid = false

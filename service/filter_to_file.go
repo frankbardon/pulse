@@ -136,11 +136,12 @@ func (s *Service) ResolveCanonicalSchema(_ context.Context, src string) (*encodi
 
 func readSchemaFromBytes(data []byte) (*encoding.Schema, error) {
 	br := bytes.NewReader(data)
-	if err := encoding.ReadHeader(br); err != nil {
+	pulseVersion, err := encoding.ReadHeader(br)
+	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"invalid pulse file header")
 	}
-	schema, err := encoding.ReadSchema(br)
+	schema, err := encoding.ReadSchema(br, pulseVersion)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"reading schema")
@@ -189,11 +190,12 @@ func (s *Service) filterToFile(ctx context.Context, src, dst string, plan filter
 // anchored shard's bytes form a complete standalone payload).
 func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs, data []byte, dst string, plan filterPlan) (int64, error) {
 	br := bytes.NewReader(data)
-	if err := encoding.ReadHeader(br); err != nil {
+	pulseVersion, err := encoding.ReadHeader(br)
+	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"invalid pulse file header")
 	}
-	schema, err := encoding.ReadSchema(br)
+	schema, err := encoding.ReadSchema(br, pulseVersion)
 	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"reading schema")
@@ -269,11 +271,12 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 		// (with the local dictionary subset) stay on the output shard.
 		// The cohesion invariant guarantees record layout matches.
 		br := bytes.NewReader(shardBytes)
-		if err := encoding.ReadHeader(br); err != nil {
+		pulseVersion, err := encoding.ReadHeader(br)
+		if err != nil {
 			return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 				fmt.Sprintf("reading shard %q header", e.Name))
 		}
-		if _, err := encoding.ReadSchema(br); err != nil {
+		if _, err := encoding.ReadSchema(br, pulseVersion); err != nil {
 			return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 				fmt.Sprintf("reading shard %q schema", e.Name))
 		}

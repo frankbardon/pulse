@@ -103,8 +103,26 @@ func (s *Schema) SetField(name string) (*Dictionary, bool) {
 	return f.Dictionary, true
 }
 
-// WriteSchema serializes a schema to w.
-// Format:
+// RequiredFormatVersion returns the .pulse format version this schema's
+// content needs on the wire. It is the single place a writer's version
+// is chosen — never a global flag — so a schema that uses no 0x02
+// feature is always written at 0x01, byte-identical to a pre-0x02 file.
+//
+// Nothing requires 0x02 yet: the group descriptor that will (E3-S2 of
+// the join-redundancy effort) adds its "is any group declared" test
+// HERE, alongside its payload in [writeSchemaExtension] /
+// [readSchemaExtension].
+func (s *Schema) RequiredFormatVersion() byte {
+	return FormatVersionV1
+}
+
+// WriteSchema serializes s's schema block to w at the baseline 0x01
+// layout, to follow a [WriteHeader]. A schema whose content requires a
+// newer version is refused rather than written in a layout its header
+// would contradict — write it with [WritePreamble], which emits a
+// matching header.
+//
+// The 0x01 schema block:
 //
 //	u16 field_count
 //	per field:
@@ -117,7 +135,73 @@ func (s *Schema) SetField(name string) (*Dictionary, bool) {
 //	  u16 description_length + utf8 description
 //	  (if decimal128) u8 precision + u8 scale
 //	  (if categorical) dictionary block
+//
+// A 0x02 schema block is the 0x01 block followed by the schema
+// extension block:
+//
+//	u32 extension_length
+//	extension_length bytes of extension payload
+//
+// The length prefix is what makes the record region's start derivable
+// without understanding the payload. This binary defines no payload
+// yet, so it writes extension_length = 0 and refuses a non-zero one on
+// read (see [readSchemaExtension]).
 func WriteSchema(w io.Writer, s *Schema) error {
+	if req := s.RequiredFormatVersion(); req != FormatVersion {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			"schema requires a newer pulse format version than WriteSchema emits; write it with WritePreamble",
+			map[string]any{"required_version": req, "version": FormatVersion})
+	}
+	return writeSchemaVersion(w, s, FormatVersion)
+}
+
+// writeSchemaVersion writes the schema block in version v's layout.
+func writeSchemaVersion(w io.Writer, s *Schema, v byte) error {
+	if err := writeFieldDescriptors(w, s); err != nil {
+		return err
+	}
+	switch v {
+	case FormatVersionV1:
+		return nil
+	case FormatVersionV2:
+		return writeSchemaExtension(w, s)
+	default:
+		return unsupportedVersionError(v)
+	}
+}
+
+// writeSchemaExtension writes the 0x02 schema extension block: a u32
+// length prefix and the payload. EXTENSION POINT: the group descriptor
+// (E3-S2) serialises its payload here; today the payload is empty.
+func writeSchemaExtension(w io.Writer, _ *Schema) error {
+	if err := binary.Write(w, binary.LittleEndian, uint32(0)); err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing schema extension length")
+	}
+	return nil
+}
+
+// readSchemaExtension reads the 0x02 schema extension block into s.
+// EXTENSION POINT: the group descriptor (E3-S2) parses its payload
+// here. Until a payload is defined, any non-empty extension is refused
+// loud — silently skipping bytes this binary cannot interpret would
+// drop whatever meaning they carry (e.g. which fields live in a group
+// dictionary rather than the row).
+func readSchemaExtension(r io.Reader, _ *Schema) error {
+	var extLen uint32
+	if err := binary.Read(r, binary.LittleEndian, &extLen); err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading schema extension length")
+	}
+	if extLen != 0 {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			"schema extension block carries a payload this binary does not understand",
+			map[string]any{"extension_length": extLen, "version": FormatVersionV2})
+	}
+	return nil
+}
+
+// writeFieldDescriptors writes field_count and every field descriptor —
+// the part of the schema block shared by every format version.
+func writeFieldDescriptors(w io.Writer, s *Schema) error {
 	fieldCount := uint16(len(s.Fields))
 	if err := binary.Write(w, binary.LittleEndian, fieldCount); err != nil {
 		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing field count")
@@ -192,8 +276,30 @@ func WriteSchema(w io.Writer, s *Schema) error {
 	return nil
 }
 
-// ReadSchema deserializes a schema from r.
-func ReadSchema(r io.Reader) (*Schema, error) {
+// ReadSchema deserializes a schema block written at format version v —
+// the version [ReadHeader] returned for the same stream. On return r is
+// positioned at the first record byte. An unsupported v is
+// ENCODING_INVALID; unknown field-type bytes fail loud here, at parse
+// time, for every version.
+func ReadSchema(r io.Reader, v byte) (*Schema, error) {
+	if !IsSupportedFormatVersion(v) {
+		return nil, unsupportedVersionError(v)
+	}
+	s, err := readFieldDescriptors(r)
+	if err != nil {
+		return nil, err
+	}
+	if v >= FormatVersionV2 {
+		if err := readSchemaExtension(r, s); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// readFieldDescriptors reads field_count and every field descriptor —
+// the part of the schema block shared by every format version.
+func readFieldDescriptors(r io.Reader) (*Schema, error) {
 	var fieldCount uint16
 	if err := binary.Read(r, binary.LittleEndian, &fieldCount); err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading field count")

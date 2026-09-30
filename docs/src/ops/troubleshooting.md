@@ -49,14 +49,16 @@ the file mode with `ls -l`; widen the group as needed.
 
 ## "invalid pulse magic bytes" / "unsupported pulse format version"
 
-The file isn't a `.pulse` file — or it's from a future binary that
-introduced a new format version. The reader rejects unknown versions
+The file isn't a `.pulse` file — or it's from a newer binary that
+introduced a format version this one cannot read (`details.version`
+names the byte, `details.supported_versions` the set this binary
+accepts). Upgrade Pulse, or re-import the source with this binary. The reader rejects unknown versions
 at parse time (see [Header Layout](../format/header.md)) so a future
 binary doesn't silently mis-decode an older file.
 
 **Fix:** verify the file with `file path/to/data.pulse` and the first
 nine bytes (`hexdump -C`). The expected magic is `50 55 4c 53 45 00 00 00`
-followed by a version byte (`0x01` today).
+followed by a version byte (`0x01` or `0x02`).
 
 ## "truncated pulse header"
 

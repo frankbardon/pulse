@@ -325,10 +325,11 @@ func buildShardedTransactionsFixture(p *pulse.Pulse, fs afero.Fs, dataDir string
 	}
 
 	r := bytes.NewReader(src)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return err
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return err
 	}

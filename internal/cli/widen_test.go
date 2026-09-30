@@ -119,10 +119,11 @@ func TestWidenCLI_WidensCohortInPlace(t *testing.T) {
 		t.Fatal("cohort bytes unchanged after a successful widen")
 	}
 	r := bytes.NewReader(after)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("widened cohort no longer carries a valid header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

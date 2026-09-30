@@ -384,10 +384,11 @@ func TestProfileDiscrete_RidesTheExistingScan(t *testing.T) {
 	countBytes := func(schema *encoding.Schema) int64 {
 		raw := encodeDiscreteRows(t, schema, levels)
 		cr := &countingReader{r: bytes.NewReader(raw)}
-		if err := encoding.ReadHeader(cr); err != nil {
+		pulseVersion, err := encoding.ReadHeader(cr)
+		if err != nil {
 			t.Fatalf("ReadHeader: %v", err)
 		}
-		sch, err := encoding.ReadSchema(cr)
+		sch, err := encoding.ReadSchema(cr, pulseVersion)
 		if err != nil {
 			t.Fatalf("ReadSchema: %v", err)
 		}

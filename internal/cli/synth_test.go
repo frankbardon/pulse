@@ -619,10 +619,11 @@ func readCohortRows(t *testing.T, path string) (vals []map[string]any, nulls []m
 		t.Fatalf("ReadFile(%s): %v", path, err)
 	}
 	r := bytes.NewReader(raw)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader(%s): %v", path, err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema(%s): %v", path, err)
 	}

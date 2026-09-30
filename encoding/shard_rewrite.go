@@ -34,12 +34,13 @@ func RewriteShardCategoricals(shardBytes []byte, targetSchema *Schema, remap map
 	}
 
 	src := bytes.NewReader(shardBytes)
-	if err := ReadHeader(src); err != nil {
+	pulseVersion, err := ReadHeader(src)
+	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			"shard rewrite: invalid header",
 			map[string]any{"cause": err.Error()})
 	}
-	srcSchema, err := ReadSchema(src)
+	srcSchema, err := ReadSchema(src, pulseVersion)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			"shard rewrite: invalid schema block",
@@ -64,10 +65,7 @@ func RewriteShardCategoricals(shardBytes []byte, targetSchema *Schema, remap map
 	remaining := shardBytes[len(shardBytes)-src.Len():]
 
 	var out bytes.Buffer
-	if err := WriteHeader(&out); err != nil {
-		return nil, err
-	}
-	if err := WriteSchema(&out, targetSchema); err != nil {
+	if err := WritePreamble(&out, targetSchema); err != nil {
 		return nil, err
 	}
 

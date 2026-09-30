@@ -333,12 +333,16 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 	// blocks directly off the file handle.
 	r := io.MultiReader(bytes.NewReader(magic[:n]), f)
 
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
+		// Keep the cause's message: Error() prints only the outermost
+		// message, and an unsupported format version must say so (and
+		// that a newer Pulse is needed) rather than just "invalid".
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("invalid pulse file: %s", path))
+			fmt.Sprintf("invalid pulse file: %s: %s", path, err.Error()))
 	}
 
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading schema from: %s", path))
@@ -395,11 +399,12 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 	}
 
 	r := bytes.NewReader(payload)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			fmt.Sprintf("invalid shard header for anchor: %s#%s", archivePath, entry))
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard schema for anchor: %s#%s", archivePath, entry))

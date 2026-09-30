@@ -98,10 +98,11 @@ func widenSvcCohortBytes(t *testing.T, schema *encoding.Schema, rows []widenSvcR
 func widenSvcReadBack(t *testing.T, data []byte) (*encoding.Schema, []widenSvcRow) {
 	t.Helper()
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

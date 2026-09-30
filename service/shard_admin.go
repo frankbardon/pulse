@@ -563,11 +563,12 @@ func validateBasenames(paths []string) error {
 // validation before forwarding the payload into the archive.
 func readSinglePulseSchema(data []byte) (*encoding.Schema, error) {
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"reading shard header")
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"reading shard schema")
@@ -622,11 +623,12 @@ func cloneSchemaForArchive(s *encoding.Schema) *encoding.Schema {
 // diagnostic arm that owns reporting a short tail.
 func recordCountFromBytes(payload []byte, schema *encoding.Schema) (int64, error) {
 	r := bytes.NewReader(payload)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"recordCountFromBytes: reading shard header")
 	}
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"recordCountFromBytes: reading shard schema")
 	}

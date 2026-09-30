@@ -70,10 +70,11 @@ func NewRecordLocator(r *bytes.Reader, schema *Schema) (*RecordLocator, error) {
 
 	payloadSize := r.Size()
 
-	if err := ReadHeader(r); err != nil {
+	pulseVersion, err := ReadHeader(r)
+	if err != nil {
 		return nil, err
 	}
-	if _, err := ReadSchema(r); err != nil {
+	if _, err := ReadSchema(r, pulseVersion); err != nil {
 		return nil, err
 	}
 

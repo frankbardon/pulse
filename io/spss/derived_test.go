@@ -598,10 +598,11 @@ func TestSetEmptyMask_SurvivesImportEndToEnd(t *testing.T) {
 		t.Fatalf("opening cohort: %v", err)
 	}
 	defer func() { _ = f.Close() }()
-	if err := encoding.ReadHeader(f); err != nil {
+	pulseVersion, err := encoding.ReadHeader(f)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	schema, err := encoding.ReadSchema(f)
+	schema, err := encoding.ReadSchema(f, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

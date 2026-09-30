@@ -83,10 +83,11 @@ func buildRecordAtFixture(t *testing.T, n int) ([]byte, *Schema, []map[string]an
 func sequentialDecode(t *testing.T, payload []byte, schema *Schema, target int) (map[string]float64, map[string]bool, map[string]any) {
 	t.Helper()
 	r := bytes.NewReader(payload)
-	if err := ReadHeader(r); err != nil {
+	pulseVersion, err := ReadHeader(r)
+	if err != nil {
 		t.Fatalf("sequential ReadHeader: %v", err)
 	}
-	if _, err := ReadSchema(r); err != nil {
+	if _, err := ReadSchema(r, pulseVersion); err != nil {
 		t.Fatalf("sequential ReadSchema: %v", err)
 	}
 	rr := NewRecordReader(r, schema)

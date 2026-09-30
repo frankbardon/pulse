@@ -70,12 +70,13 @@ func (c *Cohort) RecordCount() (int64, error) {
 	r := bytes.NewReader(data)
 
 	// Skip header
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return 0, err
 	}
 
 	// Skip schema
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		return 0, err
 	}
 

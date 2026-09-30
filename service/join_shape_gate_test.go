@@ -41,10 +41,11 @@ func loadJoinShapeFixture(t testing.TB) (afero.Fs, string, *encoding.Schema, int
 		t.Fatalf("read fixture (regenerate with go test ./service/ -run TestJoinShapeFixture_MatchesGenerator -update): %v", err)
 	}
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

@@ -307,10 +307,11 @@ func openLegacyReader(fsys afero.Fs, path string, schema *encoding.Schema) (*enc
 		}
 	}
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, release, err
 	}
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		return nil, release, err
 	}
 	return encoding.NewRecordReader(r, schema), release, nil

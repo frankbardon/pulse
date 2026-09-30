@@ -819,10 +819,11 @@ func setMaskWidthWarning(field string, ft encoding.FieldType, dictSize, maskWidt
 // ProfileBytes summarizes a .pulse file given its raw bytes.
 func ProfileBytes(data []byte, opts ProfileOptions) (*Profile, error) {
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, err
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -876,11 +877,12 @@ func profileArchive(data []byte, opts ProfileOptions) (*Profile, error) {
 			return nil, err
 		}
 		r := &sect
-		if err := encoding.ReadHeader(r); err != nil {
+		pulseVersion, err := encoding.ReadHeader(r)
+		if err != nil {
 			return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 				fmt.Sprintf("reading shard %q header", e.Name))
 		}
-		if _, err := encoding.ReadSchema(r); err != nil {
+		if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 			return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 				fmt.Sprintf("reading shard %q schema", e.Name))
 		}

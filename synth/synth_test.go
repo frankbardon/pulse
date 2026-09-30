@@ -538,10 +538,11 @@ func readU8Field(t *testing.T, data []byte, name string) []uint8 {
 func readCategoricalField(t *testing.T, data []byte, name string) []string {
 	t.Helper()
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
@@ -566,10 +567,11 @@ func readCategoricalField(t *testing.T, data []byte, name string) []string {
 func readField(t *testing.T, data []byte, name string) []float64 {
 	t.Helper()
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
@@ -592,10 +594,11 @@ func readField(t *testing.T, data []byte, name string) []float64 {
 func readNullCountForField(t *testing.T, data []byte, name string) int {
 	t.Helper()
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
@@ -620,10 +623,11 @@ func readNullCountForField(t *testing.T, data []byte, name string) int {
 func readRecordCount(t *testing.T, data []byte) int {
 	t.Helper()
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
