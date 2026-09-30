@@ -34,7 +34,7 @@ var updateJoinShapeFixture = flag.Bool("update", false, "rewrite testdata/join_s
 
 // loadJoinShapeFixture reads the committed fixture into a hermetic
 // in-memory filesystem.
-func loadJoinShapeFixture(t *testing.T) (afero.Fs, string, *encoding.Schema, int) {
+func loadJoinShapeFixture(t testing.TB) (afero.Fs, string, *encoding.Schema, int) {
 	t.Helper()
 	data, err := afero.ReadFile(afero.NewOsFs(), joinShapeFixturePath)
 	if err != nil {

@@ -175,6 +175,22 @@ own block after every null-state rule has run. The profile document
 itself gains no section: absent the flag it is byte-identical, and with
 it only `warnings` moves. See [profile create](profile-create.md).
 
+### `--run-continuation`
+
+Available on: `profile create`.
+
+`--run-continuation` measures, on the same scan the profile already
+makes, each field's run-continuation: the fraction of adjacent row pairs
+whose on-wire bytes (and, for a nullable field, null bit) repeat. That is
+exactly the hit rate of the run-skip decode, which rewrites only the
+fields that changed since the previous row — so a cohort that was sorted
+by its parent key upstream scans faster, and one re-imported without
+that `ORDER BY` silently loses the win. The additive `run_continuation`
+section carries the per-field rates, an overall figure, the
+high-continuation fields and a one-line advice; pairs never span a shard
+boundary. Absent the flag the document is byte-identical. See
+[profile create](profile-create.md).
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it
@@ -234,7 +250,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
 | `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
 | `pulse mcp` | Run the MCP server over stdio | [mcp](mcp.md) |
-| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review | [profile create](profile-create.md) |
+| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review, and `--run-continuation`, which measures per-field run-continuation (the run-skip decode's hit rate) to show whether the cohort still has the sort order that makes scans fast. Profiles a single-file cohort or a whole shard archive | [profile create](profile-create.md) |
 | `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
 | `pulse shard add` | Append a shard to an existing archive | `--help` |
 | `pulse shard compact` | Rewrite an archive to reclaim orphan bytes | `--help` |

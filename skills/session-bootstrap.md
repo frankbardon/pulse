@@ -105,7 +105,7 @@ Four `.sav` WRITE knobs, one per `spss.WriterOptions` field. All on `pulse expor
 
 ## Profile-capture CLI flags
 
-Four independent, additive `pulse profile create` knobs; each adds an `omitempty` section, none implies another, all four omitted reproduces the pre-flag document byte-for-byte. Detail: `synthetic-data`, `docs/src/cli/profile-create.md`.
+Five independent, additive `pulse profile create` knobs; each adds an `omitempty` section, none implies another, all omitted reproduces the pre-flag document byte-for-byte. The leaf profiles a single file or a whole shard archive. Detail: `synthetic-data`, `docs/src/cli/profile-create.md`.
 
 | Flag | Adds |
 |---|---|
@@ -113,6 +113,7 @@ Four independent, additive `pulse profile create` knobs; each adds an `omitempty
 | `--fit-shape` | 2-component Gaussian mixture per numeric on a BIC win; generates as `mixture`, not `normal` |
 | `--fit-models` | one linear model per numeric, regressed on admitted categorical levels + set options. **How several drivers condition ONE numeric at once.** RETIRES the numeric-target conditional pairs for the targets it lands on — per target, never per document; the three non-numeric arms are untouched, so `--conditional` + `--fit-models` keeps both halves |
 | `--residual-correlations` (needs `--fit-models`) | full correlation submatrix among fitted residuals, so a numeric can be both conditioned and correlated with a sibling |
+| `--run-continuation` | `run_continuation`: per-field fraction of adjacent row pairs whose bytes + null bit repeat — exactly the run-skip decode's hit rate — plus `overall`, `high_fields` (≥0.75) and `advice`. Low overall (<0.5) ⇒ sort the source by its parent key upstream. Pairs never span a shard. Not read by synth |
 
 ## Synth-generation CLI flags
 
