@@ -5,6 +5,7 @@
 - No upgrade guide.
 - A release builds binaries for common platforms when a new version tag is pushed, and only after CI is green for that commit.
 - The version reported by binaries must be the real tag.
+- (U01 interview, 2026-10-01) Plain `go build` matrix + `gh`, not GoReleaser. Finalize owns the GitHub Release and its notes; the workflow only uploads assets, creating a Release with generated notes only when none exists. No release-note labels. The first tag is `v1.0.0-alpha.0`. Strategy: [roadmap README](../README.md#branching--release-strategy).
 
 ## Problems today
 
@@ -36,7 +37,7 @@
 - A tag on a commit whose checks fail therefore produces no release.
 - Optionally, a repository ruleset can also restrict who may push `v*` tags.
 
-**Build** with GoReleaser (or a plain `go build` matrix, if avoiding the dependency is preferred):
+**Build** with a plain `go build` matrix (GoReleaser was considered and rejected):
 
 | OS | Arch |
 |---|---|
@@ -50,7 +51,7 @@
 - Optional: SBOM and keyless signing (cosign). Cheap to add, but not required by the decisions above.
 
 **Publish:**
-- A GitHub Release with auto-generated notes from merged PRs (GitHub's release-notes generator, grouped by label).
+- Upload to the GitHub Release that `flow-finalize` created (`gh release upload --clobber`). If none exists, create one with GitHub's generated notes.
 - A tag with a pre-release suffix (`v1.0.0-rc.1`) is marked as a pre-release.
 
 **Docs:** `docs.yml` keeps publishing the mdBook site from `main`. Versioned docs are out of scope.
@@ -62,4 +63,3 @@
 - [ ] Gate against hard-coded version literals
 - [ ] `ci.yml` made callable (`workflow_call`); `release.yml` on `v*` tags, needing the CI job
 - [ ] Six-platform binary matrix, archives, checksums, GitHub Release with generated notes
-- [ ] Release labels configured for note grouping (`feature`, `fix`, `breaking`, `docs`)

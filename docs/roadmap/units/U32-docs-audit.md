@@ -103,4 +103,5 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 
 ## Notes
 
+- The manifest's own `format_version` is hard-coded `"1.0"` (`descriptor/manifest.go`) while the envelope says `"1.1"`. Found during U01; reconcile it or document why they differ.
 - Runs after every feature unit and before the release candidate, so the rc ships with the final docs and downstream validation exercises them too.

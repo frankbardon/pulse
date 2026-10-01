@@ -16,6 +16,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 - **Branch / scope:** the unit `slug`.
 - **Story commits:** `feat(<slug>/E<n>-S<m>): <what>`, or `fix` / `perf` / `test` / `docs` as appropriate.
 - **Epic close:** `milestone(<slug>/E<n>): vertical slice complete — <epic title>`.
+- **Release intent:** *none — rolls into v1.0.0*, unless the unit is a deliberate pre-release checkpoint. See [Branching & release strategy](../README.md#branching--release-strategy).
 - **Status:** update the unit's frontmatter `status` (`not-started` → `in-progress` → `done`) and tick its TODO items in the same PR.
 
 ## Definition of Done (every unit)

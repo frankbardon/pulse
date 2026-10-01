@@ -43,7 +43,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#6** `pulse version` / `--version`; `mcpserve` and `gosdk` default to the real version (remove hard-coded `"1.0.0"`); manifest `pulse_version` · [U01](units/U01-release-pipeline.md)
 - [ ] **#7** Gate against hard-coded version literals · [U01](units/U01-release-pipeline.md)
 - [ ] **#8** `ci.yml` callable; `release.yml` on `v*` tags gated on CI · [U01](units/U01-release-pipeline.md)
-- [ ] **#9** Binaries for linux / darwin / windows × amd64 / arm64, plus checksums; GitHub Release with generated notes; release labels · [U01](units/U01-release-pipeline.md)
+- [ ] **#9** Binaries for linux / darwin / windows × amd64 / arm64, plus checksums; uploaded to the GitHub Release (created with generated notes only when none exists; `-` tags marked pre-release) · [U01](units/U01-release-pipeline.md)
 
 ---
 
