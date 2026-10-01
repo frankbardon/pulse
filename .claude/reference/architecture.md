@@ -1,0 +1,75 @@
+# Architecture — package layout and the MCP layer split
+
+CLAUDE.md keeps only the always-load half of the architecture (the public package list and a pointer here). This file is the long form: where every package lives, which ones are public, how the narrowed "noun" packages are built, and how the MCP layer splits. **Load it before moving a package, adding a public package or symbol, or touching any import-boundary gate.**
+
+## Public vs internal
+
+Under Go module semantics every non-`internal/` package is public API, and `v1.0.0` freezes every exported identifier in it. The classification is decided in `docs/roadmap/v1.0.0-api-and-release/00-public-surface.md` (Decisions); the migration from the earlier layout is `docs/roadmap/v1.0.0-api-and-release/03-embedder-migration.md`.
+
+```
+PUBLIC (frozen at v1.0.0 — TestPublicAPIGolden guards every exported shape)
+pulse (root)        the facade: New, Options, Pulse + methods, root aliases, extension registration
+types/              wire payload — Go AND JSON names frozen
+errors/             CodedError, every code constant, Lookup/ByDomain/Search, codeMetadata (left whole)
+encoding/           schema nouns + ungrouped (0x01) raw-byte primitives; RecordLocator = geometry only
+descriptor/         result + envelope types only (Envelope, Manifest, PredictResult, InspectResult, …)
+io/                 alias facade: jobs, reports, Reader/Writer interfaces, Format + factory
+synth/              alias facade: Spec/Profile/Options/Result + Synth, SynthBytes, ProfileFile, …
+mcp/gosdk/          the ONLY go-sdk importer: Register, Config, URI/prompt constants
+mcpserve/           Serve, ServeStdio, Options
+processing/         INTERIM public (U02b moves it): operators, crosstab, joins, registry
+processing/feature/ FEAT_* pre-filter engineers (interim public)
+processing/window/  WIN_* operators (interim public)
+
+INTERNAL
+cmd/pulse/                 the only binary; buildApp() defines the CLI leaf tree
+internal/cli/              flags, formatting, envelopes — no business logic
+internal/service/          orchestration (Process, Compose, shards, indexes, facets, …)
+internal/descriptor/       manifest/predict/inspect/schema builders + capabilities_*.go — NO-EXECUTE
+internal/encoding/         codec remainder: archive, groups, decode plans, index + index manifest, widen
+internal/encodingbridge/   init-installed hooks from public encoding to its internal twin
+internal/iocore/           the Reader/Writer + optional-interface contracts public io aliases
+internal/io/               jobs, inference, transfer; internal/io/<fmt>/ adapters
+                           (csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel|spss)
+                           + helpers exportoverlay, nullcell, settristate, setwide
+internal/synth/            generator, profile capture, structural rules, fidelity
+internal/template/         request templating (import ceiling: stdlib + types + errors)
+internal/mcp/              SDK-free MCP core; internal/mcp/toolmeta/ leaf metadata
+internal/skills/           embedded skill pack (//go:embed *.md)
+internal/examples/         embedded runnable requests
+internal/fs/               afero config (fs.Default, fs.NewMemMap)
+internal/imports/          managed-imports manager (TTL, sidecars)
+internal/daterange/        compiled {label,start,end} model for the date-range operators
+internal/spsssidecar/      SPSS sidecar path helpers used by root sidecar_*.go
+internal/facadebridge/     init-installed hooks from the root to mcp/gosdk (replaces Service())
+internal/processing/{regression,arena}/   REG_* engine, arena allocator
+internal/buildinfo/        VERSION injected by ldflags, read by pulse.Version()
+internal/apigolden/        TestPublicAPIGolden + testdata/public_api.txt
+internal/embeddersmoke/    nested module (own go.mod) compiled by `make smoke` in CI
+internal/shardfixtures/, internal/spsstest/, internal/tools/pkgsplit/   test + tooling support
+docs/                      mdBook source (docs/book/ is generated)
+```
+
+The pack is still ADDRESSED pack-relative in prose — `skills/<stem>.md` — and resolved under `internal/skills/` by `TestSkillsCoverAllCrossReferences`; the examples are addressed as `examples/<dir>/*.json` the same way.
+
+## How the narrowed packages are built
+
+Three techniques, chosen per package:
+
+- **Split in place** (`encoding`, `descriptor`). The kept subset stays at the public path; the remainder moved to an `internal/<pkg>` twin with the same package name, so `encoding.X` / `descriptor.X` spellings read the same in prose either way. Methods on kept types that only the remainder needs became functions in the twin (`BuildDecodePlan`, `DecodeGroupEntry`, `NewGroupEntryDecoder`, `GroupSpecOf`, `ReadRecordAt`). The public `encoding` reaches its twin's needs through `internal/encodingbridge` hooks installed at init. `internal/tools/pkgsplit` is the AST rewriter that performed the split.
+- **Alias facade** (`io`, `synth`). The whole implementation lives in `internal/io` (+ `internal/iocore`) and `internal/synth`; the public package holds only `type X = internal.X` aliases, re-declared constants and thin function wrappers for the kept subset. An alias freezes its target's fields and methods exactly as if the target were public — which is why `TestPublicAPIGolden` expands every alias.
+- **Left whole** (`errors`, `mcpserve`) or **unexported in place** (`mcp/gosdk`).
+
+**Root aliases.** Facade-returned types from internal packages keep their `pulse.X` spelling as aliases (`ComposeOptions`, `Row`, `RowIter`, the shard and index result types, `ImportSpec` / `ImportResult` / `ImportEntry` / `ImportSidecar`, `Example` / `ExampleSummary`, `Template*` / `RenderedTemplate`, `CohesionWarning`, `GroupIndexHeadroom`, `SidecarIndex`, …). `DateRangeSpec`, `MemberSet` and `LoadMemberSetResult` are root-NATIVE types, not aliases. `pulse.go` also re-exports `types.Request` / `Response` / `ComposedRequest` and `synth.Spec` / `Result` / `Options` / `Profile` / `ProfileOptions`.
+
+**The `io` import boundary.** Nothing under `internal/io/**` or `internal/iocore` may import the public `io` — its factory (`io.NewReader`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, typed `io.Format` constants, `FormatFromPath`) imports every adapter, so the reverse edge is a cycle. Adapters import `internal/iocore` for contracts and `internal/io` for jobs. Gated by `TestIOImportBoundary*` (`internal/iocore/boundary_test.go`); when an adapter moves, move its path in `belowFacade` with it.
+
+**Surface guards.** `TestPublicAPIGolden` (blocking) freezes every public package's exported shape, aliases expanded; regenerate with `go test ./internal/apigolden/ -run TestPublicAPIGolden -update` only for an intentional surface change and review the diff. The `apidiff` job in `.github/workflows/api-compat.yml` is advisory against the latest tag (label `api-break-ok` marks an intentional break) and flips to blocking once a stable `v1.0.0` tag exists. `make smoke` builds `internal/embeddersmoke`, an external module that only uses public spellings. Contributor prose: `docs/src/contributing/pr-process.md`.
+
+## CLI
+
+CLI commands map 1:1 to manifest commands — the list is in CLAUDE.md "Architecture". `pulse schema` prints the payload JSON Schema RAW, not envelope-wrapped.
+
+## MCP layer split
+
+`internal/mcp/` is the SDK-free core (typed In/Out structs, reflected JSON schemas, typed handlers over `*pulse.Pulse`, strict-decode, bind classification — gated by `TestMCPCore_NoSDKImport`). `mcp/gosdk/` is the ONLY package importing the go-sdk; its `Register(server, p, cfg)` mounts the core catalog onto a caller-supplied server, and `pulse mcp` builds a bare server and calls it. `mcp/gosdk` reaches the instance's extension snapshot through `internal/facadebridge`, never through an exported engine handle. `internal/mcp/toolmeta/` holds the leaf metadata both `internal/descriptor` and the core import. One tool per facade method plus skills/examples/errors/import/label tools — **the manifest is the source-of-truth count, never hardcode it** — and two resource schemes (`pulse://`, `pulse-skill://`); `pulse://schema` serves the payload JSON Schema as a RESOURCE, not a tool. Cohort resources are ENUMERATED by a startup walk of the data root, suppressible with `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan` / `pulse mcp --no-cohort-scan` — the `pulse://` template stays mounted, so a disabled scan costs enumeration only, never readability. Payload tools take the structured request at top level, outputs are typed-wrapped, coded errors surface as `{code, message, details}`.
