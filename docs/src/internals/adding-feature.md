@@ -76,7 +76,14 @@ operator's params and output column naming convention. The
 
 ## 7. Update CLAUDE.md
 
-Bump the registered-feature count in CLAUDE.md's "Skill Pack" section.
+There is **no registered-feature count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-feat-<kebab>.md`, the capability declaration in
+`internal/descriptor/capabilities_features.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
 
 ## 8. Run the gates
 

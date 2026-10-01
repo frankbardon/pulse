@@ -3,12 +3,12 @@
 **Audience:** Pulse internals contributors adding a new `AGG_*`
 operator.
 
-This page is a step-by-step recipe. The same content lives in
-[`CLAUDE.md` → Common Claude Code Workflows → Adding a new
-aggregator](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#adding-a-new-aggregator);
-this is the human-readable mirror.
+This page is a step-by-step recipe. The binding list of companions
+is CLAUDE.md's Update Demand table (aggregator row) and its long form,
+`.claude/reference/update-demand.md`; this is the human-readable
+walkthrough.
 
-> **From CLAUDE.md, Common Claude Code Workflows.**
+> **From CLAUDE.md, The Update Demand (registered aggregator row) and `.claude/reference/update-demand.md`.**
 
 ## 1. Declare the type constant
 
@@ -202,10 +202,17 @@ for the gate composition and observed perf characteristics.
 
 ## 7. CLAUDE.md and registered-component lists
 
-Update CLAUDE.md's "Current registered components" section with the
-new aggregator name in the right alphabetised slot. If the operator
-interacts with categorical fields in a special way, also update
-`internal/descriptor/predict.go`'s `numericAggregations` map.
+There is **no registered-aggregator count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-agg-<kebab>.md`, the capability declaration in
+`internal/descriptor/capabilities_aggregators.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+
+If the operator interacts with categorical fields in a special way,
+also update `internal/descriptor/predict.go`'s `numericAggregations` map.
 
 ## 8. Run the gates
 
@@ -216,7 +223,7 @@ go test ./processing/ -run TestRegistryStreamability
 go test ./...
 ```
 
-The full Update Demand row for aggregators says: skill update +
-capability declaration + CLAUDE.md update + the existing test
-coverage. All four ride in the same PR. See
+The full Update Demand row for aggregators says: atomic skill +
+capability declaration + an example tag + the existing test
+coverage. All of them ride in the same PR. See
 [The Update Demand](update-demand.md).

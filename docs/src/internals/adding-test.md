@@ -104,10 +104,17 @@ pattern at the aggregator layer.
 
 ## 9. CLAUDE.md
 
-Update CLAUDE.md's "Current registered components → statistical
-tests" line with the new operator. If the test introduces a new
-preconditions class (e.g. paired sample, repeated measures), also
-add a sentence describing it in the parent paragraph.
+There is **no registered-test count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-test-<kebab>.md`, the `types/streamability.go` case (§4), the capability declaration in
+`internal/descriptor/capabilities_tests.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+
+A new preconditions class (e.g. paired sample, repeated measures)
+belongs in `skills/statistical-testing.md`, not CLAUDE.md.
 
 ## 10. Run the gates
 

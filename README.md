@@ -461,15 +461,19 @@ Nullability is orthogonal to type: any field can be nullable, carried by a per-r
 
 ## Configuration
 
-Three environment variables, all optional:
+Environment variables (`pulse.Options` always overrides; a `.env` at the repo root is auto-loaded):
 
 ```bash
-export PULSE_DATA_DIR=/path/to/data        # Base directory for .pulse cohort files
-export PULSE_IMPORTS_DIR=imports           # Subdir for managed-import handles (default "imports")
-export PULSE_IMPORT_TTL=7d                 # Default TTL for managed handles ("24h", "30m", "7d", "pin")
+export PULSE_DATA_DIR=/path/to/data        # Base directory for .pulse cohorts (fs.Default); bypass with Options{DataDir} or Options{FS}
+export PULSE_IMPORTS_DIR=imports           # Managed-imports subdir under the fs root (default "imports")
+export PULSE_IMPORT_TTL=7d                 # Default TTL for managed imports: Go duration ("24h"), day form ("7d") or "pin"; default 7d
+export PULSE_LABEL_TABLES_DIR=/path/labels # Directory whose *.json files auto-load as LabelTables at pulse.New, keyed by filename
+export PULSE_RANGE_TABLES_DIR=/path/ranges # Same shape for RangeTables ({label,start,end} array or {"description","ranges"} wrapper)
+export PULSE_MCP_NO_COHORT_SCAN=1          # pulse mcp only: skip the startup cohort enumeration; pulse:// URIs stay readable
+export PULSE_TEMPLATES_DIR=/a:/b           # Request-template roots, PATH-style precedence (first root wins)
 ```
 
-Embedders override per-instance via `pulse.Options{DataDir, ImportsDir, ImportTTL, FS}`. No config files.
+Embedders override per-instance via `pulse.Options{DataDir, ImportsDir, ImportTTL, FS, LabelTablesDir, RangeTablesDir, TemplateDirs}`; the cohort-scan switch is `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan` (CLI `pulse mcp --no-cohort-scan`). No config files.
 
 ## Output Format Contract
 

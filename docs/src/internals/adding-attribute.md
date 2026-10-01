@@ -61,9 +61,14 @@ operator name.
 
 ## 6. Update CLAUDE.md
 
-Bump the count in CLAUDE.md's "Skill Pack" section (the current
-registered counts line) so the registered-attribute total reflects
-the new operator.
+There is **no registered-attribute count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-attr-<kebab>.md`, the capability declaration in
+`internal/descriptor/capabilities_attributes.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
 
 ## 7. Run the gates
 
