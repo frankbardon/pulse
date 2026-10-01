@@ -16,7 +16,7 @@ branch: guidance-guides
 
 **Outcome:** A developer can start from a question and find the right analysis without knowing statistics.
 
-**Track:** Guided analysis · **Size:** M · **Depends on:** [U21](U21-guidance-generated-docs.md), [U24](U24-matrix-operators.md), [U28](U28-matrix-overlays.md) · **Unblocks:** [U32](U32-v1-release.md)
+**Track:** Guided analysis · **Size:** M · **Depends on:** [U21](U21-guidance-generated-docs.md), [U24](U24-matrix-operators.md), [U28](U28-matrix-overlays.md) · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 

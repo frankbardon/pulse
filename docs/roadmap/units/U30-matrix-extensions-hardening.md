@@ -16,7 +16,7 @@ branch: matrix-extensions-hardening
 
 **Outcome:** Embedders can add their own matrix operators, and the matrix stack is proven at scale.
 
-**Track:** Vector & matrix · **Size:** M · **Depends on:** [U25](U25-multivariate-tests-segmentation.md), [U28](U28-matrix-overlays.md), [U29](U29-vector-field-types.md) · **Unblocks:** [U32](U32-v1-release.md)
+**Track:** Vector & matrix · **Size:** M · **Depends on:** [U25](U25-multivariate-tests-segmentation.md), [U28](U28-matrix-overlays.md), [U29](U29-vector-field-types.md) · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 

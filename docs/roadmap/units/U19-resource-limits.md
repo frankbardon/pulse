@@ -16,7 +16,7 @@ branch: resource-limits
 
 **Outcome:** Embedders can bound runaway requests, with defaults that never get in the way.
 
-**Track:** Embedder operations · **Size:** M · **Depends on:** [U05](U05-profiles-enforcement.md) · **Soft:** [U16](U16-matrix-result.md) · **Unblocks:** [U32](U32-v1-release.md)
+**Track:** Embedder operations · **Size:** M · **Depends on:** [U05](U05-profiles-enforcement.md) · **Soft:** [U16](U16-matrix-result.md) · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 

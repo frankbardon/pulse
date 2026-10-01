@@ -16,7 +16,7 @@ branch: guidance-mcp
 
 **Outcome:** MCP agents are guided from intent to result in few round-trips.
 
-**Track:** Guided analysis · **Size:** S · **Depends on:** [U22](U22-recommend-explain.md) · **Unblocks:** [U32](U32-v1-release.md)
+**Track:** Guided analysis · **Size:** S · **Depends on:** [U22](U22-recommend-explain.md) · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 

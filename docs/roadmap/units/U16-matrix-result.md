@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U15, U11]
 soft_depends_on: [U07]
 blocks: [U24, U26, U29]
-todo_items: [78, 79, 80, 81, 82, 83, 84, 163]
+todo_items: [78, 79, 80, 81, 82, 83, 84, 172]
 branch: matrix-result
 ---
 
@@ -39,7 +39,7 @@ Add virtual vectors (`Request.Vectors`) and the typed matrix result (`Request.Ma
 - [ ] **#82** (6. Vector & matrix — foundation › E2 — Virtual vectors & matrix result) `MaxMatrixDim`, `precision` and `top_pairs` controls
 - [ ] **#83** (6. Vector & matrix — foundation › E2 — Virtual vectors & matrix result) `MAT_COVARIANCE`
 - [ ] **#84** (6. Vector & matrix — foundation › E2 — Virtual vectors & matrix result) `MAT_CORRELATION` (Pearson), with parity against `TEST_PEARSON_R`
-- [ ] **#163** (12. Cross-cutting (applies throughout; tick when verified for the whole release)) Missing-data modes documented and tested; PSD refusal / `repair: "nearest"`
+- [ ] **#172** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Missing-data modes documented and tested; PSD refusal / `repair: "nearest"`
 
 ## Scope
 

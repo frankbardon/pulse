@@ -16,7 +16,7 @@ branch: skill-ontology
 
 **Outcome:** Agents only ever see skills and examples for features the instance has.
 
-**Track:** Feature profiles · **Size:** L · **Depends on:** [U05](U05-profiles-enforcement.md), [U09](U09-guidance-backfill-descriptive.md) · **Unblocks:** [U21](U21-guidance-generated-docs.md), [U32](U32-v1-release.md)
+**Track:** Feature profiles · **Size:** L · **Depends on:** [U05](U05-profiles-enforcement.md), [U09](U09-guidance-backfill-descriptive.md) · **Unblocks:** [U21](U21-guidance-generated-docs.md), [U32](U32-docs-audit.md)
 
 ## Summary
 

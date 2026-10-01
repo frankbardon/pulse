@@ -16,7 +16,7 @@ branch: profiles-mcp-tooling
 
 **Outcome:** MCP servers expose only the profile, and embedders have tools to write and check profiles.
 
-**Track:** Feature profiles · **Size:** M · **Depends on:** [U05](U05-profiles-enforcement.md) · **Unblocks:** [U32](U32-v1-release.md)
+**Track:** Feature profiles · **Size:** M · **Depends on:** [U05](U05-profiles-enforcement.md) · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 

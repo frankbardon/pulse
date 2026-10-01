@@ -267,22 +267,36 @@ Theme documents: see the [roadmap index](README.md).
 
 ---
 
-## 11. Release v1.0.0
+## 11. Documentation audit ([docs-audit 00](v1.0.0-docs-audit/00-plan.md))
 
-- [ ] **#159** `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md)) · [U32](units/U32-v1-release.md)
-- [ ] **#160** Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library · [U32](units/U32-v1-release.md)
-- [ ] **#161** `v1.0.0` tagged · [U32](units/U32-v1-release.md)
+- [ ] **#159** Documentation inventory and coverage matrix: every public API symbol, CLI leaf and flag, MCP tool / prompt / resource, operator, field type, error code, env var, `Options` field and request/response slot, mapped to where it is documented · [U32](units/U32-docs-audit.md)
+- [ ] **#160** Automated checks in CI: link checker, runnable-snippet test, CLI help ↔ `flags.md` parity, GoDoc `Example*` functions for the public facade, removed-name scan · [U32](units/U32-docs-audit.md)
+- [ ] **#161** `TestSkillTokenBudget` flipped from soft to hard-failing, with every skill within budget · [U32](units/U32-docs-audit.md)
+- [ ] **#162** Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/` · [U32](units/U32-docs-audit.md)
+- [ ] **#163** Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary · [U32](units/U32-docs-audit.md)
+- [ ] **#164** Getting Started rewritten for v1 (install from GitHub Releases → first cohort → first analysis → first MCP session) and a single embedder guide (profiles, limits, observability, response shaping) · [U32](units/U32-docs-audit.md)
+- [ ] **#165** Terminology made consistent with the glossary; pre-1.0 and removed names purged · [U32](units/U32-docs-audit.md)
+- [ ] **#166** Fresh-reader review and agent task evaluation over MCP (~20 tasks, kept as a regression set); every failure fixed · [U32](units/U32-docs-audit.md)
+- [ ] **#167** Findings log closed (fixed or deferred with reason and issue) and maintainer sign-off recorded · [U32](units/U32-docs-audit.md)
 
 ---
 
-## 12. Cross-cutting (applies throughout; tick when verified for the whole release)
+## 12. Release v1.0.0
 
-- [ ] **#162** Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values · [U32](units/U32-v1-release.md)
-- [ ] **#163** Missing-data modes documented and tested; PSD refusal / `repair: "nearest"` · [U16](units/U16-matrix-result.md)
-- [ ] **#164** New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups · [U32](units/U32-v1-release.md)
-- [ ] **#165** Every new operator has `Purpose`, `Interpretation` (if inferential), `Since`, dependency edges and an atomic skill · [U32](units/U32-v1-release.md)
-- [ ] **#166** Every new gate is listed by name in CLAUDE.md "Non-Skippable CI Gates" · [U32](units/U32-v1-release.md)
-- [ ] **#167** The Update Demand table has rows for: `Purpose`, `Since` / dependencies, topical-skill fences, `Request.Vectors` / `Matrices`, `Response.Matrices`, `Request.Weight` / `Multiplicity` / `TimeZone` / `Return`, `Options.Limits` / `Logger` / `Hooks` / `Metrics` · [U32](units/U32-v1-release.md)
-- [ ] **#168** New env vars and CLI flags documented (CLAUDE.md "Build / Env", `flags.md`, `session-bootstrap.md`) · [U32](units/U32-v1-release.md)
-- [ ] **#169** CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`) · [U32](units/U32-v1-release.md)
-- [ ] **#170** `format_version` remains `"1.1"` (every wire change additive) · [U32](units/U32-v1-release.md)
+- [ ] **#168** `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md)) · [U33](units/U33-v1-release.md)
+- [ ] **#169** Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library · [U33](units/U33-v1-release.md)
+- [ ] **#170** `v1.0.0` tagged · [U33](units/U33-v1-release.md)
+
+---
+
+## 13. Cross-cutting (applies throughout; tick when verified for the whole release)
+
+- [ ] **#171** Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values · [U33](units/U33-v1-release.md)
+- [ ] **#172** Missing-data modes documented and tested; PSD refusal / `repair: "nearest"` · [U16](units/U16-matrix-result.md)
+- [ ] **#173** New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups · [U33](units/U33-v1-release.md)
+- [ ] **#174** Every new operator has `Purpose`, `Interpretation` (if inferential), `Since`, dependency edges and an atomic skill · [U33](units/U33-v1-release.md)
+- [ ] **#175** Every new gate is listed by name in CLAUDE.md "Non-Skippable CI Gates" · [U33](units/U33-v1-release.md)
+- [ ] **#176** The Update Demand table has rows for: `Purpose`, `Since` / dependencies, topical-skill fences, `Request.Vectors` / `Matrices`, `Response.Matrices`, `Request.Weight` / `Multiplicity` / `TimeZone` / `Return`, `Options.Limits` / `Logger` / `Hooks` / `Metrics` · [U33](units/U33-v1-release.md)
+- [ ] **#177** New env vars and CLI flags documented (CLAUDE.md "Build / Env", `flags.md`, `session-bootstrap.md`) · [U33](units/U33-v1-release.md)
+- [ ] **#178** CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`) · [U33](units/U33-v1-release.md)
+- [ ] **#179** `format_version` remains `"1.1"` (every wire change additive) · [U33](units/U33-v1-release.md)

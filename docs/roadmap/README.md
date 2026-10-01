@@ -6,7 +6,7 @@ This directory sits outside the mdBook source (`docs/src/`) on purpose: planned 
 
 ## v1.0.0
 
-Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Work is planned as 32 Flow units in [`units/`](units/README.md); each TODO item links to its unit.
+Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Work is planned as 33 Flow units in [`units/`](units/README.md); each TODO item links to its unit.
 
 | Theme | Index |
 |---|---|
@@ -18,10 +18,12 @@ Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Wor
 | Vector & matrix math | [`v1.0.0-vector-matrix/`](v1.0.0-vector-matrix/00-overview.md) |
 | Response shaping — callers select what a response carries; unrequested parts are never computed | [`v1.0.0-response-shaping/`](v1.0.0-response-shaping/00-design.md) |
 | Embedder operations — resource limits with high defaults; logger, timing hooks, opt-in metrics | [`v1.0.0-embedder-operations/`](v1.0.0-embedder-operations/00-overview.md) |
+| Documentation audit — a final pass over every human- and agent-facing surface before the release candidate | [`v1.0.0-docs-audit/`](v1.0.0-docs-audit/00-plan.md) |
 
 **Cross-theme ordering** (mirrored by the section order in `TODO.md`):
 1. The public-surface audit lands before other v1 work touches the same packages. The release pipeline can land early, so release candidates are possible.
 2. Feature profiles FP1–FP3 and guided-analysis G1 come next, so every new surface is profile-filtered and carries purpose metadata from its first commit.
 3. Statistical integrity and the time-zone consolidation (step 0) land before the vector & matrix operators, so those operators are born weight-, multiplicity- and zone-aware.
 4. Response shaping and embedder operations are largely independent and can run in parallel with the vector & matrix work.
-5. `STABILITY.md` is published last, once the public surface is final.
+5. The documentation audit runs after every feature unit and before the release candidate.
+6. `STABILITY.md` is published last, once the public surface is final.

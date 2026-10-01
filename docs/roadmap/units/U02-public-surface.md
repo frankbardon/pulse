@@ -16,7 +16,7 @@ branch: public-surface
 
 **Outcome:** The public Go API is deliberate, and CI guards it.
 
-**Track:** API & release · **Size:** L · **Depends on:** none · **Unblocks:** [U04](U04-profiles-model.md), [U07](U07-guidance-metadata.md), [U15](U15-linalg-core.md), [U20](U20-observability.md), [U32](U32-v1-release.md)
+**Track:** API & release · **Size:** L · **Depends on:** none · **Unblocks:** [U04](U04-profiles-model.md), [U07](U07-guidance-metadata.md), [U15](U15-linalg-core.md), [U20](U20-observability.md), [U32](U32-docs-audit.md)
 
 ## Summary
 

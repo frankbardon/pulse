@@ -16,7 +16,7 @@ branch: response-shaping-execution
 
 **Outcome:** Unrequested work is never computed, and MCP returns lean responses by default.
 
-**Track:** Response shaping · **Size:** M · **Depends on:** [U17](U17-response-shaping-core.md) · **Unblocks:** [U32](U32-v1-release.md)
+**Track:** Response shaping · **Size:** M · **Depends on:** [U17](U17-response-shaping-core.md) · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 

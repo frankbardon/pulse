@@ -16,7 +16,7 @@ branch: release-pipeline
 
 **Outcome:** Every build knows its real version, and a pushed tag ships binaries.
 
-**Track:** API & release · **Size:** S · **Depends on:** none · **Unblocks:** [U32](U32-v1-release.md)
+**Track:** API & release · **Size:** S · **Depends on:** none · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 

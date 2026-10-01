@@ -16,7 +16,7 @@ branch: observability
 
 **Outcome:** Hosts can see what Pulse is doing, whether or not they are a server.
 
-**Track:** Embedder operations · **Size:** M · **Depends on:** [U02](U02-public-surface.md) · **Soft:** [U01](U01-release-pipeline.md) · **Unblocks:** [U32](U32-v1-release.md)
+**Track:** Embedder operations · **Size:** M · **Depends on:** [U02](U02-public-surface.md) · **Soft:** [U01](U01-release-pipeline.md) · **Unblocks:** [U32](U32-docs-audit.md)
 
 ## Summary
 
