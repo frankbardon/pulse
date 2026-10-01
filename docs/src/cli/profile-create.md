@@ -200,7 +200,7 @@ observation count is only an approximation of true co-occurrence.
 entry's `rho` and `n` are computed only from rows where BOTH fields were
 simultaneously non-null. `synth.SpecFromProfile` prefers
 `conditional.numeric_pairs` over `pairwise` when both are present, and
-`synth/copula.go`'s conditional-Gaussian construction (the mechanism
+`internal/synth/copula.go`'s conditional-Gaussian construction (the mechanism
 that actually reconstructs the requested correlation, replacing the old
 approximate ±5%·std blend) consumes either shape identically. A pair
 whose `n` falls below **30** (`synth.MinPairObservations`) is still
@@ -343,7 +343,7 @@ No new flag is needed at `synth from-profile` time — whether a field
 regenerates from `normal` or `mixture` is decided entirely by whether
 the profile document carries a captured shape for it.
 
-Limitations (see `synth/shape.go` for the full algorithm and its
+Limitations (see `internal/synth/shape.go` for the full algorithm and its
 documented trade-offs): fixed at exactly 2 components (no component-
 count search); a single deterministic EM run per field, not
 multi-start, so a genuinely trimodal source fits a 2-component
@@ -359,7 +359,7 @@ at `synth from-profile` generation time a `--fit-shape`-captured field
 that carries no model is pre-claimed under
 `"captured shape (--fit-shape)"` before any conditional-pairing or
 correlation stage runs (`synth.resolveConflicts`,
-`synth/conflict.go`), so the shape fit wins that field — but the
+`internal/synth/conflict.go`), so the shape fit wins that field — but the
 excluded relationship (the dropped categorical-numeric pair, or that
 field's exclusion from a correlation whose other participants still
 correlate) is reported as one warning naming both the field and which
@@ -1025,7 +1025,7 @@ to judge a twelve-row level.
 
 `gateHighNullRate` (0.98) and `gateLowNullRate` (0.02) are package
 constants with their reasoning at the declaration in
-`synth/profile_gating.go`, matching the `minVarianceExplained` /
+`internal/synth/profile_gating.go`, matching the `minVarianceExplained` /
 `minLevelObservations` precedent: a threshold whose purpose is to mean
 the same thing across cohorts must not be tunable per run. They are tight
 because skip logic is EXACT in the source. A looser pair would not find
@@ -1583,7 +1583,7 @@ ORDER, which generation does not reproduce.
 The profile JSON is always written to `--output`. With `--json`, the
 envelope is also written to stdout (typically piped or `jq`-d).
 
-Profile schema lives in `synth/profile.go` and is documented in
+Profile schema lives in `internal/synth/profile.go` and is documented in
 `skills/synthetic-data.md`.
 
 ### Reproducibility — across machines, not just across runs

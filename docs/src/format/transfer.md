@@ -83,7 +83,7 @@ receiver's figures can be compared directly.
 Parent groups (`0x02`) and zstd both remove the same redundancy: a parent
 block repeated on every child row. Once a cohort is grouped, zstd has
 much less left to find. Figures from the synthetic join-shaped bench,
-`go test ./io/ -run '^$' -bench BenchmarkTransfer`, at 240K rows, fanout
+`go test ./internal/io/ -run '^$' -bench BenchmarkTransfer`, at 240K rows, fanout
 12, a 12-field parent block, and random-valued child columns:
 
 | Shape | Cohort | Artifact | Ratio |

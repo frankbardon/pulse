@@ -20,7 +20,7 @@ size is the wire footprint per record; bit-packed types
 
 ## 2. Schema reader
 
-Wire the type byte into the schema reader case in `encoding/`. The
+Wire the type byte into the schema reader case in `encoding/` (the public schema nouns; the decode-plan and group remainder is `internal/encoding/`). The
 unknown-type-byte branch in the reader is what surfaces
 `ENCODING_INVALID` for an unknown type — when you add the new constant,
 add the corresponding decode arm.
@@ -33,7 +33,7 @@ block and the record data, keyed by the position of the bearing field.
 ## 3. Update the operator accept tables
 
 Every operator that should accept the new field type needs its row in
-`descriptor/capabilities_*.go` extended. The accept tables are shared
+`internal/descriptor/capabilities_*.go` extended. The accept tables are shared
 slices declared near the top of `capabilities_aggregators.go`
 (`numericFieldTypes`, `numericFieldTypesAnalytics`, `allCohortFieldTypes`,
 `setFieldTypes`, …) — extend the right slice rather than adding the
@@ -43,7 +43,7 @@ new type to each operator individually.
 
 If the new type changes how an operator behaves (categorical-vs-numeric
 routing, nullable-vs-non-nullable handling), update
-`descriptor/predict.go`'s routing tables (`numericAggregations`,
+`internal/descriptor/predict.go`'s routing tables (`numericAggregations`,
 `categoricalAggregations`, …).
 
 ## 5. Update the cohort-schema-design skill
@@ -61,9 +61,9 @@ distinctions. Update it to reflect the new type.
 ## 7. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllFieldTypes
-go test ./encoding/...
-go test ./descriptor/ -run 'TestManifest|TestPredict'
+go test ./internal/skills/ -run TestSkillsCoverAllFieldTypes
+go test ./encoding/... ./internal/encoding/...
+go test ./descriptor/ ./internal/descriptor/ -run 'TestManifest|TestPredict'
 ```
 
 The Update Demand row for `.pulse` format changes (header / field

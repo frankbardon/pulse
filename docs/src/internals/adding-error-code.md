@@ -49,7 +49,7 @@ constant rather than the error message.
 
 ```bash
 go test ./errors/ -run 'TestCodesHaveFixups|TestErrorsLookup'
-go test ./descriptor/ -run 'TestManifestErrorCodesComplete|TestManifest_ErrorCodesSlim'
+go test ./internal/descriptor/ -run 'TestManifestErrorCodesComplete|TestManifest_ErrorCodesSlim'
 ```
 
 The Update Demand row for error codes covers all of these in one PR;

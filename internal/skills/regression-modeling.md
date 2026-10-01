@@ -72,7 +72,7 @@ Overwrites `StdErrors` / `PValues`; point estimate stays at the full-data fit. `
 | 12 | Ecological | `GROUP_*` + `AGG_AVERAGE` upstream → `REG_OLS` over per-group means (composed) |
 | 13 | Stepwise | any with `Selection:"stepwise", Criterion:"aic"\|"bic"` |
 
-Runnable JSON: `examples/regression/`.
+Runnable JSON: `internal/examples/regression/`.
 
 ## Ecological caveat
 

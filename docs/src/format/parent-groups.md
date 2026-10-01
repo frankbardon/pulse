@@ -4,7 +4,7 @@
 non-Go reader, or building on the group descriptor. Source of truth:
 [`encoding/group.go`](https://github.com/frankbardon/pulse/blob/main/encoding/group.go),
 [`group_wire.go`](https://github.com/frankbardon/pulse/blob/main/encoding/group_wire.go),
-[`group_stream.go`](https://github.com/frankbardon/pulse/blob/main/encoding/group_stream.go).
+[`group_stream.go`](https://github.com/frankbardon/pulse/blob/main/internal/encoding/group_stream.go).
 
 A denormalised join repeats its parent block on every child row. A
 **parent group** stores each distinct tuple of its member fields ONCE,

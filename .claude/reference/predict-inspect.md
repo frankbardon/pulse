@@ -2,7 +2,7 @@
 
 Relocated from CLAUDE.md (section `### Predict / Inspect contracts`). CLAUDE.md keeps the always-load half inline — the structural import ban, the header-only rule, the streamability mirror, and the fact that `CountRecords` is header-fast. Everything below is the long form it points at.
 
-**Load it before changing `descriptor/predict.go`, `descriptor/inspect.go`, `Pulse.Inspect` / `Pulse.InspectEnvelope`, `mcp.InspectOut` / `HandleInspect`, the `pulse cohort inspect` leaf, or `pulse.CountRecords`.** All four surfaces answer the same question over the same bytes and the failure mode they share is SILENT: a floored or truncated count is indistinguishable on the wire from an honest one.
+**Load it before changing `internal/descriptor/predict.go`, `internal/descriptor/inspect.go`, `Pulse.Inspect` / `Pulse.InspectEnvelope`, `mcp.InspectOut` / `HandleInspect`, the `pulse cohort inspect` leaf, or `pulse.CountRecords`.** All four surfaces answer the same question over the same bytes and the failure mode they share is SILENT: a floored or truncated count is indistinguishable on the wire from an honest one.
 
 `format_version` does NOT move for anything described here — `descriptor.InspectResult` is not payload-reachable and `descriptor/testdata/payload-schema.json` is untouched. Only the manifest golden moves, and only for the tool description.
 
@@ -36,7 +36,7 @@ For a cohort newer than `0x01`, `InspectResult` adds `layout` (`pulse_format_ver
 
 ## Predict
 
-`descriptor/predict.go` MUST NOT import `service/` or `processing/` — gated by `TestPredictNoExecutionImports`. Predict duplicates operator knowledge on purpose; reaching for the real implementation to validate params fails the gate.
+`internal/descriptor/predict.go` MUST NOT import `internal/service/` or `processing/` — gated by `TestPredictNoExecutionImports`. Predict duplicates operator knowledge on purpose; reaching for the real implementation to validate params fails the gate.
 
 `PredictResult.Streamable` mirrors the per-type `Streamable()` methods plus schema gates (decimal). Runtime parity is asserted against `processing.CanStreamRequest(req, schema)` by `TestPredict_Streamable_MatchesRuntime`. `DefaultsApplied` is always computed, whatever the request.
 
@@ -44,4 +44,4 @@ Debugging procedure: `docs/src/internals/debugging-predict.md`.
 
 ## Import predict is not descriptor predict
 
-`io.ImportJob.Predict` (`pulse import predict`) is the ONLY predict that may read source rows, and none of the rules above bind it — it lives in `io/`, not `descriptor/`. Its measured pass (declared `Groups`, `ElideConstants`, or `SuggestGroups`) converts every row through `rowConverter`, the converter `Run` uses, and derives group figures through `encoding.DedupGate` / `AssessGroup` / `PlanConstantElisionFor` — so import predict, `ImportReport.Groups` and inspect report the same numbers for the same data (`TestImportPredict_DeclaredGroupsMatchImport`, `TestImportPredict_SuggestedMatchesImport`). Candidate detection nominates over a bounded window and confirms on the full pass; it suggests, never declares. Without those three knobs predict keeps its plain row-count pass and its report is unchanged.
+`io.ImportJob.Predict` (`pulse import predict`) is the ONLY predict that may read source rows, and none of the rules above bind it — it lives in `internal/io/` (aliased by public `io`), not `internal/descriptor/`. Its measured pass (declared `Groups`, `ElideConstants`, or `SuggestGroups`) converts every row through `rowConverter`, the converter `Run` uses, and derives group figures through `encoding.DedupGate` / `AssessGroup` / `PlanConstantElisionFor` — so import predict, `ImportReport.Groups` and inspect report the same numbers for the same data (`TestImportPredict_DeclaredGroupsMatchImport`, `TestImportPredict_SuggestedMatchesImport`). Candidate detection nominates over a bounded window and confirms on the full pass; it suggests, never declares. Without those three knobs predict keeps its plain row-count pass and its report is unchanged.

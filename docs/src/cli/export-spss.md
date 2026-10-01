@@ -4,7 +4,7 @@
 Statistics system file (`.sav`). Defined in
 [`internal/cli/export.go`](https://github.com/frankbardon/pulse/blob/main/internal/cli/export.go);
 the adapter is
-[`io/spss/`](https://github.com/frankbardon/pulse/tree/main/io/spss).
+[`internal/io/spss/`](https://github.com/frankbardon/pulse/tree/main/internal/io/spss).
 
 This is the write half. [`pulse import spss`](import-spss.md) is the read
 half, and the two are designed as one round trip: an import writes a
@@ -546,7 +546,7 @@ declares exactly the source's own variables.
 so nothing can be quietly skipped.
 
 **Verified locally, not in CI.** The R cross-checks
-(`io/spss/dict_ecosystem_test.go`) hand emitted and round-tripped files to
+(`internal/io/spss/dict_ecosystem_test.go`) hand emitted and round-tripped files to
 haven 2.5.5 (ReadStat — the C reader behind haven, pyreadstat and most of
 what else opens a `.sav`) and to the independent implementation in
 `foreign` 0.8.91, and require each reader's own reading of the cycled file

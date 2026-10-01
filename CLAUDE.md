@@ -20,7 +20,7 @@ One row per category: trigger → companions → gates. **The exhaustive per-slo
 
 | If you change... (category) | You MUST also update... | Enforced by |
 |---|---|---|
-| A registered aggregator, attribute, filterer, grouper, feature operator, window operator, statistical test (`TEST_*`), regression (`REG_*`), synth distribution or overlay kind (`OVERLAY_*`) | `skills/op-<category>-<kebab>.md` + the matching `internal/descriptor/capabilities_*.go` + an `examples/` `_meta.operators` tag | ATOMIC, the category's `TestSkillsCoverAll*` + `TestManifest*Complete`, `TestEveryOperatorHasAnExampleTag` |
+| A registered aggregator, attribute, filterer, grouper, feature operator, window operator, statistical test (`TEST_*`), regression (`REG_*`), synth distribution or overlay kind (`OVERLAY_*`) | `skills/op-<category>-<kebab>.md` + the matching `internal/descriptor/capabilities_*.go` + an `internal/examples/` `_meta.operators` tag | ATOMIC, the category's `TestSkillsCoverAll*` + `TestManifest*Complete`, `TestEveryOperatorHasAnExampleTag` |
 | A registered MCP tool (add/remove) | `skills/tool-<kebab>.md` (strip `pulse_`) + `internal/mcp/toolmeta/meta.go` | ATOMIC, `TestSkillsCoverAllMCPTools` |
 | A registered field type, a `.pulse` format or shard-archive change, a sidecar file, an SPSS surface, or projected decode | **`byte-layout.md`** + `skills/type-<kebab>.md` + `skills/cohort-schema-design.md` + CLAUDE.md "Byte-layout invariants" | ATOMIC, `TestSkillsCoverAllFieldTypes`, `TestShardArchiveLayoutDocumented`, `TestSkillsCoverShardingTopics` |
 | An error code (add/remove/rename) | `errors/fixup_metadata.go` (`codeMetadata`) — Message + ≥1 Fixup | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |

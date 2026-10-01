@@ -37,7 +37,7 @@ One reference level per categorical drops into the intercept (full level set + i
 
 ## Predictor selection — automatic, absolute, no knob
 
-Two mechanisms, this order (`synth/profile_models_select.go`).
+Two mechanisms, this order (`internal/synth/profile_models_select.go`).
 
 **(1) Top-K collapse — structural.** A candidate categorical contributes one column per top-`--top-k` level plus ONE catch-all carried as an ordinary level named `"other"` (`otherCategoryLabel`) — the same collapse `Categorical.Top` and `categorical_pairs` apply, so collapsed buckets mean one thing throughout a document. This is what makes the flag WORK, not a refinement: unbounded, a wide survey cohort blows past `maxModelColumns`, every target is skipped, and `--fit-models` produces NOTHING on real data. The catch-all is never the reference level.
 
@@ -103,7 +103,7 @@ The value-space alternative — draw the marginal, then ADD the prediction — d
 
 `--fit-shape` and conditioning are NOT mutually exclusive, and FOUR independent sites must agree on that (the shape pre-claim in `resolveConflicts`, `modelSpecFromProfile`, `fieldMoments`, `quantileFor`) — any one alone silently strips the relationship, which is why a change to one looks like it works and then fails at the next.
 
-The construction always admitted it: `Q(Φ(μ+σ·z))` takes an ARBITRARY marginal in `Q`. A captured mixture carries **exact moments** (law of total variance) and a **quantile function** (`synth/mixture_quantile.go`); the fitted mixture becomes `Q`, the predictors shift the latent, the two compose with nothing dropped and no warning. Effects are latent-scale, hence non-linear in value space — above.
+The construction always admitted it: `Q(Φ(μ+σ·z))` takes an ARBITRARY marginal in `Q`. A captured mixture carries **exact moments** (law of total variance) and a **quantile function** (`internal/synth/mixture_quantile.go`); the fitted mixture becomes `Q`, the predictors shift the latent, the two compose with nothing dropped and no warning. Effects are latent-scale, hence non-linear in value space — above.
 
 **The quantile inverse is a FIXED-COUNT bisection, deliberately.** `mixtureQuantileBisections` (64) steps over a bracket `min(μ_i) − 40·max(σ_i) .. max(μ_i) + 40·max(σ_i)`, where `Φ` has saturated at exactly 0 and 1 so no root escapes. **No convergence test, no early exit** — a tolerance-terminated inverse makes the answer depend on how many steps a given `p` needed, and byte-determinism is not negotiable. Bisection over Newton additionally because the density underflows between well-separated modes and a Newton step there explodes.
 
@@ -119,7 +119,7 @@ Shape `{fields, pairs, unmeasured}` — sorted participant set, `{a,b,rho,n}` pe
 
 **Participants = every model carrying a residual vector, INCLUDING zero-predictor models** — such a target still has a residual (its whole deviation from its own mean), and excluding it drops real structure for an unrelated reason. A model with a NIL residual vector (a `Profile` decoded from a document) is not a participant.
 
-**Generation.** A modelled field named in `Spec.ResidualCorrelations` reads its own component of ONE correlated standard-normal vector drawn per row (`synth/residual_draw.go`) as the `z` of `Q(Φ(μ + σ·z))`; every other drawer takes its own fresh normal. That is the whole of how a field is **both conditioned and correlated** — predictors move `μ`, the shared vector correlates the residual, neither overwrites the other. Cholesky, assume-and-record policy and ridge report are the SAME machinery the value-scale matrix uses (`factorCorrelations`): one construction, two consumers, so a policy cannot land on one scale and miss the other.
+**Generation.** A modelled field named in `Spec.ResidualCorrelations` reads its own component of ONE correlated standard-normal vector drawn per row (`internal/synth/residual_draw.go`) as the `z` of `Q(Φ(μ + σ·z))`; every other drawer takes its own fresh normal. That is the whole of how a field is **both conditioned and correlated** — predictors move `μ`, the shared vector correlates the residual, neither overwrites the other. Cholesky, assume-and-record policy and ridge report are the SAME machinery the value-scale matrix uses (`factorCorrelations`): one construction, two consumers, so a policy cannot land on one scale and miss the other.
 
 Component order is **drawer order (= schema field order)**, never `residual_correlations` array order, or the cohort would depend on how the request was serialized. The vector consumes exactly one normal per participant, in component order, BEFORE the first drawer runs; a non-participant still consumes its own draw where it always did. Fewer than two surviving participants ⇒ no correlator, no draw, so a spec declaring none stays byte-identical.
 

@@ -4,7 +4,7 @@
 (`.sav`, `.zsav`) into a `.pulse` cohort. Defined in
 [`internal/cli/import.go`](https://github.com/frankbardon/pulse/blob/main/internal/cli/import.go);
 the adapter itself is
-[`io/spss/`](https://github.com/frankbardon/pulse/tree/main/io/spss).
+[`internal/io/spss/`](https://github.com/frankbardon/pulse/tree/main/internal/io/spss).
 
 SPSS is the one import format Pulse does **not** guess at. Every other
 source (CSV, NDJSON, Parquet, …) is sampled and voted on by

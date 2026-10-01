@@ -73,4 +73,4 @@ What IS shared: the admitted set (`AGG_DISTINCT_SUM` at `distinct_count`, `AGG_D
 
 ## See
 
-`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-overlay-prop-z-panel`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `examples/overlays/42_crosstab_pairwise_distinct_n.json`.
+`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-overlay-prop-z-panel`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `internal/examples/overlays/42_crosstab_pairwise_distinct_n.json`.

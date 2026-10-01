@@ -59,7 +59,7 @@ grows a `switch` and the test grows a table — not before.
 
 ## 4. Capability declaration
 
-Add a row to `descriptor/capabilities_window_ops.go` with the operator's
+Add a row to `internal/descriptor/capabilities_window_ops.go` with the operator's
 params, accepted field types, and streamable hint.
 `TestManifestOperatorsComplete` enforces a capability row per registered
 window operator.
@@ -87,7 +87,7 @@ detail belongs in the atomic file.
 
 There is **no registered-window count to bump** — CLAUDE.md forbids hardcoded
 component counts because the manifest is the source of truth. CLAUDE.md's
-Update Demand row for windows is generic over `descriptor/capabilities_*.go`,
+Update Demand row for windows is generic over `internal/descriptor/capabilities_*.go`,
 so a new window operator normally needs no CLAUDE.md edit at all. Edit it only
 if the operator introduces a contract CLAUDE.md states directly, and mind
 `TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
@@ -95,8 +95,8 @@ if the operator introduces a contract CLAUDE.md states directly, and mind
 ## 8. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllWindowTypes
-go test ./descriptor/ -run TestManifestOperatorsComplete
+go test ./internal/skills/ -run TestSkillsCoverAllWindowTypes
+go test ./internal/descriptor/ -run TestManifestOperatorsComplete
 go test ./processing/window/...
 go test ./types/ -run TestStreamability_WindowsKnown
 ```

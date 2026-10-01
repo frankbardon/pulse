@@ -45,7 +45,7 @@ confirm informative failure, port the implementation until green.
 
 ## 4. Declare the capability metadata
 
-Add a row to `descriptor/capabilities_attributes.go` with the
+Add a row to `internal/descriptor/capabilities_attributes.go` with the
 attribute's params, the field types it accepts as input, the type
 it emits, and any documentation strings.
 `TestManifestOperatorsComplete` enforces a capability row per registered
@@ -68,8 +68,8 @@ the new operator.
 ## 7. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ -run TestManifestOperatorsComplete
+go test ./internal/skills/ -run TestSkillsCoverAllComponents
+go test ./internal/descriptor/ -run TestManifestOperatorsComplete
 go test ./processing/ -run TestAttribute
 ```
 

@@ -13,7 +13,7 @@ accept either transparently.
 
 For the union semantics, per-shard cohesion, and the memory multiplier
 of read paths see the [Cohort schema design
-skill](https://github.com/frankbardon/pulse/blob/main/skills/cohort-schema-design.md)
+skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/cohort-schema-design.md)
 (Sharded cohorts).
 
 ## 1. Create the archive
@@ -104,7 +104,7 @@ foreseeable before you pay for it.
 Shards may be deduped cohorts (`pulse import --group`, `pulse dedup`).
 Every shard is decoded with the canonical schema, so an archive has ONE
 parent-group layout, and `create` / `add` share one merge rule
-(`service/shard_groups.go`, `mergeShard`):
+(`internal/service/shard_groups.go`, `mergeShard`):
 
 1. The arriving shard is flattened to its ungrouped twin and reconciled
    exactly as an ungrouped shard — set-rung plan, strict field cohesion,
@@ -177,33 +177,33 @@ For maintainers extending the sharding internals, the surface lives in:
 
 | File | Role |
 |---|---|
-| `encoding/archive.go` | Zip64 read / write + EOCD |
-| `encoding/schema_doc.go` | `_schema.pulse` parser / writer |
-| `encoding/cohesion.go` | Structural + dict-prefix validators |
-| `service/shard_iter.go` | Multi-shard row iterator |
-| `service/shard_reduce.go` | Parallel reducer for mergeable ops |
-| `service/shard_admin.go` | `create` / `add` / `remove` / `list` / `extract`; both `create` and `add` plan set-rung reconciliation before strict cohesion |
-| `service/shard_widen.go` | Set-width auto-widen on `create` + `add` + the mandatory warning |
-| `service/shard_groups.go` | The shared `create` / `add` merge (`mergeShard`), grouped-shard reconciliation + `PULSE_SHARD_GROUPS_REWRITTEN` |
-| `encoding/shard_groups.go` | `FlattenCohortBytes`, `ValidateGroupCohesion`, group prefix rule, `GroupIndexHeadroomFor` |
-| `encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
-| `service/shard_compact.go` | `compact` |
-| `service/shard_verify.go` | `verify` |
-| `service/anchor_overlay.go` | Anchor-syntax overlay |
+| `internal/encoding/archive.go` | Zip64 read / write + EOCD |
+| `internal/encoding/schema_doc.go` | `_schema.pulse` parser / writer |
+| `internal/encoding/cohesion.go` | Structural + dict-prefix validators |
+| `internal/service/shard_iter.go` | Multi-shard row iterator |
+| `internal/service/shard_reduce.go` | Parallel reducer for mergeable ops |
+| `internal/service/shard_admin.go` | `create` / `add` / `remove` / `list` / `extract`; both `create` and `add` plan set-rung reconciliation before strict cohesion |
+| `internal/service/shard_widen.go` | Set-width auto-widen on `create` + `add` + the mandatory warning |
+| `internal/service/shard_groups.go` | The shared `create` / `add` merge (`mergeShard`), grouped-shard reconciliation + `PULSE_SHARD_GROUPS_REWRITTEN` |
+| `internal/encoding/shard_groups.go` | `FlattenCohortBytes`, `ValidateGroupCohesion`, group prefix rule, `GroupIndexHeadroomFor` |
+| `internal/encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
+| `internal/service/shard_compact.go` | `compact` |
+| `internal/service/shard_verify.go` | `verify` |
+| `internal/service/anchor_overlay.go` | Anchor-syntax overlay |
 | `internal/cli/shard.go` | CLI thin adapter |
 
 Width overflow on a categorical dictionary grown by an append surfaces
 as `PULSE_SHARD_DICT_WIDTH_OVERFLOW`; the stricter prefix-only
 validator (`PULSE_SHARD_DICT_DIVERGENCE`) is retained for the
 `pulse shard verify` strict path. The set-width auto-widen planner is
-`encoding.PlanSetWidening` and its executor is `service/shard_widen.go`
-over E4-S1's `encoding/widen.go` engine; `encoding.SetWidthHeadroomFor`
+`encoding.PlanSetWidening` and its executor is `internal/service/shard_widen.go`
+over E4-S1's `internal/encoding/widen.go` engine; `encoding.SetWidthHeadroomFor`
 feeds `verify`'s headroom report.
 
 ## Run the gates
 
 ```bash
-go test ./service/ -run 'TestShardArchive|TestShardGroups'
-go test ./encoding/ -run TestShardArchive
-go test ./service/ -run TestCohesion
+go test ./internal/service/ -run 'TestShardArchive|TestShardGroups'
+go test ./internal/encoding/ -run TestShardArchive
+go test ./internal/encoding/ -run Cohesion
 ```

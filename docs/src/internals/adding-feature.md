@@ -54,13 +54,13 @@ boundary cases.
 
 ## 4. Capability declaration
 
-Add a row to `descriptor/capabilities_features.go` with the operator's
+Add a row to `internal/descriptor/capabilities_features.go` with the operator's
 params, accepted field types, and any emit shape.
 `TestManifestOperatorsComplete` enforces a row per registered feature.
 
 ## 5. Predict-side label projection
 
-Update `descriptor/predict_feature.go`:
+Update `internal/descriptor/predict_feature.go`:
 
 - Validate the operator's params (raise the appropriate
   `PROCESSING_CONFIG` / `SERVICE_VALIDATION` error code on invalid input).
@@ -81,8 +81,8 @@ Bump the registered-feature count in CLAUDE.md's "Skill Pack" section.
 ## 8. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ -run 'TestManifestOperatorsComplete|TestPredict_Feature'
+go test ./internal/skills/ -run TestSkillsCoverAllComponents
+go test ./internal/descriptor/ -run 'TestManifestOperatorsComplete|TestPredict_Feature'
 go test ./processing/feature/...
 ```
 

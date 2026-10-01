@@ -44,7 +44,7 @@ Verify with `pulse_inspect`.
 
 ### Distribution registry
 
-Fifteen kinds; params and clamp semantics per kind in `op-synth-<kind>`. Registry: `synth.AllDistributions()`.
+Fifteen kinds; params and clamp semantics per kind in `op-synth-<kind>`. Registry: the manifest's `synth_distributions`.
 
 `uniform` `[min,max)` · `normal` (optional `min`/`max` clamp) · `lognormal` · `exponential` · `poisson` · `pareto` · `bernoulli` · `monotonic_from` (ignores RNG — primary keys) · `weighted_categorical` (uniform when `weights` absent) · `uniform_date` (inclusive both ends) · `regex` (literal/charclass/fixed-repeat/alternation/bounded quantifier; no backreferences) · `mixture` (≥2 components; bimodal or skewed shapes a single `normal` collapses).
 
@@ -54,7 +54,7 @@ Three carry rules you cannot guess:
 - `constant` — coerced ONCE at spec-compile time to the field's own ROW shape: bool → 1/0 on any scalar, array or object of option names → a `set_*` mask, string REQUIRED for a categorical, verbatim string for `decimal128` (`ParseDecimal128` is exact). The only sampler taking its value from the document, so the only one that can put a Go `bool` where the expr environment promises `float64`; a shape the row cannot hold is refused at parse.
 - `set_bernoulli` — `options` also PRE-REGISTERS the field's dictionary at schema-build time. A determinism requirement, not an optimisation (see Set profiling).
 
-19 of the 20 field types are reachable — **`datetime` is NOT**: `fieldTypeFromName` (`synth/writer.go`) has no case for it, so `"type": "datetime"` refuses with `unknown field type`. Use `date` (epoch days) or `u64` epoch seconds. `decimal128` needs `params.scale` matching the declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
+19 of the 20 field types are reachable — **`datetime` is NOT**: `fieldTypeFromName` (`internal/synth/writer.go`) has no case for it, so `"type": "datetime"` refuses with `unknown field type`. Use `date` (epoch days) or `u64` epoch seconds. `decimal128` needs `params.scale` matching the declared scale (banker's rounding). Bit-packed (`u4`, `packed_bool`) use one byte per row in the writer. `nullable: true` opts into the null bitmap; nulls NEVER ride an inline sentinel.
 
 ### Constraints and structural rules → `synth-structural-rules`
 
@@ -62,7 +62,7 @@ Three carry rules you cannot guess:
 
 ### Pairwise correlations
 
-`correlations` is a list of `{a, b, rho}` realized by a Gaussian copula (`synth/copula.go`): correlated standard normals `u` via Cholesky → `p_i = Φ(u_i)` → each field's OWN quantile `Q_i(p_i)`.
+`correlations` is a list of `{a, b, rho}` realized by a Gaussian copula (`internal/synth/copula.go`): correlated standard normals `u` via Cholesky → `p_i = Φ(u_i)` → each field's OWN quantile `Q_i(p_i)`.
 
 - **Supported marginals:** `normal` / `uniform` / `lognormal` / `exponential` / `mixture` / `bernoulli` / `discrete` (`fieldMoments` validates, `quantileFor` builds `Q_i`). Anything else in `correlations` → `SERVICE_VALIDATION`. `|rho| ≥ 1` rejected at validation.
 - **A participant must also be a SCALAR field TYPE, and that predicate is DERIVED, never transcribed.** `isNumericFieldType` reads `fieldTypeFromName`: every declarable non-`categorical_*`, non-`set_*` type qualifies (`u4`…`u64`, `f32`/`f64`, `date`, `decimal128`, `packed_bool`) and nothing else. A hand-written list silently dropped a whole type out of `Spec.Correlations` once — do not reintroduce one. The boundary is TYPE, not distribution: a `date`'s `uniform_date` is refused one call later, NAMING the distribution.
@@ -83,7 +83,7 @@ Capture via `pulse profile create` (`Pulse.Profile`); synth via `pulse synth fro
 - **Thin-pair warning:** `n < 30` (`synth.MinPairObservations`) still SHIPS — never refused — with a warning naming the pair (`thinPairWarning`). Every pair kind reuses this mechanism.
 - `--fit-models` (`models`) and `--residual-correlations` (`residual_correlations`, requires `--fit-models`): `synth-models`.
 - `--run-continuation` (`run_continuation`): per-field share of adjacent row pairs whose on-wire bytes + null bit repeat — exactly the run-skip decode's hit rate — plus `overall`, `high_fields` and `advice`. A ROW-ORDER fact, not a distribution: `SpecFromProfile` never reads it. Pairs never span a shard; a shard archive profiles as one stream against the canonical schema.
-- `--fit-shape` (`numeric.shape`, numeric only): a 2-component Gaussian mixture (`synth/shape.go`) kept only when it beats plain normal on **BIC** AND the means are ≥ `0.75*avgStd` apart. `fitTwoComponentEM` runs a FIXED 50 iterations from a deterministic percentile init (no RNG) with a std floor at 5% of overall std. Fixed at 2 components, no sweep. `SpecFromProfile` then emits `mixture` instead of `normal`.
+- `--fit-shape` (`numeric.shape`, numeric only): a 2-component Gaussian mixture (`internal/synth/shape.go`) kept only when it beats plain normal on **BIC** AND the means are ≥ `0.75*avgStd` apart. `fitTwoComponentEM` runs a FIXED 50 iterations from a deterministic percentile init (no RNG) with a std floor at 5% of overall std. Fixed at 2 components, no sweep. `SpecFromProfile` then emits `mixture` instead of `normal`.
 
 `SpecFromProfile` reconstructs: `packed_bool` → `bernoulli`; capped small integer → `discrete`; other numeric → `normal` clamped to observed min/max (or `mixture` when `shape` is present); categorical → `weighted_categorical`; date → `uniform_date`; `set_*` → `set_bernoulli`. Unsupported → `PULSE_PROFILE_FIELD_UNSUPPORTED`.
 
@@ -145,7 +145,7 @@ The option axis never needs a top-K collapse (fixed two-value domain). Bounded b
 
 Every relationship writes into one shared claim space: a field name for scalar targets (categorical-pair / categorical-numeric B side, set-numeric's numeric side, correlation participants), or `(field, option)` for a `set_*` bit. **Two options on the SAME set field are two DIFFERENT targets, never a conflict.**
 
-`resolveConflicts` (`synth/conflict.go`) runs ONCE per `Spec` at generation setup, never per row, in the fixed `drawRow` priority order:
+`resolveConflicts` (`internal/synth/conflict.go`) runs ONCE per `Spec` at generation setup, never per row, in the fixed `drawRow` priority order:
 
 ```
 structural-rule pre-claim → linear-model pre-claim → shape-fit pre-claim
@@ -167,7 +167,7 @@ Warnings surface two ways: `generate()` returns them on `Result.Warnings`; for `
 
 ## Fidelity report
 
-`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. Marginals: numeric via `TEST_KS` (`split_by: _synthetic`), categorical via `TEST_CHISQ` — existing operators, no new stat math. `_synthetic` is on-wire `packed_bool` and both operators need categorical, so the bridge presents it through a `categorical_u8` VIEW schema for that call only. That bridge lives in `pulse.go` (`writeSynthFidelityReport`), not `synth/`, to avoid an import cycle: `synth.BuildFidelityReport` takes an injected `TestRunner`. A failed field test reports `error`, not `result`, without aborting the rest. Sections `omitempty` throughout.
+`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. Marginals: numeric via `TEST_KS` (`split_by: _synthetic`), categorical via `TEST_CHISQ` — existing operators, no new stat math. `_synthetic` is on-wire `packed_bool` and both operators need categorical, so the bridge presents it through a `categorical_u8` VIEW schema for that call only. That bridge lives in `pulse.go` (`writeSynthFidelityReport`), not `internal/synth/`, to avoid an import cycle: the internal `BuildFidelityReport` takes an injected `TestRunner`. A failed field test reports `error`, not `result`, without aborting the rest. Sections `omitempty` throughout.
 
 **Every section scores ONLY relationships generation ACTUALLY APPLIED.** `spec` carries the full captured cross product; `generate()` applies the subset conflict resolution leaves. Scoring a conflict-dropped pair computes a delta against a relationship the generator never modelled — a number that LOOKS like evidence. `synth.ResolveConflicts` re-runs the identical arbitration against the identical `*Spec`, so a dropped pair has no entry and its own conflict warning explains the absence.
 
@@ -186,7 +186,7 @@ Seed splitting uses a 64-bit avalanche; seeds differing by 1 give uncorrelated s
 **Capture is held to the same bar**: same `(--input, --seed)` MUST produce a byte-identical profile document, or the pipeline is only deterministic downstream of a spec that itself drifts. Two threats, neither the RNG:
 
 1. **Map iteration order.** Anywhere capture folds several accumulators into one shared bucket — canonically the top-K collapse folding out-of-top-K categories into `"other"` — the fold MUST walk SORTED keys: float addition is not associative and Go randomizes map iteration. The `(sumSq - mean*sum)/(n-1)` variance form amplifies rather than absorbs the last-bit difference, so a map-order fold surfaces as a ~1e-10 relative drift in the emitted `std`. Signature: only `"other"` entries move, because only `"other"` has more than one source. Sort — do NOT switch to compensated summation, which is still order-dependent in principle.
-2. **Float fusion.** Go may contract `a + b*c` into one FMA; arm64 does, amd64 does not, and the contraction is permitted ACROSS statements. Every product in a capture formula therefore carries an explicit `float64(...)` conversion — the only construct that forbids contraction — and `synth/moments_internal_test.go` fails if one is dropped (it can only DETECT on a contracting architecture, so it is silent on CI by construction). `math.FMA` is the wrong lever: it forces fusion everywhere. **Test fixtures computing float columns are part of the contract** — accumulate in integer units and divide once. Residual, stated not hidden: `--fit-shape` (`math.Exp`/`math.Log`) and `--fit-models` (`processing/regression`, not yet fusion-free) can still differ in last bits across architectures.
+2. **Float fusion.** Go may contract `a + b*c` into one FMA; arm64 does, amd64 does not, and the contraction is permitted ACROSS statements. Every product in a capture formula therefore carries an explicit `float64(...)` conversion — the only construct that forbids contraction — and `internal/synth/moments_internal_test.go` fails if one is dropped (it can only DETECT on a contracting architecture, so it is silent on CI by construction). `math.FMA` is the wrong lever: it forces fusion everywhere. **Test fixtures computing float columns are part of the contract** — accumulate in integer units and divide once. Residual, stated not hidden: `--fit-shape` (`math.Exp`/`math.Log`) and `--fit-models` (`processing/regression`, not yet fusion-free) can still differ in last bits across architectures.
 
 ## Library embedding
 

@@ -90,7 +90,7 @@ pulse api process --request request.json --json
 
 ### Smart defaults
 
-If you name a field but omit `type`, Pulse fills in a sensible operator from the schema type — `AGG_SUM` for numerics, `AGG_FREQUENCY` for categoricals, `GROUP_RANGE` (interval 10) for numerics, `GROUP_CATEGORY` for categoricals, `GROUP_DATE` ("day") for dates. Disable with `--no-defaults` or `pulse.Options{DisableDefaults: true}`. The full rule table lives in `descriptor/defaults.go`.
+If you name a field but omit `type`, Pulse fills in a sensible operator from the schema type — `AGG_SUM` for numerics, `AGG_FREQUENCY` for categoricals, `GROUP_RANGE` (interval 10) for numerics, `GROUP_CATEGORY` for categoricals, `GROUP_DATE` ("day") for dates. Disable with `--no-defaults` or `pulse.Options{DisableDefaults: true}`. The full rule table lives in `internal/descriptor/defaults.go`.
 
 ### Validate before executing
 
@@ -290,7 +290,6 @@ import (
 
     "github.com/frankbardon/pulse"
     pio "github.com/frankbardon/pulse/io"
-    "github.com/frankbardon/pulse/io/csv"
     "github.com/frankbardon/pulse/types"
 )
 
@@ -302,11 +301,12 @@ func main() {
         log.Fatal(err)
     }
 
-    // Import a CSV.
-    importJob := &pio.ImportJob{
-        Source: csv.NewReader(nil, "input.csv"),
-        Target: "dataset.pulse",
+    // Import a CSV. The io factory picks the adapter from a typed format.
+    src, err := pio.NewReader(pio.FormatCSV, p.Fs(), "input.csv", pio.ReaderOptions{})
+    if err != nil {
+        log.Fatal(err)
     }
+    importJob := pio.NewImportJob(src, "dataset.pulse")
     report, err := p.Import(ctx, importJob)
     if err != nil {
         log.Fatal(err)
@@ -363,7 +363,7 @@ p, _ := pulse.New(pulse.Options{
 })
 ```
 
-`fs.NewMemMap()` returns a complete in-memory `Config` for hermetic tests — no disk I/O.
+`afero.NewMemMapFs()` gives hermetic tests a complete in-memory filesystem — no disk I/O.
 
 ### Operator catalogue
 
@@ -416,18 +416,11 @@ pulse skills show aggregation-guide
 
 ### From Go
 
-```go
-import "github.com/frankbardon/pulse/skills"
-
-for _, s := range skills.List() {
-    fmt.Printf("%s: %s\n", s.Name, s.Description)
-}
-
-content, ok := skills.Get("aggregation-guide")
-if ok {
-    agent.AddContext(content)
-}
-```
+The skill pack is embedded in the binary (`internal/skills/`) and is not a
+Go import. Reach it through `pulse skills list` / `pulse skills show <name>`,
+the MCP skill tools and `pulse-skill://` resources (mounted by
+`gosdk.Register` or `mcpserve`), or the `skills` block of
+`(*pulse.Pulse).Manifest`.
 
 The root manifest (`pulse --json`) includes a `skills[]` array so agents can discover available skills in one call.
 
@@ -507,7 +500,7 @@ A `.env` at repo root is auto-loaded by the Makefile.
 ```bash
 go test ./...
 go test ./processing/...
-go test ./service/... -v -run TestProcess
+go test ./internal/service/... -v -run TestProcess
 go test ./encoding/... -fuzz FuzzPulseFileHeader -fuzztime 30s
 ```
 
@@ -517,25 +510,22 @@ go test ./encoding/... -fuzz FuzzPulseFileHeader -fuzztime 30s
 pulse/
 ├── pulse.go                Public facade
 ├── cmd/pulse/              CLI binary (thin adapter)
-├── service/                Orchestration: wires processing to encoding
-├── processing/             Aggregators, attributes, filterers, groupers
-│   ├── window/             WIN_* operators
-│   └── feature/            FEAT_* pre-filter feature engineers
-├── encoding/               .pulse binary codec
-├── io/                     Tabular ↔ .pulse adapters
-│   └── csv|tsv|ndjson|jsonarray|arrow|parquet|excel/
-├── fs/                     afero-based filesystem abstraction
-├── errors/                 Typed error codes (CodedError system)
 ├── types/                  Request/response structs + streamability table
-├── descriptor/             manifest, predict, inspect, envelope (no-execute)
-├── skills/                 //go:embed markdown skill pack
-├── examples/               //go:embed runnable request examples
-├── synth/                  Synthetic data generator
+├── errors/                 Typed error codes (CodedError system)
+├── encoding/               Schema nouns + ungrouped raw-byte primitives
+├── descriptor/             Result + envelope types (manifest, predict, inspect)
+├── io/                     Import/export jobs, Reader/Writer, io.Format factory
+├── synth/                  Synthetic data specs, profiles, Synth
+├── mcp/gosdk/, mcpserve/   Mount Pulse's MCP tools / run a ready-made server
+├── processing/             Operators (interim public; window/, feature/)
 ├── docs/                   mdBook source (GitHub Pages)
-└── internal/
-    ├── cli/                CLI internals
-    └── mcp/                MCP server (wraps pulse.Pulse)
+└── internal/               Everything else: service, descriptor and encoding
+                            builders, io/<fmt> adapters, synth engine, mcp core,
+                            skills, examples, fs, imports, template, cli
 ```
+
+Only the packages above `internal/` are importable; the full tree is in
+`.claude/reference/architecture.md`.
 
 Documentation: <https://frankbardon.github.io/pulse/>.
 

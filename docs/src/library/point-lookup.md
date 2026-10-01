@@ -59,9 +59,8 @@ func main() {
 ```
 
 `BuildIndex` returns a `*pulse.BuildIndexResult{IndexPath, Index}` —
-`IndexPath` is the derived sidecar path
-(`encoding.SidecarIndexPath`), `Index` is the in-memory
-`*encoding.Index` that was serialized there, handed back in case you
+`IndexPath` is the derived sidecar path, `Index` is the in-memory
+`*pulse.SidecarIndex` that was serialized there, handed back in case you
 want to inspect it without a round-trip read.
 
 `Lookup`'s single-key convenience path — `Field` + `Value`, both

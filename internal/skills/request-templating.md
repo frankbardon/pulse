@@ -79,7 +79,7 @@ Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target — also `RenderTemp
 
 ## What render does NOT do
 
-Render **never opens a cohort**: a rendering template is well-formed against the request *shape* only. Field existence, type compatibility, operator applicability and streamability stay `Predict`'s job. Strict decode is harsher than elsewhere in Pulse: a body pasted from an `examples/` file with its `_meta` block attached fails `_RENDER_INVALID`.
+Render **never opens a cohort**: a rendering template is well-formed against the request *shape* only. Field existence, type compatibility, operator applicability and streamability stay `Predict`'s job. Strict decode is harsher than elsewhere in Pulse: a body pasted from an `internal/examples/` file with its `_meta` block attached fails `_RENDER_INVALID`.
 
 ## See
 

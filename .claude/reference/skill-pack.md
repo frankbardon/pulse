@@ -103,5 +103,5 @@ Counts surfaced at runtime via `pulse_manifest` (`commands`, `components.{aggreg
 1. Create the file at the conventional stem (`op-<category>-<kebab>.md`, `tool-<kebab>.md`, `type-<kebab>.md`, or a new topical name).
 2. Write the required frontmatter for the matching shape (atomic or topical) and the required `##` section set for that family.
 3. Stay under budget — atomic op ≤1200 chars body, tool/type ≤2000, topical ≤6000.
-4. Run `go test ./skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.
+4. Run `go test ./internal/skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.
 

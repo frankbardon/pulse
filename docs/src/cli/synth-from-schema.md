@@ -46,7 +46,7 @@ pulse synth from-schema --spec FILE --output FILE
 ```
 
 Full spec grammar (correlations, regex, …) lives in
-`skills/synthetic-data.md` and `synth/`; `constraints[]` and the
+`skills/synthetic-data.md` and the `synth` package; `constraints[]` and the
 `rules[]` structural surface live in `skills/synth-structural-rules.md`.
 
 ## Categorical / numeric / set joint structure (advanced)
@@ -119,7 +119,7 @@ alongside a categorical-numeric pair (`region` → `revenue`):
 }
 ```
 
-Full cell/category shapes: `synth/spec.go`
+Full cell/category shapes: `internal/synth/spec.go`
 (`CategoricalPairCellSpec`, `CategoricalNumericCategorySpec`, and the
 `Set*PairSpec` family) and `skills/synthetic-data.md` ("Categorical
 joint structure (generation)"). A field named by two or more of these

@@ -46,7 +46,7 @@ contract, and any error path.
 
 ## 4. Declare the capability metadata
 
-Add a row to `descriptor/capabilities_filterers.go` with the
+Add a row to `internal/descriptor/capabilities_filterers.go` with the
 filterer's params, accepted field types, and the
 [`ComponentSchema`](#5-declare-the-componentschema-responsecomponents-contract)
 that follows.
@@ -91,7 +91,7 @@ var _ MetaFilterer = (*regexFilterer)(nil)
 The full Response.Components contract — universal floor semantics,
 streaming behaviour, parity overlay reads — lives in the
 [response-components
-skill](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md);
+skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md);
 extension-side parity lives in
 [Extension Points](extension-points.md).
 
@@ -108,8 +108,8 @@ Bump the registered-filterer count in CLAUDE.md's "Skill Pack" section.
 ## 8. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ -run TestManifestOperatorsComplete
+go test ./internal/skills/ -run TestSkillsCoverAllComponents
+go test ./internal/descriptor/ -run TestManifestOperatorsComplete
 go test ./processing/ -run TestFilter
 ```
 

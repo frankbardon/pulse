@@ -20,7 +20,7 @@ Before storing or executing a hand-authored / programmatically generated request
 
 ## Gotchas
 
-- Predict is no-execute: `descriptor/predict.go` MUST NOT import `service/` or `processing/` (enforced by `TestPredictNoExecutionImports`). Header + schema only.
+- Predict is no-execute: `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `processing/` (enforced by `TestPredictNoExecutionImports`). Header + schema only.
 - `Streamable` reflects per-operator `Streamable()` plus schema gates (decimal128 forces buffered).
 - `DefaultsApplied` is always computed — disabling defaults at request time via `--no-defaults` does NOT suppress the report.
 - Unknown top-level keys are rejected with `PULSE_REQUEST_UNKNOWN_FIELD` and a "did you mean" suggestion.

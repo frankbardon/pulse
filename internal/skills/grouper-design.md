@@ -60,7 +60,7 @@ Embedder groupers opt in by implementing either interface and returning `ErrGrou
 
 Every `Response.Components.Groupers[i]` carries the **universal floor** `total_n` (post-filter records partitioned across all buckets) + `n_null` (records that took the null/skip path). It differs from the aggregator pair `{n, n_null}` — groupers partition ALL post-filter records, not just non-null inputs.
 
-Operator-specific keys ride in `Operator map[string]any`; authoritative per-operator lists on `ComponentSchema` (`descriptor/capabilities_groupers.go`, mirrored at `manifest.components_schemas.groupers[<op>].keys`) and in the atomic `op-group-*` skills.
+Operator-specific keys ride in `Operator map[string]any`; authoritative per-operator lists on `ComponentSchema` (`internal/descriptor/capabilities_groupers.go`, mirrored at `manifest.components_schemas.groupers[<op>].keys`) and in the atomic `op-group-*` skills.
 
 Mergeability:
 

@@ -49,7 +49,7 @@ Compose both when a derived column must flow into aggregation: declare the attri
 
 Every `Response.Components.Aggregations[i]` carries a **universal floor**: `n` (non-null inputs) + `n_null` (null inputs). Filled by the orchestrator's floor pass — operator code only emits its declared per-operator keys. Floor-only operators (`AGG_COUNT`) leave the operator map empty; consumers still see `{n, n_null}`.
 
-Operator-specific keys ride inside `Operator map[string]any`. Authoritative key list is declared per operator on its `ComponentSchema` in `descriptor/capabilities_aggregators.go` and mirrored at `manifest.components_schemas.aggregators[<op>].keys`. Per-AGG semantics live in the atomic `op-agg-*` skill.
+Operator-specific keys ride inside `Operator map[string]any`. Authoritative key list is declared per operator on its `ComponentSchema` in `internal/descriptor/capabilities_aggregators.go` and mirrored at `manifest.components_schemas.aggregators[<op>].keys`. Per-AGG semantics live in the atomic `op-agg-*` skill.
 
 Every aggregator declares one mergeability classification:
 

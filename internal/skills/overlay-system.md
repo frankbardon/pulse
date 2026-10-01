@@ -36,11 +36,11 @@ Share (`SHARE_OF_ROW`/`_COL`/`_TOTAL`); margin compare (`INDEX_`/`DELTA_`/`ZSCOR
 ## Host-arm wiring
 
 - **MATRIX (Crosstab)** — `applyOverlaysToResponse` (`processing/crosstab.go`), from BOTH the buffered and fused exits. The distinct-key slab partition refusal sits here, twinned with predict's. A direct `processing.ApplyOverlaysWithExtensions` caller bypasses BOTH — accepted; that entry is for embedders who own their host (`pairwise-n-sources`).
-- **SERIES (windowed Process)** — `service/series_overlay.go` per-group fold.
+- **SERIES (windowed Process)** — `internal/service/series_overlay.go` per-group fold.
 - **FACET** — `service.applyFacetOverlays` at the buffered exit; `Ref.Population` recursion builds the comparison FacetResult.
 - **CHAIN** — `service.applyChainOverlays` post-stage; per-stage `Stages[i].Overlays` untouched, whole-chain on `ChainResponse.Overlays`. Divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
 - **FORMULA** — expr-lang over earlier layers; refs resolve by `Name`.
-- **COMPOSE** — post-slot fold (`service/compose_overlay.go`) gates slot-label, key alignment, schema and dict drift; `DictPrefixFast` ⇒ prefix probe. Handlers may ALSO read a slot's `Components.Crosstab` via `processing.ComposeHostView`/`ComposeSlotView` — opt-in, four-valued `State()` (slot-absent / disabled / non-crosstab / present) so a misconfiguration is not reported as absent data. Only `OVERLAY_PROP_Z_PANEL` reads it today (`n_source: cell_n_unweighted`, `row_margin_distinct_within`). The panel's slab-partition and distinct-key gates are twinned in `descriptor.ValidateCompose`; its cell-aggregator ADMISSION is runtime-only, like the MATRIX arm's.
+- **COMPOSE** — post-slot fold (`internal/service/compose_overlay.go`) gates slot-label, key alignment, schema and dict drift; `DictPrefixFast` ⇒ prefix probe. Handlers may ALSO read a slot's `Components.Crosstab` via `processing.ComposeHostView`/`ComposeSlotView` — opt-in, four-valued `State()` (slot-absent / disabled / non-crosstab / present) so a misconfiguration is not reported as absent data. Only `OVERLAY_PROP_Z_PANEL` reads it today (`n_source: cell_n_unweighted`, `row_margin_distinct_within`). The panel's slab-partition and distinct-key gates are twinned in `descriptor.ValidateCompose`; its cell-aggregator ADMISSION is runtime-only, like the MATRIX arm's.
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
@@ -60,7 +60,7 @@ The four parity kinds (`OVERLAY_{T,Z}_CELL`, `OVERLAY_{T,Z}_VS_REF`) read `{n, m
 
 ## Adding a new kind
 
-Declare the constant + `AllOverlayKinds()`; add the `overlay_streamability.go` row; handler in `processing/overlay_*.go`; register in host dispatch; predict validator (`descriptor/overlay_*.go`); raise faults under the kind's own code; ship its atomic.
+Declare the constant + `AllOverlayKinds()`; add the `overlay_streamability.go` row; handler in `processing/overlay_*.go`; register in host dispatch; predict validator (`internal/descriptor/overlay_*.go`); raise faults under the kind's own code; ship its atomic.
 
 ## See
 

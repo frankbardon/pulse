@@ -201,6 +201,6 @@ Reproduce with:
 ```sh
 go test -bench=BenchmarkProcessStream_WithComponents -run=^$ -count=3 -benchmem ./
 go test -bench=BenchmarkProcess_BufferedComponents  -run=^$ -count=3 -benchmem ./
-go test -bench=BenchmarkCrosstabWideCohort_Fused    -run=^$ -count=3 -benchmem ./service/
-go test -bench=BenchmarkCrosstabWideCohort_Buffered -run=^$ -count=3 -benchmem ./service/
+go test -bench=BenchmarkCrosstabWideCohort_Fused    -run=^$ -count=3 -benchmem ./internal/service/
+go test -bench=BenchmarkCrosstabWideCohort_Buffered -run=^$ -count=3 -benchmem ./internal/service/
 ```

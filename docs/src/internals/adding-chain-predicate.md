@@ -20,14 +20,14 @@ operator is mergeable but its emit shape would break the synthesised
 
 ## 2. Mirror in the predict gate
 
-Mirror the rule in `descriptor/chain.go`. `chainGateOK` is the
+Mirror the rule in `internal/descriptor/chain.go`. `chainGateOK` is the
 predict-side equivalent — keep them in lockstep. A divergence makes
 predict pass requests that runtime later rejects, which surfaces as a
 late `SERVICE_VALIDATION` rather than as a predict-time advisory.
 
 ## 3. Update the capability surface
 
-Edit `descriptor/capabilities_chain.go`. `processChainCapability()`
+Edit `internal/descriptor/capabilities_chain.go`. `processChainCapability()`
 carries the manifest-facing allowlists and `RejectionRules` strings.
 After editing, regenerate `descriptor/testdata/manifest.json`:
 
@@ -43,8 +43,8 @@ go test ./descriptor/ -run TestGoldensNotHandEdited
 
 ## 4. Tests
 
-Add a failing-gate test in `service/chain_test.go` and a matching
-predict test in `descriptor/chain_test.go`. The two surfaces share
+Add a failing-gate test in `internal/service/chain_test.go` and a matching
+predict test in `internal/descriptor/chain_test.go`. The two surfaces share
 the gate contract; covering both prevents the predict / runtime
 divergence the rule exists to prevent.
 
@@ -82,7 +82,7 @@ automatically. Locked by `TestChainCanonicalHash_OverlayFreeByteIdentity`
 and `TestChainCanonicalHash_OverlaysIncluded`.
 
 Whole-chain handler dispatch lives in `processing/overlay_chain_dispatch.go`.
-Predict-time validation lives in `descriptor/chain_overlay.go` —
+Predict-time validation lives in `internal/descriptor/chain_overlay.go` —
 `ValidateChain` walks `ChainRequest.Overlays` after the per-stage
 gate and emits:
 
@@ -105,8 +105,8 @@ budget reshapes without re-parsing envelope details.
 ## 7. Run the gates
 
 ```bash
-go test ./service/ -run TestChain
-go test ./descriptor/ -run 'TestValidateChain|TestProcessChain'
+go test ./internal/service/ -run TestChain
+go test ./internal/descriptor/ -run 'TestValidateChain|TestProcessChain'
 go test ./descriptor/ -run TestGoldensNotHandEdited
 ```
 

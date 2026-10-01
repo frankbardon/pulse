@@ -111,7 +111,7 @@ A buffered overlay on a streamable Process downgrades the whole request to buffe
 
 ## Compose streaming vs. overlays
 
-`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold (`service/compose_overlay.go`) runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered; `Pulse.Compose` / `Pulse.ComposeParallel` callers see overlays on the returned `*ComposedResponse`, never on row events.
+`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold (`internal/service/compose_overlay.go`) runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered; `Pulse.Compose` / `Pulse.ComposeParallel` callers see overlays on the returned `*ComposedResponse`, never on row events.
 
 ## See
 

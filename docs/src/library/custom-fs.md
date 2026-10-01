@@ -15,8 +15,7 @@ Pulse routes all file I/O through `afero.Fs`. Pass any
 ## In-memory testing pattern
 
 The single most common reason to override the filesystem is hermetic
-tests. Use `fs.NewMemMap()` (which wraps `afero.NewMemMapFs()` with
-the right config) or pass the afero filesystem directly:
+tests. Pass an in-memory afero filesystem directly:
 
 ```go
 import (
@@ -67,21 +66,15 @@ func main() {
 }
 ```
 
-## The fs package
+## Filesystem configuration
 
-The lower-level constructors live in
-[`fs/`](https://github.com/frankbardon/pulse/tree/main/fs):
-
-| Function | Purpose |
-|---|---|
-| `fs.New(opts ...Option) (*fs.Config, error)` | Build a config with `fs.WithFs(...)` / `fs.WithDataDir(...)` |
-| `fs.Default() (*fs.Config, error)`           | Read `PULSE_DATA_DIR` from the environment |
-| `fs.NewMemMap() *fs.Config`                  | In-memory test config |
-
-You can also bypass `pulse.Options` entirely and construct a service
-from a `*fs.Config`, but the public facade is the intended entry
-point. `pulse.New(pulse.Options{FS: yourFs})` covers every embedding
-case.
+`pulse.Options` is the only filesystem knob an embedder needs:
+`FS` (any `afero.Fs`) and `DataDir` (the base directory; when both are
+empty, `PULSE_DATA_DIR` is read from the environment). The lower-level
+config constructors live in `internal/fs/` and are not importable from
+outside the module. `(*pulse.Pulse).Fs()` returns the filesystem the
+instance resolved, which is what to hand the `io` factory
+(`io.NewReader(format, p.Fs(), path, opts)`).
 
 ## Path resolution
 

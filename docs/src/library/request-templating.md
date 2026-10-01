@@ -348,7 +348,7 @@ Five methods, all on `*pulse.Pulse`:
 ```go
 summaries := p.ListTemplates()                        // []template.Summary
 tmpl, err := p.GetTemplate("finance/revenue")         // *template.Template
-rendered, err := p.RenderTemplate(name, vars)         // *template.Rendered — all five targets
+rendered, err := p.RenderTemplate(name, vars)         // *pulse.RenderedTemplate — all five targets
 req, err := p.RenderTemplateRequest(name, vars)       // *types.Request — the 95% path
 err = p.ReloadTemplates()                             // force a rescan now
 ```
@@ -414,7 +414,7 @@ render-time `PULSE_TEMPLATE_UNRESOLVED`.
 | `PULSE_TEMPLATE_RENDER_INVALID` | substitution succeeded but the rendered JSON failed **strict decode** into the target request type | Usually an unknown field, or a substituted value landing in a slot whose type it does not fit. |
 
 Strict decode is harsher than the rest of Pulse, and that is worth
-knowing before it bites: a body copied out of an `examples/` file
+knowing before it bites: a body copied out of an `internal/examples/` file
 **with its `_meta` block still attached** will fail
 `PULSE_TEMPLATE_RENDER_INVALID`. The message names the offending field
 and calls out the `_meta` case explicitly.
@@ -441,4 +441,4 @@ embedding feature: `Options.TemplateDirs` /
 - [`pulse api predict`](../cli/api-predict.md) — the cohort-aware
   validation a render deliberately leaves undone.
 - `skills/request-templating.md` — the dense, agent-facing version of
-  this chapter, reachable at runtime through `skills.Get`.
+  this chapter, reachable at runtime through the MCP skill tools and `pulse skills show`.

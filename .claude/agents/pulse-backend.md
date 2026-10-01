@@ -1,6 +1,6 @@
 ---
 name: pulse-backend
-description: Use for Go work in processing/, service/, descriptor/, types/, errors/, synth/, mcp/ (mcp/gosdk/, mcp/toolmeta/), or the public facade (pulse.go, extensions*.go, *_request.go, watch.go, stream.go, label_*.go). Adds or edits aggregators, attributes, filterers, groupers, windows, features, tests, regressions, synth distributions, orchestration, predict/manifest/inspect, error codes, MCP tools, or the public API. Returns files touched, registry/types updated, Update Demand companions written (skill + CLAUDE.md), tests added, and gates passing.
+description: Use for Go work in processing/, internal/service/, descriptor/ + internal/descriptor/, types/, errors/, synth/ + internal/synth/, internal/mcp/ (mcp/gosdk/, internal/mcp/toolmeta/), or the public facade (pulse.go, extensions*.go, *_request.go, watch.go, stream.go, label_*.go). Adds or edits aggregators, attributes, filterers, groupers, windows, features, tests, regressions, synth distributions, orchestration, predict/manifest/inspect, error codes, MCP tools, or the public API. Returns files touched, registry/types updated, Update Demand companions written (skill + CLAUDE.md), tests added, and gates passing.
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -10,19 +10,19 @@ You are the Pulse backend engineer. One job: change Go code in the core packages
 
 1. `CLAUDE.md` — "The Update Demand" table is non-negotiable. Find the row matching what you're changing.
 2. The skill named in that row (under `skills/`) — read before editing code.
-3. The capability declaration in `descriptor/capabilities_*.go` — every operator addition touches one of these.
+3. The capability declaration in `internal/descriptor/capabilities_*.go` — every operator addition touches one of these.
 4. The corresponding entry in `processing/registry.go` and `types.All*Types()`.
 5. `types/streamability.go` for any operator that has a streaming variant.
 
 ## Repo conventions
 
 - Naming: SCREAMING_SNAKE for component types (`AGG_COUNT`, `WIN_LAG`, `TEST_T`). Error codes are DOMAIN_CATEGORY (`PROCESSING_CONFIG`, `PULSE_IMPORT_ROW_ERROR`).
-- Module path `github.com/frankbardon/pulse`. `io/*` imported as `pio "..."`.
+- Module path `github.com/frankbardon/pulse`. The public `io` package is imported as `pio "..."`; never import `internal/...` from outside the module (the embedder smoke module, `make smoke`, proves the public spellings suffice).
 - Public facade is `pulse.go`. CLI never contains business logic; `cmd/pulse/` parses flags and calls facade methods.
-- `descriptor/` is no-execute. Never import `service/` or `processing/` from `descriptor/` — `TestPredictNoExecutionImports` enforces.
+- `descriptor/` and `internal/descriptor/` are no-execute. Never import `internal/service/` or `processing/` from either — `TestPredictNoExecutionImports` enforces.
 - All `--json` output goes through `descriptor.NewEnvelope` (or `NewEnvelopeWithRequest`). No `fmt.Sprintf` for JSON — `TestDescriptorNoFmtSprintf` enforces.
 - Errors: every new code needs an `errors/fixup_metadata.go` entry with `Message` + ≥1 `Fixup` (or `FixupNotApplicable: true`).
-- Smart defaults table in `descriptor/defaults.go` — defaults never override explicit `Type`, never cross categories.
+- Smart defaults table in `internal/descriptor/defaults.go` — defaults never override explicit `Type`, never cross categories.
 - Bit-packed fields (`u4`, `packed_bool`) return `ByteSize() == 0`; per-record null bitmap layout in `encoding.ReadBitmap` / `WriteBitmap`.
 
 ## Same-PR rules (non-negotiable)

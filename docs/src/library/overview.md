@@ -23,17 +23,19 @@ Sub-packages you'll commonly touch:
 |---|---|
 | `github.com/frankbardon/pulse`            | Public facade (`Pulse`, `Options`, `Request`, `Response`, ...) |
 | `github.com/frankbardon/pulse/types`      | Request/response structs, component-type constants (`AGG_*`, ...) |
-| `github.com/frankbardon/pulse/io`         | Tabular adapter interfaces (`Reader`, `Writer`, `ImportJob`, `ExportJob`, `ConvertJob`) |
-| `github.com/frankbardon/pulse/io/<fmt>`   | Per-format readers/writers (`csv`, `tsv`, `ndjson`, `jsonarray`, `parquet`, `arrow`, `excel`) |
-| `github.com/frankbardon/pulse/fs`         | `afero`-backed filesystem config (`fs.New`, `fs.Default`, `fs.NewMemMap`) |
+| `github.com/frankbardon/pulse/io`         | Jobs (`ImportJob`, `ExportJob`, `ConvertJob`, …), `Reader` / `Writer`, and the factory: `io.NewReader(io.FormatCSV, fs, path, io.ReaderOptions{})`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, `FormatFromPath` |
 | `github.com/frankbardon/pulse/errors`     | Typed `CodedError` system and code constants |
-| `github.com/frankbardon/pulse/descriptor` | Manifest, predict, inspect (no-execute operations) |
-| `github.com/frankbardon/pulse/synth`      | Synthetic data generator and profile types |
-| `github.com/frankbardon/pulse/skills`     | Embedded skill pack — `skills.List()`, `skills.Get(name)` |
+| `github.com/frankbardon/pulse/descriptor` | Result and envelope types for manifest, predict, inspect (`Envelope`, `Manifest`, `PredictResult`, `InspectResult`) |
+| `github.com/frankbardon/pulse/synth`      | Synthetic data specs, profiles, `Synth` / `SynthBytes` for fixtures |
+| `github.com/frankbardon/pulse/encoding`   | Schema nouns and the ungrouped raw-byte primitives |
+| `github.com/frankbardon/pulse/mcp/gosdk`, `.../mcpserve` | Mount Pulse's MCP tools on your server / run a ready-made one |
 
-The `internal/` subtree (`internal/cli`) is exactly that — internal.
-Don't import it. The MCP server is public: `mcp/` is the SDK-free core
-and `mcp/gosdk/` is the go-sdk adapter (`gosdk.Register`).
+Everything under `internal/` — the engine, the per-format adapters, the
+MCP core, the skill pack, the filesystem config — is not importable from
+outside the module. The skill pack is reachable through the MCP skill
+tools, `pulse skills`, or the manifest's `skills` block. Upgrading from
+the earlier, flatter layout: see the embedder migration guide in the
+repository roadmap (`docs/roadmap/v1.0.0-api-and-release/03-embedder-migration.md`).
 
 ## The facade
 

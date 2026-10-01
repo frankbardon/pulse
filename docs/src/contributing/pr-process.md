@@ -32,7 +32,7 @@ the cliff-notes are:
 |---|---|
 | Registered aggregator / attribute / filterer / grouper | The matching skill file + the operator capability table |
 | Registered window / feature / synth distribution / statistical test | Same — skill + capability file |
-| Error code (added / removed / renamed) | `errors/codes.go`, `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups), `descriptor/capabilities_errors.go` |
+| Error code (added / removed / renamed) | `errors/codes.go`, `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups), `internal/descriptor/capabilities_errors.go` |
 | CLI leaf (added or flag added) | `CLAUDE.md` "Common Claude Code Workflows" + `skills/session-bootstrap.md` if user-facing |
 | `--json` envelope change | `CLAUDE.md` "Output Format Contract" |
 | `.pulse` file format change | `CLAUDE.md` "Code Conventions" + `skills/cohort-schema-design.md` |
@@ -43,12 +43,36 @@ If you find yourself wanting to defer the doc update to a follow-up
 PR, stop. The follow-up PR will not happen, and the next contributor
 will read stale guidance. Update in the same PR or do not merge.
 
+### Public API changes
+
+Every package outside `internal/` and `cmd/` is public Go API, frozen at
+`v1.0.0`. Before adding an exported identifier to a public package (or
+widening a type a root alias points at), check that a general embedder
+use case justifies it; prefer `internal/`.
+
+- **`TestPublicAPIGolden`** (blocking) fails on any unregenerated change to
+  the public surface, including the fields and methods behind a root alias
+  into `internal/`. Regenerate with
+  `go test ./internal/apigolden/ -run TestPublicAPIGolden -update` and
+  call the delta out in the PR description.
+- **`apidiff`** (`.github/workflows/api-compat.yml`) compares the PR
+  against the latest `v*` tag and writes the report to the job summary.
+  It is **advisory** while the latest tag is a pre-release: the job stays
+  green whatever it finds. Add the **`api-break-ok`** label to a PR whose
+  break is intentional; the summary then records it as such. Once a
+  stable `v1.0.0` tag exists the job becomes **blocking** for incompatible
+  changes, and `api-break-ok` is the only override.
+- **`make smoke`** builds `internal/embeddersmoke`, an external module
+  exercising the migration-guide spellings; a removed or renamed public
+  name breaks it.
+
 ## 4. Pre-flight checks
 
 ```bash
 make fmt
 make lint
 make test
+make smoke   # when the public surface moved
 ```
 
 For change-category-specific gates, see [Testing → Running a subset of
@@ -76,8 +100,8 @@ commit may not exist or may have already been pushed.
 
 ## 7. Merge
 
-- Squash-merge is the default; the squash message follows Conventional
-  Commits.
+- Merge with a merge commit; squash merges are disabled so per-story
+  commits keep their Conventional Commits subjects.
 - Once merged, the deploy workflow rebuilds and publishes this docs
   site to <https://frankbardon.github.io/pulse/>.
 

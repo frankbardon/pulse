@@ -54,7 +54,7 @@ applicable.
 
 ## 4. Declare the capability metadata
 
-Add a row to `descriptor/capabilities_groupers.go` with the grouper's
+Add a row to `internal/descriptor/capabilities_groupers.go` with the grouper's
 params, accepted field types, and the
 [`ComponentSchema`](#5-declare-the-componentschema-responsecomponents-contract)
 that follows. `TestManifestOperatorsComplete` enforces a capability
@@ -63,7 +63,7 @@ row per registered grouper.
 ## 5. Declare the `ComponentSchema` (Response.Components contract)
 
 Every registered grouper MUST declare a `ComponentSchema` on its
-capability row in `descriptor/capabilities_groupers.go`, tagged with
+capability row in `internal/descriptor/capabilities_groupers.go`, tagged with
 one of three mergeability classes:
 
 | Class | Wire value | When to use |
@@ -123,7 +123,7 @@ to multiple buckets — `total_n` reflects the row count.
 The full Response.Components contract for groupers — streaming
 behaviour by mergeability class, the orchestrator-owned floor, the
 extension-side parity contract — lives in the [response-components
-skill](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md).
+skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md).
 Embedder extensions implement the same `MetaGrouper` interface via
 `ComponentsFunc` or directly; see
 [Extension Points](extension-points.md).
@@ -153,8 +153,8 @@ Bump the registered-grouper count in CLAUDE.md's "Skill Pack" section.
 ## 10. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ -run TestManifestOperatorsComplete
+go test ./internal/skills/ -run TestSkillsCoverAllComponents
+go test ./internal/descriptor/ -run TestManifestOperatorsComplete
 go test ./processing/ -run TestGroup
 ```
 

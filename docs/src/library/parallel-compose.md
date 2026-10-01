@@ -28,7 +28,7 @@ next to emit. So callers can index `responses[i]` against
 
 ## ComposeOptions
 
-From [`service/compose_parallel.go`](https://github.com/frankbardon/pulse/blob/main/service/compose_parallel.go),
+From [`internal/service/compose_parallel.go`](https://github.com/frankbardon/pulse/blob/main/internal/service/compose_parallel.go),
 re-exported as `pulse.ComposeOptions`:
 
 ```go
