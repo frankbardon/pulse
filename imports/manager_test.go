@@ -141,6 +141,20 @@ func TestManager_Open_Overwrite_Succeeds(t *testing.T) {
 	}
 }
 
+// TestManager_Open_ExplicitUnsupportedFormat_IsCoded pins the factory
+// route: an explicit format the io factory cannot build surfaces the
+// factory's own coded error, not a plain string a tool envelope would
+// flatten to a placeholder code.
+func TestManager_Open_ExplicitUnsupportedFormat_IsCoded(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	writeCSV(t, afs, "data.csv")
+	_, err := m.Open(context.Background(), Spec{SourcePath: "data.csv", Format: "xml"})
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_IO_FORMAT_UNSUPPORTED {
+		t.Fatalf("error = %v, want PULSE_IO_FORMAT_UNSUPPORTED", err)
+	}
+}
+
 func TestManager_Open_UnknownFormat_Errors(t *testing.T) {
 	m, afs, _ := newTestManager(t)
 	if err := afero.WriteFile(afs, "data.bogus", []byte("foo"), 0o644); err != nil {

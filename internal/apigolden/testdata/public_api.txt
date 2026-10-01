@@ -1768,6 +1768,7 @@ pulse/errors: const PULSE_INDEX_MANIFEST_STALE pulse/errors.Code = "PULSE_INDEX_
 pulse/errors: const PULSE_INDEX_MISSING pulse/errors.Code = "PULSE_INDEX_MISSING"
 pulse/errors: const PULSE_INDEX_STALE pulse/errors.Code = "PULSE_INDEX_STALE"
 pulse/errors: const PULSE_INDEX_UNSUPPORTED_SHARDED pulse/errors.Code = "PULSE_INDEX_UNSUPPORTED_SHARDED"
+pulse/errors: const PULSE_IO_FORMAT_UNSUPPORTED pulse/errors.Code = "PULSE_IO_FORMAT_UNSUPPORTED"
 pulse/errors: const PULSE_JOIN_FIELD_COLLISION pulse/errors.Code = "PULSE_JOIN_FIELD_COLLISION"
 pulse/errors: const PULSE_JOIN_FIELD_UNKNOWN pulse/errors.Code = "PULSE_JOIN_FIELD_UNKNOWN"
 pulse/errors: const PULSE_JOIN_KEYS_EMPTY pulse/errors.Code = "PULSE_JOIN_KEYS_EMPTY"
@@ -2027,6 +2028,11 @@ pulse/imports: type Spec field SourcePath string
 pulse/imports: type Spec field SuggestGroups bool
 pulse/imports: type Spec field TTL time.Duration
 pulse/io: package io
+pulse/io: type BufferWriter interface
+pulse/io: type BufferWriter imethod Bytes() []byte
+pulse/io: type BufferWriter imethod Close() error
+pulse/io: type BufferWriter imethod WriteHeader(columns []string) error
+pulse/io: type BufferWriter imethod WriteRow(values []any) error
 pulse/io: const CandidateReasonMemoryBound untyped string = "detection_memory_bound"
 pulse/io: const CandidateVerdictUnmeasured untyped string = "unmeasured"
 pulse/io: type CohortSource = pulse/internal/iocore.CohortSource
@@ -2121,6 +2127,8 @@ pulse/io: type DiscardableWriter imethod WriteHeader(columns []string) error
 pulse/io: type DiscardableWriter imethod WriteRow(values []any) error
 pulse/io: const EmptySetCell untyped string = "|"
 pulse/io: func ErrStopIteration() error
+pulse/io: type ExcelReaderOptions struct
+pulse/io: type ExcelReaderOptions field Sheet string
 pulse/io: type ExportJob = pulse/internal/io.ExportJob
 pulse/io: type ExportJob underlying struct
 pulse/io: type ExportJob field FS github.com/spf13/afero.Fs
@@ -2141,6 +2149,21 @@ pulse/io: type ExportReport field OverlayWarnings []*pulse/errors.CodedError
 pulse/io: type ExportReport field RowErrors []pulse/internal/io.RowError
 pulse/io: type ExportReport field RowsExported int
 pulse/io: type ExportReport field TargetWarnings []*pulse/errors.CodedError
+pulse/io: type Format string
+pulse/io: type Format method (Format) CanRead() bool
+pulse/io: type Format method (Format) CanWrite() bool
+pulse/io: type Format method (Format) String() string
+pulse/io: const FormatArrow pulse/io.Format = "arrow"
+pulse/io: const FormatCSV pulse/io.Format = "csv"
+pulse/io: const FormatExcel pulse/io.Format = "excel"
+pulse/io: func FormatFromPath(path string) pulse/io.Format
+pulse/io: const FormatJSONArray pulse/io.Format = "jsonarray"
+pulse/io: const FormatNDJSON pulse/io.Format = "ndjson"
+pulse/io: const FormatParquet pulse/io.Format = "parquet"
+pulse/io: const FormatPulse pulse/io.Format = "pulse"
+pulse/io: const FormatSPSS pulse/io.Format = "spss"
+pulse/io: const FormatTSV pulse/io.Format = "tsv"
+pulse/io: func Formats() []pulse/io.Format
 pulse/io: type GroupCandidate = pulse/internal/io.GroupCandidate
 pulse/io: type GroupCandidate underlying struct
 pulse/io: type GroupCandidate field BreakEvenRatio float64 "json:\"break_even_ratio\""
@@ -2267,6 +2290,10 @@ pulse/io: const MinTransferLevel untyped int = 1
 pulse/io: func NewConvertJob(source pulse/io.Reader, target pulse/io.Writer) *pulse/io.ConvertJob
 pulse/io: func NewExportJob(source string, target pulse/io.Writer) *pulse/io.ExportJob
 pulse/io: func NewImportJob(source pulse/io.Reader, target string) *pulse/io.ImportJob
+pulse/io: func NewReader(f pulse/io.Format, fs github.com/spf13/afero.Fs, path string, opts pulse/io.ReaderOptions) (pulse/io.Reader, error)
+pulse/io: func NewReaderFromBytes(f pulse/io.Format, data []byte, opts pulse/io.ReaderOptions) (pulse/io.Reader, error)
+pulse/io: func NewWriter(f pulse/io.Format, fs github.com/spf13/afero.Fs, path string, opts pulse/io.WriterOptions) (pulse/io.Writer, error)
+pulse/io: func NewWriterToBuffer(f pulse/io.Format, opts pulse/io.WriterOptions) (pulse/io.BufferWriter, error)
 pulse/io: type NullAwareReader = pulse/internal/iocore.NullAwareReader
 pulse/io: type NullAwareReader underlying interface
 pulse/io: type NullAwareReader imethod Close() error
@@ -2307,6 +2334,9 @@ pulse/io: type Reader underlying interface
 pulse/io: type Reader imethod Close() error
 pulse/io: type Reader imethod ReadHeader() ([]string, error)
 pulse/io: type Reader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
+pulse/io: type ReaderOptions struct
+pulse/io: type ReaderOptions field Excel pulse/io.ExcelReaderOptions
+pulse/io: type ReaderOptions field SPSS pulse/io.SPSSReaderOptions
 pulse/io: type ResetReader = pulse/internal/iocore.ResetReader
 pulse/io: type ResetReader underlying interface
 pulse/io: type ResetReader imethod Close() error
@@ -2318,6 +2348,17 @@ pulse/io: type RowError = pulse/internal/io.RowError
 pulse/io: type RowError underlying struct
 pulse/io: type RowError field Err error
 pulse/io: type RowError field Row int
+pulse/io: const SPSSMissingAuto pulse/io.SPSSMissingMode = "auto"
+pulse/io: type SPSSMissingMode string
+pulse/io: const SPSSMissingNull pulse/io.SPSSMissingMode = "null"
+pulse/io: type SPSSReaderOptions struct
+pulse/io: type SPSSReaderOptions field Charset string
+pulse/io: type SPSSReaderOptions field MissingMode pulse/io.SPSSMissingMode
+pulse/io: type SPSSWriterOptions struct
+pulse/io: type SPSSWriterOptions field Charset string
+pulse/io: type SPSSWriterOptions field IgnoreSidecar bool
+pulse/io: type SPSSWriterOptions field SanitizeNames bool
+pulse/io: type SPSSWriterOptions field Uncompressed bool
 pulse/io: type SchemaAwareReader = pulse/internal/iocore.SchemaAwareReader
 pulse/io: type SchemaAwareReader underlying interface
 pulse/io: type SchemaAwareReader imethod Close() error
@@ -2390,6 +2431,8 @@ pulse/io: type Writer underlying interface
 pulse/io: type Writer imethod Close() error
 pulse/io: type Writer imethod WriteHeader(columns []string) error
 pulse/io: type Writer imethod WriteRow(values []any) error
+pulse/io: type WriterOptions struct
+pulse/io: type WriterOptions field SPSS pulse/io.SPSSWriterOptions
 pulse/io/arrow: package arrow
 pulse/io/arrow: func AppendDecimal128(b github.com/apache/arrow-go/v18/arrow/array.Builder, f pulse/encoding.Field, v any) error
 pulse/io/arrow: func AppendOverlayLayerStruct(structBldr *github.com/apache/arrow-go/v18/arrow/array.StructBuilder, layer *pulse/types.OverlayLayer) error
@@ -2446,6 +2489,7 @@ pulse/io/excel: package excel
 pulse/io/excel: func NewReader(fs github.com/spf13/afero.Fs, path string, opts ...pulse/io/excel.Option) *pulse/io/excel.Reader
 pulse/io/excel: func NewReaderFromBytes(data []byte, opts ...pulse/io/excel.Option) *pulse/io/excel.Reader
 pulse/io/excel: func NewWriter(fs github.com/spf13/afero.Fs, path string, opts ...pulse/io/excel.Option) *pulse/io/excel.Writer
+pulse/io/excel: func NewWriterToBuffer(opts ...pulse/io/excel.Option) *pulse/io/excel.Writer
 pulse/io/excel: type Option func(*pulse/io/excel.config)
 pulse/io/excel: const OverlaySheetPrefix untyped string = "__overlay_"
 pulse/io/excel: type Reader struct
@@ -2457,6 +2501,7 @@ pulse/io/excel: type Reader method (*Reader) Reset() error
 pulse/io/excel: type Reader method (*Reader) SheetNames() ([]string, error)
 pulse/io/excel: func WithSheet(name string) pulse/io/excel.Option
 pulse/io/excel: type Writer struct
+pulse/io/excel: type Writer method (*Writer) Bytes() []byte
 pulse/io/excel: type Writer method (*Writer) Close() error
 pulse/io/excel: type Writer method (*Writer) Discard() error
 pulse/io/excel: type Writer method (*Writer) SetOverlays(layers []*pulse/types.OverlayLayer)
@@ -2464,23 +2509,6 @@ pulse/io/excel: type Writer method (*Writer) SetPulseSchema(s *pulse/encoding.Sc
 pulse/io/excel: type Writer method (*Writer) WriteHeader(columns []string) error
 pulse/io/excel: type Writer method (*Writer) WriteRow(values []any) error
 pulse/io/exportoverlay: package exportoverlay
-pulse/io/format: package format
-pulse/io/format: const Arrow untyped string = "arrow"
-pulse/io/format: const CSV untyped string = "csv"
-pulse/io/format: const Excel untyped string = "excel"
-pulse/io/format: func FromExt(path string) string
-pulse/io/format: const JSONArray untyped string = "jsonarray"
-pulse/io/format: const NDJSON untyped string = "ndjson"
-pulse/io/format: func NewReader(format string, fs github.com/spf13/afero.Fs, path string, opts pulse/io/format.ReaderOptions) (pulse/io.Reader, error)
-pulse/io/format: const Parquet untyped string = "parquet"
-pulse/io/format: const Pulse untyped string = "pulse"
-pulse/io/format: type ReaderOptions struct
-pulse/io/format: type ReaderOptions field Charset string
-pulse/io/format: type ReaderOptions field SPSSMissing string
-pulse/io/format: type ReaderOptions field Sheet string
-pulse/io/format: const SPSS untyped string = "spss"
-pulse/io/format: var SupportedImport []string
-pulse/io/format: const TSV untyped string = "tsv"
 pulse/io/jsonarray: package jsonarray
 pulse/io/jsonarray: func NewReader(fs github.com/spf13/afero.Fs, path string) *pulse/io/jsonarray.Reader
 pulse/io/jsonarray: func NewReaderFromBytes(data []byte) *pulse/io/jsonarray.Reader
@@ -5304,4 +5332,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 025435a8a7c9629eaaa5a4f29f3a213599e58913e9b4e5e14d0848fb3d0dda6d
+// golden-hash: db4edc8baea43c74cd7eae2171b263dd43d82e562713cd51283af131da446ce4

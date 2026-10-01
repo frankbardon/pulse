@@ -11,7 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
+
 	"github.com/spf13/afero"
 )
 
@@ -97,7 +97,7 @@ func TestManager_Open_NoGroups_ByteIdentical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	reader, err := pformat.NewReader(pformat.CSV, afs, "orders.csv", pformat.ReaderOptions{})
+	reader, err := pio.NewReader(pio.FormatCSV, afs, "orders.csv", pio.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}

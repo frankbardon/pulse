@@ -89,15 +89,15 @@ func TestIOImportBoundary(t *testing.T) {
 }
 
 // TestIOImportBoundary_FacadeReachesAdapters keeps the boundary from
-// passing vacuously: the facade must really sit above the implementation,
-// or the check above inspects a graph that no longer has the shape it
-// guards.
+// passing vacuously: the facade (through its factory) must really sit above
+// the implementation and every adapter, or the check above inspects a graph
+// that no longer has the shape it guards.
 func TestIOImportBoundary_FacadeReachesAdapters(t *testing.T) {
 	have := map[string]bool{}
 	for _, dep := range goListDeps(t, publicIO) {
 		have[dep] = true
 	}
-	for _, want := range []string{modulePrefix + "/internal/io", modulePrefix + "/internal/iocore"} {
+	for _, want := range belowFacade {
 		if !have[want] {
 			t.Errorf("public io does not reach %s; the facade no longer sits above it", want)
 		}

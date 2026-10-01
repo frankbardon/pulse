@@ -43,10 +43,9 @@ package spss
 //
 // There is no `pulse export spss` leaf yet — E5-S6 wires one — so
 // --ignore-sidecar is defined here as [WriterOptions.IgnoreSidecar] and
-// the CLI leaf mounts it later. That direction is not arbitrary. Writer
-// dispatch does NOT route through io/format (readers do; writers live
-// in internal/cli's own switch), so there is no shared writer-options
-// struct to hang it on, and CLAUDE.md is explicit that the CLI parses
+// the CLI leaf mounts it later. That direction is not arbitrary. The io
+// factory's io.SPSSWriterOptions is a projection of this struct, not a
+// second home for the decision, and CLAUDE.md is explicit that the CLI parses
 // flags and holds no business logic. Deciding "absent or stale, and
 // what follows from that" is business logic. It belongs in the library,
 // where a library embedder calling the writer directly gets the same

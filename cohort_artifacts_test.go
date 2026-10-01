@@ -10,7 +10,6 @@ import (
 	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/frankbardon/pulse/io/spss"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -34,7 +33,7 @@ func artifactsFixture(t *testing.T) (*pulse.Pulse, afero.Fs) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 	ctx := context.Background()
-	reader, err := pformat.NewReader(pformat.SPSS, afs, "src/in.sav", pformat.ReaderOptions{})
+	reader, err := pio.NewReader(pio.FormatSPSS, afs, "src/in.sav", pio.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}

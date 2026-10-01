@@ -109,7 +109,7 @@ func TestManifestImportCapability(t *testing.T) {
 
 	spss, ok := got["spss"]
 	if !ok {
-		t.Fatalf("Import.Formats has no spss entry; the format is registered on io/format but invisible to the manifest")
+		t.Fatalf("Import.Formats has no spss entry; the format is readable through the io factory but invisible to the manifest")
 	}
 	// The whole point of the SPSS adapter: the .sav dictionary is fact,
 	// not a hint the inference pass would overrule.

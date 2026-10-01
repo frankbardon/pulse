@@ -247,14 +247,18 @@ func formatCellValue(v string) string {
 
 // Writer writes tabular data to an Excel (.xlsx) file.
 type Writer struct {
-	fs      afero.Fs
-	path    string
-	cfg     config
-	file    *excelize.File
-	sw      *excelize.StreamWriter
-	sheet   string
-	rowNum  int
-	numCols int
+	fs   afero.Fs
+	path string
+	// toBuffer marks a NewWriterToBuffer writer: Close serialises the
+	// workbook into out instead of onto a filesystem path.
+	toBuffer bool
+	out      []byte
+	cfg      config
+	file     *excelize.File
+	sw       *excelize.StreamWriter
+	sheet    string
+	rowNum   int
+	numCols  int
 
 	// pulseSchema is set by ExportJob via SetPulseSchema before
 	// WriteHeader so the writer can apply scale-driven number formats
@@ -309,6 +313,23 @@ func NewWriter(fs afero.Fs, path string, opts ...Option) *Writer {
 	}
 	return w
 }
+
+// NewWriterToBuffer creates an Excel writer with no filesystem target; the
+// workbook bytes are read back with [Writer.Bytes] after Close. It is the
+// fs-free path every other writable adapter offers, so the io factory's
+// NewWriterToBuffer covers every writable format.
+func NewWriterToBuffer(opts ...Option) *Writer {
+	w := &Writer{toBuffer: true}
+	for _, o := range opts {
+		o(&w.cfg)
+	}
+	return w
+}
+
+// Bytes returns the serialised workbook of a NewWriterToBuffer writer
+// after Close. It is nil before Close, for a writer that wrote nothing,
+// and for a writer targeting a filesystem path.
+func (w *Writer) Bytes() []byte { return w.out }
 
 func (w *Writer) init() error {
 	if w.file != nil {
@@ -482,7 +503,13 @@ func (w *Writer) Close() error {
 		return err
 	}
 
-	if w.fs != nil && w.path != "" {
+	if w.toBuffer {
+		buf, err := w.file.WriteToBuffer()
+		if err != nil {
+			return fmt.Errorf("excel.Writer: writing buffer: %w", err)
+		}
+		w.out = buf.Bytes()
+	} else if w.fs != nil && w.path != "" {
 		buf, err := w.file.WriteToBuffer()
 		if err != nil {
 			return fmt.Errorf("excel.Writer: writing buffer: %w", err)

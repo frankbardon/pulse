@@ -175,7 +175,7 @@ func TestImportAutoCLI_CharsetRescuesUndeclaredSav(t *testing.T) {
 }
 
 // TestImportAutoCLI_CharsetInertForCSV. The flag rides the shared
-// format.ReaderOptions struct exactly as --sheet does, so a format with no
+// io.ReaderOptions value exactly as --sheet does, so a format with no
 // opinion about codepages must ignore it rather than reject it — and produce
 // the same cohort bytes it would have produced without it.
 func TestImportAutoCLI_CharsetInertForCSV(t *testing.T) {

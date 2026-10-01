@@ -12,7 +12,7 @@ import (
 // --- ConvertJob honours SchemaAwareReader -----------------------------------
 
 // TestConvertJob_SchemaAwareReader_BypassesInference is the regression
-// this file exists for. Registering `.sav` on formatFromExt makes
+// this file exists for. Registering `.sav` on io.FormatFromPath makes
 // `pulse convert survey.sav out.csv` reachable, and until ConvertJob
 // consulted SchemaAwareReader that command re-inferred every column
 // type from the text the reader rendered — silently throwing away the

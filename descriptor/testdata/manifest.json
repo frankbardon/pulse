@@ -5009,7 +5009,7 @@
         ]
       }
     ],
-    "error_codes_count": 240,
+    "error_codes_count": 241,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5109,6 +5109,7 @@
       "PULSE_INDEX_MISSING",
       "PULSE_INDEX_STALE",
       "PULSE_INDEX_UNSUPPORTED_SHARDED",
+      "PULSE_IO_FORMAT_UNSUPPORTED",
       "PULSE_JOIN_FIELD_COLLISION",
       "PULSE_JOIN_FIELD_UNKNOWN",
       "PULSE_JOIN_KEYS_EMPTY",
@@ -9756,4 +9757,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c7fd34760d965d240feb7f20e0d51f307b7379c052e904c789e9998a7bcb9d0c
+// golden-hash: 2e61a602d5f4f438599ae986405e7289083f163886ff9ee810768c974b03d4a0

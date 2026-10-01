@@ -83,7 +83,7 @@ Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`
 
 ## Source-format CLI flags
 
-Per-format READ knobs the file cannot always answer itself; all ride `format.ReaderOptions` and every other format ignores them. Full model: `spss-cohorts`, `docs/src/cli/import-spss.md`.
+Per-format READ knobs the file cannot always answer itself; all ride `io.ReaderOptions` (one sub-struct per format) and every other format ignores them. Full model: `spss-cohorts`, `docs/src/cli/import-spss.md`.
 
 | Flag | Format | Leaves | Must know |
 |---|---|---|---|

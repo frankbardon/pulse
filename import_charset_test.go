@@ -95,7 +95,7 @@ func TestImportSpec_CharsetRescuesUndeclaredSav(t *testing.T) {
 }
 
 // TestImportSpec_CharsetIsInertForNonSPSS pins the other half of the
-// contract. Charset rides the shared format.ReaderOptions struct exactly as
+// contract. Charset rides the shared io.ReaderOptions value (its SPSS sub-struct) exactly as
 // Sheet does, so it must be silently ignored by every format that has no
 // opinion about codepages — a CSV import must be byte-identical with and
 // without it, not merely successful.

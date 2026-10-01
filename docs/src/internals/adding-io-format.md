@@ -11,7 +11,14 @@ tabular format (a peer to the existing `csv/`, `tsv/`, `ndjson/`,
 Each format is a sub-package under `io/`. Create
 `io/<format>/<format>.go` with both a reader and a writer.
 
-The two interfaces to implement live in `io/`:
+The two interfaces to implement live in the `internal/iocore` leaf
+(the public `io` package aliases them as `io.Reader` / `io.Writer`).
+An adapter imports `internal/iocore` for the contracts and, only if it
+must drive a job itself (the SPSS writer's row path runs an
+`ImportJob`), `internal/io` for the jobs. It must **never** import the
+public `io` package: `io`'s factory imports every adapter, so that
+would be a cycle. `TestIOImportBoundary` enforces it — add the new
+package to its `belowFacade` list.
 
 ```go
 // Reader
@@ -24,10 +31,16 @@ type Reader interface {
 // Writer
 type Writer interface {
     WriteHeader(columns []string) error
-    WriteRow(values []string) error
+    WriteRow(values []any) error
     Close() error
 }
 ```
+
+Offer all four constructors — `NewReader(fs, path)`,
+`NewReaderFromBytes(data)`, `NewWriter(fs, path)` and
+`NewWriterToBuffer()` plus a `Bytes() []byte` method on the writer —
+because the factory's `NewReaderFromBytes` / `NewWriterToBuffer` must
+cover every format it advertises.
 
 If the reader needs schema inference (header sample, then full
 import), also implement `io.ResetReader.Reset()` so the import job
@@ -62,43 +75,51 @@ alone passes on a reader that drops record one and duplicates another.
 
 ## 3. Register and wire it up
 
-Registration is spread across **five** places, and a format wired into
+Registration is spread across **four** places, and a format wired into
 only some of them is reachable by one verb and mysteriously absent from
 another.
 
-**`io/format/format.go`** — the shared dispatch. All four of:
+**`io/format.go` + `io/factory.go`** — the one dispatch every surface
+(CLI import / export / convert, `imports.Manager`, embedders) shares:
 
-- the format identifier constant;
-- an `ext → id` case in `FromExt` (this is what makes `pulse convert`,
-  `pulse import auto` and `pulse_import` detect the file at all);
-- an entry in `SupportedImport`;
-- a `NewReader` case.
+- a `Format` constant and its entry in the `formats` list behind
+  `Formats()` (which also drives `Format.CanRead` / `CanWrite`);
+- an `ext → Format` case in `FormatFromPath` (this is what makes
+  `pulse convert`, `pulse import auto` and `pulse_import` detect the
+  file at all);
+- a case in each of `NewReader`, `NewReaderFromBytes`, `NewWriter` and
+  `NewWriterToBuffer`, returning the adapter pointer itself — never a
+  wrapper, or every optional interface the jobs discover by type
+  assertion is lost (`TestFactory_ReturnsAdapterUnwrapped`);
+- a per-format options sub-struct on `ReaderOptions` / `WriterOptions`
+  only when the CLI or `imports.Spec` actually reaches a knob. Sub-structs
+  for other formats are ignored silently, so one options value serves
+  every leaf. Validate anything that can be wrong at construction and
+  return a coded error.
 
-`SupportedImport` is what documentation and help output enumerate, so a
-reader with no entry there is reachable only by accident — and an entry
-with no `NewReader` case advertises a reader the engine cannot build.
-`TestSupportedImport_EveryEntryConstructs` closes that loop.
+`Formats()` is what documentation and help output enumerate, so a
+format with no entry there is reachable only by accident — and an entry
+with a missing factory case advertises an adapter the engine cannot
+build. `TestFactory_EveryAdvertisedFormatConstructs` closes that loop;
+`TestFromExt_Matrix` pins the extension mapping and
+`TestFactory_RoundTripEveryFormat` writes and reads a table through all
+four constructors. An unknown, empty or native `pulse` format is
+`PULSE_IO_FORMAT_UNSUPPORTED`. A read-only format would make
+`CanWrite` false and return its OWN coded error from the writer
+constructors naming the format, not the generic code — the extension is
+recognised, so "unsupported" says the wrong thing. (SPSS was the worked
+example until its writer landed; `PULSE_SPSS_EXPORT_UNSUPPORTED` has
+since been repurposed to mean "this cohort has no honest `.sav` form".)
 
-**`internal/cli/import.go`** — the import leaf's own switch, separate
-from `io/format`'s:
-
-- the `makeImportReader(format, ...)` case;
-- an `importFormatCmd("yourformat")` line in the `Commands:` slice on
-  `ImportCommand()`.
-
-**`internal/cli/format.go`** — `newWriterForFormat`, plus the
-`writerOptions` bag it takes. Writers are *not* in `io/format`; this
-switch is their whole dispatch, which is why a per-format write knob has
-no shared options struct to ride and gets a field on `writerOptions`
-instead. If the format is import-only, do NOT leave it falling through
-to the generic `unsupported format` default: the extension is
-recognised, so that message says the wrong thing. Return a specific
-coded error naming the format instead. (SPSS was the worked example
-until its writer landed; `PULSE_SPSS_EXPORT_UNSUPPORTED` has since been
-repurposed to mean "this cohort has no honest `.sav` form".)
+**`internal/cli/import.go`** — an `importFormatCmd("yourformat")` line
+in the `Commands:` slice on `ImportCommand()`. Reader construction
+(`makeImportReader`) and the per-format flags (`readerOptionsFrom`)
+already route through the factory; a new reader knob gets a flag here
+and a field in `readerOptionsFrom`.
 
 **`internal/cli/export.go`** — an `exportFormatCmd("yourformat")` line
-in `ExportCommand()`, when a writer exists.
+in `ExportCommand()`, when a writer exists; a new writer knob gets a
+flag and a field in `writerOptionsFrom`.
 
 **`descriptor/capabilities_export.go`** — the manifest capability
 blocks. `importCapability()` gains an `ImportFormatCapability`
@@ -107,7 +128,8 @@ and whether the same format can be written); `exportCapability()`
 gains an `ExportFormatCapability` only when a writer actually exists.
 Both slices are alphabetised so the golden manifest stays stable, and
 `TestManifestImportCapability_MatchesFormatRegistry` pins the
-hand-declared table against `io/format`.
+hand-declared table against `io.Formats()`, `FormatFromPath` and
+`Format.CanWrite`.
 
 Two prose surfaces hardcode the format list and are easy to miss:
 `mcp/contract.go` (the `ImportIn.Format` jsonschema description) and
@@ -360,7 +382,7 @@ the shared `readerSchema` resolver: an explicit `ConvertJob.Schema`
 wins outright, otherwise an authoritative source schema is adopted
 before inference is considered, and the intermediate `.pulse` file
 `KeepPulseAt` writes is built from it. That matters because
-registering an extension on `FromExt` immediately makes
+registering an extension on `FormatFromPath` immediately makes
 `pulse convert source.ext out.csv` reachable — and a convert that
 re-inferred types from the text the reader rendered would throw the
 source dictionary away through a command the registration itself
@@ -729,7 +751,7 @@ file, no mutation of the writer's own encode state, and safe to call
 before, after or instead of a write pass.
 
 **CLI wiring.** `internal/cli/export.go`'s predict leaf builds the target
-through `newWriterForFormat` against a **MemMapFs and a throwaway path**,
+through the `io.NewWriter` factory against a **MemMapFs and a throwaway path**,
 and never `Close`s it, so no adapter's bytes can reach any filesystem.
 It mounts the target format's write flags too (`--sanitize-names` turns a
 `.sav` name refusal into a warning, so a predict that could not be told

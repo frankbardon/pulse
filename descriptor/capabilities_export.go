@@ -33,7 +33,7 @@ package descriptor
 //     body.
 type ExportFormatCapability struct {
 	// Name is the canonical format identifier matching the
-	// io/format package constants (csv / tsv / ndjson / jsonarray /
+	// io.Format constants (csv / tsv / ndjson / jsonarray /
 	// parquet / arrow / excel). Stable across format-version 1.0;
 	// new formats land additively.
 	Name string `json:"name"`
@@ -91,7 +91,7 @@ func exportCapability() ExportCapability {
 }
 
 // ImportFormatCapability describes one tabular source format the import
-// dispatch (io/format.NewReader) accepts, surfaced on the manifest so an
+// dispatch (the io.NewReader factory) accepts, surfaced on the manifest so an
 // LLM planner can answer "can Pulse read this file, and will the
 // resulting cohort's types be the source's or a guess?" without
 // crawling io/.
@@ -121,13 +121,13 @@ func exportCapability() ExportCapability {
 // would need it again. Cross-reference ExportCapability.Formats for the
 // per-format overlay-embedding shape.
 type ImportFormatCapability struct {
-	// Name is the canonical format identifier matching the io/format
+	// Name is the canonical format identifier matching the io.Format
 	// package constants (csv / tsv / ndjson / jsonarray / parquet /
 	// arrow / excel / spss).
 	Name string `json:"name"`
 
 	// Extensions lists the lowercase file extensions (leading dot
-	// included) that io/format.FromExt resolves to this format, in the
+	// included) that io.FormatFromPath resolves to this format, in the
 	// dispatch's own order. Present so a planner can answer "what will
 	// this path be detected as" without a round trip.
 	Extensions []string `json:"extensions"`
@@ -160,8 +160,8 @@ type ImportCapability struct {
 // importCapability returns the canonical ImportCapability entry.
 //
 // The table is hand-declared rather than derived from
-// io/format.SupportedImport because descriptor/ is the no-execute layer:
-// importing io/format would drag the arrow, parquet and excel adapters
+// io.Formats() because descriptor/ is the no-execute layer:
+// importing the io factory would drag the arrow, parquet and excel adapters
 // into every manifest build for the sake of a list of seven strings.
 // TestManifestImportCapability_MatchesFormatRegistry pins the two
 // against each other so the hand-declaration cannot drift.

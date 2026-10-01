@@ -44,8 +44,8 @@ type Spec struct {
 	SourcePath string
 
 	// Format overrides extension-based detection. Use the identifiers
-	// from io/format (csv, tsv, ndjson, jsonarray, parquet, arrow,
-	// excel, pulse). When empty, FromExt(SourcePath) is used.
+	// from io.Format (csv, tsv, ndjson, jsonarray, parquet, arrow,
+	// excel, pulse). When empty, io.FormatFromPath(SourcePath) is used.
 	Format string
 
 	// Handle is the desired managed name (without extension). Defaults

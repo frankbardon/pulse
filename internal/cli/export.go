@@ -6,7 +6,6 @@ import (
 
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/spss"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -96,9 +95,9 @@ func exportSPSSCmd() *cli.Command {
 // is running. A leaf that does not declare a flag reads it as the zero
 // value, which is the same as not setting the option, so one helper
 // serves every leaf — mirroring readerOptionsFrom on the import side.
-func writerOptionsFrom(cmd *cli.Command) writerOptions {
-	return writerOptions{
-		SPSS: spss.WriterOptions{
+func writerOptionsFrom(cmd *cli.Command) pio.WriterOptions {
+	return pio.WriterOptions{
+		SPSS: pio.SPSSWriterOptions{
 			IgnoreSidecar: cmd.Bool("ignore-sidecar"),
 			Uncompressed:  cmd.Bool("uncompressed"),
 			Charset:       cmd.String("charset"),
@@ -116,7 +115,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 
 	fs := afero.NewOsFs()
 
-	writer, err := newWriterForFormat(format, fs, output, writerOptionsFrom(cmd))
+	writer, err := pio.NewWriter(pio.Format(format), fs, output, writerOptionsFrom(cmd))
 	if err != nil {
 		if jsonOut {
 			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -287,7 +286,7 @@ func exportPredictCmd() *cli.Command {
 			// built against a filesystem that dies with this call and is
 			// never Closed, so nothing it might emit can land anywhere.
 			if format != "" {
-				writer, err := newWriterForFormat(format, afero.NewMemMapFs(), predictTargetPath, writerOptionsFrom(cmd))
+				writer, err := pio.NewWriter(pio.Format(format), afero.NewMemMapFs(), predictTargetPath, writerOptionsFrom(cmd))
 				if err != nil {
 					if jsonOut {
 						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)

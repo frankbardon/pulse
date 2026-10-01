@@ -185,6 +185,15 @@ const (
 	// the imports.Manager on Open.
 	PULSE_IMPORT_FORMAT_UNKNOWN Code = "PULSE_IMPORT_FORMAT_UNKNOWN"
 
+	// PULSE_IO_FORMAT_UNSUPPORTED indicates the io factory (io.NewReader,
+	// io.NewReaderFromBytes, io.NewWriter, io.NewWriterToBuffer) was asked
+	// for a format it cannot build in that direction: an empty or unknown
+	// identifier, or the native "pulse" format, which is a cohort rather
+	// than a tabular source or target and is opened directly. Details
+	// carry the requested format under "format" and the direction
+	// ("read" or "write") under "direction".
+	PULSE_IO_FORMAT_UNSUPPORTED Code = "PULSE_IO_FORMAT_UNSUPPORTED"
+
 	// PULSE_IMPORT_SOURCE_MISSING indicates the source file referenced
 	// by an import or by a managed-import sidecar could not be read.
 	PULSE_IMPORT_SOURCE_MISSING Code = "PULSE_IMPORT_SOURCE_MISSING"
@@ -2050,7 +2059,7 @@ const (
 
 	// PULSE_SPSS_MISSING_MODE_INVALID indicates a caller asked for a
 	// user-missing handling mode that does not exist — a
-	// --spss-missing / format.ReaderOptions.SPSSMissing value other than
+	// --spss-missing / io.SPSSReaderOptions.MissingMode value other than
 	// "auto" or "null".
 	//
 	// It is a refusal rather than a fall back to the default because the
@@ -2496,6 +2505,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_CATEGORICAL_UNBOUNDED,
 	PULSE_IMPORT_DESCRIPTION_TOO_LONG,
 	PULSE_IMPORT_FORMAT_UNKNOWN,
+	PULSE_IO_FORMAT_UNSUPPORTED,
 	PULSE_IMPORT_SOURCE_MISSING,
 	PULSE_IMPORT_HANDLE_EXISTS,
 	PULSE_IMPORT_SOURCE_FORBIDDEN,

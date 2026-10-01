@@ -188,7 +188,7 @@ type Manifest struct {
 
 	// Import is the cross-format import envelope — the read-side peer
 	// of Export. Carries one ImportFormatCapability per format
-	// io/format.NewReader accepts, declaring the file extensions that
+	// io.NewReader factory accepts, declaring the file extensions that
 	// resolve to it, whether its .pulse schema comes from the source's
 	// own dictionary ("authoritative") or from the shared inference
 	// pass ("inferred"), and whether the same format can also be

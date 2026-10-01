@@ -335,7 +335,7 @@ func TestExportJob_PartialFailure_Unchanged(t *testing.T) {
 // TestConvertJob_EveryRowFailed_ReturnsCodedError is the convert arm.
 //
 // `pulse convert` is source-format → target-format (a `.pulse` source is
-// reserved and excluded from SupportedImport), so every RowError it can
+// reserved and excluded from io.Formats()), so every RowError it can
 // record comes from the TARGET writer: the row loop hands raw cell text
 // through and only WriteRow can refuse. The verdict therefore falls back
 // to PULSE_EXPORT_ROW_ERROR, by provenance — PULSE_IMPORT_ROW_ERROR would

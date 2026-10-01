@@ -17,7 +17,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
 )
 
@@ -260,12 +259,12 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 			return nil, perr.NewCodedError(perr.PULSE_IMPORT_FORMAT_UNKNOWN,
 				"inline imports require an explicit format")
 		}
-		format = pformat.FromExt(spec.SourcePath)
+		format = pio.FormatFromPath(spec.SourcePath).String()
 	}
 	// A zstd transfer artifact is neither a tabular source nor a cohort:
 	// name the fix instead of "unknown format" or a passthrough that
 	// every read surface would refuse later.
-	if (format == "" || format == pformat.Pulse) && spec.InlineBytes == nil && m.isTransferArtifact(spec.SourcePath) {
+	if (format == "" || format == string(pio.FormatPulse)) && spec.InlineBytes == nil && m.isTransferArtifact(spec.SourcePath) {
 		return nil, encoding.CompressedCohortError()
 	}
 	if format == "" {
@@ -282,7 +281,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	//     managed pool so downstream tools can address it through the
 	//     rooted fs. Sidecar written so the copy participates in the
 	//     normal TTL lifecycle.
-	if format == pformat.Pulse {
+	if format == string(pio.FormatPulse) {
 		if len(spec.Groups) > 0 {
 			return nil, perr.NewCodedErrorWithDetails(perr.PULSE_GROUP_DECLARATION_INVALID,
 				"parent groups apply only when a source is converted; a .pulse source is used as-is and never re-encoded",
@@ -373,7 +372,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	now := m.now()
 	sidecar := Sidecar{
 		Handle:              handle,
-		Format:              pformat.Pulse,
+		Format:              string(pio.FormatPulse),
 		SourcePath:          spec.SourcePath,
 		SourceFormat:        format,
 		ImportedAt:          now,
@@ -393,7 +392,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	res := &Result{
 		Handle:          handle,
 		Path:            target,
-		Format:          pformat.Pulse,
+		Format:          string(pio.FormatPulse),
 		Managed:         true,
 		RowsImported:    report.RowsImported,
 		ImportedAt:      now,
@@ -603,7 +602,7 @@ func (m *Manager) isTransferArtifact(path string) bool {
 
 func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 	if spec.InlineBytes != nil {
-		return nil, fmt.Errorf("imports: InlineBytes path not yet wired (open issue: add format.NewReaderFromBytes)")
+		return nil, fmt.Errorf("imports: InlineBytes path not yet wired (open issue: route through io.NewReaderFromBytes)")
 	}
 	readFs := m.afs
 	if filepath.IsAbs(spec.SourcePath) {
@@ -622,12 +621,12 @@ func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 			fmt.Sprintf("source file %q not found", spec.SourcePath),
 			map[string]any{"source_path": spec.SourcePath})
 	}
-	// SPSSMissing is left unset on purpose — Spec carries no counterpart
-	// (see its Charset doc for why), and format.NewReader reads the empty
-	// string as "leave the default in force", not as an override.
-	return pformat.NewReader(format, readFs, spec.SourcePath, pformat.ReaderOptions{
-		Sheet:   spec.Sheet,
-		Charset: spec.Charset,
+	// SPSS MissingMode is left unset on purpose — Spec carries no
+	// counterpart (see its Charset doc for why), and the factory reads the
+	// zero value as "leave the default in force", not as an override.
+	return pio.NewReader(pio.Format(format), readFs, spec.SourcePath, pio.ReaderOptions{
+		Excel: pio.ExcelReaderOptions{Sheet: spec.Sheet},
+		SPSS:  pio.SPSSReaderOptions{Charset: spec.Charset},
 	})
 }
 
@@ -688,9 +687,9 @@ func (m *Manager) openPulseAbsoluteCopy(ctx context.Context, spec Spec) (*Result
 	now := m.now()
 	sidecar := Sidecar{
 		Handle:       handle,
-		Format:       pformat.Pulse,
+		Format:       string(pio.FormatPulse),
 		SourcePath:   spec.SourcePath,
-		SourceFormat: pformat.Pulse,
+		SourceFormat: string(pio.FormatPulse),
 		ImportedAt:   now,
 		TTLSeconds:   ttlSeconds(ttl),
 	}
@@ -706,7 +705,7 @@ func (m *Manager) openPulseAbsoluteCopy(ctx context.Context, spec Spec) (*Result
 	res := &Result{
 		Handle:     handle,
 		Path:       target,
-		Format:     pformat.Pulse,
+		Format:     string(pio.FormatPulse),
 		Managed:    true,
 		ImportedAt: now,
 		TTLSeconds: sidecar.TTLSeconds,

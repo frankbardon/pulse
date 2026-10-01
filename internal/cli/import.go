@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	stderrors "errors"
 	"fmt"
 	"io"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -237,7 +235,7 @@ func importPredictCmd() *cli.Command {
 			jsonOut := cmd.Bool("json")
 
 			if format == "" {
-				format = formatFromExt(input)
+				format = pio.FormatFromPath(input).String()
 			}
 			if format == "" {
 				msg := "cannot detect format; use --format"
@@ -400,7 +398,7 @@ func importSchemaTemplateCmd() *cli.Command {
 			sampleRows := int(cmd.Int("sample-rows"))
 
 			if format == "" {
-				format = formatFromExt(input)
+				format = pio.FormatFromPath(input).String()
 			}
 			if format == "" {
 				return fmt.Errorf("cannot detect format from %q; use --format", input)
@@ -447,38 +445,27 @@ func importSchemaTemplateCmd() *cli.Command {
 
 // readerOptionsFrom lifts the per-format reader knobs off whichever leaf is
 // running. A leaf that does not declare a flag reads it as "", which is the
-// same as not setting the option, so one helper serves every leaf.
-func readerOptionsFrom(cmd *cli.Command) pformat.ReaderOptions {
-	return pformat.ReaderOptions{
-		Sheet:       cmd.String("sheet"),
-		Charset:     cmd.String("charset"),
-		SPSSMissing: cmd.String("spss-missing"),
+// same as not setting the option, so one helper serves every leaf. Each
+// knob lands in its format's sub-struct; the factory ignores the others.
+func readerOptionsFrom(cmd *cli.Command) pio.ReaderOptions {
+	return pio.ReaderOptions{
+		Excel: pio.ExcelReaderOptions{Sheet: cmd.String("sheet")},
+		SPSS: pio.SPSSReaderOptions{
+			Charset:     cmd.String("charset"),
+			MissingMode: pio.SPSSMissingMode(cmd.String("spss-missing")),
+		},
 	}
 }
 
-// makeImportReader builds the source reader for `pulse import`.
-//
-// It delegates to pformat.NewReader rather than keeping a second dispatch
-// switch. The duplicate switch this replaces was a standing trap — a format
-// registered in io/format and not here produced a subcommand that existed and
-// immediately failed — and it is also where a new ReaderOptions field would
-// have silently gone unread.
-func makeImportReader(format string, fs afero.Fs, path string, opts pformat.ReaderOptions) (pio.Reader, error) {
-	r, err := pformat.NewReader(format, fs, path, opts)
-	if err != nil {
-		// A CODED failure is a per-option refusal — an unrecognised
-		// --spss-missing value, say — and is surfaced verbatim. Only the
-		// dispatch's own "no such format" is reworded, because that one
-		// is about the format identifier and nothing else. Flattening
-		// both into "unsupported import format" told an operator who
-		// typo'd a flag value that Pulse cannot read `.sav` at all.
-		var coded *errors.CodedError
-		if stderrors.As(err, &coded) {
-			return nil, err
-		}
-		return nil, fmt.Errorf("unsupported import format: %s", format)
-	}
-	return r, nil
+// makeImportReader builds the source reader for `pulse import` through the
+// io factory, the one dispatch every surface shares — a second switch here
+// was a standing trap (a format registered in one place and not the other
+// produced a subcommand that existed and immediately failed). Every
+// factory failure is coded and surfaced verbatim: PULSE_IO_FORMAT_UNSUPPORTED
+// for the format identifier, a per-option code (an unrecognised
+// --spss-missing value, say) otherwise.
+func makeImportReader(format string, fs afero.Fs, path string, opts pio.ReaderOptions) (pio.Reader, error) {
+	return pio.NewReader(pio.Format(format), fs, path, opts)
 }
 
 func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {
