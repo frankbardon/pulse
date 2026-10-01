@@ -7,7 +7,7 @@ import (
 	"io"
 
 	pulse "github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )

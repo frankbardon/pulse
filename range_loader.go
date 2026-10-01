@@ -18,15 +18,15 @@ const envRangeTablesDir = "PULSE_RANGE_TABLES_DIR"
 // opts.Extensions.RangeTables; a name that is already declared
 // programmatically is a hard error (a table must have exactly one
 // source of truth). The registered ranges are validated later, at
-// extension-validation time, via CompileDateRanges.
+// extension-validation time, via daterange.Compile.
 //
 // File format: either a bare array of range objects
 // [{"label":"Q1","start":"2024-01-01","end":"2024-03-31"}, ...] or a
 // wrapped object {"description": "...", "ranges": [ ... ]}. The filename
 // without .json becomes the registered table name.
 //
-// Files matching a known Pulse sidecar suffix (imports.SidecarSuffix,
-// spss.SidecarSuffix — see isPulseSidecarName) are skipped without
+// Files matching a known Pulse sidecar suffix (internal/imports.SidecarSuffix,
+// spsssidecar.Suffix — see isPulseSidecarName) are skipped without
 // being read: they are Pulse's own artefacts, they sit beside cohorts,
 // and this directory may legitimately be a data directory. Any other
 // *.json file that fails to parse is still a hard error naming the
@@ -98,7 +98,7 @@ func loadRangeTablesFromDir(opts *Options) error {
 // parseRangeTableFile accepts either a bare array of range specs or a
 // wrapped object carrying an optional description. Structural validation
 // of the ranges themselves (overlap / duplicate label / empty / invalid
-// boundary) is deferred to CompileDateRanges at extension-validation
+// boundary) is deferred to daterange.Compile at extension-validation
 // time — this parser only unmarshals the file shape.
 func parseRangeTableFile(raw []byte) (RangeTable, error) {
 	var wrapped struct {

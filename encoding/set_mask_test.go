@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -18,7 +19,7 @@ var boundaryBits = []int{0, 63, 64, 127, 128, 191, 192, 255}
 // order promises — words[0] is the LOW 64 bits.
 func TestSetMask_BitBoundaries(t *testing.T) {
 	for _, bit := range boundaryBits {
-		t.Run("bit"+itoa(bit), func(t *testing.T) {
+		t.Run("bit"+strconv.Itoa(bit), func(t *testing.T) {
 			var zero SetMask
 			m := zero.WithBit(bit)
 
@@ -248,7 +249,7 @@ func TestSetMask_LabelsAreDictionaryBounded(t *testing.T) {
 	// first word would silently lose its label.
 	wide := NewDictionary()
 	for i := 0; i < 200; i++ {
-		if _, err := wide.Add("v" + itoa(i)); err != nil {
+		if _, err := wide.Add("v" + strconv.Itoa(i)); err != nil {
 			t.Fatalf("dict.Add: %v", err)
 		}
 	}
@@ -338,7 +339,7 @@ func TestSetMask_WireWordOrder(t *testing.T) {
 		{192, 24}, {255, 31},
 	}
 	for _, tc := range cases {
-		t.Run("bit"+itoa(tc.bit), func(t *testing.T) {
+		t.Run("bit"+strconv.Itoa(tc.bit), func(t *testing.T) {
 			ft := FieldTypeSetU256
 			if tc.bit < 128 {
 				ft = FieldTypeSetU128

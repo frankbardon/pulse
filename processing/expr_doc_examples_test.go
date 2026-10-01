@@ -100,7 +100,7 @@ var (
 func harvestDocExpressions(t *testing.T) []docExpr {
 	t.Helper()
 	var files []string
-	skills, err := filepath.Glob(filepath.Join("..", "skills", "*.md"))
+	skills, err := filepath.Glob(filepath.Join("..", "internal", "skills", "*.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -310,7 +310,7 @@ func TestPredict_BufferedComponentsFlag_OrderStat(t *testing.T) {
 			}
 			// Constructing the aggregator via the registry confirms
 			// params parse — the predict-side test in
-			// descriptor/predict_streamable_test.go already asserts the
+			// internal/descriptor/predict_streamable_test.go already asserts the
 			// BufferedComponents flag against descriptor.PredictResult.
 			// Here we lock the runtime-side invariant: the factory MUST
 			// build cleanly under the same Params shape the predict

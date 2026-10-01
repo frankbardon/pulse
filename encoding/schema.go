@@ -146,8 +146,8 @@ func (s *Schema) RequiredFormatVersion() byte {
 // WriteSchema serializes s's schema block to w at the baseline 0x01
 // layout, to follow a [WriteHeader]. A schema whose content requires a
 // newer version is refused rather than written in a layout its header
-// would contradict — write it with [WritePreamble], which emits a
-// matching header.
+// would contradict; Pulse's own writers emit a grouped schema with a
+// matching 0x02 header.
 //
 // The 0x01 schema block:
 //
@@ -398,9 +398,9 @@ func readFieldDescriptors(r io.Reader) (*Schema, error) {
 // that do not complete a record.
 //
 // It is the ONE derivation behind every "how many records does this
-// cohort hold" answer for a single-file cohort — service.CountRecords
+// cohort hold" answer for a single-file cohort — internal/service.CountRecords
 // (the header-fast facade path and the parallel-decode eligibility gate)
-// and descriptor.Inspect (the header-only reporting path) both call it.
+// and internal/descriptor.Inspect (the header-only reporting path) both call it.
 // They lived as two independent floor divisions until they were lifted
 // here; identical arithmetic written twice is one edit away from two
 // different record counts over the same bytes, and nothing on either

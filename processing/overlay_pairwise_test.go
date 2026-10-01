@@ -31,7 +31,7 @@ func pairwisePropHost() *CrosstabHostView {
 			{{"n": 100}, {"n": 100}},
 		},
 	}
-	return NewCrosstabHostViewWithComponents(mx, comps)
+	return newCrosstabHostViewWithComponents(mx, comps)
 }
 
 func TestOverlayPairwise_PropZ_RowScope(t *testing.T) {
@@ -41,9 +41,9 @@ func TestOverlayPairwise_PropZ_RowScope(t *testing.T) {
 		Kind:  types.OverlayKindPairwisePropZ,
 		Scope: types.OverlayScopeRow,
 	}}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(layers) != 1 {
 		t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -84,9 +84,9 @@ func TestOverlayPairwise_ColumnScope(t *testing.T) {
 		Kind:  types.OverlayKindPairwisePropZ,
 		Scope: types.OverlayScopeColumn,
 	}}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	mx := layers[0].Payload.Matrix
 	// 2 columns -> 1 pair (x,y); rows echo the 3 host rows.
@@ -115,16 +115,16 @@ func TestOverlayPairwise_PairAlongDim(t *testing.T) {
 			{{"n": 100}, {"n": 100}, {"n": 100}, {"n": 100}},
 		},
 	}
-	host := NewCrosstabHostViewWithComponents(mx, comps)
+	host := newCrosstabHostViewWithComponents(mx, comps)
 	dim := 1
 	specs := []types.OverlaySpec{{
 		Kind:   types.OverlayKindPairwisePropZ,
 		Scope:  types.OverlayScopeColumn,
 		Params: mustParams(t, types.PairwiseOverlayParams{PairAlongDim: &dim}),
 	}}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	out := layers[0].Payload.Matrix
 	// Expect exactly 2 pairs: (2021/all,2021/owner) and (2022/all,2022/owner).
@@ -155,11 +155,11 @@ func TestOverlayPairwise_WelchT_Welford(t *testing.T) {
 			{{"mean": 12.0, "variance": 9.0, "n": 60}},
 		},
 	}
-	host := NewCrosstabHostViewWithComponents(mx, comps)
+	host := newCrosstabHostViewWithComponents(mx, comps)
 	specs := []types.OverlaySpec{{Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeRow}}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	cell := layers[0].Payload.Matrix.Cells[0][0]
 	if !cell.Present {
@@ -189,7 +189,7 @@ func TestOverlayPairwise_ComponentsRequired(t *testing.T) {
 	// No components.
 	host := NewCrosstabHostView(mx)
 	specs := []types.OverlaySpec{{Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeRow}}
-	_, _, err := ApplyOverlays(specs, host)
+	_, _, err := applyOverlays(specs, host)
 	if err == nil {
 		t.Fatalf("expected COMPONENTS_REQUIRED error, got nil")
 	}
@@ -203,7 +203,7 @@ func TestOverlayPairwise_NonWelfordShapeMismatch(t *testing.T) {
 	// fail the Welford-shape gate.
 	host := pairwisePropHost()
 	specs := []types.OverlaySpec{{Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeRow}}
-	_, _, err := ApplyOverlays(specs, host)
+	_, _, err := applyOverlays(specs, host)
 	if err == nil {
 		t.Fatalf("expected shape-mismatch error, got nil")
 	}

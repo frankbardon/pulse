@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	perrors "github.com/frankbardon/pulse/errors"
+	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -60,8 +60,8 @@ func TestSPSS_ImportProducesQueryableCohort(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("managed entries = %d, want 1", len(entries))
 	}
-	if entries[0].Sidecar.SourceFormat != pformat.SPSS {
-		t.Errorf("SourceFormat = %q, want %q — the .sav extension did not resolve through io/format", entries[0].Sidecar.SourceFormat, pformat.SPSS)
+	if entries[0].Sidecar.SourceFormat != string(pio.FormatSPSS) {
+		t.Errorf("SourceFormat = %q, want %q — the .sav extension did not resolve through io.FormatFromPath", entries[0].Sidecar.SourceFormat, pio.FormatSPSS)
 	}
 	if !res.Managed {
 		t.Errorf("Managed = false; a .sav import must produce a managed handle")
@@ -176,7 +176,7 @@ func TestSPSS_CompressedAndUncompressedProduceIdenticalCohorts(t *testing.T) {
 
 			convert := func(src, dst string) {
 				t.Helper()
-				reader, err := pformat.NewReader(pformat.SPSS, afs, src, pformat.ReaderOptions{})
+				reader, err := pio.NewReader(pio.FormatSPSS, afs, src, pio.ReaderOptions{})
 				if err != nil {
 					t.Fatalf("NewReader(%s): %v", src, err)
 				}
@@ -246,8 +246,8 @@ func TestSPSS_ZsavExtensionImportsThroughTheFacade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Imports: %v", err)
 	}
-	if len(entries) != 1 || entries[0].Sidecar.SourceFormat != pformat.SPSS {
-		t.Fatalf("the .zsav extension did not resolve through io/format: %+v", entries)
+	if len(entries) != 1 || entries[0].Sidecar.SourceFormat != string(pio.FormatSPSS) {
+		t.Fatalf("the .zsav extension did not resolve through io.FormatFromPath: %+v", entries)
 	}
 
 	// The dictionary still reaches the cohort intact through the extra
@@ -366,7 +366,7 @@ func TestSPSS_ManagedImportCleanFileHasNoWarnings(t *testing.T) {
 
 // TestSPSS_ConvertUsesSourceDictionary is the fidelity gap this story
 // closed. `pulse convert survey.sav out.csv` is reachable the moment
-// FromExt maps the extension, and before ConvertJob consulted
+// FormatFromPath maps the extension, and before ConvertJob consulted
 // SchemaAwareReader it re-inferred every type from the text the reader
 // rendered — throwing the dictionary away through a command the
 // registration itself created.
@@ -374,11 +374,11 @@ func TestSPSS_ConvertUsesSourceDictionary(t *testing.T) {
 	afs := afero.NewMemMapFs()
 	seedSav(t, afs, "survey.sav", spsstest.ReferenceSpec())
 
-	reader, err := pformat.NewReader(pformat.SPSS, afs, "survey.sav", pformat.ReaderOptions{})
+	reader, err := pio.NewReader(pio.FormatSPSS, afs, "survey.sav", pio.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}
-	job := pio.NewConvertJob(reader, &discardWriter{})
+	job := iio.NewConvertJob(reader, &discardWriter{})
 	job.FS = afs
 
 	report, err := job.Run(context.Background())
@@ -407,11 +407,11 @@ func TestSPSS_ConvertPredictUsesSourceDictionary(t *testing.T) {
 	afs := afero.NewMemMapFs()
 	seedSav(t, afs, "survey.sav", spsstest.ReferenceSpec())
 
-	reader, err := pformat.NewReader(pformat.SPSS, afs, "survey.sav", pformat.ReaderOptions{})
+	reader, err := pio.NewReader(pio.FormatSPSS, afs, "survey.sav", pio.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}
-	job := pio.NewConvertJob(reader, &discardWriter{})
+	job := iio.NewConvertJob(reader, &discardWriter{})
 	job.FS = afs
 
 	report, err := job.Predict(context.Background())
@@ -438,7 +438,7 @@ func TestSPSS_ImportSurfacesSourceWarnings(t *testing.T) {
 	}
 	seedSav(t, afs, "survey.sav", spec)
 
-	reader, err := pformat.NewReader(pformat.SPSS, afs, "survey.sav", pformat.ReaderOptions{})
+	reader, err := pio.NewReader(pio.FormatSPSS, afs, "survey.sav", pio.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}

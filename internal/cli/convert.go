@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	perrors "github.com/frankbardon/pulse/errors"
+	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -48,10 +48,10 @@ func ConvertCommand() *cli.Command {
 			jsonOut := cmd.Bool("json")
 
 			if fromFmt == "" {
-				fromFmt = formatFromExt(input)
+				fromFmt = pio.FormatFromPath(input).String()
 			}
 			if toFmt == "" {
-				toFmt = formatFromExt(output)
+				toFmt = pio.FormatFromPath(output).String()
 			}
 			if fromFmt == "" {
 				msg := fmt.Sprintf("cannot detect source format from %q; use --from", input)
@@ -70,7 +70,7 @@ func ConvertCommand() *cli.Command {
 
 			fs := afero.NewOsFs()
 
-			reader, err := newReaderForFormat(fromFmt, fs, input, pformat.ReaderOptions{Charset: cmd.String("charset"), SPSSMissing: cmd.String("spss-missing")})
+			reader, err := pio.NewReader(pio.Format(fromFmt), fs, input, pio.ReaderOptions{SPSS: pio.SPSSReaderOptions{Charset: cmd.String("charset"), MissingMode: pio.SPSSMissingMode(cmd.String("spss-missing"))}})
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -78,7 +78,7 @@ func ConvertCommand() *cli.Command {
 				return err
 			}
 
-			writer, err := newWriterForFormat(toFmt, fs, output, writerOptionsFrom(cmd))
+			writer, err := pio.NewWriter(pio.Format(toFmt), fs, output, writerOptionsFrom(cmd))
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -93,11 +93,11 @@ func ConvertCommand() *cli.Command {
 			emitted := false
 			defer func() {
 				if !emitted {
-					_ = pio.DiscardWriter(writer)
+					_ = iio.DiscardWriter(writer)
 				}
 			}()
 
-			job := pio.NewConvertJob(reader, writer)
+			job := iio.NewConvertJob(reader, writer)
 			job.FS = fs
 			job.SampleRows = sampleRows
 			job.KeepPulseAt = keepPulse
@@ -186,10 +186,10 @@ func convertPredictCmd() *cli.Command {
 			sampleRows := int(cmd.Int("sample-rows"))
 
 			if fromFmt == "" {
-				fromFmt = formatFromExt(input)
+				fromFmt = pio.FormatFromPath(input).String()
 			}
 			if toFmt == "" {
-				toFmt = formatFromExt(output)
+				toFmt = pio.FormatFromPath(output).String()
 			}
 			if fromFmt == "" {
 				return fmt.Errorf("cannot detect source format from %q; use --from", input)
@@ -200,7 +200,7 @@ func convertPredictCmd() *cli.Command {
 
 			fs := afero.NewOsFs()
 
-			reader, err := newReaderForFormat(fromFmt, fs, input, pformat.ReaderOptions{Charset: cmd.String("charset"), SPSSMissing: cmd.String("spss-missing")})
+			reader, err := pio.NewReader(pio.Format(fromFmt), fs, input, pio.ReaderOptions{SPSS: pio.SPSSReaderOptions{Charset: cmd.String("charset"), MissingMode: pio.SPSSMissingMode(cmd.String("spss-missing"))}})
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -208,7 +208,7 @@ func convertPredictCmd() *cli.Command {
 				return err
 			}
 
-			writer, err := newWriterForFormat(toFmt, fs, output, writerOptionsFrom(cmd))
+			writer, err := pio.NewWriter(pio.Format(toFmt), fs, output, writerOptionsFrom(cmd))
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -216,7 +216,7 @@ func convertPredictCmd() *cli.Command {
 				return err
 			}
 
-			job := pio.NewConvertJob(reader, writer)
+			job := iio.NewConvertJob(reader, writer)
 			job.FS = fs
 			job.SampleRows = sampleRows
 

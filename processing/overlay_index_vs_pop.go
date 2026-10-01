@@ -16,7 +16,7 @@ import (
 //   - FACET-host handler. Registered in `facetOverlayHandlers`
 //     (processing/overlay_facet_dispatch.go); the dispatch route is
 //     the post-host-finalize entry point for the streaming-Facet
-//     orchestrator (`service.FacetSchema` calls `ApplyOverlaysFacet`)
+//     orchestrator (`internal/service.FacetSchema` calls `ApplyOverlaysFacet`)
 //     AND the buffered fallback entry for any callers that materialise
 //     a FacetResult before calling into the overlay surface.
 //
@@ -55,7 +55,7 @@ import (
 //
 // Structural invariants:
 //
-//   - This file MUST NOT import service/ or descriptor/. Runtime
+//   - This file MUST NOT import internal/service/ or descriptor/. Runtime
 //     overlay execution rides inside processing/ alongside the
 //     aggregator / attribute / grouper layers (mirrors overlay.go /
 //     overlay_series.go / overlay_index_vs_total.go).

@@ -5,6 +5,7 @@ import (
 	"math/bits"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Record represents a single data row with field accessors.
@@ -28,7 +29,7 @@ import (
 //     the mask words of every set field (one uint64 for set_u8..set_u64,
 //     two for set_u128, four for set_u256) in the spare capacity of vals
 //     past len(vals) (see wordAt). The reuse decoders hand set masks over
-//     through encoding.TypedSetRecord, so decoding a set field allocates
+//     through internal/encoding.TypedSetRecord, so decoding a set field allocates
 //     nothing, and a set-bearing record needs no aux at all.
 //
 // Name → slot resolution goes through a recordLayout built once per
@@ -80,7 +81,7 @@ type Record struct {
 
 	// runOwner is the token of the reader whose index-keyed decode
 	// writes are, field for field, the record's whole schema-field
-	// state — the precondition for run-skip (encoding.RunSkipRecord).
+	// state — the precondition for run-skip (internal/encoding.RunSkipRecord).
 	// Zero means "no such reader": set by ClearForRow and by every
 	// schema-field mutation that is not a reuse-path decode write
 	// (resetRun), so the next BeginRunRow forces a full repopulate.
@@ -940,7 +941,7 @@ func (r *Record) SetNull(name string) {
 	r.invalidateAllValuesCache()
 }
 
-// SetNumeric implements encoding.ReusableRecord. Assigns a numeric value
+// SetNumeric implements internal/encoding.ReusableRecord. Assigns a numeric value
 // without touching the null marker or invalidating the AllValues cache.
 // Intended only for the streaming reuse path that calls ClearForRow before
 // each row.
@@ -948,7 +949,7 @@ func (r *Record) SetNumeric(name string, value float64) {
 	r.putValue(name, value)
 }
 
-// SetNullField implements encoding.ReusableRecord. Marks a field as null
+// SetNullField implements internal/encoding.ReusableRecord. Marks a field as null
 // in the reuse path and drops its wide value; does not invalidate the
 // AllValues cache (reuse path resets the cache once per row via
 // ClearForRow).
@@ -965,7 +966,7 @@ func (r *Record) SetNullField(name string) {
 	r.dropWide(name)
 }
 
-// SetWideField implements encoding.ReusableRecord. Stores a typed wide
+// SetWideField implements internal/encoding.ReusableRecord. Stores a typed wide
 // value (decimal128, or a set bitmask as uint64 for the narrow rungs /
 // encoding.SetMask for the wide ones) without invalidating the
 // AllValues cache.
@@ -978,14 +979,14 @@ func (r *Record) SetWideField(name string, v any) {
 // decoders drive the index-keyed methods below and never the name-keyed
 // ones above.
 var (
-	_ encoding.ReusableRecord        = (*Record)(nil)
-	_ encoding.IndexedReusableRecord = (*Record)(nil)
-	_ encoding.TypedSetRecord        = (*Record)(nil)
-	_ encoding.RunSkipRecord         = (*Record)(nil)
-	_ encoding.GroupIndexRecord      = (*Record)(nil)
+	_ encx.ReusableRecord        = (*Record)(nil)
+	_ encx.IndexedReusableRecord = (*Record)(nil)
+	_ encx.TypedSetRecord        = (*Record)(nil)
+	_ encx.RunSkipRecord         = (*Record)(nil)
+	_ encx.GroupIndexRecord      = (*Record)(nil)
 )
 
-// SetNumericAt implements encoding.IndexedReusableRecord: a slice store
+// SetNumericAt implements internal/encoding.IndexedReusableRecord: a slice store
 // plus one presence bit, no name, no hash (a projected layout adds one
 // position → slot load; a position outside the projection falls back to
 // the overflow side by name). idx is the field's position
@@ -993,8 +994,8 @@ var (
 // indexes this record's positional storage directly, so the record MUST
 // have been built over that same schema or a structurally identical one
 // (same field order). Every in-tree reuse site builds both from one
-// schema (service/stream.go, service/shard_iter.go,
-// service/parallel_decode.go); an idx past the record's schema panics
+// schema (internal/service/stream.go, internal/service/shard_iter.go,
+// internal/service/parallel_decode.go); an idx past the record's schema panics
 // rather than landing on the wrong field.
 // Same no-invalidation contract as SetNumeric.
 func (r *Record) SetNumericAt(idx int, value float64) {
@@ -1006,7 +1007,7 @@ func (r *Record) SetNumericAt(idx int, value float64) {
 	r.putValue(r.schema.Fields[idx].Name, value)
 }
 
-// SetNullFieldAt implements encoding.IndexedReusableRecord; the
+// SetNullFieldAt implements internal/encoding.IndexedReusableRecord; the
 // positional twin of SetNullField.
 // Like SetNullField it drops the wide value.
 func (r *Record) SetNullFieldAt(idx int) {
@@ -1021,7 +1022,7 @@ func (r *Record) SetNullFieldAt(idx int) {
 	r.SetNullField(r.schema.Fields[idx].Name)
 }
 
-// SetWideFieldAt implements encoding.IndexedReusableRecord; the
+// SetWideFieldAt implements internal/encoding.IndexedReusableRecord; the
 // positional twin of SetWideField.
 func (r *Record) SetWideFieldAt(idx int, v any) {
 	if s := r.layout.slot(idx); s >= 0 {
@@ -1031,7 +1032,7 @@ func (r *Record) SetWideFieldAt(idx int, v any) {
 	r.putWide(r.schema.Fields[idx].Name, v)
 }
 
-// SetNarrowSetAt implements encoding.TypedSetRecord: the unboxed twin of
+// SetNarrowSetAt implements internal/encoding.TypedSetRecord: the unboxed twin of
 // SetWideFieldAt(idx, mask) for a set_u8..set_u64 field. A slot of any
 // other kind (a projected-out position, a schema whose duplicate name
 // resolved to a differently typed first occurrence) takes the boxed path,
@@ -1044,7 +1045,7 @@ func (r *Record) SetNarrowSetAt(idx int, mask uint64) {
 	r.SetWideFieldAt(idx, mask)
 }
 
-// SetWideSetAt implements encoding.TypedSetRecord: the unboxed twin of
+// SetWideSetAt implements internal/encoding.TypedSetRecord: the unboxed twin of
 // SetWideFieldAt(idx, m) for a set_u128 / set_u256 field.
 func (r *Record) SetWideSetAt(idx int, m encoding.SetMask) {
 	if s := r.layout.slot(idx); s >= 0 && r.layout.wideKind[s] == wideWideSet && r.putMaskAt(s, m) {
@@ -1053,7 +1054,7 @@ func (r *Record) SetWideSetAt(idx int, m encoding.SetMask) {
 	r.SetWideFieldAt(idx, m)
 }
 
-// ClearForRow implements encoding.ReusableRecord. Resets per-row state
+// ClearForRow implements internal/encoding.ReusableRecord. Resets per-row state
 // so the next ReadRecordReused call starts from a clean slate while
 // keeping the underlying storage allocated. The reuse decoders reach it
 // through BeginRunRow, and only when run-skip cannot keep the previous
@@ -1083,7 +1084,7 @@ func (r *Record) ClearForRow() {
 	r.allValuesCache = nil
 }
 
-// BeginRunRow implements encoding.RunSkipRecord. It keeps the record's
+// BeginRunRow implements internal/encoding.RunSkipRecord. It keeps the record's
 // schema-field state for a partial rewrite — clearing only the
 // off-schema overflow null / wide marks and the AllValues cache, which
 // the decoder never writes — when keep is true, token is the reader that
@@ -1122,7 +1123,7 @@ func (r *Record) identityLayout() bool {
 		r.layout.n == len(r.schema.Fields)
 }
 
-// SetGroupIndices implements encoding.GroupIndexRecord: the grouped
+// SetGroupIndices implements internal/encoding.GroupIndexRecord: the grouped
 // reuse decoder hands over the row's dictionary entry per parent group
 // after it has written the row. The entries are stored bit-exactly in
 // the tail of vals past the set-mask words — no allocation, and nothing
@@ -1158,7 +1159,7 @@ func (r *Record) GroupIndex(g int) (uint32, bool) {
 	return uint32(math.Float64bits(r.vals[:cap(r.vals)][len(r.vals)+r.layout.nWords+g])), true
 }
 
-// ClearNullAt implements encoding.RunSkipRecord: clears field idx's null
+// ClearNullAt implements internal/encoding.RunSkipRecord: clears field idx's null
 // mark without touching its value or wide value. Decoder-only, like the
 // other *At writes, so it does not withdraw the record from run-skip.
 func (r *Record) ClearNullAt(idx int) {

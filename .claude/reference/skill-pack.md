@@ -2,7 +2,7 @@
 
 Relocated from CLAUDE.md (section `## Skill Pack`). CLAUDE.md keeps the always-load half inline — the two skill shapes, the stem convention, the budget headline, and the fact that there is **no `skills/index.json`: the filesystem walk is the manifest**. Everything below is the long form it points at.
 
-**Load it before adding or restructuring a skill file**, changing frontmatter keys, changing the required `##` section set for a family, or moving a token budget — `skills/atomic_test.go` and `skills/coverage_test.go` enforce every rule below.
+**Load it before adding or restructuring a skill file**, changing frontmatter keys, changing the required `##` section set for a family, or moving a token budget — `internal/skills/atomic_test.go` and `internal/skills/coverage_test.go` enforce every rule below.
 
 The pack under `skills/` is the LLM surface, embedded via `//go:embed *.md`. Two skill shapes — **atomic** (one file per registered surface) and **topical** (one file per cross-cutting design topic).
 
@@ -103,5 +103,5 @@ Counts surfaced at runtime via `pulse_manifest` (`commands`, `components.{aggreg
 1. Create the file at the conventional stem (`op-<category>-<kebab>.md`, `tool-<kebab>.md`, `type-<kebab>.md`, or a new topical name).
 2. Write the required frontmatter for the matching shape (atomic or topical) and the required `##` section set for that family.
 3. Stay under budget — atomic op ≤1200 chars body, tool/type ≤2000, topical ≤6000.
-4. Run `go test ./skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.
+4. Run `go test ./internal/skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.
 

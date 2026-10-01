@@ -43,7 +43,7 @@ The format version is **single-byte**. The accepted set is
 `{0x01, 0x02}`. `encoding.ReadHeader` returns the version it read, and
 the caller must hand it to `encoding.ReadSchema` — the schema block's
 layout depends on it, and records begin immediately after the schema
-block with no terminator (`encoding.ReadPreamble` does both in one call).
+block with no terminator (`internal/encoding.ReadPreamble` does both in one call).
 Any other version byte is rejected with `ENCODING_INVALID`:
 
 ```
@@ -61,7 +61,7 @@ always has, and a checked-in `0x01` golden (`encoding/testdata/format_v1.pulse`)
 is read by every build in CI.
 
 **The version written is a function of schema content, never a global
-flag** (`Schema.RequiredFormatVersion`, `encoding.WritePreamble`). A schema
+flag** (`Schema.RequiredFormatVersion`, `internal/encoding.WritePreamble`). A schema
 that uses no `0x02` feature is written at `0x01`, byte-identical to
 every file written before `0x02` existed. Only a schema that declares a
 [parent group](parent-groups.md) is written at `0x02`.

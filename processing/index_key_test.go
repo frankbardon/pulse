@@ -195,7 +195,7 @@ func TestResolveLookupKeyBytes_Decimal128ExactMatchesKeyFieldOnWireBytes(t *test
 // literal parsed at a different implicit scale than the field's
 // declared scale is rescaled BEFORE encoding — "12.3" (parsed scale 1)
 // against a scale-2 field must resolve to mantissa 1230, matching what
-// io/import.go's convertValueWide would persist for the same cell.
+// internal/io/import.go's convertValueWide would persist for the same cell.
 func TestResolveLookupKeyBytes_Decimal128RescalesToFieldScale(t *testing.T) {
 	field := &encoding.Field{Name: "amount", Type: encoding.FieldTypeDecimal128, Precision: 18, Scale: 2}
 

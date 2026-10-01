@@ -2,16 +2,24 @@
 
 **Audience:** internals contributors adding a new bidirectional
 tabular format (a peer to the existing `csv/`, `tsv/`, `ndjson/`,
-`jsonarray/`, `arrow/`, `parquet/`, `excel/` sub-packages).
+`jsonarray/`, `arrow/`, `parquet/`, `excel/`, `spss/` sub-packages under
+`internal/io/`).
 
-> **From CLAUDE.md, Common Claude Code Workflows.**
+> **From CLAUDE.md, The Update Demand (registered I/O format row) and `.claude/reference/update-demand.md`.**
 
 ## 1. Create the sub-package
 
-Each format is a sub-package under `io/`. Create
-`io/<format>/<format>.go` with both a reader and a writer.
+Each format is a sub-package under `internal/io/`. Create
+`internal/io/<format>/<format>.go` with both a reader and a writer.
 
-The two interfaces to implement live in `io/`:
+The two interfaces to implement live in the `internal/iocore` leaf
+(the public `io` package aliases them as `io.Reader` / `io.Writer`).
+An adapter imports `internal/iocore` for the contracts and, only if it
+must drive a job itself (the SPSS writer's row path runs an
+`ImportJob`), `internal/io` for the jobs. It must **never** import the
+public `io` package: `io`'s factory imports every adapter, so that
+would be a cycle. `TestIOImportBoundary` enforces it — add the new
+package to its `belowFacade` list.
 
 ```go
 // Reader
@@ -24,10 +32,16 @@ type Reader interface {
 // Writer
 type Writer interface {
     WriteHeader(columns []string) error
-    WriteRow(values []string) error
+    WriteRow(values []any) error
     Close() error
 }
 ```
+
+Offer all four constructors — `NewReader(fs, path)`,
+`NewReaderFromBytes(data)`, `NewWriter(fs, path)` and
+`NewWriterToBuffer()` plus a `Bytes() []byte` method on the writer —
+because the factory's `NewReaderFromBytes` / `NewWriterToBuffer` must
+cover every format it advertises.
 
 If the reader needs schema inference (header sample, then full
 import), also implement `io.ResetReader.Reset()` so the import job
@@ -41,8 +55,8 @@ object**. That object is a RECORD as well as a column declaration, so
 `ReadHeader` must buffer it and `ReadRows` must replay it as row one.
 
 Getting this wrong is invisible: no error, no warning, every import
-one row short and a single-record file importing nothing. `io/ndjson`
-and `io/jsonarray` both keep the decoded first object in a `pending`
+one row short and a single-record file importing nothing. `internal/io/ndjson`
+and `internal/io/jsonarray` both keep the decoded first object in a `pending`
 field and emit it before resuming the scan; copy that shape.
 
 Only the first object's KEYS define the column set. Replaying the
@@ -51,7 +65,7 @@ later object is still not a column.
 
 ## 2. Tests
 
-Add `io/<format>/<format>_test.go` with the standard round-trip
+Add `internal/io/<format>/<format>_test.go` with the standard round-trip
 checks: write rows, read them back, verify equality. Hermetic tests
 should use `afero.NewMemMapFs()` — see [Testing
 Conventions](../contributing/testing.md).
@@ -62,56 +76,65 @@ alone passes on a reader that drops record one and duplicates another.
 
 ## 3. Register and wire it up
 
-Registration is spread across **five** places, and a format wired into
+Registration is spread across **four** places, and a format wired into
 only some of them is reachable by one verb and mysteriously absent from
 another.
 
-**`io/format/format.go`** — the shared dispatch. All four of:
+**`io/format.go` + `io/factory.go`** — the one dispatch every surface
+(CLI import / export / convert, `imports.Manager`, embedders) shares:
 
-- the format identifier constant;
-- an `ext → id` case in `FromExt` (this is what makes `pulse convert`,
-  `pulse import auto` and `pulse_import` detect the file at all);
-- an entry in `SupportedImport`;
-- a `NewReader` case.
+- a `Format` constant and its entry in the `formats` list behind
+  `Formats()` (which also drives `Format.CanRead` / `CanWrite`);
+- an `ext → Format` case in `FormatFromPath` (this is what makes
+  `pulse convert`, `pulse import auto` and `pulse_import` detect the
+  file at all);
+- a case in each of `NewReader`, `NewReaderFromBytes`, `NewWriter` and
+  `NewWriterToBuffer`, returning the adapter pointer itself — never a
+  wrapper, or every optional interface the jobs discover by type
+  assertion is lost (`TestFactory_ReturnsAdapterUnwrapped`);
+- a per-format options sub-struct on `ReaderOptions` / `WriterOptions`
+  only when the CLI or `imports.Spec` actually reaches a knob. Sub-structs
+  for other formats are ignored silently, so one options value serves
+  every leaf. Validate anything that can be wrong at construction and
+  return a coded error.
 
-`SupportedImport` is what documentation and help output enumerate, so a
-reader with no entry there is reachable only by accident — and an entry
-with no `NewReader` case advertises a reader the engine cannot build.
-`TestSupportedImport_EveryEntryConstructs` closes that loop.
+`Formats()` is what documentation and help output enumerate, so a
+format with no entry there is reachable only by accident — and an entry
+with a missing factory case advertises an adapter the engine cannot
+build. `TestFactory_EveryAdvertisedFormatConstructs` closes that loop;
+`TestFromExt_Matrix` pins the extension mapping and
+`TestFactory_RoundTripEveryFormat` writes and reads a table through all
+four constructors. An unknown, empty or native `pulse` format is
+`PULSE_IO_FORMAT_UNSUPPORTED`. A read-only format would make
+`CanWrite` false and return its OWN coded error from the writer
+constructors naming the format, not the generic code — the extension is
+recognised, so "unsupported" says the wrong thing. (SPSS was the worked
+example until its writer landed; `PULSE_SPSS_EXPORT_UNSUPPORTED` has
+since been repurposed to mean "this cohort has no honest `.sav` form".)
 
-**`internal/cli/import.go`** — the import leaf's own switch, separate
-from `io/format`'s:
-
-- the `makeImportReader(format, ...)` case;
-- an `importFormatCmd("yourformat")` line in the `Commands:` slice on
-  `ImportCommand()`.
-
-**`internal/cli/format.go`** — `newWriterForFormat`, plus the
-`writerOptions` bag it takes. Writers are *not* in `io/format`; this
-switch is their whole dispatch, which is why a per-format write knob has
-no shared options struct to ride and gets a field on `writerOptions`
-instead. If the format is import-only, do NOT leave it falling through
-to the generic `unsupported format` default: the extension is
-recognised, so that message says the wrong thing. Return a specific
-coded error naming the format instead. (SPSS was the worked example
-until its writer landed; `PULSE_SPSS_EXPORT_UNSUPPORTED` has since been
-repurposed to mean "this cohort has no honest `.sav` form".)
+**`internal/cli/import.go`** — an `importFormatCmd("yourformat")` line
+in the `Commands:` slice on `ImportCommand()`. Reader construction
+(`makeImportReader`) and the per-format flags (`readerOptionsFrom`)
+already route through the factory; a new reader knob gets a flag here
+and a field in `readerOptionsFrom`.
 
 **`internal/cli/export.go`** — an `exportFormatCmd("yourformat")` line
-in `ExportCommand()`, when a writer exists.
+in `ExportCommand()`, when a writer exists; a new writer knob gets a
+flag and a field in `writerOptionsFrom`.
 
-**`descriptor/capabilities_export.go`** — the manifest capability
+**`internal/descriptor/capabilities_export.go`** — the manifest capability
 blocks. `importCapability()` gains an `ImportFormatCapability`
 (name, extensions, `SchemaSource` — `inferred` or `authoritative` —
 and whether the same format can be written); `exportCapability()`
 gains an `ExportFormatCapability` only when a writer actually exists.
 Both slices are alphabetised so the golden manifest stays stable, and
 `TestManifestImportCapability_MatchesFormatRegistry` pins the
-hand-declared table against `io/format`.
+hand-declared table against `io.Formats()`, `FormatFromPath` and
+`Format.CanWrite`.
 
 Two prose surfaces hardcode the format list and are easy to miss:
-`mcp/contract.go` (the `ImportIn.Format` jsonschema description) and
-`mcp/toolmeta/meta.go` (`DescImport`).
+`internal/mcp/contract.go` (the `ImportIn.Format` jsonschema description) and
+`internal/mcp/toolmeta/meta.go` (`DescImport`).
 
 Regenerate the manifest golden afterwards — never hand-edit it:
 
@@ -123,14 +146,14 @@ go test ./descriptor/ -run 'Test.*Golden' -update
 
 If the new format has a native type system (Arrow / Parquet do, CSV
 does not), share the type map with neighbouring formats via the
-`io/arrow` package the way Parquet already does. CSV / TSV / NDJSON
-/ JSON-array share `io/jsonshared` for value coercion.
+`internal/io/arrow` package the way Parquet already does. CSV / TSV / NDJSON
+/ JSON-array share `internal/io/jsonshared` for value coercion.
 
 ### The external form of a `set_*` cell
 
 A set column's *external* form is its selected **labels**, never the
 bitmask. `ExportJob.Run` hands a Writer one string per set cell:
-the selected dictionary labels joined with `pio.DefaultSetDelimiter`
+the selected dictionary labels joined with `iocore.DefaultSetDelimiter`
 (`"|"`), in ascending **bit** order — which is dictionary-index
 order, not the order the tokens appeared in the source. This is the
 exact inverse of the import obligation above, which is what makes a
@@ -152,10 +175,10 @@ The external forms, identical at every rung from `set_u8` to
 | State | Flat text (`csv` / `tsv` / `excel`) | JSON (`ndjson` / `jsonarray`) | `arrow` / `parquet` |
 |---|---|---|---|
 | null | `""` (any `isNullToken` spelling) | `null` | validity bit clear |
-| empty mask | `pio.EmptySetCell` — a bare `"|"`, no token | `"|"` on write, `[]` also accepted on read | zero-length `LIST<UTF8>` |
+| empty mask | `iocore.EmptySetCell` — a bare `"|"`, no token | `"|"` on write, `[]` also accepted on read | zero-length `LIST<UTF8>` |
 | selection | `A|B` | `"A|B"` | `["A","B"]` |
 
-`pio.EmptySetCell` is one marker for every format, so the convention
+`iocore.EmptySetCell` is one marker for every format, so the convention
 cannot drift between adapters, and it survives a round trip through a
 third-party tool because it is ordinary cell **text**: unlike CSV's
 `,,` versus `,"",`, a spreadsheet or a generic CSV writer has nothing
@@ -184,8 +207,8 @@ SILENTLY: both spellings keep importing and only the meaning changes.
   list, empty for the marker. Reading `""` as an empty list is the
   bug this replaced.
 - A Reader with a native list type must render a present zero-length
-  list as `pio.EmptySetCell`, not `""` — `""` is a null token and the
-  null cell already has its own channel one level up. `io/arrow`'s
+  list as `iocore.EmptySetCell`, not `""` — `""` is a null token and the
+  null cell already has its own channel one level up. `internal/io/arrow`'s
   `formatStringListSlice` is the reference.
 - A Reader over JSON must map `[]` to the marker
   (`jsonshared.ValueToString`), so a producer that does not know the
@@ -193,19 +216,19 @@ SILENTLY: both spellings keep importing and only the meaning changes.
   selection.
 
 The matrix that pins all of this for every adapter at a narrow rung
-and a wide rung is `io/settristate/`.
+and a wide rung is `internal/io/settristate/`.
 
 `categorical_*` has the same empty-string-vs-null collapse and it
 does have a real out-of-band null channel now — see "The categorical
 null cell" below. The two mechanisms do not overlap: a set cell's
-present-but-empty state stays on the `pio.EmptySetCell` marker at
+present-but-empty state stays on the `iocore.EmptySetCell` marker at
 every adapter, including the four with a null channel.
 
 **The form is width-agnostic.** Every rung from `set_u8` to
 `set_u256` externalizes identically; a 206-label cell is simply a
 longer token list. A Writer therefore never branches on the rung —
 but it MUST branch on `Type.IsSet()` if its native type for a set is
-a list (`io/arrow`'s `LIST<UTF8>`), because the joined string has to
+a list (`internal/io/arrow`'s `LIST<UTF8>`), because the joined string has to
 be split back into elements before it reaches a list builder.
 Handing the joined string to a list builder's generic
 `AppendValueFromString` makes it parse as JSON, fail on every row,
@@ -241,9 +264,9 @@ convention with `io.NullAwareWriter.SetExplicitNulls(true)`.
 `ConvertJob` never makes that call, because its rows are source TEXT
 in which `""` *is* the null token `isNullToken` recognises — so a
 writer's null policy follows the caller's provenance, never the cell's
-spelling. Use `pio.IsNullCell(v, explicit)` rather than testing the
+spelling. Use `iocore.IsNullCell(v, explicit)` rather than testing the
 flag by hand. A Writer that ignores the interface entirely keeps the
-text convention and is unaffected; `io/csv` and `io/tsv` already
+text convention and is unaffected; `internal/io/csv` and `internal/io/tsv` already
 render `nil` as `""`, so their bytes did not move.
 
 **Read side.** `Reader.ReadRows` yields `[]string`, which has no null
@@ -257,7 +280,7 @@ hold it — a dictionary-bearing non-set type, and nothing else. `""`
 in a `u32` or a `date` column is still a null, because reading it as a
 value would turn a recoverable null into a per-row import error.
 `set_*` is excluded on purpose: its present-but-empty state already
-has the `pio.EmptySetCell` spelling and must behave identically on
+has the `iocore.EmptySetCell` spelling and must behave identically on
 every adapter.
 
 **The adapter matrix, gaps included.**
@@ -275,13 +298,13 @@ part of the contract**: an adapter that cannot carry the distinction
 reads BOTH states back as **null**. Losing an empty string into null
 is the pre-existing behaviour and is recoverable from the source;
 inventing an empty-string value where the cohort held a null would be
-new data. `io/nullcell/` pins every row of that table, including the
+new data. `internal/io/nullcell/` pins every row of that table, including the
 three gaps — flipping an entry fails the matrix.
 
 ### Authoritative schemas: `io.SchemaAwareReader`
 
 By default `ImportJob.Run` samples up to `SampleRows` rows and votes
-on each column's type in `io/infer.go` — a guess made from
+on each column's type in `internal/io/infer.go` — a guess made from
 stringified cells. A format that carries its own dictionary (SPSS
 `.sav`; in principle Parquet and Arrow) should not be guessed at.
 Such a reader implements the optional `io.SchemaAwareReader`:
@@ -314,7 +337,7 @@ from cell text, which is exactly the re-guessing the interface exists
 to prevent. Cell text still flows through the normal conversion, so
 the dictionary is pre-seeded rather than sealed: a value absent from
 it is appended, subject to the type's width limit. `set_*` cells must
-arrive as tokens joined with `pio.DefaultSetDelimiter` (`"|"`).
+arrive as tokens joined with `iocore.DefaultSetDelimiter` (`"|"`).
 
 **Precedence.** `ImportJob` carries four slots that exist only to
 steer inference. With an authoritative schema there is nothing to
@@ -360,7 +383,7 @@ the shared `readerSchema` resolver: an explicit `ConvertJob.Schema`
 wins outright, otherwise an authoritative source schema is adopted
 before inference is considered, and the intermediate `.pulse` file
 `KeepPulseAt` writes is built from it. That matters because
-registering an extension on `FromExt` immediately makes
+registering an extension on `FormatFromPath` immediately makes
 `pulse convert source.ext out.csv` reachable — and a convert that
 re-inferred types from the text the reader rendered would throw the
 source dictionary away through a command the registration itself
@@ -498,7 +521,7 @@ hands the row to `Writer.WriteRow`. For most targets that is exactly
 right. For one class of target it is not, and the mismatch is not close
 enough to fake.
 
-`io/spss` is the case that forced the interface. A `.sav` variable's
+`internal/io/spss` is the case that forced the interface. A `.sav` variable's
 on-wire value is derived from a categorical's dictionary **ID**, a
 `set_*`'s mask **bits** and the **null bitmap** — and every one of those
 is gone by the time a row has been rendered. `formatFieldValue` resolves
@@ -536,7 +559,7 @@ with a file carrying every column, which is the quiet wrong answer this
 whole surface exists to avoid. Return a coded error naming the option
 instead. The returned count becomes `ExportReport.RowsExported`.
 
-**A writer can implement both paths.** `io/spss` does: `WriteCohort` for
+**A writer can implement both paths.** `internal/io/spss` does: `WriteCohort` for
 an export whose source is a cohort, and a buffering `WriteRow` for
 `pulse convert data.csv out.sav`, where no cohort exists — it collects
 the rows, builds an intermediate cohort in memory through the ordinary
@@ -559,7 +582,7 @@ recoverable downstream:
 - the **metadata sidecar**. It is the only home of the code / label /
   dictionary-ID triple *and* of the derived-column registry, so the
   rebuilt cohort could not tell a synthesised multiple-dichotomy `set_*`
-  column from a real one. `io/spss` then expanded it into member
+  column from a real one. `internal/io/spss` then expanded it into member
   variables that collided by name with the constituents already in the
   cohort — `PULSE_SPSS_NAME_COLLISION`, which refused every
   multiple-dichotomy convert outright.
@@ -617,7 +640,7 @@ calling `Warnings()` must not itself trigger work, and calling it twice
 must not double the set. Writers implementing neither contribute `nil`,
 so every pre-existing report stays byte-identical.
 
-The canonical user is again `io/spss`, whose encode raises diagnostics
+The canonical user is again `internal/io/spss`, whose encode raises diagnostics
 that do not stop an export but change what the file MEANS: a metadata
 sidecar that was absent or deliberately ignored (so the dictionary was
 *synthesised* rather than reproduced), and every variable rename
@@ -650,11 +673,11 @@ written handle), so skipping `Close` writes *nothing* — the correct
 outcome for a hard failure. Adding a `defer writer.Close()` would put a
 zero-row target next to the error instead, which is precisely the
 silent-success trap the total-failure verdict exists to close.
-`TestExportTargets_EmitNothingBeforeClose` pins that property across all
-eight adapters, header **and** rows.
+`TestExportTargets_EmitNothingBeforeClose` pins that property across every
+export adapter, header **and** rows.
 
 That reasoning is about DATA. Resources are a separate question, and one
-adapter answers it differently: `io/excel` drives an excelize
+adapter answers it differently: `internal/io/excel` drives an excelize
 `StreamWriter` whose buffer spills to an `os.CreateTemp` file past
 `excelize.StreamChunkSize` (16 MiB), and only `excelize.File.Close`
 removes those files. `Discard` is the release-without-emitting half of
@@ -662,7 +685,7 @@ removes those files. `Discard` is the release-without-emitting half of
 the writer inert so a later `Close` also writes nothing.
 
 `internal/cli/export.go` and `internal/cli/convert.go` run
-`pio.DiscardWriter(writer)` on every error return. It is a no-op for a
+`iio.DiscardWriter(writer)` (`internal/io`, forwarding to `iocore.DiscardWriter`) on every error return. It is a no-op for a
 writer that does not implement the interface, and it never falls back to
 `Close`. Implement `Discard` only if your writer holds something the Go
 GC cannot reclaim; if you buffer on the heap, do nothing.
@@ -673,7 +696,7 @@ GC cannot reclaim; if you buffer on the heap, do nothing.
 source header and schema, estimated the row count, and answered "this
 export is fine" regardless of the target — which was harmless only for
 as long as every writer was infallible at the target boundary. The text
-adapters stringify anything handed to them. `io/spss` is the first
+adapters stringify anything handed to them. `internal/io/spss` is the first
 writer that can REFUSE, so predict was saying yes to exports that then
 failed.
 
@@ -719,7 +742,7 @@ the dictionary text, sidecar state, derived-column foldability and the
 `Includes` / `Labels` refusals are all schema + sidecar facts.
 
 **Implement it by re-running the write path's own checks, not by
-re-stating them.** `io/spss` splits its encode at the last point before
+re-stating them.** `internal/io/spss` splits its encode at the last point before
 the first record is read — `planCohort` returns the sidecar resolution,
 the built dictionary and a bound encoder — so `WriteCohort` goes on to
 the data pass and `ValidateCohort` closes the file and reports. One
@@ -729,7 +752,7 @@ file, no mutation of the writer's own encode state, and safe to call
 before, after or instead of a write pass.
 
 **CLI wiring.** `internal/cli/export.go`'s predict leaf builds the target
-through `newWriterForFormat` against a **MemMapFs and a throwaway path**,
+through the `io.NewWriter` factory against a **MemMapFs and a throwaway path**,
 and never `Close`s it, so no adapter's bytes can reach any filesystem.
 It mounts the target format's write flags too (`--sanitize-names` turns a
 `.sav` name refusal into a warning, so a predict that could not be told
@@ -770,14 +793,14 @@ stays the author's judgement.
 
 Make sure both directions flow through `pio.ImportJob` and
 `pio.ExportJob`. The orchestration layer is format-agnostic; you
-should not need to touch `service/` unless the new format requires
+should not need to touch `internal/service/` unless the new format requires
 special metadata (e.g., Parquet's per-column statistics).
 
 ## 7. Run the gates
 
 ```bash
-go test ./io/<format>/...
-go test ./skills/ -run TestSkillsCoverAll
+go test ./internal/io/<format>/...
+go test ./internal/skills/ -run TestSkillsCoverAll
 go test ./...
 ```
 

@@ -376,6 +376,19 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IO_FORMAT_UNSUPPORTED: {
+		Message: "The io factory was asked for a format it cannot build in that direction: an empty or unknown format identifier, or the native pulse format, which is opened directly rather than through a tabular reader or writer.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Hint:   "Pass one of the tabular formats io.Formats() lists (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss), or derive it from the file name with io.FormatFromPath and check Format.CanRead / Format.CanWrite before constructing.",
+			},
+			{
+				Action: FixupSetDefault,
+				Hint:   "For a .pulse cohort, skip the factory: open it with pulse.Open or import / process it directly; no tabular reader or writer is involved.",
+			},
+		},
+	},
 	PULSE_IMPORT_SOURCE_MISSING: {
 		Message: "The source file referenced by an import call (or by a managed-import sidecar) could not be opened.",
 		Fixups: []Fixup{
@@ -2481,7 +2494,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"spss-missing"},
-				Hint:   "Import with --spss-missing=null (format.ReaderOptions.SPSSMissing = \"null\", spss.WithMissingMode(spss.MissingNull)). No sibling columns are generated, so no name can collide. The cost is real: every user-missing value becomes a plain null and the reason — refused vs. don't know vs. not applicable — is gone from the cohort. The full missing-value specification still rides the metadata sidecar either way.",
+				Hint:   "Import with --spss-missing=null (io.SPSSReaderOptions.MissingMode = io.SPSSMissingNull, spss.WithMissingMode(spss.MissingNull)). No sibling columns are generated, so no name can collide. The cost is real: every user-missing value becomes a plain null and the reason — refused vs. don't know vs. not applicable — is gone from the cohort. The full missing-value specification still rides the metadata sidecar either way.",
 			},
 			{
 				Action: FixupReplaceField,

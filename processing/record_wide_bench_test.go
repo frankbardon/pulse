@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Wide-value decode cost on the positional reuse path, per wide kind.
@@ -78,7 +79,7 @@ func BenchmarkRecordReuse_WideKinds(b *testing.B) {
 			b.ReportAllocs()
 			rec := NewReusableRecord(schema)
 			for b.Loop() {
-				rr := encoding.NewRecordReader(bytes.NewReader(raw), schema)
+				rr := encx.NewRecordReader(bytes.NewReader(raw), schema)
 				for {
 					if err := rr.ReadRecordReused(rec); err == io.EOF {
 						break

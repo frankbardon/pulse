@@ -937,7 +937,7 @@ func (a *nullCountAggregator) Aggregate(records []*Record, field string) (float6
 }
 
 // Each Components() returns ONLY the operator-specific keys declared in
-// descriptor/capabilities_aggregators.go. The universal floor ({n,
+// internal/descriptor/capabilities_aggregators.go. The universal floor ({n,
 // n_null}) is filled by the orchestrator from per-record bookkeeping,
 // never re-emitted here. Floor-only operators (AGG_COUNT, AGG_NULL_COUNT)
 // return (nil, nil) — their entire payload IS the universal floor.
@@ -964,7 +964,7 @@ func (a *sumAggregator) Components() (map[string]any, error) {
 
 // Components returns {sum} — mean is derivable as sum / n by callers
 // that need it; the floor's n is the matching denominator. The schema
-// (descriptor/capabilities_aggregators.go) intentionally exposes sum
+// (internal/descriptor/capabilities_aggregators.go) intentionally exposes sum
 // only — emitting mean here would duplicate the scalar result. Reads
 // frozenSum so streaming Finalize-reset does not erase the value.
 func (a *averageAggregator) Components() (map[string]any, error) {

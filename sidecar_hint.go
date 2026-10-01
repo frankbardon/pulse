@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/io/spss"
+	"github.com/frankbardon/pulse/internal/spsssidecar"
 	"github.com/spf13/afero"
 )
 
@@ -14,7 +14,7 @@ import (
 // small: these are the two documents beside a cohort whose validity is
 // bound to the cohort's BYTES, so these are the two a cohort-rewriting
 // operation invalidates. The index MANIFEST
-// (encoding.IndexManifestSuffix) is deliberately absent — it catalogues
+// (internal/encoding.IndexManifestSuffix) is deliberately absent — it catalogues
 // indexes rather than fingerprinting the cohort, so a rewrite leaves it
 // accurate about which indexes exist while the indexes themselves go
 // stale.
@@ -75,7 +75,7 @@ type StaleSidecar struct {
 // filename guess: point-lookup indexes come from ListIndexes (which
 // reads the keyless discovery manifest first and unions any on-disk
 // sidecar it does not name), and the SPSS metadata sidecar from
-// spss.SidecarPath. Guessing would be wrong in the one direction that
+// spsssidecar.Path. Guessing would be wrong in the one direction that
 // matters — an index filename is a hash of its key tuple, so a guess
 // cannot recover the tuple the rebuild command needs.
 //
@@ -110,7 +110,7 @@ func (p *Pulse) InvalidatedSidecars(ctx context.Context, cohortPath string) ([]S
 		return nil, err
 	}
 
-	spssPath := spss.SidecarPath(cohortPath)
+	spssPath := spsssidecar.Path(cohortPath)
 	exists, err := afero.Exists(p.fsys, spssPath)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,

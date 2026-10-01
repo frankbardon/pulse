@@ -1201,7 +1201,7 @@ type AggregationComponents struct {
 
 	// Operator carries the per-aggregator schema-declared keys. Key
 	// set is governed by the operator's ComponentSchema declaration in
-	// descriptor/capabilities_aggregators.go. Values are JSON-compatible
+	// internal/descriptor/capabilities_aggregators.go. Values are JSON-compatible
 	// scalars or nested maps.
 	Operator map[string]any `json:"operator,omitempty"`
 }
@@ -1244,7 +1244,7 @@ type GrouperComponents struct {
 	// Operator carries the per-grouper schema-declared keys (bucket
 	// edges, dict mappings, range_min / range_max, etc.). Key set is
 	// governed by the operator's ComponentSchema declaration in
-	// descriptor/capabilities_groupers.go.
+	// internal/descriptor/capabilities_groupers.go.
 	Operator map[string]any `json:"operator,omitempty"`
 
 	// Label mirrors the originating Group.Label so callers can join
@@ -1366,7 +1366,7 @@ type ComposedRequest struct {
 
 // ComposedResponse is the structured response shape for ComposedRequest
 // execution. It carries the per-slot Response objects emitted by
-// service.Compose / service.ComposeParallel alongside the
+// internal/service.Compose / internal/service.ComposeParallel alongside the
 // Compose-level Overlays slice — one OverlayLayer per
 // ComposedRequest.Overlays spec in matching index order.
 //

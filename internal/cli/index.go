@@ -7,8 +7,8 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -318,7 +318,7 @@ func indexDropCmd() *cli.Command {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
-			indexPath := encoding.SidecarIndexPath(input, keyFields)
+			indexPath := encx.SidecarIndexPath(input, keyFields)
 			if err := p.DropIndex(ctx, input, keyFields); err != nil {
 				return indexCliError(cmd, jsonOut, err)
 			}

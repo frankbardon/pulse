@@ -31,7 +31,7 @@ command's `--json` output.)
 
 ## Manifest shape
 
-From [`descriptor/manifest.go`](https://github.com/frankbardon/pulse/blob/main/descriptor/manifest.go):
+From [`internal/descriptor/manifest.go`](https://github.com/frankbardon/pulse/blob/main/internal/descriptor/manifest.go):
 
 ```json
 {
@@ -119,4 +119,4 @@ pulse --json | jq '.data.operators[] | select(.name == "FEAT_BUCKETIZE")'
   agent discovery primitives
 - [Library: pulse.Manifest](../library/overview.md) — Go counterpart
 - [Internals: Architecture](../internals/architecture.md) — why the
-  manifest cannot import `service/` or `processing/`
+  manifest cannot import `internal/service/` or `processing/`

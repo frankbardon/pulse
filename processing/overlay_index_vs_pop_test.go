@@ -339,7 +339,7 @@ func TestApplyOverlaysFacet_DispatchesIndexVsPop(t *testing.T) {
 // TestApplyOverlaysFacet_EmptySpecsShortCircuits verifies that an
 // empty specs slice short-circuits without touching host / pop. The
 // service-side finalize call site can call ApplyOverlaysFacet
-// unconditionally (mirrors the MATRIX ApplyOverlays / SERIES
+// unconditionally (mirrors the MATRIX applyOverlays / SERIES
 // ApplyOverlaysSeries contract).
 func TestApplyOverlaysFacet_EmptySpecsShortCircuits(t *testing.T) {
 	layers, warnings, err := ApplyOverlaysFacet(nil, nil, nil)

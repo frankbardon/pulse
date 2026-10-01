@@ -2,8 +2,8 @@
 
 **Audience:** Pulse internals contributors adding a new tool to the
 embedded MCP server. The MCP layer is split into the SDK-free core
-(`mcp/`), the go-sdk adapter (`mcp/gosdk/`, the only package importing
-the MCP SDK), and the leaf metadata package (`mcp/toolmeta/`).
+(`internal/mcp/`), the go-sdk adapter (`mcp/gosdk/`, the only package importing
+the MCP SDK), and the leaf metadata package (`internal/mcp/toolmeta/`).
 
 Each MCP tool wraps one slice of `pulse.Pulse` and surfaces it over
 stdio / Streamable HTTP transports. The catalog covers one tool per
@@ -19,18 +19,18 @@ skill.
 
 ## 1. Implement the handler
 
-Implement the new tool handler in the SDK-free core (`mcp/handlers.go`).
+Implement the new tool handler in the SDK-free core (`internal/mcp/handlers.go`).
 The handler is a typed function over `*pulse.Pulse`: accept the typed
 `In` struct, call the facade method, return the typed `Out` (coded
 errors surface verbatim as `{code, message, details}`). Add the tool's
-`ToolDescriptor` to the core catalog (`mcp/tools.go`) so `Tools(cfg)`
+`ToolDescriptor` to the core catalog (`internal/mcp/tools.go`) so `Tools(cfg)`
 emits it; the go-sdk adapter (`mcp/gosdk/`) mounts whatever the catalog
 returns via `gosdk.Register`.
 
 ## 2. Register tool metadata
 
-Add the tool's name + description in `mcp/toolmeta/meta.go`.
-The `mcp/toolmeta` package is imported by `descriptor/` (which assembles
+Add the tool's name + description in `internal/mcp/toolmeta/meta.go`.
+The `internal/mcp/toolmeta` package is imported by `internal/descriptor/` (which assembles
 the manifest) and by the core, so this is the leaf-metadata package that
 lets the descriptor surface the tool without importing the MCP layer or
 the SDK.
@@ -39,10 +39,10 @@ the SDK.
 
 If the new tool has field-name parameters (e.g. a `field: string`
 argument that takes a cohort field name), add a per-tool JSON Schema
-builder in `mcp/bind.go` + an entry in `Bind`. After `pulse_inspect`
+builder in `internal/mcp/bind.go` + an entry in `Bind`. After `pulse_inspect`
 succeeds against a cohort the adapter binds session-scoped variants of
 every schema-aware tool whose JSON Schema constrains field-name
-parameters to the inspected cohort's actual fields. `mcp/bind.go` is
+parameters to the inspected cohort's actual fields. `internal/mcp/bind.go` is
 pure (no MCP SDK); the per-session server mutation that consumes the
 schemas lives in the adapter (`mcp/gosdk/bind.go`).
 
@@ -69,9 +69,9 @@ the Schema-bound enums it exposes after `pulse_inspect`.
 ## 5. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllMCPTools
-go test ./descriptor/ -run TestManifestMCPToolsComplete
-go test ./mcp/ -run TestMCPSchemaBinding
+go test ./internal/skills/ -run TestSkillsCoverAllMCPTools
+go test ./internal/descriptor/ -run TestManifestMCPToolsComplete
+go test ./internal/mcp/ -run TestMCPSchemaBinding
 ```
 
 The Update Demand row for MCP tools covers all of these in one PR;

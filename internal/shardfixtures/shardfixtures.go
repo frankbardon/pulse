@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Dir is the fixture directory, relative to the repo root.
@@ -191,7 +192,7 @@ func writeArchive(filename string, canonical *encoding.Schema, shards []shard, m
 		total += uint64(len(s.Records))
 	}
 	var doc bytes.Buffer
-	if err := encoding.WriteSchemaDoc(&doc, canonicalSchema, total, uint16(len(shards))); err != nil {
+	if err := encx.WriteSchemaDoc(&doc, canonicalSchema, total, uint16(len(shards))); err != nil {
 		fail("WriteSchemaDoc(%s): %v", filename, err)
 	}
 
@@ -210,7 +211,7 @@ func writeArchive(filename string, canonical *encoding.Schema, shards []shard, m
 			fail("zip write(%s/%s): %v", filename, name, err)
 		}
 	}
-	write(encoding.ReservedSchemaName, doc.Bytes())
+	write(encx.ReservedSchemaName, doc.Bytes())
 	for _, s := range shards {
 		write(s.Name, writeSingleShard(canonical, s, mode))
 	}
@@ -232,7 +233,7 @@ func writeSingleShard(canonical *encoding.Schema, s shard, mode dictMode) []byte
 	}
 
 	var buf bytes.Buffer
-	if err := encoding.WritePreamble(&buf, shardSchema); err != nil {
+	if err := encx.WritePreamble(&buf, shardSchema); err != nil {
 		fail("WritePreamble(%s): %v", s.Name, err)
 	}
 	for _, r := range s.Records {

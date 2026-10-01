@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/descriptor"
-	"github.com/frankbardon/pulse/skills"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/skills"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
@@ -53,7 +53,7 @@ func registerResources(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
 	registerCohortResources(s, p, cfg)
 }
 
-// registerSchemaResource exposes descriptor.BuildPayloadSchema() as a static
+// registerSchemaResource exposes internal/descriptor.BuildPayloadSchema() as a static
 // MCP resource so agents can fetch the request/response contract in-session
 // alongside pulse_manifest. A resource (not a tool) keeps the tool surface
 // unchanged.
@@ -64,7 +64,7 @@ func registerSchemaResource(s *mcpsdk.Server) {
 		MIMEType:    "application/json",
 		Description: "JSON Schema (draft 2020-12) for every public Pulse request/response payload",
 	}, func(_ context.Context, req *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
-		return textResource(req.Params.URI, "application/json", string(descriptor.BuildPayloadSchema())), nil
+		return textResource(req.Params.URI, "application/json", string(descx.BuildPayloadSchema())), nil
 	})
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
 )
@@ -115,7 +116,7 @@ func apiProcessCmd() *cli.Command {
 						cohortPath = req.Cohort.DataDir + "/" + req.Cohort.Filename
 					}
 					if cohort, openErr := p.Open(ctx, cohortPath); openErr == nil {
-						for _, entry := range descriptor.CategoricalAggregationIssues(req, cohort.Schema()) {
+						for _, entry := range descx.CategoricalAggregationIssues(req, cohort.Schema()) {
 							env.AddWarning(entry.Code, entry.Message, entry.Details)
 						}
 					}
@@ -552,7 +553,8 @@ func apiPredictCmd() *cli.Command {
 				return fmt.Errorf("%s", msg)
 			}
 
-			// Use descriptor.Predict directly for strict/envelope support.
+			// PredictBytes returns the whole envelope and takes Strict /
+			// EchoRequest (and the extension snapshot) from the instance.
 			cohortPath := req.Cohort.Filename
 			if req.Cohort.DataDir != "" {
 				cohortPath = req.Cohort.DataDir + "/" + req.Cohort.Filename
@@ -566,8 +568,20 @@ func apiPredictCmd() *cli.Command {
 				return err
 			}
 
-			opts := &descriptor.PredictOptions{Strict: strict, EchoRequest: echoRequest}
-			env := descriptor.PredictFromBytes(data, req, opts)
+			p, err := newPulseOpts(pulse.Options{Strict: strict, EchoRequest: echoRequest})
+			if err != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+				}
+				return err
+			}
+			env, err := p.PredictBytes(ctx, data, req)
+			if err != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+				}
+				return err
+			}
 
 			if jsonOut {
 				return writeJSON(cmd.Writer, env)

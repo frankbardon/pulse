@@ -212,7 +212,7 @@ func newCategoryGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 	// columns. Bucketing the mask's float echo was a plausible wrong
 	// partition; dropping every row after the refusal is a plausible empty
 	// one. Both are silent, so it refuses here and declares
-	// nonSetFieldTypes in descriptor/capabilities_groupers.go.
+	// nonSetFieldTypes in internal/descriptor/capabilities_groupers.go.
 	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
 		return nil, err
 	}
@@ -284,7 +284,7 @@ func (g *categoryGrouper) Group(records []*Record, field string) (map[string][]*
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema
-// declared in descriptor/capabilities_groupers.go for GROUP_CATEGORY:
+// declared in internal/descriptor/capabilities_groupers.go for GROUP_CATEGORY:
 // {dict_size, buckets: [{key, label, count}]}. dict_size is the
 // cardinality of the schema's categorical dictionary on the partition
 // field (zero for non-categorical fields). buckets are sorted by key
@@ -431,7 +431,7 @@ func (g *roundedGrouper) Group(records []*Record, field string) (map[string][]*R
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema
-// declared in descriptor/capabilities_groupers.go for GROUP_ROUNDED:
+// declared in internal/descriptor/capabilities_groupers.go for GROUP_ROUNDED:
 // {precision, edges: [...], buckets: [{key, low, high, count}]}.
 // precision is the rounding increment (Group.Interval). edges are the
 // sorted rounded scalars, one per bucket. Per-bucket low == high ==
@@ -604,7 +604,7 @@ func (g *rangeGrouper) Group(records []*Record, field string) (map[string][]*Rec
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema
-// declared in descriptor/capabilities_groupers.go for GROUP_RANGE:
+// declared in internal/descriptor/capabilities_groupers.go for GROUP_RANGE:
 // {interval, range_min, range_max, n_buckets, edges: [...], buckets:
 // [{key, low, high, count}], underflow_count, overflow_count}.
 // interval mirrors the configured Group.Interval. range_min /
@@ -844,7 +844,7 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema
-// declared in descriptor/capabilities_groupers.go for GROUP_QUANTILE:
+// declared in internal/descriptor/capabilities_groupers.go for GROUP_QUANTILE:
 // {n_quantiles, method, edges: [...], buckets: [{key, low, high,
 // count}]}. n_quantiles mirrors the configured bucket count
 // (Group.Interval, defaulting to 4 = quartiles). method mirrors
@@ -1182,7 +1182,7 @@ func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Reco
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema
-// declared in descriptor/capabilities_groupers.go for GROUP_DATE:
+// declared in internal/descriptor/capabilities_groupers.go for GROUP_DATE:
 // {granularity, range_start, range_end, n_buckets, buckets:
 // [{key, period_start, period_end, count}]}. Granularity mirrors the
 // configured component; range_start / range_end are the earliest /
@@ -1238,7 +1238,7 @@ func (g *dateGrouper) Components() (map[string]any, error) {
 // Exactly one of Ranges (inline labeled ranges) or Table (a named,
 // pre-registered range table) is the source; supplying both or neither is
 // rejected with PULSE_RANGE_SOURCE_AMBIGUOUS. Whichever source is named,
-// the resolved ranges run through the same CompileDateRanges + Match path.
+// the resolved ranges run through the same compileDateRanges + Match path.
 // UnmatchedLabel overrides the default "unmatched" bucket label for rows
 // that fall outside every range.
 type dateRangesGroupParams struct {
@@ -1261,7 +1261,7 @@ const defaultUnmatchedRangeLabel = "unmatched"
 // fully row-local, so the grouper is streamable + mergeable.
 type dateRangesGrouper struct {
 	field          string
-	set            *DateRangeSet
+	set            *dateRangeSet
 	order          []string // supplied range labels, in author order
 	unmatchedLabel string
 
@@ -1340,13 +1340,13 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 
 // applyRanges compiles a resolved spec slice into the grouper's live range
 // set and preserves the author-order label list for bucket emission
-// (CompileDateRanges sorts by lower bound internally, so set.Labels() is
+// (compileDateRanges sorts by lower bound internally, so set.Labels() is
 // not author order). It also rejects a collision between the unmatched
 // label and any range label — that would silently merge out-of-range rows
 // into a real bucket. Shared by the eager inline path (factory) and the
 // deferred named-table path (SetExtensions).
 func (g *dateRangesGrouper) applyRanges(specs []DateRangeSpec) error {
-	set, err := CompileDateRanges(specs)
+	set, err := compileDateRanges(specs)
 	if err != nil {
 		return err
 	}
@@ -1437,7 +1437,7 @@ func (g *dateRangesGrouper) Group(records []*Record, field string) (map[string][
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema
-// declared in descriptor/capabilities_groupers.go for GROUP_DATE_RANGES:
+// declared in internal/descriptor/capabilities_groupers.go for GROUP_DATE_RANGES:
 // {n_ranges, unmatched_label, buckets: [{key, label, count}]}. Buckets
 // emit in supplied range order (author order), followed by the
 // unmatched bucket when any out-of-range rows were observed. Every

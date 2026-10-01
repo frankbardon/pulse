@@ -22,7 +22,7 @@ import (
 // *types.ComposedRequest directly (rather than a pre-extracted labels
 // slice) so callers cannot drift between the post-validate normalised
 // request and the labels they pass in. The auto-default (empty Label →
-// `request_<index+1>`) lives in service/compose_label.go as the
+// `request_<index+1>`) lives in internal/service/compose_label.go as the
 // pre-barrier normaliser; this resolver mirrors the same rule against
 // `req.Requests[i].Label` directly so the COMPOSE-host fold path stays
 // honest even when callers reach it from a code path that never went
@@ -33,10 +33,10 @@ import (
 //
 //   - Pure function. No I/O. No goroutines. No global state. No
 //     mutation of `req` or `responses`. Same inputs → same outputs.
-//   - MUST NOT import service/ or descriptor/. The resolver stays
-//     inside processing/ so descriptor.ValidateComposedRequest
+//   - MUST NOT import internal/service/ or descriptor/. The resolver stays
+//     inside processing/ so internal/descriptor.ValidateCompose
 //     (no-execute) can lift the same per-spec lookup at predict time
-//     without dragging in a service/ import.
+//     without dragging in a internal/service/ import.
 //   - No fmt.Sprintf in any JSON-bearing path. Detail keys are plain
 //     map[string]any; the chassis-side warning emission rules are
 //     unchanged by this file.
@@ -44,7 +44,7 @@ import (
 // Failure modes (the resolver itself):
 //
 //   - Two slots resolve to the same final label after auto-default →
-//     PULSE_COMPOSE_LABEL_COLLISION. service/compose_label.go's
+//     PULSE_COMPOSE_LABEL_COLLISION. internal/service/compose_label.go's
 //     applyComposeLabelDefaults already rejects this at the barrier,
 //     so reaching this branch is a defensive guard against callers
 //     that skip the normaliser (descriptor predict, MCP).
@@ -267,10 +267,10 @@ func composeDefaultLabel(index int) string {
 
 // ComposeDefaultLabel is the exported sibling of the package-internal
 // composeDefaultLabel helper. The descriptor-side compose validator
-// (descriptor.ValidateCompose) re-derives the same default
+// (internal/descriptor.ValidateCompose) re-derives the same default
 // slot label rule (`request_<i+1>`, 1-based) so a predict-time
 // reference / target lookup matches the runtime's view of the slot
-// labels; the per-helper sync test in descriptor/compose_test.go
+// labels; the per-helper sync test in internal/descriptor/compose_test.go
 // (TestComposeDescriptorDefaultLabel_MatchesProcessingHelper) pins
 // the two implementations in lockstep so a future tweak on either
 // side fails loud.

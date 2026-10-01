@@ -3,12 +3,12 @@
 **Audience:** Pulse internals contributors adding a new `AGG_*`
 operator.
 
-This page is a step-by-step recipe. The same content lives in
-[`CLAUDE.md` → Common Claude Code Workflows → Adding a new
-aggregator](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#adding-a-new-aggregator);
-this is the human-readable mirror.
+This page is a step-by-step recipe. The binding list of companions
+is CLAUDE.md's Update Demand table (aggregator row) and its long form,
+`.claude/reference/update-demand.md`; this is the human-readable
+walkthrough.
 
-> **From CLAUDE.md, Common Claude Code Workflows.**
+> **From CLAUDE.md, The Update Demand (registered aggregator row) and `.claude/reference/update-demand.md`.**
 
 ## 1. Declare the type constant
 
@@ -84,7 +84,7 @@ as the name appears.
 
 ## 6. Declare the capability metadata
 
-Add a row to `descriptor/capabilities_aggregators.go` describing the
+Add a row to `internal/descriptor/capabilities_aggregators.go` describing the
 operator's params, accepted field types, emitted type, and the
 streamable hint. `TestManifestOperatorsComplete` enforces that every
 registered aggregator has a capability row.
@@ -96,7 +96,7 @@ v0.20.0. The next section walks through both.
 ## 6a. Declare the `ComponentSchema` (Response.Components contract)
 
 Every registered aggregator MUST declare a `ComponentSchema` on its
-capability row in `descriptor/capabilities_aggregators.go`. The schema
+capability row in `internal/descriptor/capabilities_aggregators.go`. The schema
 enumerates the operator-specific keys the aggregator emits into
 `Response.Components.Aggregations[i].Operator` and tags the operator
 with one of three mergeability classes:
@@ -175,7 +175,7 @@ orchestrator fill the floor only" — the canonical AGG_COUNT shape.
 The full Response.Components contract (per-family typed shape, streaming
 behaviour by mergeability class, overlay parity reads) lives in the
 [response-components
-skill](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md) —
+skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md) —
 that file remains the authoritative contract document.
 
 ## 6c. Mergeable-aggregator rule
@@ -183,7 +183,7 @@ that file remains the authoritative contract document.
 If your aggregator is mergeable, implement `MergeableAggregator.Merge(other)`
 and declare it as `Mergeable()` in `AggregationType.Mergeable()`
 (`types/types.go`) so it composes correctly under parallel decode
-(`service/parallel_reduce.go`) and shard reduce (`service/shard_reduce.go`).
+(`internal/service/parallel_reduce.go`) and shard reduce (`internal/service/shard_reduce.go`).
 Both surfaces fold per-worker / per-shard partials in deterministic
 index order via `mergeShardPartials` + `finalizeMergedPartial`.
 
@@ -197,26 +197,33 @@ distinct_count, mode) produce byte-equal merge output; Welford-Pébaÿ
 aggregators (mean, variance, stddev) use Chan-Welford and stay within ULP
 of serial. If your aggregator's online state cannot be folded associatively,
 leave `Mergeable()` returning false. See [Cohort schema design — Parallel
-decode](https://github.com/frankbardon/pulse/blob/main/skills/cohort-schema-design.md)
+decode](https://github.com/frankbardon/pulse/blob/main/internal/skills/cohort-schema-design.md)
 for the gate composition and observed perf characteristics.
 
 ## 7. CLAUDE.md and registered-component lists
 
-Update CLAUDE.md's "Current registered components" section with the
-new aggregator name in the right alphabetised slot. If the operator
-interacts with categorical fields in a special way, also update
-`descriptor/predict.go`'s `numericAggregations` map.
+There is **no registered-aggregator count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-agg-<kebab>.md`, the capability declaration in
+`internal/descriptor/capabilities_aggregators.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+
+If the operator interacts with categorical fields in a special way,
+also update `internal/descriptor/predict.go`'s `numericAggregations` map.
 
 ## 8. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ -run 'TestManifest|TestPredict'
+go test ./internal/skills/ -run TestSkillsCoverAllComponents
+go test ./descriptor/ ./internal/descriptor/ -run 'TestManifest|TestPredict'
 go test ./processing/ -run TestRegistryStreamability
 go test ./...
 ```
 
-The full Update Demand row for aggregators says: skill update +
-capability declaration + CLAUDE.md update + the existing test
-coverage. All four ride in the same PR. See
+The full Update Demand row for aggregators says: atomic skill +
+capability declaration + an example tag + the existing test
+coverage. All of them ride in the same PR. See
 [The Update Demand](update-demand.md).

@@ -3,15 +3,15 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	stderrors "errors"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
+	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -33,7 +33,7 @@ var importFlags = []cli.Flag{
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
 	&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
-	&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encoding.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
+	&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
 	&cli.BoolFlag{Name: "strict", Usage: "Treat parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) as errors: the import fails and writes nothing"},
 }
 
@@ -146,7 +146,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 	job.StrictDedup = cmd.Bool("strict")
 	for _, decl := range cmd.StringSlice("group") {
-		g, err := pio.ParseGroupDecl(decl)
+		g, err := iio.ParseGroupDecl(decl)
 		if err != nil {
 			if jsonOut {
 				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -201,7 +201,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 // the import leaves and `import auto` share it so the text cannot drift.
 func writeGroupReports(w io.Writer, groups []pio.GroupReport) {
 	for _, g := range groups {
-		if g.Verdict == encoding.GroupVerdictDroppedTooNarrow {
+		if g.Verdict == encx.GroupVerdictDroppedTooNarrow {
 			writeText(w, "Parent %s: dropped, %d-byte members no wider than the %d-byte index\n", g.Label, g.MemberRowBytes, g.IndexWidth)
 			continue
 		}
@@ -226,7 +226,7 @@ func importPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "suggest-groups", Usage: "Detect candidate parent groups (a key and the fields it determines) and measure each over every row: ratio, resident dictionary bytes, projected file size and a ready-to-paste --group value. Suggests only; nothing is declared"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Evaluate a parent-group declaration exactly as 'import <format> --group' would apply it (same syntax, repeatable): its verdict and measured figures, or the error the import would fail with"},
 			&cli.BoolFlag{Name: "elide-constants", Usage: "Report the fields 'import <format> --elide-constants' would elide and the bytes saved"},
-			&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encoding.DefaultDedupRatioFloor, Usage: "Ratio floor the --group and --suggest-groups verdicts are judged against"},
+			&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Ratio floor the --group and --suggest-groups verdicts are judged against"},
 			&cli.BoolFlag{Name: "strict", Usage: "Fail as 'import <format> --strict' would when a --group draws a viability warning"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -237,7 +237,7 @@ func importPredictCmd() *cli.Command {
 			jsonOut := cmd.Bool("json")
 
 			if format == "" {
-				format = formatFromExt(input)
+				format = pio.FormatFromPath(input).String()
 			}
 			if format == "" {
 				msg := "cannot detect format; use --format"
@@ -264,7 +264,7 @@ func importPredictCmd() *cli.Command {
 			job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 			job.StrictDedup = cmd.Bool("strict")
 			for _, decl := range cmd.StringSlice("group") {
-				g, gerr := pio.ParseGroupDecl(decl)
+				g, gerr := iio.ParseGroupDecl(decl)
 				if gerr != nil {
 					if jsonOut {
 						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", gerr)
@@ -322,7 +322,7 @@ func writePredictMeasured(cmd *cli.Command, report *pio.PredictReport) {
 		writeText(w, "Would elide constant fields (%d bytes saved): %s\n", report.Projection.ElisionBytesSaved, strings.Join(report.ElidedConstants, ", "))
 	}
 	for _, g := range report.Groups {
-		if g.Verdict == encoding.GroupVerdictDroppedTooNarrow {
+		if g.Verdict == encx.GroupVerdictDroppedTooNarrow {
 			writeText(w, "Parent %s: would be dropped, %d-byte members no wider than the %d-byte index\n", g.Label, g.MemberRowBytes, g.IndexWidth)
 			continue
 		}
@@ -348,10 +348,10 @@ func writeGroupCandidates(w io.Writer, d *pio.GroupDetection) {
 			mark = "*"
 		}
 		switch c.Verdict {
-		case pio.CandidateVerdictUnmeasured:
+		case iio.CandidateVerdictUnmeasured:
 			writeText(w, "%s %s: %s (%s) members %s\n", mark, c.Label, c.Verdict, c.Reason, strings.Join(c.Members, ","))
 			continue
-		case encoding.GroupVerdictDroppedTooNarrow:
+		case encx.GroupVerdictDroppedTooNarrow:
 			writeText(w, "%s %s: %s, %d-byte members no wider than the %d-byte index\n", mark, c.Label, c.Verdict, c.MemberRowBytes, c.IndexWidth)
 			continue
 		}
@@ -400,7 +400,7 @@ func importSchemaTemplateCmd() *cli.Command {
 			sampleRows := int(cmd.Int("sample-rows"))
 
 			if format == "" {
-				format = formatFromExt(input)
+				format = pio.FormatFromPath(input).String()
 			}
 			if format == "" {
 				return fmt.Errorf("cannot detect format from %q; use --format", input)
@@ -447,38 +447,27 @@ func importSchemaTemplateCmd() *cli.Command {
 
 // readerOptionsFrom lifts the per-format reader knobs off whichever leaf is
 // running. A leaf that does not declare a flag reads it as "", which is the
-// same as not setting the option, so one helper serves every leaf.
-func readerOptionsFrom(cmd *cli.Command) pformat.ReaderOptions {
-	return pformat.ReaderOptions{
-		Sheet:       cmd.String("sheet"),
-		Charset:     cmd.String("charset"),
-		SPSSMissing: cmd.String("spss-missing"),
+// same as not setting the option, so one helper serves every leaf. Each
+// knob lands in its format's sub-struct; the factory ignores the others.
+func readerOptionsFrom(cmd *cli.Command) pio.ReaderOptions {
+	return pio.ReaderOptions{
+		Excel: pio.ExcelReaderOptions{Sheet: cmd.String("sheet")},
+		SPSS: pio.SPSSReaderOptions{
+			Charset:     cmd.String("charset"),
+			MissingMode: pio.SPSSMissingMode(cmd.String("spss-missing")),
+		},
 	}
 }
 
-// makeImportReader builds the source reader for `pulse import`.
-//
-// It delegates to pformat.NewReader rather than keeping a second dispatch
-// switch. The duplicate switch this replaces was a standing trap — a format
-// registered in io/format and not here produced a subcommand that existed and
-// immediately failed — and it is also where a new ReaderOptions field would
-// have silently gone unread.
-func makeImportReader(format string, fs afero.Fs, path string, opts pformat.ReaderOptions) (pio.Reader, error) {
-	r, err := pformat.NewReader(format, fs, path, opts)
-	if err != nil {
-		// A CODED failure is a per-option refusal — an unrecognised
-		// --spss-missing value, say — and is surfaced verbatim. Only the
-		// dispatch's own "no such format" is reworded, because that one
-		// is about the format identifier and nothing else. Flattening
-		// both into "unsupported import format" told an operator who
-		// typo'd a flag value that Pulse cannot read `.sav` at all.
-		var coded *errors.CodedError
-		if stderrors.As(err, &coded) {
-			return nil, err
-		}
-		return nil, fmt.Errorf("unsupported import format: %s", format)
-	}
-	return r, nil
+// makeImportReader builds the source reader for `pulse import` through the
+// io factory, the one dispatch every surface shares — a second switch here
+// was a standing trap (a format registered in one place and not the other
+// produced a subcommand that existed and immediately failed). Every
+// factory failure is coded and surfaced verbatim: PULSE_IO_FORMAT_UNSUPPORTED
+// for the format identifier, a per-option code (an unrecognised
+// --spss-missing value, say) otherwise.
+func makeImportReader(format string, fs afero.Fs, path string, opts pio.ReaderOptions) (pio.Reader, error) {
+	return pio.NewReader(pio.Format(format), fs, path, opts)
 }
 
 func loadSchemaFromFile(fs afero.Fs, path string) (*encoding.Schema, error) {

@@ -25,8 +25,8 @@ import (
 // Streamability subtlety: the per-kind streamability flag
 // (types/overlay_streamability.go) declares the kind's INTRINSIC
 // streaming capability. For the dual-shape kinds the MATRIX arm
-// rides through the slot barrier in service.Compose /
-// service.ComposeParallel (which forces buffered execution by
+// rides through the slot barrier in internal/service.Compose /
+// internal/service.ComposeParallel (which forces buffered execution by
 // construction); the SERIES arm is fold-only (single accumulator per
 // group; no peer-cell lookup) and matches the kind-catalog-v1
 // "Streaming-capable subset". The runtime gate (canStreamOverlays

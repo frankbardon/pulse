@@ -13,37 +13,18 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	perrors "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
-	"github.com/frankbardon/pulse/io/spss"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
 
-// TestFormatFromExt_SPSS covers the extensions the convert leaf detects.
-// `pulse convert` and `pulse convert predict` both route through
-// formatFromExt, so an unmapped extension makes the whole verb
-// unreachable for `.sav` regardless of what the reader registry says.
-func TestFormatFromExt_SPSS(t *testing.T) {
-	for _, tt := range []struct{ path, want string }{
-		{"survey.sav", "spss"},
-		{"survey.zsav", "spss"},
-		{"SURVEY.SAV", "spss"},
-		{"/data/2024/survey.sav", "spss"},
-	} {
-		if got := formatFromExt(tt.path); got != tt.want {
-			t.Errorf("formatFromExt(%q) = %q, want %q", tt.path, got, tt.want)
-		}
-	}
-}
-
 // TestMakeImportReader_SPSS pins the import leaf's reader construction.
-// It used to be a SEPARATE dispatch from io/format's — registering a format
-// in one place and not the other produced a subcommand that existed and
-// immediately failed — and E3-S5 collapsed the duplicate onto
-// pformat.NewReader. The assertion is unchanged: what `pulse import spss`
-// builds must carry the two optional interfaces the import path keys off.
+// It used to be a SEPARATE dispatch — registering a format in one place
+// and not the other produced a subcommand that existed and immediately
+// failed — and now routes through the io factory (io.NewReader). The
+// assertion is unchanged: what `pulse import spss` builds must carry the
+// two optional interfaces the import path keys off.
 func TestMakeImportReader_SPSS(t *testing.T) {
-	r, err := makeImportReader("spss", afero.NewMemMapFs(), "survey.sav", pformat.ReaderOptions{})
+	r, err := makeImportReader("spss", afero.NewMemMapFs(), "survey.sav", pio.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("makeImportReader(spss): %v", err)
 	}
@@ -73,34 +54,12 @@ func TestImportCommand_HasSPSSSubcommand(t *testing.T) {
 	t.Error("`pulse import spss` is not mounted on the import command group")
 }
 
-// TestNewWriterForFormat_SPSSBuildsTheWriter replaces the refusal this
-// arm used to be. `pulse convert data.csv out.sav` is now reachable, so
-// the dispatch must hand back a real writer — and one carrying the two
-// optional interfaces the export path keys off, because a Writer that
-// satisfied only pio.Writer would silently take the rendered-row path
-// and encode a `.sav` from resolved label text.
-func TestNewWriterForFormat_SPSSBuildsTheWriter(t *testing.T) {
-	w, err := newWriterForFormat("spss", afero.NewMemMapFs(), "out.sav", writerOptions{})
-	if err != nil {
-		t.Fatalf("newWriterForFormat(spss): %v", err)
-	}
-	if _, ok := w.(pio.SchemaAwareWriter); !ok {
-		t.Error("the CLI's spss writer does not implement pio.SchemaAwareWriter; it would never see the source schema")
-	}
-	if _, ok := w.(pio.CohortWriter); !ok {
-		t.Error("the CLI's spss writer does not implement pio.CohortWriter; ExportJob would hand it rendered rows")
-	}
-	if _, ok := w.(pio.TargetWarningEmitter); !ok {
-		t.Error("the CLI's spss writer does not implement pio.TargetWarningEmitter; sidecar and rename warnings would never print")
-	}
-}
-
 // TestWriterOptionsFrom_MapsEveryFlag pins the one-for-one projection of
-// the CLI flags onto spss.WriterOptions. A flag that parsed but did not
+// the CLI flags onto io.SPSSWriterOptions. A flag that parsed but did not
 // reach the option is the failure this catches: it changes nothing and
 // says nothing.
 func TestWriterOptionsFrom_MapsEveryFlag(t *testing.T) {
-	var got spss.WriterOptions
+	var got pio.SPSSWriterOptions
 	cmd := &cli.Command{
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "ignore-sidecar"},
@@ -117,14 +76,14 @@ func TestWriterOptionsFrom_MapsEveryFlag(t *testing.T) {
 	if err := cmd.Run(context.Background(), args); err != nil {
 		t.Fatalf("running: %v", err)
 	}
-	want := spss.WriterOptions{IgnoreSidecar: true, Uncompressed: true, Charset: "cp1252", SanitizeNames: true}
+	want := pio.SPSSWriterOptions{IgnoreSidecar: true, Uncompressed: true, Charset: "cp1252", SanitizeNames: true}
 	if got != want {
 		t.Errorf("writerOptionsFrom = %+v, want %+v", got, want)
 	}
 }
 
 // TestExportSPSS_HasEveryWriteFlag. The knobs have to be MOUNTED, which
-// is a different claim from spss.WriterOptions carrying the fields.
+// is a different claim from io.SPSSWriterOptions carrying the fields.
 func TestExportSPSS_HasEveryWriteFlag(t *testing.T) {
 	var spssCmd *cli.Command
 	for _, c := range ExportCommand().Commands {
@@ -269,17 +228,6 @@ func decodeEnvelope(t *testing.T, raw []byte) descriptor.Envelope {
 	return env
 }
 
-// TestNewWriterForFormat_WritableFormatsUnaffected keeps the new arm
-// from swallowing anything else.
-func TestNewWriterForFormat_WritableFormatsUnaffected(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	for _, f := range []string{"csv", "tsv", "ndjson", "jsonarray", "parquet", "arrow", "excel"} {
-		if _, err := newWriterForFormat(f, fs, "out."+f, writerOptions{}); err != nil {
-			t.Errorf("newWriterForFormat(%q): %v", f, err)
-		}
-	}
-}
-
 // TestWriteEnvelopeWithWarnings_LiftsCodes pins where source-parse
 // diagnostics land in --json output: the envelope's `warnings` array,
 // which is where the Output Format Contract says warnings live. Burying
@@ -401,11 +349,11 @@ func TestSPSSMissingFlagOnEverySPSSReachableLeaf(t *testing.T) {
 
 // TestMakeImportReader_RejectsUnknownMissingMode checks the refusal
 // survives the CLI's own reader construction rather than being swallowed
-// into the generic "unsupported import format" message. A typo'd
+// into a format-level error. A typo'd
 // --spss-missing must not silently import under the default.
 func TestMakeImportReader_RejectsUnknownMissingMode(t *testing.T) {
 	_, err := makeImportReader("spss", afero.NewMemMapFs(), "survey.sav",
-		pformat.ReaderOptions{SPSSMissing: "nul"})
+		pio.ReaderOptions{SPSS: pio.SPSSReaderOptions{MissingMode: "nul"}})
 	if err == nil {
 		t.Fatal("makeImportReader accepted an unknown --spss-missing value")
 	}

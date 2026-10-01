@@ -7,8 +7,9 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/csv"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -19,7 +20,7 @@ import (
 func preambleOf(t *testing.T, raw []byte) ([]byte, *encoding.Schema, byte) {
 	t.Helper()
 	br := bytes.NewReader(raw)
-	s, v, err := encoding.ReadPreamble(br)
+	s, v, err := encx.ReadPreamble(br)
 	if err != nil {
 		t.Fatalf("ReadPreamble: %v", err)
 	}
@@ -81,9 +82,9 @@ func TestGroupedCohort_FilterToFile(t *testing.T) {
 		srcPre, srcSchema, _ := preambleOf(t, srcRaw)
 		flatRaw, _ := afero.ReadFile(tw.flat, "cohort.pulse")
 		flatPre, _, _ := preambleOf(t, flatRaw)
-		specs := make([]encoding.GroupSpec, len(srcSchema.Groups))
+		specs := make([]encx.GroupSpec, len(srcSchema.Groups))
 		for g := range specs {
-			specs[g] = srcSchema.GroupSpecOf(g)
+			specs[g] = encx.GroupSpecOf(srcSchema, g)
 		}
 		for _, c := range cases {
 			t.Run(tw.name+"/"+c.name, func(t *testing.T) {
@@ -130,7 +131,7 @@ func TestGroupedCohort_FilterToFile(t *testing.T) {
 				refFS := afero.NewMemMapFs()
 				if kept > 0 {
 					var ref bytes.Buffer
-					if _, n, err := encoding.DedupCohort(&ref, bytes.NewReader(flatOut), specs); err != nil || n != kept {
+					if _, n, err := encx.DedupCohort(&ref, bytes.NewReader(flatOut), specs); err != nil || n != kept {
 						t.Fatalf("reference dedup: %d rows, err %v", n, err)
 					}
 					_ = afero.WriteFile(refFS, "out.pulse", ref.Bytes(), 0o644)
@@ -138,7 +139,7 @@ func TestGroupedCohort_FilterToFile(t *testing.T) {
 					// output with the same groups yields the reference
 					// byte-for-byte (unreferenced entries dropped).
 					var pruned bytes.Buffer
-					if _, _, err := encoding.DedupCohort(&pruned, bytes.NewReader(out), specs); err != nil || !bytes.Equal(pruned.Bytes(), ref.Bytes()) {
+					if _, _, err := encx.DedupCohort(&pruned, bytes.NewReader(out), specs); err != nil || !bytes.Equal(pruned.Bytes(), ref.Bytes()) {
 						t.Fatalf("re-dedup of the carried output (err %v) is not the fresh dedup of the same rows", err)
 					}
 				} else {

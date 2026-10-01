@@ -26,7 +26,7 @@ type DedupOptions struct {
 	ElideConstants bool
 	// RatioFloor is the rows-per-distinct-tuple floor below which a
 	// group draws PULSE_DEDUP_LOW_RATIO; 0 selects
-	// encoding.DefaultDedupRatioFloor (2).
+	// internal/encoding.DefaultDedupRatioFloor (2).
 	RatioFloor float64
 	// Strict turns the gate's warnings (PULSE_GROUP_TOO_NARROW,
 	// PULSE_DEDUP_LOW_RATIO) into a fatal error of the same code, raised
@@ -72,9 +72,9 @@ func (r *DedupResult) Warnings() []*errors.CodedError {
 // existing-cohort twin of `pulse import --group`.
 //
 // The byte work is pio.DedupJob: the source is read through its logical
-// record stream, encoded through the same encoding.GroupEncoder import
+// record stream, encoded through the same internal/encoding.GroupEncoder import
 // uses into a temp-file spool (memory stays O(dictionaries)), judged by
-// the same encoding.DedupGate (width floor before the pass, ratio floor
+// the same internal/encoding.DedupGate (width floor before the pass, ratio floor
 // after it and BEFORE anything is written, Strict escalating either),
 // then assembled into a temp file beside the target, fsynced and
 // renamed over it. Any failure leaves the original byte-identical.

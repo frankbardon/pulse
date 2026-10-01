@@ -136,9 +136,9 @@ func TestCompileDateRanges_Match(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			set, err := CompileDateRanges(tc.specs)
+			set, err := compileDateRanges(tc.specs)
 			if err != nil {
-				t.Fatalf("CompileDateRanges: unexpected error: %v", err)
+				t.Fatalf("compileDateRanges: unexpected error: %v", err)
 			}
 			label, ok := set.Match(day(t, tc.probe))
 			if ok != tc.hit {
@@ -227,9 +227,9 @@ func TestCompileDateRanges_Validation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := CompileDateRanges(tc.specs)
+			_, err := compileDateRanges(tc.specs)
 			if got := codeOf(t, err); got != tc.want {
-				t.Fatalf("CompileDateRanges error code = %q, want %q", got, tc.want)
+				t.Fatalf("compileDateRanges error code = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -265,8 +265,8 @@ func TestCompileDateRanges_ValidDisjointSets(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := CompileDateRanges(tc.specs); err != nil {
-				t.Fatalf("CompileDateRanges: unexpected error: %v", err)
+			if _, err := compileDateRanges(tc.specs); err != nil {
+				t.Fatalf("compileDateRanges: unexpected error: %v", err)
 			}
 		})
 	}

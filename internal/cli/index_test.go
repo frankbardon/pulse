@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -75,7 +76,7 @@ func TestIndexBuildCLI_SingleKeyWritesSidecar(t *testing.T) {
 		t.Fatalf("run: %v", err)
 	}
 
-	wantPath := encoding.SidecarIndexPath(cohort, []string{"id"})
+	wantPath := encx.SidecarIndexPath(cohort, []string{"id"})
 	if _, err := os.Stat(wantPath); err != nil {
 		t.Errorf("sidecar not written at derived path %q: %v", wantPath, err)
 	}
@@ -91,14 +92,14 @@ func TestIndexBuildCLI_CompositeKeyWritesSidecar(t *testing.T) {
 		t.Fatalf("run: %v", err)
 	}
 
-	wantPath := encoding.SidecarIndexPath(cohort, []string{"region", "id"})
+	wantPath := encx.SidecarIndexPath(cohort, []string{"region", "id"})
 	if _, err := os.Stat(wantPath); err != nil {
 		t.Errorf("composite sidecar not written at derived path %q: %v", wantPath, err)
 	}
 	// A single-key build over ["id"] must derive a DIFFERENT path than
 	// the composite ["region","id"] build above — distinct key lists
 	// (and key order) always derive distinct sidecar paths.
-	singleKeyPath := encoding.SidecarIndexPath(cohort, []string{"id"})
+	singleKeyPath := encx.SidecarIndexPath(cohort, []string{"id"})
 	if singleKeyPath == wantPath {
 		t.Errorf("composite key path collided with single-key path: %q", wantPath)
 	}
@@ -135,7 +136,7 @@ func TestIndexBuildCLI_JSONEnvelopeShape(t *testing.T) {
 	if env.Errors == nil || len(env.Errors) != 0 {
 		t.Errorf("errors = %v, want empty non-null array", env.Errors)
 	}
-	wantPath := encoding.SidecarIndexPath(cohort, []string{"id"})
+	wantPath := encx.SidecarIndexPath(cohort, []string{"id"})
 	if env.Data.IndexPath != wantPath {
 		t.Errorf("data.index_path = %q, want %q", env.Data.IndexPath, wantPath)
 	}
@@ -432,7 +433,7 @@ func TestIndexDropCLI_RemovesSidecar(t *testing.T) {
 	if err := runIndexCLI(t, &buildBuf, "build", "--input", cohort, "--key", "id"); err != nil {
 		t.Fatalf("build: %v", err)
 	}
-	wantPath := encoding.SidecarIndexPath(cohort, []string{"id"})
+	wantPath := encx.SidecarIndexPath(cohort, []string{"id"})
 	if _, err := os.Stat(wantPath); err != nil {
 		t.Fatalf("precondition: sidecar not present before drop: %v", err)
 	}

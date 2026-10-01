@@ -30,6 +30,13 @@ type Options struct {
     // computes and reports DefaultsApplied independently — this flag
     // governs only what the runtime mutates on the live request.
     DisableDefaults bool
+
+    // DisableCrosstabFusion forces every crosstab request onto the
+    // buffered path, skipping the fused in-decode streaming arm.
+    DisableCrosstabFusion bool
+
+    // ... further fields (concurrency, projection, imports, labels,
+    // templates) are documented on the Options type in pulse.go.
 }
 ```
 
@@ -44,7 +51,7 @@ The base directory for `.pulse` files. Relative cohort paths
 |---|---|
 | Non-empty `Options.DataDir` | Used directly |
 | Empty + `FS` non-nil        | `DataDir` is ignored — the FS is the trust boundary |
-| Empty + `FS` nil            | Pulse falls back to `fs.Default()`, which reads `PULSE_DATA_DIR` |
+| Empty + `FS` nil            | Pulse falls back to its default OS filesystem, rooted at `PULSE_DATA_DIR` |
 
 Example:
 
@@ -90,15 +97,31 @@ disabled.
 CLI parity: `pulse api process --no-defaults`, `pulse api compose
 --no-defaults`.
 
+### `DisableCrosstabFusion bool`
+
+A crosstab request the fusion gate admits normally runs on the fused
+arm: the row × column grid is built in-decode, without materialising
+the filter-passing record set. Set `DisableCrosstabFusion = true` to
+force every crosstab onto the buffered path instead. Output is
+identical either way — fusion is a peak-heap optimisation — so this is
+a diagnostic and benchmarking knob, for example to compare fused and
+buffered memory on the same request. It is fixed at `pulse.New` time;
+there is no per-request override.
+
+```go
+p, err := pulse.New(pulse.Options{DisableCrosstabFusion: true})
+```
+
 ## Defaults at a glance
 
 | Field omitted from `Options` | Effective behaviour |
 |---|---|
-| `DataDir` and `FS` both empty | Pulse calls `fs.Default()` → reads `PULSE_DATA_DIR` env var. Errors if unset and the operation needs filesystem access. |
+| `DataDir` and `FS` both empty | Pulse builds its default filesystem → reads `PULSE_DATA_DIR` env var. Errors if unset and the operation needs filesystem access. |
 | `DataDir` only                | Uses an `afero.NewOsFs()` rooted at `DataDir`. |
 | `FS` only                     | Uses the provided FS verbatim. |
 | Both                          | `FS` wins; `DataDir` is ignored. |
 | `DisableDefaults` omitted     | Defaults enabled. |
+| `DisableCrosstabFusion` omitted | Fusion engages whenever the gate admits the crosstab. |
 
 ## Re-using a Pulse instance
 

@@ -61,7 +61,7 @@ type ResolverWarning struct {
 // Returns PULSE_LABEL_TABLE_UNKNOWN if a binding references a table
 // absent from the registry. Other binding-shape issues (unknown
 // field, non-categorical field, augment collision) are validated
-// upstream by descriptor.ValidateLabels — this constructor trusts
+// upstream by internal/descriptor.ValidateLabels — this constructor trusts
 // schema-level checks.
 func BuildLabelResolver(bindings []*types.LabelBinding, registry *ExtensionRegistry) (*LabelResolver, error) {
 	if len(bindings) == 0 {

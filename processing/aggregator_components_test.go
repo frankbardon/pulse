@@ -7,8 +7,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -401,7 +401,7 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 	fixtures := map[types.AggregationType]aggParityFixture{
 		// Scalar / numeric ops over the f64 score cohort. AGG_NULL_COUNT
 		// inverts the floor (N=null-count, NNull=non-null-count) per the
-		// per-record bookkeeping contract in service/orchestrator.
+		// per-record bookkeeping contract in the internal/service orchestrator.
 		types.AGG_COUNT:          num(),
 		types.AGG_SUM:            num(),
 		types.AGG_AVERAGE:        num(),
@@ -470,7 +470,7 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 // LLM clients consume rather than the private capabilities table.
 func manifestAggregatorOperatorKeys(t *testing.T, name string) []string {
 	t.Helper()
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 	schema, ok := m.ComponentsSchemas.Aggregators[name]
 	if !ok {
 		t.Fatalf("manifest carries no components schema for %s", name)

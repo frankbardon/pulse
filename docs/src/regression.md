@@ -1,6 +1,6 @@
 # Regression Modeling
 
-Pulse exposes regression through a compact, composable surface. Three operators, two orthogonal modifiers, and one upstream feature transform together cover every textbook regression variant. This chapter is the human-facing counterpart to `skills/regression-modeling.md`; agents should fetch the skill via `pulse_skills_get` rather than read this page.
+Pulse exposes regression through a compact, composable surface. A small set of `REG_*` operators (`pulse manifest --json` lists them under `regressions`), two orthogonal modifiers, and one upstream feature transform together cover every textbook regression variant. This chapter is the human-facing counterpart to `skills/regression-modeling.md`; agents should fetch the skill via `pulse_skills_get` rather than read this page.
 
 ## Overview
 
@@ -19,23 +19,23 @@ One upstream feature operator (`FEAT_POLY`) extends the linear core to polynomia
 
 ## The 13 textbook names → Pulse specs
 
-The Indeed regression taxonomy double-counts (Simple ≡ Linear univariate, Multiple ≡ Multiple Linear) and treats orthogonal wrappers (Jackknife, Stepwise) as families. Pulse does not. The table below maps each textbook name onto the corresponding Pulse spec and links to a runnable example file under `examples/regression/`.
+The Indeed regression taxonomy double-counts (Simple ≡ Linear univariate, Multiple ≡ Multiple Linear) and treats orthogonal wrappers (Jackknife, Stepwise) as families. Pulse does not. The table below maps each textbook name onto the corresponding Pulse spec and links to a runnable example file under `internal/examples/regression/`.
 
 | #  | Indeed name        | Pulse expression                                                       | Example                                       |
 |----|--------------------|------------------------------------------------------------------------|-----------------------------------------------|
-| 1  | Simple             | `REG_OLS` with one predictor                                           | `examples/regression/02_simple_linear.json`   |
-| 2  | Multiple           | `REG_OLS` with multiple predictors                                     | `examples/regression/03_multiple_linear.json` |
-| 3  | Linear             | = #1                                                                   | `examples/regression/02_simple_linear.json`   |
-| 4  | Multiple Linear    | = #2                                                                   | `examples/regression/03_multiple_linear.json` |
-| 5  | Logistic           | `REG_GLM{Family:"binomial", Link:"logit"}`                             | `examples/regression/04_logistic.json`        |
-| 6  | Ridge              | `REG_OLS{Penalty:"l2", Alpha:λ}`                                       | `examples/regression/05_ridge.json`           |
-| 7  | Lasso              | `REG_OLS{Penalty:"l1", Alpha:λ}`                                       | `examples/regression/06_lasso.json`           |
-| 8  | Polynomial         | `FEAT_POLY{Field:x, Degree:n}` upstream → `REG_OLS`                    | `examples/regression/07_polynomial.json`      |
-| 9  | Bayesian Linear    | `REG_BAYES_LINEAR{Prior:"nig"}`                                        | `examples/regression/08_bayesian_linear.json` |
-| 10 | Jackknife          | any regression with `Resample:"jackknife"`                             | `examples/regression/09_jackknife.json`       |
-| 11 | Elastic Net        | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}`                        | `examples/regression/10_elasticnet.json`      |
-| 12 | Ecological         | `GROUP_*` upstream → `REG_OLS` over group means (composed request)     | `examples/regression/01_ecological_fallacy.json` |
-| 13 | Stepwise           | any regression with `Selection:"stepwise", Criterion:"aic"\|"bic"`     | `examples/regression/11_stepwise.json`        |
+| 1  | Simple             | `REG_OLS` with one predictor                                           | `internal/examples/regression/02_simple_linear.json`   |
+| 2  | Multiple           | `REG_OLS` with multiple predictors                                     | `internal/examples/regression/03_multiple_linear.json` |
+| 3  | Linear             | = #1                                                                   | `internal/examples/regression/02_simple_linear.json`   |
+| 4  | Multiple Linear    | = #2                                                                   | `internal/examples/regression/03_multiple_linear.json` |
+| 5  | Logistic           | `REG_GLM{Family:"binomial", Link:"logit"}`                             | `internal/examples/regression/04_logistic.json`        |
+| 6  | Ridge              | `REG_OLS{Penalty:"l2", Alpha:λ}`                                       | `internal/examples/regression/05_ridge.json`           |
+| 7  | Lasso              | `REG_OLS{Penalty:"l1", Alpha:λ}`                                       | `internal/examples/regression/06_lasso.json`           |
+| 8  | Polynomial         | `FEAT_POLY{Field:x, Degree:n}` upstream → `REG_OLS`                    | `internal/examples/regression/07_polynomial.json`      |
+| 9  | Bayesian Linear    | `REG_BAYES_LINEAR{Prior:"nig"}`                                        | `internal/examples/regression/08_bayesian_linear.json` |
+| 10 | Jackknife          | any regression with `Resample:"jackknife"`                             | `internal/examples/regression/09_jackknife.json`       |
+| 11 | Elastic Net        | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}`                        | `internal/examples/regression/10_elasticnet.json`      |
+| 12 | Ecological         | `GROUP_*` upstream → `REG_OLS` over group means (composed request)     | `internal/examples/regression/01_ecological_fallacy.json` |
+| 13 | Stepwise           | any regression with `Selection:"stepwise", Criterion:"aic"\|"bic"`     | `internal/examples/regression/11_stepwise.json`        |
 
 ## Streamability matrix
 
@@ -207,16 +207,16 @@ Look up full prose via `pulse_errors_lookup` or `pulse errors lookup CODE`.
 
 ## Worked examples
 
-Every Indeed name has a runnable JSON file under `examples/regression/`. Fetch via `pulse_examples_get` or read directly:
+Every Indeed name has a runnable JSON file under `internal/examples/regression/`. Fetch via `pulse_examples_get` or read directly:
 
-- [01_ecological_fallacy.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/01_ecological_fallacy.json) — per-region aggregation + ecological caveat (#12).
-- [02_simple_linear.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/02_simple_linear.json) — univariate OLS (#1, #3).
-- [03_multiple_linear.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/03_multiple_linear.json) — multivariate OLS (#2, #4).
-- [04_logistic.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/04_logistic.json) — binary classification (#5).
-- [05_ridge.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/05_ridge.json) — l2 penalty (#6).
-- [06_lasso.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/06_lasso.json) — l1 penalty (#7).
-- [07_polynomial.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/07_polynomial.json) — `FEAT_POLY` + OLS (#8).
-- [08_bayesian_linear.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/08_bayesian_linear.json) — conjugate NIG (#9).
-- [09_jackknife.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/09_jackknife.json) — leave-one-out resampling (#10).
-- [10_elasticnet.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/10_elasticnet.json) — combined l1 / l2 penalty (#11).
-- [11_stepwise.json](https://github.com/frankbardon/pulse/blob/main/examples/regression/11_stepwise.json) — BIC-driven stepwise selection (#13).
+- [01_ecological_fallacy.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/01_ecological_fallacy.json) — per-region aggregation + ecological caveat (#12).
+- [02_simple_linear.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/02_simple_linear.json) — univariate OLS (#1, #3).
+- [03_multiple_linear.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/03_multiple_linear.json) — multivariate OLS (#2, #4).
+- [04_logistic.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/04_logistic.json) — binary classification (#5).
+- [05_ridge.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/05_ridge.json) — l2 penalty (#6).
+- [06_lasso.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/06_lasso.json) — l1 penalty (#7).
+- [07_polynomial.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/07_polynomial.json) — `FEAT_POLY` + OLS (#8).
+- [08_bayesian_linear.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/08_bayesian_linear.json) — conjugate NIG (#9).
+- [09_jackknife.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/09_jackknife.json) — leave-one-out resampling (#10).
+- [10_elasticnet.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/10_elasticnet.json) — combined l1 / l2 penalty (#11).
+- [11_stepwise.json](https://github.com/frankbardon/pulse/blob/main/internal/examples/regression/11_stepwise.json) — BIC-driven stepwise selection (#13).

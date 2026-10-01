@@ -2,37 +2,6 @@ package cli
 
 import "testing"
 
-func TestFormatFromExt(t *testing.T) {
-	tests := []struct {
-		path string
-		want string
-	}{
-		{"data.csv", "csv"},
-		{"data.CSV", "csv"},
-		{"data.tsv", "tsv"},
-		{"data.ndjson", "ndjson"},
-		{"data.jsonl", "ndjson"},
-		{"data.json", "jsonarray"},
-		{"data.JSON", "jsonarray"},
-		{"data.parquet", "parquet"},
-		{"data.pq", "parquet"},
-		{"data.arrow", "arrow"},
-		{"data.feather", "arrow"},
-		{"data.FEATHER", "arrow"},
-		{"data.xlsx", "excel"},
-		{"data.xls", "excel"},
-		{"data.pulse", "pulse"},
-		{"data.unknown", ""},
-		{"noext", ""},
-	}
-	for _, tt := range tests {
-		got := formatFromExt(tt.path)
-		if got != tt.want {
-			t.Errorf("formatFromExt(%q) = %q, want %q", tt.path, got, tt.want)
-		}
-	}
-}
-
 func TestParseFieldType(t *testing.T) {
 	tests := []struct {
 		name string

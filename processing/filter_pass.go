@@ -145,13 +145,13 @@ func attachFiltererComponents(resp *types.Response, entries []types.FiltererComp
 }
 
 // ---------------------------------------------------------------
-// Exported surface for service/'s parallel reducers.
+// Exported surface for internal/service/'s parallel reducers.
 //
 // The per-shard (Options.ShardWorkers) and per-segment
-// (Options.DecodeWorkers) reducers live in service/ but must produce
+// (Options.DecodeWorkers) reducers live in internal/service/ but must produce
 // the SAME Response.Components a serial run produces — the contract is
 // keyed to the request, not to a concurrency knob. Rather than let
-// service/ re-derive the counter semantics (the n_in invariant, the
+// internal/service/ re-derive the counter semantics (the n_in invariant, the
 // null-input tally that is independent of pass/fail, the AND
 // short-circuit), the walk above is exported verbatim. A second
 // implementation of these rules is a second set of numbers waiting to

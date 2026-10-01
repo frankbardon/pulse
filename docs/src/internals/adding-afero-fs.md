@@ -6,14 +6,14 @@ base-path wrapper, any prefix-translating shim) under `pulse.Options.FS`.
 
 The Pulse iterator engages an `mmap` fast path when the cohort path
 ultimately resolves to a real on-disk file. The eligibility probe
-lives in `service/fs_probe.go` and is documented inline; the gist:
+lives in `internal/service/fs_probe.go` and is documented inline; the gist:
 implement the `service.RealPather` capability interface so the probe
 can ask your fs "where is this file on disk?" without opening it.
 
 ## The `RealPather` contract
 
 ```go
-// service.RealPather — defined in service/fs_probe.go.
+// service.RealPather — defined in internal/service/fs_probe.go.
 type RealPather interface {
     RealPath(name string) (string, error)
 }
@@ -36,13 +36,13 @@ then to the `afero.ReadFile` slow path.
 optimisation** — no error, no warning, just a regression in scan
 throughput on cold-cache wide cohorts. The mmap policy and probe
 order are documented in the [Cohort schema design
-skill](https://github.com/frankbardon/pulse/blob/main/skills/cohort-schema-design.md)
+skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/cohort-schema-design.md)
 ("Iterator mmap policy"); the rationale for omitting an open-and-
-inspect fallback is inline at `service/fs_probe.go`.
+inspect fallback is inline at `internal/service/fs_probe.go`.
 
 ## The regression gate
 
-The `countingFs` test family in `service/` (e.g. `TestCountingFs_*`)
+The `countingFs` test family in `internal/service/` (e.g. `TestCountingFs_*`)
 is the regression gate. It wraps an fs and fails the test if `Process`
 calls `afero.ReadFile` on a single-file cohort path when the fs
 advertises a real path. If you add a new wrapper and the gate flips
@@ -63,5 +63,5 @@ probe correctly declines.
 ## Run the gate
 
 ```bash
-go test ./service/ -run TestCountingFs
+go test ./internal/service/ -run TestCountingFs
 ```

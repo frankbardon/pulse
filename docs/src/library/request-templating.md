@@ -346,9 +346,9 @@ fine.
 Five methods, all on `*pulse.Pulse`:
 
 ```go
-summaries := p.ListTemplates()                        // []template.Summary
-tmpl, err := p.GetTemplate("finance/revenue")         // *template.Template
-rendered, err := p.RenderTemplate(name, vars)         // *template.Rendered — all five targets
+summaries := p.ListTemplates()                        // []pulse.TemplateSummary
+tmpl, err := p.GetTemplate("finance/revenue")         // *pulse.Template
+rendered, err := p.RenderTemplate(name, vars)         // *pulse.RenderedTemplate — all five targets
 req, err := p.RenderTemplateRequest(name, vars)       // *types.Request — the 95% path
 err = p.ReloadTemplates()                             // force a rescan now
 ```
@@ -362,7 +362,12 @@ methods will answer `PULSE_TEMPLATE_NOT_FOUND`.
 `RenderTemplate` is the general form. Exactly one of `Rendered`'s
 typed pointers is populated, selected by `Rendered.Target` — read that
 pointer (or `Rendered.Typed()`) and hand it to the matching execution
-method. There are deliberately no per-execution-mode convenience
+method. Every target and variable type has a root constant, so switch
+on them directly: `pulse.TemplateTargetRequest`, `TemplateTargetComposed`,
+`TemplateTargetChain`, `TemplateTargetFacet`, `TemplateTargetSample` for
+`Template.Target` / `TemplateSummary.Target` / `Rendered.Target`, and
+`pulse.TemplateVarString` … `TemplateVarPeriod` (one per variable type)
+for `TemplateVariable.Type` / `Items`. There are deliberately no per-execution-mode convenience
 wrappers: N execution modes would mean N wrappers to keep in sync
 forever, for no capability gain.
 
@@ -414,7 +419,7 @@ render-time `PULSE_TEMPLATE_UNRESOLVED`.
 | `PULSE_TEMPLATE_RENDER_INVALID` | substitution succeeded but the rendered JSON failed **strict decode** into the target request type | Usually an unknown field, or a substituted value landing in a slot whose type it does not fit. |
 
 Strict decode is harsher than the rest of Pulse, and that is worth
-knowing before it bites: a body copied out of an `examples/` file
+knowing before it bites: a body copied out of an `internal/examples/` file
 **with its `_meta` block still attached** will fail
 `PULSE_TEMPLATE_RENDER_INVALID`. The message names the offending field
 and calls out the `_meta` case explicitly.
@@ -441,4 +446,4 @@ embedding feature: `Options.TemplateDirs` /
 - [`pulse api predict`](../cli/api-predict.md) — the cohort-aware
   validation a render deliberately leaves undone.
 - `skills/request-templating.md` — the dense, agent-facing version of
-  this chapter, reachable at runtime through `skills.Get`.
+  this chapter, reachable at runtime through the MCP skill tools and `pulse skills show`.

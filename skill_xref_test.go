@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/skills"
+	"github.com/frankbardon/pulse/internal/skills"
 )
 
 // TestSkillsCoverAllCrossReferences is a non-skippable CI gate over the two
@@ -63,22 +63,38 @@ var (
 	// (`Response.Components`, dot + uppercase).
 	kebabStemRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)+$`)
 	// `skills/<stem>.md` and the bare `<stem>.md` form.
-	skillPathRe     = regexp.MustCompile(`^skills/([a-z0-9-]+)\.md$`)
+	skillPathRe     = regexp.MustCompile(`^(?:internal/)?skills/([a-z0-9-]+)\.md$`)
 	bareSkillPathRe = regexp.MustCompile(`^([a-z0-9]+(?:-[a-z0-9]+)+)\.md$`)
 	// Any backticked repo-relative markdown path inside the skill pack.
-	mdPathRe = regexp.MustCompile(`^((?:skills|docs|\.claude)/[A-Za-z0-9_./-]+\.md)$`)
+	mdPathRe = regexp.MustCompile(`^((?:internal/skills|skills|docs|\.claude)/[A-Za-z0-9_./-]+\.md)$`)
 	// Heading at level >= 2 (the pack mixes ## and ###; see checkSectionQualifiedRefs).
 	headingRe = regexp.MustCompile(`(?m)^#{2,6}\s+(.+)$`)
 	// A section-qualified reference: a backticked markdown path immediately
 	// followed by a parenthetical.
-	sectionRefRe = regexp.MustCompile("`((?:skills/)?[a-z0-9-]+\\.md)` ?\\(([^)]*)\\)")
+	sectionRefRe = regexp.MustCompile("`((?:(?:internal/)?skills/)?[a-z0-9-]+\\.md)` ?\\(([^)]*)\\)")
 )
+
+// skillPackDir is where the skill pack's markdown lives on disk. The pack
+// is still ADDRESSED as `skills/<stem>.md` in prose — a pack-relative name,
+// resolved through repoMarkdownPath — so moving the embedding package under
+// internal/ did not rewrite every reference.
+var skillPackDir = filepath.Join("internal", "skills")
+
+// repoMarkdownPath maps a backticked markdown path to its on-disk location:
+// a pack-relative `skills/<file>.md` resolves under skillPackDir, anything
+// else is repo-relative as written.
+func repoMarkdownPath(p string) string {
+	if rest, ok := strings.CutPrefix(p, "skills/"); ok {
+		return filepath.Join(skillPackDir, rest)
+	}
+	return p
+}
 
 // skillPackFiles returns every skills/*.md filename. It reads the directory
 // rather than skills.List() so that a frontmatter-less file is still scanned.
 func skillPackFiles(t *testing.T) []string {
 	t.Helper()
-	entries, err := os.ReadDir("skills")
+	entries, err := os.ReadDir(skillPackDir)
 	if err != nil {
 		t.Fatalf("reading skills/: %v", err)
 	}
@@ -114,7 +130,7 @@ func stripFrontmatter(md string) string {
 // skill pack body must resolve through skills.Get or be allowlisted.
 func checkSkillStemRefs(t *testing.T) {
 	for _, name := range skillPackFiles(t) {
-		data, err := os.ReadFile(filepath.Join("skills", name))
+		data, err := os.ReadFile(filepath.Join(skillPackDir, name))
 		if err != nil {
 			t.Fatalf("reading skills/%s: %v", name, err)
 		}
@@ -151,7 +167,7 @@ func checkSkillStemRefs(t *testing.T) {
 // that repoints a stem repoints a path.
 func checkSkillMarkdownPathRefs(t *testing.T) {
 	for _, name := range skillPackFiles(t) {
-		data, err := os.ReadFile(filepath.Join("skills", name))
+		data, err := os.ReadFile(filepath.Join(skillPackDir, name))
 		if err != nil {
 			t.Fatalf("reading skills/%s: %v", name, err)
 		}
@@ -161,7 +177,7 @@ func checkSkillMarkdownPathRefs(t *testing.T) {
 			if !mdPathRe.MatchString(path) {
 				continue
 			}
-			if _, err := os.Stat(path); err != nil {
+			if _, err := os.Stat(repoMarkdownPath(path)); err != nil {
 				t.Errorf("skills/%s: phantom markdown path `%s` — no such file in the repo. "+
 					"Re-point it at a file that exists.", name, path)
 			}
@@ -184,7 +200,7 @@ func sectionRefSources(t *testing.T) []string {
 	sort.Strings(refs)
 	out = append(out, refs...)
 	for _, name := range skillPackFiles(t) {
-		out = append(out, filepath.Join("skills", name))
+		out = append(out, filepath.Join(skillPackDir, name))
 	}
 	return out
 }
@@ -261,7 +277,7 @@ func checkSectionQualifiedRefs(t *testing.T) {
 
 	headings := map[string][]string{} // skill stem -> heading variants
 	for _, name := range skillPackFiles(t) {
-		data, err := os.ReadFile(filepath.Join("skills", name))
+		data, err := os.ReadFile(filepath.Join(skillPackDir, name))
 		if err != nil {
 			t.Fatalf("reading skills/%s: %v", name, err)
 		}
@@ -282,7 +298,7 @@ func checkSectionQualifiedRefs(t *testing.T) {
 		for _, loc := range sectionRefRe.FindAllStringSubmatchIndex(text, -1) {
 			path := text[loc[2]:loc[3]]
 			section := text[loc[4]:loc[5]]
-			stem := strings.TrimSuffix(strings.TrimPrefix(path, "skills/"), ".md")
+			stem := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(path, "internal/"), "skills/"), ".md")
 			if _, ok := skills.Get(stem); !ok {
 				continue // not a skill target; docs/ paths are out of scope here.
 			}
@@ -321,7 +337,7 @@ func sectionRefResolves(ref string, variants []string) bool {
 // failure message — a reader must not have to grep to find the right target.
 func skillHeadingList(t *testing.T, stem string) []string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("skills", stem+".md"))
+	data, err := os.ReadFile(filepath.Join(skillPackDir, stem+".md"))
 	if err != nil {
 		return nil
 	}

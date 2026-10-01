@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	perrors "github.com/frankbardon/pulse/errors"
-	pformat "github.com/frankbardon/pulse/io/format"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 
@@ -103,7 +103,7 @@ func TestImportCLI_TotalFailure_EnvelopeCarriesRealCode(t *testing.T) {
 // writer.Close() on a Run error, leaving a partially-written target file
 // unclosed — and that the total-failure verdict makes that path far more
 // reachable. It turns out the premise does not hold here: every adapter
-// newWriterForFormat can build buffers its output in memory and emits the
+// io.NewWriter can build buffers its output in memory and emits the
 // file exactly once, inside Close (afero.WriteFile, not an incrementally
 // written handle). Skipping Close therefore writes NOTHING and leaks no
 // handle, while ADDING a close-on-error would write a zero-row target next
@@ -115,16 +115,16 @@ func TestImportCLI_TotalFailure_EnvelopeCarriesRealCode(t *testing.T) {
 // own cleanup rather than silently leaving a truncated file behind.
 func TestExportTargets_EmitNothingBeforeClose(t *testing.T) {
 	formats := []string{
-		pformat.CSV, pformat.TSV, pformat.NDJSON, pformat.JSONArray,
-		pformat.Parquet, pformat.Arrow, pformat.Excel, pformat.SPSS,
+		string(pio.FormatCSV), string(pio.FormatTSV), string(pio.FormatNDJSON), string(pio.FormatJSONArray),
+		string(pio.FormatParquet), string(pio.FormatArrow), string(pio.FormatExcel), string(pio.FormatSPSS),
 	}
 	for _, format := range formats {
 		t.Run(format, func(t *testing.T) {
 			fs := afero.NewMemMapFs()
 			const path = "out.target"
-			w, err := newWriterForFormat(format, fs, path, writerOptions{})
+			w, err := pio.NewWriter(pio.Format(format), fs, path, pio.WriterOptions{})
 			if err != nil {
-				t.Fatalf("newWriterForFormat(%s): %v", format, err)
+				t.Fatalf("io.NewWriter(%s): %v", format, err)
 			}
 			if err := w.WriteHeader([]string{"n"}); err != nil {
 				t.Fatalf("WriteHeader: %v", err)

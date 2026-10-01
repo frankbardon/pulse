@@ -40,13 +40,13 @@ materialised record.
 
 ## 3. Tests
 
-Add tests in `processing/filter_test.go` before the implementation.
+Add tests in `processing/filterer_test.go` before the implementation.
 Cover both the include and exclude branches, the null-handling
 contract, and any error path.
 
 ## 4. Declare the capability metadata
 
-Add a row to `descriptor/capabilities_filterers.go` with the
+Add a row to `internal/descriptor/capabilities_filterers.go` with the
 filterer's params, accepted field types, and the
 [`ComponentSchema`](#5-declare-the-componentschema-responsecomponents-contract)
 that follows.
@@ -91,11 +91,11 @@ var _ MetaFilterer = (*regexFilterer)(nil)
 The full Response.Components contract — universal floor semantics,
 streaming behaviour, parity overlay reads — lives in the
 [response-components
-skill](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md);
+skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md);
 extension-side parity lives in
 [Extension Points](extension-points.md).
 
-## 6. Update the aggregation-guide skill
+## 6. Update the aggregation-design skill
 
 Add a section in the filtering portion of `skills/aggregation-design.md`
 covering the new filterer's semantics, parameter shape, and the null-
@@ -103,13 +103,20 @@ input contract.
 
 ## 7. Update CLAUDE.md
 
-Bump the registered-filterer count in CLAUDE.md's "Skill Pack" section.
+There is **no registered-filterer count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-filter-<kebab>.md`, the capability declaration in
+`internal/descriptor/capabilities_filterers.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
 
 ## 8. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ -run TestManifestOperatorsComplete
+go test ./internal/skills/ -run TestSkillsCoverAllComponents
+go test ./internal/descriptor/ -run TestManifestOperatorsComplete
 go test ./processing/ -run TestFilter
 ```
 

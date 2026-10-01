@@ -44,7 +44,6 @@ import (
 	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	pio "github.com/frankbardon/pulse/io"
-	pformat "github.com/frankbardon/pulse/io/format"
 	"github.com/spf13/afero"
 )
 
@@ -127,14 +126,14 @@ func TestConvertCLI_SavWideSetReachesEveryTarget(t *testing.T) {
 		format string
 		ext    string
 	}{
-		{pformat.CSV, ".csv"},
-		{pformat.TSV, ".tsv"},
-		{pformat.NDJSON, ".ndjson"},
-		{pformat.JSONArray, ".json"},
-		{pformat.Parquet, ".parquet"},
-		{pformat.Arrow, ".arrow"},
-		{pformat.Excel, ".xlsx"},
-		{pformat.SPSS, ".sav"},
+		{string(pio.FormatCSV), ".csv"},
+		{string(pio.FormatTSV), ".tsv"},
+		{string(pio.FormatNDJSON), ".ndjson"},
+		{string(pio.FormatJSONArray), ".json"},
+		{string(pio.FormatParquet), ".parquet"},
+		{string(pio.FormatArrow), ".arrow"},
+		{string(pio.FormatExcel), ".xlsx"},
+		{string(pio.FormatSPSS), ".sav"},
 	} {
 		t.Run(tc.format, func(t *testing.T) {
 			dir := t.TempDir()
@@ -187,14 +186,14 @@ func TestExportPredict_EveryTargetReportsTheWideSetField(t *testing.T) {
 	}
 
 	for _, format := range []string{
-		pformat.CSV, pformat.TSV, pformat.NDJSON, pformat.JSONArray,
-		pformat.Parquet, pformat.Arrow, pformat.Excel, pformat.SPSS,
+		string(pio.FormatCSV), string(pio.FormatTSV), string(pio.FormatNDJSON), string(pio.FormatJSONArray),
+		string(pio.FormatParquet), string(pio.FormatArrow), string(pio.FormatExcel), string(pio.FormatSPSS),
 	} {
 		t.Run(format, func(t *testing.T) {
 			fs := afero.NewOsFs()
-			w, err := newWriterForFormat(format, fs, filepath.Join(dir, "out."+format), writerOptions{})
+			w, err := pio.NewWriter(pio.Format(format), fs, filepath.Join(dir, "out."+format), pio.WriterOptions{})
 			if err != nil {
-				t.Fatalf("newWriterForFormat(%s): %v", format, err)
+				t.Fatalf("io.NewWriter(%s): %v", format, err)
 			}
 			job := pio.NewExportJob(cohort, w)
 			job.FS = fs
@@ -219,7 +218,7 @@ func TestExportPredict_EveryTargetReportsTheWideSetField(t *testing.T) {
 			// diagnostic it is entitled to raise here is the absent
 			// sidecar: this cohort was never SPSS-derived.
 			for _, warn := range rep.TargetWarnings {
-				if format != pformat.SPSS {
+				if format != string(pio.FormatSPSS) {
 					t.Errorf("%s does not implement io.CohortValidator yet raised %s", format, warn.Code)
 					continue
 				}
@@ -231,7 +230,7 @@ func TestExportPredict_EveryTargetReportsTheWideSetField(t *testing.T) {
 			// Asserting only that the warnings are acceptable passes just
 			// as well when no validator ran at all, which would make this
 			// whole test blind to the one target it is really about.
-			if format == pformat.SPSS && !hasCode(rep.TargetWarnings, perrors.PULSE_SPSS_SIDECAR_ABSENT) {
+			if format == string(pio.FormatSPSS) && !hasCode(rep.TargetWarnings, perrors.PULSE_SPSS_SIDECAR_ABSENT) {
 				t.Errorf("spss predict raised no %s over a cohort with no sidecar; io.CohortValidator was not consulted",
 					perrors.PULSE_SPSS_SIDECAR_ABSENT)
 			}
@@ -276,7 +275,7 @@ func wideSetPulse(t *testing.T) []byte {
 // format and returns the header plus the first row.
 func readBackFirstRow(t *testing.T, format, path string) ([]string, []string) {
 	t.Helper()
-	r, err := newReaderForFormat(format, afero.NewOsFs(), path, pformat.ReaderOptions{})
+	r, err := pio.NewReader(pio.Format(format), afero.NewOsFs(), path, pio.ReaderOptions{})
 	if err != nil {
 		t.Fatalf("building a %s reader: %v", format, err)
 	}

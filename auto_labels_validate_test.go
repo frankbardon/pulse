@@ -48,7 +48,7 @@ func TestNew_AutoLabels_ValidAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if got := p.Service().AutoLabels(); len(got) != 1 || got[0].Field != "brand_id" {
+	if got := p.svc.AutoLabels(); len(got) != 1 || got[0].Field != "brand_id" {
 		t.Fatalf("expected one stored auto-label binding; got %+v", got)
 	}
 }

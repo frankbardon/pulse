@@ -10,7 +10,7 @@
 // rows with the operator's output column.
 //
 // Validation of window specs (frame matrix, alpha bounds, orderable types)
-// belongs to descriptor/predict_window.go and must run before Apply. Apply
+// belongs to internal/descriptor/predict_window.go and must run before Apply. Apply
 // trusts that req.Windows has been validated; runtime errors here surface as
 // PROCESSING_RUNTIME / PROCESSING_CONFIG.
 package window

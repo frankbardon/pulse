@@ -1,0 +1,147 @@
+name: API compat
+
+# Reports the exported-API delta of a PR against the latest release tag,
+# using a pinned `apidiff -m` over a git-worktree checkout of that tag.
+#
+# Deliberately a separate workflow from ci.yml:
+#   - it runs only on pull_request (never on push to main, and never under
+#     release.yml's `workflow_call` of ci.yml, where there is no PR to judge);
+#   - it re-runs on `labeled` / `unlabeled` so toggling `api-break-ok` refreshes
+#     the summary without re-running test/lint;
+#   - its job name (`apidiff`) is NOT a branch-protection required check.
+#
+# ADVISORY until v1.0.0. While the baseline is a pre-release (or any v0.x) tag
+# the report is informational: every step that could fail runs with
+# `continue-on-error`, so the job is green whatever apidiff finds.
+#
+# POST-v1.0.0 FLIP TO BLOCKING. Once a stable tag >= v1.0.0 exists it becomes
+# the baseline and `blocking=true`; the Diff step then fails on any
+# incompatible change UNLESS the PR carries the `api-break-ok` label. The label
+# is the only override. Before v1.0.0 the label just annotates the summary as an
+# intentional break. To make that failure gate merges, add `apidiff` to the
+# required checks on `main` deliberately — it is not one today.
+#
+# Known blind spot: apidiff compares a root alias to an `internal/` type by
+# name/path only, never its fields or methods. TestPublicAPIGolden
+# (internal/apigolden/) covers that gap.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-compat-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  # golang.org/x/exp is untagged; bump this pseudo-version deliberately, never
+  # @latest. Verified to build under Go 1.26 and to support `-m -w`.
+  APIDIFF_VERSION: v0.0.0-20260908205506-85c1c2202aba
+  MODULE_PATH: github.com/frankbardon/pulse
+
+jobs:
+  apidiff:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history + tags: the default shallow checkout has no tags.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: Resolve baseline tag
+        id: base
+        run: |
+          # Latest stable (no pre-release suffix) tag >= v1.0.0 wins once one
+          # exists, and switches the job to blocking; until then the newest
+          # v* tag of any kind is the baseline and the job is advisory.
+          stable=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -n "$stable" ]; then
+            echo "tag=$stable" >> "$GITHUB_OUTPUT"
+            echo "blocking=true" >> "$GITHUB_OUTPUT"
+          else
+            latest=$(git tag -l 'v*' --sort=-v:refname | head -n1 || true)
+            echo "tag=$latest" >> "$GITHUB_OUTPUT"
+            echo "blocking=false" >> "$GITHUB_OUTPUT"
+            if [ -z "$latest" ]; then
+              echo "## API compatibility" >> "$GITHUB_STEP_SUMMARY"
+              echo "No \`v*\` tag exists yet; nothing to compare against. Skipped." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+      - name: Install apidiff (pinned)
+        if: steps.base.outputs.tag != ''
+        continue-on-error: ${{ steps.base.outputs.blocking != 'true' }}
+        run: go install "golang.org/x/exp/cmd/apidiff@${APIDIFF_VERSION}"
+
+      - name: Write export data (baseline + head)
+        id: export
+        if: steps.base.outputs.tag != ''
+        continue-on-error: ${{ steps.base.outputs.blocking != 'true' }}
+        env:
+          BASE_TAG: ${{ steps.base.outputs.tag }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/base" "$BASE_TAG"
+          # `-w` paths must be absolute and each side must run from its own
+          # module root, or apidiff consults the module cache instead.
+          (cd "$RUNNER_TEMP/base" && apidiff -m -w "$RUNNER_TEMP/base.exp" "$MODULE_PATH")
+          apidiff -m -w "$RUNNER_TEMP/head.exp" "$MODULE_PATH"
+
+      - name: Note tooling failure
+        if: steps.base.outputs.tag != '' && steps.export.outcome != 'success'
+        run: |
+          echo "## API compatibility vs \`${{ steps.base.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "apidiff could not be installed or could not write export data; see the job log. No report." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Diff
+        if: steps.base.outputs.tag != '' && steps.export.outcome == 'success'
+        continue-on-error: ${{ steps.base.outputs.blocking != 'true' }}
+        env:
+          BASE_TAG: ${{ steps.base.outputs.tag }}
+          BLOCKING: ${{ steps.base.outputs.blocking }}
+          # Read from the event payload: no API call, no token.
+          BREAK_OK: ${{ contains(github.event.pull_request.labels.*.name, 'api-break-ok') }}
+        run: |
+          apidiff -m "$RUNNER_TEMP/base.exp" "$RUNNER_TEMP/head.exp" > "$RUNNER_TEMP/apidiff.raw" 2>&1
+          grep -v '^Ignoring internal package' "$RUNNER_TEMP/apidiff.raw" > "$RUNNER_TEMP/apidiff.txt" || true
+          # apidiff exits 0 even with incompatible changes; count them from the
+          # "Incompatible changes:" section ourselves.
+          incompatible=$(awk '/^Incompatible changes:/{s=1;next} /^[A-Za-z].*:$/{s=0} s && /^- /{n++} END{print n+0}' "$RUNNER_TEMP/apidiff.txt")
+
+          {
+            echo "## API compatibility vs \`$BASE_TAG\`"
+            echo
+            if [ "$BLOCKING" = "true" ]; then
+              echo "Mode: **blocking** (stable baseline). Incompatible changes fail this job unless the PR carries \`api-break-ok\`."
+            else
+              echo "Mode: **advisory** (pre-v1.0.0 baseline). This job never fails; it flips to blocking once a \`v1.0.0\` tag exists."
+            fi
+            echo
+            echo "Incompatible changes: **$incompatible**"
+            if [ "$BREAK_OK" = "true" ]; then
+              echo
+              echo "> **Intentional break:** this PR carries the \`api-break-ok\` label, so the incompatible changes below are declared intentional."
+            fi
+            echo
+            if [ -s "$RUNNER_TEMP/apidiff.txt" ]; then
+              echo '```'
+              cat "$RUNNER_TEMP/apidiff.txt"
+              echo '```'
+            else
+              echo "No exported-API changes."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$BLOCKING" = "true" ] && [ "$incompatible" -gt 0 ] && [ "$BREAK_OK" != "true" ]; then
+            echo "::error::$incompatible incompatible API change(s) vs $BASE_TAG; add the api-break-ok label if intentional."
+            exit 1
+          fi

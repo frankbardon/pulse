@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/spf13/afero"
 )
 
@@ -68,7 +68,7 @@ func buildTwoCategoricalNumericConflictCSV(rowsPerCell int, seed int64) string {
 // was kept and which was dropped. This is a real end-to-end test of the
 // plumbing E6-S2 adds (SpecFromProfile -> FidelityWarnings -> the
 // written report file), not a unit test of resolveConflicts itself
-// (already covered by synth/conflict_test.go, E6-S1).
+// (already covered by internal/synth/conflict_test.go, E6-S1).
 //
 // This test pins the flag-OFF path and keeps doing so unchanged. Its
 // premise — that only one of the two relationships can survive — is a
@@ -103,7 +103,7 @@ func TestSynth_FromProfileFidelityReport_NamesConflictingCategoricalNumericPairs
 	// closes. Note the Spec itself still carries BOTH pairs
 	// unpruned: resolveConflicts' actual pruning of which one runs
 	// happens again, from scratch, inside generate() at Synth time
-	// (synth/writer.go) — SpecFromProfile calling it here is purely to
+	// (internal/synth/writer.go) — SpecFromProfile calling it here is purely to
 	// surface the warning early enough to reach FidelityWarnings, not
 	// to mutate the Spec it returns.
 	spec, conflictWarnings := synth.SpecFromProfile(prof, 5000)

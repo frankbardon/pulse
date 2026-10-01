@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -94,7 +95,7 @@ func precomputeTwins(t testing.TB) (flat, grouped []byte, rows int) {
 	}
 	perm := rand.New(rand.NewPCG(0xF117E4, 0x5CA7)).Perm(len(all))
 	var buf bytes.Buffer
-	if err := encoding.WritePreamble(&buf, s); err != nil {
+	if err := encx.WritePreamble(&buf, s); err != nil {
 		t.Fatal(err)
 	}
 	for _, i := range perm {
@@ -116,7 +117,7 @@ func precomputeTwins(t testing.TB) (flat, grouped []byte, rows int) {
 	}
 	flat = buf.Bytes()
 	var out bytes.Buffer
-	gs, n, err := encoding.DedupCohort(&out, bytes.NewReader(flat), []encoding.GroupSpec{
+	gs, n, err := encx.DedupCohort(&out, bytes.NewReader(flat), []encx.GroupSpec{
 		{Kind: encoding.GroupKindIndexed, Members: []string{"p_key", "p_cat", "p_num", "p_date", "p_flag", "p_set"}, Key: []string{"p_key"}},
 		{Kind: encoding.GroupKindIndexed, Members: []string{"q_cat", "q_num"}},
 		{Kind: encoding.GroupKindConstant, Members: []string{"k_const"}},
@@ -138,14 +139,14 @@ type decodeArm struct {
 }
 
 func precomputeArms(retained []string) []decodeArm {
-	open := func(t *testing.T, data []byte) (*encoding.Schema, *encoding.RecordReader) {
+	open := func(t *testing.T, data []byte) (*encoding.Schema, *encx.RecordReader) {
 		t.Helper()
 		r := bytes.NewReader(data)
-		s, _, err := encoding.ReadPreamble(r)
+		s, _, err := encx.ReadPreamble(r)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return s, encoding.NewRecordReader(r, s)
+		return s, encx.NewRecordReader(r, s)
 	}
 	loop := func(t *testing.T, read func() error) {
 		t.Helper()
@@ -177,8 +178,8 @@ func precomputeArms(retained []string) []decodeArm {
 			for _, n := range retained {
 				keepSet[n] = true
 			}
-			keep := encoding.FieldFilter(func(n string) bool { return keepSet[n] })
-			plan, err := s.BuildDecodePlan(retained)
+			keep := encx.FieldFilter(func(n string) bool { return keepSet[n] })
+			plan, err := encx.BuildDecodePlan(s, retained)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -284,11 +285,11 @@ func precomputeArm(name string, retained []string) decodeArm {
 // ineligible one once per row.
 func TestFilterPrecompute_ParityEveryFilterer(t *testing.T) {
 	flat, grouped, rows := precomputeTwins(t)
-	gs, _, err := encoding.ReadPreamble(bytes.NewReader(grouped))
+	gs, _, err := encx.ReadPreamble(bytes.NewReader(grouped))
 	if err != nil {
 		t.Fatal(err)
 	}
-	fs, _, err := encoding.ReadPreamble(bytes.NewReader(flat))
+	fs, _, err := encx.ReadPreamble(bytes.NewReader(flat))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,11 +402,11 @@ func groupedRecords(t *testing.T) (*encoding.Schema, []*Record) {
 	t.Helper()
 	_, grouped, _ := precomputeTwins(t)
 	r := bytes.NewReader(grouped)
-	s, _, err := encoding.ReadPreamble(r)
+	s, _, err := encx.ReadPreamble(r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rr := encoding.NewRecordReader(r, s)
+	rr := encx.NewRecordReader(r, s)
 	var out []*Record
 	for {
 		rec := NewReusableRecord(s)
@@ -425,7 +426,7 @@ func groupedRecords(t *testing.T) (*encoding.Schema, []*Record) {
 // builder's FilterFunc itself and builds no table.
 func TestFilterPrecompute_UngroupedUnaffected(t *testing.T) {
 	flat, _, _ := precomputeTwins(t)
-	fs, _, err := encoding.ReadPreamble(bytes.NewReader(flat))
+	fs, _, err := encx.ReadPreamble(bytes.NewReader(flat))
 	if err != nil {
 		t.Fatal(err)
 	}

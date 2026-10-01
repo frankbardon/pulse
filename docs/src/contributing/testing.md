@@ -3,7 +3,7 @@
 **Audience:** contributors writing tests, regenerating goldens, or
 trying to figure out which CI gate to run locally before pushing.
 
-> **From CLAUDE.md, CI gates and Common Claude Code Workflows.**
+> **From CLAUDE.md, Non-Skippable CI Gates and The Update Demand.**
 
 ## Style
 
@@ -25,7 +25,7 @@ go test ./...
 go test ./processing/...
 
 # Verbose, specific test
-go test ./service/... -v -run TestProcess
+go test ./internal/service/... -v -run TestProcess
 
 # Coverage report
 make cover
@@ -43,8 +43,8 @@ Their full names appear in CLAUDE.md so the
 
 | Gate | Guards |
 |---|---|
-| `TestPredictNoExecutionImports`         | `descriptor/predict.go` does not import `service/` or `processing/` |
-| `TestDescriptorNoFmtSprintf`            | `descriptor/` never builds JSON via `fmt.Sprintf` |
+| `TestPredictNoExecutionImports`         | `internal/descriptor/predict.go` does not import `internal/service/` or `processing/` |
+| `TestDescriptorNoFmtSprintf`            | `descriptor/` + `internal/descriptor/` never build JSON via `fmt.Sprintf` |
 | `TestGoldensNotHandEdited`              | `descriptor/testdata/*` hashes match the generator |
 | `TestClaudeMdMentionsFormatVersion`     | CLAUDE.md references the current envelope `format_version` |
 | `TestClaudeMdMentionsAllEnvVars`        | Every `PULSE_*` env var has a CLAUDE.md row |
@@ -64,17 +64,17 @@ Their full names appear in CLAUDE.md so the
 | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
 
-(See `CLAUDE.md` "CI gates" for the full prose; this table is the
+(See `CLAUDE.md` "Non-Skippable CI Gates" for the full prose; this table is the
 quick-reference.)
 
 ## Running a subset of gates locally
 
 ```bash
 # All descriptor contract gates
-go test ./descriptor/ -run 'TestPredictNoExecution|TestDescriptorNoFmtSprintf|TestGoldensNotHandEdited'
+go test ./descriptor/ ./internal/descriptor/ -run 'TestPredictNoExecution|TestDescriptorNoFmtSprintf|TestGoldensNotHandEdited'
 
 # Skill coverage gates
-go test ./skills/ -run 'TestSkillsCoverAll|TestSkillsManifestConsistent|TestSkillsFrontmatter'
+go test ./internal/skills/ -run 'TestSkillsCoverAll|TestSkillsManifestConsistent|TestSkillsFrontmatter'
 
 # CLAUDE.md gates
 go test . -run 'TestClaudeMd|TestUpdateDemandTable'

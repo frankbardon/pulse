@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -181,13 +182,13 @@ func TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming(t *testing.T
 //
 // Indirect proof: build the descriptor package and verify it does
 // not panic / fail compilation. The dedicated import-cycle gate
-// lives in descriptor/predict_test.go (TestPredictNoExecutionImports);
+// lives in internal/descriptor/predict_test.go (TestPredictNoExecutionImports);
 // this assertion just exercises the snapshot path from outside.
 func TestExtensions_Predict_DescriptorImportContractHolds(t *testing.T) {
-	snap := &descriptor.ExtensionsSnapshot{
+	snap := &descx.ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{{Name: "AGG_ACME_X", Streamable: true}},
 	}
-	opts := &descriptor.PredictOptions{Extensions: snap}
+	opts := &descx.PredictOptions{Extensions: snap}
 	if opts.Extensions == nil {
 		t.Fatal("snapshot lost through PredictOptions")
 	}

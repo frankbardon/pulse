@@ -9,6 +9,8 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -16,7 +18,7 @@ import (
 // Facade-level coverage for a cohort carrying a WIDE set column
 // (set_u256). Every layer below already proves its own half —
 // encoding/set_mask_test.go the word order, descriptor's inspect tests
-// the dictionary truncation, service/index_*_test.go the sidecar — but
+// the dictionary truncation, internal/service/index_*_test.go the sidecar — but
 // nothing exercised Pulse.InspectEnvelope or Pulse.BuildIndex/Lookup
 // against a real wide-set .pulse through the public facade, so the
 // stride arithmetic that a 32-byte column forces on every neighbouring
@@ -137,8 +139,8 @@ func TestInspectEnvelope_WideSetCohort(t *testing.T) {
 	if !battery.Dictionary.Truncated {
 		t.Errorf("Truncated = false, want true for a %d-entry dictionary", wideSetOptionCount)
 	}
-	if got := len(battery.Dictionary.Values); got != descriptor.DefaultDictionaryLimit {
-		t.Errorf("truncated dictionary len = %d, want %d", got, descriptor.DefaultDictionaryLimit)
+	if got := len(battery.Dictionary.Values); got != descx.DefaultDictionaryLimit {
+		t.Errorf("truncated dictionary len = %d, want %d", got, descx.DefaultDictionaryLimit)
 	}
 
 	fullEnv, err := p.InspectEnvelope(context.Background(), "battery.pulse", &descriptor.InspectOptions{FullDict: true})
@@ -190,7 +192,7 @@ func TestBuildIndexAndLookup_WideSetCohort(t *testing.T) {
 	if _, err := p.BuildIndex(context.Background(), "battery.pulse", []string{"id"}); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
 	}
-	idxPath := encoding.SidecarIndexPath("battery.pulse", []string{"id"})
+	idxPath := encx.SidecarIndexPath("battery.pulse", []string{"id"})
 	exists, err := afero.Exists(memFs, idxPath)
 	if err != nil {
 		t.Fatalf("afero.Exists: %v", err)

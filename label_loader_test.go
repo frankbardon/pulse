@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/imports"
-	"github.com/frankbardon/pulse/io/spss"
+	"github.com/frankbardon/pulse/internal/imports"
+	"github.com/frankbardon/pulse/internal/io/spss"
 )
 
 func TestLoadLabelTables_FlatMap(t *testing.T) {

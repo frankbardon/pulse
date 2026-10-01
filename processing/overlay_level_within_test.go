@@ -106,9 +106,9 @@ func TestOverlay_ShareOfRow_NestedAxisLevel1(t *testing.T) {
 			Level: 1, // truncate row axis to parent prefix (brand only)
 		},
 	}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(layers) != 1 {
 		t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -173,9 +173,9 @@ func TestOverlay_ShareOfRow_Within1_ColumnAxis(t *testing.T) {
 			Within: 1, // fix column axis at parent-prefix depth
 		},
 	}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(layers) != 1 {
 		t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -248,13 +248,13 @@ func TestOverlay_ShareOfRow_LevelZero_ByteIdenticalToBaseline(t *testing.T) {
 		Within: 0,
 	}
 
-	baseLayers, _, err := ApplyOverlays([]types.OverlaySpec{baselineSpec}, host)
+	baseLayers, _, err := applyOverlays([]types.OverlaySpec{baselineSpec}, host)
 	if err != nil {
-		t.Fatalf("baseline ApplyOverlays: %v", err)
+		t.Fatalf("baseline applyOverlays: %v", err)
 	}
-	zeroLayers, _, err := ApplyOverlays([]types.OverlaySpec{zeroSpec}, host)
+	zeroLayers, _, err := applyOverlays([]types.OverlaySpec{zeroSpec}, host)
 	if err != nil {
-		t.Fatalf("zero-default ApplyOverlays: %v", err)
+		t.Fatalf("zero-default applyOverlays: %v", err)
 	}
 
 	baseBytes, err := json.Marshal(baseLayers)

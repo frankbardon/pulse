@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/spf13/afero"
 )
 
@@ -43,9 +43,9 @@ import (
 // Both exclusions guard against the SAME class of problem, at two
 // different layers:
 //
-//   - drawRow (synth/writer.go) applies each captured joint-structure
+//   - drawRow (internal/synth/writer.go) applies each captured joint-structure
 //     kind as a fixed post-processing stage over a shared per-Spec
-//     priority order (E6-S1, synth/conflict.go): when two DIFFERENT
+//     priority order (E6-S1, internal/synth/conflict.go): when two DIFFERENT
 //     relationships each target the SAME field, only the
 //     higher-priority one survives — the other is dropped with a
 //     warning rather than silently overwritten (the pre-E6-S1 bug).
@@ -165,7 +165,7 @@ func buildMarketingSurveyCohort(t *testing.T, seed int64) (data []byte, rowCount
 // buildMarketingSurveyCohort's doc comment for why this isolation is
 // required to observe the set-numeric joint-structure kind's own
 // reconstruction, uncontaminated by a higher-priority
-// categorical-numeric pairing (E6-S1, synth/conflict.go) claiming the
+// categorical-numeric pairing (E6-S1, internal/synth/conflict.go) claiming the
 // same target field. channels[push] selection is flat 50%, independent
 // of anything else; spend's mean is conditioned on it (45 vs 35, std
 // 15) — the relationship under test.

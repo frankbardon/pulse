@@ -10,8 +10,8 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	"github.com/frankbardon/pulse/mcp/gosdk"
-	"github.com/frankbardon/pulse/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )

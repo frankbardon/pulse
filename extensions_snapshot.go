@@ -3,6 +3,7 @@ package pulse
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 )
 
 // buildExtensionsSnapshot translates the public Extensions struct
@@ -10,11 +11,11 @@ import (
 // predict. Returns nil when ext carries no registrations of any
 // kind, so the snapshot path stays a single nil-check at the call
 // site.
-func buildExtensionsSnapshot(ext Extensions) *descriptor.ExtensionsSnapshot {
+func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 	if !hasAnyRegistrations(ext) {
 		return nil
 	}
-	snap := &descriptor.ExtensionsSnapshot{}
+	snap := &descx.ExtensionsSnapshot{}
 	// ComponentSchemas projects per-extension ComponentSchema declarations
 	// so manifest + predict can surface extension operators on the same
 	// shape as built-ins. Empty / floor-only registrations stay absent

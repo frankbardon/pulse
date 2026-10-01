@@ -5,8 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -71,7 +71,7 @@ func ignoredFieldDict() *encoding.Dictionary {
 // UpdateRow/Finalize pair, because a Field read that survives on only one
 // of them is still a Field read.
 func TestAggregators_IgnoredFieldSlotIsReallyIgnored(t *testing.T) {
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 
 	declared := 0
 	for _, op := range m.Components.Aggregators {

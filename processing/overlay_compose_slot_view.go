@@ -51,7 +51,7 @@ import (
 // than a single crosstab does (a slot that is not a crosstab at all,
 // and a slot index that resolves to nothing).
 //
-// Structural invariants: this file MUST NOT import service/ or
+// Structural invariants: this file MUST NOT import internal/service/ or
 // descriptor/, and raises no errors — a view reports what it can see
 // and leaves the choice of code to the handler.
 
@@ -207,7 +207,7 @@ func newComposeSlotView(resp *types.Response) *ComposeSlotView {
 	return &ComposeSlotView{
 		response:   resp,
 		state:      ComposeComponentsPresent,
-		host:       NewCrosstabHostViewWithComponents(payload, comps),
+		host:       newCrosstabHostViewWithComponents(payload, comps),
 		components: comps,
 	}
 }

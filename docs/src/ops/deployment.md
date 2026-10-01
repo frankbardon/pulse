@@ -8,7 +8,7 @@ Pulse is a single static Go binary. There is no install command, no
 config file, and no daemon — every deployment story is some shape of
 "put the binary somewhere, set `PULSE_DATA_DIR`, run it".
 
-> **LLM agents using MCP:** see the `mcp-integration` skill via
+> **LLM agents using MCP:** see the `session-bootstrap` skill via
 > `pulse_skills_get` for the MCP-side wiring details. This page covers
 > the operator side.
 
@@ -29,7 +29,7 @@ That's the full install. The CLI tree is mapped in the
 launch the process, speak MCP over its standard streams, and shut it
 down on session close.
 
-The full wiring guide is in the `mcp-integration` skill. Quick
+The full wiring guide is in the `session-bootstrap` skill. Quick
 reference for Claude Desktop:
 
 ```jsonc
@@ -48,8 +48,8 @@ reference for Claude Desktop:
 ```
 
 For Claude Code (`~/.claude.json`) and other clients the shape is the
-same — see the `mcp-integration` skill (`pulse skills show
-mcp-integration`) for the canonical recipes.
+same — see the `session-bootstrap` skill (`pulse skills show
+session-bootstrap`) for the canonical recipes.
 
 Flags worth knowing:
 

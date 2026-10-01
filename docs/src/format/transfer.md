@@ -1,7 +1,7 @@
 # Transfer Compression (`.pulse.zst`)
 
 **Audience:** anyone moving cohorts between machines. Source of truth:
-[`io/transfer.go`](https://github.com/frankbardon/pulse/blob/main/io/transfer.go).
+[`internal/io/transfer.go`](https://github.com/frankbardon/pulse/blob/main/internal/io/transfer.go).
 
 Compression in Pulse is **transport-only**. A cohort is compressed to
 move it, and decompressed back to a byte-identical `.pulse` before it is
@@ -75,7 +75,7 @@ receiver's figures can be compared directly.
 
 | Code | When |
 |---|---|
-| `PULSE_COHORT_COMPRESSED` | A transfer artifact was passed where a cohort goes: `Open`, `Process`, `CountRecords`, `Inspect`, `Predict` and every other read surface, every `pulse shard` leaf that takes an archive (`verify`, `compact`, `remove`, `add`, `list`, `extract` — all open it through `encoding.OpenArchive`), and `pulse_import`, which refuses it even when it has been renamed to `.pulse`. The fix is to decompress it first. |
+| `PULSE_COHORT_COMPRESSED` | A transfer artifact was passed where a cohort goes: `Open`, `Process`, `CountRecords`, `Inspect`, `Predict` and every other read surface, every `pulse shard` leaf that takes an archive (`verify`, `compact`, `remove`, `add`, `list`, `extract` — all open it through `internal/encoding.OpenArchive`), and `pulse_import`, which refuses it even when it has been renamed to `.pulse`. The fix is to decompress it first. |
 | `PULSE_TRANSFER_INVALID` | `details.reason` is one of: `level` (outside 1..22); `not_a_cohort` (the export source, or the decompressed bytes, are not a Pulse cohort); `already_compressed`; `not_zstd` (the import source is not a zstd stream — an uncompressed `.pulse` needs no import); `corrupt_stream` (truncated or damaged in transit); `output_exists`. |
 
 ## Compression and parent groups do overlapping work
@@ -83,7 +83,7 @@ receiver's figures can be compared directly.
 Parent groups (`0x02`) and zstd both remove the same redundancy: a parent
 block repeated on every child row. Once a cohort is grouped, zstd has
 much less left to find. Figures from the synthetic join-shaped bench,
-`go test ./io/ -run '^$' -bench BenchmarkTransfer`, at 240K rows, fanout
+`go test ./internal/io/ -run '^$' -bench BenchmarkTransfer`, at 240K rows, fanout
 12, a 12-field parent block, and random-valued child columns:
 
 | Shape | Cohort | Artifact | Ratio |

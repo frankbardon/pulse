@@ -8,7 +8,7 @@ client launches `pulse mcp` as a subprocess, speaks MCP over its
 stdio streams, and shuts it down on session close.
 
 > **LLM agents using MCP:** the agent-side guide is the
-> `mcp-integration` skill — fetch it via `pulse_skills_get` for the
+> `session-bootstrap` skill — fetch it via `pulse_skills_get` for the
 > tool catalog and request shapes. This page is for the human setting
 > the server up.
 
@@ -47,7 +47,7 @@ Default: `true`. Pass `--bind-on-open=false` if your client binds
 tool schemas itself.
 
 The binding logic lives in the SDK-free core
-[`mcp/bind.go`](https://github.com/frankbardon/pulse/blob/main/mcp/bind.go)
+[`internal/mcp/bind.go`](https://github.com/frankbardon/pulse/blob/main/internal/mcp/bind.go)
 (the per-session server mutation that consumes it lives in the go-sdk
 adapter, `mcp/gosdk/bind.go`); see
 [Adding an MCP tool](../internals/adding-mcp-tool.md) for the

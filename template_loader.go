@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/frankbardon/pulse/template"
+	"github.com/frankbardon/pulse/internal/template"
 )
 
 // envTemplatesDir is the environment variable consulted when

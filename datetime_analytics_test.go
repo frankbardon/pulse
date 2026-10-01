@@ -15,7 +15,7 @@ import (
 // TestDateTime_AnalyticsAggregatorsReadTheNumericChannel is the runtime
 // half of the `datetime` capability declaration.
 //
-// descriptor/capabilities_aggregators.go declaring a type is a CLAIM;
+// internal/descriptor/capabilities_aggregators.go declaring a type is a CLAIM;
 // this is the confirmation that the claim is honoured. The chain under
 // test is: infer a `datetime` column on import → decode it through
 // encoding.decodeFixed, which writes epoch SECONDS into Record.values as

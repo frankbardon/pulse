@@ -54,7 +54,7 @@ applicable.
 
 ## 4. Declare the capability metadata
 
-Add a row to `descriptor/capabilities_groupers.go` with the grouper's
+Add a row to `internal/descriptor/capabilities_groupers.go` with the grouper's
 params, accepted field types, and the
 [`ComponentSchema`](#5-declare-the-componentschema-responsecomponents-contract)
 that follows. `TestManifestOperatorsComplete` enforces a capability
@@ -63,7 +63,7 @@ row per registered grouper.
 ## 5. Declare the `ComponentSchema` (Response.Components contract)
 
 Every registered grouper MUST declare a `ComponentSchema` on its
-capability row in `descriptor/capabilities_groupers.go`, tagged with
+capability row in `internal/descriptor/capabilities_groupers.go`, tagged with
 one of three mergeability classes:
 
 | Class | Wire value | When to use |
@@ -123,7 +123,7 @@ to multiple buckets — `total_n` reflects the row count.
 The full Response.Components contract for groupers — streaming
 behaviour by mergeability class, the orchestrator-owned floor, the
 extension-side parity contract — lives in the [response-components
-skill](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md).
+skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md).
 Embedder extensions implement the same `MetaGrouper` interface via
 `ComponentsFunc` or directly; see
 [Extension Points](extension-points.md).
@@ -148,13 +148,20 @@ streamability classification, and any cardinality bound.
 
 ## 9. Update CLAUDE.md
 
-Bump the registered-grouper count in CLAUDE.md's "Skill Pack" section.
+There is **no registered-grouper count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-group-<kebab>.md`, the capability declaration in
+`internal/descriptor/capabilities_groupers.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
 
 ## 10. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ -run TestManifestOperatorsComplete
+go test ./internal/skills/ -run TestSkillsCoverAllComponents
+go test ./internal/descriptor/ -run TestManifestOperatorsComplete
 go test ./processing/ -run TestGroup
 ```
 

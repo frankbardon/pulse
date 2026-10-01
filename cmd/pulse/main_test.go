@@ -13,8 +13,9 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/csv"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -790,7 +791,7 @@ doneScan:
 func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := importExperimentCohort(t, dir)
-	exampleSrc := readRepoFile(t, "examples/overlays/pairwise-z-matrix.json")
+	exampleSrc := readRepoFile(t, "internal/examples/overlays/pairwise-z-matrix.json")
 	composedPath := rewriteComposedExample(t, dir, exampleSrc, pulsePath, "composed_z.json")
 
 	out, err := runApp(t, "api", "compose", "--request", composedPath, "--json")
@@ -812,7 +813,7 @@ func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
 func TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := importExperimentCohort(t, dir)
-	exampleSrc := readRepoFile(t, "examples/overlays/pairwise-welch-matrix.json")
+	exampleSrc := readRepoFile(t, "internal/examples/overlays/pairwise-welch-matrix.json")
 	composedPath := rewriteComposedExample(t, dir, exampleSrc, pulsePath, "composed_welch.json")
 
 	out, err := runApp(t, "api", "compose", "--request", composedPath, "--json")
@@ -835,7 +836,7 @@ func TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope(t *testing.T) 
 // package test working directory (cmd/pulse/...). Used by the pairwise
 // gates to locate the canonical example fixtures without hard-coding
 // the os-specific path layout. Failing here is unrecoverable — the
-// test relies on examples/ + examples/fixtures/ being present, which
+// test relies on internal/examples/ + internal/examples/fixtures/ being present, which
 // is true on every dev / CI checkout.
 func repoRoot(t *testing.T) string {
 	t.Helper()
@@ -860,7 +861,7 @@ func readRepoFile(t *testing.T, relPath string) []byte {
 
 // importExperimentCohort builds the experiment.pulse cohort the
 // pairwise example requests reference. Re-uses the checked-in
-// examples/fixtures/experiment.csv + examples/fixtures/schemas/
+// examples/fixtures/experiment.csv + internal/examples/fixtures/schemas/
 // experiment.json so the schema (treatment / region / segment as
 // categorical_u8; revenue as f64) matches the example request slot
 // fields exactly.
@@ -872,8 +873,8 @@ func readRepoFile(t *testing.T, relPath string) []byte {
 func importExperimentCohort(t *testing.T, dir string) string {
 	t.Helper()
 	root := repoRoot(t)
-	csvPath := filepath.Join(root, "examples", "fixtures", "experiment.csv")
-	schemaPath := filepath.Join(root, "examples", "fixtures", "schemas", "experiment.json")
+	csvPath := filepath.Join(root, "internal", "examples", "fixtures", "experiment.csv")
+	schemaPath := filepath.Join(root, "internal", "examples", "fixtures", "schemas", "experiment.json")
 	pulsePath := filepath.Join(dir, "experiment.pulse")
 
 	out, err := runApp(t, "import", "csv",
@@ -894,7 +895,7 @@ func importExperimentCohort(t *testing.T, dir string) string {
 // every request slot's cohort to point at the temp pulse file the test
 // fixture produced. The original example references
 // {filename: "experiment.pulse", data_dir: ".data"} which only works
-// after examples/fixtures/build.sh has populated the repo-level .data
+// after internal/examples/fixtures/build.sh has populated the repo-level .data
 // directory; hermetic tests need an absolute path on a temp file
 // instead. Returns the absolute path to the rewritten request JSON.
 func rewriteComposedExample(t *testing.T, dir string, body []byte, pulsePath, name string) string {
@@ -1273,7 +1274,7 @@ func TestCliCohortInspectText_ReportsRecordCount(t *testing.T) {
 // pre-existing --full-dict test does not make: it only looked for
 // "Fields:", which prints with or without the flag. The flag's whole
 // job is the InspectOptions.FullDict passthrough, and that passthrough
-// moved when the leaf stopped calling descriptor.InspectFromBytes
+// moved when the leaf stopped calling descriptor's byte-level inspect
 // itself — a dropped option would have been invisible.
 func TestCliCohortInspectFullDict_DisablesTruncation(t *testing.T) {
 	dir := t.TempDir()
@@ -1330,9 +1331,9 @@ func TestCliCohortInspectFullDict_DisablesTruncation(t *testing.T) {
 	if truncated.TotalEntries != 120 {
 		t.Fatalf("total_entries = %d, want 120", truncated.TotalEntries)
 	}
-	if !truncated.Truncated || len(truncated.Values) != descriptor.DefaultDictionaryLimit {
+	if !truncated.Truncated || len(truncated.Values) != descx.DefaultDictionaryLimit {
 		t.Errorf("default inspect: truncated=%v values=%d, want true/%d",
-			truncated.Truncated, len(truncated.Values), descriptor.DefaultDictionaryLimit)
+			truncated.Truncated, len(truncated.Values), descx.DefaultDictionaryLimit)
 	}
 
 	full := dictOf(t, "cohort", "inspect", "--json", "--full-dict", pulsePath)

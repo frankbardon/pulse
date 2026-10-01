@@ -794,11 +794,12 @@ var (
 // nothing and report 0 distinct values over a fully answered column.
 // Refusing at construction is the only outcome a caller can see.
 //
-// This matches what they now DECLARE: descriptor/capabilities_
-// aggregators.go gives each of them AcceptsTypes: nonSetFieldTypes.
-// AGG_COUNT / AGG_NULL_COUNT are deliberately NOT here — they ask
-// presence, not value, through FieldPresent (processing/record_
-// presence.go), and they keep every set rung in their declaration.
+// This matches what they now DECLARE:
+// internal/descriptor/capabilities_aggregators.go gives each of them
+// AcceptsTypes: nonSetFieldTypes. AGG_COUNT / AGG_NULL_COUNT are
+// deliberately NOT here — they ask presence, not value, through
+// FieldPresent (processing/record_presence.go), and they keep every set
+// rung in their declaration.
 //
 // A nil schema (registry probe construction) has nothing to check.
 func rejectSetFieldForNumericAggregator(agg *types.Aggregation, schema *encoding.Schema) error {

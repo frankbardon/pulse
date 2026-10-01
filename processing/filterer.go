@@ -148,7 +148,7 @@ func (f *rangeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (
 // Exactly one of Ranges (inline labeled ranges) or Table (a named,
 // pre-registered range table) is the source; supplying both or neither
 // is rejected with PULSE_RANGE_SOURCE_AMBIGUOUS. Whichever source is
-// named, the resolved ranges run through the same CompileDateRanges
+// named, the resolved ranges run through the same compileDateRanges
 // validation (overlap/duplicate/empty/invalid) and Match path. The label
 // is irrelevant to keep/drop.
 type dateRangesFilterParams struct {
@@ -214,14 +214,14 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 
 	// Select exactly one source (inline `ranges` XOR named `table`) and
 	// resolve a named table against the injected registry. The resolved
-	// specs then run through the same CompileDateRanges validation path as
+	// specs then run through the same compileDateRanges validation path as
 	// inline — behaviour is identical regardless of source. The label plays
 	// no role in keep/drop but is validated all the same.
 	specs, err := resolveDateRangeSpecs("FILTER_DATE_RANGES", params.Ranges, params.Table, f.exts)
 	if err != nil {
 		return nil, err
 	}
-	set, err := CompileDateRanges(specs)
+	set, err := compileDateRanges(specs)
 	if err != nil {
 		return nil, err
 	}

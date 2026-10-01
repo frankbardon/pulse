@@ -67,7 +67,7 @@ Add the matching row in `types/streamability_test.go` so
 
 ## 5. Capability declaration
 
-Add a row to `descriptor/capabilities_tests.go`:
+Add a row to `internal/descriptor/capabilities_tests.go`:
 
 - For a tier-1 test, declare it in the tier-1 catalog (`testCapabilities`).
 - For a tier-2 post-test, declare it in `postTestCapabilities`.
@@ -95,7 +95,7 @@ fixtures that exercise the streaming and buffered paths.
 
 If your test introduces a new failure mode, add a code to
 `errors/codes.go` (mirror the existing `PULSE_TEST_*` family),
-register its description row in `descriptor/capabilities_errors.go`,
+register its description row in `internal/descriptor/capabilities_errors.go`,
 and document recovery in `errors/fixup_metadata.go` (`codeMetadata`
 Message + Fixups, surfaced per-code via `pulse_errors_lookup` /
 `pulse errors lookup CODE`). See the
@@ -104,18 +104,25 @@ pattern at the aggregator layer.
 
 ## 9. CLAUDE.md
 
-Update CLAUDE.md's "Current registered components → statistical
-tests" line with the new operator. If the test introduces a new
-preconditions class (e.g. paired sample, repeated measures), also
-add a sentence describing it in the parent paragraph.
+There is **no registered-test count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-test-<kebab>.md`, the `types/streamability.go` case (§4), the capability declaration in
+`internal/descriptor/capabilities_tests.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+
+A new preconditions class (e.g. paired sample, repeated measures)
+belongs in `skills/statistical-testing.md`, not CLAUDE.md.
 
 ## 10. Run the gates
 
 ```bash
-go test ./processing/ -run TestType_Streamable
-go test ./types/    -run TestStreamability_TestsKnown
-go test ./descriptor/ -run TestManifest
-go test ./skills/    -run TestSkillsCoverAll
+go test ./types/      -run TestStreamability_TestsKnown   # declared TestType.Streamable() table
+go test ./processing/ -run 'TestProcessor_Tier1|TestProcessor_PostTest'   # tier-1 streaming vs buffered, post-test dispatch
+go test ./descriptor/ ./internal/descriptor/ -run TestManifest
+go test ./internal/skills/    -run TestSkillsCoverAll
 go test ./...
 ```
 

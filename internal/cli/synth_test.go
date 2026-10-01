@@ -13,7 +13,8 @@ import (
 
 	pulse "github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/synth"
+	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/synth"
 )
 
 // runSynthCLI drives a fresh SynthCommand with the supplied args,
@@ -81,7 +82,7 @@ func synthLibraryCohort(t *testing.T, path string, fields []synth.FieldSpec, row
 // rows are block-ordered by region: rows [0, half) are all "us", rows
 // [half, rowCount) are all "eu" — mirroring
 // synth.buildBlockOrderedRegionPlanCohort
-// (synth/conditional_categorical_reservoir_test.go), reimplemented here
+// (internal/synth/conditional_categorical_reservoir_test.go), reimplemented here
 // because that helper is unexported from an internal _test.go file.
 // rowCount exceeding synth.conditionalJointCap (10000, unexported) is
 // what makes `profile create --conditional`'s categorical-categorical
@@ -627,7 +628,7 @@ func readCohortRows(t *testing.T, path string) (vals []map[string]any, nulls []m
 	if err != nil {
 		t.Fatalf("ReadSchema(%s): %v", path, err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	for {
 		v := make(map[string]float64)
 		n := make(map[string]bool)

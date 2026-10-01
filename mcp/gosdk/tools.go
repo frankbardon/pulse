@@ -7,8 +7,8 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
-	core "github.com/frankbardon/pulse/mcp"
-	"github.com/frankbardon/pulse/mcp/toolmeta"
+	core "github.com/frankbardon/pulse/internal/mcp"
+	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -20,7 +20,7 @@ var (
 
 // RegisteredTools returns the canonical list of MCP tool names this adapter
 // mounts. Order is stable for deterministic documentation scans. Mirrors
-// toolmeta.Names().
+// internal/mcp/toolmeta.Names().
 func RegisteredTools() []string {
 	return toolmeta.Names()
 }
@@ -37,7 +37,7 @@ func RegisteredTools() []string {
 // panics on the recursive request types (Crosstab / overlay nesting). The
 // low-level Server.AddTool path accepts the json.RawMessage schema directly.
 func registerTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
-	for _, d := range core.Tools(cfg.Core()) {
+	for _, d := range core.Tools(cfg.coreConfig()) {
 		s.AddTool(
 			&mcpsdk.Tool{
 				Name:        d.Name,
@@ -52,7 +52,7 @@ func registerTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
 // coreDescriptor returns the core catalog descriptor for the named tool. Used
 // by the schema-bind path to reuse the core Invoke under a bound input schema.
 func coreDescriptor(cfg Config, name string) (core.ToolDescriptor, bool) {
-	for _, d := range core.Tools(cfg.Core()) {
+	for _, d := range core.Tools(cfg.coreConfig()) {
 		if d.Name == name {
 			return d, true
 		}
@@ -110,7 +110,7 @@ func inspectPath(raw json.RawMessage) string {
 }
 
 // importResultPath extracts the managed .pulse path from a pulse_import result
-// for the bind-on-inspect hook. The result is the typed imports.Result.
+// for the bind-on-inspect hook. The result is the typed internal/imports.Result.
 func importResultPath(result any) string {
 	body, err := json.Marshal(result)
 	if err != nil {

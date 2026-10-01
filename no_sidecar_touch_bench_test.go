@@ -15,7 +15,7 @@ import (
 // region categorical_u8, amount f64) cohort as raw .pulse bytes —
 // header + schema + fixed-width records, no null bitmap — mirroring
 // the raw-byte-construction convention service's buffered-decode
-// benchmarks use (service/buffered_process_bench_test.go's
+// benchmarks use (internal/service/buffered_process_bench_test.go's
 // buildWideCohort) so fixture-build cost stays out of the timed
 // warmup and the benchmark exercises a realistic buffered-decode +
 // aggregation workload rather than the (slower, allocation-heavy)
@@ -64,7 +64,7 @@ func buildSidecarBenchCohort(b testing.TB, rowCount int) []byte {
 // BenchmarkProcess_SidecarIndexPresence is the runnable measurement
 // half of E6-S1's "zero-regression" requirement: buffered decode +
 // a representative aggregation (AGG_SUM + AGG_COUNT over the same
-// field, matching the aggregation shape service/
+// field, matching the aggregation shape internal/service/
 // buffered_process_bench_test.go's BenchmarkBufferedProcessWideCohortMergeable
 // already benches for the wide-schema-decode-perf effort) run twice
 // against the SAME cohort — once before any sidecar index exists,
@@ -76,7 +76,7 @@ func buildSidecarBenchCohort(b testing.TB, rowCount int) []byte {
 //
 // Wall-clock ns/op is NOT gated in CI here — a strict wall-clock
 // threshold in a shared CI runner is flaky (see the existing
-// service/parallel_decode_perf_test.go's own rationale for gating its
+// internal/service/parallel_decode_perf_test.go's own rationale for gating its
 // ratio check behind `-tags=perf`, opt-in only, never wired into any
 // CI workflow). The enforceable, deterministic form of "did the
 // sidecar's presence add cost" lives in
@@ -97,7 +97,7 @@ func BenchmarkProcess_SidecarIndexPresence(b *testing.B) {
 
 // runSidecarPresenceBench runs the inner Process loop for one
 // with/without-sidecar variant. Extracted from the b.Run closures
-// (mirroring service/buffered_process_bench_test.go's
+// (mirroring internal/service/buffered_process_bench_test.go's
 // runMergeableBenchInner / runMergeableBench split) so the opt-in
 // wall-clock perf gate (no_sidecar_touch_perf_test.go, //go:build
 // perf) can drive each variant independently via testing.Benchmark

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -362,14 +363,14 @@ func TestRecord_ProjectedBindingSizedToRetained(t *testing.T) {
 		set[n] = true
 	}
 	keep := func(n string) bool { return set[n] }
-	plan, err := schema.BuildDecodePlan(retained)
+	plan, err := encx.BuildDecodePlan(schema, retained)
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw := encodeIndexedRows(t, schema, 16)
 	binding := BindRecords(schema, keep)
-	projRR := encoding.NewRecordReader(bytes.NewReader(raw), schema)
-	fullRR := encoding.NewRecordReader(bytes.NewReader(raw), schema)
+	projRR := encx.NewRecordReader(bytes.NewReader(raw), schema)
+	fullRR := encx.NewRecordReader(bytes.NewReader(raw), schema)
 	for row := 0; row < 16; row++ {
 		proj := binding.NewRecord()
 		full := NewReusableRecord(schema)
@@ -559,7 +560,7 @@ func TestRecord_ReuseDecodeStaysPositional(t *testing.T) {
 	schema := indexedRecordSchema()
 	raw := encodeIndexedRows(t, schema, 4)
 	rec := NewReusableRecord(schema)
-	rr := encoding.NewRecordReader(bytes.NewReader(raw), schema)
+	rr := encx.NewRecordReader(bytes.NewReader(raw), schema)
 	for row := 0; row < 4; row++ {
 		if err := rr.ReadRecordReused(rec); err != nil {
 			t.Fatalf("row %d: %v", row, err)

@@ -598,7 +598,7 @@ func TestCanonicalHash_Request_LabelOmitemptyMatchesDefault(t *testing.T) {
 // TestComposedRequest_AutoDefaultDoesNotMutateCaller verifies the
 // hash-time auto-default normalizer never mutates the caller's
 // *ComposedRequest or any nested *Request pointer. The validate-time
-// normalizer in service/compose_label.go already documents this
+// normalizer in internal/service/compose_label.go already documents this
 // guarantee for the execution path; the hash path mirrors it so
 // callers can safely use ComposedRequest.Hash() inside dedup-cache
 // lookups without worrying about silent state mutation.

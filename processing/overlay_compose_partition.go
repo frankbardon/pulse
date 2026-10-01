@@ -46,7 +46,7 @@ import (
 // computed. exts carries the embedder's grouper registrations so a
 // custom fan-out grouper is gated exactly like GROUP_SET_PER_ELEMENT;
 // the predict arm reaches the same fact through
-// descriptor.ExtensionsSnapshot, and both call the same types-side
+// internal/descriptor.ExtensionsSnapshot, and both call the same types-side
 // predicate so the two cannot drift.
 //
 // Returns nil when `requests` is nil — the legacy

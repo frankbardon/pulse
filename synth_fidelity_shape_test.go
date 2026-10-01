@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/spf13/afero"
 )
 
 // fidelityBimodalSpec mirrors E4-S1/E4-S2's own bimodal test fixture
 // shape (synth_test.go's TestSynth_MixtureReproducesBimodalShape,
-// synth/shape_test.go's synthSingleField) — a single f64 field "v"
+// internal/synth/shape_test.go's synthSingleField) — a single f64 field "v"
 // drawn from a well-separated two-component mixture, kept as a
 // standalone helper here since those helpers live in the external
 // synth_test package this file cannot import.

@@ -392,7 +392,7 @@ original did not have.
 | Compensated (Kahan) summation for reproducible capture | still order-dependent in principle; sort the keys instead |
 | `math.FMA` for architecture-independent floats | forces fusion everywhere — it changes amd64's values rather than preserving them |
 | Inverse-Mills recovery for a step target | reports a large false attenuation for a generation path that is exactly correct |
-| An ordered-probit refit for the recovery | more efficient, not more correct; `processing/regression` has `binomial`+`probit` as a reserved, unimplemented link |
+| An ordered-probit refit for the recovery | more efficient, not more correct; `internal/processing/regression` has `binomial`+`probit` as a reserved, unimplemented link |
 | A tolerance-terminated mixture quantile inverse | makes the answer depend on how many steps a given `p` needed, breaking byte-determinism; Newton additionally explodes where the density underflows between modes |
 | One `set` map with a `{"$expr": …}` marker | leaves `{"set": {"region": "west"}}` undecidable between a literal and an identifier |
 | A two-phase rule pass (evaluate gates, re-run dependent stages) | doubles the stage surface and needs a rule↔model dependency order no document declares |

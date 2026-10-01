@@ -7,8 +7,8 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing"
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/daterange"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -80,7 +80,7 @@ var validJSONTypes = map[string]struct{}{
 // operator slices.
 //
 // Built-in collision checks use the live type registries
-// (types.All*Types() + synth.AllDistributions()) so adding a new
+// (types.All*Types() + internal/synth.AllDistributions()) so adding a new
 // built-in automatically reserves its name against embedder
 // collisions.
 func validateExtensions(ext Extensions) error {
@@ -599,8 +599,8 @@ func validateRangeTables(tables map[string]RangeTable) error {
 				map[string]any{"category": "range_table"},
 			)
 		}
-		if _, err := processing.CompileDateRanges(t.Ranges); err != nil {
-			// CompileDateRanges emits the PULSE_RANGE_* coded error; wrap
+		if _, err := daterange.Compile(toEngineDateRanges(t.Ranges)); err != nil {
+			// daterange.Compile emits the PULSE_RANGE_* coded error; wrap
 			// it with the offending table name for actionable diagnostics.
 			if ce, ok := err.(*errors.CodedError); ok {
 				if ce.Details == nil {

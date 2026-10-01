@@ -11,7 +11,7 @@ import (
 
 // Cohort-analytics aggregators — AGG_WEIGHTED_MEAN, AGG_RATIO,
 // AGG_CI_LOWER, AGG_CI_UPPER. These give the orchestrator first-class
-// support for stats Prism today computes client-side in compile/inmem/
+// support for stats an embedder would otherwise compute client-side
 // after a generic Pulse fold. Each implementation cleanly fits the
 // existing Aggregator + OnlineAggregator + MergeableAggregator surface
 // — no orchestrator changes required.

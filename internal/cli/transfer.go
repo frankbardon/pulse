@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 
+	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -19,14 +20,14 @@ func exportTransferCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort or shard archive", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output transfer artifact path (conventionally <input>.zst); overwritten"},
-			&cli.IntFlag{Name: "level", Usage: "zstd level 1..22 (1-2 fastest, 3-5 default, 6-9 better, 10-22 best)", Value: pio.DefaultTransferLevel},
+			&cli.IntFlag{Name: "level", Usage: "zstd level 1..22 (1-2 fastest, 3-5 default, 6-9 better, 10-22 best)", Value: iio.DefaultTransferLevel},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
 			output := cmd.String("output")
 			if output == "" {
-				output = input + pio.TransferExtension
+				output = input + iio.TransferExtension
 			}
 			job := &pio.TransferExportJob{FS: afero.NewOsFs(), Source: input, Output: output, Level: int(cmd.Int("level"))}
 			report, err := job.Run(ctx)

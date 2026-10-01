@@ -6,7 +6,7 @@ This page walks through installing Pulse, the prerequisites it needs, and how
 to verify the install. Pulse is distributed as a single static Go binary;
 there is no installer, no daemon, and no config file.
 
-> **LLM agents using MCP:** see the `getting-started` skill via
+> **LLM agents using MCP:** see the `session-bootstrap` skill via
 > `pulse_skills_get` — it covers session bootstrap rather than local install.
 
 ## Prerequisites
@@ -48,8 +48,8 @@ make build
 # Binary at ./bin/pulse
 ```
 
-The `Makefile` is documented in [CLAUDE.md → Build / Dev / Test
-Workflow](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#build--dev--test-workflow);
+The `Makefile` is documented in [CLAUDE.md → Build /
+Env](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#build--env);
 the relevant targets are `make build`, `make test`, `make lint`, and
 `make cover`.
 

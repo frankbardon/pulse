@@ -291,7 +291,7 @@ dozen parents, and a column that happens to be constant across so few
 looks like a parent attribute. Candidates are then **confirmed and
 measured over every row**. A member that varies within its key later in
 the file is dropped and listed under `rejected_members`. The figures
-therefore come from the same conversion and the same `encoding.DedupGate`
+therefore come from the same conversion and the same `internal/encoding.DedupGate`
 arithmetic the import uses, so they are not a sample estimate. They
 equal what `import --group` reports and what `cohort inspect` shows
 afterwards. A dependency can still break in a later re-export of the

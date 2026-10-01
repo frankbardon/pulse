@@ -25,8 +25,7 @@ func (p *Pulse) RangeTables() []RangeTableInfo {
 	}
 	out := make([]RangeTableInfo, 0, len(reg.RangeTables))
 	for name, tbl := range reg.RangeTables {
-		ranges := make([]DateRangeSpec, len(tbl.Ranges))
-		copy(ranges, tbl.Ranges)
+		ranges := fromEngineDateRanges(tbl.Ranges)
 		out = append(out, RangeTableInfo{
 			Name:       name,
 			RangeCount: len(tbl.Ranges),

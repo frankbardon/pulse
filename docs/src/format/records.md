@@ -100,9 +100,11 @@ mask means "selected nothing", which is data, not absence.
 
 ## Reading a record
 
-The Go decoder lives at `encoding.Reader` /
-`encoding.ReadRecord(*Schema, []byte)`. A non-Go reader can follow
-the same recipe:
+The Go decoder is internal (`internal/encoding`, `RecordReader`); an
+embedder decodes a single-file ungrouped record with the public
+`encoding.ReadFieldValue` over the schema geometry
+(`Schema.RecordByteSize`, each field's byte offset and bit position).
+A non-Go reader can follow the same recipe:
 
 1. Compute record size from the schema (field widths + one byte per
    bit-packed field + the bitmap, if any).

@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
-	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/io/csv"
+	"github.com/frankbardon/pulse/internal/synth"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/csv"
-	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -50,7 +50,7 @@ func physicalStride(t *testing.T, fsys afero.Fs, path string) (int, bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, _, err := encoding.ReadPreamble(bytes.NewReader(raw))
+	s, _, err := encx.ReadPreamble(bytes.NewReader(raw))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +343,7 @@ func TestStrideSites_ArchiveRewritersFlattenDeduped(t *testing.T) {
 			if !bytes.Equal(got, want) {
 				t.Fatal("an ungrouped archive holding a deduped arrival differs from one holding its flat twin")
 			}
-			for _, ws := range [][]encoding.CohesionWarning{created.Warnings, added.Warnings} {
+			for _, ws := range [][]encx.CohesionWarning{created.Warnings, added.Warnings} {
 				if len(ws) != 1 || ws[0].Code != string(perrors.PULSE_SHARD_GROUPS_REWRITTEN) || ws[0].Details["reason"] != "incoming_flattened" {
 					t.Fatalf("warnings = %+v, want one PULSE_SHARD_GROUPS_REWRITTEN incoming_flattened", ws)
 				}

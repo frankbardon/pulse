@@ -15,7 +15,7 @@ import (
 //     and exposes cell + per-axis margin lookups so handlers read from
 //     the already-computed matrix and never re-scan records (per PRD §6:
 //     "buffered execution — O(cells × layers)").
-//   - ApplyOverlays walks the request spec list, dispatches each spec
+//   - applyOverlays walks the request spec list, dispatches each spec
 //     via overlayHandlers, and returns one OverlayLayer per spec in
 //     matching order plus a flat warnings slice for cross-cutting
 //     diagnostics (today: PULSE_OVERLAY_REF_ZERO when a margin
@@ -33,7 +33,7 @@ import (
 //
 // Structural invariants:
 //
-//   - This file MUST NOT import service/ or descriptor/. Runtime
+//   - This file MUST NOT import internal/service/ or descriptor/. Runtime
 //     overlay execution rides inside processing/ alongside the
 //     aggregator / attribute / grouper layers.
 //   - No fmt.Sprintf in any JSON-bearing path. Warning messages are
@@ -79,19 +79,19 @@ type CrosstabHostView struct {
 // NewCrosstabHostView wraps a MatrixPayload as a host view. payload
 // must be non-nil; the view does not copy the payload, callers must
 // not mutate it during overlay execution. The components block is left
-// nil — use NewCrosstabHostViewWithComponents for overlays that read
+// nil — use newCrosstabHostViewWithComponents for overlays that read
 // per-cell counters / Welford triples.
 func NewCrosstabHostView(payload *types.MatrixPayload) *CrosstabHostView {
 	return &CrosstabHostView{payload: payload}
 }
 
-// NewCrosstabHostViewWithComponents wraps a MatrixPayload together with
+// newCrosstabHostViewWithComponents wraps a MatrixPayload together with
 // its Response.Components.Crosstab block. comps may be nil (components
 // disabled); component-reading handlers surface
 // PULSE_OVERLAY_COMPONENTS_REQUIRED in that case rather than dividing by
 // a zero sample size. The view does not copy either pointer; callers
 // must not mutate them during overlay execution.
-func NewCrosstabHostViewWithComponents(payload *types.MatrixPayload, comps *types.CrosstabComponents) *CrosstabHostView {
+func newCrosstabHostViewWithComponents(payload *types.MatrixPayload, comps *types.CrosstabComponents) *CrosstabHostView {
 	return &CrosstabHostView{payload: payload, components: comps}
 }
 
@@ -259,9 +259,9 @@ func scalarFromCell(cell types.MatrixCell) (float64, bool) {
 // shaped OverlayLayer (Name + Kind + Scope + Ref + Payload + optional
 // Summary) plus a slice of warnings for cells the handler could not
 // resolve (zero denominator, missing margin slot). A handler error
-// short-circuits ApplyOverlays — used today for unknown-kind dispatch;
+// short-circuits applyOverlays — used today for unknown-kind dispatch;
 // per-kind contracts (axis mismatch, scope unsupported) are caught at
-// predict time and should not reach here, but ApplyOverlays still runs
+// predict time and should not reach here, but applyOverlays still runs
 // defensive guards.
 type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error)
 
@@ -292,7 +292,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 	types.OverlayKindZScoreVsMargin:    applyZScoreVsMargin,
 }
 
-// ApplyOverlays executes every spec in specs against the host view
+// applyOverlays executes every spec in specs against the host view
 // and returns one OverlayLayer per spec in matching order, plus a
 // flat warning slice. Returns (nil, nil, nil) when specs is empty.
 //
@@ -300,23 +300,23 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // materialised host MatrixPayload, never re-scans records. Cost is
 // O(cells × layers) where cells = RowCount × ColumnCount.
 //
-// Defense in depth: the descriptor.ValidateOverlays gate rejects bad
+// Defense in depth: the internal/descriptor.ValidateOverlays gate rejects bad
 // kinds at predict time, so a missing dispatch entry should never
-// reach the runtime in practice; nonetheless ApplyOverlays guards
+// reach the runtime in practice; nonetheless applyOverlays guards
 // against an unknown kind and returns a CodedError whose details carry
 // errors.PULSE_OVERLAY_KIND_UNKNOWN so the orchestrator surfaces the
 // same failure mode that predict would have flagged.
 //
-// host may be nil when specs is empty; ApplyOverlays short-circuits.
+// host may be nil when specs is empty; applyOverlays short-circuits.
 // When specs is non-empty but host is nil the call fails fast — every
 // crosstab overlay family expects a MATRIX-shaped host.
 //
 // Level / Within belt-and-suspenders gate: before dispatching
-// each spec ApplyOverlays runs `validateOverlayLevelWithinRuntime` to
+// each spec applyOverlays runs `validateOverlayLevelWithinRuntime` to
 // surface PULSE_OVERLAY_LEVEL_OUT_OF_RANGE for out-of-range Level /
 // Within values against the host's RowAxisDepth / ColumnAxisDepth.
 // The same condition is caught at predict time
-// (descriptor.ValidateOverlays); the runtime gate is defensive in case
+// (internal/descriptor.ValidateOverlays); the runtime gate is defensive in case
 // the predict step was bypassed (programmatic Process callers).
 //
 // Extension visibility: callers that need embedder-registered
@@ -324,12 +324,12 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // expression environment should use `ApplyOverlaysWithExtensions`
 // instead — this no-extension entry point preserves backward
 // compatibility for in-package tests + non-FORMULA call sites.
-func ApplyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+func applyOverlays(specs []types.OverlaySpec, host *CrosstabHostView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	return ApplyOverlaysWithExtensions(specs, host, nil)
 }
 
 // ApplyOverlaysWithExtensions is the registry-aware sibling of
-// ApplyOverlays. Identical contract to ApplyOverlays except that the
+// applyOverlays. Identical contract to applyOverlays except that the
 // supplied `*ExtensionRegistry` (when non-nil) participates in the
 // per-spec FORMULA compile step — embedder-registered ExprFunctions
 // become reachable from `OVERLAY_FORMULA` Params["formula"] expressions
@@ -350,7 +350,7 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 	}
 	if host == nil || host.Payload() == nil {
 		return nil, nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-			"ApplyOverlays requires a non-nil CrosstabHostView (no MATRIX host present)")
+			"applyOverlays requires a non-nil CrosstabHostView (no MATRIX host present)")
 	}
 	layers := make([]types.OverlayLayer, 0, len(specs))
 	var warnings []types.OverlayWarning
@@ -399,7 +399,7 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 }
 
 // validateOverlayLevelWithinRuntime is the runtime mirror of
-// descriptor.ValidateOverlays' Level / Within out-of-range gate. The
+// internal/descriptor.ValidateOverlays' Level / Within out-of-range gate. The
 // rules:
 //
 //   - For the share / index / delta / zscore family the handler
@@ -584,7 +584,7 @@ func overlayLevelWithinAxisDepths(spec *types.OverlaySpec, host *CrosstabHostVie
 //
 // Defense in depth: the descriptor validator rejects ref / scope shape
 // mismatches at predict time. The handler still defends against a nil
-// crosstab payload (ApplyOverlays already gates that) and against
+// crosstab payload (applyOverlays already gates that) and against
 // degenerate contingencies.
 func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	rowCount := host.RowCount()
@@ -794,7 +794,7 @@ func applyChiSqMatrix(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ov
 //
 // Defense in depth: the descriptor validator rejects ref / scope shape
 // mismatches at predict time. The handler still defends against a nil
-// crosstab payload (ApplyOverlays already gates that) and against
+// crosstab payload (applyOverlays already gates that) and against
 // degenerate matrix shapes.
 func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	rowCount := host.RowCount()
@@ -1005,7 +1005,7 @@ func applyChiSqRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Overl
 //
 // Defense in depth: the descriptor validator rejects ref / scope shape
 // mismatches at predict time. The handler still defends against a nil
-// crosstab payload (ApplyOverlays already gates that) and against
+// crosstab payload (applyOverlays already gates that) and against
 // degenerate matrix shapes.
 func applyChiSqCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	rowCount := host.RowCount()
@@ -1367,7 +1367,7 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 //
 // Defense in depth: the descriptor validator rejects ref / scope shape
 // mismatches at predict time. The handler still defends against a nil
-// crosstab payload (ApplyOverlays already gates that) and against
+// crosstab payload (applyOverlays already gates that) and against
 // degenerate margins (grand_total <= 0).
 func applyFisherExactCell(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
 	rowCount := host.RowCount()
@@ -2444,7 +2444,7 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 // Unlike the SHARE_OF_* triad (each structurally axis-locked),
 // ZSCORE_VS_MARGIN dispatches all three axes — the handler reads
 // MarginFor(spec.Ref.Margin.Axis, ...) instead of forcing a fixed
-// axis. The validator (descriptor/overlay.go) gates Ref.Margin /
+// axis. The validator (internal/descriptor/overlay.go) gates Ref.Margin /
 // known axes / scope at predict time.
 //
 // Summary: Min / Max / Count / Baseline populated. Baseline is 0 —

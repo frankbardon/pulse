@@ -58,11 +58,14 @@ func main() {
 }
 ```
 
-`BuildIndex` returns a `*pulse.BuildIndexResult{IndexPath, Index}` —
-`IndexPath` is the derived sidecar path
-(`encoding.SidecarIndexPath`), `Index` is the in-memory
-`*encoding.Index` that was serialized there, handed back in case you
-want to inspect it without a round-trip read.
+`BuildIndex` returns a `*pulse.BuildIndexResult{IndexPath, ManifestPath, Index}` —
+`IndexPath` is the derived sidecar path, `Index` is the in-memory
+`*pulse.SidecarIndex` that was serialized there, handed back in case you
+want to inspect it without a round-trip read. Every type inside it has a
+root spelling: `Keys []pulse.SidecarIndexKeySpec` (ordered key columns),
+`Buckets []pulse.SidecarIndexBucket` whose `Entries` are
+`pulse.SidecarIndexEntry{Key, RowIDs}`, and `Fingerprint`, a
+`pulse.CohortFingerprint` (the SHA-256 of the cohort's bytes).
 
 `Lookup`'s single-key convenience path — `Field` + `Value`, both
 strings — is the E1 shape and stays the ergonomic default. `Value` is

@@ -68,7 +68,7 @@ every build must still read — and that the current writer must still
 reproduce byte-for-byte for the same schema and rows. It exists because
 old cohorts stay readable forever. **A failure there is a
 backward-compatibility break, not a stale golden:** do not run
-`go test ./encoding/ -run TestFormatV1Golden -update` to make it pass.
+`go test ./internal/encoding/ -run TestFormatV1Golden -update` to make it pass.
 The `-update` flag exists only to create the file; to cover more of the
 `0x01` surface, add a second fixture rather than rewriting this one, so
 the bytes an earlier binary wrote stay under test.

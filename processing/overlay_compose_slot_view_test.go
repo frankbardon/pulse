@@ -420,7 +420,7 @@ func TestComposeHostView_MatchesCrosstabHostView(t *testing.T) {
 		componentsFixture(),
 	)
 	slot := NewComposeHostView([]*types.Response{resp}).Slot(0)
-	direct := NewCrosstabHostViewWithComponents(resp.Crosstab.Matrix, resp.Components.Crosstab)
+	direct := newCrosstabHostViewWithComponents(resp.Crosstab.Matrix, resp.Components.Crosstab)
 
 	gotN, gotOK := slot.CellN(0, 0)
 	wantN, wantOK := direct.CellN(0, 0)

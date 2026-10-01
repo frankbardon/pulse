@@ -97,7 +97,9 @@ func TestPairwiseMarginDistinct_MemmapExactWhereCellSumOverCounts(t *testing.T) 
 		t.Fatal("expected Response.Components.Crosstab")
 	}
 	mx := resp.Crosstab.Matrix
-	host := processing.NewCrosstabHostViewWithComponents(mx, resp.Components.Crosstab)
+	// A one-slot compose view builds the same components-bearing MATRIX
+	// host the crosstab overlay fold does.
+	host := processing.NewComposeHostView([]*types.Response{resp}).Slot(0).Matrix()
 
 	if agg, key, ok := host.AdmitsDistinctKeyN(); !ok || agg != types.AGG_DISTINCT_SUM || key != "distinct_count" {
 		t.Fatalf("AdmitsDistinctKeyN = (%q, %q, %v), want (AGG_DISTINCT_SUM, distinct_count, true)", agg, key, ok)

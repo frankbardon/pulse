@@ -5,7 +5,7 @@ inspect the resulting `.pulse` file, run an aggregation, and export the
 result back.
 
 > **LLM agents using MCP:** the equivalent tour for an agent is the
-> `getting-started` skill, fetched via `pulse_skills_get`. That skill
+> `session-bootstrap` skill, fetched via `pulse_skills_get`. That skill
 > speaks in tool calls and JSON payloads; this page speaks in shell
 > commands.
 
@@ -99,7 +99,7 @@ never reads record data, so it's safe to iterate on a request without
 touching a multi-GB cohort.
 
 See [`pulse api predict`](../cli/api-predict.md) and the
-`debugging-with-predict` skill for the full predict loop.
+`tool-predict` skill for the full predict loop.
 
 ## 5. Execute
 
@@ -140,7 +140,7 @@ the full convert recipe.
 - **Sample / Facet**: cheap read-only probes — [`api sample`](../cli/api-sample.md),
   [`api facet`](../cli/api-facet.md).
 - **Window / Feature / Test operators**: pull from the skill pack
-  (`window-operations`, `feature-engineering`, `statistical-testing`)
+  (`window-design`, `feature-engineering`, `statistical-testing`)
   via `pulse skills show <name>`.
 
 For a full map of the CLI, see the [CLI Tour](cli-tour.md).

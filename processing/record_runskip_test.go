@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Run-skip, the Record half: the reuse decoders skip rewriting fields
@@ -104,7 +105,7 @@ func runSkipRows(t *testing.T, schema *encoding.Schema) [][]byte {
 func freshDecode(t *testing.T, schema *encoding.Schema, row []byte) *Record {
 	t.Helper()
 	rec := NewReusableRecord(schema)
-	if err := encoding.NewRecordReader(bytes.NewReader(row), schema).ReadRecordReused(rec); err != nil {
+	if err := encx.NewRecordReader(bytes.NewReader(row), schema).ReadRecordReused(rec); err != nil {
 		t.Fatal(err)
 	}
 	return rec
@@ -148,7 +149,7 @@ func TestRecordRunSkip_MatchesFreshDecode(t *testing.T) {
 	schema := runSkipTestSchema()
 	rows := runSkipRows(t, schema)
 	rec := NewReusableRecord(schema)
-	rr := encoding.NewRecordReader(bytes.NewReader(bytes.Join(rows, nil)), schema)
+	rr := encx.NewRecordReader(bytes.NewReader(bytes.Join(rows, nil)), schema)
 	for k, row := range rows {
 		if err := rr.ReadRecordReused(rec); err != nil {
 			t.Fatal(err)
@@ -203,7 +204,7 @@ func TestRecordRunSkip_ExternalMutationForcesRepopulate(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := NewReusableRecord(schema)
-			rr := encoding.NewRecordReader(bytes.NewReader(append(append([]byte(nil), row...), row...)), schema)
+			rr := encx.NewRecordReader(bytes.NewReader(append(append([]byte(nil), row...), row...)), schema)
 			if err := rr.ReadRecordReused(rec); err != nil {
 				t.Fatal(err)
 			}
@@ -224,7 +225,7 @@ func TestRecordRunSkip_OffSchemaWritesKeepRun(t *testing.T) {
 	schema := runSkipTestSchema()
 	row := runSkipRow{a: 5, d: 1234, s: 0x3, w: 9, c: 2, b: true}.encode(t, schema)
 	rec := NewReusableRecord(schema)
-	rr := encoding.NewRecordReader(bytes.NewReader(append(append([]byte(nil), row...), row...)), schema)
+	rr := encx.NewRecordReader(bytes.NewReader(append(append([]byte(nil), row...), row...)), schema)
 	if err := rr.ReadRecordReused(rec); err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +285,7 @@ func TestRecordRunSkip_IdentityLayoutOnly(t *testing.T) {
 	// decode; a skip of the unchanged second occurrence would let the
 	// changed first one win instead.
 	rows := [][]byte{{1, 2}, {3, 2}}
-	rr := encoding.NewRecordReader(bytes.NewReader(bytes.Join(rows, nil)), dup)
+	rr := encx.NewRecordReader(bytes.NewReader(bytes.Join(rows, nil)), dup)
 	for k, row := range rows {
 		if err := rr.ReadRecordReused(rec); err != nil {
 			t.Fatal(err)
@@ -300,11 +301,11 @@ func TestRecordRunSkip_TwoReadersAlternate(t *testing.T) {
 	schema := runSkipTestSchema()
 	x := runSkipRow{a: 1, d: 10, s: 1, w: 3, c: 0, b: true}.encode(t, schema)
 	y := runSkipRow{a: 2, d: 20, s: 2, w: 4, c: 1, b: false, nulls: []int{2}}.encode(t, schema)
-	ra := encoding.NewRecordReader(bytes.NewReader(bytes.Join([][]byte{x, x}, nil)), schema)
-	rb := encoding.NewRecordReader(bytes.NewReader(bytes.Join([][]byte{y, y}, nil)), schema)
+	ra := encx.NewRecordReader(bytes.NewReader(bytes.Join([][]byte{x, x}, nil)), schema)
+	rb := encx.NewRecordReader(bytes.NewReader(bytes.Join([][]byte{y, y}, nil)), schema)
 	rec := NewReusableRecord(schema)
 	for _, step := range []struct {
-		rr   *encoding.RecordReader
+		rr   *encx.RecordReader
 		want []byte
 	}{{rb, y}, {ra, x}, {rb, y}, {ra, x}} {
 		if err := step.rr.ReadRecordReused(rec); err != nil {

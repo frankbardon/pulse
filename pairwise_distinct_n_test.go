@@ -209,7 +209,9 @@ func TestPairwiseNWithinDistinct_MemmapSlabLegs(t *testing.T) {
 		t.Fatal("expected Response.Components.Crosstab")
 	}
 	mx := resp.Crosstab.Matrix
-	host := processing.NewCrosstabHostViewWithComponents(mx, resp.Components.Crosstab)
+	// A one-slot compose view builds the same components-bearing MATRIX
+	// host the crosstab overlay fold does.
+	host := processing.NewComposeHostView([]*types.Response{resp}).Slot(0).Matrix()
 
 	agg, key, admitted := host.AdmitsDistinctKeyN()
 	if !admitted {

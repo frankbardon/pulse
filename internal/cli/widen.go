@@ -15,7 +15,7 @@ import (
 //
 // It is its own top-level leaf rather than a mode of `pulse convert`
 // because `.pulse` is reserved on the import side — a legal convert
-// TARGET, never a convert SOURCE (io/format.SupportedImport) — so there
+// TARGET, never a convert SOURCE (io.Formats()) — so there
 // is no `.pulse` → `.pulse` conversion for a widen to ride on. It is
 // also not a `pulse cohort` subcommand for the same reason `pulse index`
 // is not: this mutates the cohort file itself, and a destructive

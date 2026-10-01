@@ -320,7 +320,7 @@ func TestMetaAggregator_SetCardinalityAvg_Components(t *testing.T) {
 // "any bit any row contributed". The scalar (handled separately by the
 // existing TestSetDistinctValues_AtomicCombinations) is the count of
 // distinct exact masks; Components() carries the union mask + popcount
-// + decoded labels per descriptor/capabilities_aggregators.go.
+// + decoded labels per internal/descriptor/capabilities_aggregators.go.
 func TestMetaAggregator_SetDistinctValues_Components(t *testing.T) {
 	schema := makeSetTestSchema(t)
 	tests := []struct {

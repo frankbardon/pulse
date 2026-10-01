@@ -317,7 +317,7 @@ func (c MatrixCell) Scalar() float64 {
 
 // MatrixPayload is the structured matrix-shape response carried on
 // Response.Crosstab. Includes enough information for a downstream renderer
-// (Prism heatmap, terminal grid, etc.) to lay out the table without
+// (a heatmap, a terminal grid, etc.) to lay out the table without
 // re-deriving axis structure from the long-form result.
 type MatrixPayload struct {
 	// RowHeader names the row-axis grouper fields and types in order.
@@ -406,7 +406,7 @@ type MarginAggregationFigure struct {
 //     MatrixPayload.Cells[r][c]).
 //   - CellComponents[r][c] — per-cell aggregator components; keys are
 //     governed by the cell aggregator's ComponentSchema declaration
-//     in descriptor/capabilities_aggregators.go.
+//     in internal/descriptor/capabilities_aggregators.go.
 //   - RowMarginCounts[r] / RowMarginComponents[r] — row-margin counts
 //   - components, indexed by row (mirrors MatrixPayload.RowMargins).
 //   - ColumnMarginCounts[c] / ColumnMarginComponents[c] — column-margin
@@ -432,7 +432,7 @@ type MarginAggregationFigure struct {
 //     crosstab stage (null axis key, etc.). Their sum equals the
 //     post-filter input record count.
 //
-// Service-side population lives in service/crosstab.go.
+// Service-side population lives in internal/service/crosstab.go.
 type CrosstabComponents struct {
 	// CellCounts is the per-cell record count matrix. CellCounts[r][c]
 	// mirrors MatrixPayload.Cells[r][c] coordinate-for-coordinate.

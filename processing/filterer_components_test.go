@@ -6,8 +6,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -21,7 +21,7 @@ import (
 // n_above) has a gate to fail.
 func manifestFiltererOperatorKeys(t *testing.T, name string) []string {
 	t.Helper()
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 	schema, ok := m.ComponentsSchemas.Filterers[name]
 	if !ok {
 		t.Fatalf("manifest carries no components schema for %s", name)
@@ -451,7 +451,7 @@ func TestMetaFilterer_AllOps_ManifestParity(t *testing.T) {
 		// before chaining an expression filter. The contract is
 		// already covered by the smallWant case (non-null score
 		// cohort) and the service-layer end-to-end test in
-		// service/process_filterer_components_test.go.
+		// internal/service/process_filterer_components_test.go.
 		if op == types.FILTER_TRUE || op == types.FILTER_EXPRESSION {
 			continue
 		}

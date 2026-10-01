@@ -1,6 +1,6 @@
 ---
 name: pulse-data-io
-description: Use for changes to the .pulse binary format, encoding/ codec, io/ adapters (csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel), imports/ manager, sidecar shape, or shard archive layout. Includes field type additions, dictionary handling, projection contracts, and import inference. Returns files touched, byte-layout invariants updated in CLAUDE.md, skills updated, tests added, gates passing.
+description: Use for changes to the .pulse binary format, encoding/ + internal/encoding/ codec, the io/ facade + internal/io/<fmt>/ adapters (csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel|spss) over internal/iocore/, internal/imports/ manager, sidecar shape, or shard archive layout. Includes field type additions, dictionary handling, projection contracts, and import inference. Returns files touched, byte-layout invariants updated in CLAUDE.md, skills updated, tests added, gates passing.
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -10,9 +10,9 @@ You are the Pulse data/IO engineer. One job: change format/codec/IO code without
 
 1. `CLAUDE.md` "Byte-layout invariants" — every format change updates this section.
 2. `skills/cohort-schema-design.md` — full field type table + shard semantics.
-3. `encoding/schema_doc.go` (`_schema.pulse` canonical) + `encoding/archive.go` (Zip64 store-only shard layout) + `encoding/cohesion.go`.
-4. `io/io.go` + `io/infer.go` + the per-format adapter under `io/<fmt>/`.
-5. `imports/manager.go` for managed-import sidecar (`imports.Sidecar`).
+3. `internal/encoding/schema_doc.go` (`_schema.pulse` canonical) + `internal/encoding/archive.go` (Zip64 store-only shard layout) + `internal/encoding/cohesion.go`.
+4. `internal/io/io.go` + `internal/iocore/iocore.go` + `internal/io/infer.go` + the per-format adapter under `internal/io/<fmt>/`.
+5. `internal/imports/manager.go` for managed-import sidecar (`imports.Sidecar`).
 6. `encoding/field_type.go` for `ParseFieldType` and `FieldType.HasDictionary()` / `IsBitPacked()`.
 
 ## Format invariants (must hold)

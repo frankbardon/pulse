@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -122,7 +122,7 @@ func TestNoSidecarTouch_ProcessSampleFacetNeverAccessTheIndex(t *testing.T) {
 		t.Fatalf("BuildIndex: %v", err)
 	}
 
-	indexPath := encoding.SidecarIndexPath(cohortPath, []string{"id"})
+	indexPath := encx.SidecarIndexPath(cohortPath, []string{"id"})
 	if exists, err := afero.Exists(baseFs, indexPath); err != nil || !exists {
 		t.Fatalf("sanity check: sidecar index not present at %q (exists=%v, err=%v)", indexPath, exists, err)
 	}
@@ -252,7 +252,7 @@ func TestNoSidecarTouch_ResultsUnchangedWhenIndexRemoved(t *testing.T) {
 	if _, err := p.BuildIndex(ctx, cohortPath, []string{"id"}); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
 	}
-	indexPath := encoding.SidecarIndexPath(cohortPath, []string{"id"})
+	indexPath := encx.SidecarIndexPath(cohortPath, []string{"id"})
 	if err := memFs.Remove(indexPath); err != nil {
 		t.Fatalf("removing sidecar index: %v", err)
 	}

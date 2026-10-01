@@ -35,7 +35,7 @@ import (
 //     PULSE_OVERLAY_KIND_UNKNOWN coded-error shape the MATRIX / SERIES
 //     paths emit.
 //
-// Service-side wiring: the service layer (`service/facet_rich.go`)
+// Service-side wiring: the service layer (`internal/service/facet_rich.go`)
 // calls ApplyOverlaysFacet at the FacetSchema streaming finalize
 // point — once the per-value `(value, count)` map is folded into the
 // FacetField.Discrete.Values slice (categorical) or the Welford
@@ -52,7 +52,7 @@ import (
 //
 // Structural invariants:
 //
-//   - This file MUST NOT import service/ or descriptor/. Runtime
+//   - This file MUST NOT import internal/service/ or descriptor/. Runtime
 //     overlay execution stays inside processing/ alongside overlay.go
 //     and overlay_series.go.
 //
@@ -131,7 +131,7 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 // slice. Returns (nil, nil, nil) when specs is empty so the
 // service-side FacetSchema finalize call site can call
 // ApplyOverlaysFacet unconditionally — mirrors the MATRIX
-// ApplyOverlays and SERIES ApplyOverlaysSeries short-circuit
+// applyOverlays and SERIES ApplyOverlaysSeries short-circuit
 // contract.
 //
 // Host policy:
@@ -151,7 +151,7 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 //     itself surfaces `PULSE_OVERLAY_REF_UNKNOWN` for the unknown-
 //     field case BEFORE this dispatch is reached.
 //
-// Defense in depth: the descriptor.ValidateOverlays gate rejects
+// Defense in depth: the internal/descriptor.ValidateOverlays gate rejects
 // bad kinds at predict time, so a missing dispatch entry
 // should never reach the runtime in practice; nonetheless
 // ApplyOverlaysFacet guards against an unknown kind and returns a

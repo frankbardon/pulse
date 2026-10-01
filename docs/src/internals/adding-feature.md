@@ -54,13 +54,13 @@ boundary cases.
 
 ## 4. Capability declaration
 
-Add a row to `descriptor/capabilities_features.go` with the operator's
+Add a row to `internal/descriptor/capabilities_features.go` with the operator's
 params, accepted field types, and any emit shape.
 `TestManifestOperatorsComplete` enforces a row per registered feature.
 
 ## 5. Predict-side label projection
 
-Update `descriptor/predict_feature.go`:
+Update `internal/descriptor/predict_feature.go`:
 
 - Validate the operator's params (raise the appropriate
   `PROCESSING_CONFIG` / `SERVICE_VALIDATION` error code on invalid input).
@@ -76,13 +76,20 @@ operator's params and output column naming convention. The
 
 ## 7. Update CLAUDE.md
 
-Bump the registered-feature count in CLAUDE.md's "Skill Pack" section.
+There is **no registered-feature count or list in CLAUDE.md to update** —
+CLAUDE.md never hardcodes registered counts; the manifest is the source of
+truth. The Update Demand operator row (`.claude/reference/update-demand.md`)
+requires instead the atomic skill `skills/op-feat-<kebab>.md`, the capability declaration in
+`internal/descriptor/capabilities_features.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
+operator introduces a contract it states directly, and mind
+`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
 
 ## 8. Run the gates
 
 ```bash
-go test ./skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ -run 'TestManifestOperatorsComplete|TestPredict_Feature'
+go test ./internal/skills/ -run TestSkillsCoverAllComponents
+go test ./internal/descriptor/ -run 'TestManifestOperatorsComplete|TestPredict_Feature'
 go test ./processing/feature/...
 ```
 

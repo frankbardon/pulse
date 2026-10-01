@@ -8,7 +8,7 @@ This page is organised by symptom. For per-code recovery detail
 (Message + Fixup templates), fetch metadata via the
 `pulse_errors_lookup` MCP tool (`{"code": "PULSE_XXX"}`) or
 `pulse errors lookup CODE` on the command line. The
-`error-code-reference` skill explains the envelope shape, the
+`tool-errors-lookup` skill explains the envelope shape, the
 DOMAIN_CATEGORY naming convention, and the repair workflow that
 chains predict-side suggestions into structured fixups.
 

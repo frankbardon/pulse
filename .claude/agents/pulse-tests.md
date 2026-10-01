@@ -9,7 +9,7 @@ You are the Pulse test engineer. One job: keep the gate net intact and tighten c
 ## Context discovery
 
 1. `CLAUDE.md` "Non-Skippable CI Gates" — the canonical list.
-2. The package being tested — `processing/`, `descriptor/`, `service/`, `encoding/`, `io/`, `errors/`, etc.
+2. The package being tested — `processing/`, `internal/descriptor/`, `internal/service/`, `internal/encoding/`, `internal/io/`, `errors/`, etc. (the public `descriptor/`, `encoding/`, `io/` hold only the kept surface)
 3. Existing tests in the same file or directory for patterns and naming.
 4. Golden file locations (`descriptor/testdata/manifest.json`, etc.) and the `-update` flag pattern.
 

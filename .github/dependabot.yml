@@ -8,6 +8,17 @@ updates:
     labels:
       - dependencies
 
+  # The embedder smoke module is a separate Go module with its own
+  # go.sum; it replaces the root module locally, so only its third-party
+  # pins need watching.
+  - package-ecosystem: gomod
+    directory: /internal/embeddersmoke
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

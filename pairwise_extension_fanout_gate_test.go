@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -115,17 +116,20 @@ func pwExtRequest(inner types.GroupType, nSource string, depth int) *Request {
 }
 
 // pwExtPredict drives predict the way pulse.Predict does — with the
-// live extensions snapshot attached. Calling PredictFromBytes with nil
-// options would test the wrong thing: the snapshot IS the bridge.
+// live extensions snapshot attached — PredictBytes fills it from the
+// instance. Predicting with nil options would test the wrong thing: the
+// snapshot IS the bridge.
 func pwExtPredict(t *testing.T, p *Pulse, memFs afero.Fs, req *Request) *descriptor.Envelope {
 	t.Helper()
 	data, err := afero.ReadFile(memFs, pwDistinctCohort)
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	return descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{
-		Extensions: p.svc.ExtensionsSnapshot(),
-	})
+	env, err := p.PredictBytes(context.Background(), data, req)
+	if err != nil {
+		t.Fatalf("PredictBytes: %v", err)
+	}
+	return env
 }
 
 func pwExtNewPulse(t *testing.T) (*Pulse, afero.Fs) {
@@ -256,7 +260,7 @@ func TestPairwiseExtensionFanOut_SnapshotCarriesTheFlag(t *testing.T) {
 
 	// The manifest extensions block is the operator-visible half of the
 	// same projection.
-	m := descriptor.BuildManifestWithExtensions(snap)
+	m := descx.BuildManifestWithExtensions(snap)
 	seen := map[string]bool{}
 	for _, g := range m.Extensions.Groupers {
 		seen[g.Name] = g.FansOut

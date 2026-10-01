@@ -85,9 +85,9 @@ func TestOverlay_FisherExactCell_TwoByTwo(t *testing.T) {
 				Ref:   types.OverlayRef{}, // implicit-margin
 			},
 		}
-		layers, _, err := ApplyOverlays(specs, host)
+		layers, _, err := applyOverlays(specs, host)
 		if err != nil {
-			t.Fatalf("ApplyOverlays: %v", err)
+			t.Fatalf("applyOverlays: %v", err)
 		}
 		if len(layers) != 1 {
 			t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -213,9 +213,9 @@ func TestOverlay_FisherExactCell_TwoByTwo(t *testing.T) {
 				Scope: types.OverlayScopeCell,
 			},
 		}
-		layers, _, err := ApplyOverlays(specs, host)
+		layers, _, err := applyOverlays(specs, host)
 		if err != nil {
-			t.Fatalf("ApplyOverlays: %v", err)
+			t.Fatalf("applyOverlays: %v", err)
 		}
 		if len(layers) != 1 {
 			t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -288,9 +288,9 @@ func TestOverlay_FisherExactCell_ExpectedLowEmitsWarn(t *testing.T) {
 			Scope: types.OverlayScopeCell,
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(layers) != 1 {
 		t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -352,9 +352,9 @@ func TestOverlay_FisherExactCell_AbsentCellsStayAbsent(t *testing.T) {
 			Scope: types.OverlayScopeCell,
 		},
 	}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	mp := layers[0].Payload.Matrix
 	if mp == nil {

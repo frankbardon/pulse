@@ -2,13 +2,13 @@ package types
 
 // LookupMultiplicity names how a LookupRequest behaves when the sidecar
 // index's matched bucket entry carries more than one row-id (a
-// duplicate key value in the source cohort). service.Lookup branches on
+// duplicate key value in the source cohort). internal/service.Lookup branches on
 // this value — see the mode docs below.
 type LookupMultiplicity string
 
 const (
 	// LookupMultiplicityAssertUnique is the default (the zero value —
-	// an unset Multiplicity resolves to this mode). service.Lookup
+	// an unset Multiplicity resolves to this mode). internal/service.Lookup
 	// fails with errors.PULSE_LOOKUP_AMBIGUOUS when the matched key
 	// resolves to more than one row-id; a single match still succeeds
 	// normally.
@@ -60,7 +60,7 @@ type LookupKey struct {
 //     only when Keys is empty; ignored when Keys is non-empty.
 //
 // At least one of Keys or Field must resolve to a non-empty ordered key
-// tuple, or service.Lookup rejects the request with SERVICE_VALIDATION.
+// tuple, or internal/service.Lookup rejects the request with SERVICE_VALIDATION.
 // Supplying a key-component count that does not match the resolved
 // sidecar index's key-spec is a PROCESSING_CONFIG error.
 type LookupRequest struct {
@@ -93,17 +93,17 @@ type LookupRequest struct {
 	// decoded record), matching Sample's no-projection default.
 	ReturnColumns []string `json:"return_columns,omitempty"`
 
-	// Multiplicity selects how service.Lookup behaves when the matched
+	// Multiplicity selects how internal/service.Lookup behaves when the matched
 	// key resolves to more than one row-id (see LookupMultiplicity).
 	// The zero value defaults to LookupMultiplicityAssertUnique.
 	Multiplicity LookupMultiplicity `json:"multiplicity,omitempty"`
 }
 
 // KeyComponents resolves LookupRequest's key into the ordered tuple of
-// LookupKey components service.Lookup probes with: Keys verbatim when
+// LookupKey components internal/service.Lookup probes with: Keys verbatim when
 // non-empty, else the single-key convenience path — a 1-element slice
 // built from Field/Value (only when Field is non-empty). Returns nil
-// when neither slot carries a usable key, which service.Lookup treats
+// when neither slot carries a usable key, which internal/service.Lookup treats
 // as a SERVICE_VALIDATION error.
 func (r *LookupRequest) KeyComponents() []LookupKey {
 	if r == nil {

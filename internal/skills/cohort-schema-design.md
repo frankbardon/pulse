@@ -1,0 +1,161 @@
+---
+name: cohort-schema-design
+description: Field-type selection for .pulse cohorts — 20 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
+type: guide
+kind: design
+applies_to: inspect, predict, process, compose, sample, facet
+covers: [u4, u8, u16, u32, u64, f32, f64, decimal128, categorical_u8, categorical_u16, categorical_u32, packed_bool, date, datetime, set_u8, set_u16, set_u32, set_u64, set_u128, set_u256]
+---
+
+# Cohort schema design
+
+Pick the right `.pulse` field type, decide nullability, address shards. The schema lives in the cohort header; `pulse_inspect` is the surface for reading it.
+
+## Field-type matrix (all 20)
+
+| Name | Bytes | Dict? | Bit-packed? | Notes |
+|---|---|---|---|---|
+| `u4` | 0 | no | yes | 0..15 |
+| `u8` | 1 | no | no | 0..255 |
+| `u16` | 2 | no | no | 0..65,535 |
+| `u32` | 4 | no | no | 0..~4.29B |
+| `u64` | 8 | no | no | |
+| `f32` | 4 | no | no | ~7 sig digits; index key = raw bit pattern (`-0.0`/NaN caveat) |
+| `f64` | 8 | no | no | ~15 sig digits; same bit-pattern caveat |
+| `date` | 4 | no | no | epoch days since 1970-01-01 |
+| `datetime` | 8 | no | no | epoch **seconds**, naive UTC; index-key literal parses as a datetime, never a float |
+| `packed_bool` | 0 | no | yes | 1 bit |
+| `categorical_u8` | 1 | inline, ≤256 | no | dict-encoded; index key = dictionary ID |
+| `categorical_u16` | 2 | inline, ≤65,536 | no | |
+| `categorical_u32` | 4 | inline, ≤~4.29B | no | |
+| `decimal128` | 16 | no | no | per-field `(precision, scale)`; index key = exact mantissa, no float round-trip |
+| `set_u8` | 1 | shared, ≤8 labels | no | multi-select bitmask; **not** index-keyable |
+| `set_u16` | 2 | shared, ≤16 | no | |
+| `set_u32` | 4 | shared, ≤32 | no | |
+| `set_u64` | 8 | shared, ≤64 | no | |
+| `set_u128` | 16 | shared, ≤128 | no | |
+| `set_u256` | 32 | shared, ≤256 | no | widest rung; 256 is a hard ceiling |
+
+`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 20 types participate identically.
+
+**A set cell has THREE states and every import/export format keeps them apart.** Null (no answer), **empty mask** (answered, selected nothing) and a selection are distinct data — "ticked none of these" and "skipped the question" give different denominators. External forms, identical at every rung from `set_u8` to `set_u256`:
+
+| State | Flat text (`csv` / `tsv` / `excel`) | JSON (`ndjson` / `jsonarray`) | `arrow` / `parquet` |
+|---|---|---|---|
+| null | `""` (any null token) | `null` | validity bit clear |
+| empty mask | **`\|`** — a bare delimiter, no token | `"\|"` on write, `[]` also accepted on read | zero-length `LIST<UTF8>` |
+| selection | `A\|B` | `"A\|B"` | `["A","B"]` |
+
+One marker (a bare `|`, the default set delimiter) serves every format, so the convention cannot drift between them, and it survives a third-party round trip because it is ordinary cell text — unlike CSV's `,,` versus `,"",`, a spreadsheet has nothing to normalise away. It works because `isNullToken` does not recognise `\|` and the token splitter drops empty tokens, so `\|` yields zero tokens and no dictionary entry. Widening the null-token set to cover a lone delimiter, or retaining empty tokens, re-collapses the two states SILENTLY — both spellings keep importing and only the meaning changes.
+
+**`categorical_*` has the same pair — an empty-string VALUE and a null — and no marker can carry it**, because any text is a legal categorical value. It rides an out-of-band channel instead: the export row spells a null `nil` and an empty value `""` (`io.NullAwareWriter`), and a source declares its own nulls per row (`io.NullAwareReader`). `ndjson` / `jsonarray` / `arrow` / `parquet` carry both states; `csv` / `tsv` / `excel` have one spelling for an absent value and read BOTH back as **null** — a documented gap, asserted in `internal/io/nullcell/`, never a silent one. A blank cell in a non-dictionary column (`u32`, `date`, …) is a null on every format.
+
+`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by `GROUP_DATE` / `GROUP_DATE_RANGES` / `FILTER_DATE_RANGES`, which day-truncate `datetime` to the UTC calendar day. Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to `type-date` / `type-datetime`.
+
+## Selection heuristics
+
+Counts / IDs → smallest unsigned width that fits the max. Measurements → `f32`; scores or wide dynamic range → `f64`. Money → `decimal128` (see `financial-cohorts`). Booleans → `packed_bool`; small ordinals (Likert, grades) → `u4`. Strings → always categorical, width by distinct cardinality. Multi-select → `set_*`, smallest width whose cap covers the distinct labels — the width is paid by every record, and above 256 labels there is no set type at all. Sometimes-missing → pick the base type, then `Nullable: true`.
+
+## Nullability + per-record bitmap
+
+When at least one field is `Nullable: true`, every record carries a trailing bitmap of `ceil(field_count / 8)` bytes after the payload:
+
+- Field index `i` → byte `i/8`, bit `i%8` (LSB-first). `1` = null, `0` = present.
+- No nullable fields ⇒ no bitmap; zero-overhead path.
+
+The bitmap is the sole null mechanism. No type has an inline sentinel — `decimal128` all-zero bits is decimal zero, not null. Null-skip semantics for sum/mean/percentile are central.
+
+**Inferred imports promote on out-of-sample nulls.** Inference decides nullability from the first `--sample-rows` (default 500) rows only; a null (`""`/`null`/`na`/`n/a`) past that window promotes the field and continues rather than failing — `PULSE_IMPORT_NULL_PROMOTED` + `ImportReport.PromotedFields` / `Result.promoted_fields`. Every inferred text/columnar import (csv, tsv, ndjson, jsonarray, parquet, arrow, excel). An **explicit `--schema`** is a contract: a null in a declared-non-nullable field stays `PULSE_IMPORT_ROW_ERROR`. Avoid surprises by marking sometimes-missing fields `"nullable": true`, or raising `--sample-rows`.
+
+## Bit-packed runs
+
+`u4` and `packed_bool` report `ByteSize() == 0` and share bytes with adjacent packed fields. Place packed fields together for optimal layout. Reordering can change byte offsets even when types are unchanged.
+
+## Width overflow
+
+- `PULSE_IMPORT_CATEGORICAL_OVERFLOW` / `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` — categorical width exceeded or dict unbounded. A full DECLARED rung is a capacity violation, not a row condition: every later unseen category would be lost for the rest of the file (an import row-errors each one; an INFERRED rung promotes instead, below). On a declared rung `ConvertJob.Run` refuses outright — it stops at the offending cell (`row` / `column` / `type` / `max_entries` / `value` in details) and writes no `--keep-pulse` intermediate.
+- `PULSE_IMPORT_SET_OVERFLOW` — `set_*` cardinality exceeded width.
+- `PULSE_SHARD_DICT_WIDTH_OVERFLOW` — shard insert would expand union dict past declared width. For a `set_*` field this now fires only past `set_u256`; below that the archive auto-widens (see Sharded cohorts → Cohesion).
+
+**Inferred widths promote; declared widths refuse.** Inference sizes `categorical_*` rungs (≤200 distinct in the sample → `u8`) and integer widths from the first `--sample-rows` rows. On the full row pass an INFERRED field whose value outgrows that is promoted to the narrowest type holding it: `categorical_u8` → `u16` → `u32`; `u4` → `u8` → `u16` → `u32` → `u64` for a non-negative integer; `u4`..`u32` → `f64` for any other number (never from `u64`, where f64 is not exact); `f32` → `f64` for a value outside f32's RANGE (past `MaxFloat32`, or a non-zero magnitude f32 flushes to zero) — the same test inference chose `f32` by, so a value f32 merely rounds (`0.1`) never promotes. A non-boolean in a `packed_bool` stays a row error: no type holds both losslessly. Rows already read are re-strided in memory — the cohort is byte-identical to one inferred from the whole file, and a cohort that never overflows is unchanged. One `PULSE_IMPORT_WIDTH_PROMOTED` per field (`ImportReport.WidthWarnings` / `width_warnings`). `pulse convert` over an inferred schema runs the same per-cell decision: it passes cell text through unchanged, reports the promoted types and warnings (`ConvertReport.WidthWarnings`), and its `--keep-pulse` cohort is byte-identical to a plain import. A declared width — `--schema`, `column_type_overrides`, an authoritative SPSS / Arrow / Parquet schema — never promotes: its overflow stays a per-row `PULSE_IMPORT_ROW_ERROR`, as does a non-number and a dictionary past `categorical_u32`. Parent-group widths, the viability gate and constant elision are judged on the promoted widths; `import predict` sees them only on its measured pass.
+
+Mitigation for declared widths: pick them with growth headroom up front.
+
+## Parent groups (format 0x02)
+
+A denormalised join repeats its parent block on every child row. A **parent group** stores each distinct tuple of its member fields once, in a dictionary in the schema block, and each row carries a 4-byte index — N independent groups per cohort, a field in at most one. A **constant group** holds one entry and no per-row index (a column with one value everywhere). Members keep their own types, nullability and dictionaries; decode is indistinguishable from the ungrouped cohort, so requests, filters, groupers and exports address member fields by name exactly as before. Worth it only when the group is wider than its 4-byte index and repeats heavily — a narrow or rarely-repeating group makes the file bigger and the resident dictionary costs memory. Shard archives and `pulse widen` do not accept grouped cohorts yet (coded refusal). `pulse_inspect` reports each group's realized ratio and resident dictionary bytes, header-only. A filter whose fields all sit in ONE group is evaluated once per dictionary entry instead of per row (same results and counts) — keep a filter off a parent/child mix to get it. Filter-to-file keeps a cohort grouped: header, groups and dictionaries are carried unchanged, and entries no surviving row uses are NOT pruned. Inspect's ratio (surviving rows ÷ carried entries) therefore drops after a selective filter. That is expected. Re-dedup the output to prune. Byte layout: `.claude/reference/byte-layout.md` (Parent groups).
+
+**Declaring a group** at import: `pulse import <fmt> --group KEY[,KEY...]:MEMBER[,MEMBER...]`, repeatable, one group per flag (`ImportJob.Groups`). Key fields identify the parent; members are what the key determines. Two rows with the same key but a differing member (value or null) FAIL the import (`PULSE_GROUP_MEMBER_NOT_CONSTANT`, naming field, record and source row) — never a silently bigger dictionary. No colon = a plain tuple group, no key check. A field in two groups, an unknown field or a malformed value fails before the row pass. Declare what you know from the upstream join; the 500-row inference sample cannot confirm a parent block. To find or size one first, run `pulse import predict --suggest-groups`. It nominates single-field keys over the first ≤10,000 rows, then measures each over EVERY row with the import's own gate. You get the ratio, resident dictionary, projected file size and a ready-to-paste `--group` value. It only suggests. `import predict --group …` evaluates a declaration without writing anything. Each group is gated on its own numbers: members no wider than the 4-byte index → dropped (`PULSE_GROUP_TOO_NARROW`); dedup ratio below `--dedup-ratio-floor` (default 2) or no net saving → still written with `PULSE_DEDUP_LOW_RATIO` (ratio, resident dictionary bytes, byte delta); `--strict` makes either an error. `ImportReport.Groups` carries each verdict and its numbers. Not on `pulse_import` / managed imports. **An existing cohort** converts with `pulse dedup COHORT --group …` (`Pulse.Dedup`, `pulse_dedup`): same declarations, gate and flags, in place (atomic) or `--out`; `--suggest-groups` finds candidates over its records. It reports invalidated sidecars and rebuilds none. Single-file only.
+
+**Global-constant elision** is opt-in: `pulse import <fmt> --elide-constants` / `ImportJob.ElideConstants`. Fields holding one value on EVERY imported row — decided over the full row pass, never the 500-row inference sample — go into one constant group (`ImportReport.ElidedConstants`). A column null everywhere is a (null) constant; one value plus some nulls is NOT. Nothing is elided below 2 rows, or when declaring the constants costs more schema bytes than it saves — the cohort then stays byte-identical `0x01`. All-constant keeps the lowest-index field in the row. The output is `0x02`: binaries predating it cannot open it.
+
+## Field descriptions
+
+Capped at 1000 bytes per field; over-cap → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`. Empty, sub-10-character, or generic ("n/a", "tbd", "unknown", "field", "data", "value", "column") → `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (warning; error under `--strict`). Style: concise, third-person, present-tense — what the field represents, its units, its domain semantics.
+
+## Sharded cohorts
+
+A `.pulse` path resolves to one of two shapes, dispatched on the leading 4 bytes. **Single-file:** magic `PULSE\x00\x00\x00` + format byte `0x01` or `0x02`, then schema, dicts, records (`0x02` adds a length-prefixed schema extension block carrying parent groups before the records; writers emit `0x01` unless the schema declares a group; `0x01` cohorts stay readable forever, and a binary older than `0x02` refuses a `0x02` cohort loud). **Shard archive:** uncompressed Zip64 (Method 0), magic `PK\x03\x04`, a reserved `_schema.pulse` entry (header-only canonical schema + `SHRD` trailer with `aggregate_record_count` + `shard_count`) plus N standalone shard payloads. Old single-file readers fail loud on archive magic.
+
+### Cohesion
+
+- Structural: **strict** at insert, on every dimension but one. Field count, names, type bytes, byte offsets, bit positions must match canonical. Mismatch → `PULSE_SHARD_SCHEMA_MISMATCH`. The single exception is the `set_*` RUNG — see auto-widen below.
+- Descriptions: **tolerant**. Divergence → `PULSE_SHARD_DESCRIPTION_DIVERGENCE` (warning); canonical wins.
+- Categorical / set dictionaries: union-merge. Canonical entries first; new entries appended; incoming records byte-rewritten with remapped indices.
+- Prefix-only validator raises `PULSE_SHARD_DICT_DIVERGENCE` when embedders coordinate dicts upstream. Unchanged by auto-widen.
+- **`set_*` auto-widen.** Two forces trigger it, and they compose. (1) A dictionary union that outgrows a set field's bitmask. (2) The arriving shard **declaring a different rung** — a re-import of a new period infers the rung its own data needs, so a `set_u128` shard legitimately meets a `set_u64` archive. Either way the field is promoted to the narrowest rung that holds every member, across `_schema.pulse` and **every** shard payload, instead of the shard being refused. Refusing (2) forced a full re-import of every prior period to reach a layout a mechanical re-stride already produces.
+- **Only ever wider.** A shard arriving at a NARROWER rung never narrows the archive — narrowing would drop every selection above the target's ceiling, silently, with the record still decoding to a smaller and entirely plausible selection. The arriving shard is promoted to the archive's rung instead, and only that one shard is rewritten.
+- **Create widens too.** `pulse shard create` / `Pulse.CreateShardArchive` auto-widens on exactly the same conditions as `shard add`. One rule, no asymmetry: the same two files must not produce an archive when passed together and an error when passed one after the other. `CreateShardArchive` returns a `*CreateShardArchiveResult` rather than a bare error for the same reason `AddShard` does — so the warning has nowhere to be dropped.
+- The whole-archive rewrite is atomic (temp + fsync + rename) and emits a mandatory `PULSE_SHARD_SET_WIDENED` warning naming field, old rung, new rung, the rung the arriving shard declared and the shards rewritten — read it: an archive-wide re-stride costs far more than an append. `details.archive_widened` tells the two directions apart (`from != to` ⇒ the archive moved; equal ⇒ only the arriving shard did). Past `set_u256` there is nowhere to widen to and `PULSE_SHARD_DICT_WIDTH_OVERFLOW` stands. Categorical widths are unaffected; they stay fixed at folder creation.
+- `pulse shard verify` reports **set-width headroom** per set field (entries used, capacity, headroom, next rung) so an impending widen is foreseeable rather than a surprise the next `shard add` bills for.
+- **Grouped (`0x02`) shards.** An archive has ONE parent-group layout — part of strict cohesion, so `shard verify` refuses a `0x01` shard in a `0x02` archive. On create/add the ARCHIVE's layout wins: a grouped arrival into an ungrouped archive is stored flattened; an arrival with other groups (or none) is re-encoded into the archive's. Group dictionaries union-merge canonical-first (stored shards untouched, only the arrival renumbered); past the u32 index space → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. An arrival that disagrees with a CONSTANT group promotes it to indexed across every shard; one that violates a declared key is refused (`PULSE_GROUP_MEMBER_NOT_CONSTANT`). Layout changes emit the mandatory `PULSE_SHARD_GROUPS_REWRITTEN` (`details.reason`, `archive_rewritten`); `shard verify` adds `group_index_headroom` (a constant group always shows 0). To keep appends cheap, import every period with the same `--group` flags and don't elide a column that varies between periods. `pulse dedup` refuses archives — dedup each shard, then `shard create`.
+
+### Anchor syntax
+
+```
+respondents/Q1.pulse                 → full sharded cohort (union semantics)
+respondents/Q1.pulse#20190101.pulse  → named shard, as one-shard cohort
+```
+
+Anchor against single-file → `PULSE_ARCHIVE_MAGIC_INVALID`. Missing anchor → `PULSE_SHARD_MISSING`.
+
+### Memory shape
+
+Materializing ops (percentile / median aggs, `ATTR_PERCENTILE`, `GROUP_QUANTILE`, `GROUP_DATE`, windows, decimal paths, tier-1 tests + groupers/features/two-pass attrs, tier-2 post tests) materialize across the **union** of shards. Median-of-medians is not the median. Memory scales with shard count.
+
+### Concurrency
+
+No concurrent-writer protection: two writers race, last wins. Readers snapshot at open. Caller owns single-writer architecture or an advisory lock.
+
+### Moving a cohort (transport-only compression)
+
+Compress only to move it: `pulse export transfer` writes `<cohort>.zst` (one standard zstd stream of the exact bytes — single-file or archive, any format version); `pulse import transfer` restores a byte-identical `.pulse` (sha256 in both reports). Never at rest — random access, mmap, lookup and parallel decode need the raw bytes, so any read surface refuses an artifact with `PULSE_COHORT_COMPRESSED`. CLI/library only, no MCP tool. Parent groups and zstd remove the same repetition: a sorted flat cohort compresses to about what a grouped one does. Detail: `docs/src/format/transfer.md`.
+
+## Sidecar index
+
+`Pulse.Lookup` / `pulse index build` use a **separate file** — `cohort.pulse.<keyhash>.idx`; the `.pulse` layout above stays untouched. Format **v3**, in order: 9-byte header (magic `PULSEIDX` + version `0x03`, its own magic/version distinct from `encoding.MagicBytes` / `FormatVersion`) → 32-byte SHA-256 source fingerprint → key-spec (ordered key columns + field types) → `SourceSize` (u64) + `SourceModTime` (i64 Unix ns) staleness snapshot → `u32 bucket_count` → fixed-width `bucket_count × u64` offset table (directly addressable, O(1) single-bucket seek) → self-delimited bucket data, FNV-1a hash buckets → `[]uint64` row-id multimap.
+
+A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then seeks each matched record via `RecordLocator` — never a full-cohort or full-index read.
+
+**Staleness, three outcomes, not two.** A **size** mismatch is an instant `PULSE_INDEX_STALE` (the fingerprint covers the whole file, so a different length cannot hash to it). A full size+mtime **match** serves hash-free — that is the O(1) property. An **mtime that moved while the size held is NOT staleness**: mtime resolution is not preserved across filesystems (the snapshot is Unix ns, an S3 `LastModified` is whole seconds, and every copy/restore/cache hop truncates), so it escalates to the sidecar's own SHA-256 and refuses only if the content really differs. The digest is memoised per `(path, size, mtime)`, so a backend that never preserves ns pays one hash, not one per lookup. `pulse index verify` is authoritative: it always hashes and never reads that memo. The residual gap is unchanged — an in-place edit preserving BOTH size and mtime passes `Lookup` and is caught only by `verify`.
+
+**Discovery: `cohort.pulse.indexes.json`.** A sidecar's filename is a hash OF its key tuple, so it cannot be opened without already knowing the answer, and object storage cannot list a directory. `pulse index build` therefore also upserts a keyless JSON manifest at that deterministic path carrying every index's ordered key tuple (plus types and counts), so `pulse index list` / `Pulse.ListIndexes` answers with one read and no directory listing. Absent ⇒ falls back to the directory listing; both available ⇒ union. Malformed ⇒ `PULSE_INDEX_MANIFEST_INVALID` (never a silent degrade to the listing, which would succeed locally and answer "no indexes" on a bucket); names a sidecar that is gone ⇒ `PULSE_INDEX_MANIFEST_STALE`, repaired by `pulse index build` or `pulse index drop` (drop prunes an orphaned entry). It is one of Pulse's own `*.json` sidecars, so a `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` walk skips it by suffix.
+
+**A cohort rewrite invalidates it.** `pulse widen` changes the cohort's byte length, so the index (and the SPSS metadata sidecar) self-invalidate on the size fingerprint — neither can serve stale data. Nothing is rebuilt automatically: that would attach unbounded work to a bounded metadata operation. `pulse widen` instead REPORTS what it invalidated and the exact `pulse index build ... --key a,b` that rebuilds it, discovered through the manifest (the key tuple is unrecoverable from the hashed filename). `--json` carries it as `data.invalidated_sidecars`; both arms print nothing when there are no sidecars. Library: `Pulse.InvalidatedSidecars`.
+
+**Keyable types** (`processing.IsIndexKeyableFieldType`): every type in the matrix above EXCEPT `set_*` — a multi-select mask has no single unambiguous equality value, so use `FILTER_SET`. Per-type equality caveats are in that matrix's Notes column.
+
+**Constraints:** single-file cohorts only (the `archive.pulse#shard.pulse` anchor is a tested single-shard workaround); equality-only, full-key required, composite-key order significant end to end. The `PULSE_INDEX_*` / `PULSE_LOOKUP_*` set and its fixups are `tool-lookup`'s surface.
+
+## SPSS import (`.sav` / `.zsav`)
+
+Full surface: **`spss-cohorts`**. Two facts belong here because they change what a `.pulse` schema means.
+
+1. **The schema is not inferred.** An SPSS dictionary DECLARES every column, so `internal/io/spss` implements `io.SchemaAwareReader` and `internal/io/infer.go`'s sample-and-vote pass is skipped: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters`, `ColumnTypeOverrides` are inert and there is **no null promotion** — declared nullability is a contract, so an unexpected null is `PULSE_IMPORT_ROW_ERROR`. An explicit `ImportJob.Schema` still wins.
+2. **The cohort can be wider than the source.** Two derived kinds: a `<var>_missing` `categorical_*` sibling per numeric variable declaring user-missing values (the null bitmap is one bit and cannot say *why*), and one `set_*` column per multiple-dichotomy response set, emitted **beside** its constituents. Count columns from `pulse_inspect` / `ReadHeader`, never from the SPSS variable count. `--spss-missing=null` suppresses the siblings; the `set_*` column has no opt-out.
+
+Categorical columns hold SPSS **codes**, not labels (two codes may share a label, so a label-keyed dictionary would collapse them) — resolve at output time via `label-display`. An import also writes `cohort.pulse.spss.json`, the JSON metadata sidecar holding what the `.pulse` header cannot: value labels, measure levels, missing-value specs, response-set definitions, and which columns were derived. `pulse export spss` reproduces that dictionary and folds the derived columns away at every rung (the fold is keyed on the recorded kind, so a 206-constituent `set_u256` drops and rebuilds its constituents exactly as a `set_u8` does); a cohort that never came from SPSS exports on a synthesised one (`PULSE_SPSS_SIDECAR_ABSENT`, a warning), a **stale** sidecar is an error, and `--include` / `--labels` are refused rather than ignored because the writer encodes from raw storage. `pulse convert x.sav out.sav` builds no cohort on disk, so it carries the source's declared schema AND its sidecar into the writer's in-memory intermediate (`pio.ConvertSource`) — without them the rebuilt cohort is re-inferred from rendered text, which loses a `set_*` rung down to the options actually ticked and made every multiple-dichotomy convert refuse with `PULSE_SPSS_NAME_COLLISION`.
+
+## Cross-links
+
+`financial-cohorts` (`decimal128` rules) · `response-components` (`data.components.run.shard_count` + `partial_cohort_reason`) · `aggregation-design` / `grouper-design` / `attribute-composition` (`set_*` operator surfaces) · `tool-lookup` (point-lookup MCP surface on this sidecar format) · `tool-import` (import MCP surface incl. the SPSS format enum) · `label-display` (resolving SPSS value labels from stored codes) · `spss-cohorts` (the full `.sav` / `.zsav` surface: type mapping, derived columns, missing-value split, metadata sidecar, `PULSE_SPSS_*` diagnostics) · `docs/src/internals/managing-shard-archives.md`.

@@ -9,7 +9,7 @@ each other (per-format `import`/`export` leaves, per-leaf `shard`
 maintenance commands) are listed compactly.
 
 > **LLM agents using MCP:** there is no equivalent skill — agents drive
-> Pulse through MCP tools, not the CLI. Start at the `getting-started`
+> Pulse through MCP tools, not the CLI. Start at the `session-bootstrap`
 > skill instead.
 
 ## Top-level groups

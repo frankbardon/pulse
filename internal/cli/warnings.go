@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/synth"
 	cli "github.com/urfave/cli/v3"
 )
 

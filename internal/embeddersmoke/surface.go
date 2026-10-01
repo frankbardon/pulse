@@ -1,0 +1,182 @@
+package embeddersmoke
+
+import (
+	"bytes"
+	"context"
+	"io"
+
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
+	perrors "github.com/frankbardon/pulse/errors"
+	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/mcp/gosdk"
+	"github.com/frankbardon/pulse/mcpserve"
+	"github.com/frankbardon/pulse/synth"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/afero"
+)
+
+// Compile-only checks. Each assignment pins a spelling or a signature
+// from the embedder migration guide; a rename, a removal or a move under
+// internal/ breaks the build of this module rather than an embedder's.
+
+// Root facade: construction and the instance methods that replaced the
+// descriptor free functions and the index-manifest helpers.
+var (
+	_ func(pulse.Options) (*pulse.Pulse, error)                                                                          = pulse.New
+	_ func() string                                                                                                      = pulse.Version
+	_ func(*pulse.Pulse, context.Context, *pulse.Request) (*pulse.Response, error)                                       = (*pulse.Pulse).Process
+	_ func(*pulse.Pulse, context.Context, *pulse.ComposedRequest) (*pulse.ComposedResponse, error)                       = (*pulse.Pulse).Compose
+	_ func(*pulse.Pulse, context.Context, *pulse.ComposedRequest, pulse.ComposeOptions) (*pulse.ComposedResponse, error) = (*pulse.Pulse).ComposeParallel
+	_ func(*pulse.Pulse, context.Context, []byte, *descriptor.InspectOptions) (*descriptor.Envelope, error)              = (*pulse.Pulse).InspectBytes
+	_ func(*pulse.Pulse, context.Context, []byte, *pulse.Request) (*descriptor.Envelope, error)                          = (*pulse.Pulse).PredictBytes
+	_ func(*pulse.Pulse, context.Context, string) ([]string, error)                                                      = (*pulse.Pulse).CohortArtifacts
+	_ func(*pulse.Pulse, context.Context, string, []string) (*pulse.BuildIndexResult, error)                             = (*pulse.Pulse).BuildIndex
+	_ func(*pulse.Pulse, context.Context, *pio.ImportJob) (*pio.ImportReport, error)                                     = (*pulse.Pulse).Import
+	_ func(*pulse.Pulse, context.Context, *pio.ExportJob) (*pio.ExportReport, error)                                     = (*pulse.Pulse).Export
+	_ func(*pulse.Pulse, context.Context, pulse.ImportSpec) (*pulse.ImportResult, error)                                 = (*pulse.Pulse).ImportFile
+	_ func(io.Reader, *encoding.Schema, string) (pulse.LoadMemberSetResult, error)                                       = pulse.LoadMemberSetFromReader
+)
+
+// Options carries the crosstab-fusion switch that replaced mutating the
+// service, alongside the filesystem an embedder supplies.
+var _ = pulse.Options{
+	FS:                    afero.NewMemMapFs(),
+	DisableCrosstabFusion: true,
+}
+
+// ComposeOptions is a root alias with the parallel-compose knobs.
+var _ = pulse.ComposeOptions{MaxWorkers: 2, FailFast: true}
+
+// Root aliases and root-native types an embedder spells by name.
+var (
+	_ pulse.BuildIndexResult
+	_ pulse.SetWidening
+	_ pulse.CreateShardArchiveResult
+	_ pulse.AddShardResult
+	_ pulse.GroupReconciliation
+	_ pulse.VerifyResult
+	_ pulse.ShardEntry
+	_ pulse.VerifyIndexResult
+	_ pulse.IndexFreshnessReason
+	_ pulse.IndexInfo
+	_ pulse.Row
+	_ pulse.RowIter
+	_ pulse.ImportSpec
+	_ pulse.ImportResult
+	_ pulse.ImportEntry
+	_ pulse.Example
+	_ pulse.CohesionWarning
+	_ pulse.GroupIndexHeadroom
+	_ pulse.SidecarIndex
+	_ pulse.SidecarIndexKeySpec
+	_ pulse.SidecarIndexBucket
+	_ pulse.SidecarIndexEntry
+	_ pulse.CohortFingerprint
+	_ pulse.Template
+	_ pulse.TemplateSummary
+	_ pulse.TemplateTarget
+	_ pulse.TemplateVarType
+	_ pulse.TemplateVariable
+	_ pulse.LoadMemberSetResult
+	_ pulse.MemberSet
+)
+
+// walkSidecarIndex spells every type in SidecarIndex's closure by its
+// root alias and walks the structure: an external module can read a
+// BuildIndexResult.Index end to end without an internal import.
+func walkSidecarIndex(idx *pulse.SidecarIndex) (fp pulse.CohortFingerprint, keys []string, rowIDs []uint64) {
+	fp = idx.Fingerprint
+	for _, k := range idx.Keys {
+		var spec pulse.SidecarIndexKeySpec = k
+		keys = append(keys, spec.Name)
+	}
+	for _, b := range idx.Buckets {
+		var bucket pulse.SidecarIndexBucket = b
+		for _, e := range bucket.Entries {
+			var entry pulse.SidecarIndexEntry = e
+			rowIDs = append(rowIDs, entry.RowIDs...)
+		}
+	}
+	return fp, keys, rowIDs
+}
+
+// Template targets and variable types have root spellings: an embedder
+// compares Template.Target / TemplateVariable.Type against these, never
+// against String().
+var (
+	_ = []pulse.TemplateTarget{
+		pulse.TemplateTargetRequest, pulse.TemplateTargetComposed, pulse.TemplateTargetChain,
+		pulse.TemplateTargetFacet, pulse.TemplateTargetSample,
+	}
+	_ = []pulse.TemplateVarType{
+		pulse.TemplateVarString, pulse.TemplateVarNumber, pulse.TemplateVarInteger,
+		pulse.TemplateVarBoolean, pulse.TemplateVarField, pulse.TemplateVarEnum,
+		pulse.TemplateVarList, pulse.TemplateVarDate, pulse.TemplateVarPeriod,
+	}
+)
+
+// DateRangeSpec is root-native and feeds a RangeTable extension.
+var _ = pulse.RangeTable{Ranges: []pulse.DateRangeSpec{{Label: "all"}}}
+
+// io: the format factory, its option sub-structs and the jobs.
+var (
+	_ func(pio.Format, afero.Fs, string, pio.ReaderOptions) (pio.Reader, error) = pio.NewReader
+	_ func(pio.Format, afero.Fs, string, pio.WriterOptions) (pio.Writer, error) = pio.NewWriter
+	_ func(pio.Format, []byte, pio.ReaderOptions) (pio.Reader, error)           = pio.NewReaderFromBytes
+	_ func(pio.Format, pio.WriterOptions) (pio.BufferWriter, error)             = pio.NewWriterToBuffer
+	_ func(pio.Reader, string) *pio.ImportJob                                   = pio.NewImportJob
+	_ func(string, pio.Writer) *pio.ExportJob                                   = pio.NewExportJob
+	_ func(string) pio.Format                                                   = pio.FormatFromPath
+	_ func() []pio.Format                                                       = pio.Formats
+	_ []pio.Format                                                              = []pio.Format{
+		pio.FormatCSV, pio.FormatTSV, pio.FormatNDJSON, pio.FormatJSONArray,
+		pio.FormatArrow, pio.FormatParquet, pio.FormatExcel, pio.FormatSPSS, pio.FormatPulse,
+	}
+	_ = pio.ReaderOptions{
+		Excel: pio.ExcelReaderOptions{Sheet: "Sheet1"},
+		SPSS:  pio.SPSSReaderOptions{Charset: "UTF-8", MissingMode: pio.SPSSMissingNull},
+	}
+	_ = pio.WriterOptions{SPSS: pio.SPSSWriterOptions{SanitizeNames: true}}
+	_ pio.RowError
+)
+
+// encoding: schema nouns, the raw ungrouped write primitives and the
+// record-locator geometry.
+var (
+	_ func(io.Writer) error                                                  = encoding.WriteHeader
+	_ func(io.Writer, *encoding.Schema) error                                = encoding.WriteSchema
+	_ func(io.Writer, encoding.FieldType, uint64) error                      = encoding.WriteFieldValue
+	_ func(io.Reader, encoding.FieldType) (uint64, error)                    = encoding.ReadFieldValue
+	_ func(io.Reader) (byte, error)                                          = encoding.ReadHeader
+	_ func(io.Reader, byte) (*encoding.Schema, error)                        = encoding.ReadSchema
+	_ func(*bytes.Reader, *encoding.Schema) (*encoding.RecordLocator, error) = encoding.NewRecordLocator
+	_ func(string) (encoding.FieldType, bool)                                = encoding.ParseFieldType
+	_ func(string) (uint32, error)                                           = encoding.ParseDate
+	_ func([]byte, int) bool                                                 = encoding.BitmapIsNull
+	_ func([]byte, int)                                                      = encoding.BitmapSetNull
+	_ func(*encoding.RecordLocator, uint64) int64                            = (*encoding.RecordLocator).Offset
+)
+
+// descriptor + errors.
+var (
+	_ func(any) *descriptor.Envelope            = descriptor.NewEnvelope
+	_ func(string) (perrors.LookupResult, bool) = perrors.Lookup
+	_ func() []perrors.Code                     = perrors.AllCodes
+	_ error                                     = (*perrors.CodedError)(nil)
+)
+
+// synth: the fixture-building entry points stay public.
+var (
+	_ func(afero.Fs, *synth.Spec, string, synth.Options) (*synth.Result, error) = synth.Synth
+	_ func(*synth.Spec, synth.Options) ([]byte, *synth.Result, error)           = synth.SynthBytes
+)
+
+// MCP: mount onto a caller-owned go-sdk server, or serve directly.
+var (
+	_ func(*mcpsdk.Server, *pulse.Pulse, gosdk.Config) error                            = gosdk.Register
+	_                                                                                   = gosdk.Config{Version: "embedder", DisableCohortScan: true}
+	_                                                                                   = mcpserve.Options{Version: "embedder", DisableCohortScan: true}
+	_ func(context.Context, *pulse.Pulse, mcpserve.Options, io.Reader, io.Writer) error = mcpserve.Serve
+)

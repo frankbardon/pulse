@@ -4,15 +4,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
 // TestBuildIndex_WritesSidecarAtDerivedPath is the facade-level
 // smoke test for Pulse.BuildIndex — the same contract
 // service.Service.BuildIndex covers exhaustively (see
-// service/index_build_test.go), exercised through the public facade
+// internal/service/index_build_test.go), exercised through the public facade
 // so the thin delegation (including the touchManaged call) is TDD'd
 // at this layer too.
 func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
@@ -33,7 +33,7 @@ func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
 		t.Fatalf("BuildIndex: %v", err)
 	}
 
-	wantPath := encoding.SidecarIndexPath("cohort.pulse", []string{"id"})
+	wantPath := encx.SidecarIndexPath("cohort.pulse", []string{"id"})
 	if res.IndexPath != wantPath {
 		t.Errorf("IndexPath = %q, want %q", res.IndexPath, wantPath)
 	}

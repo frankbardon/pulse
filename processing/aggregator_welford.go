@@ -121,8 +121,8 @@ func (a *welfordAggregator) Finalize() (float64, error) {
 }
 
 // MergeOnline applies the Chan-Welford parallel reduction so the
-// per-shard parallel reducer in service/shard_reduce.go and the
-// per-segment parallel decode in service/parallel_decode.go can fold
+// per-shard parallel reducer in internal/service/shard_reduce.go and the
+// per-segment parallel decode in internal/service/parallel_decode.go can fold
 // independent partials byte-equal to the single-pass result on
 // well-conditioned inputs.
 func (a *welfordAggregator) MergeOnline(other OnlineAggregator) error {

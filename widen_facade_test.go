@@ -14,8 +14,8 @@ import (
 )
 
 // Facade coverage for Pulse.WidenSetField. The engine
-// (encoding/widen_test.go) proves the byte-level rewrite and the service
-// layer (service/widen_field_test.go) proves the layout dispatch; what is
+// (internal/encoding/widen_test.go) proves the byte-level rewrite and the service
+// layer (internal/service/widen_field_test.go) proves the layout dispatch; what is
 // only reachable HERE is the type-NAME resolution, which is the facade's
 // own contract: an unknown name must be a coded refusal, never the silent
 // f64 fallback internal/cli/fieldtype.go performs for display purposes.

@@ -50,7 +50,7 @@ import (
 //
 // Structural invariants:
 //
-//   - This file MUST NOT import service/ or descriptor/. Runtime overlay
+//   - This file MUST NOT import internal/service/ or descriptor/. Runtime overlay
 //     execution stays inside processing/ alongside overlay.go.
 //   - No fmt.Sprintf in any JSON-bearing path. Warning messages are built
 //     with string concatenation so envelope output stays grep-clean
@@ -446,7 +446,7 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 // (FR-A2: stable spec-order layer emission), plus a flat warning slice.
 // Returns (nil, nil, nil) when specs is empty so the grouped Process
 // orchestrator can call ApplyOverlaysSeries unconditionally — mirrors
-// the MATRIX ApplyOverlays short-circuit contract.
+// the MATRIX applyOverlays short-circuit contract.
 //
 // Host policy:
 //
@@ -463,7 +463,7 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 //     per host group ordinal — entries for groups outside the handler's
 //     covered subset carry a zero-value Summary.
 //
-// Defense in depth: the descriptor.ValidateOverlays gate rejects bad
+// Defense in depth: the internal/descriptor.ValidateOverlays gate rejects bad
 // kinds at predict time, so a missing dispatch entry should never reach
 // the runtime in practice; nonetheless ApplyOverlaysSeries guards
 // against an unknown kind and returns a CodedError whose details carry

@@ -35,9 +35,9 @@ func TestOverlay_ShareOfRow_CellByCell(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings, got %d: %+v", len(warnings), warnings)
@@ -126,9 +126,9 @@ func TestOverlay_ShareOfRow_MissingMargin_EmitsWarning(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 9 {
 		t.Fatalf("expected 9 warnings (one per cell), got %d", len(warnings))
@@ -178,9 +178,9 @@ func TestOverlay_ShareOfRow_ZeroMargin_EmitsWarningNotInf(t *testing.T) {
 			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 2 {
 		t.Fatalf("expected 2 warnings, got %d", len(warnings))
@@ -216,9 +216,9 @@ func TestOverlay_ShareOfRow_AbsentCellsStayAbsent(t *testing.T) {
 			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("absent host cell should not warn; got %+v", warnings)
@@ -243,9 +243,9 @@ func TestOverlay_ShareOfRow_DefaultLayerName(t *testing.T) {
 			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
 		},
 	}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if got, want := layers[0].Name, "OVERLAY_SHARE_OF_ROW_row"; got != want {
 		t.Fatalf("synthesised name = %q, want %q", got, want)

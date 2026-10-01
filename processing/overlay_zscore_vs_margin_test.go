@@ -89,9 +89,9 @@ func TestOverlay_ZScoreVsMargin_RowAxis(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings, got %d: %+v", len(warnings), warnings)
@@ -166,9 +166,9 @@ func TestOverlay_ZScoreVsMargin_ColAxis(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings, got %d: %+v", len(warnings), warnings)
@@ -236,9 +236,9 @@ func TestOverlay_ZScoreVsMargin_GrandAxis(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings, got %d: %+v", len(warnings), warnings)
@@ -325,9 +325,9 @@ func TestOverlay_ZScoreVsMargin_ZeroSD_EmitsWarning(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	// Three cells in row 0 each fail with sd=0.
 	if len(warnings) != 3 {
@@ -387,9 +387,9 @@ func TestOverlay_ZScoreVsMargin_DefaultLayerName(t *testing.T) {
 					Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: tc.axis}},
 				},
 			}
-			layers, _, err := ApplyOverlays(specs, host)
+			layers, _, err := applyOverlays(specs, host)
 			if err != nil {
-				t.Fatalf("ApplyOverlays: %v", err)
+				t.Fatalf("applyOverlays: %v", err)
 			}
 			if got := layers[0].Name; got != tc.want {
 				t.Fatalf("synthesised name = %q, want %q", got, tc.want)

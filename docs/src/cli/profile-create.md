@@ -200,10 +200,10 @@ observation count is only an approximation of true co-occurrence.
 entry's `rho` and `n` are computed only from rows where BOTH fields were
 simultaneously non-null. `synth.SpecFromProfile` prefers
 `conditional.numeric_pairs` over `pairwise` when both are present, and
-`synth/copula.go`'s conditional-Gaussian construction (the mechanism
+`internal/synth/copula.go`'s conditional-Gaussian construction (the mechanism
 that actually reconstructs the requested correlation, replacing the old
 approximate ±5%·std blend) consumes either shape identically. A pair
-whose `n` falls below **30** (`synth.MinPairObservations`) is still
+whose `n` falls below **30** (`internal/synth.MinPairObservations`) is still
 shipped — never refused — but appends a warning to `warnings` naming the
 pair. The section is entirely absent (not empty) when `--conditional`
 is not passed, and profiles captured before this flag existed remain
@@ -225,7 +225,7 @@ captured table toward whichever block was read first. Two caps compose
 to keep the table bounded regardless of either field's raw cardinality:
 each field's own
 `--top-k` cap (default 32) first collapses any value outside that
-field's top-K into `"other"`, then `synth.ContingencyCellCap` (128)
+field's top-K into `"other"`, then `internal/synth.ContingencyCellCap` (128)
 bounds the resulting joint table itself — a pair of two 50+-category
 fields can still produce over a thousand joint combinations after the
 per-field collapse, and the joint cap is what keeps that bounded. When
@@ -236,7 +236,7 @@ collapse — folds into one merged `("other","other")` catch-all cell,
 never a second competing entry, so the table always saturates to
 exactly the cap (never more, and never silently fewer) whenever the
 raw cardinality exceeds it. A cell whose count falls below **30**
-(`synth.MinPairObservations`) still ships — never dropped — but appends
+(`internal/synth.MinPairObservations`) still ships — never dropped — but appends
 the same thin-pair warning numeric pairs use, to `warnings`. This story
 only captures the contingency table; `synth from-profile` does not yet
 sample from it (a later addition).
@@ -262,14 +262,14 @@ Only **one** cap applies here, unlike categorical-categorical's two:
 the categorical field's own `--top-k` (default 32) collapses any value
 outside its top-K into `"other"` before that category's conditional
 mean/std is computed. There is no second, joint-cardinality cap the way
-`conditional.categorical_pairs` layers `synth.ContingencyCellCap` on
+`conditional.categorical_pairs` layers `internal/synth.ContingencyCellCap` on
 top of the per-field top-K — this section emits one numeric summary
 per already-capped category rather than a joint table over two
 categorical axes, so the retained `categories` count is already
 bounded by `--top-k` (plus one `"other"` bucket) with nothing further
 to saturate.
 
-A category whose `n` falls below **30** (`synth.MinPairObservations`)
+A category whose `n` falls below **30** (`internal/synth.MinPairObservations`)
 still ships — never dropped — but appends the same thin-pair warning
 the other two pair kinds use, to `warnings`. The section is entirely
 absent (not empty) when `--conditional` is not passed.
@@ -310,7 +310,7 @@ option count is capped by its own type (8/16/32/64/128/256 for
 `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256`), and `ContingencyCellCap`
 still bounds every individual cell table exactly as it does for two
 plain categorical fields. Thin combinations (`n` below
-`synth.MinPairObservations`, 30) still ship — never dropped —
+`internal/synth.MinPairObservations`, 30) still ship — never dropped —
 appending the same warning shape every other pair kind uses. `synth
 from-profile` does not yet sample from any of these three sections — a
 later addition.
@@ -343,7 +343,7 @@ No new flag is needed at `synth from-profile` time — whether a field
 regenerates from `normal` or `mixture` is decided entirely by whether
 the profile document carries a captured shape for it.
 
-Limitations (see `synth/shape.go` for the full algorithm and its
+Limitations (see `internal/synth/shape.go` for the full algorithm and its
 documented trade-offs): fixed at exactly 2 components (no component-
 count search); a single deterministic EM run per field, not
 multi-start, so a genuinely trimodal source fits a 2-component
@@ -359,7 +359,7 @@ at `synth from-profile` generation time a `--fit-shape`-captured field
 that carries no model is pre-claimed under
 `"captured shape (--fit-shape)"` before any conditional-pairing or
 correlation stage runs (`synth.resolveConflicts`,
-`synth/conflict.go`), so the shape fit wins that field — but the
+`internal/synth/conflict.go`), so the shape fit wins that field — but the
 excluded relationship (the dropped categorical-numeric pair, or that
 field's exclusion from a correlation whose other participants still
 correlate) is reported as one warning naming both the field and which
@@ -1025,7 +1025,7 @@ to judge a twelve-row level.
 
 `gateHighNullRate` (0.98) and `gateLowNullRate` (0.02) are package
 constants with their reasoning at the declaration in
-`synth/profile_gating.go`, matching the `minVarianceExplained` /
+`internal/synth/profile_gating.go`, matching the `minVarianceExplained` /
 `minLevelObservations` precedent: a threshold whose purpose is to mean
 the same thing across cohorts must not be tunable per run. They are tight
 because skip logic is EXACT in the source. A looser pair would not find
@@ -1583,7 +1583,7 @@ ORDER, which generation does not reproduce.
 The profile JSON is always written to `--output`. With `--json`, the
 envelope is also written to stdout (typically piped or `jq`-d).
 
-Profile schema lives in `synth/profile.go` and is documented in
+Profile schema lives in `internal/synth/profile.go` and is documented in
 `skills/synthetic-data.md`.
 
 ### Reproducibility — across machines, not just across runs
@@ -1615,7 +1615,7 @@ Two residuals remain, and they are stated rather than papered over:
   standard-library implementations are architecture-specific. A
   `shape` section's last bits can therefore still differ between
   machines. Every other section is architecture-independent.
-- `--fit-models` solves its least squares in `processing/regression`,
+- `--fit-models` solves its least squares in `internal/processing/regression`,
   which has not been made fusion-free. A `models` coefficient's last
   bits can differ between machines.
 

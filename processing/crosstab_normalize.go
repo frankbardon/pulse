@@ -29,7 +29,7 @@ import (
 //
 //   - No fmt.Sprintf in any JSON-bearing path. Helpers are pure index
 //     math; no formatting happens here.
-//   - No imports of `service/` or `descriptor/`. Helpers live next to
+//   - No imports of `internal/service/` or `descriptor/`. Helpers live next to
 //     the buffered crosstab orchestrator and overlay runtime.
 
 // OverlayLevelEnabled reports whether a non-zero Level / Within slot
@@ -137,7 +137,7 @@ func OppositeAxisPrefixDepth(oppositeDepth, within int) int {
 //     case — the runtime entry still gracefully clamps to the leaf
 //     index so a misconfigured caller that survives predict surfaces
 //     a degenerate-but-shaped overlay rather than a panic. The
-//     descriptor.ValidateOverlays predict gate is the authoritative
+//     internal/descriptor.ValidateOverlays predict gate is the authoritative
 //     rejection surface.
 //
 // The leaf depth is `axisDepth - 1` (zero-based level index). For a

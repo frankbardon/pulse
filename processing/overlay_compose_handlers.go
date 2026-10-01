@@ -39,7 +39,7 @@ import (
 // Structural invariants:
 //
 //   - Pure functions. No I/O. No goroutines. No mutation of inputs.
-//   - MUST NOT import service/ or descriptor/.
+//   - MUST NOT import internal/service/ or descriptor/.
 //   - No fmt.Sprintf in any JSON-bearing path.
 //   - Statistical primitives reuse the existing helpers
 //     (`chiSquareSurvival`, `studentTTwoSidedP`, `standardNormalCDF`)

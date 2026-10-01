@@ -11,8 +11,9 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	iio "github.com/frankbardon/pulse/internal/io"
+	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/csv"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -133,7 +134,7 @@ func TestNew_DecodeWorkersPropagatedToService(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New(DecodeWorkers=%d): %v", want, err)
 		}
-		if got := p.Service().DecodeWorkers(); got != want {
+		if got := p.svc.DecodeWorkers(); got != want {
 			t.Fatalf("Service.DecodeWorkers() for opts.DecodeWorkers=%d: got %d, want %d", want, got, want)
 		}
 	}
@@ -679,7 +680,7 @@ func TestConvert_CsvToTabular(t *testing.T) {
 	})
 	writer := &collectWriter{}
 
-	job := pio.NewConvertJob(reader, writer)
+	job := iio.NewConvertJob(reader, writer)
 	report, err := p.Convert(context.Background(), job)
 	if err != nil {
 		t.Fatalf("Convert: %v", err)
@@ -1175,7 +1176,7 @@ func TestProcessChain_FacadeRoundTrip(t *testing.T) {
 // two things Inspect cannot reach and the CLI needed: the envelope's
 // warnings, and the InspectOptions knob — both read through the
 // injected afero.Fs, which is what makes this test hermetic at all.
-// `pulse cohort inspect --json` reached descriptor.InspectFromBytes
+// `pulse cohort inspect --json` reached descriptor's byte-level inspect
 // over its own os.ReadFile for exactly these two, and paid for it by
 // losing anchor resolution.
 func TestInspectEnvelope_SurfacesWarningsThroughTheInjectedFS(t *testing.T) {

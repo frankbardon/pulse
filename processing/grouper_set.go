@@ -51,7 +51,7 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 // column would return buckets nobody could tell were wrong.
 //
 // Refusing at construction matches what these three operators already
-// DECLARE: descriptor/capabilities_groupers.go gives each of them
+// DECLARE: internal/descriptor/capabilities_groupers.go gives each of them
 // AcceptsTypes: numericFieldTypesNoDecimal, which has never included a
 // set rung. This is the grouper twin of the FILTER_RANGE refusal.
 //
@@ -214,7 +214,7 @@ func (g *setValueGrouper) Group(records []*Record, _ string) (map[string][]*Reco
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema
-// declared in descriptor/capabilities_groupers.go for GROUP_SET_VALUE:
+// declared in internal/descriptor/capabilities_groupers.go for GROUP_SET_VALUE:
 // {n_empty_mask, buckets: [{key, mask, count, labels}]}.
 //
 //   - n_empty_mask: rows whose mask was 0 (legitimate bucket key,
@@ -415,7 +415,7 @@ func (g *setPerElementGrouper) Group(records []*Record, field string) (map[strin
 }
 
 // Components implements MetaGrouper. Returns the per-grouper schema
-// declared in descriptor/capabilities_groupers.go for
+// declared in internal/descriptor/capabilities_groupers.go for
 // GROUP_SET_PER_ELEMENT:
 // {total_label_observations, buckets: [{key, label, count, dict_index}]}.
 //

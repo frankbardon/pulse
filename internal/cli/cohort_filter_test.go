@@ -50,7 +50,7 @@ func writeInclude(t *testing.T, dir, name, body string) string {
 
 // inspectRecordCount opens the cohort at the absolute path through a
 // dedicated pulse.Pulse instance (rooted at the file's parent dir) and
-// returns Cohort.RecordCount. We don't reuse descriptor.InspectFromBytes
+// returns Cohort.RecordCount. We don't reuse a byte-level inspect
 // because the single-file inspect path doesn't populate RecordCount —
 // the value is derived from total bytes / record size, which Cohort
 // already computes.
@@ -262,7 +262,7 @@ func TestCohortFilterCLI_EmptyIncludeFileWritesZeroRows(t *testing.T) {
 //
 // CLAUDE.md's rule is "do not bypass afero.Fs — it defeats fs.NewMemMap()
 // and the custom-storage extension hook". The sanctioned exception is
-// CONFIG-DIR loading (label_loader.go / range_loader.go / template/), and
+// CONFIG-DIR loading (label_loader.go / range_loader.go / internal/template/), and
 // it is sanctioned because those directories are resolved from env vars
 // at pulse.New() time and are configuration rather than data.
 //

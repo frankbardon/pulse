@@ -9,8 +9,8 @@ import (
 // DateFormats enumerates the date literal layouts ParseDate accepts, in
 // priority order — the first layout that parses a given literal wins.
 // This is the authoritative list for turning a date literal into the
-// persisted on-wire epoch-day representation; io/import.go's column-type
-// inference (io/infer.go's own, independently-maintained dateFormats)
+// persisted on-wire epoch-day representation; internal/io/import.go's column-type
+// inference (internal/io/infer.go's own, independently-maintained dateFormats)
 // is a lighter, best-effort "does this column look date-shaped" probe
 // and intentionally stays separate from this conversion authority.
 var DateFormats = []string{
@@ -25,9 +25,9 @@ var DateFormats = []string{
 // ParseDate parses raw against DateFormats (first match wins) and
 // returns the on-wire representation the .pulse `date` field type
 // carries: whole days since the Unix epoch, narrowed to uint32 — exactly
-// the conversion io/import.go's row importer performs when converting a
+// the conversion internal/io/import.go's row importer performs when converting a
 // date column cell (`t.Unix() / 86400`). This function is the single
-// source of truth both the importer (io/import.go's convertValue) and
+// source of truth both the importer (internal/io/import.go's convertValue) and
 // the point-lookup key resolver (processing.ResolveLookupKeyBytes) call,
 // so a date literal parsed at import time and the same literal parsed at
 // lookup time always resolve to the identical on-wire uint32 — no

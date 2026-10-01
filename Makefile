@@ -1,4 +1,4 @@
-.PHONY: build clean dist test cover fmt vet lint bench docs docs-serve docs-clean
+.PHONY: build clean dist test smoke cover fmt vet lint bench docs docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -36,6 +36,15 @@ dist:
 test:
 	$(GO) test ./...
 
+# smoke builds, vets and tests internal/embeddersmoke: a separate Go
+# module (own go.mod, replace => ../..) that embeds Pulse through the
+# exported surface only, so an API an embedder needs that slipped under
+# internal/ fails here. The root ./... never descends into it (nested
+# go.mod). -mod=mod lets a root dependency bump flow through without a
+# hand-run `go mod tidy` in the nested module.
+smoke:
+	cd internal/embeddersmoke && GOFLAGS=-mod=mod $(GO) vet ./... && GOFLAGS=-mod=mod $(GO) test -count=1 ./...
+
 cover:
 	$(GO) test -coverprofile=coverage.out ./...
 	$(GO) tool cover -func=coverage.out
@@ -56,13 +65,13 @@ lint: vet
 # compares Process with/without a sidecar index present; see
 # no_sidecar_touch_bench_test.go); new bench packages should be added
 # here. Reference numbers for the crosstab-perf epic come from
-# BenchmarkBufferedProcessWideCohort in ./service. Pipe output through
+# BenchmarkBufferedProcessWideCohort in ./internal/service. Pipe output through
 # `benchstat` against a saved baseline to catch wall-clock regressions
 # — this target intentionally does not assert a threshold itself (see
 # no_sidecar_touch_perf_test.go's `-tags=perf` opt-in gate for the one
 # in-repo wall-clock assertion, kept out of CI on purpose).
 bench:
-	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./service/... ./encoding/... ./processing/...
+	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./processing/...
 
 docs:
 	mdbook build docs

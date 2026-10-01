@@ -104,9 +104,9 @@ func TestApplyOverlays_IndexVsMargin_AxisRow_RowMeansHitBaseline(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings, got %d: %+v", len(warnings), warnings)
@@ -201,9 +201,9 @@ func TestApplyOverlays_IndexVsMargin_AxisColumn_ColumnMeansHitBaseline(t *testin
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("unexpected warnings: %+v", warnings)
@@ -238,9 +238,9 @@ func TestApplyOverlays_IndexVsMargin_AxisGrand_GrandIndexedScaled(t *testing.T) 
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("unexpected warnings: %+v", warnings)
@@ -285,9 +285,9 @@ func TestApplyOverlays_IndexVsMargin_MissingMargin_EmitsWarning(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 9 {
 		t.Fatalf("expected 9 warnings (one per cell), got %d", len(warnings))
@@ -338,9 +338,9 @@ func TestApplyOverlays_IndexVsMargin_ZeroMargin_EmitsWarningNotInf(t *testing.T)
 			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 2 {
 		t.Fatalf("expected 2 warnings, got %d", len(warnings))
@@ -370,9 +370,9 @@ func TestApplyOverlays_AbsentCellsStayAbsent(t *testing.T) {
 			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("absent host cell should not warn; got %+v", warnings)
@@ -386,11 +386,11 @@ func TestApplyOverlays_AbsentCellsStayAbsent(t *testing.T) {
 	}
 }
 
-// TestApplyOverlays_EmptySpecsShortCircuits verifies that ApplyOverlays
+// TestApplyOverlays_EmptySpecsShortCircuits verifies that applyOverlays
 // with no specs returns nil layers, nil warnings, nil error — the
-// crosstab orchestrator can call ApplyOverlays unconditionally.
+// crosstab orchestrator can call applyOverlays unconditionally.
 func TestApplyOverlays_EmptySpecsShortCircuits(t *testing.T) {
-	layers, warnings, err := ApplyOverlays(nil, nil)
+	layers, warnings, err := applyOverlays(nil, nil)
 	if err != nil || layers != nil || warnings != nil {
 		t.Fatalf("empty specs must short-circuit: layers=%v warnings=%v err=%v",
 			layers, warnings, err)
@@ -411,7 +411,7 @@ func TestApplyOverlays_UnknownKind_StubCoded(t *testing.T) {
 			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
 		},
 	}
-	_, _, err := ApplyOverlays(specs, host)
+	_, _, err := applyOverlays(specs, host)
 	if err == nil {
 		t.Fatalf("expected error for unknown kind")
 	}
@@ -434,9 +434,9 @@ func TestApplyOverlays_DefaultLayerName(t *testing.T) {
 			Ref:   types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}},
 		},
 	}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if got, want := layers[0].Name, "OVERLAY_INDEX_VS_MARGIN_row"; got != want {
 		t.Fatalf("synthesised name = %q, want %q", got, want)

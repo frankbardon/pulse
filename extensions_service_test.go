@@ -27,7 +27,7 @@ func TestExtensions_RegistryInstalledOnService(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New rejected valid extension: %v", err)
 	}
-	reg := p.Service().Extensions()
+	reg := pulse.ServiceForTest(p).Extensions()
 	if reg == nil {
 		t.Fatal("expected non-nil ExtensionRegistry on service after registration")
 	}
@@ -47,7 +47,7 @@ func TestExtensions_ZeroValueProducesNilRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New rejected zero options: %v", err)
 	}
-	if reg := p.Service().Extensions(); reg != nil {
+	if reg := pulse.ServiceForTest(p).Extensions(); reg != nil {
 		t.Errorf("expected nil ExtensionRegistry for zero-value Extensions, got %#v", reg)
 	}
 }
@@ -80,8 +80,8 @@ func TestExtensions_RegistryIsolationAcrossInstances(t *testing.T) {
 		t.Fatalf("pulse b: %v", err)
 	}
 
-	regA := a.Service().Extensions()
-	regB := b.Service().Extensions()
+	regA := pulse.ServiceForTest(a).Extensions()
+	regB := pulse.ServiceForTest(b).Extensions()
 	if _, ok := regA.LookupAggregator("AGG_ACME_B"); ok {
 		t.Error("instance a saw instance b's overlay")
 	}
@@ -106,7 +106,7 @@ func TestExtensions_RegistryFallsThroughToBuiltins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	reg := p.Service().Extensions()
+	reg := pulse.ServiceForTest(p).Extensions()
 	if _, ok := reg.LookupAggregator(types.AGG_COUNT); !ok {
 		t.Error("overlay path must fall through to built-in AGG_COUNT")
 	}
@@ -134,7 +134,7 @@ func TestExtensions_OnlyExprEntriesYieldsRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	reg := p.Service().Extensions()
+	reg := pulse.ServiceForTest(p).Extensions()
 	if reg == nil {
 		t.Fatal("expected non-nil ExtensionRegistry when expr entries registered")
 	}
@@ -174,7 +174,7 @@ func TestExtensions_AttributeStreamabilityFromMode(t *testing.T) {
 			if err != nil {
 				t.Fatalf("pulse.New: %v", err)
 			}
-			got := p.Service().Extensions().IsStreamable("attribute", string(name))
+			got := pulse.ServiceForTest(p).Extensions().IsStreamable("attribute", string(name))
 			if got != tc.want {
 				t.Errorf("mode=%s: IsStreamable=%v, want %v", tc.mode, got, tc.want)
 			}

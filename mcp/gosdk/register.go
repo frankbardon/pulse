@@ -25,7 +25,7 @@ package gosdk
 
 import (
 	"github.com/frankbardon/pulse"
-	core "github.com/frankbardon/pulse/mcp"
+	core "github.com/frankbardon/pulse/internal/mcp"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -61,11 +61,11 @@ type Config struct {
 	DisableCohortScan bool
 }
 
-// Core projects the adapter Config onto the SDK-free core Config consumed by
+// coreConfig projects the adapter Config onto the SDK-free core Config consumed by
 // mcp.Tools. Only the fields the core catalog reads cross the boundary.
 // An empty Version resolves to pulse.Version(), so the catalog never
 // carries a blank build identity.
-func (c Config) Core() core.Config {
+func (c Config) coreConfig() core.Config {
 	version := c.Version
 	if version == "" {
 		version = pulse.Version()

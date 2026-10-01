@@ -22,7 +22,7 @@ package types
 //
 // The default branch of OverlayStreamable returns (false, false) so an
 // unknown kind cannot accidentally stream — the validator
-// (descriptor.ValidateOverlays) and the predict layer both treat
+// (internal/descriptor.ValidateOverlays) and the predict layer both treat
 // "unknown" as "buffered".
 
 // OverlayStreamability declares whether each overlay kind can be
@@ -102,8 +102,8 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// group; no peer-cell lookup) and the kind-catalog-v1 "Streaming-
 	// capable subset" lists DELTA_VS_REF among the fold-only streamable
 	// COMPOSE kinds. The MATRIX-host dispatch remains
-	// forced buffered by the slot barrier in `service.Compose` /
-	// `service.ComposeParallel`; this flag describes the kind's
+	// forced buffered by the slot barrier in `internal/service.Compose` /
+	// `internal/service.ComposeParallel`; this flag describes the kind's
 	// INTRINSIC streaming capability via its SERIES handler — not the
 	// composed host-overlay routing decision (mirrors OverlayKindShareOfTotal's
 	// dual-shape convention; MATRIX-arm forces buffered through the
@@ -125,7 +125,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_DELTA_VS_STAGE is buffered — second whole-chain kind,
 	// sibling subtractive twin of OVERLAY_INDEX_VS_STAGE. Whole-chain
 	// overlays run AFTER every stage has finalised by construction:
-	// `service.ProcessChain` invokes `applyChainOverlays` at the
+	// `internal/service.ProcessChain` invokes `applyChainOverlays` at the
 	// post-stage-loop barrier with already-materialised `*Response`
 	// objects for each `Stages[i]`. There is no streamable arm for the
 	// whole-chain kind family — the streamability flag stays `false`
@@ -174,7 +174,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// kind-catalog-v1 "Streaming-capable subset" lists INDEX_VS_REF
 	// among the fold-only streamable COMPOSE kinds. The MATRIX-host
 	// dispatch remains forced buffered by the slot barrier in
-	// `service.Compose` / `service.ComposeParallel`; this flag describes
+	// `internal/service.Compose` / `internal/service.ComposeParallel`; this flag describes
 	// the kind's INTRINSIC streaming capability via its SERIES handler
 	// — not the composed host-overlay routing decision (mirrors
 	// OverlayKindShareOfTotal's dual-shape convention; MATRIX-arm forces
@@ -240,7 +240,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_INDEX_VS_STAGE is buffered — first whole-chain kind,
 	// first consumer of the StageRef discriminated reference family.
 	// Whole-chain overlays run AFTER every stage has finalised by
-	// construction: `service.ProcessChain` invokes `applyChainOverlays`
+	// construction: `internal/service.ProcessChain` invokes `applyChainOverlays`
 	// at the post-stage-loop barrier with already-materialised
 	// `*Response` objects for each `Stages[i]`. There is no streamable
 	// arm for the whole-chain kind family — the streamability flag
@@ -267,7 +267,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// are OVERLAY_INDEX_VS_POP and OVERLAY_ZSCORE_VS_POP.
 	// KS is NUMERIC-arm only — categorical hosts fire
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime (per-kind validator lives
-	// in descriptor/overlay_facet.go). Future work may lift KS into a streaming carrier by
+	// in internal/descriptor/overlay_facet.go). Future work may lift KS into a streaming carrier by
 	// retaining a heap or finer histogram per group; v1 stays buffered.
 	OverlayKindKSVsPop: false,
 	// OVERLAY_PANEL_INDEX_VS_REF is streamable via its per-target SERIES
@@ -281,7 +281,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_INDEX_VS_REF dual-shape streamability convention — this
 	// flag describes the kind's INTRINSIC streaming capability via its
 	// SERIES handler. The MATRIX route is forced buffered by the slot
-	// barrier in service.Compose / service.ComposeParallel (the same
+	// barrier in internal/service.Compose / internal/service.ComposeParallel (the same
 	// chassis precedent every COMPOSE kind uses).
 	OverlayKindPanelIndexVsRef: true,
 	// The OVERLAY_PAIRWISE_* family is inherently buffered — per-Request

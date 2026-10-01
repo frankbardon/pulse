@@ -16,7 +16,7 @@ import "testing"
 //
 // This gate is intentionally NOT wired into any CI workflow — a
 // strict wall-clock threshold on a shared CI runner is flaky, exactly
-// the same rationale service/parallel_decode_perf_test.go documents
+// the same rationale internal/service/parallel_decode_perf_test.go documents
 // for its own `-tags=perf` opt-in gate (grep the repo: no workflow
 // passes `-tags=perf`). Run manually with:
 //

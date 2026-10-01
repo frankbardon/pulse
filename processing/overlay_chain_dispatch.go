@@ -41,7 +41,7 @@ import (
 //
 // Service-side wiring: ChainResponse.Overlays is populated after the
 // stage loop finishes and BEFORE the response is returned. The
-// `service.ProcessChain` orchestrator calls
+// `internal/service.ProcessChain` orchestrator calls
 // `ApplyChainOverlays` at the post-stage-loop barrier — once every
 // stage has produced a finalised `*Response` the whole-chain fold runs
 // over the already-materialised stage responses. The fold operates
@@ -57,7 +57,7 @@ import (
 //
 // Structural invariants:
 //
-//   - This file MUST NOT import service/ or descriptor/. Runtime
+//   - This file MUST NOT import internal/service/ or descriptor/. Runtime
 //     overlay execution stays inside processing/ alongside overlay.go
 //     and overlay_series.go.
 //   - No fmt.Sprintf in any JSON-bearing path. Warning messages are
@@ -131,7 +131,7 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 // flat warning slice. Returns (nil, nil, nil) when specs is empty so
 // the service-side ProcessChain post-stage-loop call site can call
 // ApplyChainOverlays unconditionally — mirrors the MATRIX
-// ApplyOverlays / SERIES ApplyOverlaysSeries / FACET ApplyOverlaysFacet
+// applyOverlays / SERIES ApplyOverlaysSeries / FACET ApplyOverlaysFacet
 // short-circuit contract.
 //
 // `stages` is the ordered list of per-stage *Response objects in the
@@ -152,7 +152,7 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 //     latest stage). Ref with both slots empty fires the coded error
 //     immediately — every spec MUST name a baseline.
 //
-// Defense in depth: the descriptor.ValidateOverlays gate will
+// Defense in depth: the internal/descriptor.ValidateOverlays gate will
 // reject bad kinds at predict time, so a missing dispatch entry should
 // never reach the runtime in practice; nonetheless ApplyChainOverlays
 // guards against an unknown kind and returns a CodedError whose

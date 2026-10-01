@@ -2,7 +2,7 @@
 
 Pulse ships a searchable, embedded catalogue of runnable request JSON files
 spanning every operator category. They are checked into the repo
-under `examples/`, mounted into the binary at compile time via `//go:embed`,
+under `internal/examples/`, mounted into the binary at compile time via `//go:embed`,
 and surfaced through three peer access paths:
 
 | Access path | Best for |
@@ -107,7 +107,7 @@ carries that.
 
 ## Adding a new example
 
-1. Write the request JSON under `examples/<category>/`. Use existing files as
+1. Write the request JSON under `internal/examples/<category>/`. Use existing files as
    shape templates. Keep `cohort.data_dir = ".data"` and reference one of the
    fixture cohorts.
 2. Add a `_meta` block at the top of the file:
@@ -116,13 +116,13 @@ carries that.
    - `tags` — pick 3-6 from the taxonomy above.
    - `operators` — the list of `AGG_* / ATTR_* / FILTER_* / GROUP_* / WIN_* / FEAT_* / TEST_*` types appearing in the body, alphabetized and deduped.
    - `description` — one-sentence, present-tense summary.
-3. Re-run `go test ./examples/... ./descriptor/...` to confirm the new file passes:
+3. Re-run `go test ./internal/examples/... ./internal/descriptor/...` to confirm the new file passes:
    - `TestExamples_AllParseAsRequest`
    - `TestExamples_UniqueNames`
    - `TestExamples_TagsFromTaxonomy`
    - `TestExamples_OperatorsMatchBody`
    - `TestExamples_CategoryMatchesDirectory`
    - `TestManifestExamplesPopulated`
-4. The annotation tool at `cmd/annotate-examples/` is idempotent and may be
-   re-used; updating its in-source `annotations` slice and re-running will
-   rewrite the file's `_meta` block in canonical form.
+4. Keep the `_meta` block in sync by hand when the body changes —
+   `TestExamples_OperatorsMatchBody` fails the moment `operators` drifts
+   from the types the request actually uses.

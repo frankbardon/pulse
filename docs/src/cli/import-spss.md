@@ -4,11 +4,11 @@
 (`.sav`, `.zsav`) into a `.pulse` cohort. Defined in
 [`internal/cli/import.go`](https://github.com/frankbardon/pulse/blob/main/internal/cli/import.go);
 the adapter itself is
-[`io/spss/`](https://github.com/frankbardon/pulse/tree/main/io/spss).
+[`internal/io/spss/`](https://github.com/frankbardon/pulse/tree/main/internal/io/spss).
 
 SPSS is the one import format Pulse does **not** guess at. Every other
 source (CSV, NDJSON, Parquet, …) is sampled and voted on by
-`io/infer.go`; a `.sav` file carries a dictionary that *declares* every
+`internal/io/infer.go`; a `.sav` file carries a dictionary that *declares* every
 variable's type, its missing-value rules and its value labels, so the
 adapter implements `io.SchemaAwareReader` and hands that dictionary
 straight to the encoder. Inference never runs.
@@ -312,7 +312,7 @@ There are two flavours and they are not equivalent.
 
 This is the one mapping in the whole adapter where SPSS *declares* what
 every other ingest path has to guess. A CSV importer looking at
-`"tv|radio"` runs `io/infer.go`'s delimited-token heuristic and votes; a
+`"tv|radio"` runs `internal/io/infer.go`'s delimited-token heuristic and votes; a
 `.sav` states the set outright. And Pulse has a type built for the shape:
 `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256`, a fixed-width bitmask over an
 inline dictionary, with `FILTER_SET_*`, `GROUP_SET_PER_ELEMENT` and
@@ -401,7 +401,7 @@ option. And when the answer raises a question the mask cannot settle —
   no honest mask. The import emits the constituents and warns
   `PULSE_SPSS_MR_SET_NOT_DERIVED` naming the set. The ceiling was 64 until
   `set_u128` / `set_u256` landed; a 206-option battery derives now, and
-  the importer reads the ceiling off the same width ladder `io/infer.go`
+  the importer reads the ceiling off the same width ladder `internal/io/infer.go`
   uses rather than carrying a copy.
 
 ### When a set does not derive
@@ -551,7 +551,7 @@ on.
 
 | Kind | Opt out | Cost |
 |---|---|---|
-| `numeric_missing` | `--spss-missing=null` / `spss.WithMissingMode(spss.MissingNull)` | Identical nulls in the analytic column; the *reason* is no longer in the cohort. The full specification still rides the sidecar, so a re-import recovers the vocabulary — but not which row had which reason. |
+| `numeric_missing` | `--spss-missing=null` / `io.SPSSReaderOptions{MissingMode: io.SPSSMissingNull}` | Identical nulls in the analytic column; the *reason* is no longer in the cohort. The full specification still rides the sidecar, so a re-import recovers the vocabulary — but not which row had which reason. |
 | `multiple_dichotomy` | no flag | It is the ergonomic half of the additive design and costs one column per set. The constituents carry the fidelity either way, so suppressing it would remove convenience and change nothing else. |
 
 Neither knob changes the categorical arm: a `categorical_*` column keeps
@@ -595,9 +595,9 @@ place to generate a label table from.
 > cohorts.** The loader parses **every** `*.json` beneath that root as a
 > label table, but it excludes Pulse's own sidecars by suffix before
 > reading them — the SPSS metadata sidecar written next to every
-> imported cohort (`cohort.pulse.spss.json`, `spss.SidecarSuffix`) and
+> imported cohort (`cohort.pulse.spss.json`, `.spss.json` suffix) and
 > the managed-import sidecar (`cohort.pulse.meta.json`,
-> `imports.SidecarSuffix`). A skipped sidecar registers no label table
+> `internal/imports.SidecarSuffix`). A skipped sidecar registers no label table
 > under any name.
 >
 > That is an exclusion of files Pulse knows are its own, **not**
@@ -770,7 +770,9 @@ $ pulse import spss -i survey.sav -o survey.pulse --charset windows-1252
 ```
 
 ```go
-r := spss.NewReader(fs, "survey.sav", spss.WithCharset("windows-1252"))
+r, err := io.NewReader(io.FormatSPSS, fs, "survey.sav", io.ReaderOptions{
+	SPSS: io.SPSSReaderOptions{Charset: "windows-1252"},
+})
 ```
 
 It changes **decoding only**; the file's own declaration is still

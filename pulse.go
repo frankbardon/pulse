@@ -16,42 +16,101 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/examples"
-	"github.com/frankbardon/pulse/fs"
-	"github.com/frankbardon/pulse/imports"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
+	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/imports"
+	"github.com/frankbardon/pulse/internal/service"
+	"github.com/frankbardon/pulse/internal/template"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/processing"
-	"github.com/frankbardon/pulse/service"
 	"github.com/frankbardon/pulse/synth"
-	"github.com/frankbardon/pulse/template"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
-// MemberSet is the public alias for processing.MemberSet — the
-// read-only set type consumed by FilterToFileBySetAndExpr. Build one
-// via LoadMemberSetFromReader (recommended for newline-delimited files)
-// or by constructing a concrete impl directly.
-type MemberSet = processing.MemberSet
+// MemberSet is a read-only set of field values consumed by
+// FilterToFileBySetAndExpr as an include-set membership test. Build one
+// with LoadMemberSetFromReader, which picks the fastest representation
+// for the field's type (bitset for categorical, uint64 map for integer /
+// date, string map for decimal / fallback). Only sets returned by
+// LoadMemberSetFromReader are accepted by FilterToFileBySetAndExpr; any
+// other implementation is refused when the membership predicate is built.
+type MemberSet interface {
+	// Len is the number of distinct members in the set.
+	Len() int
+	// Kind names the representation: "bitset", "uint64" or "string".
+	Kind() string
+}
 
-// LoadMemberSetResult mirrors processing.LoadMemberSetResult so callers
-// can inspect drop counts after loading an include-set file.
-type LoadMemberSetResult = processing.LoadMemberSetResult
+// LoadMemberSetResult is the per-load report returned by
+// LoadMemberSetFromReader. Lines is the total of non-blank lines
+// processed; NotInDictionary counts categorical values absent from the
+// field's dictionary (they can never match a record, so they are
+// dropped); Invalid counts numeric lines that failed to parse on the
+// integer path. Callers decide whether to surface each counter as a
+// warning or a hard error.
+type LoadMemberSetResult struct {
+	Set             MemberSet
+	Lines           int
+	NotInDictionary int
+	Invalid         int
+}
 
-// DateRangeSpec is the public alias for processing.DateRangeSpec — the
-// wire-level shape of a single labeled date range ({label, start, end}).
-// It is the shared model authored inline on a GROUP_DATE_RANGES grouper
-// or FILTER_DATE_RANGES filter and registered in an Extensions.RangeTables
-// entry. Start / End are ISO date literals; nil / empty is an open bound.
-type DateRangeSpec = processing.DateRangeSpec
+// DateRangeSpec is the wire-level shape of a single labeled date range
+// ({label, start, end}). It is the shared model authored inline on a
+// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter and registered
+// in an Extensions.RangeTables entry. Start / End are ISO date literals;
+// nil / empty is an open bound; both bounds are inclusive.
+type DateRangeSpec struct {
+	Label string  `json:"label"`
+	Start *string `json:"start,omitempty"`
+	End   *string `json:"end,omitempty"`
+}
 
-// LoadMemberSetFromReader is the public alias for the underlying
-// processing-package loader. It reads newline-delimited values from r
-// and returns the best MemberSet impl for the named field on schema
-// (bitset for categorical, uint64 map for integer / date, string map
-// for decimal / fallback). Float fields are rejected.
+// toEngineDateRanges converts root DateRangeSpecs to the engine's
+// identical-layout type. A nil slice stays nil.
+func toEngineDateRanges(in []DateRangeSpec) []processing.DateRangeSpec {
+	if in == nil {
+		return nil
+	}
+	out := make([]processing.DateRangeSpec, len(in))
+	for i, r := range in {
+		out[i] = processing.DateRangeSpec(r)
+	}
+	return out
+}
+
+// fromEngineDateRanges is the inverse of toEngineDateRanges; it always
+// returns a fresh slice so callers never alias engine-owned state.
+func fromEngineDateRanges(in []processing.DateRangeSpec) []DateRangeSpec {
+	if in == nil {
+		return nil
+	}
+	out := make([]DateRangeSpec, len(in))
+	for i, r := range in {
+		out[i] = DateRangeSpec(r)
+	}
+	return out
+}
+
+// LoadMemberSetFromReader reads newline-delimited values from r and
+// returns the best MemberSet for the named field on schema (bitset for
+// categorical, uint64 map for integer / date, string map for decimal /
+// fallback). Lines are whitespace-trimmed, a leading UTF-8 BOM is
+// stripped and blank lines are skipped. Float fields are rejected.
 func LoadMemberSetFromReader(r io.Reader, schema *encoding.Schema, fieldName string) (LoadMemberSetResult, error) {
-	return processing.LoadMemberSetFromReader(r, schema, fieldName)
+	res, err := processing.LoadMemberSetFromReader(r, schema, fieldName)
+	if err != nil {
+		return LoadMemberSetResult{}, err
+	}
+	return LoadMemberSetResult{
+		Set:             res.Set,
+		Lines:           res.Lines,
+		NotInDictionary: res.NotInDictionary,
+		Invalid:         res.Invalid,
+	}, nil
 }
 
 // Type aliases re-exported from the types package so embedders can use
@@ -171,14 +230,23 @@ type Options struct {
 	// request references). Defaults to false (projection enabled).
 	DisableProjection bool
 
+	// DisableCrosstabFusion forces every crosstab request onto the
+	// buffered path, skipping the fused in-decode streaming arm even
+	// when the fusion gate (processing.CanFuseCrosstab) admits the
+	// request. Output is identical either way — fusion is a peak-heap
+	// optimisation — so this is a diagnostic / benchmarking knob, e.g.
+	// to compare fused against buffered memory on the same request.
+	// Defaults to false (fusion engages whenever the gate accepts).
+	DisableCrosstabFusion bool
+
 	// ImportsDir overrides the managed-imports directory. Defaults to
-	// imports.DefaultImportsDir (resolved relative to the Pulse fs
+	// internal/imports.DefaultImportsDir (resolved relative to the Pulse fs
 	// root). Honoured before the PULSE_IMPORTS_DIR env var.
 	ImportsDir string
 
 	// ImportTTL overrides the default TTL applied to managed imports
 	// when the caller does not pass one. Zero falls back to the
-	// PULSE_IMPORT_TTL env var, then to imports.DefaultTTL. Negative
+	// PULSE_IMPORT_TTL env var, then to internal/imports.DefaultTTL. Negative
 	// values pin imports (never expire) by default.
 	ImportTTL time.Duration
 
@@ -375,15 +443,10 @@ type Pulse struct {
 
 	// templates is the request-template store built from
 	// Options.TemplateDirs (or PULSE_TEMPLATES_DIR). Nil when no template
-	// directories are configured — a nil *template.Store is usable, so
+	// directories are configured — a nil *internal/template.Store is usable, so
 	// call sites need no nil check.
 	templates *template.Store
 }
-
-// Service returns the underlying service handle. Exposed so tests
-// (and advanced embedders) can inspect the installed extension
-// registry, FS configuration, and orchestration state.
-func (p *Pulse) Service() *service.Service { return p.svc }
 
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
@@ -449,6 +512,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetStrict(opts.Strict)
 	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
 	svc.SetEchoRequest(opts.EchoRequest)
+	svc.SetDisableCrosstabFusion(opts.DisableCrosstabFusion)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:                opts.ImportsDir,
@@ -527,7 +591,7 @@ func autoLabelPtrs(bindings []LabelBinding) []*types.LabelBinding {
 // PULSE_ARCHIVE_MAGIC_INVALID. A literal `#` in a filename is not
 // supported in v1.
 //
-// Anchor parsing happens inside service.Service.Open as well, so the
+// Anchor parsing happens inside internal/service.Service.Open as well, so the
 // other facade methods (Process, Sample, Facet, ...) that receive an
 // anchored Cohort path resolve consistently.
 func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
@@ -641,7 +705,7 @@ func (p *Pulse) ProcessChain(ctx context.Context, req *ChainRequest) (*ChainResp
 	return resp, err
 }
 
-// ComposeOptions controls parallel execution. See service.ComposeOptions.
+// ComposeOptions controls parallel execution. See internal/service.ComposeOptions.
 type ComposeOptions = service.ComposeOptions
 
 // ComposeParallel runs every request in req concurrently across a
@@ -748,11 +812,14 @@ func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertR
 }
 
 // Type aliases re-exported from the imports package so embedders can
-// use pulse.ImportSpec instead of imports.Spec.
+// use pulse.ImportSpec instead of internal/imports.Spec.
 type (
 	ImportSpec   = imports.Spec
 	ImportResult = imports.Result
 	ImportEntry  = imports.Entry
+	// ImportSidecar is the managed-import metadata document an
+	// ImportEntry carries.
+	ImportSidecar = imports.Sidecar
 )
 
 // ImportFile auto-detects the source format, converts the source into a
@@ -836,8 +903,8 @@ func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectRe
 // multiple of the record stride reports its floored record count with
 // an ENCODING_INVALID warning beside it, and Inspect drops that
 // warning on the floor. `pulse cohort inspect --json` / `--full-dict`
-// used to reach descriptor.InspectFromBytes over its own os.ReadFile
-// for exactly this reason, which cost it anchor resolution
+// used to hand bytes from its own os.ReadFile to descriptor's
+// byte-level inspect for exactly this reason, which cost it anchor resolution
 // (archive.pulse#shard.pulse resolved in text mode and failed under
 // --json) and the injected filesystem along with it.
 //
@@ -866,7 +933,10 @@ func (p *Pulse) InspectEnvelope(ctx context.Context, path string, opts *descript
 		data = shardBytes
 	}
 
-	env := descriptor.InspectFromBytes(data, opts)
+	env, err := p.InspectBytes(ctx, data, opts)
+	if err != nil {
+		return nil, err
+	}
 	if len(env.Errors) == 0 {
 		// TTL slide on a successful read only — an unreadable cohort is
 		// not a use of the managed import.
@@ -887,7 +957,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	// Anchor syntax (`archive.pulse#shard.pulse`): resolve against the
 	// named shard's standalone bytes so Predict validates against the
 	// shard's own schema and record count, mirroring what
-	// service.Open(anchor) returns at runtime.
+	// internal/service.Open(anchor) returns at runtime.
 	readPath := path
 	anchorEntry := ""
 	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
@@ -908,7 +978,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		data = shardBytes
 	}
 
-	env := descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
+	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
@@ -925,6 +995,53 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	}
 	p.touchManaged(ctx, path)
 	return result, nil
+}
+
+// InspectBytes inspects an in-memory .pulse cohort — a single file or a
+// whole shard archive, detected by its leading magic bytes — and
+// returns the descriptor envelope WHOLE, warnings included (a payload
+// whose length is not a whole multiple of the record stride reports
+// its floored record count beside an ENCODING_INVALID warning). It is
+// the byte-level twin of InspectEnvelope for a caller that already
+// holds the bytes: no filesystem read, no anchor resolution, no
+// managed-import TTL slide. opts may be nil (defaults).
+//
+// Inspect has no request and no strict mode, so it reads nothing else
+// from the instance's Options. A returned error is a cancelled ctx;
+// every fault in the bytes themselves comes back as env.Errors so a
+// --json caller can emit the coded envelope verbatim.
+func (p *Pulse) InspectBytes(ctx context.Context, data []byte, opts *descriptor.InspectOptions) (*descriptor.Envelope, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return descx.Inspect(bytes.NewReader(data), opts), nil
+}
+
+// PredictBytes validates req against an in-memory .pulse cohort — a
+// single file or a whole shard archive, detected by its leading magic
+// bytes — without executing it, and returns the descriptor envelope
+// whole.
+//
+// Unlike Predict, every predict option comes from the instance: the
+// extension snapshot (so an embedder-registered operator is KNOWN, not
+// flagged unknown), Options.Strict (warnings promoted to errors) and
+// Options.EchoRequest (envelope.Request carries the normalized
+// request). req.Cohort is not read — the bytes ARE the cohort.
+//
+// A returned error is a nil req or a cancelled ctx; every validation
+// fault comes back as env.Errors with PredictResult.Valid false.
+func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*descriptor.Envelope, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if req == nil {
+		return nil, fmt.Errorf("pulse: predict requires a request")
+	}
+	return descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
+		Strict:      p.svc.Strict(),
+		EchoRequest: p.svc.EchoRequest(),
+		Extensions:  p.svc.ExtensionsSnapshot(),
+	}), nil
 }
 
 // Sample returns up to n rows from the cohort as maps of field name to value.
@@ -946,7 +1063,7 @@ type SampleResult struct {
 }
 
 // SampleWarning is the envelope-ready projection of a single resolver
-// warning. The shape mirrors descriptor.EnvelopeWarning so callers can
+// warning. The shape mirrors descriptor.EnvelopeEntry so callers can
 // fold it into a descriptor.Envelope at the CLI / MCP boundary.
 type SampleWarning struct {
 	Code    string
@@ -1180,7 +1297,7 @@ const (
 // sidecar index exists for the requested key fields, PULSE_LOOKUP_NOT_FOUND
 // when the index exists but no record matches, or PULSE_LOOKUP_AMBIGUOUS
 // when more than one record matches and req.Multiplicity is (or
-// defaults to) LookupMultiplicityAssertUnique. See service.Service.Lookup
+// defaults to) LookupMultiplicityAssertUnique. See internal/service.Service.Lookup
 // for the full algorithm.
 func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
 	if req == nil {
@@ -1193,16 +1310,39 @@ func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, 
 	return resp, err
 }
 
-// BuildIndexResult re-exports service.BuildIndexResult — the outcome
+// BuildIndexResult re-exports internal/service.BuildIndexResult — the outcome
 // of a successful point-lookup sidecar index build: the derived
-// sidecar path (see encoding.SidecarIndexPath) plus the in-memory
-// encoding.Index that was serialized there.
+// sidecar path plus the in-memory SidecarIndex that was serialized
+// there.
 type BuildIndexResult = service.BuildIndexResult
+
+// SidecarIndex is the in-memory point-lookup sidecar index carried by
+// BuildIndexResult.Index: the source cohort's content fingerprint, the
+// ordered key spec, the hash-bucket table and the source-stat snapshot
+// (size + modification time) taken at build time.
+type SidecarIndex = encx.Index
+
+// SidecarIndexKeySpec is one ordered key column of a SidecarIndex
+// (SidecarIndex.Keys): the column name and its field type.
+type SidecarIndexKeySpec = encx.IndexKeySpec
+
+// SidecarIndexBucket is one hash bucket of a SidecarIndex
+// (SidecarIndex.Buckets): the entries whose key hashed to it.
+type SidecarIndexBucket = encx.IndexBucket
+
+// SidecarIndexEntry is one distinct key inside a SidecarIndexBucket:
+// the key's raw on-wire bytes and the record IDs that carry it.
+type SidecarIndexEntry = encx.IndexEntry
+
+// CohortFingerprint is the SHA-256 content fingerprint of a cohort's
+// bytes, as recorded in SidecarIndex.Fingerprint at build time and
+// recomputed by VerifyIndex to decide freshness.
+type CohortFingerprint = encx.Fingerprint
 
 // BuildIndex builds a point-lookup sidecar index for the cohort at
 // path over the ordered key columns named in keyFields (a single
 // element is the degenerate single-key case; more than one produces a
-// composite key, in column order). Delegates to service.Service.BuildIndex
+// composite key, in column order). Delegates to internal/service.Service.BuildIndex
 // for the full algorithm and error surface — see that method's doc
 // comment for the scan/bucket/write contract, the
 // PULSE_INDEX_UNSUPPORTED_SHARDED shard-archive rejection, and the
@@ -1215,11 +1355,11 @@ func (p *Pulse) BuildIndex(ctx context.Context, path string, keyFields []string)
 	return res, err
 }
 
-// VerifyIndexResult re-exports service.VerifyIndexResult — the outcome
+// VerifyIndexResult re-exports internal/service.VerifyIndexResult — the outcome
 // of a Service.VerifyIndex freshness check.
 type VerifyIndexResult = service.VerifyIndexResult
 
-// IndexFreshnessReason re-exports service.IndexFreshnessReason — why
+// IndexFreshnessReason re-exports internal/service.IndexFreshnessReason — why
 // VerifyIndex reached its Fresh/stale verdict
 // ("stat_mismatch"/"fingerprint_match"/"fingerprint_mismatch").
 type IndexFreshnessReason = service.IndexFreshnessReason
@@ -1227,7 +1367,7 @@ type IndexFreshnessReason = service.IndexFreshnessReason
 // VerifyIndex reports whether the sidecar point-lookup index built for
 // keyFields against the cohort at path is still fresh, using the
 // size+mtime fast-path before paying for a full content-hash recompute.
-// Delegates to service.Service.VerifyIndex — see that method's doc
+// Delegates to internal/service.Service.VerifyIndex — see that method's doc
 // comment for the full fast-path decision tree. Returns
 // PULSE_INDEX_MISSING when no sidecar exists for keyFields and
 // PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
@@ -1239,13 +1379,13 @@ func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string
 	return res, err
 }
 
-// IndexInfo re-exports service.IndexInfo — one entry in a
+// IndexInfo re-exports internal/service.IndexInfo — one entry in a
 // Service.ListIndexes result: a sidecar's derived path, its ordered
 // key column names, and its distinct-key / indexed-record summary.
 type IndexInfo = service.IndexInfo
 
 // ListIndexes enumerates every sidecar point-lookup index built
-// against the cohort at path. Delegates to service.Service.ListIndexes
+// against the cohort at path. Delegates to internal/service.Service.ListIndexes
 // — see that method's doc comment for the directory-glob + sidecar-read
 // discovery algorithm. Returns an empty (non-nil) slice, not an error,
 // when no sidecar indexes have been built yet. Returns
@@ -1259,7 +1399,7 @@ func (p *Pulse) ListIndexes(ctx context.Context, path string) ([]IndexInfo, erro
 }
 
 // DropIndex removes the sidecar point-lookup index built for keyFields
-// against the cohort at path. Delegates to service.Service.DropIndex —
+// against the cohort at path. Delegates to internal/service.Service.DropIndex —
 // see that method's doc comment for the non-interactive
 // (no-confirmation-prompt) contract. Returns PULSE_INDEX_MISSING when
 // no sidecar exists at the derived path and
@@ -1286,7 +1426,7 @@ type WidenReport = encoding.WidenReport
 // A widen changes the field's stride, so every record is re-laid-out
 // and every field after the widened one moves. The rewrite is atomic —
 // temp file beside the cohort, fsync, rename — so any failure leaves
-// the original byte-identical; see encoding.WidenSetFieldFile.
+// the original byte-identical; see internal/encoding.WidenSetFieldFile.
 //
 // targetType is a type NAME rather than an encoding.FieldType because
 // this is the boundary where a caller-supplied string arrives (a CLI
@@ -1299,7 +1439,7 @@ type WidenReport = encoding.WidenReport
 // (no such cohort), SERVICE_VALIDATION (the path is a shard archive or
 // an anchored shard within one), ENCODING_INVALID (no such field) and
 // ENCODING_TYPE_MISMATCH (not a set, not wider, or already at the
-// widest rung). See service.Service.WidenSetField.
+// widest rung). See internal/service.Service.WidenSetField.
 //
 // Sidecars are not rebuilt: a widened cohort changes length, so the
 // point-lookup index and the SPSS metadata sidecar invalidate
@@ -1365,6 +1505,65 @@ func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
 	return errors.Search(query)
 }
 
+// Request-template type aliases, so embedders name the template document
+// model through the facade rather than the internal template package.
+type (
+	// Template is one parsed request-template document (GetTemplate).
+	Template = template.Template
+	// TemplateSummary is one ListTemplates entry.
+	TemplateSummary = template.Summary
+	// RenderedTemplate is a RenderTemplate result: the substituted JSON
+	// plus the decoded, validated request for the template's target.
+	RenderedTemplate = template.Rendered
+	// TemplateTarget names the request root a template renders into.
+	TemplateTarget = template.Target
+	// TemplateVariable is one declared template variable.
+	TemplateVariable = template.Variable
+	// TemplateVarType is a template variable's declared type.
+	TemplateVarType = template.VarType
+)
+
+// TemplateTarget values — the closed set of request roots a template can
+// render into. Each equals its internal counterpart, so a Template.Target,
+// TemplateSummary.Target or RenderedTemplate.Target compares against these
+// directly; no embedder needs to match on String().
+const (
+	// TemplateTargetRequest renders into Request (process / predict).
+	TemplateTargetRequest TemplateTarget = template.TargetRequest
+	// TemplateTargetComposed renders into ComposedRequest (Compose).
+	TemplateTargetComposed TemplateTarget = template.TargetComposed
+	// TemplateTargetChain renders into ChainRequest (ProcessChain).
+	TemplateTargetChain TemplateTarget = template.TargetChain
+	// TemplateTargetFacet renders into FacetRequest (the facet endpoints).
+	TemplateTargetFacet TemplateTarget = template.TargetFacet
+	// TemplateTargetSample renders into SampleRequest (record sampling).
+	TemplateTargetSample TemplateTarget = template.TargetSample
+)
+
+// TemplateVarType values — the closed set of declared variable types. Each
+// equals its internal counterpart, so a TemplateVariable.Type (or Items)
+// compares against these directly.
+const (
+	// TemplateVarString accepts any JSON string.
+	TemplateVarString TemplateVarType = template.VarString
+	// TemplateVarNumber accepts any JSON number.
+	TemplateVarNumber TemplateVarType = template.VarNumber
+	// TemplateVarInteger accepts a JSON number with no fractional part.
+	TemplateVarInteger TemplateVarType = template.VarInteger
+	// TemplateVarBoolean accepts a JSON bool.
+	TemplateVarBoolean TemplateVarType = template.VarBoolean
+	// TemplateVarField accepts a JSON string naming a cohort field.
+	TemplateVarField TemplateVarType = template.VarField
+	// TemplateVarEnum accepts a JSON string from the declaration's Values.
+	TemplateVarEnum TemplateVarType = template.VarEnum
+	// TemplateVarList accepts a JSON array of the declaration's Items type.
+	TemplateVarList TemplateVarType = template.VarList
+	// TemplateVarDate accepts a JSON string parsing as an ISO date.
+	TemplateVarDate TemplateVarType = template.VarDate
+	// TemplateVarPeriod accepts a labeled-date-range object (ranges XOR table).
+	TemplateVarPeriod TemplateVarType = template.VarPeriod
+)
+
 // ListTemplates returns one summary per registered request template,
 // sorted by name so the order is deterministic across runs and platforms.
 //
@@ -1394,10 +1593,10 @@ func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
 // Always returns a non-nil slice (possibly empty) for safe JSON marshaling.
 // An engine with no template directories configured lists nothing; that is
 // an ordinary deployment, not a fault.
-func (p *Pulse) ListTemplates() []template.Summary {
+func (p *Pulse) ListTemplates() []TemplateSummary {
 	out := p.templates.List()
 	if out == nil {
-		return []template.Summary{}
+		return []TemplateSummary{}
 	}
 	return out
 }
@@ -1469,7 +1668,7 @@ func (p *Pulse) ReloadTemplates() error {
 //
 // The returned template is the engine's own copy and must be treated as
 // read-only; rendering never mutates it.
-func (p *Pulse) GetTemplate(name string) (*template.Template, error) {
+func (p *Pulse) GetTemplate(name string) (*Template, error) {
 	return p.templates.Get(name)
 }
 
@@ -1501,7 +1700,7 @@ func (p *Pulse) GetTemplate(name string) (*template.Template, error) {
 // Rendering never opens a cohort: a template that renders is well-formed
 // against the request SHAPE. Whether it is executable against a particular
 // cohort stays Predict's question.
-func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*template.Rendered, error) {
+func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*RenderedTemplate, error) {
 	tmpl, err := p.templates.Get(name)
 	if err != nil {
 		return nil, err
@@ -1547,7 +1746,7 @@ func wrongTemplateTarget(name string, target template.Target) error {
 		})
 }
 
-// renderedFieldFor names the template.Rendered field a target populates, so
+// renderedFieldFor names the internal/template.Rendered field a target populates, so
 // the wrong-target message can tell the caller exactly which pointer to
 // read rather than making them look it up.
 func renderedFieldFor(target template.Target) string {
@@ -1569,7 +1768,7 @@ func renderedFieldFor(target template.Target) string {
 // deterministic and process-wide: it does not depend on cohort data or
 // the filesystem. Callers cache the result for a session.
 func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
-	return descriptor.BuildManifestWithExtensions(p.svc.ExtensionsSnapshot())
+	return descx.BuildManifestWithExtensions(p.svc.ExtensionsSnapshot())
 }
 
 // Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need
@@ -1584,7 +1783,7 @@ func (p *Pulse) Fs() afero.Fs {
 // seeds the canonical schema; remaining shards are validated via
 // structural cohesion + the append-only dictionary prefix rule. The
 // archive is written atomically (temp file + rename) so partial
-// writes never appear at archivePath. See service.CreateShardArchive
+// writes never appear at archivePath. See internal/service.CreateShardArchive
 // for the full error surface.
 //
 // Set-width auto-widen applies at CREATE exactly as it does at ADD: a
@@ -1663,6 +1862,13 @@ type SetWidening = service.SetWidening
 // with the shards and records the rewrite cost.
 type GroupReconciliation = service.GroupReconciliation
 
+// CohesionWarning is one non-fatal shard-archive diagnostic (for
+// example PULSE_SHARD_DESCRIPTION_DIVERGENCE or PULSE_SHARD_SET_WIDENED),
+// carried by AddShardResult.Warnings, CreateShardArchiveResult.Warnings
+// and VerifyResult.Warnings. Code is the coded-error code, Details its
+// structured payload.
+type CohesionWarning = encx.CohesionWarning
+
 // RemoveShard rewrites the archive omitting the named shard. The
 // canonical schema is preserved (dictionary entries are never
 // shrunk). Returns PULSE_SHARD_MISSING when the named shard is not in
@@ -1718,6 +1924,12 @@ func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*Ve
 // empty Errors slice means the archive is structurally sound.
 type VerifyResult = service.VerifyResult
 
+// GroupIndexHeadroom reports how much of one parent group's dictionary
+// index space a grouped archive's canonical schema has consumed.
+// VerifyShardArchive returns one per group in
+// VerifyResult.GroupIndexHeadroom.
+type GroupIndexHeadroom = encx.GroupIndexHeadroom
+
 // SetWidthHeadroom reports how much of a set field's bitmask capacity
 // the canonical dictionary has consumed, and which rung a widen would
 // promote it to. VerifyShardArchive returns one per set field so an
@@ -1735,9 +1947,9 @@ func resolveCohortPath(c *types.Cohort) string {
 
 // extractShardBytes opens archiveBytes as a Pulse shard archive and
 // returns the named entry's payload, suitable as standalone single-file
-// .pulse input to descriptor.PredictFromBytes / descriptor.Inspect.
+// .pulse input to internal/descriptor.Predict / internal/descriptor.Inspect.
 func extractShardBytes(archiveBytes []byte, entryName string) ([]byte, error) {
-	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
 		return nil, err
 	}
@@ -1757,7 +1969,7 @@ type ShardEntry = service.ShardEntry
 // exported from descriptor so embedders consuming the no-execute
 // surface can address pulse.ShardInfo directly. Mirrors ShardEntry's
 // shape (filename + record count); the two types are parallel because
-// descriptor/ cannot import service/.
+// descriptor/ cannot import internal/service/.
 type ShardInfo = descriptor.ShardInfo
 
 // Cohort represents an opened .pulse file with its parsed schema.

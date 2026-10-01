@@ -80,7 +80,7 @@ import (
 // Structural invariants (CLAUDE.md "Predict / Inspect contracts" +
 // "What NOT to Do"):
 //
-//   - This file MUST NOT import `service/` or `descriptor/`. Runtime
+//   - This file MUST NOT import `internal/service/` or `descriptor/`. Runtime
 //     overlay execution rides inside `processing/` alongside the
 //     aggregator / attribute / grouper layers.
 //   - No `fmt.Sprintf` in any JSON-bearing path. CodedError Details

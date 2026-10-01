@@ -712,7 +712,7 @@ marginal as the shape — no separate flag here selects either; it is
 decided entirely by the profile document's own contents.
 
 See [`pulse profile create`](profile-create.md) for how to capture
-one, and `synth/` for the underlying Go types.
+one, and the `synth` package for the underlying Go types.
 
 ## Output
 
@@ -907,7 +907,7 @@ stderr summary marks `!` and lists first, so it does not need finding.
   profile capture flag `--include-correlations` (or the more accurate
   `--conditional`) opts in; without either, fields are generated
   independently. Reconstruction uses a conditional-Gaussian
-  construction (`synth/copula.go`) that exactly targets the captured
+  construction (`internal/synth/copula.go`) that exactly targets the captured
   Pearson `rho` for jointly-normal fields — see
   `skills/synthetic-data.md` for the technique and its trade-offs.
   A small-integer or boolean participant reconstructs as a staircase

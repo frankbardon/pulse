@@ -1,4 +1,4 @@
-package descriptor
+package descriptor_test
 
 import (
 	"crypto/sha256"

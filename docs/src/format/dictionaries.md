@@ -11,7 +11,7 @@ BLOCK is byte-identical for both families; only what the record stores
 against it differs.
 
 > **LLM agents using MCP:** the `cohort-schema-design` skill covers
-> when to pick which categorical width; the `import-best-practices`
+> when to pick which categorical width; the `tool-import`
 > skill covers fail-closed semantics on overflow.
 
 ## On-disk layout

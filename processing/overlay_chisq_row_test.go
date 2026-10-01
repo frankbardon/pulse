@@ -87,9 +87,9 @@ func TestOverlay_ChiSqRow_PerRowStat(t *testing.T) {
 			Ref:   types.OverlayRef{}, // implicit-margin
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	// Every expected cell is 15, 20, or 25 — all ≥ 5, no low-expected
 	// warnings should fire.
@@ -208,9 +208,9 @@ func TestOverlay_ChiSqRow_ExpectedLowEmitsWarn(t *testing.T) {
 			Scope: types.OverlayScopeRow,
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(layers) != 1 {
 		t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -265,9 +265,9 @@ func TestOverlay_ChiSqRow_SeriesEntryOrderMatchesRowKeys(t *testing.T) {
 			Scope: types.OverlayScopeRow,
 		},
 	}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	entries := layers[0].Payload.Series.Entries
 	if len(entries) != len(payload.RowKeys) {
@@ -336,9 +336,9 @@ func TestOverlay_ChiSqRow_AbsentCellsHandled(t *testing.T) {
 			Scope: types.OverlayScopeRow,
 		},
 	}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	entries := layers[0].Payload.Series.Entries
 	if len(entries) != 2 {
@@ -366,7 +366,7 @@ func TestOverlay_ChiSqRow_AbsentCellsHandled(t *testing.T) {
 
 // TestOverlay_ChiSqRow_DegenerateShapeRejected verifies the handler
 // rejects N × 1 contingencies (per-row χ² requires ≥ 2 columns so df
-// ≥ 1). The error short-circuits ApplyOverlays so the orchestrator
+// ≥ 1). The error short-circuits applyOverlays so the orchestrator
 // surfaces the failure the same way predict would have flagged it
 // (defense in depth — validator catches this at predict time too).
 func TestOverlay_ChiSqRow_DegenerateShapeRejected(t *testing.T) {
@@ -385,7 +385,7 @@ func TestOverlay_ChiSqRow_DegenerateShapeRejected(t *testing.T) {
 			Scope: types.OverlayScopeRow,
 		},
 	}
-	_, _, err := ApplyOverlays(specs, host)
+	_, _, err := applyOverlays(specs, host)
 	if err == nil {
 		t.Fatalf("expected error for 2×1 contingency; got nil")
 	}

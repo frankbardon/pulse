@@ -37,8 +37,8 @@ These are enforced by non-skippable CI gates:
 
 | Ban | Enforced by |
 |---|---|
-| `descriptor/` MUST NOT import `service/` or `processing/` | `TestPredictNoExecutionImports` |
-| `descriptor/` MUST NOT use `fmt.Sprintf` for JSON construction | `TestDescriptorNoFmtSprintf` |
+| `internal/descriptor/` MUST NOT import `internal/service/` or `processing/` | `TestPredictNoExecutionImports` |
+| `descriptor/` + `internal/descriptor/` MUST NOT use `fmt.Sprintf` for JSON construction | `TestDescriptorNoFmtSprintf` |
 | Golden files in `descriptor/testdata/` MUST NOT be hand-edited | `TestGoldensNotHandEdited` |
 | No predecessor-project string prefixes (legacy "Orbit" naming) in error codes or constants | `TestNoOrbitReferences`, `TestNoOrbitPrefix` |
 | `CLAUDE.md` MUST mention every `PULSE_*` env var, every non-skippable gate, the current `format_version` | `TestClaudeMd*` family |

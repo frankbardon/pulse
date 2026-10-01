@@ -300,7 +300,7 @@ func PairwiseDistinctNAdmitted() []types.AggregationType {
 // and classifies as unidentified.
 //
 // Signatures restate the OPERATOR half of each aggregator's
-// ComponentSchema in descriptor/capabilities_aggregators.go, i.e. the
+// ComponentSchema in internal/descriptor/capabilities_aggregators.go, i.e. the
 // declared keys MINUS the universal floor {n, n_null} every aggregator
 // emits:
 //

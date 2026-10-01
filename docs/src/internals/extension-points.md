@@ -264,7 +264,7 @@ via two coupled optional fields on `AggregatorRegistration`,
 `GrouperRegistration`, and `FiltererRegistration`. The universal
 contract — typed shells, floor keys, additive `omitempty` shape —
 lives in
-[`skills/response-components.md`](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md);
+[`skills/response-components.md`](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md);
 this section covers only the extension-side wiring.
 
 ### Which categories declare a `ComponentSchema`?
@@ -506,11 +506,13 @@ components-contract failures are listed in the table above.
 The plumbing that fills that block is the **extensions snapshot**
 (`extensions_snapshot.go`). `buildExtensionsSnapshot(ext)` translates
 the public `Extensions` struct into the read-only
-`descriptor.ExtensionsSnapshot` projection. The snapshot is passed
-into `descriptor.PredictOptions.Extensions` and into
-`mcp.BindSessionToolsWithExtensions` so the descriptor layer stays
-free of `service/` and `processing/` imports — the no-execute
-contract for `descriptor/` remains intact, and predict / manifest
+`internal/descriptor.ExtensionsSnapshot` projection (`internal/descriptor`; not
+importable by embedders — the facade fills it). The snapshot is passed
+into `internal/descriptor.PredictOptions.Extensions` and into
+`mcp.BindWithExtensions` (`internal/mcp`; `mcp/gosdk` reaches the
+instance's snapshot through the `internal/facadebridge` hook) so the descriptor layer stays
+free of `internal/service/` and `processing/` imports — the no-execute
+contract for `internal/descriptor/` remains intact, and predict / manifest
 treat custom operators identically to built-ins.
 
 LLM agents that call `pulse_manifest` see both the built-in set and
@@ -528,7 +530,7 @@ everywhere else; absent reads as `false`, which is also the
 registration default.
 
 This is not cosmetic manifest detail — it is the only route the fact
-has into the no-execute layer. `descriptor/` may not import
+has into the no-execute layer. `internal/descriptor/` may not import
 `processing/` (`TestPredictNoExecutionImports`), so predict cannot
 assert `MultiKeyStreamingGrouper` on a constructed grouper the way the
 probe does. Without the projection, a predict-time rule that reasons
@@ -661,7 +663,7 @@ The hook is plumbed via `buildRuntimeExtensions` into
 callback — that second case is what triggers the extractor to widen.
 
 The retained set `NeededFields` returns feeds
-`Schema.BuildDecodePlan`. A registration **with** `FieldInputs`
+`internal/encoding.BuildDecodePlan(schema, retained)`. A registration **with** `FieldInputs`
 participates normally — its contributed fields land in the retained
 set and the plan emits `SkipBytes` segments for every contiguous
 unprojected run, so unread byte ranges advance with a single `Seek`.
@@ -761,6 +763,6 @@ CLAUDE.md Update Demand table in the same PR.
 - [The Update Demand](update-demand.md) — enforced gates for
   extension registration `ComponentSchema` changes and naming-policy
   drift.
-- [`skills/response-components.md`](https://github.com/frankbardon/pulse/blob/main/skills/response-components.md)
+- [`skills/response-components.md`](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md)
   — universal `Response.Components` contract (typed shells, floor
   keys, additive `omitempty` shape).

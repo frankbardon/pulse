@@ -9,7 +9,7 @@ import "github.com/frankbardon/pulse/types"
 // MetaGrouper / MetaFilterer siblings introduced in later stories).
 //
 // IMPORTANT: descriptor/ is no-execute and MUST NOT import
-// service/ or processing/. The TestPredictNoExecutionImports gate
+// internal/service/ or processing/. The TestPredictNoExecutionImports gate
 // enforces this for predict-* files; the same structural ban applies
 // across the whole descriptor package by convention. ComponentSchema
 // keeps the type names of emitted values as plain strings (not

@@ -6,7 +6,7 @@ streaming auto-range histogram, a new aggregation kind on numeric
 fields, a new contribution-style accumulator.
 
 The facet endpoint sits behind `descriptor.FacetCapability` and runs
-through `service/facet_rich.go`. New behaviours land in five files in
+through `internal/service/facet_rich.go`. New behaviours land in five files in
 lockstep — request type, accumulator dispatch, capability flag,
 validator, MCP JSON Schema builder — plus the facet-design skill.
 
@@ -20,28 +20,28 @@ new fields use `omitempty` and do not bump.
 
 ## 2. Implement per-row accumulation
 
-Add the per-row accumulation in `service/facet_rich.go`, dispatching
+Add the per-row accumulation in `internal/service/facet_rich.go`, dispatching
 off the schema field type via `newKindAccumulator`. The accumulator
 contract — `Add(value)`, `Finalize()`, `Result()` — runs per-row
 during the facet pass.
 
 ## 3. Capability flag
 
-Add the capability flag in `descriptor/capabilities_facet.go` so the
+Add the capability flag in `internal/descriptor/capabilities_facet.go` so the
 manifest exposes the new behaviour to LLM agents.
 `TestManifestFacetCapability` enforces parity between the capability
 block and the runtime surface.
 
 ## 4. Validator
 
-`descriptor/facet.go::ValidateFacet` runs without importing
+`internal/descriptor/facet.go::ValidateFacet` runs without importing
 `service` / `processing` (it is structurally no-execute, governed by
 `TestPredictNoExecutionImports`). Any new structural rule lands here
 as a `SERVICE_VALIDATION` error or an advisory warning.
 
 ## 5. MCP JSON Schema builder
 
-Update the JSON Schema builder in `mcp/bind.go` —
+Update the JSON Schema builder in `internal/mcp/bind.go` —
 the `buildFacetSchemaRequestSchema` function — so the LLM sees the
 new fields in the `pulse_facet_schema` tool surface.
 `TestMCPSchemaBinding_SampleAndFacetFieldEnum` enforces parity.
@@ -50,16 +50,16 @@ new fields in the `pulse_facet_schema` tool surface.
 
 Update `skills/facet-design.md` with the new behaviour's request
 shape, output shape, and any worked example. When the behaviour
-warrants a runnable fixture, add it under `examples/facet/` and
+warrants a runnable fixture, add it under `internal/examples/facet/` and
 update the example metadata. `TestExamples_*` enforces the fixture
 contract.
 
 ## 7. Run the gates
 
 ```bash
-go test ./skills/ ./examples/ ./descriptor/
-go test ./service/ -run TestFacet
-go test ./mcp/ -run TestMCPSchemaBinding
+go test ./internal/skills/ ./internal/examples/ ./descriptor/ ./internal/descriptor/
+go test ./internal/service/ -run TestFacet
+go test ./internal/mcp/ -run TestMCPSchemaBinding
 ```
 
 The Update Demand row for facet-capability changes covers all of

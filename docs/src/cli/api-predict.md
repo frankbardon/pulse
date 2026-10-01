@@ -8,7 +8,7 @@ schema — never record data — so it's a cheap, safe iteration loop
 against arbitrarily large cohorts.
 
 > **LLM agents using MCP:** see the `pulse_predict` MCP tool and the
-> `debugging-with-predict` skill. Predict is the LLM's primary
+> `tool-predict` skill. Predict is the LLM's primary
 > "would this work?" probe.
 
 ## Synopsis
@@ -28,7 +28,7 @@ pulse api predict --request FILE [--json] [--strict] [--echo-request]
 
 ## Structural ban
 
-`descriptor/predict.go` cannot import `service/` or `processing/`.
+`internal/descriptor/predict.go` cannot import `internal/service/` or `processing/`.
 This is enforced by `TestPredictNoExecutionImports`. Predict is
 guaranteed to never touch the executor.
 
