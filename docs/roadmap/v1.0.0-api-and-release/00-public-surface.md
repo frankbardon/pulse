@@ -154,7 +154,7 @@ Every contract difference above — old spelling, new spelling, kind and how to 
 - [x] Classification decided per package
 - [x] Package moves / narrowing done; facade re-exports added (U02)
 - [x] `extend` package; `processing` fully internal (U02b)
-  - Landed deviations: an operator's own `Components()` method still emits when no `ComponentsFunc` is registered (not probe-validated); runtime streamability follows the DECLARED `Streamable` flag; extension operators are never mergeable; single-key extension groupers never fuse in a crosstab; the fused crosstab does not yet reject `two_pass` extension attributes (known gap); the synth-distribution registration has no `extend` factory shape yet and overlay kinds are not an extension category
+  - Landed deviations: an operator's own `Components()` method still emits when no `ComponentsFunc` is registered (not probe-validated); runtime streamability follows the DECLARED `Streamable` flag; extension operators are never mergeable; single-key extension groupers never fuse in a crosstab; the synth-distribution registration has no `extend` factory shape yet and overlay kinds are not an extension category
 - [ ] `CohortReader` / `CohortWriter`; `PredictResult.CrosstabFusable` (U02c)
 - [x] API-compatibility check in CI against the latest release tag (U02: advisory `apidiff` + blocking `TestPublicAPIGolden`)
 - [x] Public package list recorded in the `STABILITY.md` draft ([02](02-stability-policy.md)); the root file lands with U33

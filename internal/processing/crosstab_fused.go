@@ -681,14 +681,15 @@ func (s *FusedCrosstabState) AssertCanFuse(req *types.Request) error {
 			map[string]any{"joins": len(req.Joins)})
 	}
 	// Two-pass attributes (ZSCORE / TSCORE / NORMALIZED / regression-
-	// derived) need population stats over the filter-passing record set
-	// before the per-record bucket route can value them; reject so the
-	// fallback path picks them up.
+	// derived, plus every extension attribute registered two_pass) need
+	// population stats over the filter-passing record set before the
+	// per-record bucket route can value them; reject so the fallback
+	// path picks them up.
 	for _, attr := range req.Attributes {
 		if attr == nil {
 			continue
 		}
-		if requiresTwoPass(attr.Type) {
+		if s.exts.attributeRequiresTwoPass(attr.Type) {
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 				fmt.Sprintf("fused crosstab path does not implement two-pass attribute %s; gate should have rejected", attr.Type),
 				map[string]any{"attribute": string(attr.Type)})

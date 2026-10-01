@@ -57,6 +57,11 @@ import (
 //   - No req.Features — every FEAT_* operator forces a buffered
 //     pre-filter pass that the fused path skips.
 //
+//   - No two-pass attribute — a built-in one (requiresTwoPass) or an
+//     extension attribute registered with the two_pass mode
+//     (ExtensionRegistry.TwoPassAttributes). The fused walk values
+//     attributes row-locally and never runs the population PrePass.
+//
 //   - No req.Attributes of type ATTR_FORMULA with a non-empty
 //     Expression. Expression-runtime field extraction is conservative;
 //     #59 bail rules treat it as a forced widen, which the fused path
@@ -214,6 +219,23 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 	// whether a kind can be computed INSIDE the streaming pass, and a
 	// post-Finalize fold is not that — every row of that table stays
 	// false and nothing in the fused path reads it.
+
+	// Two-pass attributes (the built-in ZSCORE / TSCORE / NORMALIZED /
+	// regression-derived set, and every extension attribute registered
+	// with the two_pass mode) need population stats over the filter-
+	// passing record set before any row can be valued. The fused walk
+	// runs attributes row-locally inline and never drives a PrePass, so
+	// admitting one would value every row against empty stats — a wrong
+	// number, not an error. The extension half reads the registry's
+	// TwoPassAttributes; a nil registry is the built-in set alone.
+	for _, a := range req.Attributes {
+		if a == nil {
+			continue
+		}
+		if ext.attributeRequiresTwoPass(a.Type) {
+			return false, fmt.Sprintf("two-pass attribute (%s)", a.Type)
+		}
+	}
 
 	// ATTR_FORMULA with a non-empty expression bails the projection
 	// extractor when the expression is malformed; even when it parses,

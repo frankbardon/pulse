@@ -809,10 +809,9 @@ State these plainly to users rather than discovering them at run time:
 - **No fused crosstab for single-key extension groupers.** The fused
   arm needs the engine-only `KeyFor` capability, which `extend`
   omits; a fan-out (`MultiKeyStreamingGrouper`) grouper still fuses.
-- **Known gap — two-pass attributes in a fused crosstab.** The fused
-  crosstab does not yet reject a `two_pass` extension attribute. Avoid
-  combining the two; a request that does is not guaranteed a correct
-  answer.
+- **Two-pass attributes keep a crosstab buffered.** A `two_pass`
+  extension attribute declines the fused crosstab exactly as the
+  built-in `ATTR_ZSCORE` does — the fused walk never runs a `PrePass`.
 - **Decimal targets run buffered and serial** for every aggregator;
   extension aggregators are admitted there and read `DecimalValue`.
 
