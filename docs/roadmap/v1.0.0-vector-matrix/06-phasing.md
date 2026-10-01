@@ -20,6 +20,8 @@ graph TD
 
 E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT host, so it can proceed **in parallel** with E3–E5. Correspondence analysis, residuals, Markov and raking don't need vectors at all, and they are some of the highest-value items for survey and ops users.
 
+**Cross-theme prerequisite:** guided-analysis epic G1 (purpose metadata + `TestSkillsCoverAllPurposes`) lands before E2, so every new `MAT_*`, overlay and attribute ships with its plain-language purpose and interpretation from day one. See [guided analysis 04](../v1.0.0-guided-analysis/04-phasing.md).
+
 ## Epics
 
 ### E1 — Linear-algebra core & co-moment accumulator (C)

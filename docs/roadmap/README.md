@@ -9,3 +9,4 @@ This directory sits outside the mdBook source (`docs/src/`) on purpose: planned 
 | Theme | Index |
 |---|---|
 | Vector & matrix math | [`v1.0.0-vector-matrix/`](v1.0.0-vector-matrix/00-overview.md) |
+| Guided analysis — purpose metadata, question-first docs, Recommend / Explain, MCP prompts | [`v1.0.0-guided-analysis/`](v1.0.0-guided-analysis/00-overview.md) |
