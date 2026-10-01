@@ -148,7 +148,7 @@ pulse profile create --input real.pulse --output profile.json --include-correlat
 pulse synth from-profile --profile profile.json --output synth.pulse --rows 100000 --seed 42
 ```
 
-12 distributions (`normal`, `lognormal`, `poisson`, `exponential`, `pareto`, `bernoulli`, `weighted_categorical`, `regex`, `uniform`, `uniform_date`, `monotonic_from`, `constant`), pairwise correlations, value constraints. See the `synthetic-data` skill.
+Distributions such as `normal`, `lognormal`, `poisson`, `bernoulli`, `weighted_categorical`, `regex`, `uniform_date` and `monotonic_from` (the manifest's `synth_distributions` block has the full list), pairwise correlations, value constraints. See the `synthetic-data` skill.
 
 ## CLI Reference
 
@@ -367,17 +367,17 @@ p, _ := pulse.New(pulse.Options{
 
 ### Operator catalogue
 
-Counts as currently registered (the manifest is the source of truth — `pulse --json --slim`):
+The manifest is the source of truth for what is registered — `pulse manifest --json` (or the `pulse_manifest` MCP tool) lists every operator with its params and capabilities. This README keeps categories and representative members only, never counts:
 
-- **16 aggregators** (`AGG_*`): COUNT, SUM, AVERAGE, MIN, MAX, MEDIAN, STDDEV, RANGE, FREQUENCY, MODE, PERCENTILE, ZSCORE, KURTOSIS, …
-- **9 attributes** (`ATTR_*`): ZSCORE, TSCORE, NORMALIZED, FORMULA, PERCENTILE, DATE_PART, …
-- **5 filterers** (`FILTER_*`): INCLUDE, EXCLUDE, RANGE, EXPRESSION, NULL
-- **5 groupers** (`GROUP_*`): CATEGORY, RANGE, ROUNDED, DATE, QUANTILE
-- **10 windows** (`WIN_*`): LAG, LEAD, ROW_NUMBER, RANK, DENSE_RANK, RUNNING_SUM, RUNNING_AVG, MOVING_AVG, EWMA, PCT_CHANGE
-- **9 features** (`FEAT_*`): LOG, SQRT, BUCKETIZE, ONE_HOT, FREQUENCY_ENCODE, TARGET_ENCODE, DATE_FEATURES, TRAIN_TEST_SPLIT, POLY
-- **20 statistical tests** (`TEST_*`): tier-1 row tests (T, WELCH, CHISQ, ANOVA_F, ANOVA_WELCH, ANOVA_RM, KS, PAIRED_T, PROP_Z, PEARSON_R, SPEARMAN_R, KENDALL_TAU, MANN_WHITNEY_U, WILCOXON_SR, KRUSKAL_WALLIS, BROWN_FORSYTHE, FISHER_EXACT, SHAPIRO_WILK) and tier-2 post-tests (TUKEY_HSD, TREND, variants)
-- **3 regressions** (`REG_*`): OLS, GLM, BAYES_LINEAR — with `Resample` / `Selection` modifiers and `FEAT_POLY` composition cover 13 textbook regression names
-- **12 synth distributions**
+- **Aggregators** (`AGG_*`): COUNT, SUM, AVERAGE, MIN, MAX, MEDIAN, STDDEV, PERCENTILE, FREQUENCY, DISTINCT_COUNT, WEIGHTED_MEAN, RATIO, set aggregators (SET_FREQUENCY, SET_UNION, …), …
+- **Attributes** (`ATTR_*`): ZSCORE, TSCORE, NORMALIZED, FORMULA, PERCENTILE, DATE_PART, regression diagnostics (REG_FITTED, REG_RESIDUAL, …), set attributes, …
+- **Filterers** (`FILTER_*`): INCLUDE, EXCLUDE, RANGE, EXPRESSION, NULL, DATE_RANGES, set-membership filters (SET_CONTAINS_ANY, …), …
+- **Groupers** (`GROUP_*`): CATEGORY, RANGE, ROUNDED, DATE, DATE_RANGES, QUANTILE, set groupers, …
+- **Windows** (`WIN_*`): LAG, LEAD, ROW_NUMBER, RANK, RUNNING_SUM, MOVING_AVG, EWMA, PCT_CHANGE, …
+- **Features** (`FEAT_*`): LOG, SQRT, BUCKETIZE, ONE_HOT, TARGET_ENCODE, DATE_FEATURES, TRAIN_TEST_SPLIT, POLY, …
+- **Statistical tests** (`TEST_*`): tier-1 row tests (T, WELCH, CHISQ, ANOVA_F, KS, PEARSON_R, MANN_WHITNEY_U, FISHER_EXACT, SHAPIRO_WILK, …) and tier-2 post-tests (TUKEY_HSD, TREND, summary-statistic variants)
+- **Regressions** (`REG_*`): OLS, GLM, BAYES_LINEAR — with `Resample` / `Selection` modifiers and `FEAT_POLY` composition covering the common textbook regression variants
+- **Synth distributions**: listed under `synth_distributions` in the manifest
 
 ## LLM Skill Pack
 
@@ -438,27 +438,26 @@ The root manifest (`pulse --json`) includes a `skills[]` array so agents can dis
 
 Binary, self-describing, fully transportable:
 
-- **9-byte header**: magic bytes (`PULSE\x00\x00\x00`) + format version (`0x01`)
+- **9-byte header**: magic bytes (`PULSE\x00\x00\x00`) + format version (`0x01`, or `0x02` when the schema declares a parent group)
 - **Schema block**: field count, per-field descriptors (type, name, byte offset, bit position, source column index, optional description capped at 1000 bytes)
 - **Dictionary blocks**: one per categorical field (string-to-integer mapping stored inline)
 - **Record data**: fixed-width binary records, one per row
 
-17 field types:
+Field types (the manifest's `cohort_types` block is the authoritative list; per-type detail lives in the `type-*` skills):
 
 | Type | Bytes | Notes |
 |---|---|---|
+| `u4` | 0 | 4-bit unsigned; bit-packed |
 | `u8`, `u16`, `u32`, `u64` | 1, 2, 4, 8 | Unsigned integers |
 | `f32`, `f64` | 4, 8 | IEEE 754 floats |
 | `date` | 4 | Days since Unix epoch |
+| `datetime` | 8 | Seconds since Unix epoch |
 | `packed_bool` | 0 | Bit-packed; shares bytes with adjacent packed fields |
-| `nullable_bool` | 0 | Tri-state; bit-packed |
-| `nullable_u4` | 0 | 4-bit unsigned, nullable; bit-packed |
-| `nullable_u8`, `nullable_u16` | 1, 2 | Nullable unsigned integers |
 | `categorical_u8`, `categorical_u16`, `categorical_u32` | 1, 2, 4 | Dictionary-encoded strings |
 | `decimal128` | 16 | Fixed precision/scale; banker's rounding |
-| `nullable_decimal128` | 16 | Nullable decimal128 |
+| `set_u8` … `set_u64`, `set_u128`, `set_u256` | 1–8, 16, 32 | Multi-select bitmask over an inline dictionary |
 
-Categorical width auto-selected from sample cardinality during import. Bit-packed types report `ByteSize() == 0` — they share bytes with adjacent packed fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
+Nullability is orthogonal to type: any field can be nullable, carried by a per-record null bitmap. Categorical width auto-selected from sample cardinality during import. Bit-packed types report `ByteSize() == 0` — they share bytes with adjacent packed fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
 
 ## Configuration
 

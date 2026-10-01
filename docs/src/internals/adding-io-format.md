@@ -673,8 +673,8 @@ written handle), so skipping `Close` writes *nothing* — the correct
 outcome for a hard failure. Adding a `defer writer.Close()` would put a
 zero-row target next to the error instead, which is precisely the
 silent-success trap the total-failure verdict exists to close.
-`TestExportTargets_EmitNothingBeforeClose` pins that property across all
-eight adapters, header **and** rows.
+`TestExportTargets_EmitNothingBeforeClose` pins that property across every
+export adapter, header **and** rows.
 
 That reasoning is about DATA. Resources are a separate question, and one
 adapter answers it differently: `internal/io/excel` drives an excelize

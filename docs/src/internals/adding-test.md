@@ -112,8 +112,8 @@ add a sentence describing it in the parent paragraph.
 ## 10. Run the gates
 
 ```bash
-go test ./processing/ -run TestType_Streamable
-go test ./types/    -run TestStreamability_TestsKnown
+go test ./types/      -run TestStreamability_TestsKnown   # declared TestType.Streamable() table
+go test ./processing/ -run 'TestProcessor_Tier1|TestProcessor_PostTest'   # tier-1 streaming vs buffered, post-test dispatch
 go test ./descriptor/ ./internal/descriptor/ -run TestManifest
 go test ./internal/skills/    -run TestSkillsCoverAll
 go test ./...

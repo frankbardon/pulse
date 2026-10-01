@@ -5,8 +5,9 @@
 Code, any custom MCP host).
 
 Pulse ships an embedded MCP server that exposes the public facade
-through ten tools (one per facade method plus `pulse_facet_schema`)
-and two resource schemes (`pulse://*.pulse`, `pulse-skill://*`).
+through one tool per facade method plus the skills, examples, errors,
+import and label tools (the manifest's `mcp_tools` block is the live
+list — never count it by hand) and two resource schemes (`pulse://*.pulse`, `pulse-skill://*`).
 Wiring it into a client is a three-step process: build, configure,
 restart.
 
@@ -72,9 +73,9 @@ server) — lives in [Adding an MCP tool](adding-mcp-tool.md).
 
 ```bash
 bin/pulse mcp --help
-bin/pulse manifest --json | jq .mcp_tools
+bin/pulse manifest --json | jq .data.mcp_tools
 ```
 
 If the client supports an MCP tool inspector, point it at the
-configured server and confirm ten tools and two resource schemes are
-exposed.
+configured server and confirm it exposes every tool the manifest's
+`mcp_tools` block lists, plus the two resource schemes.

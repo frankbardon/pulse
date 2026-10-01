@@ -1,6 +1,6 @@
 # Regression Modeling
 
-Pulse exposes regression through a compact, composable surface. Three operators, two orthogonal modifiers, and one upstream feature transform together cover every textbook regression variant. This chapter is the human-facing counterpart to `skills/regression-modeling.md`; agents should fetch the skill via `pulse_skills_get` rather than read this page.
+Pulse exposes regression through a compact, composable surface. A small set of `REG_*` operators (`pulse manifest --json` lists them under `regressions`), two orthogonal modifiers, and one upstream feature transform together cover every textbook regression variant. This chapter is the human-facing counterpart to `skills/regression-modeling.md`; agents should fetch the skill via `pulse_skills_get` rather than read this page.
 
 ## Overview
 
