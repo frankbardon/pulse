@@ -8,6 +8,7 @@ package embeddersmoke
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -230,4 +231,117 @@ func TestExtendOtherCategoriesThroughProcess(t *testing.T) {
 	if len(resp.PostTests) != 1 || resp.PostTests[0].Statistic != 2 {
 		t.Errorf("tier-2 tests = %+v, want statistic 2 (result rows)", resp.PostTests)
 	}
+}
+
+// Groupers (single-key streaming and fan-out) and a filterer authored
+// against extend alone.
+
+type smokeRegionGrouper struct{ all bool }
+
+func (g smokeRegionGrouper) keys(rec extend.Record, field string) []string {
+	v, ok := rec.StringValue(field)
+	if !ok {
+		return nil
+	}
+	if g.all {
+		return []string{v, "all"}
+	}
+	return []string{v}
+}
+
+func (g smokeRegionGrouper) Group(rows extend.Rows, field string) (map[string][]int, error) {
+	out := map[string][]int{}
+	for i := 0; i < rows.Len(); i++ {
+		for _, k := range g.keys(rows.At(i), field) {
+			out[k] = append(out[k], i)
+		}
+	}
+	return out, nil
+}
+
+// smokeKeyGrouper streams one key per row.
+type smokeKeyGrouper struct{ smokeRegionGrouper }
+
+func (g smokeKeyGrouper) KeyForRow(rec extend.Record, field string) (string, bool, error) {
+	ks := g.keys(rec, field)
+	if len(ks) == 0 {
+		return "", false, extend.ErrGrouperKeyNull
+	}
+	return ks[0], true, nil
+}
+
+// smokeFanOutGrouper streams every row into its region AND "all".
+type smokeFanOutGrouper struct{ smokeRegionGrouper }
+
+func (g smokeFanOutGrouper) KeysForRow(rec extend.Record, field string) ([]string, bool, error) {
+	ks := g.keys(rec, field)
+	return ks, len(ks) > 0, nil
+}
+
+// smokeMinFilter keeps rows whose field is at least Values[0].
+type smokeMinFilter struct{}
+
+func (smokeMinFilter) Build(spec *types.Filterer, _ *encoding.Schema) (extend.FilterFunc, error) {
+	lo, err := strconv.ParseFloat(spec.Values[0], 64)
+	if err != nil {
+		return nil, err
+	}
+	return func(rec extend.Record) (bool, error) {
+		v, ok := rec.NumericValue(spec.Field)
+		return ok && v >= lo, nil
+	}, nil
+}
+
+var (
+	_ extend.StreamingGrouper         = smokeKeyGrouper{}
+	_ extend.MultiKeyStreamingGrouper = smokeFanOutGrouper{}
+	_ extend.FiltererBuilder          = smokeMinFilter{}
+)
+
+func TestExtendGroupersAndFiltererThroughProcess(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
+		Groupers: []pulse.GrouperRegistration{
+			{Name: "GROUP_SMOKE_REGION", Streamable: true,
+				Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) { return smokeKeyGrouper{}, nil }},
+			{Name: "GROUP_SMOKE_REGION_ALL", Streamable: true, FansOut: true,
+				Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) {
+					return smokeFanOutGrouper{smokeRegionGrouper{all: true}}, nil
+				}},
+		},
+		Filterers: []pulse.FiltererRegistration{{
+			Name:    "FILTER_SMOKE_MIN",
+			Factory: func() extend.FiltererBuilder { return smokeMinFilter{} },
+		}},
+	}})
+	ingest(t, p, fs, "sales.pulse")
+	ctx := context.Background()
+	run := func(g types.GroupType, filters ...*types.Filterer) map[string]float64 {
+		t.Helper()
+		req := sumByRegion("sales.pulse")
+		req.Groups[0].Type = g
+		req.Filterers = filters
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("Process(%s): %v", g, err)
+		}
+		return totals(t, resp)
+	}
+	check := func(name string, got, want map[string]float64) {
+		t.Helper()
+		if len(got) != len(want) {
+			t.Errorf("%s: totals = %v, want %v", name, got, want)
+			return
+		}
+		for k, v := range want {
+			if got[k] != v {
+				t.Errorf("%s: total[%s] = %v, want %v", name, k, got[k], v)
+			}
+		}
+	}
+	check("GROUP_CATEGORY", run(types.GROUP_CATEGORY), map[string]float64{"north": 15, "south": 20})
+	check("GROUP_SMOKE_REGION", run("GROUP_SMOKE_REGION"), map[string]float64{"north": 15, "south": 20})
+	check("GROUP_SMOKE_REGION_ALL", run("GROUP_SMOKE_REGION_ALL"), map[string]float64{"north": 15, "south": 20, "all": 35})
+	check("FILTER_SMOKE_MIN", run("GROUP_SMOKE_REGION",
+		&types.Filterer{Type: "FILTER_SMOKE_MIN", Field: "amount", Values: []string{"10"}}),
+		map[string]float64{"north": 10, "south": 20})
 }

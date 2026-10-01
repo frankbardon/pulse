@@ -293,7 +293,7 @@ type parityRow struct {
 	// processing.CanMergeRequest — an unflagged row that stops merging
 	// would otherwise silently degrade those modes to serial.
 	serialOnly bool
-	// mustContain lists substrings the built-in Data JSON must carry,
+	// mustContain lists substrings the built-in Data (or Tests) JSON must carry,
 	// so a row cannot pass on two identically degenerate payloads (a
 	// wide-set fold truncated to the low mask word, say).
 	mustContain []string
@@ -303,10 +303,30 @@ type paritySuite struct {
 	name     string
 	register func(*parityProbe) pulse.Extensions
 	rows     []parityRow
+	// noPath: the category has no streaming-vs-buffered distinction the
+	// probe can observe (filterers, windows, tests), so the path
+	// assertion is skipped; the CanStreamRequest oracles still hold.
+	noPath bool
+	// rename rewrites extension operator names to their built-in twin
+	// in the extension arm's output before comparison — for categories
+	// whose payload echoes the operator type (TestResult.Type).
+	rename map[string]string
+	// stripGrouperOperator drops Components.Groupers[i].Operator on both
+	// arms: the known gap that extension groupers surface no
+	// per-operator figures. The universal floor is still compared.
+	stripGrouperOperator bool
 }
 
 func paritySuites() []paritySuite {
-	return []paritySuite{aggregatorParitySuite()}
+	return []paritySuite{
+		aggregatorParitySuite(),
+		grouperParitySuite(),
+		filtererParitySuite(),
+		attributeParitySuite(),
+		featureParitySuite(),
+		windowParitySuite(),
+		testParitySuite(),
+	}
 }
 
 // ---------------------------------------------------------------------
@@ -457,8 +477,58 @@ func aggregatorParitySuite() paritySuite {
 // ---------------------------------------------------------------------
 
 type parityOutcome struct {
-	data, components, metadata string
-	chunks                     []string
+	data, components, metadata, tests string
+	chunks                            []string
+}
+
+// stripGrouperOperator deletes every Groupers[i].Operator from a
+// Components document, or from a stream chunk's "components" member.
+func stripGrouperOperator(t *testing.T, doc string) string {
+	t.Helper()
+	var v map[string]any
+	if err := json.Unmarshal([]byte(doc), &v); err != nil || v == nil {
+		return doc
+	}
+	c := v
+	if inner, ok := v["components"].(map[string]any); ok {
+		c = inner
+	}
+	if gs, ok := c["groupers"].([]any); ok {
+		for _, g := range gs {
+			if m, ok := g.(map[string]any); ok {
+				delete(m, "operator")
+			}
+		}
+	}
+	return mustJSON(t, v)
+}
+
+// normalize applies the suite's known-gap and rename rules to one arm.
+func (o parityOutcome) normalize(t *testing.T, s paritySuite, ext bool) parityOutcome {
+	t.Helper()
+	if s.stripGrouperOperator {
+		o.components = stripGrouperOperator(t, o.components)
+		chunks := make([]string, len(o.chunks))
+		for i, c := range o.chunks {
+			chunks[i] = stripGrouperOperator(t, c)
+		}
+		o.chunks = chunks
+	}
+	if ext {
+		r := func(v string) string {
+			for from, to := range s.rename {
+				v = strings.ReplaceAll(v, `"`+from+`"`, `"`+to+`"`)
+			}
+			return v
+		}
+		o.data, o.components, o.metadata, o.tests = r(o.data), r(o.components), r(o.metadata), r(o.tests)
+		chunks := make([]string, len(o.chunks))
+		for i, c := range o.chunks {
+			chunks[i] = r(c)
+		}
+		o.chunks = chunks
+	}
+	return o
 }
 
 func mustJSON(t *testing.T, v any) string {
@@ -486,6 +556,7 @@ func runParityArm(t *testing.T, p *pulse.Pulse, path string, req *types.Request)
 		data:       mustJSON(t, resp.Data),
 		components: mustJSON(t, resp.Components),
 		metadata:   mustJSON(t, resp.Metadata),
+		tests:      mustJSON(t, []any{resp.Tests, resp.PostTests}),
 	}
 	sr, err := p.ProcessStreamResult(ctx, &r)
 	if err != nil {
@@ -507,6 +578,9 @@ func assertParity(t *testing.T, builtin, ext parityOutcome) {
 	}
 	if builtin.components != ext.components {
 		t.Errorf("Response.Components differ\nbuiltin:   %s\nextension: %s", builtin.components, ext.components)
+	}
+	if builtin.tests != ext.tests {
+		t.Errorf("Response.Tests / PostTests differ\nbuiltin:   %s\nextension: %s", builtin.tests, ext.tests)
 	}
 	if builtin.metadata != ext.metadata {
 		t.Errorf("Response.Metadata differs\nbuiltin:   %s\nextension: %s", builtin.metadata, ext.metadata)
@@ -541,6 +615,12 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 							if got := processing.CanStreamRequest(bReq, schema); got == row.bufferedOnly {
 								t.Fatalf("CanStreamRequest(builtin) = %v but row.bufferedOnly = %v", got, row.bufferedOnly)
 							}
+							// The extension twin must take the same
+							// path as the built-in it reimplements.
+							reg := pulse.ServiceForTest(p).Extensions()
+							if got := processing.CanStreamRequestWithExtensions(eReq, schema, reg); got == row.bufferedOnly {
+								t.Fatalf("CanStreamRequestWithExtensions(extension) = %v but row.bufferedOnly = %v", got, row.bufferedOnly)
+							}
 						}
 						if mode.mergeable {
 							if got := processing.CanMergeRequest(bReq, schema); got == row.serialOnly {
@@ -548,17 +628,19 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 									got, row.serialOnly, mode.name)
 							}
 						}
-						builtin := runParityArm(t, p, path, bReq)
+						builtin := runParityArm(t, p, path, bReq).normalize(t, suite, false)
 						probe.reset()
-						ext := runParityArm(t, p, path, eReq)
+						ext := runParityArm(t, p, path, eReq).normalize(t, suite, true)
 						assertParity(t, builtin, ext)
 						for _, sub := range row.mustContain {
-							if !strings.Contains(builtin.data, sub) {
-								t.Errorf("built-in Data lacks %q: %s", sub, builtin.data)
+							if !strings.Contains(builtin.data+builtin.tests, sub) {
+								t.Errorf("built-in Data / Tests lack %q: %s %s", sub, builtin.data, builtin.tests)
 							}
 						}
 						want := mode.extPath
-						if row.bufferedOnly {
+						if suite.noPath {
+							want = ""
+						} else if row.bufferedOnly && want != "" {
 							want = "buffered"
 						}
 						switch want {
