@@ -7,8 +7,8 @@ size: L
 status: not-started
 depends_on: []
 soft_depends_on: []
-blocks: [U04, U07, U15, U20, U32]
-todo_items: [1, 2, 3, 4]
+blocks: [U02b, U02c, U04, U07, U15, U20, U32]
+todo_items: [1, 2, 3, 4, 180, 181, 182, 183, 184]
 branch: public-surface
 ---
 
@@ -16,76 +16,108 @@ branch: public-surface
 
 **Outcome:** The public Go API is deliberate, and CI guards it.
 
-**Track:** API & release · **Size:** L · **Depends on:** none · **Unblocks:** [U04](U04-profiles-model.md), [U07](U07-guidance-metadata.md), [U15](U15-linalg-core.md), [U20](U20-observability.md), [U32](U32-docs-audit.md)
+**Track:** API & release · **Size:** L · **Depends on:** none · **Unblocks:** [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U04](U04-profiles-model.md), [U07](U07-guidance-metadata.md), [U15](U15-linalg-core.md), [U20](U20-observability.md), [U32](U32-docs-audit.md)
 
 ## Summary
 
-Decide which packages remain importable at v1.0.0 and move the rest under `internal/`, re-exporting through the root facade where public signatures need it. Then add an API-compatibility check so the frozen surface can't break silently.
+Apply the decided classification. Every package the decisions table marks internal moves under `internal/`; `encoding`, `io`, `descriptor`, `errors`, `synth`, `mcp/gosdk` and `mcpserve` are narrowed to their kept subset. Facade-returned types keep their spelling through root aliases, and the leaks that aliases cannot close get facade replacements: `Options.DisableCrosstabFusion`, `InspectBytes` / `PredictBytes`, the `io` factory with typed formats, `IndexArtifacts`, and root-native `DateRangeSpec` / `MemberSet`. Then an API-compatibility check runs in CI so the frozen surface cannot break silently.
+
+The catalog and the classification (#1, #2) are already done. The extension-authoring contract (`extend`) is [U02b](U02b-extension-contract.md); `CohortReader` / `CohortWriter` and `PredictResult.CrosstabFusable` are [U02c](U02c-cohort-facade.md).
 
 ## References
 
 **Theme documents (read before starting):**
-- [api-and-release 00 — Public Go surface](../v1.0.0-api-and-release/00-public-surface.md) — Process, Catalog template, Starting hypothesis
+- [api-and-release 00 — Public Go surface](../v1.0.0-api-and-release/00-public-surface.md) — Model, Decisions, Root aliases into internal packages, Fixed points, Facade additions, What leaks through the facade, Unit split
+- [api-and-release 03 — Embedder migration guide](../v1.0.0-api-and-release/03-embedder-migration.md) — every row tagged U02
+- [api-and-release 02 — Stability policy](../v1.0.0-api-and-release/02-stability-policy.md) — the public package list the `STABILITY.md` draft freezes
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#1** (1. API surface & release pipeline › Public Go surface) Downstream usage catalog completed (maintainer)
-- [ ] **#2** (1. API surface & release pipeline › Public Go surface) Classification per package decided (public / public-narrowed / internal)
+- [x] **#1** (1. API surface & release pipeline › Public Go surface) Downstream usage catalog completed (maintainer)
+- [x] **#2** (1. API surface & release pipeline › Public Go surface) Classification per package decided (public / public-narrowed / internal)
 - [ ] **#3** (1. API surface & release pipeline › Public Go surface) Package moves and narrowing done; facade re-exports added
 - [ ] **#4** (1. API surface & release pipeline › Public Go surface) API-compatibility check (`gorelease` / `apidiff`) in CI against the latest tag
+- [ ] **#180** (1. API surface & release pipeline › Public Go surface) `io` factory: `io.NewReader` / `NewReaderFromBytes` / `NewWriter` / `NewWriterToBuffer` with typed `io.Format` constants and format knobs on typed sub-structs; `io/<fmt>` and `io/format` internal
+- [ ] **#181** (1. API surface & release pipeline › Public Go surface) `Options.DisableCrosstabFusion` replaces `(*Pulse).Service()`, which is removed
+- [ ] **#182** (1. API surface & release pipeline › Public Go surface) `(*Pulse).InspectBytes` / `PredictBytes` replace `descriptor.InspectFromBytes` / `PredictFromBytes`; the instance fills the extension snapshot
+- [ ] **#183** (1. API surface & release pipeline › Public Go surface) `(*Pulse).IndexArtifacts(cohort) []string`; the index-manifest helpers move internal
+- [ ] **#184** (1. API surface & release pipeline › Public Go surface) Root-native `DateRangeSpec`, `MemberSet`, `LoadMemberSetResult` (spelling unchanged)
 
 ## Scope
 
 **In scope**
-- Maintainer's downstream catalog (input)
-- Per-package classification: public / public-narrowed / internal
-- Package moves and narrowing; facade re-exports
-- API-compat check in CI against the latest tag
+- Moves under `internal/`: `service`, `fs`, `imports`, `template`, `examples`, `skills`, `mcp` core, `mcp/toolmeta`, `processing/regression`, `processing/arena`, every `io/<fmt>` subpackage, `io/format`, `io/exportoverlay`, `io/nullcell`, `io/settristate`, `io/setwide`
+- `processing`, `processing/feature`, `processing/window`: the interim (see Notes) — either left in place for U02b, or moved with temporary root aliases for the extension types
+- Narrowing `encoding` (raw-byte primitives for ungrouped `0x01` only; `RecordLocator` reduced to geometry), `io`, `descriptor`, `errors`, `synth`, `mcp/gosdk`, `mcpserve` to the kept subsets in the decisions table
+- Root aliases: the 13 `service` result types, `ImportSpec` / `ImportResult` / `ImportEntry`, the template and examples result types
+- Leak-closing replacements: `Options.DisableCrosstabFusion`, `InspectBytes` / `PredictBytes`, the `io` factory + typed `io.Format`, `IndexArtifacts`, root-native `DateRangeSpec` / `MemberSet` / `LoadMemberSetResult`
+- Test-only `processing.ApplyOverlays`, `CompileDateRanges`, `NewCrosstabHostViewWithComponents` lose their public spelling, with no replacement
+- Import-boundary gates updated to the moved paths
+- API-compatibility CI job, advisory until the `v1.0.0` tag exists
+- Path updates in CLAUDE.md, `.claude/reference/`, `docs/src/internals/` and `.claude/agents/`
 
 **Out of scope**
-- Writing `STABILITY.md` (that is U32, once this list is final)
-- Behaviour changes of any kind: this unit is moves and re-exports only
+- The `extend` package, registration adapters and making `processing` fully internal ([U02b](U02b-extension-contract.md))
+- `CohortReader` / `CohortWriter` and `PredictResult.CrosstabFusable` ([U02c](U02c-cohort-facade.md))
+- Public raw-byte writing of grouped (`0x02`) cohorts — permanently outside the v1 primitive set
+- A Pulse-owned filesystem interface replacing `afero.Fs` (frozen as-is)
+- Behaviour changes beyond the decided replacements: no wire, file-format or operator change; `format_version` stays `"1.1"`. The one intended behaviour difference is that `PredictBytes` fills the extension snapshot, which `PredictFromBytes` left unset
+- Writing the root `STABILITY.md` (that is U33; the package list is already in the [02](../v1.0.0-api-and-release/02-stability-policy.md) draft)
 
 ## Epics & stories
 
-Each epic is a vertical slice. Commit with `feat|fix|perf|test(public-surface/E<n>-S<m>): …`; close each epic with `milestone(public-surface/E<n>): vertical slice complete — <epic title>`.
+Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(public-surface/E<n>-S<m>): …`; close each epic with `milestone(public-surface/E<n>): vertical slice complete — <epic title>`.
 
-### E1 — The surface is decided
-- S1: maintainer completes the catalog (template in rel0)
-- S2: classification table committed to `api-and-release/00` (replace the hypothesis column with decisions)
+### E1 — The facade closes every leak
+Replacements land first, while the old spellings still exist, so each one is tested side by side before anything moves.
+- S1: `Options.DisableCrosstabFusion`; remove `(*Pulse).Service()`; migrate its callers and tests
+- S2: `(*Pulse).InspectBytes` / `PredictBytes` (extension snapshot filled from the instance); `(*Pulse).IndexArtifacts`
+- S3: `io` factory + typed `io.Format` constants + typed option sub-structs; CLI import / export switches routed through it
+- S4: root-native `DateRangeSpec`, `MemberSet`, `LoadMemberSetResult`
 
 ### E2 — Internals move out of the public API
-- S1: move `processing` / `service` (and others classed internal) under `internal/`, fixing imports mechanically
-- S2: narrow `encoding` / `io` / `descriptor` / `synth` / `template` / `mcp` to their public subset; facade re-exports
-- S3: update CLAUDE.md architecture block, `docs/src/internals/packages.md`, agent definitions and every recipe that names a moved path
+- S1: move the internal set under `internal/`, adding root aliases for every facade-returned type; apply the `processing` interim choice
+- S2: narrow `encoding` / `io` / `descriptor` / `errors` / `synth` / `mcp/gosdk` / `mcpserve` to their kept subsets
+- S3: import-boundary gates on the new paths; CLAUDE.md "Architecture", `.claude/reference/*.md`, `docs/src/internals/*` and `.claude/agents/*.md` path updates
 
 ### E3 — CI guards the surface
-- S1: `gorelease` (or `apidiff`) job comparing against the latest tag; documented override for intentional pre-1.0 breaks
+- S1: `apidiff` (or `gorelease`) job against the latest tag covering every public package and every root alias; advisory until `v1.0.0`, with a documented override for intentional pre-1.0 breaks
 
 ## Acceptance criteria
 
-- [ ] The downstream library builds against the branch with only import-path updates for symbols classed public
-- [ ] No package outside the agreed public list is importable
-- [ ] All existing tests and goldens pass unchanged: no behaviour change
-- [ ] The API-compat CI job runs on PRs and fails on an incompatible change to a public package
+- [ ] Only the packages on the [02](../v1.0.0-api-and-release/02-stability-policy.md) public list are importable, plus `processing` (+ `feature`, `window`) if the interim leaves them in place for U02b
+- [ ] Every [03](../v1.0.0-api-and-release/03-embedder-migration.md) row tagged U02 is true of the branch: an embedder applying exactly those adaptations builds
+- [ ] All existing tests and goldens pass unchanged; `format_version` stays `"1.1"`
+- [ ] `PredictBytes` on an instance with registered extensions treats extension operators as known (test)
+- [ ] Every path `IndexArtifacts` returns moves with a cohort and the moved cohort's `Lookup` still hits (test)
+- [ ] The API-compat CI job runs on PRs and reports an incompatible change to a public package or root alias
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
 - Existing import-boundary gates (`TestPredictNoExecutionImports`, `TestMCPCore_NoSDKImport`, `TestTemplatePackage_ImportBoundary`) updated to the new paths and still green
+- `TestFromExt_Matrix` and `TestManifestImportCapability` green against the `io` factory
+- New tests for each facade replacement (S1–S4 of E1)
 - New CI job: API compatibility
 
 ## Update Demand companions
 
-- CLAUDE.md "Architecture" block and every path reference in `.claude/reference/*.md`
-- `docs/src/internals/*` recipes
+- CLAUDE.md "Architecture" block, "Design principles" facade method list (`InspectBytes`, `PredictBytes`, `IndexArtifacts`), and every path reference in `.claude/reference/*.md` (the registered I/O format row in `update-demand.md` names the `io/format` dispatch)
+- `docs/src/internals/*` recipes, including `adding-io-format.md` and `packages.md`
+- `docs/src/library/options.md` (`DisableCrosstabFusion`)
 - `.claude/agents/*.md` path mentions
+- [03-embedder-migration.md](../v1.0.0-api-and-release/03-embedder-migration.md): correct any U02 row whose landed spelling differs
 
 ## Human inputs & decisions
 
-- **Blocking input:** the downstream catalog (decided: the maintainer produces it)
+- **Downstream catalog:** delivered (#1); the classification is decided (#2). No blocking input remains.
+- **Open, implementer's call:** whether U02 moves `processing` itself (with temporary root aliases for the extension types) or leaves the move to U02b.
 
 ## Notes
 
 - Land this before other units touch the moved packages, to avoid rebasing every in-flight unit across a mass move.
-- Pre-1.0, the compat check can be advisory until the v1.0.0 tag exists.
+- **`processing` interim.** Moving `processing` internal before U02b ships `extend` would break extension authors mid-sequence. Either keep it in place or move it with temporary root aliases; U02b removes any interim aliases.
+- **Catalog matching risk (accepted).** The catalog matched less-common method names by name, not type, so a symbol could be misattributed. The decisions are package-level and the migration guide covers every listed name either way.
+- **Raw-byte primitives freeze (accepted).** Freezing `ReadHeader` / `ReadSchema` / `WriteSchema`, the schema geometry and `Read/WriteFieldValue` constrains future ungrouped writer changes; the layout is already promised readable forever and the format version is a function of schema content.
+- An aliased type's fields and methods freeze exactly as if its package were public, so the API check must cover root aliases, not just public packages.
+- Pre-1.0, the compat check is advisory until the v1.0.0 tag exists.
