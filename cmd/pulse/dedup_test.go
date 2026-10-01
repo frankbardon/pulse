@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // TestCliDedup: `pulse dedup` rewrites a flat cohort into the same
@@ -82,7 +83,7 @@ func TestCliDedup(t *testing.T) {
 	if !bytes.Equal(got, want) || !strings.Contains(text, `"in_place": true`) || !strings.Contains(text, `"format_version_after": 2`) {
 		t.Fatalf("in place: matches import %v\n%s", bytes.Equal(got, want), text)
 	}
-	if _, v, err := encoding.ReadPreamble(bytes.NewReader(got)); err != nil || v != encoding.FormatVersionV2 {
+	if _, v, err := encx.ReadPreamble(bytes.NewReader(got)); err != nil || v != encoding.FormatVersionV2 {
 		t.Fatalf("version 0x%02x err %v", v, err)
 	}
 

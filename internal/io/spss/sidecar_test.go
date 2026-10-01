@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	"github.com/spf13/afero"
@@ -226,13 +227,13 @@ func TestSidecar_FingerprintsTheCohortNotTheSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading cohort: %v", err)
 	}
-	want, ferr := encoding.ComputeFingerprint(strings.NewReader(string(cohortBytes)))
+	want, ferr := encx.ComputeFingerprint(strings.NewReader(string(cohortBytes)))
 	if ferr != nil {
 		t.Fatalf("ComputeFingerprint: %v", ferr)
 	}
 	got, ok := doc.Fingerprint.Digest()
 	if !ok {
-		t.Fatalf("fingerprint sha256 %q is not a %d-byte digest", doc.Fingerprint.SHA256, encoding.FingerprintSize)
+		t.Fatalf("fingerprint sha256 %q is not a %d-byte digest", doc.Fingerprint.SHA256, encx.FingerprintSize)
 	}
 	if got != want {
 		t.Error("fingerprint does not match the cohort's bytes")
@@ -242,7 +243,7 @@ func TestSidecar_FingerprintsTheCohortNotTheSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading source: %v", err)
 	}
-	srcFP, ferr := encoding.ComputeFingerprint(strings.NewReader(string(srcBytes)))
+	srcFP, ferr := encx.ComputeFingerprint(strings.NewReader(string(srcBytes)))
 	if ferr != nil {
 		t.Fatalf("ComputeFingerprint: %v", ferr)
 	}
@@ -262,9 +263,9 @@ func TestSidecar_FingerprintsTheCohortNotTheSource(t *testing.T) {
 	if doc.Fingerprint.SourceModTime != info.ModTime().UnixNano() {
 		t.Errorf("source_mod_time = %d, want %d", doc.Fingerprint.SourceModTime, info.ModTime().UnixNano())
 	}
-	if len(doc.Fingerprint.SHA256) != 2*encoding.FingerprintSize {
+	if len(doc.Fingerprint.SHA256) != 2*encx.FingerprintSize {
 		t.Errorf("sha256 is %d hex chars, want %d for a 32-byte digest",
-			len(doc.Fingerprint.SHA256), 2*encoding.FingerprintSize)
+			len(doc.Fingerprint.SHA256), 2*encx.FingerprintSize)
 	}
 }
 

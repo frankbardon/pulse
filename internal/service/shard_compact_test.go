@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/spf13/afero"
 )
@@ -93,7 +94,7 @@ func TestShardArchiveCompactReclaimsOrphans(t *testing.T) {
 		}
 
 		// Canonical aggregate_record_count refreshed: 2 + 2 = 4.
-		arch, err := encoding.OpenArchive(bytes.NewReader(postBytes), int64(len(postBytes)))
+		arch, err := encx.OpenArchive(bytes.NewReader(postBytes), int64(len(postBytes)))
 		if err != nil {
 			t.Fatalf("OpenArchive post: %v", err)
 		}
@@ -139,7 +140,7 @@ func TestShardArchiveCompactReclaimsOrphans(t *testing.T) {
 
 		// Sanity: the corrupted archive still opens (orphan bytes do
 		// not move the EOCD-recorded offsets).
-		if _, err := encoding.OpenArchive(bytes.NewReader(corrupt), int64(len(corrupt))); err != nil {
+		if _, err := encx.OpenArchive(bytes.NewReader(corrupt), int64(len(corrupt))); err != nil {
 			t.Fatalf("OpenArchive on synthetic orphan archive: %v", err)
 		}
 
@@ -267,7 +268,7 @@ func buildSimpleArchive(t *testing.T, schema *encoding.Schema, shards struct {
 	t.Helper()
 
 	var schemaDoc bytes.Buffer
-	if err := encoding.WriteSchemaDoc(&schemaDoc, schema, uint64(len(shards.Records)), 1); err != nil {
+	if err := encx.WriteSchemaDoc(&schemaDoc, schema, uint64(len(shards.Records)), 1); err != nil {
 		t.Fatalf("WriteSchemaDoc: %v", err)
 	}
 
@@ -284,7 +285,7 @@ func buildSimpleArchive(t *testing.T, schema *encoding.Schema, shards struct {
 		}
 	}
 
-	write(encoding.ReservedSchemaName, schemaDoc.Bytes())
+	write(encx.ReservedSchemaName, schemaDoc.Bytes())
 	write(shards.Name, writeSinglePulse(t, schema, shards.Records))
 
 	if err := zw.Close(); err != nil {

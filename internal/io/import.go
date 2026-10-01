@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -338,7 +339,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 // through to 0x01. Returns the plan (nil without elide) and the schema
 // actually written; declared (the declared groups the viability gate
 // admitted) are its first len(declared) groups.
-func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []byte, bmSize, rows int, elide bool, declared []encoding.GroupSpec) (*encoding.ConstantPlan, *encoding.Schema, error) {
+func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []byte, bmSize, rows int, elide bool, declared []encx.GroupSpec) (*encx.ConstantPlan, *encoding.Schema, error) {
 	hasBM := schema.HasBitmap()
 	fieldStride := schema.RecordByteSize()
 	if hasBM {
@@ -353,10 +354,10 @@ func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []
 		return append(scratch, bms[k*bmSize:(k+1)*bmSize]...)
 	}
 
-	specs := append([]encoding.GroupSpec(nil), declared...)
-	var plan *encoding.ConstantPlan
+	specs := append([]encx.GroupSpec(nil), declared...)
+	var plan *encx.ConstantPlan
 	if elide {
-		det, err := encoding.NewConstantDetector(schema)
+		det, err := encx.NewConstantDetector(schema)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -365,7 +366,7 @@ func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []
 				return nil, nil, err
 			}
 		}
-		plan, err = encoding.PlanConstantElision(det, groupMemberNames(declared))
+		plan, err = encx.PlanConstantElision(det, groupMemberNames(declared))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -376,7 +377,7 @@ func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []
 	if len(specs) == 0 {
 		return plan, schema, writeFlatPayload(buf, schema, rows, logicalRow)
 	}
-	enc, err := encoding.NewGroupEncoder(schema, specs)
+	enc, err := encx.NewGroupEncoder(schema, specs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -390,7 +391,7 @@ func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []
 		}
 	}
 	grouped := enc.Schema()
-	if err := encoding.WritePreamble(buf, grouped); err != nil {
+	if err := encx.WritePreamble(buf, grouped); err != nil {
 		return nil, nil, err
 	}
 	if _, err := buf.Write(spool); err != nil {
@@ -402,7 +403,7 @@ func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []
 // writeFlatPayload writes the ungrouped (0x01) preamble and every
 // logical row.
 func writeFlatPayload(buf *bytes.Buffer, schema *encoding.Schema, rows int, logicalRow func(int) []byte) error {
-	if err := encoding.WritePreamble(buf, schema); err != nil {
+	if err := encx.WritePreamble(buf, schema); err != nil {
 		return err
 	}
 	for k := 0; k < rows; k++ {

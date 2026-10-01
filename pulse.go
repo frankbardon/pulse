@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/examples"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/imports"
@@ -1870,7 +1871,7 @@ func resolveCohortPath(c *types.Cohort) string {
 // returns the named entry's payload, suitable as standalone single-file
 // .pulse input to descriptor.Predict / descriptor.Inspect.
 func extractShardBytes(archiveBytes []byte, entryName string) ([]byte, error) {
-	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
 		return nil, err
 	}

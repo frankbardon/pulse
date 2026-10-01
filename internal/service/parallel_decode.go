@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"golang.org/x/sync/errgroup"
@@ -207,8 +208,8 @@ type parallelDecodeContext struct {
 	recordRegionStart int
 	stride            int
 	totalRecords      int
-	plan              *encoding.DecodePlan
-	keep              encoding.FieldFilter
+	plan              *encx.DecodePlan
+	keep              encx.FieldFilter
 	projectMapHint    int
 	// binding mints each worker's fresh positional Record: projected to
 	// keep when a plan is installed (O(retained fields) per record),
@@ -306,7 +307,7 @@ func parallelDecodeMmap(
 			endByte := pctx.recordRegionStart + seg.endRec*pctx.stride
 			segBytes := pctx.mmapBytes[startByte:endByte]
 			r := bytes.NewReader(segBytes)
-			rr := encoding.NewRecordReader(r, pctx.schema)
+			rr := encx.NewRecordReader(r, pctx.schema)
 			cb := factory(idx, segmentCount)
 
 			for recIdx := 0; recIdx < segmentCount; recIdx++ {
@@ -480,8 +481,8 @@ func buildParallelDecodeContext(
 	s *Service,
 	path string,
 	schema *encoding.Schema,
-	plan *encoding.DecodePlan,
-	keep encoding.FieldFilter,
+	plan *encx.DecodePlan,
+	keep encx.FieldFilter,
 	projectMapHint int,
 ) (pctx *parallelDecodeContext, cleanup func() error, ok bool, err error) {
 	if schema == nil {
@@ -546,7 +547,7 @@ func buildParallelDecodeContext(
 // per-row Records from: projected to keep when a DecodePlan drives the
 // decode (the plan writes only keep's fields, so the record is sized to
 // them), the shared full-schema binding otherwise.
-func recordBindingFor(schema *encoding.Schema, plan *encoding.DecodePlan, keep encoding.FieldFilter) *processing.RecordBinding {
+func recordBindingFor(schema *encoding.Schema, plan *encx.DecodePlan, keep encx.FieldFilter) *processing.RecordBinding {
 	if plan == nil {
 		return processing.BindRecords(schema, nil)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // strideExactPayload builds a single-file `.pulse` payload holding
@@ -32,7 +33,7 @@ func strideExactPayload(t *testing.T, schema *encoding.Schema, stride, n int) []
 func oneShardArchive(t *testing.T, schema *encoding.Schema, payload []byte, total uint64) []byte {
 	t.Helper()
 	var doc bytes.Buffer
-	if err := encoding.WriteSchemaDoc(&doc, schema, total, 1); err != nil {
+	if err := encx.WriteSchemaDoc(&doc, schema, total, 1); err != nil {
 		t.Fatalf("WriteSchemaDoc: %v", err)
 	}
 	var buf bytes.Buffer
@@ -46,7 +47,7 @@ func oneShardArchive(t *testing.T, schema *encoding.Schema, payload []byte, tota
 			t.Fatalf("zip write(%q): %v", name, err)
 		}
 	}
-	write(encoding.ReservedSchemaName, doc.Bytes())
+	write(encx.ReservedSchemaName, doc.Bytes())
 	write("s.pulse", payload)
 	if err := zw.Close(); err != nil {
 		t.Fatalf("zip.Close: %v", err)
@@ -154,7 +155,7 @@ func TestRecordCountFromBytes_ParityWithPeekShardRecordCount(t *testing.T) {
 			payload := strideExactPayload(t, tc.schema, tc.stride, want)
 			archBytes := oneShardArchive(t, tc.schema, payload, want)
 
-			arch, err := encoding.OpenArchive(bytes.NewReader(archBytes), int64(len(archBytes)))
+			arch, err := encx.OpenArchive(bytes.NewReader(archBytes), int64(len(archBytes)))
 			if err != nil {
 				t.Fatalf("OpenArchive: %v", err)
 			}

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
@@ -45,11 +46,11 @@ func (n noSkipRecord) record() *processing.Record             { return n.r }
 func newNoSkipRecord(schema *encoding.Schema) noSkipRecord {
 	return noSkipRecord{processing.NewReusableRecord(schema)}
 }
-func (n noSkipRecord) read(rr *encoding.RecordReader, keep encoding.FieldFilter, plan *encoding.DecodePlan) error {
+func (n noSkipRecord) read(rr *encx.RecordReader, keep encx.FieldFilter, plan *encx.DecodePlan) error {
 	return rr.ReadRecordReusedWithPlan(n, keep, plan)
 }
 
-var _ encoding.TypedSetRecord = noSkipRecord{}
+var _ encx.TypedSetRecord = noSkipRecord{}
 
 // scatterJoinShapeCohort returns data with its payload rows permuted
 // (deterministically), header and schema untouched.
@@ -143,12 +144,12 @@ func joinShapeOrders(t *testing.T) (afero.Fs, *encoding.Schema, int, map[string]
 }
 
 // baselinePlan builds the plan the iterator installs for keep.
-func baselinePlan(t *testing.T, schema *encoding.Schema, keep encoding.FieldFilter) *encoding.DecodePlan {
+func baselinePlan(t *testing.T, schema *encoding.Schema, keep encx.FieldFilter) *encx.DecodePlan {
 	t.Helper()
 	if keep == nil {
 		return nil
 	}
-	plan, err := schema.BuildDecodePlan(retainedFromFilter(schema, keep))
+	plan, err := encx.BuildDecodePlan(schema, retainedFromFilter(schema, keep))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestJoinShapeRunSkip_MatchesFullRepopulate(t *testing.T) {
 	for _, order := range []string{"sorted", "scattered"} {
 		for _, tc := range []struct {
 			name string
-			keep encoding.FieldFilter
+			keep encx.FieldFilter
 			n    int
 		}{{name: "full"}, {name: "projected4", keep: joinShapeKeep4, n: 4}} {
 			t.Run(order+"/"+tc.name, func(t *testing.T) {
@@ -252,7 +253,7 @@ func TestJoinShapeRunSkip_ShardBoundaries(t *testing.T) {
 		}
 
 		var doc bytes.Buffer
-		if err := encoding.WriteSchemaDoc(&doc, schema, uint64(rows), uint16(len(cc.cuts)-1)); err != nil {
+		if err := encx.WriteSchemaDoc(&doc, schema, uint64(rows), uint16(len(cc.cuts)-1)); err != nil {
 			t.Fatal(err)
 		}
 		var arch bytes.Buffer
@@ -266,7 +267,7 @@ func TestJoinShapeRunSkip_ShardBoundaries(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		put(encoding.ReservedSchemaName, doc.Bytes())
+		put(encx.ReservedSchemaName, doc.Bytes())
 		var entries []ShardEntry
 		for s := range len(cc.cuts) - 1 {
 			name := fmt.Sprintf("s%d.pulse", s)
@@ -284,7 +285,7 @@ func TestJoinShapeRunSkip_ShardBoundaries(t *testing.T) {
 
 		for _, tc := range []struct {
 			name string
-			keep encoding.FieldFilter
+			keep encx.FieldFilter
 			n    int
 		}{{name: "full"}, {name: "projected4", keep: joinShapeKeep4, n: 4}} {
 			t.Run(cc.name+"/"+tc.name, func(t *testing.T) {

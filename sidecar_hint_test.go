@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -91,8 +92,8 @@ func TestInvalidatedSidecars_NamesThePointLookupIndexAndItsRebuild(t *testing.T)
 	// The manifest is the discovery surface the decision names; assert
 	// it is actually there so a fallback to a directory glob cannot
 	// quietly become the thing under test.
-	if ok, _ := afero.Exists(memFs, encoding.IndexManifestPath("c.pulse")); !ok {
-		t.Fatalf("no index manifest at %s", encoding.IndexManifestPath("c.pulse"))
+	if ok, _ := afero.Exists(memFs, encx.IndexManifestPath("c.pulse")); !ok {
+		t.Fatalf("no index manifest at %s", encx.IndexManifestPath("c.pulse"))
 	}
 
 	got, err := p.InvalidatedSidecars(ctx, "c.pulse")

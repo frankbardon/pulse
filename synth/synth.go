@@ -4,8 +4,8 @@ import (
 	"bytes"
 	mrand "math/rand/v2"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -45,7 +45,7 @@ func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error
 	}
 
 	var fileBuf bytes.Buffer
-	if err := encoding.WritePreamble(&fileBuf, schema); err != nil {
+	if err := encx.WritePreamble(&fileBuf, schema); err != nil {
 		return nil, err
 	}
 	if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {
@@ -84,7 +84,7 @@ func SynthBytes(spec *Spec, opts Options) ([]byte, *Result, error) {
 	}
 
 	var fileBuf bytes.Buffer
-	if err := encoding.WritePreamble(&fileBuf, schema); err != nil {
+	if err := encx.WritePreamble(&fileBuf, schema); err != nil {
 		return nil, nil, err
 	}
 	if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {

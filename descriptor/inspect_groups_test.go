@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // groupedInspectFixture builds a synthetic 0x02 cohort of `rows` rows:
@@ -28,7 +29,7 @@ func groupedInspectFixture(t *testing.T, rows, fanout int, regions ...string) ([
 		{Name: "tenant", ByteOffset: 15, Type: encoding.FieldTypeU8, Description: "Synthetic constant tenant"},
 	}}
 	var buf bytes.Buffer
-	if err := encoding.WritePreamble(&buf, flat); err != nil {
+	if err := encx.WritePreamble(&buf, flat); err != nil {
 		t.Fatalf("WritePreamble: %v", err)
 	}
 	for r := 0; r < rows; r++ {
@@ -41,7 +42,7 @@ func groupedInspectFixture(t *testing.T, rows, fanout int, regions ...string) ([
 		}
 	}
 	var out bytes.Buffer
-	schema, n, err := encoding.DedupCohort(&out, bytes.NewReader(buf.Bytes()), []encoding.GroupSpec{
+	schema, n, err := encx.DedupCohort(&out, bytes.NewReader(buf.Bytes()), []encx.GroupSpec{
 		{Kind: encoding.GroupKindIndexed, Members: []string{"order_id", "region", "order_total"}, Key: []string{"order_id"}},
 		{Kind: encoding.GroupKindConstant, Members: []string{"tenant"}},
 	})
@@ -105,18 +106,18 @@ func TestInspect_GroupFigures(t *testing.T) {
 	if g.DictionaryBytes != int64(len(schema.Groups[0].Entries)) {
 		t.Errorf("dictionary_bytes %d is not the resident dictionary %d", g.DictionaryBytes, len(schema.Groups[0].Entries))
 	}
-	if g.Ratio != 3 || g.RatioFloor != encoding.DefaultDedupRatioFloor || g.Verdict != encoding.GroupVerdictAdmitted || g.GrowsFile {
+	if g.Ratio != 3 || g.RatioFloor != encx.DefaultDedupRatioFloor || g.Verdict != encx.GroupVerdictAdmitted || g.GrowsFile {
 		t.Errorf("group 0 ratio=%v floor=%v verdict=%s grows=%v", g.Ratio, g.RatioFloor, g.Verdict, g.GrowsFile)
 	}
 	// Same arithmetic as the import gate, over the same header facts.
-	want := encoding.AssessGroup(schema, 0, 12, encoding.DefaultDedupRatioFloor)
+	want := encx.AssessGroup(schema, 0, 12, encx.DefaultDedupRatioFloor)
 	if g.ByteDelta != want.ByteDelta || g.BreakEvenRatio != want.BreakEvenRatio ||
 		g.MemberRowBytes != want.MemberRowBytes || g.IndexWidth != want.IndexWidth {
 		t.Errorf("group 0 figures %+v disagree with AssessGroup %+v", g, want)
 	}
 
 	c := res.Groups[1]
-	if c.Kind != "constant" || c.EntryCount != 1 || c.IndexWidth != 0 || c.Ratio != 12 || c.Verdict != encoding.GroupVerdictAdmitted {
+	if c.Kind != "constant" || c.EntryCount != 1 || c.IndexWidth != 0 || c.Ratio != 12 || c.Verdict != encx.GroupVerdictAdmitted {
 		t.Errorf("constant group = %+v", c)
 	}
 	// grows_file is the raw byte fact for every kind, verdict or not: at
@@ -167,7 +168,7 @@ func TestInspect_GroupLowRatioVerdict(t *testing.T) {
 	data, _ := groupedInspectFixture(t, 8, 1)
 	res := inspectGrouped(t, data, nil)
 	g := res.Groups[0]
-	if g.Ratio != 1 || g.Verdict != encoding.GroupVerdictLowRatio || !g.GrowsFile || g.ByteDelta < 0 {
+	if g.Ratio != 1 || g.Verdict != encx.GroupVerdictLowRatio || !g.GrowsFile || g.ByteDelta < 0 {
 		t.Errorf("never-repeating group = ratio %v verdict %s grows %v delta %d; want 1, low_ratio, true, ≥0",
 			g.Ratio, g.Verdict, g.GrowsFile, g.ByteDelta)
 	}

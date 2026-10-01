@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )
@@ -76,7 +77,7 @@ func readFieldRows(t *testing.T, data []byte, name string) (values []float64, nu
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	vals := make(map[string]float64)
 	nl := make(map[string]bool)
 	for {

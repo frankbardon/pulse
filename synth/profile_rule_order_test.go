@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 )
 
@@ -79,7 +80,7 @@ func countOrphans(t *testing.T, data []byte, gate, target string) orphanCount {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := map[string]float64{}
 	nulls := map[string]bool{}
 	var out orphanCount

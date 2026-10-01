@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // writeShardPayload returns the bytes of a single-file .pulse (header +
@@ -47,7 +48,7 @@ func buildShardArchiveBytes(t *testing.T, schema *encoding.Schema, shards []stru
 	for _, s := range shards {
 		total += uint64(s.NRecord)
 	}
-	if err := encoding.WriteSchemaDoc(&doc, schema, total, uint16(len(shards))); err != nil {
+	if err := encx.WriteSchemaDoc(&doc, schema, total, uint16(len(shards))); err != nil {
 		t.Fatalf("WriteSchemaDoc: %v", err)
 	}
 
@@ -62,7 +63,7 @@ func buildShardArchiveBytes(t *testing.T, schema *encoding.Schema, shards []stru
 			t.Fatalf("zip write(%q): %v", name, err)
 		}
 	}
-	write(encoding.ReservedSchemaName, doc.Bytes())
+	write(encx.ReservedSchemaName, doc.Bytes())
 	for _, s := range shards {
 		write(s.Name, writeShardPayload(t, schema, s.NRecord))
 	}

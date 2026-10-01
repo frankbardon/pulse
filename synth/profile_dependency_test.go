@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/synth"
 )
@@ -107,7 +108,7 @@ func bandCoherence(t *testing.T, data []byte) (scored, agree, orphanFlag int) {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := map[string]float64{}
 	nulls := map[string]bool{}
 	for {
@@ -248,7 +249,7 @@ func TestSuggestDeps_CategoricalDependencyFiresOnEveryWireRow(t *testing.T) {
 	if dict == nil {
 		t.Fatal("no region dictionary on the generated cohort")
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := map[string]float64{}
 	nulls := map[string]bool{}
 	rows, bad := 0, 0
@@ -520,7 +521,7 @@ func TestSuggestDeps_ComplementAndEnumerationArmsFireEndToEnd(t *testing.T) {
 		t.Fatalf("generated cohort lost a source dictionary: %v", dictOf)
 	}
 	tierOf := map[string]float64{"basic": 1, "plus": 2, "pro": 3}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := map[string]float64{}
 	nulls := map[string]bool{}
 	rows, badComplement, badEnumeration := 0, 0, 0

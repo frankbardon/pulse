@@ -91,8 +91,8 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -175,10 +175,10 @@ type Fingerprint struct {
 
 // Digest decodes SHA256 back into the 32-byte digest, reporting
 // whether the field held a well-formed one.
-func (f Fingerprint) Digest() (encoding.Fingerprint, bool) {
-	var out encoding.Fingerprint
+func (f Fingerprint) Digest() (encx.Fingerprint, bool) {
+	var out encx.Fingerprint
 	raw, err := hex.DecodeString(f.SHA256)
-	if err != nil || len(raw) != encoding.FingerprintSize {
+	if err != nil || len(raw) != encx.FingerprintSize {
 		return out, false
 	}
 	copy(out[:], raw)
@@ -1018,7 +1018,7 @@ func fingerprintCohort(fs afero.Fs, cohortPath string) (Fingerprint, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	digest, ferr := encoding.ComputeFingerprint(f)
+	digest, ferr := encx.ComputeFingerprint(f)
 	if ferr != nil {
 		return Fingerprint{}, ferr
 	}

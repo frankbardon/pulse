@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // DefaultDictionaryLimit is the default max entries shown for categorical dictionaries.
@@ -356,19 +357,19 @@ func inspectArchive(data []byte, opts *InspectOptions) *Envelope {
 	env := NewEnvelope(result)
 
 	reader := bytes.NewReader(data)
-	arch, err := encoding.OpenArchive(reader, int64(len(data)))
+	arch, err := encx.OpenArchive(reader, int64(len(data)))
 	if err != nil {
 		env.AddError(string(errors.PULSE_ARCHIVE_CORRUPT), "invalid pulse shard archive: "+err.Error(), nil)
 		return env
 	}
 
-	rc, err := arch.Open(encoding.ReservedSchemaName)
+	rc, err := arch.Open(encx.ReservedSchemaName)
 	if err != nil {
 		env.AddError(string(errors.PULSE_SHARD_MISSING),
-			"archive missing reserved schema entry "+encoding.ReservedSchemaName+": "+err.Error(), nil)
+			"archive missing reserved schema entry "+encx.ReservedSchemaName+": "+err.Error(), nil)
 		return env
 	}
-	doc, derr := encoding.ReadSchemaDoc(rc)
+	doc, derr := encx.ReadSchemaDoc(rc)
 	_ = rc.Close()
 	if derr != nil {
 		env.AddError(string(errors.ENCODING_INVALID), "invalid schema doc: "+derr.Error(), nil)
@@ -390,7 +391,7 @@ func inspectArchive(data []byte, opts *InspectOptions) *Envelope {
 	// each one for the authoritative per-shard record count.
 	var cumulative int64
 	for _, entry := range arch.Entries() {
-		if entry.Name == encoding.ReservedSchemaName {
+		if entry.Name == encx.ReservedSchemaName {
 			continue
 		}
 		count, perr := arch.PeekShardRecordCount(entry.Name)
@@ -491,15 +492,15 @@ func renderGroups(result *InspectResult, schema *encoding.Schema, version byte, 
 		LogicalRecordStride:  schema.Logical().RecordByteSize(),
 	}
 	for g := range schema.Groups {
-		spec := schema.GroupSpecOf(g)
-		v := encoding.AssessGroup(schema, g, rows, encoding.DefaultDedupRatioFloor)
-		verdict := encoding.GroupVerdictAdmitted
+		spec := encx.GroupSpecOf(schema, g)
+		v := encx.AssessGroup(schema, g, rows, encx.DefaultDedupRatioFloor)
+		verdict := encx.GroupVerdictAdmitted
 		// GrowsFile is the raw byte fact for every kind; the verdict is
 		// the import gate's judgement, which never judges a constant
 		// group or an empty cohort.
 		grows := v.ByteDelta >= 0
 		if low, _ := v.Finding(); low {
-			verdict = encoding.GroupVerdictLowRatio
+			verdict = encx.GroupVerdictLowRatio
 		}
 		kind := schema.Groups[g].Kind.String()
 		result.Groups = append(result.Groups, &InspectGroup{
@@ -531,7 +532,7 @@ func renderGroups(result *InspectResult, schema *encoding.Schema, version byte, 
 
 // nonKeyMembers is spec.Members minus spec.Key, in member order; with no
 // key every member is returned.
-func nonKeyMembers(spec encoding.GroupSpec) []string {
+func nonKeyMembers(spec encx.GroupSpec) []string {
 	if len(spec.Key) == 0 {
 		return spec.Members
 	}

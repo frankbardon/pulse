@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -31,7 +32,7 @@ var importFlags = []cli.Flag{
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 	&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
 	&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
-	&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encoding.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
+	&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
 	&cli.BoolFlag{Name: "strict", Usage: "Treat parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) as errors: the import fails and writes nothing"},
 }
 
@@ -199,7 +200,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 // the import leaves and `import auto` share it so the text cannot drift.
 func writeGroupReports(w io.Writer, groups []pio.GroupReport) {
 	for _, g := range groups {
-		if g.Verdict == encoding.GroupVerdictDroppedTooNarrow {
+		if g.Verdict == encx.GroupVerdictDroppedTooNarrow {
 			writeText(w, "Parent %s: dropped, %d-byte members no wider than the %d-byte index\n", g.Label, g.MemberRowBytes, g.IndexWidth)
 			continue
 		}
@@ -224,7 +225,7 @@ func importPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "suggest-groups", Usage: "Detect candidate parent groups (a key and the fields it determines) and measure each over every row: ratio, resident dictionary bytes, projected file size and a ready-to-paste --group value. Suggests only; nothing is declared"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Evaluate a parent-group declaration exactly as 'import <format> --group' would apply it (same syntax, repeatable): its verdict and measured figures, or the error the import would fail with"},
 			&cli.BoolFlag{Name: "elide-constants", Usage: "Report the fields 'import <format> --elide-constants' would elide and the bytes saved"},
-			&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encoding.DefaultDedupRatioFloor, Usage: "Ratio floor the --group and --suggest-groups verdicts are judged against"},
+			&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Ratio floor the --group and --suggest-groups verdicts are judged against"},
 			&cli.BoolFlag{Name: "strict", Usage: "Fail as 'import <format> --strict' would when a --group draws a viability warning"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -320,7 +321,7 @@ func writePredictMeasured(cmd *cli.Command, report *pio.PredictReport) {
 		writeText(w, "Would elide constant fields (%d bytes saved): %s\n", report.Projection.ElisionBytesSaved, strings.Join(report.ElidedConstants, ", "))
 	}
 	for _, g := range report.Groups {
-		if g.Verdict == encoding.GroupVerdictDroppedTooNarrow {
+		if g.Verdict == encx.GroupVerdictDroppedTooNarrow {
 			writeText(w, "Parent %s: would be dropped, %d-byte members no wider than the %d-byte index\n", g.Label, g.MemberRowBytes, g.IndexWidth)
 			continue
 		}
@@ -349,7 +350,7 @@ func writeGroupCandidates(w io.Writer, d *pio.GroupDetection) {
 		case pio.CandidateVerdictUnmeasured:
 			writeText(w, "%s %s: %s (%s) members %s\n", mark, c.Label, c.Verdict, c.Reason, strings.Join(c.Members, ","))
 			continue
-		case encoding.GroupVerdictDroppedTooNarrow:
+		case encx.GroupVerdictDroppedTooNarrow:
 			writeText(w, "%s %s: %s, %d-byte members no wider than the %d-byte index\n", mark, c.Label, c.Verdict, c.MemberRowBytes, c.IndexWidth)
 			continue
 		}

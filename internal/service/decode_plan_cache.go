@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // retainedFromFilter walks the schema once and returns the names of
@@ -16,7 +17,7 @@ import (
 //
 // A nil keep is treated as "every field retained", matching the
 // FieldFilter convention used throughout the encoding package.
-func retainedFromFilter(schema *encoding.Schema, keep encoding.FieldFilter) []string {
+func retainedFromFilter(schema *encoding.Schema, keep encx.FieldFilter) []string {
 	if schema == nil {
 		return nil
 	}

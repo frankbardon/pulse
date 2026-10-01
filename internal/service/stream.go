@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
 )
@@ -21,7 +22,7 @@ type streamingIterator struct {
 	schema *encoding.Schema
 
 	// Underlying reader state.
-	reader    *encoding.RecordReader
+	reader    *encx.RecordReader
 	closer    io.Closer // non-nil when reading from afero.File
 	rawReader io.Reader // may be *bytes.Reader for Reset support
 
@@ -65,7 +66,7 @@ type streamingIterator struct {
 	// aligned; only the map writes are skipped. nil means full
 	// decode (the default). projectSize is a hint for the per-record
 	// map allocation when projection is active.
-	project     encoding.FieldFilter
+	project     encx.FieldFilter
 	projectSize int
 
 	// plan is the precomputed DecodePlan for (it.schema, retained set
@@ -76,7 +77,7 @@ type streamingIterator struct {
 	// today's behaviour. planKey memoises the sorted retained set so
 	// re-calling SetProjection with the same retained set reuses the
 	// existing plan rather than rebuilding.
-	plan    *encoding.DecodePlan
+	plan    *encx.DecodePlan
 	planKey string
 }
 
@@ -151,7 +152,7 @@ func (it *streamingIterator) initFromReader(r io.Reader) {
 		return
 	}
 	it.rawReader = r
-	it.reader = encoding.NewRecordReader(r, it.schema)
+	it.reader = encx.NewRecordReader(r, it.schema)
 }
 
 // Next advances to the next record. Returns false when exhausted or on error.
@@ -274,7 +275,7 @@ func (it *streamingIterator) Next() bool {
 // full-decode path used today.
 //
 // MUST be called before the first Next() call.
-func (it *streamingIterator) SetProjection(keep encoding.FieldFilter, size int) {
+func (it *streamingIterator) SetProjection(keep encx.FieldFilter, size int) {
 	it.project = keep
 	it.projectSize = size
 	it.binding = nil
@@ -294,7 +295,7 @@ func (it *streamingIterator) SetProjection(keep encoding.FieldFilter, size int) 
 // no-op (defensive — the iterator constructor always wires the
 // schema), as is a BuildDecodePlan error (no plan today emits one,
 // but the contract is reserved).
-func (it *streamingIterator) installPlan(keep encoding.FieldFilter) {
+func (it *streamingIterator) installPlan(keep encx.FieldFilter) {
 	if it.schema == nil {
 		return
 	}
@@ -307,7 +308,7 @@ func (it *streamingIterator) installPlan(keep encoding.FieldFilter) {
 		// implicit.
 		return
 	}
-	plan, err := it.schema.BuildDecodePlan(retained)
+	plan, err := encx.BuildDecodePlan(it.schema, retained)
 	if err != nil {
 		// BuildDecodePlan reserves the error slot for future shape
 		// validation; today it always returns nil. On error, drop

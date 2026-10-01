@@ -38,12 +38,16 @@ var belowFacade = []string{
 
 // iocoreAllowed is the complete set of intra-module packages the
 // contracts leaf may reach. It is a LEAF: anything wider and an adapter
-// importing it would drag engine code under the facade.
+// importing it would drag engine code under the facade. The .pulse codec
+// counts as one unit: public encoding, its internal twin and the bridge
+// between them.
 var iocoreAllowed = map[string]bool{
-	modulePrefix + "/internal/iocore": true,
-	modulePrefix + "/encoding":        true,
-	modulePrefix + "/errors":          true,
-	modulePrefix + "/types":           true,
+	modulePrefix + "/internal/iocore":         true,
+	modulePrefix + "/encoding":                true,
+	modulePrefix + "/internal/encoding":       true,
+	modulePrefix + "/internal/encodingbridge": true,
+	modulePrefix + "/errors":                  true,
+	modulePrefix + "/types":                   true,
 }
 
 // goListPackages expands a package pattern into its import paths.
@@ -126,7 +130,7 @@ func TestIOImportBoundary(t *testing.T) {
 	for _, dep := range goListDeps(t, modulePrefix+"/internal/iocore") {
 		if strings.HasPrefix(dep, modulePrefix+"/") || dep == modulePrefix {
 			if !iocoreAllowed[dep] {
-				t.Errorf("internal/iocore depends on %s; the contracts leaf may reach only encoding, errors and types", dep)
+				t.Errorf("internal/iocore depends on %s; the contracts leaf may reach only the encoding codec, errors and types", dep)
 			}
 		}
 	}

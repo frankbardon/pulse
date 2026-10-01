@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -84,7 +85,7 @@ func TestImport_DecimalRoundTrip(t *testing.T) {
 		t.Errorf("scale = %d, want %d", got, want)
 	}
 
-	rr := encoding.NewRecordReader(rdr, gotSchema)
+	rr := encx.NewRecordReader(rdr, gotSchema)
 	values := map[string]float64{}
 	nulls := map[string]bool{}
 	wide := map[string]any{}

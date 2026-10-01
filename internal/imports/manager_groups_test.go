@@ -12,6 +12,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	pio "github.com/frankbardon/pulse/io"
 
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -60,7 +61,7 @@ func TestManager_Open_Groups_WritesGroupedCohort(t *testing.T) {
 	if got := versionByte(t, afs, res.Path); got != 0x02 {
 		t.Fatalf("version byte = 0x%02x, want 0x02 for a grouped cohort", got)
 	}
-	if len(res.Groups) != 1 || res.Groups[0].Verdict != encoding.GroupVerdictAdmitted || res.Groups[0].EntryCount != 10 {
+	if len(res.Groups) != 1 || res.Groups[0].Verdict != encx.GroupVerdictAdmitted || res.Groups[0].EntryCount != 10 {
 		t.Fatalf("Groups = %+v, want one admitted group of 10 tuples", res.Groups)
 	}
 	if len(res.GroupWarnings) != 0 {
@@ -83,8 +84,8 @@ func TestManager_Open_Groups_LowRatioWarnsAtDefaultFloor(t *testing.T) {
 	if len(res.GroupWarnings) != 1 || res.GroupWarnings[0].Code != perr.PULSE_DEDUP_LOW_RATIO {
 		t.Fatalf("GroupWarnings = %v, want one PULSE_DEDUP_LOW_RATIO", res.GroupWarnings)
 	}
-	if res.Groups[0].RatioFloor != encoding.DefaultDedupRatioFloor {
-		t.Errorf("RatioFloor = %v, want the default %v", res.Groups[0].RatioFloor, encoding.DefaultDedupRatioFloor)
+	if res.Groups[0].RatioFloor != encx.DefaultDedupRatioFloor {
+		t.Errorf("RatioFloor = %v, want the default %v", res.Groups[0].RatioFloor, encx.DefaultDedupRatioFloor)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
 )
@@ -68,7 +69,7 @@ func footprintKeep4(name string) bool {
 	return false
 }
 
-func materializeFootprintKeep(fs afero.Fs, path string, schema *encoding.Schema, keep encoding.FieldFilter) ([]*processing.Record, error) {
+func materializeFootprintKeep(fs afero.Fs, path string, schema *encoding.Schema, keep encx.FieldFilter) ([]*processing.Record, error) {
 	it := newStreamingIterator(fs, path, schema)
 	defer it.Close()
 	if keep != nil {

@@ -1,6 +1,10 @@
 package iocore
 
-import "github.com/frankbardon/pulse/encoding"
+import (
+	"github.com/frankbardon/pulse/encoding"
+
+	encx "github.com/frankbardon/pulse/internal/encoding"
+)
 
 // Set-width selection, exported so there is exactly ONE ladder.
 //
@@ -36,7 +40,7 @@ import "github.com/frankbardon/pulse/encoding"
 // tokens and a declared response set of N constituents land on the same
 // rung by construction rather than by agreement.
 func SetTypeFor(elements int) (encoding.FieldType, bool) {
-	return encoding.SetTypeFor(elements)
+	return encx.SetTypeFor(elements)
 }
 
 // WidestSetType returns the top rung of the ladder — the widest set_*
@@ -46,7 +50,7 @@ func SetTypeFor(elements int) (encoding.FieldType, bool) {
 // than writing "set_u256" into a string, so the message cannot outlive
 // the type it names.
 func WidestSetType() encoding.FieldType {
-	return encoding.WidestSetType()
+	return encx.WidestSetType()
 }
 
 // MaxSetElements returns how many elements the widest rung addresses —

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -190,7 +191,7 @@ func TestBuildIndexAndLookup_WideSetCohort(t *testing.T) {
 	if _, err := p.BuildIndex(context.Background(), "battery.pulse", []string{"id"}); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
 	}
-	idxPath := encoding.SidecarIndexPath("battery.pulse", []string{"id"})
+	idxPath := encx.SidecarIndexPath("battery.pulse", []string{"id"})
 	exists, err := afero.Exists(memFs, idxPath)
 	if err != nil {
 		t.Fatalf("afero.Exists: %v", err)

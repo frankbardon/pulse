@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	"github.com/spf13/afero"
@@ -606,7 +607,7 @@ func TestSetEmptyMask_SurvivesImportEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}
-	rr := encoding.NewRecordReader(f, schema)
+	rr := encx.NewRecordReader(f, schema)
 
 	for i, tc := range []struct {
 		mask   uint64

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 )
 
@@ -46,7 +47,7 @@ func residualPair(sec *synth.ModelResidualCorrelationFidelity, a, b string) *syn
 // computes both can tell that the section reported the second one.
 func syntheticValueCorrelation(t *testing.T, schema *encoding.Schema, records []byte, a, b string) float64 {
 	t.Helper()
-	rr := encoding.NewRecordReader(bytes.NewReader(records), schema)
+	rr := encx.NewRecordReader(bytes.NewReader(records), schema)
 	values := make(map[string]float64, len(schema.Fields))
 	nulls := make(map[string]bool, len(schema.Fields))
 	var xs, ys []float64

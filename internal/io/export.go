@@ -12,6 +12,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -158,7 +159,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	// which is byte-for-byte the row the ungrouped twin stores, and walk
 	// the logical schema's fields and bitmap exactly as for 0x01.
 	if schema.HasGroups() {
-		lr, logical, err := encoding.NewLogicalStream(r, schema)
+		lr, logical, err := encx.NewLogicalStream(r, schema)
 		if err != nil {
 			return nil, err
 		}

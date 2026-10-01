@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
@@ -160,7 +161,7 @@ func buildNullableShardArchive(t testing.TB, schema *encoding.Schema, shardRows 
 		offset += n
 	}
 	var doc bytes.Buffer
-	if err := encoding.WriteSchemaDoc(&doc, schema, total, uint16(len(shardRows))); err != nil {
+	if err := encx.WriteSchemaDoc(&doc, schema, total, uint16(len(shardRows))); err != nil {
 		t.Fatalf("WriteSchemaDoc: %v", err)
 	}
 	var buf bytes.Buffer
@@ -174,7 +175,7 @@ func buildNullableShardArchive(t testing.TB, schema *encoding.Schema, shardRows 
 			t.Fatalf("zip write: %v", err)
 		}
 	}
-	write(encoding.ReservedSchemaName, doc.Bytes())
+	write(encx.ReservedSchemaName, doc.Bytes())
 	for i := range payloads {
 		write(fmt.Sprintf("s%d.pulse", i), payloads[i])
 	}

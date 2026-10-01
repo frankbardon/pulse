@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
 )
@@ -62,9 +62,9 @@ func BenchmarkJoinShape_RunSkip(b *testing.B) {
 		"sorted":    data[len(data)-rows*schema.RecordByteSize():],
 		"scattered": scattered[len(scattered)-rows*schema.RecordByteSize():],
 	}
-	scan := func(order string, keep encoding.FieldFilter, plan *encoding.DecodePlan, skip bool) func() (int, error) {
+	scan := func(order string, keep encx.FieldFilter, plan *encx.DecodePlan, skip bool) func() (int, error) {
 		return func() (int, error) {
-			rr := encoding.NewRecordReader(bytes.NewReader(payloads[order]), schema)
+			rr := encx.NewRecordReader(bytes.NewReader(payloads[order]), schema)
 			rec := processing.NewReusableRecord(schema)
 			n := 0
 			for {
@@ -82,15 +82,15 @@ func BenchmarkJoinShape_RunSkip(b *testing.B) {
 			}
 		}
 	}
-	projPlan, err := schema.BuildDecodePlan(retainedFromFilter(schema, joinShapeKeep4))
+	projPlan, err := encx.BuildDecodePlan(schema, retainedFromFilter(schema, joinShapeKeep4))
 	if err != nil {
 		b.Fatal(err)
 	}
 	for _, tc := range []struct {
 		order string
 		shape string
-		keep  encoding.FieldFilter
-		plan  *encoding.DecodePlan
+		keep  encx.FieldFilter
+		plan  *encx.DecodePlan
 		// minSpeedup gates no-compare / run-skip; 0 = report only.
 		minSpeedup float64
 	}{

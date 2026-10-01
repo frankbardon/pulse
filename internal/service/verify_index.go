@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -137,7 +137,7 @@ func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []stri
 		fsys = s.fs.Fs()
 	}
 
-	indexPath := encoding.SidecarIndexPath(path, keyFields)
+	indexPath := encx.SidecarIndexPath(path, keyFields)
 	exists, err := afero.Exists(fsys, indexPath)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
@@ -149,7 +149,7 @@ func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []stri
 			map[string]any{"cohort": path, "fields": keyFields, "index_path": indexPath})
 	}
 
-	meta, err := encoding.ReadIndexMetaFile(fsys, indexPath)
+	meta, err := encx.ReadIndexMetaFile(fsys, indexPath)
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 )
 
@@ -25,16 +25,16 @@ func TestGroupedDecode_PositionalRecordParity(t *testing.T) {
 		for _, order := range []string{"sorted", "scattered"} {
 			for _, shape := range []string{"full", "proj4"} {
 				t.Run(fmt.Sprintf("w%d/%s/%s", w, order, shape), func(t *testing.T) {
-					var keep encoding.FieldFilter
-					var fplan, gplan *encoding.DecodePlan
+					var keep encx.FieldFilter
+					var fplan, gplan *encx.DecodePlan
 					if shape == "proj4" {
 						keep = groupWidthKeep4
 						fplan = baselinePlan(t, fs, keep)
 						gplan = baselinePlan(t, gs, keep)
 					}
-					rf := encoding.NewRecordReader(bytes.NewReader(regions["v1/"+order]), fs)
-					rg := encoding.NewRecordReader(bytes.NewReader(regions["v2/"+order]), gs)
-					rb := encoding.NewRecordReader(bytes.NewReader(regions["v2/"+order]), gs)
+					rf := encx.NewRecordReader(bytes.NewReader(regions["v1/"+order]), fs)
+					rg := encx.NewRecordReader(bytes.NewReader(regions["v2/"+order]), gs)
+					rb := encx.NewRecordReader(bytes.NewReader(regions["v2/"+order]), gs)
 					binding := recordBindingFor(gs, gplan, keep)
 					want := newNoSkipRecord(fs)
 					got := processing.NewReusableRecord(gs)

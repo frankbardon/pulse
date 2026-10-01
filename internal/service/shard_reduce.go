@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -92,7 +93,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening shard archive for parallel reduce: %s", path))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +227,7 @@ type shardPartial struct {
 // processOneShard streams one shard's records through fresh per-shard
 // OnlineAggregator instances (and per-group buckets when req.Groups is
 // non-empty). Returns a partial state ready for merging.
-func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encoding.Archive, shardName string) (*shardPartial, error) {
+func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encx.Archive, shardName string) (*shardPartial, error) {
 	sect, err := arch.OpenAt(shardName)
 	if err != nil {
 		return nil, err
@@ -241,7 +242,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q schema", shardName))
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 
 	// Pre-build per-shard operators. Each shard worker gets its own
 	// instance set so there's no shared mutable state across workers.

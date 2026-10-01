@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/spf13/afero"
 )
@@ -202,7 +203,7 @@ func synthesizeArchive(t *testing.T, canonical *encoding.Schema, shards []synthS
 	for _, sh := range shards {
 		total += uint64(len(sh.Records))
 	}
-	if err := encoding.WriteSchemaDoc(&schemaDoc, canonical, total, uint16(len(shards))); err != nil {
+	if err := encx.WriteSchemaDoc(&schemaDoc, canonical, total, uint16(len(shards))); err != nil {
 		t.Fatalf("WriteSchemaDoc: %v", err)
 	}
 
@@ -219,7 +220,7 @@ func synthesizeArchive(t *testing.T, canonical *encoding.Schema, shards []synthS
 		}
 	}
 
-	write(encoding.ReservedSchemaName, schemaDoc.Bytes())
+	write(encx.ReservedSchemaName, schemaDoc.Bytes())
 	for _, sh := range shards {
 		write(sh.Name, writeSinglePulse(t, sh.Schema, sh.Records))
 	}
@@ -236,7 +237,7 @@ func synthesizeArchiveWithRawPayload(t *testing.T, canonical *encoding.Schema, s
 	t.Helper()
 
 	var schemaDoc bytes.Buffer
-	if err := encoding.WriteSchemaDoc(&schemaDoc, canonical, 0, uint16(len(shards))); err != nil {
+	if err := encx.WriteSchemaDoc(&schemaDoc, canonical, 0, uint16(len(shards))); err != nil {
 		t.Fatalf("WriteSchemaDoc: %v", err)
 	}
 
@@ -253,7 +254,7 @@ func synthesizeArchiveWithRawPayload(t *testing.T, canonical *encoding.Schema, s
 		}
 	}
 
-	write(encoding.ReservedSchemaName, schemaDoc.Bytes())
+	write(encx.ReservedSchemaName, schemaDoc.Bytes())
 	for _, sh := range shards {
 		write(sh.Name, sh.Payload)
 	}

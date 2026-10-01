@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Measured import predict and candidate parent-group detection.
@@ -665,7 +666,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 	for i := range twin.Fields {
 		twin.Fields[i].Nullable = true
 	}
-	det, err := encoding.NewConstantDetector(twin)
+	det, err := encx.NewConstantDetector(twin)
 	if err != nil {
 		return nil, err
 	}
@@ -771,9 +772,9 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 
 	// Declared groups: the same ratio gate Run applies, over the
 	// dictionaries Run would build.
-	allSpecs := append([]encoding.GroupSpec(nil), specs...)
+	allSpecs := append([]encx.GroupSpec(nil), specs...)
 	if j.ElideConstants {
-		plan, err := encoding.PlanConstantElisionFor(sizing, det.ConstantFields(), int64(rows), groupMemberNames(specs))
+		plan, err := encx.PlanConstantElisionFor(sizing, det.ConstantFields(), int64(rows), groupMemberNames(specs))
 		if err != nil {
 			return nil, err
 		}
@@ -905,8 +906,8 @@ func (d *candidateDetector) finish(sizing *encoding.Schema, floor float64, rows,
 // sizing, with the first len(trackers) groups' dictionaries taken from
 // the trackers and any remaining (constant) group holding a stand-in
 // entry of the right width.
-func groupedSizing(sizing *encoding.Schema, specs []encoding.GroupSpec, trackers []*fdTracker) (*encoding.Schema, error) {
-	enc, err := encoding.NewGroupEncoder(sizing, specs)
+func groupedSizing(sizing *encoding.Schema, specs []encx.GroupSpec, trackers []*fdTracker) (*encoding.Schema, error) {
+	enc, err := encx.NewGroupEncoder(sizing, specs)
 	if err != nil {
 		return nil, err
 	}
@@ -923,7 +924,7 @@ func groupedSizing(sizing *encoding.Schema, specs []encoding.GroupSpec, trackers
 // measureCandidates turns the confirmed trackers into ranked, judged
 // candidates and picks the non-overlapping suggested set.
 func measureCandidates(det *GroupDetection, sizing *encoding.Schema, nominees []nominee, cands []*fdTracker, floor float64, rows, flatBytes int64) error {
-	gate := encoding.DedupGate{RatioFloor: floor} // candidates are never strict
+	gate := encx.DedupGate{RatioFloor: floor} // candidates are never strict
 	for i, t := range cands {
 		key := sizing.Fields[nominees[i].key].Name
 		var members, rejected []string
@@ -951,17 +952,17 @@ func measureCandidates(det *GroupDetection, sizing *encoding.Schema, nominees []
 			continue
 		}
 		spec := GroupDecl{Key: c.Key, Members: members}.spec()
-		_, screen, _, err := gate.ScreenWidths(sizing, []encoding.GroupSpec{spec})
+		_, screen, _, err := gate.ScreenWidths(sizing, []encx.GroupSpec{spec})
 		if err != nil {
 			return err
 		}
 		v := screen[0]
-		if v.Verdict != encoding.GroupVerdictDroppedTooNarrow {
-			grouped, err := groupedSizing(sizing, []encoding.GroupSpec{spec}, []*fdTracker{t})
+		if v.Verdict != encx.GroupVerdictDroppedTooNarrow {
+			grouped, err := groupedSizing(sizing, []encx.GroupSpec{spec}, []*fdTracker{t})
 			if err != nil {
 				return err
 			}
-			views, _, err := gate.AssessRatios(grouped, []encoding.GroupSpec{spec}, rows)
+			views, _, err := gate.AssessRatios(grouped, []encx.GroupSpec{spec}, rows)
 			if err != nil {
 				return err
 			}
@@ -985,9 +986,9 @@ func measureCandidates(det *GroupDetection, sizing *encoding.Schema, nominees []
 	// first), then the dropped and unmeasured ones.
 	rank := func(c GroupCandidate) int {
 		switch c.Verdict {
-		case encoding.GroupVerdictAdmitted, encoding.GroupVerdictLowRatio:
+		case encx.GroupVerdictAdmitted, encx.GroupVerdictLowRatio:
 			return 0
-		case encoding.GroupVerdictDroppedTooNarrow:
+		case encx.GroupVerdictDroppedTooNarrow:
 			return 1
 		}
 		return 2
@@ -1003,7 +1004,7 @@ func measureCandidates(det *GroupDetection, sizing *encoding.Schema, nominees []
 	for i := range det.Candidates {
 		c := &det.Candidates[i]
 		c.Label = fmt.Sprintf("candidate %d [key: %s]", i+1, strings.Join(c.Key, ","))
-		if c.Verdict != encoding.GroupVerdictAdmitted {
+		if c.Verdict != encx.GroupVerdictAdmitted {
 			continue
 		}
 		fields := append(append([]string(nil), c.Key...), c.Members...)
@@ -1028,7 +1029,7 @@ func measureCandidates(det *GroupDetection, sizing *encoding.Schema, nominees []
 // preambleBytes is the size of s's header + schema block.
 func preambleBytes(s *encoding.Schema) (int64, error) {
 	var cw byteCounter
-	if err := encoding.WritePreamble(&cw, s); err != nil {
+	if err := encx.WritePreamble(&cw, s); err != nil {
 		return 0, err
 	}
 	return cw.n, nil

@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
@@ -82,12 +83,12 @@ func (g gShard) schema() *encoding.Schema {
 	return &encoding.Schema{Fields: fields}
 }
 
-func (g gShard) specs() []encoding.GroupSpec {
+func (g gShard) specs() []encx.GroupSpec {
 	members := []string{"parent", "region", "weight"}
 	if g.tagRung != 0 {
 		members = append(members, "tags")
 	}
-	return []encoding.GroupSpec{
+	return []encx.GroupSpec{
 		{Kind: encoding.GroupKindIndexed, Members: members, Key: []string{"parent"}},
 		{Kind: encoding.GroupKindConstant, Members: []string{"src"}},
 	}
@@ -103,7 +104,7 @@ func (g gShard) isNull(p int) bool {
 // build returns the shard's flat bytes, its grouped twin (grouped by
 // specs, or by the fixture's own specs when specs is nil) and the row
 // count.
-func (g gShard) build(t *testing.T, specs []encoding.GroupSpec) (flat, grouped []byte, rows int) {
+func (g gShard) build(t *testing.T, specs []encx.GroupSpec) (flat, grouped []byte, rows int) {
 	t.Helper()
 	schema := g.schema()
 	var recs [][]uint64
@@ -137,7 +138,7 @@ func (g gShard) build(t *testing.T, specs []encoding.GroupSpec) (flat, grouped [
 		specs = g.specs()
 	}
 	var out bytes.Buffer
-	if _, n, err := encoding.DedupCohort(&out, bytes.NewReader(flat), specs); err != nil || n != int64(len(recs)) {
+	if _, n, err := encx.DedupCohort(&out, bytes.NewReader(flat), specs); err != nil || n != int64(len(recs)) {
 		t.Fatalf("DedupCohort: %d rows, %v", n, err)
 	}
 	return flat, out.Bytes(), len(recs)
@@ -247,8 +248,8 @@ func gVerifyClean(t *testing.T, svc *Service, path string) *VerifyResult {
 	return res
 }
 
-func gRegroupWarnings(ws []encoding.CohesionWarning) []encoding.CohesionWarning {
-	var out []encoding.CohesionWarning
+func gRegroupWarnings(ws []encx.CohesionWarning) []encx.CohesionWarning {
+	var out []encx.CohesionWarning
 	for _, w := range ws {
 		if w.Code == string(errors.PULSE_SHARD_GROUPS_REWRITTEN) {
 			out = append(out, w)
@@ -418,7 +419,7 @@ func TestShardGroups_CreateAndAddAgree(t *testing.T) {
 func TestShardGroups_MixedLayouts(t *testing.T) {
 	a1, a2, _ := gShardA().build(t, nil)
 	b1, b2, bRows := gShardB().build(t, nil)
-	_, bOther, _ := gShardB().build(t, []encoding.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"parent", "region"}}})
+	_, bOther, _ := gShardB().build(t, []encx.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"parent", "region"}}})
 	svc, fsys := gEnv(t, map[string][]byte{
 		"g/a.pulse": a2, "f/a.pulse": a1,
 		"g/b.pulse": b2, "f/b.pulse": b1, "o/b.pulse": bOther,

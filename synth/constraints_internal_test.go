@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // representativeFieldSpecs gives one minimal, valid FieldSpec per type
@@ -370,7 +371,7 @@ func TestConstraints_NonBooleanFieldsUnchanged(t *testing.T) {
 	if f == nil || f.Dictionary == nil {
 		t.Fatal("region is not categorical")
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := make(map[string]float64)
 	nulls := make(map[string]bool)
 	rows := 0
@@ -405,7 +406,7 @@ func decodeConstraintTestField(t *testing.T, data []byte, name string) ([]float6
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	var vals []float64
 	var isNull []bool
 	values := make(map[string]float64)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 )
 
@@ -113,7 +114,7 @@ func buildGroupWidthCohort(b testing.TB, parentW, parents int) (*encoding.Schema
 	b.Helper()
 	s := groupWidthSchema(parentW)
 	var out bytes.Buffer
-	if err := encoding.WritePreamble(&out, s); err != nil {
+	if err := encx.WritePreamble(&out, s); err != nil {
 		b.Fatal(err)
 	}
 	rng := rand.New(rand.NewPCG(groupWidthSeed, uint64(parentW)))
@@ -166,7 +167,7 @@ func groupWidthTwins(b testing.TB, parentW, parents int) (fs, gs *encoding.Schem
 		members = append(members, fs.Fields[i].Name)
 	}
 	var grouped bytes.Buffer
-	gs, n, err := encoding.DedupCohort(&grouped, bytes.NewReader(flat), []encoding.GroupSpec{
+	gs, n, err := encx.DedupCohort(&grouped, bytes.NewReader(flat), []encx.GroupSpec{
 		{Kind: encoding.GroupKindIndexed, Members: members, Key: []string{"p_00"}},
 	})
 	if err != nil {
@@ -212,11 +213,11 @@ func BenchmarkGroupedDecode_ParentWidth(b *testing.B) {
 						if v == "v2" {
 							s = gs
 						}
-						var keep encoding.FieldFilter
-						var plan *encoding.DecodePlan
+						var keep encx.FieldFilter
+						var plan *encx.DecodePlan
 						if shape == "proj4" {
 							keep = groupWidthKeep4
-							p, err := s.BuildDecodePlan(retainedFromFilter(s, keep))
+							p, err := encx.BuildDecodePlan(s, retainedFromFilter(s, keep))
 							if err != nil {
 								b.Fatal(err)
 							}
@@ -224,7 +225,7 @@ func BenchmarkGroupedDecode_ParentWidth(b *testing.B) {
 						}
 						region := regions[v+"/"+order]
 						scan := func() (int, error) {
-							rr := encoding.NewRecordReader(bytes.NewReader(region), s)
+							rr := encx.NewRecordReader(bytes.NewReader(region), s)
 							var reused *processing.Record
 							var binding *processing.RecordBinding
 							if mode == "reuse" {

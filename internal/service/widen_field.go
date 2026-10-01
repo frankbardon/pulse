@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // WidenSetField widens the set column named field in the single-file
@@ -56,7 +57,7 @@ func (s *Service) WidenSetField(_ context.Context, path, field string, target en
 			map[string]any{"cohort": path, "layout": "shard_archive"})
 	}
 
-	return encoding.WidenSetFieldFile(s.fs.Fs(), path, field, target)
+	return encx.WidenSetFieldFile(s.fs.Fs(), path, field, target)
 }
 
 // pathIsShardArchive reports whether the file at path begins with the
@@ -79,5 +80,5 @@ func (s *Service) pathIsShardArchive(path string) (bool, error) {
 		return false, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("reading magic prefix from cohort file: %s", path))
 	}
-	return n >= 4 && magic == encoding.ZipMagic, nil
+	return n >= 4 && magic == encx.ZipMagic, nil
 }

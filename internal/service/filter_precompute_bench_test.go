@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
@@ -70,7 +70,7 @@ func BenchmarkFilterPrecompute(b *testing.B) {
 			s = gsch
 		}
 		var buf bytes.Buffer
-		if err := encoding.WritePreamble(&buf, s); err != nil {
+		if err := encx.WritePreamble(&buf, s); err != nil {
 			b.Fatal(err)
 		}
 		buf.Write(region)
@@ -95,13 +95,13 @@ func BenchmarkFilterPrecompute(b *testing.B) {
 				pre := a.name == "v2-pre"
 				// Pre-decoded rows, projected to what the filter reads.
 				needed := processing.NeededFields(&types.Request{Filterers: chain}, s, nil)
-				keep := encoding.FieldFilter(func(n string) bool { return needed.Has(n) })
-				plan, err := s.BuildDecodePlan(retainedFromFilter(s, keep))
+				keep := encx.FieldFilter(func(n string) bool { return needed.Has(n) })
+				plan, err := encx.BuildDecodePlan(s, retainedFromFilter(s, keep))
 				if err != nil {
 					b.Fatal(err)
 				}
 				binding := recordBindingFor(s, plan, keep)
-				rr := encoding.NewRecordReader(bytes.NewReader(regions[a.cohort+"/"+order]), s)
+				rr := encx.NewRecordReader(bytes.NewReader(regions[a.cohort+"/"+order]), s)
 				recs := make([]*processing.Record, 0, rows)
 				for {
 					rec := binding.NewRecord()

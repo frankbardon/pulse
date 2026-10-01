@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // RunContinuationHighThreshold is the per-field rate at or above which
@@ -84,14 +85,14 @@ type FieldContinuation struct {
 type rowSource struct {
 	buf []byte
 	br  bytes.Reader
-	x   *encoding.RowExpander
+	x   *encx.RowExpander
 	row []byte
 }
 
 func newRowSource(schema *encoding.Schema) (*rowSource, error) {
 	s := &rowSource{buf: make([]byte, schema.RecordByteSize())}
 	if schema.HasGroups() {
-		x, err := encoding.NewRowExpander(schema)
+		x, err := encx.NewRowExpander(schema)
 		if err != nil {
 			return nil, err
 		}

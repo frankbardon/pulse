@@ -7,6 +7,7 @@ import (
 	"weak"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // recordLayout is the binding a positional Record resolves names and
@@ -121,7 +122,7 @@ func layoutFor(s *encoding.Schema) *recordLayout {
 
 // buildLayout builds a layout over s storing the fields keep accepts
 // (every field when keep is nil).
-func buildLayout(s *encoding.Schema, keep encoding.FieldFilter) *recordLayout {
+func buildLayout(s *encoding.Schema, keep encx.FieldFilter) *recordLayout {
 	nSchema := len(s.Fields)
 	l := &recordLayout{nSchema: nSchema, index: make(map[string]int, nSchema)}
 	// The identity mapping (slot == position) holds only for a full
@@ -244,7 +245,7 @@ type RecordBinding struct {
 // name — so it is correct for any use; it is only SIZED for the decode
 // the projection describes. Pair it with the reader's DecodePlan for the
 // same keep.
-func BindRecords(schema *encoding.Schema, keep encoding.FieldFilter) *RecordBinding {
+func BindRecords(schema *encoding.Schema, keep encx.FieldFilter) *RecordBinding {
 	if keep == nil || schema == nil {
 		return &RecordBinding{schema: schema, layout: layoutFor(schema)}
 	}

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -105,7 +105,7 @@ func TestVerifyIndex_MTimeDriftFallsThroughToTheFingerprint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	fp, err := encoding.ComputeFingerprint(bytes.NewReader(raw))
+	fp, err := encx.ComputeFingerprint(bytes.NewReader(raw))
 	if err != nil {
 		t.Fatalf("ComputeFingerprint: %v", err)
 	}

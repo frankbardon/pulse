@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 
 	pulseerrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
@@ -157,7 +158,7 @@ func gatedRowStats(t *testing.T, data []byte) (gated, allNull int) {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := map[string]float64{}
 	nulls := map[string]bool{}
 	for {
@@ -448,7 +449,7 @@ func TestSuggestRules_NumericGatePredicateFiresOnEveryWireRow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := map[string]float64{}
 	nulls := map[string]bool{}
 	for {

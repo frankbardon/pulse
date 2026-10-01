@@ -269,6 +269,7 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 // Target floors:
 //
 //	encoding/    >= 95%
+//	internal/encoding/    >= 95%
 //	descriptor/  >= 95%
 //	internal/skills/      >= 95%
 //	errors/      >= 90%
@@ -285,6 +286,7 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 func TestPerPackageCoverageFloors(t *testing.T) {
 	floors := map[string]int{
 		"encoding":            95,
+		"internal/encoding":   95,
 		"descriptor":          95,
 		"internal/skills":     95,
 		"errors":              90,
@@ -299,8 +301,8 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 	}
 
 	// Verify the floor map is non-empty (structural sanity check).
-	if len(floors) != 12 {
-		t.Errorf("expected 12 coverage floor entries, got %d", len(floors))
+	if len(floors) != 13 {
+		t.Errorf("expected 13 coverage floor entries, got %d", len(floors))
 	}
 
 	// Verify each package directory exists.

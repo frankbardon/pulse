@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Reasons a GroupReconciliation records.
@@ -67,7 +68,7 @@ type shardMerge struct {
 	incoming  []byte
 	widened   []SetWidening
 	regrouped []GroupReconciliation
-	warnings  []encoding.CohesionWarning
+	warnings  []encx.CohesionWarning
 }
 
 // mergeShard folds one arriving shard into an archive whose canonical
@@ -96,12 +97,12 @@ func mergeShard(canonical *encoding.Schema, existing []shardPayload, incoming []
 	// dictionaries diverge from canonical, the union is adopted and the
 	// incoming bytes are rewritten to use canonical indices before being
 	// placed in the archive.
-	canon, remap, err := encoding.MergeDictUnion(canon, incSchema)
+	canon, remap, err := encx.MergeDictUnion(canon, incSchema)
 	if err != nil {
 		return nil, err
 	}
 	if len(remap) > 0 {
-		if incoming, err = encoding.RewriteShardCategoricals(incoming, canon, remap); err != nil {
+		if incoming, err = encx.RewriteShardCategoricals(incoming, canon, remap); err != nil {
 			return nil, err
 		}
 	}
@@ -123,7 +124,7 @@ func mergeShard(canonical *encoding.Schema, existing []shardPayload, incoming []
 // path flattens first). Returns the reconciled canonical schema, the
 // reconciled incoming bytes and their schema.
 func reconcileFlat(m *shardMerge, canonical *encoding.Schema, existing []shardPayload, incoming []byte, incSchema *encoding.Schema, archivePath string) (*encoding.Schema, []byte, *encoding.Schema, error) {
-	plans, err := encoding.PlanSetWidening(canonical, incSchema)
+	plans, err := encx.PlanSetWidening(canonical, incSchema)
 	if err != nil {
 		// A width overflow past the widest rung is the one fatal
 		// set-width verdict and names itself precisely. Anything else
@@ -131,7 +132,7 @@ func reconcileFlat(m *shardMerge, canonical *encoding.Schema, existing []shardPa
 		// and the structural validator has the better diagnostic — so
 		// give it the chance to speak before falling back.
 		if !errors.HasCode(err, errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW) {
-			if _, cerr := encoding.ValidateStructuralCohesion(canonical, incSchema); cerr != nil {
+			if _, cerr := encx.ValidateStructuralCohesion(canonical, incSchema); cerr != nil {
 				return nil, nil, nil, cerr
 			}
 		}
@@ -155,7 +156,7 @@ func reconcileFlat(m *shardMerge, canonical *encoding.Schema, existing []shardPa
 			return nil, nil, nil, err
 		}
 	}
-	cohesionWarnings, err := encoding.ValidateStructuralCohesion(canonical, incSchema)
+	cohesionWarnings, err := encx.ValidateStructuralCohesion(canonical, incSchema)
 	m.warnings = append(m.warnings, cohesionWarnings...)
 	if err != nil {
 		return nil, nil, nil, err
@@ -201,7 +202,7 @@ func reconcileFlat(m *shardMerge, canonical *encoding.Schema, existing []shardPa
 // row field's); PULSE_SHARD_SET_WIDENED reports it.
 func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPayload, incoming []byte, name, archivePath string) (*shardMerge, error) {
 	m := &shardMerge{}
-	flatInc, incLogical, err := encoding.FlattenCohortBytes(incoming)
+	flatInc, incLogical, err := encx.FlattenCohortBytes(incoming)
 	if err != nil {
 		return nil, shardErr(err, name)
 	}
@@ -218,7 +219,7 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPa
 		flattened = true
 		stored = make([]shardPayload, len(existing))
 		for i, sh := range existing {
-			b, _, ferr := encoding.FlattenCohortBytes(sh.payload)
+			b, _, ferr := encx.FlattenCohortBytes(sh.payload)
 			if ferr != nil {
 				return shardErr(ferr, sh.name)
 			}
@@ -229,7 +230,7 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPa
 
 	// An archive-side set widen re-lays-out every stored shard, so their
 	// logical form must exist before the widen runs over it.
-	plans, err := encoding.PlanSetWidening(canonFlat, incLogical)
+	plans, err := encx.PlanSetWidening(canonFlat, incLogical)
 	rebuild := false
 	if err == nil {
 		for _, p := range plans {
@@ -245,7 +246,7 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPa
 	if err != nil {
 		return nil, err
 	}
-	canonFlat, remap, err := encoding.MergeDictUnion(canonFlat, incLogical)
+	canonFlat, remap, err := encx.MergeDictUnion(canonFlat, incLogical)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +259,7 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPa
 		// twin — byte-identical to adding that twin directly, so the
 		// ordinary categorical rewrite applies unchanged.
 		if len(remap) > 0 {
-			if flatInc, err = encoding.RewriteShardCategoricals(flatInc, canonFlat, remap); err != nil {
+			if flatInc, err = encx.RewriteShardCategoricals(flatInc, canonFlat, remap); err != nil {
 				return nil, err
 			}
 		}
@@ -280,19 +281,19 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPa
 	if len(remap) > 0 {
 		// Null placeholders keep their bytes: they are part of a group
 		// entry's identity (see RewriteShardCategoricalsKeepNulls).
-		if flatInc, err = encoding.RewriteShardCategoricalsKeepNulls(flatInc, canonFlat, remap); err != nil {
+		if flatInc, err = encx.RewriteShardCategoricalsKeepNulls(flatInc, canonFlat, remap); err != nil {
 			return nil, err
 		}
 	}
 
-	specs := encoding.GroupSpecsOf(canonical)
+	specs := encx.GroupSpecsOf(canonical)
 	var promoted []int
 	var incRows, storedRows int64
 	for {
 		if !rebuild {
 			// Cheap path: seed with the canonical dictionaries and encode
 			// only the arrival.
-			enc, err := encoding.NewGroupEncoder(canonFlat, specs)
+			enc, err := encx.NewGroupEncoder(canonFlat, specs)
 			if err != nil {
 				return nil, err
 			}
@@ -323,7 +324,7 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPa
 		// Rebuild: every shard re-encoded, fresh dictionaries in archive
 		// order (the stored shards, then the arrival), so the canonical
 		// dictionary is again a union built canonical-first.
-		enc, err := encoding.NewGroupEncoder(canonFlat, specs)
+		enc, err := encx.NewGroupEncoder(canonFlat, specs)
 		if err != nil {
 			return nil, err
 		}
@@ -378,11 +379,11 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPa
 	if err != nil {
 		return nil, err
 	}
-	if _, err := encoding.ValidateStructuralCohesion(m.canonical, regrouped); err != nil {
+	if _, err := encx.ValidateStructuralCohesion(m.canonical, regrouped); err != nil {
 		return nil, err
 	}
 
-	if encoding.ValidateGroupCohesion(canonical, incSchema) != nil {
+	if encx.ValidateGroupCohesion(canonical, incSchema) != nil {
 		rec := GroupReconciliation{
 			Reason:                RegroupIncomingRegrouped,
 			Groups:                groupLabels(canonical, nil),
@@ -412,9 +413,9 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, existing []shardPa
 
 // encodeLogicalShard encodes a logical (0x01) shard's rows through enc
 // and returns the physical rows and their count.
-func encodeLogicalShard(enc *encoding.GroupEncoder, flat []byte) ([]byte, int64, error) {
+func encodeLogicalShard(enc *encx.GroupEncoder, flat []byte) ([]byte, int64, error) {
 	r := bytes.NewReader(flat)
-	if _, _, err := encoding.ReadPreamble(r); err != nil {
+	if _, _, err := encx.ReadPreamble(r); err != nil {
 		return nil, 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"reading shard preamble for regrouping")
 	}
@@ -431,7 +432,7 @@ func encodeLogicalShard(enc *encoding.GroupEncoder, flat []byte) ([]byte, int64,
 func assembleShard(schema *encoding.Schema, rows []byte) ([]byte, error) {
 	var out bytes.Buffer
 	out.Grow(len(rows) + 4096)
-	if err := encoding.WritePreamble(&out, schema); err != nil {
+	if err := encx.WritePreamble(&out, schema); err != nil {
 		return nil, err
 	}
 	out.Write(rows)
@@ -441,7 +442,7 @@ func assembleShard(schema *encoding.Schema, rows []byte) ([]byte, error) {
 // promotableConstant reports whether err is a CONSTANT group seeing a
 // second value — the one encoder refusal a shard merge resolves (by
 // promoting the group to indexed) rather than propagates.
-func promotableConstant(err error, specs []encoding.GroupSpec) (int, bool) {
+func promotableConstant(err error, specs []encx.GroupSpec) (int, bool) {
 	if err == nil || !errors.HasCode(err, errors.PULSE_GROUP_MEMBER_NOT_CONSTANT) {
 		return 0, false
 	}
@@ -487,12 +488,12 @@ func groupLabels(s *encoding.Schema, only []int) []string {
 	var out []string
 	if only == nil {
 		for g := range s.Groups {
-			out = append(out, s.GroupSpecOf(g).Label(g))
+			out = append(out, encx.GroupSpecOf(s, g).Label(g))
 		}
 		return out
 	}
 	for _, g := range only {
-		out = append(out, s.GroupSpecOf(g).Label(g))
+		out = append(out, encx.GroupSpecOf(s, g).Label(g))
 	}
 	return out
 }
@@ -502,7 +503,7 @@ func groupLabels(s *encoding.Schema, only []int) []string {
 // re-encoded, and whether the archive itself moved — for the reason
 // PULSE_SHARD_SET_WIDENED exists: an expensive rewrite that happens
 // silently is indistinguishable from a cheap append.
-func groupsRewrittenWarning(r GroupReconciliation, archive string) encoding.CohesionWarning {
+func groupsRewrittenWarning(r GroupReconciliation, archive string) encx.CohesionWarning {
 	var msg string
 	switch r.Reason {
 	case RegroupIncomingFlattened:
@@ -515,7 +516,7 @@ func groupsRewrittenWarning(r GroupReconciliation, archive string) encoding.Cohe
 		msg = fmt.Sprintf("the arriving shard holds a second value for constant parent group(s) %v, so they were promoted to indexed groups across the whole archive: every record of all %d shard(s) in %s was re-encoded (%d records, each row gains a 4-byte group index)",
 			r.Groups, r.ShardsRewritten, archive, r.RecordsRewritten)
 	}
-	return encoding.CohesionWarning{
+	return encx.CohesionWarning{
 		Code:    string(errors.PULSE_SHARD_GROUPS_REWRITTEN),
 		Message: msg,
 		Details: map[string]any{

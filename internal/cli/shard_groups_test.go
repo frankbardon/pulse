@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // TestCliShardGroups_JsonSurfacesRegroupAndHeadroom (E5-S3): a grouped
@@ -26,8 +27,8 @@ func TestCliShardGroups_JsonSurfacesRegroupAndHeadroom(t *testing.T) {
 		t.Fatal(err)
 	}
 	var grouped bytes.Buffer
-	if _, _, err := encoding.DedupCohort(&grouped, bytes.NewReader(raw),
-		[]encoding.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"opts"}}}); err != nil {
+	if _, _, err := encx.DedupCohort(&grouped, bytes.NewReader(raw),
+		[]encx.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"opts"}}}); err != nil {
 		t.Fatal(err)
 	}
 	g1 := filepath.Join(dir, "g1.pulse")

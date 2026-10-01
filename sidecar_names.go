@@ -3,7 +3,7 @@ package pulse
 import (
 	"strings"
 
-	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/spsssidecar"
 )
@@ -16,9 +16,9 @@ import (
 // The constants are referenced rather than re-spelled so a suffix
 // rename in the owning package cannot silently un-skip its sidecar.
 var pulseSidecarSuffixes = []string{
-	imports.SidecarSuffix,        // ".meta.json"    — managed-import handle metadata
-	spsssidecar.Suffix,           // ".spss.json"    — SPSS dictionary metadata
-	encoding.IndexManifestSuffix, // ".indexes.json" — sidecar point-lookup index catalog
+	imports.SidecarSuffix,    // ".meta.json"    — managed-import handle metadata
+	spsssidecar.Suffix,       // ".spss.json"    — SPSS dictionary metadata
+	encx.IndexManifestSuffix, // ".indexes.json" — sidecar point-lookup index catalog
 }
 
 // isPulseSidecarName reports whether name is one of Pulse's own

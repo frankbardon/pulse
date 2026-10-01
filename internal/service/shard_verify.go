@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -21,8 +22,8 @@ import (
 // reshaping. encoding.CohesionWarning is the canonical warning carrier
 // (shared with insert-time cohesion validators).
 type VerifyResult struct {
-	Errors   []*errors.CodedError       `json:"errors"`
-	Warnings []encoding.CohesionWarning `json:"warnings"`
+	Errors   []*errors.CodedError   `json:"errors"`
+	Warnings []encx.CohesionWarning `json:"warnings"`
 
 	// SetWidthHeadroom reports, per set_* field in the canonical
 	// schema, how much bitmask capacity is left and which rung a widen
@@ -41,7 +42,7 @@ type VerifyResult struct {
 	// SetWidthHeadroom: a union past the u32 space is fatal
 	// (PULSE_SHARD_DICT_WIDTH_OVERFLOW), and a constant group's next
 	// distinct value promotes it archive-wide. Nil for ungrouped archives.
-	GroupIndexHeadroom []encoding.GroupIndexHeadroom `json:"group_index_headroom,omitempty"`
+	GroupIndexHeadroom []encx.GroupIndexHeadroom `json:"group_index_headroom,omitempty"`
 }
 
 // VerifyShardArchive walks the archive at archivePath and re-validates
@@ -83,7 +84,7 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("VerifyShardArchive: reading archive %s", archivePath))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
 		return nil, err
 	}
@@ -94,13 +95,13 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 	}
 
 	result := &VerifyResult{
-		SetWidthHeadroom:   encoding.SetWidthHeadroomFor(canonicalDoc.Schema),
-		GroupIndexHeadroom: encoding.GroupIndexHeadroomFor(canonicalDoc.Schema),
+		SetWidthHeadroom:   encx.SetWidthHeadroomFor(canonicalDoc.Schema),
+		GroupIndexHeadroom: encx.GroupIndexHeadroomFor(canonicalDoc.Schema),
 	}
 	var liveAggregate uint64
 
 	for _, e := range arch.Entries() {
-		if e.Name == encoding.ReservedSchemaName {
+		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
 
@@ -128,7 +129,7 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 
 		// (3) Structural cohesion. Per-field description divergence
 		// surfaces as warnings; everything else is fatal for this shard.
-		warnings, cerr := encoding.ValidateStructuralCohesion(canonicalDoc.Schema, shardSchema)
+		warnings, cerr := encx.ValidateStructuralCohesion(canonicalDoc.Schema, shardSchema)
 		for _, w := range warnings {
 			result.Warnings = append(result.Warnings, decorateWarning(w, e.Name))
 		}
@@ -141,7 +142,7 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 		// (canonical extends incoming) is fine at verify time — the
 		// archive's canonical schema is authoritative — but neither-is-
 		// prefix raises PULSE_SHARD_DICT_DIVERGENCE.
-		if _, derr := encoding.ValidateDictPrefixRule(canonicalDoc.Schema, shardSchema); derr != nil {
+		if _, derr := encx.ValidateDictPrefixRule(canonicalDoc.Schema, shardSchema); derr != nil {
 			result.Errors = append(result.Errors, attachShardName(coerceCodedError(derr), e.Name))
 			continue
 		}
@@ -164,7 +165,7 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 	// archive was edited outside Pulse (or interrupted between schema
 	// rewrite and shard placement); Compact will refresh the cache.
 	if len(result.Errors) == 0 && liveAggregate != canonicalDoc.AggregateRecordCount {
-		result.Warnings = append(result.Warnings, encoding.CohesionWarning{
+		result.Warnings = append(result.Warnings, encx.CohesionWarning{
 			Code: "PULSE_SHARD_AGGREGATE_DRIFT",
 			Message: fmt.Sprintf(
 				"canonical aggregate_record_count (%d) does not match the live per-shard sum (%d); run `pulse shard compact` to refresh the cached value",
@@ -234,7 +235,7 @@ func attachShardName(ce *errors.CodedError, name string) *errors.CodedError {
 // warning is yielded unchanged when its Details already carries an
 // entry field (the structural validator never sets one today, but the
 // guard keeps the decorator idempotent for future validators).
-func decorateWarning(w encoding.CohesionWarning, name string) encoding.CohesionWarning {
+func decorateWarning(w encx.CohesionWarning, name string) encx.CohesionWarning {
 	if w.Details == nil {
 		w.Details = map[string]any{}
 	}

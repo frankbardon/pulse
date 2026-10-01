@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
 )
@@ -44,7 +45,7 @@ func TestStreamingIterator_BufferedPositionalMatchesMapDecode(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		keep encoding.FieldFilter
+		keep encx.FieldFilter
 	}{
 		{"full", nil},
 		{"projected", keep},
@@ -52,7 +53,7 @@ func TestStreamingIterator_BufferedPositionalMatchesMapDecode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			it := newStreamingIterator(mem, "/c.pulse", schema)
 			defer it.Close()
-			var plan *encoding.DecodePlan
+			var plan *encx.DecodePlan
 			if tc.keep != nil {
 				it.SetProjection(tc.keep, len(retained))
 				plan = it.plan
@@ -60,7 +61,7 @@ func TestStreamingIterator_BufferedPositionalMatchesMapDecode(t *testing.T) {
 					t.Fatal("SetProjection installed no plan")
 				}
 			}
-			ref := encoding.NewRecordReader(bytes.NewReader(payload), schema)
+			ref := encx.NewRecordReader(bytes.NewReader(payload), schema)
 			n := 0
 			for it.Next() {
 				got := it.Record()

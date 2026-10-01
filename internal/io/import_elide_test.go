@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -105,7 +106,7 @@ func TestImportJob_ElideConstants(t *testing.T) {
 func payloadLen(t *testing.T, raw []byte) int {
 	t.Helper()
 	r := bytes.NewReader(raw)
-	if _, _, err := encoding.ReadPreamble(r); err != nil {
+	if _, _, err := encx.ReadPreamble(r); err != nil {
 		t.Fatal(err)
 	}
 	return r.Len()

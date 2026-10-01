@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Full-type parity for the positional Record: every one of the 20 field
@@ -333,7 +334,7 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 	// Reference: the map decoder, the pre-positional record population.
 	var mapRecs []*Record
 	{
-		rr := encoding.NewRecordReader(bytes.NewReader(fx.raw), schema)
+		rr := encx.NewRecordReader(bytes.NewReader(fx.raw), schema)
 		for {
 			values, nulls, wide := map[string]float64{}, map[string]bool{}, map[string]any{}
 			if err := rr.ReadRecordWithWide(values, nulls, wide); err == io.EOF {
@@ -356,14 +357,14 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 	}
 	fullStride := func(fresh, shim bool) func(t *testing.T) func() (*Record, error) {
 		return func(t *testing.T) func() (*Record, error) {
-			rr := encoding.NewRecordReader(bytes.NewReader(fx.raw), schema)
+			rr := encx.NewRecordReader(bytes.NewReader(fx.raw), schema)
 			reused := NewReusableRecord(schema)
 			return func() (*Record, error) {
 				rec := reused
 				if fresh {
 					rec = NewReusableRecord(schema)
 				}
-				var target encoding.ReusableRecord = rec
+				var target encx.ReusableRecord = rec
 				if shim {
 					target = nameKeyedOnly{rec}
 				}
@@ -373,7 +374,7 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 	}
 	planned := func(retained []string) func(t *testing.T) func() (*Record, error) {
 		return func(t *testing.T) func() (*Record, error) {
-			plan, err := schema.BuildDecodePlan(retained)
+			plan, err := encx.BuildDecodePlan(schema, retained)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -383,7 +384,7 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 			}
 			keep := func(n string) bool { return set[n] }
 			binding := BindRecords(schema, keep)
-			rr := encoding.NewRecordReader(bytes.NewReader(fx.raw), schema)
+			rr := encx.NewRecordReader(bytes.NewReader(fx.raw), schema)
 			return func() (*Record, error) {
 				rec := binding.NewRecord()
 				return rec, rr.ReadRecordReusedWithPlan(rec, keep, plan)
@@ -393,7 +394,7 @@ func TestRecord_AllFieldTypesPositionalParity(t *testing.T) {
 	// The map-decoder path decodes its own records: the row-1 check
 	// mutates them, and mapRecs must stay the pristine reference.
 	mapPath := func(t *testing.T) func() (*Record, error) {
-		rr := encoding.NewRecordReader(bytes.NewReader(fx.raw), schema)
+		rr := encx.NewRecordReader(bytes.NewReader(fx.raw), schema)
 		return func() (*Record, error) {
 			values, nulls, wide := map[string]float64{}, map[string]bool{}, map[string]any{}
 			if err := rr.ReadRecordWithWide(values, nulls, wide); err != nil {
@@ -496,7 +497,7 @@ func TestRecord_TypedSetDecodeAllocatesNothing(t *testing.T) {
 	}
 	raw := buf.Bytes()
 	src := bytes.NewReader(raw)
-	rr := encoding.NewRecordReader(src, schema)
+	rr := encx.NewRecordReader(src, schema)
 	rec := NewReusableRecord(schema)
 	if err := rr.ReadRecordReused(rec); err != nil { // warm: sizes aux storage
 		t.Fatal(err)
@@ -558,10 +559,10 @@ func TestRecord_DuplicateFieldNamesKeepMapSemantics(t *testing.T) {
 	}
 	raw := buf.Bytes()
 
-	mapRR := encoding.NewRecordReader(bytes.NewReader(raw), schema)
-	posRR := encoding.NewRecordReader(bytes.NewReader(raw), schema)
-	planRR := encoding.NewRecordReader(bytes.NewReader(raw), schema)
-	plan, err := schema.BuildDecodePlan([]string{"a", "s"})
+	mapRR := encx.NewRecordReader(bytes.NewReader(raw), schema)
+	posRR := encx.NewRecordReader(bytes.NewReader(raw), schema)
+	planRR := encx.NewRecordReader(bytes.NewReader(raw), schema)
+	plan, err := encx.BuildDecodePlan(schema, []string{"a", "s"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -694,7 +695,7 @@ func TestRecord_CopyIntoProjectedAndDuplicateLayouts(t *testing.T) {
 	fx := buildParityFixture(t)
 	schema := fx.schema
 	src := NewReusableRecord(schema)
-	rr := encoding.NewRecordReader(bytes.NewReader(fx.raw), schema)
+	rr := encx.NewRecordReader(bytes.NewReader(fx.raw), schema)
 	if err := rr.ReadRecordReused(src); err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // TestTypeFromPulse_EveryLadderRungIsAStringList walks the CANONICAL
@@ -21,7 +22,7 @@ import (
 // package.
 func TestTypeFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
 	want := arrow.ListOf(arrow.BinaryTypes.String)
-	ladder := encoding.SetLadder()
+	ladder := encx.SetLadder()
 	if len(ladder) == 0 {
 		t.Fatal("encoding.SetLadder() is empty")
 	}
@@ -40,7 +41,7 @@ func TestTypeFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
 // delegating to TypeFromPulse.
 func TestFieldFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
 	want := arrow.ListOf(arrow.BinaryTypes.String)
-	for _, ft := range encoding.SetLadder() {
+	for _, ft := range encx.SetLadder() {
 		af := FieldFromPulse(encoding.Field{Name: "sel", Type: ft, Nullable: true})
 		if !arrow.TypeEqual(af.Type, want) {
 			t.Errorf("FieldFromPulse(%s).Type = %s, want %s", ft, af.Type, want)
@@ -62,7 +63,7 @@ func TestFieldFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
 // narrowest rung as a starting point, and naming it locally is how a
 // third width table gets born.
 func TestTypeToPulse_ListSeedsTheLaddersNarrowestRung(t *testing.T) {
-	ladder := encoding.SetLadder()
+	ladder := encx.SetLadder()
 	if len(ladder) == 0 {
 		t.Fatal("encoding.SetLadder() is empty")
 	}
@@ -94,9 +95,9 @@ func TestTypeToPulse_ListSeedsTheLaddersNarrowestRung(t *testing.T) {
 // behind it. encoding.SetTypeFor is the single selector; a rung that
 // fits N elements must be the rung Arrow would land on after inference.
 func TestSetLadder_ArrowHasNoWidthTableOfItsOwn(t *testing.T) {
-	for _, ft := range encoding.SetLadder() {
+	for _, ft := range encx.SetLadder() {
 		n := int(ft.MaxSetEntries())
-		fitted, ok := encoding.SetTypeFor(n)
+		fitted, ok := encx.SetTypeFor(n)
 		if !ok {
 			t.Fatalf("encoding.SetTypeFor(%d) declined, but %s holds that many", n, ft)
 		}
@@ -105,7 +106,7 @@ func TestSetLadder_ArrowHasNoWidthTableOfItsOwn(t *testing.T) {
 		}
 		// And the Arrow type for that rung is width-blind: the external
 		// form of a set is a token list at every width.
-		if !arrow.TypeEqual(TypeFromPulse(fitted), TypeFromPulse(encoding.SetLadder()[0])) {
+		if !arrow.TypeEqual(TypeFromPulse(fitted), TypeFromPulse(encx.SetLadder()[0])) {
 			t.Errorf("%s maps to a different Arrow type than the narrowest rung", fitted)
 		}
 	}

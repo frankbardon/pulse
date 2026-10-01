@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
@@ -63,20 +64,20 @@ func strideParallelCohorts(t *testing.T) map[string][]byte {
 		}
 	}
 	flat := writeNullablePulse(t, schema, recs, func(r, f int) bool { return f == 3 && (r/9)%5 == 0 })
-	dedup := func(specs []encoding.GroupSpec) []byte {
+	dedup := func(specs []encx.GroupSpec) []byte {
 		var out bytes.Buffer
-		if _, n, err := encoding.DedupCohort(&out, bytes.NewReader(flat), specs); err != nil || n != strideParallelRows {
+		if _, n, err := encx.DedupCohort(&out, bytes.NewReader(flat), specs); err != nil || n != strideParallelRows {
 			t.Fatalf("DedupCohort: %d rows, %v", n, err)
 		}
 		return out.Bytes()
 	}
 	return map[string][]byte{
 		"flat": flat,
-		"grouped": dedup([]encoding.GroupSpec{
+		"grouped": dedup([]encx.GroupSpec{
 			{Kind: encoding.GroupKindIndexed, Members: []string{"parent", "region", "weight"}, Key: []string{"parent"}},
 			{Kind: encoding.GroupKindConstant, Members: []string{"src"}},
 		}),
-		"elided": dedup([]encoding.GroupSpec{{Kind: encoding.GroupKindConstant, Members: []string{"src"}}}),
+		"elided": dedup([]encx.GroupSpec{{Kind: encoding.GroupKindConstant, Members: []string{"src"}}}),
 	}
 }
 
@@ -184,15 +185,15 @@ func TestStrideSites_ParallelDecodeSplitsOnPhysicalRecords(t *testing.T) {
 			// record count silently drops below the threshold and falls
 			// back to serial.
 			needed := processing.NeededFields(req(path), schema, nil)
-			keep := encoding.FieldFilter(func(name string) bool { return needed.Has(name) })
-			projected, err := schema.BuildDecodePlan(retainedFromFilter(schema, keep))
+			keep := encx.FieldFilter(func(name string) bool { return needed.Has(name) })
+			projected, err := encx.BuildDecodePlan(schema, retainedFromFilter(schema, keep))
 			if err != nil {
 				t.Fatal(err)
 			}
 			for _, arm := range []struct {
 				name string
-				plan *encoding.DecodePlan
-				keep encoding.FieldFilter
+				plan *encx.DecodePlan
+				keep encx.FieldFilter
 				hint int
 			}{{"full", nil, nil, len(schema.Fields)}, {"projected", projected, keep, needed.Len()}} {
 				pctx, cleanup, available, err := buildParallelDecodeContext(svc, path, schema, arm.plan, arm.keep, arm.hint)

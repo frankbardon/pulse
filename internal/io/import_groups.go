@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Import-time parent-group declaration (format 0x02).
@@ -38,8 +39,8 @@ type GroupDecl struct {
 
 // spec lowers the declaration to the encoder's GroupSpec: Members =
 // Key ∪ Members (key first), Key = Key.
-func (d GroupDecl) spec() encoding.GroupSpec {
-	sp := encoding.GroupSpec{Kind: encoding.GroupKindIndexed}
+func (d GroupDecl) spec() encx.GroupSpec {
+	sp := encx.GroupSpec{Kind: encoding.GroupKindIndexed}
 	sp.Members = append(append(sp.Members, d.Key...), d.Members...)
 	if len(d.Key) > 0 {
 		sp.Key = append([]string(nil), d.Key...)
@@ -48,11 +49,11 @@ func (d GroupDecl) spec() encoding.GroupSpec {
 }
 
 // groupSpecs lowers every declaration.
-func groupSpecs(decls []GroupDecl) []encoding.GroupSpec {
+func groupSpecs(decls []GroupDecl) []encx.GroupSpec {
 	if len(decls) == 0 {
 		return nil
 	}
-	out := make([]encoding.GroupSpec, len(decls))
+	out := make([]encx.GroupSpec, len(decls))
 	for i, d := range decls {
 		out[i] = d.spec()
 	}
@@ -153,7 +154,7 @@ type GroupReport struct {
 // from the width screen (one view per declaration) and the ratio
 // assessment (one view per ADMITTED declaration, in order). Admitted
 // declarations are the written schema's first groups.
-func groupReports(written *encoding.Schema, decls []GroupDecl, screen, ratio []encoding.GroupViability) []GroupReport {
+func groupReports(written *encoding.Schema, decls []GroupDecl, screen, ratio []encx.GroupViability) []GroupReport {
 	if len(decls) == 0 {
 		return nil
 	}
@@ -161,7 +162,7 @@ func groupReports(written *encoding.Schema, decls []GroupDecl, screen, ratio []e
 	wg := 0
 	for i, d := range decls {
 		v := screen[i]
-		admitted := v.Verdict != encoding.GroupVerdictDroppedTooNarrow
+		admitted := v.Verdict != encx.GroupVerdictDroppedTooNarrow
 		if admitted {
 			v = ratio[wg]
 		}
@@ -197,7 +198,7 @@ func groupReports(written *encoding.Schema, decls []GroupDecl, screen, ratio []e
 // groupMemberNames is every field an admitted group claims — the
 // reserved set constant elision must not touch. A group the gate
 // dropped reserves nothing: its members are ordinary row fields again.
-func groupMemberNames(specs []encoding.GroupSpec) []string {
+func groupMemberNames(specs []encx.GroupSpec) []string {
 	var out []string
 	for _, sp := range specs {
 		out = append(out, sp.Members...)
@@ -213,12 +214,12 @@ func groupMemberNames(specs []encoding.GroupSpec) []string {
 // rescreen reports that the caller must repeat it, strict, over the
 // final schema after the pass. With nothing declared everything is
 // nil.
-func (j *ImportJob) screenGroups(schema *encoding.Schema, widenable []bool) (specs []encoding.GroupSpec, views []encoding.GroupViability, warns []*errors.CodedError, rescreen bool, err error) {
+func (j *ImportJob) screenGroups(schema *encoding.Schema, widenable []bool) (specs []encx.GroupSpec, views []encx.GroupViability, warns []*errors.CodedError, rescreen bool, err error) {
 	declared := groupSpecs(j.Groups)
 	if len(declared) == 0 {
 		return nil, nil, nil, false, nil
 	}
-	if _, err := encoding.NewGroupEncoder(schema, declared); err != nil {
+	if _, err := encx.NewGroupEncoder(schema, declared); err != nil {
 		return nil, nil, nil, false, err
 	}
 	gate := j.dedupGate()
@@ -241,8 +242,8 @@ func (j *ImportJob) screenGroups(schema *encoding.Schema, widenable []bool) (spe
 }
 
 // dedupGate is the viability policy this job's options select.
-func (j *ImportJob) dedupGate() encoding.DedupGate {
-	return encoding.DedupGate{RatioFloor: j.DedupRatioFloor, Strict: j.StrictDedup}
+func (j *ImportJob) dedupGate() encx.DedupGate {
+	return encx.DedupGate{RatioFloor: j.DedupRatioFloor, Strict: j.StrictDedup}
 }
 
 // withSourceRow adds details["source_row"] — the 1-based data row of the

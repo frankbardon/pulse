@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -76,7 +76,7 @@ func TestLookup_MTimeDriftServesRowsWhenContentIsIdentical(t *testing.T) {
 	}
 	drifted := driftMTime(t, counting, "cohort.pulse")
 
-	meta, err := encoding.ReadIndexMetaFile(counting, encoding.SidecarIndexPath("cohort.pulse", []string{"id"}))
+	meta, err := encx.ReadIndexMetaFile(counting, encx.SidecarIndexPath("cohort.pulse", []string{"id"}))
 	if err != nil {
 		t.Fatalf("ReadIndexMetaFile: %v", err)
 	}

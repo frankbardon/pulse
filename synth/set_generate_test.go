@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )
@@ -35,7 +36,7 @@ func readSetFieldRows(t *testing.T, data []byte, name string) (masks []uint64, l
 	}
 	dictSize = f.Dictionary.Count()
 	opts := f.Dictionary.Values()
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := make(map[string]float64)
 	nulls := make(map[string]bool)
 	wide := make(map[string]any)

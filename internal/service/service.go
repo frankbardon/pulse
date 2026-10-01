@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
@@ -375,7 +376,7 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 //   - PULSE_SHARD_RESERVED_NAME — entry is the reserved `_schema.pulse`.
 //   - PULSE_SHARD_HEADER_INVALID / ENCODING_INVALID — the shard payload is malformed.
 func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Cohort, error) {
-	if entry == encoding.ReservedSchemaName {
+	if entry == encx.ReservedSchemaName {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot anchor-open the reserved canonical schema entry",
 			map[string]any{"entry": entry})
@@ -385,7 +386,7 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file for anchor: %s", archivePath))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
 	}
@@ -442,24 +443,24 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 // sanity check; the per-shard headers win.
 func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 	reader := bytes.NewReader(data)
-	arch, err := encoding.OpenArchive(reader, int64(len(data)))
+	arch, err := encx.OpenArchive(reader, int64(len(data)))
 	if err != nil {
 		return nil, err
 	}
 
 	// Read canonical schema + sharding metadata from the reserved
 	// _schema.pulse entry via ReadSchemaDoc.
-	rc, err := arch.Open(encoding.ReservedSchemaName)
+	rc, err := arch.Open(encx.ReservedSchemaName)
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
 
-	doc, err := encoding.ReadSchemaDoc(rc)
+	doc, err := encx.ReadSchemaDoc(rc)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading schema doc from %s in archive: %s",
-				encoding.ReservedSchemaName, path))
+				encx.ReservedSchemaName, path))
 	}
 
 	// Enumerate shard entries — every entry except the reserved
@@ -468,7 +469,7 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 	entries := arch.Entries()
 	shards := make([]ShardEntry, 0, len(entries))
 	for _, e := range entries {
-		if e.Name == encoding.ReservedSchemaName {
+		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
 		count, perr := arch.PeekShardRecordCount(e.Name)
@@ -716,8 +717,8 @@ func (s *Service) processSingleFileParallelMaybe(
 	// have installed. Mirrors installProjection in service.go and the
 	// streamingIterator.installPlan path in stream.go.
 	var (
-		keep           encoding.FieldFilter
-		plan           *encoding.DecodePlan
+		keep           encx.FieldFilter
+		plan           *encx.DecodePlan
 		projectMapHint = len(schema.Fields)
 	)
 	if s.projectBuffered {
@@ -728,7 +729,7 @@ func (s *Service) processSingleFileParallelMaybe(
 				keep = func(name string) bool { return needed.Has(name) }
 				projectMapHint = size
 				retained := retainedFromFilter(schema, keep)
-				if p, perr := schema.BuildDecodePlan(retained); perr == nil {
+				if p, perr := encx.BuildDecodePlan(schema, retained); perr == nil {
 					plan = p
 				}
 			}
@@ -789,7 +790,7 @@ func (s *Service) processSingleFileParallelMaybe(
 // processing.RecordIterator and consumes both uniformly.
 type scanIterator interface {
 	processing.RecordIterator
-	SetProjection(keep encoding.FieldFilter, size int)
+	SetProjection(keep encx.FieldFilter, size int)
 	SetReuse(reuse bool)
 	Err() error
 	Close() error

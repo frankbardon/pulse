@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -132,11 +133,11 @@ func TestFilterToFile_ShardArchive_ZeroMatches(t *testing.T) {
 	// pair-wise and compare the byte range up to the first record.
 	srcBytes, _ := afero.ReadFile(cfg.Fs(), "src.pulse")
 	dstBytes, _ := afero.ReadFile(cfg.Fs(), "dst.pulse")
-	srcArch, err := encoding.OpenArchive(bytes.NewReader(srcBytes), int64(len(srcBytes)))
+	srcArch, err := encx.OpenArchive(bytes.NewReader(srcBytes), int64(len(srcBytes)))
 	if err != nil {
 		t.Fatalf("OpenArchive src: %v", err)
 	}
-	dstArch, err := encoding.OpenArchive(bytes.NewReader(dstBytes), int64(len(dstBytes)))
+	dstArch, err := encx.OpenArchive(bytes.NewReader(dstBytes), int64(len(dstBytes)))
 	if err != nil {
 		t.Fatalf("OpenArchive dst: %v", err)
 	}
@@ -184,8 +185,8 @@ func TestFilterToFile_ShardArchive_AllMatch(t *testing.T) {
 
 	srcBytes, _ := afero.ReadFile(cfg.Fs(), "src.pulse")
 	dstBytes, _ := afero.ReadFile(cfg.Fs(), "dst.pulse")
-	srcArch, _ := encoding.OpenArchive(bytes.NewReader(srcBytes), int64(len(srcBytes)))
-	dstArch, _ := encoding.OpenArchive(bytes.NewReader(dstBytes), int64(len(dstBytes)))
+	srcArch, _ := encx.OpenArchive(bytes.NewReader(srcBytes), int64(len(srcBytes)))
+	dstArch, _ := encx.OpenArchive(bytes.NewReader(dstBytes), int64(len(dstBytes)))
 
 	for _, name := range []string{"a.pulse", "b.pulse", "c.pulse"} {
 		src := readShardOrFatal(t, srcArch, name)
@@ -218,7 +219,7 @@ func TestFilterToFile_ShardArchive_TrailerRefreshed(t *testing.T) {
 		t.Fatalf("FilterToFile: %v", err)
 	}
 	dstBytes, _ := afero.ReadFile(cfg.Fs(), "dst.pulse")
-	arch, err := encoding.OpenArchive(bytes.NewReader(dstBytes), int64(len(dstBytes)))
+	arch, err := encx.OpenArchive(bytes.NewReader(dstBytes), int64(len(dstBytes)))
 	if err != nil {
 		t.Fatalf("OpenArchive dst: %v", err)
 	}
@@ -245,8 +246,8 @@ func TestFilterToFile_ShardArchive_PerShardRecordRanges(t *testing.T) {
 
 	srcBytes, _ := afero.ReadFile(cfg.Fs(), "src.pulse")
 	dstBytes, _ := afero.ReadFile(cfg.Fs(), "dst.pulse")
-	srcArch, _ := encoding.OpenArchive(bytes.NewReader(srcBytes), int64(len(srcBytes)))
-	dstArch, _ := encoding.OpenArchive(bytes.NewReader(dstBytes), int64(len(dstBytes)))
+	srcArch, _ := encx.OpenArchive(bytes.NewReader(srcBytes), int64(len(srcBytes)))
+	dstArch, _ := encx.OpenArchive(bytes.NewReader(dstBytes), int64(len(dstBytes)))
 
 	recordSize := 0
 	for _, f := range schema.Fields {
@@ -352,7 +353,7 @@ func TestFilterToFile_AnchorSyntax(t *testing.T) {
 func TestFilterToFile_AnchorSyntax_ReservedRejected(t *testing.T) {
 	svc, _, _ := filterArchiveFixture(t, "arch.pulse")
 	_, err := svc.FilterToFile(context.Background(),
-		"arch.pulse#"+encoding.ReservedSchemaName, "dst.pulse", "id > 0")
+		"arch.pulse#"+encx.ReservedSchemaName, "dst.pulse", "id > 0")
 	if err == nil {
 		t.Fatal("expected reserved-name rejection, got nil")
 	}
@@ -411,7 +412,7 @@ func TestFilterToFile_ShardArchive_BadExpressionFailsBeforeWrite(t *testing.T) {
 	}
 }
 
-func readShardOrFatal(t *testing.T, arch *encoding.Archive, name string) []byte {
+func readShardOrFatal(t *testing.T, arch *encx.Archive, name string) []byte {
 	t.Helper()
 	rc, err := arch.Open(name)
 	if err != nil {
@@ -425,14 +426,14 @@ func readShardOrFatal(t *testing.T, arch *encoding.Archive, name string) []byte 
 	return b
 }
 
-func readSchemaDocOrFatal(t *testing.T, arch *encoding.Archive) *encoding.SchemaDoc {
+func readSchemaDocOrFatal(t *testing.T, arch *encx.Archive) *encx.SchemaDoc {
 	t.Helper()
-	rc, err := arch.Open(encoding.ReservedSchemaName)
+	rc, err := arch.Open(encx.ReservedSchemaName)
 	if err != nil {
 		t.Fatalf("Open _schema.pulse: %v", err)
 	}
 	defer rc.Close()
-	doc, err := encoding.ReadSchemaDoc(rc)
+	doc, err := encx.ReadSchemaDoc(rc)
 	if err != nil {
 		t.Fatalf("ReadSchemaDoc: %v", err)
 	}

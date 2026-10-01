@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/spf13/afero"
 )
@@ -107,7 +107,7 @@ func manifestService(t *testing.T, noList bool) (*Service, *bucketFs, [][]string
 func TestBuildIndex_PublishesTheKeyTupleAtAKeylessPath(t *testing.T) {
 	_, bucket, tuples := manifestService(t, true)
 
-	manifest, present, err := encoding.ReadIndexManifest(bucket, "cohort.pulse")
+	manifest, present, err := encx.ReadIndexManifest(bucket, "cohort.pulse")
 	if err != nil {
 		t.Fatalf("ReadIndexManifest: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestBuildIndex_PublishesTheKeyTupleAtAKeylessPath(t *testing.T) {
 		recovered[entry.IndexPath] = entry.KeyNames()
 	}
 	for _, keys := range tuples {
-		base := encoding.SidecarIndexPath("cohort.pulse", keys)
+		base := encx.SidecarIndexPath("cohort.pulse", keys)
 		got, ok := recovered[base]
 		if !ok {
 			t.Fatalf("manifest does not name the sidecar for %v (has %v)", keys, recovered)
@@ -181,15 +181,15 @@ func TestListIndexes_UnionsASidecarTheManifestDoesNotName(t *testing.T) {
 
 	// Forget one index in the manifest while leaving its sidecar on
 	// disk — exactly the shape a pre-manifest build leaves behind.
-	manifest, _, err := encoding.ReadIndexManifest(bucket, "cohort.pulse")
+	manifest, _, err := encx.ReadIndexManifest(bucket, "cohort.pulse")
 	if err != nil {
 		t.Fatalf("ReadIndexManifest: %v", err)
 	}
-	orphan := encoding.SidecarIndexPath("cohort.pulse", tuples[0])
+	orphan := encx.SidecarIndexPath("cohort.pulse", tuples[0])
 	if !manifest.Remove(orphan) {
 		t.Fatalf("fixture: manifest did not name %q", orphan)
 	}
-	if err := encoding.WriteIndexManifest(bucket, "cohort.pulse", manifest); err != nil {
+	if err := encx.WriteIndexManifest(bucket, "cohort.pulse", manifest); err != nil {
 		t.Fatalf("WriteIndexManifest: %v", err)
 	}
 
@@ -220,14 +220,14 @@ func TestListIndexes_UnionsASidecarTheManifestDoesNotName(t *testing.T) {
 func TestBuildIndex_SeedsTheManifestFromExistingSidecars(t *testing.T) {
 	svc, bucket, tuples := manifestService(t, false)
 
-	if err := bucket.Remove(encoding.IndexManifestPath("cohort.pulse")); err != nil {
+	if err := bucket.Remove(encx.IndexManifestPath("cohort.pulse")); err != nil {
 		t.Fatalf("Remove manifest: %v", err)
 	}
 	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"score"}); err != nil {
 		t.Fatalf("BuildIndex(score): %v", err)
 	}
 
-	manifest, present, err := encoding.ReadIndexManifest(bucket, "cohort.pulse")
+	manifest, present, err := encx.ReadIndexManifest(bucket, "cohort.pulse")
 	if err != nil {
 		t.Fatalf("ReadIndexManifest: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestBuildIndex_SeedsTheManifestFromExistingSidecars(t *testing.T) {
 func TestListIndexes_ManifestNamingAMissingSidecarIsStale(t *testing.T) {
 	svc, bucket, tuples := manifestService(t, false)
 
-	gone := encoding.SidecarIndexPath("cohort.pulse", tuples[0])
+	gone := encx.SidecarIndexPath("cohort.pulse", tuples[0])
 	if err := bucket.Remove(gone); err != nil {
 		t.Fatalf("Remove sidecar: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestListIndexes_ManifestNamingAMissingSidecarIsStale(t *testing.T) {
 func TestDropIndex_PrunesTheOrphanedManifestEntry(t *testing.T) {
 	svc, bucket, tuples := manifestService(t, false)
 
-	if err := bucket.Remove(encoding.SidecarIndexPath("cohort.pulse", tuples[0])); err != nil {
+	if err := bucket.Remove(encx.SidecarIndexPath("cohort.pulse", tuples[0])); err != nil {
 		t.Fatalf("Remove sidecar: %v", err)
 	}
 	if err := svc.DropIndex(context.Background(), "cohort.pulse", tuples[0]); err != nil {
@@ -312,11 +312,11 @@ func TestDropIndex_PrunesTheManifestEntryOfALiveIndex(t *testing.T) {
 		t.Fatalf("DropIndex: %v", err)
 	}
 
-	manifest, _, err := encoding.ReadIndexManifest(bucket, "cohort.pulse")
+	manifest, _, err := encx.ReadIndexManifest(bucket, "cohort.pulse")
 	if err != nil {
 		t.Fatalf("ReadIndexManifest: %v", err)
 	}
-	dropped := encoding.SidecarIndexPath("cohort.pulse", tuples[0])
+	dropped := encx.SidecarIndexPath("cohort.pulse", tuples[0])
 	for _, e := range manifest.Indexes {
 		if e.IndexPath == dropped {
 			t.Fatalf("manifest still names the dropped index %q", dropped)
@@ -336,7 +336,7 @@ func TestDropIndex_PrunesTheManifestEntryOfALiveIndex(t *testing.T) {
 func TestListIndexes_MalformedManifestIsRefusedNotDegraded(t *testing.T) {
 	svc, bucket, _ := manifestService(t, false)
 
-	if err := afero.WriteFile(bucket, encoding.IndexManifestPath("cohort.pulse"), []byte("{oops"), 0644); err != nil {
+	if err := afero.WriteFile(bucket, encx.IndexManifestPath("cohort.pulse"), []byte("{oops"), 0644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	if _, err := afero.ReadDir(bucket, "."); err != nil {
@@ -355,7 +355,7 @@ func TestListIndexes_MalformedManifestIsRefusedNotDegraded(t *testing.T) {
 func TestListIndexes_NoManifestFallsBackToTheDirectoryListing(t *testing.T) {
 	svc, bucket, tuples := manifestService(t, false)
 
-	if err := bucket.Remove(encoding.IndexManifestPath("cohort.pulse")); err != nil {
+	if err := bucket.Remove(encx.IndexManifestPath("cohort.pulse")); err != nil {
 		t.Fatalf("Remove manifest: %v", err)
 	}
 	got, err := svc.ListIndexes(context.Background(), "cohort.pulse")

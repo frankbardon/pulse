@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -440,7 +441,7 @@ func computeSetFieldFidelity(mergedSchema *encoding.Schema, records []byte, fiel
 	synSel := make([]int, n)
 	var srcN, synN int
 
-	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
+	rr := encx.NewRecordReader(bytes.NewReader(records), mergedSchema)
 	values := make(map[string]float64, len(mergedSchema.Fields))
 	nulls := make(map[string]bool, len(mergedSchema.Fields))
 	wide := make(map[string]any, len(mergedSchema.Fields))
@@ -565,7 +566,7 @@ type syntheticRow struct {
 // collapses that to O(records + pairs × synthetic_rows) — six full
 // decodes across the whole report instead of one per pair.
 func decodeSyntheticRows(mergedSchema *encoding.Schema, records []byte) []syntheticRow {
-	rr := encoding.NewRecordReader(bytes.NewReader(records), mergedSchema)
+	rr := encx.NewRecordReader(bytes.NewReader(records), mergedSchema)
 	var out []syntheticRow
 	for {
 		values := make(map[string]float64, len(mergedSchema.Fields))

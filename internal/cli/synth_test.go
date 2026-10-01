@@ -13,6 +13,7 @@ import (
 
 	pulse "github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 )
 
@@ -627,7 +628,7 @@ func readCohortRows(t *testing.T, path string) (vals []map[string]any, nulls []m
 	if err != nil {
 		t.Fatalf("ReadSchema(%s): %v", path, err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	for {
 		v := make(map[string]float64)
 		n := make(map[string]bool)

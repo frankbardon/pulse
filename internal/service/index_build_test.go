@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/spf13/afero"
 )
@@ -50,7 +51,7 @@ func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
 		t.Fatalf("BuildIndex: %v", err)
 	}
 
-	wantPath := encoding.SidecarIndexPath("cohort.pulse", []string{"id"})
+	wantPath := encx.SidecarIndexPath("cohort.pulse", []string{"id"})
 	if res.IndexPath != wantPath {
 		t.Errorf("IndexPath = %q, want %q", res.IndexPath, wantPath)
 	}
@@ -64,7 +65,7 @@ func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
 	}
 
 	// Byte-stable read-back via the E1-S1 codec.
-	got, err := encoding.ReadIndexFile(cfg.Fs(), wantPath)
+	got, err := encx.ReadIndexFile(cfg.Fs(), wantPath)
 	if err != nil {
 		t.Fatalf("ReadIndexFile: %v", err)
 	}
@@ -181,7 +182,7 @@ func TestBuildIndex_RowIDsPointAtCorrectRecords(t *testing.T) {
 				values := map[string]float64{}
 				nulls := map[string]bool{}
 				wide := map[string]any{}
-				if err := loc.ReadRecordAt(reader, rowID, values, nulls, wide, nil, nil); err != nil {
+				if err := encx.ReadRecordAt(loc, reader, rowID, values, nulls, wide, nil, nil); err != nil {
 					t.Fatalf("ReadRecordAt(%d): %v", rowID, err)
 				}
 				if uint32(values["id"]) != wantID {
@@ -210,7 +211,7 @@ func TestBuildIndex_FingerprintMatchesSourceContentHash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile cohort: %v", err)
 	}
-	want, err := encoding.ComputeFingerprint(bytes.NewReader(raw))
+	want, err := encx.ComputeFingerprint(bytes.NewReader(raw))
 	if err != nil {
 		t.Fatalf("ComputeFingerprint: %v", err)
 	}

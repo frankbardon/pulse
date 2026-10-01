@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )
@@ -597,7 +598,7 @@ func syntheticMeanByLevel(t *testing.T, schema *encoding.Schema, records []byte,
 	}
 	var sumA, sumB float64
 	var nA, nB int
-	rr := encoding.NewRecordReader(bytes.NewReader(records), schema)
+	rr := encx.NewRecordReader(bytes.NewReader(records), schema)
 	values := make(map[string]float64, len(schema.Fields))
 	nulls := make(map[string]bool, len(schema.Fields))
 	for {

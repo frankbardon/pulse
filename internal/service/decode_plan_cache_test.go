@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -115,14 +115,14 @@ func TestStreamingIterator_PlanDrivenDecodeMatchesFullDecode(t *testing.T) {
 // in installProjection), but the iterator API allows it.
 func TestStreamingIterator_PlanReadsTrueOnEmptyRetained(t *testing.T) {
 	schema := wideSchema()
-	plan, err := schema.BuildDecodePlan(nil)
+	plan, err := encx.BuildDecodePlan(schema, nil)
 	if err != nil {
 		t.Fatalf("BuildDecodePlan: %v", err)
 	}
 	if len(plan.Segments) != 1 {
 		t.Fatalf("empty retained set ⇒ 1 segment, got %d", len(plan.Segments))
 	}
-	sb, ok := plan.Segments[0].(encoding.SkipBytes)
+	sb, ok := plan.Segments[0].(encx.SkipBytes)
 	if !ok {
 		t.Fatalf("empty retained set ⇒ SkipBytes, got %T", plan.Segments[0])
 	}

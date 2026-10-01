@@ -353,55 +353,6 @@ func mantissaOrZero(d Decimal128) *big.Int {
 	return new(big.Int).Set(d.mantissa)
 }
 
-// PromoteAdd returns the (precision, scale) of a SUM/SUB result given two
-// operand types per SQL:2016 / Arrow Decimal128 rules:
-//
-//	(p1, s1) ± (p2, s2) => (max(p1-s1, p2-s2) + max(s1, s2) + 1, max(s1, s2))
-//
-// The result precision is clamped at MaxDecimalPrecision; clamping
-// callers must check ClampedPrecision and emit PULSE_DECIMAL_OVERFLOW
-// when overflow surfaces at runtime.
-func PromoteAdd(p1, s1, p2, s2 uint8) (uint8, uint8) {
-	intDigits := maxU8(p1-s1, p2-s2)
-	resScale := maxU8(s1, s2)
-	resPrec := intDigits + resScale + 1
-	if resPrec > MaxDecimalPrecision {
-		resPrec = MaxDecimalPrecision
-	}
-	return resPrec, resScale
-}
-
-// PromoteMul returns the (precision, scale) of a MUL result.
-//
-//	(p1, s1) × (p2, s2) => (p1 + p2, s1 + s2)
-func PromoteMul(p1, s1, p2, s2 uint8) (uint8, uint8) {
-	resScale := s1 + s2
-	resPrec := p1 + p2
-	if resPrec > MaxDecimalPrecision {
-		resPrec = MaxDecimalPrecision
-	}
-	return resPrec, resScale
-}
-
-// PromoteDiv returns the (precision, scale) of a DIV result.
-//
-//	(p1, s1) ÷ (p2, s2) => (p1 + s2 + 1, max(s1+s2, MIN_SCALE))
-func PromoteDiv(p1, s1, p2, s2 uint8) (uint8, uint8) {
-	resScale := maxU8(s1+s2, MinDecimalScale)
-	resPrec := p1 + s2 + 1
-	if resPrec > MaxDecimalPrecision {
-		resPrec = MaxDecimalPrecision
-	}
-	return resPrec, resScale
-}
-
-func maxU8(a, b uint8) uint8 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // EncodeDecimal128 serializes a Decimal128 as 16 bytes of two's-complement
 // little-endian integer.
 func EncodeDecimal128(d Decimal128) [16]byte {
@@ -545,22 +496,6 @@ func (d Decimal128) Sqrt(sourceScale, targetScale uint8) (Decimal128, error) {
 		}
 	}
 	return NewDecimal128FromBigInt(out)
-}
-
-// ValidatePrecisionScale reports whether (precision, scale) form a legal
-// decimal128 type spec (1 ≤ precision ≤ 38, 0 ≤ scale ≤ precision).
-func ValidatePrecisionScale(precision, scale uint8) error {
-	if precision < 1 || precision > MaxDecimalPrecision {
-		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
-			"decimal128 precision out of range",
-			map[string]any{"precision": precision})
-	}
-	if scale > precision {
-		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
-			"decimal128 scale exceeds precision",
-			map[string]any{"precision": precision, "scale": scale})
-	}
-	return nil
 }
 
 // FitsPrecision reports whether the mantissa fits in `precision` digits.

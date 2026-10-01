@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
@@ -316,7 +317,7 @@ func decodeSynthRows(raw []byte) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	var out []Row
 	for {
 		values := make(map[string]float64, len(schema.Fields))

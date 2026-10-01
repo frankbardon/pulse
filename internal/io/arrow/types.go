@@ -11,6 +11,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/decimal128"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/iocore"
 )
 
@@ -81,7 +82,7 @@ func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 		// FormatValue falls through to the generic stringifier, which
 		// produces a representation the convertValue set path will fail
 		// to parse meaningfully.
-		return encoding.SetLadder()[0]
+		return encx.SetLadder()[0]
 	default:
 		return encoding.FieldTypeF64
 	}

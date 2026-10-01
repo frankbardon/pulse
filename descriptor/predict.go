@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -827,7 +828,7 @@ func predictFromBytes(data []byte, req *types.Request, opts *PredictOptions) *En
 // schema, not of its shape (see PredictResult.Streamable docs).
 func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Envelope {
 	reader := bytes.NewReader(data)
-	arch, err := encoding.OpenArchive(reader, int64(len(data)))
+	arch, err := encx.OpenArchive(reader, int64(len(data)))
 	if err != nil {
 		result := &PredictResult{
 			Valid:                    false,
@@ -847,7 +848,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 		return env
 	}
 
-	rc, oerr := arch.Open(encoding.ReservedSchemaName)
+	rc, oerr := arch.Open(encx.ReservedSchemaName)
 	if oerr != nil {
 		result := &PredictResult{
 			Valid:                    false,
@@ -864,7 +865,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 		}
 		env := NewEnvelope(result)
 		env.AddError(string(errors.PULSE_SHARD_MISSING),
-			"archive missing reserved schema entry "+encoding.ReservedSchemaName+": "+oerr.Error(), nil)
+			"archive missing reserved schema entry "+encx.ReservedSchemaName+": "+oerr.Error(), nil)
 		return env
 	}
 
@@ -892,7 +893,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 		}
 		env := NewEnvelope(result)
 		env.AddError(string(errors.ENCODING_INVALID),
-			"reading canonical schema entry "+encoding.ReservedSchemaName+": "+rerr.Error(), nil)
+			"reading canonical schema entry "+encx.ReservedSchemaName+": "+rerr.Error(), nil)
 		return env
 	}
 
@@ -907,7 +908,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *Enve
 	var cumulative int64
 	shards := make([]ShardInfo, 0)
 	for _, entry := range arch.Entries() {
-		if entry.Name == encoding.ReservedSchemaName {
+		if entry.Name == encx.ReservedSchemaName {
 			continue
 		}
 		count, perr := arch.PeekShardRecordCount(entry.Name)

@@ -87,13 +87,15 @@ func f() {
 func TestRewrite_SamePackageMethodToFunc(t *testing.T) {
 	src := `package enc
 
+func (s *Schema) BuildPlan(r []string) (int, error) { return 0, nil }
+
 func g(s *Schema) { _, _ = s.BuildPlan(nil) }
 `
 	out, _, err := Rewrite([]byte(src), Options{Methods: map[string]bool{"BuildPlan": true}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), "BuildPlan(s, nil)") {
+	if !strings.Contains(string(out), "BuildPlan(s, nil)") || !strings.Contains(string(out), "func BuildPlan(s *Schema, r []string) (int, error)") {
 		t.Fatalf("method not converted:\n%s", out)
 	}
 }
@@ -119,5 +121,36 @@ func NewReader(r io.Reader, s *Schema) *Reader {
 		if !strings.Contains(got, want) {
 			t.Errorf("output lacks %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestMove_CutsDeclsWithDocsIntoNewFile(t *testing.T) {
+	src := `package enc
+
+import "io"
+
+// Keep stays.
+func Keep() {}
+
+// Gone leaves.
+func Gone(r io.Reader) {}
+
+// M leaves too.
+func (s *Schema) M() {}
+`
+	kept, moved, err := Move([]byte(src), nil, map[string]bool{"Gone": true, "Schema.M": true}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(kept), "Gone") || strings.Contains(string(kept), "M leaves") || !strings.Contains(string(kept), "// Keep stays.") {
+		t.Fatalf("src after move:\n%s", kept)
+	}
+	for _, want := range []string{"package enc", `import "io"`, "// Gone leaves.\nfunc Gone(r io.Reader) {}", "func (s *Schema) M() {}"} {
+		if !strings.Contains(string(moved), want) {
+			t.Errorf("dst lacks %q:\n%s", want, moved)
+		}
+	}
+	if _, _, err := Move([]byte(src), nil, map[string]bool{"Nope": true}, ""); err == nil {
+		t.Fatal("unknown name accepted")
 	}
 }

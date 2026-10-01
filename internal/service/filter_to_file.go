@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -132,7 +133,7 @@ func (s *Service) ResolveCanonicalSchema(_ context.Context, src string) (*encodi
 	}
 
 	if isShardArchiveMagic(data) {
-		arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+		arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +248,7 @@ func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs
 // preserved. Empty shards (zero surviving records) are kept so the
 // shard_count metadata stays stable across the filter.
 func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, dst string, plan filterPlan, data []byte) (int64, error) {
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return 0, err
 	}
@@ -274,7 +275,7 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 	out := make([]filteredShard, 0, len(entries))
 	var totalWritten int64
 	for _, e := range entries {
-		if e.Name == encoding.ReservedSchemaName {
+		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
 		shardBytes, perr := readEntryBytes(arch, e.Name)
@@ -319,7 +320,7 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 	if err != nil {
 		return 0, err
 	}
-	if err := writeArchiveEntry(zw, encoding.ReservedSchemaName, schemaPayload); err != nil {
+	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
 		return 0, err
 	}
 	for _, sh := range out {
@@ -347,7 +348,7 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 // actually reads (built once via fieldFilterForPlan). A nil keep falls
 // through to the full-decode path — used when the predicate's field set
 // can't be proven (malformed expression, unknown extension hook).
-func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *bytes.Reader, schema *encoding.Schema, filterFn processing.FilterFunc, keep encoding.FieldFilter, out *bytes.Buffer) (int64, error) {
+func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *bytes.Reader, schema *encoding.Schema, filterFn processing.FilterFunc, keep encx.FieldFilter, out *bytes.Buffer) (int64, error) {
 	mapSize := len(schema.Fields)
 	if keep != nil {
 		mapSize = 0
@@ -363,7 +364,7 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 	values := make(map[string]float64, mapSize)
 	nulls := make(map[string]bool, mapSize)
 	wide := make(map[string]any, mapSize)
-	rr := encoding.NewRecordReader(br, schema)
+	rr := encx.NewRecordReader(br, schema)
 	// A grouped (0x02) schema: hand each record its row's parent-group
 	// entry indices so a filter over one group's members takes the
 	// per-entry precompute instead of evaluating per row. Only when the
@@ -409,7 +410,7 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 
 // readGroupIndices fills idx with the entry index of every parent group
 // on the record rr just decoded, reporting false when any is unknown.
-func readGroupIndices(rr *encoding.RecordReader, idx []uint32) bool {
+func readGroupIndices(rr *encx.RecordReader, idx []uint32) bool {
 	for g := range idx {
 		e, ok := rr.GroupIndex(g)
 		if !ok {
@@ -432,7 +433,7 @@ func readGroupIndices(rr *encoding.RecordReader, idx []uint32) bool {
 // uses since v0.12.3) and then unioning the MemberSet include field.
 // Saves map allocations + float64 conversions for unreferenced columns;
 // byte reads still happen so file offsets stay aligned.
-func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) encoding.FieldFilter {
+func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) encx.FieldFilter {
 	if schema == nil {
 		return nil
 	}
@@ -517,7 +518,7 @@ func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) 
 // FilterToFile to support `archive.pulse#shard.pulse` syntax with the
 // same semantics as service.OpenAnchor.
 func (s *Service) readAnchoredShardBytes(archivePath, entry string) ([]byte, error) {
-	if entry == encoding.ReservedSchemaName {
+	if entry == encx.ReservedSchemaName {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot filter the reserved canonical schema entry",
 			map[string]any{"entry": entry})
@@ -527,7 +528,7 @@ func (s *Service) readAnchoredShardBytes(archivePath, entry string) ([]byte, err
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file for anchor: %s", archivePath))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
 	}

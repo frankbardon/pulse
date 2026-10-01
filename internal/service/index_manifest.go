@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -27,21 +27,21 @@ import (
 // A manifest write failure is a hard error rather than a warning: the
 // sidecar is written by then, but an index nothing can discover is not
 // meaningfully built, and BuildIndex is idempotent so a retry is free.
-func (s *Service) recordIndexInManifest(fsys afero.Fs, cohortPath, indexPath string, idx *encoding.Index) (string, error) {
-	manifest, present, err := encoding.ReadIndexManifest(fsys, cohortPath)
+func (s *Service) recordIndexInManifest(fsys afero.Fs, cohortPath, indexPath string, idx *encx.Index) (string, error) {
+	manifest, present, err := encx.ReadIndexManifest(fsys, cohortPath)
 	if err != nil {
 		return "", err
 	}
 	if !present {
-		manifest = encoding.NewIndexManifest(cohortPath)
+		manifest = encx.NewIndexManifest(cohortPath)
 		seedIndexManifest(fsys, cohortPath, manifest)
 	}
 
-	manifest.Upsert(encoding.IndexManifestEntryFor(indexPath, idx))
-	if err := encoding.WriteIndexManifest(fsys, cohortPath, manifest); err != nil {
+	manifest.Upsert(encx.IndexManifestEntryFor(indexPath, idx))
+	if err := encx.WriteIndexManifest(fsys, cohortPath, manifest); err != nil {
 		return "", err
 	}
-	return encoding.IndexManifestPath(cohortPath), nil
+	return encx.IndexManifestPath(cohortPath), nil
 }
 
 // seedIndexManifest adds an entry for every sidecar already on disk
@@ -49,7 +49,7 @@ func (s *Service) recordIndexInManifest(fsys afero.Fs, cohortPath, indexPath str
 // to read one sidecar leaves the manifest as it was, because a seed
 // that cannot complete must not stop the build whose index it was
 // merely trying to keep company.
-func seedIndexManifest(fsys afero.Fs, cohortPath string, manifest *encoding.IndexManifest) {
+func seedIndexManifest(fsys afero.Fs, cohortPath string, manifest *encx.IndexManifest) {
 	dir := filepath.Dir(cohortPath)
 	re := sidecarIndexNameRegexp(filepath.Base(cohortPath))
 
@@ -61,11 +61,11 @@ func seedIndexManifest(fsys afero.Fs, cohortPath string, manifest *encoding.Inde
 		if ent.IsDir() || !re.MatchString(ent.Name()) {
 			continue
 		}
-		idx, err := encoding.ReadIndexFile(fsys, filepath.Join(dir, ent.Name()))
+		idx, err := encx.ReadIndexFile(fsys, filepath.Join(dir, ent.Name()))
 		if err != nil {
 			continue
 		}
-		manifest.Upsert(encoding.IndexManifestEntryFor(ent.Name(), idx))
+		manifest.Upsert(encx.IndexManifestEntryFor(ent.Name(), idx))
 	}
 }
 
@@ -77,7 +77,7 @@ func seedIndexManifest(fsys afero.Fs, cohortPath string, manifest *encoding.Inde
 // PULSE_INDEX_MANIFEST_STALE: an entry can be pruned even when the
 // sidecar file it names is already gone.
 func (s *Service) forgetIndexInManifest(fsys afero.Fs, cohortPath, indexPath string) (bool, error) {
-	manifest, present, err := encoding.ReadIndexManifest(fsys, cohortPath)
+	manifest, present, err := encx.ReadIndexManifest(fsys, cohortPath)
 	if err != nil {
 		return false, err
 	}
@@ -87,7 +87,7 @@ func (s *Service) forgetIndexInManifest(fsys afero.Fs, cohortPath, indexPath str
 	if !manifest.Remove(filepath.Base(indexPath)) {
 		return false, nil
 	}
-	if err := encoding.WriteIndexManifest(fsys, cohortPath, manifest); err != nil {
+	if err := encx.WriteIndexManifest(fsys, cohortPath, manifest); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -103,7 +103,7 @@ func (s *Service) forgetIndexInManifest(fsys afero.Fs, cohortPath, indexPath str
 // A named sidecar that is not present is PULSE_INDEX_MANIFEST_STALE,
 // not a skipped entry: a listing that quietly reports two indexes for a
 // manifest claiming three is indistinguishable from a correct answer.
-func listIndexesFromManifest(fsys afero.Fs, cohortPath string, manifest *encoding.IndexManifest) ([]IndexInfo, error) {
+func listIndexesFromManifest(fsys afero.Fs, cohortPath string, manifest *encx.IndexManifest) ([]IndexInfo, error) {
 	dir := filepath.Dir(cohortPath)
 	out := make([]IndexInfo, 0, len(manifest.Indexes))
 
@@ -118,7 +118,7 @@ func listIndexesFromManifest(fsys afero.Fs, cohortPath string, manifest *encodin
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MANIFEST_STALE,
 				"sidecar index manifest names an index file that is not present",
 				map[string]any{
-					"manifest_path": encoding.IndexManifestPath(cohortPath),
+					"manifest_path": encx.IndexManifestPath(cohortPath),
 					"cohort":        cohortPath,
 					"index_path":    full,
 					"fields":        entry.KeyNames(),

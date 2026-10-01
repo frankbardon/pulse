@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -43,7 +43,7 @@ func (s *Service) CompactShardArchive(ctx context.Context, archivePath string) e
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("CompactShardArchive: reading archive %s", archivePath))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func (s *Service) CompactShardArchive(ctx context.Context, archivePath string) e
 	}
 	kept := make([]entry, 0, len(arch.Entries()))
 	for _, e := range arch.Entries() {
-		if e.Name == encoding.ReservedSchemaName {
+		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
 		payload, perr := readEntryBytes(arch, e.Name)
@@ -93,7 +93,7 @@ func (s *Service) CompactShardArchive(ctx context.Context, archivePath string) e
 	if err != nil {
 		return err
 	}
-	if err := writeArchiveEntry(zw, encoding.ReservedSchemaName, schemaPayload); err != nil {
+	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
 		return err
 	}
 	for _, e := range kept {

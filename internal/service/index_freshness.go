@@ -3,7 +3,7 @@ package service
 import (
 	"sync"
 
-	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -35,7 +35,7 @@ const cohortFingerprintCacheCap = 1024
 type cohortFingerprintEntry struct {
 	size        uint64
 	modTime     int64
-	fingerprint encoding.Fingerprint
+	fingerprint encx.Fingerprint
 }
 
 // cohortFingerprintCache is the memo itself. Lazily initialised (a
@@ -48,12 +48,12 @@ type cohortFingerprintCache struct {
 
 // lookup returns the memoised fingerprint for path iff it was computed
 // under the same (size, modTime) pair the caller just stat'd.
-func (c *cohortFingerprintCache) load(path string, size uint64, modTime int64) (encoding.Fingerprint, bool) {
+func (c *cohortFingerprintCache) load(path string, size uint64, modTime int64) (encx.Fingerprint, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	ent, ok := c.entries[path]
 	if !ok || ent.size != size || ent.modTime != modTime {
-		return encoding.Fingerprint{}, false
+		return encx.Fingerprint{}, false
 	}
 	return ent.fingerprint, true
 }
@@ -61,7 +61,7 @@ func (c *cohortFingerprintCache) load(path string, size uint64, modTime int64) (
 // store records fp for path under the stat pair it was computed from,
 // replacing any earlier entry for that path (a cohort whose stat moved
 // has a new digest, and keeping the old one would only waste a slot).
-func (c *cohortFingerprintCache) store(path string, size uint64, modTime int64, fp encoding.Fingerprint) {
+func (c *cohortFingerprintCache) store(path string, size uint64, modTime int64, fp encx.Fingerprint) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.entries == nil {
@@ -80,7 +80,7 @@ func (c *cohortFingerprintCache) store(path string, size uint64, modTime int64, 
 // one an earlier call computed under, and computed (then memoised)
 // otherwise. size/modTime come from the caller's own statCohortFile so
 // the file is stat'd once per decision, not twice.
-func (s *Service) cohortFingerprint(fsys afero.Fs, path string, size uint64, modTime int64, useMemo bool) (encoding.Fingerprint, error) {
+func (s *Service) cohortFingerprint(fsys afero.Fs, path string, size uint64, modTime int64, useMemo bool) (encx.Fingerprint, error) {
 	if useMemo {
 		if fp, ok := s.fingerprints.load(path, size, modTime); ok {
 			return fp, nil
@@ -88,7 +88,7 @@ func (s *Service) cohortFingerprint(fsys afero.Fs, path string, size uint64, mod
 	}
 	fp, err := computeCohortFingerprint(fsys, path)
 	if err != nil {
-		return encoding.Fingerprint{}, err
+		return encx.Fingerprint{}, err
 	}
 	s.fingerprints.store(path, size, modTime, fp)
 	return fp, nil
@@ -171,7 +171,7 @@ type indexFreshness struct {
 // ONCE per (path, size, mtime) rather than once per lookup. Without
 // that memo this rule would turn a hard failure into an O(cohort) read
 // on precisely the deployment that motivated it.
-func (s *Service) classifyIndexFreshness(fsys afero.Fs, path string, meta *encoding.IndexMeta, authoritative bool) (indexFreshness, error) {
+func (s *Service) classifyIndexFreshness(fsys afero.Fs, path string, meta *encx.IndexMeta, authoritative bool) (indexFreshness, error) {
 	size, modTime, err := statCohortFile(fsys, path)
 	if err != nil {
 		return indexFreshness{}, err

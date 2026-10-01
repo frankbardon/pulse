@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -92,10 +93,10 @@ func TestImportJob_GroupGate_PerGroup(t *testing.T) {
 		ratio                  float64
 	}
 	want := []row{
-		{"group 1 [key: p_id]", encoding.GroupVerdictAdmitted, "", 40, 18, 10},
-		{"group 2 [key: l_id]", encoding.GroupVerdictLowRatio, string(perrors.PULSE_DEDUP_LOW_RATIO), 320, 26, 1.25},
-		{"group 3 [key: n_id]", encoding.GroupVerdictDroppedTooNarrow, string(perrors.PULSE_GROUP_TOO_NARROW), 0, 2, 0},
-		{"group 4 [key: g_id]", encoding.GroupVerdictLowRatio, string(perrors.PULSE_DEDUP_LOW_RATIO), 100, 5, 4},
+		{"group 1 [key: p_id]", encx.GroupVerdictAdmitted, "", 40, 18, 10},
+		{"group 2 [key: l_id]", encx.GroupVerdictLowRatio, string(perrors.PULSE_DEDUP_LOW_RATIO), 320, 26, 1.25},
+		{"group 3 [key: n_id]", encx.GroupVerdictDroppedTooNarrow, string(perrors.PULSE_GROUP_TOO_NARROW), 0, 2, 0},
+		{"group 4 [key: g_id]", encx.GroupVerdictLowRatio, string(perrors.PULSE_DEDUP_LOW_RATIO), 100, 5, 4},
 	}
 	if len(rep.Groups) != len(want) {
 		t.Fatalf("report has %d groups, want %d", len(rep.Groups), len(want))
@@ -106,10 +107,10 @@ func TestImportJob_GroupGate_PerGroup(t *testing.T) {
 		if got != w {
 			t.Errorf("group %d: got %+v\nwant %+v", i+1, got, w)
 		}
-		if g.IndexWidth != encoding.GroupIndexWidth || g.RatioFloor != encoding.DefaultDedupRatioFloor {
+		if g.IndexWidth != encoding.GroupIndexWidth || g.RatioFloor != encx.DefaultDedupRatioFloor {
 			t.Errorf("group %d: index width %d, floor %v", i+1, g.IndexWidth, g.RatioFloor)
 		}
-		if g.Verdict != encoding.GroupVerdictDroppedTooNarrow && g.DictionaryBytes != int64(g.EntryCount*g.EntryWidth) {
+		if g.Verdict != encx.GroupVerdictDroppedTooNarrow && g.DictionaryBytes != int64(g.EntryCount*g.EntryWidth) {
 			t.Errorf("group %d: resident dictionary bytes %d, want %d×%d", i+1, g.DictionaryBytes, g.EntryCount, g.EntryWidth)
 		}
 	}
@@ -208,7 +209,7 @@ func TestImportJob_GroupGate_Strict(t *testing.T) {
 		})
 	}
 	rep, _, _, err := gateImport(t, []GroupDecl{gateGood}, strict)
-	if err != nil || rep.Groups[0].Verdict != encoding.GroupVerdictAdmitted {
+	if err != nil || rep.Groups[0].Verdict != encx.GroupVerdictAdmitted {
 		t.Fatalf("clean group under strict: err %v", err)
 	}
 }
@@ -225,12 +226,12 @@ func TestImportJob_GroupGate_RatioFloor(t *testing.T) {
 		floor   float64
 		verdict string
 	}{
-		{"below_measured", gateLow, 1.2, encoding.GroupVerdictAdmitted},
-		{"above_measured", gateLow, 1.3, encoding.GroupVerdictLowRatio},
-		{"zero_is_default", gateLow, 0, encoding.GroupVerdictLowRatio},
-		{"one_disables_floor", gateLow, 1, encoding.GroupVerdictAdmitted},
-		{"one_keeps_grows_check", gateGrows, 1, encoding.GroupVerdictLowRatio},
-		{"high_floor_flags_good", gateGood, 12, encoding.GroupVerdictLowRatio},
+		{"below_measured", gateLow, 1.2, encx.GroupVerdictAdmitted},
+		{"above_measured", gateLow, 1.3, encx.GroupVerdictLowRatio},
+		{"zero_is_default", gateLow, 0, encx.GroupVerdictLowRatio},
+		{"one_disables_floor", gateLow, 1, encx.GroupVerdictAdmitted},
+		{"one_keeps_grows_check", gateGrows, 1, encx.GroupVerdictLowRatio},
+		{"high_floor_flags_good", gateGood, 12, encx.GroupVerdictLowRatio},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rep, _, _, err := gateImport(t, []GroupDecl{tc.decl}, floor(tc.floor))
@@ -240,7 +241,7 @@ func TestImportJob_GroupGate_RatioFloor(t *testing.T) {
 			if g := rep.Groups[0]; g.Verdict != tc.verdict {
 				t.Fatalf("verdict %s (ratio %v, floor %v), want %s", g.Verdict, g.Ratio, g.RatioFloor, tc.verdict)
 			}
-			if (tc.verdict == encoding.GroupVerdictAdmitted) != (len(rep.GroupWarnings) == 0) {
+			if (tc.verdict == encx.GroupVerdictAdmitted) != (len(rep.GroupWarnings) == 0) {
 				t.Fatalf("verdict %s with warnings %v", tc.verdict, rep.GroupWarnings)
 			}
 		})
@@ -262,7 +263,7 @@ func TestImportJob_GroupGate_DroppedFreesElision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Groups[0].Verdict != encoding.GroupVerdictDroppedTooNarrow || !reflect.DeepEqual(rep.ElidedConstants, []string{"src"}) {
+	if rep.Groups[0].Verdict != encx.GroupVerdictDroppedTooNarrow || !reflect.DeepEqual(rep.ElidedConstants, []string{"src"}) {
 		t.Fatalf("verdict %s, elided %v; want dropped and [src]", rep.Groups[0].Verdict, rep.ElidedConstants)
 	}
 }

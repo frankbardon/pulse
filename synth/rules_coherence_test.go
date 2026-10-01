@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
@@ -272,7 +273,7 @@ func decodeCoherenceRows(t *testing.T, data []byte) []coherenceRow {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	out := make([]coherenceRow, 0, coherenceFixtureRows)
 	for {
 		v := make(map[string]float64)

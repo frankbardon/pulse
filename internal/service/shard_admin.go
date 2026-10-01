@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -69,7 +70,7 @@ func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, sh
 	}
 
 	result := &CreateShardArchiveResult{Archive: archivePath,
-		Warnings: []encoding.CohesionWarning{}}
+		Warnings: []encx.CohesionWarning{}}
 
 	// Read all shard payloads + reconcile set rungs + validate cohesion
 	// + accumulate canonical schema. `shards` holds every shard already
@@ -129,7 +130,7 @@ func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, sh
 	if err != nil {
 		return nil, err
 	}
-	if err := writeArchiveEntry(zw, encoding.ReservedSchemaName, schemaPayload); err != nil {
+	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
 		return nil, err
 	}
 	for _, sh := range shards {
@@ -178,9 +179,9 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	fsys := s.fs.Fs()
 
 	base := filepath.Base(shardPath)
-	if base == encoding.ReservedSchemaName {
+	if base == encx.ReservedSchemaName {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
-			fmt.Sprintf("cannot add a shard with the reserved basename %q", encoding.ReservedSchemaName),
+			fmt.Sprintf("cannot add a shard with the reserved basename %q", encx.ReservedSchemaName),
 			map[string]any{"basename": base})
 	}
 
@@ -189,7 +190,7 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("AddShard: reading archive %s", archivePath))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
 		return nil, err
 	}
@@ -213,14 +214,14 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	}
 
 	result := &AddShardResult{Archive: archivePath, Added: shardPath,
-		Warnings: []encoding.CohesionWarning{}}
+		Warnings: []encx.CohesionWarning{}}
 
 	// Enumerate existing shard payloads, detecting name collision. This
 	// happens BEFORE the widen so a collision costs nothing, and because
 	// an auto-widen has to rewrite every one of these payloads.
 	existing := make([]shardPayload, 0, len(arch.Entries()))
 	for _, e := range arch.Entries() {
-		if e.Name == encoding.ReservedSchemaName {
+		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
 		if e.Name == base {
@@ -286,7 +287,7 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	if err != nil {
 		return nil, err
 	}
-	if err := writeArchiveEntry(zw, encoding.ReservedSchemaName, schemaPayload); err != nil {
+	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
 		return nil, err
 	}
 	for _, e := range existing {
@@ -315,7 +316,7 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 // PULSE_SHARD_MISSING when the named shard is not present.
 func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename string) error {
 	fsys := s.fs.Fs()
-	if shardBasename == encoding.ReservedSchemaName {
+	if shardBasename == encx.ReservedSchemaName {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot remove the reserved canonical schema entry",
 			map[string]any{"basename": shardBasename})
@@ -326,7 +327,7 @@ func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename st
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("RemoveShard: reading archive %s", archivePath))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
 		return err
 	}
@@ -343,7 +344,7 @@ func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename st
 	kept := make([]entry, 0)
 	found := false
 	for _, e := range arch.Entries() {
-		if e.Name == encoding.ReservedSchemaName {
+		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
 		if e.Name == shardBasename {
@@ -378,7 +379,7 @@ func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename st
 	if err != nil {
 		return err
 	}
-	if err := writeArchiveEntry(zw, encoding.ReservedSchemaName, schemaPayload); err != nil {
+	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
 		return err
 	}
 	for _, e := range kept {
@@ -415,11 +416,11 @@ func (s *Service) ExtractShard(ctx context.Context, archivePath, shardBasename s
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("ExtractShard: reading archive %s", archivePath))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
 		return nil, err
 	}
-	if shardBasename == encoding.ReservedSchemaName {
+	if shardBasename == encx.ReservedSchemaName {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot extract the reserved canonical schema entry as a shard",
 			map[string]any{"basename": shardBasename})
@@ -440,10 +441,10 @@ func validateBasenames(paths []string) error {
 	// offending basename.
 	for _, p := range paths {
 		base := filepath.Base(p)
-		if base == encoding.ReservedSchemaName {
+		if base == encx.ReservedSchemaName {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 				fmt.Sprintf("shard path %q has the reserved basename %q",
-					p, encoding.ReservedSchemaName),
+					p, encx.ReservedSchemaName),
 				map[string]any{"path": p, "basename": base})
 		}
 		if _, dup := seen[base]; dup {
@@ -495,7 +496,7 @@ func cloneSchemaForArchive(s *encoding.Schema) *encoding.Schema {
 	}
 	// A grouped seed keeps its group layout and dictionaries: the
 	// canonical schema decides every shard's physical stride.
-	out.Groups = encoding.CloneGroups(s.Groups)
+	out.Groups = encx.CloneGroups(s.Groups)
 	return out
 }
 
@@ -544,13 +545,13 @@ func recordCountFromBytes(payload []byte, schema *encoding.Schema) (int64, error
 
 // readSchemaDocEntry parses the archive's reserved `_schema.pulse`
 // entry.
-func readSchemaDocEntry(arch *encoding.Archive) (*encoding.SchemaDoc, error) {
-	rc, err := arch.Open(encoding.ReservedSchemaName)
+func readSchemaDocEntry(arch *encx.Archive) (*encx.SchemaDoc, error) {
+	rc, err := arch.Open(encx.ReservedSchemaName)
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-	doc, err := encoding.ReadSchemaDoc(rc)
+	doc, err := encx.ReadSchemaDoc(rc)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"reading archive canonical schema")
@@ -559,7 +560,7 @@ func readSchemaDocEntry(arch *encoding.Archive) (*encoding.SchemaDoc, error) {
 }
 
 // readEntryBytes drains the named entry into a byte slice.
-func readEntryBytes(arch *encoding.Archive, name string) ([]byte, error) {
+func readEntryBytes(arch *encx.Archive, name string) ([]byte, error) {
 	rc, err := arch.Open(name)
 	if err != nil {
 		return nil, err
@@ -578,7 +579,7 @@ func readEntryBytes(arch *encoding.Archive, name string) ([]byte, error) {
 // encoding.ReservedSchemaName.
 func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount uint16) ([]byte, error) {
 	var buf bytes.Buffer
-	if err := encoding.WriteSchemaDoc(&buf, schema, agg, shardCount); err != nil {
+	if err := encx.WriteSchemaDoc(&buf, schema, agg, shardCount); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -109,7 +110,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 		fsys = s.fs.Fs()
 	}
 
-	indexPath := encoding.SidecarIndexPath(path, keyFieldNames)
+	indexPath := encx.SidecarIndexPath(path, keyFieldNames)
 	exists, err := afero.Exists(fsys, indexPath)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
@@ -132,7 +133,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	}
 	defer sidecarFile.Close()
 
-	meta, err := encoding.ReadIndexMeta(sidecarFile)
+	meta, err := encx.ReadIndexMeta(sidecarFile)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +189,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	// Single-bucket seek read: resolves keyBytes to its hash bucket and
 	// parses only that bucket's self-delimited data — never the whole
 	// bucket-offset table, never any other bucket.
-	bucket, err := encoding.ReadBucketByKey(sidecarFile, meta, keyBytes)
+	bucket, err := encx.ReadBucketByKey(sidecarFile, meta, keyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +241,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	}
 	defer cohortFile.Close()
 
-	plan, err := schema.BuildDecodePlan(returnCols)
+	plan, err := encx.BuildDecodePlan(schema, returnCols)
 	if err != nil {
 		return nil, err
 	}
@@ -249,14 +250,14 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	for _, name := range returnCols {
 		wantCols[name] = true
 	}
-	keep := encoding.FieldFilter(func(name string) bool { return wantCols[name] })
+	keep := encx.FieldFilter(func(name string) bool { return wantCols[name] })
 
 	rows := make([]map[string]any, 0, len(rowIDs))
 	for _, rowID := range rowIDs {
 		values := make(map[string]float64)
 		nulls := make(map[string]bool)
 		wide := make(map[string]any)
-		if err := loc.ReadRecordAt(cohortFile, rowID, values, nulls, wide, keep, plan); err != nil {
+		if err := encx.ReadRecordAt(loc, cohortFile, rowID, values, nulls, wide, keep, plan); err != nil {
 			return nil, err
 		}
 
@@ -304,16 +305,16 @@ func resolveLookupReturnColumns(schema *encoding.Schema, requested []string) ([]
 // Service.BuildIndex's write side already exercises. Returns
 // (nil-entry, false) when bucket is nil/empty (an empty index, or a
 // hash collision-free miss) or no entry matches keyBytes exactly.
-func findBucketEntry(bucket *encoding.IndexBucket, keyBytes []byte) (encoding.IndexEntry, bool) {
+func findBucketEntry(bucket *encx.IndexBucket, keyBytes []byte) (encx.IndexEntry, bool) {
 	if bucket == nil {
-		return encoding.IndexEntry{}, false
+		return encx.IndexEntry{}, false
 	}
 	for _, e := range bucket.Entries {
 		if bytes.Equal(e.Key, keyBytes) {
 			return e, true
 		}
 	}
-	return encoding.IndexEntry{}, false
+	return encx.IndexEntry{}, false
 }
 
 // openRecordLocator opens path on fsys via a FRESH handle and derives

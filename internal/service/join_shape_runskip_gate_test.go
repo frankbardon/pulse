@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -94,18 +95,18 @@ func (n countingRunSkipRecord) BeginRunRow(token uint64, keep bool) bool {
 func (n countingRunSkipRecord) ClearNullAt(i int) { n.c.clearNull++; n.r.ClearNullAt(i) }
 
 var (
-	_ encoding.TypedSetRecord = (*countingRecord)(nil)
-	_ encoding.RunSkipRecord  = countingRunSkipRecord{}
+	_ encx.TypedSetRecord = (*countingRecord)(nil)
+	_ encx.RunSkipRecord  = countingRunSkipRecord{}
 )
 
 // countRunSkipScan decodes every row of payload through one reader and
 // one counting record (run-skip arm when skip, else no-skip) and
 // returns the counts.
-func countRunSkipScan(t *testing.T, schema *encoding.Schema, payload []byte, keep encoding.FieldFilter, plan *encoding.DecodePlan, skip bool) runSkipCounts {
+func countRunSkipScan(t *testing.T, schema *encoding.Schema, payload []byte, keep encx.FieldFilter, plan *encx.DecodePlan, skip bool) runSkipCounts {
 	t.Helper()
-	rr := encoding.NewRecordReader(bytes.NewReader(payload), schema)
+	rr := encx.NewRecordReader(bytes.NewReader(payload), schema)
 	cr := &countingRecord{r: processing.NewReusableRecord(schema)}
-	var rec encoding.ReusableRecord = cr
+	var rec encx.ReusableRecord = cr
 	if skip {
 		rec = countingRunSkipRecord{cr}
 	}
@@ -133,7 +134,7 @@ func countRunSkipScan(t *testing.T, schema *encoding.Schema, payload []byte, kee
 // joinShapeFieldContinuation is joinShapeContinuation restricted to the
 // fields keep retains (nil = every field): the run-skip hit rate of a
 // scan that decodes only those fields.
-func joinShapeFieldContinuation(payload []byte, schema *encoding.Schema, rows int, keep encoding.FieldFilter) float64 {
+func joinShapeFieldContinuation(payload []byte, schema *encoding.Schema, rows int, keep encx.FieldFilter) float64 {
 	stride := schema.RecordByteSize()
 	bm := schema.BitmapByteSize()
 	same, total := 0, 0
@@ -186,7 +187,7 @@ func TestJoinShapeRunSkip_WorkCounts(t *testing.T) {
 	for _, tc := range []struct {
 		order string
 		shape string
-		keep  encoding.FieldFilter
+		keep  encx.FieldFilter
 		// sorted: continuation over the decoded fields must be at least
 		// minCont, and kept rows must write within writeSlack of
 		// (1 - continuation) of a full decode's field values.
@@ -216,7 +217,7 @@ func TestJoinShapeRunSkip_WorkCounts(t *testing.T) {
 		{order: "scattered", shape: "projected4", keep: joinShapeKeep4, maxCont: 0.30, maxOffered: 0.05},
 	} {
 		t.Run(tc.order+"/"+tc.shape, func(t *testing.T) {
-			var plan *encoding.DecodePlan
+			var plan *encx.DecodePlan
 			if tc.keep != nil {
 				plan = baselinePlan(t, schema, tc.keep)
 			}

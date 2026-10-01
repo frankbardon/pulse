@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -27,7 +28,7 @@ import (
 func upgradeToV2(t *testing.T, v1 []byte) []byte {
 	t.Helper()
 	r := bytes.NewReader(v1)
-	if _, v, err := encoding.ReadPreamble(r); err != nil || v != 0x01 {
+	if _, v, err := encx.ReadPreamble(r); err != nil || v != 0x01 {
 		t.Fatalf("source is not a 0x01 cohort: v=0x%02x err=%v", v, err)
 	}
 	end := len(v1) - r.Len()

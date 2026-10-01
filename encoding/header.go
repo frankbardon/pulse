@@ -36,12 +36,8 @@ const (
 // FormatVersion is the BASELINE .pulse format version: the version
 // [WriteHeader] emits and the one every schema that uses no 0x02 feature
 // is written at. It is not "the newest version this binary understands"
-// — that is [MaxFormatVersion].
+// — that is [FormatVersionV2].
 const FormatVersion byte = FormatVersionV1
-
-// MaxFormatVersion is the newest .pulse format version this binary
-// reads and writes.
-const MaxFormatVersion byte = FormatVersionV2
 
 // ZstdMagic is the zstd frame magic (0xFD2FB528 little-endian, RFC 8878)
 // that opens a `.pulse.zst` transfer artifact. It is NOT a cohort layout
@@ -93,16 +89,17 @@ func unsupportedVersionError(v byte) *errors.CodedError {
 }
 
 // WriteHeader writes a .pulse file header declaring the baseline
-// [FormatVersion] (0x01). A writer that already holds the schema should
-// prefer [WritePreamble], which derives the version from the schema's
-// content and cannot disagree with the schema block that follows.
+// [FormatVersion] (0x01). It is the raw-byte primitive for an ungrouped
+// cohort; Pulse's own writers derive the version from the schema's
+// content (a grouped schema needs 0x02) so the header cannot disagree
+// with the schema block that follows.
 func WriteHeader(w io.Writer) error {
 	return writeHeaderVersion(w, FormatVersion)
 }
 
 // writeHeaderVersion writes a header declaring version v. Unexported:
-// production writers reach it only through [WritePreamble], which picks
-// v from schema content.
+// production writers reach it only through the module-internal preamble
+// writer, which picks v from schema content.
 func writeHeaderVersion(w io.Writer, v byte) error {
 	if !IsSupportedFormatVersion(v) {
 		return unsupportedVersionError(v)
@@ -148,45 +145,4 @@ func ReadHeader(r io.Reader) (byte, error) {
 	}
 
 	return hdr[8], nil
-}
-
-// ReadPreamble reads the header and the version-matched schema block,
-// leaving r positioned at the first record byte. It is the one-call
-// form of [ReadHeader] + [ReadSchema] for callers that do not need to
-// wrap the two failures differently.
-func ReadPreamble(r io.Reader) (*Schema, byte, error) {
-	v, err := ReadHeader(r)
-	if err != nil {
-		return nil, 0, err
-	}
-	s, err := ReadSchema(r, v)
-	if err != nil {
-		return nil, 0, err
-	}
-	return s, v, nil
-}
-
-// WritePreamble writes the header and schema block for s at the version
-// its content requires ([Schema.RequiredFormatVersion]). A schema that
-// uses no 0x02 feature produces bytes identical to [WriteHeader] +
-// [WriteSchema].
-func WritePreamble(w io.Writer, s *Schema) error {
-	return writePreambleVersion(w, s, s.RequiredFormatVersion())
-}
-
-// writePreambleVersion writes header + schema at an explicit version v,
-// which must be supported and no older than the schema requires.
-// Unexported: the version written is a function of schema content, and
-// only tests force a newer-than-required version (to build a 0x02 file
-// before any 0x02 feature exists).
-func writePreambleVersion(w io.Writer, s *Schema, v byte) error {
-	if req := s.RequiredFormatVersion(); v < req {
-		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
-			"schema requires a newer pulse format version than requested",
-			map[string]any{"version": v, "required_version": req})
-	}
-	if err := writeHeaderVersion(w, v); err != nil {
-		return err
-	}
-	return writeSchemaVersion(w, s, v)
 }

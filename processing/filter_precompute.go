@@ -9,6 +9,7 @@ import (
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -171,7 +172,7 @@ type verdictTable struct {
 	g       int      // the group every input belongs to; -1 = per-row
 	words   []uint64 // 2 bits per entry, accessed atomically
 	scratch *Record  // entry-evaluation record, under precomputedFilter.mu
-	dec     *encoding.GroupEntryDecoder
+	dec     *encx.GroupEntryDecoder
 }
 
 func (p *precomputedFilter) eval(rec *Record) (bool, error) {
@@ -232,7 +233,7 @@ func newVerdictTable(s *encoding.Schema, inputs []string) *verdictTable {
 		precomputeIneligibles.Add(1)
 		return t
 	}
-	dec, err := s.NewGroupEntryDecoder(g, fields)
+	dec, err := encx.NewGroupEntryDecoder(s, g, fields)
 	if err != nil {
 		precomputeIneligibles.Add(1)
 		return t

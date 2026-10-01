@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -68,7 +69,7 @@ func TestShardArchiveReservedName(t *testing.T) {
 	// Reserved name as one of the create-list paths.
 	schema := adminScoreSchema()
 	good := "good.pulse"
-	reserved := encoding.ReservedSchemaName
+	reserved := encx.ReservedSchemaName
 	adminWriteShardFile(t, fsys, good, schema, [][]uint64{{1, math.Float64bits(1.0)}})
 	adminWriteShardFile(t, fsys, reserved, schema, [][]uint64{{2, math.Float64bits(2.0)}})
 
@@ -242,7 +243,7 @@ func TestShardArchiveAnchorSyntax(t *testing.T) {
 
 	// 5) Anchor against the reserved canonical schema is rejected with
 	//    PULSE_SHARD_RESERVED_NAME (it is not a real shard).
-	_, err = svc.Open(context.Background(), "arch.pulse#"+encoding.ReservedSchemaName)
+	_, err = svc.Open(context.Background(), "arch.pulse#"+encx.ReservedSchemaName)
 	if !errors.HasCode(err, errors.PULSE_SHARD_RESERVED_NAME) {
 		t.Errorf("anchor on reserved entry: code = %v, want PULSE_SHARD_RESERVED_NAME", err)
 	}

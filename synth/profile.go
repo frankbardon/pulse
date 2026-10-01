@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -839,7 +840,7 @@ func ProfileFile(fs afero.Fs, path string, opts ProfileOptions) (*Profile, error
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading cohort for profile")
 	}
-	isArchive, err := encoding.IsArchive(bytes.NewReader(data), int64(len(data)))
+	isArchive, err := encx.IsArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
 	}
@@ -854,22 +855,22 @@ func ProfileFile(fs afero.Fs, path string, opts ProfileOptions) (*Profile, error
 // schema are skipped so the records decode against the canonical schema
 // (dictionaries were union-merged and remapped at insert time).
 func profileArchive(data []byte, opts ProfileOptions) (*Profile, error) {
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
 	}
-	rc, err := arch.Open(encoding.ReservedSchemaName)
+	rc, err := arch.Open(encx.ReservedSchemaName)
 	if err != nil {
 		return nil, err
 	}
-	doc, err := encoding.ReadSchemaDoc(rc)
+	doc, err := encx.ReadSchemaDoc(rc)
 	rc.Close()
 	if err != nil {
 		return nil, err
 	}
 	var segs []io.Reader
 	for _, e := range arch.Entries() {
-		if e.Name == encoding.ReservedSchemaName {
+		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
 		sect, err := arch.OpenAt(e.Name)
@@ -936,11 +937,11 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 		cont = newContinuationAcc(schema)
 	}
 	seg := 0
-	openSeg := func() *encoding.RecordReader {
+	openSeg := func() *encx.RecordReader {
 		if src != nil {
-			return encoding.NewRecordReader(&src.br, schema)
+			return encx.NewRecordReader(&src.br, schema)
 		}
-		return encoding.NewRecordReader(segs[seg], schema)
+		return encx.NewRecordReader(segs[seg], schema)
 	}
 	rr := openSeg()
 

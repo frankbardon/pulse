@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/spf13/afero"
 )
@@ -66,7 +67,7 @@ func BenchmarkJoinShape_BufferedPeakHeap(b *testing.B) {
 	fsys, path, schema, rows := joinShapeBenchCohort(b)
 	for _, tc := range []struct {
 		name  string
-		keep  encoding.FieldFilter
+		keep  encx.FieldFilter
 		keepN int
 		// maxRatio: ~40% headroom over the measured ratio (arm64,
 		// go1.26, 100K rows).
@@ -141,7 +142,7 @@ func timedRun(b *testing.B, fn func() (int, error), wantRows int) float64 {
 // row, map-backed / positional, at or above minSpeedup.
 func BenchmarkJoinShape_DecodeThroughput(b *testing.B) {
 	fsys, path, schema, rows := joinShapeBenchCohort(b)
-	buffered := func(keep encoding.FieldFilter, keepN int, legacy bool) func() (int, error) {
+	buffered := func(keep encx.FieldFilter, keepN int, legacy bool) func() (int, error) {
 		return func() (int, error) {
 			if legacy {
 				recs, err := drainLegacyBuffered(fsys, path, schema, keep, keepN, rows)

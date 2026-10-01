@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -115,15 +116,15 @@ func (s *Service) countArchive(fsys afero.Fs, path string) (uint64, error) {
 		return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("reading archive %s", path))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return 0, err
 	}
 	// SHRD trailer in _schema.pulse is the cheap path. When absent we
 	// sum per-shard counts (still bounded by central-directory walk).
-	rc, err := arch.Open(encoding.ReservedSchemaName)
+	rc, err := arch.Open(encx.ReservedSchemaName)
 	if err == nil {
-		doc, derr := encoding.ReadSchemaDoc(rc)
+		doc, derr := encx.ReadSchemaDoc(rc)
 		rc.Close()
 		if derr == nil && doc.AggregateRecordCount > 0 {
 			return doc.AggregateRecordCount, nil
@@ -131,7 +132,7 @@ func (s *Service) countArchive(fsys afero.Fs, path string) (uint64, error) {
 	}
 	var total int64
 	for _, e := range arch.Entries() {
-		if e.Name == encoding.ReservedSchemaName {
+		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
 		count, perr := arch.PeekShardRecordCount(e.Name)
@@ -146,7 +147,7 @@ func (s *Service) countArchive(fsys afero.Fs, path string) (uint64, error) {
 // countShardAnchor resolves a single shard inside an archive by name
 // and returns just that shard's record count.
 func (s *Service) countShardAnchor(archivePath, anchor string) (uint64, error) {
-	if anchor == encoding.ReservedSchemaName {
+	if anchor == encx.ReservedSchemaName {
 		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot count records of the reserved canonical schema entry",
 			map[string]any{"entry": anchor})
@@ -157,7 +158,7 @@ func (s *Service) countShardAnchor(archivePath, anchor string) (uint64, error) {
 		return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening archive: %s", archivePath))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return 0, err
 	}

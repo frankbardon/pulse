@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -128,12 +129,12 @@ func TestImportJob_Groups(t *testing.T) {
 	// Both groups pass the viability gate: the report carries the
 	// measured numbers, and there is no warning.
 	for g, rows := range []int64{600, 600} {
-		v := encoding.AssessGroup(schema, g, rows, encoding.DefaultDedupRatioFloor)
-		want[g].Verdict = encoding.GroupVerdictAdmitted
+		v := encx.AssessGroup(schema, g, rows, encx.DefaultDedupRatioFloor)
+		want[g].Verdict = encx.GroupVerdictAdmitted
 		want[g].DictionaryBytes = v.DictionaryBytes
 		want[g].Ratio = v.Ratio
 		want[g].BreakEvenRatio = v.BreakEvenRatio
-		want[g].RatioFloor = encoding.DefaultDedupRatioFloor
+		want[g].RatioFloor = encx.DefaultDedupRatioFloor
 		want[g].ByteDelta = v.ByteDelta
 	}
 	if want[0].Ratio != 15 || want[1].Ratio != 60 || want[0].ByteDelta >= 0 || len(rep.GroupWarnings) != 0 {

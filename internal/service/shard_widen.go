@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // SetWidening records one set field promoted to a wider rung while a
@@ -81,7 +82,7 @@ type AddShardResult struct {
 	// PULSE_SHARD_GROUPS_REWRITTEN per entry in Regrouped. Shaped like the
 	// descriptor envelope's warning entries so a caller lifts them
 	// straight onto `warnings` without reshaping.
-	Warnings []encoding.CohesionWarning `json:"warnings"`
+	Warnings []encx.CohesionWarning `json:"warnings"`
 }
 
 // CreateShardArchiveResult is what CreateShardArchive reports.
@@ -113,7 +114,7 @@ type CreateShardArchiveResult struct {
 	// PULSE_SHARD_DESCRIPTION_DIVERGENCE from cohesion, one
 	// PULSE_SHARD_SET_WIDENED per entry in Widened and one
 	// PULSE_SHARD_GROUPS_REWRITTEN per entry in Regrouped.
-	Warnings []encoding.CohesionWarning `json:"warnings"`
+	Warnings []encx.CohesionWarning `json:"warnings"`
 }
 
 // shardPayload is one archive entry held in memory during a rebuild.
@@ -147,7 +148,7 @@ type shardPayload struct {
 // replaced, never edited), so the caller's slices carry the widened
 // bytes on return.
 func applySetWidening(
-	plans []encoding.SetWidenPlan,
+	plans []encx.SetWidenPlan,
 	canonical *encoding.Schema,
 	existing []shardPayload,
 	incoming []byte,
@@ -160,14 +161,14 @@ func applySetWidening(
 		// The archive side. Canonical and every shard already stored in
 		// it declare plan.From, so they move together or not at all.
 		if plan.From != plan.To {
-			next, err := encoding.WidenSchemaSetField(canonical, plan.Field, plan.To)
+			next, err := encx.WidenSchemaSetField(canonical, plan.Field, plan.To)
 			if err != nil {
 				return nil, nil, nil, err
 			}
 			canonical = next
 
 			for i := range existing {
-				out, rep, werr := encoding.WidenSetFieldBytes(existing[i].payload, plan.Field, plan.To)
+				out, rep, werr := encx.WidenSetFieldBytes(existing[i].payload, plan.Field, plan.To)
 				if werr != nil {
 					return nil, nil, nil, errors.WrapCodedError(werr, errors.PULSE_SHARD_SCHEMA_MISMATCH,
 						fmt.Sprintf("widening set field %q in shard %q", plan.Field, existing[i].name))
@@ -182,7 +183,7 @@ func applySetWidening(
 		// precisely the case where a wider incoming shard pulled the
 		// archive up to itself — and must not be re-widened.
 		if plan.IncomingFrom != plan.To {
-			out, rep, werr := encoding.WidenSetFieldBytes(incoming, plan.Field, plan.To)
+			out, rep, werr := encx.WidenSetFieldBytes(incoming, plan.Field, plan.To)
 			if werr != nil {
 				return nil, nil, nil, errors.WrapCodedError(werr, errors.PULSE_SHARD_SCHEMA_MISMATCH,
 					fmt.Sprintf("widening set field %q in the incoming shard", plan.Field))
@@ -216,7 +217,7 @@ func applySetWidening(
 // of every shard, while a promotion of a narrow arriving shard touches
 // only that shard. The code and the details map are the same in both
 // cases — a set field was widened, and here are the rungs.
-func setWidenedWarning(w SetWidening, archive string) encoding.CohesionWarning {
+func setWidenedWarning(w SetWidening, archive string) encx.CohesionWarning {
 	var msg string
 	if w.ArchiveWidened() {
 		msg = fmt.Sprintf(
@@ -227,7 +228,7 @@ func setWidenedWarning(w SetWidening, archive string) encoding.CohesionWarning {
 			"the arriving shard declared set field %q as %s; it was widened to the archive's %s before being stored in %s (%d record(s) re-laid-out). The archive itself was not rewritten",
 			w.Field, w.IncomingFrom, w.To, archive, w.RecordsRewritten)
 	}
-	return encoding.CohesionWarning{
+	return encx.CohesionWarning{
 		Code:    string(errors.PULSE_SHARD_SET_WIDENED),
 		Message: msg,
 		Details: map[string]any{

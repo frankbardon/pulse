@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -98,7 +98,7 @@ func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, er
 		fsys = s.fs.Fs()
 	}
 
-	manifest, hasManifest, err := encoding.ReadIndexManifest(fsys, path)
+	manifest, hasManifest, err := encx.ReadIndexManifest(fsys, path)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, er
 		if seen[full] {
 			continue
 		}
-		idx, err := encoding.ReadIndexFile(fsys, full)
+		idx, err := encx.ReadIndexFile(fsys, full)
 		if err != nil {
 			return nil, err
 		}
@@ -204,7 +204,7 @@ func (s *Service) DropIndex(ctx context.Context, path string, keyFields []string
 		fsys = s.fs.Fs()
 	}
 
-	indexPath := encoding.SidecarIndexPath(path, keyFields)
+	indexPath := encx.SidecarIndexPath(path, keyFields)
 	exists, err := afero.Exists(fsys, indexPath)
 	if err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
@@ -242,7 +242,7 @@ func (s *Service) DropIndex(ctx context.Context, path string, keyFields []string
 // spec, discarding the on-wire FieldType (ListIndexes' contract is
 // "each one's key columns" — the type is available to a caller that
 // re-reads the sidecar directly via encoding.ReadIndexFile).
-func indexKeyNames(idx *encoding.Index) []string {
+func indexKeyNames(idx *encx.Index) []string {
 	names := make([]string, len(idx.Keys))
 	for i, k := range idx.Keys {
 		names[i] = k.Name
@@ -254,7 +254,7 @@ func indexKeyNames(idx *encoding.Index) []string {
 // hash bucket — mirrors internal/cli's countDistinctIndexKeys but
 // operates directly on an *encoding.Index (ListIndexes reads the
 // sidecar directly rather than going through a fresh BuildIndex scan).
-func countIndexDistinctKeys(idx *encoding.Index) int {
+func countIndexDistinctKeys(idx *encx.Index) int {
 	n := 0
 	for _, b := range idx.Buckets {
 		n += len(b.Entries)
@@ -265,7 +265,7 @@ func countIndexDistinctKeys(idx *encoding.Index) int {
 // countIndexIndexedRecords sums every entry's RowIDs across every
 // bucket — mirrors internal/cli's countIndexedRecords but operates
 // directly on an *encoding.Index.
-func countIndexIndexedRecords(idx *encoding.Index) int {
+func countIndexIndexedRecords(idx *encx.Index) int {
 	n := 0
 	for _, b := range idx.Buckets {
 		for _, e := range b.Entries {

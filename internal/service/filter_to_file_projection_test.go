@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/spf13/afero"
 )
@@ -138,7 +139,7 @@ func TestFieldFilterForPlan_PassesThroughEncodingFieldFilter(t *testing.T) {
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
 
-	var keep encoding.FieldFilter = svc.fieldFilterForPlan(schema, filterPlan{filterExpr: "score > 0"})
+	var keep encx.FieldFilter = svc.fieldFilterForPlan(schema, filterPlan{filterExpr: "score > 0"})
 	if keep == nil {
 		t.Fatal("keep nil; expected non-nil for valid predicate")
 	}

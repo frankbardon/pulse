@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -164,14 +165,14 @@ func (j *DedupJob) Run(ctx context.Context) (*DedupReport, error) {
 	rep.FormatVersionBefore = int(src.version)
 	rep.StrideBefore = src.stored.RecordByteSize()
 
-	gate := encoding.DedupGate{RatioFloor: j.DedupRatioFloor, Strict: j.StrictDedup}
+	gate := encx.DedupGate{RatioFloor: j.DedupRatioFloor, Strict: j.StrictDedup}
 	var (
-		specs      []encoding.GroupSpec
-		screen     []encoding.GroupViability
+		specs      []encx.GroupSpec
+		screen     []encx.GroupViability
 		groupWarns []*errors.CodedError
 	)
 	if declared := groupSpecs(j.Groups); len(declared) > 0 {
-		if _, err := encoding.NewGroupEncoder(flat, declared); err != nil {
+		if _, err := encx.NewGroupEncoder(flat, declared); err != nil {
 			return nil, err
 		}
 		if specs, screen, groupWarns, err = gate.ScreenWidths(flat, declared); err != nil {
@@ -180,7 +181,7 @@ func (j *DedupJob) Run(ctx context.Context) (*DedupReport, error) {
 	}
 
 	// Observation pass: constancy and/or candidate detection.
-	allSpecs := append([]encoding.GroupSpec(nil), specs...)
+	allSpecs := append([]encx.GroupSpec(nil), specs...)
 	if j.ElideConstants || j.SuggestGroups {
 		plan, detection, rows, err := j.observe(ctx, flat, specs, gate.Floor())
 		if err != nil {
@@ -248,12 +249,12 @@ func (j *DedupJob) openLogical(ctx context.Context) (*logicalSource, error) {
 	}
 	br := bufio.NewReaderSize(f, dedupIOBuffer)
 	cr := &preambleCounter{r: br}
-	stored, version, err := encoding.ReadPreamble(cr)
+	stored, version, err := encx.ReadPreamble(cr)
 	if err != nil {
 		_ = f.Close()
 		return nil, err
 	}
-	lr, flat, err := encoding.NewLogicalStream(br, stored)
+	lr, flat, err := encx.NewLogicalStream(br, stored)
 	if err != nil {
 		_ = f.Close()
 		return nil, err
@@ -265,16 +266,16 @@ func (j *DedupJob) openLogical(ctx context.Context) (*logicalSource, error) {
 // into a ConstantDetector (ElideConstants) and a candidate detector
 // (SuggestGroups). Fields claimed by an admitted declared group are
 // reserved from both.
-func (j *DedupJob) observe(ctx context.Context, flat *encoding.Schema, specs []encoding.GroupSpec, floor float64) (*encoding.ConstantPlan, *GroupDetection, int64, error) {
+func (j *DedupJob) observe(ctx context.Context, flat *encoding.Schema, specs []encx.GroupSpec, floor float64) (*encx.ConstantPlan, *GroupDetection, int64, error) {
 	src, err := j.openLogical(ctx)
 	if err != nil {
 		return nil, nil, 0, err
 	}
 	defer src.close()
 
-	var det *encoding.ConstantDetector
+	var det *encx.ConstantDetector
 	if j.ElideConstants {
-		if det, err = encoding.NewConstantDetector(flat); err != nil {
+		if det, err = encx.NewConstantDetector(flat); err != nil {
 			return nil, nil, 0, err
 		}
 	}
@@ -296,7 +297,7 @@ func (j *DedupJob) observe(ctx context.Context, flat *encoding.Schema, specs []e
 		cd = newCandidateDetector(&l, reserved)
 		pad = make([]byte, l.stride)
 	}
-	rows, err := encoding.ForEachRecord(src.rows, flat.RecordByteSize(), func(rec []byte) error {
+	rows, err := encx.ForEachRecord(src.rows, flat.RecordByteSize(), func(rec []byte) error {
 		if det != nil {
 			if err := det.Observe(rec); err != nil {
 				return err
@@ -317,9 +318,9 @@ func (j *DedupJob) observe(ctx context.Context, flat *encoding.Schema, specs []e
 		return nil, nil, 0, err
 	}
 
-	var plan *encoding.ConstantPlan
+	var plan *encx.ConstantPlan
 	if det != nil {
-		if plan, err = encoding.PlanConstantElision(det, groupMemberNames(specs)); err != nil {
+		if plan, err = encx.PlanConstantElision(det, groupMemberNames(specs)); err != nil {
 			return nil, nil, 0, err
 		}
 	}
@@ -340,11 +341,11 @@ func (j *DedupJob) observe(ctx context.Context, flat *encoding.Schema, specs []e
 // and — only if the gate lets it through — assembles the cohort into a
 // temp file beside target, fsyncs it and renames it over target.
 // declared are the admitted declared specs (allSpecs' leading groups).
-func (j *DedupJob) rewrite(ctx context.Context, target string, flat *encoding.Schema, allSpecs, declared []encoding.GroupSpec, gate encoding.DedupGate) (*encoding.Schema, int64, []encoding.GroupViability, []*errors.CodedError, error) {
-	fail := func(err error) (*encoding.Schema, int64, []encoding.GroupViability, []*errors.CodedError, error) {
+func (j *DedupJob) rewrite(ctx context.Context, target string, flat *encoding.Schema, allSpecs, declared []encx.GroupSpec, gate encx.DedupGate) (*encoding.Schema, int64, []encx.GroupViability, []*errors.CodedError, error) {
+	fail := func(err error) (*encoding.Schema, int64, []encx.GroupViability, []*errors.CodedError, error) {
 		return nil, 0, nil, nil, err
 	}
-	enc, err := encoding.NewGroupEncoder(flat, allSpecs)
+	enc, err := encx.NewGroupEncoder(flat, allSpecs)
 	if err != nil {
 		return fail(err)
 	}
@@ -390,13 +391,13 @@ func (j *DedupJob) rewrite(ctx context.Context, target string, flat *encoding.Sc
 		return fail(errors.WrapCodedError(err, errors.ENCODING_IO, fmt.Sprintf("creating temp file for dedup of %s", target)))
 	}
 	tmpName := tmp.Name()
-	abort := func(e error) (*encoding.Schema, int64, []encoding.GroupViability, []*errors.CodedError, error) {
+	abort := func(e error) (*encoding.Schema, int64, []encx.GroupViability, []*errors.CodedError, error) {
 		_ = tmp.Close()
 		_ = j.FS.Remove(tmpName)
 		return fail(e)
 	}
 	tw := bufio.NewWriterSize(tmp, dedupIOBuffer)
-	if err := encoding.WritePreamble(tw, written); err != nil {
+	if err := encx.WritePreamble(tw, written); err != nil {
 		return abort(err)
 	}
 	if _, err := io.Copy(tw, ctxReader{ctx: ctx, r: spool}); err != nil {

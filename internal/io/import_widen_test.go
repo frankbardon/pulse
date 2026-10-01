@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // widenFixture is a synthetic join-shaped source whose inference sample
@@ -439,7 +440,7 @@ func TestImportWiden_GroupsJudgedOnFinalWidths(t *testing.T) {
 				t.Fatalf("import: %v", err)
 			}
 			g := ir.Groups[0]
-			if g.Verdict != encoding.GroupVerdictAdmitted || g.MemberRowBytes != 6 || g.EntryCount != 300 {
+			if g.Verdict != encx.GroupVerdictAdmitted || g.MemberRowBytes != 6 || g.EntryCount != 300 {
 				t.Fatalf("group %+v, want admitted, 6 member bytes, 300 entries", g)
 			}
 			if len(ir.GroupWarnings) != 0 || len(ir.WidthWarnings) != 3 {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/spf13/afero"
 )
@@ -110,7 +111,7 @@ func TestCreateShardArchive_WidenEmitsMandatoryWarning(t *testing.T) {
 	if len(res.Widened) != 1 {
 		t.Fatalf("Widened = %+v, want exactly one entry", res.Widened)
 	}
-	var found *encoding.CohesionWarning
+	var found *encx.CohesionWarning
 	for i := range res.Warnings {
 		if res.Warnings[i].Code == string(errors.PULSE_SHARD_SET_WIDENED) {
 			found = &res.Warnings[i]

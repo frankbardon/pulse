@@ -5,6 +5,7 @@ import (
 	"math/bits"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // Record represents a single data row with field accessors.
@@ -978,11 +979,11 @@ func (r *Record) SetWideField(name string, v any) {
 // decoders drive the index-keyed methods below and never the name-keyed
 // ones above.
 var (
-	_ encoding.ReusableRecord        = (*Record)(nil)
-	_ encoding.IndexedReusableRecord = (*Record)(nil)
-	_ encoding.TypedSetRecord        = (*Record)(nil)
-	_ encoding.RunSkipRecord         = (*Record)(nil)
-	_ encoding.GroupIndexRecord      = (*Record)(nil)
+	_ encx.ReusableRecord        = (*Record)(nil)
+	_ encx.IndexedReusableRecord = (*Record)(nil)
+	_ encx.TypedSetRecord        = (*Record)(nil)
+	_ encx.RunSkipRecord         = (*Record)(nil)
+	_ encx.GroupIndexRecord      = (*Record)(nil)
 )
 
 // SetNumericAt implements encoding.IndexedReusableRecord: a slice store

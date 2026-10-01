@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
 )
@@ -292,7 +293,7 @@ func (r *legacyReuseRecord) ClearForRow() {
 // resolves to a real file, afero.ReadFile otherwise — so neither arm is
 // billed for file bytes the other does not hold. The returned func
 // releases the mapping.
-func openLegacyReader(fsys afero.Fs, path string, schema *encoding.Schema) (*encoding.RecordReader, func(), error) {
+func openLegacyReader(fsys afero.Fs, path string, schema *encoding.Schema) (*encx.RecordReader, func(), error) {
 	var data []byte
 	release := func() {}
 	if real, ok := resolveRealPath(fsys, path); ok {
@@ -314,7 +315,7 @@ func openLegacyReader(fsys afero.Fs, path string, schema *encoding.Schema) (*enc
 	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		return nil, release, err
 	}
-	return encoding.NewRecordReader(r, schema), release, nil
+	return encx.NewRecordReader(r, schema), release, nil
 }
 
 // drainLegacyBuffered materialises up to limit records of the cohort
@@ -325,16 +326,16 @@ func openLegacyReader(fsys afero.Fs, path string, schema *encoding.Schema) (*enc
 // count to decode, which also sizes the output slice. Decoding one row
 // versus all rows is how the gates separate per-row cost from the fixed
 // per-open cost (schema and dictionary parse).
-func drainLegacyBuffered(fsys afero.Fs, path string, schema *encoding.Schema, keep encoding.FieldFilter, keepN, limit int) ([]*legacyBufferedRecord, error) {
+func drainLegacyBuffered(fsys afero.Fs, path string, schema *encoding.Schema, keep encx.FieldFilter, keepN, limit int) ([]*legacyBufferedRecord, error) {
 	rr, release, err := openLegacyReader(fsys, path, schema)
 	defer release()
 	if err != nil {
 		return nil, err
 	}
-	var plan *encoding.DecodePlan
+	var plan *encx.DecodePlan
 	mapHint := len(schema.Fields)
 	if keep != nil {
-		if plan, err = schema.BuildDecodePlan(retainedFromFilter(schema, keep)); err != nil {
+		if plan, err = encx.BuildDecodePlan(schema, retainedFromFilter(schema, keep)); err != nil {
 			return nil, err
 		}
 		mapHint = keepN
@@ -385,7 +386,7 @@ func scanLegacyReuse(fsys afero.Fs, path string, schema *encoding.Schema, limit 
 
 // drainPositionalBuffered materialises up to limit records through the
 // production buffered path (a fresh positional Record per row).
-func drainPositionalBuffered(fsys afero.Fs, path string, schema *encoding.Schema, keep encoding.FieldFilter, keepN, limit int) ([]*processing.Record, error) {
+func drainPositionalBuffered(fsys afero.Fs, path string, schema *encoding.Schema, keep encx.FieldFilter, keepN, limit int) ([]*processing.Record, error) {
 	it := newStreamingIterator(fsys, path, schema)
 	defer it.Close()
 	if keep != nil {

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // nameKeyedOnly hides *Record's index-keyed methods so the reuse decoder
@@ -100,11 +101,11 @@ func TestRecord_IndexedReusePathMatchesNameKeyed(t *testing.T) {
 		{name: "plan-wide-set", retained: []string{"flag", "wide", "rate"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var plan *encoding.DecodePlan
-			var keep encoding.FieldFilter
+			var plan *encx.DecodePlan
+			var keep encx.FieldFilter
 			if tc.retained != nil {
 				var err error
-				if plan, err = schema.BuildDecodePlan(tc.retained); err != nil {
+				if plan, err = encx.BuildDecodePlan(schema, tc.retained); err != nil {
 					t.Fatalf("BuildDecodePlan: %v", err)
 				}
 				set := make(map[string]bool, len(tc.retained))
@@ -116,9 +117,9 @@ func TestRecord_IndexedReusePathMatchesNameKeyed(t *testing.T) {
 
 			idxRec := NewReusableRecord(schema)
 			refRec := NewReusableRecord(schema)
-			idxRR := encoding.NewRecordReader(bytes.NewReader(raw), schema)
-			refRR := encoding.NewRecordReader(bytes.NewReader(raw), schema)
-			read := func(rr *encoding.RecordReader, rec encoding.ReusableRecord) error {
+			idxRR := encx.NewRecordReader(bytes.NewReader(raw), schema)
+			refRR := encx.NewRecordReader(bytes.NewReader(raw), schema)
+			read := func(rr *encx.RecordReader, rec encx.ReusableRecord) error {
 				if plan == nil {
 					return rr.ReadRecordReused(rec)
 				}

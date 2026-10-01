@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -52,7 +53,7 @@ func buildShardArchive(t *testing.T, schema *encoding.Schema, shards []struct {
 	for _, s := range shards {
 		total += uint64(len(s.Records))
 	}
-	if err := encoding.WriteSchemaDoc(&schemaDoc, schema, total, uint16(len(shards))); err != nil {
+	if err := encx.WriteSchemaDoc(&schemaDoc, schema, total, uint16(len(shards))); err != nil {
 		t.Fatalf("WriteSchemaDoc: %v", err)
 	}
 
@@ -69,7 +70,7 @@ func buildShardArchive(t *testing.T, schema *encoding.Schema, shards []struct {
 		}
 	}
 
-	write(encoding.ReservedSchemaName, schemaDoc.Bytes())
+	write(encx.ReservedSchemaName, schemaDoc.Bytes())
 	for _, s := range shards {
 		write(s.Name, writeSinglePulse(t, schema, s.Records))
 	}

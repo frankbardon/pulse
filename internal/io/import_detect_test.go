@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // orderLinesFixture is a synthetic denormalised order-line export: every
@@ -120,7 +121,7 @@ func TestImportPredict_SuggestGroups_FindsJoinParents(t *testing.T) {
 				t.Errorf("%s names %q: a constant / unique column is never a key or member", c.Label, f)
 			}
 		}
-		if c.Suggested && c.Verdict != encoding.GroupVerdictAdmitted {
+		if c.Suggested && c.Verdict != encx.GroupVerdictAdmitted {
 			t.Errorf("%s suggested with verdict %s", c.Label, c.Verdict)
 		}
 	}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -33,7 +33,7 @@ func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {
 		t.Fatalf("BuildIndex: %v", err)
 	}
 
-	wantPath := encoding.SidecarIndexPath("cohort.pulse", []string{"id"})
+	wantPath := encx.SidecarIndexPath("cohort.pulse", []string{"id"})
 	if res.IndexPath != wantPath {
 		t.Errorf("IndexPath = %q, want %q", res.IndexPath, wantPath)
 	}

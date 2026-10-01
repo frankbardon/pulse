@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // writeGroupCSV writes a synthetic 240-row parent/child join: 20
@@ -51,7 +52,7 @@ func TestCliImportGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := bytes.NewReader(raw)
-	schema, v, err := encoding.ReadPreamble(r)
+	schema, v, err := encx.ReadPreamble(r)
 	if err != nil || v != encoding.FormatVersionV2 {
 		t.Fatalf("preamble: version 0x%02x, err %v", v, err)
 	}

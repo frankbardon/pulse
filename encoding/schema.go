@@ -146,8 +146,8 @@ func (s *Schema) RequiredFormatVersion() byte {
 // WriteSchema serializes s's schema block to w at the baseline 0x01
 // layout, to follow a [WriteHeader]. A schema whose content requires a
 // newer version is refused rather than written in a layout its header
-// would contradict — write it with [WritePreamble], which emits a
-// matching header.
+// would contradict; Pulse's own writers emit a grouped schema with a
+// matching 0x02 header.
 //
 // The 0x01 schema block:
 //

@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -103,7 +104,7 @@ func AugmentFromProfile(fs afero.Fs, spec *Spec, sourcePath, output string, opts
 	}
 
 	var fileBuf bytes.Buffer
-	if err := encoding.WritePreamble(&fileBuf, mergedSchema); err != nil {
+	if err := encx.WritePreamble(&fileBuf, mergedSchema); err != nil {
 		return nil, err
 	}
 	if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {
@@ -259,7 +260,7 @@ func buildMergedSchema(src, gen *encoding.Schema) (*encoding.Schema, error) {
 // what buildMergedSchema constructs. Returns the number of records
 // copied.
 func reencodeRecords(r io.Reader, from, to *encoding.Schema, synthetic bool, out *bytes.Buffer) (int, error) {
-	rr := encoding.NewRecordReader(r, from)
+	rr := encx.NewRecordReader(r, from)
 	values := make(map[string]float64, len(from.Fields))
 	nulls := make(map[string]bool, len(from.Fields))
 	wide := make(map[string]any, len(from.Fields))

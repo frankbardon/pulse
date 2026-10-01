@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
@@ -165,7 +166,7 @@ func TestJoinShapeFixture_PositionalMatchesMapDecode(t *testing.T) {
 	fsys, path, schema, rows := loadJoinShapeFixture(t)
 	for _, tc := range []struct {
 		name  string
-		keep  encoding.FieldFilter
+		keep  encx.FieldFilter
 		keepN int
 	}{
 		{name: "full"},
@@ -257,7 +258,7 @@ func TestJoinShapeFixture_BufferedRetainedRatio(t *testing.T) {
 	const passes = 16 // 16 x 400 = 6,400 records per attempt
 	for _, tc := range []struct {
 		name  string
-		keep  encoding.FieldFilter
+		keep  encx.FieldFilter
 		keepN int
 		// maxRatio is positional / map retained B/record, with ~40%
 		// headroom over the measured figure (arm64, go1.26).
@@ -314,7 +315,7 @@ func TestJoinShapeFixture_DecodeAllocsRatio(t *testing.T) {
 	perRow := func(fn func(limit int) (int, error)) float64 {
 		return (allocs(fn, rows) - allocs(fn, 1)) / float64(rows-1)
 	}
-	buffered := func(keep encoding.FieldFilter, keepN int, legacy bool) func(int) (int, error) {
+	buffered := func(keep encx.FieldFilter, keepN int, legacy bool) func(int) (int, error) {
 		return func(limit int) (int, error) {
 			if legacy {
 				recs, err := drainLegacyBuffered(fsys, path, schema, keep, keepN, limit)

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/sharding/*.pulse from the generator")
@@ -67,15 +67,15 @@ func TestShardFixtures_OpenUnderCurrentCodec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			arch, err := encoding.OpenArchive(bytes.NewReader(raw), int64(len(raw)))
+			arch, err := encx.OpenArchive(bytes.NewReader(raw), int64(len(raw)))
 			if err != nil {
 				t.Fatalf("OpenArchive: %v", err)
 			}
-			rc, err := arch.Open(encoding.ReservedSchemaName)
+			rc, err := arch.Open(encx.ReservedSchemaName)
 			if err != nil {
-				t.Fatalf("open %s: %v", encoding.ReservedSchemaName, err)
+				t.Fatalf("open %s: %v", encx.ReservedSchemaName, err)
 			}
-			doc, err := encoding.ReadSchemaDoc(rc)
+			doc, err := encx.ReadSchemaDoc(rc)
 			_ = rc.Close()
 			if err != nil {
 				t.Fatalf("ReadSchemaDoc: %v", err)
@@ -89,7 +89,7 @@ func TestShardFixtures_OpenUnderCurrentCodec(t *testing.T) {
 			}
 			var sum uint64
 			for _, e := range arch.Entries() {
-				if e.Name == encoding.ReservedSchemaName {
+				if e.Name == encx.ReservedSchemaName {
 					continue
 				}
 				n, err := arch.PeekShardRecordCount(e.Name)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
@@ -185,7 +186,7 @@ func mergeFidelityWarnings(supplied, generated []string) []string {
 // of synth.SyntheticFieldName (0 = copied from source, non-zero =
 // newly generated) for FidelityReport's informational row counts.
 func countSyntheticPartitions(schema *encoding.Schema, records []byte) (sourceRows, syntheticRows int) {
-	rr := encoding.NewRecordReader(bytes.NewReader(records), schema)
+	rr := encx.NewRecordReader(bytes.NewReader(records), schema)
 	values := make(map[string]float64, len(schema.Fields))
 	nulls := make(map[string]bool)
 	for {
@@ -234,7 +235,7 @@ type fidelityIterator struct {
 	data      []byte
 	physical  *encoding.Schema
 	presented *encoding.Schema
-	rr        *encoding.RecordReader
+	rr        *encx.RecordReader
 	rec       *processing.Record
 }
 
@@ -264,6 +265,6 @@ func (it *fidelityIterator) Record() *processing.Record {
 
 // Reset rewinds the iterator to the beginning of data.
 func (it *fidelityIterator) Reset() {
-	it.rr = encoding.NewRecordReader(bytes.NewReader(it.data), it.physical)
+	it.rr = encx.NewRecordReader(bytes.NewReader(it.data), it.physical)
 	it.rec = nil
 }

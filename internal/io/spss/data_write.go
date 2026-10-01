@@ -83,6 +83,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // ---------------------------------------------------------------------------
@@ -757,7 +758,7 @@ func (p *DictionaryPlan) SetCaseCount(n int64) error {
 // A grouped (0x02) cohort is read through its logical record stream, so
 // each case decodes from exactly the row the ungrouped twin stores.
 func (e *DataEncoder) WriteCohort(r io.Reader) error {
-	r, schema, err := encoding.NewLogicalStream(r, e.schema)
+	r, schema, err := encx.NewLogicalStream(r, e.schema)
 	if err != nil {
 		return err
 	}

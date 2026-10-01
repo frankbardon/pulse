@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // The determinism criterion this story carries is a property of the
@@ -289,7 +290,7 @@ func decodeCohort(t *testing.T, data []byte) (nums map[string][]float64, cats ma
 		t.Fatalf("read schema: %v", err)
 	}
 	nums, cats = map[string][]float64{}, map[string][]string{}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := make(map[string]float64)
 	nulls := make(map[string]bool)
 	for {

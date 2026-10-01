@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
 )
@@ -17,7 +18,7 @@ import (
 // assertions against it in a test) without a round-trip read.
 type BuildIndexResult struct {
 	IndexPath string
-	Index     *encoding.Index
+	Index     *encx.Index
 
 	// ManifestPath is the keyless sidecar index manifest this build
 	// upserted its entry into (encoding.IndexManifestPath). Additive —
@@ -85,7 +86,7 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 			map[string]any{"cohort": path})
 	}
 
-	keys := make([]encoding.IndexKeySpec, 0, len(keyFields))
+	keys := make([]encx.IndexKeySpec, 0, len(keyFields))
 	fields := make([]*encoding.Field, 0, len(keyFields))
 	for _, name := range keyFields {
 		field := schema.Field(name)
@@ -99,7 +100,7 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 				processing.IndexKeyRejectionMessage(field.Type),
 				map[string]any{"field": name, "type": field.Type.String()})
 		}
-		keys = append(keys, encoding.IndexKeySpec{Name: field.Name, Type: field.Type})
+		keys = append(keys, encx.IndexKeySpec{Name: field.Name, Type: field.Type})
 		fields = append(fields, field)
 	}
 
@@ -123,7 +124,7 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		return nil, err
 	}
 
-	idx := &encoding.Index{
+	idx := &encx.Index{
 		Fingerprint:   fp,
 		Keys:          keys,
 		Buckets:       buckets,
@@ -131,8 +132,8 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		SourceModTime: sourceModTime,
 	}
 
-	indexPath := encoding.SidecarIndexPath(path, keyFields)
-	if err := encoding.WriteIndexFile(fsys, indexPath, idx); err != nil {
+	indexPath := encx.SidecarIndexPath(path, keyFields)
+	if err := encx.WriteIndexFile(fsys, indexPath, idx); err != nil {
 		return nil, err
 	}
 
@@ -156,17 +157,17 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 // schema) — acceptable because a build already pays O(record count)
 // to scan every row; hashing the raw bytes is a comparable single
 // linear pass, not an added order-of-magnitude cost.
-func computeCohortFingerprint(fsys afero.Fs, path string) (encoding.Fingerprint, error) {
+func computeCohortFingerprint(fsys afero.Fs, path string) (encx.Fingerprint, error) {
 	f, err := fsys.Open(path)
 	if err != nil {
-		return encoding.Fingerprint{}, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+		return encx.Fingerprint{}, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file for fingerprint: %s", path))
 	}
 	defer f.Close()
 
-	fp, err := encoding.ComputeFingerprint(f)
+	fp, err := encx.ComputeFingerprint(f)
 	if err != nil {
-		return encoding.Fingerprint{}, err
+		return encx.Fingerprint{}, err
 	}
 	return fp, nil
 }
@@ -207,7 +208,7 @@ func statCohortFile(fsys afero.Fs, path string) (size uint64, modTimeUnixNano in
 // buckets. Load factor ~1 keeps the average bucket at 0-1 entries,
 // matching IndexBucket's doc comment ("a well-distributed build
 // populates each bucket with zero or one entries on average").
-func scanBuildBuckets(fsys afero.Fs, path string, schema *encoding.Schema, keyFields []*encoding.Field) ([]encoding.IndexBucket, error) {
+func scanBuildBuckets(fsys afero.Fs, path string, schema *encoding.Schema, keyFields []*encoding.Field) ([]encx.IndexBucket, error) {
 	iter := newStreamingIterator(fsys, path, schema)
 	defer iter.Close()
 
@@ -244,11 +245,11 @@ func scanBuildBuckets(fsys afero.Fs, path string, schema *encoding.Schema, keyFi
 		return nil, nil
 	}
 
-	buckets := make([]encoding.IndexBucket, bucketCount)
+	buckets := make([]encx.IndexBucket, bucketCount)
 	for _, k := range order {
 		e := byKey[k]
-		bi := encoding.BucketIndex(e.key, bucketCount)
-		buckets[bi].Entries = append(buckets[bi].Entries, encoding.IndexEntry{
+		bi := encx.BucketIndex(e.key, bucketCount)
+		buckets[bi].Entries = append(buckets[bi].Entries, encx.IndexEntry{
 			Key:    e.key,
 			RowIDs: e.rowIDs,
 		})

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -31,7 +32,7 @@ func decodeAll(t *testing.T, fs afero.Fs, path string) (*encoding.Schema, []map[
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	var vals []map[string]float64
 	var nulls []map[string]bool
 	for {

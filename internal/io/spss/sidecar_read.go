@@ -59,8 +59,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -527,7 +527,7 @@ func (d *Document) VerifyDigest(fsys afero.Fs, cohortPath string) error {
 	}
 	defer func() { _ = f.Close() }()
 
-	got, ferr := encoding.ComputeFingerprint(f)
+	got, ferr := encx.ComputeFingerprint(f)
 	if ferr != nil {
 		return ferr
 	}

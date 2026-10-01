@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -428,14 +428,14 @@ func TestLookup_WrongArity_MismatchesIndexKeySpec(t *testing.T) {
 		t.Fatalf("BuildIndex(region,period): %v", err)
 	}
 
-	corrupted := &encoding.Index{
+	corrupted := &encx.Index{
 		Fingerprint:   res.Index.Fingerprint,
 		Keys:          res.Index.Keys[:1], // truncated key-spec: 1 entry, not 2
 		Buckets:       res.Index.Buckets,
 		SourceSize:    res.Index.SourceSize,    // preserve stat snapshot so the
 		SourceModTime: res.Index.SourceModTime, // read-path staleness check passes
 	}
-	if err := encoding.WriteIndexFile(cfg.Fs(), res.IndexPath, corrupted); err != nil {
+	if err := encx.WriteIndexFile(cfg.Fs(), res.IndexPath, corrupted); err != nil {
 		t.Fatalf("WriteIndexFile (corrupted sidecar): %v", err)
 	}
 

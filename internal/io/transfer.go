@@ -13,6 +13,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/klauspost/compress/zstd"
 	"github.com/spf13/afero"
 )
@@ -135,7 +136,7 @@ func cohortLayout(prefix []byte) string {
 	if len(prefix) >= len(encoding.MagicBytes) && [8]byte(prefix[:8]) == encoding.MagicBytes {
 		return TransferLayoutSingleFile
 	}
-	if len(prefix) >= len(encoding.ZipMagic) && [4]byte(prefix[:4]) == encoding.ZipMagic {
+	if len(prefix) >= len(encx.ZipMagic) && [4]byte(prefix[:4]) == encx.ZipMagic {
 		return TransferLayoutShardArchive
 	}
 	return ""

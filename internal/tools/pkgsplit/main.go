@@ -24,6 +24,13 @@
 //	    -names /tmp/remainder.txt -methods BuildDecodePlan,ReadRecordAt \
 //	    -exclude internal/encoding
 //
+// Declarations that must change sides inside a file that otherwise stays
+// put move with `move` (doc comments travel with them; a new -dst file
+// gets the -src import block, so run goimports on both afterwards):
+//
+//	go run ./internal/tools/pkgsplit move -src encoding/header.go \
+//	    -dst internal/encoding/preamble.go -names ReadPreamble,Schema.Logical
+//
 // The passes are purely syntactic (go/parser + go/format; no type
 // checker, so the module needs no golang.org/x/tools dependency): a
 // selector `<local>.Name` is rewritten only when <local> is the file's
@@ -52,7 +59,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: pkgsplit decls|qualify|methods|rewrite [flags]")
+		fmt.Fprintln(os.Stderr, "usage: pkgsplit decls|move|qualify|methods|rewrite [flags]")
 		os.Exit(2)
 	}
 	var err error
@@ -65,6 +72,8 @@ func main() {
 		err = runMethods(os.Args[2:])
 	case "rewrite":
 		err = runRewrite(os.Args[2:])
+	case "move":
+		err = runMove(os.Args[2:])
 	default:
 		err = fmt.Errorf("unknown subcommand %q", os.Args[1])
 	}
@@ -143,6 +152,155 @@ func topLevelNames(f *ast.File) []string {
 		}
 	}
 	return out
+}
+
+// ----------------------------------------------------------------- move
+
+func runMove(args []string) error {
+	fs := flag.NewFlagSet("move", flag.ExitOnError)
+	srcPath := fs.String("src", "", "file the declarations leave")
+	dstPath := fs.String("dst", "", "file the declarations are appended to (created when absent)")
+	names := fs.String("names", "", "comma-separated names; methods as Recv.Name")
+	pkg := fs.String("pkg", "", "package clause for a new -dst (default: -src's)")
+	_ = fs.Parse(args)
+	src, err := os.ReadFile(*srcPath)
+	if err != nil {
+		return err
+	}
+	var dst []byte
+	if b, err := os.ReadFile(*dstPath); err == nil {
+		dst = b
+	}
+	newSrc, newDst, err := Move(src, dst, splitSet(*names), *pkg)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(*srcPath, newSrc, 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(*dstPath, newDst, 0o644)
+}
+
+// Move cuts the named top-level declarations (with their doc comments)
+// out of src and appends them to dst. A nil dst starts a new file in
+// package pkg (src's package when empty) carrying src's imports. Every
+// name must match exactly one declaration; a GenDecl moves whole, so a
+// grouped const/var/type block moves only when every spec is named.
+func Move(src, dst []byte, names map[string]bool, pkg string) ([]byte, []byte, error) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "", src, parser.ParseComments|parser.SkipObjectResolution)
+	if err != nil {
+		return nil, nil, err
+	}
+	type span struct{ start, end int }
+	var cuts []span
+	found := map[string]bool{}
+	for _, d := range f.Decls {
+		var declNames []string
+		var doc *ast.CommentGroup
+		switch d := d.(type) {
+		case *ast.FuncDecl:
+			doc = d.Doc
+			if d.Recv != nil {
+				declNames = []string{recvTypeName(d) + "." + d.Name.Name}
+			} else {
+				declNames = []string{d.Name.Name}
+			}
+		case *ast.GenDecl:
+			if d.Tok == token.IMPORT {
+				continue
+			}
+			doc = d.Doc
+			for _, s := range d.Specs {
+				switch s := s.(type) {
+				case *ast.TypeSpec:
+					declNames = append(declNames, s.Name.Name)
+				case *ast.ValueSpec:
+					for _, n := range s.Names {
+						declNames = append(declNames, n.Name)
+					}
+				}
+			}
+		}
+		hit := 0
+		for _, n := range declNames {
+			if names[n] {
+				hit++
+			}
+		}
+		if hit == 0 {
+			continue
+		}
+		if hit != len(declNames) {
+			return nil, nil, fmt.Errorf("declaration %v is only partly named; split it first", declNames)
+		}
+		start := d.Pos()
+		if doc != nil {
+			start = doc.Pos()
+		}
+		cuts = append(cuts, span{fset.Position(start).Offset, fset.Position(d.End()).Offset})
+		for _, n := range declNames {
+			found[n] = true
+		}
+	}
+	for n := range names {
+		if !found[n] {
+			return nil, nil, fmt.Errorf("no declaration named %s", n)
+		}
+	}
+	var moved bytes.Buffer
+	var kept bytes.Buffer
+	prev := 0
+	for _, c := range cuts {
+		kept.Write(src[prev:c.start])
+		moved.WriteString("\n")
+		moved.Write(src[c.start:c.end])
+		moved.WriteString("\n")
+		prev = c.end
+	}
+	kept.Write(src[prev:])
+	if dst == nil {
+		if pkg == "" {
+			pkg = f.Name.Name
+		}
+		var hdr bytes.Buffer
+		fmt.Fprintf(&hdr, "package %s\n", pkg)
+		for _, d := range f.Decls {
+			if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.IMPORT {
+				hdr.WriteString("\n")
+				hdr.Write(src[fset.Position(g.Pos()).Offset:fset.Position(g.End()).Offset])
+				hdr.WriteString("\n")
+			}
+		}
+		dst = hdr.Bytes()
+	}
+	newDst := append(append([]byte{}, dst...), moved.Bytes()...)
+	outSrc, err := format.Source(kept.Bytes())
+	if err != nil {
+		return nil, nil, fmt.Errorf("reformat src: %w", err)
+	}
+	outDst, err := format.Source(newDst)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reformat dst: %w", err)
+	}
+	return outSrc, outDst, nil
+}
+
+func recvTypeName(fd *ast.FuncDecl) string {
+	t := fd.Recv.List[0].Type
+	if s, ok := t.(*ast.StarExpr); ok {
+		t = s.X
+	}
+	switch x := t.(type) {
+	case *ast.IndexExpr:
+		t = x.X
+	case *ast.IndexListExpr:
+		t = x.X
+	}
+	if id, ok := t.(*ast.Ident); ok {
+		return id.Name
+	}
+	return ""
 }
 
 // -------------------------------------------------------------- qualify
@@ -295,7 +453,7 @@ func runRewrite(args []string) error {
 type Options struct {
 	From, To, Alias string          // import paths and the import name for To
 	Names           map[string]bool // selectors <from>.Name rewritten to <alias>.Name
-	Methods         map[string]bool // x.M(args) rewritten to <alias>.M(x, args) (M(x, args) when Alias is "")
+	Methods         map[string]bool // x.M(args) rewritten to <alias>.M(x, args) (M(x, args) when Alias is ""); a declaration of method M becomes a function taking the receiver first
 }
 
 func rewritePath(path string, opts Options) error {
@@ -329,6 +487,15 @@ func Rewrite(src []byte, opts Options) ([]byte, bool, error) {
 		imports[localName(is)] = true
 	}
 	changed := false
+	for _, d := range f.Decls {
+		// A converted method's own declaration: the receiver becomes the
+		// first parameter.
+		if fd, ok := d.(*ast.FuncDecl); ok && fd.Recv != nil && opts.Methods[fd.Name.Name] {
+			fd.Type.Params.List = append([]*ast.Field{fd.Recv.List[0]}, fd.Type.Params.List...)
+			fd.Recv = nil
+			changed = true
+		}
+	}
 	ast.Inspect(f, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.SelectorExpr:

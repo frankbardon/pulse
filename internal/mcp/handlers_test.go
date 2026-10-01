@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/internal/spsstest"
@@ -566,8 +567,8 @@ func keysOf(m map[string]json.RawMessage) []string {
 // the CLI), and the reflected output schema advertises both slots.
 func TestHandleInspect_ReportsParentGroups(t *testing.T) {
 	var grouped bytes.Buffer
-	if _, _, err := encoding.DedupCohort(&grouped, bytes.NewReader(inspectCohortBytes(t, 6)),
-		[]encoding.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"tier"}}}); err != nil {
+	if _, _, err := encx.DedupCohort(&grouped, bytes.NewReader(inspectCohortBytes(t, 6)),
+		[]encx.GroupSpec{{Kind: encoding.GroupKindIndexed, Members: []string{"tier"}}}); err != nil {
 		t.Fatalf("DedupCohort: %v", err)
 	}
 	afs := afero.NewMemMapFs()

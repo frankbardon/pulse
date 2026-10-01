@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )
@@ -67,7 +68,7 @@ func readWideSetFieldRows(t *testing.T, data []byte, name string) (masks []encod
 	if f == nil || !f.Type.IsSet() || f.Dictionary == nil {
 		t.Fatalf("not a set field: %s", name)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := make(map[string]float64)
 	nulls := make(map[string]bool)
 	wide := make(map[string]any)
@@ -442,7 +443,7 @@ func TestSynth_SetWideRungStride(t *testing.T) {
 			if f == nil || f.Type.ByteSize() != tc.wantBytes {
 				t.Fatalf("features ByteSize = %d, want %d", f.Type.ByteSize(), tc.wantBytes)
 			}
-			rr := encoding.NewRecordReader(r, schema)
+			rr := encx.NewRecordReader(r, schema)
 			values := make(map[string]float64)
 			nulls := make(map[string]bool)
 			wide := make(map[string]any)

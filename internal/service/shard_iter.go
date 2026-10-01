@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/spf13/afero"
 )
@@ -37,11 +38,11 @@ type shardIter struct {
 	// these bytes; rewinding (Reset) re-seeks rather than re-reading
 	// the archive from disk.
 	archiveData []byte
-	archive     *encoding.Archive
+	archive     *encx.Archive
 
 	// per-shard reader state.
 	shardIdx int
-	reader   *encoding.RecordReader
+	reader   *encx.RecordReader
 
 	current *processing.Record
 	done    bool
@@ -61,7 +62,7 @@ type shardIter struct {
 	// excluded fields are still consumed from the reader so byte
 	// offsets stay aligned; only map writes are skipped. nil means
 	// full decode.
-	project     encoding.FieldFilter
+	project     encx.FieldFilter
 	projectSize int
 
 	// plan / planKey: precomputed DecodePlan over (it.schema, retained
@@ -69,7 +70,7 @@ type shardIter struct {
 	// so per-record Next() walks the plan instead of every schema
 	// field. Mirrors streamingIterator semantics. Stays nil when
 	// project is nil.
-	plan    *encoding.DecodePlan
+	plan    *encx.DecodePlan
 	planKey string
 }
 
@@ -104,7 +105,7 @@ func (it *shardIter) initArchive() error {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening shard archive: %s", it.path))
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return err
 	}
@@ -140,7 +141,7 @@ func (it *shardIter) openShard(idx int) error {
 	}
 	// Schema cohesion is validated at insert time; on the read
 	// path the canonical schema is authoritative.
-	it.reader = encoding.NewRecordReader(r, it.schema)
+	it.reader = encx.NewRecordReader(r, it.schema)
 	return nil
 }
 
@@ -273,7 +274,7 @@ func (it *shardIter) SetReuse(reuse bool) {
 // the first Next(). Mirrors streamingIterator.SetProjection — builds
 // a DecodePlan once at install time and caches it for the per-record
 // Next() path.
-func (it *shardIter) SetProjection(keep encoding.FieldFilter, size int) {
+func (it *shardIter) SetProjection(keep encx.FieldFilter, size int) {
 	it.project = keep
 	it.projectSize = size
 	it.binding = nil
@@ -290,7 +291,7 @@ func (it *shardIter) SetProjection(keep encoding.FieldFilter, size int) {
 	if it.plan != nil && key == it.planKey {
 		return
 	}
-	plan, err := it.schema.BuildDecodePlan(retained)
+	plan, err := encx.BuildDecodePlan(it.schema, retained)
 	if err != nil {
 		it.plan = nil
 		it.planKey = ""

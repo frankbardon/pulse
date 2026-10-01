@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/io/spss"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -45,7 +46,7 @@ func groupedTwinFS(t *testing.T) (v1, v2 afero.Fs) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	schema, n, err := encoding.DedupCohort(&out, bytes.NewReader(raw), []encoding.GroupSpec{
+	schema, n, err := encx.DedupCohort(&out, bytes.NewReader(raw), []encx.GroupSpec{
 		{Kind: encoding.GroupKindIndexed, Members: []string{"region", "parent_code", "parent_weight"}, Key: []string{"parent_code"}},
 		{Kind: encoding.GroupKindConstant, Members: []string{"source"}},
 	})
@@ -147,7 +148,7 @@ func TestGroupedCohort_FacadeParity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		s, v, err := encoding.ReadPreamble(bytes.NewReader(dst))
+		s, v, err := encx.ReadPreamble(bytes.NewReader(dst))
 		if err != nil || v != encoding.FormatVersionV2 || len(s.Groups) != 2 {
 			t.Fatalf("filtered copy: version 0x%02x, err %v; want 0x02 with 2 groups", v, err)
 		}

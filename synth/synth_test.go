@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )
@@ -546,7 +547,7 @@ func readCategoricalField(t *testing.T, data []byte, name string) []string {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	var out []string
 	values := make(map[string]float64)
 	nulls := make(map[string]bool)
@@ -575,7 +576,7 @@ func readField(t *testing.T, data []byte, name string) []float64 {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	var out []float64
 	values := make(map[string]float64)
 	nulls := make(map[string]bool)
@@ -602,7 +603,7 @@ func readNullCountForField(t *testing.T, data []byte, name string) int {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := make(map[string]float64)
 	nulls := make(map[string]bool)
 	count := 0
@@ -631,7 +632,7 @@ func readRecordCount(t *testing.T, data []byte) int {
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
-	rr := encoding.NewRecordReader(r, schema)
+	rr := encx.NewRecordReader(r, schema)
 	values := make(map[string]float64)
 	nulls := make(map[string]bool)
 	n := 0

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
 
@@ -94,7 +94,7 @@ func TestDedupJob_InPlaceMatchesImport(t *testing.T) {
 
 func importRepFlatStride(t *testing.T, raw []byte) int {
 	t.Helper()
-	s, _, err := encoding.ReadPreamble(bytes.NewReader(raw))
+	s, _, err := encx.ReadPreamble(bytes.NewReader(raw))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +255,7 @@ func TestDedupJob_Gate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Rewritten || rep.Records != 600 || rep.BytesAfter != rep.BytesBefore || rep.Groups[0].Verdict != encoding.GroupVerdictDroppedTooNarrow {
+	if rep.Rewritten || rep.Records != 600 || rep.BytesAfter != rep.BytesBefore || rep.Groups[0].Verdict != encx.GroupVerdictDroppedTooNarrow {
 		t.Fatalf("all-dropped report = %+v", rep)
 	}
 	assertUntouched(t, fs2, flat)

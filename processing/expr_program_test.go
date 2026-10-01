@@ -16,6 +16,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -121,13 +122,13 @@ func exprDecodePaths(t *testing.T, s *encoding.Schema, raw []byte, fn func(path 
 	for i := range s.Fields {
 		names[i] = s.Fields[i].Name
 	}
-	plan, err := s.BuildDecodePlan(names)
+	plan, err := encx.BuildDecodePlan(s, names)
 	if err != nil {
 		t.Fatal(err)
 	}
-	keepAll := encoding.FieldFilter(func(string) bool { return true })
-	loop := func(path string, read func(rr *encoding.RecordReader) (*Record, error)) {
-		rr := encoding.NewRecordReader(bytes.NewReader(raw), s)
+	keepAll := encx.FieldFilter(func(string) bool { return true })
+	loop := func(path string, read func(rr *encx.RecordReader) (*Record, error)) {
+		rr := encx.NewRecordReader(bytes.NewReader(raw), s)
 		for {
 			rec, err := read(rr)
 			if err == io.EOF {
@@ -140,19 +141,19 @@ func exprDecodePaths(t *testing.T, s *encoding.Schema, raw []byte, fn func(path 
 		}
 	}
 	reused := NewReusableRecord(s)
-	loop("reuse-full", func(rr *encoding.RecordReader) (*Record, error) {
+	loop("reuse-full", func(rr *encx.RecordReader) (*Record, error) {
 		return reused, rr.ReadRecordReused(reused)
 	})
 	reusedPlan := NewReusableRecord(s)
-	loop("reuse-plan", func(rr *encoding.RecordReader) (*Record, error) {
+	loop("reuse-plan", func(rr *encx.RecordReader) (*Record, error) {
 		return reusedPlan, rr.ReadRecordReusedWithPlan(reusedPlan, keepAll, plan)
 	})
 	binding := BindRecords(s, keepAll)
-	loop("buffered-plan", func(rr *encoding.RecordReader) (*Record, error) {
+	loop("buffered-plan", func(rr *encx.RecordReader) (*Record, error) {
 		rec := binding.NewRecord()
 		return rec, rr.ReadRecordReusedWithPlan(rec, keepAll, plan)
 	})
-	loop("map-decode", func(rr *encoding.RecordReader) (*Record, error) {
+	loop("map-decode", func(rr *encx.RecordReader) (*Record, error) {
 		vals, nulls, wide := map[string]float64{}, map[string]bool{}, map[string]any{}
 		if err := rr.ReadRecordWithWide(vals, nulls, wide); err != nil {
 			return nil, err
@@ -230,7 +231,7 @@ func TestRecord_ExprValueMatchesAllValues(t *testing.T) {
 	// that cannot hold it typed, a null overflow name, a schema field
 	// outside a projection.
 	r := NewReusableRecord(s)
-	rr := encoding.NewRecordReader(bytes.NewReader(raw), s)
+	rr := encx.NewRecordReader(bytes.NewReader(raw), s)
 	if err := rr.ReadRecordReused(r); err != nil {
 		t.Fatal(err)
 	}

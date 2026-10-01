@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -190,7 +191,7 @@ func TestAddShard_WidenEmitsMandatoryWarning(t *testing.T) {
 		t.Fatalf("AddShard: %v", err)
 	}
 
-	var found *encoding.CohesionWarning
+	var found *encx.CohesionWarning
 	for i := range res.Warnings {
 		if res.Warnings[i].Code == string(errors.PULSE_SHARD_SET_WIDENED) {
 			found = &res.Warnings[i]
@@ -443,13 +444,13 @@ func shardSchemaFromArchive(t *testing.T, svc *Service, archivePath, shard strin
 	return schema
 }
 
-func schemaDocFromArchive(t *testing.T, fsys afero.Fs, archivePath string) *encoding.SchemaDoc {
+func schemaDocFromArchive(t *testing.T, fsys afero.Fs, archivePath string) *encx.SchemaDoc {
 	t.Helper()
 	data, err := afero.ReadFile(fsys, archivePath)
 	if err != nil {
 		t.Fatalf("reading archive: %v", err)
 	}
-	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		t.Fatalf("OpenArchive: %v", err)
 	}

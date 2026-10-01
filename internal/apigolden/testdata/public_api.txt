@@ -5,7 +5,7 @@ pulse: type AddShardResult field Added string "json:\"added\""
 pulse: type AddShardResult field Archive string "json:\"archive\""
 pulse: type AddShardResult field Regrouped []pulse/internal/service.GroupReconciliation "json:\"regrouped,omitempty\""
 pulse: type AddShardResult field ShardCount int "json:\"shard_count\""
-pulse: type AddShardResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
+pulse: type AddShardResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: type AddShardResult field Widened []pulse/internal/service.SetWidening "json:\"widened,omitempty\""
 pulse: type AggregatorComponentsFunc func(instance pulse/processing.Aggregator) (map[string]any, error)
 pulse: type AggregatorRegistration struct
@@ -37,7 +37,7 @@ pulse: type AttributeRegistration field Name pulse/types.AttributeType
 pulse: type AttributeRegistration field Params []pulse.ParamMeta
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
-pulse: type BuildIndexResult field Index *pulse/encoding.Index
+pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
 pulse: type BuildIndexResult field IndexPath string
 pulse: type BuildIndexResult field ManifestPath string
 pulse: type ChainRequest = pulse/types.ChainRequest
@@ -92,7 +92,7 @@ pulse: type CreateShardArchiveResult underlying struct
 pulse: type CreateShardArchiveResult field Archive string "json:\"archive\""
 pulse: type CreateShardArchiveResult field Regrouped []pulse/internal/service.GroupReconciliation "json:\"regrouped,omitempty\""
 pulse: type CreateShardArchiveResult field ShardCount int "json:\"shard_count\""
-pulse: type CreateShardArchiveResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
+pulse: type CreateShardArchiveResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: type CreateShardArchiveResult field Widened []pulse/internal/service.SetWidening "json:\"widened,omitempty\""
 pulse: type DateRangeSpec struct
 pulse: type DateRangeSpec field End *string "json:\"end,omitempty\""
@@ -755,9 +755,9 @@ pulse: type VerifyIndexResult field Reason pulse/internal/service.IndexFreshness
 pulse: type VerifyResult = pulse/internal/service.VerifyResult
 pulse: type VerifyResult underlying struct
 pulse: type VerifyResult field Errors []*pulse/errors.CodedError "json:\"errors\""
-pulse: type VerifyResult field GroupIndexHeadroom []pulse/encoding.GroupIndexHeadroom "json:\"group_index_headroom,omitempty\""
+pulse: type VerifyResult field GroupIndexHeadroom []pulse/internal/encoding.GroupIndexHeadroom "json:\"group_index_headroom,omitempty\""
 pulse: type VerifyResult field SetWidthHeadroom []pulse/encoding.SetWidthHeadroom "json:\"set_width_headroom,omitempty\""
-pulse: type VerifyResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
+pulse: type VerifyResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: func Version() string
 pulse: type WatchOptions struct
 pulse: type WatchOptions field CoalesceWindow time.Duration
@@ -1221,43 +1221,10 @@ pulse/descriptor: func ValidateJoinFromBytes(left []byte, right []byte, req *pul
 pulse/descriptor: func ValidateLabels(env *pulse/descriptor.Envelope, bindings []*pulse/types.LabelBinding, schema *pulse/encoding.Schema, snap *pulse/descriptor.ExtensionsSnapshot, extraFields map[string]bool) (augmentNames map[string]bool)
 pulse/descriptor: func ValidateOverlays(env *pulse/descriptor.Envelope, req *pulse/types.Request, schema *pulse/encoding.Schema, opts *pulse/descriptor.PredictOptions)
 pulse/encoding: package encoding
-pulse/encoding: type Archive struct
-pulse/encoding: type Archive method (*Archive) Entries() []pulse/encoding.ArchiveEntry
-pulse/encoding: type Archive method (*Archive) IsStored(name string) bool
-pulse/encoding: type Archive method (*Archive) Open(name string) (io.ReadCloser, error)
-pulse/encoding: type Archive method (*Archive) OpenAt(name string) (io.SectionReader, error)
-pulse/encoding: type Archive method (*Archive) PeekShardHeader(name string) error
-pulse/encoding: type Archive method (*Archive) PeekShardRecordCount(name string) (int64, error)
-pulse/encoding: type ArchiveEntry struct
-pulse/encoding: type ArchiveEntry field Name string
-pulse/encoding: type ArchiveEntry field Offset int64
-pulse/encoding: type ArchiveEntry field Size int64
-pulse/encoding: func AssessGroup(grouped *pulse/encoding.Schema, g int, rows int64, floor float64) pulse/encoding.GroupViability
 pulse/encoding: func BitmapIsNull(bitmap []byte, i int) bool
 pulse/encoding: func BitmapSetNull(bitmap []byte, i int)
-pulse/encoding: func BucketIndex(key []byte, bucketCount uint32) uint32
 pulse/encoding: const CanonicalDateTimeLayout untyped string = "2006-01-02T15:04:05Z"
-pulse/encoding: func CheckSetWiden(from pulse/encoding.FieldType, to pulse/encoding.FieldType) error
-pulse/encoding: func CloneGroups(groups []pulse/encoding.Group) []pulse/encoding.Group
-pulse/encoding: type CohesionWarning struct
-pulse/encoding: type CohesionWarning field Code string
-pulse/encoding: type CohesionWarning field Details map[string]any
-pulse/encoding: type CohesionWarning field Message string
 pulse/encoding: func CompressedCohortError() *pulse/errors.CodedError
-pulse/encoding: func ComputeFingerprint(r io.Reader) (pulse/encoding.Fingerprint, error)
-pulse/encoding: type ConstantDetector struct
-pulse/encoding: type ConstantDetector method (*ConstantDetector) ConstantFields() []int
-pulse/encoding: type ConstantDetector method (*ConstantDetector) FirstRow() []byte
-pulse/encoding: type ConstantDetector method (*ConstantDetector) IsNullConstant(fi int) bool
-pulse/encoding: type ConstantDetector method (*ConstantDetector) Observe(lrow []byte) error
-pulse/encoding: type ConstantDetector method (*ConstantDetector) Rows() int64
-pulse/encoding: type ConstantDetector method (*ConstantDetector) Stride() int
-pulse/encoding: type ConstantPlan struct
-pulse/encoding: type ConstantPlan field BytesSaved int64
-pulse/encoding: type ConstantPlan field Fields []string
-pulse/encoding: type ConstantPlan field Retained string
-pulse/encoding: type ConstantPlan field Skipped string
-pulse/encoding: type ConstantPlan field Spec *pulse/encoding.GroupSpec
 pulse/encoding: var DateFormats []string
 pulse/encoding: var DateTimeFormats []string
 pulse/encoding: func DateTimeToDay(sec int64) int64
@@ -1275,20 +1242,6 @@ pulse/encoding: type Decimal128 method (Decimal128) Sqrt(sourceScale uint8, targ
 pulse/encoding: type Decimal128 method (Decimal128) String(scale uint8) string
 pulse/encoding: type Decimal128 method (Decimal128) Sub(o pulse/encoding.Decimal128) (pulse/encoding.Decimal128, error)
 pulse/encoding: func DecodeDecimal128(buf [16]byte) pulse/encoding.Decimal128
-pulse/encoding: type DecodeFields struct
-pulse/encoding: type DecodeFields field Fields []*pulse/encoding.Field
-pulse/encoding: type DecodeFields field Indices []int
-pulse/encoding: type DecodePlan struct
-pulse/encoding: type DecodePlan field Segments []pulse/encoding.Segment
-pulse/encoding: func DedupCohort(dst io.Writer, src io.Reader, specs []pulse/encoding.GroupSpec) (*pulse/encoding.Schema, int64, error)
-pulse/encoding: type DedupGate struct
-pulse/encoding: type DedupGate field RatioFloor float64
-pulse/encoding: type DedupGate field Strict bool
-pulse/encoding: type DedupGate method (DedupGate) AssessRatios(grouped *pulse/encoding.Schema, specs []pulse/encoding.GroupSpec, rows int64) ([]pulse/encoding.GroupViability, []*pulse/errors.CodedError, error)
-pulse/encoding: type DedupGate method (DedupGate) Floor() float64
-pulse/encoding: type DedupGate method (DedupGate) ScreenWidths(flat *pulse/encoding.Schema, specs []pulse/encoding.GroupSpec) ([]pulse/encoding.GroupSpec, []pulse/encoding.GroupViability, []*pulse/errors.CodedError, error)
-pulse/encoding: const DefaultDedupRatioFloor untyped float = 2
-pulse/encoding: type DictRemap = map[uint32]uint32
 pulse/encoding: type Dictionary struct
 pulse/encoding: type Dictionary method (*Dictionary) Add(s string) (uint32, error)
 pulse/encoding: type Dictionary method (*Dictionary) AddWithLimit(s string, maxEntries uint32) (uint32, error)
@@ -1310,7 +1263,6 @@ pulse/encoding: type Field field Nullable bool
 pulse/encoding: type Field field Precision uint8
 pulse/encoding: type Field field Scale uint8
 pulse/encoding: type Field field Type pulse/encoding.FieldType
-pulse/encoding: type FieldFilter func(name string) bool
 pulse/encoding: type FieldType byte
 pulse/encoding: type FieldType method (FieldType) ByteSize() int
 pulse/encoding: type FieldType method (FieldType) HasDictionary() bool
@@ -1346,10 +1298,6 @@ pulse/encoding: const FieldTypeU32 pulse/encoding.FieldType = 2
 pulse/encoding: const FieldTypeU4 pulse/encoding.FieldType = 6
 pulse/encoding: const FieldTypeU64 pulse/encoding.FieldType = 3
 pulse/encoding: const FieldTypeU8 pulse/encoding.FieldType = 0
-pulse/encoding: type Fingerprint [32]byte
-pulse/encoding: const FingerprintSize untyped int = 32
-pulse/encoding: func FlattenCohortBytes(cohort []byte) ([]byte, *pulse/encoding.Schema, error)
-pulse/encoding: func ForEachRecord(r io.Reader, stride int, fn func(rec []byte) error) (int64, error)
 pulse/encoding: func FormatDateTime(raw uint64) string
 pulse/encoding: const FormatVersion byte = 1
 pulse/encoding: const FormatVersionV1 byte = 1
@@ -1358,26 +1306,6 @@ pulse/encoding: type Group struct
 pulse/encoding: type Group field Entries []byte
 pulse/encoding: type Group field Kind pulse/encoding.GroupKind
 pulse/encoding: type Group field Members []pulse/encoding.GroupMember
-pulse/encoding: type GroupEncoder struct
-pulse/encoding: type GroupEncoder method (*GroupEncoder) EncodeRow(dst []byte, lrow []byte) ([]byte, error)
-pulse/encoding: type GroupEncoder method (*GroupEncoder) EncodeStream(spool io.Writer, lr io.Reader) (int64, error)
-pulse/encoding: type GroupEncoder method (*GroupEncoder) LogicalStride() int
-pulse/encoding: type GroupEncoder method (*GroupEncoder) PhysicalStride() int
-pulse/encoding: type GroupEncoder method (*GroupEncoder) Rows() int64
-pulse/encoding: type GroupEncoder method (*GroupEncoder) Schema() *pulse/encoding.Schema
-pulse/encoding: type GroupEncoder method (*GroupEncoder) Seed(seed *pulse/encoding.Schema) error
-pulse/encoding: type GroupEntryDecoder struct
-pulse/encoding: type GroupEntryDecoder method (*GroupEntryDecoder) Decode(e int, sink pulse/encoding.IndexedReusableRecord) error
-pulse/encoding: type GroupIndexHeadroom struct
-pulse/encoding: type GroupIndexHeadroom field Capacity uint64 "json:\"capacity\""
-pulse/encoding: type GroupIndexHeadroom field Entries int "json:\"entries\""
-pulse/encoding: type GroupIndexHeadroom field Group int "json:\"group\""
-pulse/encoding: type GroupIndexHeadroom field Headroom uint64 "json:\"headroom\""
-pulse/encoding: type GroupIndexHeadroom field Kind string "json:\"kind\""
-pulse/encoding: type GroupIndexHeadroom field Label string "json:\"label\""
-pulse/encoding: func GroupIndexHeadroomFor(s *pulse/encoding.Schema) []pulse/encoding.GroupIndexHeadroom
-pulse/encoding: type GroupIndexRecord interface
-pulse/encoding: type GroupIndexRecord imethod SetGroupIndices(schema *pulse/encoding.Schema, idx []uint32)
 pulse/encoding: const GroupIndexWidth untyped int = 4
 pulse/encoding: type GroupKind uint8
 pulse/encoding: type GroupKind method (GroupKind) String() string
@@ -1386,140 +1314,31 @@ pulse/encoding: const GroupKindIndexed pulse/encoding.GroupKind = 0
 pulse/encoding: type GroupMember struct
 pulse/encoding: type GroupMember field Field int
 pulse/encoding: type GroupMember field Key bool
-pulse/encoding: type GroupSpec struct
-pulse/encoding: type GroupSpec field Key []string
-pulse/encoding: type GroupSpec field Kind pulse/encoding.GroupKind
-pulse/encoding: type GroupSpec field Members []string
-pulse/encoding: type GroupSpec field Ordinal int
-pulse/encoding: type GroupSpec method (GroupSpec) Label(g int) string
-pulse/encoding: func GroupSpecsOf(s *pulse/encoding.Schema) []pulse/encoding.GroupSpec
-pulse/encoding: const GroupVerdictAdmitted untyped string = "admitted"
-pulse/encoding: const GroupVerdictDroppedTooNarrow untyped string = "dropped_too_narrow"
-pulse/encoding: const GroupVerdictLowRatio untyped string = "low_ratio"
-pulse/encoding: type GroupViability struct
-pulse/encoding: type GroupViability field BreakEvenRatio float64 "json:\"break_even_ratio\""
-pulse/encoding: type GroupViability field ByteDelta int64 "json:\"byte_delta\""
-pulse/encoding: type GroupViability field DedupedBytes int64 "json:\"deduped_bytes\""
-pulse/encoding: type GroupViability field DescriptorBytes int "json:\"descriptor_bytes\""
-pulse/encoding: type GroupViability field DictionaryBytes int64 "json:\"dictionary_bytes\""
-pulse/encoding: type GroupViability field EntryCount int "json:\"entry_count\""
-pulse/encoding: type GroupViability field EntryWidth int "json:\"entry_width\""
-pulse/encoding: type GroupViability field Group int "json:\"group\""
-pulse/encoding: type GroupViability field IndexWidth int "json:\"index_width\""
-pulse/encoding: type GroupViability field Label string "json:\"label\""
-pulse/encoding: type GroupViability field MemberRowBytes int "json:\"member_row_bytes\""
-pulse/encoding: type GroupViability field Ratio float64 "json:\"ratio\""
-pulse/encoding: type GroupViability field RatioFloor float64 "json:\"ratio_floor\""
-pulse/encoding: type GroupViability field Reason string "json:\"reason,omitempty\""
-pulse/encoding: type GroupViability field Rows int64 "json:\"rows\""
-pulse/encoding: type GroupViability field UndedupedBytes int64 "json:\"undeduped_bytes\""
-pulse/encoding: type GroupViability field Verdict string "json:\"verdict\""
-pulse/encoding: type GroupViability method (GroupViability) Finding() (low bool, grows bool)
-pulse/encoding: type GroupViability method (GroupViability) Viable() bool
-pulse/encoding: func HashKey(key []byte) uint64
 pulse/encoding: const HeaderSize untyped int = 9
-pulse/encoding: type Index struct
-pulse/encoding: type Index field Buckets []pulse/encoding.IndexBucket
-pulse/encoding: type Index field Fingerprint pulse/encoding.Fingerprint
-pulse/encoding: type Index field Keys []pulse/encoding.IndexKeySpec
-pulse/encoding: type Index field SourceModTime int64
-pulse/encoding: type Index field SourceSize uint64
-pulse/encoding: type IndexBucket struct
-pulse/encoding: type IndexBucket field Entries []pulse/encoding.IndexEntry
-pulse/encoding: type IndexEntry struct
-pulse/encoding: type IndexEntry field Key []byte
-pulse/encoding: type IndexEntry field RowIDs []uint64
-pulse/encoding: const IndexFormatVersion byte = 3
-pulse/encoding: const IndexHeaderSize untyped int = 9
-pulse/encoding: type IndexKeySpec struct
-pulse/encoding: type IndexKeySpec field Name string
-pulse/encoding: type IndexKeySpec field Type pulse/encoding.FieldType
-pulse/encoding: var IndexMagicBytes [8]byte
-pulse/encoding: type IndexManifest struct
-pulse/encoding: type IndexManifest field Cohort string "json:\"cohort\""
-pulse/encoding: type IndexManifest field FormatVersion string "json:\"format_version\""
-pulse/encoding: type IndexManifest field Indexes []pulse/encoding.IndexManifestEntry "json:\"indexes\""
-pulse/encoding: type IndexManifest field Kind string "json:\"kind\""
-pulse/encoding: type IndexManifest method (*IndexManifest) Remove(indexBase string) bool
-pulse/encoding: type IndexManifest method (*IndexManifest) Upsert(entry pulse/encoding.IndexManifestEntry)
-pulse/encoding: type IndexManifestEntry struct
-pulse/encoding: type IndexManifestEntry field DistinctKeys int "json:\"distinct_keys\""
-pulse/encoding: type IndexManifestEntry field IndexPath string "json:\"index_path\""
-pulse/encoding: type IndexManifestEntry field IndexedRecords int "json:\"indexed_records\""
-pulse/encoding: type IndexManifestEntry field KeyHash string "json:\"key_hash\""
-pulse/encoding: type IndexManifestEntry field Keys []pulse/encoding.IndexManifestKey "json:\"keys\""
-pulse/encoding: type IndexManifestEntry method (IndexManifestEntry) KeyNames() []string
-pulse/encoding: func IndexManifestEntryFor(indexPath string, idx *pulse/encoding.Index) pulse/encoding.IndexManifestEntry
-pulse/encoding: const IndexManifestFormatVersion untyped string = "1"
-pulse/encoding: type IndexManifestKey struct
-pulse/encoding: type IndexManifestKey field Name string "json:\"name\""
-pulse/encoding: type IndexManifestKey field Type string "json:\"type\""
-pulse/encoding: const IndexManifestKind untyped string = "pulse.index-manifest"
-pulse/encoding: func IndexManifestPath(cohortPath string) string
-pulse/encoding: const IndexManifestSuffix untyped string = ".indexes.json"
-pulse/encoding: type IndexMeta struct
-pulse/encoding: type IndexMeta field BucketCount uint32
-pulse/encoding: type IndexMeta field Fingerprint pulse/encoding.Fingerprint
-pulse/encoding: type IndexMeta field Keys []pulse/encoding.IndexKeySpec
-pulse/encoding: type IndexMeta field OffsetTableStart int64
-pulse/encoding: type IndexMeta field SourceModTime int64
-pulse/encoding: type IndexMeta field SourceSize uint64
-pulse/encoding: type IndexMeta method (*IndexMeta) BucketDataStart() int64
-pulse/encoding: type IndexedReusableRecord interface
-pulse/encoding: type IndexedReusableRecord imethod ClearForRow()
-pulse/encoding: type IndexedReusableRecord imethod SetNullFieldAt(idx int)
-pulse/encoding: type IndexedReusableRecord imethod SetNumericAt(idx int, value float64)
-pulse/encoding: type IndexedReusableRecord imethod SetWideFieldAt(idx int, value any)
-pulse/encoding: func IsArchive(r io.ReaderAt, size int64) (bool, error)
 pulse/encoding: func IsSupportedFormatVersion(v byte) bool
 pulse/encoding: func IsZstdMagic(b []byte) bool
 pulse/encoding: var MagicBytes [8]byte
 pulse/encoding: const MaxDecimalPrecision untyped int = 38
 pulse/encoding: const MaxDescriptionBytes untyped int = 1000
-pulse/encoding: const MaxFormatVersion byte = 2
 pulse/encoding: var MaxGroupEntries uint64
-pulse/encoding: func MergeDictUnion(canonical *pulse/encoding.Schema, incoming *pulse/encoding.Schema) (*pulse/encoding.Schema, map[int]pulse/encoding.DictRemap, error)
 pulse/encoding: const MinDecimalScale untyped int = 4
-pulse/encoding: const MinElisionRows untyped int = 2
-pulse/encoding: func NewConstantDetector(flat *pulse/encoding.Schema) (*pulse/encoding.ConstantDetector, error)
 pulse/encoding: func NewDecimal128FromBigInt(m *math/big.Int) (pulse/encoding.Decimal128, error)
 pulse/encoding: func NewDecimal128FromInt(i int64) pulse/encoding.Decimal128
 pulse/encoding: func NewDictionary() *pulse/encoding.Dictionary
-pulse/encoding: func NewGroupEncoder(flat *pulse/encoding.Schema, specs []pulse/encoding.GroupSpec) (*pulse/encoding.GroupEncoder, error)
-pulse/encoding: func NewIndexManifest(cohortPath string) *pulse/encoding.IndexManifest
-pulse/encoding: func NewLogicalStream(r io.Reader, s *pulse/encoding.Schema) (io.Reader, *pulse/encoding.Schema, error)
 pulse/encoding: func NewRecordLocator(r *bytes.Reader, schema *pulse/encoding.Schema) (*pulse/encoding.RecordLocator, error)
-pulse/encoding: func NewRecordReader(r io.Reader, schema *pulse/encoding.Schema) *pulse/encoding.RecordReader
-pulse/encoding: func NewRowExpander(s *pulse/encoding.Schema) (*pulse/encoding.RowExpander, error)
-pulse/encoding: func OpenArchive(r io.ReaderAt, size int64) (*pulse/encoding.Archive, error)
 pulse/encoding: func ParseDate(raw string) (uint32, error)
 pulse/encoding: func ParseDateTime(raw string) (uint64, error)
 pulse/encoding: func ParseDecimal128(s string) (pulse/encoding.Decimal128, uint8, error)
 pulse/encoding: func ParseFieldType(name string) (pulse/encoding.FieldType, bool)
-pulse/encoding: func PlanConstantElision(d *pulse/encoding.ConstantDetector, reserved []string) (*pulse/encoding.ConstantPlan, error)
-pulse/encoding: func PlanConstantElisionFor(flat *pulse/encoding.Schema, constant []int, rows int64, reserved []string) (*pulse/encoding.ConstantPlan, error)
-pulse/encoding: func PlanSetWidening(canonical *pulse/encoding.Schema, incoming *pulse/encoding.Schema) ([]pulse/encoding.SetWidenPlan, error)
-pulse/encoding: func PromoteAdd(p1 uint8, s1 uint8, p2 uint8, s2 uint8) (uint8, uint8)
-pulse/encoding: func PromoteDiv(p1 uint8, s1 uint8, p2 uint8, s2 uint8) (uint8, uint8)
-pulse/encoding: func PromoteMul(p1 uint8, s1 uint8, p2 uint8, s2 uint8) (uint8, uint8)
 pulse/encoding: func PutSetMask(dst []byte, ft pulse/encoding.FieldType, m pulse/encoding.SetMask) error
 pulse/encoding: func ReadBit(r io.Reader, bitPos uint) (bool, error)
 pulse/encoding: func ReadBitmap(r io.Reader, byteLen int) ([]byte, error)
-pulse/encoding: func ReadBucketByKey(rs io.ReadSeeker, meta *pulse/encoding.IndexMeta, key []byte) (*pulse/encoding.IndexBucket, error)
 pulse/encoding: func ReadDecimal128(r io.Reader) (pulse/encoding.Decimal128, error)
 pulse/encoding: func ReadDescription(r io.Reader) (string, error)
 pulse/encoding: func ReadFieldValue(r io.Reader, ft pulse/encoding.FieldType) (uint64, error)
 pulse/encoding: func ReadHeader(r io.Reader) (byte, error)
-pulse/encoding: func ReadIndex(r io.Reader) (*pulse/encoding.Index, error)
-pulse/encoding: func ReadIndexFile(fsys github.com/spf13/afero.Fs, path string) (*pulse/encoding.Index, error)
-pulse/encoding: func ReadIndexHeader(r io.Reader) error
-pulse/encoding: func ReadIndexManifest(fsys github.com/spf13/afero.Fs, cohortPath string) (*pulse/encoding.IndexManifest, bool, error)
-pulse/encoding: func ReadIndexMeta(r io.Reader) (*pulse/encoding.IndexMeta, error)
-pulse/encoding: func ReadIndexMetaFile(fsys github.com/spf13/afero.Fs, path string) (*pulse/encoding.IndexMeta, error)
 pulse/encoding: func ReadNibble(r io.Reader, high bool) (uint8, error)
-pulse/encoding: func ReadPreamble(r io.Reader) (*pulse/encoding.Schema, byte, error)
 pulse/encoding: func ReadSchema(r io.Reader, v byte) (*pulse/encoding.Schema, error)
-pulse/encoding: func ReadSchemaDoc(r io.Reader) (*pulse/encoding.SchemaDoc, error)
 pulse/encoding: func ReadSetMask(r io.Reader, ft pulse/encoding.FieldType) (pulse/encoding.SetMask, error)
 pulse/encoding: type RecordLocator struct
 pulse/encoding: type RecordLocator field RecordRegionStart int64
@@ -1527,43 +1346,11 @@ pulse/encoding: type RecordLocator field Schema *pulse/encoding.Schema
 pulse/encoding: type RecordLocator field Stride int64
 pulse/encoding: type RecordLocator field TotalRecords uint64
 pulse/encoding: type RecordLocator method (*RecordLocator) Offset(i uint64) int64
-pulse/encoding: type RecordLocator method (*RecordLocator) ReadRecordAt(r io.ReadSeeker, i uint64, values map[string]float64, nulls map[string]bool, wide map[string]any, keep pulse/encoding.FieldFilter, plan *pulse/encoding.DecodePlan) error
-pulse/encoding: type RecordReader struct
-pulse/encoding: type RecordReader method (*RecordReader) GroupIndex(g int) (uint32, bool)
-pulse/encoding: type RecordReader method (*RecordReader) ReadRecord(values map[string]float64, nulls map[string]bool) error
-pulse/encoding: type RecordReader method (*RecordReader) ReadRecordReused(rec pulse/encoding.ReusableRecord) error
-pulse/encoding: type RecordReader method (*RecordReader) ReadRecordReusedWithPlan(rec pulse/encoding.ReusableRecord, keep pulse/encoding.FieldFilter, plan *pulse/encoding.DecodePlan) error
-pulse/encoding: type RecordReader method (*RecordReader) ReadRecordWithWide(values map[string]float64, nulls map[string]bool, wide map[string]any) error
-pulse/encoding: type RecordReader method (*RecordReader) ReadRecordWithWidePlan(values map[string]float64, nulls map[string]bool, wide map[string]any, keep pulse/encoding.FieldFilter, plan *pulse/encoding.DecodePlan) error
-pulse/encoding: type RecordReader method (*RecordReader) ReadRecordWithWideProjected(values map[string]float64, nulls map[string]bool, wide map[string]any, keep pulse/encoding.FieldFilter) error
-pulse/encoding: func RefuseGroups(s *pulse/encoding.Schema, operation string, code pulse/errors.Code) error
-pulse/encoding: const ReservedSchemaName untyped string = "_schema.pulse"
-pulse/encoding: type ReusableRecord interface
-pulse/encoding: type ReusableRecord imethod ClearForRow()
-pulse/encoding: type ReusableRecord imethod SetNullField(name string)
-pulse/encoding: type ReusableRecord imethod SetNumeric(name string, value float64)
-pulse/encoding: type ReusableRecord imethod SetWideField(name string, value any)
-pulse/encoding: func RewriteShardCategoricals(shardBytes []byte, targetSchema *pulse/encoding.Schema, remap map[int]pulse/encoding.DictRemap) ([]byte, error)
-pulse/encoding: func RewriteShardCategoricalsKeepNulls(shardBytes []byte, targetSchema *pulse/encoding.Schema, remap map[int]pulse/encoding.DictRemap) ([]byte, error)
-pulse/encoding: type RowExpander struct
-pulse/encoding: type RowExpander method (*RowExpander) Expand(dst []byte, phys []byte) ([]byte, error)
-pulse/encoding: type RowExpander method (*RowExpander) GroupIndex(g int) uint32
-pulse/encoding: type RowExpander method (*RowExpander) LogicalStride() int
-pulse/encoding: type RowExpander method (*RowExpander) PhysicalStride() int
-pulse/encoding: type RunSkipRecord interface
-pulse/encoding: type RunSkipRecord imethod BeginRunRow(token uint64, keep bool) bool
-pulse/encoding: type RunSkipRecord imethod ClearForRow()
-pulse/encoding: type RunSkipRecord imethod ClearNullAt(idx int)
-pulse/encoding: type RunSkipRecord imethod SetNullFieldAt(idx int)
-pulse/encoding: type RunSkipRecord imethod SetNumericAt(idx int, value float64)
-pulse/encoding: type RunSkipRecord imethod SetWideFieldAt(idx int, value any)
 pulse/encoding: type Schema struct
 pulse/encoding: type Schema field Fields []pulse/encoding.Field
 pulse/encoding: type Schema field Groups []pulse/encoding.Group
 pulse/encoding: type Schema method (*Schema) BitmapByteSize() int
-pulse/encoding: type Schema method (*Schema) BuildDecodePlan(retained []string) (*pulse/encoding.DecodePlan, error)
 pulse/encoding: type Schema method (*Schema) Categorical(name string) (*pulse/encoding.Dictionary, bool)
-pulse/encoding: type Schema method (*Schema) DecodeGroupEntry(g int, e int, sink pulse/encoding.IndexedReusableRecord) error
 pulse/encoding: type Schema method (*Schema) Field(name string) *pulse/encoding.Field
 pulse/encoding: type Schema method (*Schema) FieldGroup(fi int) (g int, k int, ok bool)
 pulse/encoding: type Schema method (*Schema) GroupEntry(g int, e int) []byte
@@ -1573,25 +1360,15 @@ pulse/encoding: type Schema method (*Schema) GroupIndexOffset(g int) int
 pulse/encoding: type Schema method (*Schema) GroupMemberBytes(g int, k int, entry []byte) []byte
 pulse/encoding: type Schema method (*Schema) GroupMemberIsNull(g int, k int, entry []byte) bool
 pulse/encoding: type Schema method (*Schema) GroupMemberRowBytes(g int) int
-pulse/encoding: type Schema method (*Schema) GroupSpecOf(g int) pulse/encoding.GroupSpec
 pulse/encoding: type Schema method (*Schema) HasBitmap() bool
 pulse/encoding: type Schema method (*Schema) HasGroups() bool
 pulse/encoding: type Schema method (*Schema) Logical() *pulse/encoding.Schema
-pulse/encoding: type Schema method (*Schema) NewGroupEntryDecoder(g int, fields []int) (*pulse/encoding.GroupEntryDecoder, error)
 pulse/encoding: type Schema method (*Schema) RecordByteSize() int
 pulse/encoding: type Schema method (*Schema) RecordCountForPayload(payloadBytes int64) (count int64, trailing int64, ok bool)
 pulse/encoding: type Schema method (*Schema) RequiredFormatVersion() byte
 pulse/encoding: type Schema method (*Schema) SetField(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) ValidateGroups() error
-pulse/encoding: type SchemaDoc struct
-pulse/encoding: type SchemaDoc field AggregateRecordCount uint64
-pulse/encoding: type SchemaDoc field Schema *pulse/encoding.Schema
-pulse/encoding: type SchemaDoc field ShardCount uint16
-pulse/encoding: var SchemaDocMagic [4]byte
 pulse/encoding: const SecondsPerDay untyped int = 86400
-pulse/encoding: type Segment interface
-pulse/encoding: type Segment imethod <unexported>
-pulse/encoding: func SetLadder() []pulse/encoding.FieldType
 pulse/encoding: type SetMask struct
 pulse/encoding: type SetMask method (SetMask) Bits() iter.Seq[int]
 pulse/encoding: type SetMask method (SetMask) Equal(o pulse/encoding.SetMask) bool
@@ -1613,14 +1390,6 @@ pulse/encoding: func SetMaskFromBytes(ft pulse/encoding.FieldType, src []byte) (
 pulse/encoding: func SetMaskFromUint64(low uint64) pulse/encoding.SetMask
 pulse/encoding: func SetMaskFromWords(words [4]uint64) pulse/encoding.SetMask
 pulse/encoding: const SetMaskWords untyped int = 4
-pulse/encoding: func SetTypeFor(elements int) (pulse/encoding.FieldType, bool)
-pulse/encoding: type SetWidenPlan struct
-pulse/encoding: type SetWidenPlan field Field string
-pulse/encoding: type SetWidenPlan field FieldIndex int
-pulse/encoding: type SetWidenPlan field From pulse/encoding.FieldType
-pulse/encoding: type SetWidenPlan field IncomingFrom pulse/encoding.FieldType
-pulse/encoding: type SetWidenPlan field To pulse/encoding.FieldType
-pulse/encoding: type SetWidenPlan field UnionEntries int
 pulse/encoding: type SetWidthHeadroom struct
 pulse/encoding: type SetWidthHeadroom field Capacity int "json:\"capacity\""
 pulse/encoding: type SetWidthHeadroom field Field string "json:\"field\""
@@ -1628,18 +1397,7 @@ pulse/encoding: type SetWidthHeadroom field Headroom int "json:\"headroom\""
 pulse/encoding: type SetWidthHeadroom field NextType string "json:\"next_type,omitempty\""
 pulse/encoding: type SetWidthHeadroom field Type string "json:\"type\""
 pulse/encoding: type SetWidthHeadroom field Used int "json:\"used\""
-pulse/encoding: func SetWidthHeadroomFor(s *pulse/encoding.Schema) []pulse/encoding.SetWidthHeadroom
-pulse/encoding: func SidecarIndexPath(cohortPath string, keyFields []string) string
-pulse/encoding: type SkipBytes struct
-pulse/encoding: type SkipBytes field N int
 pulse/encoding: func SupportedFormatVersions() []byte
-pulse/encoding: type TypedSetRecord interface
-pulse/encoding: type TypedSetRecord imethod SetNarrowSetAt(idx int, mask uint64)
-pulse/encoding: type TypedSetRecord imethod SetWideSetAt(idx int, m pulse/encoding.SetMask)
-pulse/encoding: func ValidateDictPrefixRule(canonical *pulse/encoding.Schema, incoming *pulse/encoding.Schema) (*pulse/encoding.Schema, error)
-pulse/encoding: func ValidateGroupCohesion(canonical *pulse/encoding.Schema, incoming *pulse/encoding.Schema) error
-pulse/encoding: func ValidatePrecisionScale(precision uint8, scale uint8) error
-pulse/encoding: func ValidateStructuralCohesion(canonical *pulse/encoding.Schema, incoming *pulse/encoding.Schema) ([]pulse/encoding.CohesionWarning, error)
 pulse/encoding: type WidenReport struct
 pulse/encoding: type WidenReport field Field string
 pulse/encoding: type WidenReport field From pulse/encoding.FieldType
@@ -1647,27 +1405,16 @@ pulse/encoding: type WidenReport field Records int64
 pulse/encoding: type WidenReport field StrideAfter int
 pulse/encoding: type WidenReport field StrideBefore int
 pulse/encoding: type WidenReport field To pulse/encoding.FieldType
-pulse/encoding: func WidenSchemaSetField(s *pulse/encoding.Schema, field string, target pulse/encoding.FieldType) (*pulse/encoding.Schema, error)
-pulse/encoding: func WidenSetFieldBytes(cohort []byte, field string, target pulse/encoding.FieldType) ([]byte, *pulse/encoding.WidenReport, error)
-pulse/encoding: func WidenSetFieldFile(fsys github.com/spf13/afero.Fs, path string, field string, target pulse/encoding.FieldType) (*pulse/encoding.WidenReport, error)
-pulse/encoding: func WidestSetType() pulse/encoding.FieldType
 pulse/encoding: func WriteBit(w io.Writer, bitPos uint, val bool) error
 pulse/encoding: func WriteBitmap(w io.Writer, bitmap []byte) error
 pulse/encoding: func WriteDecimal128(w io.Writer, d pulse/encoding.Decimal128) error
 pulse/encoding: func WriteDescription(w io.Writer, desc string) error
 pulse/encoding: func WriteFieldValue(w io.Writer, ft pulse/encoding.FieldType, val uint64) error
 pulse/encoding: func WriteHeader(w io.Writer) error
-pulse/encoding: func WriteIndex(w io.Writer, idx *pulse/encoding.Index) error
-pulse/encoding: func WriteIndexFile(fsys github.com/spf13/afero.Fs, path string, idx *pulse/encoding.Index) error
-pulse/encoding: func WriteIndexHeader(w io.Writer) error
-pulse/encoding: func WriteIndexManifest(fsys github.com/spf13/afero.Fs, cohortPath string, m *pulse/encoding.IndexManifest) error
 pulse/encoding: func WriteNibble(w io.Writer, high bool, val uint8) error
-pulse/encoding: func WritePreamble(w io.Writer, s *pulse/encoding.Schema) error
 pulse/encoding: func WriteSchema(w io.Writer, s *pulse/encoding.Schema) error
-pulse/encoding: func WriteSchemaDoc(w io.Writer, schema *pulse/encoding.Schema, agg uint64, shardCount uint16) error
 pulse/encoding: func WriteSetMask(w io.Writer, ft pulse/encoding.FieldType, m pulse/encoding.SetMask) error
 pulse/encoding: func ZeroDecimal128() pulse/encoding.Decimal128
-pulse/encoding: var ZipMagic [4]byte
 pulse/encoding: var ZstdMagic [4]byte
 pulse/errors: package errors
 pulse/errors: func AllCodes() []pulse/errors.Code
@@ -2434,7 +2181,7 @@ pulse/processing: type AttributeComputer interface
 pulse/processing: type AttributeComputer imethod Compute(records []*pulse/processing.Record, field string) ([]float64, error)
 pulse/processing: type AttributeFactory func(attr *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/processing.AttributeComputer, error)
 pulse/processing: func AxisKeyPrefix(key pulse/types.AxisKey, depth int) string
-pulse/processing: func BindRecords(schema *pulse/encoding.Schema, keep pulse/encoding.FieldFilter) *pulse/processing.RecordBinding
+pulse/processing: func BindRecords(schema *pulse/encoding.Schema, keep pulse/internal/encoding.FieldFilter) *pulse/processing.RecordBinding
 pulse/processing: type BitsetSet struct
 pulse/processing: type BitsetSet method (*BitsetSet) Add(id uint32)
 pulse/processing: type BitsetSet method (*BitsetSet) Contains(id uint32) bool
@@ -4178,4 +3925,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d66e69a7871cf6f076b3c07158e85aad2117a4bb52f8aaf852c9a3668f8aebbe
+// golden-hash: da84468e2e078544869f48d3f66203a94de53d94538033f4ba23d2a41ed0b89d
