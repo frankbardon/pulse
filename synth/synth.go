@@ -45,10 +45,7 @@ func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error
 	}
 
 	var fileBuf bytes.Buffer
-	if err := encoding.WriteHeader(&fileBuf); err != nil {
-		return nil, err
-	}
-	if err := encoding.WriteSchema(&fileBuf, schema); err != nil {
+	if err := encoding.WritePreamble(&fileBuf, schema); err != nil {
 		return nil, err
 	}
 	if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {
@@ -87,10 +84,7 @@ func SynthBytes(spec *Spec, opts Options) ([]byte, *Result, error) {
 	}
 
 	var fileBuf bytes.Buffer
-	if err := encoding.WriteHeader(&fileBuf); err != nil {
-		return nil, nil, err
-	}
-	if err := encoding.WriteSchema(&fileBuf, schema); err != nil {
+	if err := encoding.WritePreamble(&fileBuf, schema); err != nil {
 		return nil, nil, err
 	}
 	if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {

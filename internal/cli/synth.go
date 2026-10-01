@@ -56,11 +56,11 @@ func synthFromSchemaCmd() *cli.Command {
 			fs := afero.NewOsFs()
 			raw, err := afero.ReadFile(fs, specPath)
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			spec, err := synth.ParseSpec(raw)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SYNTH_SPEC_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SYNTH_SPEC_ERROR", err)
 			}
 			if rows > 0 {
 				spec.RowCount = rows
@@ -68,12 +68,12 @@ func synthFromSchemaCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{Seed: int64(seed)})
 			if err != nil {
-				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)
@@ -102,7 +102,7 @@ func synthFromProfileCmd() *cli.Command {
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
 			&cli.StringFlag{Name: "fidelity-report", Usage: "Write a JSON fidelity report (per-field TEST_KS/TEST_CHISQ comparison against the source) to this path after generation"},
 			&cli.StringFlag{Name: "rules", Usage: "Load structural rules from a standalone JSON file (a bare array of rule objects — the same shape as a spec's \"rules\" key) and apply them to the profile-derived spec; REPLACES any rules the spec carries"},
-			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so `synth from-schema` reproduces this run at the same seed"},
+			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so 'synth from-schema' reproduces this run at the same seed"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -119,7 +119,7 @@ func synthFromProfileCmd() *cli.Command {
 			fs := afero.NewOsFs()
 			raw, err := afero.ReadFile(fs, profPath)
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			var prof synth.Profile
 			if err := json.Unmarshal(raw, &prof); err != nil {
@@ -154,7 +154,7 @@ func synthFromProfileCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			// Capture-time thin-cell warnings (prof.Warnings, written to
 			// the profile document at `profile create` time) and
@@ -183,7 +183,7 @@ func synthFromProfileCmd() *cli.Command {
 				FidelityWarnings:   fidelityWarnings,
 			})
 			if err != nil {
-				return cliError(cmd, jsonOut, "SYNTH_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)
@@ -289,7 +289,8 @@ func profileCreateCmd() *cli.Command {
 			&cli.BoolFlag{Name: "fit-shape", Usage: "Fit a 2-component Gaussian mixture per numeric field and keep it only when it's a genuine BIC improvement over the plain normal (see skills/synthetic-data.md); a near-normal field is left as normal"},
 			&cli.BoolFlag{Name: "fit-models", Usage: "Fit one linear model per numeric field on the same scan — the field regressed on the cohort's categorical levels and set options — keeping the coefficients, residual scale and fitted residuals; a field with no usable predictors or a rank-deficient design is skipped with a warning, never a refusal"},
 			&cli.BoolFlag{Name: "residual-correlations", Usage: "Capture the full correlation submatrix among --fit-models' fitted residuals (every pair, not a top-K sample); a pair with too few co-present rows is recorded as unmeasured with a reason, never as rho=0. Requires --fit-models"},
-			&cli.StringFlag{Name: "suggest-rules", Usage: "Detect structural rules on the same scan — gating relationships (`set_null`), co-missing question blocks (`null_together`) and exact single-source dependencies (`set_expr`) — and write them to this path as a standalone rules file (a bare JSON array, the shape `synth from-profile --rules` consumes). PROPOSED, never applied: read the `_evidence` on each candidate, correct it, delete what you do not believe. Near-miss blocks, almost-determined pairs, always-null and constant columns are reported in the warnings rather than proposed. Dependency detection is bounded to packed_bool/u4 targets and a single low-cardinality source of at most 16 levels. The profile document itself is unchanged"},
+			&cli.StringFlag{Name: "suggest-rules", Usage: "Detect structural rules on the same scan — gating relationships ('set_null'), co-missing question blocks ('null_together') and exact single-source dependencies ('set_expr') — and write them to this path as a standalone rules file (a bare JSON array, the shape 'synth from-profile --rules' consumes). PROPOSED, never applied: read the '_evidence' on each candidate, correct it, delete what you do not believe. Near-miss blocks, almost-determined pairs, always-null and constant columns are reported in the warnings rather than proposed. Dependency detection is bounded to packed_bool/u4 targets and a single low-cardinality source of at most 16 levels. The profile document itself is unchanged"},
+			&cli.BoolFlag{Name: "run-continuation", Usage: "Measure, on the same scan, each field's run-continuation — the fraction of adjacent row pairs whose on-wire bytes and null bit repeat, which is exactly the run-skip decode's hit rate — into the additive 'run_continuation' section, with the high-continuation fields and advice on whether to sort the source upstream (ORDER BY its parent key). Pairs never span a shard boundary"},
 			&cli.IntFlag{Name: "sample-limit", Usage: "Cap rows ingested for the profile (0 = unlimited)"},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed for --conditional's categorical-categorical reservoir sampling and --fit-models' residual reservoir (each draws from its own stream)", Value: 0},
 			&cli.BoolFlag{Name: "json", Usage: "Print envelope to stdout as well"},
@@ -306,13 +307,14 @@ func profileCreateCmd() *cli.Command {
 			fitModels := cmd.Bool("fit-models")
 			residualCorrelations := cmd.Bool("residual-correlations")
 			suggestRulesPath := cmd.String("suggest-rules")
+			runContinuation := cmd.Bool("run-continuation")
 			sampleLimit := int(cmd.Int("sample-limit"))
 			seed := cmd.Int("seed")
 			jsonOut := cmd.Bool("json")
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			prof, err := p.Profile(ctx, input, pulse.ProfileOptions{
 				TopK:                topK,
@@ -325,20 +327,21 @@ func profileCreateCmd() *cli.Command {
 
 				FitResidualCorrelations: residualCorrelations,
 				SuggestRules:            suggestRulesPath != "",
+				RunContinuation:         runContinuation,
 
 				SampleLimit: sampleLimit,
 				Seed:        int64(seed),
 			})
 			if err != nil {
-				return cliError(cmd, jsonOut, "PROFILE_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "PROFILE_ERROR", err)
 			}
 			fs := afero.NewOsFs()
 			out, err := json.MarshalIndent(prof, "", "  ")
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if err := afero.WriteFile(fs, output, out, 0644); err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			// The candidate file is written AFTER the profile document,
 			// so a failing write leaves the capture the caller paid for.
@@ -354,6 +357,10 @@ func profileCreateCmd() *cli.Command {
 				return writeEnvelope(cmd.Writer, prof)
 			}
 			writeText(cmd.Writer, "Profiled %d rows from %s -> %s\n", prof.RowCount, input, output)
+			if rc := prof.RunContinuation; rc != nil {
+				writeText(cmd.Writer, "Run continuation: %.4f overall over %d pair(s) in %d shard(s) — %s\n",
+					rc.Overall, rc.Pairs, rc.Shards, rc.Advice)
+			}
 			if suggestRulesPath != "" {
 				writeSuggestedRulesCaveat(errWriter(cmd), len(prof.RuleCandidates), suggestRulesPath)
 			}
@@ -376,6 +383,18 @@ func cliError(cmd *cli.Command, jsonOut bool, code, msg string) error {
 		return writeErrorEnvelope(cmd.Writer, code, msg)
 	}
 	return fmt.Errorf("%s: %s", code, msg)
+}
+
+// cliErrorFrom is cliError for an error value: the text path is
+// cliError's exact "CODE: message", while the --json path goes through
+// writeCodedErrorEnvelope, so a *errors.CodedError anywhere in the chain
+// surfaces as errors[0].code and code is only the fallback for an
+// uncoded error.
+func cliErrorFrom(cmd *cli.Command, jsonOut bool, code string, err error) error {
+	if jsonOut {
+		return writeCodedErrorEnvelope(cmd.Writer, code, err)
+	}
+	return fmt.Errorf("%s: %s", code, err.Error())
 }
 
 // cliCodedError is cliError for a failure that already carries its own

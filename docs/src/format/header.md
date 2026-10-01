@@ -18,7 +18,10 @@ These live in [`encoding/header.go`](https://github.com/frankbardon/pulse/blob/m
 | Name | Value | Purpose |
 |---|---|---|
 | `MagicBytes`     | `[]byte{'P','U','L','S','E', 0x00, 0x00, 0x00}` | 8-byte identifier; rejects non-Pulse files |
-| `FormatVersion`  | `0x01` (today) | Current `.pulse` wire format |
+| `FormatVersionV1` | `0x01` | Original layout — every file written before `0x02` existed |
+| `FormatVersionV2` | `0x02` | Adds a length-prefixed schema extension block carrying [parent groups](parent-groups.md) (see [Schema Block](schema-block.md)) |
+| `FormatVersion`  | `0x01` | Baseline: what writers emit for a schema that uses no `0x02` feature |
+| `MaxFormatVersion` | `0x02` | Newest version this binary reads and writes |
 | `HeaderSize`     | `9` | Total header byte count |
 
 ## Byte layout
@@ -27,7 +30,7 @@ These live in [`encoding/header.go`](https://github.com/frankbardon/pulse/blob/m
 Offset  Length  Field
 ------  ------  -----
 0       8       Magic: "PULSE\0\0\0"
-8       1       Format version (currently 0x01)
+8       1       Format version: 0x01 or 0x02
 9       —       Schema block begins here
 ```
 
@@ -36,23 +39,36 @@ see [Schema Block](schema-block.md).
 
 ## Version semantics
 
-The format version is **single-byte**. The reader at
-`encoding.ReadHeader` rejects unknown versions with the
-`ENCODING_INVALID` error code:
+The format version is **single-byte**. The accepted set is
+`{0x01, 0x02}`. `encoding.ReadHeader` returns the version it read, and
+the caller must hand it to `encoding.ReadSchema` — the schema block's
+layout depends on it, and records begin immediately after the schema
+block with no terminator (`encoding.ReadPreamble` does both in one call).
+Any other version byte is rejected with `ENCODING_INVALID`:
 
 ```
-ENCODING_INVALID: unsupported pulse format version
-{"version": <byte>}
+ENCODING_INVALID: unsupported pulse format version: ...
+{"version": <byte>, "supported_versions": [1, 2]}
 ```
 
 This is the fail-loud guard against silently mis-decoding a file written
-by a future binary that introduced a new field type or layout change. A
-forward-incompatible change bumps the version; the older reader stops at
-header parse instead of producing wrong rows.
+by a newer binary. A forward-incompatible change bumps the version; the
+older reader stops at header parse instead of producing wrong rows. A
+binary that predates `0x02` refuses every `0x02` file this way.
 
-The current value is `0x01`. The envelope `format_version` (`"1.0"`)
-that all CLI `--json` output carries is unrelated — it tracks the
-JSON output schema, not the binary file format.
+**Old cohorts stay readable forever.** A `0x01` file parses exactly as it
+always has, and a checked-in `0x01` golden (`encoding/testdata/format_v1.pulse`)
+is read by every build in CI.
+
+**The version written is a function of schema content, never a global
+flag** (`Schema.RequiredFormatVersion`, `encoding.WritePreamble`). A schema
+that uses no `0x02` feature is written at `0x01`, byte-identical to
+every file written before `0x02` existed. Only a schema that declares a
+[parent group](parent-groups.md) is written at `0x02`.
+
+The envelope `format_version` (`"1.1"`) that all CLI `--json` output
+carries is unrelated — it tracks the JSON output schema, not the binary
+file format.
 
 ## Hexdump sanity check
 
@@ -60,7 +76,7 @@ A freshly-written `.pulse` file starts with:
 
 ```
 00000000  50 55 4c 53 45 00 00 00  01  ..  ..  ..  ..  ..
-          |P  U  L  S  E  \0 \0 \0|ver| schema starts here
+          |P  U  L  S  E  \0 \0 \0|ver| schema starts here (ver 01 or 02)
 ```
 
 If `file path/to/data.pulse` reports "data" (rather than something

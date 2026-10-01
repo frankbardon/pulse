@@ -69,10 +69,11 @@ func TestImport_DecimalRoundTrip(t *testing.T) {
 	}
 
 	rdr := bytes.NewReader(data)
-	if err := encoding.ReadHeader(rdr); err != nil {
+	pulseVersion, err := encoding.ReadHeader(rdr)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	gotSchema, err := encoding.ReadSchema(rdr)
+	gotSchema, err := encoding.ReadSchema(rdr, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

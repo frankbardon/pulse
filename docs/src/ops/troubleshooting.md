@@ -49,14 +49,16 @@ the file mode with `ls -l`; widen the group as needed.
 
 ## "invalid pulse magic bytes" / "unsupported pulse format version"
 
-The file isn't a `.pulse` file — or it's from a future binary that
-introduced a new format version. The reader rejects unknown versions
+The file isn't a `.pulse` file — or it's from a newer binary that
+introduced a format version this one cannot read (`details.version`
+names the byte, `details.supported_versions` the set this binary
+accepts). Upgrade Pulse, or re-import the source with this binary. The reader rejects unknown versions
 at parse time (see [Header Layout](../format/header.md)) so a future
 binary doesn't silently mis-decode an older file.
 
 **Fix:** verify the file with `file path/to/data.pulse` and the first
 nine bytes (`hexdump -C`). The expected magic is `50 55 4c 53 45 00 00 00`
-followed by a version byte (`0x01` today).
+followed by a version byte (`0x01` or `0x02`).
 
 ## "truncated pulse header"
 
@@ -112,6 +114,26 @@ correct.
 schema with [`pulse import schema-template`](../getting-started/first-cohort.md)
 (which already reports the accurate `nullable` flag) and re-import with
 `--schema`.
+
+## `PULSE_IMPORT_WIDTH_PROMOTED`
+
+A warning, not an error. Inference sizes each `categorical_*` rung and
+integer width from the first `--sample-rows` rows. When a later value
+does not fit — the 257th distinct value of a `categorical_u8` parent-name
+column, `70000` in a column the sample saw as `u8`, `-3` or `2.5` in an
+integer column, `1e300` in a column the sample saw as `f32` — Pulse
+promotes the field to the narrowest type that holds it and imports the
+row. `pulse convert` does the same over an inferred schema instead of
+failing with `PULSE_IMPORT_CATEGORICAL_OVERFLOW`. Details name the `field`, the inferred
+`from` type, the written `to` type and the first `source_row` that forced
+it. No value changes.
+
+**Fix (optional):** raise `--sample-rows`, or pin the type with
+`column_type_overrides` / `--schema`. A pinned type is a contract: a
+value past it is then a `PULSE_IMPORT_ROW_ERROR`, never a promotion (on
+`pulse convert`, a full declared categorical rung is the fatal
+`PULSE_IMPORT_CATEGORICAL_OVERFLOW`). A non-boolean in a `packed_bool`
+column never promotes either: it stays a row error.
 
 ## `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
 

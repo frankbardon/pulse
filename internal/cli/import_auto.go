@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/imports"
+	pio "github.com/frankbardon/pulse/io"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -27,7 +28,7 @@ import (
 //
 // --spss-missing is deliberately absent; see importAutoSpec.
 func importAutoCmd() *cli.Command {
-	return &cli.Command{
+	return importLeaf(&cli.Command{
 		Name:      "auto",
 		Usage:     "Auto-detect a source format and import into the managed pool",
 		ArgsUsage: "SOURCE",
@@ -38,6 +39,7 @@ func importAutoCmd() *cli.Command {
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name (ignored for non-Excel)"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage + " (ignored for non-SPSS)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing managed handle"},
+			&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group, as on 'import <format> --group': KEY[,KEY...]:MEMBER[,MEMBER...] or MEMBER[,MEMBER...]. Repeatable, one group per flag; judged at the default ratio floor, findings reported as warnings (writes format 0x02)"},
 			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -64,7 +66,14 @@ func importAutoCmd() *cli.Command {
 				return err
 			}
 
-			res, err := p.ImportFile(ctx, importAutoSpec(cmd, source, ttl))
+			spec, err := importAutoSpec(cmd, source, ttl)
+			if err != nil {
+				if jsonOut {
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
+				}
+				return err
+			}
+			res, err := p.ImportFile(ctx, spec)
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
@@ -73,7 +82,7 @@ func importAutoCmd() *cli.Command {
 			}
 
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, res, res.SourceWarnings)
+				return writeEnvelopeWithWarnings(cmd.Writer, res, append(append(append([]*errors.CodedError(nil), res.SourceWarnings...), res.GroupWarnings...), res.WidthWarnings...))
 			}
 			if res.Managed {
 				writeText(cmd.Writer, "Imported %d rows into managed handle %q at %s\n", res.RowsImported, res.Handle, res.Path)
@@ -81,7 +90,10 @@ func importAutoCmd() *cli.Command {
 					writeText(cmd.Writer, "%s: fields promoted to nullable (null found past the inference sample): %s\n",
 						errors.PULSE_IMPORT_NULL_PROMOTED, strings.Join(res.PromotedFields, ", "))
 				}
+				writeSourceWarnings(cmd.Writer, res.WidthWarnings)
 				writeSourceWarnings(cmd.Writer, res.SourceWarnings)
+				writeGroupReports(cmd.Writer, res.Groups)
+				writeSourceWarnings(cmd.Writer, res.GroupWarnings)
 				if res.ExpiresAt != nil {
 					writeText(cmd.Writer, "Expires: %s\n", res.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
 				} else {
@@ -92,7 +104,7 @@ func importAutoCmd() *cli.Command {
 			}
 			return nil
 		},
-	}
+	})
 }
 
 // importAutoSpec projects the `import auto` flags onto the managed-import
@@ -110,8 +122,13 @@ func importAutoCmd() *cli.Command {
 // --spss-missing=null` is where asking for it is an explicit act. --charset is
 // the opposite case: without it, a file that is wrong about its own encoding
 // cannot be imported here by any means.
-func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) pulse.ImportSpec {
-	return pulse.ImportSpec{
+//
+// --group parses with the per-format leaves' own io.ParseGroupDecl, so the
+// two surfaces cannot disagree on the syntax. There is no --dedup-ratio-floor
+// or --strict here: neither changes a byte the managed import writes (see
+// imports.Spec.Groups), and `import <format>` carries both.
+func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.ImportSpec, error) {
+	spec := pulse.ImportSpec{
 		SourcePath: source,
 		Format:     cmd.String("format"),
 		Handle:     cmd.String("handle"),
@@ -120,6 +137,14 @@ func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) pulse.Im
 		Charset:    cmd.String("charset"),
 		Overwrite:  cmd.Bool("overwrite"),
 	}
+	for _, decl := range cmd.StringSlice("group") {
+		g, err := pio.ParseGroupDecl(decl)
+		if err != nil {
+			return pulse.ImportSpec{}, err
+		}
+		spec.Groups = append(spec.Groups, g)
+	}
+	return spec, nil
 }
 
 // importsListCmd enumerates the managed-imports pool. Expired and

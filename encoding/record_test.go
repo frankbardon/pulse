@@ -176,12 +176,13 @@ func TestPulseFileRoundTrip(t *testing.T) {
 	reader := bytes.NewReader(buf.Bytes())
 
 	// Read header.
-	if err := ReadHeader(reader); err != nil {
+	pulseVersion, err := ReadHeader(reader)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
 
 	// Read schema.
-	schema2, err := ReadSchema(reader)
+	schema2, err := ReadSchema(reader, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}
@@ -241,7 +242,7 @@ func TestPulseFileRoundTrip_EmptySchema(t *testing.T) {
 
 	reader := bytes.NewReader(buf.Bytes())
 	ReadHeader(reader)
-	schema2, err := ReadSchema(reader)
+	schema2, err := ReadSchema(reader, FormatVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema empty: %v", err)
 	}

@@ -4,12 +4,15 @@
 existing cohort — typically to feed into
 [`pulse synth from-profile`](synth-from-profile.md).
 
-`pulse profile create` reads a `.pulse` file and writes a JSON
+`pulse profile create` reads a `.pulse` file — a single-file cohort
+or a whole shard archive, whose shards are profiled as one stream in
+archive order against the canonical schema — and writes a JSON
 profile: per-field type, descriptive statistics, top-K categorical
 entries, optional pairwise correlations. **The profile retains no
 individual rows from the source.**
 
-> **LLM agents using MCP:** see the `pulse_profile` MCP tool.
+> **No MCP tool.** Profile capture is CLI (`pulse profile create`) and
+> library (`Pulse.Profile`) only; see the `synthetic-data` skill.
 
 ## Synopsis
 
@@ -19,6 +22,7 @@ pulse profile create --input PATH --output PATH
                      [--include-correlations] [--correlation-top-k N]
                      [--conditional] [--fit-shape] [--fit-models]
                      [--residual-correlations] [--suggest-rules PATH]
+                     [--run-continuation]
                      [--sample-limit N] [--seed N] [--json]
 ```
 
@@ -37,6 +41,7 @@ pulse profile create --input PATH --output PATH
 | `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels and set options automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
 | `--residual-correlations` |     | bool   | false      | Capture the full correlation submatrix among `--fit-models`' fitted residuals (`residual_correlations`); every pair, measured or explicitly unmeasured — never a top-K sample and never a fabricated zero (see below). Requires `--fit-models` |
 | `--suggest-rules`        |      | string | (off)      | Detect structural rules on the same scan — GATING relationships (`set_null`) and CO-MISSING question blocks (`null_together`) — and write them to this path as a standalone rules file, the bare JSON array `synth from-profile --rules` consumes unmodified. PROPOSED, never applied; the profile document itself gains no section (see below) |
+| `--run-continuation`     |      | bool   | false      | Measure per-field run-continuation — the fraction of adjacent row pairs whose on-wire bytes and null bit repeat, i.e. the run-skip decode's hit rate — into the additive `run_continuation` section, with the high-continuation fields and advice on sorting the source upstream (see below) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling and `--fit-models`' residual reservoir (see below); each draws from its own stream, so the two flags never perturb each other, and the same `(--input, --seed)` produces byte-identical captured output |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
@@ -1522,6 +1527,57 @@ byte**. The candidate output is byte-identical with those flags and
 without them, and the eight gating candidates and four blocks are
 byte-identical to the file the previous two detectors wrote.
 
+## `--run-continuation`: is the cohort still sorted?
+
+Scans of a `.pulse` cohort skip re-decoding any field whose on-wire bytes
+did not change since the previous row (the run-skip decode). On a
+denormalised parent/child join sorted by the parent key, the whole parent
+block repeats across each parent's child rows, so most of a row's fields
+are skipped. That win is a property of the DATA, not the format: a cohort
+re-imported without its upstream `ORDER BY`, or a shard appended out of
+order, loses it with nothing on the wire saying so.
+
+`--run-continuation` makes it visible. On the same scan the profile
+already makes (no second read), it compares each row's raw bytes with the
+previous row's and writes the additive `run_continuation` section:
+
+| Key | Meaning |
+|---|---|
+| `pairs` | adjacent row pairs compared — `rows − 1` per shard |
+| `shards` | payloads scanned (1 for a single-file cohort) |
+| `overall` | mean of the per-field rates: the share of field writes the run-skip decode avoids on a full-row scan |
+| `high_threshold` | `0.75` — the rate at or above which a field is listed in `high_fields` |
+| `high_fields` | schema-order list of the high-continuation block (on a sorted join, the parent block) |
+| `advice` | one-line reading of `overall` |
+| `fields` | `{name, rate}` for every schema field, in schema order |
+
+A field "continues" on a pair when its on-wire bytes are identical AND,
+for a nullable field, its null bit is too: a null followed by a non-null
+zero carries the same zero bytes and still counts as a change. A
+bit-packed field is compared as its one on-wire byte. That is the exact
+comparison the decoder makes, so `overall` is its hit rate, not an
+estimate of it.
+
+**Reading it.** Below `0.5` overall the decoder's backoff (it stops
+comparing when more than half of a probe window's fields changed) keeps
+it on full decode — the advice says `low:` and, if the cohort is a
+denormalised join, to sort the source by the parent key upstream and
+re-import. At or above `0.5` it says `high:` and to keep the ordering
+when re-importing or appending shards. On a synthetic 95-field join at
+12.5x fanout the sorted cohort measures `0.71` with the 66-field parent
+block as `high_fields`; the same rows shuffled measure `0.21` with none.
+
+**Shards.** Pairs never span a shard boundary: each shard is a separately
+written payload and the decoder restarts its comparison at each one, so a
+pair across two shards measures nothing the optimisation can use. An
+archive of many small shards therefore reports fewer pairs than rows − 1,
+and a shard appended in a different order shows up as a lower overall.
+
+`--sample-limit` bounds the measurement like every other section. Absent
+the flag the document is byte-identical and the scan pays nothing.
+`synth from-profile` ignores the section — it describes the source's row
+ORDER, which generation does not reproduce.
+
 ## Output
 
 The profile JSON is always written to `--output`. With `--json`, the
@@ -1575,6 +1631,12 @@ Profiled 50000 rows from sales.pulse -> sales.profile.json
 
 That single line is the whole of **stdout**, so `pulse profile create …
 > log` and any pipeline over it keep exactly the bytes they always had.
+`--run-continuation` adds exactly one more stdout line, and only when it
+is passed:
+
+```
+Run continuation: 0.7100 overall over 399 pair(s) in 1 shard(s) — high: …
+```
 
 ### Warning summary
 

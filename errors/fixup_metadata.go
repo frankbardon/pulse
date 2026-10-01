@@ -18,6 +18,10 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRequiresReschema,
 				Hint:   "Re-import the source data to regenerate the .pulse file; the existing file is corrupt or was written by an incompatible binary.",
 			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "If details.version is outside details.supported_versions, a newer Pulse wrote the file: upgrade this binary to one that reads that format version, or re-import the source with this binary (old format versions stay readable forever).",
+			},
 		},
 	},
 	ENCODING_IO: {
@@ -299,6 +303,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_IMPORT_WIDTH_PROMOTED: {
+		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema, a column_type_overrides column or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action is required — the cohort holds every row at the promoted width. To make the width explicit, raise --sample-rows so inference sees the wide values, or pin the type with column_type_overrides / an explicit --schema (which then refuses, rather than promotes, any value past it).",
+			},
+		},
+	},
 	PULSE_EXPORT_ROW_ERROR: {
 		Message: "A row could not be exported due to a per-cell value-to-string conversion failure, or because the target format's writer refused it. Raised per row on ExportReport.RowErrors while SOME rows still export — and raised as the FATAL return of ExportJob.Run when a non-empty cohort yields zero exported rows, in which case details carry `rows_read`, `rows_failed`, `first_row` and `first_error`. An empty cohort exports zero rows legitimately and is not this error.",
 		Fixups: []Fixup{
@@ -387,6 +400,81 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Move the source file under the jail root (typically the directory the CLI / MCP server was invoked from), or pass a different root via pulse.Options.ImportSourceJailRoot.",
+			},
+		},
+	},
+	PULSE_GROUP_DECLARATION_INVALID: {
+		Message: "A parent-group declaration is malformed: it does not parse as `KEY[,KEY...]:MEMBER[,MEMBER...]` (or `MEMBER[,MEMBER...]`), declares no members, names a field twice within one group, or names a key that is not a member of its group.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups"},
+				Hint:   "Write each group as `--group key1[,key2]:member1[,member2]` (key fields, a colon, then the fields the key determines), or `--group f1,f2` for a plain tuple group with no key check. Name every field once per group; field names containing ',' or ':' cannot be declared from the CLI — use io.ImportJob.Groups.",
+			},
+		},
+	},
+	PULSE_GROUP_FIELD_UNKNOWN: {
+		Message: "A parent-group declaration names a field the cohort's schema does not have.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Use the exact field name from the imported schema (`pulse import predict --json` lists it); names are case-sensitive and match the source column header.",
+			},
+		},
+	},
+	PULSE_GROUP_FIELD_CONFLICT: {
+		Message: "One field is named by two parent-group declarations; groups are independent and a field belongs to at most one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Remove the field from all but one of the groups named in details.group_labels. If the two groups share a key, declare them as one group.",
+			},
+		},
+	},
+	PULSE_GROUP_MEMBER_NOT_CONSTANT: {
+		Message: "A declared parent group is not one: two rows carry the same key tuple but disagree on a non-key member (value or null state). details.field names the member and details.row / details.source_row a row that disagrees with an earlier row of the same key.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Move the field named in details.field out of the group (it varies within the parent), or add it to the group's key if it is part of what identifies the parent. If the source should have been constant per key, fix the upstream join.",
+			},
+		},
+	},
+	PULSE_GROUP_ENTRIES_EXHAUSTED: {
+		Message: "A parent group's dictionary would hold more distinct tuples than its u32 per-row index can address (2^32).",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Drop the group: a group with this many distinct tuples is near-unique per row and saves no space. Group only the fields that repeat as a parent block.",
+			},
+		},
+	},
+	PULSE_GROUP_TOO_NARROW: {
+		Message: "A declared parent group's members occupy no more bytes per row than the 4-byte index that would replace them, so grouping could only grow the file; the group was dropped and its members stay in the row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Drop the group, or add the other fields that repeat with it (the rest of the parent block) so its members outweigh the index; details.member_row_bytes must exceed details.index_width.",
+			},
+		},
+	},
+	PULSE_DEDUP_LOW_RATIO: {
+		Message: "A parent group's dedup ratio (rows per distinct tuple) is below the ratio floor, or its dictionary makes the file no smaller; the group was still written, with its dictionary resident in memory.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Groups", "*"},
+				Hint:   "Drop the group if details.byte_delta is not negative or details.dictionary_bytes is too much to hold resident; a ratio near 1 means the tuples are nearly unique per row.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"StrictDedup"},
+				Hint:   "To keep a deliberately low-ratio group, re-run without --strict (it then writes with this warning) or lower --dedup-ratio-floor; a floor of 1 leaves only the grows-the-file check.",
 			},
 		},
 	},
@@ -959,6 +1047,25 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COHORT_COMPRESSED: {
+		Message: "The path holds a zstd-compressed transfer artifact (`.pulse.zst`), not a cohort. Compression is transport-only: Pulse never opens a compressed file as a cohort, because fixed-stride random access, mmap, point lookup and parallel decode all need the uncompressed bytes at rest.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Cohort", "Filename"},
+				Hint:   "Decompress first: `pulse import transfer --input cohort.pulse.zst --output cohort.pulse` (library: Pulse.ImportTransfer), then pass the resulting .pulse path. The result is byte-identical to the cohort that was exported.",
+			},
+		},
+	},
+	PULSE_TRANSFER_INVALID: {
+		Message: "The transfer compress or decompress request was refused; details.reason names why (level, not_a_cohort, already_compressed, not_zstd, corrupt_stream, output_exists).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "level: pass a zstd level in 1..22 (default 3). not_a_cohort / already_compressed: `pulse export transfer` takes an uncompressed .pulse cohort or shard archive. not_zstd: `pulse import transfer` takes a .pulse.zst produced by `pulse export transfer`; an uncompressed .pulse needs no import. corrupt_stream: the artifact was truncated or damaged in transit — re-transfer it. output_exists: remove the output or pass --overwrite.",
+			},
+		},
+	},
 	PULSE_SHARD_MISSING: {
 		Message: "The named shard is not present in the archive's central directory.",
 		Fixups: []Fixup{
@@ -1021,6 +1128,15 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "No action needed — the archive was widened in place and remains openable. To avoid the rewrite next time, import the source at the wider set rung up front, and watch `pulse shard verify`'s set-width headroom to see a widen coming.",
+			},
+		},
+	},
+	PULSE_SHARD_GROUPS_REWRITTEN: {
+		Message: "A `shard create` / `shard add` re-encoded shard bytes to fit the archive's parent-group layout: a grouped shard was stored flattened in an ungrouped archive, a shard was re-encoded into a grouped archive's groups, or a constant group the arriving shard disagreed with was promoted to an indexed group across every shard (details.archive_rewritten). The archive is correct; the warning exists because the rewrite is expensive and must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed — every shard decodes to the same values. To avoid the rewrite, import or `pulse dedup` every shard with the archive's `--group` declarations (and without `--elide-constants` for a column that varies between shards), and watch `pulse shard verify`'s group_index_headroom: a constant group reports zero headroom because its next distinct value promotes it archive-wide.",
 			},
 		},
 	},

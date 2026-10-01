@@ -182,7 +182,7 @@ func TestWriteSchema_IOError(t *testing.T) {
 }
 
 func TestReadSchema_TruncatedFieldCount(t *testing.T) {
-	_, err := ReadSchema(bytes.NewReader([]byte{0x01}))
+	_, err := ReadSchema(bytes.NewReader([]byte{0x01}), FormatVersion)
 	if err == nil {
 		t.Fatal("expected error for truncated field count")
 	}
@@ -193,7 +193,7 @@ func TestReadSchema_TruncatedFieldType(t *testing.T) {
 	binary.Write(&buf, binary.LittleEndian, uint16(1)) // 1 field
 	// no more data
 
-	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
+	_, err := ReadSchema(bytes.NewReader(buf.Bytes()), FormatVersion)
 	if err == nil {
 		t.Fatal("expected error for truncated field type")
 	}
@@ -206,7 +206,7 @@ func TestReadSchema_TruncatedFieldName(t *testing.T) {
 	binary.Write(&buf, binary.LittleEndian, uint16(100)) // name len 100
 	buf.Write([]byte{0x41})                              // only 1 byte
 
-	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
+	_, err := ReadSchema(bytes.NewReader(buf.Bytes()), FormatVersion)
 	if err == nil {
 		t.Fatal("expected error for truncated field name")
 	}
@@ -218,7 +218,7 @@ func TestReadSchema_TruncatedNameLen(t *testing.T) {
 	binary.Write(&buf, binary.LittleEndian, uint8(0))  // type U8
 	buf.Write([]byte{0x01})                            // truncated name len
 
-	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
+	_, err := ReadSchema(bytes.NewReader(buf.Bytes()), FormatVersion)
 	if err == nil {
 		t.Fatal("expected error for truncated name length")
 	}
@@ -232,7 +232,7 @@ func TestReadSchema_TruncatedByteOffset(t *testing.T) {
 	buf.Write([]byte{'x'})                             // name
 	buf.Write([]byte{0x01})                            // truncated byte offset
 
-	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
+	_, err := ReadSchema(bytes.NewReader(buf.Bytes()), FormatVersion)
 	if err == nil {
 		t.Fatal("expected error for truncated byte offset")
 	}
@@ -247,7 +247,7 @@ func TestReadSchema_TruncatedBitPos(t *testing.T) {
 	binary.Write(&buf, binary.LittleEndian, uint32(0)) // byte offset
 	// no bit position
 
-	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
+	_, err := ReadSchema(bytes.NewReader(buf.Bytes()), FormatVersion)
 	if err == nil {
 		t.Fatal("expected error for truncated bit position")
 	}
@@ -263,7 +263,7 @@ func TestReadSchema_TruncatedCsvIdx(t *testing.T) {
 	binary.Write(&buf, binary.LittleEndian, uint8(0))  // bit pos
 	// no csv idx
 
-	_, err := ReadSchema(bytes.NewReader(buf.Bytes()))
+	_, err := ReadSchema(bytes.NewReader(buf.Bytes()), FormatVersion)
 	if err == nil {
 		t.Fatal("expected error for truncated csv index")
 	}
@@ -281,7 +281,7 @@ func TestWriteSchema_CategoricalNilDict(t *testing.T) {
 	}
 
 	reader := bytes.NewReader(buf.Bytes())
-	s2, err := ReadSchema(reader)
+	s2, err := ReadSchema(reader, FormatVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

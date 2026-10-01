@@ -659,10 +659,11 @@ func cohortRows(t *testing.T, fs afero.Fs, cohort string) [][]string {
 		t.Fatalf("opening %s: %v", cohort, err)
 	}
 	defer f.Close()
-	if err := encoding.ReadHeader(f); err != nil {
+	pulseVersion, err := encoding.ReadHeader(f)
+	if err != nil {
 		t.Fatalf("header of %s: %v", cohort, err)
 	}
-	s, err := encoding.ReadSchema(f)
+	s, err := encoding.ReadSchema(f, pulseVersion)
 	if err != nil {
 		t.Fatalf("schema of %s: %v", cohort, err)
 	}

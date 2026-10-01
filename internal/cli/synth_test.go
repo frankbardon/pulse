@@ -221,6 +221,44 @@ func TestProfileCreateCLI_ConditionalFlagPopulatesConditionalSection(t *testing.
 	}
 }
 
+// TestProfileCreateCLI_RunContinuationFlag verifies --run-continuation
+// reaches ProfileOptions.RunContinuation: absent, the document carries
+// no run_continuation section; present, it carries one field entry per
+// schema field and the text summary names the overall figure.
+func TestProfileCreateCLI_RunContinuationFlag(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.pulse")
+	synthLibraryCohort(t, source, []synth.FieldSpec{
+		{Name: "a", Type: "f64", Distribution: synth.DistNormal, Params: map[string]any{"mean": 0.0, "std": 1.0}},
+		{Name: "b", Type: "f64", Distribution: synth.DistNormal, Params: map[string]any{"mean": 5.0, "std": 2.0}},
+	}, 50, 1)
+
+	outPlain := filepath.Join(dir, "plain.json")
+	var buf bytes.Buffer
+	if err := runProfileCLI(t, &buf, "create", "--input", source, "--output", outPlain); err != nil {
+		t.Fatalf("profile create: %v", err)
+	}
+	if plain := readProfileJSON(t, outPlain); plain.RunContinuation != nil {
+		t.Errorf("RunContinuation = %+v without the flag, want nil", plain.RunContinuation)
+	}
+	if strings.Contains(buf.String(), "Run continuation") {
+		t.Errorf("summary names run continuation without the flag: %q", buf.String())
+	}
+
+	outRC := filepath.Join(dir, "rc.json")
+	buf.Reset()
+	if err := runProfileCLI(t, &buf, "create", "--input", source, "--output", outRC, "--run-continuation"); err != nil {
+		t.Fatalf("profile create --run-continuation: %v", err)
+	}
+	rc := readProfileJSON(t, outRC).RunContinuation
+	if rc == nil || len(rc.Fields) != 2 || rc.Pairs != 49 || rc.Shards != 1 {
+		t.Fatalf("RunContinuation = %+v, want 2 fields over 49 pairs in 1 shard", rc)
+	}
+	if !strings.Contains(buf.String(), "Run continuation:") || !strings.Contains(buf.String(), rc.Advice) {
+		t.Errorf("summary = %q, want the overall figure and advice", buf.String())
+	}
+}
+
 // TestProfileCreateCLI_FitShapeFlagPopulatesShape verifies --fit-shape
 // actually reaches ProfileOptions.FitShape: profiling a clearly bimodal
 // numeric field without the flag must leave Numeric.Shape nil (the
@@ -581,10 +619,11 @@ func readCohortRows(t *testing.T, path string) (vals []map[string]any, nulls []m
 		t.Fatalf("ReadFile(%s): %v", path, err)
 	}
 	r := bytes.NewReader(raw)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader(%s): %v", path, err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema(%s): %v", path, err)
 	}

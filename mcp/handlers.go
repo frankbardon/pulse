@@ -223,12 +223,14 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 		return ImportOut{}, errMissingArg("source")
 	}
 	spec := imports.Spec{
-		SourcePath: in.Source,
-		Format:     in.Format,
-		Handle:     in.Handle,
-		Sheet:      in.Sheet,
-		Charset:    in.Charset,
-		Overwrite:  in.Overwrite,
+		SourcePath:    in.Source,
+		Format:        in.Format,
+		Handle:        in.Handle,
+		Sheet:         in.Sheet,
+		Charset:       in.Charset,
+		Overwrite:     in.Overwrite,
+		Groups:        in.Groups,
+		SuggestGroups: in.SuggestGroups,
 	}
 	if in.TTL != "" {
 		d, err := imports.ParseTTL(in.TTL)
@@ -240,6 +242,23 @@ func HandleImport(ctx context.Context, p *pulse.Pulse, in ImportIn) (ImportOut, 
 	res, err := p.ImportFile(ctx, spec)
 	if err != nil {
 		return ImportOut{}, err
+	}
+	return *res, nil
+}
+
+// HandleDedup runs pulse_dedup: retro-dedup of an existing cohort, or
+// (suggest_groups alone) candidate detection over it.
+func HandleDedup(ctx context.Context, p *pulse.Pulse, in DedupIn) (DedupOut, error) {
+	if in.Path == "" {
+		return DedupOut{}, errMissingArg("path")
+	}
+	res, err := p.Dedup(ctx, in.Path, pulse.DedupOptions{
+		Groups:        in.Groups,
+		SuggestGroups: in.SuggestGroups,
+		Out:           in.Out,
+	})
+	if err != nil {
+		return DedupOut{}, err
 	}
 	return *res, nil
 }

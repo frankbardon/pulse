@@ -53,7 +53,7 @@ func shardCreateCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			result, err := p.CreateShardArchive(ctx, archive, includes)
 			if err != nil {
@@ -61,7 +61,7 @@ func shardCreateCmd() *cli.Command {
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				// The widen warning rides the envelope's `warnings`
@@ -69,11 +69,15 @@ func shardCreateCmd() *cli.Command {
 				// that is where the --json contract says warnings live,
 				// and a generic consumer would never find it inside
 				// `data`.
-				env := descriptor.NewEnvelope(map[string]any{
+				data := map[string]any{
 					"archive": archive,
 					"shards":  shards,
 					"widened": result.Widened,
-				})
+				}
+				if len(result.Regrouped) > 0 {
+					data["regrouped"] = result.Regrouped
+				}
+				env := descriptor.NewEnvelope(data)
 				for _, w := range result.Warnings {
 					env.AddWarning(w.Code, w.Message, w.Details)
 				}
@@ -107,7 +111,7 @@ func shardAddCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			result, err := p.AddShard(ctx, archive, shard)
 			if err != nil {
@@ -115,19 +119,23 @@ func shardAddCmd() *cli.Command {
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				// The widen warning rides the envelope's `warnings`
 				// array, where the --json contract says warnings live —
 				// not buried inside `data`, where a generic envelope
 				// consumer would never look for it.
-				env := descriptor.NewEnvelope(map[string]any{
+				data := map[string]any{
 					"archive": archive,
 					"added":   shard,
 					"shards":  shards,
 					"widened": result.Widened,
-				})
+				}
+				if len(result.Regrouped) > 0 {
+					data["regrouped"] = result.Regrouped
+				}
+				env := descriptor.NewEnvelope(data)
 				for _, w := range result.Warnings {
 					env.AddWarning(w.Code, w.Message, w.Details)
 				}
@@ -161,14 +169,14 @@ func shardRemoveCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if err := p.RemoveShard(ctx, archive, basename); err != nil {
-				return cliError(cmd, jsonOut, "SHARD_REMOVE_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_REMOVE_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, map[string]any{
@@ -201,11 +209,11 @@ func shardListCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, map[string]any{
@@ -247,14 +255,14 @@ func shardCompactCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if err := p.CompactShardArchive(ctx, archive); err != nil {
-				return cliError(cmd, jsonOut, "SHARD_COMPACT_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_COMPACT_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_LIST_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, map[string]any{
@@ -286,11 +294,11 @@ func shardVerifyCmd() *cli.Command {
 
 			p, err := newPulse()
 			if err != nil {
-				return cliError(cmd, jsonOut, "CLI_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			result, err := p.VerifyShardArchive(ctx, archive)
 			if err != nil {
-				return cliError(cmd, jsonOut, "SHARD_VERIFY_ERROR", err.Error())
+				return cliErrorFrom(cmd, jsonOut, "SHARD_VERIFY_ERROR", err)
 			}
 
 			if jsonOut {
@@ -316,6 +324,11 @@ func shardVerifyCmd() *cli.Command {
 				writeText(cmd.Writer,
 					"  SET    %s (%s): %d/%d members used, %d headroom, next rung %s\n",
 					h.Field, h.Type, h.Used, h.Capacity, h.Headroom, next)
+			}
+			for _, h := range result.GroupIndexHeadroom {
+				writeText(cmd.Writer,
+					"  GROUP  %s (%s): %d/%d entries used, %d headroom\n",
+					h.Label, h.Kind, h.Entries, h.Capacity, h.Headroom)
 			}
 			if len(result.Errors) > 0 {
 				// Non-zero exit on error. The cli/v3 runtime treats any
@@ -363,13 +376,19 @@ func shardExtractCmd() *cli.Command {
 // builds JSON via fmt.Sprintf — descriptor.NewEnvelope wraps the
 // payload deterministically.
 func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult) *descriptor.Envelope {
-	env := descriptor.NewEnvelope(map[string]any{
+	data := map[string]any{
 		"archive":            archive,
 		"verified":           len(result.Errors) == 0,
 		"error_n":            len(result.Errors),
 		"warning_n":          len(result.Warnings),
 		"set_width_headroom": result.SetWidthHeadroom,
-	})
+	}
+	// Grouped archives only, so an ungrouped archive's envelope is
+	// byte-identical to before parent groups existed.
+	if len(result.GroupIndexHeadroom) > 0 {
+		data["group_index_headroom"] = result.GroupIndexHeadroom
+	}
+	env := descriptor.NewEnvelope(data)
 	for _, e := range result.Errors {
 		env.AddError(string(e.Code), e.Message, e.Details)
 	}

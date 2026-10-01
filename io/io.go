@@ -676,6 +676,13 @@ type ImportReport struct {
 	Schema         *encoding.Schema
 	RowErrors      []RowError
 	PromotedFields []string
+	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
+	// field the row pass promoted past its sample-inferred width
+	// (categorical_* rung, integer width, or integer → f64), with
+	// field / from / to / source_row in Details. Empty (and omitted from
+	// JSON) when nothing outgrew its inferred width — always, for an
+	// explicit or authoritative schema. See import_widen.go.
+	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
 	// SourceWarnings carries the non-fatal diagnostics the source
 	// Reader surfaced through the optional SourceWarningEmitter
 	// contract — today the PULSE_SPSS_* family raised by the `.sav`
@@ -684,6 +691,23 @@ type ImportReport struct {
 	// implement it and raised nothing, so the report shape is
 	// unchanged for every pre-existing adapter.
 	SourceWarnings []*errors.CodedError
+	// ElidedConstants names the fields ImportJob.ElideConstants stored
+	// once in the schema block instead of per row, in schema order.
+	// Empty (and omitted from JSON) when elision was off or elided
+	// nothing, in which case the cohort is 0x01.
+	ElidedConstants []string `json:"ElidedConstants,omitempty"`
+	// Groups describes each ImportJob.Groups declaration as written, in
+	// declaration order: its label, fields, distinct-tuple count and
+	// the entry / member / index widths a viability check weighs. Empty
+	// (and omitted from JSON) when no group was declared.
+	Groups []GroupReport `json:"Groups,omitempty"`
+	// GroupWarnings carries the viability gate's findings, one per
+	// flagged group: PULSE_GROUP_TOO_NARROW (the group was dropped) and
+	// PULSE_DEDUP_LOW_RATIO (the group was written anyway), each with
+	// its numbers in Details. Empty (and omitted from JSON) when every
+	// declared group passed. Under ImportJob.StrictDedup a finding is
+	// returned as Run's error instead and there is no report.
+	GroupWarnings []*errors.CodedError `json:"GroupWarnings,omitempty"`
 }
 
 // ExportReport summarizes the result of an export operation.
@@ -734,6 +758,12 @@ type ConvertReport struct {
 	// TargetWarnings carries the target Writer's non-fatal diagnostics
 	// — see ExportReport.TargetWarnings.
 	TargetWarnings []*errors.CodedError
+	// WidthWarnings carries one PULSE_IMPORT_WIDTH_PROMOTED warning per
+	// field of an INFERRED schema the row pass promoted past its
+	// sample-inferred width (see ImportReport.WidthWarnings); Schema
+	// carries the promoted types. Nil for a declared schema, and when
+	// nothing outgrew its width.
+	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
 }
 
 // RowError records a per-row error during import or export.
@@ -766,6 +796,32 @@ type PredictReport struct {
 	// CohortValidator, which is every format but `.sav` today, and nil
 	// for a validating target that raised nothing.
 	TargetWarnings []*errors.CodedError
+	// The fields below are filled only by an ImportJob.Predict that runs
+	// the MEASURED pass — the job declares Groups, sets ElideConstants
+	// or sets SuggestGroups — and are nil (omitted from JSON) otherwise,
+	// so a plain predict's report is unchanged. The measured pass
+	// converts every row exactly as Run does, so each figure is what the
+	// import would produce, not a sample estimate.
+	//
+	// WidthWarnings are the PULSE_IMPORT_WIDTH_PROMOTED warnings Run
+	// would raise (see ImportReport.WidthWarnings), and Schema carries
+	// the promoted types. Only the measured pass converts values, so a
+	// plain predict never reports a width promotion: its Schema is the
+	// sample-inferred one.
+	WidthWarnings []*errors.CodedError `json:"WidthWarnings,omitempty"`
+	// Projection sizes the file the import would write.
+	Projection *ImportProjection `json:"Projection,omitempty"`
+	// Groups / GroupWarnings are what ImportReport.Groups /
+	// GroupWarnings would carry for the declared Groups. A declaration
+	// Run would refuse — an unknown field, or a member that varies
+	// within its key (PULSE_GROUP_MEMBER_NOT_CONSTANT) — is Predict's
+	// error too, and StrictDedup fails Predict as it fails Run.
+	Groups        []GroupReport        `json:"Groups,omitempty"`
+	GroupWarnings []*errors.CodedError `json:"GroupWarnings,omitempty"`
+	// ElidedConstants names what ElideConstants would elide.
+	ElidedConstants []string `json:"ElidedConstants,omitempty"`
+	// GroupCandidates is the SuggestGroups detection report.
+	GroupCandidates *GroupDetection `json:"GroupCandidates,omitempty"`
 }
 
 // ImportJob converts tabular source data into a .pulse file.
@@ -827,6 +883,51 @@ type ImportJob struct {
 	// so its declared nullability is a contract: an unexpected null is
 	// a row error, never a silent widening. See SchemaAwareReader.
 	InferredSchema bool
+	// ElideConstants stores every field that holds exactly one value
+	// (or is null) on EVERY imported row once, in the schema block, and
+	// drops it from each record — a format 0x02 cohort, which binaries
+	// older than 0x02 support cannot open. Constancy is decided over the
+	// full row pass, never the inference sample. Nothing is elided (and
+	// the output stays a byte-identical 0x01 cohort) for fewer than two
+	// rows, when no field is constant, or when declaring the constants
+	// would cost more schema bytes than it saves. When every field is
+	// constant the lowest-index one stays in the row. Default false.
+	// See encoding.PlanConstantElision.
+	ElideConstants bool
+	// Groups declares parent groups (see GroupDecl): each stores its
+	// distinct member tuples ONCE in the schema block and every record a
+	// u32 index into them — a format 0x02 cohort, which binaries older
+	// than 0x02 support cannot open. Groups are independent; a field
+	// belongs to at most one. Names are checked against the resolved
+	// schema (inferred, authoritative or explicit alike) before the row
+	// pass; the dictionaries are built in one pass over the imported
+	// rows. Composes with ElideConstants: declared members are never
+	// elided. Empty (the default) writes the 0x01 cohort unchanged.
+	//
+	// Every declared group passes the per-group viability gate
+	// (encoding.DedupGate): one no wider than its u32 index is dropped
+	// with PULSE_GROUP_TOO_NARROW; one below DedupRatioFloor rows per
+	// distinct tuple, or that makes the file no smaller, is written with
+	// PULSE_DEDUP_LOW_RATIO. Both land in ImportReport.GroupWarnings.
+	Groups []GroupDecl
+	// DedupRatioFloor is the rows-per-distinct-tuple floor below which
+	// a declared group draws PULSE_DEDUP_LOW_RATIO. Zero (the default)
+	// selects encoding.DefaultDedupRatioFloor (2); a value in (0, 1]
+	// disables the floor, leaving only the grows-the-file check.
+	DedupRatioFloor float64
+	// StrictDedup turns the viability gate's warnings into errors: Run
+	// fails with the finding's own code (PULSE_GROUP_TOO_NARROW or
+	// PULSE_DEDUP_LOW_RATIO) and writes nothing. It governs the gate
+	// only — other import warnings are unaffected.
+	StrictDedup bool
+	// SuggestGroups makes Predict detect candidate parent groups —
+	// single-field keys and the fields they determine — and measure
+	// each over the full row pass (PredictReport.GroupCandidates). It
+	// SUGGESTS only: Run ignores it, and a candidate is formed only when
+	// declared through Groups. Costs Predict a full conversion pass (as
+	// Groups and ElideConstants do) plus the bounded detection work
+	// documented on GroupDetection.
+	SuggestGroups bool
 }
 
 // NewImportJob creates an ImportJob with default settings.

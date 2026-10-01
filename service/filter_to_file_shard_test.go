@@ -445,10 +445,11 @@ func readSchemaDocOrFatal(t *testing.T, arch *encoding.Archive) *encoding.Schema
 func headerSchemaPrefixLen(t *testing.T, payload []byte) int64 {
 	t.Helper()
 	r := bytes.NewReader(payload)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}
 	return int64(len(payload)) - int64(r.Len())

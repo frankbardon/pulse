@@ -333,12 +333,21 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 	// blocks directly off the file handle.
 	r := io.MultiReader(bytes.NewReader(magic[:n]), f)
 
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
+		// A zstd transfer artifact keeps its own code: "decompress
+		// first" is the fix, and ENCODING_INVALID would hide it.
+		if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+			return nil, err
+		}
+		// Keep the cause's message: Error() prints only the outermost
+		// message, and an unsupported format version must say so (and
+		// that a newer Pulse is needed) rather than just "invalid".
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("invalid pulse file: %s", path))
+			fmt.Sprintf("invalid pulse file: %s: %s", path, err.Error()))
 	}
 
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading schema from: %s", path))
@@ -395,11 +404,12 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 	}
 
 	r := bytes.NewReader(payload)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			fmt.Sprintf("invalid shard header for anchor: %s#%s", archivePath, entry))
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard schema for anchor: %s#%s", archivePath, entry))
@@ -591,12 +601,31 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = path
 	}
+	stampShardCount(resp, cohort)
 
 	if err := s.buildAndApplyLabels(req, resp); err != nil {
 		return nil, err
 	}
 
 	return resp, nil
+}
+
+// stampShardCount writes Components.Run.ShardCount on the SERIAL arm over
+// a shard archive. The processing layer reads records off one iterator
+// and has no shard concept, so every serial exit leaves it 0 while the
+// per-shard parallel reducer reported the real count — the same request
+// answering `shard_count` or not depending on Options.ShardWorkers. The
+// field is a fact about the cohort ("the number of shards processed when
+// the cohort resolved to a shard archive"), not about the execution arm.
+// No-op for a single-file cohort (the omitempty wire form is unchanged)
+// and when Components are disabled (Run is nil).
+func stampShardCount(resp *types.Response, cohort *Cohort) {
+	if resp == nil || resp.Components == nil || resp.Components.Run == nil || cohort == nil {
+		return
+	}
+	if n := len(cohort.Shards()); n > 0 {
+		resp.Components.Run.ShardCount = n
+	}
 }
 
 // processSingleFileParallelMaybe is the per-cohort parallel-decode

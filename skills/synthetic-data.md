@@ -1,15 +1,15 @@
 ---
 name: synthetic-data
-description: `pulse_synth_from_schema` vs `pulse_synth_from_profile`, multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules.
+description: `pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [pulse_synth_from_schema, pulse_synth_from_profile, synth, distributions, correlations, models, determinism]
+covers: [synth from-schema, synth from-profile, profile create, synth, distributions, correlations, models, determinism]
 ---
 
 # Synthetic data
 
-Pulse synthesizes deterministic `.pulse` cohorts via `pulse_synth_from_schema` / `pulse_synth_from_profile` (matching CLI leaves).
+Pulse synthesizes deterministic `.pulse` cohorts via the CLI leaves `pulse synth from-schema` / `pulse synth from-profile` (library `Pulse.Synth`).
 
 The CONTRACT surface — rules not inferable from the code you are editing, whose violation is SILENT. Per-distribution params: atomic `op-synth-*`. `rules[]` / `constraints[]`: `synth-structural-rules`. The measurements behind each rule and every closed design question: `docs/src/cli/synth-calibration.md`.
 
@@ -19,8 +19,8 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 
 | Mode | Input | When |
 |---|---|---|
-| `pulse_synth_from_schema` | hand-written JSON spec | caller knows desired shape — fixtures, CI seeds, demos |
-| `pulse_synth_from_profile` | profile JSON + the source cohort it was captured from | tagged top-up: add rows matching a real cohort's marginals, source untouched |
+| `pulse synth from-schema` | hand-written JSON spec | caller knows desired shape — fixtures, CI seeds, demos |
+| `pulse synth from-profile` | profile JSON + the source cohort it was captured from | tagged top-up: add rows matching a real cohort's marginals, source untouched |
 
 **Privacy.** Synth does NOT preserve privacy. A profile without DP noise leaks the empirical distribution — top-K categoricals reveal rare values, percentiles reveal ranges, coefficients expose structure. Add a calibrated noise mechanism if the source is sensitive.
 
@@ -75,13 +75,14 @@ Gates: `TestSynth_CorrelationReconstructionWithinTolerance`, `TestSynth_CopulaPr
 
 ## Profile mode
 
-Capture via `pulse_profile_create`; synth via `pulse_synth_from_profile`. Per field:
+Capture via `pulse profile create` (`Pulse.Profile`); synth via `pulse synth from-profile`. Per field:
 
 - Numeric: mean, std, min, max, optional percentiles, null-rate, plus `discrete` (per-level histogram) for a capped integer column. Categorical: top-K + frequencies, cardinality, null-rate. Date: range, weekday histogram, null-rate. `set_*`: below.
 - Pairwise: strongest `|rho|` (capped by `--correlation-top-k`).
 - `--conditional` (additive / `omitempty`, all under `conditional.`): `conditional.numeric_pairs` `{a,b,rho,n}` row-aligned, `n` the TRUE co-occurrence count — preferred over `pairwise` when present, falling back unchanged when absent. `conditional.categorical_pairs` `{a,b,cells,n}` over at most 10,000 rows by genuine Algorithm-R reservoir sampling (`--seed`), NOT first-N, so a block-ordered source is unbiased; two caps compose — each field's `--top-k` collapses to `"other"` FIRST, then `ContingencyCellCap` (128) folds the tail into one merged `("other","other")`. `conditional.categorical_numeric_pairs` `{a,b,categories,n}`, one online `{category,mean,std,n}` per category (no reservoir cap, no second joint cap).
 - **Thin-pair warning:** `n < 30` (`synth.MinPairObservations`) still SHIPS — never refused — with a warning naming the pair (`thinPairWarning`). Every pair kind reuses this mechanism.
 - `--fit-models` (`models`) and `--residual-correlations` (`residual_correlations`, requires `--fit-models`): `synth-models`.
+- `--run-continuation` (`run_continuation`): per-field share of adjacent row pairs whose on-wire bytes + null bit repeat — exactly the run-skip decode's hit rate — plus `overall`, `high_fields` and `advice`. A ROW-ORDER fact, not a distribution: `SpecFromProfile` never reads it. Pairs never span a shard; a shard archive profiles as one stream against the canonical schema.
 - `--fit-shape` (`numeric.shape`, numeric only): a 2-component Gaussian mixture (`synth/shape.go`) kept only when it beats plain normal on **BIC** AND the means are ≥ `0.75*avgStd` apart. `fitTwoComponentEM` runs a FIXED 50 iterations from a deterministic percentile init (no RNG) with a std floor at 5% of overall std. Fixed at 2 components, no sweep. `SpecFromProfile` then emits `mixture` instead of `normal`.
 
 `SpecFromProfile` reconstructs: `packed_bool` → `bernoulli`; capped small integer → `discrete`; other numeric → `normal` clamped to observed min/max (or `mixture` when `shape` is present); categorical → `weighted_categorical`; date → `uniform_date`; `set_*` → `set_bernoulli`. Unsupported → `PULSE_PROFILE_FIELD_UNSUPPORTED`.

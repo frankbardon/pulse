@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	stderrors "errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -197,5 +199,88 @@ func TestImportAutoCLI_CharsetInertForCSV(t *testing.T) {
 	}
 	if !bytes.Equal(a, b) {
 		t.Error("the CSV cohort differs with --charset set; the flag is not inert for non-SPSS formats")
+	}
+}
+
+// writeJoinCSVFile writes a synthetic denormalized orders⋈customers CSV:
+// each customer's two f64 coordinates repeat on every one of its orders.
+func writeJoinCSVFile(t *testing.T, dir, name string, rows, customers int) {
+	t.Helper()
+	var b bytes.Buffer
+	b.WriteString("order_id,cust_id,cust_lat,cust_lon,amount\n")
+	for i := 0; i < rows; i++ {
+		c := i % customers
+		fmt.Fprintf(&b, "%d,%d,%.6f,%.6f,%.2f\n", 1000+i, c+1, 10.123457+float64(c)*1.5, -70.654321-float64(c)*0.75, float64(i%37)+0.25)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), b.Bytes(), 0o644); err != nil {
+		t.Fatalf("write %s: %v", name, err)
+	}
+}
+
+// TestImportAutoCLI_GroupFlag: --group reaches the managed cohort (0x02),
+// in the per-format leaves' own KEY:MEMBER syntax.
+func TestImportAutoCLI_GroupFlag(t *testing.T) {
+	dir := withTempDataDir(t)
+	writeJoinCSVFile(t, dir, "orders.csv", 200, 10)
+	if err := runImportCLI(t, "auto", "--group", "cust_id:cust_lat,cust_lon", "orders.csv"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "imports", "orders.pulse"))
+	if err != nil {
+		t.Fatalf("read cohort: %v", err)
+	}
+	if b[8] != 0x02 {
+		t.Errorf("version byte = 0x%02x, want 0x02 with --group", b[8])
+	}
+}
+
+// TestImportAutoCLI_GroupWarningInEnvelope: a gate finding lands in the
+// --json envelope's warnings array as a coded entry.
+func TestImportAutoCLI_GroupWarningInEnvelope(t *testing.T) {
+	dir := withTempDataDir(t)
+	writeJoinCSVFile(t, dir, "orders.csv", 20, 12)
+	var out bytes.Buffer
+	root := ImportCommand()
+	root.Writer = &out
+	if err := root.Run(context.Background(), []string{"import", "auto", "--json", "--group", "cust_id:cust_lat,cust_lon", "orders.csv"}); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	var env struct {
+		Warnings []struct {
+			Code    string         `json:"code"`
+			Details map[string]any `json:"details"`
+		} `json:"warnings"`
+		Data struct {
+			Groups []map[string]any `json:"groups"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v\n%s", err, out.String())
+	}
+	if len(env.Warnings) != 1 || env.Warnings[0].Code != string(perrors.PULSE_DEDUP_LOW_RATIO) || env.Warnings[0].Details == nil {
+		t.Errorf("warnings = %+v, want one coded PULSE_DEDUP_LOW_RATIO", env.Warnings)
+	}
+	if len(env.Data.Groups) != 1 {
+		t.Errorf("data.groups = %v, want one group report", env.Data.Groups)
+	}
+}
+
+// TestImportAutoCLI_BadGroupFlagIsCoded: a malformed --group fails with
+// the declaration code and imports nothing.
+func TestImportAutoCLI_BadGroupFlagIsCoded(t *testing.T) {
+	dir := withTempDataDir(t)
+	writeJoinCSVFile(t, dir, "orders.csv", 200, 10)
+	err := runImportCLI(t, "auto", "--group", "a:b:c", "orders.csv")
+	var ce *perrors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perrors.PULSE_GROUP_DECLARATION_INVALID {
+		t.Fatalf("err = %v, want PULSE_GROUP_DECLARATION_INVALID", err)
+	}
+	// The parser's own refusal, naming the flag value — not a later
+	// encoder complaint about an empty group the bad value decayed into.
+	if ce.Details["declaration"] != "a:b:c" {
+		t.Errorf("details = %v, want the parser's declaration echo", ce.Details)
+	}
+	if _, serr := os.Stat(filepath.Join(dir, "imports", "orders.pulse")); !os.IsNotExist(serr) {
+		t.Errorf("a malformed --group still imported")
 	}
 }

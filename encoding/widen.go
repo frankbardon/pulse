@@ -96,6 +96,11 @@ func WidenSchemaSetField(s *Schema, field string, target FieldType) (*Schema, er
 		return nil, errors.NewCodedError(errors.ENCODING_INVALID,
 			"widen: nil schema")
 	}
+	// The field copy below would drop the groups and describe the
+	// logical row as if it were the physical one.
+	if err := RefuseGroups(s, "set-field widen", errors.ENCODING_INVALID); err != nil {
+		return nil, err
+	}
 	idx := -1
 	for i := range s.Fields {
 		if s.Fields[i].Name == field {
@@ -219,10 +224,11 @@ func WidenSetFieldFile(fsys afero.Fs, path, field string, target FieldType) (*Wi
 // record by record, holding one source and one destination record in
 // memory at a time.
 func widenSetFieldStream(dst io.Writer, src io.Reader, field string, target FieldType) (*WidenReport, error) {
-	if err := ReadHeader(src); err != nil {
+	pulseVersion, err := ReadHeader(src)
+	if err != nil {
 		return nil, err
 	}
-	srcSchema, err := ReadSchema(src)
+	srcSchema, err := ReadSchema(src, pulseVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -267,10 +273,7 @@ func widenSetFieldStream(dst io.Writer, src io.Reader, field string, target Fiel
 	srcSlot := srcOffsets[idx]
 	dstSlot := dstOffsets[idx]
 
-	if err := WriteHeader(dst); err != nil {
-		return nil, err
-	}
-	if err := WriteSchema(dst, dstSchema); err != nil {
+	if err := WritePreamble(dst, dstSchema); err != nil {
 		return nil, err
 	}
 

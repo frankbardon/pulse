@@ -95,6 +95,30 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 	_ = inferWarnings
 
+	// Parent-group declarations are checked against the resolved schema
+	// BEFORE the row pass, so a typo'd field name or a field claimed by
+	// two groups fails fast instead of after reading the whole source.
+	// Field names cannot change during the pass (only nullability can),
+	// so this verdict is final; the encoder is rebuilt over the final
+	// schema at write time.
+	//
+	// The width floor of the viability gate is schema-only too, so it
+	// runs here as well: a declared group no wider than its index is
+	// dropped (PULSE_GROUP_TOO_NARROW) before a row is read, and under
+	// StrictDedup the import stops here.
+	//
+	// A sample-inferred width can still be promoted by the row pass (see
+	// import_widen.go), and that can only widen a group. So the width
+	// screen is re-run over the final schema whenever a field widened,
+	// and a --strict refusal is deferred to that re-run when a declared
+	// member is widenable — the pre-pass verdict may not be the final one.
+	gate := j.dedupGate()
+	widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides)
+	specs, groupViews, groupWarns, rescreen, err := j.screenGroups(schema, widenable)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build dictionaries for categorical and set fields. Both share
 	// the inline-dictionary block on the .pulse codec; set fields use
 	// the dictionary bit-positions as on-wire mask bits.
@@ -109,11 +133,10 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 
 	// Write the .pulse file.
+	// The header is written together with the schema (WritePreamble,
+	// below): its format version is a function of the FINAL schema's
+	// content, which is not known until every row has been converted.
 	var buf bytes.Buffer
-
-	if err := encoding.WriteHeader(&buf); err != nil {
-		return nil, err
-	}
 
 	// Records are encoded into a separate buffer during the read loop so
 	// the per-row scratch slice can be reused. The records buffer is
@@ -144,21 +167,6 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	fullBitmapSize := (len(schema.Fields) + 7) / 8
 	writeBitmap := inferredSchema || schema.HasBitmap()
 
-	// promoted[i] records that field i was widened to nullable because of an
-	// out-of-sample null; surfaced via ImportReport.PromotedFields and a
-	// PULSE_IMPORT_NULL_PROMOTED warning.
-	promoted := make([]bool, len(schema.Fields))
-
-	// Reusable per-row scratch slices. Narrow types share the uint64
-	// slice; wide types (decimal128, set_u128, set_u256) write raw bytes
-	// via a parallel slice sized for the widest of them (32 bytes, a
-	// set_u256 mask) and sliced down to the field's own ByteSize on
-	// write. Single goroutine via ReadRows callback, so reuse is safe.
-	vals := make([]uint64, len(schema.Fields))
-	wideBytes := make([]wideFieldBytes, len(schema.Fields))
-	wideUsed := make([]bool, len(schema.Fields))
-	nullMask := make([]bool, len(schema.Fields))
-
 	// set_* token delimiter. ImportJob.SetDelimiters is inference-derived
 	// (or caller-supplied to match an inference-derived schema), so it is
 	// inert for an authoritative schema: a SchemaAwareReader builds set_*
@@ -169,6 +177,16 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		setDelimiterFor = func(string) string { return DefaultSetDelimiter }
 	}
 
+	// Per-row conversion (promotion of out-of-sample nulls included) is
+	// shared with the detecting import predict; see rowConverter.
+	conv := newRowConverter(schema, inferredSchema, dicts, setDelimiterFor, widenable)
+	// bufTypes is the field layout the rows already in recordsBuf were
+	// written with; a promotion re-strides them to the new width.
+	bufTypes := make([]encoding.FieldType, len(schema.Fields))
+	for i := range schema.Fields {
+		bufTypes[i] = schema.Fields[i].Type
+	}
+
 	// Optional source-declared null channel. A []string row cannot tell
 	// a JSON null from an empty JSON string, or an Arrow validity bit
 	// from a present empty cell; a NullAwareReader reports the
@@ -176,7 +194,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// leaves the text path byte-identical. See NullAwareReader.
 	nullSource, _ := j.Source.(NullAwareReader)
 
-	err := j.Source.ReadRows(ctx, func(row []string) error {
+	err = j.Source.ReadRows(ctx, func(row []string) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -189,136 +207,33 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			declaredNulls = nullSource.RowNulls()
 		}
 
-		for i := range wideUsed {
-			wideUsed[i] = false
-			nullMask[i] = false
+		re := conv.convert(rowNum, row, declaredNulls)
+		// A width promotion this row forced re-strides every row
+		// already held, BEFORE this one is appended at the new width —
+		// whether or not this row itself goes on to import.
+		for _, step := range conv.takePending() {
+			if err := widenBufferedColumn(&recordsBuf, rowsImported, bufTypes, step.field, step.to); err != nil {
+				return err
+			}
+			bufTypes[step.field] = step.to
 		}
-
-		rowOK := true
-		for i, f := range schema.Fields {
-			colIdx := f.CsvColumnIdx
-			var raw string
-			if colIdx < len(row) {
-				raw = strings.TrimSpace(row[colIdx])
-			}
-
-			nullCell := isNullCell(raw, f.Type, declaredNulls, colIdx)
-			if nullCell {
-				if !f.Nullable {
-					if !inferredSchema {
-						// Explicit schema declared this field non-nullable —
-						// a null here is a contract violation, not a guess.
-						rowErrors = append(rowErrors, RowError{
-							Row: rowNum,
-							Err: errors.NewCodedErrorWithDetails(
-								errors.PULSE_IMPORT_ROW_ERROR,
-								fmt.Sprintf("row %d, column %q: null value in non-nullable field", rowNum, f.Name),
-								map[string]any{"row": rowNum, "column": f.Name},
-							),
-						})
-						rowOK = false
-						break
-					}
-					// Inferred schema: the bounded sample missed this null.
-					// Promote the field to nullable and carry on. The field
-					// stride is unchanged and every record already reserves a
-					// bitmap byte for index i (writeBitmap is true for inferred
-					// imports), so prior records — whose bit i is 0 because
-					// they were non-null — stay valid.
-					schema.Fields[i].Nullable = true
-					promoted[i] = true
-				}
-				nullMask[i] = true
-				if isWideFieldType(f.Type) {
-					// Null rides the per-record bitmap; the payload is
-					// a zeroed placeholder of the field's FULL width.
-					// For a set that zero is also the empty mask, which
-					// is only reachable as a VALUE on a non-null cell.
-					wideBytes[i] = wideFieldBytes{}
-					if f.Type == encoding.FieldTypeDecimal128 {
-						enc := encoding.EncodeDecimal128(encoding.ZeroDecimal128())
-						copy(wideBytes[i][:], enc[:])
-					}
-					wideUsed[i] = true
-				} else {
-					vals[i] = 0
-				}
-				continue
-			}
-
-			if isWideFieldType(f.Type) {
-				wb, err := convertValueWide(raw, f, dicts[i], setDelimiterFor(f.Name))
-				if err != nil {
-					rowErrors = append(rowErrors, RowError{
-						Row: rowNum,
-						Err: errors.NewCodedErrorWithDetails(
-							errors.PULSE_IMPORT_ROW_ERROR,
-							fmt.Sprintf("row %d, column %q: %v", rowNum, f.Name, err),
-							map[string]any{"row": rowNum, "column": f.Name},
-						),
-					})
-					rowOK = false
-					break
-				}
-				wideBytes[i] = wb
-				wideUsed[i] = true
-				continue
-			}
-
-			v, err := convertValue(raw, f.Type, dicts[i], setDelimiterFor(f.Name))
-			if err != nil {
-				rowErrors = append(rowErrors, RowError{
-					Row: rowNum,
-					Err: errors.NewCodedErrorWithDetails(
-						errors.PULSE_IMPORT_ROW_ERROR,
-						fmt.Sprintf("row %d, column %q: %v", rowNum, f.Name, err),
-						map[string]any{"row": rowNum, "column": f.Name},
-					),
-				})
-				rowOK = false
-				break
-			}
-			vals[i] = v
-		}
-		if !rowOK {
+		if re != nil {
+			rowErrors = append(rowErrors, *re)
 			return nil // skip row, continue processing
 		}
 
 		// Encode this row immediately. Buffer is owned per call; values
 		// are not retained across iterations.
-		for i, f := range schema.Fields {
-			if wideUsed[i] {
-				// Slice to the field's own width: 16 for decimal128 and
-				// set_u128, 32 for set_u256. Writing the whole scratch
-				// array would pad every decimal by 16 zero bytes and
-				// desynchronize the stride for the rest of the file.
-				if _, err := recordsBuf.Write(wideBytes[i][:f.Type.ByteSize()]); err != nil {
-					return err
-				}
-				continue
-			}
-			if f.Type.IsBitPacked() {
-				// Bit-packed types: write as single byte for simplicity.
-				recordsBuf.WriteByte(byte(vals[i]))
-				continue
-			}
-			if err := encoding.WriteFieldValue(&recordsBuf, f.Type, vals[i]); err != nil {
-				return err
-			}
+		if err := conv.writeFields(&recordsBuf); err != nil {
+			return err
 		}
 
 		// Per-record null bitmap into the parallel buffer. Emitted whenever a
 		// bitmap may be needed (writeBitmap); interleaved into the record
-		// region at finalize only if the final schema is nullable. A cell is
-		// only ever null-masked for a nullable field (explicit non-nullable
-		// nulls break the row above), so setting bit i for nullMask[i] is safe.
+		// region at finalize only if the final schema is nullable.
 		if writeBitmap {
 			bitmap := make([]byte, fullBitmapSize)
-			for i := range schema.Fields {
-				if nullMask[i] {
-					encoding.BitmapSetNull(bitmap, i)
-				}
-			}
+			conv.fillBitmap(bitmap)
 			if err := encoding.WriteBitmap(&bitmapBuf, bitmap); err != nil {
 				return err
 			}
@@ -340,31 +255,35 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		return nil, failure
 	}
 
-	// Now write schema (dictionaries are populated, promotions applied).
-	if err := encoding.WriteSchema(&buf, schema); err != nil {
-		return nil, err
+	// A promoted width moved every later field's offset, and may have
+	// made a declared group wide enough to admit.
+	if len(conv.widened) > 0 {
+		relayoutOffsets(schema)
+	}
+	if len(conv.widened) > 0 || rescreen {
+		if specs, groupViews, groupWarns, err = gate.ScreenWidths(schema, groupSpecs(j.Groups)); err != nil {
+			return nil, err
+		}
 	}
 
-	// Append the encoded records. No record count prefix — the format is
+	// Now write header + schema (dictionaries are populated, promotions
+	// applied) and the records. No record count prefix — the format is
 	// header + schema + records per §5.3. Record count is derived from file
-	// size and per-record byte size. Interleave the parallel bitmap buffer
-	// after each record's field bytes iff the final schema is nullable;
-	// otherwise the field bytes stand alone (zero-overhead path).
-	if schema.HasBitmap() {
-		recs := recordsBuf.Bytes()
-		bms := bitmapBuf.Bytes()
-		fieldStride := schema.RecordByteSize() - fullBitmapSize
-		for k := 0; k < rowsImported; k++ {
-			if _, err := buf.Write(recs[k*fieldStride : (k+1)*fieldStride]); err != nil {
-				return nil, err
-			}
-			if _, err := buf.Write(bms[k*fullBitmapSize : (k+1)*fullBitmapSize]); err != nil {
-				return nil, err
-			}
-		}
-	} else if _, err := buf.Write(recordsBuf.Bytes()); err != nil {
+	// size and per-record byte size.
+	elision, written, err := writeCohortPayload(&buf, schema, recordsBuf.Bytes(), bitmapBuf.Bytes(), fullBitmapSize, rowsImported, j.ElideConstants, specs)
+	if err != nil {
+		return nil, withSourceRow(err, rowErrors)
+	}
+
+	// Ratio floor of the viability gate: measured over the dictionaries
+	// the full pass just built, BEFORE anything reaches the filesystem,
+	// so a StrictDedup refusal leaves no file behind. Without strict a
+	// low-ratio group is still written, with its numbers in a warning.
+	ratioViews, ratioWarns, err := gate.AssessRatios(written, specs, int64(rowsImported))
+	if err != nil {
 		return nil, err
 	}
+	groupWarns = append(groupWarns, ratioWarns...)
 
 	// Write to filesystem.
 	if err := afero.WriteFile(j.FS, j.Target, buf.Bytes(), 0644); err != nil {
@@ -381,20 +300,117 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	}
 
 	// Collect promoted field names in schema order for the report + warning.
-	var promotedFields []string
-	for i := range schema.Fields {
-		if promoted[i] {
-			promotedFields = append(promotedFields, schema.Fields[i].Name)
-		}
-	}
+	promotedFields := conv.promotedNames()
 
-	return &ImportReport{
+	report := &ImportReport{
 		RowsImported:   rowsImported,
-		Schema:         schema,
+		Schema:         written,
 		RowErrors:      rowErrors,
 		PromotedFields: promotedFields,
+		WidthWarnings:  widthWarnings(schema, conv.widened),
 		SourceWarnings: j.sourceWarnings(),
-	}, nil
+	}
+	if elision != nil && elision.Spec != nil {
+		report.ElidedConstants = elision.Fields
+	}
+	report.Groups = groupReports(written, j.Groups, groupViews, ratioViews)
+	report.GroupWarnings = groupWarns
+	return report, nil
+}
+
+// writeCohortPayload writes the preamble and the record region of an
+// import to buf. recs holds every row's field bytes (fieldStride each)
+// and bms every row's full-width null bitmap (bmSize each, present when
+// the import reserved one); the LOGICAL row of the final schema is the
+// field bytes followed by the bitmap iff the schema is nullable —
+// byte-identical to inlining the bitmap after each record, and field
+// bytes alone when no field is nullable.
+//
+// Without elide and without declared groups the output is the 0x01
+// cohort, unchanged. With elide, every logical row is first folded into
+// an encoding.ConstantDetector — the FULL pass, never the inference
+// sample — and the plan's constant group, if any, is appended after the
+// declared groups (whose members are reserved from elision, so the two
+// compose). Any group at all is encoded through encoding.GroupEncoder
+// into a 0x02 cohort in ONE pass over the spooled rows: each row's tuple
+// is looked up in its group's dictionary or appended. With no group
+// (nothing declared, and a plan that elides nothing) the write falls
+// through to 0x01. Returns the plan (nil without elide) and the schema
+// actually written; declared (the declared groups the viability gate
+// admitted) are its first len(declared) groups.
+func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []byte, bmSize, rows int, elide bool, declared []encoding.GroupSpec) (*encoding.ConstantPlan, *encoding.Schema, error) {
+	hasBM := schema.HasBitmap()
+	fieldStride := schema.RecordByteSize()
+	if hasBM {
+		fieldStride -= bmSize
+	}
+	var scratch []byte
+	logicalRow := func(k int) []byte {
+		if !hasBM {
+			return recs[k*fieldStride : (k+1)*fieldStride]
+		}
+		scratch = append(scratch[:0], recs[k*fieldStride:(k+1)*fieldStride]...)
+		return append(scratch, bms[k*bmSize:(k+1)*bmSize]...)
+	}
+
+	specs := append([]encoding.GroupSpec(nil), declared...)
+	var plan *encoding.ConstantPlan
+	if elide {
+		det, err := encoding.NewConstantDetector(schema)
+		if err != nil {
+			return nil, nil, err
+		}
+		for k := 0; k < rows; k++ {
+			if err := det.Observe(logicalRow(k)); err != nil {
+				return nil, nil, err
+			}
+		}
+		plan, err = encoding.PlanConstantElision(det, groupMemberNames(declared))
+		if err != nil {
+			return nil, nil, err
+		}
+		if plan.Spec != nil {
+			specs = append(specs, *plan.Spec)
+		}
+	}
+	if len(specs) == 0 {
+		return plan, schema, writeFlatPayload(buf, schema, rows, logicalRow)
+	}
+	enc, err := encoding.NewGroupEncoder(schema, specs)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The dictionaries precede the records on the wire, so the
+	// physical rows are spooled (smaller than the logical rows the
+	// import already holds) and the preamble is written last.
+	spool := make([]byte, 0, rows*enc.PhysicalStride())
+	for k := 0; k < rows; k++ {
+		if spool, err = enc.EncodeRow(spool, logicalRow(k)); err != nil {
+			return nil, nil, err
+		}
+	}
+	grouped := enc.Schema()
+	if err := encoding.WritePreamble(buf, grouped); err != nil {
+		return nil, nil, err
+	}
+	if _, err := buf.Write(spool); err != nil {
+		return nil, nil, err
+	}
+	return plan, grouped, nil
+}
+
+// writeFlatPayload writes the ungrouped (0x01) preamble and every
+// logical row.
+func writeFlatPayload(buf *bytes.Buffer, schema *encoding.Schema, rows int, logicalRow func(int) []byte) error {
+	if err := encoding.WritePreamble(buf, schema); err != nil {
+		return err
+	}
+	for k := 0; k < rows; k++ {
+		if _, err := buf.Write(logicalRow(k)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Predict validates the import without writing any output.
@@ -418,22 +434,54 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}
 	inferredSchema := !authoritative && (schema == nil || j.InferredSchema)
 
+	var inferredDelims map[string]string
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
 		if !ok {
 			return nil, fmt.Errorf("schema inference requires a ResetReader source")
 		}
-		var err error
-		schema, warnings, err = InferSchema(j.Source, j.SampleRows)
+		// The same inference options Run passes, so the predicted
+		// schema (and, on the measured pass, the set_* delimiters) is
+		// the one Run would infer.
+		res, err := InferSchemaWithOptions(j.Source, InferOptions{
+			SampleRows:          j.SampleRows,
+			SetInferenceMinPct:  j.SetInferenceMinPct,
+			ColumnTypeOverrides: j.ColumnTypeOverrides,
+		})
 		if err != nil {
 			return nil, err
 		}
+		schema, warnings, inferredDelims = res.Schema, res.Warnings, res.Delimiters
 		if err := rr.Reset(); err != nil {
 			return nil, fmt.Errorf("resetting reader after inference: %w", err)
 		}
 		if _, err := j.Source.ReadHeader(); err != nil {
 			return nil, err
 		}
+	}
+
+	// Declared groups, constant elision or group detection need the
+	// MEASURED pass: every row converted exactly as Run converts it.
+	if j.measuring() {
+		report := &PredictReport{Schema: schema, Warnings: warnings}
+		delimFor := func(name string) string {
+			if authoritative {
+				return DefaultSetDelimiter
+			}
+			if d, ok := j.SetDelimiters[name]; ok && d != "" {
+				return d
+			}
+			if d, ok := inferredDelims[name]; ok && d != "" {
+				return d
+			}
+			return DefaultSetDelimiter
+		}
+		widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides)
+		if err := j.predictMeasured(ctx, schema, inferredSchema, widenable, delimFor, report); err != nil {
+			return nil, err
+		}
+		report.SourceWarnings = j.sourceWarnings()
+		return report, nil
 	}
 
 	// Count rows. Predict already walks every row, so for an inferred
@@ -715,7 +763,7 @@ func setMaskFromCell(raw string, ft encoding.FieldType, dict *encoding.Dictionar
 			return mask, errors.NewCodedErrorWithDetails(
 				errors.PULSE_IMPORT_SET_OVERFLOW,
 				fmt.Sprintf("set dictionary overflowed %s (max %d entries)", ft, maxEntries),
-				map[string]any{"type": string(ft), "max_entries": maxEntries, "token": tok})
+				map[string]any{"type": ft.String(), "max_entries": maxEntries, "token": tok})
 		}
 		mask = mask.WithBit(int(id))
 	}
@@ -840,7 +888,7 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, 
 			return 0, errors.NewCodedErrorWithDetails(
 				errors.PULSE_IMPORT_SET_OVERFLOW,
 				fmt.Sprintf("set mask has bit %d beyond the 64 bits %s stores", mask.HighestBit(), ft),
-				map[string]any{"type": string(ft), "max_entries": ft.MaxSetEntries(), "highest_bit": mask.HighestBit()})
+				map[string]any{"type": ft.String(), "max_entries": ft.MaxSetEntries(), "highest_bit": mask.HighestBit()})
 		}
 		return low, nil
 

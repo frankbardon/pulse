@@ -142,6 +142,18 @@ const (
 	// non-nullable field remains a PULSE_IMPORT_ROW_ERROR.
 	PULSE_IMPORT_NULL_PROMOTED Code = "PULSE_IMPORT_NULL_PROMOTED"
 
+	// PULSE_IMPORT_WIDTH_PROMOTED is a WARNING-class code emitted once per
+	// field when an inferred import meets a value, past the bounded
+	// inference sample, that the sample-inferred width cannot hold — a
+	// categorical_* dictionary outgrowing its rung, an integer past its
+	// u4..u32 width, or a non-integer number in an integer column. The
+	// field is promoted to the narrowest type that holds it (details:
+	// field, from, to, source_row) and the row imports instead of
+	// becoming a PULSE_IMPORT_ROW_ERROR. Never emitted for an explicit
+	// schema, a ColumnTypeOverrides column or an authoritative source
+	// schema, whose overflow stays a row error.
+	PULSE_IMPORT_WIDTH_PROMOTED Code = "PULSE_IMPORT_WIDTH_PROMOTED"
+
 	// PULSE_EXPORT_ROW_ERROR indicates a per-row export error.
 	PULSE_EXPORT_ROW_ERROR Code = "PULSE_EXPORT_ROW_ERROR"
 
@@ -186,6 +198,48 @@ const (
 	// reads to a configured root (default: process cwd) so an MCP /
 	// CLI invocation cannot reach arbitrary files on the host.
 	PULSE_IMPORT_SOURCE_FORBIDDEN Code = "PULSE_IMPORT_SOURCE_FORBIDDEN"
+
+	// PULSE_GROUP_DECLARATION_INVALID indicates a parent-group
+	// declaration that is malformed before any field is resolved: a
+	// declaration string that does not parse, a group with no members,
+	// a field named twice within one group, or a key that is not a
+	// member of its own group.
+	PULSE_GROUP_DECLARATION_INVALID Code = "PULSE_GROUP_DECLARATION_INVALID"
+
+	// PULSE_GROUP_FIELD_UNKNOWN indicates a parent-group declaration
+	// names a field the cohort's schema does not have.
+	PULSE_GROUP_FIELD_UNKNOWN Code = "PULSE_GROUP_FIELD_UNKNOWN"
+
+	// PULSE_GROUP_FIELD_CONFLICT indicates one field is named by two
+	// parent-group declarations. Groups are independent: a field belongs
+	// to at most one.
+	PULSE_GROUP_FIELD_CONFLICT Code = "PULSE_GROUP_FIELD_CONFLICT"
+
+	// PULSE_GROUP_MEMBER_NOT_CONSTANT indicates a declared parent group
+	// is not one: two rows carry the same key tuple but disagree on a
+	// non-key member (or a constant group's member changes). The
+	// encoder refuses rather than silently growing the dictionary.
+	PULSE_GROUP_MEMBER_NOT_CONSTANT Code = "PULSE_GROUP_MEMBER_NOT_CONSTANT"
+
+	// PULSE_GROUP_ENTRIES_EXHAUSTED indicates a parent group's
+	// dictionary would exceed the u32 per-row index space (2^32
+	// distinct tuples).
+	PULSE_GROUP_ENTRIES_EXHAUSTED Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
+
+	// PULSE_GROUP_TOO_NARROW indicates a declared indexed parent group
+	// whose members occupy no more bytes per row than the u32 index that
+	// would replace them: it can never save space, so the viability gate
+	// drops it (its members stay row fields) and reports both widths.
+	// An error instead of a warning under --strict.
+	PULSE_GROUP_TOO_NARROW Code = "PULSE_GROUP_TOO_NARROW"
+
+	// PULSE_DEDUP_LOW_RATIO indicates a parent group whose measured
+	// dedup ratio (rows per distinct tuple) is below the ratio floor, or
+	// whose dictionary makes the file no smaller than storing the
+	// members per row. A warning carrying the ratio, the resident
+	// dictionary bytes and the byte delta; the group is still written.
+	// Never a refusal on ratio alone — an error only under --strict.
+	PULSE_DEDUP_LOW_RATIO Code = "PULSE_DEDUP_LOW_RATIO"
 
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL indicates a numeric aggregation
 	// was requested on a categorical field.
@@ -544,6 +598,23 @@ const (
 	// until repaired (typically via re-creation from constituent shards).
 	PULSE_ARCHIVE_CORRUPT Code = "PULSE_ARCHIVE_CORRUPT"
 
+	// PULSE_COHORT_COMPRESSED indicates a cohort path that holds a
+	// zstd-compressed transfer artifact (`.pulse.zst`) instead of a
+	// `.pulse` cohort. Compression is transport-only: a compressed file is
+	// never opened as a cohort, so every read surface refuses it with this
+	// code rather than a generic ENCODING_INVALID. Decompress it with
+	// `pulse import transfer` / Pulse.ImportTransfer first.
+	PULSE_COHORT_COMPRESSED Code = "PULSE_COHORT_COMPRESSED"
+
+	// PULSE_TRANSFER_INVALID indicates a transfer compress / decompress
+	// request the transport contract refuses: a compression level outside
+	// 1..22, a compress source that is not a Pulse cohort (or is already a
+	// transfer artifact), a decompress source that is not a zstd stream, a
+	// corrupt or truncated stream, decompressed bytes that are not a Pulse
+	// cohort, or an existing output without overwrite. details["reason"]
+	// names which.
+	PULSE_TRANSFER_INVALID Code = "PULSE_TRANSFER_INVALID"
+
 	// PULSE_SHARD_MISSING indicates the central directory references an
 	// entry that is not addressable inside the archive, or a caller
 	// requested a shard by name that does not exist. Distinct from
@@ -596,6 +667,16 @@ const (
 	// precisely because an expensive whole-archive rewrite that happens
 	// silently is indistinguishable from a cheap append.
 	PULSE_SHARD_SET_WIDENED Code = "PULSE_SHARD_SET_WIDENED"
+
+	// PULSE_SHARD_GROUPS_REWRITTEN is emitted as a WARNING (not an
+	// error) when `pulse shard create` / `shard add` changes a shard's
+	// parent-group layout (format 0x02) to fit the archive: a grouped
+	// shard stored flattened in an ungrouped archive, a shard re-encoded
+	// into a grouped archive's layout, or a constant group promoted to an
+	// indexed group across EVERY shard. Mandatory for the reason
+	// PULSE_SHARD_SET_WIDENED is: an expensive rewrite that happens
+	// silently is indistinguishable from a cheap append.
+	PULSE_SHARD_GROUPS_REWRITTEN Code = "PULSE_SHARD_GROUPS_REWRITTEN"
 
 	// PULSE_SHARD_RESERVED_NAME indicates a caller attempted to insert
 	// a shard whose basename collides with the reserved canonical
@@ -2407,6 +2488,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
 	PULSE_IMPORT_ROW_ERROR,
 	PULSE_IMPORT_NULL_PROMOTED,
+	PULSE_IMPORT_WIDTH_PROMOTED,
 	PULSE_EXPORT_ROW_ERROR,
 	PULSE_EXPORT_FIELD_UNKNOWN,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,
@@ -2417,6 +2499,13 @@ var allCodes = []Code{
 	PULSE_IMPORT_SOURCE_MISSING,
 	PULSE_IMPORT_HANDLE_EXISTS,
 	PULSE_IMPORT_SOURCE_FORBIDDEN,
+	PULSE_GROUP_DECLARATION_INVALID,
+	PULSE_GROUP_FIELD_UNKNOWN,
+	PULSE_GROUP_FIELD_CONFLICT,
+	PULSE_GROUP_MEMBER_NOT_CONSTANT,
+	PULSE_GROUP_ENTRIES_EXHAUSTED,
+	PULSE_GROUP_TOO_NARROW,
+	PULSE_DEDUP_LOW_RATIO,
 	PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
@@ -2473,6 +2562,8 @@ var allCodes = []Code{
 	PULSE_LOOKUP_MISS,
 	PULSE_ARCHIVE_MAGIC_INVALID,
 	PULSE_ARCHIVE_CORRUPT,
+	PULSE_COHORT_COMPRESSED,
+	PULSE_TRANSFER_INVALID,
 	PULSE_SHARD_MISSING,
 	PULSE_SHARD_HEADER_INVALID,
 	PULSE_SHARD_SCHEMA_MISMATCH,
@@ -2480,6 +2571,7 @@ var allCodes = []Code{
 	PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
 	PULSE_SHARD_SET_WIDENED,
+	PULSE_SHARD_GROUPS_REWRITTEN,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_CHAIN_NOT_MERGEABLE,

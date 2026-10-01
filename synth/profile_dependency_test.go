@@ -99,10 +99,11 @@ func depCandidateRules(prof *synth.Profile) []synth.RuleSpec {
 func bandCoherence(t *testing.T, data []byte) (scored, agree, orphanFlag int) {
 	t.Helper()
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
@@ -230,10 +231,11 @@ func TestSuggestDeps_CategoricalDependencyFiresOnEveryWireRow(t *testing.T) {
 	}
 
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}
@@ -500,10 +502,11 @@ func TestSuggestDeps_ComplementAndEnumerationArmsFireEndToEnd(t *testing.T) {
 	}
 
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}

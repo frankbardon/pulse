@@ -71,9 +71,14 @@ type AddShardResult struct {
 	// Widened carries one entry per set field promoted to a wider rung;
 	// empty on the ordinary append.
 	Widened []SetWidening `json:"widened,omitempty"`
+	// Regrouped carries one entry per parent-group layout change the add
+	// made (see GroupReconciliation); empty on the ordinary append,
+	// including an append whose group dictionary merely union-merged.
+	Regrouped []GroupReconciliation `json:"regrouped,omitempty"`
 	// Warnings carry every non-fatal diagnostic the add produced —
-	// PULSE_SHARD_DESCRIPTION_DIVERGENCE from cohesion, and one
-	// PULSE_SHARD_SET_WIDENED per entry in Widened. Shaped like the
+	// PULSE_SHARD_DESCRIPTION_DIVERGENCE from cohesion, one
+	// PULSE_SHARD_SET_WIDENED per entry in Widened and one
+	// PULSE_SHARD_GROUPS_REWRITTEN per entry in Regrouped. Shaped like the
 	// descriptor envelope's warning entries so a caller lifts them
 	// straight onto `warnings` without reshaping.
 	Warnings []encoding.CohesionWarning `json:"warnings"`
@@ -101,9 +106,13 @@ type CreateShardArchiveResult struct {
 	// while the archive was being assembled; empty on the ordinary
 	// create.
 	Widened []SetWidening `json:"widened,omitempty"`
+	// Regrouped carries one entry per parent-group layout change the
+	// create made while seeding (see GroupReconciliation).
+	Regrouped []GroupReconciliation `json:"regrouped,omitempty"`
 	// Warnings carry every non-fatal diagnostic the create produced —
-	// PULSE_SHARD_DESCRIPTION_DIVERGENCE from cohesion, and one
-	// PULSE_SHARD_SET_WIDENED per entry in Widened.
+	// PULSE_SHARD_DESCRIPTION_DIVERGENCE from cohesion, one
+	// PULSE_SHARD_SET_WIDENED per entry in Widened and one
+	// PULSE_SHARD_GROUPS_REWRITTEN per entry in Regrouped.
 	Warnings []encoding.CohesionWarning `json:"warnings"`
 }
 

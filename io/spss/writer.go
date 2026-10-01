@@ -383,10 +383,11 @@ func (w *Writer) planCohort(ctx context.Context, fs afero.Fs, path string) (*coh
 	}
 
 	r := bufio.NewReader(f)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return fail(err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return fail(err)
 	}

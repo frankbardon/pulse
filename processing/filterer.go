@@ -6,7 +6,6 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/expr-lang/expr"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -259,23 +258,28 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 			"expression filter requires a non-empty expression")
 	}
 
-	exts := f.exts
+	// Compile once, here, against the schema prototype (or on the first
+	// record when the expression names a non-schema column) — never per
+	// row. See expr_program.go for the null semantics.
+	prog, err := newExprProgram(filter.Expression, "filter", schema, f.exts.ExprOptions())
+	if err != nil {
+		return nil, err
+	}
 	return func(record *Record) (bool, error) {
-		env := record.AllValues()
-		opts := []expr.Option{expr.Env(env)}
-		opts = append(opts, exts.ExprOptions()...)
-		program, err := expr.Compile(filter.Expression, opts...)
+		output, nullInput, err := prog.runRecord(record)
 		if err != nil {
-			return false, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("compiling filter expression: %s", filter.Expression))
-		}
-		output, err := expr.Run(program, env)
-		if err != nil {
-			return false, errors.WrapCodedError(err, errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("evaluating filter expression: %s", filter.Expression))
+			if nullInput {
+				// A null operand made the predicate UNKNOWN: drop the
+				// row, as SQL WHERE does.
+				return false, nil
+			}
+			return false, err
 		}
 		b, ok := output.(bool)
 		if !ok {
+			if nullInput && output == nil {
+				return false, nil
+			}
 			return false, errors.NewCodedError(errors.PROCESSING_RUNTIME,
 				fmt.Sprintf("filter expression must return bool, got %T", output))
 		}

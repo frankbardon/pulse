@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"runtime"
-	"sort"
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -210,6 +209,13 @@ type shardPartial struct {
 
 	aggs   []processing.OnlineAggregator
 	groups map[string][]processing.OnlineAggregator
+	// grouper is this partition's own grouper instance. Its live
+	// components state is folded across partitions through
+	// processing.MergeableGrouper, so the merged instance's Components()
+	// describes the whole cohort exactly as the serial instance does.
+	grouper processing.Grouper
+	// keyer is the partition grouper's resolved key dispatch.
+	keyer *processing.GroupKeyer
 	// keyOrder preserves the order distinct group keys were first seen
 	// in this shard. The merger's stable sort by key ensures the
 	// final response row order is deterministic across worker
@@ -226,11 +232,12 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		return nil, err
 	}
 	r := &sect
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q header", shardName))
 	}
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading shard %q schema", shardName))
 	}
@@ -258,7 +265,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	}
 
 	var grouperSpec *types.Group
-	var streamGrp processing.StreamingGrouper
+	var grouper processing.Grouper
 	if len(req.Groups) > 0 {
 		grouperSpec = req.Groups[0]
 		grouperFactory, ok := s.extensions.LookupGrouper(grouperSpec.Type)
@@ -271,12 +278,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			return nil, err
 		}
 		processing.ApplyGrouperExtensions(grp, s.extensions)
-		sg, ok := grp.(processing.StreamingGrouper)
-		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-				fmt.Sprintf("grouper %s does not implement StreamingGrouper", grouperSpec.Type))
-		}
-		streamGrp = sg
+		grouper = grp
 	}
 
 	// Resolve the primary aggregation field for the per-shard null
@@ -289,7 +291,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		filterCounters: processing.NewFilterPassCounters(req.Filterers),
 	}
 	var aggsUngrouped []processing.OnlineAggregator
-	if streamGrp == nil {
+	if grouper == nil {
 		aggsUngrouped = make([]processing.OnlineAggregator, len(specs))
 		for i, sp := range specs {
 			inst, err := sp.factory(sp.agg, schema)
@@ -306,6 +308,20 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		out.aggs = aggsUngrouped
 	} else {
 		out.groups = make(map[string][]processing.OnlineAggregator)
+		out.grouper = grouper
+		if out.keyer, err = processing.NewGroupKeyer(grouper); err != nil {
+			return nil, err
+		}
+	}
+
+	// A grouped archive: the reader and the record share the CANONICAL
+	// schema, whose dictionaries every shard's indices address, so each
+	// record is handed its row's parent-group entries and a filter over
+	// one group's members takes the per-entry precompute — the same hook
+	// filter-to-file uses (readGroupIndices).
+	var groupIdx []uint32
+	if schema.HasGroups() {
+		groupIdx = make([]uint32, len(schema.Groups))
 	}
 
 	for {
@@ -323,6 +339,9 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			return nil, err
 		}
 		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
+		if groupIdx != nil && readGroupIndices(rr, groupIdx) {
+			rec.SetGroupIndices(schema, groupIdx)
+		}
 		out.totalRows++
 
 		pass, ferr := processing.ApplyFilterPass(rec, req.Filterers, filterFns, out.filterCounters)
@@ -358,7 +377,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			}
 		}
 
-		if streamGrp == nil {
+		if grouper == nil {
 			for i, oa := range aggsUngrouped {
 				if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
 					return nil, err
@@ -366,39 +385,50 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 			}
 			continue
 		}
-
-		key, ok, err := streamGrp.KeyForRow(rec, grouperSpec.Field)
-		if err != nil {
+		if err := out.foldGroupedRow(rec, grouperSpec.Field, specs, schema); err != nil {
 			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		bucket, exists := out.groups[key]
-		if !exists {
-			bucket = make([]processing.OnlineAggregator, len(specs))
-			for i, sp := range specs {
-				inst, err := sp.factory(sp.agg, schema)
-				if err != nil {
-					return nil, err
-				}
-				online, ok := inst.(processing.OnlineAggregator)
-				if !ok {
-					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", sp.agg.Type))
-				}
-				bucket[i] = online
-			}
-			out.groups[key] = bucket
-			out.keyOrder = append(out.keyOrder, key)
-		}
-		for i, oa := range bucket {
-			if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
-				return nil, err
-			}
 		}
 	}
 	return out, nil
+}
+
+// foldGroupedRow fans one filter-passing record into every bucket this
+// partition's grouper keys it to — one for a single-key grouper, one per
+// selected label for GROUP_SET_PER_ELEMENT — creating a bucket of fresh
+// aggregators on a key's first sighting. Shared by both parallel
+// reducers; the key dispatch is processing.GroupKeyer, the same one
+// the serial streaming-grouped path uses.
+func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, specs []aggSpec, schema *encoding.Schema) error {
+	keys, ok, err := sp.keyer.Keys(rec, field)
+	if err != nil || !ok {
+		return err
+	}
+	for _, key := range keys {
+		bucket, exists := sp.groups[key]
+		if !exists {
+			bucket = make([]processing.OnlineAggregator, len(specs))
+			for i, spec := range specs {
+				inst, err := spec.factory(spec.agg, schema)
+				if err != nil {
+					return err
+				}
+				online, ok := inst.(processing.OnlineAggregator)
+				if !ok {
+					return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", spec.agg.Type))
+				}
+				bucket[i] = online
+			}
+			sp.groups[key] = bucket
+			sp.keyOrder = append(sp.keyOrder, key)
+		}
+		for i, oa := range bucket {
+			if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // primaryNullFieldFor resolves the field whose per-record null tally
@@ -538,6 +568,16 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		}
 
 		if merged.groups != nil {
+			if merged.grouper != nil && p.grouper != nil {
+				m, ok := merged.grouper.(processing.MergeableGrouper)
+				if !ok {
+					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+						fmt.Sprintf("grouper %s does not implement MergeableGrouper", req.Groups[0].Type))
+				}
+				if err := m.MergeGrouperState(p.grouper); err != nil {
+					return nil, err
+				}
+			}
 			for _, key := range p.keyOrder {
 				bucket := p.groups[key]
 				existing, exists := merged.groups[key]
@@ -625,47 +665,28 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 	}
 
 	if merged.groups != nil {
-		grp := req.Groups[0]
-		// Stable sort by key so output row order is deterministic across
-		// runs regardless of map-iteration order or worker scheduling.
-		keys := make([]string, len(merged.keyOrder))
-		copy(keys, merged.keyOrder)
-		sort.SliceStable(keys, func(i, j int) bool { return keys[i] < keys[j] })
-		data := make([]map[string]any, 0, len(keys))
-		for _, key := range keys {
-			bucket := merged.groups[key]
-			row := make(map[string]any, len(bucket)+1)
-			for i, oa := range bucket {
-				val, err := oa.Finalize()
-				if err != nil {
-					return nil, err
-				}
-				label := req.Aggregations[i].Label
-				if label == "" {
-					label = fmt.Sprintf("%s_%s", req.Aggregations[i].Type, req.Aggregations[i].Field)
-				}
-				// Same Rich-or-scalar lift as the ungrouped arm above.
-				row[label], err = processing.DispatchAggregatorResult(oa, val)
-				if err != nil {
-					return nil, err
-				}
-			}
-			row[grp.Field] = key
-			data = append(data, row)
-		}
-		resp.Data = data
+		// The grouped arm hands the merged buckets and the merged
+		// grouper to the ONE grouped emission tail the serial
+		// streaming-grouped path uses: row order (include order, else
+		// sorted keys), Request.Sort, Components.Groupers off the merged
+		// grouper's live state, filterers, run and the SERIES overlay
+		// fold. A private copy of that tail here used to drop Sort,
+		// Overlays, include ordering and the groupers block — the same
+		// request answering differently under a worker count. Like the
+		// serial path it emits no Components.Aggregations (per-group
+		// components is an unlanded surface).
+		return processing.FinalizeGroupedStream(req, processing.GroupedTail{
+			Group:             req.Groups[0],
+			Grouper:           merged.grouper,
+			Buckets:           merged.groups,
+			TotalRows:         merged.totalRows,
+			FilteredRows:      merged.filteredRows,
+			NullRecords:       merged.nullRecords,
+			FilterCounters:    merged.filterCounters,
+			ShardCount:        shardCount,
+			DisableComponents: disableComponents,
+		})
 	}
-	// The GROUPED arm deliberately emits no Components.Aggregations.
-	// That is parity, not an omission: processGrouped and
-	// processStreamingGrouped both leave the slice nil too (per-group
-	// components emission is a separate, unlanded surface), so emitting
-	// a cohort-wide floor here would make the parallel arm the only
-	// path in the engine that answers the question — and answer it at
-	// the wrong granularity, since a grouped request's floor is
-	// per-group. Components.Groupers is likewise not emitted: the
-	// per-shard grouper instances are never merged (the fold happens at
-	// the bucket-key level), so no merged grouper exists to ask. An
-	// absent component beats a fabricated one.
 	attachMergedFiltererComponents(resp, req, merged, disableComponents)
 	attachMergedRunComponents(resp, merged, shardCount, disableComponents)
 	return resp, nil

@@ -98,6 +98,10 @@ categorical field, low-quality field description) as errors. On
 execute. Useful in CI gates that want the strictest possible
 validation.
 
+`import <format>` also takes `--strict`, with a narrower meaning: it
+escalates the parent-group viability warnings only — see
+[`--strict` (import)](#--strict-import).
+
 ### `--echo-request`
 
 Available on: `api process`, `api process-chain`, `api compose`,
@@ -175,6 +179,214 @@ own block after every null-state rule has run. The profile document
 itself gains no section: absent the flag it is byte-identical, and with
 it only `warnings` moves. See [profile create](profile-create.md).
 
+### `--run-continuation`
+
+Available on: `profile create`.
+
+`--run-continuation` measures, on the same scan the profile already
+makes, each field's run-continuation: the fraction of adjacent row pairs
+whose on-wire bytes (and, for a nullable field, null bit) repeat. That is
+exactly the hit rate of the run-skip decode, which rewrites only the
+fields that changed since the previous row — so a cohort that was sorted
+by its parent key upstream scans faster, and one re-imported without
+that `ORDER BY` silently loses the win. The additive `run_continuation`
+section carries the per-field rates, an overall figure, the
+high-continuation fields and a one-line advice; pairs never span a shard
+boundary. Absent the flag the document is byte-identical. See
+[profile create](profile-create.md).
+
+### `--elide-constants`
+
+Available on: `import csv`, `import tsv`, `import ndjson`,
+`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
+`import spss`, `import predict` (reports what would be elided and the
+bytes saved; writes nothing).
+
+`--elide-constants` stores every field that holds exactly one value — or
+is null — on every imported row once, in the schema block, and drops it
+from each record. Constancy is measured over the full row pass, never
+the inference sample. The output is a format `0x02` cohort that binaries
+predating `0x02` cannot open, which is why it is opt-in. Nothing is
+elided (and the cohort stays byte-identical `0x01`) for fewer than two
+rows or when the saving would not repay the schema-block growth; when
+every field is constant the lowest-index field stays in the row. The
+elided fields are printed, and reported as `ElidedConstants` under
+`--json`. See [parent groups](../format/parent-groups.md).
+
+### `--group`
+
+Available on: `import csv`, `import tsv`, `import ndjson`,
+`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
+`import spss`, `import predict`, `import auto`. Repeatable — one parent
+group per flag. On `import auto` the group is judged at the default
+ratio floor and its findings are always warnings (`--json` puts them in
+`warnings`, the per-group figures under `data.groups`); the floor and
+`--strict` stay on the per-format leaves, since neither changes the
+bytes written.
+On `import predict` the declaration is evaluated, not applied: see
+[`--suggest-groups`](#--suggest-groups).
+
+`--group KEY[,KEY...]:MEMBER[,MEMBER...]` declares a **parent group**:
+the key fields identify a parent (a customer ID, say) and the members
+are the fields that key determines (its name, region, tier). Each
+distinct tuple is stored once in the schema block and every record
+carries a 4-byte index instead of the members, so a denormalised join
+shrinks by its repeated parent block. `--group F1,F2,...` (no colon) is
+a plain tuple group: each distinct combination is one entry, with no
+key check.
+
+```sh
+pulse import csv -i lines.csv -o lines.pulse \
+  --group cust_id:cust_name,cust_region \
+  --group prod_id:prod_cat
+```
+
+A keyed declaration is **checked, not trusted**: if two rows share a key
+tuple but disagree on a member (value or null state), the import fails
+with `PULSE_GROUP_MEMBER_NOT_CONSTANT` naming the member, the record
+index and the source row — a wrong declaration is refused, never
+silently turned into a larger dictionary. A field in two groups is
+`PULSE_GROUP_FIELD_CONFLICT` (naming both groups), an unknown field
+`PULSE_GROUP_FIELD_UNKNOWN`, a malformed value
+`PULSE_GROUP_DECLARATION_INVALID`; all three fail before the row pass.
+More than 2^32 distinct tuples is `PULSE_GROUP_ENTRIES_EXHAUSTED`.
+
+Every declared group passes a **per-group viability gate**. A group
+whose members are no wider than the 4-byte index can never save space:
+it is dropped (its members stay in the row) with a
+`PULSE_GROUP_TOO_NARROW` warning naming both widths. A group whose
+dedup ratio (rows per distinct tuple) is below `--dedup-ratio-floor`,
+or that makes the file no smaller, is still written, with a
+`PULSE_DEDUP_LOW_RATIO` warning carrying the ratio, the resident
+dictionary bytes and the byte delta. Other groups on the same import
+are unaffected. The text output prints each group's ratio, resident
+dictionary bytes and byte delta; `--json` reports them per group under
+`Groups` and the findings in `warnings`.
+
+### `--suggest-groups`
+
+Available on: `import predict`.
+
+Finds candidate parent groups before you import, and measures each one.
+A candidate is a single key field plus every field it determines (the
+same value on every row sharing a key value). Each is reported with its
+fields, verdict, distinct-tuple count, ratio, resident dictionary bytes,
+byte delta and the exact file size with that group declared, next to
+the flat cohort's size. You also get a ready-to-paste `--group` value
+and the structured `{key, members}` form. A candidate below the width
+or ratio floor is listed with its verdict and reason, not hidden.
+`suggested` lists only the admitted candidates that do not share a field
+with a better one. A source with no viable group suggests none.
+
+```sh
+pulse import predict -i lines.csv --suggest-groups
+pulse import predict -i lines.csv --group cust_id:cust_name,cust_tier
+```
+
+**It suggests only.** Nothing is declared until you pass `--group` to
+the import. Candidates are **nominated** over the first rows, up to
+10,000 (fewer on a wide schema; `window_rows` / `window_bound`). The
+500-row inference sample is too small at typical fanouts: it holds a few
+dozen parents, and a column that happens to be constant across so few
+looks like a parent attribute. Candidates are then **confirmed and
+measured over every row**. A member that varies within its key later in
+the file is dropped and listed under `rejected_members`. The figures
+therefore come from the same conversion and the same `encoding.DedupGate`
+arithmetic the import uses, so they are not a sample estimate. They
+equal what `import --group` reports and what `cohort inspect` shows
+afterwards. A dependency can still break in a later re-export of the
+same source; the import catches that with
+`PULSE_GROUP_MEMBER_NOT_CONSTANT`.
+
+Detection has these limits:
+
+- Keys are single fields; composite keys are not detected. Evaluate one
+  with `--group A,B:MEMBERS`.
+- Up to 64 keys are evaluated, highest cardinality first
+  (`keys_over_bound`), and 16 candidates are confirmed
+  (`candidates_over_bound`).
+- A field constant across the window, or declared in a `--group`, is
+  never nominated.
+- Candidate dictionaries share a 512 MiB budget. A candidate that
+  outgrows its share is reported `unmeasured`.
+
+Cost: `import predict` normally reads rows without converting them.
+With `--suggest-groups`, `--group` or `--elide-constants` it converts
+every row as the import would. That measured roughly 1.2x-1.4x the
+import's own time on synthetic 12- and 102-column sources, against
+about 0.15x for plain predict. It does not spool the rows, so memory is
+bounded by the window and the candidate dictionaries, not the file.
+When a field outgrows its sample-inferred width mid-file (see
+`PULSE_IMPORT_WIDTH_PROMOTED` below) the measured pass stops measuring,
+finishes the file to find every promotion, then rewinds and measures
+again at the final widths, so such a source is read twice. Only the
+measured pass sees the full-file widths: plain `import predict` reports
+the sample-inferred schema.
+`--json` adds `Projection`, `Groups`, `GroupWarnings`, `ElidedConstants`,
+`GroupCandidates` and `WidthWarnings` to `data`; `format_version` stays
+`"1.1"`.
+
+### Width promotion (inferred imports and converts)
+
+Not a flag: every inferred `import <format>`, `import auto`,
+`pulse_import` and `pulse convert` does it. Inference sizes `categorical_*` rungs and integer
+widths from the first `--sample-rows` rows. A later value that outgrows
+them promotes the field to the narrowest type that holds it instead of
+dropping the row: `categorical_u8` → `u16` → `u32`; `u4` → `u8` → `u16`
+→ `u32` → `u64` for a larger non-negative integer; `u4`..`u32` → `f64`
+for a negative, fractional or signed number; `f32` → `f64` for a value
+outside f32's range — past `MaxFloat32`, or a non-zero magnitude f32
+would flush to zero. That is the range test inference chose `f32` by, so
+a value f32 merely rounds (`0.1`) never promotes. Every step is lossless
+for every value already read. Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
+warning (`field`, `from`, `to`, `source_row`) in the envelope `warnings`
+and `data.WidthWarnings` (`width_warnings` on `import auto` /
+`pulse_import`). A `--schema`, a `column_type_overrides` column or an
+authoritative source schema (SPSS, Arrow, Parquet) never promotes: its
+overflow stays a `PULSE_IMPORT_ROW_ERROR`. So does a non-number, a
+non-integer in a `u64` column, a non-boolean in a `packed_bool` column
+(no type holds both losslessly), and a dictionary past `categorical_u32`.
+
+`pulse convert` copies cell text, so a promotion never changes what the
+target receives. It reports the promoted types in `data.Schema` and the
+warnings in `data.WidthWarnings` and the envelope `warnings`, and a
+`--keep-pulse` intermediate is byte-identical to a plain `import` of the
+source. On a declared schema (`--schema`, or an SPSS / Arrow / Parquet
+source's own) a full categorical rung still stops the convert with the
+fatal `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, and no intermediate is written.
+
+### `--dedup-ratio-floor`
+
+Available on: every `import <format>` leaf, and `import predict`.
+Default `2`.
+
+The rows-per-distinct-tuple floor below which a `--group` draws
+`PULSE_DEDUP_LOW_RATIO`. A floor of `1` disables it, leaving only the
+check that the group actually makes the file smaller. The group is
+written either way unless `--strict` is set.
+
+### `--strict` (import)
+
+Available on: every `import <format>` leaf, and `import predict` (which
+then fails where the import would).
+
+Turns the parent-group viability warnings (`PULSE_GROUP_TOO_NARROW`,
+`PULSE_DEDUP_LOW_RATIO`) into errors: the import fails with that code
+(`errors[0].code` under `--json`) and writes nothing. Other import
+warnings are unaffected.
+Groups are named in errors and output by position and key
+(`group 1 [key: cust_id]`) — the format stores no group name. Each group
+is printed with its distinct-tuple count, and reported under `Groups`
+with `--json` (entry count, entry width, member bytes per row, index
+width). Declared members are never constant-elided, so `--group`
+composes with `--elide-constants`. Field names containing `,` or `:`
+cannot be declared here; use `io.ImportJob.Groups`. The output is a
+format `0x02` cohort that binaries predating `0x02` cannot open; with no
+`--group` the import is unchanged. `pulse_import` (MCP) takes the same
+declarations as structured `groups: [{key, members}]` entries, plus
+`suggest_groups` to return measured candidates in the same shape. See
+[parent groups](../format/parent-groups.md).
+
 ## Command index
 
 Every runnable leaf the binary exposes, with the page that documents it
@@ -203,6 +415,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse cohort inspect` | Inspect a `.pulse` header and schema | [cohort inspect](cohort-inspect.md) |
 | `pulse convert` | Convert between tabular formats, auto-detected from extensions | [import spss](import-spss.md), [export spss](export-spss.md) |
 | `pulse convert predict` | Validate a conversion without writing output | [export spss](export-spss.md) |
+| `pulse dedup` | Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format `0x02`) — the existing-cohort twin of `pulse import --group`, taking the same `--group`, `--elide-constants`, `--dedup-ratio-floor` and `--strict`. Rewrites in place (destructive, non-interactive, atomic: temp file, fsync, rename, so a refusal or failure leaves the cohort byte-identical) or, with `--out PATH`, writes a new file that must not exist. `--suggest-groups` detects candidates over the cohort's records; alone it writes nothing. An already-grouped cohort is regrouped from scratch. Refuses a shard archive (`SERVICE_VALIDATION`). An in-place rewrite names each invalidated sidecar and its rebuild command (`data.invalidated_sidecars`) and rebuilds nothing | [parent groups](../format/parent-groups.md) |
 | `pulse errors list` | List error codes by domain and/or substring | `--help` |
 | `pulse errors lookup` | Message + fixups for one error code | `--help` |
 | `pulse examples search` | Search the embedded request-example library | `--help` |
@@ -215,9 +428,10 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse export parquet` | Export `.pulse` to Parquet | `--help` |
 | `pulse export predict` | Validate an export without writing output | [export spss](export-spss.md) |
 | `pulse export spss` | Export `.pulse` to SPSS `.sav` | [export spss](export-spss.md) |
+| `pulse export transfer` | Compress a cohort or shard archive (any format version) into a zstd transfer artifact, `<input>.zst` by default; `--level` 1..22 (default 3). Transport only — the artifact is never opened as a cohort | [transfer compression](../format/transfer.md) |
 | `pulse export tsv` | Export `.pulse` to TSV | `--help` |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |
@@ -228,13 +442,14 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse import predict` | Validate an import without writing output | [import spss](import-spss.md) |
 | `pulse import schema-template` | Emit an editable schema template from input data | [import spss](import-spss.md) |
 | `pulse import spss` | Import SPSS `.sav` / `.zsav` into `.pulse` | [import spss](import-spss.md) |
+| `pulse import transfer` | Decompress a `pulse export transfer` artifact into a byte-identical `.pulse` at rest (temp file, fsync, rename); refuses an existing `--output` without `--overwrite` | [transfer compression](../format/transfer.md) |
 | `pulse import tsv` | Import TSV into `.pulse` | `--help` |
 | `pulse index build` | Build a point-lookup sidecar index | [index](index.md) |
 | `pulse index drop` | Remove a cohort's sidecar index (destructive, no prompt) | [index](index.md) |
 | `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
 | `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
 | `pulse mcp` | Run the MCP server over stdio | [mcp](mcp.md) |
-| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review | [profile create](profile-create.md) |
+| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review, and `--run-continuation`, which measures per-field run-continuation (the run-skip decode's hit rate) to show whether the cohort still has the sort order that makes scans fast. Profiles a single-file cohort or a whole shard archive | [profile create](profile-create.md) |
 | `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
 | `pulse shard add` | Append a shard to an existing archive | `--help` |
 | `pulse shard compact` | Rewrite an archive to reclaim orphan bytes | `--help` |

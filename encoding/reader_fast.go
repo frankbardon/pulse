@@ -14,11 +14,156 @@ import (
 // on processing/. Implementations (processing.Record) MUST clear their
 // own null/wide maps before this call returns successfully; the reader
 // populates them in place but only on fields where the value applies.
+//
+// ReusableRecord is the NAME-keyed contract: every write pays a hash of
+// the field name. It is retained as a compatibility shim — an
+// implementation of only this interface still decodes correctly, routed
+// through nameKeyedShim — but a record that also implements
+// IndexedReusableRecord is driven through the index-keyed sibling
+// instead. The reader methods still take a ReusableRecord so an existing
+// implementation keeps compiling unchanged.
 type ReusableRecord interface {
 	SetNumeric(name string, value float64)
 	SetNullField(name string)
 	SetWideField(name string, value any)
 	ClearForRow()
+}
+
+// IndexedReusableRecord is the index-keyed sibling of ReusableRecord. It
+// exists for the same reason ReusableRecord does — it lets the decoder
+// populate a *processing.Record without encoding/ importing processing/
+// — but its writes are keyed by the field's POSITION in the reader's
+// schema (the index into Schema.Fields) rather than by name, so a
+// positional record implementation can store the value with a slice
+// index instead of a map hash.
+//
+// The position is the decoder's own schema-walk counter, never a
+// name→index lookup: ReadRecordReused counts it as it walks
+// Schema.Fields, ReadRecordReusedWithPlan carries it in
+// DecodeFields.Indices (filled by BuildDecodePlan's walk), and the
+// bitmap decoder uses the bitmap bit index, which IS the field position.
+// An implementation therefore MUST be built over the same schema (or a
+// structurally identical one — same field order) the RecordReader was
+// constructed with; the index is meaningless against any other.
+//
+// Side-effect contract is identical to ReusableRecord, field for field:
+// ClearForRow once per row; a null surfaces as SetNullFieldAt(i) followed
+// by SetNumericAt(i, 0); decimal128 and set_* fields write both the
+// numeric echo and the typed wide value.
+//
+// When a record implements both interfaces the index-keyed methods win
+// and the name-keyed ones are never called by the reuse decoders. A
+// record that also implements TypedSetRecord receives set masks through
+// it instead of SetWideFieldAt, and one that implements RunSkipRecord
+// gets BeginRunRow in place of ClearForRow and only its changed fields
+// rewritten (reader_runskip.go).
+type IndexedReusableRecord interface {
+	SetNumericAt(idx int, value float64)
+	SetNullFieldAt(idx int)
+	SetWideFieldAt(idx int, value any)
+	ClearForRow()
+}
+
+// TypedSetRecord is an optional extension of IndexedReusableRecord that
+// takes a set field's mask with its concrete type instead of through
+// `any`. Boxing a uint64 mask (256 and above) or an encoding.SetMask into
+// an interface costs one heap allocation per set field per row; a record
+// implementing this interface stores the mask in typed storage and the
+// reuse decoders never box it. Decimal128 needs no typed twin: it is a
+// single-pointer struct, which Go stores in an interface without
+// allocating.
+//
+// The decoder checks for this interface once per decode call (a row on
+// the full-stride path, a group on the plan path) and, when it is
+// present, calls SetNarrowSetAt for set_u8..set_u64 and SetWideSetAt for
+// set_u128 / set_u256 IN PLACE OF SetWideFieldAt. The value, and the
+// SetNumericAt echo written before it, are identical to the boxed path.
+type TypedSetRecord interface {
+	SetNarrowSetAt(idx int, mask uint64)
+	SetWideSetAt(idx int, m SetMask)
+}
+
+// GroupIndexRecord is an optional extension of IndexedReusableRecord
+// for grouped (0x02) schemas. After the reuse decoders
+// (ReadRecordReused / ReadRecordReusedWithPlan) finish a grouped row,
+// they hand the record the row's dictionary entry per group:
+// idx[g] is the entry of Schema.Groups[g] every member of g carries on
+// this row (0 for a constant group), and schema is the reader's schema —
+// the one whose group dictionaries the entries address. idx is the
+// reader's own buffer — an implementation copies it and must not retain
+// the slice. A nil idx means "no index for this row" (the row was
+// skipped whole by a plan that decodes nothing); an implementation then
+// reports no index, and it must also report none when schema is not the
+// schema it resolves group dictionaries against, since an entry index is
+// meaningless against any other dictionary.
+//
+// It is how a per-dictionary-entry precompute (filter precompute) learns
+// which entry a row holds without encoding/ importing processing/ and
+// without the precompute reaching into reader internals. An ungrouped
+// schema never calls it; neither do the map decoders.
+type GroupIndexRecord interface {
+	SetGroupIndices(schema *Schema, idx []uint32)
+}
+
+// putSetField writes a set field's wide value: typed when the sink
+// supports it, boxed through SetWideFieldAt otherwise.
+func putSetField(sink IndexedReusableRecord, typed TypedSetRecord, ft FieldType, fi int, sub []byte) error {
+	if ft.IsWideSet() {
+		m, err := SetMaskFromBytes(ft, sub)
+		if err != nil {
+			return err
+		}
+		if typed != nil {
+			typed.SetWideSetAt(fi, m)
+		} else {
+			sink.SetWideFieldAt(fi, m)
+		}
+		return nil
+	}
+	mask := decodeSetMask(ft, sub)
+	if typed != nil {
+		typed.SetNarrowSetAt(fi, mask)
+	} else {
+		sink.SetWideFieldAt(fi, mask)
+	}
+	return nil
+}
+
+// nameKeyedShim adapts a name-keyed ReusableRecord to the index-keyed
+// decoder by resolving the position back to Field.Name — a direct slice
+// index, not a lookup. It is embedded by value in RecordReader so
+// adapting a record costs no allocation per row.
+type nameKeyedShim struct {
+	fields []Field
+	rec    ReusableRecord
+}
+
+func (s *nameKeyedShim) SetNumericAt(idx int, value float64) {
+	s.rec.SetNumeric(s.fields[idx].Name, value)
+}
+
+func (s *nameKeyedShim) SetNullFieldAt(idx int) {
+	s.rec.SetNullField(s.fields[idx].Name)
+}
+
+func (s *nameKeyedShim) SetWideFieldAt(idx int, value any) {
+	s.rec.SetWideField(s.fields[idx].Name, value)
+}
+
+func (s *nameKeyedShim) ClearForRow() {
+	s.rec.ClearForRow()
+}
+
+// indexedSink returns the index-keyed view of rec: rec itself when it
+// implements IndexedReusableRecord (index-keyed wins), otherwise the
+// reader's name-keyed shim bound to rec and the reader's schema.
+func (rr *RecordReader) indexedSink(rec ReusableRecord) IndexedReusableRecord {
+	if ix, ok := rec.(IndexedReusableRecord); ok {
+		return ix
+	}
+	rr.shim.fields = rr.schema.Fields
+	rr.shim.rec = rec
+	return &rr.shim
 }
 
 // ReadRecordReused reads one record into an existing ReusableRecord,
@@ -41,10 +186,20 @@ type ReusableRecord interface {
 //     mapEOF; a partial trailing record surfaces as io.EOF as well
 //     (io.ReadFull maps a nonzero short read to io.ErrUnexpectedEOF, which
 //     mapEOF normalizes to io.EOF).
+//   - A record implementing RunSkipRecord is decoded by readStrideRunSkip:
+//     same result, but fields whose bytes repeat the previous row are not
+//     rewritten.
 func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
-	rec.ClearForRow()
+	if rr.gd != nil {
+		return rr.readGrouped(rec, nil, nil)
+	}
+	sink := rr.indexedSink(rec)
+	if rs, ok := sink.(RunSkipRecord); ok {
+		return rr.readStrideRunSkip(rs)
+	}
+	sink.ClearForRow()
 
-	stride := rr.schema.RecordByteSize()
+	stride := rr.strideLayout().stride
 	if cap(rr.recBuf) < stride {
 		rr.recBuf = make([]byte, stride)
 	}
@@ -52,18 +207,33 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 	if _, err := io.ReadFull(rr.r, buf); err != nil {
 		return mapEOF(err)
 	}
+	return rr.decodeStrideIndexed(sink, buf)
+}
 
+// decodeStrideIndexed decodes one whole record stride already resident
+// in buf into sink. It is the full-decode body of ReadRecordReused, split
+// out so the row bytes and the write loop are separable: run-skip
+// (decodeStrideChanged) compares buf against the previous row instead
+// when it can keep the record's state.
+//
+// The schema position handed to every sink write is fi, the index of the
+// running walk over rr.schema.Fields — the same walk that advances the
+// byte cursor. No name is consulted.
+func (rr *RecordReader) decodeStrideIndexed(sink IndexedReusableRecord, buf []byte) error {
+	typed, _ := sink.(TypedSetRecord)
 	cursor := 0
-	for _, field := range rr.schema.Fields {
+	fields := rr.schema.Fields
+	for fi := range fields {
+		field := &fields[fi]
 		switch field.Type {
 		case FieldTypePackedBool:
 			// One whole byte on-wire; bit selected by BitPosition.
 			b := buf[cursor]
 			cursor++
 			if (b>>uint(field.BitPosition))&1 == 1 {
-				rec.SetNumeric(field.Name, 1)
+				sink.SetNumericAt(fi, 1)
 			} else {
-				rec.SetNumeric(field.Name, 0)
+				sink.SetNumericAt(fi, 0)
 			}
 
 		case FieldTypeU4:
@@ -76,15 +246,15 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 			} else {
 				v = b & 0x0F
 			}
-			rec.SetNumeric(field.Name, float64(v))
+			sink.SetNumericAt(fi, float64(v))
 
 		case FieldTypeDecimal128:
 			var raw [16]byte
 			copy(raw[:], buf[cursor:cursor+16])
 			cursor += 16
 			d := DecodeDecimal128(raw)
-			rec.SetNumeric(field.Name, d.Float64(field.Scale))
-			rec.SetWideField(field.Name, d)
+			sink.SetNumericAt(fi, d.Float64(field.Scale))
+			sink.SetWideFieldAt(fi, d)
 
 		default:
 			n := fixedWidthBytes(field.Type)
@@ -94,30 +264,27 @@ func (rr *RecordReader) ReadRecordReused(rec ReusableRecord) error {
 			}
 			sub := buf[cursor : cursor+n]
 			cursor += n
-			rec.SetNumeric(field.Name, decodeFixed(field.Type, sub))
-			if field.Type.IsWideSet() {
-				m, err := SetMaskFromBytes(field.Type, sub)
-				if err != nil {
+			sink.SetNumericAt(fi, decodeFixed(field.Type, sub))
+			if field.Type.IsSet() {
+				if err := putSetField(sink, typed, field.Type, fi, sub); err != nil {
 					return err
 				}
-				rec.SetWideField(field.Name, m)
-			} else if field.Type.IsSet() {
-				rec.SetWideField(field.Name, decodeSetMask(field.Type, sub))
 			}
 		}
 	}
 
 	// Trailing null bitmap, if the schema declares any nullable field.
 	// It occupies the last bmSize bytes of the stride we already read.
-	if bmSize := rr.schema.BitmapByteSize(); bmSize > 0 {
+	// The bitmap bit index IS the schema position.
+	if bmSize := rr.strideLayout().bmSize; bmSize > 0 {
 		bitmap := buf[cursor : cursor+bmSize]
-		for i, field := range rr.schema.Fields {
-			if !field.Nullable {
+		for i := range fields {
+			if !fields[i].Nullable {
 				continue
 			}
 			if BitmapIsNull(bitmap, i) {
-				rec.SetNullField(field.Name)
-				rec.SetNumeric(field.Name, 0)
+				sink.SetNullFieldAt(i)
+				sink.SetNumericAt(i, 0)
 			}
 		}
 	}
@@ -162,22 +329,21 @@ func (rr *RecordReader) ReadRecordReusedWithPlan(rec ReusableRecord, keep FieldF
 	if plan == nil {
 		return rr.ReadRecordReused(rec)
 	}
+	if rr.gd != nil {
+		return rr.readGrouped(rec, keep, plan)
+	}
 
-	rec.ClearForRow()
+	sink := rr.indexedSink(rec)
+	if rs, ok := sink.(RunSkipRecord); ok {
+		return rr.readPlanRunSkip(rs, keep, plan)
+	}
+	sink.ClearForRow()
 
 	// The trailing bitmap segment, if present, is always the LAST segment
 	// in the plan (BuildDecodePlan appends it after every field-walk
 	// flush). Detect it once so the per-segment dispatch below routes it
 	// to the bitmap decoder rather than the field-group decoder.
-	bitmapIdx := -1
-	if rr.schema.HasBitmap() && len(plan.Segments) > 0 {
-		last := len(plan.Segments) - 1
-		if _, isDecode := plan.Segments[last].(DecodeFields); isDecode {
-			bitmapIdx = last
-		}
-		// A trailing SkipBytes for the bitmap is handled transparently by
-		// advanceReader — no special case needed.
-	}
+	bitmapIdx := rr.planBitmapIdx(plan)
 
 	segs := plan.Segments
 	for i := 0; i < len(segs); i++ {
@@ -189,17 +355,36 @@ func (rr *RecordReader) ReadRecordReusedWithPlan(rec ReusableRecord, keep FieldF
 
 		case DecodeFields:
 			if i == bitmapIdx {
-				if err := rr.decodeBitmapReused(rec, keep); err != nil {
+				if err := rr.decodeBitmapReused(sink, keep); err != nil {
 					return mapEOF(err)
 				}
 				continue
 			}
-			if err := rr.decodeFieldGroupReused(rec, keep, seg.Fields); err != nil {
+			indices, err := rr.segmentIndices(seg)
+			if err != nil {
+				return err
+			}
+			if err := rr.decodeFieldGroupReused(sink, keep, seg.Fields, indices); err != nil {
 				return mapEOF(err)
 			}
 		}
 	}
 	return nil
+}
+
+// planBitmapIdx returns the index of plan's trailing bitmap DecodeFields
+// segment, or -1 when the plan decodes no bitmap. The bitmap segment, if
+// present, is always the LAST segment (BuildDecodePlan appends it after
+// every field-walk flush); a trailing SkipBytes for the bitmap is
+// handled transparently by advanceReader — no special case needed.
+func (rr *RecordReader) planBitmapIdx(plan *DecodePlan) int {
+	if rr.schema.HasBitmap() && len(plan.Segments) > 0 {
+		last := len(plan.Segments) - 1
+		if _, isDecode := plan.Segments[last].(DecodeFields); isDecode {
+			return last
+		}
+	}
+	return -1
 }
 
 // groupOnWireBytes returns the on-wire byte width of a contiguous
@@ -224,7 +409,10 @@ func groupOnWireBytes(fields []*Field) int {
 // the retained group. Record writes are suppressed for fields keep
 // rejects, but every field's bytes are still consumed to keep the cursor
 // aligned. Mirrors ReadRecordReused's per-field side effects exactly.
-func (rr *RecordReader) decodeFieldGroupReused(rec ReusableRecord, keep FieldFilter, fields []*Field) error {
+//
+// indices[k] is the schema position of fields[k] (DecodeFields.Indices,
+// resolved by segmentIndices); every sink write is keyed by it.
+func (rr *RecordReader) decodeFieldGroupReused(sink IndexedReusableRecord, keep FieldFilter, fields []*Field, indices []int) error {
 	groupBytes := groupOnWireBytes(fields)
 	if groupBytes <= 0 {
 		return nil
@@ -236,9 +424,17 @@ func (rr *RecordReader) decodeFieldGroupReused(rec ReusableRecord, keep FieldFil
 	if _, err := io.ReadFull(rr.r, buf); err != nil {
 		return err
 	}
+	return decodeGroupBytes(sink, keep, fields, indices, buf)
+}
 
+// decodeGroupBytes decodes one DecodeFields group whose on-wire bytes
+// are already resident in buf: the write loop of decodeFieldGroupReused,
+// shared with the run-skip plan path's write-everything arm.
+func decodeGroupBytes(sink IndexedReusableRecord, keep FieldFilter, fields []*Field, indices []int, buf []byte) error {
+	typed, _ := sink.(TypedSetRecord)
 	cursor := 0
-	for _, field := range fields {
+	for gi, field := range fields {
+		fi := indices[gi]
 		keepField := keep == nil || keep(field.Name)
 		switch field.Type {
 		case FieldTypePackedBool:
@@ -248,9 +444,9 @@ func (rr *RecordReader) decodeFieldGroupReused(rec ReusableRecord, keep FieldFil
 				continue
 			}
 			if (b>>uint(field.BitPosition))&1 == 1 {
-				rec.SetNumeric(field.Name, 1)
+				sink.SetNumericAt(fi, 1)
 			} else {
-				rec.SetNumeric(field.Name, 0)
+				sink.SetNumericAt(fi, 0)
 			}
 
 		case FieldTypeU4:
@@ -265,7 +461,7 @@ func (rr *RecordReader) decodeFieldGroupReused(rec ReusableRecord, keep FieldFil
 			} else {
 				v = b & 0x0F
 			}
-			rec.SetNumeric(field.Name, float64(v))
+			sink.SetNumericAt(fi, float64(v))
 
 		case FieldTypeDecimal128:
 			var raw [16]byte
@@ -275,8 +471,8 @@ func (rr *RecordReader) decodeFieldGroupReused(rec ReusableRecord, keep FieldFil
 				continue
 			}
 			d := DecodeDecimal128(raw)
-			rec.SetNumeric(field.Name, d.Float64(field.Scale))
-			rec.SetWideField(field.Name, d)
+			sink.SetNumericAt(fi, d.Float64(field.Scale))
+			sink.SetWideFieldAt(fi, d)
 
 		default:
 			n := fixedWidthBytes(field.Type)
@@ -289,15 +485,11 @@ func (rr *RecordReader) decodeFieldGroupReused(rec ReusableRecord, keep FieldFil
 			if !keepField {
 				continue
 			}
-			rec.SetNumeric(field.Name, decodeFixed(field.Type, sub))
-			if field.Type.IsWideSet() {
-				m, err := SetMaskFromBytes(field.Type, sub)
-				if err != nil {
+			sink.SetNumericAt(fi, decodeFixed(field.Type, sub))
+			if field.Type.IsSet() {
+				if err := putSetField(sink, typed, field.Type, fi, sub); err != nil {
 					return err
 				}
-				rec.SetWideField(field.Name, m)
-			} else if field.Type.IsSet() {
-				rec.SetWideField(field.Name, decodeSetMask(field.Type, sub))
 			}
 		}
 	}
@@ -310,7 +502,7 @@ func (rr *RecordReader) decodeFieldGroupReused(rec ReusableRecord, keep FieldFil
 // filtering: reads the bitmap once, walks every nullable schema field,
 // and surfaces (SetNullField + SetNumeric 0) only for fields keep
 // accepts.
-func (rr *RecordReader) decodeBitmapReused(rec ReusableRecord, keep FieldFilter) error {
+func (rr *RecordReader) decodeBitmapReused(sink IndexedReusableRecord, keep FieldFilter) error {
 	bmSize := rr.schema.BitmapByteSize()
 	if bmSize <= 0 {
 		return nil
@@ -322,6 +514,14 @@ func (rr *RecordReader) decodeBitmapReused(rec ReusableRecord, keep FieldFilter)
 	if _, err := io.ReadFull(rr.r, bitmap); err != nil {
 		return err
 	}
+	rr.decodeBitmapBytes(sink, keep, bitmap)
+	return nil
+}
+
+// decodeBitmapBytes surfaces the nulls of a bitmap already resident in
+// bitmap: the write loop of decodeBitmapReused, shared with the run-skip
+// plan path's write-everything arm.
+func (rr *RecordReader) decodeBitmapBytes(sink IndexedReusableRecord, keep FieldFilter, bitmap []byte) {
 	for i := range rr.schema.Fields {
 		field := &rr.schema.Fields[i]
 		if !field.Nullable {
@@ -333,10 +533,55 @@ func (rr *RecordReader) decodeBitmapReused(rec ReusableRecord, keep FieldFilter)
 		if keep != nil && !keep(field.Name) {
 			continue
 		}
-		rec.SetNullField(field.Name)
-		rec.SetNumeric(field.Name, 0)
+		sink.SetNullFieldAt(i)
+		sink.SetNumericAt(i, 0)
 	}
-	return nil
+}
+
+// segmentIndices returns the schema position of every field in seg.
+// A plan from BuildDecodePlan carries them in DecodeFields.Indices,
+// recorded by the builder's own walk of Schema.Fields, so the hot path
+// is a slice hand-off. DecodeFields is an exported struct, though, and a
+// hand-built segment may omit Indices; for that case only, the positions
+// are recovered by matching each *Field against rr.schema.Fields (by
+// pointer, then by name) so an older hand-built plan keeps decoding
+// correctly rather than panicking. A field absent from the reader's
+// schema has no position and is an ENCODING_INVALID plan.
+func (rr *RecordReader) segmentIndices(seg DecodeFields) ([]int, error) {
+	if len(seg.Indices) == len(seg.Fields) {
+		return seg.Indices, nil
+	}
+	return resolveSegmentIndices(rr.schema, seg.Fields)
+}
+
+// resolveSegmentIndices is the slow fallback behind segmentIndices for a
+// DecodeFields segment built without Indices. Not on the BuildDecodePlan
+// path.
+func resolveSegmentIndices(schema *Schema, fields []*Field) ([]int, error) {
+	out := make([]int, len(fields))
+	for k, f := range fields {
+		out[k] = -1
+		for i := range schema.Fields {
+			if &schema.Fields[i] == f {
+				out[k] = i
+				break
+			}
+		}
+		if out[k] >= 0 {
+			continue
+		}
+		for i := range schema.Fields {
+			if schema.Fields[i].Name == f.Name {
+				out[k] = i
+				break
+			}
+		}
+		if out[k] < 0 {
+			return nil, errors.NewCodedError(errors.ENCODING_INVALID,
+				fmt.Sprintf("decode plan names field %q absent from the reader schema", f.Name))
+		}
+	}
+	return out, nil
 }
 
 // fixedWidthBytes returns the on-wire width of a field type the

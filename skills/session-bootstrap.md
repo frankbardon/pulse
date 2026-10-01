@@ -44,6 +44,7 @@ Lowercase the operator family prefix and map through this table. Skills carry no
 | a `.sav` / `.zsav` source, or a cohort carrying a `.spss.json` sidecar | `spss-cohorts` |
 | `mcp_tools[i].name` | `tool-<name minus `pulse_`>` — one atomic skill per tool |
 | `pulse_lookup` / `pulse index build` / `pulse index list` / `pulse index verify` / `pulse index drop` / `pulse api lookup` | `tool-lookup` (MCP surface), `cohort-schema-design` (sidecar format) |
+| a join-shaped cohort already on disk — `pulse_dedup` (`suggest_groups` alone is read-only; `groups` + `out` converts without touching the original) / `pulse dedup COHORT --group KEY:MEMBER,… [--out P] [--suggest-groups]` | `tool-dedup`, `cohort-schema-design` (Parent groups) |
 | a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | `cohort-schema-design` (set rungs) |
 | `error_codes[i]` | `pulse_errors_lookup` — the tool is the surface, not a skill |
 | Request slot `Joins` | `join-design` |
@@ -90,6 +91,8 @@ Per-format READ knobs the file cannot always answer itself; all ride `format.Rea
 | `--spss-missing` (`auto` \| `null`, default `auto`) | SPSS `.sav` / `.zsav` | `pulse import spss`, `import predict`, `import schema-template`, `convert`, `convert predict` | `auto` nulls each numeric user-missing value (so `AGG_SUM` / `AGG_MEAN` never meet a refusal code) AND adds a `<var>_missing` sibling carrying WHY (`sysmis`, the value label, or the code); `null` = same nulls, reason gone. **A `.sav` import can therefore yield MORE columns than the file has variables** — count from `ReadHeader` / the returned schema, never the SPSS variable count. Bad value ⇒ `PULSE_SPSS_MISSING_MODE_INVALID`, never a silent default. Deliberately NOT on `pulse import auto` or `pulse_import` |
 | `--charset` | SPSS `.sav` / `.zsav` | the `--spss-missing` leaves **plus** `pulse import auto` and `pulse_import` (as `charset`) | overrides the encoding the file declares about itself; decoding only. Reach for it on `PULSE_SPSS_CHARSET_INVALID` / `PULSE_SPSS_CHARSET_UNSUPPORTED` |
 
+**Parent groups on the managed path.** `pulse import auto --group KEY[,KEY]:MEMBER[,MEMBER]` (repeatable) and `pulse_import` `groups: [{key, members}]` declare them; `suggest_groups` returns measured `group_candidates` whose `key`/`members` paste straight back. Default ratio floor 2; findings are warnings (`group_warnings` / envelope `warnings`), never failures. No floor, strict or elision knob there — `pulse import <fmt>` carries those. Detail: `tool-import`.
+
 ## Target-format CLI flags
 
 Four `.sav` WRITE knobs, one per `spss.WriterOptions` field. All on `pulse export spss`; `--ignore-sidecar`, `--uncompressed`, `--sanitize-names` also on `convert` / `convert predict` (`convert`'s `--charset` is the SOURCE charset, so the write charset is export-only). Full model: `spss-cohorts` (Writing `.sav`), `docs/src/cli/export-spss.md`.
@@ -105,7 +108,7 @@ Four `.sav` WRITE knobs, one per `spss.WriterOptions` field. All on `pulse expor
 
 ## Profile-capture CLI flags
 
-Four independent, additive `pulse profile create` knobs; each adds an `omitempty` section, none implies another, all four omitted reproduces the pre-flag document byte-for-byte. Detail: `synthetic-data`, `docs/src/cli/profile-create.md`.
+Five independent, additive `pulse profile create` knobs; each adds an `omitempty` section, none implies another, all omitted reproduces the pre-flag document byte-for-byte. The leaf profiles a single file or a whole shard archive. Detail: `synthetic-data`, `docs/src/cli/profile-create.md`.
 
 | Flag | Adds |
 |---|---|
@@ -113,6 +116,7 @@ Four independent, additive `pulse profile create` knobs; each adds an `omitempty
 | `--fit-shape` | 2-component Gaussian mixture per numeric on a BIC win; generates as `mixture`, not `normal` |
 | `--fit-models` | one linear model per numeric, regressed on admitted categorical levels + set options. **How several drivers condition ONE numeric at once.** RETIRES the numeric-target conditional pairs for the targets it lands on — per target, never per document; the three non-numeric arms are untouched, so `--conditional` + `--fit-models` keeps both halves |
 | `--residual-correlations` (needs `--fit-models`) | full correlation submatrix among fitted residuals, so a numeric can be both conditioned and correlated with a sibling |
+| `--run-continuation` | `run_continuation`: per-field fraction of adjacent row pairs whose bytes + null bit repeat — exactly the run-skip decode's hit rate — plus `overall`, `high_fields` (≥0.75) and `advice`. Low overall (<0.5) ⇒ sort the source by its parent key upstream. Pairs never span a shard. Not read by synth |
 
 ## Synth-generation CLI flags
 

@@ -69,11 +69,15 @@ func (s *Service) CountRecords(ctx context.Context, path string) (uint64, error)
 	}
 
 	cr := &countingReader{r: f}
-	if err := encoding.ReadHeader(cr); err != nil {
+	pulseVersion, err := encoding.ReadHeader(cr)
+	if err != nil {
+		if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+			return 0, err
+		}
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("invalid pulse file: %s", path))
 	}
-	schema, err := encoding.ReadSchema(cr)
+	schema, err := encoding.ReadSchema(cr, pulseVersion)
 	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading schema from: %s", path))

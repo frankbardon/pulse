@@ -138,7 +138,7 @@ func (s *Service) reduceParallelBuffered(
 			buildErr      error
 			filterFns     []processing.FilterFunc
 			rowLocalAttrs []rowLocalAttrSpec
-			grouperInst   processing.StreamingGrouper
+			grouperInst   processing.Grouper
 			ungroupedAggs []processing.OnlineAggregator
 		)
 
@@ -152,13 +152,7 @@ func (s *Service) reduceParallelBuffered(
 				buildErr = err
 			} else {
 				processing.ApplyGrouperExtensions(grp, s.extensions)
-				sg, ok := grp.(processing.StreamingGrouper)
-				if !ok {
-					buildErr = errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("grouper %s does not implement StreamingGrouper", grouperSpec.Type))
-				} else {
-					grouperInst = sg
-				}
+				grouperInst = grp
 			}
 		}
 
@@ -188,6 +182,8 @@ func (s *Service) reduceParallelBuffered(
 			}
 		} else if buildErr == nil {
 			out.groups = make(map[string][]processing.OnlineAggregator)
+			out.grouper = grouperInst
+			out.keyer, buildErr = processing.NewGroupKeyer(grouperInst)
 		}
 
 		// Worker progress counter so we can publish the partial on the
@@ -249,36 +245,8 @@ func (s *Service) reduceParallelBuffered(
 							return err
 						}
 					}
-				} else {
-					key, ok, err := grouperInst.KeyForRow(rec, grouperSpec.Field)
-					if err != nil {
-						return err
-					}
-					if ok {
-						bucket, exists := out.groups[key]
-						if !exists {
-							bucket = make([]processing.OnlineAggregator, len(specs))
-							for i, sp := range specs {
-								inst, err := sp.factory(sp.agg, schema)
-								if err != nil {
-									return err
-								}
-								online, okOA := inst.(processing.OnlineAggregator)
-								if !okOA {
-									return errors.NewCodedError(errors.PROCESSING_INTERNAL,
-										fmt.Sprintf("aggregator %s does not implement OnlineAggregator", sp.agg.Type))
-								}
-								bucket[i] = online
-							}
-							out.groups[key] = bucket
-							out.keyOrder = append(out.keyOrder, key)
-						}
-						for i, oa := range bucket {
-							if err := oa.UpdateRow(rec, specs[i].agg.Field); err != nil {
-								return err
-							}
-						}
-					}
+				} else if err := out.foldGroupedRow(rec, grouperSpec.Field, specs, schema); err != nil {
+					return err
 				}
 			}
 

@@ -340,12 +340,13 @@ func openRecordLocator(fsys afero.Fs, path string, schema *encoding.Schema, tota
 			fmt.Sprintf("opening cohort file for lookup record read: %s", path))
 	}
 
-	if err := encoding.ReadHeader(f); err != nil {
+	pulseVersion, err := encoding.ReadHeader(f)
+	if err != nil {
 		f.Close()
 		return nil, nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("invalid pulse file: %s", path))
 	}
-	if _, err := encoding.ReadSchema(f); err != nil {
+	if _, err := encoding.ReadSchema(f, pulseVersion); err != nil {
 		f.Close()
 		return nil, nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			fmt.Sprintf("reading schema from: %s", path))

@@ -13,7 +13,20 @@ non-Go reader. The schema block follows the 9-byte
 ```
 u16 field_count
 field_record × field_count
+[format 0x02 only] u64 extension_length
+[format 0x02 only] extension_length bytes of extension payload (tagged sections)
 ```
+
+The layout depends on the header's [format version](header.md):
+`encoding.ReadSchema(r, version)` takes the version `ReadHeader`
+returned. A `0x01` block ends at the last field record. A `0x02` block
+appends a length-prefixed **schema extension block**, so the start of the
+record region is always derivable without understanding the payload. The
+payload is a list of tagged sections; the only one defined is GROUPS,
+the [parent-group](parent-groups.md) descriptors and their dictionaries.
+A schema is written at `0x02` exactly when it declares a group. An
+unknown REQUIRED section is refused with `ENCODING_INVALID` rather than
+skipped, because its bytes change how records decode.
 
 Each `field_record` is variable-width (it includes UTF-8 name and
 description strings, and may include an inline dictionary or decimal
@@ -98,12 +111,15 @@ bytes on disk remain empty.
 `encoding.ReadSchema` is intentionally strict:
 
 - Field count limit comes from the u16 prefix (max 65,535 fields).
-- Unknown type bytes fail loud (`ENCODING_INVALID`).
+- Unknown type bytes fail loud (`ENCODING_INVALID`), under every format version.
+- An unsupported version, a truncated extension block, an unknown
+  required section, or a malformed group descriptor fail loud
+  (`ENCODING_INVALID`).
 - Truncated records fail loud at the first short read.
 - The reader produces a `*encoding.Schema` with one
   `encoding.Field` per record; `Schema.Field(name)` looks fields up by
   name.
 
-After the schema block, record data starts at the file's first byte
-past the schema. The record layout is documented in
+After the schema block (including a `0x02` extension block), record
+data starts at the file's first byte past the schema. The record layout is documented in
 [Record Layout](records.md).

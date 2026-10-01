@@ -122,10 +122,11 @@ func buildWidenCohort(t *testing.T, schema *encoding.Schema, rows []widenRow) []
 func readWidenCohort(t *testing.T, b []byte) (*encoding.Schema, []widenRow) {
 	t.Helper()
 	r := bytes.NewReader(b)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}
@@ -741,10 +742,11 @@ func TestWidenSetFieldBytes_BitPackedNeighboursKeepTheirByte(t *testing.T) {
 	}
 
 	r := bytes.NewReader(out)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		t.Fatalf("ReadHeader: %v", err)
 	}
-	got, err := encoding.ReadSchema(r)
+	got, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		t.Fatalf("ReadSchema: %v", err)
 	}

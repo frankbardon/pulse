@@ -237,11 +237,12 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 	}
 }
 
-// setExprHelperCount is the number of always-on set helpers contributed
-// by ExprOptions (contains / has_any / has_all / has_none / popcount /
-// set_union / set_intersect / set_diff / set_xor). Bump this constant
-// when the helper roster changes.
-const setExprHelperCount = 9
+// setExprHelperCount is the number of always-on options contributed by
+// ExprOptions: the eight set helpers (has_any / has_all / has_none /
+// popcount / set_union / set_intersect / set_diff / set_xor) plus the
+// `%` float-modulo builtin and its patcher (expr_mod.go). Bump this
+// constant when the roster changes.
+const setExprHelperCount = 8 + 2
 
 func TestExprOptions_NilRegistry(t *testing.T) {
 	var r *ExtensionRegistry

@@ -10,6 +10,14 @@ import (
 type RecordReader struct {
 	r      io.Reader
 	schema *Schema
+	// groups is the logical-stream wrapper over a grouped (0x02)
+	// cohort's physical rows; nil for an ungrouped schema. schema is
+	// then the grouped schema's Logical() view.
+	groups *logicalReader
+	// gd decodes a grouped cohort's PHYSICAL rows straight into a reuse
+	// record (group_decode.go): the reuse paths never expand a row. nil
+	// for an ungrouped schema.
+	gd *groupedDecoder
 
 	// recBuf is a reusable per-record scratch buffer owned by the
 	// RecordReader. ReadRecordReused reads the whole record stride into
@@ -17,12 +25,94 @@ type RecordReader struct {
 	// a running cursor subslice — eliminating the per-field io.ReadFull
 	// that dominates wide-schema decode. Grown on demand, never shrunk.
 	recBuf []byte
+
+	// shim adapts a name-keyed ReusableRecord to the index-keyed reuse
+	// decoder. Held by value so binding a record per row allocates
+	// nothing; see indexedSink.
+	shim nameKeyedShim
+
+	// Run-skip state (reader_runskip.go). prevRow holds the on-wire
+	// bytes of the last row decoded into prevSink — the whole stride on
+	// the full path, the concatenated DecodeFields groups of prevPlan on
+	// the plan path — and prevValid says it may be compared against.
+	// Swapped with recBuf after each run-skip decode, never copied.
+	runToken uint64
+	// Backoff probe state (runCanKeep / noteKeptRow): rows left to
+	// decode without comparing, and the current probe window's tallies.
+	runBackoff    int
+	runWinRows    int
+	runWinWritten int
+	runWinFields  int
+	prevRow       []byte
+	prevValid     bool
+	prevSink      RunSkipRecord
+	prevPlan      *DecodePlan
+	// layout caches the schema-derived row geometry (stride, bitmap
+	// size, per-field on-wire spans) the reuse decoders need every row;
+	// built once per reader (strideLayout).
+	layout strideLayout
+	// shape caches the per-segment widths of the plan last driven
+	// through the run-skip plan path.
+	shape runPlanShape
 }
 
 // NewRecordReader creates a RecordReader. The reader must be positioned
 // immediately after the header and schema (i.e., at the first record byte).
+//
+// For a grouped (0x02) schema the reader decodes the LOGICAL record:
+// same field indices, same values, same nulls as the ungrouped twin.
+// The map decoders read r through the logical stream (every physical
+// row expanded into the exact row the twin stores); the reuse decoders
+// (ReadRecordReused*, run-skip included) decode the physical row
+// directly and never expand it (group_decode.go). Exactly one physical
+// row is consumed per record on every path, so r's position after a
+// record is the end of that physical record.
 func NewRecordReader(r io.Reader, schema *Schema) *RecordReader {
+	if schema != nil && schema.HasGroups() {
+		lr, logical, err := NewLogicalStream(r, schema)
+		if err != nil {
+			return &RecordReader{r: errReader{err}, schema: schema.Logical()}
+		}
+		d, err := newGroupedDecoder(schema)
+		if err != nil {
+			return &RecordReader{r: errReader{err}, schema: schema.Logical()}
+		}
+		rr := &RecordReader{r: lr, schema: logical, gd: d}
+		rr.groups, _ = lr.(*logicalReader)
+		return rr
+	}
 	return &RecordReader{r: r, schema: schema}
+}
+
+// errReader fails every read with err (a grouped schema whose layout
+// could not be compiled).
+type errReader struct{ err error }
+
+func (e errReader) Read([]byte) (int, error) { return 0, e.err }
+
+// GroupIndex reports the dictionary entry index group g (a position in
+// the grouped schema's Groups) resolved to on the record just decoded:
+// every member of g carries that entry's values. ok is false for an
+// ungrouped schema, before the first record, or when the last record
+// was skipped whole by a decode plan. It is the row -> entry map a
+// per-entry precompute (filter precompute) tests instead of decoding the
+// members.
+func (rr *RecordReader) GroupIndex(g int) (uint32, bool) {
+	if rr.groups == nil {
+		return 0, false
+	}
+	if rr.gd != nil && rr.gd.read {
+		return rr.gd.idx[g], true
+	}
+	return rr.groups.GroupIndex(g)
+}
+
+// noteLogicalRead marks that the next record is decoded through the
+// logical stream, so GroupIndex reports that stream's row.
+func (rr *RecordReader) noteLogicalRead() {
+	if rr.gd != nil {
+		rr.gd.read = false
+	}
 }
 
 // ReadRecord reads a single record from the stream, populating the values and
@@ -72,6 +162,7 @@ func (rr *RecordReader) ReadRecordWithWideProjected(values map[string]float64, n
 }
 
 func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]bool, wide map[string]any, keep FieldFilter) error {
+	rr.noteLogicalRead()
 	// Clear caller-provided maps.
 	for k := range values {
 		delete(values, k)

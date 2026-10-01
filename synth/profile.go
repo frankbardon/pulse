@@ -215,6 +215,19 @@ type ProfileOptions struct {
 	// to `synth from-profile --rules`.
 	SuggestRules bool
 
+	// RunContinuation enables the run-continuation measurement
+	// (`profile create --run-continuation`): per field, the fraction of
+	// adjacent row pairs whose on-wire bytes and null bit repeat — the
+	// exact hit rate of the run-skip decode — written as the additive
+	// `run_continuation` section (Profile.RunContinuation).
+	//
+	// Off by default and ABSENT THE FLAG the document is byte-identical
+	// and the scan pays nothing: the whole-row read that feeds it is only
+	// installed when the flag is set. With it, the measurement rides the
+	// existing scan (TestRunContinuation_RidesTheExistingScan counts the
+	// bytes pulled). SampleLimit bounds it like every other section.
+	RunContinuation bool
+
 	// Seed drives the reservoir-sampling RNG used by
 	// IncludeConditional's categorical-categorical contingency capture
 	// (E7-S2) once the source cohort exceeds conditionalJointCap rows.
@@ -283,8 +296,13 @@ type Profile struct {
 	// assumption, whereas writing it out as a zero would present it as
 	// a measurement. See ResidualCorrelationProfile.
 	ResidualCorrelations *ResidualCorrelationProfile `json:"residual_correlations,omitempty"`
-	Warnings             []string                    `json:"warnings,omitempty"`
-	Meta                 map[string]any              `json:"meta,omitempty"`
+	// RunContinuation carries the measured per-field run-continuation,
+	// captured only when ProfileOptions.RunContinuation was set. Additive
+	// and omitempty; SpecFromProfile never reads it. See
+	// RunContinuationProfile.
+	RunContinuation *RunContinuationProfile `json:"run_continuation,omitempty"`
+	Warnings        []string                `json:"warnings,omitempty"`
+	Meta            map[string]any          `json:"meta,omitempty"`
 
 	// RuleCandidates carries the structural rules
 	// ProfileOptions.SuggestRules proposed, in the exact shape
@@ -801,23 +819,79 @@ func setMaskWidthWarning(field string, ft encoding.FieldType, dictSize, maskWidt
 // ProfileBytes summarizes a .pulse file given its raw bytes.
 func ProfileBytes(data []byte, opts ProfileOptions) (*Profile, error) {
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, err
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, err
 	}
 	return profileRecords(schema, r, opts)
 }
 
-// ProfileFile reads a .pulse file from fs and produces a Profile.
+// ProfileFile reads a .pulse cohort from fs and produces a Profile. A
+// shard archive is profiled as the concatenation of its shards, in
+// archive order, decoded against the canonical `_schema.pulse` schema —
+// the same reading the query engine's shard iterator applies.
 func ProfileFile(fs afero.Fs, path string, opts ProfileOptions) (*Profile, error) {
 	data, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading cohort for profile")
 	}
+	isArchive, err := encoding.IsArchive(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+	if isArchive {
+		return profileArchive(data, opts)
+	}
 	return ProfileBytes(data, opts)
+}
+
+// profileArchive profiles every shard of a shard archive in one scan.
+// Each shard entry is a complete single-file cohort; its own header and
+// schema are skipped so the records decode against the canonical schema
+// (dictionaries were union-merged and remapped at insert time).
+func profileArchive(data []byte, opts ProfileOptions) (*Profile, error) {
+	arch, err := encoding.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+	rc, err := arch.Open(encoding.ReservedSchemaName)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := encoding.ReadSchemaDoc(rc)
+	rc.Close()
+	if err != nil {
+		return nil, err
+	}
+	var segs []io.Reader
+	for _, e := range arch.Entries() {
+		if e.Name == encoding.ReservedSchemaName {
+			continue
+		}
+		sect, err := arch.OpenAt(e.Name)
+		if err != nil {
+			return nil, err
+		}
+		r := &sect
+		pulseVersion, err := encoding.ReadHeader(r)
+		if err != nil {
+			return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+				fmt.Sprintf("reading shard %q header", e.Name))
+		}
+		if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
+			return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+				fmt.Sprintf("reading shard %q schema", e.Name))
+		}
+		segs = append(segs, r)
+	}
+	if len(segs) == 0 {
+		segs = []io.Reader{bytes.NewReader(nil)}
+	}
+	return profileSegments(doc.Schema, segs, opts)
 }
 
 // MarshalJSON serializes the profile.
@@ -827,6 +901,16 @@ func (p *Profile) MarshalJSON() ([]byte, error) {
 }
 
 func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (*Profile, error) {
+	return profileSegments(schema, []io.Reader{r}, opts)
+}
+
+// profileSegments is the single profiling scan over one or more record
+// payloads decoded against schema — one for a single-file cohort, one
+// per shard for an archive. Every accumulator folds across segments as
+// if they were one stream; only the run-continuation measurement treats
+// a segment boundary as a break, because adjacent rows in two shards
+// are not adjacent on disk.
+func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOptions) (*Profile, error) {
 	if opts.TopK == 0 {
 		opts.TopK = 32
 	}
@@ -836,7 +920,29 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 	// Default IncludeStats to true if the caller didn't set it explicitly.
 	includeStats := opts.IncludeStats || (!opts.IncludeStats && !opts.IncludeCorrelations)
 
-	rr := encoding.NewRecordReader(r, schema)
+	// src / cont back ProfileOptions.RunContinuation only: src reads
+	// each row's whole stride from the segment and the decode then reads
+	// that row from memory, so the continuation measurement sees the raw
+	// bytes of the very row this scan decodes — no second read. Both
+	// stay nil, and the reader reads the segment directly, for every
+	// other caller.
+	var src *rowSource
+	var cont *continuationAcc
+	if opts.RunContinuation {
+		var err error
+		if src, err = newRowSource(schema); err != nil {
+			return nil, err
+		}
+		cont = newContinuationAcc(schema)
+	}
+	seg := 0
+	openSeg := func() *encoding.RecordReader {
+		if src != nil {
+			return encoding.NewRecordReader(&src.br, schema)
+		}
+		return encoding.NewRecordReader(segs[seg], schema)
+	}
+	rr := openSeg()
 
 	numAccs := make(map[string]*numAcc)
 	catAccs := make(map[string]*catAcc)
@@ -1123,8 +1229,23 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 
 	rowCount := 0
 	for {
-		err := rr.ReadRecordWithWide(values, nulls, wide)
+		var err error
+		if src != nil {
+			if err = src.next(segs[seg]); err == nil {
+				err = rr.ReadRecordWithWide(values, nulls, wide)
+			}
+		} else {
+			err = rr.ReadRecordWithWide(values, nulls, wide)
+		}
 		if err == io.EOF {
+			if seg+1 < len(segs) {
+				seg++
+				rr = openSeg()
+				if cont != nil {
+					cont.boundary()
+				}
+				continue
+			}
 			break
 		}
 		if err != nil {
@@ -1133,6 +1254,11 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 		rowCount++
 		if opts.SampleLimit > 0 && rowCount > opts.SampleLimit {
 			break
+		}
+		if cont != nil {
+			if err := cont.observe(src.row); err != nil {
+				return nil, err
+			}
 		}
 		for _, f := range schema.Fields {
 			isNull := nulls[f.Name]
@@ -1637,6 +1763,10 @@ func profileRecords(schema *encoding.Schema, r io.Reader, opts ProfileOptions) (
 		cands = append(cands, blocks.finish(&warnings)...)
 		cands = append(cands, deps.finish(&warnings, blocks)...)
 		pf.RuleCandidates = ruleCandidateOrder(cands, &warnings)
+	}
+
+	if cont != nil {
+		pf.RunContinuation = cont.finish()
 	}
 
 	if len(warnings) > 0 {

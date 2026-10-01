@@ -159,10 +159,11 @@ func ValidateJoinFromBytes(left, right []byte, req *types.Request) *Envelope {
 }
 
 func readHeaderSchema(r io.ReadSeeker) (*encoding.Schema, error) {
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, err
 	}
-	return encoding.ReadSchema(r)
+	return encoding.ReadSchema(r, pulseVersion)
 }
 
 func schemaInfo(s *encoding.Schema) *PredictSchemaInfo {

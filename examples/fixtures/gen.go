@@ -32,8 +32,8 @@ const (
 )
 
 var (
-	regions     = []string{"north", "south", "east", "west"}
-	cities      = []string{
+	regions = []string{"north", "south", "east", "west"}
+	cities  = []string{
 		"Austin", "Boston", "Chicago", "Denver", "El Paso",
 		"Fresno", "Gainesville", "Houston", "Indianapolis", "Jacksonville",
 		"Kansas City", "Lincoln", "Memphis", "Nashville", "Omaha",
@@ -296,9 +296,10 @@ func writeTrainingData(r *rand.Rand, n int) error {
 // larger one — so RM-ANOVA rejects clearly.
 //
 // Fields:
-//   subject_id    — categorical, n distinct values
-//   condition     — categorical, {baseline, treatment_a, treatment_b}
-//   metric        — f64
+//
+//	subject_id    — categorical, n distinct values
+//	condition     — categorical, {baseline, treatment_a, treatment_b}
+//	metric        — f64
 func writeRepeatedMeasures(r *rand.Rand, nSubjects int) error {
 	w, close := openCSV("repeated_measures.csv")
 	defer close()

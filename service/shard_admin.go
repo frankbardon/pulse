@@ -96,57 +96,19 @@ func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, sh
 			continue
 		}
 
-		// Set-rung reconciliation runs BEFORE strict cohesion, for the
-		// same reason it does on AddShard: a divergent rung fails
-		// cohesion on the type byte and on every offset it shifts, so
-		// cohesion first would refuse the shard before the planner saw
-		// it. See Service.AddShard for the full argument.
-		plans, perr := encoding.PlanSetWidening(canonical, schema)
-		if perr != nil {
-			if !errors.HasCode(perr, errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW) {
-				if _, cerr := encoding.ValidateStructuralCohesion(canonical, schema); cerr != nil {
-					return nil, cerr
-				}
-			}
-			return nil, perr
+		// One merge rule for create and add (mergeShard): set-rung
+		// reconciliation BEFORE strict cohesion, dictionary union, and —
+		// for grouped shards — the parent-group reconciliation. `shards`
+		// is mutated in place when the archive itself moves.
+		m, merr := mergeShard(canonical, shards, data, base, archivePath)
+		if merr != nil {
+			return nil, merr
 		}
-		if len(plans) > 0 {
-			widenedCanonical, widenedData, widenings, werr := applySetWidening(
-				plans, canonical, shards, data)
-			if werr != nil {
-				return nil, werr
-			}
-			canonical = widenedCanonical
-			data = widenedData
-			result.Widened = append(result.Widened, widenings...)
-			for _, w := range widenings {
-				result.Warnings = append(result.Warnings, setWidenedWarning(w, archivePath))
-			}
-			// Re-read from the widened bytes so the strict pass below
-			// compares the layout that will actually be stored.
-			schema, err = readSinglePulseSchema(data)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		cohesionWarnings, cerr := encoding.ValidateStructuralCohesion(canonical, schema)
-		result.Warnings = append(result.Warnings, cohesionWarnings...)
-		if cerr != nil {
-			return nil, cerr
-		}
-		extended, remap, err := encoding.MergeDictUnion(canonical, schema)
-		if err != nil {
-			return nil, err
-		}
-		canonical = extended
-		if len(remap) > 0 {
-			rewritten, rerr := encoding.RewriteShardCategoricals(data, canonical, remap)
-			if rerr != nil {
-				return nil, rerr
-			}
-			data = rewritten
-		}
+		canonical = m.canonical
+		data = m.incoming
+		result.Widened = append(result.Widened, m.widened...)
+		result.Regrouped = append(result.Regrouped, m.regrouped...)
+		result.Warnings = append(result.Warnings, m.warnings...)
 		shards = append(shards, shardPayload{name: base, payload: data})
 	}
 
@@ -238,8 +200,9 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("AddShard: reading shard source %s", shardPath))
 	}
-	incomingSchema, err := readSinglePulseSchema(incomingBytes)
-	if err != nil {
+	// Parse the incoming header + schema up front: a malformed shard is
+	// PULSE_SHARD_HEADER_INVALID before the archive is enumerated.
+	if _, err := readSinglePulseSchema(incomingBytes); err != nil {
 		return nil, err
 	}
 
@@ -251,34 +214,6 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 
 	result := &AddShardResult{Archive: archivePath, Added: shardPath,
 		Warnings: []encoding.CohesionWarning{}}
-
-	// Set-rung reconciliation is PLANNED before strict cohesion runs,
-	// and that order is the whole of the relaxation. A set column whose
-	// rung differs between the archive and the arriving shard fails
-	// ValidateStructuralCohesion twice over — on the type byte, and on
-	// every ByteOffset the rung shift moves — so cohesion running first
-	// would refuse the shard before the planner ever saw it. That is the
-	// case a re-import of a new period actually produces: the source
-	// infers the rung its own data needs.
-	//
-	// Nothing else loosens. The plan covers the set-rung dimension only,
-	// and the strict validator runs below over the RECONCILED schemas,
-	// where a name, a non-set type, a bit position or a categorical
-	// width that diverges is still fatal.
-	plans, err := encoding.PlanSetWidening(canonicalDoc.Schema, incomingSchema)
-	if err != nil {
-		// A width overflow past the widest rung is the one fatal
-		// set-width verdict and names itself precisely. Anything else
-		// means the two schemas are not positionally comparable at all,
-		// and the structural validator has the better diagnostic — so
-		// give it the chance to speak before falling back.
-		if !errors.HasCode(err, errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW) {
-			if _, cerr := encoding.ValidateStructuralCohesion(canonicalDoc.Schema, incomingSchema); cerr != nil {
-				return nil, cerr
-			}
-		}
-		return nil, err
-	}
 
 	// Enumerate existing shard payloads, detecting name collision. This
 	// happens BEFORE the widen so a collision costs nothing, and because
@@ -300,60 +235,23 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 		existing = append(existing, shardPayload{name: e.Name, payload: payload})
 	}
 
-	canonicalSchema := canonicalDoc.Schema
-
-	// Set-width auto-widen. The plan answers the question MergeDictUnion
-	// cannot: a union past the declared bitmask, or a rung the two sides
-	// disagree on, is only fatal if nothing reconciles them first.
-	if len(plans) > 0 {
-		widened, widenedIncoming, widenings, werr := applySetWidening(
-			plans, canonicalSchema, existing, incomingBytes)
-		if werr != nil {
-			return nil, werr
-		}
-		canonicalSchema = widened
-		incomingBytes = widenedIncoming
-		result.Widened = widenings
-		for _, w := range widenings {
-			result.Warnings = append(result.Warnings, setWidenedWarning(w, archivePath))
-		}
-		// Re-read the incoming schema from the widened bytes: the
-		// canonical block and the shard block were produced by
-		// different helpers, and the strict cohesion pass below is what
-		// proves they agree. A mismatch there is a layout divergence,
-		// not a user error.
-		incomingSchema, err = readSinglePulseSchema(incomingBytes)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Strict structural cohesion over the RECONCILED schemas. Every
-	// dimension but the set rung is enforced here exactly as before, and
-	// the set rung is enforced too — the plan above has made the two
-	// sides agree, so a divergence surviving to this point is a widen
-	// bug rather than a caller error.
-	cohesionWarnings, err := encoding.ValidateStructuralCohesion(canonicalSchema, incomingSchema)
-	result.Warnings = append(result.Warnings, cohesionWarnings...)
+	// The one merge rule create shares (mergeShard): set-rung
+	// reconciliation PLANNED before strict cohesion — that order is the
+	// whole of the relaxation, because a divergent rung fails cohesion on
+	// the type byte and on every offset it shifts — then strict cohesion
+	// over the RECONCILED schemas, the dictionary union, and for grouped
+	// shards the parent-group reconciliation. `existing` is mutated in
+	// place when the archive itself moves (an archive-wide widen or a
+	// constant-group promotion).
+	m, err := mergeShard(canonicalDoc.Schema, existing, incomingBytes, base, archivePath)
 	if err != nil {
 		return nil, err
 	}
-
-	// Union-merge the dictionaries. When the incoming shard's
-	// dictionaries diverge from canonical, the union is adopted and the
-	// incoming bytes are rewritten to use canonical indices before being
-	// placed in the archive.
-	canonicalSchema, remap, err := encoding.MergeDictUnion(canonicalSchema, incomingSchema)
-	if err != nil {
-		return nil, err
-	}
-	if len(remap) > 0 {
-		rewritten, rerr := encoding.RewriteShardCategoricals(incomingBytes, canonicalSchema, remap)
-		if rerr != nil {
-			return nil, rerr
-		}
-		incomingBytes = rewritten
-	}
+	canonicalSchema := m.canonical
+	incomingBytes = m.incoming
+	result.Widened = m.widened
+	result.Regrouped = m.regrouped
+	result.Warnings = append(result.Warnings, m.warnings...)
 
 	// Aggregate record count: sum across existing shards + the new
 	// shard, computed from per-shard payloads. We re-peek each existing
@@ -563,11 +461,12 @@ func validateBasenames(paths []string) error {
 // validation before forwarding the payload into the archive.
 func readSinglePulseSchema(data []byte) (*encoding.Schema, error) {
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"reading shard header")
 	}
-	schema, err := encoding.ReadSchema(r)
+	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"reading shard schema")
@@ -594,6 +493,9 @@ func cloneSchemaForArchive(s *encoding.Schema) *encoding.Schema {
 			out.Fields[i].Dictionary = d
 		}
 	}
+	// A grouped seed keeps its group layout and dictionaries: the
+	// canonical schema decides every shard's physical stride.
+	out.Groups = encoding.CloneGroups(s.Groups)
 	return out
 }
 
@@ -622,11 +524,12 @@ func cloneSchemaForArchive(s *encoding.Schema) *encoding.Schema {
 // diagnostic arm that owns reporting a short tail.
 func recordCountFromBytes(payload []byte, schema *encoding.Schema) (int64, error) {
 	r := bytes.NewReader(payload)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"recordCountFromBytes: reading shard header")
 	}
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 			"recordCountFromBytes: reading shard schema")
 	}

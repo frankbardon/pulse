@@ -206,7 +206,7 @@ func TestSchema_WideSetRoundTrip(t *testing.T) {
 				t.Errorf("serialized schema does not carry type byte %d followed by nullable=1", tc.typeByte)
 			}
 
-			out, err := ReadSchema(bytes.NewReader(raw))
+			out, err := ReadSchema(bytes.NewReader(raw), FormatVersion)
 			if err != nil {
 				t.Fatalf("ReadSchema: %v", err)
 			}
@@ -393,7 +393,7 @@ func TestReadSchema_RejectsTypeByteAboveWideSets(t *testing.T) {
 		buf.Write([]byte{0, 0})       // csv column index
 		buf.Write([]byte{0, 0})       // description length
 
-		if _, err := ReadSchema(bytes.NewReader(buf.Bytes())); err == nil {
+		if _, err := ReadSchema(bytes.NewReader(buf.Bytes()), FormatVersion); err == nil {
 			t.Errorf("type byte %d: expected rejection", b)
 		} else if !errors.HasCode(err, errors.ENCODING_INVALID) {
 			t.Errorf("type byte %d: want ENCODING_INVALID, got %v", b, err)

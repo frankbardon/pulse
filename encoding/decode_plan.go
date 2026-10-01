@@ -38,8 +38,16 @@ func (SkipBytes) isSegment() {}
 // correctly aligned.
 //
 // Fields is non-empty for any segment the builder emits.
+//
+// Indices is parallel to Fields: Indices[k] is the position of Fields[k]
+// in Schema.Fields, recorded by BuildDecodePlan's own schema walk. It is
+// what lets the reuse decoder key an IndexedReusableRecord write by
+// schema position across SkipBytes gaps without a name lookup. A
+// hand-built segment that omits it (len(Indices) != len(Fields)) still
+// decodes: the reader recovers the positions on a slow path.
 type DecodeFields struct {
-	Fields []*Field
+	Fields  []*Field
+	Indices []int
 }
 
 func (DecodeFields) isSegment() {}
@@ -78,7 +86,15 @@ func (DecodeFields) isSegment() {}
 // never returns an error today, but the signature carries one for
 // forward-compatibility with future shape validation (e.g. once
 // extension-driven retained sets carry wildcard tokens).
+//
+// A grouped (0x02) schema's plan walks its LOGICAL row — the stream a
+// RecordReader over that schema decodes — so it is the plan of
+// Logical(): SkipBytes widths are logical widths, and the empty plan
+// covers the logical stride.
 func (s *Schema) BuildDecodePlan(retained []string) (*DecodePlan, error) {
+	if s.HasGroups() {
+		return s.Logical().BuildDecodePlan(retained)
+	}
 	plan := &DecodePlan{}
 
 	// Materialize retained as a hash set for O(1) lookup. A nil retained
@@ -105,6 +121,7 @@ func (s *Schema) BuildDecodePlan(retained []string) (*DecodePlan, error) {
 	// transitions (skip↔decode, or whenever a bit-packed group ends).
 	var pendingSkip int
 	var pendingDecode []*Field
+	var pendingIdx []int
 
 	flushSkip := func() {
 		if pendingSkip > 0 {
@@ -118,8 +135,11 @@ func (s *Schema) BuildDecodePlan(retained []string) (*DecodePlan, error) {
 			// array — the iterator may retain the slice header.
 			fields := make([]*Field, len(pendingDecode))
 			copy(fields, pendingDecode)
-			plan.Segments = append(plan.Segments, DecodeFields{Fields: fields})
+			indices := make([]int, len(pendingIdx))
+			copy(indices, pendingIdx)
+			plan.Segments = append(plan.Segments, DecodeFields{Fields: fields, Indices: indices})
 			pendingDecode = pendingDecode[:0]
+			pendingIdx = pendingIdx[:0]
 		}
 	}
 
@@ -152,6 +172,7 @@ func (s *Schema) BuildDecodePlan(retained []string) (*DecodePlan, error) {
 				flushSkip()
 				for k := i; k < j; k++ {
 					pendingDecode = append(pendingDecode, &s.Fields[k])
+					pendingIdx = append(pendingIdx, k)
 				}
 				flushDecode()
 			} else {
@@ -171,6 +192,7 @@ func (s *Schema) BuildDecodePlan(retained []string) (*DecodePlan, error) {
 			// current decode batch.
 			flushSkip()
 			pendingDecode = append(pendingDecode, f)
+			pendingIdx = append(pendingIdx, i)
 		} else {
 			// Unprojected ⇒ flush any pending decode, then add this
 			// field's byte width to the skip accumulator.
@@ -189,12 +211,14 @@ func (s *Schema) BuildDecodePlan(retained []string) (*DecodePlan, error) {
 		// Does the retained set include at least one nullable field?
 		anyNullableRetained := false
 		var nullable []*Field
+		var nullableIdx []int
 		for k := range s.Fields {
 			f := &s.Fields[k]
 			if !f.Nullable {
 				continue
 			}
 			nullable = append(nullable, f)
+			nullableIdx = append(nullableIdx, k)
 			if _, ok := keep[f.Name]; ok {
 				anyNullableRetained = true
 			}
@@ -209,7 +233,7 @@ func (s *Schema) BuildDecodePlan(retained []string) (*DecodePlan, error) {
 			// nullable set in schema order keeps the plan
 			// self-contained: the iterator does not need to re-walk
 			// the schema after consulting the segment.
-			plan.Segments = append(plan.Segments, DecodeFields{Fields: nullable})
+			plan.Segments = append(plan.Segments, DecodeFields{Fields: nullable, Indices: nullableIdx})
 		} else if bitmapBytes > 0 {
 			plan.Segments = append(plan.Segments, SkipBytes{N: bitmapBytes})
 		}

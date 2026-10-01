@@ -701,6 +701,34 @@ func (p *Pulse) Export(ctx context.Context, job *pio.ExportJob) (*pio.ExportRepo
 	return job.Run(ctx)
 }
 
+// ExportTransfer compresses a cohort's exact bytes into a zstd transfer
+// artifact (`.pulse.zst`) for moving it between machines. The job's FS
+// field is set to the Pulse instance's filesystem if not already set.
+//
+// Compression is TRANSPORT-ONLY: the artifact is never opened as a
+// cohort (every read surface refuses it with PULSE_COHORT_COMPRESSED),
+// and ImportTransfer turns it back into a byte-identical `.pulse` at
+// rest. Works for single-file cohorts (0x01 and 0x02) and whole shard
+// archives alike, streaming in bounded memory.
+func (p *Pulse) ExportTransfer(ctx context.Context, job *pio.TransferExportJob) (*pio.TransferReport, error) {
+	if job.FS == nil {
+		job.FS = p.fsys
+	}
+	return job.Run(ctx)
+}
+
+// ImportTransfer decompresses a transfer artifact produced by
+// ExportTransfer into a byte-identical `.pulse` at rest (temp file,
+// fsync, rename — a damaged artifact leaves nothing behind). The job's
+// FS field is set to the Pulse instance's filesystem if not already set.
+// The returned report's SHA256 matches the sender's.
+func (p *Pulse) ImportTransfer(ctx context.Context, job *pio.TransferImportJob) (*pio.TransferReport, error) {
+	if job.FS == nil {
+		job.FS = p.fsys
+	}
+	return job.Run(ctx)
+}
+
 // Convert chains import and export with no intermediate file on disk.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
 //
@@ -1569,6 +1597,12 @@ func (p *Pulse) Fs() afero.Fs {
 //
 // CreateShardArchive returns a result rather than a bare error precisely
 // so that warning has nowhere to be dropped.
+//
+// Grouped (format 0x02) shards are accepted: the archive keeps ONE
+// parent-group layout (the first shard's), group dictionaries
+// union-merge canonical-first, and any layout change a shard needs is
+// reported as a mandatory PULSE_SHARD_GROUPS_REWRITTEN warning plus a
+// GroupReconciliation on Regrouped — the same rule AddShard applies.
 func (p *Pulse) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*CreateShardArchiveResult, error) {
 	return p.svc.CreateShardArchive(ctx, archivePath, shardPaths)
 }
@@ -1597,6 +1631,15 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 //
 // AddShard returns a result rather than a bare error precisely so that
 // warning has nowhere to be dropped.
+//
+// A grouped (format 0x02) shard is conformed to the archive's layout: an
+// ungrouped archive stores it flattened, a grouped archive re-encodes it
+// into its own groups and union-merges the group dictionaries (a union
+// past the u32 index space is PULSE_SHARD_DICT_WIDTH_OVERFLOW). A
+// constant group the shard disagrees with is promoted to indexed across
+// the whole archive; a declared key it violates is refused
+// (PULSE_GROUP_MEMBER_NOT_CONSTANT). Layout changes are reported as a
+// mandatory PULSE_SHARD_GROUPS_REWRITTEN warning and on Regrouped.
 func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
 	return p.svc.AddShard(ctx, archivePath, shardPath)
 }
@@ -1613,6 +1656,12 @@ type AddShardResult = service.AddShardResult
 // shard declared a narrower rung and was promoted to the archive's,
 // leaving the archive itself untouched.
 type SetWidening = service.SetWidening
+
+// GroupReconciliation records one parent-group layout change a
+// CreateShardArchive or AddShard made to fit a shard into the archive
+// (reason incoming_flattened / incoming_regrouped / constant_promoted),
+// with the shards and records the rewrite cost.
+type GroupReconciliation = service.GroupReconciliation
 
 // RemoveShard rewrites the archive omitting the named shard. The
 // canonical schema is preserved (dictionary entries are never

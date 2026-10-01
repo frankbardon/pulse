@@ -61,6 +61,7 @@ func buildApp() *cli.Command {
 			pcli.ShardCommand(),
 			pcli.IndexCommand(),
 			pcli.WidenCommand(),
+			pcli.DedupCommand(),
 		},
 	}
 }

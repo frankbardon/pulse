@@ -13,15 +13,15 @@ examples_tags: [cohort-analysis, feature-engineering, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Expression` | string | (required) | `expr-lang/expr` v1.17.x predicate. Must return `bool` — non-bool result → `PROCESSING_RUNTIME`. |
+| `Expression` | string | (required) | `expr-lang/expr` v1.17.x `bool` predicate. |
 
 ## Inputs
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | unused — expression names fields directly. May be empty. |
+| `Field` | unused — the expression names fields. |
 
-Categorical → STRING; `set_*` → `[]string`; `decimal128` → `Decimal128`.
+Categorical → STRING; `set_*` → `[]string` (`has_any(tags, "a")`); `decimal128` → `Decimal128`.
 
 ## Output
 
@@ -29,13 +29,16 @@ Row-level predicate. No emitted column.
 
 ## Components
 
-Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per `response-components` contract. `n_null_input` is not field-specific (no fixed input axis). Mergeable.
+Floor only: universal `{n_in, n_out, n_null_input}` (`response-components`). `n_null_input` stays 0 — no fixed input field. Mergeable.
 
 ## Gotchas
 
-- Cannot reference attribute output — filters run before attributes. Compose / ProcessChain to filter on derived columns.
-- Embedder extensions: `Options.Extensions.ExprFunctions` + `LookupTables` are visible. See `docs/src/internals/extension-points.md`.
-- Runtime panic / type mismatch → `PROCESSING_RUNTIME` — drops the row.
+- Compiled once; bad syntax / types → `PROCESSING_RUNTIME` at build.
+- Null binds `nil`: `==` false, `!=` true, `x ?? 0` fills; `>` / `+` / `len` on nil → predicate UNKNOWN, row dropped.
+- Error / non-bool on a non-null row → `PROCESSING_RUNTIME`.
+- `%` on a field: float `math.Mod` (`age % 2 == 0`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
+- No attribute output — filters run first.
+- Embedder `ExprFunctions` + `LookupTables` visible.
 
 ## See
 

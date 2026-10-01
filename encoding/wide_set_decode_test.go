@@ -555,11 +555,12 @@ func TestWideSetDecode_ParallelShardsMatchSerial(t *testing.T) {
 
 	decodeShard := func(payload []byte) []decodedRow {
 		r := bytes.NewReader(payload)
-		if err := ReadHeader(r); err != nil {
+		pulseVersion, err := ReadHeader(r)
+		if err != nil {
 			t.Errorf("ReadHeader: %v", err)
 			return nil
 		}
-		shardSchema, err := ReadSchema(r)
+		shardSchema, err := ReadSchema(r, pulseVersion)
 		if err != nil {
 			t.Errorf("ReadSchema: %v", err)
 			return nil

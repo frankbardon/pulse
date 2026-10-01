@@ -70,29 +70,22 @@ func (c *Cohort) RecordCount() (int64, error) {
 	r := bytes.NewReader(data)
 
 	// Skip header
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return 0, err
 	}
 
 	// Skip schema
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		return 0, err
 	}
 
-	// Calculate record size from schema
-	recordSize := recordByteSize(c.schema)
-	if recordSize == 0 {
+	// The one record-count derivation (encoding.Schema.RecordCountForPayload):
+	// the physical stride, including bit-packed bytes, the null bitmap and
+	// a grouped cohort's per-row group indices.
+	count, _, ok := c.schema.RecordCountForPayload(int64(r.Len()))
+	if !ok {
 		return 0, nil
 	}
-
-	remaining := int64(r.Len())
-	return remaining / int64(recordSize), nil
-}
-
-func recordByteSize(schema *encoding.Schema) int {
-	size := 0
-	for _, f := range schema.Fields {
-		size += f.Type.ByteSize()
-	}
-	return size
+	return count, nil
 }

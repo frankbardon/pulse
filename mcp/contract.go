@@ -28,6 +28,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/examples"
 	"github.com/frankbardon/pulse/imports"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/skills"
 	"github.com/frankbardon/pulse/types"
 )
@@ -92,6 +93,11 @@ type ImportIn struct {
 	Sheet     string `json:"sheet,omitempty" jsonschema:"Excel sheet name; ignored for non-Excel sources"`
 	Charset   string `json:"charset,omitempty" jsonschema:"SPSS ONLY: character encoding override for a .sav / .zsav source (e.g. 'windows-1252', 'cp1252', 'latin1'; spelling is forgiving). Ignored for every other format. Empty leaves the file's own declaration in force. Reach for it when an import fails PULSE_SPSS_CHARSET_INVALID or PULSE_SPSS_CHARSET_UNSUPPORTED — typically a file that kept a stale record 7/20 name after being transcoded, or a pre-Unicode file that declares no encoding at all and so fails the strict UTF-8 default on its first 8-bit byte. Decoding only; the file's own declaration is still retained."`
 	Overwrite bool   `json:"overwrite,omitempty" jsonschema:"Replace an existing handle of the same name. Default false."`
+	// Groups and SuggestGroups carry the parent-group surface. See the
+	// slot-policy note below for why there is no ratio-floor or strict
+	// slot beside them.
+	Groups        []pio.GroupDecl `json:"groups,omitempty" jsonschema:"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]}. Each distinct member tuple is stored ONCE and every row carries a 4-byte index instead — use it when the source is a denormalized join, where a parent's attributes (members) repeat on every child row and are determined by the parent's ID (key). The import FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT if a member varies within its key; omit key for a plain tuple group with no such check. Take declarations from suggest_groups candidates (their key/members are this exact shape) rather than guessing. Weak groups are reported, not refused: group_warnings carries PULSE_GROUP_TOO_NARROW (dropped) or PULSE_DEDUP_LOW_RATIO (written, under 2 rows per distinct tuple or no smaller). Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID. Writes format 0x02, which older pulse binaries cannot read. Not allowed on a .pulse passthrough."`
+	SuggestGroups bool            `json:"suggest_groups,omitempty" jsonschema:"Also detect candidate parent groups and return them as group_candidates, each measured over every row (ratio, resident dictionary bytes, projected file size, verdict) with key/members ready to pass back as a groups entry. Suggests only: the import still writes exactly what groups declares. Costs one extra full pass over the source. The loop is: import with suggest_groups, read group_candidates (the suggested list is the non-overlapping viable set), then re-import with groups and overwrite=true."`
 }
 
 // There is deliberately no spss_missing slot on ImportIn. The mode's default
@@ -103,6 +109,34 @@ type ImportIn struct {
 // where asking for it is an explicit act. Charset is the opposite case: it is
 // the only recourse for a file that is wrong about its own encoding, and
 // without it such a file is unimportable over MCP by any means.
+//
+// The same policy decides the parent-group slots. groups earns one: it is
+// the only way to write a deduplicated cohort through the managed pool,
+// and suggest_groups is the only way an agent can SEE candidates at all
+// (there is no import-predict tool). The ratio floor and strict mode do
+// not: neither changes a byte written — the floor only decides whether
+// PULSE_DEDUP_LOW_RATIO is raised (at the default 2.0) and strict only
+// promotes that warning to a failure — so an agent reading group_warnings
+// already holds both. Constant elision is absent for the same reason as
+// spss_missing's opposite: its value is at-rest bytes, and a managed
+// import is a transient TTL'd cache file.
+
+// DedupIn is the input contract for pulse_dedup.
+//
+// The slot policy is pulse_import's (see the note above): groups and
+// suggest_groups earn slots because they are the only way to write, or
+// even see, a deduplicated cohort over MCP; the ratio floor and strict
+// mode change no byte written, so an agent reading group_warnings holds
+// both already; constant elision stays CLI + library only — it is an
+// at-rest opt-in the user makes deliberately (`pulse dedup
+// --elide-constants`). out is the one slot pulse_import has no need
+// of: it is how an agent converts WITHOUT destroying the original.
+type DedupIn struct {
+	Path          string          `json:"path" jsonschema:"Path to the existing single-file .pulse cohort to deduplicate (relative to PULSE_DATA_DIR). Shard archives are refused with SERVICE_VALIDATION."`
+	Groups        []pio.GroupDecl `json:"groups,omitempty" jsonschema:"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]} — the same shape pulse_import takes. Each distinct member tuple is stored ONCE and every row carries a 4-byte index. FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT (cohort untouched) if a member varies within its key. Take declarations from suggest_groups candidates rather than guessing. An already-grouped cohort is regrouped from scratch. Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID."`
+	SuggestGroups bool            `json:"suggest_groups,omitempty" jsonschema:"Detect candidate parent groups over the cohort's records and return them as group_candidates (ratio, resident dictionary bytes, projected size, verdict), each with key/members ready to pass back as a groups entry. With no groups this call is READ-ONLY. The loop is: call with suggest_groups only, read group_candidates.suggested, call again with those as groups."`
+	Out           string          `json:"out,omitempty" jsonschema:"Write the deduplicated cohort to this NEW path (must not exist) and leave the original untouched. Omit to rewrite the cohort IN PLACE (destructive, atomic: a failure leaves it byte-identical). Prefer out unless the user asked for an in-place conversion."`
+}
 
 // DropIn is the input contract for pulse_drop.
 type DropIn struct {
@@ -236,6 +270,9 @@ type ExamplesSearchOut struct {
 type ErrorsLookupOut struct {
 	Results []perr.LookupResult `json:"results" jsonschema:"Matching error-code metadata records"`
 }
+
+// DedupOut is the output contract for pulse_dedup.
+type DedupOut = pulse.DedupResult
 
 // DropOut is the output contract for pulse_drop.
 type DropOut struct {

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
@@ -108,6 +109,38 @@ func printInspectResult(cmd *cli.Command, result *descriptor.InspectResult) {
 			}
 			writeText(cmd.Writer, "\n")
 		}
+		if f.Group != nil {
+			key := ""
+			if f.Group.Key {
+				key = ", key"
+			}
+			writeText(cmd.Writer, "    stored in: group %d (%s%s)\n", f.Group.Group+1, f.Group.Kind, key)
+		}
+	}
+	printInspectGroups(cmd, result)
+}
+
+// printInspectGroups renders the 0x02 physical layout and each parent
+// group's realized dedup figures. Prints nothing for a 0x01 cohort
+// (Layout nil), so that text stays exactly as it was. Every figure is
+// descriptor.Inspect's — header + schema + file length, no record read.
+func printInspectGroups(cmd *cli.Command, result *descriptor.InspectResult) {
+	if result.Layout == nil {
+		return
+	}
+	writeText(cmd.Writer, "Format: 0x%02x (record stride %d bytes physical, %d logical)\n",
+		result.Layout.PulseFormatVersion, result.Layout.PhysicalRecordStride, result.Layout.LogicalRecordStride)
+	if len(result.Groups) == 0 {
+		return
+	}
+	writeText(cmd.Writer, "Groups: %d\n", len(result.Groups))
+	for _, g := range result.Groups {
+		writeText(cmd.Writer, "  %s  %s  %s\n", g.Label, g.Kind, g.Verdict)
+		writeText(cmd.Writer, "    fields: %s\n", strings.Join(g.Fields, ", "))
+		writeText(cmd.Writer, "    dictionary: %d entries x %d bytes = %d bytes resident\n",
+			g.EntryCount, g.EntryWidth, g.DictionaryBytes)
+		writeText(cmd.Writer, "    ratio: %.2fx (break-even %.2fx, floor %.2fx), file delta %+d bytes\n",
+			g.Ratio, g.BreakEvenRatio, g.RatioFloor, g.ByteDelta)
 	}
 }
 
@@ -139,14 +172,14 @@ func cohortFilterCmd() *cli.Command {
 			if filterExpr == "" && includeFrom == "" {
 				err := fmt.Errorf("pulse cohort filter requires at least one of --filter or --include-from")
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", err)
 				}
 				return err
 			}
 			if (includeFrom == "") != (includeField == "") {
 				err := fmt.Errorf("--include-from and --include-field must be supplied together")
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", err)
 				}
 				return err
 			}
@@ -154,7 +187,7 @@ func cohortFilterCmd() *cli.Command {
 			p, err := newPulse()
 			if err != nil {
 				if jsonOut {
-					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", err.Error())
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -171,7 +204,7 @@ func runFilterByExpr(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, inpu
 	written, err := p.FilterToFile(ctx, input, output, filterExpr)
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "FILTER_ERROR", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
 		}
 		return err
 	}
@@ -190,7 +223,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	schema, err := p.ResolveCanonicalSchema(ctx, input)
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "FILTER_ERROR", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
 		}
 		return err
 	}
@@ -212,7 +245,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	f, err := afero.NewOsFs().Open(includeFrom)
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "CLI_INPUT", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", err)
 		}
 		return fmt.Errorf("opening --include-from %s: %w", includeFrom, err)
 	}
@@ -221,7 +254,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	load, err := pulse.LoadMemberSetFromReader(f, schema, includeField)
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "FILTER_ERROR", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
 		}
 		return err
 	}
@@ -229,7 +262,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	written, err := p.FilterToFileBySetAndExpr(ctx, input, output, includeField, load.Set, filterExpr)
 	if err != nil {
 		if jsonOut {
-			return writeErrorEnvelope(cmd.Writer, "FILTER_ERROR", err.Error())
+			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
 		}
 		return err
 	}

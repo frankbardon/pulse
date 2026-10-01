@@ -554,14 +554,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	env := NewEnvelope(result)
 
 	// Read header only.
-	if err := encoding.ReadHeader(fileData); err != nil {
-		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse file header: "+err.Error(), nil)
+	pulseVersion, err := encoding.ReadHeader(fileData)
+	if err != nil {
+		env.AddError(string(headerErrorCode(err)), "invalid pulse file header: "+err.Error(), nil)
 		result.Valid = false
 		return env
 	}
 
 	// Read schema (still header, no record data).
-	schema, err := encoding.ReadSchema(fileData)
+	schema, err := encoding.ReadSchema(fileData, pulseVersion)
 	if err != nil {
 		env.AddError(string(errors.ENCODING_INVALID), "invalid pulse schema: "+err.Error(), nil)
 		result.Valid = false

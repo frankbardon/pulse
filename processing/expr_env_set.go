@@ -15,6 +15,11 @@ import (
 // operands. They are always available to expr-lang expressions
 // regardless of whether any extensions are registered.
 //
+// There is deliberately no `contains(set, label)` helper: `contains` is
+// an expr-lang operator keyword (string-only), so a call spelled
+// `contains(...)` cannot parse. Single-label membership is the native
+// `"label" in set`, or has_any(set, "label").
+//
 // The helpers favor set semantics over slice semantics: ordering of
 // the returned slice is deterministic (alphabetical) and duplicate
 // labels are de-duplicated.
@@ -23,8 +28,7 @@ import (
 // prepend this to extension-supplied options so the helpers are
 // uniformly visible.
 func setExprOptions() []expr.Option {
-	return []expr.Option{
-		expr.Function("contains", setContainsBuiltin),
+	return append([]expr.Option{
 		expr.Function("has_any", setHasAnyBuiltin),
 		expr.Function("has_all", setHasAllBuiltin),
 		expr.Function("has_none", setHasNoneBuiltin),
@@ -33,7 +37,7 @@ func setExprOptions() []expr.Option {
 		expr.Function("set_intersect", setIntersectBuiltin),
 		expr.Function("set_diff", setDiffBuiltin),
 		expr.Function("set_xor", setXorBuiltin),
-	}
+	}, exprModOptions()...) // `%` over float64 fields (expr_mod.go)
 }
 
 // argToStringSet coerces a single argument into a string-set
@@ -104,25 +108,6 @@ func sortedSetSlice(s map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// contains(set, "label") → bool — single-label membership test.
-func setContainsBuiltin(args ...any) (any, error) {
-	if len(args) != 2 {
-		return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-			fmt.Sprintf("contains() takes 2 arguments (set, label); got %d", len(args)))
-	}
-	set, err := argToStringSet(args[0])
-	if err != nil {
-		return nil, err
-	}
-	label, ok := args[1].(string)
-	if !ok {
-		return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-			fmt.Sprintf("contains(): label argument must be string, got %T", args[1]))
-	}
-	_, hit := set[label]
-	return hit, nil
 }
 
 // has_any(set, "a", "b", ...) → bool — at least one label present.

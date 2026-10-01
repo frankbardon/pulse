@@ -87,10 +87,11 @@ func exportCohort(t *testing.T, fs afero.Fs, cohort string, opts WriterOptions) 
 		t.Fatalf("opening cohort: %v", err)
 	}
 	defer f.Close()
-	if err := encoding.ReadHeader(f); err != nil {
+	pulseVersion, err := encoding.ReadHeader(f)
+	if err != nil {
 		t.Fatalf("cohort header: %v", err)
 	}
-	if _, err := encoding.ReadSchema(f); err != nil {
+	if _, err := encoding.ReadSchema(f, pulseVersion); err != nil {
 		t.Fatalf("cohort schema: %v", err)
 	}
 	if err := enc.WriteCohort(f); err != nil {

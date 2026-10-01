@@ -25,6 +25,18 @@ import (
 //   - Single-file cohort (magic "PULSE\x00\x00\x00"): the dst is a
 //     single-file cohort whose header + schema bytes are copied
 //     byte-for-byte from src; only the record payload differs.
+//     A grouped (0x02) source therefore yields a 0x02 destination
+//     carrying the source's group descriptors and dictionaries
+//     UNCHANGED — surviving physical rows are copied by reader
+//     position, so every row's entry index stays valid. Entries no
+//     surviving row references are carried, not pruned (a deliberate
+//     v1 choice: pruning costs a pass and renumbers indices); inspect's
+//     ratio is then surviving rows / carried entries. Re-deduping the
+//     output with the same groups prunes. A filter that keeps nothing
+//     writes the preamble alone: a valid, empty 0x02 cohort. Records
+//     are handed their row's entry indices (RecordReader.GroupIndex),
+//     so a filter over one group's members takes the per-entry
+//     precompute.
 //
 //   - Shard archive (magic "PK\x03\x04"): the dst is a new shard
 //     archive preserving the per-shard layout — one input shard maps
@@ -136,11 +148,15 @@ func (s *Service) ResolveCanonicalSchema(_ context.Context, src string) (*encodi
 
 func readSchemaFromBytes(data []byte) (*encoding.Schema, error) {
 	br := bytes.NewReader(data)
-	if err := encoding.ReadHeader(br); err != nil {
+	pulseVersion, err := encoding.ReadHeader(br)
+	if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+		return nil, err // the one refusal that names its fix
+	}
+	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"invalid pulse file header")
 	}
-	schema, err := encoding.ReadSchema(br)
+	schema, err := encoding.ReadSchema(br, pulseVersion)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"reading schema")
@@ -189,11 +205,15 @@ func (s *Service) filterToFile(ctx context.Context, src, dst string, plan filter
 // anchored shard's bytes form a complete standalone payload).
 func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs, data []byte, dst string, plan filterPlan) (int64, error) {
 	br := bytes.NewReader(data)
-	if err := encoding.ReadHeader(br); err != nil {
+	pulseVersion, err := encoding.ReadHeader(br)
+	if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
+		return 0, err // the one refusal that names its fix
+	}
+	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"invalid pulse file header")
 	}
-	schema, err := encoding.ReadSchema(br)
+	schema, err := encoding.ReadSchema(br, pulseVersion)
 	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"reading schema")
@@ -269,11 +289,12 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 		// (with the local dictionary subset) stay on the output shard.
 		// The cohesion invariant guarantees record layout matches.
 		br := bytes.NewReader(shardBytes)
-		if err := encoding.ReadHeader(br); err != nil {
+		pulseVersion, err := encoding.ReadHeader(br)
+		if err != nil {
 			return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 				fmt.Sprintf("reading shard %q header", e.Name))
 		}
-		if _, err := encoding.ReadSchema(br); err != nil {
+		if _, err := encoding.ReadSchema(br, pulseVersion); err != nil {
 			return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
 				fmt.Sprintf("reading shard %q schema", e.Name))
 		}
@@ -343,6 +364,16 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 	nulls := make(map[string]bool, mapSize)
 	wide := make(map[string]any, mapSize)
 	rr := encoding.NewRecordReader(br, schema)
+	// A grouped (0x02) schema: hand each record its row's parent-group
+	// entry indices so a filter over one group's members takes the
+	// per-entry precompute instead of evaluating per row. Only when the
+	// records are decoded against the file's own schema — an entry index
+	// is meaningless against any other dictionary (Record.SetGroupIndices
+	// refuses a foreign schema regardless).
+	var groupIdx []uint32
+	if schema.HasGroups() {
+		groupIdx = make([]uint32, len(schema.Groups))
+	}
 
 	var written int64
 	for {
@@ -360,6 +391,9 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 		posEnd := int64(len(data)) - int64(br.Len())
 
 		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
+		if groupIdx != nil && readGroupIndices(rr, groupIdx) {
+			rec.SetGroupIndices(schema, groupIdx)
+		}
 		keep, ferr := filterFn(rec)
 		if ferr != nil {
 			return 0, ferr
@@ -371,6 +405,19 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 		written++
 	}
 	return written, nil
+}
+
+// readGroupIndices fills idx with the entry index of every parent group
+// on the record rr just decoded, reporting false when any is unknown.
+func readGroupIndices(rr *encoding.RecordReader, idx []uint32) bool {
+	for g := range idx {
+		e, ok := rr.GroupIndex(g)
+		if !ok {
+			return false
+		}
+		idx[g] = e
+	}
+	return true
 }
 
 // fieldFilterForPlan returns a per-field projection filter narrowing

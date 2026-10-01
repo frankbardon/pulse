@@ -28,22 +28,48 @@ import (
 // targetSchema is structurally incompatible with the shard's own
 // schema.
 func RewriteShardCategoricals(shardBytes []byte, targetSchema *Schema, remap map[int]DictRemap) ([]byte, error) {
+	return rewriteShardDicts(shardBytes, targetSchema, remap, false)
+}
+
+// RewriteShardCategoricalsKeepNulls is RewriteShardCategoricals except
+// that a field which is NULL in a record keeps its placeholder bytes
+// instead of having them remapped. A null's bytes carry no value, but
+// they are part of a parent-group ENTRY's identity (an entry is compared
+// byte for byte): remapping a null categorical member's placeholder would
+// make a shard's (region = null) tuple a different entry from the
+// archive's identical one — a duplicate entry in an unkeyed group, and a
+// spurious PULSE_GROUP_MEMBER_NOT_CONSTANT on a keyed group whose
+// non-key member is null. The shard-archive group path remaps the
+// LOGICAL (flattened) form of a shard through this variant before
+// re-encoding it against the canonical dictionaries; the ungrouped
+// archive path keeps RewriteShardCategoricals' byte-for-byte behaviour.
+func RewriteShardCategoricalsKeepNulls(shardBytes []byte, targetSchema *Schema, remap map[int]DictRemap) ([]byte, error) {
+	return rewriteShardDicts(shardBytes, targetSchema, remap, true)
+}
+
+func rewriteShardDicts(shardBytes []byte, targetSchema *Schema, remap map[int]DictRemap, keepNulls bool) ([]byte, error) {
 	if targetSchema == nil {
 		return nil, errors.NewCodedError(errors.PULSE_SHARD_SCHEMA_MISMATCH,
 			"RewriteShardCategoricals requires a non-nil targetSchema")
 	}
 
 	src := bytes.NewReader(shardBytes)
-	if err := ReadHeader(src); err != nil {
+	pulseVersion, err := ReadHeader(src)
+	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			"shard rewrite: invalid header",
 			map[string]any{"cause": err.Error()})
 	}
-	srcSchema, err := ReadSchema(src)
+	srcSchema, err := ReadSchema(src, pulseVersion)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_HEADER_INVALID,
 			"shard rewrite: invalid schema block",
 			map[string]any{"cause": err.Error()})
+	}
+	for _, sch := range []*Schema{srcSchema, targetSchema} {
+		if err := RefuseGroups(sch, "shard categorical rewrite", errors.PULSE_SHARD_SCHEMA_MISMATCH); err != nil {
+			return nil, err
+		}
 	}
 	if len(srcSchema.Fields) != len(targetSchema.Fields) {
 		return nil, errors.NewCodedError(errors.PULSE_SHARD_SCHEMA_MISMATCH,
@@ -64,10 +90,7 @@ func RewriteShardCategoricals(shardBytes []byte, targetSchema *Schema, remap map
 	remaining := shardBytes[len(shardBytes)-src.Len():]
 
 	var out bytes.Buffer
-	if err := WriteHeader(&out); err != nil {
-		return nil, err
-	}
-	if err := WriteSchema(&out, targetSchema); err != nil {
+	if err := WritePreamble(&out, targetSchema); err != nil {
 		return nil, err
 	}
 
@@ -86,16 +109,27 @@ func RewriteShardCategoricals(shardBytes []byte, targetSchema *Schema, remap map
 	for idx, m := range remap {
 		f := &srcSchema.Fields[idx]
 		rewritePlan = append(rewritePlan, rewriteEntry{
+			field:  idx,
 			offset: int(f.ByteOffset),
 			ftype:  f.Type,
 			remap:  m,
 		})
 	}
 
+	// The per-record null bitmap trails the field bytes of a 0x01 row
+	// (this path refuses groups above), bit i = field i.
+	bmOff := -1
+	if keepNulls && srcSchema.HasBitmap() {
+		bmOff = recordSize - srcSchema.BitmapByteSize()
+	}
+
 	rec := make([]byte, recordSize)
 	for i := 0; i < len(remaining); i += recordSize {
 		copy(rec, remaining[i:i+recordSize])
 		for _, e := range rewritePlan {
+			if bmOff >= 0 && srcSchema.Fields[e.field].Nullable && BitmapIsNull(rec[bmOff:], e.field) {
+				continue
+			}
 			if err := applyRemap(rec, e); err != nil {
 				return nil, err
 			}
@@ -106,6 +140,7 @@ func RewriteShardCategoricals(shardBytes []byte, targetSchema *Schema, remap map
 }
 
 type rewriteEntry struct {
+	field  int
 	offset int
 	ftype  FieldType
 	remap  DictRemap

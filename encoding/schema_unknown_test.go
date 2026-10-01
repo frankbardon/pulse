@@ -29,7 +29,7 @@ func TestReadSchema_RejectsUnknownFieldType(t *testing.T) {
 	// description (zero length)
 	binary.Write(&buf, binary.LittleEndian, uint16(0))
 
-	_, err := ReadSchema(&buf)
+	_, err := ReadSchema(&buf, FormatVersion)
 	if err == nil {
 		t.Fatal("expected ReadSchema to reject unknown FieldType byte")
 	}
@@ -48,7 +48,7 @@ func TestSchema_DecimalMetadata_RoundTrip(t *testing.T) {
 	if err := WriteSchema(&buf, original); err != nil {
 		t.Fatal(err)
 	}
-	got, err := ReadSchema(&buf)
+	got, err := ReadSchema(&buf, FormatVersion)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -99,6 +99,7 @@ Fifteen tools, registered at server start. Names and order match `mcp/toolmeta/m
 | `pulse_sample` | Return up to N rows for preview / diagnostics. |
 | `pulse_facet` | Distinct values for a single field. |
 | `pulse_import` | Convert a tabular source (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed `.pulse` handle under `imports/`, with TTL-tracked sidecar. Pulse-format inputs pass through. |
+| `pulse_dedup` | Deduplicate an existing single-file cohort into parent groups (format 0x02), in place or to `out`; `suggest_groups` alone is read-only candidate detection. |
 | `pulse_drop` | Delete a managed-import handle and its sidecar. |
 | `pulse_imports_list` | Enumerate managed handles with sidecar metadata (source, format, imported_at, expires_at, ttl, expired flag, pinned flag). |
 | `pulse_examples_search` | Search the embedded request-example library by query, taxonomy tags (ANDed), or category. |

@@ -42,6 +42,11 @@ type streamingIterator struct {
 	reuse     bool
 	reusedRec *processing.Record
 
+	// binding mints the buffered path's fresh per-row Records. Built on
+	// the first buffered Next (projection is fixed by then) and dropped
+	// by SetProjection.
+	binding *processing.RecordBinding
+
 	// mmapBytes is the read-only mmap'd region when the iterator
 	// opened the file via memory-mapping. It is passed to
 	// bytes.NewReader; the surrounding Read loop sees it as plain
@@ -133,13 +138,14 @@ func (it *streamingIterator) initFromFile() error {
 
 func (it *streamingIterator) initFromReader(r io.Reader) {
 	// Skip header.
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		it.err = err
 		it.done = true
 		return
 	}
 	// Skip schema (we already have it).
-	if _, err := encoding.ReadSchema(r); err != nil {
+	if _, err := encoding.ReadSchema(r, pulseVersion); err != nil {
 		it.err = err
 		it.done = true
 		return
@@ -197,36 +203,45 @@ func (it *streamingIterator) Next() bool {
 		return true
 	}
 
-	// Allocate fresh maps directly into the next Record. Downstream consumers
-	// (processing.Processor.Process) retain Records past the next ReadRecord
-	// call, so each Record needs its own backing maps. Allocating once and
-	// having ReadRecord populate them in-place is cheaper than allocating
-	// reusable buffers and then range-copying out.
-	mapHint := len(it.schema.Fields)
-	if it.project != nil && it.projectSize > 0 {
-		mapHint = it.projectSize
+	// Buffered path: downstream consumers (processing.Processor.Process)
+	// retain Records past the next Next() call, so each row gets its own
+	// FRESH positional Record, decoded into by schema position through
+	// the same index-keyed decoder the reuse arm drives — no per-row
+	// maps. The record is built over it.schema, the schema the reader was
+	// constructed with, which is what makes the decoder's positions
+	// valid for it.
+	if it.plan != nil || it.project == nil {
+		if it.binding == nil {
+			it.binding = recordBindingFor(it.schema, it.plan, it.project)
+		}
+		rec := it.binding.NewRecord()
+		var err error
+		if it.plan != nil {
+			err = it.reader.ReadRecordReusedWithPlan(rec, it.project, it.plan)
+		} else {
+			err = it.reader.ReadRecordReused(rec)
+		}
+		if err == io.EOF {
+			it.done = true
+			return false
+		}
+		if err != nil {
+			it.err = err
+			it.done = true
+			return false
+		}
+		it.current = rec
+		return true
 	}
-	values := make(map[string]float64, mapHint)
+
+	// Projection requested but plan construction was skipped (defensive
+	// — SetProjection always builds a plan when it.project is non-nil).
+	// Fall back to the per-field projected map decode, converted to a
+	// positional Record on construction.
+	values := make(map[string]float64, it.projectSize)
 	nulls := make(map[string]bool)
 	wide := make(map[string]any)
-	var err error
-	switch {
-	case it.plan != nil:
-		// Plan-driven projected decode: SkipBytes segments seek past
-		// unprojected on-wire ranges with a single io.Seeker call;
-		// DecodeFields segments run the per-field decoder for the
-		// retained group only. Plan was built once at SetProjection
-		// time and reused across every Next() call.
-		err = it.reader.ReadRecordWithWidePlan(values, nulls, wide, it.project, it.plan)
-	case it.project != nil:
-		// Projection requested but plan construction was skipped
-		// (defensive — currently SetProjection always builds when
-		// it.project is non-nil). Fall back to the per-field
-		// projected decode.
-		err = it.reader.ReadRecordWithWideProjected(values, nulls, wide, it.project)
-	default:
-		err = it.reader.ReadRecordWithWide(values, nulls, wide)
-	}
+	err := it.reader.ReadRecordWithWideProjected(values, nulls, wide, it.project)
 	if err == io.EOF {
 		it.done = true
 		return false
@@ -262,6 +277,7 @@ func (it *streamingIterator) Next() bool {
 func (it *streamingIterator) SetProjection(keep encoding.FieldFilter, size int) {
 	it.project = keep
 	it.projectSize = size
+	it.binding = nil
 	if keep == nil {
 		// Cleared projection ⇒ full-decode path. Drop any cached plan
 		// so Next() takes the existing ReadRecordWithWide branch.

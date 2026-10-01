@@ -67,6 +67,42 @@ An anchor reports that shard's own count, not the archive aggregate —
 `pulse cohort inspect arch.pulse#s2.pulse` opens on `Records: 80`.
 Single-file cohorts print no `Shards:` line at all.
 
+A grouped cohort (format `0x02`, written by `import --group` or
+`--elide-constants`) additionally marks each member field and reports
+the physical layout plus each group's realized figures:
+
+```
+Records: 1200
+Fields: 6
+  line_id                        u16                  Numeric field: line_id
+  order_id                       u16                  Numeric field: order_id
+    stored in: group 1 (indexed, key)
+  order_region                   categorical_u8       Categorical field: order_region
+    dictionary: 4 entries
+    stored in: group 1 (indexed)
+  order_total                    f32                  Numeric field: order_total
+    stored in: group 1 (indexed)
+  qty                            u4                   Numeric field: qty
+  tenant                         categorical_u8       Categorical field: tenant
+    dictionary: 1 entries
+    stored in: group 2 (constant, key)
+Format: 0x02 (record stride 7 bytes physical, 11 logical)
+Groups: 2
+  group 1 [key: order_id]  indexed  admitted
+    fields: order_id, order_region, order_total
+    dictionary: 100 entries x 7 bytes = 700 bytes resident
+    ratio: 12.00x (break-even 2.33x, floor 2.00x), file delta -2878 bytes
+  group 2 [tenant]  constant  admitted
+    fields: tenant
+    dictionary: 1 entries x 1 bytes = 1 bytes resident
+    ratio: 1200.00x (break-even 0.00x, floor 2.00x), file delta -1183 bytes
+```
+
+Every figure is header-only — the entry count is in the schema block
+and `Records` comes from the file length. A `0x01` cohort prints none
+of these lines. Field semantics:
+[Format → Parent Groups](../format/parent-groups.md#inspecting-a-grouped-cohort).
+
 ## Output (`--json`)
 
 ```json
@@ -152,6 +188,25 @@ count is the FLOOR and the envelope says so:
 raises no warning: it has no warning channel, and a half-written
 trailing record must not stop a cohort that still processes from
 reporting its whole-record count. `inspect` is the arm that tells you.
+
+A grouped (`0x02`) cohort adds `layout` and `groups` to `data` and a
+`group` marker to each member field — all three keys are omitted for a
+`0x01` cohort, whose envelope is unchanged:
+
+```json
+    "layout": {"pulse_format_version": 2, "physical_record_stride": 7, "logical_record_stride": 11},
+    "groups": [
+      {
+        "group": 0, "label": "group 1 [key: order_id]", "kind": "indexed",
+        "key": ["order_id"], "members": ["order_region", "order_total"],
+        "fields": ["order_id", "order_region", "order_total"],
+        "entry_count": 100, "entry_width": 7, "dictionary_bytes": 700,
+        "member_row_bytes": 7, "index_width": 4, "ratio": 12,
+        "break_even_ratio": 2.3333333333333335, "ratio_floor": 2,
+        "byte_delta": -2878, "grows_file": false, "verdict": "admitted"
+      }
+    ]
+```
 
 Fields with empty descriptions on disk get a synthesised fallback
 (`"Categorical field: <name>"` / `"Numeric field: <name>"`); their

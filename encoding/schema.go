@@ -28,14 +28,27 @@ type Field struct {
 
 // Schema holds all field descriptors for a .pulse file.
 type Schema struct {
+	// Fields is the LOGICAL schema: every field, in original order. A
+	// field index anywhere in the API is a position in this slice.
 	Fields []Field
+	// Groups are the parent-group descriptors (format 0x02, see
+	// group.go). Empty for every 0x01 cohort. When non-empty, member
+	// fields are stored in the groups' dictionaries rather than in the
+	// row, and RecordByteSize / BitmapByteSize / HasBitmap describe the
+	// PHYSICAL (reduced) row; Logical() is the ungrouped view.
+	Groups []Group
 }
 
-// HasBitmap reports whether any field in the schema is marked nullable.
-// When true, every record carries a trailing null bitmap of
-// ceil(field_count/8) bytes after the payload; when false, records have
-// no bitmap (legacy fixed-stride path, zero overhead).
+// HasBitmap reports whether the record carries a per-record null
+// bitmap: whether any field stored IN THE ROW is nullable. Without
+// groups that is any field; with groups, member fields' null bits ride
+// their dictionary entry, so only the row fields count — a cohort whose
+// every nullable field is a group member has no per-row bitmap.
 func (s *Schema) HasBitmap() bool {
+	if s.HasGroups() {
+		_, _, has := s.groupedRowSizes()
+		return has
+	}
 	for i := range s.Fields {
 		if s.Fields[i].Nullable {
 			return true
@@ -45,8 +58,14 @@ func (s *Schema) HasBitmap() bool {
 }
 
 // BitmapByteSize returns the number of bytes the null bitmap occupies
-// per record, or 0 when no field is nullable.
+// per record, or 0 when no field is nullable. With groups it is the
+// NARROWED bitmap: ceil(row_field_count/8), bit j = the j-th row field
+// (fields in no group, logical order).
 func (s *Schema) BitmapByteSize() int {
+	if s.HasGroups() {
+		_, bm, _ := s.groupedRowSizes()
+		return bm
+	}
 	if !s.HasBitmap() {
 		return 0
 	}
@@ -59,7 +78,15 @@ func (s *Schema) BitmapByteSize() int {
 // schema declares at least one nullable field, the trailing null bitmap
 // of ceil(field_count/8) bytes is appended to every record and included
 // in the stride.
+//
+// With groups it is the PHYSICAL stride: one GroupIndexWidth index per
+// indexed group, plus the row fields, plus the narrowed bitmap. It is
+// still fixed and a pure function of the schema.
 func (s *Schema) RecordByteSize() int {
+	if s.HasGroups() {
+		body, bm, _ := s.groupedRowSizes()
+		return body + bm
+	}
 	stride := 0
 	for i := range s.Fields {
 		ft := s.Fields[i].Type
@@ -103,8 +130,26 @@ func (s *Schema) SetField(name string) (*Dictionary, bool) {
 	return f.Dictionary, true
 }
 
-// WriteSchema serializes a schema to w.
-// Format:
+// RequiredFormatVersion returns the .pulse format version this schema's
+// content needs on the wire. It is the single place a writer's version
+// is chosen — never a global flag — so a schema that uses no 0x02
+// feature is always written at 0x01, byte-identical to a pre-0x02 file.
+//
+// A schema requires 0x02 exactly when it declares a parent group.
+func (s *Schema) RequiredFormatVersion() byte {
+	if s.HasGroups() {
+		return FormatVersionV2
+	}
+	return FormatVersionV1
+}
+
+// WriteSchema serializes s's schema block to w at the baseline 0x01
+// layout, to follow a [WriteHeader]. A schema whose content requires a
+// newer version is refused rather than written in a layout its header
+// would contradict — write it with [WritePreamble], which emits a
+// matching header.
+//
+// The 0x01 schema block:
 //
 //	u16 field_count
 //	per field:
@@ -117,7 +162,42 @@ func (s *Schema) SetField(name string) (*Dictionary, bool) {
 //	  u16 description_length + utf8 description
 //	  (if decimal128) u8 precision + u8 scale
 //	  (if categorical) dictionary block
+//
+// A 0x02 schema block is the 0x01 block followed by the schema
+// extension block (see group_wire.go for the payload):
+//
+//	u64 extension_length
+//	extension_length bytes of extension payload (tagged sections)
+//
+// The length prefix is what makes the record region's start derivable
+// without understanding the payload.
 func WriteSchema(w io.Writer, s *Schema) error {
+	if req := s.RequiredFormatVersion(); req != FormatVersion {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			"schema requires a newer pulse format version than WriteSchema emits; write it with WritePreamble",
+			map[string]any{"required_version": req, "version": FormatVersion})
+	}
+	return writeSchemaVersion(w, s, FormatVersion)
+}
+
+// writeSchemaVersion writes the schema block in version v's layout.
+func writeSchemaVersion(w io.Writer, s *Schema, v byte) error {
+	if err := writeFieldDescriptors(w, s); err != nil {
+		return err
+	}
+	switch v {
+	case FormatVersionV1:
+		return nil
+	case FormatVersionV2:
+		return writeSchemaExtension(w, s)
+	default:
+		return unsupportedVersionError(v)
+	}
+}
+
+// writeFieldDescriptors writes field_count and every field descriptor —
+// the part of the schema block shared by every format version.
+func writeFieldDescriptors(w io.Writer, s *Schema) error {
 	fieldCount := uint16(len(s.Fields))
 	if err := binary.Write(w, binary.LittleEndian, fieldCount); err != nil {
 		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing field count")
@@ -192,8 +272,30 @@ func WriteSchema(w io.Writer, s *Schema) error {
 	return nil
 }
 
-// ReadSchema deserializes a schema from r.
-func ReadSchema(r io.Reader) (*Schema, error) {
+// ReadSchema deserializes a schema block written at format version v —
+// the version [ReadHeader] returned for the same stream. On return r is
+// positioned at the first record byte. An unsupported v is
+// ENCODING_INVALID; unknown field-type bytes fail loud here, at parse
+// time, for every version.
+func ReadSchema(r io.Reader, v byte) (*Schema, error) {
+	if !IsSupportedFormatVersion(v) {
+		return nil, unsupportedVersionError(v)
+	}
+	s, err := readFieldDescriptors(r)
+	if err != nil {
+		return nil, err
+	}
+	if v >= FormatVersionV2 {
+		if err := readSchemaExtension(r, s); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// readFieldDescriptors reads field_count and every field descriptor —
+// the part of the schema block shared by every format version.
+func readFieldDescriptors(r io.Reader) (*Schema, error) {
 	var fieldCount uint16
 	if err := binary.Read(r, binary.LittleEndian, &fieldCount); err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading field count")

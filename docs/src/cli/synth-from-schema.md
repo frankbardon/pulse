@@ -8,9 +8,9 @@ distributions, row count, optional pairwise correlations) and writes
 a deterministic `.pulse` file. Same `(spec, seed)` pair produces a
 byte-identical output.
 
-> **LLM agents using MCP:** see the `pulse_synth` MCP tool and the
-> `synthetic-data` skill — it covers spec authoring, the 12 supported
-> distributions, and constraint patterns.
+> **No MCP tool.** Synthesis is CLI and library (`Pulse.Synth`) only.
+> The `synthetic-data` skill covers spec authoring, the supported
+> distributions (manifest `synth_distributions`), and constraint patterns.
 
 ## Synopsis
 

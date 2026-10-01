@@ -58,10 +58,11 @@ func AugmentFromProfile(fs afero.Fs, spec *Spec, sourcePath, output string, opts
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "reading source cohort")
 	}
 	r := bytes.NewReader(data)
-	if err := encoding.ReadHeader(r); err != nil {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
 		return nil, err
 	}
-	srcSchema, err := encoding.ReadSchema(r)
+	srcSchema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -102,10 +103,7 @@ func AugmentFromProfile(fs afero.Fs, spec *Spec, sourcePath, output string, opts
 	}
 
 	var fileBuf bytes.Buffer
-	if err := encoding.WriteHeader(&fileBuf); err != nil {
-		return nil, err
-	}
-	if err := encoding.WriteSchema(&fileBuf, mergedSchema); err != nil {
+	if err := encoding.WritePreamble(&fileBuf, mergedSchema); err != nil {
 		return nil, err
 	}
 	if _, err := fileBuf.Write(recordsBuf.Bytes()); err != nil {

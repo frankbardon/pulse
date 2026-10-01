@@ -134,10 +134,11 @@ func TestConvertJob_Includes_ProjectsOutputButKeepsFullSchemaIntermediate(t *tes
 		t.Fatalf("open intermediate: %v", err)
 	}
 	defer f.Close()
-	if err := encoding.ReadHeader(f); err != nil {
+	pulseVersion, err := encoding.ReadHeader(f)
+	if err != nil {
 		t.Fatalf("read header: %v", err)
 	}
-	schema, err := encoding.ReadSchema(f)
+	schema, err := encoding.ReadSchema(f, pulseVersion)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
 	}

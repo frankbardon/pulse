@@ -333,11 +333,25 @@ func buildSetFanoutOverlayCohort(b *testing.B, rows int) (*fs.Config, *encoding.
 //
 // GC is deliberately left at its default setting: the whole signal is
 // that the fused path's records are collectable mid-pass and the
-// buffered path's are not. Sampled, so it is an estimate — reported,
-// never asserted.
+// buffered path's are not. Sampled, so it is an estimate: reported here,
+// never asserted as an absolute. Where a peak IS asserted
+// (join_shape_bench_test.go) it is as the ratio of two measurePeakHeap
+// peaks taken over the same bytes, minimum of the runs.
 func reportPeakHeap(b *testing.B, fn func() error) {
 	b.Helper()
+	delta, err := measurePeakHeap(fn)
+	if err != nil {
+		b.Fatalf("peak-heap Process: %v", err)
+	}
+	b.ReportMetric(delta/(1024*1024), "peak-heap-MB")
+}
 
+// measurePeakHeap is reportPeakHeap's sampler returning the figure
+// instead of reporting it: fn runs once with a goroutine polling
+// runtime.ReadMemStats, and the result is the peak HeapAlloc observed
+// above the post-GC pre-call baseline, in bytes. Callers that assert a
+// RATIO of two peaks (join_shape_bench_test.go) use this directly.
+func measurePeakHeap(fn func() error) (float64, error) {
 	runtime.GC()
 	var base runtime.MemStats
 	runtime.ReadMemStats(&base)
@@ -371,12 +385,12 @@ func reportPeakHeap(b *testing.B, fn func() error) {
 	close(done)
 	wg.Wait()
 	if err != nil {
-		b.Fatalf("peak-heap Process: %v", err)
+		return 0, err
 	}
 
 	delta := float64(peak.Load()) - float64(base.HeapAlloc)
 	if delta < 0 {
 		delta = 0
 	}
-	b.ReportMetric(delta/(1024*1024), "peak-heap-MB")
+	return delta, nil
 }

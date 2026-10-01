@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, streaming-friendly]
 ---
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
+Row-level scalars; no `Response.Components`.
 
 ## Params
 
@@ -21,19 +21,21 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any cohort field referenced in the expression (numeric, categorical_*, date, packed_bool, set_*, decimal128) |
+| `Field` | any referenced field type |
 | `Label` | required — new column name |
 
 ## Output
 
-One `float64` per record (booleans coerce to `1.0` / `0.0`). Null reference without `??` guard → `PROCESSING_RUNTIME` drops the row.
+One `float64` per record (bools → `1.0` / `0.0`). Null binds `nil`: guard `x ?? 0` / `x == nil ? a : b`; unguarded arithmetic on nil → `PROCESSING_RUNTIME` (no invented number).
 
 ## Gotchas
 
-- **No in-slot chaining** — cannot reference another attribute's label. Stage via Compose / ProcessChain.
-- Categorical surfaces as STRING (`==` / `in`); `set_*` as `[]string` (`contains`, `has_any`, `popcount`).
-- No `sqrt` / `log` / `exp` / trig — use `**` or pre-compute via FEAT.
-- Inject via `Options.Extensions.ExprFunctions`; tables via `lookup(...)`. See `docs/src/internals/extension-points.md`.
+- **No in-slot chaining** — no other attribute's label; stage via Compose / ProcessChain.
+- Compiled once; bad syntax / types → `PROCESSING_RUNTIME` at build.
+- Categorical → STRING (`==` / `in`); `set_*` → `[]string` (`"a" in tags`, `has_any(tags, "a", "b")`).
+- No `sqrt` / `log` / `exp` / trig — use `**` or FEAT.
+- `%` on a field: float `math.Mod` (`score % 1`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
+- Embedder `ExprFunctions` + `lookup(...)` tables visible.
 
 ## See
 

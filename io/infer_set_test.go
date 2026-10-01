@@ -1,10 +1,12 @@
 package io
 
 import (
+	stderrors "errors"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 )
 
 // pipeSetSamples constructs minSampleRows rows where the "issuers"
@@ -293,5 +295,43 @@ func TestConvertValue_SetU8_OverflowEmitsTypedError(t *testing.T) {
 	if !strings.Contains(err.Error(), "PULSE_IMPORT_SET_OVERFLOW") &&
 		!strings.Contains(err.Error(), "overflowed") {
 		t.Errorf("error = %v, want PULSE_IMPORT_SET_OVERFLOW", err)
+	}
+}
+
+// TestSetOverflow_DetailsTypeIsTheTypeName pins details.type on both
+// PULSE_IMPORT_SET_OVERFLOW raise sites to the field type's NAME. It
+// was string(ft) — a FieldType is a byte, so that produced a one-byte
+// control character instead of "set_u8".
+func TestSetOverflow_DetailsTypeIsTheTypeName(t *testing.T) {
+	detailsType := func(t *testing.T, err error) any {
+		t.Helper()
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_IMPORT_SET_OVERFLOW {
+			t.Fatalf("error = %v, want PULSE_IMPORT_SET_OVERFLOW", err)
+		}
+		return ce.Details["type"]
+	}
+
+	// Dictionary overflow (setMaskFromCell).
+	for _, ft := range []encoding.FieldType{encoding.FieldTypeSetU8, encoding.FieldTypeSetU128} {
+		dict := encoding.NewDictionary()
+		for i := 0; i < int(ft.MaxSetEntries()); i++ {
+			_, _ = dict.Add("T" + itoa(i))
+		}
+		_, err := setMaskFromCell("OVERFLOW", ft, dict, "|")
+		if got := detailsType(t, err); got != ft.String() {
+			t.Errorf("%s dictionary overflow: details.type = %q, want %q", ft, got, ft.String())
+		}
+	}
+
+	// Narrow-rung bit guard: a dictionary already past 64 entries (built
+	// without the limit) maps a known token to a bit set_u64 cannot store.
+	dict := encoding.NewDictionary()
+	for i := 0; i < 70; i++ {
+		_, _ = dict.Add("T" + itoa(i))
+	}
+	_, err := convertValue("T69", encoding.FieldTypeSetU64, dict, "|")
+	if got := detailsType(t, err); got != "set_u64" {
+		t.Errorf("narrow bit guard: details.type = %q, want %q", got, "set_u64")
 	}
 }

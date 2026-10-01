@@ -131,6 +131,13 @@ func ValidateStructuralCohesion(canonical, incoming *Schema) ([]CohesionWarning,
 			})
 		}
 	}
+	// Parent-group layout (format 0x02). The group descriptors decide the
+	// PHYSICAL stride, so two shards whose fields agree but whose groups
+	// differ still do not share a record layout — and every shard is
+	// decoded with the canonical schema.
+	if err := ValidateGroupCohesion(canonical, incoming); err != nil {
+		return warnings, err
+	}
 	return warnings, nil
 }
 
@@ -225,6 +232,25 @@ func ValidateDictPrefixRule(canonical, incoming *Schema) (*Schema, error) {
 					"canonical_values":  cv,
 					"incoming_values":   nv,
 				})
+		}
+	}
+	// Parent-group dictionaries follow the same append-only rule, byte
+	// for byte: a stored shard's entries must be the archive's first
+	// entries in the archive's order, because the shard's row indices
+	// are decoded against the canonical dictionary.
+	if canonical.HasGroups() && len(canonical.Groups) == len(incoming.Groups) {
+		for g := range canonical.Groups {
+			ext, err := checkGroupPrefix(canonical, incoming, g)
+			if err != nil {
+				return nil, err
+			}
+			if ext == nil {
+				continue
+			}
+			if extended == nil {
+				extended = cloneSchema(canonical)
+			}
+			extended.Groups[g].Entries = append([]byte(nil), ext...)
 		}
 	}
 	if extended != nil {
@@ -644,5 +670,29 @@ func cloneSchema(s *Schema) *Schema {
 			out.Fields[i].Dictionary = d
 		}
 	}
+	out.Groups = cloneGroups(s.Groups)
 	return out
 }
+
+// cloneGroups deep-copies group descriptors and their dictionaries, so a
+// clone of a grouped schema keeps its layout (a schema clone that dropped
+// its groups would describe a different physical stride) and never
+// aliases the source's entry bytes. nil for none.
+func cloneGroups(groups []Group) []Group {
+	if len(groups) == 0 {
+		return nil
+	}
+	out := make([]Group, len(groups))
+	for g, grp := range groups {
+		out[g] = Group{
+			Kind:    grp.Kind,
+			Members: append([]GroupMember(nil), grp.Members...),
+			Entries: append([]byte(nil), grp.Entries...),
+		}
+	}
+	return out
+}
+
+// CloneGroups is cloneGroups for callers outside the package that build
+// a schema copy of their own (the shard-archive canonical seed).
+func CloneGroups(groups []Group) []Group { return cloneGroups(groups) }
