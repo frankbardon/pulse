@@ -56,7 +56,8 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 
 ### E6 — Matrix operations on crosstab results (C)
 - MATRIX_RESULT host and the `Ref.Matrix` reference family.
-- `OVERLAY_STD_RESIDUAL`, `OVERLAY_CORRESPONDENCE`, `OVERLAY_MARKOV`, `OVERLAY_RAKE`, `OVERLAY_CORR_PVALUE`.
+- `OVERLAY_STD_RESIDUAL`, `OVERLAY_CORRESPONDENCE`, `OVERLAY_MARKOV`, `OVERLAY_RAKE`.
+- `MatrixSpec.multiplicity` wired to the shared correction core (replaces the dropped `OVERLAY_CORR_PVALUE`).
 
 ### E7 — Native vector field types (C)
 - `vec_f32` / `vec_f64`: the encoding and the `VECTORS` extension section (tag 2), the `ReadVector` accessor, and a v1-read compatibility test.
@@ -97,7 +98,7 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 | Quadratic payloads overwhelm MCP clients | `MaxMatrixDim`, upper-triangle encoding, `precision`, `top_pairs` |
 | CLAUDE.md budget pressure | `.claude/reference/matrix-and-vectors.md` created in E2-S3, before the prose accumulates |
 | Pairwise deletion produces invalid matrices that feed decompositions | refuse downstream unless repair is opted in (X2) |
-| Analyst misuse: uncorrected p-values over 190 pairs | `OVERLAY_CORR_PVALUE` committed; multivariate-design skill warns loudly |
+| Analyst misuse: uncorrected p-values over 190 pairs | opt-in `MatrixSpec.multiplicity`; `PULSE_ADVISORY_MANY_TESTS` at predict; multivariate-design skill warns loudly |
 | Format change (vec types) breaks older readers | REQUIRED extension section, so older binaries refuse loudly; release note |
 | Scope creep toward ML | the exclusion list in 00; any new "ML-sounding" item must name its classical-statistics precedent |
 
@@ -110,4 +111,4 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 5. **Probability vs frequency weights in inference.** Should probability weights use Kish effective-n in v1.0.0, or should design-based variance (stratification, clustering) be out of scope? The latter is recommended.
 6. ~~**`MAT_` as a new category vs riding `TEST_` / `AGG_`.**~~ **Decided:** a new `MAT_` category, with its manifest slice, gates and extension namespace.
 7. ~~**Should `GROUP_KMEANS` be promoted to committed?**~~ **Decided:** yes — committed, delivered in E4.
-8. ~~**Shared multiple-comparison core.**~~ **Decided:** yes — one core for every p-value-producing family, defined in [statistical integrity 02](../v1.0.0-statistical-integrity/02-multiple-comparisons.md). `OVERLAY_CORR_PVALUE` becomes an alias or is dropped in favour of `MatrixSpec.multiplicity`; decide before E6.
+8. ~~**Shared multiple-comparison core.**~~ **Decided:** yes — one core for every p-value-producing family, defined in [statistical integrity 02](../v1.0.0-statistical-integrity/02-multiple-comparisons.md). `OVERLAY_CORR_PVALUE` is **dropped** in favour of `MatrixSpec.multiplicity`. Correction is opt-in (default `none`).

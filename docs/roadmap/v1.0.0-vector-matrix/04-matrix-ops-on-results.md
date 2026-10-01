@@ -59,11 +59,8 @@
 - **Why.** Raking is how survey data is weighted to known population totals (age × region × gender). As an overlay it answers "what would this table look like weighted to census margins" **without** mutating the base. A rake-to-weights feature that writes a weight column to a new cohort is a natural follow-up (P tier, via filter-to-file style output).
 - **Gotchas.** Non-convergence within `max_iter` raises `PULSE_OVERLAY_RAKE_NOT_CONVERGED` as a layer warning, and the payload is still emitted with `converged: false`. Structural zeros are respected.
 
-### `OVERLAY_CORR_PVALUE` — MATRIX_RESULT host · scope `matrix`
-- **Input.** The `auxiliary.p` matrix of a `MAT_CORRELATION` / `MAT_PARTIAL_CORRELATION` result.
-- **Output.** Multiplicity-adjusted p-values (`params.method`: `bonferroni` | `holm` | `bh` (Benjamini–Hochberg) | `by`), plus an optional significance mask at `params.alpha`.
-- **Why.** Correlation matrices invite testing p(p−1)/2 hypotheses at once. At p = 20 that is 190 tests, and roughly 10 "significant" pairs appear by chance at α = .05. Adjustment is basic hygiene, and its absence is a common analyst error that an LLM-driven harness is especially likely to repeat.
-- **Reuse.** The same adjustment core can later serve `OVERLAY_PAIRWISE_*` (P tier).
+### ~~`OVERLAY_CORR_PVALUE`~~ — dropped
+Correcting correlation-matrix p-values is done by `MatrixSpec.multiplicity` (the shared core in [statistical integrity 02](../v1.0.0-statistical-integrity/02-multiple-comparisons.md)), which adds a `p_adjusted` auxiliary matrix. A separate overlay would have been a second mechanism for the same thing. Because correction is opt-in, the multivariate-design skill and the `PULSE_ADVISORY_MANY_TESTS` advisory carry the warning about 190 uncorrected tests at p = 20.
 
 ---
 

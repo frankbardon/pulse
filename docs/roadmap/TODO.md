@@ -110,10 +110,9 @@ Theme documents: see the [roadmap index](README.md).
 
 ### Multiple comparisons ([statistical-integrity 02](v1.0.0-statistical-integrity/02-multiple-comparisons.md))
 - [ ] `processing/multiplicity`: Bonferroni, Holm, BH, BY
-- [ ] `multiplicity {method, family}` on Request / OverlaySpec / Test / MatrixSpec; `Options.DefaultMultiplicity` (shipped `none`)
+- [ ] `multiplicity {method, family}` on Request / OverlaySpec / Test / MatrixSpec; `Options.DefaultMultiplicity` (shipped `none`; correction is opt-in)
 - [ ] Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots
 - [ ] Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs
-- [ ] `OVERLAY_CORR_PVALUE` fate decided (alias vs drop)
 - [ ] Advisory + Explain hooks; glossary terms
 - [ ] Reference-value, identity and family-boundary gates; `multiple-comparisons.md` skill
 
@@ -184,7 +183,8 @@ Theme documents: see the [roadmap index](README.md).
 
 ## 8. Response shaping ([response-shaping 00](v1.0.0-response-shaping/00-design.md))
 
-- [ ] `Request.Return {preset, include, exclude, precision}`; `Options.DefaultReturn`; `pulse mcp --return`
+- [ ] `Request.Return {preset, include, exclude, precision}`; `Options.DefaultReturn` (library default `full`)
+- [ ] MCP default `standard`: `gosdk.Config.DefaultReturn`, `pulse mcp --return`; MCP goldens regenerated once; release-note callout
 - [ ] Path grammar over the response schema; predict-time validation; `PULSE_RETURN_PATH_UNKNOWN`
 - [ ] Presets `full` / `standard` / `minimal` listed in the manifest
 - [ ] Selection compiled into the execution plan (unrequested parts not computed)
@@ -249,7 +249,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] `OVERLAY_CORRESPONDENCE`
 - [ ] `OVERLAY_MARKOV`
 - [ ] `OVERLAY_RAKE`
-- [ ] `OVERLAY_CORR_PVALUE` (Bonferroni, Holm, BH, BY)
+- [ ] `MatrixSpec.multiplicity` → `p_adjusted` auxiliary matrix via the shared correction core (replaces the dropped `OVERLAY_CORR_PVALUE`)
 
 ### E7 — Native vector field types
 - [ ] `vec_f32` / `vec_f64` encoding and the `VECTORS` schema extension section (tag 2); `ReadVector` accessor

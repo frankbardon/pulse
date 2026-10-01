@@ -13,6 +13,6 @@ Both are additive request surfaces (`format_version` stays `"1.1"`), and both sh
 
 ## Relationship to other themes
 
-- The vector & matrix theme already promised weight support on every `MAT_*` (05, X1) and a correlation-only p-value adjustment (`OVERLAY_CORR_PVALUE`). Both now **consume** the shared machinery defined here rather than defining their own.
+- The vector & matrix theme already promised weight support on every `MAT_*` (05, X1) and a correlation-only p-value adjustment overlay. Weighting now **consumes** the shared machinery defined here, and the correlation overlay is **dropped**: matrix p-values are corrected through `MatrixSpec.multiplicity`. Correction is opt-in everywhere (shipped default `none`).
 - The guided-analysis advisories `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` and `PULSE_ADVISORY_MANY_TESTS` become actionable: each fixup points at the request field defined here.
 - Feature profiles: `weighting` and `multiplicity` are capabilities and appear in profile files like any other feature.

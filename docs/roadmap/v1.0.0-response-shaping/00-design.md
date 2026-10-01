@@ -49,9 +49,10 @@ The existing opt-outs show the pattern already exists in pieces: `DisableCompone
   | `minimal` | data and warnings/errors only |
 
 - **Defaults:**
-  - `Options.DefaultReturn` sets an instance default. A good fit for MCP: `pulse mcp --return standard`, or a field in the feature-profile file.
-  - A request's own `return` overrides it.
-  - With nothing set, output is `full` and byte-identical to today, honouring "everything enabled by default".
+  - **Library:** `Options.DefaultReturn` sets an instance default. With nothing set, output is `full` and byte-identical to today, honouring "everything enabled by default".
+  - **MCP (decided): the default is `standard`.** This applies to `pulse mcp`, `mcpserve` and `gosdk.Register` (via `gosdk.Config.DefaultReturn`, default `standard`). Override with `pulse mcp --return full`, the config field, or the feature-profile file's `return` section.
+  - A request's own `return` always overrides the instance default, so an agent can ask for `full` on one call.
+  - This is a visible change to MCP tool output relative to today. Release notes call it out, and MCP goldens are regenerated once, at this change.
 - **Absorbing the old switches.** `DisableComponents` / `--no-components` and `EchoRequest` remain, as documented shorthands for `exclude: ["components"]` / `include: ["request"]`. No break.
 
 ## Where data volume actually comes from
@@ -80,7 +81,7 @@ Row counts stay uncapped by design. Pulse returns all rows unless the developer 
 
 ## Deliverables
 
-- [ ] `Request.Return {preset, include, exclude, precision}`; `Options.DefaultReturn`; `pulse mcp --return`
+- [ ] `Request.Return {preset, include, exclude, precision}`; `Options.DefaultReturn` (library default `full`); `gosdk.Config.DefaultReturn` + `pulse mcp --return` (MCP default `standard`)
 - [ ] Path grammar over the response schema; predict-time validation; `PULSE_RETURN_PATH_UNKNOWN`
 - [ ] Presets `full` / `standard` / `minimal` in `descriptor/`, listed in the manifest
 - [ ] Selection compiled into the execution plan (skip components, overlays and auxiliaries not requested)
@@ -89,6 +90,6 @@ Row counts stay uncapped by design. Pulse returns all rows unless the developer 
 - [ ] Predict per-section size estimates
 - [ ] Identity, skip-computation and schema-path gates; topical skill `response-shaping.md`
 
-## Open question
+## Decisions
 
-Should the MCP server's default be `standard` rather than `full`? It contradicts "everything enabled by default" only for *output volume*, not for features, and it is the cheapest context saving available. Recommendation: leave the shipped default at `full`, and make `--return standard` a one-flag choice that the MCP docs and the `agent`-oriented example profile recommend.
+- **MCP default:** `standard` on every MCP surface; the library default stays `full`. Agents can still request `full` per call.

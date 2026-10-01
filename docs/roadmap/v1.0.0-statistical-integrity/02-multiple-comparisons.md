@@ -32,7 +32,7 @@ Correction is only meaningful once you say *which tests count together*. That ch
 **Where it is set:**
 - `Request.Multiplicity` sets the request default.
 - Each `OverlaySpec`, `Test` and `MatrixSpec` may carry its own `multiplicity`.
-- `Options.DefaultMultiplicity` is the instance default. Per the "everything on, high defaults" stance, the shipped default is `none`, which keeps today's numbers byte-identical (see the open question).
+- `Options.DefaultMultiplicity` is the instance default. **Decided: the shipped default is `none`; correction is opt-in.** Today's numbers stay byte-identical, and the predict advisory makes uncorrected multiplicity visible.
 
 ## Output
 
@@ -40,7 +40,7 @@ Correction is only meaningful once you say *which tests count together*. That ch
 
 - `OverlaySummary` / series and matrix entries gain `p_adjusted` and `significant_adjusted` (at the layer's alpha), plus a `multiplicity {method, family, m}` block.
 - `TestResult` gains `p_adjusted` and `multiplicity`.
-- `MatrixResult.auxiliary` gains a `p_adjusted` matrix. This supersedes the standalone `OVERLAY_CORR_PVALUE` planned in vector-matrix 04, which becomes a thin alias or is dropped. Decide before vector-matrix E6.
+- `MatrixResult.auxiliary` gains a `p_adjusted` matrix when the `MatrixSpec` carries `multiplicity`. **Decided:** the standalone `OVERLAY_CORR_PVALUE` planned in vector-matrix 04 is **dropped**. Matrix p-value correction is `MatrixSpec.multiplicity` and nothing else, so there is one mechanism.
 
 ## Guidance hooks
 
@@ -64,10 +64,10 @@ Correction is applied at the overlay/test fold, **after** all p-values in a fami
 - [ ] `multiplicity {method, family}` on `Request`, `OverlaySpec`, `Test`, `MatrixSpec`; `Options.DefaultMultiplicity`
 - [ ] Families `layer` / `row` / `column` / `request` / `matrix`, including across Compose slots
 - [ ] Additive `p_adjusted` / `significant_adjusted` / `multiplicity` on overlay summaries, `TestResult` and `MatrixResult`
-- [ ] Decide `OVERLAY_CORR_PVALUE`'s fate (alias vs drop) before vector-matrix E6
 - [ ] Predict advisory and Explain narration hooks; glossary terms
 - [ ] Reference-value, identity and family-boundary gates; topical skill `multiple-comparisons.md`
 
-## Open question
+## Decisions
 
-**Shipped default.** Should the instance default stay `none` (today's numbers unchanged; correction opt-in), or become `bh` for the pairwise overlay family (statistically safer, but it changes visible significance flags)? Recommendation: `none`, plus the advisory. Changing defaults that move numbers conflicts with the determinism promise in `STABILITY.md`, and the advisory makes the omission visible.
+- **Shipped default:** `none`. Correction is opt-in per request, slot or instance (`Options.DefaultMultiplicity`). Changing a default that moves visible significance flags would conflict with the determinism promise in `STABILITY.md`.
+- **`OVERLAY_CORR_PVALUE`:** dropped in favour of `MatrixSpec.multiplicity`.

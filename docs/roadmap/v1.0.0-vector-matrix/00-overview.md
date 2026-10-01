@@ -94,7 +94,7 @@ Tier key: **C** = committed for v1.0.0 · **S** = stretch (v1.0.0 if capacity al
 | Overlays | `OVERLAY_PROFILE_SIMILARITY` (row/col similarity matrix) | S | survey |
 | Overlays | `OVERLAY_SERIATION` (cluster ordering hint) | S | survey, harness |
 | Overlays | `OVERLAY_MATRIX_FORMULA` (transpose, multiply, inverse over layers) | S | ops, scientific |
-| Overlays | `OVERLAY_CORR_PVALUE` (+ Holm / BH adjustment) on `MatrixResult` hosts | C | all |
+| Overlays | ~~`OVERLAY_CORR_PVALUE`~~ dropped; matrix p-value correction is opt-in `MatrixSpec.multiplicity` (statistical integrity) | — | all |
 | Overlays | `OVERLAY_MATRIX_CONGRUENCE` (Compose: compare two matrices) | S | survey, scientific |
 | Synth | `Spec` accepts a declared correlation matrix; fidelity report adds matrix distance | S | all |
 | Extensions | `MatrixOpRegistration` (`MAT_` namespace) | C | embedders |

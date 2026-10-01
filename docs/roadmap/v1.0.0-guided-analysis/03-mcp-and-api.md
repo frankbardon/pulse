@@ -80,7 +80,7 @@ Predict already validates a request. Add **advisories**: plain-language, non-blo
 | Advisory | Trigger (schema / request only) |
 |---|---|
 | `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS` | `TEST_T` / `TEST_WELCH` grouped by a categorical with > 2 dictionary entries → suggests ANOVA |
-| `PULSE_ADVISORY_MANY_TESTS` | > N inferential results in one request with no adjustment overlay → suggests `OVERLAY_CORR_PVALUE` / Holm |
+| `PULSE_ADVISORY_MANY_TESTS` | > N inferential results in one request without `multiplicity` → fixup sets `multiplicity: {method: "holm"}` (statistical integrity 02) |
 | `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | a numeric-coded categorical (e.g. SPSS-imported region codes with value labels) used in `AGG_AVERAGE` |
 | `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | parametric test on a small-range integer scale (u4/u8 with ≤ 7 distinct labels) → mentions the rank-based alternative |
 | `PULSE_ADVISORY_COSINE_ON_SCALE` | raw cosine on a `kind: scale` vector (vector-matrix doc 07) |
