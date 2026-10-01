@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	pio "github.com/frankbardon/pulse/io"
+	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )

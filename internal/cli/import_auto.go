@@ -11,7 +11,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/imports"
-	pio "github.com/frankbardon/pulse/io"
+	iio "github.com/frankbardon/pulse/internal/io"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -138,7 +138,7 @@ func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.I
 		Overwrite:  cmd.Bool("overwrite"),
 	}
 	for _, decl := range cmd.StringSlice("group") {
-		g, err := pio.ParseGroupDecl(decl)
+		g, err := iio.ParseGroupDecl(decl)
 		if err != nil {
 			return pulse.ImportSpec{}, err
 		}

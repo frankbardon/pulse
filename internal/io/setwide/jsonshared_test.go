@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	pfs "github.com/frankbardon/pulse/internal/fs"
+	pio "github.com/frankbardon/pulse/internal/io"
 	pjsonshared "github.com/frankbardon/pulse/internal/io/jsonshared"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // TestJSONShared_WideSetRoundTrip: the coercion pair the two JSON

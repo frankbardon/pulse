@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	pexcel "github.com/frankbardon/pulse/internal/io/excel"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // TestExportJob_Overlays_Excel_Sheets drives the full ExportJob.Run

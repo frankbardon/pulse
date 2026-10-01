@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	pspss "github.com/frankbardon/pulse/internal/io/spss"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // TestSPSS_WideSetRoundTrip: cohort -> .sav -> cohort, at 206 members.

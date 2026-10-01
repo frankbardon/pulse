@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	pparquet "github.com/frankbardon/pulse/internal/io/parquet"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // TestExportJob_Overlays_Parquet_RoundTrip drives the full ExportJob.Run

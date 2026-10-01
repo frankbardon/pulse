@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	pfs "github.com/frankbardon/pulse/internal/fs"
+	pio "github.com/frankbardon/pulse/internal/io"
 	pexcel "github.com/frankbardon/pulse/internal/io/excel"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // TestExcel_WideSetRoundTrip: cohort -> .xlsx -> cohort, at 206 members.

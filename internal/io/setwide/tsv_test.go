@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	ptsv "github.com/frankbardon/pulse/internal/io/tsv"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // TestTSV_WideSetRoundTrip: cohort -> .tsv -> cohort, at 206 members.

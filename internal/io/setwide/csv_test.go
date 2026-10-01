@@ -3,8 +3,8 @@ package setwide
 import (
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	pcsv "github.com/frankbardon/pulse/internal/io/csv"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // TestCSV_WideSetRoundTrip: cohort -> .csv -> cohort, at 206 members.

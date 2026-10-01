@@ -6,7 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	pio "github.com/frankbardon/pulse/io"
+	iio "github.com/frankbardon/pulse/internal/io"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -59,7 +59,7 @@ func DedupCommand() *cli.Command {
 				SuggestGroups:  cmd.Bool("suggest-groups"),
 			}
 			for _, decl := range cmd.StringSlice("group") {
-				g, err := pio.ParseGroupDecl(decl)
+				g, err := iio.ParseGroupDecl(decl)
 				if err != nil {
 					return cliCodedError(cmd, jsonOut, "CLI_INPUT", err)
 				}

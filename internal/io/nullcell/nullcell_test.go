@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	pio "github.com/frankbardon/pulse/internal/io"
 	parrow "github.com/frankbardon/pulse/internal/io/arrow"
 	pcsv "github.com/frankbardon/pulse/internal/io/csv"
 	pexcel "github.com/frankbardon/pulse/internal/io/excel"
@@ -13,7 +14,6 @@ import (
 	pndjson "github.com/frankbardon/pulse/internal/io/ndjson"
 	pparquet "github.com/frankbardon/pulse/internal/io/parquet"
 	ptsv "github.com/frankbardon/pulse/internal/io/tsv"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	perrors "github.com/frankbardon/pulse/errors"
+	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -132,12 +133,12 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 	// Resources are the separate question. A writer holding an OS temp
 	// file (io/excel's excelize StreamWriter spills past 16 MiB) still
 	// needs releasing on that path, so every error return below runs
-	// pio.DiscardWriter — release, never emit. emitted is flipped
+	// iio.DiscardWriter — release, never emit. emitted is flipped
 	// immediately before the Close that owns the output.
 	emitted := false
 	defer func() {
 		if !emitted {
-			_ = pio.DiscardWriter(writer)
+			_ = iio.DiscardWriter(writer)
 		}
 	}()
 

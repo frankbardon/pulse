@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	pio "github.com/frankbardon/pulse/internal/io"
 	pcsv "github.com/frankbardon/pulse/internal/io/csv"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

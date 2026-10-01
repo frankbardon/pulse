@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	parrow "github.com/frankbardon/pulse/internal/io/arrow"
 	pparquet "github.com/frankbardon/pulse/internal/io/parquet"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

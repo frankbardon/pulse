@@ -8,8 +8,8 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/ipc"
 	"github.com/apache/arrow-go/v18/arrow/memory"
+	pio "github.com/frankbardon/pulse/internal/io"
 	parrow "github.com/frankbardon/pulse/internal/io/arrow"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

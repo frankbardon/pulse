@@ -17,7 +17,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	pfs "github.com/frankbardon/pulse/internal/fs"
-	pio "github.com/frankbardon/pulse/io"
+	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/spf13/afero"
 )
 

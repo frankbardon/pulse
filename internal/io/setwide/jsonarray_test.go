@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	pjsonarray "github.com/frankbardon/pulse/internal/io/jsonarray"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

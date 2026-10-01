@@ -10,8 +10,8 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
+	pio "github.com/frankbardon/pulse/internal/io"
 	pparquet "github.com/frankbardon/pulse/internal/io/parquet"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

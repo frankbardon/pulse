@@ -1,80 +1,19 @@
-// Public alias facade over internal/io and internal/iocore. Every type is
-// an alias, every function a one-line forward, every constant a re-export:
-// the implementation lives in internal/io (jobs, inference, transfer) and
-// internal/iocore (the Reader / Writer contracts the format adapters
-// implement). Doc comments are the implementation's own.
+// Public alias facade over internal/io and internal/iocore, narrowed to
+// the v1 kept subset: the import / export / convert / dedup / transfer
+// jobs and their reports, the Reader / Writer contracts with their
+// optional interfaces, and the types those signatures force public.
+// Every type is an alias and every function a one-line forward; the
+// implementation lives in internal/io (jobs, inference, transfer) and
+// internal/iocore (the contracts the format adapters implement). The
+// format factory lives beside this file (format.go, factory.go). Doc
+// comments are the implementation's own.
 
 package io
 
 import (
-	encoding "github.com/frankbardon/pulse/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
 	iocore "github.com/frankbardon/pulse/internal/iocore"
-	types "github.com/frankbardon/pulse/types"
 )
-
-// CandidateReasonMemoryBound is the Reason on an unmeasured
-// candidate.
-const CandidateReasonMemoryBound = iio.CandidateReasonMemoryBound
-
-// CandidateVerdictUnmeasured: the candidate outgrew its share of
-// the detection memory budget before the pass ended; no figures.
-const CandidateVerdictUnmeasured = iio.CandidateVerdictUnmeasured
-
-// DefaultSetDelimiter is the delimiter assumed by convertValue when no
-// per-column delimiter has been recorded (explicit-schema imports that
-// skipped the inference pass). Always |.
-const DefaultSetDelimiter = iio.DefaultSetDelimiter
-
-// DefaultTransferLevel is the zstd level used when a job leaves Level at
-// zero. Level 3 is zstd's own default and was the level measured during
-// planning.
-const DefaultTransferLevel = iio.DefaultTransferLevel
-
-// EmptySetCell is the external form of a PRESENT set_* cell with no
-// element selected — a bare DefaultSetDelimiter, carrying no token.
-//
-// A set column has three states, not two: some elements selected, NO
-// element selected, and null. The empty string cannot spell the middle
-// one, because isNullToken consumes it before any dictionary is
-// consulted; a cell that means "answered, ticked nothing" would
-// re-import as "never answered" and quietly shrink the denominator of
-// every rate computed over the column.
-//
-// One marker serves every adapter — flat text (csv / tsv / excel) and
-// JSON alike — so the convention is stated once and cannot drift
-// between formats. It survives a third-party round trip because it is
-// ordinary cell TEXT: unlike CSV's `,,` versus `,"",`, a spreadsheet or
-// a generic CSV writer has nothing to normalise away. The structured
-// adapters additionally carry the distinction natively (an Arrow or
-// Parquet LIST cell is null via its validity bit and empty via a
-// zero-length list; ndjson / jsonarray accept a JSON `[]`), and the
-// readers map those spellings back onto this marker so the shared
-// import path sees one form.
-//
-// It costs nothing at the other two states: a null cell is still "" and
-// a NON-EMPTY cell is still its delimiter-joined tokens, byte for byte.
-//
-// The composition that makes it work is documented on SchemaAwareReader
-// in io.go and must be kept: isNullToken does not recognise "|", and
-// splitSetTokens drops empty tokens, so "|" yields zero tokens — mask
-// 0, with no dictionary mutation.
-const EmptySetCell = iio.EmptySetCell
-
-const MaxTransferLevel = iio.MaxTransferLevel
-
-const MinTransferLevel = iio.MinTransferLevel
-
-// TransferCodec is the one codec the transfer artifact uses.
-const TransferCodec = iio.TransferCodec
-
-// TransferExtension is the conventional suffix appended to a cohort's
-// file name for its transfer artifact.
-const TransferExtension = iio.TransferExtension
-
-const TransferLayoutShardArchive = iio.TransferLayoutShardArchive
-
-const TransferLayoutSingleFile = iio.TransferLayoutSingleFile
 
 // CohortSource describes the `.pulse` cohort an export is reading from,
 // handed to a [CohortWriter] so it can encode from the cohort's own
@@ -338,16 +277,6 @@ type ImportProjection = iio.ImportProjection
 // surfaces a PULSE_IMPORT_NULL_PROMOTED warning to callers that thread
 // coded warnings.
 type ImportReport = iio.ImportReport
-
-// InferOptions parameterises InferSchemaWithOptions. The zero value is
-// safe — SampleRows / SetInferenceMinPct fall back to their package
-// defaults and ColumnTypeOverrides is treated as empty.
-type InferOptions = iio.InferOptions
-
-// InferenceResult bundles the inference output. The Delimiters map is
-// populated for columns classified as set_*; callers (importers) use
-// it to pack per-cell masks during the row pass.
-type InferenceResult = iio.InferenceResult
 
 // InferenceWarning records a non-fatal observation during inference.
 type InferenceWarning = iio.InferenceWarning
@@ -732,107 +661,6 @@ type TransferReport = iio.TransferReport
 // Writer writes tabular data to a target format.
 type Writer = iocore.Writer
 
-// CompareOverlayLayer returns nil when the two layers match across all
-// renderer-facing slots (name, kind, scope, ref, payload, summary).
-// Per-shape payload comparison dispatches through CompareOverlayPayload.
-func CompareOverlayLayer(got *types.OverlayLayer, want *types.OverlayLayer) error {
-	return iio.CompareOverlayLayer(got, want)
-}
-
-// CompareOverlayLayers returns nil when `got` matches `want` slot-for-
-// slot. Mismatch returns an error describing the first divergence —
-// length, slot index, name / kind / scope, shape, or per-shape payload.
-// Designed for use inside table-driven test bodies; callers wrap the
-// error in t.Errorf for the failure message.
-//
-// Exported so the per-format integration tests under io/exportoverlay/
-// share one comparison surface across Arrow / Parquet / Excel / NDJSON
-// round-trips.
-func CompareOverlayLayers(got []*types.OverlayLayer, want []*types.OverlayLayer) error {
-	return iio.CompareOverlayLayers(got, want)
-}
-
-// CompareOverlayPayload dispatches by shape and compares the populated
-// arm. Absent arms (the non-matching shape's sub-payload nil) are
-// untouched — the OverlayPayload union always populates exactly one arm
-// per the Shape discriminator.
-func CompareOverlayPayload(got types.OverlayPayload, want types.OverlayPayload) error {
-	return iio.CompareOverlayPayload(got, want)
-}
-
-// CompareOverlayRef returns nil when the two refs share the same
-// discriminator state. The structural comparison covers the Margin /
-// Population / Stage / Slot arms — extending this helper when new ref
-// arms land follows the additive-only rule (new arms compare nil-vs-
-// nil before recursing into the new fields).
-func CompareOverlayRef(got types.OverlayRef, want types.OverlayRef) error {
-	return iio.CompareOverlayRef(got, want)
-}
-
-// CompareOverlaySummary returns nil when both summaries match across
-// every populated field. nil-vs-nil counts as match; nil-vs-non-nil is
-// a mismatch.
-func CompareOverlaySummary(got *types.OverlaySummary, want *types.OverlaySummary) error {
-	return iio.CompareOverlaySummary(got, want)
-}
-
-// DiscardWriter releases a writer's non-heap resources without emitting
-// its target, for writers that implement DiscardableWriter. It is a
-// no-op for every other writer — and specifically does NOT fall back to
-// Close, which would write the file the caller is erroring out of.
-func DiscardWriter(w Writer) error {
-	return iio.DiscardWriter(w)
-}
-
-// ErrStopIteration returns the stop iteration sentinel for use by readers.
-func ErrStopIteration() error {
-	return iio.ErrStopIteration()
-}
-
-// InferSchema samples up to sampleRows rows from reader and proposes a Schema.
-// If sampleRows <= 0, defaultSampleRows is used. The minimum is minSampleRows.
-// Wrapper over InferSchemaWithOptions that drops the delimiter map; only
-// CSV/TSV/Excel paths that ignore set-typed import packing should call
-// this entry. Importers should call InferSchemaWithOptions directly.
-func InferSchema(reader Reader, sampleRows int) (*encoding.Schema, []InferenceWarning, error) {
-	return iio.InferSchema(reader, sampleRows)
-}
-
-// InferSchemaWithOptions is the parameterised inference entry. Returns
-// the schema, accumulated warnings, AND the per-column delimiter map
-// for columns classified as set_*. The delimiter map is used by
-// ImportJob.Run during the row pass to split delimited cells into
-// token lists for bit-packing.
-func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult, error) {
-	return iio.InferSchemaWithOptions(reader, opts)
-}
-
-// IsNullCell reports whether one cell of a row handed to Writer.WriteRow
-// is the ABSENT cell, under whichever of the two conventions applies.
-//
-// explicit is the flag NullAwareWriter.SetExplicitNulls set: true on the
-// export path (nil alone is null; "" is a value), false on the convert
-// path (nil and "" are both the absent cell, matching isNullToken's
-// reading of the source text).
-//
-// Only "" is treated as absent on the text path — never "na" / "null" —
-// because that is exactly what the writers did before the null channel
-// existed, and widening it here would change what a convert emits.
-func IsNullCell(v any, explicit bool) bool {
-	return iio.IsNullCell(v, explicit)
-}
-
-// MaxSetElements returns how many elements the widest rung addresses —
-// the most a set column can ever hold.
-func MaxSetElements() int {
-	return iio.MaxSetElements()
-}
-
-// NewConvertJob creates a ConvertJob with default settings.
-func NewConvertJob(source Reader, target Writer) *ConvertJob {
-	return iio.NewConvertJob(source, target)
-}
-
 // NewExportJob creates an ExportJob.
 func NewExportJob(source string, target Writer) *ExportJob {
 	return iio.NewExportJob(source, target)
@@ -841,44 +669,4 @@ func NewExportJob(source string, target Writer) *ExportJob {
 // NewImportJob creates an ImportJob with default settings.
 func NewImportJob(source Reader, target string) *ImportJob {
 	return iio.NewImportJob(source, target)
-}
-
-// ParseGroupDecl parses the CLI form of one group declaration:
-//
-//	KEY[,KEY...]:MEMBER[,MEMBER...]   a keyed group (members determined by the key)
-//	MEMBER[,MEMBER...]                a plain tuple group (no key check)
-//
-// Names are trimmed of surrounding whitespace. An empty name, an empty
-// side of the colon, or more than one colon is
-// PULSE_GROUP_DECLARATION_INVALID. Field names containing ',' or ':'
-// cannot be written in this form; use ImportJob.Groups directly.
-func ParseGroupDecl(s string) (GroupDecl, error) {
-	return iio.ParseGroupDecl(s)
-}
-
-// ResolveTransferLevel validates level and applies the default.
-func ResolveTransferLevel(level int) (int, error) {
-	return iio.ResolveTransferLevel(level)
-}
-
-// SetTypeFor returns the narrowest set_* type with a bit for each of
-// `elements` elements, and reports false when no rung is wide enough
-// (or when `elements` is not positive — a set with no elements has no
-// type, and that is a caller error rather than a width verdict).
-//
-// This is the same selection inference makes, so a column of N distinct
-// tokens and a declared response set of N constituents land on the same
-// rung by construction rather than by agreement.
-func SetTypeFor(elements int) (encoding.FieldType, bool) {
-	return iio.SetTypeFor(elements)
-}
-
-// WidestSetType returns the top rung of the ladder — the widest set_*
-// type Pulse has.
-//
-// Callers that must NAME the ceiling in a diagnostic use this rather
-// than writing "set_u256" into a string, so the message cannot outlive
-// the type it names.
-func WidestSetType() encoding.FieldType {
-	return iio.WidestSetType()
 }

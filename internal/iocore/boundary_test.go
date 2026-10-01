@@ -3,8 +3,13 @@ package iocore_test
 import (
 	"bufio"
 	"bytes"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os/exec"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -149,5 +154,54 @@ func TestIOImportBoundary_FacadeReachesAdapters(t *testing.T) {
 		if !have[want] {
 			t.Errorf("public io does not reach %s; the facade no longer sits above it", want)
 		}
+	}
+}
+
+// TestIOImportBoundary_NoFileImportsFacade closes the gap go list -deps
+// leaves open: a package's dependency graph omits its _test.go imports, so
+// a test file under internal/io/... could import the public facade without
+// tripping TestIOImportBoundary. This walk parses the import block of EVERY
+// .go file under internal/io and internal/iocore, tests included. Tests
+// reach removed or internal names through internal/io, never through the
+// narrowed facade.
+func TestIOImportBoundary_NoFileImportsFacade(t *testing.T) {
+	scanned := 0
+	for _, pkg := range []string{modulePrefix + "/internal/io", modulePrefix + "/internal/iocore"} {
+		out, err := exec.Command("go", "list", "-f", "{{.Dir}}", pkg).Output()
+		if err != nil {
+			t.Fatalf("go list -f {{.Dir}} %s: %v", pkg, err)
+		}
+		root := strings.TrimSpace(string(out))
+		err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				if name := d.Name(); path != root && (name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+			f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+			if err != nil {
+				return err
+			}
+			scanned++
+			for _, imp := range f.Imports {
+				if p, _ := strconv.Unquote(imp.Path.Value); p == publicIO {
+					t.Errorf("%s imports the public io facade; import internal/io or internal/iocore instead", path)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", root, err)
+		}
+	}
+	if scanned == 0 {
+		t.Fatal("scanned no .go files; the boundary cannot inspect an empty tree")
 	}
 }

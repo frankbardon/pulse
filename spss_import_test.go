@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	perrors "github.com/frankbardon/pulse/errors"
+	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -377,7 +378,7 @@ func TestSPSS_ConvertUsesSourceDictionary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}
-	job := pio.NewConvertJob(reader, &discardWriter{})
+	job := iio.NewConvertJob(reader, &discardWriter{})
 	job.FS = afs
 
 	report, err := job.Run(context.Background())
@@ -410,7 +411,7 @@ func TestSPSS_ConvertPredictUsesSourceDictionary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}
-	job := pio.NewConvertJob(reader, &discardWriter{})
+	job := iio.NewConvertJob(reader, &discardWriter{})
 	job.FS = afs
 
 	report, err := job.Predict(context.Background())

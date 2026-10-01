@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	perrors "github.com/frankbardon/pulse/errors"
+	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -57,11 +58,11 @@ func transferFixtures(t *testing.T) (afero.Fs, map[string]string) {
 		}
 	}
 	return fs, map[string]string{
-		"cohort.pulse":  pio.TransferLayoutSingleFile,
-		"grouped.pulse": pio.TransferLayoutSingleFile,
-		"elided.pulse":  pio.TransferLayoutSingleFile,
-		"arch_v1.pulse": pio.TransferLayoutShardArchive,
-		"arch_v2.pulse": pio.TransferLayoutShardArchive,
+		"cohort.pulse":  iio.TransferLayoutSingleFile,
+		"grouped.pulse": iio.TransferLayoutSingleFile,
+		"elided.pulse":  iio.TransferLayoutSingleFile,
+		"arch_v1.pulse": iio.TransferLayoutShardArchive,
+		"arch_v2.pulse": iio.TransferLayoutShardArchive,
 	}
 }
 
@@ -90,7 +91,7 @@ func TestTransfer_RoundTripByteIdentical(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ExportTransfer: %v", err)
 			}
-			if out.SHA256 != want || out.Layout != layout || out.CohortBytes != int64(len(orig)) || out.Level != pio.DefaultTransferLevel {
+			if out.SHA256 != want || out.Layout != layout || out.CohortBytes != int64(len(orig)) || out.Level != iio.DefaultTransferLevel {
 				t.Fatalf("export report = %+v, want sha %s layout %s bytes %d", out, want, layout, len(orig))
 			}
 			if out.Ratio <= 1 {

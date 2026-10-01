@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	perrors "github.com/frankbardon/pulse/errors"
+	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -92,11 +93,11 @@ func ConvertCommand() *cli.Command {
 			emitted := false
 			defer func() {
 				if !emitted {
-					_ = pio.DiscardWriter(writer)
+					_ = iio.DiscardWriter(writer)
 				}
 			}()
 
-			job := pio.NewConvertJob(reader, writer)
+			job := iio.NewConvertJob(reader, writer)
 			job.FS = fs
 			job.SampleRows = sampleRows
 			job.KeepPulseAt = keepPulse
@@ -215,7 +216,7 @@ func convertPredictCmd() *cli.Command {
 				return err
 			}
 
-			job := pio.NewConvertJob(reader, writer)
+			job := iio.NewConvertJob(reader, writer)
 			job.FS = fs
 			job.SampleRows = sampleRows
 

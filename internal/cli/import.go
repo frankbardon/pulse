@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -145,7 +146,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 	job.StrictDedup = cmd.Bool("strict")
 	for _, decl := range cmd.StringSlice("group") {
-		g, err := pio.ParseGroupDecl(decl)
+		g, err := iio.ParseGroupDecl(decl)
 		if err != nil {
 			if jsonOut {
 				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -263,7 +264,7 @@ func importPredictCmd() *cli.Command {
 			job.DedupRatioFloor = cmd.Float("dedup-ratio-floor")
 			job.StrictDedup = cmd.Bool("strict")
 			for _, decl := range cmd.StringSlice("group") {
-				g, gerr := pio.ParseGroupDecl(decl)
+				g, gerr := iio.ParseGroupDecl(decl)
 				if gerr != nil {
 					if jsonOut {
 						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", gerr)
@@ -347,7 +348,7 @@ func writeGroupCandidates(w io.Writer, d *pio.GroupDetection) {
 			mark = "*"
 		}
 		switch c.Verdict {
-		case pio.CandidateVerdictUnmeasured:
+		case iio.CandidateVerdictUnmeasured:
 			writeText(w, "%s %s: %s (%s) members %s\n", mark, c.Label, c.Verdict, c.Reason, strings.Join(c.Members, ","))
 			continue
 		case encx.GroupVerdictDroppedTooNarrow:

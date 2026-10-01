@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	pndjson "github.com/frankbardon/pulse/internal/io/ndjson"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -679,7 +680,7 @@ func TestConvert_CsvToTabular(t *testing.T) {
 	})
 	writer := &collectWriter{}
 
-	job := pio.NewConvertJob(reader, writer)
+	job := iio.NewConvertJob(reader, writer)
 	report, err := p.Convert(context.Background(), job)
 	if err != nil {
 		t.Fatalf("Convert: %v", err)

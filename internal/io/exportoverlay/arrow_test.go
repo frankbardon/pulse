@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	pio "github.com/frankbardon/pulse/internal/io"
 	parrow "github.com/frankbardon/pulse/internal/io/arrow"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // TestExportJob_Overlays_Arrow_RoundTrip drives the full ExportJob.Run
