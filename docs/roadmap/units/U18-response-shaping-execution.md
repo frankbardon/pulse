@@ -1,0 +1,81 @@
+---
+id: U18
+slug: response-shaping-execution
+title: "Unrequested work is never computed, and MCP returns lean responses by default"
+track: Response shaping
+size: M
+status: not-started
+depends_on: [U17]
+soft_depends_on: []
+blocks: [U32]
+todo_items: [105, 108, 110, 111]
+branch: response-shaping-execution
+---
+
+# U18 — response-shaping-execution
+
+**Outcome:** Unrequested work is never computed, and MCP returns lean responses by default.
+
+**Track:** Response shaping · **Size:** M · **Depends on:** [U17](U17-response-shaping-core.md) · **Unblocks:** [U32](U32-v1-release.md)
+
+## Summary
+
+Compile the return selection into the execution plan, so excluded components, overlays and auxiliaries are not computed. Add predict per-section size estimates. Make `standard` the default on every MCP surface (`gosdk.Config.DefaultReturn`, `pulse mcp --return`), regenerating MCP goldens once with a release-note callout.
+
+## References
+
+**Theme documents (read before starting):**
+- [response-shaping 00 — Design](../v1.0.0-response-shaping/00-design.md) — Recommendation (compiled into a computation plan), Defaults (MCP = standard), Decisions
+
+**TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
+
+- [ ] **#105** (8. Response shaping) MCP default `standard`: `gosdk.Config.DefaultReturn`, `pulse mcp --return`; MCP goldens regenerated once; release-note callout
+- [ ] **#108** (8. Response shaping) Selection compiled into the execution plan (unrequested parts not computed)
+- [ ] **#110** (8. Response shaping) Predict per-section size estimates
+- [ ] **#111** (8. Response shaping) `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill
+
+## Scope
+
+**In scope**
+- Plan compilation (components, overlays, auxiliaries, mergeable accumulators skipped)
+- Predict size estimates
+- MCP default `standard` + overrides
+- `TestReturnSkipsComputation`
+
+**Out of scope**
+- —
+
+## Epics & stories
+
+Each epic is a vertical slice. Commit with `feat|fix|perf|test(response-shaping-execution/E<n>-S<m>): …`; close each epic with `milestone(response-shaping-execution/E<n>): vertical slice complete — <epic title>`.
+
+### E1 — Unrequested parts are never computed
+- S1: plan compilation + instrumentation counters
+- S2: `TestReturnSkipsComputation`
+- S3: predict per-section size estimates
+
+### E2 — MCP returns lean responses by default
+- S1: `gosdk.Config.DefaultReturn` + `pulse mcp --return`, default `standard`
+- S2: MCP goldens regenerated; release-note label `breaking` for the MCP default
+
+## Acceptance criteria
+
+- [ ] Instrumented counters prove excluded components/overlays are not accumulated or folded
+- [ ] Library default output unchanged; MCP tool output defaults to `standard`
+- [ ] An agent can request `full` per call
+- [ ] Predict reports per-section size estimates
+- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+
+## Gates & tests
+
+- `TestReturnSkipsComputation`
+
+## Update Demand companions
+
+- CLAUDE.md MCP-layer paragraph (default `standard`)
+- `docs/src/mcp/index.md`; `skills/session-bootstrap.md`
+- `docs/src/cli/flags.md` (`--return`)
+
+## Human inputs & decisions
+
+- None.
