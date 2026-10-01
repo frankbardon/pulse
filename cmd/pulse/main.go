@@ -8,12 +8,10 @@ import (
 
 	pcli "github.com/frankbardon/pulse/internal/cli"
 
+	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	cli "github.com/urfave/cli/v3"
 )
-
-// version is set by the build system.
-var version = "dev"
 
 func main() {
 	app := buildApp()
@@ -27,7 +25,7 @@ func buildApp() *cli.Command {
 	return &cli.Command{
 		Name:    "pulse",
 		Usage:   "High-performance tabular data processing engine",
-		Version: version,
+		Version: pulse.Version(),
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "Output self-describing manifest as JSON"},
 			&cli.BoolFlag{Name: "slim", Usage: "Drop prose descriptions from the manifest payload (smaller for size-sensitive clients)"},
@@ -54,7 +52,7 @@ func buildApp() *cli.Command {
 			pcli.SkillsCommand(),
 			pcli.ExamplesCommand(),
 			pcli.ErrorsCommand(),
-			pcli.MCPCommand(version),
+			pcli.MCPCommand(pulse.Version()),
 			pcli.SchemaCommand(),
 			pcli.SynthCommand(),
 			pcli.ProfileCommand(),
@@ -62,6 +60,7 @@ func buildApp() *cli.Command {
 			pcli.IndexCommand(),
 			pcli.WidenCommand(),
 			pcli.DedupCommand(),
+			pcli.VersionCommand(),
 		},
 	}
 }

@@ -2,8 +2,10 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/buildinfo"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -360,6 +362,9 @@ func TestManifestComponentSchemasComplete(t *testing.T) {
 }
 
 func TestRootManifestGolden(t *testing.T) {
+	// pulse_version is a build fact; pin it so the golden is deterministic
+	// regardless of ldflags, module version or VCS metadata.
+	defer buildinfo.SetForTest("v0.0.0-test")()
 	m := BuildManifest()
 	env := NewEnvelope(m)
 	data, err := json.MarshalIndent(env, "", "  ")
@@ -368,4 +373,35 @@ func TestRootManifestGolden(t *testing.T) {
 	}
 
 	compareGolden(t, "manifest.json", data)
+}
+
+// TestManifest_PulseVersionFromBuildinfo: the manifest reports the build
+// version from internal/buildinfo, the single version source.
+func TestManifest_PulseVersionFromBuildinfo(t *testing.T) {
+	defer buildinfo.SetForTest("v9.8.7-manifest")()
+	m := BuildManifest()
+	if m.PulseVersion != "v9.8.7-manifest" {
+		t.Fatalf("PulseVersion = %q, want v9.8.7-manifest", m.PulseVersion)
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"pulse_version":"v9.8.7-manifest"`) {
+		t.Fatalf("manifest JSON lacks pulse_version: %s", data[:200])
+	}
+}
+
+// TestManifest_CommandsIncludeVersion: the `pulse version` leaf reaches the
+// manifest command catalogue.
+func TestManifest_CommandsIncludeVersion(t *testing.T) {
+	for _, c := range BuildManifest().Commands {
+		if c.Name == "version" {
+			if c.Description == "" || !c.Annotations.Deterministic {
+				t.Fatalf("version command malformed: %+v", c)
+			}
+			return
+		}
+	}
+	t.Fatal("manifest commands do not include \"version\"")
 }

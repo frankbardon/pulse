@@ -25,9 +25,6 @@ import (
 // serverName is the MCP server identity reported during initialize.
 const serverName = "pulse"
 
-// defaultVersion is the advertised server version when Options.Version is empty.
-const defaultVersion = "1.0.0"
-
 // nopWriteCloser adapts an io.Writer to io.WriteCloser; go-sdk's IOTransport
 // owns its streams via Close, but Serve's caller owns the lifetime of out.
 type nopWriteCloser struct{ io.Writer }
@@ -43,7 +40,7 @@ type Options struct {
 	BindOnOpen bool
 
 	// Version is the server identity advertised during initialize and threaded
-	// into the adapter Config. Defaults to defaultVersion when empty.
+	// into the adapter Config. Defaults to pulse.Version() when empty.
 	Version string
 
 	// DisableCohortScan skips the startup filesystem walk that enumerates the
@@ -60,7 +57,7 @@ type Options struct {
 func newServer(p *pulse.Pulse, opts Options) (*mcpsdk.Server, error) {
 	version := opts.Version
 	if version == "" {
-		version = defaultVersion
+		version = pulse.Version()
 	}
 	srv := mcpsdk.NewServer(&mcpsdk.Implementation{
 		Name:    serverName,
