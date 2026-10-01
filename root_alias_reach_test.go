@@ -42,3 +42,39 @@ func TestRootAliases_NameFacadeResultFields(t *testing.T) {
 		t.Fatal("SidecarIndex alias is not BuildIndexResult.Index's type")
 	}
 }
+
+// TestRootAliases_WalkSidecarIndex pins that the whole type closure of
+// SidecarIndex — fingerprint, key spec, buckets and entries — is
+// nameable through root aliases, so an embedder can construct and walk
+// a BuildIndexResult.Index without importing an internal package.
+func TestRootAliases_WalkSidecarIndex(t *testing.T) {
+	var fp pulse.CohortFingerprint
+	fp[0] = 0xAB
+	idx := pulse.SidecarIndex{
+		Fingerprint: fp,
+		Keys:        []pulse.SidecarIndexKeySpec{{Name: "id"}},
+		Buckets: []pulse.SidecarIndexBucket{
+			{Entries: []pulse.SidecarIndexEntry{{Key: []byte{1}, RowIDs: []uint64{7, 9}}}},
+		},
+	}
+
+	var gotFP pulse.CohortFingerprint = idx.Fingerprint
+	if gotFP[0] != 0xAB || len(gotFP) != 32 {
+		t.Fatalf("CohortFingerprint alias mismatch: %x", gotFP)
+	}
+	var key pulse.SidecarIndexKeySpec = idx.Keys[0]
+	if key.Name != "id" {
+		t.Fatalf("SidecarIndexKeySpec.Name = %q", key.Name)
+	}
+	var rows []uint64
+	for _, b := range idx.Buckets {
+		var bucket pulse.SidecarIndexBucket = b
+		for _, e := range bucket.Entries {
+			var entry pulse.SidecarIndexEntry = e
+			rows = append(rows, entry.RowIDs...)
+		}
+	}
+	if len(rows) != 2 || rows[0] != 7 || rows[1] != 9 {
+		t.Fatalf("walked row IDs = %v, want [7 9]", rows)
+	}
+}

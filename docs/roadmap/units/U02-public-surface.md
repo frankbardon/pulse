@@ -132,10 +132,12 @@ Landed on branch `public-surface` (single PR, label `api-break-ok`). Executed as
 - **Narrowing technique:** `encoding` and `descriptor` split in place; `io` and `synth` are alias facades over `internal/io` (+ the `internal/iocore` contracts leaf) and `internal/synth`. A new gate, `TestIOImportBoundary*`, keeps `internal/io/**` from importing the public `io`.
 - **API compatibility:** pinned `apidiff -m` (advisory until a stable `v1.0.0` tag, `api-break-ok` label) plus the blocking `TestPublicAPIGolden`, because `apidiff` cannot see fields or methods behind a root alias into `internal/`. A compile-checked embedder smoke module (`internal/embeddersmoke`, `make smoke`) builds every U01 / U02 migration-guide row.
 - **Ordering:** the `io` structural move into `internal/io` + `internal/iocore` landed with the factory story (E2), ahead of the narrowing epic, because the factory and the import-cycle break could not be built apart.
-- **Extra root aliases** by maintainer decision: `CohesionWarning`, `GroupIndexHeadroom`, `SidecarIndex` (leaked `encoding` types inside facade results), plus `ImportSidecar` and the `Template*` / `RenderedTemplate` set.
+- **Extra root aliases** by maintainer decision: `CohesionWarning`, `GroupIndexHeadroom`, `SidecarIndex` and its field closure `SidecarIndexKeySpec` / `SidecarIndexBucket` / `SidecarIndexEntry` / `CohortFingerprint` (leaked `encoding` types inside facade results), plus `ImportSidecar` and the `Template*` / `RenderedTemplate` set.
+- **`ExportJob.Hash` / `ConvertJob.Hash` stay public** by maintainer decision.
+- **Dependabot** watches the nested smoke module (`/internal/embeddersmoke`) alongside the root module.
 - **Removed without replacement:** `io.NewConvertJob` (use `&io.ConvertJob{}`), `gosdk.Config.Core()`, and the `synth` capture / rule / fidelity-builder functions and tuning constants listed in 03.
 - **`processing` interim:** `processing`, `processing/feature` and `processing/window` stay public in place for [U02b](U02b-extension-contract.md).
 - **New coded error** `PULSE_IO_FORMAT_UNSUPPORTED` for the factory.
 - **Docs:** CLAUDE.md's Architecture tree and MCP layer-split paragraph moved to `.claude/reference/architecture.md` to fit the 50,000-byte budget.
 
-**Carried forward:** `ExportJob.Hash` / `ConvertJob.Hash` are still public (decide before v1.0.0); `SidecarIndex`'s fields name unaliased internal types (`IndexBucket`, `Fingerprint`, `IndexKeySpec`); the `template` target / var-type constants have no root spelling; the nested smoke module's `go.sum` has no dependabot entry.
+**Carried forward:** the `template` target / var-type constants have no root spelling.

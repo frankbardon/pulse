@@ -192,6 +192,16 @@ func TestInspectPredictAndArtifacts(t *testing.T) {
 	if bir, err = p.BuildIndex(ctx, "sales.pulse", []string{"region"}); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
 	}
+	fp, keys, rowIDs := walkSidecarIndex(bir.Index)
+	if fp == (pulse.CohortFingerprint{}) {
+		t.Fatal("SidecarIndex carries a zero cohort fingerprint")
+	}
+	if len(keys) != 1 || keys[0] != "region" {
+		t.Fatalf("SidecarIndex keys = %v, want [region]", keys)
+	}
+	if len(rowIDs) != 3 {
+		t.Fatalf("SidecarIndex walked %d row IDs, want 3", len(rowIDs))
+	}
 	arts, err := p.CohortArtifacts(ctx, "sales.pulse")
 	if err != nil {
 		t.Fatalf("CohortArtifacts: %v", err)

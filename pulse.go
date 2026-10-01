@@ -1322,6 +1322,23 @@ type BuildIndexResult = service.BuildIndexResult
 // (size + modification time) taken at build time.
 type SidecarIndex = encx.Index
 
+// SidecarIndexKeySpec is one ordered key column of a SidecarIndex
+// (SidecarIndex.Keys): the column name and its field type.
+type SidecarIndexKeySpec = encx.IndexKeySpec
+
+// SidecarIndexBucket is one hash bucket of a SidecarIndex
+// (SidecarIndex.Buckets): the entries whose key hashed to it.
+type SidecarIndexBucket = encx.IndexBucket
+
+// SidecarIndexEntry is one distinct key inside a SidecarIndexBucket:
+// the key's raw on-wire bytes and the record IDs that carry it.
+type SidecarIndexEntry = encx.IndexEntry
+
+// CohortFingerprint is the SHA-256 content fingerprint of a cohort's
+// bytes, as recorded in SidecarIndex.Fingerprint at build time and
+// recomputed by VerifyIndex to decide freshness.
+type CohortFingerprint = encx.Fingerprint
+
 // BuildIndex builds a point-lookup sidecar index for the cohort at
 // path over the ordered key columns named in keyFields (a single
 // element is the degenerate single-key case; more than one produces a

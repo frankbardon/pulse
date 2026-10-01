@@ -70,6 +70,10 @@ var (
 	_ pulse.CohesionWarning
 	_ pulse.GroupIndexHeadroom
 	_ pulse.SidecarIndex
+	_ pulse.SidecarIndexKeySpec
+	_ pulse.SidecarIndexBucket
+	_ pulse.SidecarIndexEntry
+	_ pulse.CohortFingerprint
 	_ pulse.Template
 	_ pulse.TemplateSummary
 	_ pulse.TemplateTarget
@@ -78,6 +82,25 @@ var (
 	_ pulse.LoadMemberSetResult
 	_ pulse.MemberSet
 )
+
+// walkSidecarIndex spells every type in SidecarIndex's closure by its
+// root alias and walks the structure: an external module can read a
+// BuildIndexResult.Index end to end without an internal import.
+func walkSidecarIndex(idx *pulse.SidecarIndex) (fp pulse.CohortFingerprint, keys []string, rowIDs []uint64) {
+	fp = idx.Fingerprint
+	for _, k := range idx.Keys {
+		var spec pulse.SidecarIndexKeySpec = k
+		keys = append(keys, spec.Name)
+	}
+	for _, b := range idx.Buckets {
+		var bucket pulse.SidecarIndexBucket = b
+		for _, e := range bucket.Entries {
+			var entry pulse.SidecarIndexEntry = e
+			rowIDs = append(rowIDs, entry.RowIDs...)
+		}
+	}
+	return fp, keys, rowIDs
+}
 
 // DateRangeSpec is root-native and feeds a RangeTable extension.
 var _ = pulse.RangeTable{Ranges: []pulse.DateRangeSpec{{Label: "all"}}}

@@ -78,6 +78,8 @@ pulse: type Cohort method (*Cohort) Field(name string) *pulse/encoding.Field
 pulse: type Cohort method (*Cohort) RecordCount() (int64, error)
 pulse: type Cohort method (*Cohort) Schema() *pulse/encoding.Schema
 pulse: type Cohort method (*Cohort) Shards() []pulse.ShardEntry
+pulse: type CohortFingerprint = pulse/internal/encoding.Fingerprint
+pulse: type CohortFingerprint underlying [32]byte
 pulse: type ComposeOptions = pulse/internal/service.ComposeOptions
 pulse: type ComposeOptions underlying struct
 pulse: type ComposeOptions field FailFast bool
@@ -655,6 +657,17 @@ pulse: type SidecarIndex field Fingerprint pulse/internal/encoding.Fingerprint
 pulse: type SidecarIndex field Keys []pulse/internal/encoding.IndexKeySpec
 pulse: type SidecarIndex field SourceModTime int64
 pulse: type SidecarIndex field SourceSize uint64
+pulse: type SidecarIndexBucket = pulse/internal/encoding.IndexBucket
+pulse: type SidecarIndexBucket underlying struct
+pulse: type SidecarIndexBucket field Entries []pulse/internal/encoding.IndexEntry
+pulse: type SidecarIndexEntry = pulse/internal/encoding.IndexEntry
+pulse: type SidecarIndexEntry underlying struct
+pulse: type SidecarIndexEntry field Key []byte
+pulse: type SidecarIndexEntry field RowIDs []uint64
+pulse: type SidecarIndexKeySpec = pulse/internal/encoding.IndexKeySpec
+pulse: type SidecarIndexKeySpec underlying struct
+pulse: type SidecarIndexKeySpec field Name string
+pulse: type SidecarIndexKeySpec field Type pulse/encoding.FieldType
 pulse: const SidecarKindPointLookupIndex untyped string = "point_lookup_index"
 pulse: const SidecarKindSPSSMetadata untyped string = "spss_metadata"
 pulse: type StaleSidecar struct
@@ -3867,4 +3880,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4199f7adebf796eb97bd45b920774030ec1f30286fb9109529a05d1bb2ffd293
+// golden-hash: d882a34186abf1ba86d803521b253050d577a5f44329d7e17bd02fe0140736b7
