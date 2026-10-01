@@ -98,7 +98,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Filterers) > 0 {
 		r.Filterers = make(map[types.FiltererType]processing.FiltererFactory, len(ext.Filterers))
 		for _, reg := range ext.Filterers {
-			r.Filterers[reg.Name] = wrapFiltererFactory(reg)
+			r.Filterers[reg.Name] = adaptFiltererFactory(reg)
 			// Custom filterers are always row-local streamable today.
 			r.Streamable[processing.StreamabilityKey("filterer", string(reg.Name))] = true
 			addFieldInputs("filterer", string(reg.Name), reg.FieldInputs)
@@ -108,7 +108,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Groupers) > 0 {
 		r.Groupers = make(map[types.GroupType]processing.GrouperFactory, len(ext.Groupers))
 		for _, reg := range ext.Groupers {
-			r.Groupers[reg.Name] = wrapGrouperFactory(reg)
+			r.Groupers[reg.Name] = adaptGrouperFactory(reg)
 			r.Streamable[processing.StreamabilityKey("grouper", string(reg.Name))] = reg.Streamable
 			// Runtime half of the fan-out bridge. The predict half is
 			// the same fact on internal/descriptor.ExtensionsSnapshot.Groupers;

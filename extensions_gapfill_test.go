@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/processing/window"
@@ -18,16 +19,16 @@ import (
 
 type stubGrouper struct{}
 
-func (stubGrouper) Group(records []*processing.Record, field string) (map[string][]*processing.Record, error) {
-	_, _ = records, field
+func (stubGrouper) Group(rows extend.Rows, field string) (map[string][]int, error) {
+	_, _ = rows, field
 	return nil, nil
 }
 
-func (stubGrouper) KeyForRow(*processing.Record, string) (string, bool, error) {
+func (stubGrouper) KeyForRow(extend.Record, string) (string, bool, error) {
 	return "", false, nil
 }
 
-func stubGrouperFactory(*types.Group, *encoding.Schema) (processing.Grouper, error) {
+func stubGrouperFactory(*types.Group, *encoding.Schema) (extend.Grouper, error) {
 	return stubGrouper{}, nil
 }
 

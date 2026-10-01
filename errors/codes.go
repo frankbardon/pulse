@@ -539,7 +539,7 @@ const (
 
 	// PULSE_EXTENSION_FANOUT_MISMATCH indicates a grouper registration's
 	// FansOut declaration disagrees with what its factory returns. The
-	// runtime fact is the optional processing.MultiKeyStreamingGrouper
+	// runtime fact is the optional extend.MultiKeyStreamingGrouper
 	// interface (KeysForRow); the declaration is
 	// GrouperRegistration.FansOut, the embedder-side sibling of
 	// types.GroupType.FansOut(), which knows built-in constants only.

@@ -259,13 +259,13 @@ pulse: type FilterToFileResult field OutputHash string "json:\"output_hash\""
 pulse: type FilterToFileResult field OutputPath string "json:\"output_path\""
 pulse: type FilterToFileResult field Reused bool "json:\"reused\""
 pulse: type FilterToFileResult field RowCount int64 "json:\"row_count\""
-pulse: type FiltererComponentsFunc func(instance pulse/processing.FiltererBuilder) (map[string]any, error)
+pulse: type FiltererComponentsFunc func(instance pulse/extend.FiltererBuilder) (map[string]any, error)
 pulse: type FiltererRegistration struct
 pulse: type FiltererRegistration field Accepts []pulse/encoding.FieldType
 pulse: type FiltererRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type FiltererRegistration field ComponentsFunc pulse.FiltererComponentsFunc
 pulse: type FiltererRegistration field Description string
-pulse: type FiltererRegistration field Factory pulse/processing.FiltererFactory
+pulse: type FiltererRegistration field Factory pulse/extend.FiltererFactory
 pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FiltererRegistration field Name pulse/types.FiltererType
 pulse: type FiltererRegistration field Params []pulse.ParamMeta
@@ -286,13 +286,13 @@ pulse: type GroupReconciliation field IncomingFormatVersion int "json:\"incoming
 pulse: type GroupReconciliation field Reason string "json:\"reason\""
 pulse: type GroupReconciliation field RecordsRewritten int64 "json:\"records_rewritten\""
 pulse: type GroupReconciliation field ShardsRewritten int "json:\"shards_rewritten\""
-pulse: type GrouperComponentsFunc func(instance pulse/processing.Grouper) (map[string]any, error)
+pulse: type GrouperComponentsFunc func(instance pulse/extend.Grouper) (map[string]any, error)
 pulse: type GrouperRegistration struct
 pulse: type GrouperRegistration field Accepts []pulse/encoding.FieldType
 pulse: type GrouperRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type GrouperRegistration field ComponentsFunc pulse.GrouperComponentsFunc
 pulse: type GrouperRegistration field Description string
-pulse: type GrouperRegistration field Factory pulse/processing.GrouperFactory
+pulse: type GrouperRegistration field Factory pulse/extend.GrouperFactory
 pulse: type GrouperRegistration field FansOut bool
 pulse: type GrouperRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type GrouperRegistration field Name pulse/types.GroupType
@@ -1703,6 +1703,16 @@ pulse/extend: package extend
 pulse/extend: type Aggregator interface
 pulse/extend: type Aggregator imethod Aggregate(rows pulse/extend.Rows, field string) (float64, error)
 pulse/extend: type AggregatorFactory func(spec *pulse/types.Aggregation, schema *pulse/encoding.Schema) (pulse/extend.Aggregator, error)
+pulse/extend: var ErrGrouperKeyNull error
+pulse/extend: type FilterFunc func(rec pulse/extend.Record) (bool, error)
+pulse/extend: type FiltererBuilder interface
+pulse/extend: type FiltererBuilder imethod Build(spec *pulse/types.Filterer, schema *pulse/encoding.Schema) (pulse/extend.FilterFunc, error)
+pulse/extend: type FiltererFactory func() pulse/extend.FiltererBuilder
+pulse/extend: type Grouper interface
+pulse/extend: type Grouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
+pulse/extend: type GrouperFactory func(spec *pulse/types.Group, schema *pulse/encoding.Schema) (pulse/extend.Grouper, error)
+pulse/extend: type MultiKeyStreamingGrouper interface
+pulse/extend: type MultiKeyStreamingGrouper imethod KeysForRow(rec pulse/extend.Record, field string) (keys []string, ok bool, err error)
 pulse/extend: type OnlineAggregator interface
 pulse/extend: type OnlineAggregator imethod Finalize() (float64, error)
 pulse/extend: type OnlineAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
@@ -1718,6 +1728,8 @@ pulse/extend: type RichAggregator imethod Rich() (any, error)
 pulse/extend: type Rows interface
 pulse/extend: type Rows imethod At(i int) pulse/extend.Record
 pulse/extend: type Rows imethod Len() int
+pulse/extend: type StreamingGrouper interface
+pulse/extend: type StreamingGrouper imethod KeyForRow(rec pulse/extend.Record, field string) (key string, ok bool, err error)
 pulse/io: package io
 pulse/io: type BufferWriter interface
 pulse/io: type BufferWriter imethod Bytes() []byte
@@ -3914,4 +3926,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bc4a4432445fd53159affcf4db16ed45be81200a8a12d1d989b4fa9fa2526fd9
+// golden-hash: a1ff8a29a0d4cab5d54effc954e94091849b350ce2bc690b60ef31e9dd1a747f

@@ -181,7 +181,7 @@ streamable; windows always run buffered.
 `GrouperRegistration` additionally carries `FansOut bool` — the
 embedder-side sibling of `types.GroupType.FansOut()`, which knows
 built-in constants only. Set it `true` when the factory returns a
-value that also implements `processing.MultiKeyStreamingGrouper`
+value that also implements `extend.MultiKeyStreamingGrouper`
 (`KeysForRow`), i.e. when one record can land in more than one bucket.
 Consumers that reason about per-record denominators need the fact:
 under a fan-out grouper the bucket counts SUM to more than the record
@@ -190,6 +190,22 @@ probe verifies the claim in BOTH directions
 (`PULSE_EXTENSION_FANOUT_MISMATCH`), and omitting the field defaults it
 to `false` — so a multi-key factory is refused rather than silently
 admitted as single-key.
+
+Groupers and filterers are authored against `extend` too. A grouper's
+buffered `Group(rows extend.Rows, field)` returns
+`map[string][]int` — row INDICES into `rows`, which the adapter maps
+back to the engine's records (an out-of-range index is a
+`PROCESSING_INTERNAL` coded error, never a panic). The streaming
+siblings are `extend.StreamingGrouper` (`KeyForRow`) and
+`extend.MultiKeyStreamingGrouper` (`KeysForRow`); returning
+`extend.ErrGrouperKeyNull` from either is the same as `ok=false` — the
+row lands in no bucket. A filterer is an `extend.FiltererFactory`
+returning an `extend.FiltererBuilder` whose `Build` compiles an
+`extend.FilterFunc func(extend.Record) (bool, error)`. The adapter
+forwards each keying sibling explicitly, so a fan-out grouper that also
+supplies `ComponentsFunc` stays multi-key (and fuses in a crosstab).
+Extension groupers run buffered on the plain grouped `Process` path:
+its stream gate consults built-in `GroupType.Streamable()` only.
 
 ### Test (tier-1 / tier-2)
 
@@ -387,8 +403,8 @@ The closure signatures, defined in `extensions.go`, are:
 
 ```go
 type AggregatorComponentsFunc func(instance extend.Aggregator)         (map[string]any, error)
-type GrouperComponentsFunc    func(instance processing.Grouper)         (map[string]any, error)
-type FiltererComponentsFunc   func(instance processing.FiltererBuilder) (map[string]any, error)
+type GrouperComponentsFunc    func(instance extend.Grouper)             (map[string]any, error)
+type FiltererComponentsFunc   func(instance extend.FiltererBuilder)     (map[string]any, error)
 ```
 
 The orchestrator invokes each func ONCE after the operator's terminal
@@ -397,35 +413,17 @@ groupers; post-eval for filterers). Returning `(nil, nil)` is the
 canonical signal for "no operator-specific keys; the orchestrator's
 universal floor is the entire payload" — the floor-only shape.
 
-**`MetaAggregator` / `MetaGrouper` / `MetaFilterer` sibling interfaces
-(the type-level path).** If your operator's Go type already satisfies
-the sibling interface, leave `ComponentsFunc` nil — the runtime
-detects the interface and skips the wrapping shim:
+**Self-emitting operators (the type-level path).** If the value your
+factory returns already has a `Components() (map[string]any, error)`
+method, you may leave `ComponentsFunc` nil — the adapter adopts the
+method as the emitter, for aggregators, groupers and filterers alike.
+An explicit `ComponentsFunc` wins over the method.
 
-```go
-type MetaAggregator interface {
-    Aggregator
-    Components() (map[string]any, error)
-}
-
-type MetaGrouper interface {
-    Grouper
-    Components() (map[string]any, error)
-}
-
-type MetaFilterer interface {
-    FiltererBuilder
-    Components() (map[string]any, error)
-}
-```
-
-Probe-validation still asserts emitted keys against
-`ComponentSchema.Keys` — implementing the interface does not bypass
-the contract.
-
-Pick the shape that matches your code: implement `MetaAggregator` on a
-type you control; use `ComponentsFunc` when the factory returns a
-third-party type you cannot extend.
+Probe-validation asserts emitted keys against `ComponentSchema.Keys`
+only for an explicit `ComponentsFunc`; a self-emitting method is not
+invoked at `pulse.New`, so prefer `ComponentsFunc` when you want that
+check. Use `ComponentsFunc` too when the factory returns a third-party
+type you cannot extend.
 
 ### Floor-only registrations
 
@@ -493,7 +491,7 @@ Factory panics or nil returns surface as
 not match the returned interface surface as
 `PULSE_EXTENSION_STREAMABLE_MISMATCH`. A grouper whose `FansOut`
 declaration disagrees with whether its factory returns
-`processing.MultiKeyStreamingGrouper` — in EITHER direction — surfaces
+`extend.MultiKeyStreamingGrouper` — in EITHER direction — surfaces
 as `PULSE_EXTENSION_FANOUT_MISMATCH`; a factory panic is caught first,
 so a panicking factory never reports a fan-out mismatch. The
 components-contract failures are listed in the table above.
@@ -703,7 +701,7 @@ trusts that declaration. Probe-validation catches obvious mismatches.
 | Aggregator | one-pass online | `extend.OnlineAggregator` |
 | Attribute (`row_local`) | per-row eval, no PrePass | `processing.RowLocalAttribute` |
 | Attribute (`two_pass`) | PrePass + Finalize + Row | `processing.TwoPassAttribute` |
-| Grouper | derive key from a single row | `processing.StreamingGrouper` |
+| Grouper | derive key from a single row | `extend.StreamingGrouper` (fan-out: `extend.MultiKeyStreamingGrouper`) |
 | Feature | StreamingComputer pipeline | `feature.StreamingComputer` |
 | Test (tier-1) | folds with online aggregators | `processing.RowTest` |
 
@@ -762,7 +760,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
-| `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `processing.MultiKeyStreamingGrouper`, either direction |
+| `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |

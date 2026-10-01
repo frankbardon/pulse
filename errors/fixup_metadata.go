@@ -971,7 +971,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_FANOUT_MISMATCH: {
-		Message: "A grouper registration's FansOut declaration disagrees with whether its factory returns processing.MultiKeyStreamingGrouper.",
+		Message: "A grouper registration's FansOut declaration disagrees with whether its factory returns extend.MultiKeyStreamingGrouper.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

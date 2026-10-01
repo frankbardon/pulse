@@ -1,7 +1,11 @@
 package pulse
 
 import (
+	stderrors "errors"
+	"fmt"
+
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
@@ -169,5 +173,231 @@ func adaptAggregatorFactory(reg AggregatorRegistration) processing.AggregatorFac
 			return nil, nil
 		}
 		return adaptAggregator(instance, emit), nil
+	}
+}
+
+// ---- groupers ----------------------------------------------------------
+
+// grpCore forwards the base Grouper method, translating the extend
+// index map back to the engine's record-slice map. The name is carried
+// only for the out-of-range diagnostic.
+type grpCore struct {
+	inner extend.Grouper
+	name  types.GroupType
+}
+
+func (g grpCore) Group(records []*processing.Record, field string) (map[string][]*processing.Record, error) {
+	idx, err := g.inner.Group(recordRows(records), field)
+	if err != nil {
+		return nil, err
+	}
+	if idx == nil {
+		return nil, nil
+	}
+	out := make(map[string][]*processing.Record, len(idx))
+	for key, rows := range idx {
+		bucket := make([]*processing.Record, len(rows))
+		for j, i := range rows {
+			if i < 0 || i >= len(records) {
+				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+					fmt.Sprintf("extension grouper %s returned row index %d outside [0, %d) for bucket %q", g.name, i, len(records), key),
+					map[string]any{"group_type": string(g.name), "bucket": key, "index": i, "rows": len(records)})
+			}
+			bucket[j] = records[i]
+		}
+		out[key] = bucket
+	}
+	return out, nil
+}
+
+// grpStreaming forwards extend.StreamingGrouper as
+// processing.StreamingGrouper. extend.ErrGrouperKeyNull maps to
+// ok=false, the engine's "no bucket" answer.
+type grpStreaming struct{ streaming extend.StreamingGrouper }
+
+func (g grpStreaming) KeyForRow(rec *processing.Record, field string) (string, bool, error) {
+	key, ok, err := g.streaming.KeyForRow(rec, field)
+	if err != nil {
+		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return key, ok, nil
+}
+
+// grpMulti forwards extend.MultiKeyStreamingGrouper as
+// processing.MultiKeyStreamingGrouper, with the same null mapping.
+type grpMulti struct {
+	multi extend.MultiKeyStreamingGrouper
+}
+
+func (g grpMulti) KeysForRow(rec *processing.Record, field string) ([]string, bool, error) {
+	keys, ok, err := g.multi.KeysForRow(rec, field)
+	if err != nil {
+		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return keys, ok, nil
+}
+
+// grpMeta synthesizes processing.MetaGrouper from the registration's
+// ComponentsFunc, handing the emitter the embedder's own instance.
+type grpMeta struct {
+	inner extend.Grouper
+	emit  GrouperComponentsFunc
+}
+
+func (g grpMeta) Components() (map[string]any, error) { return g.emit(g.inner) }
+
+// One wrapper per capability combination: (S)treaming, multi-(K)ey,
+// (M)eta.
+type (
+	grpAdapted  struct{ grpCore }
+	grpAdaptedS struct {
+		grpCore
+		grpStreaming
+	}
+	grpAdaptedK struct {
+		grpCore
+		grpMulti
+	}
+	grpAdaptedM struct {
+		grpCore
+		grpMeta
+	}
+	grpAdaptedSK struct {
+		grpCore
+		grpStreaming
+		grpMulti
+	}
+	grpAdaptedSM struct {
+		grpCore
+		grpStreaming
+		grpMeta
+	}
+	grpAdaptedKM struct {
+		grpCore
+		grpMulti
+		grpMeta
+	}
+	grpAdaptedSKM struct {
+		grpCore
+		grpStreaming
+		grpMulti
+		grpMeta
+	}
+)
+
+// adaptGrouper wraps an extend.Grouper so the engine sees exactly the
+// keying siblings it implements, plus MetaGrouper when emit is non-nil
+// (or the value carries its own Components() method).
+func adaptGrouper(name types.GroupType, inner extend.Grouper, emit GrouperComponentsFunc) processing.Grouper {
+	if emit == nil {
+		if self, ok := inner.(componentsEmitter); ok {
+			emit = func(extend.Grouper) (map[string]any, error) { return self.Components() }
+		}
+	}
+	core := grpCore{inner: inner, name: name}
+	streaming, isS := inner.(extend.StreamingGrouper)
+	multi, isK := inner.(extend.MultiKeyStreamingGrouper)
+	s := grpStreaming{streaming: streaming}
+	k := grpMulti{multi: multi}
+	m := grpMeta{inner: inner, emit: emit}
+	isM := emit != nil
+	switch {
+	case isS && isK && isM:
+		return &grpAdaptedSKM{core, s, k, m}
+	case isS && isK:
+		return &grpAdaptedSK{core, s, k}
+	case isS && isM:
+		return &grpAdaptedSM{core, s, m}
+	case isK && isM:
+		return &grpAdaptedKM{core, k, m}
+	case isS:
+		return &grpAdaptedS{core, s}
+	case isK:
+		return &grpAdaptedK{core, k}
+	case isM:
+		return &grpAdaptedM{core, m}
+	default:
+		return &grpAdapted{core}
+	}
+}
+
+// adaptGrouperFactory turns a registration's extend factory into the
+// engine factory. A nil instance passes through as nil.
+func adaptGrouperFactory(reg GrouperRegistration) processing.GrouperFactory {
+	inner, emit, name := reg.Factory, reg.ComponentsFunc, reg.Name
+	return func(grp *types.Group, schema *encoding.Schema) (processing.Grouper, error) {
+		instance, err := inner(grp, schema)
+		if err != nil {
+			return nil, err
+		}
+		if instance == nil {
+			return nil, nil
+		}
+		return adaptGrouper(name, instance, emit), nil
+	}
+}
+
+// ---- filterers ---------------------------------------------------------
+
+// fltCore forwards Build, wrapping the extend FilterFunc onto the
+// engine's *processing.Record signature (the record is passed as-is).
+type fltCore struct{ inner extend.FiltererBuilder }
+
+func (f fltCore) Build(spec *types.Filterer, schema *encoding.Schema) (processing.FilterFunc, error) {
+	fn, err := f.inner.Build(spec, schema)
+	if err != nil || fn == nil {
+		return nil, err
+	}
+	return func(rec *processing.Record) (bool, error) { return fn(rec) }, nil
+}
+
+// fltMeta synthesizes processing.MetaFilterer from the registration's
+// ComponentsFunc.
+type fltMeta struct {
+	inner extend.FiltererBuilder
+	emit  FiltererComponentsFunc
+}
+
+func (f fltMeta) Components() (map[string]any, error) { return f.emit(f.inner) }
+
+type (
+	fltAdapted  struct{ fltCore }
+	fltAdaptedM struct {
+		fltCore
+		fltMeta
+	}
+)
+
+// adaptFilterer wraps an extend.FiltererBuilder, adding MetaFilterer
+// when emit is non-nil (or the value carries its own Components()).
+func adaptFilterer(inner extend.FiltererBuilder, emit FiltererComponentsFunc) processing.FiltererBuilder {
+	if emit == nil {
+		if self, ok := inner.(componentsEmitter); ok {
+			emit = func(extend.FiltererBuilder) (map[string]any, error) { return self.Components() }
+		}
+	}
+	core := fltCore{inner: inner}
+	if emit != nil {
+		return &fltAdaptedM{core, fltMeta{inner: inner, emit: emit}}
+	}
+	return &fltAdapted{core}
+}
+
+// adaptFiltererFactory turns a registration's extend factory into the
+// engine factory. A nil builder passes through as nil.
+func adaptFiltererFactory(reg FiltererRegistration) processing.FiltererFactory {
+	inner, emit := reg.Factory, reg.ComponentsFunc
+	return func() processing.FiltererBuilder {
+		builder := inner()
+		if builder == nil {
+			return nil
+		}
+		return adaptFilterer(builder, emit)
 	}
 }

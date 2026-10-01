@@ -38,15 +38,17 @@ type AggregatorComponentsFunc func(instance extend.Aggregator) (map[string]any, 
 // onto Response.Components.Groupers[i].Operator. The universal floor
 // ({total_n, n_null}) is filled unconditionally by the orchestrator.
 // Returning (nil, nil) is the canonical signal for "no operator-
-// specific keys".
-type GrouperComponentsFunc func(instance processing.Grouper) (map[string]any, error)
+// specific keys". The instance passed in is the extend.Grouper the
+// registration's Factory returned, so a type assertion to the
+// embedder's concrete type succeeds.
+type GrouperComponentsFunc func(instance extend.Grouper) (map[string]any, error)
 
 // FiltererComponentsFunc is the filterer-shape sibling. In v1 every
 // built-in filterer leaves its operator-specific payload empty
 // (uniform floor of {n_in, n_out, n_null_input}); extensions may opt
 // in by supplying a ComponentSchema + this emitter. The instance passed
-// in is the FiltererBuilder the registration's Factory returned.
-type FiltererComponentsFunc func(instance processing.FiltererBuilder) (map[string]any, error)
+// in is the extend.FiltererBuilder the registration's Factory returned.
+type FiltererComponentsFunc func(instance extend.FiltererBuilder) (map[string]any, error)
 
 // FieldInputsFunc is the optional introspection callback an extension
 // registration may supply so the buffered-projection extractor can
@@ -215,7 +217,7 @@ type AttributeRegistration struct {
 type FiltererRegistration struct {
 	Name        types.FiltererType
 	Description string
-	Factory     processing.FiltererFactory
+	Factory     extend.FiltererFactory
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
@@ -237,30 +239,30 @@ type FiltererRegistration struct {
 	// Response.Components.Filterers[i].Operator after the filter pass
 	// terminates. Nil is the floor-only path (the orchestrator's
 	// universal floor is the entire payload). Mirrors
-	// processing.MetaFilterer.Components() in shape.
+	// the engine's per-operator Components() emission in shape.
 	ComponentsFunc FiltererComponentsFunc
 }
 
 // GrouperRegistration installs a custom GROUP_* operator. Set
-// Streamable=true when the factory returns a processing.Grouper that
-// also implements processing.StreamingGrouper (KeyForRow).
+// Streamable=true when the factory returns an extend.Grouper that
+// also implements extend.StreamingGrouper (KeyForRow).
 //
 // Set FansOut=true when the factory returns a value that also
-// implements processing.MultiKeyStreamingGrouper — see the field
+// implements extend.MultiKeyStreamingGrouper — see the field
 // comment. Probe-validation at registration time enforces the claim in
 // BOTH directions via PULSE_EXTENSION_FANOUT_MISMATCH, mirroring the
 // Streamable contract on AggregatorRegistration.
 type GrouperRegistration struct {
 	Name        types.GroupType
 	Description string
-	Factory     processing.GrouperFactory
+	Factory     extend.GrouperFactory
 	Streamable  bool
 	// FansOut declares that a single record can land in MORE THAN ONE
 	// bucket of this grouper — the embedder-registered sibling of
 	// types.GroupType.FansOut(), which knows built-in constants only.
 	//
 	// The runtime expression of the same fact is the optional
-	// processing.MultiKeyStreamingGrouper interface (KeysForRow). A
+	// extend.MultiKeyStreamingGrouper interface (KeysForRow). A
 	// registration whose factory returns that interface MUST declare
 	// FansOut=true, and one that declares FansOut=true MUST return it:
 	// probe-validation at pulse.New() rejects either mismatch with
@@ -290,7 +292,7 @@ type GrouperRegistration struct {
 	// set, the orchestrator routes the returned map onto
 	// Response.Components.Groupers[i].Operator after the grouper's
 	// terminal partitioning pass. Nil is the floor-only path. Mirrors
-	// processing.MetaGrouper.Components() in shape.
+	// the engine's per-operator Components() emission in shape.
 	ComponentsFunc GrouperComponentsFunc
 }
 

@@ -99,7 +99,7 @@ func probeAggregators(regs []AggregatorRegistration) error {
 
 // probeGroupers validates every registered grouper. The declared
 // FansOut trait is cross-checked against the constructed instance's
-// processing.MultiKeyStreamingGrouper implementation in BOTH
+// extend.MultiKeyStreamingGrouper implementation in BOTH
 // directions — mirroring the Streamable/OnlineAggregator check in
 // probeAggregators — because a fan-out grouper the per-record-
 // denominator gates cannot see produces a silently inflated n. A
@@ -117,7 +117,7 @@ func probeGroupers(regs []GrouperRegistration) error {
 		if err != nil {
 			return err
 		}
-		_, observedFansOut := instance.(processing.MultiKeyStreamingGrouper)
+		_, observedFansOut := instance.(extend.MultiKeyStreamingGrouper)
 		if reg.FansOut != observedFansOut {
 			return grouperFanOutMismatch(reg, observedFansOut)
 		}
@@ -219,9 +219,9 @@ func probeAttributes(regs []AttributeRegistration) error {
 func grouperFanOutMismatch(reg GrouperRegistration, observed bool) error {
 	var msg string
 	if reg.FansOut {
-		msg = fmt.Sprintf("grouper %q declares FansOut=true but factory does not return processing.MultiKeyStreamingGrouper", reg.Name)
+		msg = fmt.Sprintf("grouper %q declares FansOut=true but factory does not return extend.MultiKeyStreamingGrouper", reg.Name)
 	} else {
-		msg = fmt.Sprintf("grouper %q declares FansOut=false but factory returns processing.MultiKeyStreamingGrouper", reg.Name)
+		msg = fmt.Sprintf("grouper %q declares FansOut=false but factory returns extend.MultiKeyStreamingGrouper", reg.Name)
 	}
 	return errors.NewCodedErrorWithDetails(
 		errors.PULSE_EXTENSION_FANOUT_MISMATCH,
@@ -231,7 +231,7 @@ func grouperFanOutMismatch(reg GrouperRegistration, observed bool) error {
 			"name":     string(reg.Name),
 			"declared": reg.FansOut,
 			"observed": observed,
-			"required": "processing.MultiKeyStreamingGrouper",
+			"required": "extend.MultiKeyStreamingGrouper",
 		},
 	)
 }
@@ -313,7 +313,7 @@ func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema) (ins
 
 // safeBuildGrouper invokes a grouper factory under a deferred recover
 // with the same contract as safeBuildAggregator.
-func safeBuildGrouper(reg GrouperRegistration, schema *encoding.Schema) (instance processing.Grouper, err error) {
+func safeBuildGrouper(reg GrouperRegistration, schema *encoding.Schema) (instance extend.Grouper, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -345,7 +345,7 @@ func safeBuildGrouper(reg GrouperRegistration, schema *encoding.Schema) (instanc
 // safeBuildFilterer invokes a filterer factory under a deferred recover
 // with the same contract as safeBuildAggregator. Filterer factories take
 // no arguments — they always return a fresh FiltererBuilder.
-func safeBuildFilterer(reg FiltererRegistration) (builder processing.FiltererBuilder, err error) {
+func safeBuildFilterer(reg FiltererRegistration) (builder extend.FiltererBuilder, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -392,7 +392,7 @@ func safeInvokeAggregatorComponents(reg AggregatorRegistration, instance extend.
 
 // safeInvokeGrouperComponents mirrors safeInvokeAggregatorComponents
 // for grouper registrations.
-func safeInvokeGrouperComponents(reg GrouperRegistration, instance processing.Grouper) (out map[string]any, err error) {
+func safeInvokeGrouperComponents(reg GrouperRegistration, instance extend.Grouper) (out map[string]any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -415,7 +415,7 @@ func safeInvokeGrouperComponents(reg GrouperRegistration, instance processing.Gr
 
 // safeInvokeFiltererComponents mirrors safeInvokeAggregatorComponents
 // for filterer registrations.
-func safeInvokeFiltererComponents(reg FiltererRegistration, builder processing.FiltererBuilder) (out map[string]any, err error) {
+func safeInvokeFiltererComponents(reg FiltererRegistration, builder extend.FiltererBuilder) (out map[string]any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(

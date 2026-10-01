@@ -483,11 +483,11 @@ func stubAttributeFactory(*types.Attribute, *encoding.Schema) (processing.Attrib
 
 type stubFilter struct{}
 
-func (stubFilter) Build(*types.Filterer, *encoding.Schema) (processing.FilterFunc, error) {
-	return func(*processing.Record) (bool, error) { return true, nil }, nil
+func (stubFilter) Build(*types.Filterer, *encoding.Schema) (extend.FilterFunc, error) {
+	return func(extend.Record) (bool, error) { return true, nil }, nil
 }
 
-func stubFiltererFactory() processing.FiltererBuilder { return stubFilter{} }
+func stubFiltererFactory() extend.FiltererBuilder { return stubFilter{} }
 
 type stubRowTest struct{}
 
