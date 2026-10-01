@@ -39,11 +39,11 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#192** `PredictResult.CrosstabFusable` (no-execute) with a runtime parity gate against the engine's fusion check; payload-schema golden regenerated, `format_version` stays `"1.1"` · [U02c](units/U02c-cohort-facade.md)
 
 ### Release pipeline ([api-and-release 01](v1.0.0-api-and-release/01-release-pipeline.md))
-- [ ] **#5** `internal/buildinfo` + `pulse.Version()`; ldflags injection; `ReadBuildInfo` fallback; `make build` uses `git describe` · [U01](units/U01-release-pipeline.md)
-- [ ] **#6** `pulse version` / `--version`; `mcpserve` and `gosdk` default to the real version (remove hard-coded `"1.0.0"`); manifest `pulse_version` · [U01](units/U01-release-pipeline.md)
-- [ ] **#7** Gate against hard-coded version literals · [U01](units/U01-release-pipeline.md)
-- [ ] **#8** `ci.yml` callable; `release.yml` on `v*` tags gated on CI · [U01](units/U01-release-pipeline.md)
-- [ ] **#9** Binaries for linux / darwin / windows × amd64 / arm64, plus checksums; uploaded to the GitHub Release (created with generated notes only when none exists; `-` tags marked pre-release) · [U01](units/U01-release-pipeline.md)
+- [x] **#5** `internal/buildinfo` + `pulse.Version()`; ldflags injection; `ReadBuildInfo` fallback; `make build` uses `git describe` · [U01](units/U01-release-pipeline.md)
+- [x] **#6** `pulse version` / `--version`; `mcpserve` and `gosdk` default to the real version (remove hard-coded `"1.0.0"`); manifest `pulse_version` · [U01](units/U01-release-pipeline.md)
+- [x] **#7** Gate against hard-coded version literals · [U01](units/U01-release-pipeline.md)
+- [x] **#8** `ci.yml` callable; `release.yml` on `v*` tags gated on CI · [U01](units/U01-release-pipeline.md)
+- [x] **#9** Binaries for linux / darwin / windows × amd64 / arm64, plus checksums; uploaded to the GitHub Release (created with generated notes only when none exists; `-` tags marked pre-release) · [U01](units/U01-release-pipeline.md)
 
 ---
 

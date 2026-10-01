@@ -4,7 +4,7 @@ slug: release-pipeline
 title: "Every build knows its real version, and a pushed tag ships binaries"
 track: API & release
 size: S
-status: in-progress
+status: done
 depends_on: []
 soft_depends_on: []
 blocks: [U32]
@@ -29,11 +29,11 @@ Fix version reporting: today `cmd/pulse` reports `"dev"` because `LDFLAGS` never
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#5** (1. API surface & release pipeline › Release pipeline) `internal/buildinfo` + `pulse.Version()`; ldflags injection; `ReadBuildInfo` fallback; `make build` uses `git describe`
-- [ ] **#6** (1. API surface & release pipeline › Release pipeline) `pulse version` / `--version`; `mcpserve` and `gosdk` default to the real version (remove hard-coded `"1.0.0"`); manifest `pulse_version`
-- [ ] **#7** (1. API surface & release pipeline › Release pipeline) Gate against hard-coded version literals
-- [ ] **#8** (1. API surface & release pipeline › Release pipeline) `ci.yml` callable; `release.yml` on `v*` tags gated on CI
-- [ ] **#9** (1. API surface & release pipeline › Release pipeline) Binaries for linux / darwin / windows × amd64 / arm64, plus checksums; uploaded to the GitHub Release (created with generated notes only when none exists; `-` tags marked pre-release)
+- [x] **#5** (1. API surface & release pipeline › Release pipeline) `internal/buildinfo` + `pulse.Version()`; ldflags injection; `ReadBuildInfo` fallback; `make build` uses `git describe`
+- [x] **#6** (1. API surface & release pipeline › Release pipeline) `pulse version` / `--version`; `mcpserve` and `gosdk` default to the real version (remove hard-coded `"1.0.0"`); manifest `pulse_version`
+- [x] **#7** (1. API surface & release pipeline › Release pipeline) Gate against hard-coded version literals
+- [x] **#8** (1. API surface & release pipeline › Release pipeline) `ci.yml` callable; `release.yml` on `v*` tags gated on CI
+- [x] **#9** (1. API surface & release pipeline › Release pipeline) Binaries for linux / darwin / windows × amd64 / arm64, plus checksums; uploaded to the GitHub Release (created with generated notes only when none exists; `-` tags marked pre-release)
 
 ## Scope
 
@@ -69,10 +69,10 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(release-pipeline/
 
 ## Acceptance criteria
 
-- [ ] `pulse --version` on a release artifact prints the tag; a `go install …@vX.Y.Z` build prints `vX.Y.Z`; a local build prints `git describe` output
-- [ ] The MCP `initialize` response advertises the real version; no source file under `mcpserve`, `mcp/gosdk` or `cmd/pulse` contains a hard-coded semver
-- [ ] Pushing a tag on a commit with failing tests produces **no** release (verified by the `needs:` wiring); pushing on a green commit produces a release with 6 archives + checksums
-- [ ] A `-rc.N` tag is marked as a pre-release
+- [ ] `pulse --version` on a release artifact prints the tag; a `go install …@vX.Y.Z` build prints `vX.Y.Z`; a local build prints `git describe` output (validated at finalize via `v1.0.0-alpha.0`)
+- [x] The MCP `initialize` response advertises the real version; no source file under `mcpserve`, `mcp/gosdk` or `cmd/pulse` contains a hard-coded semver
+- [ ] Pushing a tag on a commit with failing tests produces **no** release (verified by the `needs:` wiring); pushing on a green commit produces a release with 6 archives + checksums (validated at finalize via `v1.0.0-alpha.0`)
+- [ ] A `-rc.N` tag is marked as a pre-release (validated at finalize via `v1.0.0-alpha.0`)
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
