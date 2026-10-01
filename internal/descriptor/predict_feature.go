@@ -17,7 +17,7 @@ import (
 // schema field names and operator-emitted labels; downstream validators
 // (filters, attributes, groupers, aggregators) test references against it.
 //
-// This file does not import processing/feature — that would couple
+// This file does not import internal/processing/feature — that would couple
 // validation to execution. Operator output naming is duplicated here as a
 // pure function; the feature-engineering skill documents the contract and
 // CI gates verify the operator set is documented.
@@ -276,7 +276,7 @@ func validateBucketizeParams(env *descriptor.Envelope, feat *types.Feature) {
 }
 
 // validatePolyParams checks FEAT_POLY's Degree param: required, ≥2, ≤10.
-// Mirrors processing/feature/poly.go's factory checks so predict can
+// Mirrors internal/processing/feature/poly.go's factory checks so predict can
 // surface the same diagnostic without executing.
 func validatePolyParams(env *descriptor.Envelope, feat *types.Feature) {
 	if len(feat.Params) == 0 {
@@ -367,7 +367,7 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 }
 
 // featureOutputLabels returns the output column names a feature emits.
-// Mirrors the operator implementations in processing/feature; CI does not
+// Mirrors the operator implementations in internal/processing/feature; CI does not
 // statically verify the agreement, but the integration tests round-trip
 // each operator end to end.
 func featureOutputLabels(feat *types.Feature, schema *encoding.Schema) []string {

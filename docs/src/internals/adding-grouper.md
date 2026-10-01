@@ -29,8 +29,8 @@ func AllGroupTypes() []GroupType {
 
 ## 2. Implement and register
 
-Implement the grouper in `processing/`. Register the factory in
-`grouperRegistry` (`processing/registry.go`). The interface choice
+Implement the grouper in `internal/processing/`. Register the factory in
+`grouperRegistry` (`internal/processing/registry.go`). The interface choice
 depends on whether the grouper can run in the streaming path:
 
 - **`Grouper`** — buffered-only. `Group(rows)` returns a slice of
@@ -46,7 +46,7 @@ depends on whether the grouper can run in the streaming path:
 
 ## 3. Tests
 
-Add tests in `processing/grouper_test.go` (or the per-grouper test
+Add tests in `internal/processing/grouper_test.go` (or the per-grouper test
 file) before the implementation. Cover empty input, single-value
 input, null-bearing input, the `Include` filter slot if your grouper
 honours it, and the streaming-vs-buffered parity assertions where
@@ -131,7 +131,7 @@ Embedder extensions implement the same `MetaGrouper` interface via
 ## 7. The `Include` inclusion-list slot
 
 If your grouper honours an `Include` whitelist of allowed bucket
-labels, update `processing/grouper.go` + `processing/grouper_set.go`
+labels, update `internal/processing/grouper.go` + `internal/processing/grouper_set.go`
 so the include filter is applied at key-emission time, not on the
 output table after the fact. The contract is enforced by the
 following gates:

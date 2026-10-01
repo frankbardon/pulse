@@ -119,4 +119,4 @@ pulse --json | jq '.data.operators[] | select(.name == "FEAT_BUCKETIZE")'
   agent discovery primitives
 - [Library: pulse.Manifest](../library/overview.md) — Go counterpart
 - [Internals: Architecture](../internals/architecture.md) — why the
-  manifest cannot import `internal/service/` or `processing/`
+  manifest cannot import `internal/service/` or `internal/processing/`

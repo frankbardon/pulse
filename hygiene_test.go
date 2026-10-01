@@ -274,7 +274,8 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 //	internal/descriptor/  >= 95%
 //	internal/skills/      >= 95%
 //	errors/      >= 90%
-//	processing/  >= 85%
+//	internal/processing/  >= 85%
+//	extend/      >= 85%
 //	internal/io/csv/      >= 85%
 //	internal/io/tsv/      >= 85%
 //	internal/io/ndjson/   >= 85%
@@ -292,7 +293,8 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 		"internal/descriptor": 95,
 		"internal/skills":     95,
 		"errors":              90,
-		"processing":          85,
+		"internal/processing": 85,
+		"extend":              85,
 		"internal/io/csv":     85,
 		"internal/io/tsv":     85,
 		"internal/io/ndjson":  85,
@@ -303,8 +305,8 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 	}
 
 	// Verify the floor map is non-empty (structural sanity check).
-	if len(floors) != 14 {
-		t.Errorf("expected 14 coverage floor entries, got %d", len(floors))
+	if len(floors) != 15 {
+		t.Errorf("expected 15 coverage floor entries, got %d", len(floors))
 	}
 
 	// Verify each package directory exists.

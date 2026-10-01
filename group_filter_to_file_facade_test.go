@@ -9,8 +9,8 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/io/csv"
+	"github.com/frankbardon/pulse/internal/processing"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )

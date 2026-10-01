@@ -10,7 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )

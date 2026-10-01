@@ -29,9 +29,9 @@ func AllFiltererTypes() []FiltererType {
 
 ## 2. Implement and register
 
-Implement the filterer in `processing/`. Each filterer is a factory
+Implement the filterer in `internal/processing/`. Each filterer is a factory
 that returns a `FiltererBuilder` — register it in `filtererRegistry`
-(`processing/registry.go`).
+(`internal/processing/registry.go`).
 
 The builder produces a per-record `FilterFunc` that returns
 `(keep bool, err error)`. The streaming Process path invokes the
@@ -40,7 +40,7 @@ materialised record.
 
 ## 3. Tests
 
-Add tests in `processing/filterer_test.go` before the implementation.
+Add tests in `internal/processing/filterer_test.go` before the implementation.
 Cover both the include and exclude branches, the null-handling
 contract, and any error path.
 

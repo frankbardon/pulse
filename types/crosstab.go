@@ -648,7 +648,7 @@ func (s *CrosstabSpec) LowerGrandOnly(src *Request) *Request {
 
 // CellLabel returns the output label the cell aggregation would emit in
 // a long-form result row. Mirrors processing.AggregationLabel without
-// importing processing/.
+// importing internal/processing/.
 func (s *CrosstabSpec) CellLabel() string {
 	if s == nil {
 		return ""
@@ -659,7 +659,7 @@ func (s *CrosstabSpec) CellLabel() string {
 // AggregationLabelOf returns the output label an aggregation emits in a
 // long-form result row: the explicit Label when set, otherwise
 // TYPE_field. Mirrors processing.AggregationLabel without importing
-// processing/ (types must stay dependency-free). A nil aggregation
+// internal/processing/ (types must stay dependency-free). A nil aggregation
 // yields the empty string.
 func AggregationLabelOf(a *Aggregation) string {
 	if a == nil {

@@ -14,7 +14,7 @@ import (
 
 // Predict-time AST identifier validation for OVERLAY_FORMULA — the no-
 // execute descriptor mirror of the runtime evaluator wiring in
-// `processing/overlay_formula.go`. Implements the algorithm laid out in
+// `internal/processing/overlay_formula.go`. Implements the algorithm laid out in
 // the research note
 // `.planning/result-overlay-system/research/formula-namespace.md` § 3:
 //
@@ -55,11 +55,11 @@ import (
 // Structural invariants (CLAUDE.md "Predict / Inspect contracts" +
 // "What NOT to Do"):
 //
-//   - This file MUST NOT import `internal/service/` or `processing/`. The AST
+//   - This file MUST NOT import `internal/service/` or `internal/processing/`. The AST
 //     walker uses `expr-lang/expr/parser` + `expr-lang/expr/ast`
 //     directly — the same packages `processing.NeededFields` uses for
 //     `ATTR_FORMULA` projection. Both packages live outside `internal/service/`
-//     and `processing/` so the no-execute import gate stays clean.
+//     and `internal/processing/` so the no-execute import gate stays clean.
 //   - No `fmt.Sprintf` in any JSON-bearing path. Error messages are
 //     built with string concatenation; Details maps go through
 //     `encoding/json` downstream.

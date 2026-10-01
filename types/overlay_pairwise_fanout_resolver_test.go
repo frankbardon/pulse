@@ -8,7 +8,7 @@ import "testing"
 // top of it.
 //
 // Both gate arms delegate here — descriptor/ adapts the extensions
-// snapshot, processing/ adapts the live registry — so the order lives
+// snapshot, internal/processing/ adapts the live registry — so the order lives
 // in ONE place and the two cannot resolve the same name differently.
 
 // TestResolveBuiltinGroupFanOut_ThreeWay pins the distinction

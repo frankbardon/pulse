@@ -36,7 +36,7 @@ For a cohort newer than `0x01`, `InspectResult` adds `layout` (`pulse_format_ver
 
 ## Predict
 
-`internal/descriptor/predict.go` MUST NOT import `internal/service/` or `processing/` — gated by `TestPredictNoExecutionImports`. Predict duplicates operator knowledge on purpose; reaching for the real implementation to validate params fails the gate.
+`internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/` — gated by `TestPredictNoExecutionImports`. Predict duplicates operator knowledge on purpose; reaching for the real implementation to validate params fails the gate.
 
 `PredictResult.Streamable` mirrors the per-type `Streamable()` methods plus schema gates (decimal); an extension operator answers from its DECLARED registration flag on the `ExtensionsSnapshot` (attributes: `Mode`, whose `two_pass` also trips the two-pass combination gates), which is exactly what the runtime routes on. Runtime parity is asserted against `processing.CanStreamRequest(req, schema)` by `TestPredict_Streamable_MatchesRuntime`, and for extension requests against `processing.CanStreamRequestWithExtensions(req, schema, exts)` by `TestExtensions_StreamabilityFollowsDeclaration`. `DefaultsApplied` is always computed, whatever the request.
 

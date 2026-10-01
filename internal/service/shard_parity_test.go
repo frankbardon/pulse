@@ -134,7 +134,7 @@ func TestShardParity_SingleFileVsArchiveVsAnchor(t *testing.T) {
 
 // assertResponseParity compares two responses row-by-row in index
 // order. Grouped output is sorted by group key at emit time in
-// processing/processor.go, so row order is deterministic across
+// internal/processing/processor.go, so row order is deterministic across
 // runs, codepaths, and worker counts. Float cells use a ULP
 // tolerance (Welford-merged means drift within a few ULP across the
 // parallel reduce path; associative integer ops are byte-equal).

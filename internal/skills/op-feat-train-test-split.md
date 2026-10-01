@@ -25,7 +25,7 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Output
 
-One `u8`-valued `f64` column at `Label` (default `split`), from `processing/feature`: `feature.SplitTrain = 0`, `feature.SplitVal = 1`, `feature.SplitTest = 2`.
+One `u8`-valued `f64` column at `Label` (default `split`), from `internal/processing/feature`: `feature.SplitTrain = 0`, `feature.SplitVal = 1`, `feature.SplitTest = 2`.
 
 ## Gotchas
 

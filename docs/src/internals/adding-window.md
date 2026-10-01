@@ -30,7 +30,7 @@ func AllWindowTypes() []WindowType {
 
 ## 2. Implement and register
 
-Window operators live under `processing/window/`. Each file is one
+Window operators live under `internal/processing/window/`. Each file is one
 operator; register the factory in the package's `init()` via the
 `register(types.WIN_X, newX)` call shape used by sibling files.
 
@@ -66,7 +66,7 @@ window operator.
 
 ## 5. Tests
 
-Add tests in `processing/window/<name>_test.go`. Cover the empty-frame,
+Add tests in `internal/processing/window/<name>_test.go`. Cover the empty-frame,
 single-row, null-bearing, and order-sensitive cases.
 
 ## 6. Write the atomic skill

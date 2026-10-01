@@ -313,16 +313,16 @@ func (t GroupType) Streamable() bool {
 // The runtime expression of the same fact is the optional
 // processing.MultiKeyStreamingGrouper interface, asserted on a
 // constructed grouper. That assertion is unreachable from descriptor/
-// (TestPredictNoExecutionImports forbids importing processing/), so
+// (TestPredictNoExecutionImports forbids importing internal/processing/), so
 // the fact is declared here on the type and cross-checked against the
-// runtime interface by TestGrouperFanOutMatchesTypes in processing/.
+// runtime interface by TestGrouperFanOutMatchesTypes in internal/processing/.
 //
 // Consumers that reason about per-record denominators need this:
 // under a fan-out grouper the bucket counts SUM to more than the
 // record total, so an n taken from a slab total double-counts records.
 //
 // The default branch returns false so a newly-added group type must
-// opt in explicitly — and the processing/ parity gate fails if a new
+// opt in explicitly — and the internal/processing/ parity gate fails if a new
 // grouper implements MultiKeyStreamingGrouper without flipping it.
 func (t GroupType) FansOut() bool {
 	switch t {

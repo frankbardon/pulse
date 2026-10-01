@@ -34,9 +34,9 @@ friends) will fail until you add the streamability case in step 4.
 
 ## 2. Implement the aggregator and register it
 
-The operator implementation lives in `processing/`. Write the factory
+The operator implementation lives in `internal/processing/`. Write the factory
 function (`newGini(...)` returning the aggregator interface) and
-register it in `aggregatorRegistry` in `processing/registry.go`.
+register it in `aggregatorRegistry` in `internal/processing/registry.go`.
 
 If the aggregator can update one row at a time, also implement the
 `OnlineAggregator` interface so it joins the streaming Process path.
@@ -45,7 +45,7 @@ Sort-based or sum-of-deviation aggregators (like `AGG_MEDIAN`,
 
 ## 3. Tests
 
-Tests come first: write them in `processing/aggregator_test.go`
+Tests come first: write them in `internal/processing/aggregator_test.go`
 before the implementation, run the suite, confirm they fail
 informatively, then port the implementation until green. See
 [Testing Conventions](../contributing/testing.md).
@@ -137,7 +137,7 @@ runtime; pick whichever fits your aggregator type.
 
 **Sibling interface (preferred for built-in operators).** Implement
 `processing.MetaAggregator` on your aggregator type and add a
-compile-time assertion in `processing/aggregator.go`:
+compile-time assertion in `internal/processing/aggregator.go`:
 
 ```go
 type giniAggregator struct {
@@ -150,11 +150,11 @@ func (g *giniAggregator) Components() (map[string]any, error) {
     }, nil
 }
 
-// In processing/aggregator.go's compile-time assertion block:
+// In internal/processing/aggregator.go's compile-time assertion block:
 var _ MetaAggregator = (*giniAggregator)(nil)
 ```
 
-The assertion list near the bottom of `processing/aggregator.go` is the
+The assertion list near the bottom of `internal/processing/aggregator.go` is the
 grep-discoverable record of which operators emit components. Add the
 new entry so interface drift is caught at build time.
 

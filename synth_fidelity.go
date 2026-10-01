@@ -8,8 +8,8 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/synth"
-	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -50,7 +50,7 @@ import (
 // import descriptor — synth importing processing back would close
 // that loop. pulse.go already imports both packages, so the bridge —
 // and the only implementation of internal/synth.TestRunner — lives here. Every
-// pairwise section needs no processing/ import at all — each is pure
+// pairwise section needs no internal/processing/ import at all — each is pure
 // statistics over already-decoded record values — but stays in this
 // same bridge so the one JSON document is assembled and written in one
 // place.

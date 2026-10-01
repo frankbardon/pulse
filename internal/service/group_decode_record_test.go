@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 )
 
 // TestGroupedDecode_PositionalRecordParity drives the PRODUCTION record

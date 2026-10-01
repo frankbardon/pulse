@@ -5,7 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -157,7 +157,7 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 // diverge"): the stub handlers in `processing.ApplyChainOverlays`
 // skip the divergence check entirely and the layer inherits the target
 // stage's shape; the FIXME comment in
-// `processing/overlay_chain_dispatch.go` documents the deferred
+// `internal/processing/overlay_chain_dispatch.go` documents the deferred
 // surface.
 func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainResponse) error {
 	if len(req.Overlays) == 0 {

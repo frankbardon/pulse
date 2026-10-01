@@ -33,11 +33,13 @@ func TestPredictNoExecutionImports(t *testing.T) {
 
 		source := string(data)
 
-		// Must not import the service package.
+		// Must not import the service package or any part of the engine.
+		// The processing entry is an unterminated prefix so the
+		// feature/, window/, regression/ and arena/ subpackages are
+		// banned along with the root engine package.
 		banned := []string{
 			`"github.com/frankbardon/pulse/internal/service"`,
-			`"github.com/frankbardon/pulse/processing"`,
-			`"github.com/frankbardon/pulse/internal/processing"`,
+			`"github.com/frankbardon/pulse/internal/processing`,
 		}
 		for _, b := range banned {
 			if strings.Contains(source, b) {

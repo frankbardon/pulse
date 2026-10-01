@@ -9,7 +9,7 @@ import (
 )
 
 // Predict-time n_source verdict for OVERLAY_PROP_Z_PANEL. The runtime
-// twin lives in processing/overlay_prop_z_panel_nsource_test.go —
+// twin lives in internal/processing/overlay_prop_z_panel_nsource_test.go —
 // pulse.Compose does not run predict, so a predict-only refusal would
 // let the legacy number escape under a mode name the caller chose.
 

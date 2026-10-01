@@ -132,7 +132,7 @@ func pairwiseSurveyCohort() []pairwiseSurveyRow {
 			if perTuple > 1 {
 				// Uniform-distribution std rule (matches the parity
 				// test's makeParityStream helper at
-				// processing/overlay_t_cell_parity_test.go).
+				// internal/processing/overlay_t_cell_parity_test.go).
 				step = dparams.sd * math.Sqrt(12.0/float64(perTuple*perTuple-1))
 			}
 			mid := float64(perTuple-1) / 2.0

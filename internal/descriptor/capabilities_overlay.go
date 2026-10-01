@@ -37,7 +37,7 @@ import (
 // "What NOT to Do"):
 //
 //   - This file MUST NOT import github.com/frankbardon/pulse/service
-//     or github.com/frankbardon/pulse/processing. Overlay catalog data
+//     or github.com/frankbardon/pulse/internal/processing. Overlay catalog data
 //     lives in types/; capability lookups go through types/ constants.
 //     TestPredictNoExecutionImports gates predict.go and the rest of
 //     the descriptor package follows the same convention.
@@ -510,7 +510,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				// (SERIES binder via grouped Process hosts), and SCALAR
 				// (SCALAR binder via whole-matrix p-value / whole-chain
 				// SCALAR hosts). Runtime dispatch is still MATRIX-only at
-				// v1 via processing/overlay.go; the SERIES + SCALAR host
+				// v1 via internal/processing/overlay.go; the SERIES + SCALAR host
 				// glue lands in a follow-up story. Declaring the full
 				// shape surface here keeps the capability manifest aligned
 				// with the per-shape binders + the predict-time namespace

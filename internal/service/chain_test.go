@@ -10,7 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fs"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -669,7 +669,7 @@ func build3StageCohort(t *testing.T) *fs.Config {
 //
 // The runtime encodes row keys as 1-element AxisKey values
 // ({keyStr}) per applyIndexVsStageSeries / applyDeltaVsStageSeries
-// (see processing/overlay_index_vs_stage.go), so the helper indexes
+// (see internal/processing/overlay_index_vs_stage.go), so the helper indexes
 // by the first element of each Entry.Key.
 func seriesLayerValuesByKey(t *testing.T, layer *types.OverlayLayer) map[string]float64 {
 	t.Helper()

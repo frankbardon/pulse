@@ -220,7 +220,7 @@ func snapshotHasName(metas []descriptor.OperatorMeta, name string) bool {
 // a grouper at all. Nil-snapshot-safe: ok=false.
 //
 // This is the descriptor half of the bridge that keeps predict free of
-// internal/service/ and processing/ imports (TestPredictNoExecutionImports).
+// internal/service/ and internal/processing/ imports (TestPredictNoExecutionImports).
 // The runtime half is processing.ExtensionRegistry.GrouperFanOut; both
 // feed types.CheckPairwiseSlabPartitionWith, which owns the built-in-
 // first resolution order so the two arms cannot drift.

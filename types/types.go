@@ -52,7 +52,7 @@ const (
 	// FIRST VALUE WINS: when one key carries conflicting values across
 	// its records, the first value observed is the one summed and every
 	// later value for that key is ignored. See the aggregator's own doc
-	// comment in processing/aggregator_distinct_sum.go.
+	// comment in internal/processing/aggregator_distinct_sum.go.
 	//
 	// Components() additionally emits the DISTINCT COUNT alongside the
 	// sum, so one operator yields both figures from one scan and the

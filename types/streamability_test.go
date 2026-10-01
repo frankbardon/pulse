@@ -246,7 +246,7 @@ func TestStreamability_GroupsKnown(t *testing.T) {
 // group type. Adding a GroupType without deciding its fan-out status
 // fails here; the runtime half of the contract (does the constructed
 // grouper implement processing.MultiKeyStreamingGrouper?) is asserted
-// by TestGrouperFanOutMatchesTypes in processing/.
+// by TestGrouperFanOutMatchesTypes in internal/processing/.
 func TestGroupFanOutKnown(t *testing.T) {
 	expected := map[GroupType]bool{
 		GROUP_CATEGORY:    false,

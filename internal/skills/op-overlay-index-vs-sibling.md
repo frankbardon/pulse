@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — grouped Process host. Ratio twin of `OVERLAY_DELTA_VS_SIBLING`. Sibling resolved via `processing/overlay_sibling_resolver.go`.
+SERIES — grouped Process host. Ratio twin of `OVERLAY_DELTA_VS_SIBLING`. Sibling resolved via `internal/processing/overlay_sibling_resolver.go`.
 
 ## Output
 

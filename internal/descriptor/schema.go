@@ -34,7 +34,7 @@ const (
 // The schema is generated three ways, not hand-maintained:
 //
 //  1. Reflection over the Go payload structs (descriptor stays free of
-//     internal/service/ and processing/ imports — only types + this package). A
+//     internal/service/ and internal/processing/ imports — only types + this package). A
 //     struct field change surfaces as a golden diff, forcing a regen.
 //  2. Registry-injected enums: the high-cardinality discriminant enums
 //     (operator + overlay-kind + regression families) draw their value

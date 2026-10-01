@@ -11,7 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/spf13/afero"
 )
 

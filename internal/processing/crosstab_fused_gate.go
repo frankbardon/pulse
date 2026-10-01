@@ -1,0 +1,398 @@
+package processing
+
+import (
+	"fmt"
+
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/types"
+)
+
+// CanFuseCrosstab reports whether a crosstab request is eligible for
+// the fused in-decode execution path that materializes per-cell state
+// while iterating records — bypassing the full buffered Row materializa-
+// tion the standard processCrosstab path uses today. Pure predicate: no
+// side effects, no execution.
+//
+// Naming mirrors CanMergeRequest / CanStreamRequest / CanChainRequest.
+// The returned reason string is short and operator-specific so callers
+// (dispatch in internal/service/crosstab.go, predict surfaces in a follow-up)
+// can surface a human-readable explanation without re-deriving the
+// rule.
+//
+// Eligibility = ALL of:
+//
+//   - req.Crosstab != nil — nothing to fuse otherwise.
+//
+//   - The cell aggregator is mergeable per AggregationType.Mergeable().
+//     The fused path folds per-cell online state row-by-row; non-
+//     mergeable aggregators (median/percentile/zscore/skewness/kurtosis)
+//     need a finalize-time sorted view that the fused walk cannot
+//     provide.
+//
+//   - The cell aggregator's MarginReducibility is MarginSummable,
+//     MarginMeanReducible, or MarginIndependent. MarginRecompute
+//     aggregators force a re-scan of raw rows for margin derivation,
+//     which defeats the fused path by construction. The three non-
+//     recompute classes are exactly the aggregators whose margins the
+//     fused walk can satisfy in one pass — the first two because the
+//     margin follows from the cells, MarginIndependent because the
+//     operator keeps its own row / column / grand accumulators, which
+//     FusedCrosstabState already feeds record-by-record.
+//
+//   - Every grouper on req.Crosstab.Rows ∪ req.Crosstab.Columns is
+//     constructable and the resulting instance implements ONE of the
+//     two per-record keying interfaces: StreamableGrouper (a per-record
+//     KeyFor, one bucket per record) or MultiKeyStreamingGrouper (a
+//     per-record KeysForRow, N buckets per record — the
+//     GROUP_SET_PER_ELEMENT fan-out). The static
+//     types.GroupType.Streamable() table is too narrow here — it tracks
+//     Process-level streamability rather than per-record key derivation
+//     (GROUP_DATE is non-streamable at the Process layer but does
+//     implement StreamableGrouper.KeyFor and is therefore fusable). We
+//     consult the actual interfaces via a factory-probe to widen the
+//     gate while still rejecting truly key-non-derivable groupers
+//     (GROUP_QUANTILE, which needs a finalize-time sorted view and
+//     implements neither).
+//
+//   - No req.Features — every FEAT_* operator forces a buffered
+//     pre-filter pass that the fused path skips.
+//
+//   - No req.Attributes of type ATTR_FORMULA with a non-empty
+//     Expression. Expression-runtime field extraction is conservative;
+//     #59 bail rules treat it as a forced widen, which the fused path
+//     can't honour while keeping per-field decode bounds tight.
+//
+//   - No req.Filterers of type FILTER_EXPRESSION (same reason).
+//
+//   - No req.Tests and no req.PostTests. Tier-1 row tests and tier-2
+//     post-tests fold over the buffered row set after aggregation;
+//     the fused path doesn't buffer.
+//
+//   - No extension-bound operator anywhere in the request without a
+//     registered FieldInputs hook. The fused path's projection bound
+//     is built from NeededFields; an opaque extension operator would
+//     widen the projection to "every field", which collapses the fused
+//     path's decode-cost advantage and is treated as ineligible here.
+//
+//   - No mergeable-but-decimal aggregation target on the cell. Decimal-
+//     typed fields aggregate via AggregateDecimalField (the wide
+//     decimal path); Pulse forces buffered for those today and the
+//     fused gate mirrors that constraint.
+//
+//   - Every entry of req.Crosstab.MarginAggregations is mergeable and
+//     does not target a decimal-typed field — the same two checks the
+//     cell gets, for the same two reasons: an auxiliary rides the same
+//     per-record UpdateRow walk (so it must be online, which Mergeable
+//     implies) and the wide decimal path is buffered-only. An auxiliary
+//     that fails either declines fusion rather than being dropped,
+//     because dropping it returns a margin with the requested figure
+//     silently missing.
+//
+//     Their MarginReducibility is deliberately NOT consulted, and that
+//     is not an oversight. The classification answers "can this
+//     aggregator's margin be derived from its CELLS", which is a
+//     question an auxiliary does not have: it has no cells, and both
+//     paths give it its own row / column / grand accumulator fed record
+//     by record. Every auxiliary is therefore MarginIndependent in role
+//     whatever its declared class, and requiring a class here would
+//     decline fusion for a request the fused walk computes exactly.
+//
+// req.Overlays is explicitly NOT an exclusion. Overlays decorate a
+// finalised response and consume no records, so RunCrosstabFused folds
+// them at its exit through the same applyOverlaysToResponse hook the
+// buffered exit uses. An overlay-carrying crosstab is fusable whenever
+// the rest of the request is.
+//
+// Returns (true, "") for an eligible request. Returns (false, reason)
+// for an ineligible one — the reason is intentionally short ("non-
+// mergeable cell aggregator (AGG_MEDIAN)", "stat tests force buffered",
+// "non-streamable grouper on column axis (GROUP_QUANTILE)",
+// "ATTR_FORMULA bail", etc.).
+//
+// The gate is a pure predicate. It does NOT modify req or schema, and
+// it does NOT touch the orchestrator (RunCrosstab / processCrosstab).
+// internal/service/crosstab.go wires the dispatch around the result of this
+// call.
+func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *ExtensionRegistry) (bool, string) {
+	if req == nil {
+		return false, "nil request"
+	}
+	if req.Crosstab == nil {
+		return false, "no crosstab spec"
+	}
+
+	// Cell aggregator must exist; mergeable + scalar margin reducibility.
+	cell := req.Crosstab.Cell
+	if cell == nil {
+		return false, "missing cell aggregator"
+	}
+	if !cell.Type.Mergeable() {
+		return false, fmt.Sprintf("non-mergeable cell aggregator (%s)", cell.Type)
+	}
+	switch cell.Type.MarginReducibility() {
+	case types.MarginSummable, types.MarginMeanReducible, types.MarginIndependent:
+		// fused-eligible. MarginIndependent operators (AGG_DISTINCT_COUNT,
+		// AGG_DISTINCT_SUM) are admitted because the fused walk already
+		// routes every record into independent margin accumulators — the
+		// margin is exact after one pass, so there is nothing to re-scan.
+	default:
+		// MarginRecompute aggregators force a raw-row rescan for margin
+		// derivation — the fused path can't satisfy that without
+		// buffering. Surfaced separately from Mergeable() because a
+		// hypothetical mergeable+recompute aggregator (none today, but
+		// the classification is independent) should still fall out.
+		return false, fmt.Sprintf("recompute-margin cell aggregator (%s)", cell.Type)
+	}
+
+	// Decimal-typed cell field forces the buffered decimal path today.
+	if schema != nil && cell.Field != "" {
+		if f := schema.Field(cell.Field); f != nil && f.Type.IsDecimal() {
+			return false, fmt.Sprintf("decimal128 cell field (%s)", cell.Field)
+		}
+	}
+
+	// Auxiliary margin-only aggregations ride the same per-record
+	// UpdateRow walk as the cell, so the fused path can only accumulate
+	// one that is online (Mergeable implies Streamable implies
+	// OnlineAggregator) and whose field is not decimal-typed. Declining
+	// sends the request to the buffered path, which computes the same
+	// figures from raw rows — the auxiliary is never silently dropped.
+	//
+	// MarginReducibility is not consulted here; see the doc comment.
+	for _, aux := range req.Crosstab.MarginAggregations {
+		if aux == nil || aux.Type == "" {
+			// Structurally malformed. validateCrosstabSpec refuses both
+			// shapes with a coded error on EITHER path, so the gate has
+			// no answer worth giving — declining would only change which
+			// entry point reported the identical error.
+			continue
+		}
+		if !aux.Type.Mergeable() {
+			return false, fmt.Sprintf("non-mergeable margin aggregation (%s)", aux.Type)
+		}
+		if schema != nil && aux.Field != "" {
+			if f := schema.Field(aux.Field); f != nil && f.Type.IsDecimal() {
+				return false, fmt.Sprintf("decimal128 margin aggregation field (%s)", aux.Field)
+			}
+		}
+	}
+
+	// Every grouper on either axis must implement StreamableGrouper or
+	// MultiKeyStreamingGrouper. Probe-construct via the registry's
+	// factory and assert the interfaces — this widens past the
+	// conservative types.GroupType.Streamable() table to admit
+	// per-record-keyable groupers like GROUP_DATE and per-record
+	// fan-out groupers like GROUP_SET_PER_ELEMENT, while still
+	// rejecting GROUP_QUANTILE (which has no per-record key
+	// derivation at all).
+	if reason, ok := axisStreamable(req.Crosstab.Rows, schema, ext, "row"); !ok {
+		return false, reason
+	}
+	if reason, ok := axisStreamable(req.Crosstab.Columns, schema, ext, "column"); !ok {
+		return false, reason
+	}
+
+	// Features force a buffered pre-filter pass.
+	if len(req.Features) > 0 {
+		return false, "features force buffered"
+	}
+
+	// Tier-1 row tests and tier-2 post-tests fold over the buffered row
+	// set after aggregation — the fused path doesn't buffer.
+	if len(req.Tests) > 0 || len(req.PostTests) > 0 {
+		return false, "stat tests force buffered"
+	}
+
+	// NOTE: req.Overlays is deliberately NOT an exclusion. The overlay
+	// fold (internal/processing/crosstab.go applyOverlaysToResponse) consumes no
+	// records — it reads only the finalised resp.Crosstab.Matrix and
+	// resp.Components.Crosstab, both of which
+	// FusedCrosstabState.Finalize produces. RunCrosstabFused calls the
+	// same hook the buffered exit calls, so Response.Overlays is
+	// populated identically on either path. This does NOT make any
+	// OverlayKind streamable: types.OverlayStreamability answers
+	// whether a kind can be computed INSIDE the streaming pass, and a
+	// post-Finalize fold is not that — every row of that table stays
+	// false and nothing in the fused path reads it.
+
+	// ATTR_FORMULA with a non-empty expression bails the projection
+	// extractor when the expression is malformed; even when it parses,
+	// the fused path can't keep its decode bound tight under
+	// expression-runtime field access.
+	for _, a := range req.Attributes {
+		if a == nil {
+			continue
+		}
+		if a.Type == types.ATTR_FORMULA && a.Expression != "" {
+			return false, "ATTR_FORMULA bail"
+		}
+	}
+
+	// FILTER_EXPRESSION bails for the same reason as ATTR_FORMULA.
+	for _, f := range req.Filterers {
+		if f == nil {
+			continue
+		}
+		if f.Type == types.FILTER_EXPRESSION {
+			return false, "FILTER_EXPRESSION bail"
+		}
+	}
+
+	// Extension operators without a registered FieldInputs hook force
+	// the projection extractor to widen to "every field". The fused
+	// path's per-record decode budget depends on a tight projection,
+	// so we treat unintrospectable extensions as ineligible. Built-in
+	// operators are not stored in the overlay maps; only extension-
+	// resolved entries are walked here.
+	if ext != nil {
+		if reason, ok := unintrospectableExtension(req, ext); !ok {
+			return false, reason
+		}
+	}
+
+	return true, ""
+}
+
+// axisStreamable probe-constructs each grouper on an axis via the
+// registry factory and asserts that the resulting instance implements
+// one of the two per-record keying interfaces — StreamableGrouper
+// (one bucket key per record) or MultiKeyStreamingGrouper (N bucket
+// keys per record, the GROUP_SET_PER_ELEMENT fan-out). Either shape is
+// admissible; only a grouper implementing neither is rejected. The
+// probe is cheap — built-in grouper factories validate Params (e.g.
+// GROUP_DATE's component / fiscal_offset) and stash the field name or
+// dictionary, but do not touch records.
+//
+// Kept in lockstep with buildStreamableAxis (crosstab_fused.go), which
+// probes the same interfaces to build the long-lived instances:
+// anything admitted here must construct there.
+//
+// Returns ("", true) when every grouper is keyable. Returns
+// (reason, false) on the first miss, with the reason in the same shape
+// the previous types.GroupType.Streamable()-based gate produced:
+// "non-streamable grouper on <axis> axis (<TYPE>)". The reason wording
+// is retained verbatim — it is an internal diagnostic string, never a
+// coded error, and downstream tests key off its shape. An unknown
+// grouper type (factory miss) likewise disqualifies the request — the
+// runtime would have errored a moment later anyway.
+//
+// axisName is the human-readable axis label embedded in the reason
+// string ("row" / "column").
+func axisStreamable(axis []*types.Group, schema *encoding.Schema, ext *ExtensionRegistry, axisName string) (string, bool) {
+	for _, g := range axis {
+		if g == nil {
+			return fmt.Sprintf("nil grouper on %s axis", axisName), false
+		}
+		factory, ok := ext.LookupGrouper(g.Type)
+		if !ok {
+			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
+		}
+		instance, err := factory(g, schema)
+		if err != nil {
+			// Construction failure surfaces as a buffered fallback —
+			// the buffered path's RunCrosstab will surface the same
+			// error with a richer code, and the gate just needs to
+			// decline fusion. Mirror the reason shape the other branches return.
+			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
+		}
+		// Must run BEFORE the interface assertion: a named range
+		// `table:` on GROUP_DATE_RANGES resolves lazily through the
+		// ExtensionAware hook.
+		ApplyGrouperExtensions(instance, ext)
+		_, single := instance.(StreamableGrouper)
+		_, multi := instance.(MultiKeyStreamingGrouper)
+		if !single && !multi {
+			return fmt.Sprintf("non-streamable grouper on %s axis (%s)", axisName, g.Type), false
+		}
+	}
+	return "", true
+}
+
+// unintrospectableExtension scans every operator slot in req against
+// the extension overlay and reports the first extension operator that
+// is registered without a FieldInputs hook. Returns ("", true) when
+// every extension operator is introspectable (or no extension
+// operators are present); returns (reason, false) on the first miss.
+//
+// The category labels match StreamabilityKey conventions so the reason
+// string lines up with the registration error surface.
+func unintrospectableExtension(req *types.Request, ext *ExtensionRegistry) (string, bool) {
+	check := func(category, name string) (string, bool) {
+		if _, ok := ext.FieldInputs[StreamabilityKey(category, name)]; ok {
+			return "", true
+		}
+		return fmt.Sprintf("extension %s %s without FieldInputs", category, name), false
+	}
+
+	for _, a := range req.Aggregations {
+		if a == nil {
+			continue
+		}
+		if _, custom := ext.Aggregators[a.Type]; custom {
+			if reason, ok := check("aggregator", string(a.Type)); !ok {
+				return reason, false
+			}
+		}
+	}
+	if req.Crosstab != nil && req.Crosstab.Cell != nil {
+		a := req.Crosstab.Cell
+		if _, custom := ext.Aggregators[a.Type]; custom {
+			if reason, ok := check("aggregator", string(a.Type)); !ok {
+				return reason, false
+			}
+		}
+	}
+	for _, a := range req.Attributes {
+		if a == nil {
+			continue
+		}
+		if _, custom := ext.Attributes[a.Type]; custom {
+			if reason, ok := check("attribute", string(a.Type)); !ok {
+				return reason, false
+			}
+		}
+	}
+	for _, f := range req.Filterers {
+		if f == nil {
+			continue
+		}
+		if _, custom := ext.Filterers[f.Type]; custom {
+			if reason, ok := check("filterer", string(f.Type)); !ok {
+				return reason, false
+			}
+		}
+	}
+	for _, g := range req.Groups {
+		if g == nil {
+			continue
+		}
+		if _, custom := ext.Groupers[g.Type]; custom {
+			if reason, ok := check("grouper", string(g.Type)); !ok {
+				return reason, false
+			}
+		}
+	}
+	if req.Crosstab != nil {
+		for _, g := range req.Crosstab.Rows {
+			if g == nil {
+				continue
+			}
+			if _, custom := ext.Groupers[g.Type]; custom {
+				if reason, ok := check("grouper", string(g.Type)); !ok {
+					return reason, false
+				}
+			}
+		}
+		for _, g := range req.Crosstab.Columns {
+			if g == nil {
+				continue
+			}
+			if _, custom := ext.Groupers[g.Type]; custom {
+				if reason, ok := check("grouper", string(g.Type)); !ok {
+					return reason, false
+				}
+			}
+		}
+	}
+	return "", true
+}

@@ -232,7 +232,7 @@ func testCapabilities() []descriptor.TestMeta {
 }
 
 // postTestCapabilities returns metadata for the tier-2 post-test variants
-// registered in processing/test_post*.go. Each entry has Tier=2 and a
+// registered in internal/processing/test_post*.go. Each entry has Tier=2 and a
 // non-empty Variant; the natively-tier-2 TREND / TUKEY_HSD entries live in
 // testCapabilities() above with Tier=2.
 func postTestCapabilities() []descriptor.TestMeta {

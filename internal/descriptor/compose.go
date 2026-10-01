@@ -15,7 +15,7 @@ import (
 // requires record-level visibility the no-execute path does not have.
 //
 // The validator stays inside descriptor/ — no service / processing
-// import. The helpers that mirror processing/-side normalisers
+// import. The helpers that mirror internal/processing/-side normalisers
 // (kindRequiresMatrix, ResolveComposeSlots's default-label rule, and
 // the inferred per-slot shape) are duplicated here under the
 // no-execute structural ban; the per-helper sync tests in
@@ -99,7 +99,7 @@ func ValidateCompose(req *types.ComposedRequest) *descriptor.Envelope {
 // options in reach — today that means PredictOptions.Extensions, the
 // read-only snapshot through which an embedder-registered grouper's
 // fan-out declaration reaches the panel's within-prefix slab gate.
-// descriptor/ may not import processing/, so the snapshot is the only
+// descriptor/ may not import internal/processing/, so the snapshot is the only
 // route; the runtime twin reads the live registry instead and both
 // hand their resolver to the same types-side predicate.
 //
@@ -130,7 +130,7 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 
 	// Build slot label → (slot index, *Request) lookup. Mirrors the
 	// runtime composeDefaultLabel rule in
-	// processing/compose_overlay_resolve.go: empty Label →
+	// internal/processing/compose_overlay_resolve.go: empty Label →
 	// "request_<i+1>" (1-based). Collisions are reported the same
 	// way the runtime applyComposeLabelDefaults does so the
 	// descriptor surface stays parity-true.
@@ -425,7 +425,7 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		// column axis grouper-kind tuples drawn from each slot's
 		// *types.Request directly — descriptor.ValidateCompose runs
 		// before any execution so the post-execution
-		// extractSchemaShape (processing/) would have no Response
+		// extractSchemaShape (internal/processing/) would have no Response
 		// to read; the per-Request inference reads the same per-
 		// grouper Kind tuples the matrix RowHeader / ColumnHeader
 		// types would have echoed.
@@ -510,7 +510,7 @@ func composeBuildLabelIndex(req *types.ComposedRequest) (map[string]*types.Reque
 }
 
 // composeDescriptorDefaultLabel returns the synthesised default label
-// for the slot at index i. Mirrors processing/compose_overlay_resolve.go's
+// for the slot at index i. Mirrors internal/processing/compose_overlay_resolve.go's
 // composeDefaultLabel — both produce "request_<i+1>" (1-based). The two
 // implementations are intentionally duplicated under the no-execute
 // structural ban; TestComposeDescriptorDefaultLabel_MatchesProcessingHelper
@@ -563,11 +563,11 @@ func composeKindIsPanel(kind types.OverlayKind) bool {
 }
 
 // kindRequiresMatrixCompose mirrors processing.kindRequiresMatrix from
-// processing/compose_overlay_schemamatch.go. The catalog row is
+// internal/processing/compose_overlay_schemamatch.go. The catalog row is
 // duplicated under the no-execute structural ban; the
 // TestKindRequiresMatrixCompose_MatchesProcessing sync test in
 // compose_test.go pins the two surfaces in lockstep so a new
-// matrix-required kind cannot land in processing/ without updating
+// matrix-required kind cannot land in internal/processing/ without updating
 // this row too.
 func kindRequiresMatrixCompose(kind types.OverlayKind) bool {
 	switch kind {
@@ -583,7 +583,7 @@ func kindRequiresMatrixCompose(kind types.OverlayKind) bool {
 
 // inferComposeSlotShape returns the OverlayShape a Compose slot's
 // *types.Request slot will produce after execution. Mirrors
-// inferChainStageShape and the runtime processing/extractSchemaShape
+// inferChainStageShape and the runtime internal/processing/extractSchemaShape
 // heuristic: MATRIX when Crosstab is set, SERIES when grouped, SCALAR
 // otherwise (or for nil/empty requests).
 //
@@ -610,7 +610,7 @@ func inferComposeSlotShape(req *types.Request) types.OverlayShape {
 // composeAxisKindsEqual reports whether the row and column grouper-
 // kind tuples of two slots agree structurally. Field names are
 // allowed to differ across slots — only the per-axis kind tuple is
-// compared (mirrors processing/axisKindsEqual + extractSchemaShape).
+// compared (mirrors internal/processing/axisKindsEqual + extractSchemaShape).
 //
 // Matrix arm: row axis = Crosstab.Rows[].Type; col axis =
 // Crosstab.Columns[].Type. Both tuples come from the request
@@ -691,7 +691,7 @@ func composeStringTuplesEqual(a, b []string) bool {
 
 // composeRequestSchemaCanonical renders the per-slot axis tuples as a
 // deterministic string for the envelope Details payload. Format
-// mirrors processing/composeOverlaySchemaShape.canonical:
+// mirrors internal/processing/composeOverlaySchemaShape.canonical:
 // "<rowKinds>/<colKinds>" with each half joined by "|". Empty axis
 // halves render as "" so the slash is always present, making the
 // two-axis nature visually unambiguous in MCP error payloads.

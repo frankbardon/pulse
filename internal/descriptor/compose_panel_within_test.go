@@ -10,7 +10,7 @@ import (
 
 // Predict-time n_within_depth verdict for OVERLAY_PROP_Z_PANEL
 // (E4-S1). The runtime twin lives in
-// processing/overlay_prop_z_panel_within_test.go — pulse.Compose does
+// internal/processing/overlay_prop_z_panel_within_test.go — pulse.Compose does
 // not run predict, so a predict-only refusal stops nothing.
 //
 // Only the SHAPE of the depth is judged here. The range check against

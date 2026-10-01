@@ -20,7 +20,7 @@ The implementation lives in the repository root: `extensions.go`
 checks), `extensions_probe.go` (factory probe and components parity),
 `extensions_runtime.go` (built-in/extension fold into the runtime
 registry), `extensions_snapshot.go` (descriptor-side read-only
-projection), and `processing/extensions.go` (the runtime overlay the
+projection), and `internal/processing/extensions.go` (the runtime overlay the
 processing layer consults).
 
 ## When to register vs use a built-in
@@ -570,7 +570,7 @@ importable by embedders — the facade fills it). The snapshot is passed
 into `internal/descriptor.PredictOptions.Extensions` and into
 `mcp.BindWithExtensions` (`internal/mcp`; `mcp/gosdk` reaches the
 instance's snapshot through the `internal/facadebridge` hook) so the descriptor layer stays
-free of `internal/service/` and `processing/` imports — the no-execute
+free of `internal/service/` and `internal/processing/` imports — the no-execute
 contract for `internal/descriptor/` remains intact, and predict / manifest
 treat custom operators identically to built-ins.
 
@@ -590,7 +590,7 @@ registration default.
 
 This is not cosmetic manifest detail — it is the only route the fact
 has into the no-execute layer. `internal/descriptor/` may not import
-`processing/` (`TestPredictNoExecutionImports`), so predict cannot
+`internal/processing/` (`TestPredictNoExecutionImports`), so predict cannot
 assert `MultiKeyStreamingGrouper` on a constructed grouper the way the
 probe does. Without the projection, a predict-time rule that reasons
 about per-record denominators sees every extension grouper as

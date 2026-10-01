@@ -28,7 +28,7 @@ go test ./descriptor/ ./internal/descriptor/ -run 'TestPredictNoExecution|TestDe
 ```
 
 - `TestPredictNoExecutionImports` — `internal/descriptor/predict.go` must not
-  import `internal/service/` or `processing/`.
+  import `internal/service/` or `internal/processing/`.
 - `TestDescriptorNoFmtSprintf` — no `fmt.Sprintf` in
   `descriptor/envelope.go`, `manifest.go`, `predict.go`, `inspect.go`.
 - `TestGoldensNotHandEdited` — every golden file under

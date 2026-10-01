@@ -43,7 +43,7 @@ Their full names appear in CLAUDE.md so the
 
 | Gate | Guards |
 |---|---|
-| `TestPredictNoExecutionImports`         | `internal/descriptor/predict.go` does not import `internal/service/` or `processing/` |
+| `TestPredictNoExecutionImports`         | `internal/descriptor/predict.go` does not import `internal/service/` or `internal/processing/` |
 | `TestDescriptorNoFmtSprintf`            | `descriptor/` + `internal/descriptor/` never build JSON via `fmt.Sprintf` |
 | `TestGoldensNotHandEdited`              | `descriptor/testdata/*` hashes match the generator |
 | `TestClaudeMdMentionsFormatVersion`     | CLAUDE.md references the current envelope `format_version` |

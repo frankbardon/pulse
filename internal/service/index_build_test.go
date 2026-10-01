@@ -351,7 +351,7 @@ func TestBuildIndex_UnsupportedKeyFieldType(t *testing.T) {
 // stands in for a second dimension conceptually like "date"; date's own
 // exact-key resolution is covered directly by the E2-S3 date/decimal128
 // build+lookup tests (see index_build_e2s3_test.go and, at the unit
-// level, processing/index_key_test.go).
+// level, internal/processing/index_key_test.go).
 func compositeIndexTestSchema() *encoding.Schema {
 	regionDict := encoding.NewDictionary()
 	regionDict.Add("north") // id 0

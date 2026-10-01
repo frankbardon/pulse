@@ -21,9 +21,7 @@ pulse/
 ├── mcp/
 │   └── gosdk/              # PUBLIC go-sdk adapter — the only package importing the MCP SDK; gosdk.Register
 ├── mcpserve/               # PUBLIC ready-made MCP server (Serve, ServeStdio)
-├── processing/             # interim PUBLIC (moves internal in U02b): operators, crosstab, joins, registry
-│   ├── window/             # WIN_* operators (LAG, LEAD, RANK, RUNNING_*, EWMA, ...)
-│   └── feature/            # FEAT_* pre-filter feature engineers (LOG, SQRT, BUCKETIZE, ...)
+├── extend/                 # PUBLIC extension-authoring contract: Record, Rows, operator factories + interfaces
 ├── cmd/
 │   └── pulse/              # CLI binary (the only binary)
 ├── docs/                   # mdBook source for this site (published to GitHub Pages)
@@ -49,7 +47,10 @@ pulse/
     ├── daterange/          # compiled labeled-date-range model
     ├── spsssidecar/        # SPSS sidecar path helpers
     ├── facadebridge/       # root -> mcp/gosdk hooks
-    ├── processing/         # regression/ (REG_* engine), arena/
+    ├── processing/         # operator engine: operators, crosstab, joins, registry
+    │   ├── window/         # WIN_* operators (LAG, LEAD, RANK, RUNNING_*, EWMA, ...)
+    │   ├── feature/        # FEAT_* pre-filter feature engineers (LOG, SQRT, BUCKETIZE, ...)
+    │   └── regression/ arena/  # REG_* engine, arena allocator
     ├── buildinfo/          # version injected by ldflags
     ├── apigolden/          # TestPublicAPIGolden + testdata/public_api.txt
     └── embeddersmoke/      # nested module compiled by `make smoke` against public spellings only

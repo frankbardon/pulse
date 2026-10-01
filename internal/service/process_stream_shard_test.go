@@ -179,7 +179,7 @@ func testShardArchiveProcessStream_MultiShardRowOrder(t *testing.T) {
 
 	// The streamed rows come from records ordered shard1 (ids 1..4),
 	// shard2 (ids 5..8), shard3 (ids 9..12). Window Apply does not
-	// reorder rows in place — see processing/window/lag_test.go — so
+	// reorder rows in place — see internal/processing/window/lag_test.go — so
 	// the result preserves iteration order.
 	for i, r := range rows {
 		gotID, _ := r["id"].(float64)

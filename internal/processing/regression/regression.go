@@ -10,7 +10,7 @@
 // without an import of regression-engine internals. To avoid an import
 // cycle with processing.Record, this subpackage stays independent of
 // concrete Record types — Phase 1 will introduce a narrow Record
-// interface the same way processing/feature does.
+// interface the same way internal/processing/feature does.
 package regression
 
 import (

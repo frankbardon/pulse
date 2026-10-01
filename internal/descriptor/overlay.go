@@ -19,7 +19,7 @@ import (
 // "What NOT to Do"):
 //
 //   - This file MUST NOT import github.com/frankbardon/pulse/service
-//     or github.com/frankbardon/pulse/processing. Predict is no-execute;
+//     or github.com/frankbardon/pulse/internal/processing. Predict is no-execute;
 //     overlay catalog data lives in types/, capability lookups go
 //     through types/ constants. TestPredictNoExecutionImports gates
 //     the predict.go source list and CLAUDE.md "What NOT to Do" gates
@@ -195,7 +195,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	//
 	// opts carries the extensions snapshot, which is how an
 	// embedder-registered fan-out grouper reaches this arm: descriptor/
-	// may not import processing/ and so cannot assert
+	// may not import internal/processing/ and so cannot assert
 	// MultiKeyStreamingGrouper itself. The runtime twin reads the live
 	// registry instead; both hand their resolver to the SAME
 	// types-side predicate, which tries the built-in constant first.
@@ -312,7 +312,7 @@ func validateOverlayPanel(env *descriptor.Envelope, kind types.OverlayKind, para
 	// runtime twin under the same code and the same words.
 	//
 	// resolveExt is how an embedder-registered fan-out grouper reaches
-	// this arm — descriptor/ may not import processing/ and so cannot
+	// this arm — descriptor/ may not import internal/processing/ and so cannot
 	// assert MultiKeyStreamingGrouper itself.
 	if v, bad := types.CheckPanelSlabPartitionWith(slots, params, resolveExt); bad {
 		env.AddError(string(errors.PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED),
@@ -2669,8 +2669,8 @@ func validateOverlayShareOfCol(env *descriptor.Envelope, req *types.Request, spe
 //
 // Host-shape disambiguation by inspecting `req.Crosstab` / `req.Groups`
 // matches `validateOverlayIndexVsTotal`'s policy and the runtime
-// dispatch in `processing/overlay_series.go` (ApplyOverlaysSeries) vs
-// `processing/overlay.go` (ApplyOverlays) — each runtime path consumes
+// dispatch in `internal/processing/overlay_series.go` (ApplyOverlaysSeries) vs
+// `internal/processing/overlay.go` (ApplyOverlays) — each runtime path consumes
 // its own dispatch table, so the predict-time validator has to make the
 // same routing decision.
 func validateOverlayShareOfTotal(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
@@ -3301,7 +3301,7 @@ func validateOverlayTwoSampleStatVsRef(
 //   - spec.Params is a valid object but any of the four keys is absent
 //     → emit one error per missing key.
 //
-// The runtime handlers (processing/overlay_compose_handlers.go's
+// The runtime handlers (internal/processing/overlay_compose_handlers.go's
 // `applyTCell` + `applyZCell` + the VS_REF siblings) tolerate every
 // missing key by falling back to var=1.0, n=2 defaults — the predict
 // gate surfaces the requirement up front so callers cannot silently

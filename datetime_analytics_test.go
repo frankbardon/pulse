@@ -23,7 +23,7 @@ import (
 // every analytics aggregator's collectValues() sources its slice.
 //
 // Epoch seconds, not days: the day-truncation adapter in
-// processing/date_field.go is scoped to the date-family GROUPERS and
+// internal/processing/date_field.go is scoped to the date-family GROUPERS and
 // FILTERS (GROUP_DATE, GROUP_DATE_RANGES, FILTER_DATE_RANGES) and does
 // not sit on the aggregation path. The expected values below are
 // therefore raw epoch seconds, and a stray `/ 86400` anywhere on the

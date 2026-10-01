@@ -321,7 +321,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_SHARE_OF_TOTAL is streamable via its SERIES-host dispatch
 	// — sibling kind to OVERLAY_INDEX_VS_TOTAL, same grand-total
 	// accumulator (computeSeriesGrandTotal in
-	// processing/overlay_series.go), different scaling (raw share, no
+	// internal/processing/overlay_series.go), different scaling (raw share, no
 	// ×100). The MATRIX-host dispatch is not an in-pass computation:
 	// the crosstab fold runs on the already-finalised matrix, on the
 	// buffered and the fused arm alike (CanFuseCrosstab does NOT

@@ -8,7 +8,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 

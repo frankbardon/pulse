@@ -10,7 +10,7 @@ import (
 )
 
 // mockRecord is a minimal Record implementation used by the
-// regression-package unit tests. It avoids importing processing/Record
+// regression-package unit tests. It avoids importing internal/processing/Record
 // (which would create an import cycle) and keeps the fixtures legible.
 type mockRecord struct {
 	values map[string]float64

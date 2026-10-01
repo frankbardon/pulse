@@ -28,7 +28,7 @@ pulse api predict --request FILE [--json] [--strict] [--echo-request]
 
 ## Structural ban
 
-`internal/descriptor/predict.go` cannot import `internal/service/` or `processing/`.
+`internal/descriptor/predict.go` cannot import `internal/service/` or `internal/processing/`.
 This is enforced by `TestPredictNoExecutionImports`. Predict is
 guaranteed to never touch the executor.
 

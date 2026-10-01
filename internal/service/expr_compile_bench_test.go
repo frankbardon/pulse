@@ -10,7 +10,7 @@ import (
 
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -34,7 +34,7 @@ import (
 //     (FILTER_RANGE + AGG_SUM), the floor the process arms sit on.
 //
 // The deterministic gates in `make test` are TestExprProgram_* in
-// processing/ (compile counts independent of row count).
+// internal/processing/ (compile counts independent of row count).
 func BenchmarkExprCompileOnce(b *testing.B) {
 	fsch, gsch, regions := groupWidthTwins(b, 66, filterPrecomputeParents)
 	rows := joinShapeRows(filterPrecomputeParents)

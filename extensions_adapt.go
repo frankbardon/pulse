@@ -7,9 +7,9 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/processing"
-	"github.com/frankbardon/pulse/processing/feature"
-	"github.com/frankbardon/pulse/processing/window"
+	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/processing/feature"
+	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 

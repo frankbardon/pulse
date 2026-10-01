@@ -22,7 +22,7 @@ var updateGolden = flag.Bool("update", false, "update regression golden files")
 // TestRegOLS_GoldenRequest fits a small fixed dataset through the
 // unpenalized OLS engine and round-trips the RegressionResult to JSON,
 // comparing it against a golden artifact under
-// processing/regression/testdata/. The golden file carries a
+// internal/processing/regression/testdata/. The golden file carries a
 // // golden-hash: <sha256> footer so it can't be hand-edited without
 // breaking the matching golden-hygiene check below.
 //
@@ -177,7 +177,7 @@ func wantMapKeysUnion(a, b map[string]any) map[string]struct{} {
 }
 
 // TestGoldensNotHandEdited verifies every regression golden in
-// processing/regression/testdata/ ends with a valid // golden-hash:
+// internal/processing/regression/testdata/ ends with a valid // golden-hash:
 // footer and that the footer matches the file body. Mirrors the same
 // check that runs over descriptor/testdata/.
 func TestGoldensNotHandEdited(t *testing.T) {

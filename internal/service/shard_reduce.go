@@ -11,7 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -435,7 +435,7 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, spe
 // primaryNullFieldFor resolves the field whose per-record null tally
 // feeds Response.Components.Run.NullRecords: the first aggregator's
 // Field, else the first grouper's Field, else empty (no tally).
-// Convention matches processing/run_components.go's
+// Convention matches internal/processing/run_components.go's
 // primaryNullFieldName. Shared by BOTH parallel reducers — the
 // per-shard one (shard_reduce.go) and the per-segment one
 // (parallel_reduce.go) — because two copies of a convention is how

@@ -89,7 +89,7 @@ func TestCapabilities_DateAndDateTimeDeclaredTogether(t *testing.T) {
 // for the two aggregators that have a decimal implementation but used to
 // declare the no-decimal list.
 //
-// processing/aggregator_decimal.go computes variance and stddev in
+// internal/processing/aggregator_decimal.go computes variance and stddev in
 // decimal128 two-pass form (mean at max(scale, MinDecimalScale), then
 // Σ(x−μ)² at twice that scale, with Decimal128.Sqrt for stddev) and
 // drops to decimalVarianceFloat64 only when an intermediate would

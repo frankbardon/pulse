@@ -35,16 +35,16 @@ Add it to `types.AllTestTypes()`.
 
 ## 3. Implement and register
 
-Tests live in `processing/test_*.go`. Existing examples to mirror:
+Tests live in `internal/processing/test_*.go`. Existing examples to mirror:
 
-- `processing/test_t.go` — online tier-1 test.
-- `processing/test_anova.go` — tier-1 ANOVA with grouper support.
-- `processing/test_post.go` and `processing/test_post_more.go` —
+- `internal/processing/test_t.go` — online tier-1 test.
+- `internal/processing/test_anova.go` — tier-1 ANOVA with grouper support.
+- `internal/processing/test_post.go` and `internal/processing/test_post_more.go` —
   tier-2 post-tests.
-- `processing/test_studentized.go` — numerical integration utilities
+- `internal/processing/test_studentized.go` — numerical integration utilities
   (used by `TEST_TUKEY_HSD`).
 
-Register the test in `processing/test.go` (the registry construction
+Register the test in `internal/processing/test.go` (the registry construction
 calls). For tier-2 variants, declare both the base type and the
 variant identifier the post-test surface uses.
 

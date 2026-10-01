@@ -57,7 +57,7 @@ If predict reports the request as valid but execution fails, the bug
 is in the processing layer — not predict.
 
 `internal/descriptor/predict.go` has a structural ban on importing `internal/service/`
-and `processing/` (`TestPredictNoExecutionImports`). The predict path
+and `internal/processing/` (`TestPredictNoExecutionImports`). The predict path
 runs against `encoding.ReadHeader` + `encoding.ReadSchema` only,
 never against records. A divergence between predict's verdict and
 runtime's verdict is therefore always either:

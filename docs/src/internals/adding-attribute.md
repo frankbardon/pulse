@@ -29,8 +29,8 @@ func AllAttributeTypes() []AttributeType {
 
 ## 2. Implement and register
 
-Implement the attribute in `processing/`. Each attribute is a factory
-function registered in `attributeRegistry` (`processing/registry.go`).
+Implement the attribute in `internal/processing/`. Each attribute is a factory
+function registered in `attributeRegistry` (`internal/processing/registry.go`).
 Attribute factories return a closure with the signature
 `func(record encoding.RecordView) (any, error)`.
 
@@ -40,7 +40,7 @@ invokes the closure on every record.
 
 ## 3. Tests
 
-Write tests first in `processing/attribute_test.go`. Run the suite,
+Write tests first in `internal/processing/attribute_test.go`. Run the suite,
 confirm informative failure, port the implementation until green.
 
 ## 4. Declare the capability metadata

@@ -5,11 +5,11 @@ import "github.com/frankbardon/pulse/types"
 // This file defines the descriptor-side typed surface for the
 // per-operator components contract. The runtime sibling interface that
 // emits the matching map[string]any payload lives in the processing
-// package (see processing/interfaces.go MetaAggregator and the parallel
+// package (see internal/processing/interfaces.go MetaAggregator and the parallel
 // MetaGrouper / MetaFilterer siblings introduced in later stories).
 //
 // IMPORTANT: descriptor/ is no-execute and MUST NOT import
-// internal/service/ or processing/. The TestPredictNoExecutionImports gate
+// internal/service/ or internal/processing/. The TestPredictNoExecutionImports gate
 // enforces this for predict-* files; the same structural ban applies
 // across the whole descriptor package by convention. ComponentSchema
 // keeps the type names of emitted values as plain strings (not
@@ -112,7 +112,7 @@ type ComponentSchema struct {
 // the wiring grep-discoverable, surfaces interface drift as a build
 // error (instead of a silent runtime no-op), and pairs naturally with
 // the existing RichAggregator / MergeableAggregator sentinels (see
-// processing/aggregator_welford.go for the model). This file declares
+// internal/processing/aggregator_welford.go for the model). This file declares
 // only the descriptor-side surface; no processing.MetaAggregator
-// assertions live here — that would require importing processing/ and
+// assertions live here — that would require importing internal/processing/ and
 // would break TestPredictNoExecutionImports.

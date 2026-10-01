@@ -671,7 +671,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 // attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE) substituting
 // Target for Field since they do not carry a single source field.
 //
-// Duplicated locally rather than imported from processing/ because
+// Duplicated locally rather than imported from internal/processing/ because
 // descriptor must not import the processing package (predict is a
 // no-execute path).
 func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
@@ -687,7 +687,7 @@ func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
 // attributeDefaultLabel mirrors processing.defaultAttributeLabel so
 // predict produces the same projected column names process would emit.
 // The duplication is intentional — descriptor/predict.go must not
-// import processing/.
+// import internal/processing/.
 func attributeDefaultLabel(attr *types.Attribute) string {
 	switch attr.Type {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
@@ -868,7 +868,7 @@ func grouperComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.Com
 // does NOT flip PredictResult.Streamable.
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `internal/service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `internal/processing/` imports.
 func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
@@ -913,7 +913,7 @@ func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request,
 // (the data slice still streams).
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `internal/service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `internal/processing/` imports.
 func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
@@ -990,7 +990,7 @@ func filtererComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.Co
 // PredictResult.Streamable.
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `internal/service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `internal/processing/` imports.
 func populateFiltererPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return

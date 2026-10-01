@@ -10,7 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -31,7 +31,7 @@ import (
 // (set_u128, set_u256) carry a genuinely different in-memory shape on
 // the Record than the narrow ones, whose uint64 storage is unchanged.
 // So a processing-level width table is NOT vacuous any more and it does
-// exist: processing/grouper_set_wide_test.go
+// exist: internal/processing/grouper_set_wide_test.go
 // (TestGroupSetWide_NarrowRungsAreUnchanged) runs the group-key
 // derivation across all six rungs with no file in sight. The two tables
 // answer different questions and both are needed — that one asks

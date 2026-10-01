@@ -242,7 +242,7 @@ func validateCrosstabMarginAggregations(
 }
 
 // marginAggregationFaultCode maps a shared structural fault kind onto
-// the predict-side coded surface. processing/crosstab.go holds the
+// the predict-side coded surface. internal/processing/crosstab.go holds the
 // execution-side twin; keeping the MAPPING separate from the DETECTION
 // is what lets one report an envelope entry and the other a CodedError
 // without either owning the rules.

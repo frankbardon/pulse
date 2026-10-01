@@ -13,7 +13,7 @@ import (
 // Predict-arm coverage for the distinct-key slab partition gate.
 // descriptor.ValidateOverlays is reached from exactly one place
 // (predict.go), so this exercises the validator directly; the runtime
-// twin lives in processing/ and the two-arm parity is pinned end to end
+// twin lives in internal/processing/ and the two-arm parity is pinned end to end
 // at the repo root.
 
 func pwPartGroup(kind types.GroupType, field string) *types.Group {

@@ -18,9 +18,6 @@ synth/              alias facade: Spec/Profile/Options/Result + Synth, SynthByte
 mcp/gosdk/          the ONLY go-sdk importer: Register, Config, URI/prompt constants
 mcpserve/           Serve, ServeStdio, Options
 extend/             extension-authoring contract: Record, Rows, operator factories + instance interfaces (leaf; TestExtendImportBoundary)
-processing/         INTERIM public (U02b moves it): operators, crosstab, joins, registry
-processing/feature/ FEAT_* pre-filter engineers (interim public)
-processing/window/  WIN_* operators (interim public)
 
 INTERNAL
 cmd/pulse/                 the only binary; buildApp() defines the CLI leaf tree
@@ -43,6 +40,8 @@ internal/imports/          managed-imports manager (TTL, sidecars)
 internal/daterange/        compiled {label,start,end} model for the date-range operators
 internal/spsssidecar/      SPSS sidecar path helpers used by root sidecar_*.go
 internal/facadebridge/     init-installed hooks from the root to mcp/gosdk (replaces Service())
+internal/processing/       operator engine: operators, crosstab, joins, registry, ExtensionRegistry
+internal/processing/{feature,window}/     FEAT_* pre-filter engineers, WIN_* operators
 internal/processing/{regression,arena}/   REG_* engine, arena allocator
 internal/buildinfo/        VERSION injected by ldflags, read by pulse.Version()
 internal/apigolden/        TestPublicAPIGolden + testdata/public_api.txt

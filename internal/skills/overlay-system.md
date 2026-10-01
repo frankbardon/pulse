@@ -35,8 +35,8 @@ Share (`SHARE_OF_ROW`/`_COL`/`_TOTAL`); margin compare (`INDEX_`/`DELTA_`/`ZSCOR
 
 ## Host-arm wiring
 
-- **MATRIX (Crosstab)** — `applyOverlaysToResponse` (`processing/crosstab.go`), from BOTH the buffered and fused exits. The distinct-key slab partition refusal sits here, twinned with predict's. A direct `processing.ApplyOverlaysWithExtensions` caller bypasses BOTH — accepted; that entry is for embedders who own their host (`pairwise-n-sources`).
-- **SERIES (windowed Process)** — `processing/overlay_series.go` per-group fold.
+- **MATRIX (Crosstab)** — `applyOverlaysToResponse` (`internal/processing/crosstab.go`), from BOTH the buffered and fused exits. The distinct-key slab partition refusal sits here, twinned with predict's. A direct `processing.ApplyOverlaysWithExtensions` caller bypasses BOTH — accepted; that entry is for embedders who own their host (`pairwise-n-sources`).
+- **SERIES (windowed Process)** — `internal/processing/overlay_series.go` per-group fold.
 - **FACET** — `service.applyFacetOverlays` at the buffered exit; `Ref.Population` recursion builds the comparison FacetResult.
 - **CHAIN** — `service.applyChainOverlays` post-stage; per-stage `Stages[i].Overlays` untouched, whole-chain on `ChainResponse.Overlays`. Divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
 - **FORMULA** — expr-lang over earlier layers; refs resolve by `Name`.
@@ -46,7 +46,7 @@ Share (`SHARE_OF_ROW`/`_COL`/`_TOTAL`); margin compare (`INDEX_`/`DELTA_`/`ZSCOR
 
 Additive `[]OverlayWarning` slot (`omitempty`); empty/nil elides the key, so overlay-free responses stay byte-identical (`Test*_OverlayFreeByteIdentical`). Each entry carries `Code`, `Message`, `Details map[string]any`; canonical `PULSE_OVERLAY_REF_ZERO` + siblings.
 
-Routing is dispatcher-stamped, service-distributed: the chain / Compose dispatchers (`processing/overlay_*_dispatch.go`) stamp `Details["overlay_index"] = i`; `service.applyChainOverlays` / `applyComposeOverlays` route each to `out.Overlays[idx].Warnings` (none ⇒ `nil`; missing key ⇒ layer 0). The Compose-host barrier rides the same slot on `ComposedResponse.Overlays[i]`.
+Routing is dispatcher-stamped, service-distributed: the chain / Compose dispatchers (`internal/processing/overlay_*_dispatch.go`) stamp `Details["overlay_index"] = i`; `service.applyChainOverlays` / `applyComposeOverlays` route each to `out.Overlays[idx].Warnings` (none ⇒ `nil`; missing key ⇒ layer 0). The Compose-host barrier rides the same slot on `ComposedResponse.Overlays[i]`.
 
 ## Streamability
 
@@ -60,7 +60,7 @@ The four parity kinds (`OVERLAY_{T,Z}_CELL`, `OVERLAY_{T,Z}_VS_REF`) read `{n, m
 
 ## Adding a new kind
 
-Declare the constant + `AllOverlayKinds()`; add the `overlay_streamability.go` row; handler in `processing/overlay_*.go`; register in host dispatch; predict validator (`internal/descriptor/overlay_*.go`); raise faults under the kind's own code; ship its atomic.
+Declare the constant + `AllOverlayKinds()`; add the `overlay_streamability.go` row; handler in `internal/processing/overlay_*.go`; register in host dispatch; predict validator (`internal/descriptor/overlay_*.go`); raise faults under the kind's own code; ship its atomic.
 
 ## See
 

@@ -35,7 +35,7 @@ func pValueForCoefficient(coef, se float64, df int) float64 {
 
 // studentTTwoSidedP returns P(|T| ≥ |t|) for T ~ t(df). Uses the
 // regularized incomplete beta identity I_x(df/2, 1/2) with
-// x = df / (df + t²). Same derivation as processing/test_stat.go.
+// x = df / (df + t²). Same derivation as internal/processing/test_stat.go.
 func studentTTwoSidedP(t, df float64) float64 {
 	if df <= 0 || math.IsNaN(t) || math.IsNaN(df) {
 		return math.NaN()
@@ -51,7 +51,7 @@ func studentTTwoSidedP(t, df float64) float64 {
 }
 
 // regularizedIncompleteBeta returns I_x(a, b) via the Numerical Recipes
-// continued-fraction expansion. Mirrors processing/test_stat.go.
+// continued-fraction expansion. Mirrors internal/processing/test_stat.go.
 func regularizedIncompleteBeta(x, a, b float64) float64 {
 	if x <= 0 {
 		return 0
