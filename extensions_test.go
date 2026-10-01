@@ -9,7 +9,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -469,15 +468,15 @@ func TestExtensions_ErrorDetailsCarryContext(t *testing.T) {
 // cases mode-agnostic.
 type stubTwoPassAttribute struct{}
 
-func (stubTwoPassAttribute) Compute(records []*processing.Record, field string) ([]float64, error) {
+func (stubTwoPassAttribute) Compute(rows extend.Rows, field string) ([]float64, error) {
 	_ = field
-	return make([]float64, len(records)), nil
+	return make([]float64, rows.Len()), nil
 }
-func (stubTwoPassAttribute) Row(*processing.Record, string) (float64, error) { return 0, nil }
-func (stubTwoPassAttribute) PrePass(*processing.Record, string) error        { return nil }
-func (stubTwoPassAttribute) Finalize() error                                 { return nil }
+func (stubTwoPassAttribute) Row(extend.Record, string) (float64, error) { return 0, nil }
+func (stubTwoPassAttribute) PrePass(extend.Record, string) error        { return nil }
+func (stubTwoPassAttribute) Finalize() error                            { return nil }
 
-func stubAttributeFactory(*types.Attribute, *encoding.Schema) (processing.AttributeComputer, error) {
+func stubAttributeFactory(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 	return stubTwoPassAttribute{}, nil
 }
 
@@ -491,10 +490,10 @@ func stubFiltererFactory() extend.FiltererBuilder { return stubFilter{} }
 
 type stubRowTest struct{}
 
-func (stubRowTest) UpdateRow(*processing.Record) error   { return nil }
+func (stubRowTest) UpdateRow(extend.Record) error        { return nil }
 func (stubRowTest) Finalize() (*types.TestResult, error) { return &types.TestResult{}, nil }
 
-func stubRowTestFactory(*types.Test, *encoding.Schema) (processing.RowTest, error) {
+func stubRowTestFactory(*types.Test, *encoding.Schema) (extend.RowTest, error) {
 	return stubRowTest{}, nil
 }
 
@@ -505,6 +504,6 @@ func (stubPostTest) Run(rows []map[string]any) (*types.TestResult, error) {
 	return &types.TestResult{}, nil
 }
 
-func stubPostTestFactory(*types.Test, *encoding.Schema) (processing.PostTest, error) {
+func stubPostTestFactory(*types.Test, *encoding.Schema) (extend.PostTest, error) {
 	return stubPostTest{}, nil
 }

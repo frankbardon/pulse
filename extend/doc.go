@@ -49,7 +49,14 @@
 // engine type-asserts the returned value for optional siblings
 // (OnlineAggregator, RichAggregator, …) and takes the faster or richer
 // path when they are present. A registration that declares a streaming
-// tier (Streamable: true) MUST return a value implementing the streaming
-// sibling; pulse.New probes each factory and rejects a mismatch with
-// PULSE_EXTENSION_STREAMABLE_MISMATCH.
+// tier (Streamable: true, or an attribute Mode of row_local / two_pass)
+// MUST return a value implementing the streaming sibling; pulse.New
+// probes aggregator, grouper and attribute factories and rejects a
+// mismatch with PULSE_EXTENSION_STREAMABLE_MISMATCH.
+//
+// Engine-only capabilities are deliberately absent: component emission
+// rides a registration's ComponentsFunc (or the operator's own
+// Components() method), never a Meta* interface, and the engine's
+// merge, fused-crosstab and registry-injection hooks are not part of
+// the contract.
 package extend

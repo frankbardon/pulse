@@ -97,3 +97,137 @@ func TestExtendAggregatorThroughProcess(t *testing.T) {
 		t.Errorf("UpdateRow calls = %d, want 3 (the streamable registration must take the online path)", updates)
 	}
 }
+
+// The remaining categories authored against extend alone: an
+// attribute (two-pass tier), a streaming feature, both test tiers and
+// a window. The compile-time assertions prove the public spellings
+// suffice; the test proves pulse.New accepts them and Process runs
+// the attribute and feature end to end.
+
+type smokeDouble struct{}
+
+func (smokeDouble) Compute(rows extend.Rows, field string) ([]float64, error) {
+	out := make([]float64, rows.Len())
+	for i := range out {
+		v, _ := rows.At(i).NumericValue(field)
+		out[i] = 2 * v
+	}
+	return out, nil
+}
+func (smokeDouble) Row(rec extend.Record, field string) (float64, error) {
+	v, _ := rec.NumericValue(field)
+	return 2 * v, nil
+}
+func (smokeDouble) PrePass(extend.Record, string) error { return nil }
+func (smokeDouble) Finalize() error                     { return nil }
+
+type smokeFeature struct{}
+
+func (smokeFeature) Compute(rows extend.Rows, field string) (map[string]extend.FeatureOutput, error) {
+	vals, _ := smokeDouble{}.Compute(rows, field)
+	return map[string]extend.FeatureOutput{"amount_x2": {Values: vals}}, nil
+}
+func (smokeFeature) PrePass(extend.Record, string) error { return nil }
+func (smokeFeature) Finalize() error                     { return nil }
+func (smokeFeature) EmitRow(rec extend.Record, field string) (map[string]extend.FeatureOutput, error) {
+	v, _ := smokeDouble{}.Row(rec, field)
+	return map[string]extend.FeatureOutput{"amount_x2": {Values: []float64{v}}}, nil
+}
+
+type smokeRowTest struct{ n float64 }
+
+func (s *smokeRowTest) UpdateRow(extend.Record) error { s.n++; return nil }
+func (s *smokeRowTest) Finalize() (*types.TestResult, error) {
+	return &types.TestResult{Statistic: s.n, PValue: 1}, nil
+}
+
+type smokePostTest struct{}
+
+func (smokePostTest) Run(rows []map[string]any) (*types.TestResult, error) {
+	return &types.TestResult{Statistic: float64(len(rows)), PValue: 1}, nil
+}
+
+type smokeWindow struct{}
+
+func (smokeWindow) Compute(rows []map[string]any, partitions [][]int, label string) error {
+	for _, part := range partitions {
+		for pos, i := range part {
+			rows[i][label] = float64(pos)
+		}
+	}
+	return nil
+}
+
+var (
+	_ extend.TwoPassAttribute         = smokeDouble{}
+	_ extend.StreamingFeatureComputer = smokeFeature{}
+	_ extend.FeatureComputer          = smokeFeature{}
+	_ extend.RowTest                  = (*smokeRowTest)(nil)
+	_ extend.PostTest                 = smokePostTest{}
+	_ extend.WindowComputer           = smokeWindow{}
+)
+
+func TestExtendOtherCategoriesThroughProcess(t *testing.T) {
+	p, fs := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
+		Attributes: []pulse.AttributeRegistration{{
+			Name: "ATTR_SMOKE_DOUBLE", Mode: pulse.AttributeModeTwoPass,
+			Factory: func(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
+				return smokeDouble{}, nil
+			},
+		}},
+		Features: []pulse.FeatureRegistration{{
+			Name: "FEAT_SMOKE_DOUBLE", Streamable: true,
+			Factory: func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) {
+				return smokeFeature{}, nil
+			},
+		}},
+		Tests: []pulse.TestRegistration{
+			{Name: "TEST_SMOKE_ROWS", Tier: pulse.TestTierRow,
+				RowFactory: func(*types.Test, *encoding.Schema) (extend.RowTest, error) { return &smokeRowTest{}, nil }},
+			{Name: "TEST_SMOKE_RESULT_ROWS", Tier: pulse.TestTierPost,
+				PostFactory: func(*types.Test, *encoding.Schema) (extend.PostTest, error) { return smokePostTest{}, nil }},
+		},
+		Windows: []pulse.WindowRegistration{{
+			Name: "WIN_SMOKE_ORDINAL",
+			Factory: func(*types.Window, extend.WindowOptions) (extend.WindowComputer, error) {
+				return smokeWindow{}, nil
+			},
+		}},
+	}})
+	ingest(t, p, fs, "sales.pulse")
+	req := sumByRegion("sales.pulse")
+	req.Attributes = []*types.Attribute{{Type: "ATTR_SMOKE_DOUBLE", Field: "amount", Label: "amount_attr_x2"}}
+	req.Features = []*types.Feature{{Type: "FEAT_SMOKE_DOUBLE", Field: "amount", Label: "amount_x2"}}
+	req.Aggregations = append(req.Aggregations,
+		&types.Aggregation{Type: types.AGG_SUM, Field: "amount_attr_x2", Label: "attr_total"},
+		&types.Aggregation{Type: types.AGG_SUM, Field: "amount_x2", Label: "feat_total"})
+	req.Tests = []*types.Test{{Type: "TEST_SMOKE_ROWS", Field: "amount", Label: "rows"}}
+	req.PostTests = []*types.Test{{Type: "TEST_SMOKE_RESULT_ROWS", Field: "total", Label: "result_rows"}}
+	req.Windows = []*types.Window{{Type: "WIN_SMOKE_ORDINAL", Field: "total", Label: "ord",
+		OrderBy: []types.OrderKey{{Field: "total"}}}}
+	resp, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if len(resp.Data) != 2 {
+		t.Fatalf("rows = %d, want 2", len(resp.Data))
+	}
+	for _, row := range resp.Data {
+		total, ok := row["total"].(float64)
+		if !ok || total <= 0 {
+			t.Fatalf("row %v: total is not a positive float64", row)
+		}
+		if row["attr_total"] != 2*total || row["feat_total"] != 2*total {
+			t.Errorf("row %v: attr_total / feat_total should be 2 * total", row)
+		}
+		if _, ok := row["ord"].(float64); !ok {
+			t.Errorf("row %v missing window column ord", row)
+		}
+	}
+	if len(resp.Tests) != 1 || resp.Tests[0].Statistic != 3 {
+		t.Errorf("tier-1 tests = %+v, want statistic 3 (rows)", resp.Tests)
+	}
+	if len(resp.PostTests) != 1 || resp.PostTests[0].Statistic != 2 {
+		t.Errorf("tier-2 tests = %+v, want statistic 2 (result rows)", resp.PostTests)
+	}
+}

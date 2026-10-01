@@ -30,7 +30,7 @@ pulse: type AttributeRegistration struct
 pulse: type AttributeRegistration field Accepts []pulse/encoding.FieldType
 pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
-pulse: type AttributeRegistration field Factory pulse/processing.AttributeFactory
+pulse: type AttributeRegistration field Factory pulse/extend.AttributeFactory
 pulse: type AttributeRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
@@ -241,7 +241,7 @@ pulse: type FacetValueCount field Value string "json:\"value\""
 pulse: type FeatureRegistration struct
 pulse: type FeatureRegistration field Accepts []pulse/encoding.FieldType
 pulse: type FeatureRegistration field Description string
-pulse: type FeatureRegistration field Factory pulse/processing/feature.Factory
+pulse: type FeatureRegistration field Factory pulse/extend.FeatureFactory
 pulse: type FeatureRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FeatureRegistration field Name pulse/types.FeatureType
 pulse: type FeatureRegistration field Params []pulse.ParamMeta
@@ -785,8 +785,8 @@ pulse: type TestRegistration field Description string
 pulse: type TestRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type TestRegistration field Name pulse/types.TestType
 pulse: type TestRegistration field Params []pulse.ParamMeta
-pulse: type TestRegistration field PostFactory pulse/processing.PostTestFactory
-pulse: type TestRegistration field RowFactory pulse/processing.RowTestFactory
+pulse: type TestRegistration field PostFactory pulse/extend.PostTestFactory
+pulse: type TestRegistration field RowFactory pulse/extend.RowTestFactory
 pulse: type TestRegistration field Streamable bool
 pulse: type TestRegistration field Tier pulse.TestTier
 pulse: type TestTier string
@@ -823,7 +823,7 @@ pulse: type WidenReport field To pulse/encoding.FieldType
 pulse: type WindowRegistration struct
 pulse: type WindowRegistration field Accepts []pulse/encoding.FieldType
 pulse: type WindowRegistration field Description string
-pulse: type WindowRegistration field Factory pulse/processing/window.WindowFactory
+pulse: type WindowRegistration field Factory pulse/extend.WindowFactory
 pulse: type WindowRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
@@ -1703,7 +1703,16 @@ pulse/extend: package extend
 pulse/extend: type Aggregator interface
 pulse/extend: type Aggregator imethod Aggregate(rows pulse/extend.Rows, field string) (float64, error)
 pulse/extend: type AggregatorFactory func(spec *pulse/types.Aggregation, schema *pulse/encoding.Schema) (pulse/extend.Aggregator, error)
+pulse/extend: type AttributeComputer interface
+pulse/extend: type AttributeComputer imethod Compute(rows pulse/extend.Rows, field string) ([]float64, error)
+pulse/extend: type AttributeFactory func(spec *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/extend.AttributeComputer, error)
 pulse/extend: var ErrGrouperKeyNull error
+pulse/extend: type FeatureComputer interface
+pulse/extend: type FeatureComputer imethod Compute(rows pulse/extend.Rows, field string) (map[string]pulse/extend.FeatureOutput, error)
+pulse/extend: type FeatureFactory func(spec *pulse/types.Feature, schema *pulse/encoding.Schema) (pulse/extend.FeatureComputer, error)
+pulse/extend: type FeatureOutput struct
+pulse/extend: type FeatureOutput field Nulls []bool
+pulse/extend: type FeatureOutput field Values []float64
 pulse/extend: type FilterFunc func(rec pulse/extend.Record) (bool, error)
 pulse/extend: type FiltererBuilder interface
 pulse/extend: type FiltererBuilder imethod Build(spec *pulse/types.Filterer, schema *pulse/encoding.Schema) (pulse/extend.FilterFunc, error)
@@ -1716,6 +1725,9 @@ pulse/extend: type MultiKeyStreamingGrouper imethod KeysForRow(rec pulse/extend.
 pulse/extend: type OnlineAggregator interface
 pulse/extend: type OnlineAggregator imethod Finalize() (float64, error)
 pulse/extend: type OnlineAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
+pulse/extend: type PostTest interface
+pulse/extend: type PostTest imethod Run(rows []map[string]any) (*pulse/types.TestResult, error)
+pulse/extend: type PostTestFactory func(spec *pulse/types.Test, schema *pulse/encoding.Schema) (pulse/extend.PostTest, error)
 pulse/extend: type Record interface
 pulse/extend: type Record imethod DecimalValue(field string) (pulse/encoding.Decimal128, bool)
 pulse/extend: type Record imethod IsNull(field string) bool
@@ -1725,11 +1737,29 @@ pulse/extend: type Record imethod SetMaskValue(field string) (pulse/encoding.Set
 pulse/extend: type Record imethod StringValue(field string) (string, bool)
 pulse/extend: type RichAggregator interface
 pulse/extend: type RichAggregator imethod Rich() (any, error)
+pulse/extend: type RowLocalAttribute interface
+pulse/extend: type RowLocalAttribute imethod Row(rec pulse/extend.Record, field string) (float64, error)
+pulse/extend: type RowTest interface
+pulse/extend: type RowTest imethod Finalize() (*pulse/types.TestResult, error)
+pulse/extend: type RowTest imethod UpdateRow(rec pulse/extend.Record) error
+pulse/extend: type RowTestFactory func(spec *pulse/types.Test, schema *pulse/encoding.Schema) (pulse/extend.RowTest, error)
 pulse/extend: type Rows interface
 pulse/extend: type Rows imethod At(i int) pulse/extend.Record
 pulse/extend: type Rows imethod Len() int
+pulse/extend: type StreamingFeatureComputer interface
+pulse/extend: type StreamingFeatureComputer imethod EmitRow(rec pulse/extend.Record, field string) (map[string]pulse/extend.FeatureOutput, error)
+pulse/extend: type StreamingFeatureComputer imethod Finalize() error
+pulse/extend: type StreamingFeatureComputer imethod PrePass(rec pulse/extend.Record, field string) error
 pulse/extend: type StreamingGrouper interface
 pulse/extend: type StreamingGrouper imethod KeyForRow(rec pulse/extend.Record, field string) (key string, ok bool, err error)
+pulse/extend: type TwoPassAttribute interface
+pulse/extend: type TwoPassAttribute imethod Finalize() error
+pulse/extend: type TwoPassAttribute imethod PrePass(rec pulse/extend.Record, field string) error
+pulse/extend: type TwoPassAttribute imethod Row(rec pulse/extend.Record, field string) (float64, error)
+pulse/extend: type WindowComputer interface
+pulse/extend: type WindowComputer imethod Compute(rows []map[string]any, partitions [][]int, label string) error
+pulse/extend: type WindowFactory func(spec *pulse/types.Window, opts pulse/extend.WindowOptions) (pulse/extend.WindowComputer, error)
+pulse/extend: type WindowOptions struct
 pulse/io: package io
 pulse/io: type BufferWriter interface
 pulse/io: type BufferWriter imethod Bytes() []byte
@@ -3926,4 +3956,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a1ff8a29a0d4cab5d54effc954e94091849b350ce2bc690b60ef31e9dd1a747f
+// golden-hash: 24deae200a85321b0d4e6600e261fbd01b1e1070d26c13e05388d4ed500d6670

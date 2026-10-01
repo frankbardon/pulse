@@ -6,9 +6,6 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/processing"
-	"github.com/frankbardon/pulse/processing/feature"
-	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -173,14 +170,14 @@ type AggregatorRegistration struct {
 type AttributeMode string
 
 const (
-	// AttributeModeRowLocal — factory returns a processing.RowLocalAttribute.
+	// AttributeModeRowLocal — factory returns an extend.RowLocalAttribute.
 	// Equivalent to built-in ATTR_FORMULA / ATTR_DATE_PART.
 	AttributeModeRowLocal AttributeMode = "row_local"
-	// AttributeModeTwoPass — factory returns a processing.TwoPassAttribute.
+	// AttributeModeTwoPass — factory returns an extend.TwoPassAttribute.
 	// Equivalent to ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED.
 	AttributeModeTwoPass AttributeMode = "two_pass"
 	// AttributeModeBuffered — factory returns a plain
-	// processing.AttributeComputer; no streaming. Equivalent to
+	// extend.AttributeComputer; no streaming. Equivalent to
 	// ATTR_PERCENTILE.
 	AttributeModeBuffered AttributeMode = "buffered"
 )
@@ -195,11 +192,14 @@ const (
 	AttributeEmitString  AttributeEmitType = "string"
 )
 
-// AttributeRegistration installs a custom ATTR_* operator.
+// AttributeRegistration installs a custom ATTR_* operator. The factory
+// is an extend.AttributeFactory; Mode declares which extend sibling the
+// returned value implements, and probe-validation at pulse.New refuses
+// a mismatch with PULSE_EXTENSION_STREAMABLE_MISMATCH.
 type AttributeRegistration struct {
 	Name        types.AttributeType
 	Description string
-	Factory     processing.AttributeFactory
+	Factory     extend.AttributeFactory
 	Mode        AttributeMode
 	Accepts     []encoding.FieldType
 	Emits       AttributeEmitType
@@ -303,7 +303,7 @@ type GrouperRegistration struct {
 type WindowRegistration struct {
 	Name        types.WindowType
 	Description string
-	Factory     window.WindowFactory
+	Factory     extend.WindowFactory
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
@@ -312,12 +312,14 @@ type WindowRegistration struct {
 }
 
 // FeatureRegistration installs a custom FEAT_* operator. Set
-// Streamable=true when the factory returns a feature.Computer that
-// also implements feature.StreamingComputer.
+// Streamable=true when the factory returns an extend.FeatureComputer
+// that also implements extend.StreamingFeatureComputer. The operator
+// only reads rows and returns extend.FeatureOutput columns; the engine
+// writes them.
 type FeatureRegistration struct {
 	Name        types.FeatureType
 	Description string
-	Factory     feature.Factory
+	Factory     extend.FeatureFactory
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
@@ -346,8 +348,8 @@ type TestRegistration struct {
 	Name        types.TestType
 	Description string
 	Tier        TestTier
-	RowFactory  processing.RowTestFactory
-	PostFactory processing.PostTestFactory
+	RowFactory  extend.RowTestFactory
+	PostFactory extend.PostTestFactory
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta

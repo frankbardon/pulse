@@ -7,7 +7,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -196,11 +195,11 @@ func probeAttributes(regs []AttributeRegistration) error {
 		}
 		switch reg.Mode {
 		case AttributeModeRowLocal:
-			if _, ok := instance.(processing.RowLocalAttribute); !ok {
+			if _, ok := instance.(extend.RowLocalAttribute); !ok {
 				return attributeModeMismatch(reg, "RowLocalAttribute")
 			}
 		case AttributeModeTwoPass:
-			if _, ok := instance.(processing.TwoPassAttribute); !ok {
+			if _, ok := instance.(extend.TwoPassAttribute); !ok {
 				return attributeModeMismatch(reg, "TwoPassAttribute")
 			}
 		case AttributeModeBuffered:
@@ -239,12 +238,12 @@ func grouperFanOutMismatch(reg GrouperRegistration, observed bool) error {
 func attributeModeMismatch(reg AttributeRegistration, want string) error {
 	return errors.NewCodedErrorWithDetails(
 		errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
-		fmt.Sprintf("attribute %q declares Mode=%s but factory does not return processing.%s", reg.Name, reg.Mode, want),
+		fmt.Sprintf("attribute %q declares Mode=%s but factory does not return extend.%s", reg.Name, reg.Mode, want),
 		map[string]any{
 			"category": "attribute",
 			"name":     string(reg.Name),
 			"mode":     string(reg.Mode),
-			"required": "processing." + want,
+			"required": "extend." + want,
 		},
 	)
 }
@@ -282,7 +281,7 @@ func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema) (i
 
 // safeBuildAttribute invokes an attribute factory under a deferred
 // recover with the same contract as safeBuildAggregator.
-func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema) (instance processing.AttributeComputer, err error) {
+func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema) (instance extend.AttributeComputer, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(

@@ -89,7 +89,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Attributes) > 0 {
 		r.Attributes = make(map[types.AttributeType]processing.AttributeFactory, len(ext.Attributes))
 		for _, reg := range ext.Attributes {
-			r.Attributes[reg.Name] = reg.Factory
+			r.Attributes[reg.Name] = adaptAttributeFactory(reg)
 			r.Streamable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mode != AttributeModeBuffered
 			addFieldInputs("attribute", string(reg.Name), reg.FieldInputs)
 		}
@@ -122,7 +122,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Windows) > 0 {
 		r.Windows = make(map[types.WindowType]window.WindowFactory, len(ext.Windows))
 		for _, reg := range ext.Windows {
-			r.Windows[reg.Name] = reg.Factory
+			r.Windows[reg.Name] = adaptWindowFactory(reg)
 			// Custom windows run buffered today; the runtime path
 			// reflects the built-in behaviour.
 			r.Streamable[processing.StreamabilityKey("window", string(reg.Name))] = false
@@ -133,7 +133,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Features) > 0 {
 		r.Features = make(map[types.FeatureType]feature.Factory, len(ext.Features))
 		for _, reg := range ext.Features {
-			r.Features[reg.Name] = reg.Factory
+			r.Features[reg.Name] = adaptFeatureFactory(reg)
 			r.Streamable[processing.StreamabilityKey("feature", string(reg.Name))] = reg.Streamable
 			addFieldInputs("feature", string(reg.Name), reg.FieldInputs)
 		}
@@ -146,14 +146,14 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 				if r.RowTests == nil {
 					r.RowTests = make(map[types.TestType]processing.RowTestFactory)
 				}
-				r.RowTests[reg.Name] = reg.RowFactory
+				r.RowTests[reg.Name] = adaptRowTestFactory(reg)
 				r.Streamable[processing.StreamabilityKey("test", string(reg.Name))] = reg.Streamable
 				addFieldInputs("test", string(reg.Name), reg.FieldInputs)
 			case TestTierPost:
 				if r.PostTests == nil {
 					r.PostTests = make(map[types.TestType]processing.PostTestFactory)
 				}
-				r.PostTests[reg.Name] = reg.PostFactory
+				r.PostTests[reg.Name] = adaptPostTestFactory(reg)
 				// Tier-2 tests are always buffered at runtime.
 				r.Streamable[processing.StreamabilityKey("test", string(reg.Name))] = false
 			}

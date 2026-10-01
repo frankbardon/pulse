@@ -8,6 +8,8 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/processing/feature"
+	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -399,5 +401,282 @@ func adaptFiltererFactory(reg FiltererRegistration) processing.FiltererFactory {
 			return nil
 		}
 		return adaptFilterer(builder, emit)
+	}
+}
+
+// ---- attributes --------------------------------------------------------
+
+// attrCore forwards the base AttributeComputer method over the
+// zero-copy Rows view.
+type attrCore struct{ inner extend.AttributeComputer }
+
+func (a attrCore) Compute(records []*processing.Record, field string) ([]float64, error) {
+	return a.inner.Compute(recordRows(records), field)
+}
+
+// attrRow forwards extend.RowLocalAttribute as
+// processing.RowLocalAttribute.
+type attrRow struct{ row extend.RowLocalAttribute }
+
+func (a attrRow) Row(rec *processing.Record, field string) (float64, error) {
+	return a.row.Row(rec, field)
+}
+
+// attrTwoPass forwards the two extra extend.TwoPassAttribute methods;
+// paired with attrRow it satisfies processing.TwoPassAttribute.
+type attrTwoPass struct{ two extend.TwoPassAttribute }
+
+func (a attrTwoPass) PrePass(rec *processing.Record, field string) error {
+	return a.two.PrePass(rec, field)
+}
+
+func (a attrTwoPass) Finalize() error { return a.two.Finalize() }
+
+// One wrapper per capability tier: buffered, (R)ow-local, (T)wo-pass.
+// TwoPassAttribute embeds RowLocalAttribute, so the tiers nest and
+// there is no fourth combination.
+type (
+	attrAdapted  struct{ attrCore }
+	attrAdaptedR struct {
+		attrCore
+		attrRow
+	}
+	attrAdaptedT struct {
+		attrCore
+		attrRow
+		attrTwoPass
+	}
+)
+
+// adaptAttribute wraps an extend.AttributeComputer so the engine's
+// RowLocalAttribute / TwoPassAttribute assertions succeed iff the
+// embedder value implements the matching extend sibling. ExtensionAware
+// is engine-only and never forwarded.
+func adaptAttribute(inner extend.AttributeComputer) processing.AttributeComputer {
+	core := attrCore{inner: inner}
+	if two, ok := inner.(extend.TwoPassAttribute); ok {
+		return &attrAdaptedT{core, attrRow{row: two}, attrTwoPass{two: two}}
+	}
+	if row, ok := inner.(extend.RowLocalAttribute); ok {
+		return &attrAdaptedR{core, attrRow{row: row}}
+	}
+	return &attrAdapted{core}
+}
+
+// adaptAttributeFactory turns a registration's extend factory into the
+// engine factory. A nil instance passes through as nil.
+func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactory {
+	inner := reg.Factory
+	return func(attr *types.Attribute, schema *encoding.Schema) (processing.AttributeComputer, error) {
+		instance, err := inner(attr, schema)
+		if err != nil {
+			return nil, err
+		}
+		if instance == nil {
+			return nil, nil
+		}
+		return adaptAttribute(instance), nil
+	}
+}
+
+// ---- tests -------------------------------------------------------------
+
+// rowTestAdapted forwards extend.RowTest as processing.RowTest. Row
+// tests have no optional siblings.
+type rowTestAdapted struct{ inner extend.RowTest }
+
+func (t *rowTestAdapted) UpdateRow(rec *processing.Record) error { return t.inner.UpdateRow(rec) }
+
+func (t *rowTestAdapted) Finalize() (*types.TestResult, error) { return t.inner.Finalize() }
+
+// adaptRowTestFactory turns a tier-1 registration's extend factory
+// into the engine factory. A nil instance passes through as nil.
+func adaptRowTestFactory(reg TestRegistration) processing.RowTestFactory {
+	inner := reg.RowFactory
+	return func(spec *types.Test, schema *encoding.Schema) (processing.RowTest, error) {
+		instance, err := inner(spec, schema)
+		if err != nil {
+			return nil, err
+		}
+		if instance == nil {
+			return nil, nil
+		}
+		return &rowTestAdapted{inner: instance}, nil
+	}
+}
+
+// adaptPostTestFactory turns a tier-2 registration's extend factory
+// into the engine factory. extend.PostTest has the engine's method set
+// exactly (it never sees a Record), so the instance is handed over
+// as-is; only the factory's named return type differs.
+func adaptPostTestFactory(reg TestRegistration) processing.PostTestFactory {
+	inner := reg.PostFactory
+	return func(spec *types.Test, schema *encoding.Schema) (processing.PostTest, error) {
+		instance, err := inner(spec, schema)
+		if err != nil || instance == nil {
+			return nil, err
+		}
+		return instance, nil
+	}
+}
+
+// ---- windows -----------------------------------------------------------
+
+// adaptWindowFactory turns a registration's extend factory into the
+// engine factory. extend.WindowComputer has the engine's method set
+// exactly, so the instance is handed over as-is; the options value is
+// translated (both are empty today).
+func adaptWindowFactory(reg WindowRegistration) window.WindowFactory {
+	inner := reg.Factory
+	return func(w *types.Window, _ window.WindowOptions) (window.WindowComputer, error) {
+		instance, err := inner(w, extend.WindowOptions{})
+		if err != nil || instance == nil {
+			return nil, err
+		}
+		return instance, nil
+	}
+}
+
+// ---- features ----------------------------------------------------------
+
+// featureRecord returns the read-only extend view of a feature.Record.
+// The engine always hands features its own *processing.Record, which
+// satisfies extend.Record directly; any other implementation of the
+// narrow feature.Record contract degrades to featureRecordView rather
+// than panicking.
+func featureRecord(r feature.Record) extend.Record {
+	if rec, ok := r.(extend.Record); ok {
+		return rec
+	}
+	return featureRecordView{r}
+}
+
+// featureRecordView lifts the four-method feature.Record onto
+// extend.Record. Only the numeric and categorical reads exist on the
+// source; every other read reports "no value".
+type featureRecordView struct{ r feature.Record }
+
+func (v featureRecordView) Schema() *encoding.Schema { return nil }
+
+func (v featureRecordView) IsNull(field string) bool {
+	if _, ok := v.r.NumericValue(field); ok {
+		return false
+	}
+	_, ok := v.r.StringValue(field)
+	return !ok
+}
+
+func (v featureRecordView) NumericValue(field string) (float64, bool) {
+	return v.r.NumericValue(field)
+}
+
+func (v featureRecordView) StringValue(field string) (string, bool) {
+	return v.r.StringValue(field)
+}
+
+func (v featureRecordView) SetMaskValue(string) (encoding.SetMask, bool) {
+	return encoding.SetMask{}, false
+}
+
+func (v featureRecordView) DecimalValue(string) (encoding.Decimal128, bool) {
+	return encoding.Decimal128{}, false
+}
+
+// featureRows is the extend.Rows view over the engine's feature record
+// slice. It copies no rows.
+type featureRows []feature.Record
+
+func (r featureRows) Len() int               { return len(r) }
+func (r featureRows) At(i int) extend.Record { return featureRecord(r[i]) }
+
+// toEngineFeatureOutputs converts an extend output map to the engine's.
+// FeatureOutput and feature.Output share one underlying struct, so each
+// entry converts without copying its slices.
+func toEngineFeatureOutputs(in map[string]extend.FeatureOutput) map[string]feature.Output {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]feature.Output, len(in))
+	for label, o := range in {
+		out[label] = feature.Output(o)
+	}
+	return out
+}
+
+// featCore forwards the base FeatureComputer method.
+type featCore struct{ inner extend.FeatureComputer }
+
+func (f featCore) Compute(records []feature.Record, field string) (map[string]feature.Output, error) {
+	out, err := f.inner.Compute(featureRows(records), field)
+	if err != nil {
+		return nil, err
+	}
+	return toEngineFeatureOutputs(out), nil
+}
+
+// featStreaming forwards extend.StreamingFeatureComputer as
+// feature.StreamingComputer. EmitRow outputs are checked for the
+// single-row shape so a malformed extension output is a coded error,
+// never an index panic in the engine's write loop.
+type featStreaming struct {
+	streaming extend.StreamingFeatureComputer
+	name      types.FeatureType
+}
+
+func (f featStreaming) PrePass(rec feature.Record, field string) error {
+	return f.streaming.PrePass(featureRecord(rec), field)
+}
+
+func (f featStreaming) Finalize() error { return f.streaming.Finalize() }
+
+func (f featStreaming) EmitRow(rec feature.Record, field string) (map[string]feature.Output, error) {
+	out, err := f.streaming.EmitRow(featureRecord(rec), field)
+	if err != nil {
+		return nil, err
+	}
+	for label, o := range out {
+		isNull := len(o.Nulls) > 0 && o.Nulls[0]
+		if len(o.Nulls) > 1 || (!isNull && len(o.Values) != 1) {
+			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("extension feature %s EmitRow produced %d values / %d nulls for one row (label %s); want exactly one", f.name, len(o.Values), len(o.Nulls), label),
+				map[string]any{"feature_type": string(f.name), "label": label, "values": len(o.Values), "nulls": len(o.Nulls)})
+		}
+	}
+	return toEngineFeatureOutputs(out), nil
+}
+
+// One wrapper per capability combination: buffered, (S)treaming.
+type (
+	featAdapted  struct{ featCore }
+	featAdaptedS struct {
+		featCore
+		featStreaming
+	}
+)
+
+// adaptFeature wraps an extend.FeatureComputer so the engine's
+// StreamingComputer assertion succeeds iff the embedder value
+// implements extend.StreamingFeatureComputer.
+func adaptFeature(name types.FeatureType, inner extend.FeatureComputer) feature.Computer {
+	core := featCore{inner: inner}
+	if s, ok := inner.(extend.StreamingFeatureComputer); ok {
+		return &featAdaptedS{core, featStreaming{streaming: s, name: name}}
+	}
+	return &featAdapted{core}
+}
+
+// adaptFeatureFactory turns a registration's extend factory into the
+// engine factory. A nil instance passes through as nil.
+func adaptFeatureFactory(reg FeatureRegistration) feature.Factory {
+	inner, name := reg.Factory, reg.Name
+	return func(feat *types.Feature, schema *encoding.Schema) (feature.Computer, error) {
+		instance, err := inner(feat, schema)
+		if err != nil {
+			return nil, err
+		}
+		if instance == nil {
+			return nil, nil
+		}
+		return adaptFeature(name, instance), nil
 	}
 }

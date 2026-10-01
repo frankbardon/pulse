@@ -157,7 +157,7 @@ aggregator, extension or built-in.
 {
     Name:        "ATTR_ACME_ADJUSTMENT",
     Description: "Per-(study, wave) multiplier.",
-    Factory:     newAdjustmentAttribute,           // processing.AttributeFactory
+    Factory:     newAdjustmentAttribute,           // extend.AttributeFactory
     Mode:        pulse.AttributeModeRowLocal,       // row_local | two_pass | buffered
     Accepts:     []encoding.FieldType{encoding.FieldTypeF64},
     Emits:       pulse.AttributeEmitFloat64,
@@ -165,10 +165,17 @@ aggregator, extension or built-in.
 ```
 
 `Mode` drives streaming-tier validation: `row_local` requires
-`processing.RowLocalAttribute`, `two_pass` requires
-`processing.TwoPassAttribute`, `buffered` requires only the base
-`processing.AttributeComputer`. Attributes do NOT declare a
+`extend.RowLocalAttribute` (`Row(rec extend.Record, field)`),
+`two_pass` requires `extend.TwoPassAttribute` (adds `PrePass` +
+`Finalize`), `buffered` requires only the base
+`extend.AttributeComputer` (`Compute(rows extend.Rows, field)
+([]float64, error)`, one value per row, aligned with `rows`). The probe
+asserts the `extend` sibling on the factory's own value; the adapter
+forwards exactly the tier it implements. Attributes do NOT declare a
 `ComponentSchema` (see the table in the **Component schemas** section).
+Extension attributes run buffered on `Process` today whatever their
+`Mode`: its stream gate consults built-in `AttributeType.Streamable()`
+only.
 
 ### Filterer, Grouper, Window, Feature
 
@@ -207,6 +214,23 @@ supplies `ComponentsFunc` stays multi-key (and fuses in a crosstab).
 Extension groupers run buffered on the plain grouped `Process` path:
 its stream gate consults built-in `GroupType.Streamable()` only.
 
+A window is an `extend.WindowFactory` taking the spec and an empty
+`extend.WindowOptions` and returning an `extend.WindowComputer`
+(`Compute(rows []map[string]any, partitions [][]int, label string)`);
+it writes its column into the materialised result rows in place.
+
+A feature is an `extend.FeatureFactory` returning an
+`extend.FeatureComputer`: `Compute(rows extend.Rows, field)` returns
+`map[string]extend.FeatureOutput` keyed by output column, each
+`{Values, Nulls}` aligned with `rows`. The optional streaming sibling
+`extend.StreamingFeatureComputer` (`PrePass`, `Finalize`, `EmitRow`)
+returns single-row outputs from `EmitRow`; any other shape is a
+`PROCESSING_INTERNAL` coded error. Features only READ rows — the engine
+writes the derived columns. Feature streamability is decided on the
+returned value (the adapter exposes the streaming sibling iff the
+embedder's value implements it), so a streaming extension feature does
+stream on `Process`.
+
 ### Test (tier-1 / tier-2)
 
 ```go
@@ -214,7 +238,7 @@ its stream gate consults built-in `GroupType.Streamable()` only.
 {
     Name:       "TEST_ACME_PROXY",
     Tier:       pulse.TestTierRow,
-    RowFactory: newProxyRowTest,                  // processing.RowTestFactory
+    RowFactory: newProxyRowTest,                  // extend.RowTestFactory
     Streamable: true,
 }
 
@@ -222,13 +246,17 @@ its stream gate consults built-in `GroupType.Streamable()` only.
 {
     Name:        "TEST_ACME_AGGREGATE_CHECK",
     Tier:        pulse.TestTierPost,
-    PostFactory: newAggregateCheckPostTest,       // processing.PostTestFactory
+    PostFactory: newAggregateCheckPostTest,       // extend.PostTestFactory
 }
 ```
 
 Exactly one of `RowFactory` / `PostFactory` must be non-nil and match
-`Tier`. Tier-2 tests always run buffered; `Streamable` on a tier-2
-registration is ignored.
+`Tier`. A tier-1 `extend.RowTest` folds `UpdateRow(rec extend.Record)`
+then `Finalize() (*types.TestResult, error)`; a tier-2 `extend.PostTest`
+runs `Run(rows []map[string]any)` once over the result rows. Tier-2
+tests always run buffered; `Streamable` on a tier-2 registration is
+ignored. Extension tier-1 tests also run buffered on `Process` today:
+its stream gate consults built-in `TestType.Streamable()` only.
 
 ### Synth distribution
 
@@ -699,11 +727,11 @@ trusts that declaration. Probe-validation catches obvious mismatches.
 | Category | Streamable means | Required interface |
 |---|---|---|
 | Aggregator | one-pass online | `extend.OnlineAggregator` |
-| Attribute (`row_local`) | per-row eval, no PrePass | `processing.RowLocalAttribute` |
-| Attribute (`two_pass`) | PrePass + Finalize + Row | `processing.TwoPassAttribute` |
+| Attribute (`row_local`) | per-row eval, no PrePass | `extend.RowLocalAttribute` |
+| Attribute (`two_pass`) | PrePass + Finalize + Row | `extend.TwoPassAttribute` |
 | Grouper | derive key from a single row | `extend.StreamingGrouper` (fan-out: `extend.MultiKeyStreamingGrouper`) |
-| Feature | StreamingComputer pipeline | `feature.StreamingComputer` |
-| Test (tier-1) | folds with online aggregators | `processing.RowTest` |
+| Feature | StreamingComputer pipeline | `extend.StreamingFeatureComputer` |
+| Test (tier-1) | folds with online aggregators | `extend.RowTest` |
 
 Filterers are always row-local streamable; windows always run
 buffered.

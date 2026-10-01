@@ -8,7 +8,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -102,13 +101,13 @@ func TestExtensions_ProbeAggregator_FactoryReturnsNil(t *testing.T) {
 // the factory only emits row-local capability.
 type rowLocalOnlyAttribute struct{}
 
-func (rowLocalOnlyAttribute) Compute(records []*processing.Record, field string) ([]float64, error) {
+func (rowLocalOnlyAttribute) Compute(rows extend.Rows, field string) ([]float64, error) {
 	_ = field
-	return make([]float64, len(records)), nil
+	return make([]float64, rows.Len()), nil
 }
-func (rowLocalOnlyAttribute) Row(*processing.Record, string) (float64, error) { return 0, nil }
+func (rowLocalOnlyAttribute) Row(extend.Record, string) (float64, error) { return 0, nil }
 
-func rowLocalOnlyFactory(*types.Attribute, *encoding.Schema) (processing.AttributeComputer, error) {
+func rowLocalOnlyFactory(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 	return rowLocalOnlyAttribute{}, nil
 }
 
@@ -116,12 +115,12 @@ func rowLocalOnlyFactory(*types.Attribute, *encoding.Schema) (processing.Attribu
 // must-fail probe target for row_local and two_pass modes.
 type computeOnlyAttribute struct{}
 
-func (computeOnlyAttribute) Compute(records []*processing.Record, field string) ([]float64, error) {
+func (computeOnlyAttribute) Compute(rows extend.Rows, field string) ([]float64, error) {
 	_ = field
-	return make([]float64, len(records)), nil
+	return make([]float64, rows.Len()), nil
 }
 
-func computeOnlyFactory(*types.Attribute, *encoding.Schema) (processing.AttributeComputer, error) {
+func computeOnlyFactory(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 	return computeOnlyAttribute{}, nil
 }
 

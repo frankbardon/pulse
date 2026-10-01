@@ -8,8 +8,8 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
-	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -194,15 +194,15 @@ func TestExtensions_Predict_DescriptorImportContractHolds(t *testing.T) {
 	}
 }
 
-// stubFeatureFactory returns a no-op feature.Computer that emits an
-// empty output set.
-func stubFeatureFactory(*types.Feature, *encoding.Schema) (feature.Computer, error) {
+// stubFeatureFactory returns a no-op extend.FeatureComputer that emits
+// an empty output set.
+func stubFeatureFactory(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) {
 	return stubFeatureComputer{}, nil
 }
 
 type stubFeatureComputer struct{}
 
-func (stubFeatureComputer) Compute(records []feature.Record, field string) (map[string]feature.Output, error) {
-	_, _ = records, field
-	return map[string]feature.Output{}, nil
+func (stubFeatureComputer) Compute(rows extend.Rows, field string) (map[string]extend.FeatureOutput, error) {
+	_, _ = rows, field
+	return map[string]extend.FeatureOutput{}, nil
 }

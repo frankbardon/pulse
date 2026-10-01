@@ -10,8 +10,6 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/synth"
-	"github.com/frankbardon/pulse/processing"
-	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -39,7 +37,7 @@ func (stubWindowComputer) Compute(rows []map[string]any, partitions [][]int, lab
 	return nil
 }
 
-func stubWindowFactory(*types.Window, window.WindowOptions) (window.WindowComputer, error) {
+func stubWindowFactory(*types.Window, extend.WindowOptions) (extend.WindowComputer, error) {
 	return stubWindowComputer{}, nil
 }
 
@@ -206,7 +204,7 @@ func checkSnapshotPresent(t *testing.T, metas []descriptor.OperatorMeta, name st
 // stubPanicAttributeFactory raises a panic so safeBuildAttribute
 // observes the recover() path (the 70%-covered branch in
 // extensions_probe.go).
-func stubPanicAttributeFactory(*types.Attribute, *encoding.Schema) (processing.AttributeComputer, error) {
+func stubPanicAttributeFactory(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 	panic("intentional probe panic")
 }
 
@@ -223,7 +221,7 @@ func TestExtensions_ProbeAttribute_FactoryPanicCaught(t *testing.T) {
 }
 
 // Catches the "factory returned nil" branch in safeBuildAttribute.
-func stubNilAttributeFactory(*types.Attribute, *encoding.Schema) (processing.AttributeComputer, error) {
+func stubNilAttributeFactory(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 	return nil, nil
 }
 
