@@ -349,6 +349,20 @@ func (r *ExtensionRegistry) IsStreamable(category, name string) bool {
 	return false
 }
 
+// isExtensionAggregator reports whether t is an embedder-registered
+// (overlay) aggregator rather than a built-in. Extension names cannot
+// collide with built-ins (rejected at pulse.New), so overlay membership
+// is the whole test. Used by the decimal128 dispatch: the built-in
+// decimal table governs built-ins only, while an extension decides what
+// to do with a decimal field itself.
+func (r *ExtensionRegistry) isExtensionAggregator(t types.AggregationType) bool {
+	if r == nil {
+		return false
+	}
+	_, ok := r.Aggregators[t]
+	return ok
+}
+
 // HasAggregator reports whether name resolves either via overlay or
 // built-in registry. Same shape for the remaining categories.
 func (r *ExtensionRegistry) HasAggregator(t types.AggregationType) bool {

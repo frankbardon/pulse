@@ -238,3 +238,17 @@ func (s *ExtensionsSnapshot) GrouperFanOut(name string) (fansOut bool, ok bool) 
 	}
 	return false, false
 }
+
+// HasAggregator reports whether name is an embedder-registered
+// aggregator in the snapshot. Nil-safe.
+func (s *ExtensionsSnapshot) HasAggregator(name string) bool {
+	if s == nil {
+		return false
+	}
+	for _, m := range s.Aggregators {
+		if m.Name == name {
+			return true
+		}
+	}
+	return false
+}

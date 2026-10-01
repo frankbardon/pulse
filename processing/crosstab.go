@@ -1634,8 +1634,10 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 		}
 	}
 
-	// Decimal128 dispatch — same gate as aggregateWithComponents.
-	if p.schema != nil {
+	// Decimal128 dispatch — same gate as aggregateWithComponents: a
+	// registered extension aggregator bypasses the built-in decimal
+	// table and runs its own factory.
+	if p.schema != nil && !p.exts.isExtensionAggregator(slot.Type) {
 		if f := p.schema.Field(slot.Field); f != nil && f.Type.IsDecimal() {
 			if !IsDecimalAggregationSupported(slot.Type) {
 				return cellAggregationResult{}, nil, 0, 0, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

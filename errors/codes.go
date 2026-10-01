@@ -284,8 +284,9 @@ const (
 	PULSE_DECIMAL_DIVIDE_BY_ZERO Code = "PULSE_DECIMAL_DIVIDE_BY_ZERO"
 
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL is a predict warning emitted
-	// when an aggregation has no defined semantics on a decimal128 field
-	// (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1).
+	// when a built-in aggregation has no defined semantics on a decimal128
+	// field (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1). Registered extension
+	// aggregators are exempt.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 
 	// PULSE_SYNTH_DISTRIBUTION_UNKNOWN indicates a synth spec referenced

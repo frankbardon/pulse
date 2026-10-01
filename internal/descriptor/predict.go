@@ -73,9 +73,10 @@ func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema) [
 	return out
 }
 
-// decimalSupportedAggregations are the v1 set of aggregations defined on
-// decimal128 fields. Any aggregation outside this set on a decimal field
-// emits PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
+// decimalSupportedAggregations are the v1 set of BUILT-IN aggregations
+// defined on decimal128 fields. Any other built-in on a decimal field
+// emits PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL; a registered extension
+// aggregator is exempt (see decimalAggregationRefused).
 var decimalSupportedAggregations = map[types.AggregationType]bool{
 	types.AGG_SUM:            true,
 	types.AGG_AVERAGE:        true,
@@ -85,6 +86,16 @@ var decimalSupportedAggregations = map[types.AggregationType]bool{
 	types.AGG_STDDEV:         true,
 	types.AGG_COUNT:          true,
 	types.AGG_DISTINCT_COUNT: true,
+}
+
+// decimalAggregationRefused reports whether agg on a decimal128 field
+// draws PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL. A registered extension
+// aggregator is never refused: it owns its decimal semantics
+// (extend.Record.DecimalValue) and the runtime dispatches it to its own
+// factory, mirroring the processing-side exemption without importing
+// processing.
+func decimalAggregationRefused(agg types.AggregationType, snap *ExtensionsSnapshot) bool {
+	return !decimalSupportedAggregations[agg] && !snap.HasAggregator(string(agg))
 }
 
 // PredictOptions controls predict behavior.
@@ -278,7 +289,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Compute autocomplete-style suggestions. Suggestions may surface even
 	// when the request is otherwise valid (streamability hints), so this
 	// runs unconditionally after every other validator.
-	result.Suggestions = computeSuggestions(req, schema, result.Streamable)
+	result.Suggestions = computeSuggestions(req, schema, result.Streamable, opts.Extensions)
 
 	// If any errors were added, mark invalid.
 	if len(env.Errors) > 0 {
@@ -538,7 +549,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 		}
 
 		// Decimal field aggregation validity matrix.
-		if f.Type.IsDecimal() && !decimalSupportedAggregations[agg.Type] {
+		if f.Type.IsDecimal() && decimalAggregationRefused(agg.Type, opts.Extensions) {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL),
 				Message: "aggregation " + string(agg.Type) + " has no decimal128 implementation; field " + agg.Field + " is decimal128",

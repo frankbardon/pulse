@@ -71,7 +71,7 @@ func numericFallbackFields(schema *encoding.Schema) []any {
 // returns a non-nil empty slice when nothing fires (so JSON serialises
 // as []). Source order: typos → operator/type → date-misuse →
 // missing-params → streamability.
-func computeSuggestions(req *types.Request, schema *encoding.Schema, streamable bool) []descriptor.Suggestion {
+func computeSuggestions(req *types.Request, schema *encoding.Schema, streamable bool, snap *ExtensionsSnapshot) []descriptor.Suggestion {
 	out := []descriptor.Suggestion{}
 	if req == nil || schema == nil {
 		return out
@@ -80,7 +80,7 @@ func computeSuggestions(req *types.Request, schema *encoding.Schema, streamable 
 	fieldNames := schemaFieldNames(schema)
 
 	out = appendTypoSuggestions(out, req, schema, fieldNames)
-	out = appendOperatorTypeSuggestions(out, req, schema)
+	out = appendOperatorTypeSuggestions(out, req, schema, snap)
 	out = appendDateMisuseSuggestions(out, req, schema)
 	out = appendMissingParamSuggestions(out, req, schema)
 	if !streamable {
@@ -177,7 +177,7 @@ func appendTypoSuggestions(out []descriptor.Suggestion, req *types.Request, sche
 // Reuses the fixup hint from errors.MetadataFor when one is registered
 // for the underlying code so prose stays in lockstep with the fixup
 // table.
-func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema) []descriptor.Suggestion {
+func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) []descriptor.Suggestion {
 	for i, agg := range req.Aggregations {
 		f := schema.Field(agg.Field)
 		if f == nil {
@@ -200,7 +200,7 @@ func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Reque
 				Confidence: 0.6,
 			})
 
-		case f.Type.IsDecimal() && !decimalSupportedAggregations[agg.Type]:
+		case f.Type.IsDecimal() && decimalAggregationRefused(agg.Type, snap):
 			proposed := []any{
 				string(types.AGG_AVERAGE),
 				string(types.AGG_COUNT),

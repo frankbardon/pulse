@@ -41,8 +41,9 @@ func (r decimalAggResult) String() string {
 }
 
 // decimalSupportedAgg lists the aggregations that have a defined decimal
-// implementation in v1. Aggregations outside this set should be rejected
-// at predict time with PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
+// implementation in v1. Built-ins outside this set should be rejected
+// at predict time with PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL; a registered
+// extension aggregator is exempt and dispatches to its own factory.
 var decimalSupportedAgg = map[types.AggregationType]bool{
 	types.AGG_SUM:            true,
 	types.AGG_AVERAGE:        true,

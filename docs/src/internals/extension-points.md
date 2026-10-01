@@ -140,6 +140,17 @@ so a streamable aggregator that also supplies `ComponentsFunc` still
 streams. Read semantics (null, set, categorical, date/datetime, u64,
 decimal128) are on each `extend.Record` method's godoc.
 
+**Decimal128 targets.** The built-in decimal table (exact `AGG_SUM`,
+`AGG_AVERAGE`, … — see `skills/financial-cohorts.md`) governs built-ins
+only: a built-in outside it is refused on a `decimal128` field
+(`PROCESSING_CONFIG` at run time, `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`
+from predict). A registered extension aggregator is never refused — its
+factory runs and the extension decides what a decimal field means, reading
+the exact value through `extend.Record.DecimalValue` (`NumericValue` is a
+rounded echo) and typically rendering it via `extend.RichAggregator`. A
+decimal target still forces the buffered, serial path for every
+aggregator, extension or built-in.
+
 ### Attribute
 
 ```go

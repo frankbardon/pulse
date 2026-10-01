@@ -1649,8 +1649,10 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		if label == "" {
 			label = fmt.Sprintf("%s_%s", agg.Type, agg.Field)
 		}
-		// Decimal-typed fields dispatch to AggregateDecimalField.
-		if p.schema != nil {
+		// Decimal-typed fields dispatch to AggregateDecimalField. A
+		// registered extension aggregator owns its decimal semantics
+		// (extend.Record.DecimalValue) and falls through to its factory.
+		if p.schema != nil && !p.exts.isExtensionAggregator(agg.Type) {
 			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
 				if !IsDecimalAggregationSupported(agg.Type) {
 					return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,

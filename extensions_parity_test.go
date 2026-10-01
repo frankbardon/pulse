@@ -273,9 +273,11 @@ func parityModes(large func(*testing.T) string) []parityMode {
 // operator through.
 type parityProbe struct {
 	online, buffered atomic.Int64
+	// decimalReads counts DecimalValue hits that returned a value.
+	decimalReads atomic.Int64
 }
 
-func (p *parityProbe) reset() { p.online.Store(0); p.buffered.Store(0) }
+func (p *parityProbe) reset() { p.online.Store(0); p.buffered.Store(0); p.decimalReads.Store(0) }
 
 type parityRow struct {
 	name      string
@@ -335,6 +337,7 @@ var (
 func (a *paritySum) add(r extend.Record, field string) {
 	if a.isDec {
 		if d, ok := r.DecimalValue(field); ok {
+			a.probe.decimalReads.Add(1)
 			next, err := a.dec.Add(d)
 			if err != nil {
 				a.decErr = err
@@ -419,7 +422,13 @@ func aggregatorParitySuite() paritySuite {
 					Mergeability: descriptor.Mergeable,
 				},
 				ComponentsFunc: func(inst extend.Aggregator) (map[string]any, error) {
-					return map[string]any{"sum": inst.(*paritySum).sum}, nil
+					a := inst.(*paritySum)
+					if a.isDec {
+						// The built-in decimal path emits the universal
+						// floor only; mirror it.
+						return nil, nil
+					}
+					return map[string]any{"sum": a.sum}, nil
 				},
 			}}}
 		},
@@ -430,6 +439,11 @@ func aggregatorParitySuite() paritySuite {
 			row("narrow_set", "qty", by(types.GROUP_SET_PER_ELEMENT, "tags"), nil),
 			contains(row("wide_set_u128", "score", by(types.GROUP_SET_PER_ELEMENT, "w128"), nil), "a070", "a073"),
 			contains(row("wide_set_u256", "qty", by(types.GROUP_SET_PER_ELEMENT, "w256"), nil), "b200", "b202"),
+			// decimal128 targets force the buffered, serial path on both
+			// arms (CanStreamRequest / CanMergeRequest refuse them); the
+			// twin sums exactly via DecimalValue and renders via Rich.
+			contains(nonStreaming(row("decimal128", "amount", nil, nil)), `"total":"`),
+			contains(nonStreaming(row("decimal128_grouped", "amount", by(types.GROUP_CATEGORY, "region"), nil)), `"total":"`),
 			nonStreaming(row("date", "score", by(types.GROUP_DATE, "day"), nil)),
 			nonStreaming(row("datetime", "qty", by(types.GROUP_DATE, "ts"), nil)),
 			row("filtered", "score", by(types.GROUP_CATEGORY, "region"),
@@ -566,17 +580,15 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 	}
 }
 
-// TestExtensions_DecimalTargetGap pins a known divergence the parity
-// matrix cannot yet cover: the buffered processor (and predict) route
-// every decimal128 aggregation target through the built-in decimal
-// table, so an extension aggregator over a decimal128 field is refused
-// before its factory runs — extend.Record.DecimalValue is unreachable
-// on the aggregation's own field. The built-in AGG_SUM over the same
-// field succeeds. When the engine admits extension aggregators on
-// decimal targets, this test fails: move the decimal128 row into
-// aggregatorParitySuite (the twin already sums via DecimalValue and
-// renders through Rich) and delete this test.
-func TestExtensions_DecimalTargetGap(t *testing.T) {
+// TestExtensions_DecimalTarget asserts a registered extension
+// aggregator over a decimal128 field runs — the engine does not refuse
+// it against the built-in decimal table — and reaches
+// extend.Record.DecimalValue on the aggregation's own field, through
+// Process (buffered), ProcessStream and a crosstab cell. The built-in
+// refusal of a non-decimal built-in (AGG_MEDIAN) stays exactly as it
+// was. The cross-mode output parity lives in aggregatorParitySuite's
+// decimal128 row.
+func TestExtensions_DecimalTarget(t *testing.T) {
 	probe := &parityProbe{}
 	fsys := afero.NewMemMapFs()
 	writeParityCohort(t, fsys, "parity.pulse", paritySchema(t), 0, paritySmallRows)
@@ -584,23 +596,147 @@ func TestExtensions_DecimalTargetGap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	run := func(at types.AggregationType) error {
-		_, err := p.Process(context.Background(), &types.Request{
+	ctx := context.Background()
+	req := func(at types.AggregationType) *types.Request {
+		return &types.Request{
 			Cohort:       &types.Cohort{Filename: "parity.pulse"},
 			Aggregations: []*types.Aggregation{{Type: at, Field: "amount", Label: "total"}},
-		})
-		return err
+		}
 	}
-	if err := run(types.AGG_SUM); err != nil {
+
+	builtin, err := p.Process(ctx, req(types.AGG_SUM))
+	if err != nil {
 		t.Fatalf("built-in AGG_SUM over decimal128: %v", err)
 	}
-	err = run(aggParitySum)
+	ext, err := p.Process(ctx, req(aggParitySum))
+	if err != nil {
+		t.Fatalf("extension over decimal128 (Process): %v", err)
+	}
+	if probe.buffered.Load() == 0 || probe.decimalReads.Load() == 0 {
+		t.Fatalf("extension did not reach DecimalValue: buffered=%d decimalReads=%d",
+			probe.buffered.Load(), probe.decimalReads.Load())
+	}
+	if b, e := mustJSON(t, builtin.Data), mustJSON(t, ext.Data); b != e {
+		t.Errorf("Process Data differs\nbuiltin:   %s\nextension: %s", b, e)
+	}
+
+	probe.reset()
+	streamChunks := func(at types.AggregationType) []string {
+		sr, err := p.ProcessStreamResult(ctx, req(at))
+		if err != nil {
+			t.Fatalf("ProcessStreamResult(%s) over decimal128: %v", at, err)
+		}
+		var out []string
+		for c := range sr.Chunks {
+			out = append(out, mustJSON(t, c))
+		}
+		if done := <-sr.Done; done.Status != pulse.StreamCompleted {
+			t.Fatalf("ProcessStreamResult(%s): status = %v, err = %v", at, done.Status, done.Error)
+		}
+		return out
+	}
+	if e := streamChunks(aggParitySum); probe.decimalReads.Load() == 0 {
+		t.Fatal("ProcessStreamResult: extension did not reach DecimalValue")
+	} else if b := streamChunks(types.AGG_SUM); strings.Join(b, "\n") != strings.Join(e, "\n") {
+		t.Errorf("stream chunks differ\nbuiltin:   %v\nextension: %v", b, e)
+	}
+
+	probe.reset()
+	xt := func(at types.AggregationType) *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: "parity.pulse"},
+			Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Columns: []*types.Group{{Type: types.GROUP_DATE, Field: "day"}},
+				Cell:    &types.Aggregation{Type: at, Field: "amount", Label: "total"},
+			},
+		}
+	}
+	bx, err := p.Process(ctx, xt(types.AGG_SUM))
+	if err != nil {
+		t.Fatalf("built-in crosstab over decimal128: %v", err)
+	}
+	ex, err := p.Process(ctx, xt(aggParitySum))
+	if err != nil {
+		t.Fatalf("extension crosstab over decimal128: %v", err)
+	}
+	if probe.decimalReads.Load() == 0 {
+		t.Fatal("crosstab: extension did not reach DecimalValue")
+	}
+	if b, e := mustJSON(t, bx.Crosstab), mustJSON(t, ex.Crosstab); b != e {
+		t.Errorf("crosstab differs\nbuiltin:   %s\nextension: %s", b, e)
+	}
+
+	// A built-in with no decimal implementation is still refused.
+	_, err = p.Process(ctx, req(types.AGG_MEDIAN))
 	var ce *perr.CodedError
 	if !errors.As(err, &ce) || ce.Code != perr.PROCESSING_CONFIG {
-		t.Fatalf("extension over decimal128: err = %v, want PROCESSING_CONFIG refusal (gap closed? see doc comment)", err)
+		t.Fatalf("built-in AGG_MEDIAN over decimal128: err = %v, want PROCESSING_CONFIG", err)
 	}
-	if probe.online.Load()+probe.buffered.Load() != 0 {
-		t.Fatal("extension aggregator ran on a decimal128 target; the gap is closed — promote the row")
+	_, err = p.Process(ctx, xt(types.AGG_MEDIAN))
+	if !errors.As(err, &ce) || ce.Code != perr.PROCESSING_CONFIG {
+		t.Fatalf("built-in AGG_MEDIAN crosstab over decimal128: err = %v, want PROCESSING_CONFIG", err)
+	}
+}
+
+// TestExtensions_DecimalTargetPredict asserts predict recognises a
+// registered extension aggregator on a decimal128 field: no
+// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL warning, no strict error and no
+// replace-operator suggestion. A built-in without a decimal
+// implementation still warns (and errors under Strict).
+func TestExtensions_DecimalTargetPredict(t *testing.T) {
+	var buf []byte
+	w := &byteSink{b: &buf}
+	if err := encoding.WriteHeader(w); err != nil {
+		t.Fatal(err)
+	}
+	if err := encoding.WriteSchema(w, paritySchema(t)); err != nil {
+		t.Fatal(err)
+	}
+	buf = append(buf, parityPayload(t, paritySchema(t), 0, 8)...)
+	code := string(perr.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL)
+	has := func(entries []*descriptor.EnvelopeEntry) bool {
+		for _, e := range entries {
+			if e.Code == code {
+				return true
+			}
+		}
+		return false
+	}
+	for _, strict := range []bool{false, true} {
+		p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Strict: strict,
+			Extensions: aggregatorParitySuite().register(&parityProbe{})})
+		if err != nil {
+			t.Fatalf("pulse.New: %v", err)
+		}
+		predict := func(at types.AggregationType) *descriptor.Envelope {
+			env, err := p.PredictBytes(context.Background(), buf, &types.Request{
+				Aggregations: []*types.Aggregation{{Type: at, Field: "amount", Label: "total"}},
+			})
+			if err != nil {
+				t.Fatalf("PredictBytes: %v", err)
+			}
+			return env
+		}
+		env := predict(aggParitySum)
+		if has(env.Warnings) || has(env.Errors) {
+			t.Errorf("strict=%v: extension over decimal128 flagged %s: warnings=%v errors=%v",
+				strict, code, env.Warnings, env.Errors)
+		}
+		if res, ok := env.Data.(*descriptor.PredictResult); ok {
+			for _, s := range res.Suggestions {
+				if s.Current == string(aggParitySum) && strings.Contains(s.Reason, "ecimal") {
+					t.Errorf("strict=%v: extension over decimal128 drew suggestion %+v", strict, s)
+				}
+			}
+		} else {
+			t.Fatalf("env.Data = %T, want *descriptor.PredictResult", env.Data)
+		}
+		env = predict(types.AGG_MEDIAN)
+		if strict && !has(env.Errors) || !strict && !has(env.Warnings) {
+			t.Errorf("strict=%v: built-in AGG_MEDIAN over decimal128 not flagged: warnings=%v errors=%v",
+				strict, env.Warnings, env.Errors)
+		}
 	}
 }
 
