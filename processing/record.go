@@ -543,6 +543,21 @@ func (r *Record) WideValue(name string) (any, bool) {
 	return r.getWide(name)
 }
 
+// DecimalValue returns the exact decimal128 value for the named field.
+// It is the typed counterpart of WideValue for decimal columns:
+// (zero, false) when the field is null, missing, projected out, or
+// carries no decimal128 value (including every set rung). NumericValue
+// on a decimal field returns only a float64 echo that may round; read
+// through DecimalValue whenever exact precision matters.
+func (r *Record) DecimalValue(name string) (encoding.Decimal128, bool) {
+	v, ok := r.WideValue(name)
+	if !ok {
+		return encoding.Decimal128{}, false
+	}
+	d, ok := v.(encoding.Decimal128)
+	return d, ok
+}
+
 // SetWide assigns a typed wide value to a field. Used by readers and
 // feature operators that produce non-float values (decimal128, set
 // bitmasks).

@@ -117,18 +117,28 @@ sections below.
 {
     Name:        "AGG_ACME_BRAND_SCORE",
     Description: "ACME brand composite (0-100).",
-    Factory:     acme.NewBrandScoreAggregator,    // processing.AggregatorFactory
-    Streamable:  true,                            // factory MUST return OnlineAggregator
+    Factory:     acme.NewBrandScoreAggregator,    // extend.AggregatorFactory
+    Streamable:  true,                            // factory MUST return extend.OnlineAggregator
     Accepts:     []encoding.FieldType{encoding.FieldTypeF64},
     Params:      []pulse.ParamMeta{{Name: "weights", JSONType: "array"}},
     ComponentSchema: descriptor.ComponentSchema{ /* see below */ },
-    ComponentsFunc:  func(instance processing.Aggregator) (map[string]any, error) { /* ... */ },
+    ComponentsFunc:  func(instance extend.Aggregator) (map[string]any, error) { /* ... */ },
 }
 ```
 
 When `Streamable=true`, the probe at `pulse.New` time asserts that the
-factory's returned value implements `processing.OnlineAggregator`.
+factory's returned value implements `extend.OnlineAggregator`.
 Mismatch surfaces as `PULSE_EXTENSION_STREAMABLE_MISMATCH`.
+
+Aggregators are authored against the public `extend` package:
+`Aggregate(rows extend.Rows, field)` receives a zero-copy view of the
+buffered rows, `UpdateRow(rec extend.Record, field)` one row at a time.
+A `Record` / `Rows` is valid only for the call that received it — never
+retain one. The adapter installed at `pulse.New` forwards each optional
+sibling (`extend.OnlineAggregator`, `extend.RichAggregator`) explicitly,
+so a streamable aggregator that also supplies `ComponentsFunc` still
+streams. Read semantics (null, set, categorical, date/datetime, u64,
+decimal128) are on each `extend.Record` method's godoc.
 
 ### Attribute
 
@@ -352,7 +362,7 @@ pulse.AggregatorRegistration{
         },
         Mergeability: descriptor.Mergeable,
     },
-    ComponentsFunc: func(instance processing.Aggregator) (map[string]any, error) {
+    ComponentsFunc: func(instance extend.Aggregator) (map[string]any, error) {
         a := instance.(*brandScoreAggregator)
         return map[string]any{
             "weighted_sum":    a.WeightedSum(),
@@ -365,7 +375,7 @@ pulse.AggregatorRegistration{
 The closure signatures, defined in `extensions.go`, are:
 
 ```go
-type AggregatorComponentsFunc func(instance processing.Aggregator)     (map[string]any, error)
+type AggregatorComponentsFunc func(instance extend.Aggregator)         (map[string]any, error)
 type GrouperComponentsFunc    func(instance processing.Grouper)         (map[string]any, error)
 type FiltererComponentsFunc   func(instance processing.FiltererBuilder) (map[string]any, error)
 ```
@@ -679,7 +689,7 @@ trusts that declaration. Probe-validation catches obvious mismatches.
 
 | Category | Streamable means | Required interface |
 |---|---|---|
-| Aggregator | one-pass online | `processing.OnlineAggregator` |
+| Aggregator | one-pass online | `extend.OnlineAggregator` |
 | Attribute (`row_local`) | per-row eval, no PrePass | `processing.RowLocalAttribute` |
 | Attribute (`two_pass`) | PrePass + Finalize + Row | `processing.TwoPassAttribute` |
 | Grouper | derive key from a single row | `processing.StreamingGrouper` |

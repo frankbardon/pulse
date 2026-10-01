@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -57,10 +58,10 @@ func probeAggregators(regs []AggregatorRegistration) error {
 			return err
 		}
 		if reg.Streamable {
-			if _, ok := instance.(processing.OnlineAggregator); !ok {
+			if _, ok := instance.(extend.OnlineAggregator); !ok {
 				return errors.NewCodedErrorWithDetails(
 					errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
-					fmt.Sprintf("aggregator %q declares Streamable=true but factory does not return processing.OnlineAggregator", reg.Name),
+					fmt.Sprintf("aggregator %q declares Streamable=true but factory does not return extend.OnlineAggregator", reg.Name),
 					map[string]any{
 						"category":   "aggregator",
 						"name":       string(reg.Name),
@@ -250,7 +251,7 @@ func attributeModeMismatch(reg AttributeRegistration, want string) error {
 
 // safeBuildAggregator invokes the factory under a deferred recover so
 // embedder panics become a coded error instead of crashing pulse.New.
-func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema) (instance processing.Aggregator, err error) {
+func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema) (instance extend.Aggregator, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -368,7 +369,7 @@ func safeBuildFilterer(reg FiltererRegistration) (builder processing.FiltererBui
 // safeInvokeAggregatorComponents calls the registration's
 // ComponentsFunc under a deferred recover so a panic in the emitter
 // becomes a coded error instead of crashing pulse.New.
-func safeInvokeAggregatorComponents(reg AggregatorRegistration, instance processing.Aggregator) (out map[string]any, err error) {
+func safeInvokeAggregatorComponents(reg AggregatorRegistration, instance extend.Aggregator) (out map[string]any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(

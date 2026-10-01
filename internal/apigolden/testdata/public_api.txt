@@ -7,13 +7,13 @@ pulse: type AddShardResult field Regrouped []pulse/internal/service.GroupReconci
 pulse: type AddShardResult field ShardCount int "json:\"shard_count\""
 pulse: type AddShardResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: type AddShardResult field Widened []pulse/internal/service.SetWidening "json:\"widened,omitempty\""
-pulse: type AggregatorComponentsFunc func(instance pulse/processing.Aggregator) (map[string]any, error)
+pulse: type AggregatorComponentsFunc func(instance pulse/extend.Aggregator) (map[string]any, error)
 pulse: type AggregatorRegistration struct
 pulse: type AggregatorRegistration field Accepts []pulse/encoding.FieldType
 pulse: type AggregatorRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponentsFunc
 pulse: type AggregatorRegistration field Description string
-pulse: type AggregatorRegistration field Factory pulse/processing.AggregatorFactory
+pulse: type AggregatorRegistration field Factory pulse/extend.AggregatorFactory
 pulse: type AggregatorRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type AggregatorRegistration field Name pulse/types.AggregationType
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
@@ -1699,6 +1699,25 @@ pulse/errors: const SERVICE_VALIDATION pulse/errors.Code = "SERVICE_VALIDATION"
 pulse/errors: func Search(query string) []pulse/errors.LookupResult
 pulse/errors: func SortedCodeNames() []string
 pulse/errors: func WrapCodedError(err error, code pulse/errors.Code, message string) *pulse/errors.CodedError
+pulse/extend: package extend
+pulse/extend: type Aggregator interface
+pulse/extend: type Aggregator imethod Aggregate(rows pulse/extend.Rows, field string) (float64, error)
+pulse/extend: type AggregatorFactory func(spec *pulse/types.Aggregation, schema *pulse/encoding.Schema) (pulse/extend.Aggregator, error)
+pulse/extend: type OnlineAggregator interface
+pulse/extend: type OnlineAggregator imethod Finalize() (float64, error)
+pulse/extend: type OnlineAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
+pulse/extend: type Record interface
+pulse/extend: type Record imethod DecimalValue(field string) (pulse/encoding.Decimal128, bool)
+pulse/extend: type Record imethod IsNull(field string) bool
+pulse/extend: type Record imethod NumericValue(field string) (float64, bool)
+pulse/extend: type Record imethod Schema() *pulse/encoding.Schema
+pulse/extend: type Record imethod SetMaskValue(field string) (pulse/encoding.SetMask, bool)
+pulse/extend: type Record imethod StringValue(field string) (string, bool)
+pulse/extend: type RichAggregator interface
+pulse/extend: type RichAggregator imethod Rich() (any, error)
+pulse/extend: type Rows interface
+pulse/extend: type Rows imethod At(i int) pulse/extend.Record
+pulse/extend: type Rows imethod Len() int
 pulse/io: package io
 pulse/io: type BufferWriter interface
 pulse/io: type BufferWriter imethod Bytes() []byte
@@ -2448,6 +2467,7 @@ pulse/processing: type Record method (*Record) AllValues() map[string]any
 pulse/processing: type Record method (*Record) BeginRunRow(token uint64, keep bool) bool
 pulse/processing: type Record method (*Record) ClearForRow()
 pulse/processing: type Record method (*Record) ClearNullAt(idx int)
+pulse/processing: type Record method (*Record) DecimalValue(name string) (pulse/encoding.Decimal128, bool)
 pulse/processing: type Record method (*Record) GroupIndex(g int) (uint32, bool)
 pulse/processing: type Record method (*Record) IsNull(name string) bool
 pulse/processing: type Record method (*Record) NumericValue(name string) (float64, bool)
@@ -3894,4 +3914,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3fab47b8e1ee0c782c247d486b0abe67a6e2b83ca15e80acd8530f5a482d7a60
+// golden-hash: bc4a4432445fd53159affcf4db16ed45be81200a8a12d1d989b4fa9fa2526fd9

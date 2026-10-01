@@ -80,7 +80,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Aggregators) > 0 {
 		r.Aggregators = make(map[types.AggregationType]processing.AggregatorFactory, len(ext.Aggregators))
 		for _, reg := range ext.Aggregators {
-			r.Aggregators[reg.Name] = wrapAggregatorFactory(reg)
+			r.Aggregators[reg.Name] = adaptAggregatorFactory(reg)
 			r.Streamable[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.Streamable
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}

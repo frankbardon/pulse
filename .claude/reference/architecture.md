@@ -17,6 +17,7 @@ io/                 alias facade: jobs, reports, Reader/Writer interfaces, Forma
 synth/              alias facade: Spec/Profile/Options/Result + Synth, SynthBytes, ProfileFile, …
 mcp/gosdk/          the ONLY go-sdk importer: Register, Config, URI/prompt constants
 mcpserve/           Serve, ServeStdio, Options
+extend/             extension-authoring contract: Record, Rows, operator factories + instance interfaces (leaf; TestExtendImportBoundary)
 processing/         INTERIM public (U02b moves it): operators, crosstab, joins, registry
 processing/feature/ FEAT_* pre-filter engineers (interim public)
 processing/window/  WIN_* operators (interim public)

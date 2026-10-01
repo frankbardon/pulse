@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/processing/window"
@@ -21,14 +22,15 @@ import (
 // "no operator-specific keys; orchestrator's universal floor is the
 // entire payload" (floor-only operators).
 //
-// The instance passed in is the value the registration's Factory
-// returned (after Aggregate / Finalize); the func should not call
+// The instance passed in is the extend.Aggregator the registration's
+// Factory returned (after Aggregate / Finalize), so a type assertion to
+// the embedder's concrete type succeeds; the func should not call
 // Aggregate / UpdateRow / Finalize on it. The returned map's keys must
 // be a SUBSET of the registration's ComponentSchema.Keys (universal-
 // floor keys allowed but not required) — probe-validation enforces
 // this contract at pulse.New time and runtime mismatches surface as
 // PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
-type AggregatorComponentsFunc func(instance processing.Aggregator) (map[string]any, error)
+type AggregatorComponentsFunc func(instance extend.Aggregator) (map[string]any, error)
 
 // GrouperComponentsFunc is the grouper-shape sibling of
 // AggregatorComponentsFunc. The orchestrator invokes the func ONCE
@@ -125,17 +127,19 @@ type ParamMeta struct {
 }
 
 // AggregatorRegistration installs a custom AGG_* operator. The factory
-// must obey processing.AggregatorFactory: it builds a fresh Aggregator
+// is an extend.AggregatorFactory: it builds a fresh extend.Aggregator
 // per Process call against the supplied Aggregation spec + schema.
 //
 // When Streamable=true the factory MUST return a value that also
-// implements processing.OnlineAggregator. Probe-validation at
+// implements extend.OnlineAggregator. Probe-validation at
 // registration time enforces the contract via
-// PULSE_EXTENSION_STREAMABLE_MISMATCH.
+// PULSE_EXTENSION_STREAMABLE_MISMATCH. Optional siblings
+// (extend.OnlineAggregator, extend.RichAggregator) are honoured whether
+// or not ComponentsFunc is set.
 type AggregatorRegistration struct {
 	Name        types.AggregationType
 	Description string
-	Factory     processing.AggregatorFactory
+	Factory     extend.AggregatorFactory
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
@@ -159,7 +163,6 @@ type AggregatorRegistration struct {
 	// Response.Components.Aggregations[i].Operator after the
 	// aggregator's Aggregate / Finalize call terminates. Nil is the
 	// floor-only path (universal floor fills the entire payload).
-	// Mirrors processing.MetaAggregator.Components() in shape.
 	ComponentsFunc AggregatorComponentsFunc
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -18,11 +19,11 @@ import (
 // pulse.New.
 type nonOnlineAggregator struct{}
 
-func (nonOnlineAggregator) Aggregate([]*processing.Record, string) (float64, error) {
+func (nonOnlineAggregator) Aggregate(extend.Rows, string) (float64, error) {
 	return 0, nil
 }
 
-func nonOnlineAggregatorFactory(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+func nonOnlineAggregatorFactory(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 	return nonOnlineAggregator{}, nil
 }
 
@@ -61,7 +62,7 @@ func TestExtensions_ProbeAggregator_FactoryPanicCaught(t *testing.T) {
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_PANICKY",
-			Factory: func(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+			Factory: func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 				panic("boom")
 			},
 		}},
@@ -74,7 +75,7 @@ func TestExtensions_ProbeAggregator_FactoryReturnsError(t *testing.T) {
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_ERRORS",
-			Factory: func(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+			Factory: func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 				return nil, stderrors.New("factory said no")
 			},
 		}},
@@ -87,7 +88,7 @@ func TestExtensions_ProbeAggregator_FactoryReturnsNil(t *testing.T) {
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_NIL",
-			Factory: func(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+			Factory: func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 				return nil, nil
 			},
 		}},

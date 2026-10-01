@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -26,19 +27,19 @@ func newTestOptions(ext pulse.Extensions) pulse.Options {
 // way at the type level.
 type stubAggregator struct{ value float64 }
 
-func (s *stubAggregator) Aggregate(records []*processing.Record, field string) (float64, error) {
-	_, _ = records, field
+func (s *stubAggregator) Aggregate(rows extend.Rows, field string) (float64, error) {
+	_, _ = rows, field
 	return s.value, nil
 }
 
-func (s *stubAggregator) UpdateRow(record *processing.Record, field string) error {
+func (s *stubAggregator) UpdateRow(record extend.Record, field string) error {
 	_, _ = record, field
 	return nil
 }
 
 func (s *stubAggregator) Finalize() (float64, error) { return s.value, nil }
 
-func stubAggregatorFactory(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+func stubAggregatorFactory(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 	return &stubAggregator{value: 1.0}, nil
 }
 
