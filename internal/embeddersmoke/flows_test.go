@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	stderrors "errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -405,4 +407,32 @@ func contains(xs []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// TestTemplateConstants loads one template from disk and matches its
+// target and variable type against the root constants.
+func TestTemplateConstants(t *testing.T) {
+	dir := t.TempDir()
+	doc := `{"target": "request",
+  "variables": [{"name": "metric", "type": "field", "required": true}],
+  "body": {"cohort": {"filename": "sales.pulse"},
+    "aggregations": [{"type": "AGG_SUM", "field": {"$var": "metric"}}]}}`
+	if err := os.WriteFile(filepath.Join(dir, "revenue.json"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := newEngine(t, pulse.Options{TemplateDirs: []string{dir}})
+	tpl, err := p.GetTemplate("revenue")
+	if err != nil {
+		t.Fatalf("GetTemplate: %v", err)
+	}
+	if tpl.Target != pulse.TemplateTargetRequest || tpl.Variables[0].Type != pulse.TemplateVarField {
+		t.Fatalf("template = target %q, var type %q", tpl.Target, tpl.Variables[0].Type)
+	}
+	rendered, err := p.RenderTemplate("revenue", map[string]any{"metric": "amount"})
+	if err != nil {
+		t.Fatalf("RenderTemplate: %v", err)
+	}
+	if rendered.Target != pulse.TemplateTargetRequest || rendered.Request == nil {
+		t.Fatalf("rendered = %+v", rendered)
+	}
 }

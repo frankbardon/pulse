@@ -751,6 +751,20 @@ pulse: type TemplateTarget = pulse/internal/template.Target
 pulse: type TemplateTarget underlying string
 pulse: type TemplateTarget method (TemplateTarget) String() string
 pulse: type TemplateTarget method (TemplateTarget) Valid() bool
+pulse: const TemplateTargetChain pulse.TemplateTarget = "chain"
+pulse: const TemplateTargetComposed pulse.TemplateTarget = "composed"
+pulse: const TemplateTargetFacet pulse.TemplateTarget = "facet"
+pulse: const TemplateTargetRequest pulse.TemplateTarget = "request"
+pulse: const TemplateTargetSample pulse.TemplateTarget = "sample"
+pulse: const TemplateVarBoolean pulse.TemplateVarType = "boolean"
+pulse: const TemplateVarDate pulse.TemplateVarType = "date"
+pulse: const TemplateVarEnum pulse.TemplateVarType = "enum"
+pulse: const TemplateVarField pulse.TemplateVarType = "field"
+pulse: const TemplateVarInteger pulse.TemplateVarType = "integer"
+pulse: const TemplateVarList pulse.TemplateVarType = "list"
+pulse: const TemplateVarNumber pulse.TemplateVarType = "number"
+pulse: const TemplateVarPeriod pulse.TemplateVarType = "period"
+pulse: const TemplateVarString pulse.TemplateVarType = "string"
 pulse: type TemplateVarType = pulse/internal/template.VarType
 pulse: type TemplateVarType underlying string
 pulse: type TemplateVarType method (TemplateVarType) IsScalar() bool
@@ -3880,4 +3894,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d882a34186abf1ba86d803521b253050d577a5f44329d7e17bd02fe0140736b7
+// golden-hash: 3fab47b8e1ee0c782c247d486b0abe67a6e2b83ca15e80acd8530f5a482d7a60

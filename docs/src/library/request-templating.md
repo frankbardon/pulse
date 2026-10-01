@@ -362,7 +362,12 @@ methods will answer `PULSE_TEMPLATE_NOT_FOUND`.
 `RenderTemplate` is the general form. Exactly one of `Rendered`'s
 typed pointers is populated, selected by `Rendered.Target` — read that
 pointer (or `Rendered.Typed()`) and hand it to the matching execution
-method. There are deliberately no per-execution-mode convenience
+method. Every target and variable type has a root constant, so switch
+on them directly: `pulse.TemplateTargetRequest`, `TemplateTargetComposed`,
+`TemplateTargetChain`, `TemplateTargetFacet`, `TemplateTargetSample` for
+`Template.Target` / `TemplateSummary.Target` / `Rendered.Target`, and
+`pulse.TemplateVarString` … `TemplateVarPeriod` (one per variable type)
+for `TemplateVariable.Type` / `Items`. There are deliberately no per-execution-mode convenience
 wrappers: N execution modes would mean N wrappers to keep in sync
 forever, for no capability gain.
 

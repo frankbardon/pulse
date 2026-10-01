@@ -139,5 +139,6 @@ Landed on branch `public-surface` (single PR, label `api-break-ok`). Executed as
 - **`processing` interim:** `processing`, `processing/feature` and `processing/window` stay public in place for [U02b](U02b-extension-contract.md).
 - **New coded error** `PULSE_IO_FORMAT_UNSUPPORTED` for the factory.
 - **Docs:** CLAUDE.md's Architecture tree and MCP layer-split paragraph moved to `.claude/reference/architecture.md` to fit the 50,000-byte budget.
+- **Template constants at the root** (delivered in review; previously carried forward): every `TemplateTarget` and `TemplateVarType` value is re-declared as `pulse.TemplateTarget*` / `pulse.TemplateVar*`, gated complete against the internal set by `TestTemplateConstants_RootSetComplete`.
 
-**Carried forward:** the `template` target / var-type constants have no root spelling.
+**Carried forward:** none.

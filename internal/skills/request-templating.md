@@ -69,7 +69,7 @@ Stored JSON that renders into a **validated typed request** — shape fixed once
 
 Lookups rescan once the snapshot ages past a 1s interval; unchanged files (size+mtime) are not re-parsed. `ReloadTemplates()` forces the walk now — for a deploy step that writes then renders. It returns **nil** for one broken file (an error would fail the whole catalog over one half-written save); whole-walk faults do return.
 
-Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (all five targets), `RenderTemplateRequest` (95% path), `ReloadTemplates`. `Rendered.Target` picks the populated pointer; echo `Rendered.JSON` — re-marshaling drops explicit zeros from `omitempty` structs.
+Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (all five targets), `RenderTemplateRequest` (95% path), `ReloadTemplates`. `Rendered.Target` picks the populated pointer — compare it to `pulse.TemplateTarget*`, a variable's type to `pulse.TemplateVar*`, never `.String()`; echo `Rendered.JSON` — re-marshaling drops explicit zeros from `omitempty` structs.
 
 ## Errors — nine codes, by provenance
 

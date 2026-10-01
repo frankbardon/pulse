@@ -1523,6 +1523,47 @@ type (
 	TemplateVarType = template.VarType
 )
 
+// TemplateTarget values — the closed set of request roots a template can
+// render into. Each equals its internal counterpart, so a Template.Target,
+// TemplateSummary.Target or RenderedTemplate.Target compares against these
+// directly; no embedder needs to match on String().
+const (
+	// TemplateTargetRequest renders into Request (process / predict).
+	TemplateTargetRequest TemplateTarget = template.TargetRequest
+	// TemplateTargetComposed renders into ComposedRequest (Compose).
+	TemplateTargetComposed TemplateTarget = template.TargetComposed
+	// TemplateTargetChain renders into ChainRequest (ProcessChain).
+	TemplateTargetChain TemplateTarget = template.TargetChain
+	// TemplateTargetFacet renders into FacetRequest (the facet endpoints).
+	TemplateTargetFacet TemplateTarget = template.TargetFacet
+	// TemplateTargetSample renders into SampleRequest (record sampling).
+	TemplateTargetSample TemplateTarget = template.TargetSample
+)
+
+// TemplateVarType values — the closed set of declared variable types. Each
+// equals its internal counterpart, so a TemplateVariable.Type (or Items)
+// compares against these directly.
+const (
+	// TemplateVarString accepts any JSON string.
+	TemplateVarString TemplateVarType = template.VarString
+	// TemplateVarNumber accepts any JSON number.
+	TemplateVarNumber TemplateVarType = template.VarNumber
+	// TemplateVarInteger accepts a JSON number with no fractional part.
+	TemplateVarInteger TemplateVarType = template.VarInteger
+	// TemplateVarBoolean accepts a JSON bool.
+	TemplateVarBoolean TemplateVarType = template.VarBoolean
+	// TemplateVarField accepts a JSON string naming a cohort field.
+	TemplateVarField TemplateVarType = template.VarField
+	// TemplateVarEnum accepts a JSON string from the declaration's Values.
+	TemplateVarEnum TemplateVarType = template.VarEnum
+	// TemplateVarList accepts a JSON array of the declaration's Items type.
+	TemplateVarList TemplateVarType = template.VarList
+	// TemplateVarDate accepts a JSON string parsing as an ISO date.
+	TemplateVarDate TemplateVarType = template.VarDate
+	// TemplateVarPeriod accepts a labeled-date-range object (ranges XOR table).
+	TemplateVarPeriod TemplateVarType = template.VarPeriod
+)
+
 // ListTemplates returns one summary per registered request template,
 // sorted by name so the order is deterministic across runs and platforms.
 //

@@ -102,6 +102,21 @@ func walkSidecarIndex(idx *pulse.SidecarIndex) (fp pulse.CohortFingerprint, keys
 	return fp, keys, rowIDs
 }
 
+// Template targets and variable types have root spellings: an embedder
+// compares Template.Target / TemplateVariable.Type against these, never
+// against String().
+var (
+	_ = []pulse.TemplateTarget{
+		pulse.TemplateTargetRequest, pulse.TemplateTargetComposed, pulse.TemplateTargetChain,
+		pulse.TemplateTargetFacet, pulse.TemplateTargetSample,
+	}
+	_ = []pulse.TemplateVarType{
+		pulse.TemplateVarString, pulse.TemplateVarNumber, pulse.TemplateVarInteger,
+		pulse.TemplateVarBoolean, pulse.TemplateVarField, pulse.TemplateVarEnum,
+		pulse.TemplateVarList, pulse.TemplateVarDate, pulse.TemplateVarPeriod,
+	}
+)
+
 // DateRangeSpec is root-native and feeds a RangeTable extension.
 var _ = pulse.RangeTable{Ranges: []pulse.DateRangeSpec{{Label: "all"}}}
 
