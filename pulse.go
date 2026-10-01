@@ -1312,9 +1312,15 @@ func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, 
 
 // BuildIndexResult re-exports service.BuildIndexResult — the outcome
 // of a successful point-lookup sidecar index build: the derived
-// sidecar path (see encoding.SidecarIndexPath) plus the in-memory
-// encoding.Index that was serialized there.
+// sidecar path plus the in-memory SidecarIndex that was serialized
+// there.
 type BuildIndexResult = service.BuildIndexResult
+
+// SidecarIndex is the in-memory point-lookup sidecar index carried by
+// BuildIndexResult.Index: the source cohort's content fingerprint, the
+// ordered key spec, the hash-bucket table and the source-stat snapshot
+// (size + modification time) taken at build time.
+type SidecarIndex = encx.Index
 
 // BuildIndex builds a point-lookup sidecar index for the cohort at
 // path over the ordered key columns named in keyFields (a single
@@ -1798,6 +1804,13 @@ type SetWidening = service.SetWidening
 // with the shards and records the rewrite cost.
 type GroupReconciliation = service.GroupReconciliation
 
+// CohesionWarning is one non-fatal shard-archive diagnostic (for
+// example PULSE_SHARD_DESCRIPTION_DIVERGENCE or PULSE_SHARD_SET_WIDENED),
+// carried by AddShardResult.Warnings, CreateShardArchiveResult.Warnings
+// and VerifyResult.Warnings. Code is the coded-error code, Details its
+// structured payload.
+type CohesionWarning = encx.CohesionWarning
+
 // RemoveShard rewrites the archive omitting the named shard. The
 // canonical schema is preserved (dictionary entries are never
 // shrunk). Returns PULSE_SHARD_MISSING when the named shard is not in
@@ -1852,6 +1865,12 @@ func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*Ve
 // (per-field description drift, aggregate-record-count mismatch). An
 // empty Errors slice means the archive is structurally sound.
 type VerifyResult = service.VerifyResult
+
+// GroupIndexHeadroom reports how much of one parent group's dictionary
+// index space a grouped archive's canonical schema has consumed.
+// VerifyShardArchive returns one per group in
+// VerifyResult.GroupIndexHeadroom.
+type GroupIndexHeadroom = encx.GroupIndexHeadroom
 
 // SetWidthHeadroom reports how much of a set field's bitmask capacity
 // the canonical dictionary has consumed, and which rung a widen would

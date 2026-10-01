@@ -67,6 +67,11 @@ pulse: type ChangeKind method (ChangeKind) String() string
 pulse: const ChangeModified pulse.ChangeKind = 1
 pulse: const ChangeRemoved pulse.ChangeKind = 2
 pulse: const ChangeRenamed pulse.ChangeKind = 3
+pulse: type CohesionWarning = pulse/internal/encoding.CohesionWarning
+pulse: type CohesionWarning underlying struct
+pulse: type CohesionWarning field Code string
+pulse: type CohesionWarning field Details map[string]any
+pulse: type CohesionWarning field Message string
 pulse: type Cohort struct
 pulse: type Cohort method (*Cohort) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse: type Cohort method (*Cohort) Field(name string) *pulse/encoding.Field
@@ -262,6 +267,14 @@ pulse: type FiltererRegistration field Factory pulse/processing.FiltererFactory
 pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FiltererRegistration field Name pulse/types.FiltererType
 pulse: type FiltererRegistration field Params []pulse.ParamMeta
+pulse: type GroupIndexHeadroom = pulse/internal/encoding.GroupIndexHeadroom
+pulse: type GroupIndexHeadroom underlying struct
+pulse: type GroupIndexHeadroom field Capacity uint64 "json:\"capacity\""
+pulse: type GroupIndexHeadroom field Entries int "json:\"entries\""
+pulse: type GroupIndexHeadroom field Group int "json:\"group\""
+pulse: type GroupIndexHeadroom field Headroom uint64 "json:\"headroom\""
+pulse: type GroupIndexHeadroom field Kind string "json:\"kind\""
+pulse: type GroupIndexHeadroom field Label string "json:\"label\""
 pulse: type GroupReconciliation = pulse/internal/service.GroupReconciliation
 pulse: type GroupReconciliation underlying struct
 pulse: type GroupReconciliation field ArchiveFormatVersion int "json:\"archive_format_version\""
@@ -635,6 +648,13 @@ pulse: type ShardInfo = pulse/descriptor.ShardInfo
 pulse: type ShardInfo underlying struct
 pulse: type ShardInfo field Filename string "json:\"filename\""
 pulse: type ShardInfo field RecordCount int64 "json:\"record_count\""
+pulse: type SidecarIndex = pulse/internal/encoding.Index
+pulse: type SidecarIndex underlying struct
+pulse: type SidecarIndex field Buckets []pulse/internal/encoding.IndexBucket
+pulse: type SidecarIndex field Fingerprint pulse/internal/encoding.Fingerprint
+pulse: type SidecarIndex field Keys []pulse/internal/encoding.IndexKeySpec
+pulse: type SidecarIndex field SourceModTime int64
+pulse: type SidecarIndex field SourceSize uint64
 pulse: const SidecarKindPointLookupIndex untyped string = "point_lookup_index"
 pulse: const SidecarKindSPSSMetadata untyped string = "spss_metadata"
 pulse: type StaleSidecar struct
@@ -3847,4 +3867,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c574e52ecc02c1edc9ff4e462423b3f0632deff433c0cba40967849cda64c328
+// golden-hash: 4199f7adebf796eb97bd45b920774030ec1f30286fb9109529a05d1bb2ffd293
