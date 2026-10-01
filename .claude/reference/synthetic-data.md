@@ -1,6 +1,6 @@
 # Synthetic data — conditional pair capture, per-numeric models, and structural rules
 
-Relocated verbatim from CLAUDE.md (section `## Synthetic data: conditional pair capture and per-numeric models`). This is the binding contract for every `synth/` surface: profile capture, `SpecFromProfile` translation, generation, structural rules and the fidelity report. Load it before changing any of them — CLAUDE.md's Update Demand table names this file as a required companion.
+Relocated verbatim from CLAUDE.md (the former section `## Synthetic data: conditional pair capture and per-numeric models`; CLAUDE.md now keeps a short `## Synthetic data` pointer here). This is the binding contract for every `synth/` surface: profile capture, `SpecFromProfile` translation, generation, structural rules and the fidelity report. Load it before changing any of them — CLAUDE.md's Update Demand table names this file as a required companion.
 
 `format_version` does NOT move for anything described here: `synth.Profile` / `synth.Spec` / `synth.FidelityReport` live in `synth/` (aliases over `internal/synth/`), not `types/`, so they are unreachable from `internal/descriptor.BuildPayloadSchema` and `descriptor/testdata/payload-schema.json` is untouched. Only the manifest golden moves, and only when an error code is added.
 

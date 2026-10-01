@@ -3,7 +3,7 @@
 **Audience:** contributors writing tests, regenerating goldens, or
 trying to figure out which CI gate to run locally before pushing.
 
-> **From CLAUDE.md, CI gates and Common Claude Code Workflows.**
+> **From CLAUDE.md, Non-Skippable CI Gates and The Update Demand.**
 
 ## Style
 
@@ -64,7 +64,7 @@ Their full names appear in CLAUDE.md so the
 | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
 
-(See `CLAUDE.md` "CI gates" for the full prose; this table is the
+(See `CLAUDE.md` "Non-Skippable CI Gates" for the full prose; this table is the
 quick-reference.)
 
 ## Running a subset of gates locally

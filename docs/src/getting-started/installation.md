@@ -48,8 +48,8 @@ make build
 # Binary at ./bin/pulse
 ```
 
-The `Makefile` is documented in [CLAUDE.md → Build / Dev / Test
-Workflow](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#build--dev--test-workflow);
+The `Makefile` is documented in [CLAUDE.md → Build /
+Env](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#build--env);
 the relevant targets are `make build`, `make test`, `make lint`, and
 `make cover`.
 
