@@ -27,3 +27,12 @@ Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Wor
 4. Response shaping and embedder operations are largely independent and can run in parallel with the vector & matrix work.
 5. The documentation audit runs after every feature unit and before the release candidate.
 6. `STABILITY.md` is published last, once the public surface is final.
+
+### Branching & release strategy
+
+Decided 2026-10-01, in the [U01](units/U01-release-pipeline.md) interview.
+- **Trunk on `main`. There is no long-lived `v1` branch.** Every unit branches from `main` and merges back through its own PR. Go consumers pin tags, not `main`, so `main` can be "v1-in-progress" without affecting anyone. A `v1` branch would mean forward-merging every hotfix and dependabot bump, retargeting CI, branch protection and the Flow tooling, and one large merge right before the release candidate.
+- **No `v0.x` releases from `v0.39.0` onward.** By default, every unit records its release intent as *none — rolls into v1.0.0*, and finalize merges without tagging.
+- **Pre-release tags on demand.** Tags are `v1.0.0-alpha.N` at meaningful checkpoints, chiefly after U02 / U02b / U02c so the downstream embedder can try the migration, and `v1.0.0-rc.N` after U32. The release workflow (U01) marks any `-` suffixed tag as a pre-release. `go get …@latest` ignores pre-releases, so nobody receives one without asking. `v1.0.0-alpha.0` is cut from U01's merge commit to validate the pipeline end to end.
+- **Emergency fixes for current users:** create `release/v0.39` from the `v0.39.0` tag only when a fix is needed, cherry-pick the fix, and tag `v0.39.x`. Nothing is maintained there otherwise.
+- v1 needs no module-path change; the `/vN` suffix starts at v2.

@@ -13,7 +13,7 @@ Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` | once per session | operator catalogs, field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version |
+| 1 | `pulse_manifest` | once per session | operator catalogs, field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version; that version is the manifest's top-level version field (CLI: `pulse version --json`) |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into `pulse_process` / `pulse_predict` / `pulse_compose` / `pulse_sample` / `pulse_facet`, constraining field-name arguments to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category` |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |

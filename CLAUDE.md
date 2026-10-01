@@ -4,7 +4,7 @@ Pulse is a self-describing tabular data processing engine. Ships as a Go library
 
 **Design principles**
 
-- **Library-first.** `pulse.go` is the public API — `New`, `Open`, `Process`, `Compose`, `ComposeParallel`, `ProcessStream`, `ProcessChain`, `Import`, `Export`, `Convert`, `Inspect`, `InspectEnvelope`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `CountRecords`, `Lookup`, `BuildIndex`, `VerifyIndex`, `ListIndexes`, `DropIndex`, `WidenSetField`, `Dedup`, `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`. **The CLI never contains business logic.**
+- **Library-first.** `pulse.go` is the public API — `New`, `Open`, `Process`, `Compose`, `ComposeParallel`, `ProcessStream`, `ProcessChain`, `Import`, `Export`, `Convert`, `Inspect`, `InspectEnvelope`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `CountRecords`, `Lookup`, `BuildIndex`, `VerifyIndex`, `ListIndexes`, `DropIndex`, `WidenSetField`, `Dedup`, `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`, `Version`. **The CLI never contains business logic.**
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
 - **Skill-augmented.** `skills/` embeds an atomic-per-surface pack (`op-*` / `tool-*` / `type-*`) plus ~20 topical design skills via `//go:embed *.md`; the filesystem walk + frontmatter parse is the source of truth.
 - **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators, expr functions and named tables. Predict, manifest, MCP and runtime treat them identically to built-ins.
@@ -57,7 +57,7 @@ fs/            afero abstraction      docs/          mdBook source
 
 `processing/window/` holds the `WIN_*` operators and `processing/feature/` the `FEAT_*` pre-filter engineers. `io/` adapters: `csv|tsv|ndjson|jsonarray|jsonshared|arrow|parquet|excel|spss`. `pulse.go` re-exports `types.Request` / `Response` / `ComposedRequest` as `pulse.*`, plus `synth.Spec`/`Result`/`Options`/`Profile`/`ProfileOptions`.
 
-CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `schema`, `mcp`, `widen`, `dedup`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `index {build,list,verify,drop}`, `api {process,compose,facet,process-chain,lookup}`. `pulse schema` prints the payload JSON Schema RAW — not envelope-wrapped.
+CLI commands map 1:1 to manifest commands: `process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `schema`, `mcp`, `widen`, `dedup`, `version`, plus `synth from-schema`, `synth from-profile`, `profile create`, `shard {create,add,remove,list,compact,verify,extract}`, `index {build,list,verify,drop}`, `api {process,compose,facet,process-chain,lookup}`. `pulse schema` prints the payload JSON Schema RAW — not envelope-wrapped.
 
 **MCP layer split.** `mcp/` is the SDK-free core (typed In/Out structs, reflected JSON schemas, typed handlers over `*pulse.Pulse`, strict-decode, bind classification — gated by `TestMCPCore_NoSDKImport`). `mcp/gosdk/` is the ONLY package importing the go-sdk; its `Register(server, p, cfg)` mounts the core catalog onto a caller-supplied server, and `pulse mcp` builds a bare server and calls it. `mcp/toolmeta/` holds the leaf metadata both `descriptor` and the core import. One tool per facade method plus skills/examples/errors/import/label tools — **the manifest is the source-of-truth count, never hardcode it** — and two resource schemes (`pulse://`, `pulse-skill://`); `pulse://schema` serves the payload JSON Schema as a RESOURCE, not a tool. Cohort resources are ENUMERATED by a startup walk of the data root, suppressible with `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan` / `pulse mcp --no-cohort-scan` — the `pulse://` template stays mounted, so a disabled scan costs enumeration only, never readability. Payload tools take the structured request at top level, outputs are typed-wrapped, coded errors surface as `{code, message, details}`.
 
@@ -202,7 +202,7 @@ Other load-bearing contract gates are **not** prefix-matched (they are enforced 
 
 ## Build / Env
 
-`make build` (default), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `docs`, `docs-serve`, `docs-clean`. A `.env` at repo root is auto-loaded. `make lint` = `go vet` + `staticcheck`, and must pass before any push.
+`make build` (default; injects `VERSION` from `git describe` via ldflags into `internal/buildinfo`, read by `pulse.Version()`), `test`, `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives + `checksums.txt` into `dist/`), `docs`, `docs-serve`, `docs-clean`. A `v*.*.*` tag push runs `release.yml`: `ci.yml` via `workflow_call`, then `make dist`, assets attached to the GitHub Release (`-` tags pre-release). A `.env` at repo root is auto-loaded. `make lint` = `go vet` + `staticcheck`, and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 

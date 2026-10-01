@@ -11,7 +11,7 @@
 // *pulse.Pulse and a Config:
 //
 //	srv := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "my-host", Version: "..."}, nil)
-//	if err := gosdk.Register(srv, p, gosdk.Config{Version: "1.0.0", BindOnInspect: true}); err != nil {
+//	if err := gosdk.Register(srv, p, gosdk.Config{Version: pulse.Version(), BindOnInspect: true}); err != nil {
 //	    return err
 //	}
 //	// caller owns serving: srv.Run(ctx, &mcpsdk.StdioTransport{}) — gosdk never serves.
@@ -37,7 +37,8 @@ type Config struct {
 	// tool catalog (mcp.Config.Version) so config-dependent tool closures can
 	// capture it. The caller is responsible for the go-sdk
 	// Implementation.Version it passes to mcpsdk.NewServer; Register does not
-	// touch the server's advertised identity.
+	// touch the server's advertised identity. Empty resolves to
+	// pulse.Version() (see Core).
 	Version string
 
 	// BindOnInspect toggles the session-scoped schema-bound tool variants.
@@ -62,8 +63,14 @@ type Config struct {
 
 // Core projects the adapter Config onto the SDK-free core Config consumed by
 // mcp.Tools. Only the fields the core catalog reads cross the boundary.
+// An empty Version resolves to pulse.Version(), so the catalog never
+// carries a blank build identity.
 func (c Config) Core() core.Config {
-	return core.Config{Version: c.Version}
+	version := c.Version
+	if version == "" {
+		version = pulse.Version()
+	}
+	return core.Config{Version: version}
 }
 
 // Register mounts the full Pulse MCP surface onto the caller-supplied server:

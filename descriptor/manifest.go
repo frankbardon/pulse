@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/examples"
+	"github.com/frankbardon/pulse/internal/buildinfo"
 	"github.com/frankbardon/pulse/skills"
 )
 
@@ -111,8 +112,13 @@ type ComponentsSchemasBlock struct {
 // The payload is deterministic and free of cohort data. Clients cache it
 // for a session.
 type Manifest struct {
-	FormatVersion string    `json:"format_version"`
-	Commands      []Command `json:"commands"`
+	FormatVersion string `json:"format_version"`
+	// PulseVersion is the build version of the binary or library that
+	// produced the manifest (buildinfo.Version: ldflags, then module
+	// version, then "devel[+rev]"). It identifies the build, not the
+	// payload contract — that is the envelope format_version.
+	PulseVersion string    `json:"pulse_version"`
+	Commands     []Command `json:"commands"`
 
 	// Operations enumerates library-only entry points that do not back a
 	// CLI leaf (today: filter_to_file, watch, process_stream). Each entry
@@ -251,6 +257,7 @@ func commands() []Command {
 		{Name: "index drop", Description: "Remove a cohort's sidecar point-lookup index", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "widen", Description: "Widen a set column of a single-file cohort to a wider set rung, rewriting the cohort in place (destructive, non-interactive, atomic)", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 		{Name: "dedup", Description: "Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format 0x02), in place or to a new path (destructive in place, non-interactive, atomic)", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "version", Description: "Print the Pulse build version (--json adds Go version, commit and envelope format_version)", Annotations: CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 	}
 }
 
@@ -470,6 +477,7 @@ func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *Manifest {
 
 	return &Manifest{
 		FormatVersion: "1.0",
+		PulseVersion:  buildinfo.Version(),
 		Commands:      commands(),
 		Operations:    operations(),
 		Components: Components{

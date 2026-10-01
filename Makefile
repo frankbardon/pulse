@@ -1,9 +1,11 @@
-.PHONY: build clean test cover fmt vet lint bench docs docs-serve docs-clean
+.PHONY: build clean dist test cover fmt vet lint bench docs docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
+DIST_DIR=dist
 GO=go
-LDFLAGS=-s -w
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo devel)
+LDFLAGS=-s -w -X github.com/frankbardon/pulse/internal/buildinfo.version=$(VERSION)
 BUILD_FLAGS=-trimpath -ldflags="$(LDFLAGS)"
 
 # Pulse is pure Go — no CGO dependency in the build graph. Disabling CGO
@@ -22,7 +24,14 @@ build:
 	$(GO) build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/pulse
 
 clean:
-	rm -rf $(BUILD_DIR) coverage.out
+	rm -rf $(BUILD_DIR) $(DIST_DIR) coverage.out
+
+# dist cross-compiles the six release archives (linux/darwin/windows x
+# amd64/arm64) plus checksums.txt into $(DIST_DIR) via
+# scripts/release-dist.sh — the same script release.yml calls, so the
+# tag-push outcome is reproducible locally: `make dist VERSION=v1.2.3`.
+dist:
+	LDFLAGS="$(LDFLAGS)" GO="$(GO)" ./scripts/release-dist.sh "$(VERSION)" "$(DIST_DIR)"
 
 test:
 	$(GO) test ./...

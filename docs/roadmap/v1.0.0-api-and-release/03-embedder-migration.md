@@ -1,12 +1,12 @@
 # 03 — Embedder migration guide
 
-**Status:** decided · **Target:** v1.0.0 · **Applies:** as U02, U02b and U02c land
+**Status:** decided · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
 
 ## Purpose
 
 [00](00-public-surface.md) decides which packages stay public at v1.0.0 and which move under `internal/`. This guide lists every resulting contract difference an embedder can hit — old spelling, new spelling, and the mechanical adaptation — so a library that imports Pulse today can upgrade without reading the unit diffs.
 
-It applies in stages: the root, `encoding`, `io`, `descriptor` and other-package rows land with **U02**; the extension-authoring rows land with **U02b**; `CohortReader` / `CohortWriter` and `PredictResult.CrosstabFusable` land with **U02c**. Each row names its unit. Anything not listed keeps its spelling and behaviour.
+It applies in stages: `pulse.Version()` and the MCP version defaults land with **U01**; the root, `encoding`, `io`, `descriptor` and other-package rows land with **U02**; the extension-authoring rows land with **U02b**; `CohortReader` / `CohortWriter` and `PredictResult.CrosstabFusable` land with **U02c**. Each row names its unit. Anything not listed keeps its spelling and behaviour.
 
 ## Legend
 
@@ -19,6 +19,7 @@ It applies in stages: the root, `encoding`, `io`, `descriptor` and other-package
 | **replaced** | a new API takes over; the old one is gone |
 | **removed** | gone; the replacement (if any) is named |
 | **added** | new API; adopt when convenient |
+| **behaviour change** | same spelling, different default or result |
 
 ## Root `pulse`
 
@@ -77,6 +78,9 @@ It applies in stages: the root, `encoding`, `io`, `descriptor` and other-package
 | `errors` | public, narrowed: `CodedError`, `Code` + every code constant, `Lookup`, `LookupResult`, `Fixup`, `SortedCodeNames`; metadata tables internal | narrowed | none | U02 |
 | `types` | public in full; Go names **and** JSON field names frozen | kept | none | — |
 | `imports`, `template`, `examples` | internal; root aliases for facade-returned types | moved | use the root spellings (`pulse.ImportSpec`, `pulse.ImportResult`, `pulse.ImportEntry`, `pulse.Example`, …) | U02 |
+| — | `pulse.Version()` | added | read the real Pulse build version (the release tag, the `go install` module version, or `devel`) | U01 |
+| `mcpserve.Options.Version` empty → `"1.0.0"` | empty → `pulse.Version()` | behaviour change | none; set `Options.Version` to keep a custom identity | U01 |
+| `gosdk.Config.Version` empty → `""` | empty → `pulse.Version()` | behaviour change | none; set `Config.Version` to keep a custom identity | U01 |
 | `mcp/gosdk`, `mcpserve` | public, narrowed to `gosdk.Register` + `gosdk.Config`, and `mcpserve.Options` + the serve entry point | narrowed | none | U02 |
 | `mcp` core, `mcp/toolmeta`, `skills` | internal | moved | use the manifest (`(*Pulse).Manifest`, `pulse manifest --json`) or the MCP tools | U02 |
 
