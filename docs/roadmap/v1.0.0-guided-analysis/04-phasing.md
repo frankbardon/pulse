@@ -44,7 +44,8 @@ graph TD
 - MCP prompts per intent and their gate.
 - `intents[]` in the manifest, the synonym table, examples / skills search by intent.
 - Tool descriptions rewritten so the first sentence says when to call the tool.
-- Stretch: intent-scoped manifest, "did you mean" errors, `Response.Interpretation`.
+- Intent-scoped manifest (`pulse_manifest {intent}`), promoted to committed with the context-budget decision.
+- Stretch: "did you mean" errors, opt-in `Response.Interpretation`.
 
 ### G6 — Hand-written guides (C)
 - The landing page and 12 question guides (prose around generated blocks).

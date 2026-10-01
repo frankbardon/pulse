@@ -48,7 +48,7 @@ Every feature has a **stable name**, a **kind** and a **`Since` version**. All t
 }
 ```
 
-**Exact names only (recommended).** A profile lists every feature by its exact name. Patterns such as `TEST_*` are not accepted in the file. A pattern would quietly match tests added in later releases, and the alternative fix (pinning patterns to a baseline version) proved hard to reason about. The list is longer, but it means exactly what it says. Embedders never write it by hand: `pulse profile init` (P5) writes the full current list, and the embedder deletes lines. `written_with` is informational only and feeds `pulse profile diff`.
+**Exact names only (decided).** A profile lists every feature by its exact name. Patterns such as `TEST_*` are not accepted in the file. A pattern would quietly match tests added in later releases, and the alternative fix (pinning patterns to a baseline version) proved hard to reason about. The list is longer, but it means exactly what it says. Embedders never write it by hand: `pulse profile init` (P5) writes the full current list, and the embedder deletes lines. `written_with` is informational only and feeds `pulse profile diff`.
 
 *Alternative considered (not recommended): pinned patterns.* Patterns and categories (`AGG_*`, `capability:*`) are allowed, but expand only over features whose `Since ≤ baseline`. A profile written against 1.0.0 that says `TEST_*` keeps exactly the 1.0.0 tests forever, and a test added in 1.2.0 stays invisible. To adopt new features, the embedder either raises `baseline` (and gets new matches deliberately) or names them explicitly. This satisfies decision 2 while keeping profiles readable.
 
@@ -210,7 +210,7 @@ The profile mechanism lands **first**. Every surface the vector-matrix and guide
 
 ## Open questions
 
-1. **Exact names only (recommended; awaiting confirmation).** Profiles list exact feature names, and `pulse profile init` writes the full list. Pinned patterns are documented above as the rejected alternative.
+1. ~~**Exact names only.**~~ **Decided:** profiles list exact feature names only; `pulse profile init` writes the full list. Pinned patterns are documented above as the rejected alternative.
 2. ~~**Always-present core.**~~ **Decided:** as proposed; `inspect` stays always present.
 3. ~~**CLI with a profile.**~~ **Decided:** the CLI is not profiled; only `pulse mcp --profile` and the library honour profiles.
 4. ~~**Topical skills.**~~ **Decided:** every MCP-reachable path walks the pruned ontology; topical skills are rewritten for progressive disclosure with fences as a backstop and always served rendered (P4a).

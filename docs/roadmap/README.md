@@ -6,6 +6,8 @@ This directory sits outside the mdBook source (`docs/src/`) on purpose: planned 
 
 ## v1.0.0
 
+Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md).
+
 | Theme | Index |
 |---|---|
 | Vector & matrix math | [`v1.0.0-vector-matrix/`](v1.0.0-vector-matrix/00-overview.md) |
