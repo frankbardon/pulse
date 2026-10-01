@@ -1,6 +1,6 @@
 # 02 — Stability policy (draft of `STABILITY.md`)
 
-**Decided:** write a stability file. The draft below is ready to land at the repository root once [00](00-public-surface.md) fixes the public package list; that list is the only placeholder. It is drafted here rather than at the root, because publishing a promise before the API audit would promise the wrong surface.
+**Decided:** write a stability file. The draft below is ready to land at the repository root (U33). Its public package list is filled from the decided classification in [00](00-public-surface.md); the draft has no remaining placeholders. It stays here rather than at the root until the package moves (U02, U02b) land, because publishing the promise earlier would promise packages that are still importable but due to go internal.
 
 ---
 
@@ -23,7 +23,9 @@ Within a major version (v1.x.y):
 
 | Surface | Promise |
 |---|---|
-| Go API | Exported identifiers in these packages: <PUBLIC PACKAGE LIST — from the API audit>. Additions only. Checked in CI against the previous release. |
+| Go API | Exported identifiers in these packages: `github.com/frankbardon/pulse` (root), `types`, `encoding`, `io`, `descriptor`, `errors`, `synth`, `extend`, `mcp/gosdk`, `mcpserve`. Root aliases of internal types are covered like any other root identifier. Additions only. Checked in CI against the previous release. |
+| Raw-byte primitives | The `encoding` read/write primitives (header, schema, geometry, field values, null bitmap) are covered for **ungrouped (`0x01`) cohorts only**. Grouped (`0x02`) cohorts are written through `CohortWriter`; reading both versions is covered by the file-format row below. |
+| Third-party types | `afero.Fs` appears in the v1 API (`Options.FS`, the `io` factory) and is frozen with it. Pulse does not replace it within v1. |
 | `.pulse` file format | Every cohort written by any v1 release stays readable by every later v1 release. Format versions 0x01 and 0x02 are readable forever. A newer format version is only written when a cohort uses a feature that needs it, and older binaries refuse it with a coded error rather than misreading it. |
 | Shard archives | Same promise as `.pulse` files. |
 | `--json` envelope | `{format_version, data, request, errors, warnings}`. New fields may appear; existing fields are not renamed, removed or retyped without a `format_version` bump, and a bump only happens in a major release. |
@@ -60,6 +62,8 @@ open an issue with the two versions and a reproducing request.
 ---
 
 ## Notes for review
+
+- **The package list mirrors [00](00-public-surface.md)'s public, public-narrowed and new classes exactly.** For a narrowed package only its kept subset is exported, so "exported identifiers" is the whole promise. Embedder-facing differences from today's layout are listed in [03](03-embedder-migration.md).
 
 - **The numerical-results row is a deliberate promise.** Pulse's goldens and determinism conventions (eigenvector sign, merge order, seeded k-means) already make it achievable, and harness and LLM consumers rely on it.
 - **"Default resource-limit values may be raised"** pairs with the embedder-operations decision: high defaults that can be tuned. Lowering a default would be breaking, so the policy only allows raising one.

@@ -138,7 +138,7 @@ Every contract difference above — old spelling, new spelling, kind and how to 
 - [ ] `extend` package; `processing` fully internal (U02b)
 - [ ] `CohortReader` / `CohortWriter`; `PredictResult.CrosstabFusable` (U02c)
 - [ ] API-compatibility check in CI against the latest release tag (U02)
-- [ ] Public package list recorded in `STABILITY.md` ([02](02-stability-policy.md))
+- [x] Public package list recorded in the `STABILITY.md` draft ([02](02-stability-policy.md)); the root file lands with U33
 - [ ] Embedder migration guide handed off ([03](03-embedder-migration.md))
 
 ## Appendix: downstream usage catalog
