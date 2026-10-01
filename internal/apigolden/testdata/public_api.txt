@@ -433,17 +433,17 @@ pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
 pulse: type Profile = pulse/synth.Profile
 pulse: type Profile underlying struct
-pulse: type Profile field Conditional *pulse/synth.ConditionalProfile "json:\"conditional,omitempty\""
-pulse: type Profile field Fields []pulse/synth.FieldProfile "json:\"fields\""
+pulse: type Profile field Conditional *pulse/internal/synth.ConditionalProfile "json:\"conditional,omitempty\""
+pulse: type Profile field Fields []pulse/internal/synth.FieldProfile "json:\"fields\""
 pulse: type Profile field Meta map[string]any "json:\"meta,omitempty\""
-pulse: type Profile field Models []pulse/synth.FieldModel "json:\"models,omitempty\""
-pulse: type Profile field Pairwise []pulse/synth.CorrelationStat "json:\"pairwise,omitempty\""
-pulse: type Profile field ResidualCorrelations *pulse/synth.ResidualCorrelationProfile "json:\"residual_correlations,omitempty\""
+pulse: type Profile field Models []pulse/internal/synth.FieldModel "json:\"models,omitempty\""
+pulse: type Profile field Pairwise []pulse/internal/synth.CorrelationStat "json:\"pairwise,omitempty\""
+pulse: type Profile field ResidualCorrelations *pulse/internal/synth.ResidualCorrelationProfile "json:\"residual_correlations,omitempty\""
 pulse: type Profile field RowCount int "json:\"row_count\""
-pulse: type Profile field RuleCandidates []pulse/synth.RuleSpec "json:\"-\""
-pulse: type Profile field RunContinuation *pulse/synth.RunContinuationProfile "json:\"run_continuation,omitempty\""
+pulse: type Profile field RuleCandidates []pulse/internal/synth.RuleSpec "json:\"-\""
+pulse: type Profile field RunContinuation *pulse/internal/synth.RunContinuationProfile "json:\"run_continuation,omitempty\""
 pulse: type Profile field Warnings []string "json:\"warnings,omitempty\""
-pulse: type Profile method (*Profile) FittedModels() []pulse/synth.FieldModel
+pulse: type Profile method (*Profile) FittedModels() []pulse/internal/synth.FieldModel
 pulse: type Profile method (*Profile) MarshalJSON() ([]byte, error)
 pulse: type ProfileOptions = pulse/synth.ProfileOptions
 pulse: type ProfileOptions underlying struct
@@ -680,19 +680,19 @@ pulse: type SynthResult field RowsRejected int "json:\"rows_rejected\""
 pulse: type SynthResult field Warnings []string "json:\"warnings,omitempty\""
 pulse: type SynthSpec = pulse/synth.Spec
 pulse: type SynthSpec underlying struct
-pulse: type SynthSpec field CategoricalNumericPairs []pulse/synth.CategoricalNumericPairSpec "json:\"categorical_numeric_pairs,omitempty\""
-pulse: type SynthSpec field CategoricalPairs []pulse/synth.CategoricalPairSpec "json:\"categorical_pairs,omitempty\""
-pulse: type SynthSpec field Constraints []pulse/synth.ConstraintSpec "json:\"constraints,omitempty\""
-pulse: type SynthSpec field Correlations []pulse/synth.CorrelationSpec "json:\"correlations,omitempty\""
-pulse: type SynthSpec field Fields []pulse/synth.FieldSpec "json:\"fields\""
+pulse: type SynthSpec field CategoricalNumericPairs []pulse/internal/synth.CategoricalNumericPairSpec "json:\"categorical_numeric_pairs,omitempty\""
+pulse: type SynthSpec field CategoricalPairs []pulse/internal/synth.CategoricalPairSpec "json:\"categorical_pairs,omitempty\""
+pulse: type SynthSpec field Constraints []pulse/internal/synth.ConstraintSpec "json:\"constraints,omitempty\""
+pulse: type SynthSpec field Correlations []pulse/internal/synth.CorrelationSpec "json:\"correlations,omitempty\""
+pulse: type SynthSpec field Fields []pulse/internal/synth.FieldSpec "json:\"fields\""
 pulse: type SynthSpec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
-pulse: type SynthSpec field Models []pulse/synth.FieldModelSpec "json:\"models,omitempty\""
-pulse: type SynthSpec field ResidualCorrelations []pulse/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
+pulse: type SynthSpec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
+pulse: type SynthSpec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse: type SynthSpec field RowCount int "json:\"row_count\""
-pulse: type SynthSpec field Rules []pulse/synth.RuleSpec "json:\"rules,omitempty\""
-pulse: type SynthSpec field SetCategoricalPairs []pulse/synth.SetCategoricalPairSpec "json:\"set_categorical_pairs,omitempty\""
-pulse: type SynthSpec field SetNumericPairs []pulse/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
-pulse: type SynthSpec field SetSetPairs []pulse/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
+pulse: type SynthSpec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
+pulse: type SynthSpec field SetCategoricalPairs []pulse/internal/synth.SetCategoricalPairSpec "json:\"set_categorical_pairs,omitempty\""
+pulse: type SynthSpec field SetNumericPairs []pulse/internal/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
+pulse: type SynthSpec field SetSetPairs []pulse/internal/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
 pulse: type SynthSpec method (*SynthSpec) Hash() string
 pulse: type Template = pulse/internal/template.Template
 pulse: type Template underlying struct
@@ -2028,7 +2028,6 @@ pulse/mcp/gosdk: type Config struct
 pulse/mcp/gosdk: type Config field BindOnInspect bool
 pulse/mcp/gosdk: type Config field DisableCohortScan bool
 pulse/mcp/gosdk: type Config field Version string
-pulse/mcp/gosdk: type Config method (Config) Core() pulse/internal/mcp.Config
 pulse/mcp/gosdk: const DescPromptAuthorRequest untyped string = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
 pulse/mcp/gosdk: const DescPromptBootstrap untyped string = "Inject the Pulse session-bootstrap instructions into the conversation. Tells the assistant which tools to call (and in what order) before authoring any request, and where the authoritative request-shape references live. Useful when starting a fresh session against a Pulse MCP server."
 pulse/mcp/gosdk: const PromptAuthorRequest untyped string = "pulse-author-request"
@@ -2536,18 +2535,8 @@ pulse/processing/window: type WindowComputer imethod Compute(rows []map[string]a
 pulse/processing/window: type WindowFactory func(w *pulse/types.Window, opts pulse/processing/window.WindowOptions) (pulse/processing/window.WindowComputer, error)
 pulse/processing/window: type WindowOptions struct
 pulse/synth: package synth
-pulse/synth: func AllDistributions() []string
-pulse/synth: func ApplyRulesFile(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, path string) error
-pulse/synth: func AugmentFromProfile(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, sourcePath string, output string, opts pulse/synth.Options) (*pulse/synth.Result, error)
-pulse/synth: func BuildCategoricalNumericPairwise(report *pulse/synth.FidelityReport, mergedSchema *pulse/encoding.Schema, records []byte, pairs []pulse/synth.CategoricalNumericPairSpec)
-pulse/synth: func BuildCategoricalPairwise(report *pulse/synth.FidelityReport, mergedSchema *pulse/encoding.Schema, records []byte, pairs []pulse/synth.CategoricalPairSpec)
-pulse/synth: func BuildFidelityReport(mergedSchema *pulse/encoding.Schema, records []byte, sourceRows int, syntheticRows int, run pulse/synth.TestRunner) *pulse/synth.FidelityReport
-pulse/synth: func BuildModelFidelity(report *pulse/synth.FidelityReport, mergedSchema *pulse/encoding.Schema, records []byte, spec *pulse/synth.Spec)
-pulse/synth: func BuildPairwise(report *pulse/synth.FidelityReport, mergedSchema *pulse/encoding.Schema, records []byte, pairs []pulse/synth.CorrelationSpec, warnings []string)
-pulse/synth: func BuildSetCategoricalPairwise(report *pulse/synth.FidelityReport, mergedSchema *pulse/encoding.Schema, records []byte, pairs []pulse/synth.SetCategoricalPairSpec)
-pulse/synth: func BuildSetNumericPairwise(report *pulse/synth.FidelityReport, mergedSchema *pulse/encoding.Schema, records []byte, pairs []pulse/synth.SetNumericPairSpec)
-pulse/synth: func BuildSetSetPairwise(report *pulse/synth.FidelityReport, mergedSchema *pulse/encoding.Schema, records []byte, pairs []pulse/synth.SetSetPairSpec)
-pulse/synth: type CategoricalNumericCategoryFidelity struct
+pulse/synth: type CategoricalNumericCategoryFidelity = pulse/internal/synth.CategoricalNumericCategoryFidelity
+pulse/synth: type CategoricalNumericCategoryFidelity underlying struct
 pulse/synth: type CategoricalNumericCategoryFidelity field Category string "json:\"category\""
 pulse/synth: type CategoricalNumericCategoryFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type CategoricalNumericCategoryFidelity field MeanDelta float64 "json:\"mean_delta,omitempty\""
@@ -2557,90 +2546,107 @@ pulse/synth: type CategoricalNumericCategoryFidelity field SourceStd float64 "js
 pulse/synth: type CategoricalNumericCategoryFidelity field StdDelta float64 "json:\"std_delta,omitempty\""
 pulse/synth: type CategoricalNumericCategoryFidelity field SyntheticMean float64 "json:\"synthetic_mean,omitempty\""
 pulse/synth: type CategoricalNumericCategoryFidelity field SyntheticStd float64 "json:\"synthetic_std,omitempty\""
-pulse/synth: type CategoricalNumericCategorySpec struct
+pulse/synth: type CategoricalNumericCategorySpec = pulse/internal/synth.CategoricalNumericCategorySpec
+pulse/synth: type CategoricalNumericCategorySpec underlying struct
 pulse/synth: type CategoricalNumericCategorySpec field Category string "json:\"category\""
 pulse/synth: type CategoricalNumericCategorySpec field Mean float64 "json:\"mean\""
 pulse/synth: type CategoricalNumericCategorySpec field Std float64 "json:\"std\""
-pulse/synth: type CategoricalNumericCategoryStat struct
+pulse/synth: type CategoricalNumericCategoryStat = pulse/internal/synth.CategoricalNumericCategoryStat
+pulse/synth: type CategoricalNumericCategoryStat underlying struct
 pulse/synth: type CategoricalNumericCategoryStat field Category string "json:\"category\""
 pulse/synth: type CategoricalNumericCategoryStat field Mean float64 "json:\"mean\""
 pulse/synth: type CategoricalNumericCategoryStat field N int "json:\"n\""
 pulse/synth: type CategoricalNumericCategoryStat field Std float64 "json:\"std\""
-pulse/synth: type CategoricalNumericPairFidelity struct
+pulse/synth: type CategoricalNumericPairFidelity = pulse/internal/synth.CategoricalNumericPairFidelity
+pulse/synth: type CategoricalNumericPairFidelity underlying struct
 pulse/synth: type CategoricalNumericPairFidelity field A string "json:\"a\""
 pulse/synth: type CategoricalNumericPairFidelity field B string "json:\"b\""
-pulse/synth: type CategoricalNumericPairFidelity field Categories []*pulse/synth.CategoricalNumericCategoryFidelity "json:\"categories,omitempty\""
-pulse/synth: type CategoricalNumericPairProfile struct
+pulse/synth: type CategoricalNumericPairFidelity field Categories []*pulse/internal/synth.CategoricalNumericCategoryFidelity "json:\"categories,omitempty\""
+pulse/synth: type CategoricalNumericPairProfile = pulse/internal/synth.CategoricalNumericPairProfile
+pulse/synth: type CategoricalNumericPairProfile underlying struct
 pulse/synth: type CategoricalNumericPairProfile field A string "json:\"a\""
 pulse/synth: type CategoricalNumericPairProfile field B string "json:\"b\""
-pulse/synth: type CategoricalNumericPairProfile field Categories []pulse/synth.CategoricalNumericCategoryStat "json:\"categories\""
+pulse/synth: type CategoricalNumericPairProfile field Categories []pulse/internal/synth.CategoricalNumericCategoryStat "json:\"categories\""
 pulse/synth: type CategoricalNumericPairProfile field N int "json:\"n\""
-pulse/synth: type CategoricalNumericPairSpec struct
+pulse/synth: type CategoricalNumericPairSpec = pulse/internal/synth.CategoricalNumericPairSpec
+pulse/synth: type CategoricalNumericPairSpec underlying struct
 pulse/synth: type CategoricalNumericPairSpec field A string "json:\"a\""
 pulse/synth: type CategoricalNumericPairSpec field B string "json:\"b\""
 pulse/synth: type CategoricalNumericPairSpec field Bernoulli bool "json:\"bernoulli,omitempty\""
-pulse/synth: type CategoricalNumericPairSpec field Categories []pulse/synth.CategoricalNumericCategorySpec "json:\"categories\""
+pulse/synth: type CategoricalNumericPairSpec field Categories []pulse/internal/synth.CategoricalNumericCategorySpec "json:\"categories\""
 pulse/synth: type CategoricalNumericPairSpec field HasClamp bool "json:\"has_clamp,omitempty\""
 pulse/synth: type CategoricalNumericPairSpec field Max float64 "json:\"max,omitempty\""
 pulse/synth: type CategoricalNumericPairSpec field Min float64 "json:\"min,omitempty\""
-pulse/synth: type CategoricalPairCellSpec struct
+pulse/synth: type CategoricalPairCellSpec = pulse/internal/synth.CategoricalPairCellSpec
+pulse/synth: type CategoricalPairCellSpec underlying struct
 pulse/synth: type CategoricalPairCellSpec field AValue string "json:\"a_value\""
 pulse/synth: type CategoricalPairCellSpec field BValue string "json:\"b_value\""
 pulse/synth: type CategoricalPairCellSpec field Count int "json:\"count\""
-pulse/synth: type CategoricalPairFidelity struct
+pulse/synth: type CategoricalPairFidelity = pulse/internal/synth.CategoricalPairFidelity
+pulse/synth: type CategoricalPairFidelity underlying struct
 pulse/synth: type CategoricalPairFidelity field A string "json:\"a\""
 pulse/synth: type CategoricalPairFidelity field B string "json:\"b\""
 pulse/synth: type CategoricalPairFidelity field Delta float64 "json:\"delta,omitempty\""
 pulse/synth: type CategoricalPairFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type CategoricalPairFidelity field N int "json:\"n\""
-pulse/synth: type CategoricalPairProfile struct
+pulse/synth: type CategoricalPairProfile = pulse/internal/synth.CategoricalPairProfile
+pulse/synth: type CategoricalPairProfile underlying struct
 pulse/synth: type CategoricalPairProfile field A string "json:\"a\""
 pulse/synth: type CategoricalPairProfile field B string "json:\"b\""
-pulse/synth: type CategoricalPairProfile field Cells []pulse/synth.ContingencyCell "json:\"cells\""
+pulse/synth: type CategoricalPairProfile field Cells []pulse/internal/synth.ContingencyCell "json:\"cells\""
 pulse/synth: type CategoricalPairProfile field N int "json:\"n\""
-pulse/synth: type CategoricalPairSpec struct
+pulse/synth: type CategoricalPairSpec = pulse/internal/synth.CategoricalPairSpec
+pulse/synth: type CategoricalPairSpec underlying struct
 pulse/synth: type CategoricalPairSpec field A string "json:\"a\""
 pulse/synth: type CategoricalPairSpec field B string "json:\"b\""
-pulse/synth: type CategoricalPairSpec field Cells []pulse/synth.CategoricalPairCellSpec "json:\"cells\""
-pulse/synth: type CategoricalProfile struct
+pulse/synth: type CategoricalPairSpec field Cells []pulse/internal/synth.CategoricalPairCellSpec "json:\"cells\""
+pulse/synth: type CategoricalProfile = pulse/internal/synth.CategoricalProfile
+pulse/synth: type CategoricalProfile underlying struct
 pulse/synth: type CategoricalProfile field Cardinality int "json:\"cardinality\""
-pulse/synth: type CategoricalProfile field Top []pulse/synth.CategoryHit "json:\"top\""
-pulse/synth: type CategoryHit struct
+pulse/synth: type CategoricalProfile field Top []pulse/internal/synth.CategoryHit "json:\"top\""
+pulse/synth: type CategoryHit = pulse/internal/synth.CategoryHit
+pulse/synth: type CategoryHit underlying struct
 pulse/synth: type CategoryHit field Value string "json:\"value\""
 pulse/synth: type CategoryHit field Weight float64 "json:\"weight\""
-pulse/synth: type ConditionalProfile struct
-pulse/synth: type ConditionalProfile field CategoricalNumericPairs []pulse/synth.CategoricalNumericPairProfile "json:\"categorical_numeric_pairs,omitempty\""
-pulse/synth: type ConditionalProfile field CategoricalPairs []pulse/synth.CategoricalPairProfile "json:\"categorical_pairs,omitempty\""
-pulse/synth: type ConditionalProfile field NumericPairs []pulse/synth.NumericPairProfile "json:\"numeric_pairs,omitempty\""
-pulse/synth: type ConditionalProfile field SetCategoricalPairs []pulse/synth.SetCategoricalPairProfile "json:\"set_categorical_pairs,omitempty\""
-pulse/synth: type ConditionalProfile field SetNumericPairs []pulse/synth.SetNumericPairProfile "json:\"set_numeric_pairs,omitempty\""
-pulse/synth: type ConditionalProfile field SetSetPairs []pulse/synth.SetSetPairProfile "json:\"set_set_pairs,omitempty\""
-pulse/synth: type ConstraintSpec struct
+pulse/synth: type ConditionalProfile = pulse/internal/synth.ConditionalProfile
+pulse/synth: type ConditionalProfile underlying struct
+pulse/synth: type ConditionalProfile field CategoricalNumericPairs []pulse/internal/synth.CategoricalNumericPairProfile "json:\"categorical_numeric_pairs,omitempty\""
+pulse/synth: type ConditionalProfile field CategoricalPairs []pulse/internal/synth.CategoricalPairProfile "json:\"categorical_pairs,omitempty\""
+pulse/synth: type ConditionalProfile field NumericPairs []pulse/internal/synth.NumericPairProfile "json:\"numeric_pairs,omitempty\""
+pulse/synth: type ConditionalProfile field SetCategoricalPairs []pulse/internal/synth.SetCategoricalPairProfile "json:\"set_categorical_pairs,omitempty\""
+pulse/synth: type ConditionalProfile field SetNumericPairs []pulse/internal/synth.SetNumericPairProfile "json:\"set_numeric_pairs,omitempty\""
+pulse/synth: type ConditionalProfile field SetSetPairs []pulse/internal/synth.SetSetPairProfile "json:\"set_set_pairs,omitempty\""
+pulse/synth: type ConstraintSpec = pulse/internal/synth.ConstraintSpec
+pulse/synth: type ConstraintSpec underlying struct
 pulse/synth: type ConstraintSpec field Expr string "json:\"expr\""
-pulse/synth: type ContingencyCell struct
+pulse/synth: type ContingencyCell = pulse/internal/synth.ContingencyCell
+pulse/synth: type ContingencyCell underlying struct
 pulse/synth: type ContingencyCell field AValue string "json:\"a_value\""
 pulse/synth: type ContingencyCell field BValue string "json:\"b_value\""
 pulse/synth: type ContingencyCell field Count int "json:\"count\""
-pulse/synth: const ContingencyCellCap untyped int = 128
-pulse/synth: type CorrelationSpec struct
+pulse/synth: type CorrelationSpec = pulse/internal/synth.CorrelationSpec
+pulse/synth: type CorrelationSpec underlying struct
 pulse/synth: type CorrelationSpec field A string "json:\"a\""
 pulse/synth: type CorrelationSpec field B string "json:\"b\""
 pulse/synth: type CorrelationSpec field Correlation float64 "json:\"correlation\""
-pulse/synth: type CorrelationStat struct
+pulse/synth: type CorrelationStat = pulse/internal/synth.CorrelationStat
+pulse/synth: type CorrelationStat underlying struct
 pulse/synth: type CorrelationStat field A string "json:\"a\""
 pulse/synth: type CorrelationStat field B string "json:\"b\""
 pulse/synth: type CorrelationStat field Rho float64 "json:\"rho\""
-pulse/synth: func CountWarningsNeedingAttention(groups []pulse/synth.WarningGroup) (attention int, informational int)
-pulse/synth: type DateProfile struct
+pulse/synth: type DateProfile = pulse/internal/synth.DateProfile
+pulse/synth: type DateProfile underlying struct
 pulse/synth: type DateProfile field End string "json:\"end\""
 pulse/synth: type DateProfile field Start string "json:\"start\""
 pulse/synth: type DateProfile field Weekdays [7]int "json:\"weekdays\""
-pulse/synth: type DiscreteLevel struct
+pulse/synth: type DiscreteLevel = pulse/internal/synth.DiscreteLevel
+pulse/synth: type DiscreteLevel underlying struct
 pulse/synth: type DiscreteLevel field Count int "json:\"count\""
 pulse/synth: type DiscreteLevel field Frequency float64 "json:\"frequency\""
 pulse/synth: type DiscreteLevel field Value float64 "json:\"value\""
-pulse/synth: type DiscreteProfile struct
-pulse/synth: type DiscreteProfile field Levels []pulse/synth.DiscreteLevel "json:\"levels\""
+pulse/synth: type DiscreteProfile = pulse/internal/synth.DiscreteProfile
+pulse/synth: type DiscreteProfile underlying struct
+pulse/synth: type DiscreteProfile field Levels []pulse/internal/synth.DiscreteLevel "json:\"levels\""
 pulse/synth: const DistBernoulli untyped string = "bernoulli"
 pulse/synth: const DistConstant untyped string = "constant"
 pulse/synth: const DistDiscrete untyped string = "discrete"
@@ -2656,59 +2662,66 @@ pulse/synth: const DistSetBernoulli untyped string = "set_bernoulli"
 pulse/synth: const DistUniform untyped string = "uniform"
 pulse/synth: const DistUniformDate untyped string = "uniform_date"
 pulse/synth: const DistWeightedCategorical untyped string = "weighted_categorical"
-pulse/synth: type FidelityReport struct
-pulse/synth: type FidelityReport field CategoricalNumericPairwise []*pulse/synth.CategoricalNumericPairFidelity "json:\"categorical_numeric_pairwise,omitempty\""
-pulse/synth: type FidelityReport field CategoricalPairwise []*pulse/synth.CategoricalPairFidelity "json:\"categorical_pairwise,omitempty\""
-pulse/synth: type FidelityReport field Fields []*pulse/synth.FieldFidelity "json:\"fields,omitempty\""
-pulse/synth: type FidelityReport field ModelResidualCorrelations *pulse/synth.ModelResidualCorrelationFidelity "json:\"model_residual_correlations,omitempty\""
-pulse/synth: type FidelityReport field Models []*pulse/synth.ModelFidelity "json:\"models,omitempty\""
-pulse/synth: type FidelityReport field Pairwise []*pulse/synth.PairwiseFidelity "json:\"pairwise,omitempty\""
-pulse/synth: type FidelityReport field SetCategoricalPairwise []*pulse/synth.SetCategoricalPairFidelity "json:\"set_categorical_pairwise,omitempty\""
-pulse/synth: type FidelityReport field SetFields []*pulse/synth.SetFieldFidelity "json:\"set_fields,omitempty\""
-pulse/synth: type FidelityReport field SetNumericPairwise []*pulse/synth.SetNumericPairFidelity "json:\"set_numeric_pairwise,omitempty\""
-pulse/synth: type FidelityReport field SetSetPairwise []*pulse/synth.SetSetPairFidelity "json:\"set_set_pairwise,omitempty\""
+pulse/synth: type FidelityReport = pulse/internal/synth.FidelityReport
+pulse/synth: type FidelityReport underlying struct
+pulse/synth: type FidelityReport field CategoricalNumericPairwise []*pulse/internal/synth.CategoricalNumericPairFidelity "json:\"categorical_numeric_pairwise,omitempty\""
+pulse/synth: type FidelityReport field CategoricalPairwise []*pulse/internal/synth.CategoricalPairFidelity "json:\"categorical_pairwise,omitempty\""
+pulse/synth: type FidelityReport field Fields []*pulse/internal/synth.FieldFidelity "json:\"fields,omitempty\""
+pulse/synth: type FidelityReport field ModelResidualCorrelations *pulse/internal/synth.ModelResidualCorrelationFidelity "json:\"model_residual_correlations,omitempty\""
+pulse/synth: type FidelityReport field Models []*pulse/internal/synth.ModelFidelity "json:\"models,omitempty\""
+pulse/synth: type FidelityReport field Pairwise []*pulse/internal/synth.PairwiseFidelity "json:\"pairwise,omitempty\""
+pulse/synth: type FidelityReport field SetCategoricalPairwise []*pulse/internal/synth.SetCategoricalPairFidelity "json:\"set_categorical_pairwise,omitempty\""
+pulse/synth: type FidelityReport field SetFields []*pulse/internal/synth.SetFieldFidelity "json:\"set_fields,omitempty\""
+pulse/synth: type FidelityReport field SetNumericPairwise []*pulse/internal/synth.SetNumericPairFidelity "json:\"set_numeric_pairwise,omitempty\""
+pulse/synth: type FidelityReport field SetSetPairwise []*pulse/internal/synth.SetSetPairFidelity "json:\"set_set_pairwise,omitempty\""
 pulse/synth: type FidelityReport field SourceRows int "json:\"source_rows\""
 pulse/synth: type FidelityReport field SyntheticRows int "json:\"synthetic_rows\""
 pulse/synth: type FidelityReport field Warnings []string "json:\"warnings,omitempty\""
-pulse/synth: type FieldContinuation struct
+pulse/synth: type FieldContinuation = pulse/internal/synth.FieldContinuation
+pulse/synth: type FieldContinuation underlying struct
 pulse/synth: type FieldContinuation field Name string "json:\"name\""
 pulse/synth: type FieldContinuation field Rate float64 "json:\"rate\""
-pulse/synth: type FieldFidelity struct
+pulse/synth: type FieldFidelity = pulse/internal/synth.FieldFidelity
+pulse/synth: type FieldFidelity underlying struct
 pulse/synth: type FieldFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type FieldFidelity field Field string "json:\"field\""
 pulse/synth: type FieldFidelity field Result *pulse/types.TestResult "json:\"result,omitempty\""
 pulse/synth: type FieldFidelity field Test pulse/types.TestType "json:\"test\""
-pulse/synth: type FieldModel struct
+pulse/synth: type FieldModel = pulse/internal/synth.FieldModel
+pulse/synth: type FieldModel underlying struct
 pulse/synth: type FieldModel field Field string "json:\"field\""
 pulse/synth: type FieldModel field Intercept float64 "json:\"intercept\""
 pulse/synth: type FieldModel field NObs int "json:\"n_obs\""
-pulse/synth: type FieldModel field Predictors []pulse/synth.ModelPredictor "json:\"predictors\""
+pulse/synth: type FieldModel field Predictors []pulse/internal/synth.ModelPredictor "json:\"predictors\""
 pulse/synth: type FieldModel field R2 float64 "json:\"r2\""
-pulse/synth: type FieldModel field References []pulse/synth.ModelReference "json:\"references,omitempty\""
+pulse/synth: type FieldModel field References []pulse/internal/synth.ModelReference "json:\"references,omitempty\""
 pulse/synth: type FieldModel field ResidualPresent []bool "json:\"-\""
 pulse/synth: type FieldModel field ResidualStd float64 "json:\"residual_std\""
 pulse/synth: type FieldModel field Residuals []float64 "json:\"-\""
 pulse/synth: type FieldModel field ShrinkageAlpha float64 "json:\"shrinkage_alpha,omitempty\""
-pulse/synth: type FieldModelSpec struct
+pulse/synth: type FieldModelSpec = pulse/internal/synth.FieldModelSpec
+pulse/synth: type FieldModelSpec underlying struct
 pulse/synth: type FieldModelSpec field Field string "json:\"field\""
 pulse/synth: type FieldModelSpec field HasClamp bool "json:\"has_clamp,omitempty\""
 pulse/synth: type FieldModelSpec field Intercept float64 "json:\"intercept\""
 pulse/synth: type FieldModelSpec field Max float64 "json:\"max,omitempty\""
 pulse/synth: type FieldModelSpec field Min float64 "json:\"min,omitempty\""
-pulse/synth: type FieldModelSpec field Predictors []pulse/synth.ModelPredictorSpec "json:\"predictors\""
+pulse/synth: type FieldModelSpec field Predictors []pulse/internal/synth.ModelPredictorSpec "json:\"predictors\""
 pulse/synth: type FieldModelSpec field ResidualStd float64 "json:\"residual_std\""
-pulse/synth: type FieldProfile struct
-pulse/synth: type FieldProfile field Categorical *pulse/synth.CategoricalProfile "json:\"categorical,omitempty\""
-pulse/synth: type FieldProfile field Date *pulse/synth.DateProfile "json:\"date,omitempty\""
+pulse/synth: type FieldProfile = pulse/internal/synth.FieldProfile
+pulse/synth: type FieldProfile underlying struct
+pulse/synth: type FieldProfile field Categorical *pulse/internal/synth.CategoricalProfile "json:\"categorical,omitempty\""
+pulse/synth: type FieldProfile field Date *pulse/internal/synth.DateProfile "json:\"date,omitempty\""
 pulse/synth: type FieldProfile field Description string "json:\"description,omitempty\""
 pulse/synth: type FieldProfile field Name string "json:\"name\""
 pulse/synth: type FieldProfile field NullRate float64 "json:\"null_rate\""
-pulse/synth: type FieldProfile field Numeric *pulse/synth.NumericProfile "json:\"numeric,omitempty\""
+pulse/synth: type FieldProfile field Numeric *pulse/internal/synth.NumericProfile "json:\"numeric,omitempty\""
 pulse/synth: type FieldProfile field Precision uint8 "json:\"precision,omitempty\""
 pulse/synth: type FieldProfile field Scale uint8 "json:\"scale,omitempty\""
-pulse/synth: type FieldProfile field Set *pulse/synth.SetProfile "json:\"set,omitempty\""
+pulse/synth: type FieldProfile field Set *pulse/internal/synth.SetProfile "json:\"set,omitempty\""
 pulse/synth: type FieldProfile field Type string "json:\"type\""
-pulse/synth: type FieldSpec struct
+pulse/synth: type FieldSpec = pulse/internal/synth.FieldSpec
+pulse/synth: type FieldSpec underlying struct
 pulse/synth: type FieldSpec field Description string "json:\"description,omitempty\""
 pulse/synth: type FieldSpec field Distribution string "json:\"distribution\""
 pulse/synth: type FieldSpec field Name string "json:\"name\""
@@ -2718,10 +2731,8 @@ pulse/synth: type FieldSpec field Params map[string]any "json:\"params,omitempty
 pulse/synth: type FieldSpec field Precision uint8 "json:\"precision,omitempty\""
 pulse/synth: type FieldSpec field Scale uint8 "json:\"scale,omitempty\""
 pulse/synth: type FieldSpec field Type string "json:\"type\""
-pulse/synth: func GroupWarnings(warnings []string) []pulse/synth.WarningGroup
-pulse/synth: const MinPairObservations untyped int = 30
-pulse/synth: const MinShapeFitObservations untyped int = 50
-pulse/synth: type ModelFidelity struct
+pulse/synth: type ModelFidelity = pulse/internal/synth.ModelFidelity
+pulse/synth: type ModelFidelity underlying struct
 pulse/synth: type ModelFidelity field CapturedIntercept float64 "json:\"captured_intercept\""
 pulse/synth: type ModelFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type ModelFidelity field Field string "json:\"field\""
@@ -2731,18 +2742,20 @@ pulse/synth: type ModelFidelity field LatentScale float64 "json:\"latent_scale\"
 pulse/synth: type ModelFidelity field Marginal bool "json:\"marginal,omitempty\""
 pulse/synth: type ModelFidelity field MaxDelta float64 "json:\"max_delta,omitempty\""
 pulse/synth: type ModelFidelity field NObs int "json:\"n_obs\""
-pulse/synth: type ModelFidelity field Predictors []*pulse/synth.ModelPredictorFidelity "json:\"predictors,omitempty\""
+pulse/synth: type ModelFidelity field Predictors []*pulse/internal/synth.ModelPredictorFidelity "json:\"predictors,omitempty\""
 pulse/synth: type ModelFidelity field R2 float64 "json:\"r2,omitempty\""
 pulse/synth: type ModelFidelity field RecoveredIntercept float64 "json:\"recovered_intercept,omitempty\""
 pulse/synth: type ModelFidelity field Scale string "json:\"scale,omitempty\""
-pulse/synth: type ModelPredictor struct
+pulse/synth: type ModelPredictor = pulse/internal/synth.ModelPredictor
+pulse/synth: type ModelPredictor underlying struct
 pulse/synth: type ModelPredictor field Coefficient float64 "json:\"coefficient\""
 pulse/synth: type ModelPredictor field Column string "json:\"-\""
 pulse/synth: type ModelPredictor field Field string "json:\"field\""
 pulse/synth: type ModelPredictor field Kind string "json:\"kind\""
 pulse/synth: type ModelPredictor field Level string "json:\"level\""
 pulse/synth: const ModelPredictorCategoricalLevel untyped string = "categorical_level"
-pulse/synth: type ModelPredictorFidelity struct
+pulse/synth: type ModelPredictorFidelity = pulse/internal/synth.ModelPredictorFidelity
+pulse/synth: type ModelPredictorFidelity underlying struct
 pulse/synth: type ModelPredictorFidelity field CapturedCoefficient float64 "json:\"captured_coefficient\""
 pulse/synth: type ModelPredictorFidelity field Delta float64 "json:\"delta,omitempty\""
 pulse/synth: type ModelPredictorFidelity field Error string "json:\"error,omitempty\""
@@ -2756,26 +2769,29 @@ pulse/synth: type ModelPredictorFidelity field ScoreRetention float64 "json:\"sc
 pulse/synth: type ModelPredictorFidelity field StdError float64 "json:\"std_error,omitempty\""
 pulse/synth: const ModelPredictorNumeric untyped string = "numeric"
 pulse/synth: const ModelPredictorSetOption untyped string = "set_option"
-pulse/synth: type ModelPredictorSpec struct
+pulse/synth: type ModelPredictorSpec = pulse/internal/synth.ModelPredictorSpec
+pulse/synth: type ModelPredictorSpec underlying struct
 pulse/synth: type ModelPredictorSpec field Coefficient float64 "json:\"coefficient\""
 pulse/synth: type ModelPredictorSpec field Field string "json:\"field\""
 pulse/synth: type ModelPredictorSpec field Kind string "json:\"kind\""
 pulse/synth: type ModelPredictorSpec field Level string "json:\"level\""
-pulse/synth: const ModelRecoveryTolerance untyped float = 1/10
-pulse/synth: type ModelReference struct
+pulse/synth: type ModelReference = pulse/internal/synth.ModelReference
+pulse/synth: type ModelReference underlying struct
 pulse/synth: type ModelReference field Field string "json:\"field\""
 pulse/synth: type ModelReference field Level string "json:\"level\""
-pulse/synth: type ModelResidualCorrelationFidelity struct
+pulse/synth: type ModelResidualCorrelationFidelity = pulse/internal/synth.ModelResidualCorrelationFidelity
+pulse/synth: type ModelResidualCorrelationFidelity underlying struct
 pulse/synth: type ModelResidualCorrelationFidelity field Compared int "json:\"compared\""
 pulse/synth: type ModelResidualCorrelationFidelity field Fields []string "json:\"fields\""
 pulse/synth: type ModelResidualCorrelationFidelity field Flagged int "json:\"flagged,omitempty\""
 pulse/synth: type ModelResidualCorrelationFidelity field MaxDelta float64 "json:\"max_delta\""
 pulse/synth: type ModelResidualCorrelationFidelity field MeanDelta float64 "json:\"mean_delta\""
 pulse/synth: type ModelResidualCorrelationFidelity field Omitted int "json:\"omitted,omitempty\""
-pulse/synth: type ModelResidualCorrelationFidelity field Pairs []*pulse/synth.ModelResidualPairFidelity "json:\"pairs,omitempty\""
-pulse/synth: type ModelResidualCorrelationFidelity field Unmeasured []*pulse/synth.ModelResidualUnmeasuredPair "json:\"unmeasured,omitempty\""
+pulse/synth: type ModelResidualCorrelationFidelity field Pairs []*pulse/internal/synth.ModelResidualPairFidelity "json:\"pairs,omitempty\""
+pulse/synth: type ModelResidualCorrelationFidelity field Unmeasured []*pulse/internal/synth.ModelResidualUnmeasuredPair "json:\"unmeasured,omitempty\""
 pulse/synth: type ModelResidualCorrelationFidelity field UnmeasuredOmitted int "json:\"unmeasured_omitted,omitempty\""
-pulse/synth: type ModelResidualPairFidelity struct
+pulse/synth: type ModelResidualPairFidelity = pulse/internal/synth.ModelResidualPairFidelity
+pulse/synth: type ModelResidualPairFidelity underlying struct
 pulse/synth: type ModelResidualPairFidelity field A string "json:\"a\""
 pulse/synth: type ModelResidualPairFidelity field B string "json:\"b\""
 pulse/synth: type ModelResidualPairFidelity field CapturedRho float64 "json:\"captured_rho\""
@@ -2783,31 +2799,36 @@ pulse/synth: type ModelResidualPairFidelity field Delta float64 "json:\"delta\""
 pulse/synth: type ModelResidualPairFidelity field Flagged bool "json:\"flagged,omitempty\""
 pulse/synth: type ModelResidualPairFidelity field N int "json:\"n\""
 pulse/synth: type ModelResidualPairFidelity field RecoveredRho float64 "json:\"recovered_rho\""
-pulse/synth: type ModelResidualUnmeasuredPair struct
+pulse/synth: type ModelResidualUnmeasuredPair = pulse/internal/synth.ModelResidualUnmeasuredPair
+pulse/synth: type ModelResidualUnmeasuredPair underlying struct
 pulse/synth: type ModelResidualUnmeasuredPair field A string "json:\"a\""
 pulse/synth: type ModelResidualUnmeasuredPair field B string "json:\"b\""
 pulse/synth: type ModelResidualUnmeasuredPair field CapturedRho float64 "json:\"captured_rho\""
 pulse/synth: type ModelResidualUnmeasuredPair field N int "json:\"n\""
 pulse/synth: type ModelResidualUnmeasuredPair field Reason string "json:\"reason\""
-pulse/synth: type NumericPairProfile struct
+pulse/synth: type NumericPairProfile = pulse/internal/synth.NumericPairProfile
+pulse/synth: type NumericPairProfile underlying struct
 pulse/synth: type NumericPairProfile field A string "json:\"a\""
 pulse/synth: type NumericPairProfile field B string "json:\"b\""
 pulse/synth: type NumericPairProfile field N int "json:\"n\""
 pulse/synth: type NumericPairProfile field Rho float64 "json:\"rho\""
-pulse/synth: type NumericProfile struct
-pulse/synth: type NumericProfile field Discrete *pulse/synth.DiscreteProfile "json:\"discrete,omitempty\""
+pulse/synth: type NumericProfile = pulse/internal/synth.NumericProfile
+pulse/synth: type NumericProfile underlying struct
+pulse/synth: type NumericProfile field Discrete *pulse/internal/synth.DiscreteProfile "json:\"discrete,omitempty\""
 pulse/synth: type NumericProfile field Max float64 "json:\"max\""
 pulse/synth: type NumericProfile field Mean float64 "json:\"mean\""
 pulse/synth: type NumericProfile field Min float64 "json:\"min\""
 pulse/synth: type NumericProfile field Percentiles []float64 "json:\"percentiles,omitempty\""
-pulse/synth: type NumericProfile field Shape *pulse/synth.ShapeProfile "json:\"shape,omitempty\""
+pulse/synth: type NumericProfile field Shape *pulse/internal/synth.ShapeProfile "json:\"shape,omitempty\""
 pulse/synth: type NumericProfile field Std float64 "json:\"std\""
-pulse/synth: type Options struct
+pulse/synth: type Options = pulse/internal/synth.Options
+pulse/synth: type Options underlying struct
 pulse/synth: type Options field FidelityReportPath string
 pulse/synth: type Options field FidelityWarnings []string
 pulse/synth: type Options field Seed int64
 pulse/synth: type Options field SourceCohort string
-pulse/synth: type PairwiseFidelity struct
+pulse/synth: type PairwiseFidelity = pulse/internal/synth.PairwiseFidelity
+pulse/synth: type PairwiseFidelity underlying struct
 pulse/synth: type PairwiseFidelity field A string "json:\"a\""
 pulse/synth: type PairwiseFidelity field B string "json:\"b\""
 pulse/synth: type PairwiseFidelity field Delta float64 "json:\"delta,omitempty\""
@@ -2815,24 +2836,25 @@ pulse/synth: type PairwiseFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type PairwiseFidelity field N int "json:\"n\""
 pulse/synth: type PairwiseFidelity field SourceRho float64 "json:\"source_rho\""
 pulse/synth: type PairwiseFidelity field SyntheticRho float64 "json:\"synthetic_rho,omitempty\""
-pulse/synth: func ParseRules(raw []byte) ([]pulse/synth.RuleSpec, error)
 pulse/synth: func ParseSpec(raw []byte) (*pulse/synth.Spec, error)
-pulse/synth: type Profile struct
-pulse/synth: type Profile field Conditional *pulse/synth.ConditionalProfile "json:\"conditional,omitempty\""
-pulse/synth: type Profile field Fields []pulse/synth.FieldProfile "json:\"fields\""
+pulse/synth: type Profile = pulse/internal/synth.Profile
+pulse/synth: type Profile underlying struct
+pulse/synth: type Profile field Conditional *pulse/internal/synth.ConditionalProfile "json:\"conditional,omitempty\""
+pulse/synth: type Profile field Fields []pulse/internal/synth.FieldProfile "json:\"fields\""
 pulse/synth: type Profile field Meta map[string]any "json:\"meta,omitempty\""
-pulse/synth: type Profile field Models []pulse/synth.FieldModel "json:\"models,omitempty\""
-pulse/synth: type Profile field Pairwise []pulse/synth.CorrelationStat "json:\"pairwise,omitempty\""
-pulse/synth: type Profile field ResidualCorrelations *pulse/synth.ResidualCorrelationProfile "json:\"residual_correlations,omitempty\""
+pulse/synth: type Profile field Models []pulse/internal/synth.FieldModel "json:\"models,omitempty\""
+pulse/synth: type Profile field Pairwise []pulse/internal/synth.CorrelationStat "json:\"pairwise,omitempty\""
+pulse/synth: type Profile field ResidualCorrelations *pulse/internal/synth.ResidualCorrelationProfile "json:\"residual_correlations,omitempty\""
 pulse/synth: type Profile field RowCount int "json:\"row_count\""
-pulse/synth: type Profile field RuleCandidates []pulse/synth.RuleSpec "json:\"-\""
-pulse/synth: type Profile field RunContinuation *pulse/synth.RunContinuationProfile "json:\"run_continuation,omitempty\""
+pulse/synth: type Profile field RuleCandidates []pulse/internal/synth.RuleSpec "json:\"-\""
+pulse/synth: type Profile field RunContinuation *pulse/internal/synth.RunContinuationProfile "json:\"run_continuation,omitempty\""
 pulse/synth: type Profile field Warnings []string "json:\"warnings,omitempty\""
-pulse/synth: type Profile method (*Profile) FittedModels() []pulse/synth.FieldModel
+pulse/synth: type Profile method (*Profile) FittedModels() []pulse/internal/synth.FieldModel
 pulse/synth: type Profile method (*Profile) MarshalJSON() ([]byte, error)
 pulse/synth: func ProfileBytes(data []byte, opts pulse/synth.ProfileOptions) (*pulse/synth.Profile, error)
 pulse/synth: func ProfileFile(fs github.com/spf13/afero.Fs, path string, opts pulse/synth.ProfileOptions) (*pulse/synth.Profile, error)
-pulse/synth: type ProfileOptions struct
+pulse/synth: type ProfileOptions = pulse/internal/synth.ProfileOptions
+pulse/synth: type ProfileOptions underlying struct
 pulse/synth: type ProfileOptions field CorrelationTopK int
 pulse/synth: type ProfileOptions field FitModels bool
 pulse/synth: type ProfileOptions field FitResidualCorrelations bool
@@ -2846,39 +2868,42 @@ pulse/synth: type ProfileOptions field Seed int64
 pulse/synth: type ProfileOptions field SuggestRules bool
 pulse/synth: type ProfileOptions field TopK int
 pulse/synth: const RecoveryScaleProbitScore untyped string = "probit_score"
-pulse/synth: type ResidualCorrelation struct
+pulse/synth: type ResidualCorrelation = pulse/internal/synth.ResidualCorrelation
+pulse/synth: type ResidualCorrelation underlying struct
 pulse/synth: type ResidualCorrelation field A string "json:\"a\""
 pulse/synth: type ResidualCorrelation field B string "json:\"b\""
 pulse/synth: type ResidualCorrelation field N int "json:\"n\""
 pulse/synth: type ResidualCorrelation field Rho float64 "json:\"rho\""
-pulse/synth: type ResidualCorrelationProfile struct
+pulse/synth: type ResidualCorrelationProfile = pulse/internal/synth.ResidualCorrelationProfile
+pulse/synth: type ResidualCorrelationProfile underlying struct
 pulse/synth: type ResidualCorrelationProfile field Fields []string "json:\"fields\""
-pulse/synth: type ResidualCorrelationProfile field Pairs []pulse/synth.ResidualCorrelation "json:\"pairs,omitempty\""
-pulse/synth: type ResidualCorrelationProfile field Unmeasured []pulse/synth.ResidualUnmeasuredPair "json:\"unmeasured,omitempty\""
-pulse/synth: const ResidualRecoveryTolerance untyped float = 1/10
+pulse/synth: type ResidualCorrelationProfile field Pairs []pulse/internal/synth.ResidualCorrelation "json:\"pairs,omitempty\""
+pulse/synth: type ResidualCorrelationProfile field Unmeasured []pulse/internal/synth.ResidualUnmeasuredPair "json:\"unmeasured,omitempty\""
 pulse/synth: const ResidualUnmeasuredNoModelFit untyped string = "no_model_fit"
 pulse/synth: const ResidualUnmeasuredNoOverlap untyped string = "insufficient_overlap"
 pulse/synth: const ResidualUnmeasuredNoVariance untyped string = "no_variance"
-pulse/synth: type ResidualUnmeasuredPair struct
+pulse/synth: type ResidualUnmeasuredPair = pulse/internal/synth.ResidualUnmeasuredPair
+pulse/synth: type ResidualUnmeasuredPair underlying struct
 pulse/synth: type ResidualUnmeasuredPair field A string "json:\"a\""
 pulse/synth: type ResidualUnmeasuredPair field B string "json:\"b\""
 pulse/synth: type ResidualUnmeasuredPair field N int "json:\"n\""
 pulse/synth: type ResidualUnmeasuredPair field Reason string "json:\"reason\""
-pulse/synth: func ResolveConflicts(s *pulse/synth.Spec) (catPairs []pulse/synth.CategoricalPairSpec, catNumPairs []pulse/synth.CategoricalNumericPairSpec, setCatPairs []pulse/synth.SetCategoricalPairSpec, setNumPairs []pulse/synth.SetNumericPairSpec, setSetPairs []pulse/synth.SetSetPairSpec, correlations []pulse/synth.CorrelationSpec)
-pulse/synth: type Result struct
+pulse/synth: type Result = pulse/internal/synth.Result
+pulse/synth: type Result underlying struct
 pulse/synth: type Result field FidelityReportPath string "json:\"fidelity_report_path,omitempty\""
 pulse/synth: type Result field OutputPath string "json:\"output_path\""
 pulse/synth: type Result field RowsGenerated int "json:\"rows_generated\""
 pulse/synth: type Result field RowsRejected int "json:\"rows_rejected\""
 pulse/synth: type Result field Warnings []string "json:\"warnings,omitempty\""
-pulse/synth: type RuleEvidence struct
-pulse/synth: type RuleEvidence field Block []pulse/synth.RuleEvidenceBlockMember "json:\"block,omitempty\""
-pulse/synth: type RuleEvidence field Dependency []pulse/synth.RuleEvidenceDependency "json:\"dependency,omitempty\""
+pulse/synth: type RuleEvidence = pulse/internal/synth.RuleEvidence
+pulse/synth: type RuleEvidence underlying struct
+pulse/synth: type RuleEvidence field Block []pulse/internal/synth.RuleEvidenceBlockMember "json:\"block,omitempty\""
+pulse/synth: type RuleEvidence field Dependency []pulse/internal/synth.RuleEvidenceDependency "json:\"dependency,omitempty\""
 pulse/synth: type RuleEvidence field Detector string "json:\"detector\""
 pulse/synth: type RuleEvidence field GateField string "json:\"gate_field,omitempty\""
 pulse/synth: type RuleEvidence field GatedLevels []string "json:\"gated_levels,omitempty\""
 pulse/synth: type RuleEvidence field GatedShare float64 "json:\"gated_share\""
-pulse/synth: type RuleEvidence field Levels []pulse/synth.RuleEvidenceLevel "json:\"levels,omitempty\""
+pulse/synth: type RuleEvidence field Levels []pulse/internal/synth.RuleEvidenceLevel "json:\"levels,omitempty\""
 pulse/synth: type RuleEvidence field MaxNullRateDeviation float64 "json:\"max_null_rate_deviation\""
 pulse/synth: type RuleEvidence field MinLevelSupport int "json:\"min_level_support\""
 pulse/synth: type RuleEvidence field Note string "json:\"note\""
@@ -2887,107 +2912,124 @@ pulse/synth: type RuleEvidence field RowsAffected int "json:\"rows_affected\""
 pulse/synth: type RuleEvidence field RowsObserved int "json:\"rows_observed\""
 pulse/synth: type RuleEvidence field SourceField string "json:\"source_field,omitempty\""
 pulse/synth: type RuleEvidence field SourceLevels int "json:\"source_levels,omitempty\""
-pulse/synth: type RuleEvidence field Targets []pulse/synth.RuleEvidenceTarget "json:\"targets,omitempty\""
+pulse/synth: type RuleEvidence field Targets []pulse/internal/synth.RuleEvidenceTarget "json:\"targets,omitempty\""
 pulse/synth: type RuleEvidence field ThinSupport bool "json:\"thin_support,omitempty\""
-pulse/synth: type RuleEvidenceBlockMember struct
+pulse/synth: type RuleEvidenceBlockMember = pulse/internal/synth.RuleEvidenceBlockMember
+pulse/synth: type RuleEvidenceBlockMember underlying struct
 pulse/synth: type RuleEvidenceBlockMember field Agreement float64 "json:\"agreement\""
 pulse/synth: type RuleEvidenceBlockMember field Field string "json:\"field\""
 pulse/synth: type RuleEvidenceBlockMember field NullCount int "json:\"null_count\""
 pulse/synth: type RuleEvidenceBlockMember field NullRate float64 "json:\"null_rate\""
 pulse/synth: type RuleEvidenceBlockMember field Type string "json:\"type\""
-pulse/synth: type RuleEvidenceDependency struct
+pulse/synth: type RuleEvidenceDependency = pulse/internal/synth.RuleEvidenceDependency
+pulse/synth: type RuleEvidenceDependency underlying struct
 pulse/synth: type RuleEvidenceDependency field Exceptions int "json:\"exceptions\""
 pulse/synth: type RuleEvidenceDependency field Field string "json:\"field\""
 pulse/synth: type RuleEvidenceDependency field Form string "json:\"form\""
-pulse/synth: type RuleEvidenceDependency field Mapping []pulse/synth.RuleEvidenceMapValue "json:\"mapping\""
+pulse/synth: type RuleEvidenceDependency field Mapping []pulse/internal/synth.RuleEvidenceMapValue "json:\"mapping\""
 pulse/synth: type RuleEvidenceDependency field Type string "json:\"type\""
-pulse/synth: type RuleEvidenceLevel struct
+pulse/synth: type RuleEvidenceLevel = pulse/internal/synth.RuleEvidenceLevel
+pulse/synth: type RuleEvidenceLevel underlying struct
 pulse/synth: type RuleEvidenceLevel field Level string "json:\"level\""
 pulse/synth: type RuleEvidenceLevel field MeanTargetNullRate float64 "json:\"mean_target_null_rate\""
 pulse/synth: type RuleEvidenceLevel field N int "json:\"n\""
 pulse/synth: type RuleEvidenceLevel field Side string "json:\"side\""
-pulse/synth: type RuleEvidenceMapValue struct
+pulse/synth: type RuleEvidenceMapValue = pulse/internal/synth.RuleEvidenceMapValue
+pulse/synth: type RuleEvidenceMapValue underlying struct
 pulse/synth: type RuleEvidenceMapValue field Level string "json:\"level\""
 pulse/synth: type RuleEvidenceMapValue field N int "json:\"n\""
 pulse/synth: type RuleEvidenceMapValue field Value any "json:\"value\""
-pulse/synth: type RuleEvidenceTarget struct
+pulse/synth: type RuleEvidenceTarget = pulse/internal/synth.RuleEvidenceTarget
+pulse/synth: type RuleEvidenceTarget underlying struct
 pulse/synth: type RuleEvidenceTarget field Field string "json:\"field\""
 pulse/synth: type RuleEvidenceTarget field GatedNullRate float64 "json:\"gated_null_rate\""
 pulse/synth: type RuleEvidenceTarget field NullRate float64 "json:\"null_rate\""
 pulse/synth: type RuleEvidenceTarget field OpenNullRate float64 "json:\"open_null_rate\""
-pulse/synth: type RuleSpec struct
-pulse/synth: type RuleSpec field Evidence *pulse/synth.RuleEvidence "json:\"_evidence,omitempty\""
+pulse/synth: type RuleSpec = pulse/internal/synth.RuleSpec
+pulse/synth: type RuleSpec underlying struct
+pulse/synth: type RuleSpec field Evidence *pulse/internal/synth.RuleEvidence "json:\"_evidence,omitempty\""
 pulse/synth: type RuleSpec field NullTogether []string "json:\"null_together,omitempty\""
 pulse/synth: type RuleSpec field OwnsNulls bool "json:\"owns_nulls,omitempty\""
 pulse/synth: type RuleSpec field Set map[string]any "json:\"set,omitempty\""
 pulse/synth: type RuleSpec field SetExpr map[string]string "json:\"set_expr,omitempty\""
 pulse/synth: type RuleSpec field SetNull []string "json:\"set_null,omitempty\""
 pulse/synth: type RuleSpec field When string "json:\"when,omitempty\""
-pulse/synth: const RunContinuationHighThreshold untyped float = 3/4
-pulse/synth: type RunContinuationProfile struct
+pulse/synth: type RunContinuationProfile = pulse/internal/synth.RunContinuationProfile
+pulse/synth: type RunContinuationProfile underlying struct
 pulse/synth: type RunContinuationProfile field Advice string "json:\"advice\""
-pulse/synth: type RunContinuationProfile field Fields []pulse/synth.FieldContinuation "json:\"fields\""
+pulse/synth: type RunContinuationProfile field Fields []pulse/internal/synth.FieldContinuation "json:\"fields\""
 pulse/synth: type RunContinuationProfile field HighFields []string "json:\"high_fields\""
 pulse/synth: type RunContinuationProfile field HighThreshold float64 "json:\"high_threshold\""
 pulse/synth: type RunContinuationProfile field Overall float64 "json:\"overall\""
 pulse/synth: type RunContinuationProfile field Pairs int "json:\"pairs\""
 pulse/synth: type RunContinuationProfile field Shards int "json:\"shards\""
-pulse/synth: type SetCategoricalPairFidelity struct
+pulse/synth: type SetCategoricalPairFidelity = pulse/internal/synth.SetCategoricalPairFidelity
+pulse/synth: type SetCategoricalPairFidelity underlying struct
 pulse/synth: type SetCategoricalPairFidelity field Categorical string "json:\"categorical\""
 pulse/synth: type SetCategoricalPairFidelity field Delta float64 "json:\"delta,omitempty\""
 pulse/synth: type SetCategoricalPairFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type SetCategoricalPairFidelity field N int "json:\"n\""
 pulse/synth: type SetCategoricalPairFidelity field Option string "json:\"option\""
 pulse/synth: type SetCategoricalPairFidelity field Set string "json:\"set\""
-pulse/synth: type SetCategoricalPairProfile struct
+pulse/synth: type SetCategoricalPairProfile = pulse/internal/synth.SetCategoricalPairProfile
+pulse/synth: type SetCategoricalPairProfile underlying struct
 pulse/synth: type SetCategoricalPairProfile field Categorical string "json:\"categorical\""
-pulse/synth: type SetCategoricalPairProfile field Cells []pulse/synth.ContingencyCell "json:\"cells\""
+pulse/synth: type SetCategoricalPairProfile field Cells []pulse/internal/synth.ContingencyCell "json:\"cells\""
 pulse/synth: type SetCategoricalPairProfile field N int "json:\"n\""
 pulse/synth: type SetCategoricalPairProfile field Option string "json:\"option\""
 pulse/synth: type SetCategoricalPairProfile field Set string "json:\"set\""
-pulse/synth: type SetCategoricalPairSpec struct
+pulse/synth: type SetCategoricalPairSpec = pulse/internal/synth.SetCategoricalPairSpec
+pulse/synth: type SetCategoricalPairSpec underlying struct
 pulse/synth: type SetCategoricalPairSpec field Categorical string "json:\"categorical\""
-pulse/synth: type SetCategoricalPairSpec field Cells []pulse/synth.CategoricalPairCellSpec "json:\"cells\""
+pulse/synth: type SetCategoricalPairSpec field Cells []pulse/internal/synth.CategoricalPairCellSpec "json:\"cells\""
 pulse/synth: type SetCategoricalPairSpec field Option string "json:\"option\""
 pulse/synth: type SetCategoricalPairSpec field Set string "json:\"set\""
-pulse/synth: type SetFieldFidelity struct
+pulse/synth: type SetFieldFidelity = pulse/internal/synth.SetFieldFidelity
+pulse/synth: type SetFieldFidelity underlying struct
 pulse/synth: type SetFieldFidelity field Field string "json:\"field\""
-pulse/synth: type SetFieldFidelity field Options []*pulse/synth.SetOptionFidelity "json:\"options,omitempty\""
-pulse/synth: type SetNumericPairFidelity struct
-pulse/synth: type SetNumericPairFidelity field Categories []*pulse/synth.CategoricalNumericCategoryFidelity "json:\"categories,omitempty\""
+pulse/synth: type SetFieldFidelity field Options []*pulse/internal/synth.SetOptionFidelity "json:\"options,omitempty\""
+pulse/synth: type SetNumericPairFidelity = pulse/internal/synth.SetNumericPairFidelity
+pulse/synth: type SetNumericPairFidelity underlying struct
+pulse/synth: type SetNumericPairFidelity field Categories []*pulse/internal/synth.CategoricalNumericCategoryFidelity "json:\"categories,omitempty\""
 pulse/synth: type SetNumericPairFidelity field Numeric string "json:\"numeric\""
 pulse/synth: type SetNumericPairFidelity field Option string "json:\"option\""
 pulse/synth: type SetNumericPairFidelity field Set string "json:\"set\""
-pulse/synth: type SetNumericPairProfile struct
-pulse/synth: type SetNumericPairProfile field Categories []pulse/synth.CategoricalNumericCategoryStat "json:\"categories\""
+pulse/synth: type SetNumericPairProfile = pulse/internal/synth.SetNumericPairProfile
+pulse/synth: type SetNumericPairProfile underlying struct
+pulse/synth: type SetNumericPairProfile field Categories []pulse/internal/synth.CategoricalNumericCategoryStat "json:\"categories\""
 pulse/synth: type SetNumericPairProfile field N int "json:\"n\""
 pulse/synth: type SetNumericPairProfile field Numeric string "json:\"numeric\""
 pulse/synth: type SetNumericPairProfile field Option string "json:\"option\""
 pulse/synth: type SetNumericPairProfile field Set string "json:\"set\""
-pulse/synth: type SetNumericPairSpec struct
+pulse/synth: type SetNumericPairSpec = pulse/internal/synth.SetNumericPairSpec
+pulse/synth: type SetNumericPairSpec underlying struct
 pulse/synth: type SetNumericPairSpec field Bernoulli bool "json:\"bernoulli,omitempty\""
-pulse/synth: type SetNumericPairSpec field Categories []pulse/synth.CategoricalNumericCategorySpec "json:\"categories\""
+pulse/synth: type SetNumericPairSpec field Categories []pulse/internal/synth.CategoricalNumericCategorySpec "json:\"categories\""
 pulse/synth: type SetNumericPairSpec field HasClamp bool "json:\"has_clamp,omitempty\""
 pulse/synth: type SetNumericPairSpec field Max float64 "json:\"max,omitempty\""
 pulse/synth: type SetNumericPairSpec field Min float64 "json:\"min,omitempty\""
 pulse/synth: type SetNumericPairSpec field Numeric string "json:\"numeric\""
 pulse/synth: type SetNumericPairSpec field Option string "json:\"option\""
 pulse/synth: type SetNumericPairSpec field Set string "json:\"set\""
-pulse/synth: type SetOptionFidelity struct
+pulse/synth: type SetOptionFidelity = pulse/internal/synth.SetOptionFidelity
+pulse/synth: type SetOptionFidelity underlying struct
 pulse/synth: type SetOptionFidelity field Delta float64 "json:\"delta,omitempty\""
 pulse/synth: type SetOptionFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type SetOptionFidelity field N int "json:\"n\""
 pulse/synth: type SetOptionFidelity field SourceFrequency float64 "json:\"source_frequency\""
 pulse/synth: type SetOptionFidelity field SyntheticFrequency float64 "json:\"synthetic_frequency,omitempty\""
 pulse/synth: type SetOptionFidelity field Value string "json:\"value\""
-pulse/synth: type SetOptionStat struct
+pulse/synth: type SetOptionStat = pulse/internal/synth.SetOptionStat
+pulse/synth: type SetOptionStat underlying struct
 pulse/synth: type SetOptionStat field Count int "json:\"count\""
 pulse/synth: type SetOptionStat field Frequency float64 "json:\"frequency\""
 pulse/synth: type SetOptionStat field Value string "json:\"value\""
-pulse/synth: type SetProfile struct
+pulse/synth: type SetProfile = pulse/internal/synth.SetProfile
+pulse/synth: type SetProfile underlying struct
 pulse/synth: type SetProfile field N int "json:\"n\""
-pulse/synth: type SetProfile field Options []pulse/synth.SetOptionStat "json:\"options\""
-pulse/synth: type SetSetPairFidelity struct
+pulse/synth: type SetProfile field Options []pulse/internal/synth.SetOptionStat "json:\"options\""
+pulse/synth: type SetSetPairFidelity = pulse/internal/synth.SetSetPairFidelity
+pulse/synth: type SetSetPairFidelity underlying struct
 pulse/synth: type SetSetPairFidelity field Delta float64 "json:\"delta,omitempty\""
 pulse/synth: type SetSetPairFidelity field Error string "json:\"error,omitempty\""
 pulse/synth: type SetSetPairFidelity field N int "json:\"n\""
@@ -2995,50 +3037,45 @@ pulse/synth: type SetSetPairFidelity field OptionA string "json:\"option_a\""
 pulse/synth: type SetSetPairFidelity field OptionB string "json:\"option_b\""
 pulse/synth: type SetSetPairFidelity field SetA string "json:\"set_a\""
 pulse/synth: type SetSetPairFidelity field SetB string "json:\"set_b\""
-pulse/synth: type SetSetPairProfile struct
-pulse/synth: type SetSetPairProfile field Cells []pulse/synth.ContingencyCell "json:\"cells\""
+pulse/synth: type SetSetPairProfile = pulse/internal/synth.SetSetPairProfile
+pulse/synth: type SetSetPairProfile underlying struct
+pulse/synth: type SetSetPairProfile field Cells []pulse/internal/synth.ContingencyCell "json:\"cells\""
 pulse/synth: type SetSetPairProfile field N int "json:\"n\""
 pulse/synth: type SetSetPairProfile field OptionA string "json:\"option_a\""
 pulse/synth: type SetSetPairProfile field OptionB string "json:\"option_b\""
 pulse/synth: type SetSetPairProfile field SetA string "json:\"set_a\""
 pulse/synth: type SetSetPairProfile field SetB string "json:\"set_b\""
-pulse/synth: type SetSetPairSpec struct
-pulse/synth: type SetSetPairSpec field Cells []pulse/synth.CategoricalPairCellSpec "json:\"cells\""
+pulse/synth: type SetSetPairSpec = pulse/internal/synth.SetSetPairSpec
+pulse/synth: type SetSetPairSpec underlying struct
+pulse/synth: type SetSetPairSpec field Cells []pulse/internal/synth.CategoricalPairCellSpec "json:\"cells\""
 pulse/synth: type SetSetPairSpec field OptionA string "json:\"option_a\""
 pulse/synth: type SetSetPairSpec field OptionB string "json:\"option_b\""
 pulse/synth: type SetSetPairSpec field SetA string "json:\"set_a\""
 pulse/synth: type SetSetPairSpec field SetB string "json:\"set_b\""
-pulse/synth: type ShapeProfile struct
+pulse/synth: type ShapeProfile = pulse/internal/synth.ShapeProfile
+pulse/synth: type ShapeProfile underlying struct
 pulse/synth: type ShapeProfile field Means []float64 "json:\"means\""
 pulse/synth: type ShapeProfile field Stds []float64 "json:\"stds\""
 pulse/synth: type ShapeProfile field Weights []float64 "json:\"weights\""
-pulse/synth: type Spec struct
-pulse/synth: type Spec field CategoricalNumericPairs []pulse/synth.CategoricalNumericPairSpec "json:\"categorical_numeric_pairs,omitempty\""
-pulse/synth: type Spec field CategoricalPairs []pulse/synth.CategoricalPairSpec "json:\"categorical_pairs,omitempty\""
-pulse/synth: type Spec field Constraints []pulse/synth.ConstraintSpec "json:\"constraints,omitempty\""
-pulse/synth: type Spec field Correlations []pulse/synth.CorrelationSpec "json:\"correlations,omitempty\""
-pulse/synth: type Spec field Fields []pulse/synth.FieldSpec "json:\"fields\""
+pulse/synth: type Spec = pulse/internal/synth.Spec
+pulse/synth: type Spec underlying struct
+pulse/synth: type Spec field CategoricalNumericPairs []pulse/internal/synth.CategoricalNumericPairSpec "json:\"categorical_numeric_pairs,omitempty\""
+pulse/synth: type Spec field CategoricalPairs []pulse/internal/synth.CategoricalPairSpec "json:\"categorical_pairs,omitempty\""
+pulse/synth: type Spec field Constraints []pulse/internal/synth.ConstraintSpec "json:\"constraints,omitempty\""
+pulse/synth: type Spec field Correlations []pulse/internal/synth.CorrelationSpec "json:\"correlations,omitempty\""
+pulse/synth: type Spec field Fields []pulse/internal/synth.FieldSpec "json:\"fields\""
 pulse/synth: type Spec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
-pulse/synth: type Spec field Models []pulse/synth.FieldModelSpec "json:\"models,omitempty\""
-pulse/synth: type Spec field ResidualCorrelations []pulse/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
+pulse/synth: type Spec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
+pulse/synth: type Spec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse/synth: type Spec field RowCount int "json:\"row_count\""
-pulse/synth: type Spec field Rules []pulse/synth.RuleSpec "json:\"rules,omitempty\""
-pulse/synth: type Spec field SetCategoricalPairs []pulse/synth.SetCategoricalPairSpec "json:\"set_categorical_pairs,omitempty\""
-pulse/synth: type Spec field SetNumericPairs []pulse/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
-pulse/synth: type Spec field SetSetPairs []pulse/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
+pulse/synth: type Spec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
+pulse/synth: type Spec field SetCategoricalPairs []pulse/internal/synth.SetCategoricalPairSpec "json:\"set_categorical_pairs,omitempty\""
+pulse/synth: type Spec field SetNumericPairs []pulse/internal/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
+pulse/synth: type Spec field SetSetPairs []pulse/internal/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
 pulse/synth: type Spec method (*Spec) Hash() string
 pulse/synth: func SpecFromProfile(p *pulse/synth.Profile, rowCount int) (*pulse/synth.Spec, []string)
 pulse/synth: func Synth(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, output string, opts pulse/synth.Options) (*pulse/synth.Result, error)
 pulse/synth: func SynthBytes(spec *pulse/synth.Spec, opts pulse/synth.Options) ([]byte, *pulse/synth.Result, error)
-pulse/synth: func SyntheticAsCategoricalSchema(schema *pulse/encoding.Schema) *pulse/encoding.Schema
-pulse/synth: const SyntheticFieldName untyped string = "_synthetic"
-pulse/synth: type TestRunner func(physicalSchema *pulse/encoding.Schema, presentedSchema *pulse/encoding.Schema, records []byte, test *pulse/types.Test) (*pulse/types.TestResult, error)
-pulse/synth: type WarningGroup struct
-pulse/synth: type WarningGroup field Attention bool
-pulse/synth: type WarningGroup field Kind string
-pulse/synth: type WarningGroup field Members []string
-pulse/synth: type WarningGroup method (WarningGroup) Count() int
-pulse/synth: func WriteRuleCandidates(fs github.com/spf13/afero.Fs, candidates []pulse/synth.RuleSpec, path string) error
 pulse/synth: func WriteSpec(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, path string) error
 pulse/types: package types
 pulse/types: const AGG_AVERAGE pulse/types.AggregationType = "AGG_AVERAGE"
@@ -3810,4 +3847,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 76a577d5f75d01a37c2228118ef767d637c313024b6e41ef6d8bead0054ac15d
+// golden-hash: c574e52ecc02c1edc9ff4e462423b3f0632deff433c0cba40967849cda64c328

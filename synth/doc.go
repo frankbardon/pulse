@@ -1,14 +1,14 @@
 // Package synth produces synthetic .pulse cohorts from either a schema
 // declaration ("from-schema") or a statistical profile of a real cohort
-// ("from-profile"). The generator is deterministic given a seed and writes
-// directly into the .pulse binary format using the encoding package, so
+// ("from-profile"). The generator is deterministic given a seed, so
 // outputs are byte-identical for the same (spec, seed) pair.
 //
-// Two top-level entry points are exported by this package:
+// This package is the public vocabulary: the Spec and Profile document
+// types, Options / Result, the FidelityReport family, and the entry
+// points Synth, SynthBytes, ProfileFile, ProfileBytes, SpecFromProfile,
+// ParseSpec and WriteSpec. The implementation lives in internal/synth;
+// every type here is an alias and every function a forward.
 //
-//	Synth(spec Spec, opts Options) (*Result, error)
-//	Profile(schema, records, opts ProfileOptions) (*Profile, error)
-//
-// Pulse embedders should use the higher-level pulse.Pulse.Synth and
-// pulse.Pulse.Profile facade methods instead.
+// Pulse embedders holding a *pulse.Pulse should prefer the facade
+// methods (pulse.Pulse.Synth, pulse.Pulse.Profile).
 package synth

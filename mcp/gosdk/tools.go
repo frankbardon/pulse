@@ -37,7 +37,7 @@ func RegisteredTools() []string {
 // panics on the recursive request types (Crosstab / overlay nesting). The
 // low-level Server.AddTool path accepts the json.RawMessage schema directly.
 func registerTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
-	for _, d := range core.Tools(cfg.Core()) {
+	for _, d := range core.Tools(cfg.coreConfig()) {
 		s.AddTool(
 			&mcpsdk.Tool{
 				Name:        d.Name,
@@ -52,7 +52,7 @@ func registerTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
 // coreDescriptor returns the core catalog descriptor for the named tool. Used
 // by the schema-bind path to reuse the core Invoke under a bound input schema.
 func coreDescriptor(cfg Config, name string) (core.ToolDescriptor, bool) {
-	for _, d := range core.Tools(cfg.Core()) {
+	for _, d := range core.Tools(cfg.coreConfig()) {
 		if d.Name == name {
 			return d, true
 		}

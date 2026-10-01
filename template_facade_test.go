@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/internal/template"
-	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )
 

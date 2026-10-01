@@ -8,9 +8,9 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/processing/window"
-	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )
 

@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/spf13/afero"
 )
 

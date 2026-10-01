@@ -14,7 +14,7 @@ import (
 	pulse "github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/synth"
 )
 
 // runSynthCLI drives a fresh SynthCommand with the supplied args,

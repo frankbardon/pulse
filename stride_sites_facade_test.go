@@ -10,8 +10,8 @@ import (
 	perrors "github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/io/csv"
+	"github.com/frankbardon/pulse/internal/synth"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )

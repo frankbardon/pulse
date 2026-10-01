@@ -1,7 +1,7 @@
 package descriptor
 
 import (
-	"github.com/frankbardon/pulse/synth"
+	"github.com/frankbardon/pulse/internal/synth"
 
 	"github.com/frankbardon/pulse/descriptor"
 )
