@@ -6,7 +6,7 @@ stage.
 
 `ProcessChain` (`pulse.ProcessChain`, `pulse_process_chain`,
 `pulse api process-chain`) executes a linear pipeline whose stages all
-pass `processing.CanChainRequest`. The gate enforces that each stage
+pass `internal/processing`'s `CanChainRequest`. The gate enforces that each stage
 emits a shape the next stage can consume; v1 admits mergeable scalar-
 emitting operators only.
 

@@ -31,7 +31,7 @@ make cover    # Run tests with coverage
 - **Component types** use SCREAMING_SNAKE: `AGG_COUNT`, `ATTR_ZSCORE`, `FILTER_INCLUDE`, `GROUP_CATEGORY`.
 - **No `fmt.Sprintf` for JSON.** Use `encoding/json` and `descriptor.NewEnvelope`.
 - **All file I/O via `afero.Fs`.** Never `os.Open` directly in library code.
-- **Predict / inspect / manifest are no-execute.** `descriptor/` MUST NOT import `service/` or `processing/`.
+- **Predict / inspect / manifest are no-execute.** `descriptor/` MUST NOT import `internal/service/` or `internal/processing/`.
 
 See [CLAUDE.md](CLAUDE.md) for the full set of conventions and contracts.
 

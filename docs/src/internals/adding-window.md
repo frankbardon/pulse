@@ -1,5 +1,7 @@
 # Adding a Window Operator
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `WIN_*`
 operator — a window-frame function that emits a per-row value derived
 from a sliding or anchored frame around the current record
@@ -97,7 +99,7 @@ if the operator introduces a contract CLAUDE.md states directly, and mind
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllWindowTypes
 go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./processing/window/...
+go test ./internal/processing/window/...
 go test ./types/ -run TestStreamability_WindowsKnown
 ```
 

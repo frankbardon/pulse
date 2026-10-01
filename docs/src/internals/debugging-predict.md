@@ -84,9 +84,10 @@ Predict surfaces a per-slot `Streamable` flag derived from the
 per-type `Streamable()` methods plus schema gates (decimal); an
 extension operator answers from its declared registration flag on the
 extensions snapshot. The runtime parity check is
-`processing.CanStreamRequest(req, schema)` —
-`processing.CanStreamRequestWithExtensions(req, schema, exts)` for a
-request naming an extension operator. A divergence means either:
+`internal/processing`'s `CanStreamRequest(req, schema)` —
+`CanStreamRequestWithExtensions(req, schema, exts)` for a
+request naming an extension operator (internal; embedders see the
+answer through `PredictResult.Streamable`). A divergence means either:
 
 - `Streamable()` returned a value that doesn't match the
   `OnlineAggregator` capability of the registered operator

@@ -1,5 +1,7 @@
 # Adding a Grouper
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `GROUP_*`
 operator — a bucketing function that maps each record to a group key
 the orchestrator uses to partition the aggregation.
@@ -91,7 +93,7 @@ those keys in your `extra` slice:
 
 ## 6. Emit per-operator component values at runtime
 
-Implement `processing.MetaGrouper` on the grouper type and add a
+Implement `MetaGrouper` (`internal/processing`) on the grouper type and add a
 compile-time assertion in the grouper implementation file:
 
 ```go
@@ -162,7 +164,7 @@ operator introduces a contract it states directly, and mind
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllComponents
 go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./processing/ -run TestGroup
+go test ./internal/processing/ -run TestGroup
 ```
 
 The Update Demand row for groupers (and the `Group.Include` slot) covers

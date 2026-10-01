@@ -1,5 +1,7 @@
 # Adding a Filterer
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `FILTER_*`
 operator — a per-record predicate that decides whether the row
 participates in the downstream aggregation / grouper / crosstab.
@@ -76,7 +78,7 @@ record-walker counters, and no per-filter extras are emitted today:
 
 The `filterSchema` helper prepends the universal floor automatically —
 do not list those keys in your `extra` slice. The interface
-`processing.MetaFilterer` exists for extension-author parity with
+`MetaFilterer` (`internal/processing`) exists for parity with
 `MetaAggregator` / `MetaGrouper` and leaves room for future per-filter
 specifics (`n_below` / `n_above` for FILTER_RANGE, per-value `n` for
 FILTER_INCLUDE / FILTER_EXCLUDE). When a built-in eventually
@@ -117,7 +119,7 @@ operator introduces a contract it states directly, and mind
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllComponents
 go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./processing/ -run TestFilter
+go test ./internal/processing/ -run TestFilter
 ```
 
 The Update Demand row for filterers covers all of these in one PR;

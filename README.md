@@ -530,10 +530,10 @@ pulse/
 ├── io/                     Import/export jobs, Reader/Writer, io.Format factory
 ├── synth/                  Synthetic data specs, profiles, Synth
 ├── mcp/gosdk/, mcpserve/   Mount Pulse's MCP tools / run a ready-made server
-├── processing/             Operators (interim public; window/, feature/)
+├── extend/                 Public extension-authoring contract (Record, Rows, operator interfaces)
 ├── docs/                   mdBook source (GitHub Pages)
 └── internal/               Everything else: service, descriptor and encoding
-                            builders, io/<fmt> adapters, synth engine, mcp core,
+                            builders, io/<fmt> adapters, operator engine, synth engine, mcp core,
                             skills, examples, fs, imports, template, cli
 ```
 

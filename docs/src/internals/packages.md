@@ -47,7 +47,7 @@ pulse/
     ├── daterange/          # compiled labeled-date-range model
     ├── spsssidecar/        # SPSS sidecar path helpers
     ├── facadebridge/       # root -> mcp/gosdk hooks
-    ├── processing/         # operator engine: operators, crosstab, joins, registry
+    ├── processing/         # operator engine: operators, crosstab, joins, registry (NOT importable by embedders; extension authors use public `extend/`)
     │   ├── window/         # WIN_* operators (LAG, LEAD, RANK, RUNNING_*, EWMA, ...)
     │   ├── feature/        # FEAT_* pre-filter feature engineers (LOG, SQRT, BUCKETIZE, ...)
     │   └── regression/ arena/  # REG_* engine, arena allocator

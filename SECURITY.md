@@ -31,4 +31,4 @@ Security issues in the following areas are in scope:
 - **File paths**: All filesystem access is funneled through the `afero.Fs` abstraction. Direct `os.Open`/`os.ReadFile` is forbidden in library code.
 - **Field descriptions**: Capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`).
 - **Categorical dictionaries**: Bounded by the chosen `categorical_u8`/`u16`/`u32` field type. Overflow returns `PULSE_IMPORT_CATEGORICAL_OVERFLOW`.
-- **Predict / inspect**: No-execute by structural ban. `descriptor/predict.go` and `descriptor/inspect.go` MUST NOT import `service/` or `processing/`.
+- **Predict / inspect**: No-execute by structural ban. `descriptor/predict.go` and `descriptor/inspect.go` MUST NOT import `internal/service/` or `internal/processing/`.

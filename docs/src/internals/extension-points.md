@@ -15,13 +15,47 @@ extensions are first-class participants in Predict / Inspect / Process
 the manifest advertises them, and the schema-bound MCP tools include
 their names in per-category enums.
 
+**You author operators against the public `extend` package** — the
+interfaces (`extend.Aggregator`, `extend.Grouper`, …), the read-only
+`extend.Record` / `extend.Rows` views and the per-category factory
+types. The operator engine itself (`internal/processing/...`) is not
+importable by embedders; `extend` imports only `encoding`, `types` and
+`errors` (`TestExtendImportBoundary`,
+`TestExtendImportBoundary_NoTransitiveEngine`), and no public root
+signature names an engine type (`TestRootSurfaceNamesNoProcessing`).
+Engine-only capabilities — `MetaWindow`, `ExtensionAware`, `KeyFor`
+and the merge hooks — are deliberately absent from `extend`
+(`TestExtendOmitsEngineOnlyCapabilities`).
+
 The implementation lives in the repository root: `extensions.go`
-(public types), `extensions_validate.go` (name + registration shape
-checks), `extensions_probe.go` (factory probe and components parity),
+(public registration types), `extensions_adapt.go` (the adapters that
+lift each `extend` operator onto the engine at `pulse.New`),
+`extensions_validate.go` (name + registration shape checks),
+`extensions_probe.go` (factory probe and components parity),
 `extensions_runtime.go` (built-in/extension fold into the runtime
 registry), `extensions_snapshot.go` (descriptor-side read-only
-projection), and `internal/processing/extensions.go` (the runtime overlay the
-processing layer consults).
+projection), and `internal/processing/extensions.go` (the runtime
+overlay the engine consults).
+
+## The `extend` contract: `Record`, `Rows` and reuse
+
+`extend.Record` exposes `Schema`, `IsNull`, `NumericValue`,
+`StringValue`, `SetMaskValue` and `DecimalValue`; `extend.Rows` exposes
+`Len` and `At(i)`. Accessors never return an error — every "no value"
+answer is a false second return. The silent cases: `NumericValue` is
+false for a null, projected-out or missing field AND for every
+`set_*` field (read those with `SetMaskValue`); a categorical field's
+`NumericValue` is its dictionary INDEX; `date` is epoch days and
+`datetime` epoch seconds; `u64` above 2^53 loses precision through the
+float echo; `decimal128` needs `DecimalValue` for exactness.
+
+**Reuse contract.** The engine decodes into reusable buffers, so a
+`Record` or `Rows` is valid ONLY for the call that received it. Never
+retain one (copy out values; `encoding.SetMask` and
+`encoding.Decimal128` are plain values), never mutate anything reachable
+from a `Record` including its `*encoding.Schema`. `Record` and `Rows`
+are consumer-only: Pulse implements them, embedders call them, and
+methods may be added in a minor release.
 
 ## When to register vs use a built-in
 
@@ -272,10 +306,9 @@ online aggregators (`UpdateRow` folds during the single pass);
 
 ### Synth distribution
 
-Reserved for embedders shipping bespoke samplers. The factory shape
-finalises alongside the synth distribution overlay phase; until then
-the registration validates name + duplicates and reserves the
-namespace.
+Reserved for embedders shipping bespoke samplers. There is no `extend`
+factory shape for it yet; the registration validates name + duplicates
+and reserves the namespace.
 
 ### Expression functions
 
@@ -407,7 +440,7 @@ cannot actually fold via `MergeOnline` produces silently-wrong
 components in parallel shard processing — there is no runtime gate
 for the math, only the streaming-tier wiring.
 
-### Two emission paths: `ComponentsFunc` and `MetaAggregator`
+### Two emission paths: `ComponentsFunc` and `Components()`
 
 There are two equivalent ways to surface operator-specific keys at
 runtime; pick whichever fits your operator type.
@@ -457,12 +490,16 @@ universal floor is the entire payload" — the floor-only shape.
 factory returns already has a `Components() (map[string]any, error)`
 method, you may leave `ComponentsFunc` nil — the adapter adopts the
 method as the emitter, for aggregators, groupers and filterers alike.
-An explicit `ComponentsFunc` wins over the method.
+An explicit `ComponentsFunc` wins over the method. This holds for every
+emitting category, and it is an intentional, documented deviation from a
+strict "emission only through `ComponentsFunc`" reading: an operator's
+own `Components()` method still emits when no `ComponentsFunc` is
+registered.
 
 Probe-validation asserts emitted keys against `ComponentSchema.Keys`
-only for an explicit `ComponentsFunc`; a self-emitting method is not
-invoked at `pulse.New`, so prefer `ComponentsFunc` when you want that
-check. Use `ComponentsFunc` too when the factory returns a third-party
+only for an explicit `ComponentsFunc`; a self-emitting `Components()`
+method is NOT probe-validated (it is not invoked at `pulse.New`), so
+prefer `ComponentsFunc` when you want that check. Use `ComponentsFunc` too when the factory returns a third-party
 type you cannot extend.
 
 ### Floor-only registrations
@@ -493,7 +530,7 @@ components contract for AGG / GROUP / FILTER registrations:
 
 | Condition | Error code |
 |---|---|
-| `ComponentsFunc` set (or `MetaAggregator` / `MetaGrouper` / `MetaFilterer` implemented) but `ComponentSchema.Keys` empty | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` |
+| `ComponentsFunc` set (or the value's own `Components()` method adopted) but `ComponentSchema.Keys` empty | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` |
 | `ComponentsFunc` returns a key NOT present in `ComponentSchema.Keys` (after the floor-tolerance carve-out), or order diverges from the declared order | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
 | `ComponentsFunc` returns a universal-floor key the orchestrator owns | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
 
@@ -606,8 +643,8 @@ resolve a grouper the same way:
 1. a built-in constant answers from `types.GroupType.FansOut()`;
 2. anything else asks the extension side — the snapshot at predict
    (`ExtensionsSnapshot.GrouperFanOut`), the live registry at runtime
-   (`processing.ExtensionRegistry.GrouperFanOut`, fed by
-   `ExtensionRegistry.FansOut`);
+   (the engine's extension registry, fed by the registration's
+   `FansOut`);
 3. a name in NEITHER passes. It cannot execute — the runtime refuses
    to build an unknown group type — so no wrong number can come of it,
    and refusing here would bury the accurate unknown-operator error
@@ -616,7 +653,7 @@ resolve a grouper the same way:
 Two sources, one order: `types.CheckPairwiseSlabPartitionWith` owns
 steps 1–3 and each arm supplies only its own step-2 resolver, so
 predict and runtime cannot drift on the same request. The
-`ExtensionRegistry.FansOut` map holds an entry for every registered
+runtime registry's fan-out map holds an entry for every registered
 grouper including the `false` ones, so a missing key means
 "registered nowhere" rather than "declared single-key".
 
@@ -641,8 +678,8 @@ or the `--no-project` CLI flag on `pulse api process` only —
 is retained but deprecated (a harmless no-op). While projection is
 active, the runtime walks each request before opening the streaming
 iterator and calls
-`processing.NeededFields(req, schema, ext)` to compute the set of
-source fields the operators actually read. Built-in operators are
+the engine's field-needs extractor (`internal/processing`, not
+embedder-reachable) to compute the set of source fields the operators actually read. Built-in operators are
 fully introspectable from their spec (`Field`, `Field2`,
 `PartitionBy`, `OrderBy`, `Target`, `Predictors`, plus expr-AST
 identifiers for `ATTR_FORMULA` / `FILTER_EXPRESSION`). Custom
@@ -665,7 +702,7 @@ than as a broken request — so the request succeeds and publishes a
 confident zero, with `n_null` equal to the full admitted record count
 as the only signature.
 
-`NeededFields` must also walk **every request slot that can carry an
+The extractor must also walk **every request slot that can carry an
 operator**, not merely the well-known ones. `Crosstab.MarginAggregations`
 is the slot that has been missed once: auxiliary margin-only
 aggregations read source records exactly as `Crosstab.Cell` does and
@@ -703,7 +740,7 @@ Return-value semantics:
 
 - `nil` or empty slice: no extra fields beyond the spec's `Field`.
 - Names not present in the schema are silently dropped by
-  `NeededFields` — return-what-you-read; the extractor filters
+  the extractor — return-what-you-read; the extractor filters
   against the live schema.
 - Errors are not part of the signature on purpose — `FieldInputs`
   runs on the hot path and should be allocation-free. Anything that
@@ -713,15 +750,13 @@ For filterers the callback receives `nil` as `raw` (filterers do not
 carry a Params block today). Tier-2 post-tests do not decode source
 records and should leave `FieldInputs` nil.
 
-The hook is plumbed via `buildRuntimeExtensions` into
-`processing.ExtensionRegistry.FieldInputs`, keyed by
-`StreamabilityKey(category, name)`.
-`ExtensionRegistry.FieldInputsFor(category, name, raw)` returns
-`(inputs, true)` when the callback ran successfully and
-`(nil, false)` when the operator is custom but has no registered
-callback — that second case is what triggers the extractor to widen.
+The hook is plumbed via `buildRuntimeExtensions` into the engine's
+internal extension registry, keyed by category and name. The lookup
+reports "callback ran" when the callback is registered and "none" when
+the operator is custom but has no callback — that second case is what
+triggers the extractor to widen.
 
-The retained set `NeededFields` returns feeds
+The retained set the extractor returns feeds
 `internal/encoding.BuildDecodePlan(schema, retained)`. A registration **with** `FieldInputs`
 participates normally — its contributed fields land in the retained
 set and the plan emits `SkipBytes` segments for every contiguous
@@ -739,9 +774,10 @@ routes on that declaration — never on the built-in per-type
 optional interface the value happens to carry — and predict reads the
 same declaration from the extensions snapshot, so
 `PredictResult.Streamable` agrees with the path taken
-(`processing.CanStreamRequestWithExtensions` is the runtime parity
-hook; `TestExtensions_StreamabilityFollowsDeclaration` holds all three
-equal). Probe-validation guarantees every streamable declaration is
+(the engine's internal streamability gate is the runtime parity hook;
+`TestExtensions_StreamabilityFollowsDeclaration` holds all three equal).
+Use `Predict` and read `PredictResult.Streamable` to learn the path
+before running. Probe-validation guarantees every streamable declaration is
 backed by the interface in the table below
 (`PULSE_EXTENSION_STREAMABLE_MISMATCH`); for a tier-1 test the flag
 alone decides, since every `extend.RowTest` folds per row. Feature
@@ -758,6 +794,27 @@ streamability is the exception: it is decided on the returned value.
 
 Filterers are always row-local streamable; windows always run
 buffered.
+
+## Limits of extension operators
+
+State these plainly to users rather than discovering them at run time:
+
+- **Never mergeable.** Extension operators are never mergeable, so the
+  parallel shard and parallel buffered `Process` arms run them
+  serially. Declaring `Mergeable` in a `ComponentSchema` describes the
+  components shape; it does not make the operator fold across workers.
+- **Grouped Components lack per-operator figures.** Under a grouper the
+  extension aggregator's operator-specific keys are not emitted; only the
+  universal floor is.
+- **No fused crosstab for single-key extension groupers.** The fused
+  arm needs the engine-only `KeyFor` capability, which `extend`
+  omits; a fan-out (`MultiKeyStreamingGrouper`) grouper still fuses.
+- **Known gap — two-pass attributes in a fused crosstab.** The fused
+  crosstab does not yet reject a `two_pass` extension attribute. Avoid
+  combining the two; a request that does is not guaranteed a correct
+  answer.
+- **Decimal targets run buffered and serial** for every aggregator;
+  extension aggregators are admitted there and read `DecimalValue`.
 
 ## Migration recipe — pre-processing → registration
 

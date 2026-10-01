@@ -29,7 +29,7 @@ You are the Pulse data/IO engineer. One job: change format/codec/IO code without
 
 - New field type → `skills/cohort-schema-design.md` + CLAUDE.md "Byte-layout invariants" + `TestSkillsCoverAllFieldTypes`.
 - Shard layout change → CLAUDE.md "Byte-layout invariants" + `skills/cohort-schema-design.md` (Sharded section) + `docs/src/internals/managing-shard-archives.md`.
-- Projection (`ProjectBufferedFields`, `processing.NeededFields`) → CLAUDE.md "Byte-layout invariants" pointer + `docs/src/internals/extension-points.md`.
+- Projection (`ProjectBufferedFields`, `internal/processing` `NeededFields`) → CLAUDE.md "Byte-layout invariants" pointer + `docs/src/internals/extension-points.md`.
 - Sidecar shape (`imports.Sidecar`) → `skills/session-bootstrap.md` + CLAUDE.md "Build / Env".
 - Inference knob (`SetInferenceMinPct`, infer options) → tests + skill + (if env-var) CLAUDE.md "Build / Env".
 - Export/convert projection (`ExportJob.Includes`, CLI `--include`) → skill + error code metadata.

@@ -22,7 +22,7 @@ trying to figure out which CI gate to run locally before pushing.
 go test ./...
 
 # Single package
-go test ./processing/...
+go test ./internal/processing/...
 
 # Verbose, specific test
 go test ./internal/service/... -v -run TestProcess
@@ -56,7 +56,7 @@ Their full names appear in CLAUDE.md so the
 | `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
 | `TestRegistryStreamabilityMatchesTypes` | Aggregator `OnlineAggregator` capability matches `AggregationType.Streamable()` |
-| `TestPredict_Streamable_MatchesRuntime` | `PredictResult.Streamable` mirrors `processing.CanStreamRequest` |
+| `TestPredict_Streamable_MatchesRuntime` | `PredictResult.Streamable` mirrors `internal/processing`'s `CanStreamRequest` |
 | `TestStreamability_*Known`              | Every `All*Types()` entry has a streamability table row |
 | `TestCanStreamRequest_RegressionMatrix` | Regression matrix on the exported `CanStreamRequest` helper |
 | `TestManifest*Complete`                 | Manifest enumerates every registered operator, test, distribution, MCP tool, error code |

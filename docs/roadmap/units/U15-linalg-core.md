@@ -16,7 +16,7 @@ branch: linalg-core
 
 **Outcome:** One trusted linear-algebra core and a mergeable co-moment accumulator, with no user-visible change.
 
-**Track:** Vector & matrix · **Size:** M · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) · **Soft:** [U11](U11-weighting-descriptive.md) · **Unblocks:** [U16](U16-matrix-result.md)
+**Track:** Vector & matrix · **Size:** M · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) (landed: `extend` public, `processing` internal) · **Soft:** [U11](U11-weighting-descriptive.md) · **Unblocks:** [U16](U16-matrix-result.md)
 
 ## Summary
 
@@ -64,7 +64,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(linalg-core/E<n>-
 ## Acceptance criteria
 
 - [ ] All existing goldens (incl. synth fidelity) byte-identical
-- [ ] `linalg` imports nothing from `processing/`, `service/`, `descriptor/`
+- [ ] `linalg` imports nothing from `internal/processing/`, `internal/service/`, `descriptor/`
 - [ ] The accumulator's merged result equals the single-pass result within the documented tolerance, identically across worker counts
 - [ ] Eigenvector signs follow the convention on every platform in CI
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))

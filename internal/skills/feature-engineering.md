@@ -35,7 +35,7 @@ Opposite ordering from `attributes` — `ATTR_*` runs AFTER filters and sees onl
 
 ## Streamability
 
-Stream-eligible when every `FEAT_*` implements `feature.StreamingComputer` AND the rest is stream-eligible (online aggregators, no groups, attributes, or windows). Per-row FEATs stream record-by-record. Global-pass FEATs precompute then rewind via `iter.Reset()` — slice iterator O(1), file-backed iterator re-reads the file (doubles I/O for global-pass).
+Stream-eligible when every `FEAT_*` implements `StreamingComputer` (internal to `internal/processing/feature`; embedder-authored features implement `extend.StreamingFeatureComputer`) AND the rest is stream-eligible (online aggregators, no groups, attributes, or windows). Per-row FEATs stream record-by-record. Global-pass FEATs precompute then rewind via `iter.Reset()` — slice iterator O(1), file-backed iterator re-reads the file (doubles I/O for global-pass).
 
 `FEAT_TRAIN_TEST_SPLIT` materialises its assignment table during precompute; streaming pays the same O(rows) memory as buffered for the split column. Buffered is the fallback whenever streaming is unsafe. Predict reports per-slot streamability under `data.streamable_reasons`.
 

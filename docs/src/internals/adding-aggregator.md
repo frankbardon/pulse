@@ -1,5 +1,7 @@
 # Adding an Aggregator
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `AGG_*`
 operator.
 
@@ -136,7 +138,7 @@ Two equivalent paths exist for emitting the operator-specific keys at
 runtime; pick whichever fits your aggregator type.
 
 **Sibling interface (preferred for built-in operators).** Implement
-`processing.MetaAggregator` on your aggregator type and add a
+`MetaAggregator` (`internal/processing`) on your aggregator type and add a
 compile-time assertion in `internal/processing/aggregator.go`:
 
 ```go
@@ -189,7 +191,7 @@ index order via `mergeShardPartials` + `finalizeMergedPartial`.
 
 An aggregator registered but not `Mergeable()` silently forces the request
 down the serial `scanIter` / `shardIter` path; both parallel paths gate on
-`processing.CanMergeRequest` and fall through cleanly when an entry is not
+`internal/processing`'s `CanMergeRequest` and fall through cleanly when an entry is not
 flagged.
 
 Associative + commutative aggregators (count, sum, min, max, frequency,
@@ -219,7 +221,7 @@ also update `internal/descriptor/predict.go`'s `numericAggregations` map.
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllComponents
 go test ./descriptor/ ./internal/descriptor/ -run 'TestManifest|TestPredict'
-go test ./processing/ -run TestRegistryStreamability
+go test ./internal/processing/ -run TestRegistryStreamability
 go test ./...
 ```
 

@@ -1,5 +1,7 @@
 # Adding a Statistical Test
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** internals contributors adding a new `TEST_*` operator —
 tier-1 (row-stream) or tier-2 (post-test on the materialised result
 set).
@@ -120,7 +122,7 @@ belongs in `skills/statistical-testing.md`, not CLAUDE.md.
 
 ```bash
 go test ./types/      -run TestStreamability_TestsKnown   # declared TestType.Streamable() table
-go test ./processing/ -run 'TestProcessor_Tier1|TestProcessor_PostTest'   # tier-1 streaming vs buffered, post-test dispatch
+go test ./internal/processing/ -run 'TestProcessor_Tier1|TestProcessor_PostTest'   # tier-1 streaming vs buffered, post-test dispatch
 go test ./descriptor/ ./internal/descriptor/ -run TestManifest
 go test ./internal/skills/    -run TestSkillsCoverAll
 go test ./...

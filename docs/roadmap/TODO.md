@@ -27,11 +27,11 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#184** Root-native `DateRangeSpec`, `MemberSet`, `LoadMemberSetResult` (spelling unchanged) · [U02](units/U02-public-surface.md)
 
 #### Extension contract
-- [ ] **#185** Public `extend` package: aggregator, online aggregator, grouper + streaming variants, filterer builder / filter func, attribute and test interfaces, window and feature computers, factory types · [U02b](units/U02b-extension-contract.md)
-- [ ] **#186** `extend.Record`: a small read-only record interface (values, nulls, wide and set accessors), sized by an inventory of what built-in operators read · [U02b](units/U02b-extension-contract.md)
-- [ ] **#187** Registration adapts `extend` operators onto the engine; built-ins keep the concrete fast path; built-in vs adapted parity tests · [U02b](units/U02b-extension-contract.md)
-- [ ] **#188** `processing`, `processing/feature`, `processing/window` fully internal; any interim root aliases from U02 removed · [U02b](units/U02b-extension-contract.md)
-- [ ] **#189** `extension-points.md` and the `adding-*` recipes rewritten against `extend` · [U02b](units/U02b-extension-contract.md)
+- [x] **#185** Public `extend` package: aggregator, online aggregator, grouper + streaming variants, filterer builder / filter func, attribute and test interfaces, window and feature computers, factory types · [U02b](units/U02b-extension-contract.md)
+- [x] **#186** `extend.Record`: a small read-only record interface (values, nulls, wide and set accessors), sized by an inventory of what built-in operators read · [U02b](units/U02b-extension-contract.md)
+- [x] **#187** Registration adapts `extend` operators onto the engine; built-ins keep the concrete fast path; built-in vs adapted parity tests · [U02b](units/U02b-extension-contract.md)
+- [x] **#188** `processing`, `processing/feature`, `processing/window` fully internal; any interim root aliases from U02 removed · [U02b](units/U02b-extension-contract.md)
+- [x] **#189** `extension-points.md` and the `adding-*` recipes rewritten against `extend` · [U02b](units/U02b-extension-contract.md)
 
 #### Cohort facade
 - [ ] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)

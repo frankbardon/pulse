@@ -1,5 +1,7 @@
 # Adding an Attribute
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `ATTR_*`
 operator — a per-record derived value computed from one or more cohort
 fields (z-score, formula, lookup, etc.).
@@ -75,7 +77,7 @@ operator introduces a contract it states directly, and mind
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllComponents
 go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./processing/ -run TestAttribute
+go test ./internal/processing/ -run TestAttribute
 ```
 
 The Update Demand row for attributes covers all of these in one PR;
