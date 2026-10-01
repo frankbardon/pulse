@@ -37,6 +37,8 @@ recs, err := p.Recommend(ctx, pulse.RecommendRequest{
 }
 ```
 
+**Cohort-free mode (decided: supported).** With no `Cohort`, Recommend skips steps 1–2 and 4 and returns *unbound* recommendations: operator, `why`, the field shapes it needs ("one numeric outcome + one categorical grouping"), alternatives, follow-ups, and a request skeleton with `<placeholder>` field names. These are marked `bound: false` and are never predict-validated, because there is nothing to validate against. Uses: early exploration ("what could I do with survey data?"), the docs generator (decision trees and guide cards come from the same call), and agents planning before they pick a cohort. Supplying a cohort later upgrades the same recommendation to a bound, validated draft.
+
 **What it explicitly does *not* do:** parse English. The agent maps "are regions equally satisfied?" to `compare_groups` using the intents list (M4), which is a trivial step for an LLM. Pulse then does the part LLMs get wrong: picking a valid operator for the actual field types and producing a request that validates.
 
 **Surfaces:** `pulse recommend --intent compare_groups --cohort X [--field a --field b] --json`, and the MCP tool `pulse_recommend`. Following the Update Demand, the new tool needs `skills/tool-recommend.md` and `mcp/toolmeta` metadata, and the CLI leaf needs a `flags.md` row.
@@ -65,7 +67,9 @@ This is built from `Interpretation` rules, the shared p-value rules, the Compone
 - **Never overstates.** A non-significant result reads "no evidence of a difference", never "no difference". Bands always name their convention. Multiple-comparison context is mentioned whenever more than one inferential result is present.
 - **Surfaces:** `pulse explain --request file.json` and `pulse explain --response out.json`; MCP tool `pulse_explain`.
 
-**Stretch: an inline `Response.Interpretation`.** Add an opt-in `Request.Explain: true` (CLI `--explain`) that attaches the same structured findings to the response. That saves one MCP round-trip. It is an additive `omitempty` slot, so `format_version` stays `"1.1"`, but it does trigger the Response-slot row of the Update Demand.
+**Stretch: an inline `Response.Interpretation` — opt-in only (decided).** `Request.Explain: true` (CLI `--explain`) attaches the structured findings to the response, saving one MCP round-trip. **It is off by default everywhere:** the library, the CLI and MCP never turn it on implicitly, MCP prompts do not set it, and a response without it is byte-identical to today's. It is an additive `omitempty` slot, so `format_version` stays `"1.1"`, but it does trigger the Response-slot row of the Update Demand. When on, it carries `findings[]` only (no prose sentences) unless `explain_detail: "full"` is set.
+
+**Terse by default.** `pulse_explain` returns `findings[]` plus a one-sentence summary by default; full sentences, glossary refs and caveats come with `detail: "full"`. The agent pays for prose only when it needs prose.
 
 ---
 

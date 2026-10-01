@@ -73,6 +73,8 @@ Purpose{
 | `Level` | `basic` / `intermediate` / `advanced` | lets docs and Recommend prefer simpler tools first |
 | `Glossary` | term IDs from P4 | linked definitions everywhere |
 
+**Manifest projection — lazy.** The default `pulse_manifest` carries only each operator's intent IDs (a few tokens each). The full `Purpose` text is reachable on demand through the operator's skill (rendered section, P5), `pulse_recommend`, `pulse_explain`, the intent-scoped manifest (03, M5) and, for Go callers, `pulse.Describe`. Inlining ~165 purpose blocks into the once-per-session manifest would cost every session tens of thousands of tokens it mostly never uses.
+
 **Where it lives — decision.** Go declarations, not skill frontmatter. The manifest, the gates and the facade (Recommend, Explain) need typed access, and `descriptor/` is already the declaration layer. Skills receive a **rendered** section (P5) instead of duplicating the text.
 
 **Extensions.** `pulse.Options.Extensions` registrations accept an optional `Purpose`. Without one, the operator appears in the catalog as "no guidance provided", and Recommend never proposes it.

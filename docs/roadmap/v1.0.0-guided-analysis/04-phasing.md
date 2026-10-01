@@ -19,7 +19,7 @@ graph TD
 
 ### G1 — Metadata core (C)
 - S1: intent taxonomy, `Purpose`, `Interpretation` and glossary types in `descriptor/`; manifest projection; payload-schema and manifest goldens.
-- S2: the gates (`TestSkillsCoverAllPurposes` and friends). These start in **report-only** mode, listing the missing operators, following the precedent of `TestSkillTokenBudget`'s soft regime.
+- S2: the gates (`TestSkillsCoverAllPurposes` and friends, plus `TestManifestGuidanceBudget`). These start in **report-only** mode, listing the missing operators, following the precedent of `TestSkillTokenBudget`'s soft regime.
 - S3: the extension `Purpose` hook.
 
 ### G2 — Back-fill (C)
@@ -58,7 +58,7 @@ graph TD
 | New MCP tools `pulse_recommend`, `pulse_explain` | `skills/tool-recommend.md`, `skills/tool-explain.md`, `mcp/toolmeta/meta.go` |
 | New CLI leaves `recommend`, `explain` | `docs/src/cli/flags.md` index, `skills/session-bootstrap.md` |
 | MCP prompts (new primitive) | CLAUDE.md MCP layer paragraph; a new gate; `mcp/gosdk` registration |
-| Manifest `intents`, `purpose`, `interpretation`, glossary | manifest golden; `update-demand.md` new row ("A registered operator → also its `Purpose`") |
+| Manifest `intents[]` + per-operator intent IDs (prose stays lazy — never in the default manifest) | manifest golden; `TestManifestGuidanceBudget`; `update-demand.md` new row ("A registered operator → also its `Purpose`") |
 | New required skill sections | `.claude/reference/skill-pack.md` required-section table + budget |
 | Advisory codes | `errors/codes.go`, `errors/fixup_metadata.go`; consider a new `ADVISORY` category in the code scheme or keep the `PULSE_` domain |
 | `PredictResult.Advisories`, optional `Response.Interpretation` | payload schema + golden; CLAUDE.md "Output Format Contract" (additive, `format_version` stays `"1.1"`) |
@@ -81,6 +81,10 @@ The Update Demand table itself gains a row: **"A registered operator (any catego
 
 1. **Domains.** Are the four audience domains (survey, ops, science, harness) the right fixed keys for `UseCases`, or should `UseCases` be free-form tags?
 2. **Advisory code namespace.** Should advisories use a `PULSE_ADVISORY_*` prefix in the existing `PULSE` domain, or a seventh error domain `ADVISORY`? The latter touches the six-domain rule in CLAUDE.md.
-3. **Recommend without a cohort.** Should `Recommend` work from an intent alone (returning operator choices without bound fields), or always require a schema? The proposal is to allow both, since the no-cohort mode is useful for docs and early exploration.
-4. **Who reviews statistical content?** Is there a reviewer available for the G2 back-fill, or should the first pass be limited to the bands and conventions that are textbook-standard?
-5. **Response.Interpretation in v1.0.0?** It saves an MCP round-trip but adds a Response slot. Commit, or keep it as stretch?
+3. ~~**Recommend without a cohort.**~~ **Decided:** supported — unbound recommendations (`bound: false`, placeholder fields, no predict validation); see 03, M1.
+4. ~~**Who reviews statistical content?**~~ **Decided:** the project owner will source a statistics reviewer for G2. G2 does not flip its gates from report-only to failing without that sign-off.
+5. ~~**Response.Interpretation in v1.0.0?**~~ **Decided:** only as an opt-in, default-off slot (stretch). Guidance must never enter a default payload — see principle 6 in 00 and the context-budget gate below.
+
+## Context-budget gate (added from decision 5)
+
+`TestManifestGuidanceBudget` pins the byte growth of the default `pulse_manifest` attributable to this theme (target: the `intents[]` list plus per-operator intent IDs only, under ~4 KB). It also asserts that no `Purpose` / `Interpretation` prose appears in the default manifest, the default `Response`, or the default `PredictResult` (advisories are short coded entries, not prose). It is the guidance-theme twin of `TestClaudeMdSizeBudget`: new guidance has to go into a lazily fetched surface rather than the always-loaded one.

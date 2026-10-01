@@ -85,8 +85,8 @@ Tier key: **C** = committed for v1.0.0 · **S** = stretch · **P** = post-1.0.
 | API + MCP | Predict `advisories`: plain-language assumption and fit checks | C |
 | MCP | MCP **prompts**, one guided workflow per intent | C |
 | MCP | `pulse_examples_search` by intent and question, plus a synonym table | C |
-| MCP | Intent-scoped manifest view (`pulse_manifest {intent}`) for fewer tokens | S |
-| API | Opt-in `Response.Interpretation` slot | S |
+| MCP | Intent-scoped manifest view (`pulse_manifest {intent}`) for fewer tokens | C |
+| API | `Response.Interpretation` slot — **opt-in only, default off** | S |
 | Docs | Interactive decision-tree page in the docs site | P |
 
 ## Principles
@@ -96,3 +96,4 @@ Tier key: **C** = committed for v1.0.0 · **S** = stretch · **P** = post-1.0.
 3. **Plain words first, precision second.** Every entry leads with a sentence a non-statistician can act on. The contract detail stays where it is, one click away.
 4. **Say what *not* to use.** The most valuable guidance is usually "use X instead when…". Every operator must carry at least one not-for entry.
 5. **Honest interpretation.** Rule-of-thumb bands ("r of 0.3 is a moderate relationship") are labelled as conventions, cite their source convention (e.g. Cohen 1988), and never replace the number.
+6. **Guidance is pulled, never pushed (context budget).** Agent context is already crowded. No guidance text rides a default payload: the always-fetched manifest grows only by the small `intents[]` list and an intent-ID array per operator; `Purpose` / `Interpretation` prose is fetched lazily (`pulse_skills_get`, `pulse_explain`, `pulse_recommend`, the glossary resource) only when an agent asks; every response-side addition is opt-in and off by default; and every prose-returning surface has a terse default with fuller detail on request. A gate pins the default manifest's size delta (see 04).
