@@ -47,7 +47,7 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 	}
 
 	s.applyDefaults(stage0, cohort.Schema())
-	if !processing.CanChainRequest(stage0, cohort.Schema()) {
+	if !processing.CanChainRequestWithExtensions(stage0, cohort.Schema(), s.extensions) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
 			"chain stage 0 is not mergeable",
 			map[string]any{"stage_index": 0, "stage_name": req.Stages[0].Name})
@@ -94,7 +94,7 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 		}
 
 		s.applyDefaults(stage, synthSchema)
-		if !processing.CanChainRequest(stage, synthSchema) {
+		if !processing.CanChainRequestWithExtensions(stage, synthSchema, s.extensions) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
 				"chain stage is not mergeable",
 				map[string]any{"stage_index": i, "stage_name": req.Stages[i].Name})

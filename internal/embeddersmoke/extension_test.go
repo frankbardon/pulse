@@ -19,16 +19,18 @@ import (
 
 // smokeSum is AGG_SUM authored against extend: it reads rows only
 // through extend.Record and implements both the buffered and the
-// online contract.
+// online contract, plus Merge so the registration may declare
+// Mergeable (probe-validated at pulse.New).
 type smokeSum struct {
 	sum     float64
 	updates *int
 }
 
 var (
-	_ extend.Aggregator        = (*smokeSum)(nil)
-	_ extend.OnlineAggregator  = (*smokeSum)(nil)
-	_ extend.AggregatorFactory = newSmokeSum(nil)
+	_ extend.Aggregator          = (*smokeSum)(nil)
+	_ extend.OnlineAggregator    = (*smokeSum)(nil)
+	_ extend.MergeableAggregator = (*smokeSum)(nil)
+	_ extend.AggregatorFactory   = newSmokeSum(nil)
 )
 
 func newSmokeSum(updates *int) extend.AggregatorFactory {
@@ -58,6 +60,13 @@ func (a *smokeSum) UpdateRow(rec extend.Record, field string) error {
 
 func (a *smokeSum) Finalize() (float64, error) { return a.sum, nil }
 
+// Merge folds another partition's partial into the receiver; other is
+// always a *smokeSum built by the same factory.
+func (a *smokeSum) Merge(other extend.OnlineAggregator) error {
+	a.sum += other.(*smokeSum).sum
+	return nil
+}
+
 func TestExtendAggregatorThroughProcess(t *testing.T) {
 	var updates int
 	p, fs := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
@@ -66,6 +75,7 @@ func TestExtendAggregatorThroughProcess(t *testing.T) {
 			Description: "AGG_SUM authored against the public extend package.",
 			Factory:     newSmokeSum(&updates),
 			Streamable:  true,
+			Mergeable:   true,
 		}},
 	}})
 	ingest(t, p, fs, "sales.pulse")

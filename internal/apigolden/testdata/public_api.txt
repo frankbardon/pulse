@@ -15,6 +15,7 @@ pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponen
 pulse: type AggregatorRegistration field Description string
 pulse: type AggregatorRegistration field Factory pulse/extend.AggregatorFactory
 pulse: type AggregatorRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type AggregatorRegistration field Mergeable bool
 pulse: type AggregatorRegistration field Name pulse/types.AggregationType
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
 pulse: type AggregatorRegistration field Streamable bool
@@ -1083,6 +1084,7 @@ pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omite
 pulse/descriptor: type OperatorMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorMeta field Emits string "json:\"emits,omitempty\""
 pulse/descriptor: type OperatorMeta field FansOut bool "json:\"fans_out,omitempty\""
+pulse/descriptor: type OperatorMeta field Mergeable bool "json:\"mergeable,omitempty\""
 pulse/descriptor: type OperatorMeta field Mode string "json:\"mode,omitempty\""
 pulse/descriptor: type OperatorMeta field Name string "json:\"name\""
 pulse/descriptor: type OperatorMeta field Namespace string "json:\"namespace\""
@@ -1513,6 +1515,7 @@ pulse/errors: const PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH pulse/errors.Code 
 pulse/errors: const PULSE_EXTENSION_DUPLICATE pulse/errors.Code = "PULSE_EXTENSION_DUPLICATE"
 pulse/errors: const PULSE_EXTENSION_FACTORY_PANIC pulse/errors.Code = "PULSE_EXTENSION_FACTORY_PANIC"
 pulse/errors: const PULSE_EXTENSION_FANOUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
+pulse/errors: const PULSE_EXTENSION_MERGEABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_MERGEABLE_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA pulse/errors.Code = "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA"
 pulse/errors: const PULSE_EXTENSION_NAME_COLLISION pulse/errors.Code = "PULSE_EXTENSION_NAME_COLLISION"
 pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTENSION_NAME_INVALID"
@@ -1720,6 +1723,10 @@ pulse/extend: type FiltererFactory func() pulse/extend.FiltererBuilder
 pulse/extend: type Grouper interface
 pulse/extend: type Grouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
 pulse/extend: type GrouperFactory func(spec *pulse/types.Group, schema *pulse/encoding.Schema) (pulse/extend.Grouper, error)
+pulse/extend: type MergeableAggregator interface
+pulse/extend: type MergeableAggregator imethod Finalize() (float64, error)
+pulse/extend: type MergeableAggregator imethod Merge(other pulse/extend.OnlineAggregator) error
+pulse/extend: type MergeableAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
 pulse/extend: type MultiKeyStreamingGrouper interface
 pulse/extend: type MultiKeyStreamingGrouper imethod KeysForRow(rec pulse/extend.Record, field string) (keys []string, ok bool, err error)
 pulse/extend: type OnlineAggregator interface
@@ -3466,4 +3473,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5a38ef1b8ad15dcaab241f789354f68e7c4efd674fac4f62f6d9c56816e35332
+// golden-hash: c5b4682d06af5f2a754e5096a55ff0b69657b9ea5526d5a5a7c6bbba8de34b12

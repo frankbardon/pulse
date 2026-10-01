@@ -135,15 +135,28 @@ type ParamMeta struct {
 // PULSE_EXTENSION_STREAMABLE_MISMATCH. The declaration decides the
 // run-time path: Streamable=false runs buffered even when the value
 // implements extend.OnlineAggregator. Optional siblings
-// (extend.OnlineAggregator, extend.RichAggregator) are honoured whether
-// or not ComponentsFunc is set.
+// (extend.OnlineAggregator, extend.RichAggregator,
+// extend.MergeableAggregator) are honoured whether or not
+// ComponentsFunc is set.
+//
+// When Mergeable=true (which requires Streamable=true) the factory MUST
+// return an extend.MergeableAggregator and any ComponentSchema keys
+// must be classified "mergeable" or "partial"; probe-validation refuses
+// anything else with PULSE_EXTENSION_MERGEABLE_MISMATCH. The
+// declaration decides whether ShardWorkers / DecodeWorkers fan the
+// request out and whether a ProcessChain stage accepts it; omitted, the
+// request runs serially.
 type AggregatorRegistration struct {
 	Name        types.AggregationType
 	Description string
 	Factory     extend.AggregatorFactory
 	Streamable  bool
-	Accepts     []encoding.FieldType
-	Params      []ParamMeta
+	// Mergeable declares that partial states fold via
+	// extend.MergeableAggregator.Merge, admitting the operator to the
+	// parallel reducers and ProcessChain. Requires Streamable.
+	Mergeable bool
+	Accepts   []encoding.FieldType
+	Params    []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
 	// projection (runtime widens the field set when this operator

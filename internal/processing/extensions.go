@@ -49,6 +49,17 @@ type ExtensionRegistry struct {
 	// returns the matching streaming interface.
 	Streamable map[string]bool
 
+	// Mergeable is the per-(category, name) merge declaration consulted
+	// by IsMergeable, keyed like Streamable. Built-in entries are not
+	// stored here; the fallback consults the per-type Mergeable()
+	// method. For an extension aggregator this is the DECLARED
+	// pulse.AggregatorRegistration.Mergeable flag, probe-validated at
+	// pulse.New (PULSE_EXTENSION_MERGEABLE_MISMATCH) so a true entry's
+	// value implements MergeableAggregator through the adapter. Absent
+	// reads as the built-in answer, which is false for any name the
+	// built-in tables do not know.
+	Mergeable map[string]bool
+
 	// TwoPassAttributes records which extension attributes declared the
 	// two-pass streaming tier (pulse.AttributeModeTwoPass) — the
 	// extension half of the built-in two-pass set (ZSCORE, TSCORE,
@@ -367,6 +378,26 @@ func (r *ExtensionRegistry) IsStreamable(category, name string) bool {
 	return false
 }
 
+// IsMergeable reports whether the (category, name) operator's running
+// state folds across input partitions: the Mergeable overlay first (an
+// extension's declaration), then the built-in per-type Mergeable()
+// method. Only aggregators and groupers carry a merge fact; every other
+// category answers false. Nil-receiver-safe (built-in answers only).
+func (r *ExtensionRegistry) IsMergeable(category, name string) bool {
+	if r != nil && r.Mergeable != nil {
+		if v, ok := r.Mergeable[StreamabilityKey(category, name)]; ok {
+			return v
+		}
+	}
+	switch category {
+	case "aggregator":
+		return types.AggregationType(name).Mergeable()
+	case "grouper":
+		return types.GroupType(name).Mergeable()
+	}
+	return false
+}
+
 // attributeRequiresTwoPass reports whether an attribute type takes the
 // two-pass streaming drive: the built-in two-pass set, or an extension
 // attribute that declared pulse.AttributeModeTwoPass. Nil-receiver-safe.
@@ -388,6 +419,16 @@ func (r *ExtensionRegistry) isExtensionAggregator(t types.AggregationType) bool 
 		return false
 	}
 	_, ok := r.Aggregators[t]
+	return ok
+}
+
+// isExtensionAttribute reports whether t is an embedder-registered
+// (overlay) attribute rather than a built-in. Nil-receiver-safe.
+func (r *ExtensionRegistry) isExtensionAttribute(t types.AttributeType) bool {
+	if r == nil {
+		return false
+	}
+	_, ok := r.Attributes[t]
 	return ok
 }
 

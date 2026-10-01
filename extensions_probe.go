@@ -15,7 +15,8 @@ import (
 // instance satisfies the streaming interface declared on the
 // registration. Panics during the probe surface as
 // PULSE_EXTENSION_FACTORY_PANIC; type-mismatch surfaces as
-// PULSE_EXTENSION_STREAMABLE_MISMATCH.
+// PULSE_EXTENSION_STREAMABLE_MISMATCH, and an aggregator Mergeable
+// declaration it cannot honour as PULSE_EXTENSION_MERGEABLE_MISMATCH.
 //
 // Embedder factories MUST tolerate a nil/empty Schema and a spec
 // carrying only the operator Name; documented in
@@ -69,6 +70,11 @@ func probeAggregators(regs []AggregatorRegistration) error {
 				)
 			}
 		}
+		if reg.Mergeable {
+			if err := verifyAggregatorMergeable(reg, instance); err != nil {
+				return err
+			}
+		}
 		if reg.ComponentsFunc != nil {
 			if err := verifyComponentSchemaPresence(
 				"aggregator", string(reg.Name), reg.ComponentSchema, true,
@@ -92,6 +98,47 @@ func probeAggregators(regs []AggregatorRegistration) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// verifyAggregatorMergeable checks a Mergeable=true registration can
+// honour the declaration, raising PULSE_EXTENSION_MERGEABLE_MISMATCH
+// with a reason discriminator when it cannot:
+//
+//   - mergeable_without_streamable — merge folds ONLINE partial state,
+//     so Mergeable is a strict subset of Streamable (as for built-ins).
+//   - missing_merge_interface — the factory's value does not implement
+//     extend.MergeableAggregator.
+//   - components_not_mergeable — ComponentSchema declares keys with
+//     Mergeability "none". The parallel reducers read Components() off
+//     the MERGED instance, so a figure that cannot be computed from
+//     partials would be silently wrong under ShardWorkers /
+//     DecodeWorkers.
+func verifyAggregatorMergeable(reg AggregatorRegistration, instance extend.Aggregator) error {
+	mismatch := func(reason, msg string) error {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MERGEABLE_MISMATCH,
+			fmt.Sprintf("aggregator %q declares Mergeable=true but %s", reg.Name, msg),
+			map[string]any{
+				"category":  "aggregator",
+				"name":      string(reg.Name),
+				"mergeable": true,
+				"reason":    reason,
+			},
+		)
+	}
+	if !reg.Streamable {
+		return mismatch("mergeable_without_streamable",
+			"Streamable=false (merge folds online state; declare Streamable=true as well)")
+	}
+	if _, ok := instance.(extend.MergeableAggregator); !ok {
+		return mismatch("missing_merge_interface",
+			"factory does not return extend.MergeableAggregator")
+	}
+	if len(reg.ComponentSchema.Keys) > 0 && reg.ComponentSchema.Mergeability == descriptor.None {
+		return mismatch("components_not_mergeable",
+			`ComponentSchema.Mergeability is "none" (merged partials cannot reproduce the declared figures)`)
 	}
 	return nil
 }

@@ -182,17 +182,26 @@ that file remains the authoritative contract document.
 
 ## 6c. Mergeable-aggregator rule
 
-If your aggregator is mergeable, implement `MergeableAggregator.Merge(other)`
-and declare it as `Mergeable()` in `AggregationType.Mergeable()`
-(`types/types.go`) so it composes correctly under parallel decode
+If your aggregator is mergeable, implement the engine's
+`MergeableAggregator.MergeOnline(other)` and declare it as `Mergeable()`
+in `AggregationType.Mergeable()` (`types/streamability.go`) so it
+composes correctly under parallel decode
 (`internal/service/parallel_reduce.go`) and shard reduce (`internal/service/shard_reduce.go`).
 Both surfaces fold per-worker / per-shard partials in deterministic
 index order via `mergeShardPartials` + `finalizeMergedPartial`.
 
 An aggregator registered but not `Mergeable()` silently forces the request
 down the serial `scanIter` / `shardIter` path; both parallel paths gate on
-`internal/processing`'s `CanMergeRequest` and fall through cleanly when an entry is not
-flagged.
+`internal/processing`'s `CanMergeRequestWithExtensions` (the built-in-only
+`CanMergeRequest` is its nil-registry case) and fall through cleanly when
+an entry is not flagged.
+
+An **extension** aggregator takes the same paths through the public
+contract instead: it implements `extend.MergeableAggregator.Merge(other)`
+and its `pulse.AggregatorRegistration` declares `Streamable: true` and
+`Mergeable: true`; probe-validation at `pulse.New` refuses a declaration
+the value cannot honour (`PULSE_EXTENSION_MERGEABLE_MISMATCH`). See
+[Extension points — Aggregator](extension-points.md).
 
 Associative + commutative aggregators (count, sum, min, max, frequency,
 distinct_count, mode) produce byte-equal merge output; Welford-Pébaÿ

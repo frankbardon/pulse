@@ -51,6 +51,15 @@ func (a aggCore) Aggregate(records []*processing.Record, field string) (float64,
 	return a.inner.Aggregate(recordRows(records), field)
 }
 
+// extendInner exposes the embedder's own value. Every aggregator
+// wrapper embeds aggCore, so aggMerge can unwrap its merge partner.
+func (a aggCore) extendInner() extend.Aggregator { return a.inner }
+
+// extendAggregatorWrapper is satisfied by every adapted aggregator.
+type extendAggregatorWrapper interface {
+	extendInner() extend.Aggregator
+}
+
 // aggOnline forwards extend.OnlineAggregator as
 // processing.OnlineAggregator.
 type aggOnline struct{ online extend.OnlineAggregator }
@@ -60,6 +69,31 @@ func (a aggOnline) UpdateRow(rec *processing.Record, field string) error {
 }
 
 func (a aggOnline) Finalize() (float64, error) { return a.online.Finalize() }
+
+// aggMerge forwards extend.MergeableAggregator as
+// processing.MergeableAggregator. The engine hands MergeOnline another
+// ADAPTED instance; Merge receives the embedder's own value behind it,
+// so the embedder's type assertion to its concrete type succeeds. A
+// partner the adapter did not build is a programming error, reported
+// as PROCESSING_INTERNAL like the built-ins' type-mismatch merge.
+type aggMerge struct {
+	merge extend.MergeableAggregator
+	name  types.AggregationType
+}
+
+func (a aggMerge) MergeOnline(other processing.OnlineAggregator) error {
+	w, ok := other.(extendAggregatorWrapper)
+	var partner extend.OnlineAggregator
+	if ok {
+		partner, ok = w.extendInner().(extend.OnlineAggregator)
+	}
+	if !ok {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("extension aggregator %s: MergeOnline partner %T is not an adapted extension aggregator", a.name, other),
+			map[string]any{"aggregation_type": string(a.name), "partner": fmt.Sprintf("%T", other)})
+	}
+	return a.merge.Merge(partner)
+}
 
 // aggRich forwards extend.RichAggregator.
 type aggRich struct{ rich extend.RichAggregator }
@@ -82,7 +116,9 @@ type componentsEmitter interface {
 	Components() (map[string]any, error)
 }
 
-// One wrapper per capability combination: (O)nline, (R)ich, (M)eta.
+// One wrapper per capability combination: (O)nline, (R)ich, (M)eta,
+// mer(G)e. extend.MergeableAggregator embeds OnlineAggregator, so G
+// only ever appears alongside O: twelve combinations, not sixteen.
 type (
 	aggAdapted  struct{ aggCore }
 	aggAdaptedO struct {
@@ -118,16 +154,49 @@ type (
 		aggRich
 		aggMeta
 	}
+	aggAdaptedOG struct {
+		aggCore
+		aggOnline
+		aggMerge
+	}
+	aggAdaptedORG struct {
+		aggCore
+		aggOnline
+		aggRich
+		aggMerge
+	}
+	aggAdaptedOMG struct {
+		aggCore
+		aggOnline
+		aggMeta
+		aggMerge
+	}
+	aggAdaptedORMG struct {
+		aggCore
+		aggOnline
+		aggRich
+		aggMeta
+		aggMerge
+	}
+)
+
+// Capability bits for the adaptAggregator switch.
+const (
+	aggCapOnline = 1 << iota
+	aggCapRich
+	aggCapMeta
+	aggCapMerge
 )
 
 // adaptAggregator wraps an extend.Aggregator so the engine sees exactly
 // the siblings it implements, plus MetaAggregator when emit is non-nil.
+// name is carried only for the merge-partner diagnostic.
 //
 // A value that carries its own Components() method and no registration
 // ComponentsFunc keeps the type-level emission path: the method is
 // adopted as the emitter, exactly as the engine's MetaAggregator
 // assertion saw it before adaptation.
-func adaptAggregator(inner extend.Aggregator, emit AggregatorComponentsFunc) processing.Aggregator {
+func adaptAggregator(name types.AggregationType, inner extend.Aggregator, emit AggregatorComponentsFunc) processing.Aggregator {
 	if emit == nil {
 		if self, ok := inner.(componentsEmitter); ok {
 			emit = func(extend.Aggregator) (map[string]any, error) { return self.Components() }
@@ -136,23 +205,46 @@ func adaptAggregator(inner extend.Aggregator, emit AggregatorComponentsFunc) pro
 	core := aggCore{inner: inner}
 	online, isOnline := inner.(extend.OnlineAggregator)
 	rich, isRich := inner.(extend.RichAggregator)
+	merge, isMerge := inner.(extend.MergeableAggregator)
 	o := aggOnline{online: online}
 	r := aggRich{rich: rich}
 	m := aggMeta{inner: inner, emit: emit}
-	switch {
-	case isOnline && isRich && emit != nil:
+	g := aggMerge{merge: merge, name: name}
+	caps := 0
+	if isOnline {
+		caps |= aggCapOnline
+	}
+	if isRich {
+		caps |= aggCapRich
+	}
+	if emit != nil {
+		caps |= aggCapMeta
+	}
+	if isMerge {
+		caps |= aggCapMerge
+	}
+	switch caps {
+	case aggCapOnline | aggCapRich | aggCapMeta | aggCapMerge:
+		return &aggAdaptedORMG{core, o, r, m, g}
+	case aggCapOnline | aggCapRich | aggCapMerge:
+		return &aggAdaptedORG{core, o, r, g}
+	case aggCapOnline | aggCapMeta | aggCapMerge:
+		return &aggAdaptedOMG{core, o, m, g}
+	case aggCapOnline | aggCapMerge:
+		return &aggAdaptedOG{core, o, g}
+	case aggCapOnline | aggCapRich | aggCapMeta:
 		return &aggAdaptedORM{core, o, r, m}
-	case isOnline && isRich:
+	case aggCapOnline | aggCapRich:
 		return &aggAdaptedOR{core, o, r}
-	case isOnline && emit != nil:
+	case aggCapOnline | aggCapMeta:
 		return &aggAdaptedOM{core, o, m}
-	case isRich && emit != nil:
+	case aggCapRich | aggCapMeta:
 		return &aggAdaptedRM{core, r, m}
-	case isOnline:
+	case aggCapOnline:
 		return &aggAdaptedO{core, o}
-	case isRich:
+	case aggCapRich:
 		return &aggAdaptedR{core, r}
-	case emit != nil:
+	case aggCapMeta:
 		return &aggAdaptedM{core, m}
 	default:
 		return &aggAdapted{core}
@@ -164,8 +256,7 @@ func adaptAggregator(inner extend.Aggregator, emit AggregatorComponentsFunc) pro
 // instance passes through as nil (the engine reports it); probe-
 // validation already refuses a factory that returns nil.
 func adaptAggregatorFactory(reg AggregatorRegistration) processing.AggregatorFactory {
-	inner := reg.Factory
-	emit := reg.ComponentsFunc
+	inner, emit, name := reg.Factory, reg.ComponentsFunc, reg.Name
 	return func(agg *types.Aggregation, schema *encoding.Schema) (processing.Aggregator, error) {
 		instance, err := inner(agg, schema)
 		if err != nil {
@@ -174,7 +265,7 @@ func adaptAggregatorFactory(reg AggregatorRegistration) processing.AggregatorFac
 		if instance == nil {
 			return nil, nil
 		}
-		return adaptAggregator(instance, emit), nil
+		return adaptAggregator(name, instance, emit), nil
 	}
 }
 

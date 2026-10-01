@@ -13,7 +13,7 @@ import (
 
 // parallel_reduce.go composes the segment-aware parallel decode
 // infrastructure with per-worker partial aggregator state so a buffered
-// Process call whose request is mergeable (processing.CanMergeRequest)
+// Process call whose request is mergeable (processing.CanMergeRequestWithExtensions)
 // can emit its Response without ever materialising the
 // []*processing.Record slice the parallel-decode path produces.
 //
@@ -35,7 +35,7 @@ import (
 //   - pctx was built by buildParallelDecodeContext (mmap engaged, stride
 //     sane, totalRecords > 0)
 //   - workers >= 2 (shouldFanOutDecode already accepted)
-//   - processing.CanMergeRequest(req, schema) returns true
+//   - processing.CanMergeRequestWithExtensions(req, schema, s.extensions) returns true
 //
 // On entry the function constructs per-worker partial-state slots via
 // the same factory shape the parallel-decode path uses. The factory closure builds
@@ -210,21 +210,23 @@ func (s *Service) reduceParallelBuffered(
 			if pass {
 				out.filteredRows++
 
-				// Run.NullRecords' primary-field tally. This worker
-				// loop used to skip it entirely, so a DecodeWorkers run
-				// reported NullRecords: 0 over a column that was null
-				// on a third of its rows while the serial path and the
-				// ShardWorkers path both reported the real count.
-				if primaryNullField != "" && rec.IsNull(primaryNullField) {
-					out.nullRecords++
-				}
-
 				for _, ra := range rowLocalAttrs {
 					val, err := ra.computer.Row(rec, ra.attr.Field)
 					if err != nil {
 						return err
 					}
 					rec.Set(ra.label, val)
+				}
+
+				// Run.NullRecords' primary-field tally. This worker
+				// loop used to skip it entirely, so a DecodeWorkers run
+				// reported NullRecords: 0 over a column that was null
+				// on a third of its rows while the serial path and the
+				// ShardWorkers path both reported the real count. It
+				// runs AFTER row-local attributes land: the primary
+				// field may be an attribute label.
+				if primaryNullField != "" && rec.IsNull(primaryNullField) {
+					out.nullRecords++
 				}
 
 				// Universal floor per aggregator slot, tallied AFTER

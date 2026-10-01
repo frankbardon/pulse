@@ -32,6 +32,35 @@ type OnlineAggregator interface {
 	Finalize() (float64, error)
 }
 
+// MergeableAggregator is the optional sibling of OnlineAggregator for
+// aggregators whose running state folds across input partitions. When
+// an aggregator implements it and its registration declares both
+// Streamable: true and Mergeable: true, the parallel reducers
+// (pulse.Options.ShardWorkers over a shard archive,
+// pulse.Options.DecodeWorkers over a large single-file cohort) fold
+// each partition through UpdateRow on a fresh instance, then combine
+// the partials with Merge before calling Finalize once on the
+// receiver. The same declaration admits the operator to ProcessChain
+// stages. Without it the request runs serially and a chain refuses it.
+//
+// Merge receives another instance built by the SAME factory from the
+// SAME spec — the embedder's own value, never an engine wrapper — so a
+// type assertion to the concrete type succeeds. It absorbs other's
+// state into the receiver; other is not reused afterwards. Merge must
+// be associative: partials are combined in a deterministic order, but
+// how the cohort is partitioned depends on the worker count, so a
+// floating-point fold may differ from the serial result in the last
+// ULP. After Merge, the receiver's Finalize, Rich and ComponentsFunc
+// output must describe the merged state. A registration declaring
+// Mergeable whose value lacks this interface, or whose ComponentSchema
+// classifies its keys as non-mergeable, is refused at pulse.New with
+// PULSE_EXTENSION_MERGEABLE_MISMATCH.
+type MergeableAggregator interface {
+	OnlineAggregator
+	// Merge folds other's running state into the receiver.
+	Merge(other OnlineAggregator) error
+}
+
 // RichAggregator is the optional sibling for aggregators whose natural
 // output is not a scalar (a label list, a per-label count map, …). The
 // engine calls Aggregate or Finalize first, then Rich exactly once;

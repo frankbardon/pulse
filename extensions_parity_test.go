@@ -275,9 +275,18 @@ type parityProbe struct {
 	online, buffered atomic.Int64
 	// decimalReads counts DecimalValue hits that returned a value.
 	decimalReads atomic.Int64
+	// merges counts extend.MergeableAggregator.Merge calls — proof the
+	// parallel reducers folded the extension's partials rather than
+	// running it serially.
+	merges atomic.Int64
 }
 
-func (p *parityProbe) reset() { p.online.Store(0); p.buffered.Store(0); p.decimalReads.Store(0) }
+func (p *parityProbe) reset() {
+	p.online.Store(0)
+	p.buffered.Store(0)
+	p.decimalReads.Store(0)
+	p.merges.Store(0)
+}
 
 type parityRow struct {
 	name      string
@@ -301,6 +310,13 @@ type parityRow struct {
 	// CanStreamRequestWithExtensions (true); the full chunk sequence is
 	// still compared, and the online arm must have read DecimalValue.
 	extStreams bool
+	// extMerges: the built-in shape is serial but its extension twin
+	// merges — a decimal128 target (the built-in decimal fold is
+	// buffered-only, a Mergeable extension folds partials through
+	// Merge) or a row-local extension attribute whose built-in twin is
+	// outside the built-in FORMULA / DATE_PART merge set. Cross-checked
+	// against CanMergeRequestWithExtensions.
+	extMerges bool
 	// mustContain lists substrings the built-in Data (or Tests) JSON must carry,
 	// so a row cannot pass on two identically degenerate payloads (a
 	// wide-set fold truncated to the low mask word, say).
@@ -311,6 +327,9 @@ type paritySuite struct {
 	name     string
 	register func(*parityProbe) pulse.Extensions
 	rows     []parityRow
+	// mergeProbe: the suite's extension operator counts Merge calls on
+	// parityProbe.merges, so the parallel modes can assert one ran.
+	mergeProbe bool
 	// noPath: the category has no streaming-vs-buffered distinction the
 	// probe can observe (filterers, windows, tests), so the path
 	// assertion is skipped; the CanStreamRequest oracles still hold.
@@ -319,6 +338,10 @@ type paritySuite struct {
 	// in the extension arm's output before comparison — for categories
 	// whose payload echoes the operator type (TestResult.Type).
 	rename map[string]string
+	// extSerial: the extension twins never merge even where the
+	// built-in does (extension groupers carry no merge surface yet), so
+	// CanMergeRequestWithExtensions must refuse every row.
+	extSerial bool
 	// stripGrouperOperator drops Components.Groupers[i].Operator on both
 	// arms: the known gap that extension groupers surface no
 	// per-operator figures. The universal floor is still compared.
@@ -358,8 +381,9 @@ type paritySum struct {
 }
 
 var (
-	_ extend.OnlineAggregator = (*paritySum)(nil)
-	_ extend.RichAggregator   = (*paritySum)(nil)
+	_ extend.OnlineAggregator    = (*paritySum)(nil)
+	_ extend.RichAggregator      = (*paritySum)(nil)
+	_ extend.MergeableAggregator = (*paritySum)(nil)
 )
 
 func (a *paritySum) add(r extend.Record, field string) {
@@ -399,6 +423,68 @@ func (a *paritySum) UpdateRow(r extend.Record, field string) error {
 
 func (a *paritySum) Finalize() (float64, error) { return a.sum, a.decErr }
 
+// Merge folds another paritySum's partial into the receiver exactly as
+// the built-in AGG_SUM's MergeOnline does (a plain float add; an exact
+// decimal add). The probe counts the call so the parallel modes can
+// prove a merge ran.
+func (a *paritySum) Merge(other extend.OnlineAggregator) error {
+	o, ok := other.(*paritySum)
+	if !ok {
+		return fmt.Errorf("paritySum.Merge: got %T, want *paritySum", other)
+	}
+	a.probe.merges.Add(1)
+	a.sum += o.sum
+	if a.decErr == nil {
+		a.decErr = o.decErr
+	}
+	if a.isDec && a.decErr == nil {
+		next, err := a.dec.Add(o.dec)
+		if err != nil {
+			a.decErr = err
+			return nil
+		}
+		a.dec = next
+	}
+	return nil
+}
+
+// paritySumRegistration registers AGG_PARITY_SUM under name with the
+// given merge declaration.
+func paritySumRegistration(probe *parityProbe, name types.AggregationType, mergeable bool) pulse.AggregatorRegistration {
+	return pulse.AggregatorRegistration{
+		Name:        name,
+		Description: "Test-only extend reimplementation of AGG_SUM.",
+		Factory: func(spec *types.Aggregation, schema *encoding.Schema) (extend.Aggregator, error) {
+			a := &paritySum{probe: probe, dec: encoding.ZeroDecimal128()}
+			if schema != nil && spec != nil {
+				if f := schema.Field(spec.Field); f != nil && f.Type.IsDecimal() {
+					a.isDec, a.scale = true, f.Scale
+				}
+			}
+			return a, nil
+		},
+		Streamable: true,
+		Mergeable:  mergeable,
+		Accepts: []encoding.FieldType{
+			encoding.FieldTypeF64, encoding.FieldTypeU32, encoding.FieldTypeDecimal128,
+		},
+		FieldInputs: func(json.RawMessage) []string { return nil },
+		ComponentSchema: descriptor.ComponentSchema{
+			Keys:         []descriptor.ComponentKey{{Name: "sum", Type: "float64", Description: "Running sum."}},
+			Mergeability: descriptor.Mergeable,
+		},
+		ComponentsFunc: func(inst extend.Aggregator) (map[string]any, error) {
+			a := inst.(*paritySum)
+			if a.isDec {
+				// The built-in decimal path emits the universal
+				// floor only; mirror it.
+				return nil, nil
+			}
+			return map[string]any{"sum": a.sum}, nil
+		},
+	}
+}
+
 func (a *paritySum) Rich() (any, error) {
 	if !a.isDec {
 		return nil, nil
@@ -421,46 +507,22 @@ func aggregatorParitySuite() paritySuite {
 	}
 	// GROUP_DATE is neither streamable nor mergeable.
 	nonStreaming := func(r parityRow) parityRow { r.bufferedOnly, r.serialOnly = true, true; return r }
-	// Decimal: built-in buffered + serial, extension streams.
-	extStreams := func(r parityRow) parityRow { r.extStreams, r.serialOnly = true, true; return r }
+	// Decimal: built-in buffered + serial, extension streams and merges.
+	extStreams := func(r parityRow) parityRow {
+		r.extStreams, r.serialOnly, r.extMerges = true, true, true
+		return r
+	}
 	contains := func(r parityRow, subs ...string) parityRow { r.mustContain = subs; return r }
 	by := func(gt types.GroupType, field string) []*types.Group {
 		return []*types.Group{{Type: gt, Field: field}}
 	}
 	return paritySuite{
-		name: "aggregator",
+		name:       "aggregator",
+		mergeProbe: true,
 		register: func(probe *parityProbe) pulse.Extensions {
-			return pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{{
-				Name:        aggParitySum,
-				Description: "Test-only extend reimplementation of AGG_SUM.",
-				Factory: func(spec *types.Aggregation, schema *encoding.Schema) (extend.Aggregator, error) {
-					a := &paritySum{probe: probe, dec: encoding.ZeroDecimal128()}
-					if schema != nil && spec != nil {
-						if f := schema.Field(spec.Field); f != nil && f.Type.IsDecimal() {
-							a.isDec, a.scale = true, f.Scale
-						}
-					}
-					return a, nil
-				},
-				Streamable: true,
-				Accepts: []encoding.FieldType{
-					encoding.FieldTypeF64, encoding.FieldTypeU32, encoding.FieldTypeDecimal128,
-				},
-				FieldInputs: func(json.RawMessage) []string { return nil },
-				ComponentSchema: descriptor.ComponentSchema{
-					Keys:         []descriptor.ComponentKey{{Name: "sum", Type: "float64", Description: "Running sum."}},
-					Mergeability: descriptor.Mergeable,
-				},
-				ComponentsFunc: func(inst extend.Aggregator) (map[string]any, error) {
-					a := inst.(*paritySum)
-					if a.isDec {
-						// The built-in decimal path emits the universal
-						// floor only; mirror it.
-						return nil, nil
-					}
-					return map[string]any{"sum": a.sum}, nil
-				},
-			}}}
+			return pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{
+				paritySumRegistration(probe, aggParitySum, true),
+			}}
 		},
 		rows: []parityRow{
 			row("nullable_f64", "score", nil, nil),
@@ -471,8 +533,9 @@ func aggregatorParitySuite() paritySuite {
 			contains(row("wide_set_u256", "qty", by(types.GROUP_SET_PER_ELEMENT, "w256"), nil), "b200", "b202"),
 			// decimal128 targets keep the built-in on the buffered,
 			// serial path (CanStreamRequest / CanMergeRequest refuse
-			// them); the Streamable twin streams per its declaration,
-			// sums exactly via DecimalValue and renders via Rich.
+			// them); the Streamable + Mergeable twin streams and merges
+			// per its declarations, sums exactly via DecimalValue and
+			// renders via Rich.
 			contains(extStreams(row("decimal128", "amount", nil, nil)), `"total":"`),
 			contains(extStreams(row("decimal128_grouped", "amount", by(types.GROUP_CATEGORY, "region"), nil)), `"total":"`),
 			nonStreaming(row("date", "score", by(types.GROUP_DATE, "day"), nil)),
@@ -636,10 +699,16 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 								t.Fatalf("CanStreamRequestWithExtensions(extension) = %v but row.bufferedOnly = %v", got, row.bufferedOnly)
 							}
 						}
+						extMerge := (!row.serialOnly || row.extMerges) && !suite.extSerial
 						if mode.mergeable {
 							if got := processing.CanMergeRequest(bReq, schema); got == row.serialOnly {
 								t.Fatalf("CanMergeRequest(builtin) = %v but row.serialOnly = %v; mode %s would not run the path it names",
 									got, row.serialOnly, mode.name)
+							}
+							reg := pulse.ServiceForTest(p).Extensions()
+							if got := processing.CanMergeRequestWithExtensions(eReq, schema, reg); got != extMerge {
+								t.Fatalf("CanMergeRequestWithExtensions(extension) = %v, want %v (serialOnly=%v extMerges=%v extSerial=%v)",
+									got, extMerge, row.serialOnly, row.extMerges, suite.extSerial)
 							}
 						}
 						builtin := runParityArm(t, p, path, bReq).normalize(t, suite, false)
@@ -659,12 +728,23 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 						} else if row.extStreams && mode.decorate == nil {
 							// Every undecorated mode streams the
 							// extension twin — the per-shard and
-							// parallel-decode arms included, since
-							// the built-in never merges here either.
+							// parallel-decode workers fold it online
+							// too, then Merge the partials.
 							want = "online"
 							if probe.decimalReads.Load() == 0 {
 								t.Error("extension streamed a decimal128 target without reading DecimalValue")
 							}
+						}
+						// Only the parallel modes merge, and there only
+						// when the extension request clears the gate: a
+						// Merge outside them, or none inside, means the
+						// reducer ran a path the row does not name.
+						if merges := probe.merges.Load(); mode.mergeable && extMerge && suite.mergeProbe {
+							if merges == 0 {
+								t.Errorf("mode %s: extension request is mergeable but Merge never ran", mode.name)
+							}
+						} else if merges != 0 {
+							t.Errorf("mode %s: Merge ran %d times on a path that must not merge", mode.name, merges)
 						}
 						switch want {
 						case "online":

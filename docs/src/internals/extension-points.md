@@ -153,6 +153,7 @@ sections below.
     Description: "ACME brand composite (0-100).",
     Factory:     acme.NewBrandScoreAggregator,    // extend.AggregatorFactory
     Streamable:  true,                            // factory MUST return extend.OnlineAggregator
+    Mergeable:   true,                            // factory MUST return extend.MergeableAggregator; needs Streamable
     Accepts:     []encoding.FieldType{encoding.FieldTypeF64},
     Params:      []pulse.ParamMeta{{Name: "weights", JSONType: "array"}},
     ComponentSchema: descriptor.ComponentSchema{ /* see below */ },
@@ -173,9 +174,9 @@ Aggregators are authored against the public `extend` package:
 buffered rows, `UpdateRow(rec extend.Record, field)` one row at a time.
 A `Record` / `Rows` is valid only for the call that received it — never
 retain one. The adapter installed at `pulse.New` forwards each optional
-sibling (`extend.OnlineAggregator`, `extend.RichAggregator`) explicitly,
-so a streamable aggregator that also supplies `ComponentsFunc` still
-streams. Read semantics (null, set, categorical, date/datetime, u64,
+sibling (`extend.OnlineAggregator`, `extend.RichAggregator`,
+`extend.MergeableAggregator`) explicitly, so a streamable aggregator
+that also supplies `ComponentsFunc` still streams and merges. Read semantics (null, set, categorical, date/datetime, u64,
 decimal128) are on each `extend.Record` method's godoc.
 
 **Decimal128 targets.** The built-in decimal table (exact `AGG_SUM`,
@@ -192,8 +193,32 @@ over a decimal target always runs buffered (the exact
 `Streamable: true` streams it — **`UpdateRow` sees decimal fields via
 `DecimalValue`**, exactly as the buffered `Aggregate` does — and
 predict reports the same (`Streamable` from the snapshot, no decimal
-reason). Extension operators are never mergeable, so parallel shard /
-decode arms still run them serially.
+reason). The built-in decimal merge refusal does not apply either: a
+`Mergeable` extension aggregator merges a decimal target under shard /
+decode parallelism like any other field.
+
+**Mergeable.** `Mergeable: true` admits the aggregator to the parallel
+reducers — `Options.ShardWorkers` over a shard archive and
+`Options.DecodeWorkers` over a large single-file cohort — and to
+`ProcessChain` stages. Each worker folds its partition through
+`UpdateRow` on a fresh instance; the orchestrator then combines the
+partials in a deterministic order with
+`extend.MergeableAggregator.Merge(other)` and calls `Finalize`,
+`Rich` and `ComponentsFunc` once, on the merged receiver. `other` is
+the embedder's own value built by the same factory from the same spec,
+so `other.(*myAgg)` succeeds. Merge must be associative; how the
+cohort is partitioned depends on the worker count, so a floating-point
+fold may differ from the serial answer in the last ULP. The
+declaration, not the method set, routes the request: an aggregator
+that implements `Merge` but omits `Mergeable` runs serially (and a
+chain refuses it). Probe-validation refuses `Mergeable` with
+`PULSE_EXTENSION_MERGEABLE_MISMATCH` when the registration is not also
+`Streamable` (merge folds online state), when the value does not
+implement `extend.MergeableAggregator`, or when `ComponentSchema`
+declares keys with `Mergeability: None` — the reducers read
+`Components()` off the MERGED instance, so a figure that needs the full
+input would be silently wrong. The manifest projects the flag as
+`extensions.aggregators[].mergeable`.
 
 ### Attribute
 
@@ -450,9 +475,13 @@ single aggregator:
 
 Choose the axis that matches the math, not the convenience of the
 registration site. Declaring `Mergeable` on an operator whose state
-cannot actually fold via `MergeOnline` produces silently-wrong
-components in parallel shard processing — there is no runtime gate
-for the math, only the streaming-tier wiring.
+cannot actually fold produces silently-wrong components in parallel
+shard processing — there is no runtime gate for the math, only the
+streaming-tier wiring. For an aggregator the components class is
+separate from the registration's `Mergeable` flag (which decides
+whether the operator merges at all), but the two must agree: a
+`Mergeable` aggregator whose components class is `None` is refused at
+`pulse.New` (`PULSE_EXTENSION_MERGEABLE_MISMATCH`).
 
 ### Two emission paths: `ComponentsFunc` and `Components()`
 
@@ -813,20 +842,29 @@ buffered.
 
 State these plainly to users rather than discovering them at run time:
 
-- **Never mergeable.** Extension operators are never mergeable, so the
-  parallel shard and parallel buffered `Process` arms run them
+- **Merging is opt-in, aggregator-first.** An extension aggregator
+  merges only when its registration declares `Mergeable` (see
+  Aggregator above); extension filterers and `row_local` attributes
+  merge as row-local operators; `two_pass` / `buffered` attributes,
+  features, windows and tests never merge (as for built-ins).
+  Extension groupers carry no merge surface yet, so a request naming
+  one runs the parallel shard and parallel buffered `Process` arms
   serially. Declaring `Mergeable` in a `ComponentSchema` describes the
   components shape; it does not make the operator fold across workers.
+- **Crosstab cells do not fuse.** The fused crosstab admits a cell
+  aggregator by its built-in margin class, which an extension
+  aggregator does not declare, so a crosstab with an extension cell
+  runs the buffered arm.
 - **Grouped Components lack per-operator figures.** Under a grouper the
   extension aggregator's operator-specific keys are not emitted; only the
   universal floor is.
 - **Two-pass attributes keep a crosstab buffered.** A `two_pass`
   extension attribute declines the fused crosstab exactly as the
   built-in `ATTR_ZSCORE` does — the fused walk never runs a `PrePass`.
-- **Decimal targets run serial.** Extension aggregators are admitted on
-  `decimal128` and read `DecimalValue`; they stream there per their
-  declared `Streamable` flag (built-ins over decimal stay buffered), but
-  never merge, so shard / decode parallelism does not apply.
+- **Decimal targets follow the declarations.** Extension aggregators
+  are admitted on `decimal128` and read `DecimalValue`; they stream
+  there per their declared `Streamable` flag and merge per `Mergeable`
+  (built-ins over decimal stay buffered and serial).
 
 ## Migration recipe — pre-processing → registration
 
@@ -881,6 +919,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
+| `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator`, or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |

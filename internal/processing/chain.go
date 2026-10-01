@@ -9,7 +9,8 @@ import (
 )
 
 // CanChainRequest reports whether a request is eligible to participate
-// in a ProcessChain stage. A request qualifies iff:
+// in a ProcessChain stage — CanChainRequestWithExtensions with a nil
+// registry (built-in operators only). A request qualifies iff:
 //
 //   - It passes the existing mergeable gate (CanMergeRequest), i.e. its
 //     online state can be merged across partitions of the input.
@@ -20,7 +21,18 @@ import (
 // The chain executor calls this before each stage. A failing stage
 // surfaces PULSE_CHAIN_NOT_MERGEABLE with the stage index in details.
 func CanChainRequest(req *types.Request, schema *encoding.Schema) bool {
-	if !CanMergeRequest(req, schema) {
+	return CanChainRequestWithExtensions(req, schema, nil)
+}
+
+// CanChainRequestWithExtensions is CanChainRequest against a registry
+// that knows embedder-registered operators: the merge gate is
+// CanMergeRequestWithExtensions, so a Mergeable extension aggregator is
+// admitted. An extension aggregator whose value is Rich emits a
+// non-scalar cell that the next stage's f64 column reads as null —
+// the same posture as the built-in set aggregators. A nil exts is
+// exactly CanChainRequest.
+func CanChainRequestWithExtensions(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) bool {
+	if !CanMergeRequestWithExtensions(req, schema, exts) {
 		return false
 	}
 	for _, agg := range req.Aggregations {

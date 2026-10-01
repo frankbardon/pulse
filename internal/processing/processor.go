@@ -167,17 +167,41 @@ func CanStreamRequestWithExtensions(req *types.Request, schema *encoding.Schema,
 
 // CanMergeRequest reports whether a request's online state is
 // mergeable across input partitions — the gate that the per-shard
-// parallel reducer in internal/service/shard_reduce.go consults before fanning
-// out work across a worker pool. Returns true iff every aggregator,
-// grouper, and filterer is mergeable AND the request contains no
-// windows, no features, no regressions, no tests, no two-pass
-// attributes, and no decimal-typed aggregation targets. A nil/empty
-// aggregation list returns false (nothing to merge).
+// parallel reducer in internal/service/shard_reduce.go and the
+// single-file parallel decode reducer consult before fanning out work
+// across a worker pool. Returns true iff every aggregator, grouper,
+// and filterer is mergeable AND the request contains no windows, no
+// features, no regressions, no tests, no two-pass attributes, and no
+// decimal-typed built-in aggregation targets. A nil/empty aggregation
+// list returns false (nothing to merge).
 //
-// Mergeable is a strict subset of Streamable. Custom extension
-// operators are conservatively treated as non-mergeable (the merge
-// surface is not yet exposed on the extension registration struct).
+// Mergeable is a strict subset of Streamable. This is the built-in-only
+// gate: it is CanMergeRequestWithExtensions with a nil registry, so
+// every embedder-registered operator name is refused.
 func CanMergeRequest(req *types.Request, schema *encoding.Schema) bool {
+	return CanMergeRequestWithExtensions(req, schema, nil)
+}
+
+// CanMergeRequestWithExtensions is CanMergeRequest against a registry
+// that knows embedder-registered operators. Every caller that holds an
+// ExtensionRegistry (the service's parallel reducers, ProcessChain)
+// routes through here; a nil exts is exactly CanMergeRequest.
+//
+// Extension operators merge on these terms:
+//   - aggregators: their DECLARED Mergeable flag
+//     (ExtensionRegistry.IsMergeable), probe-validated at pulse.New to
+//     imply Streamable and an extend.MergeableAggregator value. A
+//     decimal128 target does not refuse an extension aggregator — the
+//     built-in decimal fold is buffered-only, but an extension reads
+//     decimals through Record.DecimalValue on every path.
+//   - groupers: IsMergeable, which for an extension grouper is false —
+//     no grouper merge surface is registered yet, so the per-shard
+//     reducer's MergeableGrouper fold never meets one.
+//   - filterers: row-local, so mergeable when streamable (every
+//     registered extension filterer is).
+//   - attributes: a row_local extension attribute merges like
+//     ATTR_FORMULA / ATTR_DATE_PART; two_pass and buffered ones do not.
+func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) bool {
 	if req == nil {
 		return false
 	}
@@ -190,12 +214,13 @@ func CanMergeRequest(req *types.Request, schema *encoding.Schema) bool {
 		return false
 	}
 	for _, attr := range req.Attributes {
-		// Row-local attributes (FORMULA, DATE_PART) are mergeable in
-		// principle — they add a derived column per row before each
-		// aggregator folds it. Two-pass attributes (ZSCORE, TSCORE,
-		// NORMALIZED, REG_*) need pass-1 population stats that the
-		// per-shard reducer would have to derive from merged Welford
-		// state; v1 routes those through the serial path.
+		// Row-local attributes (FORMULA, DATE_PART, and row_local
+		// extensions) are mergeable in principle — they add a derived
+		// column per row before each aggregator folds it. Two-pass
+		// attributes (ZSCORE, TSCORE, NORMALIZED, REG_*, two_pass
+		// extensions) need pass-1 population stats that the per-shard
+		// reducer would have to derive from merged Welford state; v1
+		// routes those through the serial path.
 		if attr == nil {
 			return false
 		}
@@ -203,32 +228,39 @@ func CanMergeRequest(req *types.Request, schema *encoding.Schema) bool {
 		case types.ATTR_FORMULA, types.ATTR_DATE_PART:
 			// row-local: mergeable.
 		default:
-			return false
+			if !exts.isExtensionAttribute(attr.Type) ||
+				!exts.IsStreamable("attribute", string(attr.Type)) ||
+				exts.attributeRequiresTwoPass(attr.Type) {
+				return false
+			}
 		}
 	}
 	for _, grp := range req.Groups {
-		if grp == nil || !grp.Type.Mergeable() {
+		if grp == nil || !exts.IsMergeable("grouper", string(grp.Type)) {
 			return false
 		}
 	}
 	for _, f := range req.Filterers {
-		if f == nil || !f.Type.Streamable() {
+		if f == nil || !exts.IsStreamable("filterer", string(f.Type)) {
 			return false
 		}
 	}
 	for _, agg := range req.Aggregations {
-		if agg == nil || !agg.Type.Mergeable() {
+		if agg == nil || !exts.IsMergeable("aggregator", string(agg.Type)) {
 			return false
 		}
-		// Decimal-typed fields aggregate via AggregateDecimalField;
-		// the per-shard reducer doesn't yet handle the wide path.
+		if exts.isExtensionAggregator(agg.Type) {
+			continue
+		}
+		// Built-in decimal-typed fields aggregate via
+		// AggregateDecimalField; the per-shard reducer doesn't yet
+		// handle the wide path.
 		if schema != nil {
 			if f := schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
 				return false
 			}
 		}
-		// Custom extension aggregators do not yet expose MergeOnline;
-		// reject conservatively.
+		// A built-in name must resolve in the built-in registry.
 		if _, builtin := aggregatorRegistry[agg.Type]; !builtin {
 			return false
 		}
@@ -827,16 +859,21 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 		filteredRows++
 
-		if primaryField != "" && r.IsNull(primaryField) {
-			primaryNullRecords++
-		}
-
 		for _, ra := range rowLocalAttrs {
 			val, err := ra.computer.Row(r, ra.attr.Field)
 			if err != nil {
 				return nil, err
 			}
 			r.Set(ra.label, val)
+		}
+
+		// Tallied AFTER row-local attributes land: the primary field
+		// may be an attribute label, which before Set above is either
+		// absent (the first row) or the PREVIOUS row's value on a
+		// reused record. Matches the buffered exit and both parallel
+		// reducers.
+		if primaryField != "" && r.IsNull(primaryField) {
+			primaryNullRecords++
 		}
 
 		rowKeys, ok, err := keyer.Keys(r, grp.Field)

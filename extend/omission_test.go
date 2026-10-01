@@ -11,12 +11,15 @@ import (
 
 // engineOnlyNames are engine capabilities extend deliberately does NOT
 // expose: Meta* is synthesised by the root adapter from a
-// registration's ComponentsFunc, Mergeable* / StreamableGrouper /
-// IncludeOrdered are engine fast paths extensions never take, and
-// ExtensionAware would hand an extension the whole engine registry.
+// registration's ComponentsFunc, StreamableGrouper (the adapter
+// synthesises KeyFor from KeyForRow) and IncludeOrdered are engine
+// fast paths extensions never take, and ExtensionAware would hand an
+// extension the whole engine registry. Merge capabilities ARE public
+// (extend.MergeableAggregator), behind an explicit registration
+// declaration, so no Mergeable* prefix is banned here.
 var engineOnlyNames = []string{"StreamableGrouper", "IncludeOrdered", "ExtensionAware"}
 
-var engineOnlyPrefixes = []string{"Mergeable", "Meta"}
+var engineOnlyPrefixes = []string{"Meta"}
 
 // TestExtendOmitsEngineOnlyCapabilities fails when a non-test file in
 // extend declares an exported identifier naming an engine-only

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -29,6 +30,23 @@ type adaptOnlineRich struct{ adaptOnline }
 
 func (adaptOnlineRich) Rich() (any, error) { return []string{"r"}, nil }
 
+// adaptMergeable records the value Merge was handed, so a test can
+// prove the adapter unwrapped the engine wrapper to the embedder's own
+// instance.
+type adaptMergeable struct {
+	adaptOnline
+	got *extend.OnlineAggregator
+}
+
+func (a adaptMergeable) Merge(other extend.OnlineAggregator) error {
+	*a.got = other
+	return nil
+}
+
+type adaptMergeableRich struct{ adaptMergeable }
+
+func (adaptMergeableRich) Rich() (any, error) { return []string{"r"}, nil }
+
 // TestAdaptAggregator_ForwardsExactlyTheImplementedSiblings walks every
 // capability combination and asserts each engine sibling is visible on
 // the adapted value iff the embedder value (or, for Meta, the
@@ -36,15 +54,19 @@ func (adaptOnlineRich) Rich() (any, error) { return []string{"r"}, nil }
 // Online/Rich rows whenever emit is set.
 func TestAdaptAggregator_ForwardsExactlyTheImplementedSiblings(t *testing.T) {
 	emit := func(extend.Aggregator) (map[string]any, error) { return map[string]any{"k": 1}, nil }
+	var sink extend.OnlineAggregator
+	merge := adaptMergeable{got: &sink}
 	cases := []struct {
-		name         string
-		inner        extend.Aggregator
-		online, rich bool
+		name                string
+		inner               extend.Aggregator
+		online, rich, merge bool
 	}{
-		{"base", adaptBase{}, false, false},
-		{"online", adaptOnline{}, true, false},
-		{"rich", adaptRich{}, false, true},
-		{"online+rich", adaptOnlineRich{}, true, true},
+		{"base", adaptBase{}, false, false, false},
+		{"online", adaptOnline{}, true, false, false},
+		{"rich", adaptRich{}, false, true, false},
+		{"online+rich", adaptOnlineRich{}, true, true, false},
+		{"online+merge", merge, true, false, true},
+		{"online+rich+merge", adaptMergeableRich{merge}, true, true, true},
 	}
 	for _, c := range cases {
 		for _, withEmit := range []bool{false, true} {
@@ -52,13 +74,26 @@ func TestAdaptAggregator_ForwardsExactlyTheImplementedSiblings(t *testing.T) {
 			if withEmit {
 				fn = emit
 			}
-			got := adaptAggregator(c.inner, fn)
+			got := adaptAggregator("AGG_T_X", c.inner, fn)
 			_, isOnline := got.(processing.OnlineAggregator)
 			_, isRich := got.(processing.RichAggregator)
 			_, isMeta := got.(processing.MetaAggregator)
-			if isOnline != c.online || isRich != c.rich || isMeta != withEmit {
-				t.Errorf("%s emit=%v: online=%v rich=%v meta=%v; want %v %v %v",
-					c.name, withEmit, isOnline, isRich, isMeta, c.online, c.rich, withEmit)
+			_, isMerge := got.(processing.MergeableAggregator)
+			if isOnline != c.online || isRich != c.rich || isMeta != withEmit || isMerge != c.merge {
+				t.Errorf("%s emit=%v: online=%v rich=%v meta=%v merge=%v; want %v %v %v %v",
+					c.name, withEmit, isOnline, isRich, isMeta, isMerge, c.online, c.rich, withEmit, c.merge)
+			}
+			if isMerge {
+				sink = nil
+				other := adaptAggregator("AGG_T_X", c.inner, fn).(processing.OnlineAggregator)
+				if err := got.(processing.MergeableAggregator).MergeOnline(other); err != nil {
+					t.Errorf("%s: MergeOnline = %v", c.name, err)
+				}
+				switch sink.(type) {
+				case adaptMergeable, adaptMergeableRich:
+				default:
+					t.Errorf("%s: Merge received %T; want the embedder's own value", c.name, sink)
+				}
 			}
 			if isOnline {
 				if v, err := got.(processing.OnlineAggregator).Finalize(); err != nil || v != 7 {
@@ -88,7 +123,7 @@ func (adaptSelfEmitting) Components() (map[string]any, error) { return map[strin
 // registration supplies no ComponentsFunc, and that an explicit
 // ComponentsFunc wins over it.
 func TestAdaptAggregator_TypeLevelComponentsKept(t *testing.T) {
-	got := adaptAggregator(adaptSelfEmitting{}, nil)
+	got := adaptAggregator("AGG_T_X", adaptSelfEmitting{}, nil)
 	meta, ok := got.(processing.MetaAggregator)
 	if !ok {
 		t.Fatal("type-level Components() not surfaced as MetaAggregator")
@@ -100,7 +135,7 @@ func TestAdaptAggregator_TypeLevelComponentsKept(t *testing.T) {
 		t.Error("OnlineAggregator lost alongside type-level Components()")
 	}
 	explicit := func(extend.Aggregator) (map[string]any, error) { return map[string]any{"fn": 1}, nil }
-	m, _ := adaptAggregator(adaptSelfEmitting{}, explicit).(processing.MetaAggregator).Components()
+	m, _ := adaptAggregator("AGG_T_X", adaptSelfEmitting{}, explicit).(processing.MetaAggregator).Components()
 	if m["fn"] != 1 {
 		t.Errorf("explicit ComponentsFunc did not win: %v", m)
 	}
@@ -123,7 +158,7 @@ func TestAdaptAggregator_RowsViewIsZeroCopy(t *testing.T) {
 			t.Errorf("At(%d) is not the engine's record", i)
 		}
 	}
-	got, err := adaptAggregator(adaptBase{}, nil).Aggregate(recs, "x")
+	got, err := adaptAggregator("AGG_T_X", adaptBase{}, nil).Aggregate(recs, "x")
 	if err != nil || got != 2 {
 		t.Errorf("Aggregate through adapter = %v, %v; want 2", got, err)
 	}
@@ -144,5 +179,28 @@ func TestAdaptAggregatorFactory_PropagatesErrorAndNil(t *testing.T) {
 	})
 	if inst, err := f(&types.Aggregation{}, nil); inst != nil || err != nil {
 		t.Errorf("nil instance = %v, %v; want nil, nil", inst, err)
+	}
+}
+
+// foreignOnline is an engine OnlineAggregator the adapter did not
+// build — a merge partner it cannot unwrap.
+type foreignOnline struct{}
+
+func (foreignOnline) UpdateRow(*processing.Record, string) error { return nil }
+func (foreignOnline) Finalize() (float64, error)                 { return 0, nil }
+
+// TestAdaptAggregator_MergeRefusesForeignPartner asserts MergeOnline
+// with a partner that is not an adapted extension value is a coded
+// PROCESSING_INTERNAL error, never a panic or a silent no-op.
+func TestAdaptAggregator_MergeRefusesForeignPartner(t *testing.T) {
+	var sink extend.OnlineAggregator
+	got := adaptAggregator("AGG_T_X", adaptMergeable{got: &sink}, nil).(processing.MergeableAggregator)
+	err := got.MergeOnline(foreignOnline{})
+	var ce *perr.CodedError
+	if !errors.As(err, &ce) || ce.Code != perr.PROCESSING_INTERNAL {
+		t.Fatalf("MergeOnline(foreign) = %v; want PROCESSING_INTERNAL", err)
+	}
+	if sink != nil {
+		t.Errorf("embedder Merge reached with %T", sink)
 	}
 }

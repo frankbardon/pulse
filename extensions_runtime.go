@@ -27,6 +27,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 
 	r := &processing.ExtensionRegistry{
 		Streamable:  make(map[string]bool),
+		Mergeable:   make(map[string]bool),
 		FansOut:     make(map[types.GroupType]bool),
 		FieldInputs: make(map[string]processing.FieldInputsFunc),
 	}
@@ -82,6 +83,10 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		for _, reg := range ext.Aggregators {
 			r.Aggregators[reg.Name] = adaptAggregatorFactory(reg)
 			r.Streamable[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.Streamable
+			// The merge declaration, recorded false as well as true so
+			// IsMergeable never falls through to the built-in table for
+			// an extension name.
+			r.Mergeable[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.Mergeable
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}
 	}

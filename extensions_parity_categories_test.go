@@ -11,10 +11,12 @@ package pulse_test
 //     extension grouper takes the fused arm and matches GROUP_CATEGORY)
 //     and TestExtensions_TwoPassAttributeCrosstabNotFused (a two_pass
 //     extension attribute declines it, as ATTR_ZSCORE does).
-//   - parallel / per-shard: extension operators are never mergeable, so
-//     those modes compare the built-in's parallel arm against the
-//     extension's serial arm (the same comparison the aggregator suite
-//     makes).
+//   - parallel / per-shard: an extension aggregator merges when its
+//     registration declares Mergeable (the aggregator suite asserts
+//     Merge ran); extension filterers and row_local attributes merge as
+//     row-local operators; extension groupers do not merge yet
+//     (grouperParitySuite sets extSerial), so those rows compare the
+//     built-in's parallel arm against the extension's serial arm.
 //   - windows and post-tests run over materialised result rows, so the
 //     streaming mode is only "streaming" up to the result set; their
 //     suites carry no path probe.
@@ -163,7 +165,8 @@ func grouperParitySuite() paritySuite {
 	contains := func(r parityRow, subs ...string) parityRow { r.mustContain = subs; return r }
 	cat, fan := types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT
 	return paritySuite{
-		name: "grouper",
+		name:      "grouper",
+		extSerial: true, // extension groupers carry no merge surface yet
 		register: func(probe *parityProbe) pulse.Extensions {
 			return pulse.Extensions{Groupers: []pulse.GrouperRegistration{
 				{
@@ -395,6 +398,9 @@ func attributeParitySuite() paritySuite {
 	// A two-pass attribute alongside a grouper runs buffered and serial.
 	nonStreaming := func(r parityRow) parityRow { r.bufferedOnly, r.serialOnly = true, true; return r }
 	serial := func(r parityRow) parityRow { r.serialOnly = true; return r }
+	// ATTR_SET_POPCOUNT is outside the built-in FORMULA / DATE_PART
+	// merge set, but a row_local extension attribute merges.
+	rowLocal := func(r parityRow) parityRow { r.serialOnly, r.extMerges = true, true; return r }
 	byRegion := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
 	z, pc := types.ATTR_ZSCORE, types.ATTR_SET_POPCOUNT
 	return paritySuite{
@@ -423,9 +429,9 @@ func attributeParitySuite() paritySuite {
 			serial(row("two_pass_nullable_f64", z, attrParityZScore, "score", nil)),
 			serial(row("two_pass_u32", z, attrParityZScore, "qty", nil)),
 			nonStreaming(row("two_pass_grouped", z, attrParityZScore, "score", byRegion)),
-			serial(row("row_local_narrow_set", pc, attrParityPopcount, "tags", nil)),
-			serial(row("row_local_wide_u128_nullable", pc, attrParityPopcount, "w128", byRegion)),
-			serial(row("row_local_wide_u256", pc, attrParityPopcount, "w256", byRegion)),
+			rowLocal(row("row_local_narrow_set", pc, attrParityPopcount, "tags", nil)),
+			rowLocal(row("row_local_wide_u128_nullable", pc, attrParityPopcount, "w128", byRegion)),
+			rowLocal(row("row_local_wide_u256", pc, attrParityPopcount, "w256", byRegion)),
 		},
 	}
 }

@@ -17,7 +17,7 @@ import (
 )
 
 // shard_reduce.go implements per-shard parallel execution for the
-// subset of requests that processing.CanMergeRequest accepts: every
+// subset of requests that processing.CanMergeRequestWithExtensions accepts: every
 // aggregator and grouper is mergeable, no windows/features/tests/
 // regressions, attributes are at most row-local, and the cohort backs
 // onto a shard archive with N >= 2 shards.
@@ -44,7 +44,7 @@ import (
 //
 //   - the cohort is archive-backed (cohort.Shards() non-empty)
 //   - more than one shard (no point parallelising N=1)
-//   - the request is mergeable per processing.CanMergeRequest
+//   - the request is mergeable per processing.CanMergeRequestWithExtensions
 //   - the configured worker cap is not 1 (1 forces serial)
 //
 // Returns the resolved worker count (>= 2) and true when fan-out
@@ -58,7 +58,7 @@ func (s *Service) shouldFanOut(req *types.Request, cohort *Cohort) (int, bool) {
 	if len(shards) < 2 {
 		return 0, false
 	}
-	if !processing.CanMergeRequest(req, cohort.Schema()) {
+	if !processing.CanMergeRequestWithExtensions(req, cohort.Schema(), s.extensions) {
 		return 0, false
 	}
 	workers := s.shardWorkers
@@ -354,16 +354,19 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		}
 		out.filteredRows++
 
-		if primaryNullField != "" && rec.IsNull(primaryNullField) {
-			out.nullRecords++
-		}
-
 		for _, ra := range rowLocalAttrs {
 			val, err := ra.computer.Row(rec, ra.attr.Field)
 			if err != nil {
 				return nil, err
 			}
 			rec.Set(ra.label, val)
+		}
+
+		// Run.NullRecords' primary-field tally, AFTER row-local
+		// attributes land: the primary field may be an attribute
+		// label, absent from the decoded record until Set above.
+		if primaryNullField != "" && rec.IsNull(primaryNullField) {
+			out.nullRecords++
 		}
 
 		// Universal floor, tallied AFTER row-local attributes land so a
@@ -704,10 +707,13 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 // OPERATOR STATE via MergeableAggregator.MergeOnline, so after
 // mergeShardPartials each slot holds the complete cohort state and its
 // Components() is byte-for-byte what a serial instance would report.
-// processing.CanMergeRequest has already refused any request whose
-// operator state cannot fold, so no mergeability-class gate is needed
-// here — every operator that clears that gate folds its components
-// with its state.
+// processing.CanMergeRequestWithExtensions has already refused any
+// request whose operator state cannot fold, so no mergeability-class
+// gate is needed here — every operator that clears that gate folds its
+// components with its state. For an extension aggregator that is
+// guaranteed at pulse.New: a Mergeable registration whose
+// ComponentSchema classifies its keys "none" is refused with
+// PULSE_EXTENSION_MERGEABLE_MISMATCH.
 //
 // No-op when disableComponents is true, so the build cost is skipped
 // rather than incurred and discarded.

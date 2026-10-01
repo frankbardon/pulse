@@ -25,7 +25,7 @@ covers: [ChainRequest, pulse_process_chain, OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT,
 
 ## Mergeable-only stage gate (v1)
 
-Every stage must pass `processing.CanChainRequest` — calls `CanMergeRequest`, then layers chain-specific exclusions (`aggregatorEmitsScalar`). Failure surfaces `PULSE_CHAIN_NOT_MERGEABLE`. Predict-side: `descriptor.chainGateOK` — call `pulse predict --json` before pricing. `processChainCapability()` carries the manifest-facing allowlists + `RejectionRules`.
+Every stage must pass `CanChainRequestWithExtensions` — the merge gate (an extension aggregator qualifies iff declared `Mergeable`), then chain-specific exclusions (`aggregatorEmitsScalar`). Failure surfaces `PULSE_CHAIN_NOT_MERGEABLE`. Predict-side (built-ins only): `descriptor.chainGateOK`. `processChainCapability()` carries the manifest-facing allowlists + `RejectionRules`.
 
 The constraint exists because the synthesised inter-stage cohort uses an f64 / categorical_u32 projection — operators whose emit shape can't be folded into it (`AGG_MEDIAN`, `GROUP_QUANTILE`, etc.) break the bridge.
 

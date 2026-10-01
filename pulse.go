@@ -275,8 +275,9 @@ type Options struct {
 	// as the serial path). Negative values are rejected at New() time.
 	//
 	// The parallel reducer engages only when every operator in the
-	// request is mergeable per processing.CanMergeRequest. Non-
-	// mergeable requests (percentile aggregators, window operators,
+	// request is mergeable — built-ins per their type, an extension
+	// aggregator per its AggregatorRegistration.Mergeable declaration.
+	// Non-mergeable requests (percentile aggregators, window operators,
 	// tier-2 tests, two-pass attributes combined with groupers, ...)
 	// fall through to the serial shardIter path with no worker
 	// spawning. Worker count is also capped at the shard count — no
@@ -688,7 +689,8 @@ type ChainResponse = types.ChainResponse
 // requests. The first stage runs against the cohort identified by
 // req.Cohort; each subsequent stage receives the previous stage's
 // rows as its input. All stages must be mergeable per the v1 chain
-// gate (processing.CanChainRequest); a non-mergeable stage surfaces
+// gate (an extension aggregator qualifies when its registration
+// declares Mergeable); a non-mergeable stage surfaces
 // PULSE_CHAIN_NOT_MERGEABLE with the offending stage index so the
 // caller can fall back to per-stage Process calls.
 //
