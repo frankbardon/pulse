@@ -51,7 +51,7 @@ The base directory for `.pulse` files. Relative cohort paths
 |---|---|
 | Non-empty `Options.DataDir` | Used directly |
 | Empty + `FS` non-nil        | `DataDir` is ignored — the FS is the trust boundary |
-| Empty + `FS` nil            | Pulse falls back to `fs.Default()`, which reads `PULSE_DATA_DIR` |
+| Empty + `FS` nil            | Pulse falls back to its default OS filesystem, rooted at `PULSE_DATA_DIR` |
 
 Example:
 
@@ -116,7 +116,7 @@ p, err := pulse.New(pulse.Options{DisableCrosstabFusion: true})
 
 | Field omitted from `Options` | Effective behaviour |
 |---|---|
-| `DataDir` and `FS` both empty | Pulse calls `fs.Default()` → reads `PULSE_DATA_DIR` env var. Errors if unset and the operation needs filesystem access. |
+| `DataDir` and `FS` both empty | Pulse builds its default filesystem → reads `PULSE_DATA_DIR` env var. Errors if unset and the operation needs filesystem access. |
 | `DataDir` only                | Uses an `afero.NewOsFs()` rooted at `DataDir`. |
 | `FS` only                     | Uses the provided FS verbatim. |
 | Both                          | `FS` wins; `DataDir` is ignored. |

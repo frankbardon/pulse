@@ -126,7 +126,7 @@ Extensions registered via `pulse.Options.Extensions` declare a `ComponentSchema`
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter supplied (`ComponentsFunc` non-nil or sibling implemented) but `ComponentSchema.Keys` empty | declare the keys, or drop the emitter |
 | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | probe emitted a key set diverging from the declaration | align `Components()` to the declared list, in declared order |
 
-Floor-only extensions are valid: empty `Keys` + nil `ComponentsFunc` + no sibling interface ⇒ floor only, no probe error (the `AGG_COUNT`-equivalent shape). The manifest `extensions` block projects per-extension `ComponentSchema`; predict reads it via `descriptor.ExtensionsSnapshot`; schema-bound MCP tools carry extension names in the per-category enums.
+Floor-only extensions are valid: empty `Keys` + nil `ComponentsFunc` + no sibling interface ⇒ floor only, no probe error (the `AGG_COUNT`-equivalent shape). The manifest `extensions` block projects per-extension `ComponentSchema`; predict reads it via `internal/descriptor.ExtensionsSnapshot`; schema-bound MCP tools carry extension names in the per-category enums.
 
 ## Reading it
 
@@ -149,7 +149,7 @@ if ct := resp.Components.Crosstab; ct != nil {
 }
 ```
 
-Runnable, `//go:embed`-registered and `TestExamples_*`-validated, so both surface via `pulse_examples_search` / `pulse_examples_get`: `internal/examples/aggregations/08_welford_components.json` — `AGG_WELFORD` over `experiment.pulse#revenue`, value `{Mean, Variance, N}`, projection `{n, n_null, mean, m2, variance, stddev}`; `internal/examples/crosstab/16_welford_components_revenue_by_region_treatment.json` — `region` × `treatment` (`GROUP_CATEGORY` both axes, all margins), `Crosstab` fully populated. Build fixtures once via `./examples/fixtures/build.sh`, then `bin/pulse api process --request <path> --json`. Emission benchmarks + regression frontier: `docs/src/ops/performance.md` (Components emission baselines).
+Runnable, `//go:embed`-registered and `TestExamples_*`-validated, so both surface via `pulse_examples_search` / `pulse_examples_get`: `internal/examples/aggregations/08_welford_components.json` — `AGG_WELFORD` over `experiment.pulse#revenue`, value `{Mean, Variance, N}`, projection `{n, n_null, mean, m2, variance, stddev}`; `internal/examples/crosstab/16_welford_components_revenue_by_region_treatment.json` — `region` × `treatment` (`GROUP_CATEGORY` both axes, all margins), `Crosstab` fully populated. Build fixtures once via `./internal/examples/fixtures/build.sh`, then `bin/pulse api process --request <path> --json`. Emission benchmarks + regression frontier: `docs/src/ops/performance.md` (Components emission baselines).
 
 ## See
 

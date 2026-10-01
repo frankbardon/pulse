@@ -8,7 +8,7 @@ client launches `pulse mcp` as a subprocess, speaks MCP over its
 stdio streams, and shuts it down on session close.
 
 > **LLM agents using MCP:** the agent-side guide is the
-> `mcp-integration` skill — fetch it via `pulse_skills_get` for the
+> `session-bootstrap` skill — fetch it via `pulse_skills_get` for the
 > tool catalog and request shapes. This page is for the human setting
 > the server up.
 

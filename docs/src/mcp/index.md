@@ -2,7 +2,7 @@
 
 **Audience:** operators wiring Pulse into an MCP-aware AI client (Claude Desktop, Claude Code, Cursor, Zed, custom hosts), and embedders who want to expose Pulse to an LLM agent.
 
-This page is the human-facing guide: what the server does, how to wire it up, what the LLM sees, and how to debug a misbehaving session. Agent-facing guidance ships inside the binary as the `mcp-integration` skill — fetch it via `pulse_skills_get` (or `pulse skills show mcp-integration`).
+This page is the human-facing guide: what the server does, how to wire it up, what the LLM sees, and how to debug a misbehaving session. Agent-facing guidance ships inside the binary as the `session-bootstrap` skill — fetch it via `pulse_skills_get` (or `pulse skills show session-bootstrap`).
 
 ## What `pulse mcp` is
 
@@ -227,25 +227,25 @@ If you are writing a system prompt for an LLM agent that uses Pulse, point it at
 
 | LLM task | Skill |
 |---|---|
-| MCP wiring, tool surface, schema binding | `mcp-integration` |
-| Author a `Process` request | `getting-started`, `aggregation-guide` |
+| MCP wiring, tool surface, schema binding | `session-bootstrap` |
+| Author a `Process` request | `request-envelope`, `aggregation-design` |
 | Compose multiple sub-requests in one call | `compose-requests` |
-| Iterate on a request with `pulse_predict` | `debugging-with-predict` |
-| Look up an error code or warning | `error-code-reference` |
-| Pick an aggregator / filterer | `aggregation-guide` |
+| Iterate on a request with `pulse_predict` | `tool-predict` |
+| Look up an error code or warning | `tool-errors-lookup` |
+| Pick an aggregator / filterer | `aggregation-design` |
 | Pick an attribute (z-score, percentile, formula, ...) | `attribute-composition` |
 | Design a grouper | `grouper-design` |
-| Use a window operator (`WIN_*`) | `window-operations` |
+| Use a window operator (`WIN_*`) | `window-design` |
 | Use a feature engineer (`FEAT_*`) | `feature-engineering` |
 | Run a statistical test (tier-1 or tier-2) | `statistical-testing` |
 | Fit a regression (OLS, GLM, Bayesian) | `regression-modeling` |
 | Generate synthetic data | `synthetic-data` |
 | Gate, mask or derive a synthetic field (`rules[]`) | `synth-structural-rules` |
 | Understand a cohort's schema layout | `cohort-schema-design` |
-| Import a tabular source into `.pulse` | `import-best-practices` |
-| Pick an export format | `export-format-selection` |
+| Import a tabular source into `.pulse` | `tool-import` |
+| Pick an export format | `pulse manifest --json` (`Export` capability block) |
 | Work with `decimal128` (currency, precise arithmetic) | `financial-cohorts` |
-| Get started end-to-end (LLM walkthrough) | `getting-started` |
+| Get started end-to-end (LLM walkthrough) | `session-bootstrap` |
 
 The agent should call `pulse_skills_list` once at session start to enumerate the catalog, then `pulse_skills_get` on demand. The returned text is authoritative; this site does not duplicate it and may lag.
 

@@ -8,7 +8,7 @@ schema — never record data — so it's a cheap, safe iteration loop
 against arbitrarily large cohorts.
 
 > **LLM agents using MCP:** see the `pulse_predict` MCP tool and the
-> `debugging-with-predict` skill. Predict is the LLM's primary
+> `tool-predict` skill. Predict is the LLM's primary
 > "would this work?" probe.
 
 ## Synopsis

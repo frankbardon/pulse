@@ -40,7 +40,7 @@ materialised record.
 
 ## 3. Tests
 
-Add tests in `processing/filter_test.go` before the implementation.
+Add tests in `processing/filterer_test.go` before the implementation.
 Cover both the include and exclude branches, the null-handling
 contract, and any error path.
 
@@ -95,7 +95,7 @@ skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-c
 extension-side parity lives in
 [Extension Points](extension-points.md).
 
-## 6. Update the aggregation-guide skill
+## 6. Update the aggregation-design skill
 
 Add a section in the filtering portion of `skills/aggregation-design.md`
 covering the new filterer's semantics, parameter shape, and the null-

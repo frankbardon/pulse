@@ -6,7 +6,7 @@ This page walks through installing Pulse, the prerequisites it needs, and how
 to verify the install. Pulse is distributed as a single static Go binary;
 there is no installer, no daemon, and no config file.
 
-> **LLM agents using MCP:** see the `getting-started` skill via
+> **LLM agents using MCP:** see the `session-bootstrap` skill via
 > `pulse_skills_get` — it covers session bootstrap rather than local install.
 
 ## Prerequisites

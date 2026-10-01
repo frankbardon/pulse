@@ -66,7 +66,7 @@ When a source value isn't in the table the resolver falls back to the raw resolv
 
 ## Validation surface
 
-`descriptor.ValidateLabels` runs on every label-bound request before any record bytes are read:
+`internal/descriptor.ValidateLabels` runs on every label-bound request before any record bytes are read:
 
 | Code | Meaning |
 |---|---|

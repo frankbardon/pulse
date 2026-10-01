@@ -59,7 +59,7 @@ SPSS separates `refused` / `don't know` / `not applicable` / `sysmis`; the Pulse
 - Dict ID `0` = `"sysmis"`, then DECLARED discrete codes in spec order, then further observed missing values first-seen. **Ranges are never enumerated** — observed members only, which drives the widening.
 - Reason text = the file's value label for the code, else the code. Label colliding with another reason loses to the code + `PULSE_SPSS_VALUE_COLLISION`.
 - PRESENT value ⇒ sibling null: the empty reason is the bitmap bit, not an entry.
-- `--spss-missing=null` / `spss.WithMissingMode(spss.MissingNull)` drops siblings — same nulls, reason no longer per-row (the specification still rides the sidecar). Unrecognised mode ⇒ `PULSE_SPSS_MISSING_MODE_INVALID`, never a default.
+- `--spss-missing=null` / `io.ReaderOptions{SPSS: io.SPSSReaderOptions{MissingMode: io.SPSSMissingNull}}` drops siblings — same nulls, reason no longer per-row (the specification still rides the sidecar). Unrecognised mode ⇒ `PULSE_SPSS_MISSING_MODE_INVALID`, never a default.
 
 **Categorical flag** — `Q1: 1=Yes, 2=No, 9=Refused` → `categorical_u8` holding `"1"`, `"2"`, `"9"`; the refused row still says `9`. Record `7/22` long-string missing values bind to the same `variable.missing` slot a record type 2 spec does, so strings need no branch. Which entries are missing-coded is recorded twice:
 
@@ -89,7 +89,7 @@ SPSS is the one source that DECLARES a multi-select; every other path guesses fr
 | `numeric_missing` | CONSUMED — its per-row ID decides what its one source variable writes wherever that variable is null | `--spss-missing=null` |
 | `multiple_dichotomy` | DROPPED — every bit re-reads a constituent still in the cohort | none by design; one column per set |
 
-- `kind` is a **CLOSED vocabulary** (`spss.DerivedKinds()`), one action each via `spss.DerivedFoldFor`, which reports `false` otherwise — an older binary meeting a newer document stops rather than defaults.
+- `kind` is a **CLOSED vocabulary** (`DerivedKinds()` in `internal/io/spss`), one action each via `DerivedFoldFor`, which reports `false` otherwise — an older binary meeting a newer document stops rather than defaults.
 - Entries are self-sufficient (`Derived.Complete()`): a reason sibling carries its reason dictionary (ID ↔ reason ↔ SPSS code ↔ label), the only record of which state each row was in; a set column carries `set_name` + `sources` in BIT order.
 - Derived columns INTERLEAVE ⇒ `variables[].position` is a cohort position, not a source ordinal.
 - **Nothing derived ⇒ `"derived": []`, never a missing key** — "nothing derived" and "cannot tell you" are different answers.
@@ -104,11 +104,11 @@ Sibling name colliding with a real variable (case-insensitively, as SPSS names a
 
 A labelled variable's `categorical_*` dictionary holds `"1"`, `"2"`, … — source codes in source order, because entry order IS the on-wire encoding. Two SPSS codes may legitimately share one value label, so a label-keyed dictionary collapses them and destroys the code. Labels arrive at **output time** via a `LabelTable` (`label-display`), never from the cohort. Text that is a null sentinel (`""`, `NA`, `N/A`, `NULL`) imports as null + `PULSE_SPSS_NULL_TOKEN_COLLISION`.
 
-**`PULSE_LABEL_TABLES_DIR` skips our sidecar.** It parses every `*.json` there as a label table, excluding Pulse's own sidecars by suffix FIRST — `.spss.json` i.e. `cohort.pulse.spss.json` (`spss.SidecarSuffix`) and the managed-import `cohort.pulse.meta.json` — so a skipped sidecar registers no table and no longer fails `pulse.New`. Exclusion by name, not tolerance: any other unparseable `*.json` still hard-fails naming its path.
+**`PULSE_LABEL_TABLES_DIR` skips our sidecar.** It parses every `*.json` there as a label table, excluding Pulse's own sidecars by suffix FIRST — `.spss.json` i.e. `cohort.pulse.spss.json` (the `.spss.json` suffix) and the managed-import `cohort.pulse.meta.json` — so a skipped sidecar registers no table and no longer fails `pulse.New`. Exclusion by name, not tolerance: any other unparseable `*.json` still hard-fails naming its path.
 
 ## The metadata sidecar
 
-An import writes `cohort.pulse.spss.json` beside the cohort (`spss.SidecarSuffix`, the `imports.Sidecar` convention — NOT `.meta.json`, which a managed import writes for the same cohort). It holds every dictionary element the `.pulse` format has no slot for: measure levels, print/write formats, records `7/17` file and `7/18` variable attributes (kept **distinct**), record `6` documents, weight variable, compression bias, `nominal_case_size`, original short names, declared BYTE widths + `7/14` segmentation, MR/MC set and `7/5` variable-set definitions, the declared charset in the file's own spelling, product name, missing-value specs in all three shapes. EVERY response set is recorded — MC sets and MD sets that refused to derive included — because the block records DEFINITIONS, a different question from which columns are synthetic.
+An import writes `cohort.pulse.spss.json` beside the cohort (the `.spss.json` suffix, the `pulse.ImportSidecar` convention — NOT `.meta.json`, which a managed import writes for the same cohort). It holds every dictionary element the `.pulse` format has no slot for: measure levels, print/write formats, records `7/17` file and `7/18` variable attributes (kept **distinct**), record `6` documents, weight variable, compression bias, `nominal_case_size`, original short names, declared BYTE widths + `7/14` segmentation, MR/MC set and `7/5` variable-set definitions, the declared charset in the file's own spelling, product name, missing-value specs in all three shapes. EVERY response set is recorded — MC sets and MD sets that refused to derive included — because the block records DEFINITIONS, a different question from which columns are synthetic.
 
 Load-bearing payload: the **`code ↔ label ↔ Pulse dictionary ID` triple** per categorical column. Pulse IDs are positional, SPSS codes arbitrary ⇒ the only place the LABELS live. Per-entry flags `labelled` / `observed` / `missing` keep a declared-but-unused code, an appended unlabelled code and a user-missing code all representable. **Build a `LabelTable` from this file.**
 
@@ -116,7 +116,7 @@ Document `{format_version, kind, fingerprint, payload}`; `payload` flat and self
 
 ### Reading it back — and why absent and stale are not the same answer
 
-`spss.LoadSidecar(fs, cohort, spss.WriterOptions{})` — read path and the write side's first act (`pulse export spss` reaches it for you; no leaf reads the sidecar alone). Returns a `SidecarResolution`; `resolution.Synthesise()` is the single question — *must I build a default dictionary from the `.pulse` schema alone?*
+`LoadSidecar(fs, cohort, opts)` (`internal/io/spss`) — read path and the write side's first act (`pulse export spss` reaches it for you; no leaf reads the sidecar alone). Returns a `SidecarResolution`; `resolution.Synthesise()` is the single question — *must I build a default dictionary from the `.pulse` schema alone?*
 
 | State | Verdict | Code | Then |
 |---|---|---|---|
@@ -134,7 +134,7 @@ Document `{format_version, kind, fingerprint, payload}`; `payload` flat and self
 
 **All three data encodings read**, identical cohorts from identical content: uncompressed; **bytecode** (SPSS's save default — bias from the header, not a hardcoded 100); **ZSAV** (zlib blocks inflating to a *bytecode* stream — two layers, not a third encoding; `.zsav` carries `$FL3` not `$FL2`). Pulse never writes ZSAV.
 
-**Text decodes out of the file's charset** — record `7/20` (a NAME), else `7/3` (numeric code), else UTF-8; on disagreement `7/20` wins. Spellings fold (`windows-1252` = `cp1252` = `1252`), never approximately (`1250` ≠ `1252`). Two hard rules: an undecodable byte errors naming variable and value, **never** a U+FFFD substitution; declared widths are BYTE counts, so padding is trimmed on raw bytes BEFORE decoding. `--charset` / `spss.WithCharset` overrides a self-mislabelling file — **not yet on `pulse import auto` or `pulse_import`**.
+**Text decodes out of the file's charset** — record `7/20` (a NAME), else `7/3` (numeric code), else UTF-8; on disagreement `7/20` wins. Spellings fold (`windows-1252` = `cp1252` = `1252`), never approximately (`1250` ≠ `1252`). Two hard rules: an undecodable byte errors naming variable and value, **never** a U+FFFD substitution; declared widths are BYTE counts, so padding is trimmed on raw bytes BEFORE decoding. `--charset` / `io.SPSSReaderOptions{Charset}` overrides a self-mislabelling file — **not yet on `pulse import auto` or `pulse_import`**.
 
 **Either byte order reads.** The header layout code decides; record `7/3` corroborates only. A contradiction is FATAL — unlike the charset cross-check one field away — because byte order governs every count, offset and double: the wrong reading yields a whole file of plausible wrong numbers.
 
@@ -148,7 +148,7 @@ Document `{format_version, kind, fingerprint, payload}`; `payload` flat and self
 
 ## Writing `.sav` — `pulse export spss`
 
-`spss.BuildDictionary(spss.DictionaryRequest{Schema, Sidecar, Cases, Compression, Options})` emits the dictionary section — header, record `2` variable records, records `3`/`4` value labels, the `7/*` subtypes, the `999` terminator — returning a `DictionaryPlan`. `spss.NewDataEncoder(plan, schema)` writes the data section (`WriteCohort(r)` drains a `.pulse` record stream, `WriteCase` takes one record, `Finish()` returns bytes). File = `plan.Bytes` + those.
+`BuildDictionary(DictionaryRequest{Schema, Sidecar, Cases, Compression, Options})` (`internal/io/spss`) emits the dictionary section — header, record `2` variable records, records `3`/`4` value labels, the `7/*` subtypes, the `999` terminator — returning a `DictionaryPlan`. `NewDataEncoder(plan, schema)` writes the data section (`WriteCohort(r)` drains a `.pulse` record stream, `WriteCase` takes one record, `Finish()` returns bytes). File = `plan.Bytes` + those.
 
 - **Bytecode compression is the default** (what SPSS's own SAVE writes). `WriterOptions{Uncompressed: true}` (`.Compression()` resolves the header flag) writes flat 8-byte elements; losslessly equivalent, so the knob trades size for a readable hex dump.
 - **ZSAV emission is not implemented** — `PULSE_SPSS_COMPRESSION_UNSUPPORTED`.
@@ -156,7 +156,7 @@ Document `{format_version, kind, fingerprint, payload}`; `payload` flat and self
 
 ### The CLI surface, and the one contract mismatch behind it
 
-`pulse export spss -i cohort.pulse -o out.sav`; `pulse convert data.csv out.sav` reaches the same writer. Four flags, one per `spss.WriterOptions` field: `--ignore-sidecar`, `--uncompressed`, `--charset`, `--sanitize-names`. Per-flag detail: `session-bootstrap`, `docs/src/cli/export-spss.md`.
+`pulse export spss -i cohort.pulse -o out.sav`; `pulse convert data.csv out.sav` reaches the same writer. Four flags, one per `io.SPSSWriterOptions` field: `--ignore-sidecar`, `--uncompressed`, `--charset`, `--sanitize-names`. Per-flag detail: `session-bootstrap`, `docs/src/cli/export-spss.md`.
 
 **The writer is a `pio.CohortWriter`, not a row writer.** A `.sav` value derives from a categorical's dictionary **ID**, a `set_*`'s mask **bits** and the **null bitmap** — all three gone once `ExportJob` rendered a row (a categorical resolves to label text and two codes may share one label; a null renders `""`, which a string categorical can legitimately hold). So `ExportJob.Run` hands over the cohort path and **skips its row loop**; `WriteRow` is never called. Hence:
 
@@ -166,7 +166,7 @@ Document `{format_version, kind, fingerprint, payload}`; `payload` flat and self
 
 **`pulse convert survey.sav out.sav` carries the source through** — the `pio.SourceAwareWriter` / `pio.ConvertSource` channel, `SetConvertSource` before `WriteHeader`. The rebuilt cohort takes the source's **declared schema** instead of inferring one, and the source's **sidecar** is written against it (the source `Reader`'s own `WriteSidecar`, which re-fingerprints — the source's copy describes the source cohort and would read back `PULSE_SPSS_SIDECAR_STALE`). Without both, a `.sav` → `.sav` convert was strictly worse than import-then-export: the derived MD column was unrecognisable as derived, so synthesis minted indicator variables colliding with the real constituents (`PULSE_SPSS_NAME_COLLISION` — *every* multiple-dichotomy cohort, at every width), a `set_*` rung re-inferred only as wide as the options somebody ticked, and a value-labelled numeric came back a STRING of bare numerals. Carried only when the emitted rows are faithful to the schema — one cell per field, in field order, so `--include` or a label binding carries nothing and the target infers as before. A text source declares nothing, so inference stays its fallback.
 
-**Ask first — `pulse export predict --format spss`.** The `.sav` writer is the first Pulse writer that can REFUSE, so predict consults the target through the optional `pio.CohortValidator` contract (`spss.Writer.ValidateCohort`): it runs the writer's own non-data pass (sidecar resolution, dictionary build, name policy, charset transcode, derived fold) and discards it, so a predicted refusal is the export's own check code for code — `PULSE_SPSS_SIDECAR_ABSENT` predicts as a warning on `PredictReport.TargetWarnings` exactly as it exports as one. Pass the flags you will export with; `--sanitize-names` flips a `PULSE_SPSS_NAME_INVALID` refusal into a warning. **Sound but INCOMPLETE:** anything needing a record — a value past a declared width, an unformable character, a dictionary ID with no source code — is unreachable without the data pass, so a pass means no SCHEMA-level refusal was found, never that the export cannot fail. Writes no file; no `--format` ⇒ target-blind as before.
+**Ask first — `pulse export predict --format spss`.** The `.sav` writer is the first Pulse writer that can REFUSE, so predict consults the target through the optional `pio.CohortValidator` contract (the SPSS writer's `ValidateCohort`): it runs the writer's own non-data pass (sidecar resolution, dictionary build, name policy, charset transcode, derived fold) and discards it, so a predicted refusal is the export's own check code for code — `PULSE_SPSS_SIDECAR_ABSENT` predicts as a warning on `PredictReport.TargetWarnings` exactly as it exports as one. Pass the flags you will export with; `--sanitize-names` flips a `PULSE_SPSS_NAME_INVALID` refusal into a warning. **Sound but INCOMPLETE:** anything needing a record — a value past a declared width, an unformable character, a dictionary ID with no source code — is unreachable without the data pass, so a pass means no SCHEMA-level refusal was found, never that the export cannot fail. Writes no file; no `--format` ⇒ target-blind as before.
 
 **Names are policed and the default is a refusal.** A `.pulse` field name is any UTF-8 string; an SPSS variable name is ≤64 bytes, opens with a letter, unique ignoring case. All three ways an illegal name fails are quiet — records `7/13`, `7/7` and the case-fold rule each produce a well-formed file saying something else — so an offender is `PULSE_SPSS_NAME_INVALID` / `PULSE_SPSS_NAME_COLLISION`. `--sanitize-names` is the opt-in escape hatch for the synthesised path, where a CSV header's spaces and brackets are ordinary: deterministic, collision-safe against other renames **and** against already-legal names (which never move), every rename reported as `PULSE_SPSS_NAME_SANITIZED` with the full `field → name` list. Inert on the sidecar path — those names came from SPSS.
 
@@ -201,7 +201,7 @@ Fidelity is this adapter's whole justification, so be precise about PROVEN vs. P
 
 **Order is the crux: encode, measure, segment.** A >255-byte string re-segments per `7/14` on a fixed 252-byte stride, so a multi-byte character *can* straddle a boundary — the reader joins pieces before decoding, exactly as the writer encodes the whole value before slicing. Segmenting the UTF-8 form first would put a partial character on the wire.
 
-`--charset` / `WriterOptions{Charset}` overrides the target — the answer to a cohort whose text outgrew its source codepage. `spss.WithCharset` is read-side *decoding* only, not consulted here. An unwritable name ⇒ `PULSE_SPSS_CHARSET_UNSUPPORTED`, never a silent fall back. Records `7/10`, `7/17`, `7/18` pass through **verbatim** (the reader never decodes them) — the one case where overriding the target is lossy, so a non-ASCII payload rides `PULSE_SPSS_CHARSET_MISMATCH` as a warning rather than being guessed at.
+`--charset` / `io.SPSSWriterOptions{Charset}` overrides the target — the answer to a cohort whose text outgrew its source codepage. `io.SPSSReaderOptions{Charset}` is read-side *decoding* only, not consulted here. An unwritable name ⇒ `PULSE_SPSS_CHARSET_UNSUPPORTED`, never a silent fall back. Records `7/10`, `7/17`, `7/18` pass through **verbatim** (the reader never decodes them) — the one case where overriding the target is lossy, so a non-ASCII payload rides `PULSE_SPSS_CHARSET_MISMATCH` as a warning rather than being guessed at.
 
 ## Cross-links
 

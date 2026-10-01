@@ -123,7 +123,7 @@ which are the standard `{code, message, details}` shape.
 
 ## The metadata sidecar: absent, stale, ignored
 
-The writer's first act is `spss.LoadSidecar` against
+The writer's first act is loading the sidecar (`LoadSidecar` in `internal/io/spss`) against
 `<cohort>.pulse.spss.json`. Four outcomes, and the split between them is
 the single most load-bearing design decision on this page:
 
@@ -155,7 +155,7 @@ metadata or a synthesised default — never fresh-or-stale.
 
 ## Flags
 
-Four flags, each exactly one field of `spss.WriterOptions`.
+Four flags, each exactly one field of `io.SPSSWriterOptions` (`io.WriterOptions.SPSS`).
 `--ignore-sidecar`, `--uncompressed` and `--sanitize-names` are also on
 `pulse convert` / `convert predict`; `--charset` on `convert` names the
 *source* charset, so the write charset is settable only on this leaf.
@@ -196,7 +196,7 @@ a `cp1252` record `7/20`. A cohort with no SPSS provenance defaults to
 UTF-8. Set it when the cohort now holds text the source's codepage cannot
 express, which is otherwise `PULSE_SPSS_CHARSET_UNENCODABLE`.
 
-`spss.WithCharset` on the read side changes *decoding* only and is
+`io.SPSSReaderOptions{Charset}` on the read side changes *decoding* only and is
 deliberately not consulted here.
 
 ### `--sanitize-names`

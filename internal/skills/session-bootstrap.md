@@ -95,7 +95,7 @@ Per-format READ knobs the file cannot always answer itself; all ride `io.ReaderO
 
 ## Target-format CLI flags
 
-Four `.sav` WRITE knobs, one per `spss.WriterOptions` field. All on `pulse export spss`; `--ignore-sidecar`, `--uncompressed`, `--sanitize-names` also on `convert` / `convert predict` (`convert`'s `--charset` is the SOURCE charset, so the write charset is export-only). Full model: `spss-cohorts` (Writing `.sav`), `docs/src/cli/export-spss.md`.
+Four `.sav` WRITE knobs, one per `io.SPSSWriterOptions` field (`io.WriterOptions.SPSS`). All on `pulse export spss`; `--ignore-sidecar`, `--uncompressed`, `--sanitize-names` also on `convert` / `convert predict` (`convert`'s `--charset` is the SOURCE charset, so the write charset is export-only). Full model: `spss-cohorts` (Writing `.sav`), `docs/src/cli/export-spss.md`.
 
 | Flag | Must know |
 |---|---|

@@ -8,7 +8,7 @@ to generate client types, or to drive editor autocompletion.
 ## Where to get it
 
 The schema is reachable three ways, all backed by the same generator
-(`descriptor.BuildPayloadSchema`):
+(`BuildPayloadSchema` in `internal/descriptor`):
 
 | Surface | How |
 |---|---|

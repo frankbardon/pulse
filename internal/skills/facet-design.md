@@ -58,7 +58,7 @@ Single-pass when: no `numeric_percentiles`; AND `include_histogram=false` OR `hi
 
 Common contract: `Ref.Population` REQUIRED (`Cohort` names the comparison `.pulse`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Scope = group` only; `Level = 0`, `Within = 0` (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). Host-field via `OverlaySpec.Params["field"]`; omit only when FacetRequest has one Field. Unknown field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE` with `{field, available_fields}`. `CHISQ_VS_POP` against numeric host ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`; `KS_VS_POP` against categorical ⇒ `_SCOPE_UNSUPPORTED`. Runtime recurses `FacetSchema` against the population, forwarding `NumericPercentiles`/`IncludeHistogram`.
 
-Mixing streamable + buffered kinds forces the orchestrator buffered; descriptive math stays byte-equivalent. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per-entry for INDEX/ZSCORE; once per layer for degenerate populations on CHISQ/KS), `PULSE_OVERLAY_EXPECTED_LOW` (CHISQ_VS_POP when any expected cell `< 5`). Service wiring at `internal/service/facet_overlay.go`; predict validator at `descriptor.ValidateFacetOverlays`.
+Mixing streamable + buffered kinds forces the orchestrator buffered; descriptive math stays byte-equivalent. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per-entry for INDEX/ZSCORE; once per layer for degenerate populations on CHISQ/KS), `PULSE_OVERLAY_EXPECTED_LOW` (CHISQ_VS_POP when any expected cell `< 5`). Service wiring at `internal/service/facet_overlay.go`; predict validator at `internal/descriptor.ValidateFacetOverlays`.
 
 ## Picking FacetSchema vs Process
 

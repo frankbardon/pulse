@@ -16,7 +16,7 @@ they just buffer once internally before yielding.
 ## The iterator API
 
 ```go
-type RowIter = service.RowIter
+type RowIter = internal/service.RowIter
 
 // In service:
 type RowIter interface {
@@ -25,7 +25,7 @@ type RowIter interface {
     Metadata() *ResponseMetadata
 }
 
-type Row = service.Row // map[string]any
+type Row = internal/service.Row // map[string]any
 ```
 
 Usage:

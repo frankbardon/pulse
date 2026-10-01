@@ -346,8 +346,8 @@ fine.
 Five methods, all on `*pulse.Pulse`:
 
 ```go
-summaries := p.ListTemplates()                        // []template.Summary
-tmpl, err := p.GetTemplate("finance/revenue")         // *template.Template
+summaries := p.ListTemplates()                        // []pulse.TemplateSummary
+tmpl, err := p.GetTemplate("finance/revenue")         // *pulse.Template
 rendered, err := p.RenderTemplate(name, vars)         // *pulse.RenderedTemplate — all five targets
 req, err := p.RenderTemplateRequest(name, vars)       // *types.Request — the 95% path
 err = p.ReloadTemplates()                             // force a rescan now

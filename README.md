@@ -274,7 +274,7 @@ Two prompts (`pulse-bootstrap`, `pulse-author-request`) are registered for hosts
 
 After a successful `pulse_inspect`, the server registers session-scoped variants of the action tools whose JSON Schemas embed enums on field-name parameters — picked from a typed list rather than free-texted. Works on SSE / Streamable HTTP transports; on stdio the session does not support tool overrides, so enums are advisory and `pulse_predict` remains the validation gate. Disable with `--bind-on-open=false`.
 
-The `mcp-integration` skill (`pulse skills show mcp-integration`) is the authoritative reference.
+The `session-bootstrap` skill (`pulse skills show session-bootstrap`) and the `tool-*` skills are the authoritative reference.
 
 ## Embedding Pulse in a Go Application
 
@@ -381,38 +381,48 @@ Counts as currently registered (the manifest is the source of truth — `pulse -
 
 ## LLM Skill Pack
 
-Pulse bundles 22 skill documents that teach LLM agents how to operate it. Skills are embedded via `//go:embed` — no external files.
+Pulse bundles a skill pack that teaches LLM agents how to operate it. Skills are embedded via `//go:embed` — no external files. `pulse skills list` (or the manifest's `skills` block) is the authoritative listing; this README does not keep a count.
 
 ### Discovering skills
 
 ```bash
 pulse skills list
 pulse skills list --json
-pulse skills show aggregation-guide
+pulse skills show session-bootstrap
 ```
 
 ### Bundled skills
 
+The pack has two shapes. **Atomic** skills cover one registered surface each, and their name says which: `op-<category>-<kebab>` per operator (`op-agg-sum`, `op-group-date`, `op-test-t`, …), `tool-<kebab>` per MCP tool (`tool-process`, `tool-predict`, …) and `type-<kebab>` per field type (`type-categorical-u8`, `type-set-u256`, …). **Topical** skills cover cross-cutting design:
+
 | Skill | Purpose |
 |---|---|
-| `getting-started` | Pulse vocabulary, MCP tool surface, file format, operator catalog |
-| `cohort-schema-design` | Field types, nullability, bit-packing, descriptions |
-| `aggregation-guide` | Aggregator selection (AGG_*) and filterer selection (FILTER_*) |
-| `attribute-composition` | ATTR_* derived columns: z-score, formula, percentile, date_part |
-| `grouper-design` | CATEGORY, RANGE, ROUNDED, DATE, QUANTILE |
-| `window-operations` | LAG/LEAD/RANK/MOVING_AVG/EWMA partitioning and frame semantics |
-| `feature-engineering` | Pre-filter FEAT_* operators for ML pipelines + leakage trap |
-| `statistical-testing` | Tier-1 row tests and tier-2 post-tests |
-| `regression-modeling` | OLS, GLM, Bayesian linear; modifiers; 13 textbook names mapped |
-| `synthetic-data` | Distributions, correlations, constraints |
-| `compose-requests` | Multi-request batching against one cohort |
-| `debugging-with-predict` | Iterating with `pulse_predict` / `pulse api predict` |
-| `error-code-reference` | Reading envelopes; calling `pulse_errors_lookup` |
-| `import-best-practices` | Schema inference, fail-closed semantics, PULSE_IMPORT_* |
-| `export-format-selection` | CSV / TSV / NDJSON / JSON array / Parquet / Arrow / Excel |
-| `financial-cohorts` | decimal128 semantics for money |
-| `mcp-integration` | MCP tool surface, schema-bound enums, session bootstrap |
-| `contributor-workflow` | Recipes for extending Pulse |
+| `session-bootstrap` | Canonical MCP session order — start here |
+| `request-envelope` | Request shapes, slot keys, smart defaults, streamability |
+| `cohort-schema-design` | Field-type selection, nullability, shard archives |
+| `aggregation-design` | Aggregator + filterer slot semantics |
+| `attribute-composition` | `ATTR_*` slot ordering and the formula environment |
+| `grouper-design` | Multi-grouper composition, smart defaults per type |
+| `window-design` | `WIN_*` partition / order / frame semantics |
+| `feature-engineering` | Pre-filter `FEAT_*` ordering and the leakage trap |
+| `statistical-testing` | Tier-1 tests vs tier-2 post-tests, assumption gates |
+| `regression-modeling` | `REG_*` operators, modifiers, textbook-name mapping |
+| `crosstab-guide` | Rows × columns grids, margins, normalization, fused vs buffered |
+| `compose-requests` | Batched requests against one cohort, parallel Compose |
+| `process-chain` | Source-rooted linear pipelines |
+| `join-design` | Pushdown hash joins |
+| `facet-design` | Per-field summaries and facet overlays |
+| `overlay-system` | Overlay composition and host wiring |
+| `pairwise-n-sources` | Sample-size vocabulary for pairwise overlays |
+| `response-components` | `Response.Components` — the parts behind every figure |
+| `label-display` | Display labels at output time |
+| `streaming-and-watching` | Request hashing, streaming, `Watch`, derived cohorts |
+| `request-templating` | Stored parameterised requests |
+| `financial-cohorts` | `decimal128` money semantics |
+| `spss-cohorts` | SPSS `.sav` / `.zsav` import and `.sav` writing |
+| `synthetic-data` | `synth from-schema` / `from-profile`, correlations, determinism |
+| `synth-models` | `--fit-models` capture and fidelity recovery |
+| `synth-structural-rules` | Synth spec `rules[]` and `constraints[]` |
 
 ### From Go
 

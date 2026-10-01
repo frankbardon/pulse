@@ -123,6 +123,6 @@ carries that.
    - `TestExamples_OperatorsMatchBody`
    - `TestExamples_CategoryMatchesDirectory`
    - `TestManifestExamplesPopulated`
-4. The annotation tool at `cmd/annotate-examples/` is idempotent and may be
-   re-used; updating its in-source `annotations` slice and re-running will
-   rewrite the file's `_meta` block in canonical form.
+4. Keep the `_meta` block in sync by hand when the body changes —
+   `TestExamples_OperatorsMatchBody` fails the moment `operators` drifts
+   from the types the request actually uses.

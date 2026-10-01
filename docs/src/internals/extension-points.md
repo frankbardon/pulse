@@ -506,9 +506,9 @@ components-contract failures are listed in the table above.
 The plumbing that fills that block is the **extensions snapshot**
 (`extensions_snapshot.go`). `buildExtensionsSnapshot(ext)` translates
 the public `Extensions` struct into the read-only
-`descriptor.ExtensionsSnapshot` projection (`internal/descriptor`; not
+`internal/descriptor.ExtensionsSnapshot` projection (`internal/descriptor`; not
 importable by embedders — the facade fills it). The snapshot is passed
-into `descriptor.PredictOptions.Extensions` and into
+into `internal/descriptor.PredictOptions.Extensions` and into
 `mcp.BindWithExtensions` (`internal/mcp`; `mcp/gosdk` reaches the
 instance's snapshot through the `internal/facadebridge` hook) so the descriptor layer stays
 free of `internal/service/` and `processing/` imports — the no-execute
@@ -663,7 +663,7 @@ The hook is plumbed via `buildRuntimeExtensions` into
 callback — that second case is what triggers the extractor to widen.
 
 The retained set `NeededFields` returns feeds
-`Schema.BuildDecodePlan`. A registration **with** `FieldInputs`
+`internal/encoding.BuildDecodePlan(schema, retained)`. A registration **with** `FieldInputs`
 participates normally — its contributed fields land in the retained
 set and the plan emits `SkipBytes` segments for every contiguous
 unprojected run, so unread byte ranges advance with a single `Seek`.

@@ -56,7 +56,7 @@ Two slots resolving to the same final label (caller duplicates OR caller-vs-auto
 
 `ComposedRequest.Overlays []OverlaySpec` runs AFTER every slot finalises. The fold reads each slot's already-emitted `Response.Crosstab` / `Response.Data` / `Response.Components` (read-only) and writes a sibling `Response.Overlays[i]` entry. **The fold never mutates per-slot `Components` or the per-slot payload** — overlays are an additive decoration keyed to host coordinates (see `skills/overlay-system.md`).
 
-Compose-only kinds (`OVERLAY_PROP_Z_PANEL`, `OVERLAY_PANEL_INDEX_VS_REF`, etc.) resolve `Reference.SlotLabel` / `Target.SlotLabel` against the auto-or-explicit labels above. Schema-divergence (per-axis grouper-kind tuple mismatch) is the most common reject; the no-execute companion `descriptor.ValidateCompose(req)` walks every overlay against per-slot request shapes (MATRIX / SERIES / SCALAR) and populates `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` with `(ReferenceLabel, TargetLabel, Reason)` for every offender. Run it before paying for `pulse_compose`.
+Compose-only kinds (`OVERLAY_PROP_Z_PANEL`, `OVERLAY_PANEL_INDEX_VS_REF`, etc.) resolve `Reference.SlotLabel` / `Target.SlotLabel` against the auto-or-explicit labels above. Schema-divergence (per-axis grouper-kind tuple mismatch) is the most common reject; the no-execute companion `internal/descriptor.ValidateCompose(req)` walks every overlay against per-slot request shapes (MATRIX / SERIES / SCALAR) and populates `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` with `(ReferenceLabel, TargetLabel, Reason)` for every offender. Run it before paying for `pulse_compose`.
 
 ### Optional fast-path knob
 
@@ -68,7 +68,7 @@ Every slot's `Response.Components` is emitted independently — the universal fl
 
 ## Validate before executing
 
-`pulse_predict` has no batch mode in v1 — loop per slot to catch field typos, missing categorical dicts, or aggregator-type mismatches before paying for `pulse_compose`. For `ComposedRequest.Overlays` use `descriptor.ValidateCompose` (no-execute, walks every spec against per-slot shapes).
+`pulse_predict` has no batch mode in v1 — loop per slot to catch field typos, missing categorical dicts, or aggregator-type mismatches before paying for `pulse_compose`. For `ComposedRequest.Overlays` use `internal/descriptor.ValidateCompose` (no-execute, walks every spec against per-slot shapes).
 
 ## See
 

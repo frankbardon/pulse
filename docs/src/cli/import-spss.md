@@ -551,7 +551,7 @@ on.
 
 | Kind | Opt out | Cost |
 |---|---|---|
-| `numeric_missing` | `--spss-missing=null` / `spss.WithMissingMode(spss.MissingNull)` | Identical nulls in the analytic column; the *reason* is no longer in the cohort. The full specification still rides the sidecar, so a re-import recovers the vocabulary — but not which row had which reason. |
+| `numeric_missing` | `--spss-missing=null` / `io.SPSSReaderOptions{MissingMode: io.SPSSMissingNull}` | Identical nulls in the analytic column; the *reason* is no longer in the cohort. The full specification still rides the sidecar, so a re-import recovers the vocabulary — but not which row had which reason. |
 | `multiple_dichotomy` | no flag | It is the ergonomic half of the additive design and costs one column per set. The constituents carry the fidelity either way, so suppressing it would remove convenience and change nothing else. |
 
 Neither knob changes the categorical arm: a `categorical_*` column keeps
@@ -595,9 +595,9 @@ place to generate a label table from.
 > cohorts.** The loader parses **every** `*.json` beneath that root as a
 > label table, but it excludes Pulse's own sidecars by suffix before
 > reading them — the SPSS metadata sidecar written next to every
-> imported cohort (`cohort.pulse.spss.json`, `spss.SidecarSuffix`) and
+> imported cohort (`cohort.pulse.spss.json`, `.spss.json` suffix) and
 > the managed-import sidecar (`cohort.pulse.meta.json`,
-> `imports.SidecarSuffix`). A skipped sidecar registers no label table
+> `internal/imports.SidecarSuffix`). A skipped sidecar registers no label table
 > under any name.
 >
 > That is an exclusion of files Pulse knows are its own, **not**
@@ -770,7 +770,9 @@ $ pulse import spss -i survey.sav -o survey.pulse --charset windows-1252
 ```
 
 ```go
-r := spss.NewReader(fs, "survey.sav", spss.WithCharset("windows-1252"))
+r, err := io.NewReader(io.FormatSPSS, fs, "survey.sav", io.ReaderOptions{
+	SPSS: io.SPSSReaderOptions{Charset: "windows-1252"},
+})
 ```
 
 It changes **decoding only**; the file's own declaration is still

@@ -2,7 +2,7 @@
 
 Relocated from CLAUDE.md (section `## Skill Pack`). CLAUDE.md keeps the always-load half inline — the two skill shapes, the stem convention, the budget headline, and the fact that there is **no `skills/index.json`: the filesystem walk is the manifest**. Everything below is the long form it points at.
 
-**Load it before adding or restructuring a skill file**, changing frontmatter keys, changing the required `##` section set for a family, or moving a token budget — `skills/atomic_test.go` and `skills/coverage_test.go` enforce every rule below.
+**Load it before adding or restructuring a skill file**, changing frontmatter keys, changing the required `##` section set for a family, or moving a token budget — `internal/skills/atomic_test.go` and `internal/skills/coverage_test.go` enforce every rule below.
 
 The pack under `skills/` is the LLM surface, embedded via `//go:embed *.md`. Two skill shapes — **atomic** (one file per registered surface) and **topical** (one file per cross-cutting design topic).
 

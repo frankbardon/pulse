@@ -11,7 +11,7 @@ buffered execution. This page tells you what stays streaming, what
 buffers, and how to read predict's diagnostics.
 
 > **LLM agents using MCP:** there is no direct skill counterpart for
-> this page — `debugging-with-predict` covers how to drive predict;
+> this page — `tool-predict` covers how to drive predict;
 > this page tells operators what predict's answers imply.
 
 ## Streaming path: what stays out of memory

@@ -4,7 +4,7 @@ Relocated verbatim from CLAUDE.md (section `## Request templating`). CLAUDE.md k
 
 Load it before changing the request-template document model (`template.Template` / `Variable` / `Summary` wrapper keys), the variable type set (`template.AllVarTypes`), the target set (`template.AllTargets`), or the substitution syntax (`$var` / `{{}}` / `$when`) — CLAUDE.md's Update Demand table names this file as a required companion for exactly that trigger.
 
-`format_version` does NOT move for anything described here: `template.Template` / `Variable` / `Summary` / `Rendered` live in `internal/template/`, not `types/`, so they are unreachable from `descriptor.BuildPayloadSchema` and `descriptor/testdata/payload-schema.json` is untouched.
+`format_version` does NOT move for anything described here: `template.Template` / `Variable` / `Summary` / `Rendered` live in `internal/template/`, not `types/`, so they are unreachable from `internal/descriptor.BuildPayloadSchema` and `descriptor/testdata/payload-schema.json` is untouched.
 
 ## Contents
 
@@ -46,6 +46,6 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 
 **Render never opens a cohort.** A rendering template is well-formed against the request *shape* only; field existence, type compatibility, operator applicability and streamability stay `Predict`'s job. Strict decode is harsher than the rest of Pulse — a body pasted from an `internal/examples/` file with its `_meta` block attached fails `_RENDER_INVALID`. `Rendered.JSON` is retained alongside the typed value on purpose: re-marshaling the typed request would NOT reproduce it, because the request structs are dense with `omitempty` and any slot that rendered to an explicit zero would vanish on a round trip — echo `Rendered.JSON`, never a re-marshal.
 
-**`format_version` stays `"1.1"`.** Nothing payload-reachable changed: `Options.TemplateDirs` is not a payload type, and `template.Template` / `Variable` / `Summary` / `Rendered` live in `internal/template/`, not `types/`, so they are not reachable from `descriptor.BuildPayloadSchema`. `descriptor/testdata/payload-schema.json` is untouched by templating; only the manifest golden moved, and only for the nine new error codes.
+**`format_version` stays `"1.1"`.** Nothing payload-reachable changed: `Options.TemplateDirs` is not a payload type, and `template.Template` / `Variable` / `Summary` / `Rendered` live in `internal/template/`, not `types/`, so they are not reachable from `internal/descriptor.BuildPayloadSchema`. `descriptor/testdata/payload-schema.json` is untouched by templating; only the manifest golden moved, and only for the nine new error codes.
 
 Env var: `PULSE_TEMPLATES_DIR` — see "Build / Env". Detail: `skills/request-templating.md` + `docs/src/library/request-templating.md`.

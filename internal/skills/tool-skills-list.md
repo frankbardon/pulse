@@ -16,7 +16,7 @@ No arguments.
 
 ## Output
 
-`descriptor.Envelope` wrapping `[]skills.Metadata`. Each entry carries `Name`, `Description`, `Type` (`guide` | `reference`), `AppliesTo` (CLI leaves), `Kind` (`operator` | `tool` | `type` | `design`), `Category` (operator family, when applicable), `Operator` (full constant, when atomic), `Covers` (for design skills), `ExamplesTags`. Sorted by `Name`.
+`descriptor.Envelope` wrapping `[]internal/skills.Metadata`. Each entry carries `Name`, `Description`, `Type` (`guide` | `reference`), `AppliesTo` (CLI leaves), `Kind` (`operator` | `tool` | `type` | `design`), `Category` (operator family, when applicable), `Operator` (full constant, when atomic), `Covers` (for design skills), `ExamplesTags`. Sorted by `Name`.
 
 ## Gotchas
 

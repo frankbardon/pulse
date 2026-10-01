@@ -70,7 +70,7 @@ The joined schema unions left + right field names. Two fields with the same name
 
 ## Validation surface
 
-`descriptor.ValidateJoin(left, right io.ReadSeeker, req)` is the no-execute predict equivalent. Reads both files' header + schema, validates every `OnPair`, emits the inferred joined field list at `result.joined_fields`. Error codes mirror runtime: `PULSE_JOIN_KIND_NOT_IMPLEMENTED`, `PULSE_JOIN_FIELD_UNKNOWN`, `PULSE_JOIN_TYPE_MISMATCH`, `PULSE_JOIN_KEYS_EMPTY`, `PULSE_JOIN_FIELD_COLLISION`, `PULSE_JOIN_TOO_MANY`. Descriptor manifest exposes `Manifest.Join` (`JoinCapability`) with the v1 kind allowlist, the spill envelope (zero today), and the limitations list.
+`internal/descriptor.ValidateJoin(left, right io.ReadSeeker, req)` is the no-execute predict equivalent. Reads both files' header + schema, validates every `OnPair`, emits the inferred joined field list at `result.joined_fields`. Error codes mirror runtime: `PULSE_JOIN_KIND_NOT_IMPLEMENTED`, `PULSE_JOIN_FIELD_UNKNOWN`, `PULSE_JOIN_TYPE_MISMATCH`, `PULSE_JOIN_KEYS_EMPTY`, `PULSE_JOIN_FIELD_COLLISION`, `PULSE_JOIN_TOO_MANY`. Descriptor manifest exposes `Manifest.Join` (`JoinCapability`) with the v1 kind allowlist, the spill envelope (zero today), and the limitations list.
 
 ## Performance notes
 

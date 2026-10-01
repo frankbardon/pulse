@@ -74,7 +74,7 @@ When `Target` is fully empty (`Index: nil` and `Name: ""`), the resolver default
 
 `_VS_STAGE` overlays only fire when ref + target produce the same host shape. When they diverge (`Ref` is SERIES, `Target` is MATRIX), runtime emits **one** `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` warning per spec and surfaces an empty payload inheriting the target's shape — no-op, NOT fatal.
 
-Shape inference (`inferChainStageShape`): `req.Crosstab != nil ⇒ MATRIX`; `Aggregations + Groups ⇒ SERIES`; `Aggregations` only ⇒ SCALAR. `descriptor.ValidateChain` walks `ChainRequest.Overlays` after the per-stage gate and emits:
+Shape inference (`inferChainStageShape`): `req.Crosstab != nil ⇒ MATRIX`; `Aggregations + Groups ⇒ SERIES`; `Aggregations` only ⇒ SCALAR. `internal/descriptor.ValidateChain` walks `ChainRequest.Overlays` after the per-stage gate and emits:
 
 - `PULSE_OVERLAY_KIND_UNKNOWN` — outside `OVERLAY_INDEX_VS_STAGE` / `OVERLAY_DELTA_VS_STAGE`.
 - `PULSE_OVERLAY_REFERENCE_UNKNOWN` / `PULSE_OVERLAY_TARGET_UNKNOWN` — `StageRef` resolution failure (Index OOR, Name unmatched, XOR violated).

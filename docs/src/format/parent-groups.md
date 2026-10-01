@@ -99,12 +99,12 @@ write and read.
 `pulse import <format> --elide-constants` (library:
 `io.ImportJob.ElideConstants`, default off) folds every field that holds
 one value on every imported row into a single constant group. Constancy
-is decided over the FULL row pass (`encoding.ConstantDetector`), never
+is decided over the FULL row pass (`internal/encoding.ConstantDetector`), never
 the bounded inference sample — a column constant across the first 500
 rows may vary later. Two cells are the same value iff their on-wire
 bytes and null bits match: a column null on every row is a null
 constant; a value plus some nulls is not constant. The plan
-(`encoding.PlanConstantElision`) elides nothing below two rows, nothing
+(`internal/encoding.PlanConstantElision`) elides nothing below two rows, nothing
 when the schema-block growth would exceed the per-row saving (the file
 is then byte-identical `0x01`), and keeps the lowest-index field in the
 row when every field is constant. The elided fields are reported in
@@ -153,7 +153,7 @@ A badly chosen group does not fail — it quietly makes the file bigger
 (every row still pays the 4-byte index, and the dictionary holds one
 entry per distinct tuple) and holds its whole dictionary in memory
 whenever the cohort is open. Each declared group is therefore judged on
-its own numbers (`encoding.DedupGate`, shared by import and
+its own numbers (`internal/encoding.DedupGate`, shared by import and
 retro-dedup); one group can be admitted while another on the same
 import is not.
 
@@ -247,7 +247,7 @@ field with no per-row bytes.
 The ratio needs no scan: the entry count is in the schema block and the
 record count comes from the file length (`RecordCountForPayload`), so
 `ratio = record_count ÷ entry_count`. The figures come from the same
-`encoding.AssessGroup` import uses, so they equal `ImportReport.Groups`
+`internal/encoding.AssessGroup` import uses, so they equal `ImportReport.Groups`
 for the same file. `verdict` re-applies the gate at the DEFAULT floor
 of 2 — a group imported under a different `--dedup-ratio-floor` can
 read differently — and is a figure, never an envelope warning. The file
