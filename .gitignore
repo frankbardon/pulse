@@ -4,6 +4,7 @@
 
 # Binaries
 bin/
+dist/
 *.exe
 *.exe~
 *.dll
