@@ -30,6 +30,9 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Embedder smoke module
+        run: make smoke
+
   lint:
     runs-on: ubuntu-latest
     steps:

@@ -1,4 +1,4 @@
-.PHONY: build clean dist test cover fmt vet lint bench docs docs-serve docs-clean
+.PHONY: build clean dist test smoke cover fmt vet lint bench docs docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -35,6 +35,15 @@ dist:
 
 test:
 	$(GO) test ./...
+
+# smoke builds, vets and tests internal/embeddersmoke: a separate Go
+# module (own go.mod, replace => ../..) that embeds Pulse through the
+# exported surface only, so an API an embedder needs that slipped under
+# internal/ fails here. The root ./... never descends into it (nested
+# go.mod). -mod=mod lets a root dependency bump flow through without a
+# hand-run `go mod tidy` in the nested module.
+smoke:
+	cd internal/embeddersmoke && GOFLAGS=-mod=mod $(GO) vet ./... && GOFLAGS=-mod=mod $(GO) test -count=1 ./...
 
 cover:
 	$(GO) test -coverprofile=coverage.out ./...
