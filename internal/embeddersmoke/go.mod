@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/frankbardon/pulse v0.0.0
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/spf13/afero v1.15.0
 )
 
