@@ -5,7 +5,7 @@ title: "Every feature has a name, and a profile file can declare an instance's f
 track: Feature profiles
 size: M
 status: not-started
-depends_on: [U02]
+depends_on: [U02, U02b]
 soft_depends_on: []
 blocks: [U05, U11, U13]
 todo_items: [10, 11, 12, 13, 14, 15, 16]
@@ -16,7 +16,7 @@ branch: profiles-model
 
 **Outcome:** Every feature has a name, and a profile file can declare an instance's feature set.
 
-**Track:** Feature profiles · **Size:** M · **Depends on:** [U02](U02-public-surface.md) · **Unblocks:** [U05](U05-profiles-enforcement.md), [U11](U11-weighting-descriptive.md), [U13](U13-multiplicity.md)
+**Track:** Feature profiles · **Size:** M · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) · **Unblocks:** [U05](U05-profiles-enforcement.md), [U11](U11-weighting-descriptive.md), [U13](U13-multiplicity.md)
 
 ## Summary
 

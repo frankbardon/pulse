@@ -5,7 +5,7 @@ title: "Pulse can describe what each operator is for, in plain language, without
 track: Guided analysis
 size: M
 status: not-started
-depends_on: [U02]
+depends_on: [U02, U02b]
 soft_depends_on: [U04]
 blocks: [U08]
 todo_items: [36, 37, 38, 39, 40, 41, 42]
@@ -16,7 +16,7 @@ branch: guidance-metadata
 
 **Outcome:** Pulse can describe what each operator is for, in plain language, without bloating payloads.
 
-**Track:** Guided analysis · **Size:** M · **Depends on:** [U02](U02-public-surface.md) · **Soft:** [U04](U04-profiles-model.md) · **Unblocks:** [U08](U08-guidance-backfill-inferential.md)
+**Track:** Guided analysis · **Size:** M · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) · **Soft:** [U04](U04-profiles-model.md) · **Unblocks:** [U08](U08-guidance-backfill-inferential.md)
 
 ## Summary
 

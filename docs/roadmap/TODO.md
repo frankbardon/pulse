@@ -16,10 +16,27 @@ Theme documents: see the [roadmap index](README.md).
 ## 1. API surface & release pipeline
 
 ### Public Go surface ([api-and-release 00](v1.0.0-api-and-release/00-public-surface.md))
-- [ ] **#1** Downstream usage catalog completed (maintainer) · [U02](units/U02-public-surface.md)
-- [ ] **#2** Classification per package decided (public / public-narrowed / internal) · [U02](units/U02-public-surface.md)
+- [x] **#1** Downstream usage catalog completed (maintainer) · [U02](units/U02-public-surface.md)
+- [x] **#2** Classification per package decided (public / public-narrowed / internal) · [U02](units/U02-public-surface.md)
 - [ ] **#3** Package moves and narrowing done; facade re-exports added · [U02](units/U02-public-surface.md)
 - [ ] **#4** API-compatibility check (`gorelease` / `apidiff`) in CI against the latest tag · [U02](units/U02-public-surface.md)
+- [ ] **#180** `io` factory: `io.NewReader` / `NewReaderFromBytes` / `NewWriter` / `NewWriterToBuffer` with typed `io.Format` constants and format knobs on typed sub-structs; `io/<fmt>` and `io/format` internal · [U02](units/U02-public-surface.md)
+- [ ] **#181** `Options.DisableCrosstabFusion` replaces `(*Pulse).Service()`, which is removed · [U02](units/U02-public-surface.md)
+- [ ] **#182** `(*Pulse).InspectBytes` / `PredictBytes` replace `descriptor.InspectFromBytes` / `PredictFromBytes`; the instance fills the extension snapshot · [U02](units/U02-public-surface.md)
+- [ ] **#183** `(*Pulse).IndexArtifacts(cohort) []string`; the index-manifest helpers move internal · [U02](units/U02-public-surface.md)
+- [ ] **#184** Root-native `DateRangeSpec`, `MemberSet`, `LoadMemberSetResult` (spelling unchanged) · [U02](units/U02-public-surface.md)
+
+#### Extension contract
+- [ ] **#185** Public `extend` package: aggregator, online aggregator, grouper + streaming variants, filterer builder / filter func, attribute and test interfaces, window and feature computers, factory types · [U02b](units/U02b-extension-contract.md)
+- [ ] **#186** `extend.Record`: a small read-only record interface (values, nulls, wide and set accessors), sized by an inventory of what built-in operators read · [U02b](units/U02b-extension-contract.md)
+- [ ] **#187** Registration adapts `extend` operators onto the engine; built-ins keep the concrete fast path; built-in vs adapted parity tests · [U02b](units/U02b-extension-contract.md)
+- [ ] **#188** `processing`, `processing/feature`, `processing/window` fully internal; any interim root aliases from U02 removed · [U02b](units/U02b-extension-contract.md)
+- [ ] **#189** `extension-points.md` and the `adding-*` recipes rewritten against `extend` · [U02b](units/U02b-extension-contract.md)
+
+#### Cohort facade
+- [ ] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
+- [ ] **#191** `CohortWriter` on the facade: schema + append rows, grouped (`0x02`) cohorts included · [U02c](units/U02c-cohort-facade.md)
+- [ ] **#192** `PredictResult.CrosstabFusable` (no-execute) with a runtime parity gate against the engine's fusion check; payload-schema golden regenerated, `format_version` stays `"1.1"` · [U02c](units/U02c-cohort-facade.md)
 
 ### Release pipeline ([api-and-release 01](v1.0.0-api-and-release/01-release-pipeline.md))
 - [ ] **#5** `internal/buildinfo` + `pulse.Version()`; ldflags injection; `ReadBuildInfo` fallback; `make build` uses `git describe` · [U01](units/U01-release-pipeline.md)
