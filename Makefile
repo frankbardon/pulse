@@ -3,7 +3,8 @@
 BINARY_NAME=pulse
 BUILD_DIR=bin
 GO=go
-LDFLAGS=-s -w
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo devel)
+LDFLAGS=-s -w -X github.com/frankbardon/pulse/internal/buildinfo.version=$(VERSION)
 BUILD_FLAGS=-trimpath -ldflags="$(LDFLAGS)"
 
 # Pulse is pure Go — no CGO dependency in the build graph. Disabling CGO
