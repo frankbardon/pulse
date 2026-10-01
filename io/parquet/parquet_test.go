@@ -14,7 +14,7 @@ import (
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/frankbardon/pulse/encoding"
-	pio "github.com/frankbardon/pulse/io"
+	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/io/csv"
 	"github.com/spf13/afero"
 )

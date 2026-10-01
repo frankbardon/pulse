@@ -33,7 +33,7 @@ import (
 // nil or empty layers leaves the Parquet output byte-identical to a
 // pre-overlay export (the "overlays" field is OMITTED from the schema
 // rather than emitted with empty lists). Implements
-// pio.OverlayAwareWriter.
+// iocore.OverlayAwareWriter.
 //
 // Must be called BEFORE WriteHeader so the lazily-built Arrow schema
 // includes the overlay field. Calling after the writer has been

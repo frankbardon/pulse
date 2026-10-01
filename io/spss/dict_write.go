@@ -153,7 +153,7 @@ var (
 // encoder can supply. Caller knobs ride Options.
 type DictionaryRequest struct {
 	// Schema is the `.pulse` cohort schema, as delivered through
-	// pio.SchemaAwareWriter.SetPulseSchema. Required.
+	// iocore.SchemaAwareWriter.SetPulseSchema. Required.
 	Schema *encoding.Schema
 
 	// Sidecar is [LoadSidecar]'s resolution. A nil resolution, or one whose

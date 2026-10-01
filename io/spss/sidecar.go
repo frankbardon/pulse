@@ -948,7 +948,7 @@ func (f *Float) UnmarshalJSON(b []byte) error {
 // ---------------------------------------------------------------------------
 
 // WriteSidecar builds the metadata sidecar for cohortPath and writes it
-// to SidecarPath(cohortPath), satisfying pio.SidecarEmitter.
+// to SidecarPath(cohortPath), satisfying iocore.SidecarEmitter.
 //
 // It is called by ImportJob.Run AFTER the cohort has been written,
 // which is not incidental: the fingerprint describes the cohort's

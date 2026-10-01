@@ -1,7 +1,7 @@
 # Transfer Compression (`.pulse.zst`)
 
 **Audience:** anyone moving cohorts between machines. Source of truth:
-[`io/transfer.go`](https://github.com/frankbardon/pulse/blob/main/io/transfer.go).
+[`internal/io/transfer.go`](https://github.com/frankbardon/pulse/blob/main/internal/io/transfer.go).
 
 Compression in Pulse is **transport-only**. A cohort is compressed to
 move it, and decompressed back to a byte-identical `.pulse` before it is

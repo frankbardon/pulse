@@ -85,7 +85,7 @@ package spss
 // every other cell this reader emits: io/import.go splits a set cell on
 // io.DefaultSetDelimiter ("|") and turns each token into a dictionary ID.
 // (ImportJob.SetDelimiters is inert under SchemaAwareReader — see the
-// contract on pio.SchemaAwareReader — so "|" is not a preference, it is the
+// contract on iocore.SchemaAwareReader — so "|" is not a preference, it is the
 // only delimiter available.) So a row selecting Q1A and Q1C renders
 // "Q1A|Q1C".
 //
@@ -120,7 +120,7 @@ package spss
 //   - more than maxSetElements constituents — the widest set type Pulse
 //     has still has a fixed number of bits, and a set naming more
 //     constituents than that has no honest mask. The ceiling is read off
-//     the shared ladder (pio.MaxSetElements), not written down here: it
+//     the shared ladder (iocore.MaxSetElements), not written down here: it
 //     moved from 64 to 256 when set_u128 / set_u256 landed, and a
 //     206-option battery that used to be refused now derives;
 //   - a member no record type 2 declares, or one named twice (one bit
@@ -167,7 +167,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 )
 
 // DerivedKindMultipleDichotomy is the sidecar [Derived] Kind of a
@@ -187,10 +187,10 @@ const DerivedKindMultipleDichotomy = "multiple_dichotomy"
 //
 // It is io.DefaultSetDelimiter and not a choice. The shared import path
 // splits a `set_*` cell on ImportJob.SetDelimiters[field], which is INERT
-// when the reader is a pio.SchemaAwareReader — the authoritative-schema
+// when the reader is a iocore.SchemaAwareReader — the authoritative-schema
 // contract says so explicitly — leaving DefaultSetDelimiter as the only
 // delimiter a cell this package emits will ever be split on.
-const setElementDelimiter = pio.DefaultSetDelimiter
+const setElementDelimiter = iocore.DefaultSetDelimiter
 
 // setEmptySelection is the cell text for a row that answered the battery and
 // selected nothing: a single bare delimiter.
@@ -207,10 +207,10 @@ const setElementDelimiter = pio.DefaultSetDelimiter
 // before any dictionary is consulted. That is why the two states need two
 // spellings.
 //
-// It is pio.EmptySetCell, the convention every adapter spells the
+// It is iocore.EmptySetCell, the convention every adapter spells the
 // middle state with, so the SPSS derived column and a CSV cell cannot
 // drift apart on what "answered, ticked nothing" looks like.
-const setEmptySelection = pio.EmptySetCell
+const setEmptySelection = iocore.EmptySetCell
 
 // maxSetElements is the widest `set_*` bitmask Pulse has, and therefore the
 // most constituents a set can have and still derive a column.
@@ -221,11 +221,11 @@ const setEmptySelection = pio.EmptySetCell
 // wide rungs landed, inference started typing 206-token columns as
 // set_u256, and the SPSS importer went on refusing every battery over 64
 // constituents while explaining that no wider type existed.
-var maxSetElements = pio.MaxSetElements()
+var maxSetElements = iocore.MaxSetElements()
 
 // widestSetType is the rung maxSetElements belongs to, named in the
 // refusal so the diagnostic cannot outlive the type it cites.
-var widestSetType = pio.WidestSetType()
+var widestSetType = iocore.WidestSetType()
 
 // mrSetElement is one bit of a derived set column.
 type mrSetElement struct {
@@ -281,7 +281,7 @@ type mrSetColumn struct {
 	counted string
 
 	// fieldType is the resolved set width: the narrowest rung of the
-	// shared ladder (pio.SetTypeFor) with a bit per constituent, up to
+	// shared ladder (iocore.SetTypeFor) with a bit per constituent, up to
 	// set_u256.
 	fieldType encoding.FieldType
 
@@ -518,7 +518,7 @@ func planMRSet(d *dictionary, set *mrDichotomySet,
 		col.elements = append(col.elements, e)
 	}
 
-	ft, ok := pio.SetTypeFor(len(col.elements))
+	ft, ok := iocore.SetTypeFor(len(col.elements))
 	if !ok {
 		// Unreachable: the member count was bounded above and every member
 		// contributed exactly one element. Kept so the resolution is total

@@ -64,7 +64,7 @@ type overlayTrailer struct {
 // a single trailing line `{"_overlays": [...]}` appended after the last
 // host-record line per research/export-embedding-shape.md § 6. nil or
 // empty layers leave the NDJSON output byte-identical to a pre-overlay
-// export (no trailer line lands). Implements pio.OverlayAwareWriter.
+// export (no trailer line lands). Implements iocore.OverlayAwareWriter.
 //
 // Emission happens at Close() time so the host record stream stays
 // untouched until the file is finalised. Must be called BEFORE Close.

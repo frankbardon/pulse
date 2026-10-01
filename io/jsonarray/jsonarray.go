@@ -9,7 +9,7 @@ import (
 	"io"
 
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/io/jsonshared"
 	"github.com/spf13/afero"
 )
@@ -26,14 +26,14 @@ type Reader struct {
 	closed  bool
 
 	// nulls is the per-column null mask for the row most recently
-	// handed to the ReadRows callback — the pio.NullAwareReader
+	// handed to the ReadRows callback — the iocore.NullAwareReader
 	// channel. JSON distinguishes a null from an empty string and the
 	// []string row does not. Rebuilt in place by the emit closure;
 	// valid only inside the callback.
 	nulls []bool
 }
 
-// RowNulls implements pio.NullAwareReader. Entry i is true when the
+// RowNulls implements iocore.NullAwareReader. Entry i is true when the
 // current row's column i was JSON null, or absent from the object.
 func (r *Reader) RowNulls() []bool { return r.nulls }
 
@@ -179,11 +179,11 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			}
 			// Absent, or present with a JSON null, is the null cell;
 			// present with "" is an empty string VALUE. See
-			// pio.NullAwareReader.
+			// iocore.NullAwareReader.
 			r.nulls[i] = !ok || v == nil
 		}
 		if err := fn(row); err != nil {
-			if err == pio.ErrStopIteration() {
+			if err == iocore.ErrStopIteration() {
 				return errStop
 			}
 			return err
@@ -229,7 +229,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	return nil
 }
 
-// errStop is an internal sentinel used to unwind ReadRows on pio.ErrStopIteration.
+// errStop is an internal sentinel used to unwind ReadRows on iocore.ErrStopIteration.
 var errStop = fmt.Errorf("jsonarray: stop")
 
 // Close releases resources.
@@ -261,12 +261,12 @@ type Writer struct {
 	closed   bool
 
 	// explicitNulls records that the caller marks null cells itself —
-	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// iocore.NullAwareWriter, set by ExportJob.Run and never by
 	// ConvertJob. See the ndjson Writer's field of the same name.
 	explicitNulls bool
 }
 
-// SetExplicitNulls implements pio.NullAwareWriter.
+// SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // NewWriter creates a Writer targeting a filesystem path.
@@ -348,5 +348,5 @@ func (w *Writer) Bytes() []byte {
 	return w.buf.Bytes()
 }
 
-var _ pio.NullAwareReader = (*Reader)(nil)
-var _ pio.NullAwareWriter = (*Writer)(nil)
+var _ iocore.NullAwareReader = (*Reader)(nil)
+var _ iocore.NullAwareWriter = (*Writer)(nil)

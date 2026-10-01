@@ -1,4 +1,4 @@
-package io
+package iocore
 
 import (
 	"github.com/frankbardon/pulse/encoding"

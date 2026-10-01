@@ -281,7 +281,7 @@ three gaps — flipping an entry fails the matrix.
 ### Authoritative schemas: `io.SchemaAwareReader`
 
 By default `ImportJob.Run` samples up to `SampleRows` rows and votes
-on each column's type in `io/infer.go` — a guess made from
+on each column's type in `internal/io/infer.go` — a guess made from
 stringified cells. A format that carries its own dictionary (SPSS
 `.sav`; in principle Parquet and Arrow) should not be guessed at.
 Such a reader implements the optional `io.SchemaAwareReader`:

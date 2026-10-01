@@ -24,7 +24,7 @@ func transferFS(t *testing.T) afero.Fs {
 	if err := afero.WriteFile(fs, "c.pulse", raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	arch, err := os.ReadFile("../testdata/sharding/two_shards.pulse")
+	arch, err := os.ReadFile("../../testdata/sharding/two_shards.pulse")
 	if err != nil {
 		t.Fatal(err)
 	}

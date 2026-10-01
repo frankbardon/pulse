@@ -19,7 +19,7 @@ The one import source whose schema Pulse does **not** infer, and the one produci
 
 ## Schema-authoritative import
 
-`.sav` declares every column ⇒ `io/spss` implements `io.SchemaAwareReader`, `io/infer.go`'s sample-and-vote pass skipped for `pulse import spss` / `pulse import auto` / `pulse_import` / `pulse convert` alike. Hence:
+`.sav` declares every column ⇒ `io/spss` implements `io.SchemaAwareReader`, `internal/io/infer.go`'s sample-and-vote pass skipped for `pulse import spss` / `pulse import auto` / `pulse_import` / `pulse convert` alike. Hence:
 
 - Inference-steering slots inert: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters`, `ColumnTypeOverrides`.
 - **No null promotion** — declared nullability is a contract; an unexpected null is `PULSE_IMPORT_ROW_ERROR`, never a silent widening. `promoted_fields` always empty.

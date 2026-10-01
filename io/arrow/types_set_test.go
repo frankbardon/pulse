@@ -11,7 +11,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 
 	"github.com/frankbardon/pulse/encoding"
-	pio "github.com/frankbardon/pulse/io"
+	pio "github.com/frankbardon/pulse/internal/io"
 )
 
 func TestArrow_TypeToPulseListUTF8(t *testing.T) {

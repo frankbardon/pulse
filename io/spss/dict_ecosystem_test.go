@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/spsstest"
-	pio "github.com/frankbardon/pulse/io"
 )
 
 // The ECOSYSTEM check: can something that is not us open what we write?

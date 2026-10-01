@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/types"
 )
 

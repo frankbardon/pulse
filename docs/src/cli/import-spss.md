@@ -8,7 +8,7 @@ the adapter itself is
 
 SPSS is the one import format Pulse does **not** guess at. Every other
 source (CSV, NDJSON, Parquet, …) is sampled and voted on by
-`io/infer.go`; a `.sav` file carries a dictionary that *declares* every
+`internal/io/infer.go`; a `.sav` file carries a dictionary that *declares* every
 variable's type, its missing-value rules and its value labels, so the
 adapter implements `io.SchemaAwareReader` and hands that dictionary
 straight to the encoder. Inference never runs.
@@ -312,7 +312,7 @@ There are two flavours and they are not equivalent.
 
 This is the one mapping in the whole adapter where SPSS *declares* what
 every other ingest path has to guess. A CSV importer looking at
-`"tv|radio"` runs `io/infer.go`'s delimited-token heuristic and votes; a
+`"tv|radio"` runs `internal/io/infer.go`'s delimited-token heuristic and votes; a
 `.sav` states the set outright. And Pulse has a type built for the shape:
 `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256`, a fixed-width bitmask over an
 inline dictionary, with `FILTER_SET_*`, `GROUP_SET_PER_ELEMENT` and
@@ -401,7 +401,7 @@ option. And when the answer raises a question the mask cannot settle —
   no honest mask. The import emits the constituents and warns
   `PULSE_SPSS_MR_SET_NOT_DERIVED` naming the set. The ceiling was 64 until
   `set_u128` / `set_u256` landed; a 206-option battery derives now, and
-  the importer reads the ceiling off the same width ladder `io/infer.go`
+  the importer reads the ceiling off the same width ladder `internal/io/infer.go`
   uses rather than carrying a copy.
 
 ### When a set does not derive

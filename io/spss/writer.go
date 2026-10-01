@@ -5,11 +5,11 @@ package spss
 // E5-S1 through E5-S5 built the encoder: the sidecar read, the dictionary
 // emitter, the data section, the charset transcode and the name boundary.
 // None of it was reachable from `pulse export` or `pulse convert`, because
-// there was no pio.Writer. This file is that writer.
+// there was no iocore.Writer. This file is that writer.
 //
 // # The contract mismatch, stated plainly
 //
-// pio.Writer is ROW-oriented — WriteHeader, then WriteRow per record, then
+// iocore.Writer is ROW-oriented — WriteHeader, then WriteRow per record, then
 // Close — and [DataEncoder] is not. It reads a whole cohort, because a `.sav`
 // variable's on-wire value is derived from things a rendered row no longer
 // carries:
@@ -30,7 +30,7 @@ package spss
 // fidelity it can offer. The choice is not a preference:
 //
 //  1. The COHORT path. ExportJob.Run hands over the `.pulse` path through
-//     pio.CohortWriter and skips its row loop entirely. The encoder reads raw
+//     iocore.CohortWriter and skips its row loop entirely. The encoder reads raw
 //     storage, the metadata sidecar is consulted, and the emitted file is the
 //     one E5-S2..S5 tested. This is `pulse export spss`.
 //  2. The ROW path. There is no cohort — `pulse convert data.csv out.sav`
@@ -63,7 +63,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	iio "github.com/frankbardon/pulse/internal/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -81,8 +82,8 @@ const rowPathCohort = "converted-rows.pulse"
 
 // Writer emits a `.sav` file.
 //
-// It satisfies pio.Writer, pio.SchemaAwareWriter, pio.CohortWriter,
-// pio.CohortValidator and pio.TargetWarningEmitter. See the file comment for
+// It satisfies iocore.Writer, iocore.SchemaAwareWriter, iocore.CohortWriter,
+// iocore.CohortValidator and iocore.TargetWarningEmitter. See the file comment for
 // why the middle two are there — the row-oriented contract alone cannot
 // express what a `.sav` variable's value is derived from, nor whether it
 // could be derived at all.
@@ -110,7 +111,7 @@ type Writer struct {
 	// sidecar emitter. Zero on the export path and on a convert from a
 	// source that declares neither, where the row path infers as before.
 	// See SetConvertSource.
-	source pio.ConvertSource
+	source iocore.ConvertSource
 
 	// out is the emitted file, and done reports that the encode has run.
 	// Close writes out; a second Close is a no-op rather than a second
@@ -128,17 +129,17 @@ type Writer struct {
 }
 
 // Compile-time assertions. The last three are the whole point of this file:
-// a Writer that satisfied only pio.Writer would be handed rendered rows and
+// a Writer that satisfied only iocore.Writer would be handed rendered rows and
 // would have to guess at the values that decide SPSS fidelity — and one that
-// dropped pio.CohortValidator would go back to being predicted as though it
+// dropped iocore.CohortValidator would go back to being predicted as though it
 // could never refuse anything.
 var (
-	_ pio.Writer               = (*Writer)(nil)
-	_ pio.SchemaAwareWriter    = (*Writer)(nil)
-	_ pio.CohortWriter         = (*Writer)(nil)
-	_ pio.CohortValidator      = (*Writer)(nil)
-	_ pio.TargetWarningEmitter = (*Writer)(nil)
-	_ pio.SourceAwareWriter    = (*Writer)(nil)
+	_ iocore.Writer               = (*Writer)(nil)
+	_ iocore.SchemaAwareWriter    = (*Writer)(nil)
+	_ iocore.CohortWriter         = (*Writer)(nil)
+	_ iocore.CohortValidator      = (*Writer)(nil)
+	_ iocore.TargetWarningEmitter = (*Writer)(nil)
+	_ iocore.SourceAwareWriter    = (*Writer)(nil)
 )
 
 // NewWriter creates a `.sav` writer that lands its bytes at path on fs.
@@ -157,11 +158,11 @@ func NewWriterToBuffer(opts WriterOptions) *Writer {
 	return &Writer{opts: opts}
 }
 
-// SetPulseSchema receives the source cohort's schema. pio.SchemaAwareWriter.
+// SetPulseSchema receives the source cohort's schema. iocore.SchemaAwareWriter.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) { w.schema = s }
 
 // SetConvertSource receives the convert source's declared facts.
-// pio.SourceAwareWriter.
+// iocore.SourceAwareWriter.
 //
 // It is the ROW path's half of the fidelity story, and the reason a
 // `pulse convert survey.sav out.sav` is not strictly worse than
@@ -188,7 +189,7 @@ func (w *Writer) SetPulseSchema(s *encoding.Schema) { w.schema = s }
 // Nothing here changes the COHORT path: a `pulse export spss` already reads
 // both from the cohort and its sidecar on disk, and this value stays zero
 // there.
-func (w *Writer) SetConvertSource(src pio.ConvertSource) { w.source = src }
+func (w *Writer) SetConvertSource(src iocore.ConvertSource) { w.source = src }
 
 // WriteHeader records the emitted column names.
 //
@@ -203,7 +204,7 @@ func (w *Writer) WriteHeader(columns []string) error {
 // WriteRow buffers one rendered row for the ROW path.
 //
 // It is never called on the cohort path: ExportJob.Run runs no row loop for
-// a pio.CohortWriter. Values are stringified through the same canonical
+// a iocore.CohortWriter. Values are stringified through the same canonical
 // rendering every text adapter uses.
 func (w *Writer) WriteRow(values []any) error {
 	row := make([]string, len(values))
@@ -214,11 +215,11 @@ func (w *Writer) WriteRow(values []any) error {
 	return nil
 }
 
-// WriteCohort encodes the cohort described by src. pio.CohortWriter.
+// WriteCohort encodes the cohort described by src. iocore.CohortWriter.
 //
 // It is the fidelity path: raw storage in, the metadata sidecar consulted,
 // nothing re-derived from rendered text.
-func (w *Writer) WriteCohort(ctx context.Context, src pio.CohortSource) (int, error) {
+func (w *Writer) WriteCohort(ctx context.Context, src iocore.CohortSource) (int, error) {
 	if len(src.Includes) > 0 {
 		return 0, w.cannotProject("--include", strings.Join(src.Includes, ", "))
 	}
@@ -233,7 +234,7 @@ func (w *Writer) WriteCohort(ctx context.Context, src pio.CohortSource) (int, er
 }
 
 // ValidateCohort reports whether this cohort could be written as a `.sav`,
-// without writing one. pio.CohortValidator.
+// without writing one. iocore.CohortValidator.
 //
 // It runs the writer's NON-DATA pass — the sidecar resolution, the dictionary
 // build, the name policy, the charset transcode, the derived fold and the
@@ -252,7 +253,7 @@ func (w *Writer) WriteCohort(ctx context.Context, src pio.CohortSource) (int, er
 // It leaves the Writer untouched — no bytes, no recorded warnings, no
 // renames, and `done` unset — so validating is not a half-performed encode
 // and a Writer stays usable afterwards.
-func (w *Writer) ValidateCohort(ctx context.Context, src pio.CohortSource) ([]*errors.CodedError, error) {
+func (w *Writer) ValidateCohort(ctx context.Context, src iocore.CohortSource) ([]*errors.CodedError, error) {
 	if len(src.Includes) > 0 {
 		return nil, w.cannotProject("--include", strings.Join(src.Includes, ", "))
 	}
@@ -269,7 +270,7 @@ func (w *Writer) ValidateCohort(ctx context.Context, src pio.CohortSource) ([]*e
 }
 
 // Warnings returns the encode's non-fatal diagnostics.
-// pio.TargetWarningEmitter.
+// iocore.TargetWarningEmitter.
 //
 // It is a pure accessor: it triggers nothing and is safe to call twice. The
 // set is complete once the encode has run — which is inside WriteCohort on
@@ -520,13 +521,13 @@ func (w *Writer) encodeRows(ctx context.Context) error {
 	}
 
 	mem := afero.NewMemMapFs()
-	job := pio.NewImportJob(&rowReader{columns: w.columns, rows: w.rows}, rowPathCohort)
+	job := iio.NewImportJob(&rowReader{columns: w.columns, rows: w.rows}, rowPathCohort)
 	job.FS = mem
-	// A DECLARED schema replaces inference outright. pio.ConvertSource
+	// A DECLARED schema replaces inference outright. iocore.ConvertSource
 	// guarantees field i is emitted cell i, which is the binding
 	// ImportJob.Schema needs, and a declared schema is not
 	// inference-originated so no out-of-sample null promotion applies —
-	// the same posture ImportJob takes for a pio.SchemaAwareReader source.
+	// the same posture ImportJob takes for a iocore.SchemaAwareReader source.
 	if w.source.Schema != nil {
 		job.Schema = w.source.Schema
 	}
@@ -534,7 +535,7 @@ func (w *Writer) encodeRows(ctx context.Context) error {
 		return err
 	}
 	// The sidecar is written AFTER the cohort and against THAT cohort, for
-	// the reason pio.SidecarEmitter states: the document is fingerprinted
+	// the reason iocore.SidecarEmitter states: the document is fingerprinted
 	// over the bytes it describes, so those bytes have to exist first. That
 	// is also what makes the copy fresh rather than stale — the source's
 	// own sidecar is fingerprinted over the SOURCE cohort, which this
@@ -552,7 +553,7 @@ func (w *Writer) encodeRows(ctx context.Context) error {
 	return w.encodeCohort(ctx, mem, rowPathCohort)
 }
 
-// rowReader replays a buffered header + rows as a pio.ResetReader, so the
+// rowReader replays a buffered header + rows as a iocore.ResetReader, so the
 // row path can reach the ordinary import machinery without inventing a
 // second one. It holds the caller's slices rather than copying them: the
 // buffer is the Writer's and outlives this reader.
@@ -582,8 +583,8 @@ func (r *rowReader) Reset() error { r.at = 0; return nil }
 func (r *rowReader) Close() error { return nil }
 
 var (
-	_ pio.Reader      = (*rowReader)(nil)
-	_ pio.ResetReader = (*rowReader)(nil)
+	_ iocore.Reader      = (*rowReader)(nil)
+	_ iocore.ResetReader = (*rowReader)(nil)
 )
 
 // ---------------------------------------------------------------------------

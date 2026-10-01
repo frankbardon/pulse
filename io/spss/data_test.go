@@ -12,8 +12,8 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/fs"
+	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/spsstest"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

@@ -13,12 +13,12 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/encoding"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 )
 
-// Reader reads Arrow IPC (Feather V2) data and implements pio.Reader and
-// pio.ResetReader. The full file is materialized in memory at init time —
+// Reader reads Arrow IPC (Feather V2) data and implements iocore.Reader and
+// iocore.ResetReader. The full file is materialized in memory at init time —
 // see the package doc for the rationale.
 type Reader struct {
 	data    []byte
@@ -33,7 +33,7 @@ type Reader struct {
 	batches    []arrow.RecordBatch
 
 	// nulls is the per-column null mask for the row most recently
-	// handed to the ReadRows callback — the pio.NullAwareReader
+	// handed to the ReadRows callback — the iocore.NullAwareReader
 	// channel, read straight off the Arrow validity bits. The []string
 	// row renders both a null and a present empty string as "", so
 	// without this a categorical cell that genuinely held "" came back
@@ -42,7 +42,7 @@ type Reader struct {
 	nulls []bool
 }
 
-// RowNulls implements pio.NullAwareReader. Entry i is the validity bit
+// RowNulls implements iocore.NullAwareReader. Entry i is the validity bit
 // of the current row's column i — Arrow's own answer, not a reading of
 // the cell text.
 func (r *Reader) RowNulls() []bool { return r.nulls }
@@ -194,7 +194,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			}
 
 			if err := fn(row); err != nil {
-				if err == pio.ErrStopIteration() {
+				if err == iocore.ErrStopIteration() {
 					return nil
 				}
 				return err
@@ -343,7 +343,7 @@ type Writer struct {
 	overlaysEmitted bool
 
 	// explicitNulls records that the caller marks null cells itself —
-	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// iocore.NullAwareWriter, set by ExportJob.Run and never by
 	// ConvertJob. false keeps the text convention in which "" is the
 	// source null token, so a convert's Arrow output is unchanged.
 	explicitNulls bool
@@ -361,12 +361,12 @@ type Writer struct {
 
 // SetPulseSchema records the source .pulse schema so subsequent
 // initWriter can build native typed Arrow columns. Implements
-// pio.SchemaAwareWriter.
+// iocore.SchemaAwareWriter.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
 }
 
-// SetExplicitNulls implements pio.NullAwareWriter.
+// SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // SetOverlays records the Response.Overlays layers the export pipeline
@@ -377,7 +377,7 @@ func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 // nil or empty layers leaves the Arrow output byte-identical to a
 // pre-overlay export (the "overlays" field is OMITTED from the schema
 // rather than emitted with empty lists). Implements
-// pio.OverlayAwareWriter.
+// iocore.OverlayAwareWriter.
 //
 // Must be called BEFORE WriteHeader so the lazily-built Arrow schema
 // includes the overlay field. Calling after the writer has been
@@ -618,8 +618,8 @@ func (w *Writer) appendCell(c int, v any) error {
 		// categorical dictionary can hold "" as a genuine value, so
 		// appending "" for both erased a distinction both formats have.
 		// Which spelling means "absent" depends on the caller, not on
-		// the cell — see pio.NullAwareWriter.
-		if pio.IsNullCell(v, w.explicitNulls) {
+		// the cell — see iocore.NullAwareWriter.
+		if iocore.IsNullCell(v, w.explicitNulls) {
 			w.strBs[c].AppendNull()
 			return nil
 		}
@@ -648,7 +648,7 @@ func (w *Writer) appendSet(c int, v any) (bool, error) {
 }
 
 // AppendSetList appends one cell of a Pulse set column to a LIST<UTF8>
-// builder. io/export.go hands the exporter a single pio.DefaultSetDelimiter
+// builder. io/export.go hands the exporter a single iocore.DefaultSetDelimiter
 // -joined token string for every set rung (the external form of a set is
 // width-agnostic, so this is identical for set_u8 and set_u256); the list
 // builder needs those tokens as separate elements. Without this arm the
@@ -665,7 +665,7 @@ func (w *Writer) appendSet(c int, v any) (bool, error) {
 //     "" (and a CohortWriter-free caller may pass nil); both land on
 //     AppendNull.
 //   - EMPTY SELECTION — a zero-length list. Its external form is
-//     pio.EmptySetCell, a bare delimiter carrying no token, which
+//     iocore.EmptySetCell, a bare delimiter carrying no token, which
 //     Append(true) followed by no element reproduces exactly.
 //   - a selection — one list element per token.
 //
@@ -693,12 +693,12 @@ func AppendSetList(b array.Builder, v any) (bool, error) {
 	s, _ := v.(string)
 	if s == "" {
 		// The null cell. An empty SELECTION arrives as
-		// pio.EmptySetCell, never as the empty string.
+		// iocore.EmptySetCell, never as the empty string.
 		lb.AppendNull()
 		return true, nil
 	}
 	lb.Append(true)
-	for _, tok := range strings.Split(s, pio.DefaultSetDelimiter) {
+	for _, tok := range strings.Split(s, iocore.DefaultSetDelimiter) {
 		tok = strings.TrimSpace(tok)
 		if tok == "" {
 			continue
@@ -763,10 +763,10 @@ func (w *Writer) Bytes() []byte {
 }
 
 // Ensure interfaces are satisfied at compile time.
-var _ pio.Reader = (*Reader)(nil)
-var _ pio.ResetReader = (*Reader)(nil)
-var _ pio.Writer = (*Writer)(nil)
-var _ pio.SchemaAwareWriter = (*Writer)(nil)
-var _ pio.NullAwareWriter = (*Writer)(nil)
-var _ pio.NullAwareReader = (*Reader)(nil)
-var _ pio.OverlayAwareWriter = (*Writer)(nil)
+var _ iocore.Reader = (*Reader)(nil)
+var _ iocore.ResetReader = (*Reader)(nil)
+var _ iocore.Writer = (*Writer)(nil)
+var _ iocore.SchemaAwareWriter = (*Writer)(nil)
+var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.NullAwareReader = (*Reader)(nil)
+var _ iocore.OverlayAwareWriter = (*Writer)(nil)

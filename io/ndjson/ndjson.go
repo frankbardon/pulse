@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/io/jsonshared"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -44,7 +44,7 @@ type Reader struct {
 	hasPending bool
 
 	// nulls is the per-column null mask for the row most recently
-	// handed to the ReadRows callback — the pio.NullAwareReader
+	// handed to the ReadRows callback — the iocore.NullAwareReader
 	// channel. JSON distinguishes a null from an empty string and the
 	// []string row does not, so without this a categorical cell
 	// spelled "" and one spelled null both re-import as null. Rebuilt
@@ -52,7 +52,7 @@ type Reader struct {
 	nulls []bool
 }
 
-// RowNulls implements pio.NullAwareReader. Entry i is true when the
+// RowNulls implements iocore.NullAwareReader. Entry i is true when the
 // current row's column i was JSON null — or absent from the object
 // entirely, which is the same "no value here" in NDJSON, where each
 // line carries its own key set.
@@ -206,7 +206,7 @@ func (r *Reader) ReadHeader() ([]string, error) {
 }
 
 // errStop is an internal sentinel used to unwind ReadRows when fn
-// returned pio.ErrStopIteration.
+// returned iocore.ErrStopIteration.
 var errStop = fmt.Errorf("ndjson: stop")
 
 // emitObj hands one decoded object to fn as a row in header order.
@@ -229,12 +229,12 @@ func (r *Reader) emitObj(obj map[string]any, fn func(row []string) error) error 
 		}
 		// A key that is absent, or present with a JSON null, is the
 		// null cell. A key present with "" is an empty string VALUE
-		// and must not be conflated with it — see pio.NullAwareReader.
+		// and must not be conflated with it — see iocore.NullAwareReader.
 		r.nulls[i] = !ok || v == nil
 	}
 
 	if err := fn(row); err != nil {
-		if err == pio.ErrStopIteration() {
+		if err == iocore.ErrStopIteration() {
 			return errStop
 		}
 		return err
@@ -355,14 +355,14 @@ type Writer struct {
 	overlaysWritten bool
 
 	// explicitNulls records that the caller marks null cells itself —
-	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// iocore.NullAwareWriter, set by ExportJob.Run and never by
 	// ConvertJob. false keeps the text convention (jsonshared.
 	// CoerceValue, where "" is the source null token), so a convert is
 	// byte-identical.
 	explicitNulls bool
 }
 
-// SetExplicitNulls implements pio.NullAwareWriter.
+// SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // NewWriter creates an NDJSON writer targeting a filesystem path.
@@ -448,7 +448,7 @@ func (w *Writer) Bytes() []byte {
 }
 
 // Ensure interfaces are satisfied at compile time.
-var _ pio.Writer = (*Writer)(nil)
-var _ pio.OverlayAwareWriter = (*Writer)(nil)
-var _ pio.NullAwareWriter = (*Writer)(nil)
-var _ pio.NullAwareReader = (*Reader)(nil)
+var _ iocore.Writer = (*Writer)(nil)
+var _ iocore.OverlayAwareWriter = (*Writer)(nil)
+var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.NullAwareReader = (*Reader)(nil)

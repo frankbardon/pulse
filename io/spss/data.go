@@ -21,7 +21,7 @@ package spss
 //
 // # Rendering to strings
 //
-// pio.Reader is a string-only contract, so every SPSS datum is rendered to a
+// iocore.Reader is a string-only contract, so every SPSS datum is rendered to a
 // canonical string here. The rendering is driven by the schema mapping
 // (mapping.go), not by the raw bytes alone, because a cell and the field type
 // declared for it in PulseSchema must agree — a `date` field whose cells
@@ -67,7 +67,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 )
 
 // recordData is the DetailSPSSRecord value for a fault in the data section.
@@ -521,7 +521,7 @@ func trimStringDatum(b []byte) []byte {
 }
 
 // ---------------------------------------------------------------------------
-// The pio.Reader surface
+// The iocore.Reader surface
 // ---------------------------------------------------------------------------
 
 // ReadHeader returns the cohort's column names, in file order.
@@ -578,7 +578,7 @@ func (r *Reader) ReadHeader() ([]string, error) {
 // copy it. The strings themselves are immutable and safe to retain.
 //
 // ctx is checked before every case, so cancellation is observed within one
-// case rather than at the end of the file. Returning pio.ErrStopIteration
+// case rather than at the end of the file. Returning iocore.ErrStopIteration
 // from fn ends the pass without an error, which is how the inference sampler
 // stops after its sample window.
 func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) error {
@@ -626,7 +626,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 
 		if err := fn(row); err != nil {
-			if err == pio.ErrStopIteration() {
+			if err == iocore.ErrStopIteration() {
 				return nil
 			}
 			return err
@@ -804,7 +804,7 @@ func dataError(code errors.Code, off int, format string, args ...any) *errors.Co
 // package io — asserting it there would import io/spss into its own
 // parent — so it lives here, at the implementation.
 var (
-	_ pio.Reader            = (*Reader)(nil)
-	_ pio.ResetReader       = (*Reader)(nil)
-	_ pio.SchemaAwareReader = (*Reader)(nil)
+	_ iocore.Reader            = (*Reader)(nil)
+	_ iocore.ResetReader       = (*Reader)(nil)
+	_ iocore.SchemaAwareReader = (*Reader)(nil)
 )

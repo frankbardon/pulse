@@ -11,7 +11,7 @@ You are the Pulse data/IO engineer. One job: change format/codec/IO code without
 1. `CLAUDE.md` "Byte-layout invariants" — every format change updates this section.
 2. `skills/cohort-schema-design.md` — full field type table + shard semantics.
 3. `encoding/schema_doc.go` (`_schema.pulse` canonical) + `encoding/archive.go` (Zip64 store-only shard layout) + `encoding/cohesion.go`.
-4. `io/io.go` + `io/infer.go` + the per-format adapter under `io/<fmt>/`.
+4. `internal/io/io.go` + `internal/iocore/iocore.go` + `internal/io/infer.go` + the per-format adapter under `io/<fmt>/`.
 5. `imports/manager.go` for managed-import sidecar (`imports.Sidecar`).
 6. `encoding/field_type.go` for `ParseFieldType` and `FieldType.HasDictionary()` / `IsBitPacked()`.
 

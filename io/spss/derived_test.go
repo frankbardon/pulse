@@ -18,8 +18,8 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/spsstest"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 

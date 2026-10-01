@@ -1,5 +1,8 @@
-// Package io defines the I/O pipeline framework for Pulse: Reader/Writer interfaces,
-// schema inference, and job types (ImportJob, ExportJob, ConvertJob).
+// Package io is Pulse's public tabular I/O surface: the Reader / Writer
+// contracts and their optional interfaces, schema inference, and the job
+// types (ImportJob, ExportJob, ConvertJob, the transfer and dedup jobs).
 //
-// Format-specific adapters live in sub-packages (csv, tsv).
+// The implementation lives in internal/io and the adapter contracts in
+// internal/iocore; this package re-exports them under their established
+// names, so every type here is an alias and every function a forward.
 package io

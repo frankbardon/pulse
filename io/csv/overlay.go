@@ -2,7 +2,7 @@ package csv
 
 import (
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -40,7 +40,7 @@ import (
 // NEVER written into the CSV body. The host CSV output is byte-
 // identical to a pre-overlay export regardless of whether SetOverlays
 // was called or what slice it received. Implements
-// pio.OverlayAwareWriter — the dispatcher lifts the OverlayWarnings()
+// iocore.OverlayAwareWriter — the dispatcher lifts the OverlayWarnings()
 // slice onto the ExportReport / envelope warnings slot.
 //
 // Calling SetOverlays multiple times overwrites the previously
@@ -134,7 +134,7 @@ func appendInt(dst []byte, n int) []byte {
 }
 
 // Compile-time interface assertion — the CSV Writer satisfies the
-// pio.OverlayAwareWriter contract by recording layers (and emitting
+// iocore.OverlayAwareWriter contract by recording layers (and emitting
 // warnings via OverlayWarnings) rather than embedding them, which is
 // the SetOverlays-different-shape pattern the contract allows.
-var _ pio.OverlayAwareWriter = (*Writer)(nil)
+var _ iocore.OverlayAwareWriter = (*Writer)(nil)

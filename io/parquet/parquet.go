@@ -14,7 +14,7 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
 	"github.com/frankbardon/pulse/encoding"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	parrow "github.com/frankbardon/pulse/io/arrow"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -57,7 +57,7 @@ type Reader struct {
 	arrowSc *arrow.Schema
 
 	// nulls is the per-column null mask for the row most recently
-	// handed to the ReadRows callback — the pio.NullAwareReader
+	// handed to the ReadRows callback — the iocore.NullAwareReader
 	// channel, read off the Arrow validity bits the Parquet definition
 	// levels decode to. The []string row renders a null and a present
 	// empty string alike as "". Rebuilt in place per row; valid only
@@ -65,7 +65,7 @@ type Reader struct {
 	nulls []bool
 }
 
-// RowNulls implements pio.NullAwareReader. Entry i is the validity bit
+// RowNulls implements iocore.NullAwareReader. Entry i is the validity bit
 // of the current row's column i, not a reading of the cell text.
 func (r *Reader) RowNulls() []bool { return r.nulls }
 
@@ -225,7 +225,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 
 		if err := fn(row); err != nil {
-			if err == pio.ErrStopIteration() {
+			if err == iocore.ErrStopIteration() {
 				return nil
 			}
 			return err
@@ -241,7 +241,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 //
 // The two answers are returned separately because they are separate
 // facts: a null and a present empty string both render "", and only the
-// validity bit tells them apart (pio.NullAwareReader). A row index past
+// validity bit tells them apart (iocore.NullAwareReader). A row index past
 // the end of every chunk reports null — there is no value there.
 func getValueAsString(chunks []arrow.Array, rowIdx int) (string, bool) {
 	// Find which chunk and local index.
@@ -371,17 +371,17 @@ type Writer struct {
 	closed  bool
 
 	// explicitNulls records that the caller marks null cells itself —
-	// pio.NullAwareWriter, set by ExportJob.Run and never by
+	// iocore.NullAwareWriter, set by ExportJob.Run and never by
 	// ConvertJob. See the arrow Writer's field of the same name.
 	explicitNulls bool
 }
 
-// SetExplicitNulls implements pio.NullAwareWriter.
+// SetExplicitNulls implements iocore.NullAwareWriter.
 func (w *Writer) SetExplicitNulls(on bool) { w.explicitNulls = on }
 
 // SetPulseSchema records the source .pulse schema so subsequent
 // initWriter can build native typed Parquet columns. Implements
-// pio.SchemaAwareWriter.
+// iocore.SchemaAwareWriter.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
 }
@@ -553,8 +553,8 @@ func (w *Writer) appendCell(c int, v any) error {
 	}
 	if w.strBs[c] != nil {
 		// A string column's null is the validity bit, not "" — see the
-		// io/arrow writer's identical arm and pio.NullAwareWriter.
-		if pio.IsNullCell(v, w.explicitNulls) {
+		// io/arrow writer's identical arm and iocore.NullAwareWriter.
+		if iocore.IsNullCell(v, w.explicitNulls) {
 			w.strBs[c].AppendNull()
 			return nil
 		}
@@ -638,13 +638,13 @@ func pulseTypeToArrow(ft encoding.FieldType) arrow.DataType {
 }
 
 // Ensure interfaces are satisfied at compile time.
-var _ pio.Reader = (*Reader)(nil)
-var _ pio.ResetReader = (*Reader)(nil)
-var _ pio.Writer = (*Writer)(nil)
-var _ pio.NullAwareWriter = (*Writer)(nil)
-var _ pio.NullAwareReader = (*Reader)(nil)
-var _ pio.SchemaAwareWriter = (*Writer)(nil)
-var _ pio.OverlayAwareWriter = (*Writer)(nil)
+var _ iocore.Reader = (*Reader)(nil)
+var _ iocore.ResetReader = (*Reader)(nil)
+var _ iocore.Writer = (*Writer)(nil)
+var _ iocore.NullAwareWriter = (*Writer)(nil)
+var _ iocore.NullAwareReader = (*Reader)(nil)
+var _ iocore.SchemaAwareWriter = (*Writer)(nil)
+var _ iocore.OverlayAwareWriter = (*Writer)(nil)
 
 // Suppress unused import warnings.
 var _ = math.MaxFloat32

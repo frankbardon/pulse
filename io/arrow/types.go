@@ -11,7 +11,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/decimal128"
 
 	"github.com/frankbardon/pulse/encoding"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 )
 
 // Pulse field metadata key carried as an Arrow Field.Metadata pair so a
@@ -243,7 +243,7 @@ func decimal128FromPulse(d encoding.Decimal128) decimal128.Num {
 }
 
 // FormatValue renders a single element of an Arrow array as a string suitable
-// for emission through the pio.Reader interface. Null handling is the caller's
+// for emission through the iocore.Reader interface. Null handling is the caller's
 // responsibility: FormatValue assumes idx is a non-null position.
 //
 // Formatting rules:
@@ -349,14 +349,14 @@ func formatStringListLarge(elements arrow.Array, offsets []int64, idx int) strin
 //
 // A ZERO-LENGTH list is not the empty string. FormatValue is only
 // reached for a non-null position, so a present list of no elements is
-// an EMPTY SELECTION and renders as pio.EmptySetCell — the bare
+// an EMPTY SELECTION and renders as iocore.EmptySetCell — the bare
 // delimiter the shared import path reads back as mask 0. Returning ""
 // here would hand the importer a null token and silently turn "ticked
 // none of these" into "skipped the question"; the null cell already has
 // its own spelling, from the validity bit one level up.
 func formatStringListSlice(elements arrow.Array, start, end int) string {
 	if start >= end {
-		return pio.EmptySetCell
+		return iocore.EmptySetCell
 	}
 	parts := make([]string, 0, end-start)
 	switch ea := elements.(type) {

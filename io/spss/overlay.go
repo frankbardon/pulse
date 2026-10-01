@@ -18,7 +18,7 @@ package spss
 //
 // There is a second reason overlays cannot reach a `.sav` body, and it is
 // structural rather than a format limitation: the writer takes the
-// pio.CohortWriter path, encoding from the cohort's raw storage instead of
+// iocore.CohortWriter path, encoding from the cohort's raw storage instead of
 // from the rendered row stream. Overlay embedding in the other adapters
 // happens as part of writing that stream.
 
@@ -26,13 +26,13 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 )
 
 // SetOverlays records the layers the export pipeline wanted embedded.
 // They are never written into the `.sav`; the emitted file is
-// byte-identical to an overlay-free export. pio.OverlayAwareWriter.
+// byte-identical to an overlay-free export. iocore.OverlayAwareWriter.
 //
 // Calling it twice overwrites the recorded set, so the warning describes
 // the last slate handed over.
@@ -71,6 +71,6 @@ func (w *Writer) OverlayWarnings() []*errors.CodedError {
 }
 
 var (
-	_ pio.OverlayAwareWriter    = (*Writer)(nil)
-	_ pio.OverlayWarningEmitter = (*Writer)(nil)
+	_ iocore.OverlayAwareWriter    = (*Writer)(nil)
+	_ iocore.OverlayWarningEmitter = (*Writer)(nil)
 )

@@ -10,7 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	"github.com/xuri/excelize/v2"
@@ -175,7 +175,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 
 		if err := fn(normalized); err != nil {
-			if err == pio.ErrStopIteration() {
+			if err == iocore.ErrStopIteration() {
 				return nil
 			}
 			return errors.NewCodedErrorWithDetails(
@@ -277,7 +277,7 @@ type Writer struct {
 }
 
 // SetPulseSchema records the source .pulse schema. Implements
-// pio.SchemaAwareWriter so ExportJob can hand the writer typed values
+// iocore.SchemaAwareWriter so ExportJob can hand the writer typed values
 // for decimal128 columns.
 func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 	w.pulseSchema = s
@@ -289,7 +289,7 @@ func (w *Writer) SetPulseSchema(s *encoding.Schema) {
 // data sheet per research/export-embedding-shape.md § 5 (one sheet per
 // layer; the double-underscore prefix reserves the namespace). nil or
 // empty layers leave the workbook byte-identical to a pre-overlay
-// export (no overlay sheets land). Implements pio.OverlayAwareWriter.
+// export (no overlay sheets land). Implements iocore.OverlayAwareWriter.
 //
 // Sheet emission happens at Close() time so the host sheet's stream
 // writer can finish writing before the overlay sheets are appended.
@@ -496,7 +496,7 @@ func (w *Writer) Close() error {
 }
 
 // Discard releases the workbook and any excelize temp files WITHOUT
-// writing the target. pio.DiscardableWriter.
+// writing the target. iocore.DiscardableWriter.
 //
 // The excelize StreamWriter spills its buffer to an os.CreateTemp file
 // once it passes excelize.StreamChunkSize, and excelize.File.Close is
@@ -520,9 +520,9 @@ func (w *Writer) Discard() error {
 }
 
 // Ensure interfaces are satisfied at compile time.
-var _ pio.Reader = (*Reader)(nil)
-var _ pio.ResetReader = (*Reader)(nil)
-var _ pio.Writer = (*Writer)(nil)
-var _ pio.SchemaAwareWriter = (*Writer)(nil)
-var _ pio.DiscardableWriter = (*Writer)(nil)
-var _ pio.OverlayAwareWriter = (*Writer)(nil)
+var _ iocore.Reader = (*Reader)(nil)
+var _ iocore.ResetReader = (*Reader)(nil)
+var _ iocore.Writer = (*Writer)(nil)
+var _ iocore.SchemaAwareWriter = (*Writer)(nil)
+var _ iocore.DiscardableWriter = (*Writer)(nil)
+var _ iocore.OverlayAwareWriter = (*Writer)(nil)

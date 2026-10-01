@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
-	pio "github.com/frankbardon/pulse/io"
+	pio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/io/csv"
 	"github.com/spf13/afero"
 	"github.com/xuri/excelize/v2"

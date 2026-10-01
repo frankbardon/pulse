@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/spf13/afero"
 )
 
@@ -120,7 +120,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		rowNum++
 
 		if err := fn(record); err != nil {
-			if err == pio.ErrStopIteration() {
+			if err == iocore.ErrStopIteration() {
 				return nil
 			}
 			return err

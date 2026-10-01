@@ -68,7 +68,7 @@
 // print formats, arbitrary value codes, missing-value specifications,
 // declared byte widths, multiple-response sets, documents, attributes
 // and the source charset — to a JSON sidecar beside the cohort, via the
-// optional pio.SidecarEmitter contract. Its most important payload is
+// optional iocore.SidecarEmitter contract. Its most important payload is
 // the code / label / Pulse dictionary ID triple, because the cohort's
 // own dictionary holds CODES and the sidecar is therefore the only
 // place the LABELS live. See sidecar.go.
@@ -146,7 +146,7 @@ package spss
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/spf13/afero"
 )
 
@@ -161,11 +161,11 @@ import (
 // rather than break it, which is exactly the failure a compile-time
 // assertion is cheap insurance against.
 var (
-	_ pio.Reader               = (*Reader)(nil)
-	_ pio.ResetReader          = (*Reader)(nil)
-	_ pio.SchemaAwareReader    = (*Reader)(nil)
-	_ pio.SourceWarningEmitter = (*Reader)(nil)
-	_ pio.SidecarEmitter       = (*Reader)(nil)
+	_ iocore.Reader               = (*Reader)(nil)
+	_ iocore.ResetReader          = (*Reader)(nil)
+	_ iocore.SchemaAwareReader    = (*Reader)(nil)
+	_ iocore.SourceWarningEmitter = (*Reader)(nil)
+	_ iocore.SidecarEmitter       = (*Reader)(nil)
 )
 
 // Reader reads an SPSS `.sav` system file.
@@ -378,7 +378,7 @@ func (r *Reader) loadMapping() (*mapping, error) {
 }
 
 // PulseSchema returns the authoritative .pulse schema for the file,
-// satisfying pio.SchemaAwareReader: a `.sav` carries a dictionary that
+// satisfying iocore.SchemaAwareReader: a `.sav` carries a dictionary that
 // DECLARES each column's type, so the shared import path skips inference
 // entirely rather than sampling rows and voting on what it sees.
 //

@@ -112,9 +112,9 @@ pulse: type DedupResult field DedupReport.BytesBefore int64 "json:\"bytes_before
 pulse: type DedupResult field DedupReport.ElidedConstants []string "json:\"elided_constants,omitempty\""
 pulse: type DedupResult field DedupReport.FormatVersionAfter int "json:\"format_version_after\""
 pulse: type DedupResult field DedupReport.FormatVersionBefore int "json:\"format_version_before\""
-pulse: type DedupResult field DedupReport.GroupCandidates *pulse/io.GroupDetection "json:\"group_candidates,omitempty\""
+pulse: type DedupResult field DedupReport.GroupCandidates *pulse/internal/io.GroupDetection "json:\"group_candidates,omitempty\""
 pulse: type DedupResult field DedupReport.GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
-pulse: type DedupResult field DedupReport.Groups []pulse/io.GroupReport "json:\"groups,omitempty\""
+pulse: type DedupResult field DedupReport.Groups []pulse/internal/io.GroupReport "json:\"groups,omitempty\""
 pulse: type DedupResult field DedupReport.InPlace bool "json:\"in_place\""
 pulse: type DedupResult field DedupReport.Records int64 "json:\"records\""
 pulse: type DedupResult field DedupReport.Rewritten bool "json:\"rewritten\""
@@ -2029,19 +2029,22 @@ pulse/imports: type Spec field TTL time.Duration
 pulse/io: package io
 pulse/io: const CandidateReasonMemoryBound untyped string = "detection_memory_bound"
 pulse/io: const CandidateVerdictUnmeasured untyped string = "unmeasured"
-pulse/io: type CohortSource struct
+pulse/io: type CohortSource = pulse/internal/iocore.CohortSource
+pulse/io: type CohortSource underlying struct
 pulse/io: type CohortSource field FS github.com/spf13/afero.Fs
 pulse/io: type CohortSource field Includes []string
 pulse/io: type CohortSource field Labelled bool
 pulse/io: type CohortSource field Path string
-pulse/io: type CohortValidator interface
+pulse/io: type CohortValidator = pulse/internal/iocore.CohortValidator
+pulse/io: type CohortValidator underlying interface
 pulse/io: type CohortValidator imethod Close() error
-pulse/io: type CohortValidator imethod ValidateCohort(ctx context.Context, src pulse/io.CohortSource) ([]*pulse/errors.CodedError, error)
+pulse/io: type CohortValidator imethod ValidateCohort(ctx context.Context, src pulse/internal/iocore.CohortSource) ([]*pulse/errors.CodedError, error)
 pulse/io: type CohortValidator imethod WriteHeader(columns []string) error
 pulse/io: type CohortValidator imethod WriteRow(values []any) error
-pulse/io: type CohortWriter interface
+pulse/io: type CohortWriter = pulse/internal/iocore.CohortWriter
+pulse/io: type CohortWriter underlying interface
 pulse/io: type CohortWriter imethod Close() error
-pulse/io: type CohortWriter imethod WriteCohort(ctx context.Context, src pulse/io.CohortSource) (int, error)
+pulse/io: type CohortWriter imethod WriteCohort(ctx context.Context, src pulse/internal/iocore.CohortSource) (int, error)
 pulse/io: type CohortWriter imethod WriteHeader(columns []string) error
 pulse/io: type CohortWriter imethod WriteRow(values []any) error
 pulse/io: func CompareOverlayLayer(got *pulse/types.OverlayLayer, want *pulse/types.OverlayLayer) error
@@ -2049,52 +2052,57 @@ pulse/io: func CompareOverlayLayers(got []*pulse/types.OverlayLayer, want []*pul
 pulse/io: func CompareOverlayPayload(got pulse/types.OverlayPayload, want pulse/types.OverlayPayload) error
 pulse/io: func CompareOverlayRef(got pulse/types.OverlayRef, want pulse/types.OverlayRef) error
 pulse/io: func CompareOverlaySummary(got *pulse/types.OverlaySummary, want *pulse/types.OverlaySummary) error
-pulse/io: type ConvertJob struct
+pulse/io: type ConvertJob = pulse/internal/io.ConvertJob
+pulse/io: type ConvertJob underlying struct
 pulse/io: type ConvertJob field FS github.com/spf13/afero.Fs
 pulse/io: type ConvertJob field IncludeOverlays *bool
 pulse/io: type ConvertJob field Includes []string
 pulse/io: type ConvertJob field KeepPulseAt string
-pulse/io: type ConvertJob field LabelResolver pulse/io.LabelResolver
+pulse/io: type ConvertJob field LabelResolver pulse/internal/io.LabelResolver
 pulse/io: type ConvertJob field Labels []*pulse/types.LabelBinding
 pulse/io: type ConvertJob field Overlays []*pulse/types.OverlayLayer
 pulse/io: type ConvertJob field SampleRows int
 pulse/io: type ConvertJob field Schema *pulse/encoding.Schema
-pulse/io: type ConvertJob field Source pulse/io.Reader
-pulse/io: type ConvertJob field Target pulse/io.Writer
+pulse/io: type ConvertJob field Source pulse/internal/io.Reader
+pulse/io: type ConvertJob field Target pulse/internal/io.Writer
 pulse/io: type ConvertJob method (*ConvertJob) Hash() string
-pulse/io: type ConvertJob method (*ConvertJob) Predict(ctx context.Context) (*pulse/io.PredictReport, error)
-pulse/io: type ConvertJob method (*ConvertJob) Run(ctx context.Context) (*pulse/io.ConvertReport, error)
-pulse/io: type ConvertReport struct
-pulse/io: type ConvertReport field LabelWarnings []pulse/io.LabelWarning
+pulse/io: type ConvertJob method (*ConvertJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
+pulse/io: type ConvertJob method (*ConvertJob) Run(ctx context.Context) (*pulse/internal/io.ConvertReport, error)
+pulse/io: type ConvertReport = pulse/internal/io.ConvertReport
+pulse/io: type ConvertReport underlying struct
+pulse/io: type ConvertReport field LabelWarnings []pulse/internal/io.LabelWarning
 pulse/io: type ConvertReport field OverlayWarnings []*pulse/errors.CodedError
-pulse/io: type ConvertReport field RowErrors []pulse/io.RowError
+pulse/io: type ConvertReport field RowErrors []pulse/internal/io.RowError
 pulse/io: type ConvertReport field RowsConverted int
 pulse/io: type ConvertReport field Schema *pulse/encoding.Schema
 pulse/io: type ConvertReport field SourceWarnings []*pulse/errors.CodedError
 pulse/io: type ConvertReport field TargetWarnings []*pulse/errors.CodedError
 pulse/io: type ConvertReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
-pulse/io: type ConvertSource struct
+pulse/io: type ConvertSource = pulse/internal/iocore.ConvertSource
+pulse/io: type ConvertSource underlying struct
 pulse/io: type ConvertSource field Schema *pulse/encoding.Schema
-pulse/io: type ConvertSource field Sidecar pulse/io.SidecarEmitter
-pulse/io: type DedupJob struct
+pulse/io: type ConvertSource field Sidecar pulse/internal/iocore.SidecarEmitter
+pulse/io: type DedupJob = pulse/internal/io.DedupJob
+pulse/io: type DedupJob underlying struct
 pulse/io: type DedupJob field DedupRatioFloor float64
 pulse/io: type DedupJob field ElideConstants bool
 pulse/io: type DedupJob field FS github.com/spf13/afero.Fs
-pulse/io: type DedupJob field Groups []pulse/io.GroupDecl
+pulse/io: type DedupJob field Groups []pulse/internal/io.GroupDecl
 pulse/io: type DedupJob field Source string
 pulse/io: type DedupJob field StrictDedup bool
 pulse/io: type DedupJob field SuggestGroups bool
 pulse/io: type DedupJob field Target string
-pulse/io: type DedupJob method (*DedupJob) Run(ctx context.Context) (*pulse/io.DedupReport, error)
-pulse/io: type DedupReport struct
+pulse/io: type DedupJob method (*DedupJob) Run(ctx context.Context) (*pulse/internal/io.DedupReport, error)
+pulse/io: type DedupReport = pulse/internal/io.DedupReport
+pulse/io: type DedupReport underlying struct
 pulse/io: type DedupReport field BytesAfter int64 "json:\"bytes_after\""
 pulse/io: type DedupReport field BytesBefore int64 "json:\"bytes_before\""
 pulse/io: type DedupReport field ElidedConstants []string "json:\"elided_constants,omitempty\""
 pulse/io: type DedupReport field FormatVersionAfter int "json:\"format_version_after\""
 pulse/io: type DedupReport field FormatVersionBefore int "json:\"format_version_before\""
-pulse/io: type DedupReport field GroupCandidates *pulse/io.GroupDetection "json:\"group_candidates,omitempty\""
+pulse/io: type DedupReport field GroupCandidates *pulse/internal/io.GroupDetection "json:\"group_candidates,omitempty\""
 pulse/io: type DedupReport field GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
-pulse/io: type DedupReport field Groups []pulse/io.GroupReport "json:\"groups,omitempty\""
+pulse/io: type DedupReport field Groups []pulse/internal/io.GroupReport "json:\"groups,omitempty\""
 pulse/io: type DedupReport field InPlace bool "json:\"in_place\""
 pulse/io: type DedupReport field Records int64 "json:\"records\""
 pulse/io: type DedupReport field Rewritten bool "json:\"rewritten\""
@@ -2105,32 +2113,36 @@ pulse/io: type DedupReport field Target string "json:\"target\""
 pulse/io: const DefaultSetDelimiter untyped string = "|"
 pulse/io: const DefaultTransferLevel untyped int = 3
 pulse/io: func DiscardWriter(w pulse/io.Writer) error
-pulse/io: type DiscardableWriter interface
+pulse/io: type DiscardableWriter = pulse/internal/iocore.DiscardableWriter
+pulse/io: type DiscardableWriter underlying interface
 pulse/io: type DiscardableWriter imethod Close() error
 pulse/io: type DiscardableWriter imethod Discard() error
 pulse/io: type DiscardableWriter imethod WriteHeader(columns []string) error
 pulse/io: type DiscardableWriter imethod WriteRow(values []any) error
 pulse/io: const EmptySetCell untyped string = "|"
 pulse/io: func ErrStopIteration() error
-pulse/io: type ExportJob struct
+pulse/io: type ExportJob = pulse/internal/io.ExportJob
+pulse/io: type ExportJob underlying struct
 pulse/io: type ExportJob field FS github.com/spf13/afero.Fs
 pulse/io: type ExportJob field IncludeOverlays *bool
 pulse/io: type ExportJob field Includes []string
-pulse/io: type ExportJob field LabelResolver pulse/io.LabelResolver
+pulse/io: type ExportJob field LabelResolver pulse/internal/io.LabelResolver
 pulse/io: type ExportJob field Labels []*pulse/types.LabelBinding
 pulse/io: type ExportJob field Overlays []*pulse/types.OverlayLayer
 pulse/io: type ExportJob field Source string
-pulse/io: type ExportJob field Target pulse/io.Writer
+pulse/io: type ExportJob field Target pulse/internal/io.Writer
 pulse/io: type ExportJob method (*ExportJob) Hash() string
-pulse/io: type ExportJob method (*ExportJob) Predict(ctx context.Context) (*pulse/io.PredictReport, error)
-pulse/io: type ExportJob method (*ExportJob) Run(ctx context.Context) (*pulse/io.ExportReport, error)
-pulse/io: type ExportReport struct
-pulse/io: type ExportReport field LabelWarnings []pulse/io.LabelWarning
+pulse/io: type ExportJob method (*ExportJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
+pulse/io: type ExportJob method (*ExportJob) Run(ctx context.Context) (*pulse/internal/io.ExportReport, error)
+pulse/io: type ExportReport = pulse/internal/io.ExportReport
+pulse/io: type ExportReport underlying struct
+pulse/io: type ExportReport field LabelWarnings []pulse/internal/io.LabelWarning
 pulse/io: type ExportReport field OverlayWarnings []*pulse/errors.CodedError
-pulse/io: type ExportReport field RowErrors []pulse/io.RowError
+pulse/io: type ExportReport field RowErrors []pulse/internal/io.RowError
 pulse/io: type ExportReport field RowsExported int
 pulse/io: type ExportReport field TargetWarnings []*pulse/errors.CodedError
-pulse/io: type GroupCandidate struct
+pulse/io: type GroupCandidate = pulse/internal/io.GroupCandidate
+pulse/io: type GroupCandidate underlying struct
 pulse/io: type GroupCandidate field BreakEvenRatio float64 "json:\"break_even_ratio\""
 pulse/io: type GroupCandidate field ByteDelta int64 "json:\"byte_delta\""
 pulse/io: type GroupCandidate field Declaration string "json:\"declaration\""
@@ -2151,11 +2163,13 @@ pulse/io: type GroupCandidate field Reason string "json:\"reason,omitempty\""
 pulse/io: type GroupCandidate field RejectedMembers []string "json:\"rejected_members,omitempty\""
 pulse/io: type GroupCandidate field Suggested bool "json:\"suggested\""
 pulse/io: type GroupCandidate field Verdict string "json:\"verdict\""
-pulse/io: type GroupDecl struct
+pulse/io: type GroupDecl = pulse/internal/io.GroupDecl
+pulse/io: type GroupDecl underlying struct
 pulse/io: type GroupDecl field Key []string "json:\"key,omitempty\""
 pulse/io: type GroupDecl field Members []string "json:\"members\""
-pulse/io: type GroupDetection struct
-pulse/io: type GroupDetection field Candidates []pulse/io.GroupCandidate "json:\"candidates\""
+pulse/io: type GroupDetection = pulse/internal/io.GroupDetection
+pulse/io: type GroupDetection underlying struct
+pulse/io: type GroupDetection field Candidates []pulse/internal/io.GroupCandidate "json:\"candidates\""
 pulse/io: type GroupDetection field CandidatesDisproved int "json:\"candidates_disproved\""
 pulse/io: type GroupDetection field CandidatesOverBound int "json:\"candidates_over_bound\""
 pulse/io: type GroupDetection field FieldsConsidered int "json:\"fields_considered\""
@@ -2165,7 +2179,8 @@ pulse/io: type GroupDetection field Rows int64 "json:\"rows\""
 pulse/io: type GroupDetection field Suggested []string "json:\"suggested\""
 pulse/io: type GroupDetection field WindowBound int "json:\"window_bound\""
 pulse/io: type GroupDetection field WindowRows int "json:\"window_rows\""
-pulse/io: type GroupReport struct
+pulse/io: type GroupReport = pulse/internal/io.GroupReport
+pulse/io: type GroupReport underlying struct
 pulse/io: type GroupReport field BreakEvenRatio float64 "json:\"break_even_ratio\""
 pulse/io: type GroupReport field ByteDelta int64 "json:\"byte_delta\""
 pulse/io: type GroupReport field DictionaryBytes int64 "json:\"dictionary_bytes\""
@@ -2181,60 +2196,68 @@ pulse/io: type GroupReport field Ratio float64 "json:\"ratio\""
 pulse/io: type GroupReport field RatioFloor float64 "json:\"ratio_floor\""
 pulse/io: type GroupReport field Reason string "json:\"reason,omitempty\""
 pulse/io: type GroupReport field Verdict string "json:\"verdict\""
-pulse/io: type ImportJob struct
+pulse/io: type ImportJob = pulse/internal/io.ImportJob
+pulse/io: type ImportJob underlying struct
 pulse/io: type ImportJob field ColumnTypeOverrides map[string]pulse/encoding.FieldType
 pulse/io: type ImportJob field DedupRatioFloor float64
 pulse/io: type ImportJob field ElideConstants bool
 pulse/io: type ImportJob field FS github.com/spf13/afero.Fs
-pulse/io: type ImportJob field Groups []pulse/io.GroupDecl
+pulse/io: type ImportJob field Groups []pulse/internal/io.GroupDecl
 pulse/io: type ImportJob field InferredSchema bool
 pulse/io: type ImportJob field SampleRows int
 pulse/io: type ImportJob field Schema *pulse/encoding.Schema
 pulse/io: type ImportJob field SetDelimiters map[string]string
 pulse/io: type ImportJob field SetInferenceMinPct int
-pulse/io: type ImportJob field Source pulse/io.Reader
+pulse/io: type ImportJob field Source pulse/internal/io.Reader
 pulse/io: type ImportJob field StrictDedup bool
 pulse/io: type ImportJob field SuggestGroups bool
 pulse/io: type ImportJob field Target string
-pulse/io: type ImportJob method (*ImportJob) Predict(ctx context.Context) (*pulse/io.PredictReport, error)
-pulse/io: type ImportJob method (*ImportJob) Run(ctx context.Context) (*pulse/io.ImportReport, error)
-pulse/io: type ImportProjection struct
+pulse/io: type ImportJob method (*ImportJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
+pulse/io: type ImportJob method (*ImportJob) Run(ctx context.Context) (*pulse/internal/io.ImportReport, error)
+pulse/io: type ImportProjection = pulse/internal/io.ImportProjection
+pulse/io: type ImportProjection underlying struct
 pulse/io: type ImportProjection field ElisionBytesSaved int64 "json:\"elision_bytes_saved,omitempty\""
 pulse/io: type ImportProjection field FlatFileBytes int64 "json:\"flat_file_bytes\""
 pulse/io: type ImportProjection field ProjectedFileBytes int64 "json:\"projected_file_bytes\""
 pulse/io: type ImportProjection field RowErrors int "json:\"row_errors\""
 pulse/io: type ImportProjection field RowsImported int "json:\"rows_imported\""
-pulse/io: type ImportReport struct
+pulse/io: type ImportReport = pulse/internal/io.ImportReport
+pulse/io: type ImportReport underlying struct
 pulse/io: type ImportReport field ElidedConstants []string "json:\"ElidedConstants,omitempty\""
 pulse/io: type ImportReport field GroupWarnings []*pulse/errors.CodedError "json:\"GroupWarnings,omitempty\""
-pulse/io: type ImportReport field Groups []pulse/io.GroupReport "json:\"Groups,omitempty\""
+pulse/io: type ImportReport field Groups []pulse/internal/io.GroupReport "json:\"Groups,omitempty\""
 pulse/io: type ImportReport field PromotedFields []string
-pulse/io: type ImportReport field RowErrors []pulse/io.RowError
+pulse/io: type ImportReport field RowErrors []pulse/internal/io.RowError
 pulse/io: type ImportReport field RowsImported int
 pulse/io: type ImportReport field Schema *pulse/encoding.Schema
 pulse/io: type ImportReport field SourceWarnings []*pulse/errors.CodedError
 pulse/io: type ImportReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
-pulse/io: type InferOptions struct
+pulse/io: type InferOptions = pulse/internal/io.InferOptions
+pulse/io: type InferOptions underlying struct
 pulse/io: type InferOptions field ColumnTypeOverrides map[string]pulse/encoding.FieldType
 pulse/io: type InferOptions field SampleRows int
 pulse/io: type InferOptions field SetInferenceMinPct int
 pulse/io: func InferSchema(reader pulse/io.Reader, sampleRows int) (*pulse/encoding.Schema, []pulse/io.InferenceWarning, error)
 pulse/io: func InferSchemaWithOptions(reader pulse/io.Reader, opts pulse/io.InferOptions) (*pulse/io.InferenceResult, error)
-pulse/io: type InferenceResult struct
+pulse/io: type InferenceResult = pulse/internal/io.InferenceResult
+pulse/io: type InferenceResult underlying struct
 pulse/io: type InferenceResult field Delimiters map[string]string
 pulse/io: type InferenceResult field Schema *pulse/encoding.Schema
-pulse/io: type InferenceResult field Warnings []pulse/io.InferenceWarning
-pulse/io: type InferenceWarning struct
+pulse/io: type InferenceResult field Warnings []pulse/internal/io.InferenceWarning
+pulse/io: type InferenceWarning = pulse/internal/io.InferenceWarning
+pulse/io: type InferenceWarning underlying struct
 pulse/io: type InferenceWarning field Column string
 pulse/io: type InferenceWarning field Message string
 pulse/io: func IsNullCell(v any, explicit bool) bool
-pulse/io: type LabelResolver interface
+pulse/io: type LabelResolver = pulse/internal/io.LabelResolver
+pulse/io: type LabelResolver underlying interface
 pulse/io: type LabelResolver imethod Apply(field string, raw string) (out string, sibling string, ok bool)
 pulse/io: type LabelResolver imethod FieldsWithAugment() []string
 pulse/io: type LabelResolver imethod Has(field string) bool
 pulse/io: type LabelResolver imethod Mode(field string) pulse/types.LabelMode
-pulse/io: type LabelResolver imethod Warnings() []pulse/io.LabelWarning
-pulse/io: type LabelWarning struct
+pulse/io: type LabelResolver imethod Warnings() []pulse/internal/io.LabelWarning
+pulse/io: type LabelWarning = pulse/internal/io.LabelWarning
+pulse/io: type LabelWarning underlying struct
 pulse/io: type LabelWarning field Code string
 pulse/io: type LabelWarning field Details map[string]any
 pulse/io: type LabelWarning field Message string
@@ -2244,97 +2267,114 @@ pulse/io: const MinTransferLevel untyped int = 1
 pulse/io: func NewConvertJob(source pulse/io.Reader, target pulse/io.Writer) *pulse/io.ConvertJob
 pulse/io: func NewExportJob(source string, target pulse/io.Writer) *pulse/io.ExportJob
 pulse/io: func NewImportJob(source pulse/io.Reader, target string) *pulse/io.ImportJob
-pulse/io: type NullAwareReader interface
+pulse/io: type NullAwareReader = pulse/internal/iocore.NullAwareReader
+pulse/io: type NullAwareReader underlying interface
 pulse/io: type NullAwareReader imethod Close() error
 pulse/io: type NullAwareReader imethod ReadHeader() ([]string, error)
 pulse/io: type NullAwareReader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
 pulse/io: type NullAwareReader imethod RowNulls() []bool
-pulse/io: type NullAwareWriter interface
+pulse/io: type NullAwareWriter = pulse/internal/iocore.NullAwareWriter
+pulse/io: type NullAwareWriter underlying interface
 pulse/io: type NullAwareWriter imethod Close() error
 pulse/io: type NullAwareWriter imethod SetExplicitNulls(on bool)
 pulse/io: type NullAwareWriter imethod WriteHeader(columns []string) error
 pulse/io: type NullAwareWriter imethod WriteRow(values []any) error
-pulse/io: type OverlayAwareWriter interface
+pulse/io: type OverlayAwareWriter = pulse/internal/iocore.OverlayAwareWriter
+pulse/io: type OverlayAwareWriter underlying interface
 pulse/io: type OverlayAwareWriter imethod Close() error
 pulse/io: type OverlayAwareWriter imethod SetOverlays(layers []*pulse/types.OverlayLayer)
 pulse/io: type OverlayAwareWriter imethod WriteHeader(columns []string) error
 pulse/io: type OverlayAwareWriter imethod WriteRow(values []any) error
-pulse/io: type OverlayWarningEmitter interface
+pulse/io: type OverlayWarningEmitter = pulse/internal/iocore.OverlayWarningEmitter
+pulse/io: type OverlayWarningEmitter underlying interface
 pulse/io: type OverlayWarningEmitter imethod OverlayWarnings() []*pulse/errors.CodedError
 pulse/io: func ParseGroupDecl(s string) (pulse/io.GroupDecl, error)
-pulse/io: type PredictReport struct
+pulse/io: type PredictReport = pulse/internal/io.PredictReport
+pulse/io: type PredictReport underlying struct
 pulse/io: type PredictReport field ElidedConstants []string "json:\"ElidedConstants,omitempty\""
 pulse/io: type PredictReport field EstimatedRows int
-pulse/io: type PredictReport field GroupCandidates *pulse/io.GroupDetection "json:\"GroupCandidates,omitempty\""
+pulse/io: type PredictReport field GroupCandidates *pulse/internal/io.GroupDetection "json:\"GroupCandidates,omitempty\""
 pulse/io: type PredictReport field GroupWarnings []*pulse/errors.CodedError "json:\"GroupWarnings,omitempty\""
-pulse/io: type PredictReport field Groups []pulse/io.GroupReport "json:\"Groups,omitempty\""
-pulse/io: type PredictReport field Projection *pulse/io.ImportProjection "json:\"Projection,omitempty\""
+pulse/io: type PredictReport field Groups []pulse/internal/io.GroupReport "json:\"Groups,omitempty\""
+pulse/io: type PredictReport field Projection *pulse/internal/io.ImportProjection "json:\"Projection,omitempty\""
 pulse/io: type PredictReport field Schema *pulse/encoding.Schema
 pulse/io: type PredictReport field SourceWarnings []*pulse/errors.CodedError
 pulse/io: type PredictReport field TargetWarnings []*pulse/errors.CodedError
-pulse/io: type PredictReport field Warnings []pulse/io.InferenceWarning
+pulse/io: type PredictReport field Warnings []pulse/internal/io.InferenceWarning
 pulse/io: type PredictReport field WidthWarnings []*pulse/errors.CodedError "json:\"WidthWarnings,omitempty\""
-pulse/io: type Reader interface
+pulse/io: type Reader = pulse/internal/iocore.Reader
+pulse/io: type Reader underlying interface
 pulse/io: type Reader imethod Close() error
 pulse/io: type Reader imethod ReadHeader() ([]string, error)
 pulse/io: type Reader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io: type ResetReader interface
+pulse/io: type ResetReader = pulse/internal/iocore.ResetReader
+pulse/io: type ResetReader underlying interface
 pulse/io: type ResetReader imethod Close() error
 pulse/io: type ResetReader imethod ReadHeader() ([]string, error)
 pulse/io: type ResetReader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
 pulse/io: type ResetReader imethod Reset() error
 pulse/io: func ResolveTransferLevel(level int) (int, error)
-pulse/io: type RowError struct
+pulse/io: type RowError = pulse/internal/io.RowError
+pulse/io: type RowError underlying struct
 pulse/io: type RowError field Err error
 pulse/io: type RowError field Row int
-pulse/io: type SchemaAwareReader interface
+pulse/io: type SchemaAwareReader = pulse/internal/iocore.SchemaAwareReader
+pulse/io: type SchemaAwareReader underlying interface
 pulse/io: type SchemaAwareReader imethod Close() error
 pulse/io: type SchemaAwareReader imethod PulseSchema() (*pulse/encoding.Schema, error)
 pulse/io: type SchemaAwareReader imethod ReadHeader() ([]string, error)
 pulse/io: type SchemaAwareReader imethod ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io: type SchemaAwareWriter interface
+pulse/io: type SchemaAwareWriter = pulse/internal/iocore.SchemaAwareWriter
+pulse/io: type SchemaAwareWriter underlying interface
 pulse/io: type SchemaAwareWriter imethod Close() error
 pulse/io: type SchemaAwareWriter imethod SetPulseSchema(s *pulse/encoding.Schema)
 pulse/io: type SchemaAwareWriter imethod WriteHeader(columns []string) error
 pulse/io: type SchemaAwareWriter imethod WriteRow(values []any) error
 pulse/io: func SetTypeFor(elements int) (pulse/encoding.FieldType, bool)
-pulse/io: type SidecarEmitter interface
+pulse/io: type SidecarEmitter = pulse/internal/iocore.SidecarEmitter
+pulse/io: type SidecarEmitter underlying interface
 pulse/io: type SidecarEmitter imethod Close() error
 pulse/io: type SidecarEmitter imethod ReadHeader() ([]string, error)
 pulse/io: type SidecarEmitter imethod ReadRows(ctx context.Context, fn func(row []string) error) error
 pulse/io: type SidecarEmitter imethod WriteSidecar(fs github.com/spf13/afero.Fs, cohortPath string) error
-pulse/io: type SourceAwareWriter interface
+pulse/io: type SourceAwareWriter = pulse/internal/iocore.SourceAwareWriter
+pulse/io: type SourceAwareWriter underlying interface
 pulse/io: type SourceAwareWriter imethod Close() error
-pulse/io: type SourceAwareWriter imethod SetConvertSource(src pulse/io.ConvertSource)
+pulse/io: type SourceAwareWriter imethod SetConvertSource(src pulse/internal/iocore.ConvertSource)
 pulse/io: type SourceAwareWriter imethod WriteHeader(columns []string) error
 pulse/io: type SourceAwareWriter imethod WriteRow(values []any) error
-pulse/io: type SourceWarningEmitter interface
+pulse/io: type SourceWarningEmitter = pulse/internal/iocore.SourceWarningEmitter
+pulse/io: type SourceWarningEmitter underlying interface
 pulse/io: type SourceWarningEmitter imethod Close() error
 pulse/io: type SourceWarningEmitter imethod ReadHeader() ([]string, error)
 pulse/io: type SourceWarningEmitter imethod ReadRows(ctx context.Context, fn func(row []string) error) error
 pulse/io: type SourceWarningEmitter imethod Warnings() []*pulse/errors.CodedError
-pulse/io: type TargetWarningEmitter interface
+pulse/io: type TargetWarningEmitter = pulse/internal/iocore.TargetWarningEmitter
+pulse/io: type TargetWarningEmitter underlying interface
 pulse/io: type TargetWarningEmitter imethod Close() error
 pulse/io: type TargetWarningEmitter imethod Warnings() []*pulse/errors.CodedError
 pulse/io: type TargetWarningEmitter imethod WriteHeader(columns []string) error
 pulse/io: type TargetWarningEmitter imethod WriteRow(values []any) error
 pulse/io: const TransferCodec untyped string = "zstd"
-pulse/io: type TransferExportJob struct
+pulse/io: type TransferExportJob = pulse/internal/io.TransferExportJob
+pulse/io: type TransferExportJob underlying struct
 pulse/io: type TransferExportJob field FS github.com/spf13/afero.Fs
 pulse/io: type TransferExportJob field Level int
 pulse/io: type TransferExportJob field Output string
 pulse/io: type TransferExportJob field Source string
-pulse/io: type TransferExportJob method (*TransferExportJob) Run(ctx context.Context) (*pulse/io.TransferReport, error)
+pulse/io: type TransferExportJob method (*TransferExportJob) Run(ctx context.Context) (*pulse/internal/io.TransferReport, error)
 pulse/io: const TransferExtension untyped string = ".zst"
-pulse/io: type TransferImportJob struct
+pulse/io: type TransferImportJob = pulse/internal/io.TransferImportJob
+pulse/io: type TransferImportJob underlying struct
 pulse/io: type TransferImportJob field FS github.com/spf13/afero.Fs
 pulse/io: type TransferImportJob field Output string
 pulse/io: type TransferImportJob field Overwrite bool
 pulse/io: type TransferImportJob field Source string
-pulse/io: type TransferImportJob method (*TransferImportJob) Run(ctx context.Context) (*pulse/io.TransferReport, error)
+pulse/io: type TransferImportJob method (*TransferImportJob) Run(ctx context.Context) (*pulse/internal/io.TransferReport, error)
 pulse/io: const TransferLayoutShardArchive untyped string = "shard_archive"
 pulse/io: const TransferLayoutSingleFile untyped string = "single_file"
-pulse/io: type TransferReport struct
+pulse/io: type TransferReport = pulse/internal/io.TransferReport
+pulse/io: type TransferReport underlying struct
 pulse/io: type TransferReport field Codec string "json:\"codec\""
 pulse/io: type TransferReport field CohortBytes int64 "json:\"cohort_bytes\""
 pulse/io: type TransferReport field CompressedBytes int64 "json:\"compressed_bytes\""
@@ -2345,7 +2385,8 @@ pulse/io: type TransferReport field Ratio float64 "json:\"ratio\""
 pulse/io: type TransferReport field SHA256 string "json:\"sha256\""
 pulse/io: type TransferReport field Source string "json:\"source\""
 pulse/io: func WidestSetType() pulse/encoding.FieldType
-pulse/io: type Writer interface
+pulse/io: type Writer = pulse/internal/iocore.Writer
+pulse/io: type Writer underlying interface
 pulse/io: type Writer imethod Close() error
 pulse/io: type Writer imethod WriteHeader(columns []string) error
 pulse/io: type Writer imethod WriteRow(values []any) error
@@ -2803,12 +2844,12 @@ pulse/io/spss: type Writer method (*Writer) Bytes() []byte
 pulse/io/spss: type Writer method (*Writer) Close() error
 pulse/io/spss: type Writer method (*Writer) OverlayWarnings() []*pulse/errors.CodedError
 pulse/io/spss: type Writer method (*Writer) Renames() []pulse/io/spss.NameRename
-pulse/io/spss: type Writer method (*Writer) SetConvertSource(src pulse/io.ConvertSource)
+pulse/io/spss: type Writer method (*Writer) SetConvertSource(src pulse/internal/iocore.ConvertSource)
 pulse/io/spss: type Writer method (*Writer) SetOverlays(layers []*pulse/types.OverlayLayer)
 pulse/io/spss: type Writer method (*Writer) SetPulseSchema(s *pulse/encoding.Schema)
-pulse/io/spss: type Writer method (*Writer) ValidateCohort(ctx context.Context, src pulse/io.CohortSource) ([]*pulse/errors.CodedError, error)
+pulse/io/spss: type Writer method (*Writer) ValidateCohort(ctx context.Context, src pulse/internal/iocore.CohortSource) ([]*pulse/errors.CodedError, error)
 pulse/io/spss: type Writer method (*Writer) Warnings() []*pulse/errors.CodedError
-pulse/io/spss: type Writer method (*Writer) WriteCohort(ctx context.Context, src pulse/io.CohortSource) (int, error)
+pulse/io/spss: type Writer method (*Writer) WriteCohort(ctx context.Context, src pulse/internal/iocore.CohortSource) (int, error)
 pulse/io/spss: type Writer method (*Writer) WriteHeader(columns []string) error
 pulse/io/spss: type Writer method (*Writer) WriteRow(values []any) error
 pulse/io/spss: type WriterOptions struct
@@ -2859,9 +2900,9 @@ pulse/mcp: type DedupOut field DedupReport.BytesBefore int64 "json:\"bytes_befor
 pulse/mcp: type DedupOut field DedupReport.ElidedConstants []string "json:\"elided_constants,omitempty\""
 pulse/mcp: type DedupOut field DedupReport.FormatVersionAfter int "json:\"format_version_after\""
 pulse/mcp: type DedupOut field DedupReport.FormatVersionBefore int "json:\"format_version_before\""
-pulse/mcp: type DedupOut field DedupReport.GroupCandidates *pulse/io.GroupDetection "json:\"group_candidates,omitempty\""
+pulse/mcp: type DedupOut field DedupReport.GroupCandidates *pulse/internal/io.GroupDetection "json:\"group_candidates,omitempty\""
 pulse/mcp: type DedupOut field DedupReport.GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
-pulse/mcp: type DedupOut field DedupReport.Groups []pulse/io.GroupReport "json:\"groups,omitempty\""
+pulse/mcp: type DedupOut field DedupReport.Groups []pulse/internal/io.GroupReport "json:\"groups,omitempty\""
 pulse/mcp: type DedupOut field DedupReport.InPlace bool "json:\"in_place\""
 pulse/mcp: type DedupOut field DedupReport.Records int64 "json:\"records\""
 pulse/mcp: type DedupOut field DedupReport.Rewritten bool "json:\"rewritten\""
@@ -5263,4 +5304,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0e7a67603b412dee76916de1f324a2f19d8fda284b27a98881b822fddb1020ae
+// golden-hash: 025435a8a7c9629eaaa5a4f29f3a213599e58913e9b4e5e14d0848fb3d0dda6d
