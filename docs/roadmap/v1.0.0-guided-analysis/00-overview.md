@@ -83,7 +83,7 @@ Tier key: **C** = committed for v1.0.0 · **S** = stretch · **P** = post-1.0.
 | API + MCP | `pulse.Recommend` / `pulse_recommend` / `pulse recommend`: intent plus cohort in, ranked runnable drafts out | C |
 | API + MCP | `pulse.Explain` / `pulse_explain` / `pulse explain`: a request or response in, plain-language narration out | C |
 | API + MCP | Predict `advisories`: plain-language assumption and fit checks | C |
-| MCP | MCP **prompts**, one guided workflow per intent | C |
+| MCP | MCP **prompts**, one guided workflow per intent (extends the existing `pulse-bootstrap` / `pulse-author-request`) | C |
 | MCP | `pulse_examples_search` by intent and question, plus a synonym table | C |
 | MCP | Intent-scoped manifest view (`pulse_manifest {intent}`) for fewer tokens | C |
 | API | `Response.Interpretation` slot — **opt-in only, default off** | S |

@@ -99,7 +99,7 @@ Predict already validates a request. Add **advisories**: plain-language, non-blo
 
 **Intents in the manifest.** `pulse_manifest` gains `intents[]`: `{id, plain, sounds_like[], shapes[]}`. An agent fetches the manifest once per session, so it then has everything needed to classify a user's question. This adds no tool.
 
-**MCP prompts.** Pulse currently exposes MCP *tools* and *resources*. The MCP spec also has **prompts**: named, parameterised workflows a client can surface to users (as slash-commands in many clients). Add one prompt per intent:
+**MCP prompts.** Pulse already registers two MCP **prompts** in `mcp/gosdk/prompts.go`: `pulse-bootstrap` (session bootstrap) and `pulse-author-request` (a generic guided workflow taking a `question`). Prompts are named, parameterised workflows that clients surface to users (as slash-commands in many clients). This theme extends that existing mechanism with one prompt per intent, and has `pulse-author-request` route to the intent prompts once the agent has classified the question:
 
 ```
 pulse-compare-groups(cohort, outcome?, groups?)

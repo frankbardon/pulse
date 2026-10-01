@@ -15,6 +15,8 @@ graph TD
   G5 --> G6
 ```
 
+**Feature profiles:** Recommend, Explain, intents, prompts and generated docs must respect the instance's feature profile from their first commit — see [feature profiles 01](../v1.0.0-feature-profiles/01-design.md) (P4, Guided analysis).
+
 ## Epics
 
 ### G1 — Metadata core (C)
