@@ -35,7 +35,7 @@ type FieldFidelity struct {
 
 // PairwiseFidelity is one row of FidelityReport.Pairwise: the delta
 // between a captured numeric-numeric pair's source correlation (the
-// same rho synth/copula.go's conditional-Gaussian reconstruction was
+// same rho internal/synth/copula.go's conditional-Gaussian reconstruction was
 // asked to hit — CorrelationSpec.Correlation, itself sourced from
 // Profile.Conditional.NumericPairs when --conditional captured it, or
 // Profile.Pairwise otherwise, via SpecFromProfile) and that pair's
@@ -71,7 +71,7 @@ type PairwiseFidelity struct {
 // FidelityReport.CategoricalPairwise: the delta between a captured
 // categorical-categorical pair's source joint-frequency table
 // (CategoricalPairSpec.Cells — the same contingency cells
-// synth/conditional_sample.go's categoricalPairSampler was built from)
+// internal/synth/conditional_sample.go's categoricalPairSampler was built from)
 // and that pair's REALIZED joint-frequency table over the
 // _synthetic=true partition of the output cohort, expressed as total
 // variation distance (see categoricalTVD) — the categorical-pair
@@ -105,7 +105,7 @@ type CategoricalPairFidelity struct {
 // FidelityReport.CategoricalNumericPairwise: the per-category delta
 // between a captured categorical-numeric pair's source conditional
 // mean/std (CategoricalNumericPairSpec.Categories — the same figures
-// synth/conditional_sample.go's categoricalNumericPairSampler draws
+// internal/synth/conditional_sample.go's categoricalNumericPairSampler draws
 // from) and that category's REALIZED conditional mean/std over the
 // _synthetic=true partition of the output cohort.
 //
@@ -315,7 +315,7 @@ type FidelityReport struct {
 	// contrasts are merely compressed apart from one that silently lost
 	// its conditioning. Absent (omitempty) for every spec carrying no
 	// `models`, which is every spec predating `profile create
-	// --fit-models`. See synth/fidelity_models.go.
+	// --fit-models`. See internal/synth/fidelity_models.go.
 	Models []*ModelFidelity `json:"models,omitempty"`
 	// ModelResidualCorrelations is the residual-correlation half of the
 	// same model-recovery question (E5-S2): for every residual
@@ -328,7 +328,7 @@ type FidelityReport struct {
 	// a reader scanning this document which mechanism a given number
 	// describes. Absent (omitempty) for every spec carrying no
 	// `residual_correlations`, which is every spec predating `profile
-	// create --residual-correlations`. See synth/fidelity_residual.go.
+	// create --residual-correlations`. See internal/synth/fidelity_residual.go.
 	ModelResidualCorrelations *ModelResidualCorrelationFidelity `json:"model_residual_correlations,omitempty"`
 	Warnings                  []string                          `json:"warnings,omitempty"`
 }
@@ -413,7 +413,7 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 // _synthetic=false (source) and _synthetic=true (synthetic) partitions
 // of mergedSchema's records, in a single decode pass — the same
 // wide[fieldName].(uint64) mask-reading discipline
-// synth/profile.go's marginal/joint capture already uses — through
+// internal/synth/profile.go's marginal/joint capture already uses — through
 // setMaskFromWide, which covers the narrow rungs' uint64 and the wide
 // rungs' encoding.SetMask alike. A `.(uint64)` assertion here would
 // read BOTH partitions of a wide column as empty, so every per-option
@@ -531,7 +531,7 @@ func SyntheticAsCategoricalSchema(schema *encoding.Schema) *encoding.Schema {
 // and neither needs to be online with the other.
 //
 // pairs is typically Spec.Correlations — the source's captured/target
-// rho each pair's copula reconstruction in synth/copula.go targeted,
+// rho each pair's copula reconstruction in internal/synth/copula.go targeted,
 // via CorrelationSpec.Correlation — not a fresh re-derivation of it.
 // warnings is typically Profile.Warnings (e.g. a thin-pair warning from
 // --conditional capture); this function has no Profile type of its own
@@ -632,7 +632,7 @@ func computeSyntheticPairRho(rows []syntheticRow, a, b string) (rho float64, n i
 // buffer BuildFidelityReport was given for report's Fields section.
 //
 // pairs is typically Spec.CategoricalPairs — the source's captured
-// contingency cells synth/conditional_sample.go's categoricalPairSampler
+// contingency cells internal/synth/conditional_sample.go's categoricalPairSampler
 // was built from, not a fresh re-derivation of it.
 //
 // A pair whose synthetic partition produced no co-occurring observation
@@ -759,7 +759,7 @@ func categoricalTVD(sourceCells []CategoricalPairCellSpec, sourceN int, syntheti
 //
 // pairs is typically Spec.CategoricalNumericPairs — the source's
 // captured per-category conditional mean/std
-// synth/conditional_sample.go's categoricalNumericPairSampler draws
+// internal/synth/conditional_sample.go's categoricalNumericPairSampler draws
 // from. A category with no realized synthetic observation gets an
 // Error entry rather than aborting the rest of that pair's categories
 // or the report — the same non-fatal contract every other Fidelity
@@ -857,7 +857,7 @@ func computeSyntheticConditionalNumeric(mergedSchema *encoding.Schema, rows []sy
 // record buffer BuildFidelityReport was given.
 //
 // pairs is typically Spec.SetCategoricalPairs — the source's captured
-// contingency cells synth/conditional_sample.go's
+// contingency cells internal/synth/conditional_sample.go's
 // setCategoricalPairSampler was built from. A pair whose synthetic
 // partition produced no co-occurring observation at all gets an Error
 // entry rather than aborting the rest of the pairs or the report — the

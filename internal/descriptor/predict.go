@@ -855,7 +855,7 @@ func grouperComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.Com
 // does NOT flip PredictResult.Streamable.
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `processing/` imports.
 func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
@@ -900,7 +900,7 @@ func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request,
 // (the data slice still streams).
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `processing/` imports.
 func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
@@ -977,7 +977,7 @@ func filtererComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.Co
 // PredictResult.Streamable.
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `processing/` imports.
 func populateFiltererPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return

@@ -39,7 +39,7 @@ func loadJoinShapeFixture(t testing.TB) (afero.Fs, string, *encoding.Schema, int
 	t.Helper()
 	data, err := afero.ReadFile(afero.NewOsFs(), joinShapeFixturePath)
 	if err != nil {
-		t.Fatalf("read fixture (regenerate with go test ./service/ -run TestJoinShapeFixture_MatchesGenerator -update): %v", err)
+		t.Fatalf("read fixture (regenerate with go test ./internal/service/ -run TestJoinShapeFixture_MatchesGenerator -update): %v", err)
 	}
 	r := bytes.NewReader(data)
 	pulseVersion, err := encoding.ReadHeader(r)

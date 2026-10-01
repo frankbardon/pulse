@@ -41,7 +41,7 @@ package spsstest
 // slot, and no reader needs it — the bytecode layer takes its bias from the
 // header. It is emitted in the conventional form so a fixture looks ordinary
 // to an outside reader, and Pulse's own reader deliberately does not check
-// it; see the "What is deliberately NOT validated" note in io/spss/zsav.go.
+// it; see the "What is deliberately NOT validated" note in internal/io/spss/zsav.go.
 //
 // # Determinism
 //

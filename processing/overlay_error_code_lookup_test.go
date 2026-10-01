@@ -226,7 +226,7 @@ func TestOverlayErrorCodes_DetailsPayloadSurvives(t *testing.T) {
 // PARAM_MISSING wins. The runtime now reports predict's code for the
 // case it already refused; nothing that succeeded before starts
 // failing. This test asserts the runtime half; the predict half lives
-// in descriptor/overlay_pairwise_welford_params_test.go.
+// in internal/descriptor/overlay_pairwise_welford_params_test.go.
 func TestPairwiseWelfordDistinct_PredictAndRuntimeAgreeOnCode(t *testing.T) {
 	for _, kind := range []types.OverlayKind{
 		types.OverlayKindPairwiseWelchT,

@@ -50,7 +50,7 @@ func loadTestProfile(t *testing.T, name string) *synth.Profile {
 // The comparison stands in for `from-profile --emit-spec` feeding
 // `from-schema`: from-schema IS ParseSpec followed by generation, and
 // AugmentFromProfile generates its synthetic partition through the same
-// generate() call at the same seed (synth/augment.go). The CLI
+// generate() call at the same seed (internal/synth/augment.go). The CLI
 // counterpart that drives both real leaves end to end is
 // TestSynthFromProfileCLI_EmitSpecRoundTripsThroughFromSchema; file-level
 // byte-identity is not available THERE because from-profile's output

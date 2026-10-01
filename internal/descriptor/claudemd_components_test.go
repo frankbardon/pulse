@@ -96,7 +96,7 @@ func TestUpdateDemandTableCoversComponents(t *testing.T) {
 
 	// Row 2: Per-operator ComponentSchema change. Identifying phrase:
 	// "ComponentSchema" plus the per-operator framing. Both
-	// `ComponentSchema` and `descriptor/capabilities_*.go` should
+	// `ComponentSchema` and `internal/descriptor/capabilities_*.go` should
 	// appear in the row body.
 	hasSchemaToken := strings.Contains(section, "ComponentSchema")
 	hasCapabilitiesToken := strings.Contains(section, "descriptor/capabilities_") ||

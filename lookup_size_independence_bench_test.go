@@ -36,7 +36,7 @@ import (
 // `-count=5` + `benchstat` before drawing conclusions about a specific
 // PR). These numbers are post-E7 (the sidecar v3 seekable
 // bucket-offset table + single-bucket read + seek-based record read
-// remediation — see service/lookup.go, encoding.ReadIndexMeta /
+// remediation — see internal/service/lookup.go, encoding.ReadIndexMeta /
 // ReadBucketByKey):
 //
 //	SIZE       indexed_lookup            scan_baseline

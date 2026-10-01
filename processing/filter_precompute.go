@@ -33,7 +33,7 @@ import (
 // n_null_input still reads the record's own null state.
 //
 // Where the entry index comes from: the grouped reuse decoder hands the
-// record its row's entries through encoding.GroupIndexRecord
+// record its row's entries through internal/encoding.GroupIndexRecord
 // (Record.SetGroupIndices). Any record that does not carry a valid index
 // — a map decode that does not forward RecordReader.GroupIndex (lookup,
 // the shard reducer, the projection-without-plan fallback; filter-to-

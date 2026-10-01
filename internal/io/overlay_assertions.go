@@ -25,7 +25,7 @@ import (
 // Designed for use inside table-driven test bodies; callers wrap the
 // error in t.Errorf for the failure message.
 //
-// Exported so the per-format integration tests under io/exportoverlay/
+// Exported so the per-format integration tests under internal/io/exportoverlay/
 // share one comparison surface across Arrow / Parquet / Excel / NDJSON
 // round-trips.
 func CompareOverlayLayers(got, want []*types.OverlayLayer) error {

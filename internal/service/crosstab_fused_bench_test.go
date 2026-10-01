@@ -26,7 +26,7 @@ import (
 //
 // Run with:
 //
-//	go test ./service/ -bench BenchmarkCrosstabWideCohort_Buffered -benchmem -run=^$
+//	go test ./internal/service/ -bench BenchmarkCrosstabWideCohort_Buffered -benchmem -run=^$
 func BenchmarkCrosstabWideCohort_Buffered(b *testing.B) {
 	svc, req, ctx := setupCrosstabWideBench(b)
 	svc.SetDisableCrosstabFusion(true)
@@ -48,7 +48,7 @@ func BenchmarkCrosstabWideCohort_Buffered(b *testing.B) {
 //
 // Run with:
 //
-//	go test ./service/ -bench BenchmarkCrosstabWideCohort_Fused -benchmem -run=^$
+//	go test ./internal/service/ -bench BenchmarkCrosstabWideCohort_Fused -benchmem -run=^$
 func BenchmarkCrosstabWideCohort_Fused(b *testing.B) {
 	svc, req, ctx := setupCrosstabWideBench(b)
 	// Fusion enabled by default; assert here for clarity.
@@ -131,7 +131,7 @@ func setupCrosstabWideBench(b *testing.B) (*Service, *types.Request, context.Con
 //
 // Run with:
 //
-//	go test ./service/ -bench BenchmarkCrosstabSetFanoutOverlay -benchmem -run=^$
+//	go test ./internal/service/ -bench BenchmarkCrosstabSetFanoutOverlay -benchmem -run=^$
 // ---------------------------------------------------------------------
 
 // setFanoutBenchRows is the record-count axis. At least two sizes so the

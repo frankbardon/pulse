@@ -29,7 +29,7 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 //
 // Deeper runtime checks (n ≥ p + 1, link compatibility, regularization
 // parameter bounds) live with the engines in Phases 1–4. predict
-// cannot import processing/regression, so registry membership is
+// cannot import internal/processing/regression, so registry membership is
 // checked against types.AllRegressionTypes() instead.
 func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool) {
 	for _, reg := range req.Regressions {

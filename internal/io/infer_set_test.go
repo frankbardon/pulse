@@ -178,8 +178,8 @@ func TestInfer_SetMinPctRespectsCustom(t *testing.T) {
 }
 
 // TestInfer_SetExactlySixtyFourTokensInfersSetU64 pins the at-64-tokens
-// boundary in probeSetClassification (io/infer.go:363) and setWidth
-// (io/infer.go:400-413). The existing overflow test uses 70 tokens —
+// boundary in probeSetClassification (internal/io/infer.go:363) and setWidth
+// (internal/io/infer.go:400-413). The existing overflow test uses 70 tokens —
 // proving the >64 reject path — but no test pins exactly-64-tokens →
 // set_u64. A regression where the gate is mis-coded as `>= 64` would
 // silently kick the column to categorical_u16 instead of set_u64.

@@ -146,7 +146,7 @@ type thinLevel struct {
 // # Why ridge, and why one alpha
 //
 // The shipped OLS engine implements ridge in closed form on the centered
-// Gram (processing/regression/ols_ridge.go: β = (M2_xx + n·λ·I)⁻¹·M2_xy)
+// Gram (internal/processing/regression/ols_ridge.go: β = (M2_xx + n·λ·I)⁻¹·M2_xy)
 // with its own golden and property coverage, and the story's instruction
 // is to use it rather than hand-roll shrinkage. λ is a single scalar for
 // the whole design — the engine has no per-column penalty and this

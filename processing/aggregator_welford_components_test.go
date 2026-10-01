@@ -471,7 +471,7 @@ func TestWelfordFamilyComponents_CIEmits(t *testing.T) {
 //
 // AGG_SKEWNESS and AGG_KURTOSIS expose OnlineAggregator but not
 // MergeableAggregator — the per-shard parallel reducer in
-// service/shard_reduce.go falls back to single-instance streaming for
+// internal/service/shard_reduce.go falls back to single-instance streaming for
 // them. The parity lock for those operators compares the streaming
 // UpdateRow→Finalize→Components path against the buffered
 // Aggregate→Components path on the same cohort, asserting bit-equal

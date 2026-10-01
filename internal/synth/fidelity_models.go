@@ -54,9 +54,9 @@ import (
 // because synth cannot import processing — descriptor imports synth, and
 // processing's own tests import descriptor. That constraint is real and
 // it is why TestRunner is an injected function type. It does NOT apply
-// to this file: the refit needs processing/regression, a subpackage
+// to this file: the refit needs internal/processing/regression, a subpackage
 // whose imports are encoding + errors + types only, which this package
-// already depends on for capture (see synth/regression_record.go). So
+// already depends on for capture (see internal/synth/regression_record.go). So
 // there is nothing to inject and no reason to route the code through the
 // facade; the acceptance criterion that capture and recovery use the
 // SAME fitting path is easiest to keep true when the two calls sit in
@@ -65,7 +65,7 @@ import (
 // # Why the comparison is on the LATENT scale
 //
 // A modelled numeric is drawn as value = Q(Φ(μ + σz)) where μ carries
-// the coefficients (synth/model_draw.go). For a `normal` target the
+// the coefficients (internal/synth/model_draw.go). For a `normal` target the
 // round trip collapses to prediction + residual_std·z and a coefficient
 // reads as a data-scale effect; for a lognormal, uniform, exponential or
 // captured-mixture target the map from latent to value is NON-LINEAR and
@@ -75,7 +75,7 @@ import (
 // latent coefficient, which is the trap this section exists to avoid: it
 // would report every `--fit-shape` target as badly recovered while the
 // generation path was exactly correct. Each generated value is instead
-// inverted back to its latent through latentFor (synth/copula.go, the
+// inverted back to its latent through latentFor (internal/synth/copula.go, the
 // algebraic inverse of the quantileFor the draw used) BEFORE the refit,
 // and the captured coefficient is divided by the target's own marginal
 // std, which is precisely the division buildModelDrawers performs. Both
@@ -160,7 +160,7 @@ type ModelFidelity struct {
 	// coefficient is a direct estimate. RecoveryScaleProbitScore means
 	// the target's Q is a step or staircase with no point inverse, so
 	// the recovery ran through the CALIBRATED interval-midpoint probit
-	// score (synth/fidelity_score.go): still latent-scale and still
+	// score (internal/synth/fidelity_score.go): still latent-scale and still
 	// unbiased, but divided by a retention factor that widens the
 	// standard error, so the same numeric gap carries less evidence.
 	// A score-scale entry reports no intercept comparison — see
@@ -394,7 +394,7 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 		// bernoulli or discrete target shipped its captured coefficients
 		// with this error in place of a delta, which cost the motivating
 		// cohort 53 of its 55 comparable models. They now recover
-		// through the calibrated score; see synth/fidelity_score.go.
+		// through the calibrated score; see internal/synth/fidelity_score.go.
 		entry.Error = err.Error()
 		return entry, nil
 	}
@@ -476,7 +476,7 @@ func computeModelFidelity(mergedSchema *encoding.Schema, rows []syntheticRow, d 
 	// the conditional mean of the same score under the captured model
 	// onto the same design and the same rows, which is what turns the
 	// attenuated observed coefficients back into latent-scale ones — see
-	// synth/fidelity_score.go for why that division is exact rather than
+	// internal/synth/fidelity_score.go for why that division is exact rather than
 	// an approximation.
 	var expected *types.RegressionResult
 	if score.staircase {
@@ -817,9 +817,9 @@ func liveRecoveryColumns(terms []*recoveryTerm) []dummyColumn {
 	return out
 }
 
-// fitRecovery drives the surviving design through processing/regression's
+// fitRecovery drives the surviving design through internal/processing/regression's
 // REG_OLS engine — the same engine, through the same dummyRecord adapter,
-// that capture used (synth/regression_record.go, synth/profile_models.go's
+// that capture used (internal/synth/regression_record.go, internal/synth/profile_models.go's
 // buildEngine). Using a second estimator here would make every reported
 // gap ambiguous between "generation lost structure" and "two fitters
 // disagree", which is the one thing this section must never be.

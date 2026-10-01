@@ -34,7 +34,7 @@ import (
 //     `ref`) when the spec carries a Compose Reference shape — but the
 //     Request-host path here is NOT Compose so those extras do NOT
 //     widen the allowed set on this validator. The Compose-side
-//     validator (`descriptor/compose.go` `validateComposeOverlaySpec`)
+//     validator (`internal/descriptor/compose.go` `validateComposeOverlaySpec`)
 //     reuses the same flatten + walk helpers and widens its own allowed
 //     set with the Compose-specific identifiers.
 //  5. Widen the allowed set with the embedder-registered
@@ -55,10 +55,10 @@ import (
 // Structural invariants (CLAUDE.md "Predict / Inspect contracts" +
 // "What NOT to Do"):
 //
-//   - This file MUST NOT import `service/` or `processing/`. The AST
+//   - This file MUST NOT import `internal/service/` or `processing/`. The AST
 //     walker uses `expr-lang/expr/parser` + `expr-lang/expr/ast`
 //     directly — the same packages `processing.NeededFields` uses for
-//     `ATTR_FORMULA` projection. Both packages live outside `service/`
+//     `ATTR_FORMULA` projection. Both packages live outside `internal/service/`
 //     and `processing/` so the no-execute import gate stays clean.
 //   - No `fmt.Sprintf` in any JSON-bearing path. Error messages are
 //     built with string concatenation; Details maps go through
@@ -235,8 +235,8 @@ func extractFormulaParamPredict(env *descriptor.Envelope, spec *types.OverlaySpe
 
 // inferRequestHostShape resolves the OverlayShape implied by a
 // Request-host (`Request.Overlays`). Mirrors `inferComposeSlotShape`
-// (`descriptor/compose.go`) and `inferChainStageShape`
-// (`descriptor/chain_overlay.go`) — pure function over Request slots:
+// (`internal/descriptor/compose.go`) and `inferChainStageShape`
+// (`internal/descriptor/chain_overlay.go`) — pure function over Request slots:
 //
 //   - Request.Crosstab != nil ⇒ OverlayShapeMatrix.
 //   - len(Request.Groups) > 0 ⇒ OverlayShapeSeries.

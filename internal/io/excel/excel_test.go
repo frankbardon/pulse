@@ -838,7 +838,7 @@ func TestExcelReader_Reset(t *testing.T) {
 // Parquet, the Excel adapter has no typed schema to satisfy: formatCell
 // only special-cases decimal128 and passes everything else through to
 // excelize as a plain cell value, so the canonical datetime literal
-// io/export.go produces lands verbatim as text — the same treatment
+// internal/io/export.go produces lands verbatim as text — the same treatment
 // `date` already gets. No adapter change was needed for datetime; this
 // test exists so a future typed arm cannot silently regress it.
 func TestExcel_DateTimeColumnWritesCanonicalString(t *testing.T) {

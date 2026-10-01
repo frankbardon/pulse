@@ -53,7 +53,7 @@ func TestArrow_FieldFromPulseWideSetRungs(t *testing.T) {
 
 // TestArrow_ListStartsProvisionalAndWidens documents the Arrow import
 // contract: a LIST column enters as the narrowest rung and the shared
-// inference ladder (io/infer.go) widens it against MaxSetEntries as the
+// inference ladder (internal/io/infer.go) widens it against MaxSetEntries as the
 // dictionary fills, now all the way to set_u256.
 func TestArrow_ListStartsProvisionalAndWidens(t *testing.T) {
 	for _, dt := range []arrow.DataType{

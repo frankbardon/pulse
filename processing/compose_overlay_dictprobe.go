@@ -67,7 +67,7 @@ import (
 //   - Pure function. No I/O. No goroutines. No global state. No
 //     mutation of `refResp` / `targetResps` / `spec`. Same inputs →
 //     same outputs.
-//   - MUST NOT import service/ or descriptor/. The check stays inside
+//   - MUST NOT import internal/service/ or descriptor/. The check stays inside
 //     processing/ alongside the rest of the overlay machinery.
 //   - No fmt.Sprintf in any JSON-bearing path. Detail keys are plain
 //     map[string]any populated with encoding/json-friendly types
@@ -111,7 +111,7 @@ import (
 //	target[i]. When one sequence is shorter than the other the
 //	comparison ends at the shorter length — the longer one is allowed
 //	to "extend" the dictionary so long as the prefix matches (mirrors
-//	encoding.isPrefix / encoding.ValidateDictPrefixRule semantics for
+//	encoding.isPrefix / internal/encoding.ValidateDictPrefixRule semantics for
 //	sharded cohorts). When ANY position diverges the probe fails for
 //	that target with the offending field name and the canonical
 //	prefix strings (entries joined "|" up to the divergence point —

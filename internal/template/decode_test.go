@@ -255,9 +255,9 @@ func TestRendered_Typed(t *testing.T) {
 
 // TestRender_UnknownFieldNamesTheField is the papercut guard. Strict
 // decode is harsher than the rest of Pulse, which tolerates unknown
-// fields — that tolerance is how the examples/ `_meta` block survives at
+// fields — that tolerance is how the internal/examples/ `_meta` block survives at
 // execution. The message has to name the offending key, or a body pasted
-// from an examples/ file fails with no clue why.
+// from an internal/examples/ file fails with no clue why.
 func TestRender_UnknownFieldNamesTheField(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -554,7 +554,7 @@ func TestRender_NilTemplate(t *testing.T) {
 // that can open a file, a directory, or a socket. None of them may be a
 // direct import of any package on the render path.
 //
-// Since the store landed, template/ as a whole does reach the filesystem —
+// Since the store landed, internal/template/ as a whole does reach the filesystem —
 // discovering template files on disk is the store's entire job. The
 // invariant is therefore enforced per FILE rather than per package: only
 // the files on fsCapableFiles may name one of these, and the render path's
@@ -645,7 +645,7 @@ var fsCapableFiles = map[string]bool{
 // lock, asserted two ways.
 //
 // Structurally: no file on the render path — and neither of the two
-// packages template/ is allowed to depend on — directly imports anything
+// packages internal/template/ is allowed to depend on — directly imports anything
 // that can open a file. A render path that cannot name a filesystem API
 // cannot use one, and the import firewall
 // (TestTemplatePackage_ImportBoundary) already bars the packages that could

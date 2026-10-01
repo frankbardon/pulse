@@ -48,7 +48,7 @@ type compiledConstraints struct {
 //
 // It takes []FieldSpec rather than []*writerField so the two callers can
 // share it: compileConstraints runs after buildSchema and has writer
-// fields, while rule validation (synth/rules.go) runs BEFORE buildSchema
+// fields, while rule validation (internal/synth/rules.go) runs BEFORE buildSchema
 // and has only the Spec. Compiling a rule's `when` against a
 // hand-rolled second environment is exactly the drift that produced
 // issue #258, so there is one builder and both go through it.
@@ -186,7 +186,7 @@ func (p isnullIdentifierPatcher) Visit(node *ast.Node) {
 // promise validateRules exists to make.
 //
 // PARSED, never substring-matched, for the same reason
-// exprReadsIdentifier is (synth/rules_claim.go): a field legitimately
+// exprReadsIdentifier is (internal/synth/rules_claim.go): a field legitimately
 // named isnull_reason, and the text isnull("x") sitting inside a string
 // LITERAL, must not trip it. The question is syntactic, so it is asked
 // of the syntax.
@@ -282,7 +282,7 @@ func (c *compiledConstraints) evaluate(row map[string]any, nullMask map[string]b
 // nullable_decimal128, none of which fieldTypeFromName can build, so no
 // spec naming them ever reaches the writer; they are gone.
 //
-// Row shapes, per synth/distributions.go: every scalar arrives as
+// Row shapes, per internal/synth/distributions.go: every scalar arrives as
 // float64 (including packed_bool, date and decimal128), a categorical
 // as a string, a set as a map[string]bool.
 // TestSentinelFor_MatchesDrawnRowValueForEveryDeclarableType asserts

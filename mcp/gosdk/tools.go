@@ -20,7 +20,7 @@ var (
 
 // RegisteredTools returns the canonical list of MCP tool names this adapter
 // mounts. Order is stable for deterministic documentation scans. Mirrors
-// toolmeta.Names().
+// internal/mcp/toolmeta.Names().
 func RegisteredTools() []string {
 	return toolmeta.Names()
 }
@@ -110,7 +110,7 @@ func inspectPath(raw json.RawMessage) string {
 }
 
 // importResultPath extracts the managed .pulse path from a pulse_import result
-// for the bind-on-inspect hook. The result is the typed imports.Result.
+// for the bind-on-inspect hook. The result is the typed internal/imports.Result.
 func importResultPath(result any) string {
 	body, err := json.Marshal(result)
 	if err != nil {

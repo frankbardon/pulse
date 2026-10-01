@@ -18,7 +18,7 @@ import (
 // is checked two ways: sample skewness against the closed-form lognormal
 // skewness, and empirical quantiles against the theoretical lognormal
 // quantile function Q(p) = exp(mu + sigma*Φ⁻¹(p)), computed here via
-// math.Erfinv — independent of synth/copula.go's own phi (which uses
+// math.Erfinv — independent of internal/synth/copula.go's own phi (which uses
 // math.Erf, the forward direction) — so this test cannot pass merely by
 // agreeing with the implementation under test.
 func TestSynth_CopulaPreservesLognormalMarginal(t *testing.T) {
@@ -124,7 +124,7 @@ func TestSynth_CopulaNormalOnNormalIsExact(t *testing.T) {
 }
 
 // normInv returns Φ⁻¹(p) via math.Erfinv — independent of
-// synth/copula.go's own phi (which uses math.Erf, the forward
+// internal/synth/copula.go's own phi (which uses math.Erf, the forward
 // direction) — so tests using this cannot pass merely by agreeing with
 // the implementation under test.
 func normInv(p float64) float64 {

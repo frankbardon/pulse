@@ -182,7 +182,7 @@ func TestExtensions_Predict_BufferedCustomAggregatorBlocksStreaming(t *testing.T
 //
 // Indirect proof: build the descriptor package and verify it does
 // not panic / fail compilation. The dedicated import-cycle gate
-// lives in descriptor/predict_test.go (TestPredictNoExecutionImports);
+// lives in internal/descriptor/predict_test.go (TestPredictNoExecutionImports);
 // this assertion just exercises the snapshot path from outside.
 func TestExtensions_Predict_DescriptorImportContractHolds(t *testing.T) {
 	snap := &descx.ExtensionsSnapshot{

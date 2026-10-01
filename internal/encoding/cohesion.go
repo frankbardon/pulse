@@ -10,7 +10,7 @@ import (
 // CohesionWarning is a structured non-fatal divergence emitted by the
 // schema-cohesion validators. Its shape mirrors the descriptor envelope's
 // {code, message, details} entries so callers (typically
-// `service/shard add` and `pulse shard verify`) can forward warnings
+// `pulse shard add` and `pulse shard verify`) can forward warnings
 // through the standard --json output without reshaping.
 //
 // encoding/ stays free of descriptor/ imports — this is the local

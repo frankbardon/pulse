@@ -77,7 +77,7 @@ func (t AggregationType) Streamable() bool {
 // commutative merge (count/sum/min/max/null_count), a parallel-friendly
 // recurrence (Welford-mean / variance / stddev), or a union of per-
 // value count maps (frequency / mode / distinct_count). The per-shard
-// parallel reducer in service/shard_reduce.go consults this method
+// parallel reducer in internal/service/shard_reduce.go consults this method
 // (mirrored by processing.CanMergeRequest) to decide whether to fan
 // out shard processing across a bounded worker pool.
 //
@@ -134,7 +134,7 @@ func (t AggregationType) Mergeable() bool {
 // aggregator that forgets to opt in computes the correct margin (slower
 // but right) rather than silently producing the wrong margin.
 //
-// service/crosstab.go consults this method to decide whether the
+// internal/service/crosstab.go consults this method to decide whether the
 // margin can be derived from cell sums (when MarginSummable + no
 // normalization round-off concern) or must be recomputed via a sibling
 // Compose request. In v1 every margin is recomputed (see

@@ -10,7 +10,7 @@ import (
 
 // This file is the profile-time CO-MISSING detector, the second
 // candidate kind on the pipeline `profile create --suggest-rules` built
-// (synth/profile_gating.go). Where that one finds a field whose LEVELS
+// (internal/synth/profile_gating.go). Where that one finds a field whose LEVELS
 // gate another field's null rate, this one finds fields that are simply
 // nulled TOGETHER — a survey question block asked or skipped as a unit —
 // and proposes them as `null_together` rules.
@@ -342,7 +342,7 @@ func (d *blockDetector) overlap(i, j int) float64 {
 // sameNullPattern answers whether fields a and b are null on exactly
 // the same rows, and whether the question could be answered at all.
 //
-// It is the EXACT-DEPENDENCY detector's (synth/profile_dependency.go)
+// It is the EXACT-DEPENDENCY detector's (internal/synth/profile_dependency.go)
 // admission test, served from this accumulator rather than duplicated
 // into a second one. That detector needs "do these two fields share a
 // null pattern" for a reason of its own — a `set_expr` clears the

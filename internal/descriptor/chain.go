@@ -76,7 +76,7 @@ type ChainOverlaySchemaDivergence struct {
 // inferred output schema is propagated forward so the next stage's
 // field references can be checked.
 //
-// The validator does not import service/processing — predict's
+// The validator does not import internal/service or processing — predict's
 // structural ban applies to the broader descriptor surface in spirit.
 func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *descriptor.Envelope {
 	result := &ChainValidationResult{Valid: true, Request: req}

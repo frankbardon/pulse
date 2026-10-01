@@ -163,7 +163,7 @@ func CheckPairwiseSlabPartition(ct *CrosstabSpec, scope OverlayScope, params Pai
 // ExtensionGroupFanOutFunc answers the fan-out question for a group
 // type that is NOT a Pulse built-in — an embedder registration. It is
 // the bridge that lets both gate arms reach the same fact by different
-// routes: predict adapts descriptor.ExtensionsSnapshot.Groupers,
+// routes: predict adapts internal/descriptor.ExtensionsSnapshot.Groupers,
 // runtime adapts processing.ExtensionRegistry.FansOut.
 //
 // known=false means the name resolves to no registered grouper at

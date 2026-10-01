@@ -539,12 +539,12 @@ func (w *Writer) appendCell(c int, v any) error {
 			return parrow.AppendDecimal128(w.bldr.Field(c), f, v)
 		case f.Type.IsSet():
 			// A Pulse set maps to LIST<UTF8> (parrow.TypeFromPulse), and
-			// io/export.go hands over ONE delimiter-joined token string
+			// internal/io/export.go hands over ONE delimiter-joined token string
 			// per cell. Without this arm the string reached the list
 			// builder's AppendValueFromString, which parses it as JSON,
 			// failed on every row, and made a Parquet export of any set
 			// column report success having written zero rows. The
-			// helper is shared with io/arrow so both encode a set — and
+			// helper is shared with internal/io/arrow so both encode a set — and
 			// its null / empty-selection distinction — identically.
 			if done, err := parrow.AppendSetList(w.bldr.Field(c), v); done {
 				return err
@@ -553,7 +553,7 @@ func (w *Writer) appendCell(c int, v any) error {
 	}
 	if w.strBs[c] != nil {
 		// A string column's null is the validity bit, not "" — see the
-		// io/arrow writer's identical arm and iocore.NullAwareWriter.
+		// internal/io/arrow writer's identical arm and iocore.NullAwareWriter.
 		if iocore.IsNullCell(v, w.explicitNulls) {
 			w.strBs[c].AppendNull()
 			return nil
@@ -621,18 +621,18 @@ func (w *Writer) Bytes() []byte {
 	return w.buf.Bytes()
 }
 
-// Type-mapping helpers live in io/arrow as parrow.TypeToPulse and
+// Type-mapping helpers live in internal/io/arrow as parrow.TypeToPulse and
 // parrow.TypeFromPulse so the Parquet and Arrow IPC paths share a single
 // source of truth. The thin wrappers below delegate to them.
 
-// arrowTypeToPulse delegates to the shared io/arrow type map. Nullability
+// arrowTypeToPulse delegates to the shared internal/io/arrow type map. Nullability
 // is carried by encoding.Field.Nullable, not by the type itself; the
 // nullable argument is accepted for signature symmetry and ignored.
 func arrowTypeToPulse(dt arrow.DataType, _ bool) encoding.FieldType {
 	return parrow.TypeToPulse(dt)
 }
 
-// pulseTypeToArrow delegates to the shared io/arrow type map.
+// pulseTypeToArrow delegates to the shared internal/io/arrow type map.
 func pulseTypeToArrow(ft encoding.FieldType) arrow.DataType {
 	return parrow.TypeFromPulse(ft)
 }

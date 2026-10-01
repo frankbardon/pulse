@@ -41,7 +41,7 @@ import (
 // # Independent of the reader on purpose
 //
 // This resolves charset names with its own small table rather than calling
-// into io/spss. A fixture generator that shares its charset lookup with the
+// into internal/io/spss. A fixture generator that shares its charset lookup with the
 // reader under test cannot catch a bug in that lookup: both sides would
 // agree on the wrong codepage and the round trip would pass. The cost is
 // that the two tables can drift, and that is the intended trade — drift

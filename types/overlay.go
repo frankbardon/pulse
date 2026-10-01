@@ -252,7 +252,7 @@ const (
 	// lives on `Ref.Population.Cohort`); any other ref-family pointer
 	// (Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY /
 	// Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at
-	// predict time (per-kind validator lives in descriptor/overlay_facet.go). Mirrors
+	// predict time (per-kind validator lives in internal/descriptor/overlay_facet.go). Mirrors
 	// the INDEX_VS_POP / ZSCORE_VS_POP sibling-kind ref contract.
 	//
 	// Scope must be GROUP. `Level` / `Within` MUST be zero (population
@@ -800,7 +800,7 @@ const (
 	// ref-family pointer (`Margin` / `Sibling` / `BaselineIndex` /
 	// `Prior` / `RollingMean` / `YoY` / `Stage` / `Slot`) fires
 	// `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` at predict time (the
-	// per-kind validator lives in descriptor/overlay_facet.go).
+	// per-kind validator lives in internal/descriptor/overlay_facet.go).
 	//
 	// Scope must be GROUP. `Level` / `Within` MUST be zero (population
 	// comparison is a single-value lookup, not an axis prefix); non-zero
@@ -1010,8 +1010,8 @@ const (
 	//	otherwise         ⇒ target_val_k / ref_val_k * 100
 	//
 	// Whole-chain barrier semantics: the handler runs at the
-	// post-stage-loop barrier inside `service.ProcessChain` (see
-	// `service/chain.go`'s `applyChainOverlays` hook). Per-stage overlays
+	// post-stage-loop barrier inside `internal/service.ProcessChain` (see
+	// `internal/service/chain.go`'s `applyChainOverlays` hook). Per-stage overlays
 	// (`Stages[i].Overlays` on the request half of the dual-slot design)
 	// land on each stage's individual `Response.Overlays` as a side
 	// effect of the per-stage Process call; whole-chain overlays land on
@@ -1240,7 +1240,7 @@ const (
 	// Numeric arm only: KS is undefined on categorical distributions
 	// (there is no continuous CDF to compare). A categorical host (no
 	// numeric payload) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime
-	// (the per-kind validator lives in descriptor/overlay_facet.go; the
+	// (the per-kind validator lives in internal/descriptor/overlay_facet.go; the
 	// runtime check is belt-and-braces). Distinct from
 	// CHISQ_VS_POP which is DISCRETE-arm only and rejects numeric hosts
 	// with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — the two kinds
@@ -1316,7 +1316,7 @@ const (
 	// (Margin / Sibling / BaselineIndex / Prior / RollingMean / YoY /
 	// Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at
 	// predict time (per-kind validator lives in
-	// descriptor/overlay_facet.go). Mirrors the INDEX_VS_POP /
+	// internal/descriptor/overlay_facet.go). Mirrors the INDEX_VS_POP /
 	// ZSCORE_VS_POP / CHISQ_VS_POP ref contract.
 	//
 	// Scope must be GROUP. `Level` / `Within` MUST be zero (population
@@ -1568,7 +1568,7 @@ const (
 	// INDEX_VS_POP). Any other ref-family pointer (`Margin` / `Sibling` /
 	// `BaselineIndex` / `Prior` / `RollingMean` / `YoY` / `Stage` /
 	// `Slot`) fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` at
-	// predict time (per-kind validator lives in descriptor/overlay_facet.go).
+	// predict time (per-kind validator lives in internal/descriptor/overlay_facet.go).
 	//
 	// Scope must be GROUP. `Level` / `Within` MUST be zero (population
 	// comparison is a single-value lookup, not an axis prefix); non-zero
@@ -1828,8 +1828,8 @@ const (
 	// `true` — the SERIES dispatch is fold-only (single accumulator per
 	// group; no peer-cell lookup) and matches the kind-catalog-v1
 	// "Streaming-capable subset". The MATRIX dispatch remains forced
-	// buffered by the slot barrier in `service.Compose` /
-	// `service.ComposeParallel`; the flag describes the kind's
+	// buffered by the slot barrier in `internal/service.Compose` /
+	// `internal/service.ComposeParallel`; the flag describes the kind's
 	// INTRINSIC streaming capability (mirrors the
 	// `OVERLAY_SHARE_OF_TOTAL` dual-shape convention — MATRIX-arm
 	// routes through `canFuseCrosstab`'s overlays-force-buffered arm,
@@ -1882,8 +1882,8 @@ const (
 	// `true` — the SERIES dispatch is fold-only (single accumulator
 	// per group; no peer-cell lookup) and matches the kind-catalog-v1
 	// "Streaming-capable subset". The MATRIX dispatch remains forced
-	// buffered by the slot barrier in `service.Compose` /
-	// `service.ComposeParallel`; the flag describes the kind's
+	// buffered by the slot barrier in `internal/service.Compose` /
+	// `internal/service.ComposeParallel`; the flag describes the kind's
 	// INTRINSIC streaming capability (mirrors the
 	// `OVERLAY_INDEX_VS_REF` dual-shape convention).
 	OverlayKindDeltaVsRef OverlayKind = "OVERLAY_DELTA_VS_REF"
@@ -2472,7 +2472,7 @@ const (
 // single source of truth both the runtime FORMULA env builders
 // (`processing/overlay_formula.go` `buildFormulaPrototypeEnv*`) and the
 // predict-time identifier validator
-// (`descriptor/overlay_formula.go` `validateFormulaOverlay`) consult so
+// (`internal/descriptor/overlay_formula.go` `validateFormulaOverlay`) consult so
 // the two surfaces stay in lock-step — adding a new variable to the
 // MATRIX namespace is a one-line change here, and both the runtime
 // prototype env + the predict-time allowed set widen automatically.
@@ -2617,7 +2617,7 @@ type OverlaySiblingRef struct {
 //     this ordinal via `processing.ResolveBaselineIndex` and compare
 //     every other ordered-axis point against it. Negative or
 //     out-of-range values are rejected at predict time
-//     (`descriptor.ValidateOverlays`) and at runtime
+//     (`internal/descriptor.ValidateOverlays`) and at runtime
 //     (`processing.ResolveBaselineIndex`) with
 //     `PULSE_OVERLAY_REF_UNKNOWN` plus a `{baseline_index,
 //     series_length}` Details map.
@@ -2646,7 +2646,7 @@ type OverlayBaselineIndexRef struct {
 	// orchestrator baked in at finalize. Resolved at runtime via
 	// `processing.ResolveBaselineIndex(host, ref)`; negative values
 	// and values `>= len(series keys)` fail at predict time
-	// (`descriptor.ValidateOverlays`) and runtime with
+	// (`internal/descriptor.ValidateOverlays`) and runtime with
 	// `PULSE_OVERLAY_REF_UNKNOWN` carrying `{baseline_index,
 	// series_length}` Details. Consumed by INDEX_VS_BASELINE,
 	// DELTA_VS_BASELINE, INDEX_VS_ROLLING_MEAN, and YOY.
@@ -2754,7 +2754,7 @@ type OverlaySlotRef struct {
 // OverlayRef is the discriminated union identifying what an overlay
 // compares against. Each pointer field corresponds to one comparison
 // family; exactly one is meaningfully populated per OverlaySpec. The
-// validator (descriptor.ValidateOverlays) rejects an OverlaySpec that
+// validator (internal/descriptor.ValidateOverlays) rejects an OverlaySpec that
 // populates the wrong pointer for its Kind.
 //
 // Placeholder pointers cover overlay families that have not yet
@@ -2813,7 +2813,7 @@ type OverlayRef struct {
 // produces one OverlayLayer in Response.Overlays in matching order.
 //
 // Validation rules (enforced in descriptor + processing layers, not in
-// this file — see descriptor.ValidateOverlays):
+// this file — see internal/descriptor.ValidateOverlays):
 //   - Kind is required and must be a known OverlayKind.
 //   - Scope is required and must be a known OverlayScope.
 //   - Ref must populate exactly one family pointer matching Kind's
@@ -2924,8 +2924,8 @@ type OverlayOptions struct {
 	// surface for callers who need a larger panel (or a stricter cap)
 	// today. `len(spec.Targets) > MaxPanelTargets` fires
 	// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry (and the
-	// equivalent predict-time check in descriptor.ValidateComposedRequest
-	// via descriptor.ValidateComposedRequest). Non-panel kinds ignore
+	// equivalent predict-time check in internal/descriptor.ValidateCompose
+	// via internal/descriptor.ValidateCompose). Non-panel kinds ignore
 	// this knob.
 	MaxPanelTargets int `json:"max_panel_targets,omitempty"`
 }
@@ -3116,7 +3116,7 @@ type OverlayLayer struct {
 // can carry it directly without types/ importing processing/. Moving
 // the value-only diagnostic up the dependency graph keeps the types
 // package behavioural-import-free while letting both processing/ and
-// service/ produce warnings against the same shape.
+// internal/service/ produce warnings against the same shape.
 type OverlayWarning struct {
 	// Code is the canonical overlay error code (today: errors.PULSE_OVERLAY_REF_ZERO).
 	Code string

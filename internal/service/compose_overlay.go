@@ -13,7 +13,7 @@ import (
 // worker pool).
 //
 // The runtime handlers live entirely inside processing/ (the overlay
-// catalog stays free of service/ imports per CLAUDE.md "What NOT to
+// catalog stays free of internal/service/ imports per CLAUDE.md "What NOT to
 // Do"); this file owns the orchestrator-side hook that:
 //
 //   - Walks `req.Overlays` in spec-order.

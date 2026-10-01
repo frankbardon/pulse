@@ -194,7 +194,7 @@ func parseDiscreteLevels(fs FieldSpec) (discreteLevels, error) {
 	out.cum[len(out.cum)-1] = 1
 
 	// Exact closed-form moments. Every product feeding an add is wrapped
-	// float64(...) — see synth/moments.go for the FMA-contraction rule
+	// float64(...) — see internal/synth/moments.go for the FMA-contraction rule
 	// this obeys.
 	for i := range values {
 		p := weights[i] / total

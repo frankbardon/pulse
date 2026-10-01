@@ -393,7 +393,7 @@ func TestConstraints_NonBooleanFieldsUnchanged(t *testing.T) {
 }
 
 // decodeConstraintTestField returns one field's values and null flags per
-// record. The cohort-readback helpers in synth/synth_test.go are
+// record. The cohort-readback helpers in internal/synth/synth_test.go are
 // package synth_test and therefore invisible here.
 func decodeConstraintTestField(t *testing.T, data []byte, name string) ([]float64, []bool) {
 	t.Helper()

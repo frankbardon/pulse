@@ -15,7 +15,7 @@ package spss
 // carries:
 //
 //   - A categorical's value comes from its DICTIONARY ID, which indexes the
-//     plan's recorded SPSS code. io/export.go's row loop has already resolved
+//     plan's recorded SPSS code. internal/io/export.go's row loop has already resolved
 //     that ID to its label text, and the text cannot be looked up again: two
 //     SPSS codes may legitimately share one label.
 //   - A `set_*` column's members come from the MASK's bits. The row form is
@@ -592,7 +592,7 @@ var (
 // ---------------------------------------------------------------------------
 
 // formatCell renders one exported cell to the canonical text the import path
-// parses back, matching io/csv's own helper. It exists so the row path's
+// parses back, matching internal/io/csv's own helper. It exists so the row path's
 // buffer is text rather than `any`, which is what the intermediate import
 // consumes.
 func formatCell(v any) string {

@@ -7,7 +7,7 @@ record set.
 Setup is documented in [`../README.md`](../README.md). Run all:
 
 ```
-./examples/filterers/run-all.sh
+./internal/examples/filterers/run-all.sh
 ```
 
 ## Catalog

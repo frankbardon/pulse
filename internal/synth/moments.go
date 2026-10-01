@@ -37,7 +37,7 @@ package synth
 //     draw ride them, so those remain machine-sensitive in their last
 //     bits. `math.Sqrt` is exempt — IEEE-754 requires it to be
 //     correctly rounded.
-//   - `processing/regression` (the OLS engine behind the `models`
+//   - `internal/processing/regression` (the OLS engine behind the `models`
 //     section) has not been made fusion-free; see the package's own
 //     notes.
 

@@ -35,7 +35,7 @@ import (
 //
 // Run with:
 //
-//	go test ./service/ -bench BenchmarkCrosstabWideSetFanout -benchmem -run=^$
+//	go test ./internal/service/ -bench BenchmarkCrosstabWideSetFanout -benchmem -run=^$
 
 // wideSetBenchRows is the record-count axis. Two sizes at minimum so the
 // scaling of the gap is readable straight off the output: a constant

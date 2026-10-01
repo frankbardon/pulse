@@ -24,7 +24,7 @@ import (
 // both. The fix is not another stage; it is a change of what the
 // correlation is a correlation OF. The Cholesky factor, the completion
 // policy for pairs nobody supplied and the ridge report are all the same
-// machinery on the same matrix (factorCorrelations, synth/copula.go) —
+// machinery on the same matrix (factorCorrelations, internal/synth/copula.go) —
 // only the consumer differs. On the value scale the correlated normal
 // goes through Phi and the field's own quantile function and becomes the
 // value. Here it goes into the model's linear predictor as the residual
@@ -39,7 +39,7 @@ import (
 // VALUE-scale correlation on it would apply every predictor the two
 // targets share a second time — two fields both driven by `region`
 // correlate strongly on raw values while their residuals may be
-// independent. synth/residual_corr.go's header carries the full
+// independent. internal/synth/residual_corr.go's header carries the full
 // argument for the capture side; this is the consuming half of the same
 // statement.
 //

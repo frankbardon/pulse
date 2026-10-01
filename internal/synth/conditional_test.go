@@ -16,7 +16,7 @@ import (
 // fidelity-gate assertion (E2-S1): the reconstructed Pearson correlation
 // of two numeric fields declared with a target rho of 0.8 must land
 // within a defined tolerance of that target. This directly exercises
-// synth/copula.go's conditional-Gaussian replacement for the removed
+// internal/synth/copula.go's conditional-Gaussian replacement for the removed
 // ±5%·std blend — a build-failing assertion on the actual number, not a
 // smoke test that generation merely runs without error.
 func TestSynth_CorrelationReconstructionWithinTolerance(t *testing.T) {

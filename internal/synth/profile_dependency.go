@@ -12,7 +12,7 @@ import (
 
 // This file is the profile-time EXACT-DEPENDENCY detector, the third
 // candidate kind on the pipeline `profile create --suggest-rules` built
-// (synth/profile_gating.go, synth/profile_comissing.go). The first two
+// (internal/synth/profile_gating.go, internal/synth/profile_comissing.go). The first two
 // read NULL STATE only — which field's levels gate another's absence,
 // which fields are absent together — and E3-S1 said so in as many words.
 // This one reads VALUES: a field that is an exact function of ONE other

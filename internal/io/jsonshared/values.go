@@ -63,7 +63,7 @@ func ValueToString(v any) string {
 //
 // The empty string becomes JSON null. That is correct for the TEXT
 // path — io.ConvertJob copies source cells, where "" is the null token
-// io/import.go's isNullToken recognises — and wrong for the export
+// internal/io/import.go's isNullToken recognises — and wrong for the export
 // path, where a cohort's categorical dictionary can hold "" as a
 // genuine value and the null cell has its own spelling (an untyped
 // nil). CoerceValueExplicitNull is that second convention; a writer

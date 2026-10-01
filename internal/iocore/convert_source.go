@@ -12,7 +12,7 @@ import (
 // ConvertJob is import-half then export-half with no cohort in between: the
 // source yields `[]string` rows and the target consumes them. That is
 // sufficient for a text target, and insufficient for a target that has to
-// rebuild a cohort in order to emit at all — io/spss's `.sav` writer is the
+// rebuild a cohort in order to emit at all — internal/io/spss's `.sav` writer is the
 // only one today (see its pio.CohortWriter row path). Such a target
 // re-derives a schema by INFERRING it from the very text the source just
 // rendered, and inference cannot recover what the source DECLARED:

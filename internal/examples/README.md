@@ -7,7 +7,7 @@ example is just authoring JSON — no new CSV, schema, or build step.
 ## Layout
 
 ```
-examples/
+internal/examples/
 ├── README.md                  # this file
 ├── fixtures/                  # shared CSVs + schemas + generator + build script
 │   ├── gen.go                 # deterministic CSV generator (run once)
@@ -30,7 +30,7 @@ Build the binary, generate fixtures, import to `.pulse`:
 
 ```
 make build
-./examples/fixtures/build.sh
+./internal/examples/fixtures/build.sh
 ```
 
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
@@ -53,8 +53,8 @@ The generator (`fixtures/gen.go`) is deterministic — re-running with the
 same seed produces byte-identical CSVs. Re-generate from scratch:
 
 ```
-go run examples/fixtures/gen.go
-./examples/fixtures/build.sh
+go run internal/examples/fixtures/gen.go
+./internal/examples/fixtures/build.sh
 ```
 
 ## Running
@@ -62,25 +62,25 @@ go run examples/fixtures/gen.go
 A category-specific runner exercises everything in its folder:
 
 ```
-./examples/attributes/run-all.sh
-./examples/features/run-all.sh
-./examples/filterers/run-all.sh
-./examples/groupers/run-all.sh
-./examples/windows/run-all.sh
-./examples/tests/run-all.sh
+./internal/examples/attributes/run-all.sh
+./internal/examples/features/run-all.sh
+./internal/examples/filterers/run-all.sh
+./internal/examples/groupers/run-all.sh
+./internal/examples/windows/run-all.sh
+./internal/examples/tests/run-all.sh
 ```
 
 Or invoke individual requests:
 
 ```
-bin/pulse api predict --request examples/features/01_log_transform.json --json
-bin/pulse api process --request examples/features/01_log_transform.json --json
+bin/pulse api predict --request internal/examples/features/01_log_transform.json --json
+bin/pulse api process --request internal/examples/features/01_log_transform.json --json
 ```
 
 ## Adding a new example category
 
 1. Pick a category name (e.g. `windows`, `aggregation`, `attributes`).
-2. Create `examples/<category>/` with a `README.md` and request `*.json` files.
+2. Create `internal/examples/<category>/` with a `README.md` and request `*.json` files.
 3. Each JSON sets `cohort.data_dir = ".data"` and references one of the
    shared cohort filenames above.
 4. If your category needs a field that's not in any shared cohort, add

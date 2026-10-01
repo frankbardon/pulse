@@ -11,7 +11,7 @@ import (
 // The two optional WRITE-side interfaces E5-S6 added, tested at the
 // dispatcher rather than in an adapter.
 //
-// io/spss is the only implementer today and its own tests cover what it
+// internal/io/spss is the only implementer today and its own tests cover what it
 // does with them. What is checked here is the half that belongs to io/:
 // that a CohortWriter REPLACES the row loop instead of running beside it,
 // that it is handed the cohort plus the two row-stream transformations it

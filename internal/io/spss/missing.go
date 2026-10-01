@@ -66,7 +66,7 @@ package spss
 // # "Present" is the null bit, not a dictionary entry
 //
 // A row whose value is present renders the sibling as the empty string,
-// which the shared import path (io/import.go's isNullToken) reads as
+// which the shared import path (internal/io/import.go's isNullToken) reads as
 // null before it consults any dictionary. The empty reason is therefore
 // the sibling's null bitmap bit, and it is NOT materialised as a
 // dictionary entry: an entry at ID 0 that no record could ever reference

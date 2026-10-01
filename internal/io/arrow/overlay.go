@@ -16,7 +16,7 @@ import (
 // Arrow embedding goes through encoding/json per CLAUDE.md "Structural
 // defense bans".
 //
-// Exported so io/parquet (which rides the same Arrow LIST<STRUCT>
+// Exported so internal/io/parquet (which rides the same Arrow LIST<STRUCT>
 // schema through the pqarrow bridge per
 // research/export-embedding-shape.md § 4.4) can share the marshaller
 // without duplicating it.
@@ -49,7 +49,7 @@ const OverlaysFieldName = "overlays"
 // per layer per the OverlayPayload.Shape discriminator. The dispatch is
 // inline on `shape` (UTF8).
 //
-// Exported so io/parquet can ride the SAME schema through the pqarrow
+// Exported so internal/io/parquet can ride the SAME schema through the pqarrow
 // bridge (research/export-embedding-shape.md § 4.4 "Why Parquet shares
 // the Arrow schema").
 func OverlaysFieldType() *arrow.StructType {
@@ -80,7 +80,7 @@ func OverlaysFieldType() *arrow.StructType {
 // overlay column family. Caller appends this to the schema when
 // overlays should be embedded.
 //
-// Exported so io/parquet can append the same field to the Arrow schema
+// Exported so internal/io/parquet can append the same field to the Arrow schema
 // it hands the pqarrow FileWriter (research/export-embedding-shape.md
 // § 4.4).
 func OverlaysArrowField() arrow.Field {
@@ -99,7 +99,7 @@ func OverlaysArrowField() arrow.Field {
 // the array is structurally absent or every list element is empty —
 // nil signals "no overlays present" to callers.
 //
-// Exported so io/parquet can rebuild []*OverlayLayer from the pqarrow-
+// Exported so internal/io/parquet can rebuild []*OverlayLayer from the pqarrow-
 // materialised Arrow array (research/export-embedding-shape.md § 4.3
 // "Round-trip rule").
 func ReadOverlaysFromArray(listArr arrow.Array) ([]*types.OverlayLayer, error) {

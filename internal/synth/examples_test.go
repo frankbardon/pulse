@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// TestSynthExamples_RunAll iterates every JSON spec under examples/synth
+// TestSynthExamples_RunAll iterates every JSON spec under internal/examples/synth
 // and asserts the synthesizer produces the requested row count without
 // returning an error. Catches example bitrot and serves as a smoke test
 // for every supported distribution kind.

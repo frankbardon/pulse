@@ -229,7 +229,7 @@ var warningKinds = []warningKind{
 		// A rule that applied to NO generated row. The author wrote a
 		// structural fact, the spec validated, the cohort generated
 		// cleanly, and the fact is absent — the package's own failure
-		// class (see synth/rules_firing.go), so it needs attention
+		// class (see internal/synth/rules_firing.go), so it needs attention
 		// rather than joining the expected-outcome count. The roll-up
 		// arm folds the bounded listing's "+N further rule(s) never
 		// fired" line into the same group as the lines it summarises,

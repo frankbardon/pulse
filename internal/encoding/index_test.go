@@ -677,7 +677,7 @@ func TestReadBucketByKey_SingleMultiEmptyBuckets(t *testing.T) {
 // TestReadBucketByKey_EmptyIndex covers the bucketCount == 0 case: no
 // buckets exist at all (an Index built from a cohort with zero rows,
 // or zero distinct keys). ReadBucketByKey must return an empty bucket,
-// not an error — mirrors service/lookup.go's existing
+// not an error — mirrors internal/service/lookup.go's existing
 // len(idx.Buckets) == 0 short-circuit.
 func TestReadBucketByKey_EmptyIndex(t *testing.T) {
 	idx := &Index{

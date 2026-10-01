@@ -182,7 +182,7 @@ const (
 
 	// PULSE_IMPORT_FORMAT_UNKNOWN indicates the source extension was not
 	// recognised and no explicit format hint was supplied. Surfaced by
-	// the imports.Manager on Open.
+	// the internal/imports.Manager on Open.
 	PULSE_IMPORT_FORMAT_UNKNOWN Code = "PULSE_IMPORT_FORMAT_UNKNOWN"
 
 	// PULSE_IO_FORMAT_UNSUPPORTED indicates the io factory (io.NewReader,
@@ -744,7 +744,7 @@ const (
 
 	// PULSE_JOIN_FIELD_UNKNOWN indicates an OnPair references a field
 	// not present in the corresponding cohort's schema. Surfaced by
-	// descriptor.ValidateJoin and at runtime by the join orchestrator.
+	// internal/descriptor.ValidateJoin and at runtime by the join orchestrator.
 	PULSE_JOIN_FIELD_UNKNOWN Code = "PULSE_JOIN_FIELD_UNKNOWN"
 
 	// PULSE_JOIN_KEYS_EMPTY indicates a join spec with an empty On
@@ -988,7 +988,7 @@ const (
 
 	// PULSE_OVERLAY_KIND_UNKNOWN indicates a Request.Overlays entry
 	// referenced an OverlayKind not present in
-	// types.AllOverlayKinds(). Surfaced by descriptor.ValidateOverlays
+	// types.AllOverlayKinds(). Surfaced by internal/descriptor.ValidateOverlays
 	// at predict time and as a defense-in-depth guard inside
 	// processing.ApplyOverlaysWithExtensions.
 	PULSE_OVERLAY_KIND_UNKNOWN Code = "PULSE_OVERLAY_KIND_UNKNOWN"
@@ -1155,7 +1155,7 @@ const (
 	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (structural shape
 	// mismatch caught at predict time, but for CHAIN-host kinds the
 	// divergence is between two stages, not between a single Ref and
-	// the host). Surfaced at both predict (descriptor.ValidateChain
+	// the host). Surfaced at both predict (internal/descriptor.ValidateChain
 	// shape-divergence gate) and runtime (processing.applyIndexVsStage /
 	// processing.applyDeltaVsStage shape-divergence defence).
 	// Warning-class — surfaced as a Response.Warning, never as an
@@ -1186,7 +1186,7 @@ const (
 	// reference coordinate that does not exist, the warning rides this
 	// code with `ref_missing: true` and the handler folds against an
 	// implicit zero reference (so the delta equals the target value
-	// verbatim). Surfaced at both predict (descriptor.ValidateChain) and
+	// verbatim). Surfaced at both predict (internal/descriptor.ValidateChain) and
 	// runtime (processing.ApplyChainOverlays + per-kind handlers).
 	PULSE_OVERLAY_REFERENCE_UNKNOWN Code = "PULSE_OVERLAY_REFERENCE_UNKNOWN"
 
@@ -1209,7 +1209,7 @@ const (
 	// post-slot-barrier inside processing.ApplyComposeOverlays, BEFORE
 	// the schema-match and dict-drift gates fire — key-set
 	// divergence is the cheapest signal so it fails fast. Surfaced at
-	// runtime; the descriptor.ValidateComposedRequest predict-time
+	// runtime; the internal/descriptor.ValidateCompose predict-time
 	// companion is deferred.
 	PULSE_OVERLAY_KEY_SET_DIVERGENT Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
 
@@ -1228,7 +1228,7 @@ const (
 	// check runs once per overlay spec at the post-slot-barrier inside
 	// processing.ApplyComposeOverlays AFTER PULSE_OVERLAY_KEY_SET_DIVERGENT
 	// and shape gates have passed. Surfaced at runtime; the
-	// descriptor.ValidateComposedRequest predict-time companion is
+	// internal/descriptor.ValidateCompose predict-time companion is
 	// deferred.
 	PULSE_OVERLAY_SCHEMA_DIVERGENT Code = "PULSE_OVERLAY_SCHEMA_DIVERGENT"
 
@@ -1248,7 +1248,7 @@ const (
 	// barrier inside processing.ApplyComposeOverlays AFTER
 	// PULSE_OVERLAY_KEY_SET_DIVERGENT and BEFORE
 	// PULSE_OVERLAY_SCHEMA_DIVERGENT. Surfaced at runtime; the
-	// descriptor.ValidateComposedRequest predict-time companion is
+	// internal/descriptor.ValidateCompose predict-time companion is
 	// deferred.
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT Code = "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT"
 
@@ -1274,7 +1274,7 @@ const (
 	// explicit non-goal: cohort pairing is a per-request decision
 	// rather than a registration-time one, so the probe runs per
 	// ApplyComposeOverlays invocation instead. Surfaced at runtime;
-	// the descriptor.ValidateComposedRequest predict-time companion
+	// the internal/descriptor.ValidateCompose predict-time companion
 	// is deferred.
 	PULSE_OVERLAY_DICT_PREFIX_DRIFT Code = "PULSE_OVERLAY_DICT_PREFIX_DRIFT"
 
@@ -1306,7 +1306,7 @@ const (
 	// lives on `ComposeOverlaySpec.Options.MaxPanelTargets` so callers
 	// who need a larger panel today can opt in explicitly. Surfaced at
 	// runtime by `processing.applyPropZPanel` at handler entry; the
-	// descriptor.ValidateComposedRequest predict-time companion is
+	// internal/descriptor.ValidateCompose predict-time companion is
 	// deferred. Details carry `{kind, observed, cap}` so the renderer
 	// can surface both the offending size and the cap.
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP Code = "PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP"
@@ -1332,7 +1332,7 @@ const (
 	// the OPPOSITE axis at any depth — the slab never sums across it.
 	// Plain `n_within` is never refused: record counts ARE additive.
 	//
-	// Raised at predict time by descriptor.ValidateOverlays and at
+	// Raised at predict time by internal/descriptor.ValidateOverlays and at
 	// runtime by the crosstab overlay hook (both crosstab arms funnel
 	// through it), with the same code on both. Details carry
 	// `{index, kind, n_source, n_within_depth, dim_index, group_type,
@@ -1341,7 +1341,7 @@ const (
 
 	// PULSE_INDEX_MISSING indicates a LookupRequest named a field with
 	// no sidecar point-lookup index on disk at the path
-	// encoding.SidecarIndexPath derives (the same path
+	// internal/encoding.SidecarIndexPath derives (the same path
 	// Service.BuildIndex writes to). Distinct from PULSE_LOOKUP_NOT_FOUND
 	// (the index exists but the requested key has no match) and from
 	// PULSE_LOOKUP_MISS / PULSE_LOOKUP_TABLE_UNKNOWN (the unrelated
@@ -1390,12 +1390,12 @@ const (
 	// PULSE_INDEX_UNSUPPORTED_SHARDED indicates a point-lookup
 	// operation (Service.BuildIndex, Service.Lookup, or
 	// Service.VerifyIndex) targeted a shard-archive cohort (first four
-	// bytes match encoding.ZipMagic, "PK\x03\x04") rather than a
+	// bytes match internal/encoding.ZipMagic, "PK\x03\x04") rather than a
 	// single-file `.pulse` cohort. Sharded cohorts are out of scope for
 	// point-lookup v1: row-id addressing (encoding.RecordLocator.Offset)
 	// only has meaning for a single contiguous record region, which a
 	// multi-shard archive does not present. Detected cheaply — via the
-	// same leading-magic-bytes dispatch service.Service.Open already
+	// same leading-magic-bytes dispatch internal/service.Service.Open already
 	// performs to distinguish single-file vs archive cohorts, not an
 	// added scan. Details carry the cohort path. Distinct from
 	// PULSE_INDEX_MISSING (single-file cohort, no sidecar built yet).
@@ -1403,7 +1403,7 @@ const (
 
 	// PULSE_INDEX_MANIFEST_INVALID indicates the sidecar index MANIFEST
 	// beside a cohort ("cohort.pulse.indexes.json",
-	// encoding.IndexManifestSuffix) exists but cannot be trusted:
+	// internal/encoding.IndexManifestSuffix) exists but cannot be trusted:
 	// malformed JSON, a foreign `kind`, an unrecognised `format_version`,
 	// or an entry naming no index file. The manifest is the keyless
 	// catalog that makes an index's key tuple discoverable without a
@@ -2029,7 +2029,7 @@ const (
 	//   - A rendered ROW stream handed to the `.sav` writer with no
 	//     cohort behind it and no schema to rebuild one from. The writer
 	//     encodes from a cohort's raw storage, never from cell text; see
-	//     io/spss's Writer.
+	//     internal/io/spss's Writer.
 	//
 	// Details name the offending column under DetailSPSSVariable where
 	// there is one, and carry the requested format under "format" plus

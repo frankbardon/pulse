@@ -10,5 +10,5 @@ Each request runs against the shared `all_types.pulse` cohort, which carries one
 | `05_categorical_breakdown.json` | `AGG_DISTINCT_COUNT`/`AGG_MODE` across categorical_u8/u16/u32 plus `date` |
 
 ```bash
-./examples/aggregations/run-all.sh
+./internal/examples/aggregations/run-all.sh
 ```

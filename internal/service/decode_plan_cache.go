@@ -11,7 +11,7 @@ import (
 // retainedFromFilter walks the schema once and returns the names of
 // fields the keep filter accepts, in stable sorted order. Used by the
 // scanning iterators to derive the retained set fed to
-// Schema.BuildDecodePlan. Returns an empty slice when keep rejects
+// internal/encoding.BuildDecodePlan(schema, retained). Returns an empty slice when keep rejects
 // every field — BuildDecodePlan then emits a single SkipBytes for the
 // entire record stride.
 //

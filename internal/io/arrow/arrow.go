@@ -561,7 +561,7 @@ func (w *Writer) appendOverlayCell() error {
 // AppendOverlayLayerStruct appends one struct entry to the overlay
 // list's value builder. Field order matches OverlaysFieldType.
 //
-// Exported so io/parquet can populate the same struct schema through
+// Exported so internal/io/parquet can populate the same struct schema through
 // its own pqarrow-fed RecordBuilder (research/export-embedding-shape.md
 // § 4.4).
 func AppendOverlayLayerStruct(structBldr *array.StructBuilder, layer *types.OverlayLayer) error {
@@ -648,7 +648,7 @@ func (w *Writer) appendSet(c int, v any) (bool, error) {
 }
 
 // AppendSetList appends one cell of a Pulse set column to a LIST<UTF8>
-// builder. io/export.go hands the exporter a single iocore.DefaultSetDelimiter
+// builder. internal/io/export.go hands the exporter a single iocore.DefaultSetDelimiter
 // -joined token string for every set rung (the external form of a set is
 // width-agnostic, so this is identical for set_u8 and set_u256); the list
 // builder needs those tokens as separate elements. Without this arm the

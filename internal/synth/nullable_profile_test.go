@@ -15,7 +15,7 @@ import (
 // readNullFlagsForField returns, in file (row) order, whether each record's
 // named field is flagged null via the per-record bitmap
 // (encoding.RecordReader.ReadRecord consults encoding.BitmapIsNull
-// internally to populate its nulls map — see encoding/reader.go). Used to
+// internally to populate its nulls map — see internal/encoding/reader.go). Used to
 // distinguish a genuine null (bitmap bit set) from an in-band sentinel
 // value that merely happens to look like zero.
 func readNullFlagsForField(t *testing.T, data []byte, name string) []bool {
@@ -98,13 +98,13 @@ func TestSpecFromProfile_SetsNullableFromObservedNullRate(t *testing.T) {
 // zero.
 //
 // Before the E6-S3 fix, SpecFromProfile never set FieldSpec.Nullable, so
-// buildSchema (synth/writer.go) built the profile-derived generation
+// buildSchema (internal/synth/writer.go) built the profile-derived generation
 // schema (genSchema) with Nullable=false for this field even though
 // buildSampler still drew "null" samples from NullRate. encodeRow then
 // never recorded those draws in genBuf's bitmap (skipped — field not
 // Nullable) and wrote the in-band zero sentinel instead, so the
 // null-ness was permanently lost before reencodeRecords ever ran —
-// buildMergedSchema's `sf.Nullable || gf.Nullable` union (synth/augment.go)
+// buildMergedSchema's `sf.Nullable || gf.Nullable` union (internal/synth/augment.go)
 // only fixes the MERGED FILE'S DECLARED schema nullability (via the
 // source field's own always-correct Nullable, read straight off the real
 // cohort), not the generated partition's actual data, because the

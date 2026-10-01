@@ -88,7 +88,7 @@ type conflictResolution struct {
 // and overwrites its target outright. The claim removes the wasted
 // stage AND the false fidelity entry the wasted stage would otherwise
 // produce; which rules claim, and the four exclusions that keep the
-// claim from being over-broad, are in synth/rules_claim.go.
+// claim from being over-broad, are in internal/synth/rules_claim.go.
 //
 // A field carrying a linear model (Spec.Models, `profile create
 // --fit-models`) is claimed next, before any of the six stages: a
@@ -123,7 +123,7 @@ type conflictResolution struct {
 // the code, not of the construction: value = Q(Phi(mu + sigma*z))
 // admits an arbitrary marginal in Q — it is exactly what a lognormal
 // target already does — so once the mixture acquired a Q
-// (synth/mixture_quantile.go) the exclusivity had nothing left holding
+// (internal/synth/mixture_quantile.go) the exclusivity had nothing left holding
 // it up. It cost the motivating cohort every conditioning relationship
 // on the four fields whose shapes were most worth fitting.
 //
@@ -202,7 +202,7 @@ func resolveConflicts(s *Spec) conflictResolution {
 	// actually supplied (`set` / `set_expr`, never `set_null` or
 	// `null_together`), and a `set_expr` that does not read its own
 	// target. Each exclusion is silent if it is got backwards; the
-	// reasoning for all four is in synth/rules_claim.go.
+	// reasoning for all four is in internal/synth/rules_claim.go.
 	//
 	// Two rules claiming one field is not a conflict — both still run,
 	// under the declaration-order last-write-wins contract — so the
@@ -326,7 +326,7 @@ func resolveConflicts(s *Spec) conflictResolution {
 				// correlation between two fields sharing predictors
 				// already contains those predictors' joint effect, so
 				// applying it to the residual applies them a second time
-				// (see synth/residual_corr.go). The residual scale has
+				// (see internal/synth/residual_corr.go). The residual scale has
 				// its own measured section for exactly this reason, and
 				// the remedy named below is the honest one rather than a
 				// deferral — correlated residuals DID land, they simply

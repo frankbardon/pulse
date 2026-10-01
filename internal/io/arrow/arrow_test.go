@@ -815,10 +815,10 @@ func TestPulseTypeToArrow_DefaultCase(t *testing.T) {
 
 // TestArrow_DateTimeColumnRoundTripsAsCanonicalString is the fidelity
 // gate for a `datetime` column through the schema-aware (typed) Arrow
-// writer. io/export.go stringifies every non-decimal cell before the
+// writer. internal/io/export.go stringifies every non-decimal cell before the
 // writer sees it, so a datetime cell arrives as its canonical literal.
 // If TypeFromPulse mapped the column to a numeric or timestamp Arrow
-// type the typed builder would reject that literal and io/export.go
+// type the typed builder would reject that literal and internal/io/export.go
 // would record a RowError for EVERY row — the rows would vanish, not
 // merely be mistyped. Assert the literal survives verbatim.
 func TestArrow_DateTimeColumnRoundTripsAsCanonicalString(t *testing.T) {
@@ -832,7 +832,7 @@ func TestArrow_DateTimeColumnRoundTripsAsCanonicalString(t *testing.T) {
 	if err := w.WriteHeader([]string{"ts", "d"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
 	}
-	// Exactly what io/export.go's formatFieldValue emits for these two
+	// Exactly what internal/io/export.go's formatFieldValue emits for these two
 	// field types.
 	if err := w.WriteRow([]any{"2024-03-04T10:11:12Z", "2024-03-04"}); err != nil {
 		t.Fatalf("WriteRow: %v", err)

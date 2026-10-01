@@ -87,7 +87,7 @@ func IsIndexKeyableFieldType(ft encoding.FieldType) bool {
 // why ft cannot be used as a point-lookup index key, for callers
 // building a PROCESSING_CONFIG coded error around a
 // !IsIndexKeyableFieldType(ft) check (processing.ResolveLookupKeyBytes
-// and service.BuildIndex both surface this text). set_* gets a
+// and internal/service.BuildIndex both surface this text). set_* gets a
 // dedicated explanation of the ambiguous-equality rationale; every
 // other (hypothetical future) rejected type falls back to a generic
 // message.
@@ -112,8 +112,8 @@ func IndexKeyRejectionMessage(ft encoding.FieldType) string {
 // Record.NumericValue — that accessor only carries the lossy
 // Float64(scale) echo populated for AllValues()/analytics consumers.
 // The exact 128-bit mantissa lives in Record.WideValue, populated by
-// the reader alongside the lossy float echo (encoding/reader.go,
-// encoding/reader_plan.go). KeyFieldOnWireBytes reads WideValue for
+// the reader alongside the lossy float echo (internal/encoding/reader.go,
+// internal/encoding/reader_plan.go). KeyFieldOnWireBytes reads WideValue for
 // decimal128 fields and re-encodes via encoding.EncodeDecimal128 — the
 // same function the .pulse writer uses — so the resolved key bytes are
 // never round-tripped through float64.
@@ -124,7 +124,7 @@ func IndexKeyRejectionMessage(ft encoding.FieldType) string {
 // IsIndexKeyableFieldType.
 //
 // Callers MUST verify IsIndexKeyableFieldType(field.Type) themselves
-// before scanning records (service.BuildIndex does this once per key
+// before scanning records (internal/service.BuildIndex does this once per key
 // column, up front, so a disallowed key type fails fast with a
 // PROCESSING_CONFIG error instead of silently under-indexing after
 // walking part of the cohort). This function stays a pure per-record
@@ -303,7 +303,7 @@ func ResolveLookupKeyBytes(field *encoding.Field, literal string) ([]byte, error
 
 	if field.Type == encoding.FieldTypeDateTime {
 		// Delegates to encoding.ParseDateTime — the same authority
-		// io/import.go's convertValue uses to persist a datetime cell —
+		// internal/io/import.go's convertValue uses to persist a datetime cell —
 		// so a literal probed here and the same literal imported land
 		// on identical on-wire bytes. A bare integer second count is
 		// NOT accepted: the datetime literal grammar is the canonical
@@ -332,7 +332,7 @@ func ResolveLookupKeyBytes(field *encoding.Field, literal string) ([]byte, error
 // resolveDecimalLookupKeyBytes parses literal as a decimal128 value and
 // re-encodes it to the exact 16-byte on-wire mantissa representation —
 // the same encoding.ParseDecimal128 / Decimal128.Rescale /
-// encoding.EncodeDecimal128 sequence io/import.go's convertValueWide
+// encoding.EncodeDecimal128 sequence internal/io/import.go's convertValueWide
 // uses to persist a decimal128 cell, so a literal resolved here and the
 // same literal imported as a cell value always land on the identical
 // on-wire bytes. No float64 round-trip anywhere in this path — the
@@ -394,7 +394,7 @@ func ResolveCompositeLookupKeyBytes(fields []*encoding.Field, literals []string)
 // encodeUintOnWire re-encodes v as a little-endian byte slice of the
 // given width, matching the on-wire integer encoding ReadFieldValue /
 // WriteFieldValue use for the fixed-width unsigned integer field
-// types (encoding/reader.go, encoding/writer.go).
+// types (encoding/record.go).
 func encodeUintOnWire(v uint64, width int) []byte {
 	buf := make([]byte, width)
 	switch width {

@@ -40,8 +40,8 @@ import (
 //     per spec in matching order plus a flat warnings slice.
 //
 // Service-side wiring: post-slot-barrier overlay fold (FailFast-aware).
-// The `service.Compose` /
-// `service.ComposeParallel` orchestrators call `ApplyComposeOverlays`
+// The `internal/service.Compose` /
+// `internal/service.ComposeParallel` orchestrators call `ApplyComposeOverlays`
 // at the post-slot-barrier — once every slot has produced a finalised
 // `*Response` the cross-slot fold runs over the already-materialised
 // responses. The fold operates EXCLUSIVELY on `*Response` objects; no
@@ -58,7 +58,7 @@ import (
 //
 // Structural invariants:
 //
-//   - This file MUST NOT import service/ or descriptor/. Runtime
+//   - This file MUST NOT import internal/service/ or descriptor/. Runtime
 //     overlay execution stays inside processing/ alongside overlay.go
 //     and overlay_series.go.
 //   - No fmt.Sprintf in any JSON-bearing path. Warning messages are
@@ -183,7 +183,7 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 //     OR resolves to a nil slot (failed under FailFast=false) fires
 //     PULSE_OVERLAY_TARGET_UNKNOWN via processing.LookupTarget.
 //
-// Defense in depth: the descriptor.ValidateComposedRequest gate
+// Defense in depth: the internal/descriptor.ValidateCompose gate
 // rejects bad references / unknown kinds at predict time, so a
 // missing dispatch entry should rarely reach the
 // runtime in practice; nonetheless ApplyComposeOverlays guards
@@ -331,7 +331,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 			layers = append(layers, multi...)
 			if len(ws) > 0 {
 				// Stamp the originating overlay spec index on every warning
-				// so the service-layer barrier hook (service.Compose's
+				// so the service-layer barrier hook (internal/service.Compose's
 				// warning distribution) can route each warning to the
 				// matching `OverlayLayer.Warnings` slot deterministically.
 				// Mirrors the chain-dispatch convention in
@@ -366,7 +366,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		layers = append(layers, layer)
 		if len(ws) > 0 {
 			// Stamp the originating overlay spec index on every warning
-			// so the service-layer barrier hook in `service.Compose`
+			// so the service-layer barrier hook in `internal/service.Compose`
 			// can route each warning to the matching
 			// `OverlayLayer.Warnings` slot deterministically. Mirrors
 			// the chain-dispatch convention in

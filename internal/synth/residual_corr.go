@@ -37,7 +37,7 @@ import (
 // and the ones that could not be measured are written down AS
 // unmeasured rather than left to be inferred — see
 // ResidualCorrelationProfile for the representation and
-// buildCorrelator (synth/copula.go) for what the generator does when it
+// buildCorrelator (internal/synth/copula.go) for what the generator does when it
 // meets one.
 //
 // The distinction this section exists to preserve is between a pair
@@ -292,7 +292,7 @@ func coResiduals(a, b *FieldModel) (xs, ys []float64) {
 // It is factored out of coResiduals so the RECOVERY side of the same
 // measurement — the fidelity report's refit residuals over the
 // generated partition, which are per-row vectors of exactly this shape
-// but carry no FieldModel around them (synth/fidelity_residual.go) —
+// but carry no FieldModel around them (internal/synth/fidelity_residual.go) —
 // intersects rows by the identical walk rather than by a second one
 // written to look like it. A capture and its recovery disagreeing about
 // which rows a pair shares would show up as a correlation delta and

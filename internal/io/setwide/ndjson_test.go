@@ -16,7 +16,7 @@ import (
 // DATA record — the first object in the file — so the record that
 // carries the header is the record most easily lost. It was, until
 // E3-S8: ReadHeader consumed the first object and ReadRows resumed after
-// it, so a 60-line file imported 59 and io/settristate had to prepend a
+// it, so a 60-line file imported 59 and internal/io/settristate had to prepend a
 // filler record to keep its three states addressable.
 //
 // The fixture here carries NO filler. Its first record is the wide

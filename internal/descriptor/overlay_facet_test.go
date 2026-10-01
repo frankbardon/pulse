@@ -397,7 +397,7 @@ func TestValidateFacetOverlays_NonFacetKindOnFacetHost(t *testing.T) {
 
 // TestValidateOverlays_FacetKindOnRequest asserts that the reciprocal
 // — a FACET-host kind attached to Request.Overlays — is rejected by
-// the Request-host validator (descriptor/overlay.go switch arm). Failure
+// the Request-host validator (internal/descriptor/overlay.go switch arm). Failure
 // shape: PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE with a message naming
 // the FacetRequest.Overlays redirection.
 func TestValidateOverlays_FacetKindOnRequest(t *testing.T) {

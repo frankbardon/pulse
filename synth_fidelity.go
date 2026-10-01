@@ -15,22 +15,22 @@ import (
 )
 
 // writeSynthFidelityReport re-reads the just-written output cohort at
-// path, drives synth.BuildFidelityReport against its records (TEST_KS
+// path, drives internal/synth.BuildFidelityReport against its records (TEST_KS
 // for numeric fields, TEST_CHISQ for categorical, a direct per-option
 // frequency comparison for set_* fields, all compared against
-// synth.SyntheticFieldName), folds in synth.BuildPairwise's
+// internal/synth.SyntheticFieldName), folds in internal/synth.BuildPairwise's
 // numeric-numeric correlation-delta section (see synth.PairwiseFidelity)
-// plus synth.BuildCategoricalPairwise / synth.BuildCategoricalNumericPairwise's
+// plus internal/synth.BuildCategoricalPairwise / internal/synth.BuildCategoricalNumericPairwise's
 // categorical-categorical contingency-delta and categorical-numeric
 // conditional-mean/std-delta sections (E3-S4; see CategoricalPairFidelity
-// / CategoricalNumericPairFidelity), plus synth.BuildSetCategoricalPairwise
+// / CategoricalNumericPairFidelity), plus internal/synth.BuildSetCategoricalPairwise
 // / BuildSetNumericPairwise / BuildSetSetPairwise's three set_*
 // joint-structure delta sections (E5-S4), plus any fidelityWarnings
 // (typically Options.FidelityWarnings, itself typically Profile.Warnings,
 // covering every pair kind through the same shared shape), and writes
 // the resulting JSON document to reportPath.
 //
-// Every pairwise section is built from synth.ResolveConflicts(spec), NOT
+// Every pairwise section is built from internal/synth.ResolveConflicts(spec), NOT
 // spec's own (unpruned) pair slices: spec carries every relationship
 // SpecFromProfile captured, but generate() only ever applies the subset
 // resolveConflicts resolves out of it — one conditioning relationship
@@ -49,7 +49,7 @@ import (
 // distribution registry, and processing's own internal test files
 // import descriptor — synth importing processing back would close
 // that loop. pulse.go already imports both packages, so the bridge —
-// and the only implementation of synth.TestRunner — lives here. Every
+// and the only implementation of internal/synth.TestRunner — lives here. Every
 // pairwise section needs no processing/ import at all — each is pure
 // statistics over already-decoded record values — but stays in this
 // same bridge so the one JSON document is assembled and written in one
@@ -74,7 +74,7 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	report := synth.BuildFidelityReport(schema, records, sourceRows, syntheticRows, runFidelityTest)
 
 	// spec carries the FULL captured relationship set (SpecFromProfile
-	// never prunes it — see synth.ResolveConflicts's own doc). generate()
+	// never prunes it — see internal/synth.ResolveConflicts's own doc). generate()
 	// only ever applies the subset resolveConflicts resolves out of that
 	// set — one conditioning relationship per target field — so
 	// re-resolving here against the SAME spec generate() was given (see
@@ -96,11 +96,11 @@ func writeSynthFidelityReport(fs afero.Fs, path, reportPath string, spec *synth.
 	// resolved slice: a model is not one of the six pairwise relationship
 	// lists ResolveConflicts returns, and its own arbitration includes
 	// two refusals (an absent target, a scaleless marginal) that only
-	// generation's drawer compiler knows about. synth.BuildModelFidelity
+	// generation's drawer compiler knows about. internal/synth.BuildModelFidelity
 	// re-runs both passes against this same *Spec instead, so the section
 	// still reports exactly the models generation applied. It needs no
 	// TestRunner: unlike TEST_KS/TEST_CHISQ it refits through
-	// processing/regression, which synth may import directly — see that
+	// internal/processing/regression, which synth may import directly — see that
 	// function's own note on why the cycle constraint above does not
 	// reach it.
 	//
@@ -183,7 +183,7 @@ func mergeFidelityWarnings(supplied, generated []string) []string {
 
 // countSyntheticPartitions does one decode pass over records under
 // schema's real (physical) layout, tallying rows by the on-wire value
-// of synth.SyntheticFieldName (0 = copied from source, non-zero =
+// of internal/synth.SyntheticFieldName (0 = copied from source, non-zero =
 // newly generated) for FidelityReport's informational row counts.
 func countSyntheticPartitions(schema *encoding.Schema, records []byte) (sourceRows, syntheticRows int) {
 	rr := encx.NewRecordReader(bytes.NewReader(records), schema)
@@ -202,7 +202,7 @@ func countSyntheticPartitions(schema *encoding.Schema, records []byte) (sourceRo
 	return sourceRows, syntheticRows
 }
 
-// runFidelityTest is the synth.TestRunner implementation: it drives a
+// runFidelityTest is the internal/synth.TestRunner implementation: it drives a
 // single Test through the ordinary Process pipeline against an
 // in-memory iterator over records — the existing TEST_KS / TEST_CHISQ
 // operators, never new statistic math.
@@ -224,7 +224,7 @@ func runFidelityTest(physicalSchema, presentedSchema *encoding.Schema, records [
 // buffer's real byte layout) but attaches presented to each
 // constructed Record, so Record.StringValue / NumericValue resolve
 // types and dictionaries against the caller's view schema instead —
-// see synth.TestRunner for why the two schemas diverge.
+// see internal/synth.TestRunner for why the two schemas diverge.
 //
 // Each Next() call decodes into freshly allocated maps rather than
 // reusing one set across calls: the buffered Process path

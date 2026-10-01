@@ -42,7 +42,7 @@ const (
 	// shapeEastCoefficient shifts the LATENT for rows with region ==
 	// "east". Its data-scale effect is deliberately not asserted: the
 	// map from latent to value is non-linear for a mixture Q, which is
-	// this story's documented cost. See synth/mixture_quantile.go.
+	// this story's documented cost. See internal/synth/mixture_quantile.go.
 	shapeEastCoefficient = 30.0
 )
 

@@ -84,7 +84,7 @@ func readWideSetFieldRows(t *testing.T, data []byte, name string) (masks []encod
 			m = encoding.SetMaskFromUint64(v)
 		default:
 			// A null row has its wide entry deleted by the decoder
-			// (encoding/reader.go); anything else is a shape the
+			// (internal/encoding/reader.go); anything else is a shape the
 			// generator should never have produced.
 			if !nulls[name] {
 				t.Fatalf("field %q: wide value is %T, want encoding.SetMask or uint64",
@@ -466,7 +466,7 @@ func TestSynth_SetWideRungStride(t *testing.T) {
 }
 
 // TestSynth_SetU256_ConstantSelectionCoercesAtWideRung exercises the
-// coercion matrix's "set selection -> set" cell (synth/rules_coerce.go)
+// coercion matrix's "set selection -> set" cell (internal/synth/rules_coerce.go)
 // at a wide rung: a map[string]bool carrying a member above bit 64 must
 // reach the file intact. The matrix is class-keyed (ft.IsSet()), so the
 // only thing that could go wrong is the encode width — which is exactly

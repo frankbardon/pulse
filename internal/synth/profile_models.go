@@ -59,7 +59,7 @@ import (
 // The adapter underneath — dummyRecord, which synthesises a 0/1 design
 // column per categorical level and per set option out of the same three
 // decoded maps profileRecords fills — lives in regression_record.go;
-// read its header for why processing/regression needs no change to
+// read its header for why internal/processing/regression needs no change to
 // accept columns that exist in no cohort schema.
 //
 // # What is deliberately NOT here

@@ -7,7 +7,7 @@ emit one output column per window. Every window requires `order_by`.
 Setup is documented in [`../README.md`](../README.md). Run all:
 
 ```
-./examples/windows/run-all.sh
+./internal/examples/windows/run-all.sh
 ```
 
 ## Catalog
@@ -40,5 +40,5 @@ packed_bool order keys are rejected by predict. `partition_by` resets
 the operator's state per partition; empty means a single global
 partition.
 
-See `pulse skills show window-operations` for the full per-operator
+See `pulse skills show window-design` for the full per-operator
 contract, frame semantics, and validation gates.

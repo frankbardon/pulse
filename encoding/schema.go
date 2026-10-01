@@ -398,9 +398,9 @@ func readFieldDescriptors(r io.Reader) (*Schema, error) {
 // that do not complete a record.
 //
 // It is the ONE derivation behind every "how many records does this
-// cohort hold" answer for a single-file cohort — service.CountRecords
+// cohort hold" answer for a single-file cohort — internal/service.CountRecords
 // (the header-fast facade path and the parallel-decode eligibility gate)
-// and descriptor.Inspect (the header-only reporting path) both call it.
+// and internal/descriptor.Inspect (the header-only reporting path) both call it.
 // They lived as two independent floor divisions until they were lifted
 // here; identical arithmetic written twice is one edit away from two
 // different record counts over the same bytes, and nothing on either

@@ -401,7 +401,7 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 	fixtures := map[types.AggregationType]aggParityFixture{
 		// Scalar / numeric ops over the f64 score cohort. AGG_NULL_COUNT
 		// inverts the floor (N=null-count, NNull=non-null-count) per the
-		// per-record bookkeeping contract in service/orchestrator.
+		// per-record bookkeeping contract in the internal/service orchestrator.
 		types.AGG_COUNT:          num(),
 		types.AGG_SUM:            num(),
 		types.AGG_AVERAGE:        num(),

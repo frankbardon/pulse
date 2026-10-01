@@ -53,7 +53,7 @@ func registerResources(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
 	registerCohortResources(s, p, cfg)
 }
 
-// registerSchemaResource exposes descriptor.BuildPayloadSchema() as a static
+// registerSchemaResource exposes internal/descriptor.BuildPayloadSchema() as a static
 // MCP resource so agents can fetch the request/response contract in-session
 // alongside pulse_manifest. A resource (not a tool) keeps the tool surface
 // unchanged.

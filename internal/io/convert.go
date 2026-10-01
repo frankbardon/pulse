@@ -118,7 +118,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
 
 	// Hand the SOURCE's declared facts to a target that rebuilds a cohort
-	// from the row stream (io/spss's `.sav` writer). Must happen BEFORE
+	// from the row stream (internal/io/spss's `.sav` writer). Must happen BEFORE
 	// WriteHeader, like every other push-shaped optional interface, and
 	// only when the rows about to be emitted are faithful to the schema.
 	// See ConvertSource for what a recipient is then entitled to assume.

@@ -304,7 +304,7 @@ func newParetoSampler(f FieldSpec) (sampler, error) {
 
 func (p *paretoSampler) next(rng *rand.Rand) (any, bool) {
 	// float64(...) around an already-float64 value is NOT redundant: it
-	// is the FMA barrier (synth/moments.go). rng.Float64() inlines to a
+	// is the FMA barrier (internal/synth/moments.go). rng.Float64() inlines to a
 	// scaled integer, and without the conversion `1 - scale*n` contracts
 	// into a single fused multiply-subtract on arm64 but not on amd64.
 	u := 1 - float64(rng.Float64())
@@ -591,7 +591,7 @@ type mixtureSampler struct {
 // which at a knife-edge draw is a different component, a different
 // value, and a different byte in a file this package promises is
 // reproducible. The copula-side consumers (fieldMoments / quantileFor,
-// synth/copula.go) do their own normalisation because a CDF genuinely
+// internal/synth/copula.go) do their own normalisation because a CDF genuinely
 // needs weights summing to one; the sampler must not.
 type mixtureComponents struct {
 	means, stds, weights []float64
@@ -605,7 +605,7 @@ type mixtureComponents struct {
 // three call sites now need the same numbers: the independent sampler
 // below, and — since a shape-fitted field can carry a linear model
 // (E4-S1) — the mixture's analytic moments and its numerically
-// inverted quantile function in synth/copula.go.
+// inverted quantile function in internal/synth/copula.go.
 func parseMixtureComponents(f FieldSpec) (mixtureComponents, error) {
 	var mc mixtureComponents
 	means, ok, err := paramFloatSlice(f.Name, f.Params, "means")
@@ -696,7 +696,7 @@ func (m *mixtureSampler) next(rng *rand.Rand) (any, bool) {
 // pre-registration, which relies on this same fixed order for
 // deterministic bit assignment). Returns a map[string]bool covering
 // EVERY declared option so a later set-option conditional transform
-// (synth/conditional_sample.go) can flip one option's state in place
+// (internal/synth/conditional_sample.go) can flip one option's state in place
 // without needing to know the others.
 type setSampler struct {
 	options []string

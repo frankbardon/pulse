@@ -11,7 +11,7 @@ import (
 // The optional VALIDATE-side interface E6-S1 added, tested at the
 // dispatcher rather than in an adapter.
 //
-// io/spss is the only implementer today and its own tests cover what it
+// internal/io/spss is the only implementer today and its own tests cover what it
 // decides. What is checked here is the half that belongs to io/: that
 // ExportJob.Predict consults a validating Target, that a refusal comes
 // back as the error verbatim, that warnings land on the report — and,

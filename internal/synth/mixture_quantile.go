@@ -4,13 +4,13 @@ import "math"
 
 // This file gives a captured Gaussian mixture (DistMixture, written by
 // `profile create --fit-shape`) the two things the Gaussian-copula
-// construction in synth/copula.go demands of any marginal it drives:
+// construction in internal/synth/copula.go demands of any marginal it drives:
 // closed-form moments, and a quantile function Q.
 //
 // # Why a shape-fitted field needs a Q at all
 //
 // A modelled numeric is drawn as value = Q(Phi(mu(row) + sigma*z))
-// (synth/model_draw.go). Q is the ONLY place the field's marginal
+// (internal/synth/model_draw.go). Q is the ONLY place the field's marginal
 // shape enters, which is exactly what makes shape and conditioning
 // compose rather than compete: the predictors move the latent Gaussian
 // argument, and Q maps that latent back onto whatever distribution the
@@ -112,7 +112,7 @@ func (mc mixtureComponents) moments() (mean, std float64) {
 }
 
 // cdf is F(x) for the mixture: the weight-averaged component CDFs,
-// using the same phi (synth/copula.go) the copula's forward direction
+// using the same phi (internal/synth/copula.go) the copula's forward direction
 // uses, so the inverse below and the forward map cannot disagree about
 // what the standard normal CDF is.
 func (mc mixtureComponents) cdf(x float64) float64 {

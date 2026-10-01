@@ -7,7 +7,7 @@ groups, aggregations, and windows can reference.
 Setup is documented in [`../README.md`](../README.md). Run all:
 
 ```
-./examples/attributes/run-all.sh
+./internal/examples/attributes/run-all.sh
 ```
 
 ## Catalog

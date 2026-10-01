@@ -4,7 +4,7 @@ import "github.com/frankbardon/pulse/encoding"
 
 // DecodePlan is a pre-computed walk of one record's on-wire bytes that
 // elides ranges the caller will not consume. It is produced by
-// Schema.BuildDecodePlan given a retained-field set, and consumed by
+// BuildDecodePlan(schema, retained) given a retained-field set, and consumed by
 // the streaming iterator so unprojected byte ranges turn into a single
 // advance-cursor step instead of a per-field typed read.
 //
@@ -17,7 +17,7 @@ type DecodePlan struct {
 }
 
 // Segment is the sealed sum type of decode steps emitted by
-// Schema.BuildDecodePlan. The unexported marker method blocks
+// BuildDecodePlan(schema, retained). The unexported marker method blocks
 // out-of-package implementations so the iterator's switch is exhaustive.
 type Segment interface {
 	isSegment()

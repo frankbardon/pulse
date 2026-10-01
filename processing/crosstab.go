@@ -437,7 +437,7 @@ type CrosstabValidationError = errors.CodedError
 // passing record set. shape=long without margins and without
 // normalization is the only streamable case, and the orchestrator
 // short-circuits to the standard grouped process path before reaching
-// here (handled in service/crosstab.go).
+// here (handled in internal/service/crosstab.go).
 func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records []*Record) (*types.Response, error) {
 	if req == nil || req.Crosstab == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -996,13 +996,13 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// OverlayLayer per spec in matching order, and every
 	// types.OverlayWarning is promoted to types.ResponseWarning so envelope
 	// consumers see the same diagnostics surface label warnings already
-	// use (see service/process_labels.go for the canonical promotion
+	// use (see internal/service/process_labels.go for the canonical promotion
 	// shape).
 	//
 	// Scope:
 	//
 	//   - shape=long is out of scope today — the validator
-	//     (descriptor.ValidateOverlays) requires a MATRIX host for
+	//     (internal/descriptor.ValidateOverlays) requires a MATRIX host for
 	//     INDEX_VS_MARGIN; a misconfigured spec that survived predict
 	//     gets a defensive PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE-style
 	//     bail without touching resp.Overlays.
@@ -1034,7 +1034,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // On success, resp.Overlays carries one OverlayLayer per spec in
 // matching order and resp.Warnings is extended with one
 // ResponseWarning per types.OverlayWarning the handlers emitted (mirrors the
-// label-resolver promotion in service/process_labels.go).
+// label-resolver promotion in internal/service/process_labels.go).
 //
 // On unknown overlay kind, applyOverlays returns a CodedError whose own
 // Code is the canonical errors.PULSE_OVERLAY_KIND_UNKNOWN — every overlay
@@ -1113,7 +1113,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 // exts carries the embedder's grouper registrations, so a custom
 // fan-out grouper is gated exactly like GROUP_SET_PER_ELEMENT. The
 // predict arm reaches the same fact through
-// descriptor.ExtensionsSnapshot instead — different route, one
+// internal/descriptor.ExtensionsSnapshot instead — different route, one
 // resolution order, because both call
 // types.CheckPairwiseSlabPartitionWith.
 func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry) error {
@@ -1740,7 +1740,7 @@ func coerceFloat64(v any) float64 {
 
 // validateCrosstabSpec checks the structural invariants of a CrosstabSpec
 // at orchestrator entry. Schema-level checks (field existence, type
-// compatibility) live in descriptor.ValidateCrosstab and run earlier in
+// compatibility) live in internal/descriptor (validateCrosstab, crosstab.go) and run earlier in
 // the predict path.
 func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 	if spec == nil {
@@ -1857,7 +1857,7 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request) error {
 }
 
 // marginAggregationFaultCode maps a shared structural fault kind onto
-// this package's coded surface. descriptor/crosstab.go holds the
+// this package's coded surface. internal/descriptor/crosstab.go holds the
 // predict-side twin; keeping the MAPPING separate from the DETECTION is
 // what lets one report an envelope entry and the other a CodedError
 // without either owning the rules.

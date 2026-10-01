@@ -105,7 +105,7 @@ type CaseValue struct {
 	//   - f32 / f64 — the float, widened exactly.
 	//   - decimal128 — the value scaled by the field's Scale.
 	//   - packed_bool — 0 or 1.
-	//   - date — whole epoch DAYS, read unsigned, matching io/export.go.
+	//   - date — whole epoch DAYS, read unsigned, matching internal/io/export.go.
 	//   - datetime — whole epoch SECONDS, read SIGNED, so an instant before
 	//     1970 stays before 1970 (the on-wire u64 is two's complement, which
 	//     is exactly what encoding.FormatDateTime reinterprets).
@@ -780,7 +780,7 @@ func (e *DataEncoder) WriteCohort(r io.Reader) error {
 // readCohortCase decodes one `.pulse` record into c.
 //
 // It reads STORAGE, not text: a categorical yields its dictionary ID and a
-// set_* its mask, which is what the plan is indexed by. io/export.go's row
+// set_* its mask, which is what the plan is indexed by. internal/io/export.go's row
 // loop is the same walk with a rendering step where this one has none, and
 // the field-order-then-bitmap layout is [encoding.Schema]'s, not this
 // package's.

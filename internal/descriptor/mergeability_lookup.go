@@ -52,7 +52,7 @@ func AggregationMergeability(t types.AggregationType) descriptor.ComponentsMerge
 // Lives alongside AggregatorMergeability in the descriptor package so
 // the streaming projection helper has a single import path for both
 // axes; the underlying lookup reads only the static
-// grouperCapabilities() slice and never touches `service/` or
+// grouperCapabilities() slice and never touches `internal/service/` or
 // `processing/`.
 func GrouperMergeability(name string) descriptor.ComponentsMergeability {
 	for _, op := range grouperCapabilities() {

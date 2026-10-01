@@ -10,7 +10,7 @@ import (
 // FormatFromPath recognises and every factory refuses.
 //
 // The values are the stable lower-case identifiers the CLI's --format
-// flags, imports.Spec.Format and the manifest Import block use, so a
+// flags, internal/imports.Spec.Format and the manifest Import block use, so a
 // Format converts to and from those strings losslessly.
 type Format string
 

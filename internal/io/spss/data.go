@@ -38,7 +38,7 @@ package spss
 //     value label: the categorical dictionary the mapping builds holds the
 //     source VALUE, so the cell and the dictionary entry are the same text.
 //   - system-missing renders as the empty string — the house null token that
-//     io/import.go's isNullToken recognises — so a sysmis datum is seen as a
+//     internal/io/import.go's isNullToken recognises — so a sysmis datum is seen as a
 //     null and never as a finite value of about -1.8e308.
 //
 // # User-missing values, and why a case may yield more cells than variables
@@ -487,7 +487,7 @@ func (p *dataPlan) formatDate(seg []byte) string {
 
 // formatDateTime renders a temporal element as a datetime literal through
 // encoding.FormatDateTime, the exact inverse of the encoding.ParseDateTime
-// call io/import.go makes — so the instant survives the round trip,
+// call internal/io/import.go makes — so the instant survives the round trip,
 // including before 1970.
 func (p *dataPlan) formatDateTime(seg []byte) string {
 	bits := p.bo.Uint64(seg)
@@ -574,7 +574,7 @@ func (r *Reader) ReadHeader() ([]string, error) {
 // ReadRows streams the data section, calling fn once per case.
 //
 // The row slice handed to fn is REUSED between cases, matching the
-// io/parquet adapter: a callback that needs to keep a row past its call must
+// internal/io/parquet adapter: a callback that needs to keep a row past its call must
 // copy it. The strings themselves are immutable and safe to retain.
 //
 // ctx is checked before every case, so cancellation is observed within one
@@ -801,7 +801,7 @@ func dataError(code errors.Code, off int, format string, args ...any) *errors.Co
 // SchemaAwareReader is the third: a `.sav` carries an authoritative
 // dictionary, so the import path takes the schema off this reader instead
 // of sampling rows and guessing. E2-S5 could not state this assertion from
-// package io — asserting it there would import io/spss into its own
+// package io — asserting it there would import internal/io/spss into its own
 // parent — so it lives here, at the implementation.
 var (
 	_ iocore.Reader            = (*Reader)(nil)

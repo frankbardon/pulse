@@ -6,10 +6,10 @@
 // # Why nine tests and not one table
 //
 // Every adapter reaches a set column through the same shared surface —
-// io/export.go renders the mask to a delimiter-joined label list and
-// io/import.go parses one back — so eight of the nine LOOK like they
+// internal/io/export.go renders the mask to a delimiter-joined label list and
+// internal/io/import.go parses one back — so eight of the nine LOOK like they
 // inherit wide sets for free. That resemblance is exactly what lets one
-// adapter quietly not work: io/arrow and io/parquet each declared the
+// adapter quietly not work: internal/io/arrow and internal/io/parquet each declared the
 // column LIST<UTF8> and then handed the joined string to a builder that
 // parses JSON, so a set export reported success having written ZERO
 // rows, at every width including the four narrow rungs that predate the
@@ -36,7 +36,7 @@
 //     hole would have failed.
 //
 // The package is test-only — every .go file but this one ends in
-// _test.go — and follows the precedent of io/settristate, which runs the
+// _test.go — and follows the precedent of internal/io/settristate, which runs the
 // null / empty / selected tri-state across the same adapters at two
 // rungs. This one goes to the top of the ladder and adds the two formats
 // that matrix cannot reach through a []string Reader: `.sav`, whose set

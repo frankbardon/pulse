@@ -29,7 +29,7 @@ import (
 //     is specifically "you asked for overlays but CSV cannot carry
 //     them," not "CSV cannot carry overlays in general."
 //
-// The TSV adapter (io/tsv/) shares this contract by mirroring the same
+// The TSV adapter (internal/io/tsv/) shares this contract by mirroring the same
 // SetOverlays + OverlayWarnings surface; the warning code stays
 // PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED because CSV is the canonical
 // name in the warning text and the fixups call out TSV alongside CSV.

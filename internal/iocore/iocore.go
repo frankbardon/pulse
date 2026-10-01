@@ -51,7 +51,7 @@ type Writer interface {
 // is about DATA, and it is unchanged.
 //
 // Resources are the separate question, and exactly one adapter answers
-// it differently: io/excel drives an excelize StreamWriter whose buffer
+// it differently: internal/io/excel drives an excelize StreamWriter whose buffer
 // spills to os.CreateTemp past excelize.StreamChunkSize (16 MiB), and
 // only excelize.File.Close removes those files. Discard is the
 // release-without-emitting half of Close — drop the buffers and any
@@ -98,7 +98,7 @@ type SchemaAwareWriter interface {
 // declares each column's type, nullability and category set as fact
 // rather than as a guess (SPSS `.sav`, and in principle Parquet /
 // Arrow). ImportJob.Run and ImportJob.Predict type-assert this
-// interface and, when it yields a schema, skip io/infer.go entirely:
+// interface and, when it yields a schema, skip internal/io/infer.go entirely:
 // no row sampling, no per-column type voting, no delimiter probing.
 // Readers that do not implement SchemaAwareReader take the unchanged
 // sample-then-infer path, byte-for-byte — pinned by
@@ -142,7 +142,7 @@ type SchemaAwareWriter interface {
 // element selected, and null. CLAUDE.md's byte-layout invariants make
 // the middle one real — "an empty mask is a valid no-selection,
 // distinct from null" — and for a source that can tell them apart it is
-// load-bearing data, not a nicety. io/spss is the canonical case: a
+// load-bearing data, not a nicety. internal/io/spss is the canonical case: a
 // survey respondent who worked through a "select all that apply"
 // battery and ticked nothing gave an answer, and one who was never
 // shown the battery did not.
@@ -158,10 +158,10 @@ type SchemaAwareWriter interface {
 // documented behaviours in the shared import path, and BOTH are part
 // of this contract:
 //
-//   - isNullToken (io/import.go) recognises exactly "", "na", "n/a" and
+//   - isNullToken (internal/io/import.go) recognises exactly "", "na", "n/a" and
 //     "null", case-insensitively. "|" is not among them, so the cell
 //     reaches value conversion instead of being read as null.
-//   - splitSetTokens (io/infer.go) trims each part and DROPS the empty
+//   - splitSetTokens (internal/io/infer.go) trims each part and DROPS the empty
 //     ones, so "|" yields zero tokens: mask 0, and no dictionary
 //     mutation.
 //
@@ -169,7 +169,7 @@ type SchemaAwareWriter interface {
 // splitSetTokens retain empty tokens, would collapse the empty-mask and
 // null states into one — SILENTLY, since both spellings would keep
 // importing and only the meaning would change. An end-to-end
-// FILTER_SET EQUALS-empty assertion in io/spss guards the composition;
+// FILTER_SET EQUALS-empty assertion in internal/io/spss guards the composition;
 // a change to either rule must keep that green rather than update it.
 //
 // Cell text still passes through the same conversion the inferred path
@@ -258,7 +258,7 @@ type SchemaAwareReader interface {
 // ExportJob.Run spells a bitmap-null cell as an untyped Go nil in the
 // []any row, and a present empty string as "". That is the whole
 // convention, and it is free for the adapters that cannot use it:
-// io/csv and io/tsv already render nil as "", so their bytes are
+// internal/io/csv and internal/io/tsv already render nil as "", so their bytes are
 // unchanged.
 //
 // ConvertJob does NOT write from a cohort — it copies source TEXT, in
@@ -412,7 +412,7 @@ type OverlayAwareWriter interface {
 // Readers that do not implement it contribute no warnings and their
 // reports are byte-identical to the pre-interface shape.
 //
-// The canonical user is io/spss, whose `.sav` dictionary walk and
+// The canonical user is internal/io/spss, whose `.sav` dictionary walk and
 // schema mapping raise warnings that do not stop an import but change
 // what the cohort means — an unrecognised record type 7 extension
 // subtype, a temporal column demoted to raw seconds, a near-unique
@@ -446,7 +446,7 @@ type SourceWarningEmitter interface {
 // to the pre-interface shape — no extra file, no extra stat, no
 // behaviour change. Verified by TestImportJob_NoSidecarEmitter_WritesNothing.
 //
-// The canonical user is io/spss. An SPSS dictionary declares measure
+// The canonical user is internal/io/spss. An SPSS dictionary declares measure
 // levels, print formats, arbitrary value codes, missing-value
 // specifications, declared string widths, multiple-response sets,
 // document records and a source charset — none of which a `.pulse`
@@ -498,7 +498,7 @@ type CohortSource struct {
 	FS afero.Fs
 
 	// Path is the `.pulse` cohort path (ExportJob.Source). It is also
-	// where a format-specific metadata sidecar rides: io/spss derives
+	// where a format-specific metadata sidecar rides: internal/io/spss derives
 	// `cohort.pulse.spss.json` from it, which is the only surviving
 	// record of the source SPSS dictionary.
 	Path string
@@ -517,7 +517,7 @@ type CohortSource struct {
 // rendered row stream ExportJob.Run produces.
 //
 // It is the one place the row-oriented Writer contract does not fit, and
-// the fit is not close enough to fake. io/spss is the case that forced
+// the fit is not close enough to fake. internal/io/spss is the case that forced
 // it: a `.sav` variable's on-wire value is derived from a categorical's
 // dictionary ID, a set_*'s mask bit and the null bitmap, and every one
 // of those is GONE by the time ExportJob has rendered a row —
@@ -556,7 +556,7 @@ type CohortWriter interface {
 // read the source header and schema and answered "this export is fine" no
 // matter what the target was, which was harmless only for as long as every
 // writer was infallible at the target boundary — CSV / TSV / NDJSON /
-// JSONArray stringify anything handed to them. io/spss is the first writer
+// JSONArray stringify anything handed to them. internal/io/spss is the first writer
 // that can REFUSE, so predict was claiming an export would work and the real
 // export was then failing. Predict has to be able to answer the question it
 // appears to answer.
@@ -626,7 +626,7 @@ type CohortValidator interface {
 // warnings and their reports are byte-identical to the pre-interface
 // shape.
 //
-// The canonical user is io/spss, whose encode raises diagnostics that do
+// The canonical user is internal/io/spss, whose encode raises diagnostics that do
 // not stop an export but change what the file MEANS: a metadata sidecar
 // that was absent or deliberately ignored (so the dictionary was
 // synthesised rather than reproduced), and every variable rename

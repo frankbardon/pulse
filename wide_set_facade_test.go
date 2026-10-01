@@ -18,7 +18,7 @@ import (
 // Facade-level coverage for a cohort carrying a WIDE set column
 // (set_u256). Every layer below already proves its own half —
 // encoding/set_mask_test.go the word order, descriptor's inspect tests
-// the dictionary truncation, service/index_*_test.go the sidecar — but
+// the dictionary truncation, internal/service/index_*_test.go the sidecar — but
 // nothing exercised Pulse.InspectEnvelope or Pulse.BuildIndex/Lookup
 // against a real wide-set .pulse through the public facade, so the
 // stride arithmetic that a 32-byte column forces on every neighbouring

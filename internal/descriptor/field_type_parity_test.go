@@ -15,7 +15,7 @@ import (
 // about which columns an operator will take, and `cohort_types` is what
 // docs/src/format/field-types.md tells a reader to consult "for the live
 // list at runtime". Both are assembled from the hand-written lists in
-// descriptor/capabilities_*.go, so neither is derived from
+// internal/descriptor/capabilities_*.go, so neither is derived from
 // encoding's FieldType registry — which is how the manifest came to
 // advertise five `nullable_*` names no registry entry has ever carried
 // while omitting `u4`, which one has.

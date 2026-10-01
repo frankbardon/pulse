@@ -351,7 +351,7 @@ func IsPanelOverlayParamsKind(kind OverlayKind) bool {
 // than silently ignoring configuration the caller believed was applied.
 //
 // Unknown keys are ACCEPTED, mirroring DecodePairwiseParams: params is
-// an open object in descriptor.BuildPayloadSchema() and a strict decode
+// an open object in internal/descriptor.BuildPayloadSchema() and a strict decode
 // here would make every forward-compatible authoring blob a hard
 // failure against an older binary.
 func DecodePanelParams(raw json.RawMessage) (PanelOverlayParams, error) {

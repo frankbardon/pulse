@@ -218,7 +218,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 // contract — reference / target slot resolution, MATRIX host on every
 // slot, axis-schema agreement and the MaxPanelTargets cap — is
 // COMPOSE-shaped and lives in validateComposeOverlaySpec
-// (descriptor/compose.go), which is also where this helper is called
+// (internal/descriptor/compose.go), which is also where this helper is called
 // from: ComposedRequest.Overlays is the only slot the panel can
 // actually execute out of.
 //
@@ -1123,7 +1123,7 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		types.OverlayKindZScoreVsPop:
 		// FACET-host kinds — wrong host on Request.Overlays. The
 		// correct surface is FacetRequest.Overlays validated via
-		// ValidateFacetOverlays in descriptor/overlay_facet.go. Fail
+		// ValidateFacetOverlays in internal/descriptor/overlay_facet.go. Fail
 		// closed with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE so the
 		// caller redirects rather than silently passing.
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),

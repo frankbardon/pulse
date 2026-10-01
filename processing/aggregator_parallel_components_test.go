@@ -117,7 +117,7 @@ func runSerialComponents(t *testing.T, c parallelComponentsCase, schema *encodin
 // runParallelComponents fans the cohort across `shards` worker
 // instances, each driving UpdateRow over its slice; folds the partials
 // into the head instance via MergeOnline (shard insertion order, same
-// as service/shard_reduce.go); calls Finalize once; reads Components.
+// as internal/service/shard_reduce.go); calls Finalize once; reads Components.
 func runParallelComponents(t *testing.T, c parallelComponentsCase, schema *encoding.Schema, records []*Record, shards int) map[string]any {
 	t.Helper()
 	factory := aggregatorRegistry[c.aggType]

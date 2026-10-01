@@ -196,13 +196,13 @@ func (r *Request) Hash() string {
 // through the json walk of each *Request — empty Labels are
 // `omitempty` and stay byte-identical to the pre-Label form. Before
 // hashing, the helper applies the auto-default rule that
-// service/compose_label.go uses at validate time: every slot whose
+// internal/service/compose_label.go uses at validate time: every slot whose
 // Label arrives empty is rewritten to `request_<index+1>` (1-based)
 // against a shallow clone, so two ComposedRequests differing only in
 // empty-vs-auto-defaulted Labels hash identically. Callers that
 // already filled the Label explicitly are unaffected — the auto-
 // default only fires when Label is empty. This mirrors the validate-
-// time normalizer in service/compose_label.go so hash equality lines
+// time normalizer in internal/service/compose_label.go so hash equality lines
 // up with execution-time slot identity.
 //
 // The Compose-level Overlays slot is covered automatically —
@@ -222,11 +222,11 @@ func (r *ComposedRequest) Hash() string {
 
 // normalizeComposedRequestForHash returns a shallow-clone projection of
 // the ComposedRequest whose per-slot Requests carry the
-// service/compose_label.go auto-defaulted Label values. The clone is
+// internal/service/compose_label.go auto-defaulted Label values. The clone is
 // hash-only: the caller's *ComposedRequest pointer is never mutated,
 // and every other slot (Cohort, Aggregations, Overlays, etc.) shares
 // the underlying slices because canonical-hash only needs to walk the
-// JSON projection. Mirrors service/compose_label.go's
+// JSON projection. Mirrors internal/service/compose_label.go's
 // applyComposeLabelDefaults — the two normalizers are intentionally
 // kept in lockstep so hash equality matches validate-time slot
 // identity. We deliberately do NOT import the service package from
@@ -275,7 +275,7 @@ func normalizeComposedRequestForHash(r *ComposedRequest) *ComposedRequest {
 // (1-based). Kept as a separate helper so the rule has one source of
 // truth across the canonical-hash normalizer (above) and any future
 // types-layer consumer. The service-layer validator
-// (service/compose_label.go) carries the same one-liner — the two
+// (internal/service/compose_label.go) carries the same one-liner — the two
 // must stay in lockstep so hash equality lines up with execution-time
 // slot identity. We deliberately do NOT use fmt.Sprintf here: the
 // canonical-hash codepath bans fmt-built strings (the structural-

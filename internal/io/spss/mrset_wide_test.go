@@ -18,7 +18,7 @@ package spss
 //     So the selections asserted straddle 63/64, 127/128, 191/192 and sit
 //     at 200, which is the top word of a [4]uint64.
 //  2. A second width ladder in this package would fall behind the one in
-//     io/infer.go without anything failing. So the width the importer
+//     internal/io/infer.go without anything failing. So the width the importer
 //     picks is asserted against pio.SetTypeFor rather than against a
 //     table written out again here.
 

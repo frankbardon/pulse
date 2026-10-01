@@ -1198,7 +1198,7 @@ func TestParquet_DateTimeColumnRoundTripsAsCanonicalString(t *testing.T) {
 	if err := w.WriteHeader([]string{"ts"}); err != nil {
 		t.Fatalf("WriteHeader: %v", err)
 	}
-	// Exactly what io/export.go's formatFieldValue emits for datetime.
+	// Exactly what internal/io/export.go's formatFieldValue emits for datetime.
 	if err := w.WriteRow([]any{"2024-03-04T10:11:12Z"}); err != nil {
 		t.Fatalf("WriteRow: %v", err)
 	}

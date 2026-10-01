@@ -17,7 +17,7 @@ import (
 
 // updateFixtures regenerates testdata/profile_pre_models.json in place:
 //
-//	go test ./synth/ -run TestProfile_PreModelsCaptureIsByteIdentical -update
+//	go test ./internal/synth/ -run TestProfile_PreModelsCaptureIsByteIdentical -update
 //
 // It exists so the fixture's provenance is a runnable command rather
 // than a claim about someone's laptop. Use it only for a deliberate,
@@ -717,7 +717,7 @@ func TestSpecFromProfile_MixedModelledAndUnmodelledTargets(t *testing.T) {
 // to assert the opposite — modelSpecFromProfile refused a --fit-shape
 // target and the model was dropped with a warning — because the mixture
 // had no quantile function a linear predictor could ride. E4-S1 gave it
-// one (synth/mixture_quantile.go), so the field now keeps BOTH: its
+// one (internal/synth/mixture_quantile.go), so the field now keeps BOTH: its
 // captured mixture marginal AND its captured model, with the mixture
 // serving as Q in value = Q(Phi(mu(row) + sigma*z)).
 //
@@ -798,7 +798,7 @@ func TestSpecFromProfile_ShapeFitTargetKeepsShapeAndModel(t *testing.T) {
 // This value MOVED ONCE, at E6-S4, and the reason is worth stating
 // because it is the one change that legitimately moves it without any
 // meaning changing. E6-S4 made the capture path fusion-free (see
-// synth/moments.go) and regenerated the fixture, so the fixture's floats
+// internal/synth/moments.go) and regenerated the fixture, so the fixture's floats
 // shifted in their last bits. A content hash over floats cannot be
 // invariant to that — it hashes the decimal spelling — so a regenerated
 // fixture necessarily produces a new hash even when nothing about what
@@ -843,7 +843,7 @@ var preModelsCaptureOptions = synth.ProfileOptions{
 // fixture is now the ARCHITECTURE-INDEPENDENT capture: modelsCohort
 // builds its numeric columns in exact integer arithmetic, and every
 // formula between those bytes and this document carries an explicit
-// float64() fusion barrier (synth/moments.go). Both halves are required
+// float64() fusion barrier (internal/synth/moments.go). Both halves are required
 // — the pre-E6-S4 file differed from CI's in the COHORT bytes as well as
 // in the capture arithmetic (115 of 1,200 rows).
 //

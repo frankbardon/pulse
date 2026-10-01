@@ -1,8 +1,8 @@
 // Package exportoverlay holds the higher-level integration tests for
 // the ExportJob and ConvertJob overlay-embedding wiring.
 //
-// The per-format adapter packages (io/arrow, io/parquet, io/excel,
-// io/ndjson, io/csv) carry unit tests for their Writer.SetOverlays /
+// The per-format adapter packages (internal/io/arrow, internal/io/parquet, internal/io/excel,
+// internal/io/ndjson, internal/io/csv) carry unit tests for their Writer.SetOverlays /
 // Reader.ReadOverlays surface directly. This package sits one level
 // up: it constructs full ExportJob / ConvertJob values with a
 // Response-side Overlays slate, runs them through ExportJob.Run /

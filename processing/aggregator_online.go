@@ -431,7 +431,7 @@ func (a *nullCountAggregator) Finalize() (float64, error) {
 // MergeOnline folds another aggregator instance's state into the
 // receiver. Implementations assume the other instance was constructed
 // from the same Aggregation spec; the per-shard parallel orchestrator
-// in service/shard_reduce.go enforces this invariant. A type-mismatched
+// in internal/service/shard_reduce.go enforces this invariant. A type-mismatched
 // other returns PROCESSING_INTERNAL — a programming bug, not a runtime
 // user-input error.
 

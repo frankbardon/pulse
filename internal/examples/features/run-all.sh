@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Smoke-runs every feature-pack example request through `pulse api process`.
 # Assumes the shared fixture cohorts have been built into ./.data via
-# examples/fixtures/build.sh.
+# internal/examples/fixtures/build.sh.
 #
 # Exits non-zero on the first failure.
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."
 
 PULSE_BIN=${PULSE_BIN:-bin/pulse}
 if [[ ! -x "$PULSE_BIN" ]]; then
@@ -15,12 +15,12 @@ if [[ ! -x "$PULSE_BIN" ]]; then
 fi
 
 if [[ ! -d .data ]]; then
-  echo ".data not found; running examples/fixtures/build.sh" >&2
-  ./examples/fixtures/build.sh
+  echo ".data not found; running internal/examples/fixtures/build.sh" >&2
+  ./internal/examples/fixtures/build.sh
 fi
 
 shopt -s nullglob
-for f in examples/features/0*.json examples/features/10_*.json; do
+for f in internal/examples/features/0*.json internal/examples/features/10_*.json; do
   printf '%-60s' "$f"
   out=$("$PULSE_BIN" api process --request "$f" --json 2>&1)
   if echo "$out" | python3 -c '
@@ -43,7 +43,7 @@ done
 
 echo
 echo "Predict-only leakage check:"
-"$PULSE_BIN" api predict --request examples/features/09_target_encode_leaky.json --json --strict | \
+"$PULSE_BIN" api predict --request internal/examples/features/09_target_encode_leaky.json --json --strict | \
   python3 -c '
 import json, sys
 d = json.load(sys.stdin)

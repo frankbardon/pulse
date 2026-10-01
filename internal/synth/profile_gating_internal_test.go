@@ -51,7 +51,7 @@ func gateFixtureSchema(t *testing.T, perception int) *encoding.Schema {
 // gateFixtureRows builds n rows where every value is an exact integer
 // function of the row index — no float arithmetic anywhere, so the
 // fixture bytes are architecture-independent by construction rather than
-// by a barrier (synth/moments.go).
+// by a barrier (internal/synth/moments.go).
 //
 //   - aware  = 0 on one row in four (the gate)
 //   - familiarity = 1 exactly when aware == 0, else 2..7

@@ -58,7 +58,7 @@ func TestFieldFromPulse_EveryLadderRungIsAStringList(t *testing.T) {
 //
 // An Arrow LIST<UTF8> says "a list of strings" and nothing about how
 // many distinct elements the data holds, so only a data pass can pick a
-// rung — that is io/infer.go's job, through the same
+// rung — that is internal/io/infer.go's job, through the same
 // encoding.SetTypeFor every other caller uses. This mapping is the
 // narrowest rung as a starting point, and naming it locally is how a
 // third width table gets born.
@@ -113,7 +113,7 @@ func TestSetLadder_ArrowHasNoWidthTableOfItsOwn(t *testing.T) {
 }
 
 // TestTypes_NamesNoIndividualSetRung is the consolidation itself,
-// asserted structurally: io/arrow/types.go must not name a single
+// asserted structurally: internal/io/arrow/types.go must not name a single
 // `FieldTypeSetU*` constant.
 //
 // A local list of rungs is a width table whether or not it is called

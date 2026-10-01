@@ -142,7 +142,7 @@ type latentFunc func(v float64) (float64, bool)
 // # Why this exists at all
 //
 // A modelled numeric is drawn as value = Q(Φ(μ + σz)) — see
-// synth/model_draw.go's header. The coefficients inside μ are therefore
+// internal/synth/model_draw.go's header. The coefficients inside μ are therefore
 // LATENT-scale quantities: for a `normal` target the round trip
 // collapses and they read as data-scale too, but for a lognormal,
 // uniform, exponential or captured-mixture target the map from u to
@@ -300,7 +300,7 @@ func latentFor(fs FieldSpec, mean, std float64) (latentFunc, error) {
 // carrying its captured coefficients and an `error` saying the recovery
 // is not identified, rather than a fabricated delta. Recovering an
 // ordered-probit coefficient properly needs an ordered-probit refit,
-// which processing/regression does not offer; when it does, this is the
+// which internal/processing/regression does not offer; when it does, this is the
 // one place that changes.
 func latentInvertible(distribution string) bool {
 	switch distribution {
@@ -346,7 +346,7 @@ func latentInvertible(distribution string) bool {
 // cholesky's ridge then bent the partly-invented result into
 // factorizable shape without comment. Both halves now speak — see the
 // ridge warning below. The document side of the same distinction is
-// ResidualCorrelationProfile (synth/residual_corr.go), which keeps
+// ResidualCorrelationProfile (internal/synth/residual_corr.go), which keeps
 // measured-zero and unmeasured structurally apart so a future caller
 // can hand this function a matrix that knows which of its zeros were
 // real.
@@ -425,7 +425,7 @@ func buildCorrelator(correlations []CorrelationSpec, wfs []*writerField) (*corre
 // sequence exists, shared by both consumers of a correlation structure:
 // buildCorrelator, which correlates field VALUES through each field's
 // own quantile function, and buildResidualCorrelator
-// (synth/residual_draw.go), which correlates the RESIDUALS of modelled
+// (internal/synth/residual_draw.go), which correlates the RESIDUALS of modelled
 // fields and hands each drawer its own component of the resulting
 // vector. There is deliberately no second Cholesky and no second
 // completion policy in this package — the two callers differ only in
@@ -540,13 +540,13 @@ func correlatedNormals(rng *mrand.Rand, chol [][]float64, z, u []float64) {
 //
 // That reasoning stops at a MODELLED field, and this stage no longer
 // reaches one. A modelled numeric already has an account of itself: its
-// value is the composed model draw (synth/model_draw.go), and
+// value is the composed model draw (internal/synth/model_draw.go), and
 // overwriting it would delete every predictor's contribution and leave
 // the surviving coefficients describing nothing that was drawn. The
 // correlation structure among modelled fields is applied instead at the
 // place it belongs — as the correlation of their RESIDUALS, supplying
 // each drawer's z rather than replacing its output (see
-// synth/residual_draw.go). resolveConflicts excludes a modelled field
+// internal/synth/residual_draw.go). resolveConflicts excludes a modelled field
 // from Spec.Correlations for that reason and says so.
 func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 	if c == nil || len(c.fieldNames) == 0 {
@@ -589,12 +589,12 @@ func (c *correlator) transform(rng *mrand.Rand, row map[string]any) {
 // This function has TWO callers and they reach different subsets of it.
 // buildCorrelator calls it for every VALUE-scale correlation
 // participant; a modelled field calls it for its own target
-// (buildModelDrawers, synth/model_draw.go). In practice only the second
+// (buildModelDrawers, internal/synth/model_draw.go). In practice only the second
 // ever sees a mixture: resolveConflicts pre-claims an unmodelled
 // DistMixture field before any correlation stage bids, and a MODELLED
 // one is excluded from the value-scale matrix permanently (its
 // correlation structure rides its residual instead — see
-// synth/residual_draw.go), so a mixture reaches buildCorrelator through
+// internal/synth/residual_draw.go), so a mixture reaches buildCorrelator through
 // neither path. Nothing here depends on that — the construction is
 // sound for a mixture on either path — but do not read a passing
 // correlation suite as evidence the correlation half is exercised.
@@ -756,7 +756,7 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 // shortcut and use p.
 //
 // Every arm but mixture is O(1) closed form. Mixture pays a fixed
-// bisection per call (synth/mixture_quantile.go) — the price of letting
+// bisection per call (internal/synth/mixture_quantile.go) — the price of letting
 // a `--fit-shape` marginal be driven by a linear predictor at all.
 func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 	switch fs.Distribution {
@@ -800,7 +800,7 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 		// The one arm with no closed form. A Gaussian mixture's CDF is a
 		// weighted sum of erfs and has no elementary inverse, so Q is
 		// computed by a fixed-count bisection whose bracket is decided
-		// once here rather than per call — see synth/mixture_quantile.go
+		// once here rather than per call — see internal/synth/mixture_quantile.go
 		// for why the count is fixed and why bisection rather than
 		// Newton. Uses p, like uniform and exponential; there is no u
 		// shortcut to take.
@@ -974,7 +974,7 @@ func isBooleanFieldType(typeName string) bool {
 // fieldTypeFromName cannot build, so no spec naming them ever reached
 // the writer — and did NOT carry `u4`, which is what
 // encoding.FieldType.String() actually emits. addCorrelation
-// (synth/profile.go) gates on this predicate, so every u4 field was
+// (internal/synth/profile.go) gates on this predicate, so every u4 field was
 // dropped from Spec.Correlations in silence: 11 of the motivating survey
 // cohort's 14 integer columns, including nps, and all 16 of its captured
 // numeric pairs, leaving that cohort's reconstructed correlation
@@ -1004,7 +1004,7 @@ func isBooleanFieldType(typeName string) bool {
 //
 // # What a discrete participant produces
 //
-// Since a small integer reconstructs as `discrete` (synth/discrete.go),
+// Since a small integer reconstructs as `discrete` (internal/synth/discrete.go),
 // most newly admitted participants have a STAIRCASE Q. The copula still
 // induces the dependence on the latent, so the RANK correlation carries
 // through and the marginal is held exactly at the captured histogram,

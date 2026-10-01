@@ -55,7 +55,7 @@ func asBuffered(t *testing.T, eng Engine) BufferedEngine {
 // exact fixture (the IRLS algorithm is textbook; this fixture's
 // purpose is regression detection, not external-oracle validation).
 // To re-derive, run `go test -run TestRegGLM_Logistic_NumericalFixture
-// -v ./processing/regression/` after temporarily replacing the t.Errorf
+// -v ./internal/processing/regression/` after temporarily replacing the t.Errorf
 // blocks below with t.Logf and inspect the output; the printed
 // coefficients become the constants here.
 func TestRegGLM_Logistic_NumericalFixture(t *testing.T) {

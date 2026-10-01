@@ -27,7 +27,7 @@ const CanonicalDateTimeLayout = "2006-01-02T15:04:05Z"
 //     month is exactly the quiet degradation this type must not do.
 //     An ambiguous literal fails loudly with ENCODING_INVALID instead.
 //   - A literal carrying no time-of-day is NOT accepted. That is a
-//     `date`, and io/infer.go's column classification depends on this
+//     `date`, and internal/io/infer.go's column classification depends on this
 //     rejection to keep a date-only column typed FieldTypeDate rather
 //     than widening it to FieldTypeDateTime.
 //

@@ -11,7 +11,7 @@ import (
 )
 
 // fidelityCorrelatedSpec mirrors synth_test's own synthCorrelatedPair
-// fixture (synth/conditional_test.go) — two normally distributed f64
+// fixture (internal/synth/conditional_test.go) — two normally distributed f64
 // fields "a"/"b" declared with a target Pearson correlation — kept as a
 // standalone helper in this package since that helper lives in an
 // external test package (synth_test) this file cannot import.

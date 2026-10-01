@@ -82,7 +82,7 @@ type Service struct {
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
 // processCrosstab. When true, every crosstab request takes the
 // buffered RunCrosstab path even when CanFuseCrosstab would accept
-// it. Exposed so the equivalence test in service/crosstab_fused_test.go
+// it. Exposed so the equivalence test in internal/service/crosstab_fused_test.go
 // can drive the same request through both paths and assert
 // byte-equal output without relying on internals.
 func (s *Service) SetDisableCrosstabFusion(disabled bool) {
@@ -576,7 +576,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	//
 	// On eligibility we re-derive the same DecodePlan + projection the
 	// scanIter would have installed (processing.NeededFields →
-	// Schema.BuildDecodePlan), build the parallelDecodeContext, and
+	// internal/encoding.BuildDecodePlan(schema, retained)), build the parallelDecodeContext, and
 	// dispatch into reduceParallelBuffered. Ineligible (and any post-
 	// gate failure that doesn't surface a hard error) drops through to
 	// the serial scanIter path below — byte-equal vs today's output for
@@ -678,7 +678,7 @@ func (s *Service) processSingleFileParallelMaybe(
 	// the single-file branch costs one Open + header+schema read;
 	// negligible for an mmap'd OsFs cohort but observable on hermetic
 	// MemMapFs tests that count file opens to assert mmap is NOT
-	// engaging (see service/fs_counting_test.go). The downstream
+	// engaging (see internal/service/fs_counting_test.go). The downstream
 	// canParallelDecode call duplicates these checks so the gate stays
 	// a pure single-call predicate for callers that already know the
 	// record count.
@@ -914,7 +914,7 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 	// change.
 	out := &types.ComposedResponse{Responses: responses}
 	if len(layers) > 0 {
-		// distributeComposeWarnings (service/compose_overlay.go) folds
+		// distributeComposeWarnings (internal/service/compose_overlay.go) folds
 		// the flat warnings slice into each layer's `Warnings` slot via
 		// the `Details["overlay_index"]` routing key. Shared with
 		// `service.ComposeParallel` so serial and parallel paths

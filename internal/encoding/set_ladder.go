@@ -5,10 +5,10 @@ import "github.com/frankbardon/pulse/encoding"
 // The set-width ladder lives here, beside the type bytes it names, so
 // there is exactly ONE rung table in the module.
 //
-// io/set_width.go used to own it. That was fine while only the import
+// internal/iocore/set_width.go used to own it. That was fine while only the import
 // path needed to choose a rung, but the shard auto-widen path needs the
 // same choice and `encoding` cannot import `io`. A second copy inside
-// `encoding` would be the exact failure io/set_width.go's own doc
+// `encoding` would be the exact failure internal/iocore/set_width.go's own doc
 // comment records: a duplicated ladder does not fail loudly when it
 // falls behind — it just goes on refusing the widths the other copy
 // already types.

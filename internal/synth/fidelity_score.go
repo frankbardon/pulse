@@ -13,7 +13,7 @@ import (
 //
 // A modelled numeric is drawn as value = Q(Φ(μ + σz)), so the captured
 // coefficients live on the LATENT scale and the recovery must put the
-// generated data there too (synth/fidelity_models.go's header). For
+// generated data there too (internal/synth/fidelity_models.go's header). For
 // every continuous Q that is one call to latentFor. For `bernoulli` and
 // `discrete` it is not possible at all: the Q is a step / staircase, a
 // generated value pins the latent to an INTERVAL rather than a point,
@@ -67,7 +67,7 @@ import (
 //     construction does not have.
 //
 //  2. NO ORDERED-PROBIT REFIT. An ordered probit (which
-//     processing/regression does not offer — binomial/probit is a
+//     internal/processing/regression does not offer — binomial/probit is a
 //     reserved, unimplemented link) would be a more EFFICIENT estimator,
 //     not a more correct one, because the bias this construction would
 //     otherwise carry is computed exactly rather than assumed away. It

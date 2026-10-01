@@ -7,7 +7,7 @@ multiple requests for multi-level breakdowns.
 Setup is documented in [`../README.md`](../README.md). Run all:
 
 ```
-./examples/groupers/run-all.sh
+./internal/examples/groupers/run-all.sh
 ```
 
 ## Catalog

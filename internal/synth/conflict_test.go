@@ -397,7 +397,7 @@ func TestSynth_ConflictWarns_PartialExclusionFromMultiFieldCorrelation(t *testin
 }
 
 // TestSynth_ConflictWarns_ShapeFitExcludedFromCorrelation locks in that
-// addCorrelation's former DistMixture special case (synth/profile.go)
+// addCorrelation's former DistMixture special case (internal/synth/profile.go)
 // now routes through the SAME resolveConflicts mechanism: a field whose
 // distribution is DistMixture (a --fit-shape reconstruction) is
 // pre-claimed under "captured shape" before any correlation stage runs,

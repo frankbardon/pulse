@@ -115,7 +115,7 @@ func runProcessAndExpectOneAggSlot(t *testing.T, svc *Service, req *types.Reques
 
 // mapKeysSorted returns the sorted key set of m. Local copy of the
 // helper from processing/aggregator_components_test.go so this file
-// can stand alone in service/.
+// can stand alone in internal/service/.
 func mapKeysSorted(m map[string]any) []string {
 	if len(m) == 0 {
 		return []string{}
@@ -1038,7 +1038,7 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 
 // buildHeaderOnlyPulseBytes returns a complete header+schema (no
 // records) byte buffer suitable for descriptor.Predict.
-// Mirrors descriptor/predict_test.go's buildTestPulseFile helper but
+// Mirrors internal/descriptor/predict_test.go's buildTestPulseFile helper but
 // lives here so service tests do not reach into another package's
 // test file.
 func buildHeaderOnlyPulseBytes(t *testing.T, schema *encoding.Schema) []byte {

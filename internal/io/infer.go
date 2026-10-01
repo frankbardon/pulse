@@ -35,7 +35,7 @@ var setInferenceDelimiterPriority = []string{"|", ";"}
 // The set-width ladder is encoding.SetLadder — narrowest rung first,
 // capacities read off FieldType.MaxSetEntries so the ladder and the
 // bitmask widths cannot drift apart. Inference reaches it through
-// SetTypeFor (io/set_width.go): it only ever produces a member of that
+// SetTypeFor (internal/iocore/set_width.go): it only ever produces a member of that
 // list, always the FIRST rung whose capacity holds the observed
 // vocabulary.
 //
@@ -44,9 +44,9 @@ var setInferenceDelimiterPriority = []string{"|", ";"}
 // set. The ceiling moved from 64 when set_u128 / set_u256 landed; it
 // did not disappear.
 //
-// It lives in encoding/ rather than here because the shard auto-widen
+// It lives in internal/encoding/ rather than here because the shard auto-widen
 // path has to choose the same rung and cannot import io. One table, two
-// readers — a second copy is the failure io/set_width.go's own doc
+// readers — a second copy is the failure internal/iocore/set_width.go's own doc
 // comment records.
 
 // InferenceWarning records a non-fatal observation during inference.
@@ -554,7 +554,7 @@ func allDate(values []string) bool {
 // allDateTime reports whether every sampled cell is a full ISO-8601
 // datetime literal. Unlike allDate — which probes infer's own
 // best-effort dateFormats list — this delegates to encoding.ParseDateTime,
-// the same authority io/import.go's convertValue uses to produce the
+// the same authority internal/io/import.go's convertValue uses to produce the
 // on-wire epoch-seconds uint64. Sharing the one list is deliberate: a
 // column this classifies as datetime is thereby guaranteed to convert
 // cell-for-cell during the row pass, with no inference-vs-conversion

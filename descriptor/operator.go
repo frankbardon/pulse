@@ -161,7 +161,7 @@ type TestMeta struct {
 }
 
 // DistributionMeta describes a synth distribution entry. One entry per
-// synth.AllDistributions() value.
+// internal/synth.AllDistributions() value.
 type DistributionMeta struct {
 	// Name is the distribution kind identifier (e.g. "lognormal").
 	Name string `json:"name"`

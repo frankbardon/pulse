@@ -401,13 +401,13 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	}
 
 	// Params, decoded and validated SECOND — after the cap, before any
-	// matrix work. Mirrors descriptor/compose.go's gate order (Gate 3 =
+	// matrix work. Mirrors internal/descriptor/compose.go's gate order (Gate 3 =
 	// cap, Gate 3b = params, Gate 4 = the per-slot shape walk), so a
 	// spec that is both over-cap and misconfigured reports the same
 	// failure on both arms.
 	//
 	// A runtime TWIN of the predict gate, not a duplicate of it for its
-	// own sake: descriptor.ValidateCompose is reached only by predict,
+	// own sake: internal/descriptor.ValidateCompose is reached only by predict,
 	// and pulse.Compose does not run predict. Without the twin an
 	// unknown n_source would fall through to the legacy leg and hand
 	// back the default number while the caller believed they had moved

@@ -80,7 +80,7 @@ var validJSONTypes = map[string]struct{}{
 // operator slices.
 //
 // Built-in collision checks use the live type registries
-// (types.All*Types() + synth.AllDistributions()) so adding a new
+// (types.All*Types() + internal/synth.AllDistributions()) so adding a new
 // built-in automatically reserves its name against embedder
 // collisions.
 func validateExtensions(ext Extensions) error {

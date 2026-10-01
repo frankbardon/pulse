@@ -299,7 +299,7 @@ func TestCount(t *testing.T) {
 // regression example is present, carries the expected operator set,
 // and parses as a runnable types.Request. The body itself can't be
 // executed in a unit test without a .pulse fixture; the integration
-// surface relies on examples/fixtures/build.sh producing customers.pulse
+// surface relies on internal/examples/fixtures/build.sh producing customers.pulse
 // at runtime.
 func TestEcologicalRegressionExample(t *testing.T) {
 	ex, ok := Get("ecological_fallacy")

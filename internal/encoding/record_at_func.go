@@ -15,7 +15,7 @@ import (
 // slice) — the seek is absolute, so r's current cursor position on
 // entry is irrelevant.
 //
-// plan is optional: pass a *DecodePlan (from Schema.BuildDecodePlan) to
+// plan is optional: pass a *DecodePlan (from BuildDecodePlan(schema, retained)) to
 // decode only the columns the plan retains — the O(1) projection
 // variant required by point-lookup callers that only need a handful of
 // return columns out of a wide schema. Pass nil to decode every field

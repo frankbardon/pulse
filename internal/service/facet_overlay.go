@@ -15,7 +15,7 @@ import (
 // exit.
 //
 // The runtime handlers live entirely inside processing/ (the overlay
-// catalog stays free of service/ imports per CLAUDE.md "What NOT to
+// catalog stays free of internal/service/ imports per CLAUDE.md "What NOT to
 // Do"); this file owns:
 //
 //   - Population cohort opening (the service-layer cohort opener is the

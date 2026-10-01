@@ -15,7 +15,7 @@ import (
 //
 // Naming mirrors CanMergeRequest / CanStreamRequest / CanChainRequest.
 // The returned reason string is short and operator-specific so callers
-// (dispatch in service/crosstab.go, predict surfaces in a follow-up)
+// (dispatch in internal/service/crosstab.go, predict surfaces in a follow-up)
 // can surface a human-readable explanation without re-deriving the
 // rule.
 //
@@ -111,7 +111,7 @@ import (
 //
 // The gate is a pure predicate. It does NOT modify req or schema, and
 // it does NOT touch the orchestrator (RunCrosstab / processCrosstab).
-// service/crosstab.go wires the dispatch around the result of this
+// internal/service/crosstab.go wires the dispatch around the result of this
 // call.
 func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *ExtensionRegistry) (bool, string) {
 	if req == nil {

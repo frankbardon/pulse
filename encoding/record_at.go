@@ -12,7 +12,7 @@ import (
 // prefix), the fixed per-record stride, and the total record count for
 // bounds checking. Construct one per opened cohort via NewRecordLocator
 // and reuse it across many point lookups — the offset math mirrors
-// service/parallel_decode.go's per-worker segment slicing
+// internal/service/parallel_decode.go's per-worker segment slicing
 // (recordRegionStart + i*stride), just applied to a single record
 // instead of a worker's contiguous range.
 type RecordLocator struct {

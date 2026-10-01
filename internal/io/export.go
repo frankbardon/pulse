@@ -588,7 +588,7 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 
 	case encoding.FieldTypeDateTime:
 		// encoding.CanonicalDateTimeLayout — the exact inverse of the
-		// encoding.ParseDateTime call io/import.go's convertValue makes,
+		// encoding.ParseDateTime call internal/io/import.go's convertValue makes,
 		// so a datetime survives export → re-import byte-for-byte
 		// including its time-of-day. Always rendered in UTC, matching
 		// the naive-UTC storage policy.

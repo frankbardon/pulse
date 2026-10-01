@@ -376,7 +376,7 @@ func assertMatrixEqual(t *testing.T, name string, a, b *types.MatrixPayload) {
 // BenchmarkCrosstabWideCohort exercises the projection path on a wide
 // cohort (3 referenced fields, 200 total fields, 10K rows). Compare
 // against the v0.12.2 baseline by reverting the applyCrosstabProjection
-// call in service/crosstab.go and rerunning.
+// call in internal/service/crosstab.go and rerunning.
 //
 // Measured on darwin/arm64 (M1 Max), 200 fields × 10K rows:
 //   - projected:    53 MB/op, 2.05M allocs/op
@@ -386,7 +386,7 @@ func assertMatrixEqual(t *testing.T, name string, a, b *types.MatrixPayload) {
 // (the user's reported repro) the unprojected path is the difference
 // between a working query and a multi-GB OOM event.
 //
-// Run with: go test ./service/ -bench BenchmarkCrosstabWideCohort -benchmem -run=^$
+// Run with: go test ./internal/service/ -bench BenchmarkCrosstabWideCohort -benchmem -run=^$
 func BenchmarkCrosstabWideCohort(b *testing.B) {
 	const pad = 197 // 200 total fields including region, segment, value
 	const rows = 10000

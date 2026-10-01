@@ -26,7 +26,7 @@ import (
 // the import path reads "" as a null before any dictionary is consulted.
 func TestJSONShared_WideSetRoundTrip(t *testing.T) {
 	// The delimiters must agree, or a cell this package joins is a cell
-	// io/import.go cannot split.
+	// internal/io/import.go cannot split.
 	if pjsonshared.SetArrayDelimiter != pio.DefaultSetDelimiter {
 		t.Fatalf("jsonshared joins set elements with %q but io splits on %q",
 			pjsonshared.SetArrayDelimiter, pio.DefaultSetDelimiter)

@@ -7,7 +7,7 @@ package spss
 // # Why this is the marquee mapping, and why it is additive anyway
 //
 // SPSS is the one common tabular format that DECLARES a multi-select
-// question. Every other ingest path Pulse has must guess one: io/infer.go's
+// question. Every other ingest path Pulse has must guess one: internal/io/infer.go's
 // probeSetClassification looks at delimited strings and votes with a 30%
 // heuristic. Here the file states it — record 7/5, 7/7 or 7/19 says "$media
 // is a multiple dichotomy over Q1A Q1B Q1C, counted value 1" — and Pulse's
@@ -82,7 +82,7 @@ package spss
 // # The cell text, and the one thing it cannot say
 //
 // The derived column reaches the cohort through the SHARED import path, like
-// every other cell this reader emits: io/import.go splits a set cell on
+// every other cell this reader emits: internal/io/import.go splits a set cell on
 // io.DefaultSetDelimiter ("|") and turns each token into a dictionary ID.
 // (ImportJob.SetDelimiters is inert under SchemaAwareReader — see the
 // contract on iocore.SchemaAwareReader — so "|" is not a preference, it is the
@@ -98,7 +98,7 @@ package spss
 // The middle row is the interesting one, and it is why setEmptySelection
 // exists. "Answered the battery and picked nothing" is a real answer and
 // CLAUDE.md's byte-layout invariants make it representable — an empty mask
-// is a valid "no selection" distinct from null. But io/import.go reads an
+// is a valid "no selection" distinct from null. But internal/io/import.go reads an
 // empty cell as a null token BEFORE it consults any dictionary, so "" cannot
 // carry it. A cell of one bare delimiter can: it is not a null token, and
 // splitSetTokens drops empty tokens, so it yields zero tokens and therefore
@@ -198,7 +198,7 @@ const setElementDelimiter = iocore.DefaultSetDelimiter
 // It renders an EMPTY MASK rather than a null, which is a state CLAUDE.md's
 // byte-layout invariants define as valid and distinct. The mechanism is the
 // shared import path's own two documented rules, not a trick: a lone "|" is
-// not one of the null sentinel tokens io/import.go's isNullToken recognises,
+// not one of the null sentinel tokens internal/io/import.go's isNullToken recognises,
 // so the cell reaches convertValue; and splitSetTokens trims each part and
 // drops the empty ones, so "|" yields zero tokens, mask 0, and no dictionary
 // mutation.

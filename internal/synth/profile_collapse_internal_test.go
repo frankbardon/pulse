@@ -133,7 +133,7 @@ func smallKey(i int) string {
 // pin nothing.
 //
 // The duplication must be FAITHFUL, which includes the float64() fusion
-// barrier on the product (see synth/moments.go). The comparison above is
+// barrier on the product (see internal/synth/moments.go). The comparison above is
 // bit-exact, so a fused reference against a barriered production would
 // fail on arm64 for a reason that has nothing to do with fold order.
 func sortedFoldMoments(raw map[string]*condCatNumAcc) (mean, std float64, n int) {

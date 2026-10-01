@@ -127,7 +127,7 @@ func TestRules_AbsentSlotRoundTripsByteIdentically(t *testing.T) {
 // re-stated where it is still true and strictly stronger: against a
 // spec declaring NO rules, pinned to the pre-story bytes, in
 // TestRules_RulesFreeSpecIsByteIdenticalToPreStory
-// (synth/rules_apply_test.go). Pinning there rather than comparing two
+// (internal/synth/rules_apply_test.go). Pinning there rather than comparing two
 // sibling runs matters — a sibling comparison passes even when both
 // sides regress together.
 func TestRules_ValidateAndApply(t *testing.T) {

@@ -4,7 +4,7 @@ package synth
 //
 // Read that first, because every other member of RuleSpec executes and
 // this is exactly the place a later reader will assume execution. The
-// rule pass (synth/rules_apply.go) never looks at it, compileRules never
+// rule pass (internal/synth/rules_apply.go) never looks at it, compileRules never
 // compiles it, validateRules never reads a field of it, and nothing in
 // it can name a field, an expression or a value that changes a generated
 // byte. It is carried so that a PROPOSED rule and the measurement that

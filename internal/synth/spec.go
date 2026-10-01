@@ -119,7 +119,7 @@ type Spec struct {
 	// one shared correlated normal vector instead of overwriting what
 	// the model drew. Imposing a value-scale figure on the residual
 	// draw would apply every predictor the two targets share a second
-	// time (see synth/residual_corr.go), which is why a Correlations
+	// time (see internal/synth/residual_corr.go), which is why a Correlations
 	// entry naming a modelled field is excluded rather than rerouted
 	// here.
 	//

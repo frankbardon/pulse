@@ -28,10 +28,10 @@ import (
 //     while the empty marker stays "|" and the marker stops being a
 //     delimiter — it re-imports as a one-token selection of a member
 //     literally named "|", collapsing the tri-state this PR's
-//     io/settristate and io/setwide suites exist to protect.
-//  3. The readers agree on "|" unconditionally: io/arrow splits on
-//     pio.DefaultSetDelimiter, io/jsonshared pins SetArrayDelimiter, and
-//     io/spss records setElementDelimiter as "not a choice".
+//     internal/io/settristate and internal/io/setwide suites exist to protect.
+//  3. The readers agree on "|" unconditionally: internal/io/arrow splits on
+//     pio.DefaultSetDelimiter, internal/io/jsonshared pins SetArrayDelimiter, and
+//     internal/io/spss records setElementDelimiter as "not a choice".
 //
 // So "|" is the canonical EXTERNAL form at every rung and every format,
 // and the re-import that mis-splits is one told the wrong thing about a

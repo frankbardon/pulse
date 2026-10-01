@@ -11,7 +11,7 @@ type InspectOptions struct {
 
 // ShardInfo is one shard inside a Pulse shard archive, surfaced by
 // Inspect for archive-backed cohorts. Mirrors the public shape of
-// service.ShardEntry without importing it — descriptor/ is header-only
+// internal/service.ShardEntry without importing it — descriptor/ is header-only
 // and must not depend on the execution layer.
 //
 // Filename is the basename of the shard inside the archive
@@ -78,12 +78,12 @@ type InspectLayout struct {
 
 // InspectGroup is one parent group's realized dedup figures.
 //
-// Every number comes from encoding.AssessGroup over the schema and the
+// Every number comes from internal/encoding.AssessGroup over the schema and the
 // file-length record count, so inspect, import and retro-dedup report
 // identical arithmetic. Ratio is record_count ÷ entry_count;
 // DictionaryBytes is the group's dictionary, held RESIDENT in memory
 // for as long as the cohort is open. Verdict applies the import-time
-// ratio floor (encoding.DefaultDedupRatioFloor) through the same
+// ratio floor (internal/encoding.DefaultDedupRatioFloor) through the same
 // GroupViability.Finding rule the import gate uses: "low_ratio" means
 // the group would draw PULSE_DEDUP_LOW_RATIO at import today. Inspect
 // reports it as a figure, never as an envelope warning — a deliberately
@@ -97,7 +97,7 @@ type InspectLayout struct {
 //
 // Label numbers the group by its position in the file; the format has
 // no group-name slot and no declaration ordinal (see
-// encoding.Schema.GroupSpecOf), and it lists a keyless group's members
+// internal/encoding.GroupSpecOf(schema, g)), and it lists a keyless group's members
 // in schema order rather than declaration order.
 type InspectGroup struct {
 	Group           int      `json:"group"`

@@ -5,7 +5,7 @@ package io
 // These are the gate's own tests — what is carried, what is not, and what a
 // recipient is entitled to assume about the binding between a schema field
 // and a cell of the row it is handed. The fidelity consequences are tested
-// where they are visible, in io/spss (convert_sav_test.go); here the claim
+// where they are visible, in internal/io/spss (convert_sav_test.go); here the claim
 // is only about the channel, so the recipient is a stub that records.
 
 import (
@@ -44,7 +44,7 @@ func (w *sourceAwareCollector) WriteHeader(columns []string) error {
 var _ SourceAwareWriter = (*sourceAwareCollector)(nil)
 
 // sidecarReader is an authoritativeReader that also emits a sidecar, which
-// is the shape of io/spss's `.sav` reader: declared schema plus
+// is the shape of internal/io/spss's `.sav` reader: declared schema plus
 // format-native metadata the `.pulse` format has nowhere to hold.
 type sidecarReader struct {
 	*resettableAuthoritativeReader

@@ -16,11 +16,11 @@ import (
 // correlation between two fields' VALUES, realized by the value-scale
 // copula. This section scores Spec.ResidualCorrelations — a correlation
 // between two MODELS' residuals, realized by the residual correlator
-// (synth/residual_draw.go). The two are different numbers over the same
+// (internal/synth/residual_draw.go). The two are different numbers over the same
 // pair of fields and neither substitutes for the other: two fields both
 // driven by `region` correlate strongly on raw values while their
 // residuals may be independent, which is the whole argument
-// synth/residual_corr.go's header makes for capturing the residual
+// internal/synth/residual_corr.go's header makes for capturing the residual
 // figure separately in the first place. A modelled field is excluded
 // from Spec.Correlations by resolveConflicts precisely so the two never
 // both fire on one field, so a reader scanning the JSON is looking at
@@ -107,7 +107,7 @@ const maxResidualRecoveryPairs = 20
 // so there is no residual vector to correlate.
 //
 // It is defined here rather than beside the ResidualUnmeasured*
-// constants in synth/residual_corr.go on purpose. That vocabulary is
+// constants in internal/synth/residual_corr.go on purpose. That vocabulary is
 // the closed set a `residual_correlations.unmeasured` entry in a
 // PROFILE DOCUMENT can carry, and a capture can never produce this
 // reason — there is no refit at capture time. Mixing it in would widen

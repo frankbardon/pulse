@@ -199,7 +199,7 @@ func TestRules_NullTogetherCopiesTheFirstFieldsRateAndSaysSo(t *testing.T) {
 // threshold's meaning at the END-TO-END surface: the warning must not
 // fire on the ordinary block, or it is noise on every real spec. The
 // boundary itself is pinned against the constant in
-// synth/rules_null_block_internal_test.go.
+// internal/synth/rules_null_block_internal_test.go.
 func TestRules_NullTogetherAgreeingRatesAreSilent(t *testing.T) {
 	rates := map[string]float64{
 		// A coding difference / partial re-ask: within the threshold.

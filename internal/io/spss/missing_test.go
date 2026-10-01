@@ -542,7 +542,7 @@ func TestMissing_ReasonCollisionKeepsTheCodesDistinct(t *testing.T) {
 // values.
 //
 // It asserts at the cohort level rather than by running the engine —
-// io/spss cannot import the pulse facade — but it is the same fact: the
+// internal/io/spss cannot import the pulse facade — but it is the same fact: the
 // null bitmap bit is what every aggregator's n_null floor counts, and
 // what AGG_SUM and AGG_MEAN skip.
 func TestMissing_EndToEndImportKeepsTheArithmetic(t *testing.T) {

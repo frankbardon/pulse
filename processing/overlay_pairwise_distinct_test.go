@@ -54,7 +54,7 @@ func pairwiseDistinctHost() *CrosstabHostView {
 }
 
 // TestPairwiseCellAggregatorIdentity pins the discriminating key sets
-// restated in processing/ from descriptor/capabilities_aggregators.go.
+// restated in processing/ from internal/descriptor/capabilities_aggregators.go.
 // AGG_FREQUENCY and AGG_MODE must classify as THEMSELVES and never be
 // admitted, even though both carry a key spelled "distinct_count".
 func TestPairwiseCellAggregatorIdentity(t *testing.T) {

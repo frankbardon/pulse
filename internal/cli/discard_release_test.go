@@ -26,7 +26,7 @@ func runConvertLeaf(t *testing.T, out *bytes.Buffer, args ...string) error {
 // adapter emits its file exactly once inside Close, so skipping it writes
 // nothing — the right outcome — while closing would put a zero-row target
 // next to a hard error. That data decision stands. What was missing was
-// releasing a writer that holds resources the GC cannot reclaim: io/excel
+// releasing a writer that holds resources the GC cannot reclaim: internal/io/excel
 // drives an excelize StreamWriter whose buffer spills to an os.CreateTemp
 // file past 16 MiB, and only excelize.File.Close removes those. The error
 // return therefore runs pio.DiscardWriter — release, never emit.

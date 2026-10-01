@@ -290,7 +290,7 @@ func runFusedAndBuffered(
 
 // assertMatrixByteEqual deep-compares two MatrixPayloads field-for-
 // field. Used by the E2E equivalence golden to assert byte-equal
-// emission on every field that downstream consumers (Prism, terminal
+// emission on every field that downstream consumers (heatmaps, terminal
 // grid, the JSON envelope) read.
 func assertMatrixByteEqual(t *testing.T, buf, fused *types.MatrixPayload) {
 	t.Helper()
@@ -732,7 +732,7 @@ func weightedCrosstabRecords() [][]uint64 {
 // service-layer companion to
 // processing.TestFusedCrosstab_PairwisePropZOverWeightedMeanMatchesBuffered.
 // The processing test drives the two orchestrators directly; this one
-// goes through Service.Process so the real dispatch in service/crosstab.go
+// goes through Service.Process so the real dispatch in internal/service/crosstab.go
 // picks the arm, with SetDisableCrosstabFusion(true) as the buffered
 // oracle.
 //

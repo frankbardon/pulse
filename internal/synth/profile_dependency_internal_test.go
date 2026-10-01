@@ -48,7 +48,7 @@ import (
 //
 // Every value and every null decision is an exact integer function of
 // the row index, so the fixture bytes are architecture-independent by
-// construction rather than by a float barrier (synth/moments.go).
+// construction rather than by a float barrier (internal/synth/moments.go).
 func depDict(values []string) *encoding.Dictionary {
 	d := encoding.NewDictionary()
 	for _, v := range values {

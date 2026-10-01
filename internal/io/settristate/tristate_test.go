@@ -58,7 +58,7 @@ func schemaFor(t *testing.T, r rung) *encoding.Schema {
 // sourceRows returns the fixture: the three states under test — a
 // non-empty selection, an empty selection, and a null, in that order.
 //
-// This used to carry a leading filler record for io/ndjson alone, whose
+// This used to carry a leading filler record for internal/io/ndjson alone, whose
 // Reader derived the column names from the FIRST object and then
 // resumed the row pass after it, losing that record. The filler is gone
 // with the bug, so every adapter now sees exactly the three states and

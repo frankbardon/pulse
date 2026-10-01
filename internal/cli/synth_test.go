@@ -82,7 +82,7 @@ func synthLibraryCohort(t *testing.T, path string, fields []synth.FieldSpec, row
 // rows are block-ordered by region: rows [0, half) are all "us", rows
 // [half, rowCount) are all "eu" — mirroring
 // synth.buildBlockOrderedRegionPlanCohort
-// (synth/conditional_categorical_reservoir_test.go), reimplemented here
+// (internal/synth/conditional_categorical_reservoir_test.go), reimplemented here
 // because that helper is unexported from an internal _test.go file.
 // rowCount exceeding synth.conditionalJointCap (10000, unexported) is
 // what makes `profile create --conditional`'s categorical-categorical

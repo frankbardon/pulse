@@ -204,7 +204,7 @@ func TestReadRows_Values(t *testing.T) {
 }
 
 // TestReadRows_SysmisIsTheHouseNullToken is the interlock with the shared
-// inference path. A sysmis datum must render to something io/import.go's
+// inference path. A sysmis datum must render to something internal/io/import.go's
 // isNullToken recognises, or the column that SPSS declared missing arrives as
 // a finite value of about -1.8e308 and drags the whole column to f64 with a
 // wildly wrong range.

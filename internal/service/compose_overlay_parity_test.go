@@ -33,7 +33,7 @@ var composeHostOverlayKinds = []types.OverlayKind{
 // parityCohortSchema builds the shared categorical schema used across
 // every parity fixture: two dictionary-backed dimensions (region,
 // segment) plus an f64 value column. Reuses the convention from
-// service/crosstab_test.go::crosstabSchema so the parity fixtures align
+// internal/service/crosstab_test.go::crosstabSchema so the parity fixtures align
 // with the in-tree crosstab tests' deterministic 3×2 grid.
 func parityCohortSchema() *encoding.Schema {
 	regionDict := encoding.NewDictionary()

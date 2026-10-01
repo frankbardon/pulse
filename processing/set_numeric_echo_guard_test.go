@@ -25,7 +25,7 @@ import (
 // with PROCESSING_CONFIG naming the field, its type and the set-aware
 // alternative. The descriptor half (AcceptsTypes no longer listing any
 // set rung for these operators) is asserted in
-// descriptor/wide_set_surface_test.go.
+// internal/descriptor/wide_set_surface_test.go.
 
 // echoGuardSchema builds a one-set-field schema at the given rung.
 func echoGuardSchema(t *testing.T, ft encoding.FieldType, members int) *encoding.Schema {

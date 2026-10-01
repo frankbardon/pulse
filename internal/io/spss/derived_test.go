@@ -553,7 +553,7 @@ func TestSetFieldResolver_UndeclaredMemberResolvesToEmpty(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// The empty-mask contract note io/io.go now carries
+// The empty-mask contract note internal/io/io.go now carries
 // ---------------------------------------------------------------------------
 
 // TestSetEmptyMask_SurvivesImportEndToEnd is the guard the SchemaAwareReader
@@ -563,7 +563,7 @@ func TestSetFieldResolver_UndeclaredMemberResolvesToEmpty(t *testing.T) {
 // one bare delimiter, and that it lands as an EMPTY MASK rather than a null
 // rests on two behaviours of the shared import path composing: isNullToken
 // does not match "|", and splitSetTokens drops empty tokens. Neither is
-// visible from io/spss, and a change to either would collapse the empty-mask
+// visible from internal/io/spss, and a change to either would collapse the empty-mask
 // and null states SILENTLY — both spellings would keep importing and only the
 // meaning would change.
 //

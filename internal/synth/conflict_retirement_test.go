@@ -184,7 +184,7 @@ func modelDrivenProfiles(t *testing.T) (condSpec, bothSpec *synth.Spec, condWarn
 // all; TestSynthModel_ValueCorrelationNamingModelledFieldIsRefused
 // Permanently (model_draw_test.go) is where that wording is pinned, and
 // the surface that DOES correlate a modelled field is
-// Spec.ResidualCorrelations (E3-S2, synth/residual_draw.go). What this
+// Spec.ResidualCorrelations (E3-S2, internal/synth/residual_draw.go). What this
 // test locks is only that the CONFLICT-class exclusion is gone: a
 // modelled field must never be reported as having lost its correlation
 // to a pair that claimed it first, because no pair claims it any more.

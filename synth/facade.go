@@ -61,7 +61,7 @@ const RecoveryScaleProbitScore = isynth.RecoveryScaleProbitScore
 // so there is no residual vector to correlate.
 //
 // It is defined here rather than beside the ResidualUnmeasured*
-// constants in synth/residual_corr.go on purpose. That vocabulary is
+// constants in internal/synth/residual_corr.go on purpose. That vocabulary is
 // the closed set a `residual_correlations.unmeasured` entry in a
 // PROFILE DOCUMENT can carry, and a capture can never produce this
 // reason — there is no refit at capture time. Mixing it in would widen
@@ -103,7 +103,7 @@ type CategoricalNumericCategoryStat = isynth.CategoricalNumericCategoryStat
 // FidelityReport.CategoricalNumericPairwise: the per-category delta
 // between a captured categorical-numeric pair's source conditional
 // mean/std (CategoricalNumericPairSpec.Categories — the same figures
-// synth/conditional_sample.go's categoricalNumericPairSampler draws
+// internal/synth/conditional_sample.go's categoricalNumericPairSampler draws
 // from) and that category's REALIZED conditional mean/std over the
 // _synthetic=true partition of the output cohort.
 //
@@ -160,7 +160,7 @@ type CategoricalPairCellSpec = isynth.CategoricalPairCellSpec
 // FidelityReport.CategoricalPairwise: the delta between a captured
 // categorical-categorical pair's source joint-frequency table
 // (CategoricalPairSpec.Cells — the same contingency cells
-// synth/conditional_sample.go's categoricalPairSampler was built from)
+// internal/synth/conditional_sample.go's categoricalPairSampler was built from)
 // and that pair's REALIZED joint-frequency table over the
 // _synthetic=true partition of the output cohort, expressed as total
 // variation distance (see categoricalTVD) — the categorical-pair
@@ -417,7 +417,7 @@ type Options = isynth.Options
 
 // PairwiseFidelity is one row of FidelityReport.Pairwise: the delta
 // between a captured numeric-numeric pair's source correlation (the
-// same rho synth/copula.go's conditional-Gaussian reconstruction was
+// same rho internal/synth/copula.go's conditional-Gaussian reconstruction was
 // asked to hit — CorrelationSpec.Correlation, itself sourced from
 // Profile.Conditional.NumericPairs when --conditional captured it, or
 // Profile.Pairwise otherwise, via SpecFromProfile) and that pair's
@@ -483,7 +483,7 @@ type Result = isynth.Result
 //
 // Read that first, because every other member of RuleSpec executes and
 // this is exactly the place a later reader will assume execution. The
-// rule pass (synth/rules_apply.go) never looks at it, compileRules never
+// rule pass (internal/synth/rules_apply.go) never looks at it, compileRules never
 // compiles it, validateRules never reads a field of it, and nothing in
 // it can name a field, an expression or a value that changes a generated
 // byte. It is carried so that a PROPOSED rule and the measurement that
@@ -618,7 +618,7 @@ type RuleSpec = isynth.RuleSpec
 // field, its null bit — are identical.
 //
 // It is the exact per-field hit rate of the run-skip decode
-// (encoding/reader_runskip.go), which rewrites only the fields whose
+// (internal/encoding/reader_runskip.go), which rewrites only the fields whose
 // bytes or null bit changed since the previous row. Because the
 // optimisation is a property of the DATA rather than the format, a
 // cohort re-imported without its upstream ORDER BY loses it with nothing

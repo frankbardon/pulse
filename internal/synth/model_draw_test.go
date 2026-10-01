@@ -14,7 +14,7 @@ import (
 // Every assertion on a VALUE here runs with ResidualStd == 0, which
 // makes the composed draw deterministic per row: for a `normal` target
 // the construction Q(Phi(mu + sigma*z)) collapses to
-// prediction + ResidualStd*z (see synth/model_draw.go), so a zero
+// prediction + ResidualStd*z (see internal/synth/model_draw.go), so a zero
 // residual leaves exactly the linear prediction and the test can assert
 // the arithmetic rather than a distribution. The residual half is
 // asserted separately and statistically by

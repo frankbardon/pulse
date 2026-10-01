@@ -14,7 +14,7 @@ import (
 // small: these are the two documents beside a cohort whose validity is
 // bound to the cohort's BYTES, so these are the two a cohort-rewriting
 // operation invalidates. The index MANIFEST
-// (encoding.IndexManifestSuffix) is deliberately absent — it catalogues
+// (internal/encoding.IndexManifestSuffix) is deliberately absent — it catalogues
 // indexes rather than fingerprinting the cohort, so a rewrite leaves it
 // accurate about which indexes exist while the indexes themselves go
 // stale.

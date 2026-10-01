@@ -176,7 +176,7 @@ func (s *Service) ComposeParallel(
 	// contract locked by TestComposedResponse_OverlayFreeByteIdentical
 	// (types/types_test.go:1106) is preserved when the caller declared
 	// no Compose-only overlays. Warning fold delegated to
-	// `distributeComposeWarnings` (service/compose_overlay.go) so the
+	// `distributeComposeWarnings` (internal/service/compose_overlay.go) so the
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
 	out := &types.ComposedResponse{Responses: responses}

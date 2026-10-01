@@ -130,7 +130,7 @@ func Apply(records []Record, features []*types.Feature, schema *encoding.Schema)
 // PROCESSING_CONFIG for unknown types or factory errors, PROCESSING_RUNTIME
 // for compute failures.
 //
-// ApplyWithExt trusts that descriptor.Predict has validated the request
+// ApplyWithExt trusts that internal/descriptor.Predict has validated the request
 // shape upstream; it does not re-check field existence, only operator
 // dispatch and per-operator runtime errors.
 func ApplyWithExt(records []Record, features []*types.Feature, schema *encoding.Schema, extFactories map[types.FeatureType]Factory) error {

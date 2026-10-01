@@ -836,7 +836,7 @@ func TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope(t *testing.T) 
 // package test working directory (cmd/pulse/...). Used by the pairwise
 // gates to locate the canonical example fixtures without hard-coding
 // the os-specific path layout. Failing here is unrecoverable — the
-// test relies on examples/ + examples/fixtures/ being present, which
+// test relies on internal/examples/ + internal/examples/fixtures/ being present, which
 // is true on every dev / CI checkout.
 func repoRoot(t *testing.T) string {
 	t.Helper()
@@ -861,7 +861,7 @@ func readRepoFile(t *testing.T, relPath string) []byte {
 
 // importExperimentCohort builds the experiment.pulse cohort the
 // pairwise example requests reference. Re-uses the checked-in
-// examples/fixtures/experiment.csv + examples/fixtures/schemas/
+// examples/fixtures/experiment.csv + internal/examples/fixtures/schemas/
 // experiment.json so the schema (treatment / region / segment as
 // categorical_u8; revenue as f64) matches the example request slot
 // fields exactly.
@@ -895,7 +895,7 @@ func importExperimentCohort(t *testing.T, dir string) string {
 // every request slot's cohort to point at the temp pulse file the test
 // fixture produced. The original example references
 // {filename: "experiment.pulse", data_dir: ".data"} which only works
-// after examples/fixtures/build.sh has populated the repo-level .data
+// after internal/examples/fixtures/build.sh has populated the repo-level .data
 // directory; hermetic tests need an absolute path on a temp file
 // instead. Returns the absolute path to the rewritten request JSON.
 func rewriteComposedExample(t *testing.T, dir string, body []byte, pulsePath, name string) string {

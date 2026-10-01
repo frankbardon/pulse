@@ -13,5 +13,5 @@
 // agree on one convention (io.EmptySetCell).
 //
 // The package is test-only: every .go file but this one ends in
-// _test.go. It follows the precedent set by io/exportoverlay.
+// _test.go. It follows the precedent set by internal/io/exportoverlay.
 package settristate

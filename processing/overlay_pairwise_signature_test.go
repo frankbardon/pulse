@@ -12,7 +12,7 @@ import (
 // gate for cellAggregatorIdentitySignatures.
 //
 // That table RESTATES the operator half of four aggregators'
-// ComponentSchema from descriptor/capabilities_aggregators.go. Nothing
+// ComponentSchema from internal/descriptor/capabilities_aggregators.go. Nothing
 // cross-checked the two before, so renaming a component key — say
 // AGG_DISTINCT_SUM's "distinct_count" — would leave the runtime
 // classifying every AGG_DISTINCT_SUM cell as UNIDENTIFIED and silently

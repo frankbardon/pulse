@@ -11,7 +11,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 )
 
-// This file is the APPLICATION half of the rule layer; synth/rules.go is
+// This file is the APPLICATION half of the rule layer; internal/synth/rules.go is
 // the document model and its validation. Every fault an author can write
 // has already been refused by validateRules before anything here runs,
 // so compileRules' own error returns cover only what validation cannot
@@ -33,7 +33,7 @@ import (
 // on its own target, so a `set_null` over a modelled field would be
 // overwritten on every row and a `set` literal would survive only on the
 // rows no model claimed. The falsification for this is in
-// synth/rules_apply_test.go — moving the pass ahead of stages.models
+// internal/synth/rules_apply_test.go — moving the pass ahead of stages.models
 // makes the "inferred value survives on a non-gated row" assertion fail.
 //
 // # The accepted consequence
@@ -133,7 +133,7 @@ type compiledRule struct {
 	// whenReads is the declared fields this rule's predicate reads, each
 	// classified by whether a comparison against it is pre-rounding.
 	// Resolved ONCE here so the never-fired warning can name the cause
-	// that applies to THIS rule (synth/rules_firing_cause.go) rather
+	// that applies to THIS rule (internal/synth/rules_firing_cause.go) rather
 	// than the one that was most common when the message was written.
 	// Nil for a rule with no `when`.
 	whenReads []whenField
@@ -158,7 +158,7 @@ type compiledRule struct {
 type ruleApplier struct {
 	rules []compiledRule
 
-	// rowFired and firings are the firing counter (synth/rules_firing.go).
+	// rowFired and firings are the firing counter (internal/synth/rules_firing.go).
 	// Both are len(rules) and allocated ONCE here, so the per-row pass
 	// still allocates nothing: rowFired is scratch for the row being
 	// drawn, cleared at the top of every apply, and firings accumulates
@@ -174,7 +174,7 @@ type ruleApplier struct {
 	everFired []bool
 
 	// owned / rowOwnedNull / ownedNull are the null-OWNERSHIP accounting
-	// (synth/rules_ownership.go): the fields whose own null draw a
+	// (internal/synth/rules_ownership.go): the fields whose own null draw a
 	// `{"owns_nulls": true}` rule discarded, a per-row scratch of how
 	// each of them ended up, and the running totals over ACCEPTED rows.
 	// All three are sized once here and are nil for every spec that
@@ -472,7 +472,7 @@ func nullTogetherWarnings(idx int, block []string, byName map[string]FieldSpec) 
 //     drawn null in the mask would write 0 to the wire and the literal
 //     would silently vanish.
 //   - set_expr evaluates, coerces the result to the target's type
-//     (synth/rules_coerce.go) and then writes exactly as set does,
+//     (internal/synth/rules_coerce.go) and then writes exactly as set does,
 //     clearing the mask for the same reason.
 //   - null_together copies nullMask[block[0]] onto every other member,
 //     so the block is all null or all present. It is the rule's LAST
@@ -613,7 +613,7 @@ func (a *ruleApplier) apply(row map[string]any, nullMask map[string]bool) error 
 // Every field has already consumed its own null draw by the time the
 // rule pass runs, so copying an existing decision is the only resolution
 // that adds no randomness — and the pass consuming no RNG is a hard
-// contract, not a preference (synth/writer.go's determinism rule). A
+// contract, not a preference (internal/synth/writer.go's determinism rule). A
 // majority vote or a re-draw would both need a number the row does not
 // have. The consequence is real and is documented rather than hidden:
 // every member but the first has its own null_rate IGNORED, and

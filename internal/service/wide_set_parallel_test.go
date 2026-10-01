@@ -17,7 +17,7 @@ import (
 )
 
 // Service-level parity for a WIDE set column under the two concurrency
-// knobs. E1-S3 could only reach the encoding layer — service/
+// knobs. E1-S3 could only reach the encoding layer — internal/service/
 // parallel_decode.go decodes into processing.Record, and both packages
 // sat outside its scope — so the decode-worker and shard-worker arms
 // were never exercised end to end against a set_u128 / set_u256 cohort.

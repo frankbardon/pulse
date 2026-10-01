@@ -9,7 +9,7 @@
 // This file carries the Parquet-side glue — the Writer-side overlay
 // embedding (SetOverlays + appendOverlayCell) and the Reader-side
 // overlay extraction (ReadOverlays) — wired against the shared helpers
-// exported from io/arrow (OverlaysFieldName / OverlaysArrowField /
+// exported from internal/io/arrow (OverlaysFieldName / OverlaysArrowField /
 // AppendOverlayLayerStruct / ReadOverlaysFromArray).
 package parquet
 

@@ -168,7 +168,7 @@ func TestBuildModelResidualFidelity_RecoversRequestedCorrelation(t *testing.T) {
 // — the shared predictor is in both — while their residuals do not, and
 // the two figures are far enough apart that a section accidentally
 // measuring values could not pass. This is the exact confusion
-// synth/residual_corr.go's header warns about: imposing a raw-value
+// internal/synth/residual_corr.go's header warns about: imposing a raw-value
 // correlation on a residual applies every shared predictor twice.
 func TestBuildModelResidualFidelity_MeasuresResidualsNotValues(t *testing.T) {
 	spec := modelFidelitySpec(20000,

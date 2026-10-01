@@ -107,7 +107,7 @@ func sequentialDecode(t *testing.T, payload []byte, schema *encoding.Schema, tar
 }
 
 // TestRecordLocator_MatchesSequentialDecode is the primary acceptance
-// test: reading record i via RecordLocator.ReadRecordAt (a single seek,
+// test: reading record i via ReadRecordAt(loc, …) (a single seek,
 // no iteration) must byte/value-equal a sequential decode up to i, for
 // the first, a middle, and the last record.
 func TestRecordLocator_MatchesSequentialDecode(t *testing.T) {
@@ -295,7 +295,7 @@ func TestRecordLocator_EmptyCohort(t *testing.T) {
 
 // TestRecordLocator_Offset verifies the raw offset arithmetic directly
 // against the recordRegionStart + i*stride formula the offset math
-// precedent (service/parallel_decode.go) uses.
+// precedent (internal/service/parallel_decode.go) uses.
 func TestRecordLocator_Offset(t *testing.T) {
 	const n = 5
 	payload, schema, _, _ := buildRecordAtFixture(t, n)

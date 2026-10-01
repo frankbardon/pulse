@@ -26,7 +26,7 @@ var updateGolden = flag.Bool("update", false, "update regression golden files")
 // // golden-hash: <sha256> footer so it can't be hand-edited without
 // breaking the matching golden-hygiene check below.
 //
-// Regenerate with: go test ./processing/regression/ -run TestRegOLS_GoldenRequest -update
+// Regenerate with: go test ./internal/processing/regression/ -run TestRegOLS_GoldenRequest -update
 func TestRegOLS_GoldenRequest(t *testing.T) {
 	predictors := []string{"x1", "x2"}
 	// Deterministic non-degenerate fixture: a linear signal with a

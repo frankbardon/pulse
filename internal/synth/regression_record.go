@@ -10,7 +10,7 @@ import (
 )
 
 // This file is the synth-side bridge onto the shipped OLS engine in
-// processing/regression. It exists because the linear predictor this
+// internal/processing/regression. It exists because the linear predictor this
 // package wants to fit — one coefficient per categorical LEVEL and per
 // set OPTION — has no numeric column behind it in the cohort. A cohort
 // stores `dma` as a single categorical dictionary ID and `brandAssets`
@@ -23,7 +23,7 @@ import (
 // interface (NumericValue(name) (float64, bool)): the engine pulls each
 // predictor BY NAME and never asks where the number came from. Dummy
 // coding is therefore entirely a caller-side concern and needs no change
-// in processing/regression — which is load-bearing, since that package's
+// in internal/processing/regression — which is load-bearing, since that package's
 // solvers carry the golden/property test coverage this package is
 // deliberately reusing rather than reimplementing.
 //
@@ -37,7 +37,7 @@ import (
 //
 // It is not. Field-existence and field-type checking for a
 // RegressionSpec lives in descriptor.validateRegressions — the
-// no-execute predict path — and processing/regression states the
+// no-execute predict path — and internal/processing/regression states the
 // division explicitly on newOLSEngine: "The spec is assumed already to
 // be type-checked against the schema by descriptor.validateRegressions."
 // The engine stores the schema and, for REG_OLS, never reads it; every
@@ -53,7 +53,7 @@ import (
 // about the columns the engine is actually being driven with, it keeps
 // the call site working unchanged if a future release does start
 // validating names there, and it follows the precedent already set in
-// this package by SyntheticAsCategoricalSchema (synth/fidelity.go) —
+// this package by SyntheticAsCategoricalSchema (internal/synth/fidelity.go) —
 // a throwaway presentation-only schema, built for one call, never used
 // to decode bytes and never written to disk.
 
@@ -396,7 +396,7 @@ func (p *dummyPlan) Target() string { return p.target }
 // a plain 8-byte stride purely so RecordByteSize() stays self-consistent
 // if anything ever asks; nothing reads them.
 //
-// This mirrors SyntheticAsCategoricalSchema (synth/fidelity.go): a
+// This mirrors SyntheticAsCategoricalSchema (internal/synth/fidelity.go): a
 // presentation-only schema constructed for one call and discarded, never
 // written to disk. See the FR-3 note at the top of this file for why the
 // engine does not currently look at it at all.

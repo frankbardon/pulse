@@ -14,7 +14,7 @@ import (
 // io callers keep their import, and so the two packages cannot disagree
 // about which rung holds N elements.
 //
-// It exists because io/spss/mrset.go carried a second, independent copy
+// It exists because internal/io/spss/mrset.go carried a second, independent copy
 // of the ladder for the derived multiple-dichotomy column. A duplicated
 // ladder does not fail loudly when it falls behind: the SPSS importer
 // went on refusing every set over 64 constituents — the exact case the
@@ -23,7 +23,7 @@ import (
 // column simply was not there, with a warning explaining that no wider
 // type existed.
 //
-// io/arrow/types.go was the third site and is folded in too: it named
+// internal/io/arrow/types.go was the third site and is folded in too: it named
 // every rung in TypeFromPulse and seeded TypeToPulse with a literal
 // narrowest rung. Its failure mode was the quieter one — an unlisted
 // rung fell through to the default arm and mapped a set column to

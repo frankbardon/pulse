@@ -50,7 +50,7 @@ func fieldTypeFromName(name string) (encoding.FieldType, bool) {
 	// IsSet guard is what keeps the delegation narrow: every other name
 	// encoding knows and synth has no write path for — datetime today —
 	// stays undeclarable, which is the property
-	// synth/constraints_internal_test.go's undeclarableFieldTypes pins.
+	// internal/synth/constraints_internal_test.go's undeclarableFieldTypes pins.
 	if ft, ok := encoding.ParseFieldType(name); ok && ft.IsSet() {
 		return ft, true
 	}
@@ -69,7 +69,7 @@ type writerField struct {
 // one field of type ft and returns that field's own (byteOffset,
 // bitPosition). Bit-packed types (u4, packed_bool) each consume one whole
 // fresh byte — the same simplified convention buildSchema has always used
-// (matches io/import.go's WriteByte path) — rather than sharing a byte
+// (matches internal/io/import.go's WriteByte path) — rather than sharing a byte
 // across neighbouring bit-packed fields. Shared by buildSchema and
 // augment.go's buildMergedSchema so both lay out fields identically.
 func nextFieldLayout(ft encoding.FieldType, byteOffset, bitCursor *int) (offset, bitPosition int) {
@@ -96,7 +96,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 	// the suppression and its end-of-run report cannot disagree about
 	// which fields are owned. Empty (and the wrap below unreachable) for
 	// every spec that declares no ownership, which is what keeps such a
-	// spec byte-identical. See synth/rules_ownership.go.
+	// spec byte-identical. See internal/synth/rules_ownership.go.
 	ownedNulls := ruleOwnedNullFields(s.Rules)
 
 	byteOffset := 0
@@ -116,7 +116,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			CsvColumnIdx: i,
 		}
 		// Bit-packed fields each consume one byte in the importer's writer
-		// pattern (see io/import.go: WriteByte path); replicate here so
+		// pattern (see internal/io/import.go: WriteByte path); replicate here so
 		// bytes laid down match what RecordReader expects.
 		if ft.IsCategorical() {
 			field.Dictionary = encoding.NewDictionary()
@@ -126,7 +126,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			// field spec's own declared params.options order — never
 			// lazily via first-touch during row generation. A
 			// set_bernoulli sampler's row value is a map[string]bool
-			// (synth/distributions.go), and Go map iteration order is
+			// (internal/synth/distributions.go), and Go map iteration order is
 			// randomized per process; if bit IDs were assigned by
 			// first-encounter order while encoding that map,
 			// "same spec + same seed -> byte-identical output" (the
@@ -225,7 +225,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// priority order the stage sequence below already implies and prunes
 	// any later claimant whose target an earlier stage already claimed,
 	// producing one warning per exclusion instead of drawRow's previous
-	// silent last-write-wins. See synth/conflict.go.
+	// silent last-write-wins. See internal/synth/conflict.go.
 	conflicts := resolveConflicts(s)
 	warnings = conflicts.warnings
 
@@ -342,7 +342,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		// The row reached the file, so the rules that applied to it
 		// count. Committing HERE rather than inside apply is what makes
 		// the reported figure divisible by rowsGenerated: a rejected row
-		// was re-drawn and left no trace. See synth/rules_firing.go.
+		// was re-drawn and left no trace. See internal/synth/rules_firing.go.
 		rules.commitRow()
 		rules.commitOwnedNulls()
 		rowsGenerated++
@@ -362,7 +362,7 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// spec. Reported after the never-fired lines because a rule that
 	// fired on nothing explains its owned fields' zero rate, and the
 	// causal order of this function's warnings is cause before
-	// consequence. See synth/rules_ownership.go.
+	// consequence. See internal/synth/rules_ownership.go.
 	warnings = append(warnings, rules.ownershipWarnings(rowsGenerated)...)
 	return rowsGenerated, rowsRejected, warnings, nil
 }
@@ -397,7 +397,7 @@ type rowStages struct {
 	// after everything above has settled. It consumes no RNG and is nil
 	// for every spec that declares no applicable rule, which is what
 	// keeps a rules-free spec byte-identical to output from before the
-	// slot existed. See synth/rules_apply.go for why last is the design.
+	// slot existed. See internal/synth/rules_apply.go for why last is the design.
 	rules *ruleApplier
 }
 
@@ -421,10 +421,10 @@ type rowStages struct {
 // row does not carry. Nothing runs after it, and nothing needs to:
 // resolveConflicts claims a modelled field before any pair or
 // correlation stage can bid for it, so a modelled numeric is written
-// exactly once per row. See synth/model_draw.go for the construction.
+// exactly once per row. See internal/synth/model_draw.go for the construction.
 //
 // The model stage is preceded by one draw that is NOT a stage: the row's
-// shared correlated normal vector (synth/residual_draw.go). It writes
+// shared correlated normal vector (internal/synth/residual_draw.go). It writes
 // nothing into the row — it supplies the z each participating drawer
 // composes its value through — which is how a modelled field ends up
 // both conditioned on its predictors and correlated with a sibling
@@ -492,7 +492,7 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	// function already owns and consumes no RNG, so the per-row draw
 	// sequence is identical to a spec with no rules at all. The full
 	// rationale, including why the two-phase alternative was rejected,
-	// is on synth/rules_apply.go.
+	// is on internal/synth/rules_apply.go.
 	return stages.rules.apply(row, nullMask)
 }
 
@@ -529,7 +529,7 @@ func writeFieldValue(buf *bytes.Buffer, wf *writerField, val any, isNull bool) e
 // field.Type, using field.Dictionary for categorical AddWithLimit. It is
 // the field-shaped twin of writeFieldValue (which threads through a
 // spec-bound *writerField); both funnel through here so the merge/augment
-// path (synth/augment.go, which re-encodes decoded records rather than
+// path (internal/synth/augment.go, which re-encodes decoded records rather than
 // sampler-drawn values) shares exactly one encode implementation with
 // ordinary spec-driven generation.
 func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, isNull bool) error {
@@ -613,7 +613,7 @@ func writeFieldValueForField(buf *bytes.Buffer, field *encoding.Field, val any, 
 			return encoding.WriteDecimal128(buf, encoding.ZeroDecimal128())
 		}
 		// A decoded record carries the exact Decimal128 already (see
-		// synth/augment.go's decodedFieldValue) — write it straight
+		// internal/synth/augment.go's decodedFieldValue) — write it straight
 		// through rather than round-tripping via decimalFromValue's
 		// string/float paths, which would risk precision loss.
 		if dec, ok := val.(encoding.Decimal128); ok {

@@ -34,7 +34,7 @@ const (
 //     as days-since-epoch and discards the sub-day precision Date64 carries.
 //     There is no inverse arm for Pulse's `datetime`: TypeFromPulse maps it
 //     to UTF8 (see there), so a re-imported datetime column arrives as a
-//     string and is re-classified by io/infer.go's literal probe.
+//     string and is re-classified by internal/io/infer.go's literal probe.
 //   - String and binary (in both standard and large variants), and any
 //     dictionary-encoded type, collapse to FieldTypeCategoricalU8. The
 //     import pipeline upgrades to wider categorical widths when the
@@ -69,12 +69,12 @@ func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 		// family. An Arrow LIST<UTF8> declares "a list of strings" and
 		// says NOTHING about how many distinct elements the data holds,
 		// so no rung can be chosen from the type alone — only a data
-		// pass can, and that is io/infer.go's, through the one
+		// pass can, and that is internal/io/infer.go's, through the one
 		// selector every caller shares (encoding.SetTypeFor). What
 		// this arm returns is therefore a SEED, and it is read off the
 		// canonical ladder rather than written down: a rung constant
 		// here would be a third width table beside encoding.SetLadder()
-		// and io/spss/mrset.go's old copy, and a duplicated width table
+		// and internal/io/spss/mrset.go's old copy, and a duplicated width table
 		// does not fail loudly when it falls behind — it goes on
 		// refusing widths the other copy already types.
 		//
@@ -127,10 +127,10 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 	case encoding.FieldTypeDateTime:
 		// Deliberately UTF8, not a native Arrow timestamp. The export
 		// pipeline hands every non-decimal cell to the writer already
-		// stringified by io/export.go's formatFieldValue, which renders
+		// stringified by internal/io/export.go's formatFieldValue, which renders
 		// a datetime through encoding.CanonicalDateTimeLayout. Mapping
 		// the column to a numeric or timestamp Arrow type would make
-		// the typed builder reject that string and io/export.go would
+		// the typed builder reject that string and internal/io/export.go would
 		// record a RowError for EVERY row — the column would not
 		// degrade to a wrong value, the rows would vanish. UTF8 carries
 		// the canonical literal verbatim, matching the text adapters

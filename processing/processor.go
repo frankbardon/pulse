@@ -158,7 +158,7 @@ func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
 
 // CanMergeRequest reports whether a request's online state is
 // mergeable across input partitions — the gate that the per-shard
-// parallel reducer in service/shard_reduce.go consults before fanning
+// parallel reducer in internal/service/shard_reduce.go consults before fanning
 // out work across a worker pool. Returns true iff every aggregator,
 // grouper, and filterer is mergeable AND the request contains no
 // windows, no features, no regressions, no tests, no two-pass

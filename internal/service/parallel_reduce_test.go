@@ -223,7 +223,7 @@ func TestParallelDecode_MergeableULPEquivalent(t *testing.T) {
 			gotRow := resp.Data[0]
 			// Welford-Pébaÿ merge tolerance: relative 4*1e-15
 			// (~4 ULPs scaled to magnitude). Mirrors
-			// service/shard_parity_test.go's cellEqual helper which is
+			// internal/service/shard_parity_test.go's cellEqual helper which is
 			// the canonical comparator for shard-reduce Welford drift.
 			// AGG_VARIANCE accumulates squared deltas so its absolute
 			// drift exceeds the mean's; the relative tolerance handles
@@ -340,7 +340,7 @@ func TestParallelDecode_MergeableZeroRecordSegments(t *testing.T) {
 // floatRelativelyClose is the comparator for Welford-merged
 // aggregators: drift is bounded by 16*1e-15 relative to magnitude (or
 // 1e-12 absolute when the magnitude is zero). The 16x band scales
-// service/shard_parity_test.go's 4x relative bound up by the
+// internal/service/shard_parity_test.go's 4x relative bound up by the
 // squared-delta accumulation in AGG_VARIANCE — variance amplifies
 // per-merge-step rounding by O(value^2), so at 4–8 partition
 // boundaries on a magnitude-20K f64 cohort the relative drift is
@@ -541,7 +541,7 @@ func toFloat(v any) float64 {
 // floatWithinULP reports whether a and b differ by at most ulps units
 // in the last place. Distance is computed on the float64 bit
 // representation. Matches the shard-reduce ULP comparator already in
-// service/shard_parity_test.go shape.
+// internal/service/shard_parity_test.go shape.
 func floatWithinULP(a, b float64, ulps uint64) bool {
 	if a == b {
 		return true

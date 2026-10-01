@@ -91,7 +91,7 @@ type ruleFiring struct {
 	attempted bool
 	// reads is the declared fields the predicate reads, classified by
 	// whether a comparison against each one is pre-rounding
-	// (synth/rules_firing_cause.go). Empty for a rule with no `when`,
+	// (internal/synth/rules_firing_cause.go). Empty for a rule with no `when`,
 	// and for a predicate reading no declared field.
 	reads []whenField
 }

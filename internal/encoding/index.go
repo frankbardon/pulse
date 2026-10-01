@@ -132,7 +132,7 @@ type IndexBucket struct {
 // SourceModTime) taken at build time. Encoding/decoding here is pure
 // codec — populating an Index from a live cohort and serving lookups
 // against one are later stories' responsibility; this package stays
-// free of service/processing imports.
+// free of internal/service and processing imports.
 type Index struct {
 	Fingerprint Fingerprint
 	Keys        []IndexKeySpec

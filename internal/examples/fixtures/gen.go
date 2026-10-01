@@ -1,11 +1,11 @@
 //go:build ignore
 
 // Generator for the shared CSV fixtures referenced by every category
-// under examples/. Run from the repo root:
+// under internal/examples/. Run from the repo root:
 //
-//	go run examples/fixtures/gen.go
+//	go run internal/examples/fixtures/gen.go
 //
-// Output is written into examples/fixtures/. The same seed produces
+// Output is written into internal/examples/fixtures/. The same seed produces
 // byte-identical output so the CSVs are checked in.
 //
 // Not generated here: all_types.csv. That fixture is hand-curated
@@ -60,7 +60,7 @@ func main() {
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
-// statistical test type in examples/tests/ has a clean, non-trivial
+// statistical test type in internal/examples/tests/ has a clean, non-trivial
 // signal:
 //
 //   - treatment vs control: variant has ≈22% higher revenue mean and

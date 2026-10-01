@@ -284,7 +284,7 @@ func intPtr(v int) *int { return &v }
 //
 // Accepts testing.TB so the same fixture builder serves both bench
 // driver code (b.Run sub-cases) and the E2E equivalence golden in
-// service/crosstab_fused_test.go.
+// internal/service/crosstab_fused_test.go.
 func buildWideCohort(b testing.TB, fieldCount, rowCount int) (*encoding.Schema, []byte) {
 	b.Helper()
 

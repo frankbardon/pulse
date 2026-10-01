@@ -102,7 +102,7 @@ func TestParseDateTime_Rejects(t *testing.T) {
 // TestParseDateTime_RejectsEveryDateOnlyLayout pins the boundary
 // against the sibling date type: no layout DateFormats accepts as a
 // date-only literal may be swallowed by ParseDateTime. This is what
-// keeps io/infer.go's date-vs-datetime classification stable.
+// keeps internal/io/infer.go's date-vs-datetime classification stable.
 func TestParseDateTime_RejectsEveryDateOnlyLayout(t *testing.T) {
 	ref := time.Date(2024, 3, 4, 0, 0, 0, 0, time.UTC)
 	for _, layout := range DateFormats {

@@ -76,7 +76,7 @@ func listDeps(t *testing.T, pkg string) []string {
 }
 
 // TestMCPCore_NoSDKImport is the import firewall: it asserts the transitive
-// dependency set of the SDK-free mcp/ core (and mcp/toolmeta) contains neither
+// dependency set of the SDK-free mcp/ core (and internal/mcp/toolmeta) contains neither
 // MCP SDK module. If a future edit pulls an SDK into the core, this fails with
 // the exact offending dependency line so the regression is unambiguous.
 func TestMCPCore_NoSDKImport(t *testing.T) {

@@ -136,7 +136,7 @@ const (
 const spssEpochOffsetSeconds int64 = 12219379200
 
 // dateLayout is the text form a `date`-mapped column renders to. It is
-// encoding.DateFormats[0], so encoding.ParseDate — which io/import.go's
+// encoding.DateFormats[0], so encoding.ParseDate — which internal/io/import.go's
 // convertValue calls — reads it back to the exact epoch-day this mapping
 // intended.
 const dateLayout = "2006-01-02"
@@ -1111,7 +1111,7 @@ func addCategory(col *columnMapping, index map[string]int,
 // column. The declared measurement level decides where the file declares
 // one, which is the record 7/11 → Pulse-defaults path; otherwise the
 // mapped field type's own default applies, mirroring
-// descriptor/defaults.go. An empty aggregator means "no default", which
+// internal/descriptor/defaults.go. An empty aggregator means "no default", which
 // is the date family's rule — summing instants is never the intent.
 func defaultHints(ft encoding.FieldType, m measureLevel) (types.AggregationType, types.GroupType) {
 	switch m {
@@ -1221,7 +1221,7 @@ func missingSiblingDescription(c *columnMapping) string {
 
 // dictKey is the dictionary lookup key for a rendered cell.
 //
-// io/import.go trims every cell with strings.TrimSpace before it converts
+// internal/io/import.go trims every cell with strings.TrimSpace before it converts
 // or looks anything up, so a dictionary entry that kept its surrounding
 // whitespace could never be found and the importer would append a second,
 // trimmed entry beside it — silently shifting every later ID and breaking
@@ -1230,7 +1230,7 @@ func missingSiblingDescription(c *columnMapping) string {
 func dictKey(s string) string { return strings.TrimSpace(s) }
 
 // rendersAsNull reports whether a rendered cell is one of the null
-// sentinel tokens io/import.go's isNullToken recognises: "", "na", "n/a"
+// sentinel tokens internal/io/import.go's isNullToken recognises: "", "na", "n/a"
 // and "null", case-insensitively.
 //
 // It is a deliberate duplicate of an unexported function in the parent

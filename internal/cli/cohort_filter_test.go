@@ -262,7 +262,7 @@ func TestCohortFilterCLI_EmptyIncludeFileWritesZeroRows(t *testing.T) {
 //
 // CLAUDE.md's rule is "do not bypass afero.Fs — it defeats fs.NewMemMap()
 // and the custom-storage extension hook". The sanctioned exception is
-// CONFIG-DIR loading (label_loader.go / range_loader.go / template/), and
+// CONFIG-DIR loading (label_loader.go / range_loader.go / internal/template/), and
 // it is sanctioned because those directories are resolved from env vars
 // at pulse.New() time and are configuration rather than data.
 //

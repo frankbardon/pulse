@@ -12,7 +12,7 @@ import (
 
 // The determinism criterion this story carries is a property of the
 // component ASSIGNMENT, and the end-to-end byte-identity tests
-// (synth/residual_draw_test.go) can only observe it indirectly — they
+// (internal/synth/residual_draw_test.go) can only observe it indirectly — they
 // prove the output did not move, not that it did not move for the right
 // reason. These unit tests read the assignment directly.
 

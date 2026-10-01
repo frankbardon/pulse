@@ -46,7 +46,7 @@ import (
 //   - Pure function. No I/O. No goroutines. No global state. No
 //     mutation of `refResp` / `targetResps` / `spec`. Same inputs →
 //     same outputs.
-//   - MUST NOT import service/ or descriptor/. The check stays inside
+//   - MUST NOT import internal/service/ or descriptor/. The check stays inside
 //     processing/ alongside the rest of the overlay machinery.
 //   - No fmt.Sprintf in any JSON-bearing path. Detail keys are plain
 //     map[string]any populated with encoding/json-friendly types
@@ -328,10 +328,10 @@ func kindRequiresMatrix(kind types.OverlayKind) bool {
 
 // KindRequiresMatrix is the exported sibling of the package-internal
 // kindRequiresMatrix predicate. The descriptor-side compose validator
-// (descriptor.ValidateCompose) needs to read the catalog without
+// (internal/descriptor.ValidateCompose) needs to read the catalog without
 // dragging in processing's full overlay machinery, but the
 // per-helper sync test (TestKindRequiresMatrixCompose_MatchesProcessing
-// in descriptor/compose_test.go) pins the two surfaces in lockstep so
+// in internal/descriptor/compose_test.go) pins the two surfaces in lockstep so
 // a new matrix-required kind cannot land here without an accompanying
 // descriptor-side row.
 //

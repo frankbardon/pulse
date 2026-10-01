@@ -1,6 +1,6 @@
 // Package arrow provides Arrow IPC (Feather V2) import and export for the
 // pulse I/O pipeline, plus shared Arrow<->Pulse type-mapping helpers used by
-// both this package and io/parquet.
+// both this package and internal/io/parquet.
 //
 // Format scope:
 //
@@ -15,7 +15,7 @@
 // Memory model:
 //
 // The reader materializes the full table into memory at init time, mirroring
-// the policy in io/parquet. Files larger than available memory are out of
+// the policy in internal/io/parquet. Files larger than available memory are out of
 // scope for v1; users that need bounded streaming should use NDJSON or CSV.
 //
 // Type policy:

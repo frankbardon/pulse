@@ -654,7 +654,7 @@ func TestMapping_NullTokenCollision(t *testing.T) {
 }
 
 // TestMapping_ValueCollision is the one reachable way two distinct SPSS
-// values become one Pulse dictionary entry: io/import.go trims every cell,
+// values become one Pulse dictionary entry: internal/io/import.go trims every cell,
 // so leading whitespace is not distinguishing. Both source values stay in
 // the triple against the shared id so the ambiguity is visible.
 func TestMapping_ValueCollision(t *testing.T) {

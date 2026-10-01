@@ -209,7 +209,7 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 	ValidateLabels(env, req.Labels, schema, snap, nil)
 
 	// Validate FACET-host overlay specs. Per-kind contracts live in
-	// descriptor/overlay_facet.go; the validator is no-op when
+	// internal/descriptor/overlay_facet.go; the validator is no-op when
 	// req.Overlays is empty so the no-overlay envelope shape stays
 	// byte-identical to the legacy Facet path.
 	ValidateFacetOverlays(env, req, schema)

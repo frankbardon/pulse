@@ -49,7 +49,7 @@ import (
 //     PULSE_OVERLAY_REF_UNKNOWN shape the resolver emits when a
 //     population FacetResult is missing the same field).
 //
-// Structural invariants (mirrors descriptor/overlay.go):
+// Structural invariants (mirrors internal/descriptor/overlay.go):
 //
 //   - This file MUST NOT import github.com/frankbardon/pulse/service or
 //     github.com/frankbardon/pulse/processing. Predict is no-execute;

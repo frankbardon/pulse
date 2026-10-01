@@ -9,7 +9,7 @@ import (
 )
 
 // This file answers the second question the firing counter raises. The
-// counter (synth/rules_firing.go) knows THAT a rule applied to nothing;
+// counter (internal/synth/rules_firing.go) knows THAT a rule applied to nothing;
 // this file works out WHY, well enough for the warning to name the cause
 // that actually applies to the rule in front of it rather than the one
 // that was most common when the message was first written.
@@ -74,7 +74,7 @@ type whenField struct {
 // exact literal; a categorical stores a dictionary ID and a set_* a
 // bitmask, neither of which a numeric comparison reaches at all.
 //
-// This mirrors isIntegerQuantizedFieldType (synth/discrete.go) without
+// This mirrors isIntegerQuantizedFieldType (internal/synth/discrete.go) without
 // reusing it, because the two answer different questions: that one asks
 // which types are ELIGIBLE for the discrete histogram reconstruction and
 // deliberately excludes date (it owns uniform_date) and packed_bool (it

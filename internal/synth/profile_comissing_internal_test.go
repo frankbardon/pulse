@@ -39,7 +39,7 @@ import (
 //
 // Every null decision is an exact integer function of the row index, so
 // the fixture bytes are architecture-independent by construction rather
-// than by a float barrier (synth/moments.go).
+// than by a float barrier (internal/synth/moments.go).
 //
 // solo0/solo1 are the load-bearing part. They are constructed to share
 // the block's null COUNT exactly — n/4 rows each — while being null on

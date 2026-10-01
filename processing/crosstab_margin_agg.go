@@ -13,7 +13,7 @@ import (
 // grandMarginAux + updateAuxMargins).
 //
 // THE TWO HALVES MUST AGREE, AND NOTHING IN Response SAYS WHICH RAN.
-// service/crosstab.go picks fused or buffered on request SHAPE — a
+// internal/service/crosstab.go picks fused or buffered on request SHAPE — a
 // non-mergeable cell aggregator, a GROUP_QUANTILE axis, a feature, a
 // FILTER_EXPRESSION. None of those has anything to do with sample size,
 // so an auxiliary implemented on one arm only produces a figure that

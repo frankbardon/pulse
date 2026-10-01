@@ -9,7 +9,7 @@ import (
 // TestSetTypeFor_IsTheOneLadder pins the EXPORTED rung selection at the
 // same boundaries TestSetWidth_LadderBoundaries pins the unexported one.
 //
-// The helper exists because io/spss/mrset.go used to hand-roll a second
+// The helper exists because internal/io/spss/mrset.go used to hand-roll a second
 // rung table of its own. Two ladders that agree today diverge the day one
 // of them gains a rung: the SPSS one silently kept refusing above 64 while
 // inference had already learned set_u128 / set_u256. So the boundaries are

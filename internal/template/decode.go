@@ -108,7 +108,7 @@ func (r *Rendered) Typed() any {
 //
 // The decode is STRICT: json.Decoder with DisallowUnknownFields. That is
 // deliberately harsher than the rest of Pulse, which tolerates unknown
-// fields — that tolerance is exactly how the examples/ `_meta` sidecar
+// fields — that tolerance is exactly how the internal/examples/ `_meta` sidecar
 // block survives at execution. Here a typo in a stored template must fail
 // loudly at render rather than silently drop a request slot, so an
 // unrecognised key is a hard error and the message names it.

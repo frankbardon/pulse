@@ -112,7 +112,7 @@ type RuleSpec struct {
 	// the rates it is trying to correct. So the declaration zeroes the
 	// draw and the gap is MEASURED at generation instead of guessed —
 	// ownershipWarnings reports any owned field whose realised null rate
-	// misses its declared one (synth/rules_ownership.go).
+	// misses its declared one (internal/synth/rules_ownership.go).
 	//
 	// Where g IS knowable the residual is bounded rather than unknown:
 	// `profile create --suggest-rules` admits a gate only when the
@@ -460,7 +460,7 @@ func ruleSetNullNullableFault(idx int, f FieldSpec) error {
 }
 
 // validateRuleLiteral refuses a `set` literal the target field cannot
-// hold. It is a THIN WRAPPER over ruleValueFault (synth/rules_coerce.go),
+// hold. It is a THIN WRAPPER over ruleValueFault (internal/synth/rules_coerce.go),
 // the one coercion matrix a `set` literal and a `set_expr` result share
 // — a literal is refused at parse for BOTH fault kinds, because the
 // value is right there in the document.

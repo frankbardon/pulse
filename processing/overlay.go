@@ -33,7 +33,7 @@ import (
 //
 // Structural invariants:
 //
-//   - This file MUST NOT import service/ or descriptor/. Runtime
+//   - This file MUST NOT import internal/service/ or descriptor/. Runtime
 //     overlay execution rides inside processing/ alongside the
 //     aggregator / attribute / grouper layers.
 //   - No fmt.Sprintf in any JSON-bearing path. Warning messages are
@@ -300,7 +300,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // materialised host MatrixPayload, never re-scans records. Cost is
 // O(cells × layers) where cells = RowCount × ColumnCount.
 //
-// Defense in depth: the descriptor.ValidateOverlays gate rejects bad
+// Defense in depth: the internal/descriptor.ValidateOverlays gate rejects bad
 // kinds at predict time, so a missing dispatch entry should never
 // reach the runtime in practice; nonetheless applyOverlays guards
 // against an unknown kind and returns a CodedError whose details carry
@@ -316,7 +316,7 @@ var overlayHandlers = map[types.OverlayKind]overlayHandler{
 // surface PULSE_OVERLAY_LEVEL_OUT_OF_RANGE for out-of-range Level /
 // Within values against the host's RowAxisDepth / ColumnAxisDepth.
 // The same condition is caught at predict time
-// (descriptor.ValidateOverlays); the runtime gate is defensive in case
+// (internal/descriptor.ValidateOverlays); the runtime gate is defensive in case
 // the predict step was bypassed (programmatic Process callers).
 //
 // Extension visibility: callers that need embedder-registered
@@ -399,7 +399,7 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 }
 
 // validateOverlayLevelWithinRuntime is the runtime mirror of
-// descriptor.ValidateOverlays' Level / Within out-of-range gate. The
+// internal/descriptor.ValidateOverlays' Level / Within out-of-range gate. The
 // rules:
 //
 //   - For the share / index / delta / zscore family the handler
@@ -2444,7 +2444,7 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 // Unlike the SHARE_OF_* triad (each structurally axis-locked),
 // ZSCORE_VS_MARGIN dispatches all three axes — the handler reads
 // MarginFor(spec.Ref.Margin.Axis, ...) instead of forcing a fixed
-// axis. The validator (descriptor/overlay.go) gates Ref.Margin /
+// axis. The validator (internal/descriptor/overlay.go) gates Ref.Margin /
 // known axes / scope at predict time.
 //
 // Summary: Min / Max / Count / Baseline populated. Baseline is 0 —

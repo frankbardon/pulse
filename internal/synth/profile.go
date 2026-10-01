@@ -125,7 +125,7 @@ type ProfileOptions struct {
 	// field pairs, a row-aligned correlation + observation count
 	// (Profile.Conditional.NumericPairs) that SpecFromProfile uses to
 	// drive the exact conditional-Gaussian reconstruction in
-	// synth/copula.go, in place of the plain (and, for cohorts with
+	// internal/synth/copula.go, in place of the plain (and, for cohorts with
 	// nulls, only approximately aligned) Pairwise correlation stats.
 	// Off by default; the profile document's `conditional` key is
 	// entirely absent (omitempty) when this is false, and every
@@ -291,7 +291,7 @@ type Profile struct {
 	// SpecFromProfile translates the MEASURED pairs onto
 	// Spec.ResidualCorrelations, where generation consumes them as the
 	// shared source of randomness every modelled field's residual is
-	// drawn from (synth/residual_draw.go). The `unmeasured` list is
+	// drawn from (internal/synth/residual_draw.go). The `unmeasured` list is
 	// translated into nothing at all: an absent pair is completed as
 	// independent by the generator, which counts and names the
 	// assumption, whereas writing it out as a zero would present it as
@@ -1198,7 +1198,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	// fitter is nil unless ProfileOptions.FitModels asked for per-numeric
 	// linear models AND at least one field is fittable, so the per-row
 	// cost below is exactly zero for every existing caller. It rides
-	// this loop rather than a second scan — see synth/profile_models.go.
+	// this loop rather than a second scan — see internal/synth/profile_models.go.
 	//
 	// opts.TopK is handed over rather than re-derived: the model
 	// capture's dummy expansion applies the SAME per-field top-K
@@ -1218,7 +1218,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	// every existing caller. It rides this loop — no second pass, no
 	// extra byte — which TestSuggestRules_RidesTheExistingScan measures
 	// by counting bytes pulled, exactly as the model capture's own gate
-	// does. See synth/profile_gating.go.
+	// does. See internal/synth/profile_gating.go.
 	var gates *gateDetector
 	var blocks *blockDetector
 	var deps *depDetector
@@ -2476,9 +2476,9 @@ func collapseCells(counts map[[2]string]int, cellCap int) []ContingencyCell {
 // already uses below.
 //
 // The second return value carries any conditional-relationship conflict
-// warnings resolveConflicts (synth/conflict.go, E6-S1) produces when run
+// warnings resolveConflicts (internal/synth/conflict.go, E6-S1) produces when run
 // against the just-composed Spec — e.g. two captured pairs both
-// legitimately targeting the same field. generate() (synth/writer.go)
+// legitimately targeting the same field. generate() (internal/synth/writer.go)
 // independently runs the same pass again at its own setup time, so these
 // two calls always agree; this one exists only because
 // Profile.Warnings is serialized to disk at `profile create` time,
@@ -2503,10 +2503,10 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// a non-nullable schema field can never contribute a counted
 			// null, so NullRate is strictly 0 for one and NullRate == 0
 			// already short-circuits buildSampler's nullableSampler wrap
-			// (synth/distributions.go) — so this is the only bit that can
+			// (internal/synth/distributions.go) — so this is the only bit that can
 			// possibly matter. Without it, FieldSpec.Nullable stays at its
 			// zero value false while NullRate still drives buildSampler to
-			// sample nulls; encodeRow (synth/writer.go) then only ever
+			// sample nulls; encodeRow (internal/synth/writer.go) then only ever
 			// consults encoding.Field.Nullable (set from fs.Nullable, not
 			// NullRate) to decide whether a null sample reaches the
 			// per-record bitmap, so every "null" draw for such a field was
@@ -2700,7 +2700,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 	// --conditional — including every document from before this
 	// section existed — still reconstructs its best-effort correlation
 	// exactly as before. Both funnel into the same Spec.Correlations
-	// shape: synth/copula.go's conditional-Gaussian reconstruction
+	// shape: internal/synth/copula.go's conditional-Gaussian reconstruction
 	// applies identically either way, so this choice affects only
 	// which Rho/pair-set gets used, never how it is reconstructed.
 	typeOf := make(map[string]string, len(s.Fields))
@@ -2723,7 +2723,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 		// instead. This used to be excluded here directly (a
 		// silent drop); it is added unconditionally now and left to
 		// resolveConflicts (E6-S1,
-		// synth/conflict.go) at generate() setup time — a shape-fit field
+		// internal/synth/conflict.go) at generate() setup time — a shape-fit field
 		// is pre-claimed there under "captured shape (--fit-shape)" before
 		// any correlation stage runs, so the outcome (the correlation
 		// still excludes that field, the rest of the matrix still
@@ -2788,7 +2788,7 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 	// into anything. It exists so a reader can tell a pair measured at
 	// rho = 0 from a pair nobody could measure, and the generator's
 	// completion policy already treats an absent pair as an assumption
-	// it names out loud (factorCorrelations, synth/copula.go). Writing
+	// it names out loud (factorCorrelations, internal/synth/copula.go). Writing
 	// an unmeasured pair out as a zero here would collapse exactly the
 	// distinction the capture side was built to preserve, and would do
 	// it silently, since a supplied zero is counted as measured.
@@ -2833,12 +2833,12 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			// distOf[cnp.B] == DistMixture (a --fit-shape reconstruction,
 			// E4-S2) is deliberately ALLOWED through here rather than
 			// filtered out — categoricalNumericPairSampler.transform
-			// (synth/conditional_sample.go) overwrites row[B] outright
+			// (internal/synth/conditional_sample.go) overwrites row[B] outright
 			// with its own captured per-category moments regardless of
 			// what B's independent sampler would have drawn, so it has no
 			// functional need for B's own distribution to be normal.
 			// Whether this pair actually gets to run is decided uniformly
-			// by resolveConflicts (E6-S1, synth/conflict.go) at generate()
+			// by resolveConflicts (E6-S1, internal/synth/conflict.go) at generate()
 			// setup time: a shape-fit B is pre-claimed there, so the pair
 			// is excluded with an explicit warning. (Only an UNMODELLED
 			// shape-fit B can reach this line at all — a modelled one was
@@ -2994,7 +2994,7 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 		// — and refusing it here was the upstream half of the same
 		// exclusivity resolveConflicts enforced downstream. E4-S1
 		// retires both: the mixture now carries an exact (mean, std) and
-		// a numerically inverted quantile (synth/mixture_quantile.go),
+		// a numerically inverted quantile (internal/synth/mixture_quantile.go),
 		// so the fitted shape simply becomes Q in
 		// value = Q(Phi(mu(row) + sigma*z)) and the predictors shift the
 		// latent. The field keeps its shape AND gains its conditioning,
@@ -3004,7 +3004,7 @@ func modelSpecFromProfile(m FieldModel, distOf map[string]string, moments map[st
 		//
 		// The effect is on the LATENT scale and therefore non-linear in
 		// value space for a non-normal Q — a coefficient is not "this
-		// many units of the field" here. See synth/mixture_quantile.go.
+		// many units of the field" here. See internal/synth/mixture_quantile.go.
 	case DistDiscrete:
 		// A small-integer target (u4/u8/u16/u32/u64 reconstructed from
 		// its own per-level histogram). quantileFor's staircase arm makes

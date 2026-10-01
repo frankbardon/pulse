@@ -118,7 +118,7 @@ func importThreeFieldCohort(t *testing.T) afero.Fs {
 
 // mockReader is a tiny in-memory pio.Reader / pio.ResetReader the
 // integration tests use to seed a .pulse cohort without touching disk.
-// Mirrors the test helper in io/import_test.go but is reproduced here
+// Mirrors the test helper in internal/io/import_test.go but is reproduced here
 // because that helper is unexported.
 type mockReader struct {
 	header  []string

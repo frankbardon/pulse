@@ -90,7 +90,7 @@ func TestAugmentFromProfile_ReconstructsCorrelationWithinTolerance(t *testing.T)
 // at all, so SpecFromProfile.Correlations stays empty and the
 // AugmentFromProfile-generated partition must show no reconstructed
 // correlation — independent-marginal sampling, byte-for-byte the same
-// code path as before this effort touched synth/copula.go. This locks in
+// code path as before this effort touched internal/synth/copula.go. This locks in
 // FR-11: no new generate-time flag activates the feature, and its absence
 // from the profile document is what keeps behavior unchanged.
 func TestAugmentFromProfile_WithoutConditional_GeneratesIndependentMarginals(t *testing.T) {

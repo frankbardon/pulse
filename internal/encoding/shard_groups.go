@@ -27,7 +27,7 @@ import (
 // logical offsets), then re-encode the logical rows against the archive's
 // group layout with a GroupEncoder seeded from the canonical
 // dictionaries. The service layer owns that orchestration
-// (service/shard_groups.go); the pieces here are layout-level.
+// (internal/service/shard_groups.go); the pieces here are layout-level.
 
 // FlattenCohortBytes returns the ungrouped (0x01) twin of a single-file
 // cohort: the logical schema's preamble followed by every logical row,

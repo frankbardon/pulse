@@ -361,7 +361,7 @@ type OverlayAppliedDescriptor struct {
 }
 
 // SlotPair carries one rejected (Reference, Target) Compose-overlay
-// slot pair from descriptor.ValidateCompose's overlay walk. Mirrors
+// slot pair from internal/descriptor.ValidateCompose's overlay walk. Mirrors
 // ChainOverlaySchemaDivergence in spirit but flattens to a string-typed
 // (ref label, target label, machine-readable reason) tuple so the
 // PredictResult.OverlaysSchemaDivergence slot and the

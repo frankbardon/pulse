@@ -10,7 +10,7 @@ Build the binary and the four `.pulse` fixture cohorts:
 
 ```
 make build
-./examples/fixtures/build.sh
+./internal/examples/fixtures/build.sh
 ```
 
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`, and
@@ -23,19 +23,19 @@ unmodified.
 Validate (no execution):
 
 ```
-bin/pulse api predict --request examples/features/01_log_transform.json --json
+bin/pulse api predict --request internal/examples/features/01_log_transform.json --json
 ```
 
 Execute:
 
 ```
-bin/pulse api process --request examples/features/01_log_transform.json --json
+bin/pulse api process --request internal/examples/features/01_log_transform.json --json
 ```
 
 Run every example end to end:
 
 ```
-./examples/features/run-all.sh
+./internal/examples/features/run-all.sh
 ```
 
 `--strict` upgrades warnings (including the target leakage gate) to
@@ -77,10 +77,10 @@ to see the actual schema and edit the request `field` values to match.
 ## Leakage gate demo
 
 ```
-bin/pulse api predict --request examples/features/09_target_encode_leaky.json --json
+bin/pulse api predict --request internal/examples/features/09_target_encode_leaky.json --json
 # warning: PULSE_FEAT_TARGET_LEAKAGE_RISK
 
-bin/pulse api predict --request examples/features/09_target_encode_leaky.json --json --strict
+bin/pulse api predict --request internal/examples/features/09_target_encode_leaky.json --json --strict
 # error: PULSE_FEAT_TARGET_LEAKAGE_RISK
 ```
 

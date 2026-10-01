@@ -50,7 +50,7 @@ const (
 // Both models are `normal` targets whose intercept is the field's own
 // marginal mean and whose ResidualStd is a real (non-zero) scale, so the
 // composed draw collapses to prediction + ResidualStd*z (see
-// synth/model_draw.go) and the residual is recoverable per row as
+// internal/synth/model_draw.go) and the residual is recoverable per row as
 // value - prediction. That is what lets the correlation be measured on
 // the quantity the spec actually names rather than inferred from raw
 // values.
@@ -159,7 +159,7 @@ func TestSynthResidual_ConditionedAndCorrelatedAtOnce(t *testing.T) {
 // feature does nothing" and "the feature works" produce the same number,
 // so it proves nothing on its own — but a construction that overshoots
 // or leaks structure would fail it, and it is the measured-zero case the
-// capture side (synth/residual_corr.go) went to some length to keep
+// capture side (internal/synth/residual_corr.go) went to some length to keep
 // distinguishable from a gap.
 func TestSynthResidual_ReconstructionWithinTolerance(t *testing.T) {
 	for _, targetRho := range []float64{-0.85, -0.4, 0, 0.4, 0.85} {

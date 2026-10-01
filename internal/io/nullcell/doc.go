@@ -17,5 +17,5 @@
 // for the matrix and the reasons.
 //
 // The package is test-only: every .go file but this one ends in
-// _test.go. It follows the precedent set by io/settristate.
+// _test.go. It follows the precedent set by internal/io/settristate.
 package nullcell

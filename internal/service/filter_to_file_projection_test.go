@@ -165,7 +165,7 @@ func TestFieldFilterForPlan_PassesThroughEncodingFieldFilter(t *testing.T) {
 // ReadRecordWithWideProjected call in streamFilterRecords back to
 // ReadRecordWithWide and rerun.
 //
-// Run with: go test ./service/ -bench BenchmarkFilterToFileWideCohort -benchmem -run=^$
+// Run with: go test ./internal/service/ -bench BenchmarkFilterToFileWideCohort -benchmem -run=^$
 func BenchmarkFilterToFileWideCohort(b *testing.B) {
 	const pad = 197
 	const rows = 10000

@@ -55,7 +55,7 @@ import (
 //
 // Structural invariants:
 //
-//   - This file MUST NOT import service/ or descriptor/. The overlay
+//   - This file MUST NOT import internal/service/ or descriptor/. The overlay
 //     fold runs entirely inside processing/ alongside overlay.go and
 //     overlay_series.go.
 //   - No fmt.Sprintf in any JSON-bearing path; warning details carry

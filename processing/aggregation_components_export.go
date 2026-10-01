@@ -5,7 +5,7 @@ import (
 )
 
 // aggregation_components_export.go exposes the per-slot
-// AggregationComponents builder to service/'s parallel reducers.
+// AggregationComponents builder to internal/service/'s parallel reducers.
 //
 // The per-shard (Options.ShardWorkers) and per-segment
 // (Options.DecodeWorkers) reducers own their own record walk, so they

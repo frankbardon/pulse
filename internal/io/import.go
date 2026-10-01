@@ -847,7 +847,7 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, 
 
 	case encoding.FieldTypeDateTime:
 		// Delegates to encoding.ParseDateTime — the single source of
-		// truth for datetime literals, shared with io/infer.go's
+		// truth for datetime literals, shared with internal/io/infer.go's
 		// allDateTime column probe, so any column inference classified
 		// as datetime is guaranteed to convert cell-for-cell here.
 		//

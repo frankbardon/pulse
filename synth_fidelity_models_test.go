@@ -15,7 +15,7 @@ import (
 // when the spec carried models.
 //
 // The section's own behaviour is covered exhaustively in
-// synth/fidelity_models_test.go; what this file proves is that the
+// internal/synth/fidelity_models_test.go; what this file proves is that the
 // bridge calls it, that the section survives the JSON round trip, and
 // that a report for a models-free spec is byte-identical to what it was
 // before this section existed.

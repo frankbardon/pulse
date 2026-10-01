@@ -997,7 +997,7 @@ func TestGrouper_Quantile_Components_NonStandardCount(t *testing.T) {
 }
 
 // mapKeysSortedAny returns the sorted key set of m, mirroring the
-// helper from service/process_components_test.go but local to
+// helper from internal/service/process_components_test.go but local to
 // processing/ so this file stays self-contained.
 func mapKeysSortedAny(m map[string]any) []string {
 	if len(m) == 0 {
@@ -1056,7 +1056,7 @@ type groupParityFixture struct {
 // exercises (small / empty / null-heavy / multi-shard); multi-shard
 // is documented in TestMetaGrouper_AllOps_ManifestParity as a follow-
 // up because the in-package processing/ tests have no shard archive
-// fixture (those live in service/ where the orchestrator wires the
+// fixture (those live in internal/service/ where the orchestrator wires the
 // shard-parallel reducer).
 func allGroupParityFixtures(t *testing.T) map[types.GroupType]groupParityFixture {
 	t.Helper()

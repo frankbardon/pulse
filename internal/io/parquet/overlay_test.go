@@ -15,7 +15,7 @@ func helperFloat(f float64) *float64 { return &f }
 // helperLayers returns a small fixture set covering all three
 // OverlayPayload shapes (scalar / series / matrix) so the round-trip
 // tests exercise every dispatch arm. Mirrors the Arrow adapter's
-// fixture (io/arrow/overlay_test.go helperLayers) so the byte-equivalent
+// fixture (internal/io/arrow/overlay_test.go helperLayers) so the byte-equivalent
 // round-trip claim from research/export-embedding-shape.md § 4.3 has a
 // matching pair of inputs across the shared LIST<STRUCT> schema.
 func helperLayers() []*types.OverlayLayer {

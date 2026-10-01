@@ -451,7 +451,7 @@ func TestMetaFilterer_AllOps_ManifestParity(t *testing.T) {
 		// before chaining an expression filter. The contract is
 		// already covered by the smallWant case (non-null score
 		// cohort) and the service-layer end-to-end test in
-		// service/process_filterer_components_test.go.
+		// internal/service/process_filterer_components_test.go.
 		if op == types.FILTER_TRUE || op == types.FILTER_EXPRESSION {
 			continue
 		}

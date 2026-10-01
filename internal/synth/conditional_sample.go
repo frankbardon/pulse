@@ -10,7 +10,7 @@ import (
 // current (independently-drawn) value, reproducing the pair's captured
 // joint co-occurrence pattern (Spec.CategoricalPairs) instead of treating
 // A and B as independent marginals. This is the categorical-categorical
-// analogue of correlator (synth/copula.go): both overwrite a field's
+// analogue of correlator (internal/synth/copula.go): both overwrite a field's
 // independently-drawn value in place, as a post-processing step over the
 // same row map, rather than inventing a second draw mechanism.
 type categoricalPairSampler struct {

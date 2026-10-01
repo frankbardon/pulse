@@ -11,7 +11,7 @@ import (
 )
 
 // fusedCrosstabSchema mirrors the (region, segment, value) shape used in
-// service/crosstab_test.go but lives in the processing package so the
+// internal/service/crosstab_test.go but lives in the processing package so the
 // fused-equivalence tests can drive the accumulator directly without
 // crossing the service boundary.
 func fusedCrosstabSchema(t *testing.T) *encoding.Schema {

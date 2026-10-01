@@ -28,7 +28,7 @@ const runContinuationLowOverall = 0.5
 // field, its null bit — are identical.
 //
 // It is the exact per-field hit rate of the run-skip decode
-// (encoding/reader_runskip.go), which rewrites only the fields whose
+// (internal/encoding/reader_runskip.go), which rewrites only the fields whose
 // bytes or null bit changed since the previous row. Because the
 // optimisation is a property of the DATA rather than the format, a
 // cohort re-imported without its upstream ORDER BY loses it with nothing

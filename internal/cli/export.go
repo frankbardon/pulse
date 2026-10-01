@@ -131,7 +131,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 	// (TestExportTargets_EmitNothingBeforeClose).
 	//
 	// Resources are the separate question. A writer holding an OS temp
-	// file (io/excel's excelize StreamWriter spills past 16 MiB) still
+	// file (internal/io/excel's excelize StreamWriter spills past 16 MiB) still
 	// needs releasing on that path, so every error return below runs
 	// iio.DiscardWriter — release, never emit. emitted is flipped
 	// immediately before the Close that owns the output.

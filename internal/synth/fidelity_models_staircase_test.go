@@ -24,7 +24,7 @@ import (
 // generated values, once as the conditional mean the CAPTURED model
 // implies for each row — and OLS is linear in its response, so the
 // attenuation divides out exactly rather than approximately. See
-// synth/fidelity_score.go.
+// internal/synth/fidelity_score.go.
 //
 // Every test below asserts BOTH halves where they exist, because either
 // alone is trivially satisfiable: an estimator that echoes the captured

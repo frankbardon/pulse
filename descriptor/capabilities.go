@@ -223,7 +223,7 @@ type ExportCapability struct {
 // SchemaSource is the load-bearing slot and carries exactly two values:
 //
 //   - "inferred"      — the adapter yields rows of text and the shared
-//     inference pass (io/infer.go) samples them and
+//     inference pass (internal/io/infer.go) samples them and
 //     votes on a type per column. Correct in the
 //     common case, but it is a guess: a categorical
 //     column's dictionary is built in first-seen

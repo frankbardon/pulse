@@ -12,7 +12,7 @@ import (
 // TestBuildIndex_WritesSidecarAtDerivedPath is the facade-level
 // smoke test for Pulse.BuildIndex — the same contract
 // service.Service.BuildIndex covers exhaustively (see
-// service/index_build_test.go), exercised through the public facade
+// internal/service/index_build_test.go), exercised through the public facade
 // so the thin delegation (including the touchManaged call) is TDD'd
 // at this layer too.
 func TestBuildIndex_WritesSidecarAtDerivedPath(t *testing.T) {

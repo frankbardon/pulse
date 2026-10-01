@@ -240,13 +240,13 @@ type Options struct {
 	DisableCrosstabFusion bool
 
 	// ImportsDir overrides the managed-imports directory. Defaults to
-	// imports.DefaultImportsDir (resolved relative to the Pulse fs
+	// internal/imports.DefaultImportsDir (resolved relative to the Pulse fs
 	// root). Honoured before the PULSE_IMPORTS_DIR env var.
 	ImportsDir string
 
 	// ImportTTL overrides the default TTL applied to managed imports
 	// when the caller does not pass one. Zero falls back to the
-	// PULSE_IMPORT_TTL env var, then to imports.DefaultTTL. Negative
+	// PULSE_IMPORT_TTL env var, then to internal/imports.DefaultTTL. Negative
 	// values pin imports (never expire) by default.
 	ImportTTL time.Duration
 
@@ -443,7 +443,7 @@ type Pulse struct {
 
 	// templates is the request-template store built from
 	// Options.TemplateDirs (or PULSE_TEMPLATES_DIR). Nil when no template
-	// directories are configured — a nil *template.Store is usable, so
+	// directories are configured — a nil *internal/template.Store is usable, so
 	// call sites need no nil check.
 	templates *template.Store
 }
@@ -591,7 +591,7 @@ func autoLabelPtrs(bindings []LabelBinding) []*types.LabelBinding {
 // PULSE_ARCHIVE_MAGIC_INVALID. A literal `#` in a filename is not
 // supported in v1.
 //
-// Anchor parsing happens inside service.Service.Open as well, so the
+// Anchor parsing happens inside internal/service.Service.Open as well, so the
 // other facade methods (Process, Sample, Facet, ...) that receive an
 // anchored Cohort path resolve consistently.
 func (p *Pulse) Open(ctx context.Context, path string) (*Cohort, error) {
@@ -705,7 +705,7 @@ func (p *Pulse) ProcessChain(ctx context.Context, req *ChainRequest) (*ChainResp
 	return resp, err
 }
 
-// ComposeOptions controls parallel execution. See service.ComposeOptions.
+// ComposeOptions controls parallel execution. See internal/service.ComposeOptions.
 type ComposeOptions = service.ComposeOptions
 
 // ComposeParallel runs every request in req concurrently across a
@@ -812,7 +812,7 @@ func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertR
 }
 
 // Type aliases re-exported from the imports package so embedders can
-// use pulse.ImportSpec instead of imports.Spec.
+// use pulse.ImportSpec instead of internal/imports.Spec.
 type (
 	ImportSpec   = imports.Spec
 	ImportResult = imports.Result
@@ -957,7 +957,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	// Anchor syntax (`archive.pulse#shard.pulse`): resolve against the
 	// named shard's standalone bytes so Predict validates against the
 	// shard's own schema and record count, mirroring what
-	// service.Open(anchor) returns at runtime.
+	// internal/service.Open(anchor) returns at runtime.
 	readPath := path
 	anchorEntry := ""
 	if archivePath, entry, ok := service.SplitAnchorPath(path); ok {
@@ -1063,7 +1063,7 @@ type SampleResult struct {
 }
 
 // SampleWarning is the envelope-ready projection of a single resolver
-// warning. The shape mirrors descriptor.EnvelopeWarning so callers can
+// warning. The shape mirrors descriptor.EnvelopeEntry so callers can
 // fold it into a descriptor.Envelope at the CLI / MCP boundary.
 type SampleWarning struct {
 	Code    string
@@ -1297,7 +1297,7 @@ const (
 // sidecar index exists for the requested key fields, PULSE_LOOKUP_NOT_FOUND
 // when the index exists but no record matches, or PULSE_LOOKUP_AMBIGUOUS
 // when more than one record matches and req.Multiplicity is (or
-// defaults to) LookupMultiplicityAssertUnique. See service.Service.Lookup
+// defaults to) LookupMultiplicityAssertUnique. See internal/service.Service.Lookup
 // for the full algorithm.
 func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
 	if req == nil {
@@ -1310,7 +1310,7 @@ func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, 
 	return resp, err
 }
 
-// BuildIndexResult re-exports service.BuildIndexResult — the outcome
+// BuildIndexResult re-exports internal/service.BuildIndexResult — the outcome
 // of a successful point-lookup sidecar index build: the derived
 // sidecar path plus the in-memory SidecarIndex that was serialized
 // there.
@@ -1342,7 +1342,7 @@ type CohortFingerprint = encx.Fingerprint
 // BuildIndex builds a point-lookup sidecar index for the cohort at
 // path over the ordered key columns named in keyFields (a single
 // element is the degenerate single-key case; more than one produces a
-// composite key, in column order). Delegates to service.Service.BuildIndex
+// composite key, in column order). Delegates to internal/service.Service.BuildIndex
 // for the full algorithm and error surface — see that method's doc
 // comment for the scan/bucket/write contract, the
 // PULSE_INDEX_UNSUPPORTED_SHARDED shard-archive rejection, and the
@@ -1355,11 +1355,11 @@ func (p *Pulse) BuildIndex(ctx context.Context, path string, keyFields []string)
 	return res, err
 }
 
-// VerifyIndexResult re-exports service.VerifyIndexResult — the outcome
+// VerifyIndexResult re-exports internal/service.VerifyIndexResult — the outcome
 // of a Service.VerifyIndex freshness check.
 type VerifyIndexResult = service.VerifyIndexResult
 
-// IndexFreshnessReason re-exports service.IndexFreshnessReason — why
+// IndexFreshnessReason re-exports internal/service.IndexFreshnessReason — why
 // VerifyIndex reached its Fresh/stale verdict
 // ("stat_mismatch"/"fingerprint_match"/"fingerprint_mismatch").
 type IndexFreshnessReason = service.IndexFreshnessReason
@@ -1367,7 +1367,7 @@ type IndexFreshnessReason = service.IndexFreshnessReason
 // VerifyIndex reports whether the sidecar point-lookup index built for
 // keyFields against the cohort at path is still fresh, using the
 // size+mtime fast-path before paying for a full content-hash recompute.
-// Delegates to service.Service.VerifyIndex — see that method's doc
+// Delegates to internal/service.Service.VerifyIndex — see that method's doc
 // comment for the full fast-path decision tree. Returns
 // PULSE_INDEX_MISSING when no sidecar exists for keyFields and
 // PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
@@ -1379,13 +1379,13 @@ func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string
 	return res, err
 }
 
-// IndexInfo re-exports service.IndexInfo — one entry in a
+// IndexInfo re-exports internal/service.IndexInfo — one entry in a
 // Service.ListIndexes result: a sidecar's derived path, its ordered
 // key column names, and its distinct-key / indexed-record summary.
 type IndexInfo = service.IndexInfo
 
 // ListIndexes enumerates every sidecar point-lookup index built
-// against the cohort at path. Delegates to service.Service.ListIndexes
+// against the cohort at path. Delegates to internal/service.Service.ListIndexes
 // — see that method's doc comment for the directory-glob + sidecar-read
 // discovery algorithm. Returns an empty (non-nil) slice, not an error,
 // when no sidecar indexes have been built yet. Returns
@@ -1399,7 +1399,7 @@ func (p *Pulse) ListIndexes(ctx context.Context, path string) ([]IndexInfo, erro
 }
 
 // DropIndex removes the sidecar point-lookup index built for keyFields
-// against the cohort at path. Delegates to service.Service.DropIndex —
+// against the cohort at path. Delegates to internal/service.Service.DropIndex —
 // see that method's doc comment for the non-interactive
 // (no-confirmation-prompt) contract. Returns PULSE_INDEX_MISSING when
 // no sidecar exists at the derived path and
@@ -1426,7 +1426,7 @@ type WidenReport = encoding.WidenReport
 // A widen changes the field's stride, so every record is re-laid-out
 // and every field after the widened one moves. The rewrite is atomic —
 // temp file beside the cohort, fsync, rename — so any failure leaves
-// the original byte-identical; see encoding.WidenSetFieldFile.
+// the original byte-identical; see internal/encoding.WidenSetFieldFile.
 //
 // targetType is a type NAME rather than an encoding.FieldType because
 // this is the boundary where a caller-supplied string arrives (a CLI
@@ -1439,7 +1439,7 @@ type WidenReport = encoding.WidenReport
 // (no such cohort), SERVICE_VALIDATION (the path is a shard archive or
 // an anchored shard within one), ENCODING_INVALID (no such field) and
 // ENCODING_TYPE_MISMATCH (not a set, not wider, or already at the
-// widest rung). See service.Service.WidenSetField.
+// widest rung). See internal/service.Service.WidenSetField.
 //
 // Sidecars are not rebuilt: a widened cohort changes length, so the
 // point-lookup index and the SPSS metadata sidecar invalidate
@@ -1705,7 +1705,7 @@ func wrongTemplateTarget(name string, target template.Target) error {
 		})
 }
 
-// renderedFieldFor names the template.Rendered field a target populates, so
+// renderedFieldFor names the internal/template.Rendered field a target populates, so
 // the wrong-target message can tell the caller exactly which pointer to
 // read rather than making them look it up.
 func renderedFieldFor(target template.Target) string {
@@ -1742,7 +1742,7 @@ func (p *Pulse) Fs() afero.Fs {
 // seeds the canonical schema; remaining shards are validated via
 // structural cohesion + the append-only dictionary prefix rule. The
 // archive is written atomically (temp file + rename) so partial
-// writes never appear at archivePath. See service.CreateShardArchive
+// writes never appear at archivePath. See internal/service.CreateShardArchive
 // for the full error surface.
 //
 // Set-width auto-widen applies at CREATE exactly as it does at ADD: a
@@ -1906,7 +1906,7 @@ func resolveCohortPath(c *types.Cohort) string {
 
 // extractShardBytes opens archiveBytes as a Pulse shard archive and
 // returns the named entry's payload, suitable as standalone single-file
-// .pulse input to descriptor.Predict / descriptor.Inspect.
+// .pulse input to internal/descriptor.Predict / internal/descriptor.Inspect.
 func extractShardBytes(archiveBytes []byte, entryName string) ([]byte, error) {
 	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
@@ -1928,7 +1928,7 @@ type ShardEntry = service.ShardEntry
 // exported from descriptor so embedders consuming the no-execute
 // surface can address pulse.ShardInfo directly. Mirrors ShardEntry's
 // shape (filename + record count); the two types are parallel because
-// descriptor/ cannot import service/.
+// descriptor/ cannot import internal/service/.
 type ShardInfo = descriptor.ShardInfo
 
 // Cohort represents an opened .pulse file with its parsed schema.

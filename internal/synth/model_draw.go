@@ -25,7 +25,7 @@ import (
 // same scale, z ~ N(0,1), Phi is the standard normal CDF and Q is the
 // field's OWN quantile function. Phi and Q are the exact functions the
 // Gaussian-copula stage already uses (phi / quantileFor in
-// synth/copula.go) — deliberately reused rather than re-derived, so a
+// internal/synth/copula.go) — deliberately reused rather than re-derived, so a
 // modelled field and a correlated field agree on what "this field's
 // marginal shape" means down to the last digit.
 //
@@ -62,7 +62,7 @@ import (
 // # Latent-scale effects (E4-S1)
 //
 // Since a captured Gaussian mixture acquired a quantile function
-// (synth/mixture_quantile.go), a `--fit-shape` target is an ordinary
+// (internal/synth/mixture_quantile.go), a `--fit-shape` target is an ordinary
 // member of that set: its fitted mixture becomes Q, the predictors
 // shift the latent, and shape and conditioning compose instead of the
 // shape pre-claim deleting the conditioning outright. The cost is that
@@ -73,7 +73,7 @@ import (
 // the distribution the row landed. Direction and monotonicity hold;
 // magnitude in data units does not. The full argument, and why the
 // value-space alternative was rejected rather than merely deferred,
-// lives in synth/mixture_quantile.go's header.
+// lives in internal/synth/mixture_quantile.go's header.
 //
 // # Where this sits in the row
 //
@@ -87,7 +87,7 @@ import (
 //
 // Nothing overwrites a modelled field afterwards, and nothing may:
 // resolveConflicts claims the target for the model before any of the
-// six pair/correlation stages get to bid (synth/conflict.go), so a
+// six pair/correlation stages get to bid (internal/synth/conflict.go), so a
 // categorical-numeric or set-numeric resample naming it is dropped with
 // a warning rather than layered on top. That claim is what retires the
 // parallel numeric resample stages for a modelled field.
@@ -96,7 +96,7 @@ import (
 //
 // A drawer whose field takes part in Spec.ResidualCorrelations reads its
 // own component of ONE correlated standard-normal vector drawn for the
-// whole row (synth/residual_draw.go); every other drawer takes its own
+// whole row (internal/synth/residual_draw.go); every other drawer takes its own
 // fresh rng.NormFloat64(). That is the whole of how a field becomes
 // conditioned AND correlated at once: the predictors move mu, the shared
 // vector correlates the residual, and neither overwrites the other.
@@ -225,7 +225,7 @@ func buildModelDrawers(models []FieldModelSpec, wfs []*writerField) ([]*modelDra
 		// (`--fit-shape`) is INSIDE that set since E4-S1 — its moments
 		// are exact and its quantile is inverted numerically — so a
 		// shape-fitted field reaches the composed draw below with its
-		// fitted mixture as Q. See synth/mixture_quantile.go, including
+		// fitted mixture as Q. See internal/synth/mixture_quantile.go, including
 		// why that makes its coefficients latent-scale.
 		mean, std, marginMin, marginMax, marginHasClamp, err := fieldMoments(fs)
 		if err != nil {

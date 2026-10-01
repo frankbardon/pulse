@@ -8,13 +8,13 @@ JSON runs unmodified after the one-time fixture build.
 
 ```sh
 make build                       # builds bin/pulse
-./examples/fixtures/build.sh     # imports CSVs -> .data/*.pulse
+./internal/examples/fixtures/build.sh     # imports CSVs -> .data/*.pulse
 ```
 
 ## Run them all
 
 ```sh
-./examples/crosstab/run-all.sh
+./internal/examples/crosstab/run-all.sh
 ```
 
 Prints one line per example with the resolved shape and axis sizes.
@@ -22,14 +22,14 @@ Prints one line per example with the resolved shape and axis sizes.
 ## Run one
 
 ```sh
-bin/pulse api process --request examples/crosstab/04_mean_revenue_arpu.json --json
+bin/pulse api process --request internal/examples/crosstab/04_mean_revenue_arpu.json --json
 ```
 
 Add `--predict` to see the streamability verdict, applied defaults, and
 warnings without executing.
 
 ```sh
-bin/pulse api predict --request examples/crosstab/05_median_revenue_recompute.json --json
+bin/pulse api predict --request internal/examples/crosstab/05_median_revenue_recompute.json --json
 ```
 
 ## What's in here

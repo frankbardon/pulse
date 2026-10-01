@@ -71,7 +71,7 @@ func TestClassifyWarning_EveryProducerIsClassified(t *testing.T) {
 			attention: true,
 		},
 		{
-			// synth/profile.go, SpecFromProfile's model-drop channel.
+			// internal/synth/profile.go, SpecFromProfile's model-drop channel.
 			// This is the E2-S5 defect's own line: 35 of these named a
 			// mis-serialised predictor kind and nothing printed them.
 			name:      "SpecFromProfile/not applied",
@@ -88,28 +88,28 @@ func TestClassifyWarning_EveryProducerIsClassified(t *testing.T) {
 			attention: false,
 		},
 		{
-			// synth/model_draw.go, buildModelDrawers.
+			// internal/synth/model_draw.go, buildModelDrawers.
 			name:      "buildModelDrawers/undeclared target",
 			warning:   `model not applied: target field "nps" is not declared in the schema`,
 			wantKind:  "model not applied",
 			attention: true,
 		},
 		{
-			// synth/conflict.go, conflict().
+			// internal/synth/conflict.go, conflict().
 			name:      "resolveConflicts/conflict",
 			warning:   `conditional relationship conflict: field "dma" is already claimed by categorical pair (wave -> dma); dropping categorical pair (study -> dma)`,
 			wantKind:  "conditional relationship conflict",
 			attention: false,
 		},
 		{
-			// synth/conflict.go, the modelled-participant exclusion.
+			// internal/synth/conflict.go, the modelled-participant exclusion.
 			name:      "resolveConflicts/correlation names a modelled field",
 			warning:   `pairwise correlation naming field "nps" is not applied: the field is drawn from its linear model, which owns its value`,
 			wantKind:  "correlation not applied (the model owns the field)",
 			attention: false,
 		},
 		{
-			// synth/copula.go, buildCorrelator.
+			// internal/synth/copula.go, buildCorrelator.
 			name:      "buildCorrelator/assumed pairs",
 			warning:   "correlation matrix completed by assumption: 3 of 10 pair(s) among 5 field(s) were never supplied",
 			wantKind:  "correlation matrix completed by assumption",
@@ -122,28 +122,28 @@ func TestClassifyWarning_EveryProducerIsClassified(t *testing.T) {
 			attention: true,
 		},
 		{
-			// synth/residual_corr.go, residualCaptureWarnings.
+			// internal/synth/residual_corr.go, residualCaptureWarnings.
 			name:      "residualCaptureWarnings/unmeasured",
 			warning:   "residual correlations: 104 of 5460 pair(s) among 105 modelled field(s) could not be measured",
 			wantKind:  "residual correlation pairs unmeasured",
 			attention: true,
 		},
 		{
-			// synth/profile.go, the flag-combination notice.
+			// internal/synth/profile.go, the flag-combination notice.
 			name:      "profile/residual correlations without --fit-models",
 			warning:   "residual correlations requested without --fit-models: residuals come from fitted models",
 			wantKind:  "residual correlations not captured",
 			attention: true,
 		},
 		{
-			// synth/rules_apply.go, ruleNonNullableWarning.
+			// internal/synth/rules_apply.go, ruleNonNullableWarning.
 			name:      "ruleNonNullableWarning",
 			warning:   ruleNonNullableWarning(2, "set_null", "nps"),
 			wantKind:  "rule cannot null a non-nullable field",
 			attention: true,
 		},
 		{
-			// synth/rules_firing.go, the zero-firing report.
+			// internal/synth/rules_firing.go, the zero-firing report.
 			name:      "ruleNeverFiredWarning",
 			warning:   ruleNeverFiredWarning(ruleFiring{index: 3, when: "familiarity == 1"}, 20000),
 			wantKind:  "rule never fired",
