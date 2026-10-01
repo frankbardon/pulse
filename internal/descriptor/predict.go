@@ -380,9 +380,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			reasons = append(reasons, "aggregation "+string(agg.Type)+" is not streamable")
 			continue
 		}
-		// Decimal field aggregation routes through AggregateDecimalField to
-		// preserve precision; the streaming numeric fold loses it.
-		if schema != nil {
+		// Built-in decimal field aggregation routes through
+		// AggregateDecimalField to preserve precision; the streaming
+		// numeric fold loses it. An extension aggregator reads the
+		// decimal itself (DecimalValue), so its declared Streamable flag
+		// (checked above) decides — mirrors processing.canStream.
+		if schema != nil && !extensionsFromOpts(opts).HasAggregator(string(agg.Type)) {
 			if f := schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
 				reasons = append(reasons, "aggregation on decimal field "+agg.Field+" forces buffered path")
 			}

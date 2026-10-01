@@ -42,6 +42,12 @@
 //     precision through NumericValue.
 //   - decimal128 values need DecimalValue for exact precision;
 //     NumericValue returns only a rounded float echo.
+//   - A decimal128 target does not change an aggregator's path. A
+//     registration declaring Streamable: true streams a decimal field
+//     like any other: UpdateRow sees decimal fields via DecimalValue,
+//     exactly as the buffered Aggregate does. (Built-in aggregators
+//     over decimal128 run buffered; that rule is theirs, not the
+//     contract's.)
 //
 // # Optional siblings
 //

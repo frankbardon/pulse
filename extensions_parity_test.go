@@ -293,6 +293,14 @@ type parityRow struct {
 	// processing.CanMergeRequest — an unflagged row that stops merging
 	// would otherwise silently degrade those modes to serial.
 	serialOnly bool
+	// extStreams: the built-in shape never streams but its extension
+	// twin does — a decimal128 target, where built-ins fold through the
+	// buffered AggregateDecimalField and a Streamable extension
+	// aggregator folds per row through UpdateRow + DecimalValue. Cross-
+	// checked against CanStreamRequest (false) and
+	// CanStreamRequestWithExtensions (true); the full chunk sequence is
+	// still compared, and the online arm must have read DecimalValue.
+	extStreams bool
 	// mustContain lists substrings the built-in Data (or Tests) JSON must carry,
 	// so a row cannot pass on two identically degenerate payloads (a
 	// wide-set fold truncated to the low mask word, say).
@@ -413,6 +421,8 @@ func aggregatorParitySuite() paritySuite {
 	}
 	// GROUP_DATE is neither streamable nor mergeable.
 	nonStreaming := func(r parityRow) parityRow { r.bufferedOnly, r.serialOnly = true, true; return r }
+	// Decimal: built-in buffered + serial, extension streams.
+	extStreams := func(r parityRow) parityRow { r.extStreams, r.serialOnly = true, true; return r }
 	contains := func(r parityRow, subs ...string) parityRow { r.mustContain = subs; return r }
 	by := func(gt types.GroupType, field string) []*types.Group {
 		return []*types.Group{{Type: gt, Field: field}}
@@ -459,11 +469,12 @@ func aggregatorParitySuite() paritySuite {
 			row("narrow_set", "qty", by(types.GROUP_SET_PER_ELEMENT, "tags"), nil),
 			contains(row("wide_set_u128", "score", by(types.GROUP_SET_PER_ELEMENT, "w128"), nil), "a070", "a073"),
 			contains(row("wide_set_u256", "qty", by(types.GROUP_SET_PER_ELEMENT, "w256"), nil), "b200", "b202"),
-			// decimal128 targets force the buffered, serial path on both
-			// arms (CanStreamRequest / CanMergeRequest refuse them); the
-			// twin sums exactly via DecimalValue and renders via Rich.
-			contains(nonStreaming(row("decimal128", "amount", nil, nil)), `"total":"`),
-			contains(nonStreaming(row("decimal128_grouped", "amount", by(types.GROUP_CATEGORY, "region"), nil)), `"total":"`),
+			// decimal128 targets keep the built-in on the buffered,
+			// serial path (CanStreamRequest / CanMergeRequest refuse
+			// them); the Streamable twin streams per its declaration,
+			// sums exactly via DecimalValue and renders via Rich.
+			contains(extStreams(row("decimal128", "amount", nil, nil)), `"total":"`),
+			contains(extStreams(row("decimal128_grouped", "amount", by(types.GROUP_CATEGORY, "region"), nil)), `"total":"`),
 			nonStreaming(row("date", "score", by(types.GROUP_DATE, "day"), nil)),
 			nonStreaming(row("datetime", "qty", by(types.GROUP_DATE, "ts"), nil)),
 			row("filtered", "score", by(types.GROUP_CATEGORY, "region"),
@@ -612,11 +623,14 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 							bReq, eReq = mode.decorate(bReq), mode.decorate(eReq)
 						}
 						if mode.decorate == nil {
-							if got := processing.CanStreamRequest(bReq, schema); got == row.bufferedOnly {
-								t.Fatalf("CanStreamRequest(builtin) = %v but row.bufferedOnly = %v", got, row.bufferedOnly)
+							if got := processing.CanStreamRequest(bReq, schema); got != (!row.bufferedOnly && !row.extStreams) {
+								t.Fatalf("CanStreamRequest(builtin) = %v but row.bufferedOnly = %v, row.extStreams = %v",
+									got, row.bufferedOnly, row.extStreams)
 							}
 							// The extension twin must take the same
-							// path as the built-in it reimplements.
+							// path as the built-in it reimplements,
+							// except where extStreams names the
+							// deliberate divergence.
 							reg := pulse.ServiceForTest(p).Extensions()
 							if got := processing.CanStreamRequestWithExtensions(eReq, schema, reg); got == row.bufferedOnly {
 								t.Fatalf("CanStreamRequestWithExtensions(extension) = %v but row.bufferedOnly = %v", got, row.bufferedOnly)
@@ -642,6 +656,15 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 							want = ""
 						} else if row.bufferedOnly && want != "" {
 							want = "buffered"
+						} else if row.extStreams && mode.decorate == nil {
+							// Every undecorated mode streams the
+							// extension twin — the per-shard and
+							// parallel-decode arms included, since
+							// the built-in never merges here either.
+							want = "online"
+							if probe.decimalReads.Load() == 0 {
+								t.Error("extension streamed a decimal128 target without reading DecimalValue")
+							}
 						}
 						switch want {
 						case "online":
@@ -666,7 +689,8 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 // aggregator over a decimal128 field runs — the engine does not refuse
 // it against the built-in decimal table — and reaches
 // extend.Record.DecimalValue on the aggregation's own field, through
-// Process (buffered), ProcessStream and a crosstab cell. The built-in
+// Process (streamed per its Streamable declaration), ProcessStream and
+// a crosstab cell (buffered: an extension cell is not mergeable). The built-in
 // refusal of a non-decimal built-in (AGG_MEDIAN) stays exactly as it
 // was. The cross-mode output parity lives in aggregatorParitySuite's
 // decimal128 row.
@@ -694,9 +718,11 @@ func TestExtensions_DecimalTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("extension over decimal128 (Process): %v", err)
 	}
-	if probe.buffered.Load() == 0 || probe.decimalReads.Load() == 0 {
-		t.Fatalf("extension did not reach DecimalValue: buffered=%d decimalReads=%d",
-			probe.buffered.Load(), probe.decimalReads.Load())
+	// A Streamable extension streams a decimal target per its
+	// declaration: UpdateRow sees the field via DecimalValue.
+	if probe.online.Load() == 0 || probe.buffered.Load() != 0 || probe.decimalReads.Load() == 0 {
+		t.Fatalf("extension did not stream through DecimalValue: online=%d buffered=%d decimalReads=%d",
+			probe.online.Load(), probe.buffered.Load(), probe.decimalReads.Load())
 	}
 	if b, e := mustJSON(t, builtin.Data), mustJSON(t, ext.Data); b != e {
 		t.Errorf("Process Data differs\nbuiltin:   %s\nextension: %s", b, e)
@@ -799,6 +825,19 @@ func TestExtensions_DecimalTargetPredict(t *testing.T) {
 				t.Fatalf("PredictBytes: %v", err)
 			}
 			return env
+		}
+		// Streamability: the Streamable extension streams a decimal
+		// target (its declaration decides, as at runtime); the built-in
+		// keeps its decimal forced-buffered reason verbatim.
+		decimalReason := "aggregation on decimal field amount forces buffered path"
+		if res := predict(aggParitySum).Data.(*descriptor.PredictResult); !res.Streamable || len(res.StreamableReasons) != 0 {
+			t.Errorf("strict=%v: extension over decimal128: Streamable=%v reasons=%v; want true, none",
+				strict, res.Streamable, res.StreamableReasons)
+		}
+		if res := predict(types.AGG_SUM).Data.(*descriptor.PredictResult); res.Streamable ||
+			len(res.StreamableReasons) != 1 || res.StreamableReasons[0] != decimalReason {
+			t.Errorf("strict=%v: built-in AGG_SUM over decimal128: Streamable=%v reasons=%v; want false, [%s]",
+				strict, res.Streamable, res.StreamableReasons, decimalReason)
 		}
 		env := predict(aggParitySum)
 		if has(env.Warnings) || has(env.Errors) {

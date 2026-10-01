@@ -22,7 +22,9 @@ type Aggregator interface {
 // Finalize once. Finalize MUST be safe to call with no prior UpdateRow
 // (the empty-input case). A Streamable registration whose factory does
 // not return an OnlineAggregator is refused at pulse.New with
-// PULSE_EXTENSION_STREAMABLE_MISMATCH.
+// PULSE_EXTENSION_STREAMABLE_MISMATCH. The declaration holds for every
+// field type, decimal128 included: UpdateRow sees decimal fields via
+// Record.DecimalValue.
 type OnlineAggregator interface {
 	// UpdateRow folds one row into the running state.
 	UpdateRow(rec Record, field string) error

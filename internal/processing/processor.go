@@ -375,9 +375,13 @@ func (p *Processor) canStream(req *types.Request) bool {
 		return false
 	}
 	for _, agg := range req.Aggregations {
-		// Decimal-typed fields are aggregated via AggregateDecimalField;
-		// the streaming numeric fold loses precision.
-		if p.schema != nil {
+		// Built-in decimal-typed fields are aggregated via
+		// AggregateDecimalField; the streaming numeric fold loses
+		// precision. An extension aggregator reads a decimal target
+		// itself (extend.Record.DecimalValue) on both paths, so its
+		// declared Streamable flag below decides, exactly as for any
+		// other field type.
+		if p.schema != nil && !p.exts.isExtensionAggregator(agg.Type) {
 			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
 				return false
 			}

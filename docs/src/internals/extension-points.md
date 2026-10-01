@@ -185,9 +185,15 @@ only: a built-in outside it is refused on a `decimal128` field
 from predict). A registered extension aggregator is never refused — its
 factory runs and the extension decides what a decimal field means, reading
 the exact value through `extend.Record.DecimalValue` (`NumericValue` is a
-rounded echo) and typically rendering it via `extend.RichAggregator`. A
-decimal target still forces the buffered, serial path for every
-aggregator, extension or built-in.
+rounded echo) and typically rendering it via `extend.RichAggregator`.
+Path selection follows the declaration, not the field type: a built-in
+over a decimal target always runs buffered (the exact
+`AggregateDecimalField` path), but an extension aggregator declaring
+`Streamable: true` streams it — **`UpdateRow` sees decimal fields via
+`DecimalValue`**, exactly as the buffered `Aggregate` does — and
+predict reports the same (`Streamable` from the snapshot, no decimal
+reason). Extension operators are never mergeable, so parallel shard /
+decode arms still run them serially.
 
 ### Attribute
 
@@ -817,8 +823,10 @@ State these plainly to users rather than discovering them at run time:
 - **Two-pass attributes keep a crosstab buffered.** A `two_pass`
   extension attribute declines the fused crosstab exactly as the
   built-in `ATTR_ZSCORE` does — the fused walk never runs a `PrePass`.
-- **Decimal targets run buffered and serial** for every aggregator;
-  extension aggregators are admitted there and read `DecimalValue`.
+- **Decimal targets run serial.** Extension aggregators are admitted on
+  `decimal128` and read `DecimalValue`; they stream there per their
+  declared `Streamable` flag (built-ins over decimal stay buffered), but
+  never merge, so shard / decode parallelism does not apply.
 
 ## Migration recipe — pre-processing → registration
 
