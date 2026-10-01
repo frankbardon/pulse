@@ -74,7 +74,7 @@ func TestPredict_Crosstab_MarginAggregationsMalformed(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			env := PredictFromBytes(data, marginAggPredictReq(tc.mut), nil)
+			env := predictFromBytes(data, marginAggPredictReq(tc.mut), nil)
 			if !envHasCode(env, tc.want) {
 				t.Errorf("expected %s; got errors=%v", tc.want, env.Errors)
 			}
@@ -90,7 +90,7 @@ func TestPredict_Crosstab_MarginAggregationsUnknownField(t *testing.T) {
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
-	env := PredictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
+	env := predictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
 		s.MarginAggregations = []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "nonexistent", Label: "base"},
 		}
@@ -133,7 +133,7 @@ func TestPredict_Crosstab_MarginAggregationsUnobserved(t *testing.T) {
 	}
 
 	// No margin, no normalize: warned.
-	env := PredictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
+	env := predictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
 		s.Margins = types.CrosstabMargins{}
 		aux(s)
 	}), nil)
@@ -147,14 +147,14 @@ func TestPredict_Crosstab_MarginAggregationsUnobserved(t *testing.T) {
 	// A margin is emitted: not warned. Non-vacuity control for the arm
 	// above — without it the assertion would pass against a validator
 	// that warns unconditionally.
-	env = PredictFromBytes(data, marginAggPredictReq(aux), nil)
+	env = predictFromBytes(data, marginAggPredictReq(aux), nil)
 	if envHasWarningCode(env, errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) {
 		t.Errorf("margins are on; the unobserved warning must not fire. warnings=%v", env.Warnings)
 	}
 
 	// Normalization computes its margin as a DENOMINATOR, which carries
 	// no auxiliary figure: still warned.
-	env = PredictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
+	env = predictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
 		s.Margins = types.CrosstabMargins{}
 		s.Normalize = types.CrosstabNormalizeColumn
 		aux(s)
@@ -169,7 +169,7 @@ func TestPredict_Crosstab_MarginAggregationsUnobserved(t *testing.T) {
 	// The same normalize direction WITH its margin displayed: not
 	// warned. Non-vacuity control for the arm above, which would
 	// otherwise pass against a validator that warns on any normalize.
-	env = PredictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
+	env = predictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
 		s.Margins = types.CrosstabMargins{Columns: true}
 		s.Normalize = types.CrosstabNormalizeColumn
 		aux(s)
@@ -179,7 +179,7 @@ func TestPredict_Crosstab_MarginAggregationsUnobserved(t *testing.T) {
 	}
 
 	// Slot absent: never warned.
-	env = PredictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
+	env = predictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
 		s.Margins = types.CrosstabMargins{}
 	}), nil)
 	if envHasWarningCode(env, errors.PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) {
@@ -194,7 +194,7 @@ func TestPredict_Crosstab_MarginAggregationsWellFormedClean(t *testing.T) {
 	schema := crosstabPredictSchema(t)
 	data := buildTestPulseFile(t, schema)
 
-	env := PredictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
+	env := predictFromBytes(data, marginAggPredictReq(func(s *types.CrosstabSpec) {
 		s.MarginAggregations = []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "value", Label: "weighted_base"},
 			{Type: types.AGG_DISTINCT_COUNT, Field: "region", Label: "unweighted_base"},

@@ -172,10 +172,24 @@ type DictionaryInfo struct {
 }
 
 // Inspect reads a .pulse file header and schema, returning structured
-// field information. It never reads record data. This entry point
-// handles single-file cohorts only; archive-backed cohorts route
-// through InspectFromBytes which can magic-detect the zip container.
+// field information. It never reads record data.
+//
+// Detection is by the first four bytes at the reader's position: zip
+// magic PK\x03\x04 routes to the shard-archive path (the remainder of
+// the reader is buffered, because the zip central directory sits at the
+// END of the file); PULSE magic — or any other prefix, which then
+// surfaces the standard ENCODING_INVALID envelope — takes the
+// single-file path.
+//
+// For archive-backed cohorts, the canonical schema and dictionaries
+// come from the reserved _schema.pulse entry; Shards enumerates every
+// non-reserved entry in central-directory order with per-shard
+// RecordCount populated by peeking each shard's header; the
+// envelope-level RecordCount is the cumulative sum across shards.
 func Inspect(fileData io.ReadSeeker, opts *InspectOptions) *Envelope {
+	if data, ok := sniffArchive(fileData); ok {
+		return inspectArchive(data, opts)
+	}
 	if opts == nil {
 		opts = &InspectOptions{}
 	}
@@ -287,21 +301,36 @@ func headerErrorCode(err error) errors.Code {
 	return errors.ENCODING_INVALID
 }
 
-// InspectFromBytes inspects either a single-file .pulse cohort or a
-// Pulse shard archive. Detection is by the first four bytes: zip
-// magic PK\x03\x04 → archive path; PULSE magic → single-file path.
-// Other prefixes return the standard ENCODING_INVALID envelope from
-// the single-file path.
-//
-// For archive-backed cohorts, the canonical schema and dictionaries
-// come from the reserved _schema.pulse entry; Shards enumerates every
-// non-reserved entry in central-directory order with per-shard
-// RecordCount populated by peeking each shard's header; the
-// envelope-level RecordCount is the cumulative sum across shards.
-func InspectFromBytes(data []byte, opts *InspectOptions) *Envelope {
-	if len(data) >= 4 && data[0] == 'P' && data[1] == 'K' && data[2] == 0x03 && data[3] == 0x04 {
-		return inspectArchive(data, opts)
+// sniffArchive reports whether rs, at its current position, opens with
+// the zip magic PK\x03\x04 that marks a Pulse shard archive. On a hit it
+// returns the reader's remaining bytes; on a miss (or any read fault) it
+// restores the original position so the single-file path reads from
+// exactly where the caller left the reader.
+func sniffArchive(rs io.ReadSeeker) ([]byte, bool) {
+	start, err := rs.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, false
 	}
+	var magic [4]byte
+	n, _ := io.ReadFull(rs, magic[:])
+	if _, err := rs.Seek(start, io.SeekStart); err != nil {
+		return nil, false
+	}
+	if n < 4 || magic != [4]byte{'P', 'K', 0x03, 0x04} {
+		return nil, false
+	}
+	data, err := io.ReadAll(rs)
+	if err != nil {
+		_, _ = rs.Seek(start, io.SeekStart)
+		return nil, false
+	}
+	return data, true
+}
+
+// inspectFromBytes is the in-package byte-slice convenience over
+// Inspect. The public byte-level entry point is the instance method
+// (*pulse.Pulse).InspectBytes.
+func inspectFromBytes(data []byte, opts *InspectOptions) *Envelope {
 	return Inspect(bytes.NewReader(data), opts)
 }
 

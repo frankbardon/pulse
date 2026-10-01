@@ -142,7 +142,7 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 		Overlays: specs,
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result, ok := env.Data.(*PredictResult)
 	if !ok {
 		t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
@@ -226,7 +226,7 @@ func TestPredict_OverlaysApplied_SynthesizesDefaultName(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result, ok := env.Data.(*PredictResult)
 	if !ok {
 		t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
@@ -339,7 +339,7 @@ func TestPredict_OverlayCost_StreamableKindsLow(t *testing.T) {
 			req := indexVsTotalSeriesHostReq()
 			req.Overlays = []types.OverlaySpec{spec}
 
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			result, ok := env.Data.(*PredictResult)
 			if !ok {
 				t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
@@ -464,7 +464,7 @@ func TestPredict_OverlayCost_BufferedKindsHigh(t *testing.T) {
 			}
 			req.Overlays = []types.OverlaySpec{tc.spec}
 
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			result, ok := env.Data.(*PredictResult)
 			if !ok {
 				t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
@@ -625,7 +625,7 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 				Overlays: []types.OverlaySpec{spec},
 			}
 
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			result, ok := env.Data.(*PredictResult)
 			if !ok {
 				t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)
@@ -1081,7 +1081,7 @@ func TestPredict_OverlaysApplied_ShapeAndRefPopulated_RequestHost(t *testing.T) 
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result, ok := env.Data.(*PredictResult)
 	if !ok {
 		t.Fatalf("envelope Data is not *PredictResult: %T", env.Data)

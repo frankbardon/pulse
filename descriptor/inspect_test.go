@@ -17,7 +17,7 @@ func TestInspect_HeaderOnly(t *testing.T) {
 	}
 	data := buildTestPulseFile(t, schema)
 
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	if len(env.Errors) != 0 {
 		t.Errorf("unexpected errors: %v", env.Errors)
 	}
@@ -40,7 +40,7 @@ func TestInspect_CategoricalField(t *testing.T) {
 	}
 	data := buildTestPulseFile(t, schema)
 
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("unexpected errors: %v", env.Errors)
 	}
@@ -80,7 +80,7 @@ func TestInspect_DictionaryTruncation(t *testing.T) {
 	data := buildTestPulseFile(t, schema)
 
 	// Default: truncated to 100.
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	result := env.Data.(*InspectResult)
 	field := result.Fields[0]
 	if field.Dictionary.TotalEntries != 150 {
@@ -94,7 +94,7 @@ func TestInspect_DictionaryTruncation(t *testing.T) {
 	}
 
 	// FullDict: all values.
-	env2 := InspectFromBytes(data, &InspectOptions{FullDict: true})
+	env2 := inspectFromBytes(data, &InspectOptions{FullDict: true})
 	result2 := env2.Data.(*InspectResult)
 	field2 := result2.Fields[0]
 	if field2.Dictionary.Truncated {
@@ -113,7 +113,7 @@ func TestInspect_FieldDescriptions(t *testing.T) {
 	}
 	data := buildTestPulseFile(t, schema)
 
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	result := env.Data.(*InspectResult)
 	field := result.Fields[0]
 
@@ -134,7 +134,7 @@ func TestInspect_SynthesizedDescription(t *testing.T) {
 	}
 	data := buildTestPulseFile(t, schema)
 
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	result := env.Data.(*InspectResult)
 
 	// Numeric field with no description.
@@ -165,7 +165,7 @@ func TestInspectGolden(t *testing.T) {
 	}
 	data := buildTestPulseFile(t, schema)
 
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	out, err := json.MarshalIndent(env, "", "  ")
 	if err != nil {
 		t.Fatalf("json.MarshalIndent: %v", err)

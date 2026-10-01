@@ -89,7 +89,7 @@ func TestValidateOverlay_TCell_TripleBearingNoParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("unexpected PULSE_OVERLAY_PARAM_MISSING on triple-bearing TCell spec (Params optional)")
 	}
@@ -115,7 +115,7 @@ func TestValidateOverlay_ZCell_TripleBearingNoParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("unexpected PULSE_OVERLAY_PARAM_MISSING on triple-bearing ZCell spec (Params optional)")
 	}
@@ -143,7 +143,7 @@ func TestValidateOverlay_TCell_ScalarMissingParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("expected PULSE_OVERLAY_PARAM_MISSING on Params-less TCell spec against scalar mean aggregator")
 	}
@@ -165,7 +165,7 @@ func TestValidateOverlay_ZCell_ScalarMissingParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("expected PULSE_OVERLAY_PARAM_MISSING on Params-less ZCell spec against scalar mean aggregator")
 	}
@@ -188,7 +188,7 @@ func TestValidateOverlay_TCell_ScalarFullParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("unexpected PULSE_OVERLAY_PARAM_MISSING on TCell spec with all per-side Params present")
 	}
@@ -211,7 +211,7 @@ func TestValidateOverlay_ZCell_ScalarFullParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("unexpected PULSE_OVERLAY_PARAM_MISSING on ZCell spec with all per-side Params present")
 	}
@@ -234,7 +234,7 @@ func TestValidateOverlay_TVsRef_TripleBearingNoParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("unexpected PULSE_OVERLAY_PARAM_MISSING on triple-bearing TVsRef spec (Params optional)")
 	}
@@ -258,7 +258,7 @@ func TestValidateOverlay_ZVsRef_TripleBearingNoParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("unexpected PULSE_OVERLAY_PARAM_MISSING on triple-bearing ZVsRef spec (Params optional)")
 	}
@@ -285,7 +285,7 @@ func TestValidateOverlay_TVsRef_ScalarMissingParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("expected PULSE_OVERLAY_PARAM_MISSING on Params-less TVsRef spec against scalar SERIES host")
 	}
@@ -306,7 +306,7 @@ func TestValidateOverlay_ZVsRef_ScalarMissingParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_PARAM_MISSING) {
 		t.Errorf("expected PULSE_OVERLAY_PARAM_MISSING on Params-less ZVsRef spec against scalar SERIES host")
 	}
@@ -328,7 +328,7 @@ func TestValidateOverlay_TCell_RejectsSeriesHost(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		t.Errorf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE on TCell spec against SERIES host")
 	}
@@ -350,7 +350,7 @@ func TestValidateOverlay_TVsRef_RejectsMatrixHost(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		t.Errorf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE on TVsRef spec against MATRIX host")
 	}
@@ -372,7 +372,7 @@ func TestValidateOverlay_TCell_RejectsNonCellScope(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 		t.Errorf("expected PULSE_OVERLAY_SCOPE_UNSUPPORTED on TCell spec with non-CELL scope")
 	}

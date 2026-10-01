@@ -42,7 +42,7 @@ func TestPredict_TargetEncode_WithoutSplit_EmitsLeakageWarning(t *testing.T) {
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasCode(env.Warnings, errors.PULSE_FEAT_TARGET_LEAKAGE_RISK) {
 		t.Errorf("expected PULSE_FEAT_TARGET_LEAKAGE_RISK warning, got: %v", env.Warnings)
 	}
@@ -61,7 +61,7 @@ func TestPredict_TargetEncode_WithoutSplit_StrictUpgradesToError(t *testing.T) {
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, &PredictOptions{Strict: true})
+	env := predictFromBytes(data, req, &PredictOptions{Strict: true})
 	if !hasCode(env.Errors, errors.PULSE_FEAT_TARGET_LEAKAGE_RISK) {
 		t.Errorf("expected PULSE_FEAT_TARGET_LEAKAGE_RISK error in strict mode, got: %v", env.Errors)
 	}
@@ -84,7 +84,7 @@ func TestPredict_TargetEncode_AfterSplit_NoWarning(t *testing.T) {
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasCode(env.Warnings, errors.PULSE_FEAT_TARGET_LEAKAGE_RISK) {
 		t.Errorf("did not expect PULSE_FEAT_TARGET_LEAKAGE_RISK when split precedes target encode, warnings: %v", env.Warnings)
 	}
@@ -107,7 +107,7 @@ func TestPredict_TargetEncode_BeforeSplit_StillWarns(t *testing.T) {
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasCode(env.Warnings, errors.PULSE_FEAT_TARGET_LEAKAGE_RISK) {
 		t.Errorf("expected leakage warning when target encode runs before split, warnings: %v", env.Warnings)
 	}

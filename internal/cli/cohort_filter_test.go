@@ -50,7 +50,7 @@ func writeInclude(t *testing.T, dir, name, body string) string {
 
 // inspectRecordCount opens the cohort at the absolute path through a
 // dedicated pulse.Pulse instance (rooted at the file's parent dir) and
-// returns Cohort.RecordCount. We don't reuse descriptor.InspectFromBytes
+// returns Cohort.RecordCount. We don't reuse a byte-level inspect
 // because the single-file inspect path doesn't populate RecordCount —
 // the value is derived from total bytes / record size, which Cohort
 // already computes.

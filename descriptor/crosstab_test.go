@@ -39,7 +39,7 @@ func TestPredict_Crosstab_MatrixForcesBuffered(t *testing.T) {
 			Shape:   types.CrosstabShapeMatrix,
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Fatal("crosstab shape=matrix should be non-streamable")
@@ -63,7 +63,7 @@ func TestPredict_Crosstab_LongNoMarginsStreamable(t *testing.T) {
 			Shape:   types.CrosstabShapeLong,
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if !result.Valid {
 		t.Fatalf("expected valid result; errors=%v", env.Errors)
@@ -110,7 +110,7 @@ func TestPredict_Crosstab_MapValuedNormalizeRejected(t *testing.T) {
 				Normalize: mode,
 			},
 		}
-		env := PredictFromBytes(data, req, nil)
+		env := predictFromBytes(data, req, nil)
 		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED) {
 			codes := make([]string, 0, len(env.Errors))
 			for _, e := range env.Errors {
@@ -134,7 +134,7 @@ func TestPredict_Crosstab_MapValuedNormalizeNoneAccepted(t *testing.T) {
 			Cell:    &types.Aggregation{Type: types.AGG_SET_FREQUENCY, Field: "tags"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED) {
 		t.Error("normalize=none must not raise PULSE_CROSSTAB_NORMALIZE_MAP_VALUED")
 	}
@@ -176,7 +176,7 @@ func TestPredict_Crosstab_NormalizeForcesBuffered(t *testing.T) {
 			Normalize: types.CrosstabNormalizeRow,
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Error("normalize=row should force buffered")
@@ -194,7 +194,7 @@ func TestPredict_Crosstab_EmptyAxisRejected(t *testing.T) {
 			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !envHasCode(env, errors.PULSE_CROSSTAB_EMPTY_ROWS) {
 		t.Errorf("expected PULSE_CROSSTAB_EMPTY_ROWS; got %v", env.Errors)
 	}
@@ -217,7 +217,7 @@ func TestPredict_Crosstab_NestedAxisBuffered(t *testing.T) {
 			Shape:   types.CrosstabShapeLong,
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Error("nested axes (2 row groupers) should force buffered")
@@ -271,7 +271,7 @@ func TestPredict_Crosstab_NormalizeLevelGate(t *testing.T) {
 	// Out of range: 2-grouper column axis, level=2.
 	{
 		bad := 2
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
 			[]*types.Group{
 				{Type: types.GROUP_CATEGORY, Field: "region"},
 				{Type: types.GROUP_CATEGORY, Field: "segment"},
@@ -284,7 +284,7 @@ func TestPredict_Crosstab_NormalizeLevelGate(t *testing.T) {
 	// Without nested axis: normalize=none + level set.
 	{
 		level := 0
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeNone,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeNone,
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &level), nil)
 		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS) {
 			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS; got errors=%v", env.Errors)
@@ -294,7 +294,7 @@ func TestPredict_Crosstab_NormalizeLevelGate(t *testing.T) {
 	// Incompatible: normalize=total + level set.
 	{
 		level := 0
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeTotal,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeTotal,
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &level), nil)
 		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE) {
 			t.Errorf("expected PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE; got errors=%v", env.Errors)
@@ -304,7 +304,7 @@ func TestPredict_Crosstab_NormalizeLevelGate(t *testing.T) {
 	// Valid: normalize=column on 2-grouper axis, level=0 (top). No errors.
 	{
 		level := 0
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
 			[]*types.Group{
 				{Type: types.GROUP_CATEGORY, Field: "region"},
 				{Type: types.GROUP_CATEGORY, Field: "segment"},
@@ -338,7 +338,7 @@ func TestPredict_Crosstab_NormalizeWithinGate(t *testing.T) {
 	// Out of range: normalize=row + 1-grouper column axis + within=1.
 	{
 		bad := 1
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeRow,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeRow,
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &bad), nil)
 		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE) {
@@ -349,7 +349,7 @@ func TestPredict_Crosstab_NormalizeWithinGate(t *testing.T) {
 	// Out of range, symmetric: normalize=column + 1-grouper row axis + within=1.
 	{
 		bad := 1
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeColumn,
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &bad), nil)
 		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE) {
@@ -360,7 +360,7 @@ func TestPredict_Crosstab_NormalizeWithinGate(t *testing.T) {
 	// Without axis: normalize=none + within set.
 	{
 		within := 0
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeNone,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeNone,
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &within), nil)
 		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS) {
@@ -371,7 +371,7 @@ func TestPredict_Crosstab_NormalizeWithinGate(t *testing.T) {
 	// Incompatible: normalize=total + within set.
 	{
 		within := 0
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeTotal,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeTotal,
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}}, &within), nil)
 		if !hasErrorCode(env, errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE) {
@@ -383,7 +383,7 @@ func TestPredict_Crosstab_NormalizeWithinGate(t *testing.T) {
 	// axis, within=0 (top of columns). No errors.
 	{
 		within := 0
-		env := PredictFromBytes(data, mkReq(types.CrosstabNormalizeRow,
+		env := predictFromBytes(data, mkReq(types.CrosstabNormalizeRow,
 			[]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 			[]*types.Group{
 				{Type: types.GROUP_CATEGORY, Field: "segment"},

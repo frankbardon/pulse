@@ -817,7 +817,7 @@ func TestShardGroups_InspectReportsArchiveGroups(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	env := descriptor.InspectFromBytes(gReadFile(t, fsys, "arch.pulse"), nil)
+	env := descriptor.Inspect(bytes.NewReader(gReadFile(t, fsys, "arch.pulse")), nil)
 	res := env.Data.(*descriptor.InspectResult)
 	if len(env.Errors) != 0 || res.RecordCount != int64(aRows+bRows) || len(res.Groups) != 2 || res.Layout == nil {
 		t.Fatalf("inspect: errors %v, records %d, groups %d, layout %v", env.Errors, res.RecordCount, len(res.Groups), res.Layout)
@@ -826,7 +826,7 @@ func TestShardGroups_InspectReportsArchiveGroups(t *testing.T) {
 	if g.EntryCount != 45 || g.Ratio != float64(aRows+bRows)/45 || res.Layout.PulseFormatVersion != 2 || res.Fields[2].Group == nil {
 		t.Fatalf("group 0 = %+v, layout %+v", g, res.Layout)
 	}
-	flatRes := descriptor.InspectFromBytes(gReadFile(t, fsys, "flat.pulse"), nil).Data.(*descriptor.InspectResult)
+	flatRes := descriptor.Inspect(bytes.NewReader(gReadFile(t, fsys, "flat.pulse")), nil).Data.(*descriptor.InspectResult)
 	if flatRes.Groups != nil || flatRes.Layout != nil {
 		t.Fatal("an ungrouped archive's inspect grew group keys")
 	}

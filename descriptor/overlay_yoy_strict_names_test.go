@@ -26,7 +26,7 @@ func TestValidateOverlay_YoYIncompatibleFrequency(t *testing.T) {
 			Params: json.RawMessage(`{"frequency": "yearly"}`),
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY) {
 		t.Fatalf("expected PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY for unsupported frequency")
 	}
@@ -49,7 +49,7 @@ func TestValidateOverlay_YoYNonDateGrouper(t *testing.T) {
 			Params: json.RawMessage(`{"frequency": "monthly"}`),
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for non-GROUP_DATE host")
 	}

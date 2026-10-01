@@ -44,7 +44,7 @@ func TestValidateOverlay_YoYHappyPathAccepted(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
 		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
@@ -82,7 +82,7 @@ func TestValidateOverlay_YoYFrequencyRequired(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING) {
 		t.Fatalf("expected PULSE_OVERLAY_YOY_FREQUENCY_MISSING for missing frequency Param")
 	}
@@ -111,7 +111,7 @@ func TestValidateOverlay_YoYFrequencyFromGroupParams(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
 		errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
@@ -144,7 +144,7 @@ func TestValidateOverlay_YoYIncompatibleFrequencyRejected(t *testing.T) {
 				},
 			}
 
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY) {
 				t.Fatalf("frequency=%s: expected PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY", freq)
 			}
@@ -174,7 +174,7 @@ func TestValidateOverlay_YoYNonDateGrouperRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for non-GROUP_DATE host")
 	}
@@ -205,7 +205,7 @@ func TestValidateOverlay_YoYScopeUnsupported(t *testing.T) {
 					Params: json.RawMessage(`{"frequency": "monthly"}`),
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				t.Fatalf("scope=%s: expected PULSE_OVERLAY_SCOPE_UNSUPPORTED", scope)
 			}
@@ -255,7 +255,7 @@ func TestValidateOverlay_YoYRefRejected(t *testing.T) {
 					Params: json.RawMessage(`{"frequency": "monthly"}`),
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				t.Fatalf("ref=%s: expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", tc.name)
 			}
@@ -278,7 +278,7 @@ func TestValidateOverlay_YoYMissingRefRejected(t *testing.T) {
 			Params: json.RawMessage(`{"frequency": "monthly"}`),
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for empty Ref")
 	}
@@ -322,7 +322,7 @@ func TestValidateOverlay_YoYNoSeriesHostRejected(t *testing.T) {
 					Params: json.RawMessage(`{"frequency": "monthly"}`),
 				},
 			}
-			env := PredictFromBytes(data, tc.req, nil)
+			env := predictFromBytes(data, tc.req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				t.Fatalf("%s: expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", tc.name)
 			}
@@ -361,7 +361,7 @@ func TestValidateOverlay_YoYLevelWithinRejected(t *testing.T) {
 					Within: tc.within,
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 				t.Fatalf("%s: expected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE", tc.name)
 			}

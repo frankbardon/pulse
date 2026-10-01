@@ -48,7 +48,7 @@ func TestValidateOverlay_BaselineIndexNegative(t *testing.T) {
 		req := baselineIndexHostReq()
 		req.Overlays = []types.OverlaySpec{baselineSpec(position)}
 
-		env := PredictFromBytes(data, req, nil)
+		env := predictFromBytes(data, req, nil)
 		if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_UNKNOWN) {
 			codes := make([]string, 0, len(env.Errors))
 			for _, e := range env.Errors {
@@ -72,7 +72,7 @@ func TestValidateOverlay_BaselineIndexExceedsKnownCardinality(t *testing.T) {
 		req := baselineIndexHostReq()
 		req.Overlays = []types.OverlaySpec{baselineSpec(position)}
 
-		env := PredictFromBytes(data, req, nil)
+		env := predictFromBytes(data, req, nil)
 		if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_UNKNOWN) {
 			codes := make([]string, 0, len(env.Errors))
 			for _, e := range env.Errors {
@@ -97,7 +97,7 @@ func TestValidateOverlay_BaselineIndexInRangeAccepted(t *testing.T) {
 		req := baselineIndexHostReq()
 		req.Overlays = []types.OverlaySpec{baselineSpec(position)}
 
-		env := PredictFromBytes(data, req, nil)
+		env := predictFromBytes(data, req, nil)
 		if hasErrorCode(env, errors.PULSE_OVERLAY_REF_UNKNOWN) {
 			t.Fatalf("position=%d: did NOT expect PULSE_OVERLAY_REF_UNKNOWN (in-range)", position)
 		}
@@ -131,7 +131,7 @@ func TestValidateOverlay_BaselineIndexDefersOnNonCategoricalGrouper(t *testing.T
 		},
 		Overlays: []types.OverlaySpec{baselineSpec(9999)},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_REF_UNKNOWN) {
 		t.Fatalf("GROUP_DATE grouper: did NOT expect PULSE_OVERLAY_REF_UNKNOWN " +
 			"(predict cannot bound host length; defer to runtime)")
@@ -151,7 +151,7 @@ func TestValidateOverlay_BaselineIndexDefersWhenNoSeriesHost(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "value"}},
 		Overlays:     []types.OverlaySpec{baselineSpec(0)},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_REF_UNKNOWN) {
 		t.Fatalf("no SERIES host: did NOT expect PULSE_OVERLAY_REF_UNKNOWN")
 	}
@@ -165,7 +165,7 @@ func TestValidateOverlay_BaselineIndexSkipsCrosstabHost(t *testing.T) {
 		Crosstab: crosstabHostSpec(),
 		Overlays: []types.OverlaySpec{baselineSpec(-1)},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_REF_UNKNOWN) {
 		t.Fatalf("crosstab host: did NOT expect PULSE_OVERLAY_REF_UNKNOWN " +
 			"(BaselineIndex gate skips on MATRIX host)")
@@ -186,7 +186,7 @@ func TestValidateOverlay_BaselineIndexAbsentRefSkips(t *testing.T) {
 			Scope: types.OverlayScopeGroup,
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if hasErrorCode(env, errors.PULSE_OVERLAY_REF_UNKNOWN) {
 		t.Fatalf("no BaselineIndex: did NOT expect PULSE_OVERLAY_REF_UNKNOWN")
 	}

@@ -29,7 +29,7 @@ func TestPredict_REG_OLS_AcceptsBitPackedTargets(t *testing.T) {
 				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x"}},
 				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: target, Predictors: []string{"x"}}},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			for _, e := range env.Errors {
 				if e.Code == "SERVICE_VALIDATION" {
 					t.Fatalf("unexpected SERVICE_VALIDATION error on bit-packed target %q: %s", target, e.Message)
@@ -59,7 +59,7 @@ func TestPredict_REG_OLS_AcceptsBitPackedPredictors(t *testing.T) {
 			Predictors: []string{"fam", "subscribed"},
 		}},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	for _, e := range env.Errors {
 		if e.Code == "SERVICE_VALIDATION" {
 			t.Fatalf("unexpected SERVICE_VALIDATION error on bit-packed predictors: %s", e.Message)
@@ -88,7 +88,7 @@ func TestPredict_REG_GLM_AcceptsBitPackedTarget(t *testing.T) {
 			Family:     "binomial",
 		}},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	for _, e := range env.Errors {
 		if e.Code == "SERVICE_VALIDATION" {
 			t.Fatalf("unexpected SERVICE_VALIDATION on REG_GLM binomial + packed_bool target: %s", e.Message)
@@ -115,7 +115,7 @@ func TestPredict_REG_BAYES_LINEAR_AcceptsBitPackedTarget(t *testing.T) {
 			Predictors: []string{"x"},
 		}},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	for _, e := range env.Errors {
 		if e.Code == "SERVICE_VALIDATION" {
 			t.Fatalf("unexpected SERVICE_VALIDATION on REG_BAYES_LINEAR + u4 target: %s", e.Message)

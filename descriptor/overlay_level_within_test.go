@@ -44,7 +44,7 @@ func TestValidateOverlay_LevelOutOfRange(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 		t.Fatalf("expected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on Level=2 over 2-deep row axis; got envelope errors: %+v", env.Errors)
@@ -73,7 +73,7 @@ func TestValidateOverlay_WithinOutOfRange(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 		t.Fatalf("expected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on Within=1 over 1-deep column axis; got envelope errors: %+v", env.Errors)
@@ -101,7 +101,7 @@ func TestValidateOverlay_LevelOnChisqRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 		t.Fatalf("expected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on CHISQ_MATRIX with Level=1; got envelope errors: %+v", env.Errors)
@@ -130,7 +130,7 @@ func TestValidateOverlay_LevelInRange_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	if hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 		t.Fatalf("unexpected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on in-range Level; envelope errors: %+v", env.Errors)

@@ -59,7 +59,7 @@ func TestValidateOverlay_KindUnknown(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_KIND_UNKNOWN) {
 		codes := make([]string, 0, len(env.Errors))
@@ -135,7 +135,7 @@ func TestValidateOverlay_RefIncompatibleShape(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			env := PredictFromBytes(data, tc.req, nil)
+			env := predictFromBytes(data, tc.req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -171,7 +171,7 @@ func TestValidateOverlay_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -207,7 +207,7 @@ func TestValidateOverlay_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -238,7 +238,7 @@ func TestValidateOverlay_ShareOfRow_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -279,7 +279,7 @@ func TestValidateOverlay_ShareOfRow_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -310,7 +310,7 @@ func TestValidateOverlay_ShareOfCol_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -351,7 +351,7 @@ func TestValidateOverlay_ShareOfCol_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -382,7 +382,7 @@ func TestValidateOverlay_ShareOfTotal_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -423,7 +423,7 @@ func TestValidateOverlay_ShareOfTotal_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -467,7 +467,7 @@ func TestValidateOverlay_ZScoreVsMargin_HappyPath(t *testing.T) {
 				},
 			}
 
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 
 			for _, code := range []errors.Code{
 				errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -511,7 +511,7 @@ func TestValidateOverlay_ZScoreVsMargin_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -554,7 +554,7 @@ func TestValidateOverlay_DeltaVsMargin_HappyPath(t *testing.T) {
 				},
 			}
 
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 
 			for _, code := range []errors.Code{
 				errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -598,7 +598,7 @@ func TestValidateOverlay_DeltaVsMargin_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -632,7 +632,7 @@ func TestValidateOverlay_ChiSqMatrix_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -672,7 +672,7 @@ func TestValidateOverlay_ChiSqMatrix_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -707,7 +707,7 @@ func TestValidateOverlay_ChiSqMatrix_RefRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -740,7 +740,7 @@ func TestValidateOverlay_ChiSqMatrix_NoCrosstabHostRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -772,7 +772,7 @@ func TestValidateOverlay_ChiSqRow_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -811,7 +811,7 @@ func TestValidateOverlay_ChiSqRow_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -846,7 +846,7 @@ func TestValidateOverlay_ChiSqRow_RefRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -879,7 +879,7 @@ func TestValidateOverlay_ChiSqRow_NoCrosstabHostRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -911,7 +911,7 @@ func TestValidateOverlay_ChiSqCol_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -950,7 +950,7 @@ func TestValidateOverlay_ChiSqCol_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -985,7 +985,7 @@ func TestValidateOverlay_ChiSqCol_RefRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -1012,7 +1012,7 @@ func TestValidateOverlay_FisherExactCell_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -1052,7 +1052,7 @@ func TestValidateOverlay_FisherExactCell_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -1087,7 +1087,7 @@ func TestValidateOverlay_FisherExactCell_RefRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -1120,7 +1120,7 @@ func TestValidateOverlay_FisherExactCell_NoCrosstabHostRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -1191,7 +1191,7 @@ func TestValidateOverlay_ExpectedLowWarn(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			env := PredictFromBytes(data, tc.req, nil)
+			env := predictFromBytes(data, tc.req, nil)
 
 			// Predict must NOT surface PULSE_OVERLAY_EXPECTED_LOW on the
 			// envelope's Errors slice — the warning is runtime-only.
@@ -1270,7 +1270,7 @@ func TestValidateOverlay_IndexVsTotal_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -1309,7 +1309,7 @@ func TestValidateOverlay_IndexVsTotal_ScopeUnsupported(t *testing.T) {
 					Ref:   types.OverlayRef{},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -1343,7 +1343,7 @@ func TestValidateOverlay_IndexVsTotal_RefRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -1397,7 +1397,7 @@ func TestValidateOverlay_IndexVsTotal_NoSeriesHostRejected(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			env := PredictFromBytes(data, tc.req, nil)
+			env := predictFromBytes(data, tc.req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -1441,7 +1441,7 @@ func TestValidateOverlay_IndexVsTotal_LevelWithinRejected(t *testing.T) {
 					Within: tc.within,
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -1468,7 +1468,7 @@ func TestValidateOverlay_ShareOfTotal_Series_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -1508,7 +1508,7 @@ func TestValidateOverlay_ShareOfTotal_Series_ScopeUnsupported(t *testing.T) {
 					Ref:   types.OverlayRef{},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -1541,7 +1541,7 @@ func TestValidateOverlay_ShareOfTotal_Series_RefRejected(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		codes := make([]string, 0, len(env.Errors))
 		for _, e := range env.Errors {
@@ -1583,7 +1583,7 @@ func TestValidateOverlay_ShareOfTotal_Series_LevelWithinRejected(t *testing.T) {
 					Within: tc.within,
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 				codes := make([]string, 0, len(env.Errors))
 				for _, e := range env.Errors {
@@ -1609,7 +1609,7 @@ func TestValidateOverlay_EmptySliceNoop(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,

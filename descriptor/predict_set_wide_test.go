@@ -66,8 +66,8 @@ func TestPredict_Streamable_WideSetsMatchNarrow(t *testing.T) {
 
 	for _, rc := range reqs {
 		t.Run(rc.name, func(t *testing.T) {
-			narrowEnv := PredictFromBytes(buildTestPulseFile(t, narrowSchema), rc.make(), nil)
-			wideEnv := PredictFromBytes(buildTestPulseFile(t, wideSchema), rc.make(), nil)
+			narrowEnv := predictFromBytes(buildTestPulseFile(t, narrowSchema), rc.make(), nil)
+			wideEnv := predictFromBytes(buildTestPulseFile(t, wideSchema), rc.make(), nil)
 			narrowRes := narrowEnv.Data.(*PredictResult)
 			wideRes := wideEnv.Data.(*PredictResult)
 
@@ -106,7 +106,7 @@ func TestPredict_WideSetRequestValidates(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SET_FREQUENCY, Field: "tags", Label: "tag_freq"}},
 		Groups:       []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"}},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) != 0 {
 		t.Errorf("predict errors on a wide-set request: %v", env.Errors)
 	}

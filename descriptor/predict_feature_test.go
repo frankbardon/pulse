@@ -25,7 +25,7 @@ func TestPredict_FeatureLogValid(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) > 0 {
 		t.Errorf("unexpected errors: %v", env.Errors)
 	}
@@ -48,7 +48,7 @@ func TestPredict_FeatureUnknownField(t *testing.T) {
 			{Type: types.FEAT_LOG, Field: "missing"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Error("expected error for missing input field")
 	}
@@ -66,7 +66,7 @@ func TestPredict_FeatureUnknownType(t *testing.T) {
 			{Type: "FEAT_NOT_REAL", Field: "x"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Error("expected error for unknown feature type")
 	}
@@ -84,7 +84,7 @@ func TestPredict_FeatureOneHotRequiresCategorical(t *testing.T) {
 			{Type: types.FEAT_ONE_HOT, Field: "score"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Error("expected error for ONE_HOT on non-categorical field")
 	}
@@ -116,7 +116,7 @@ func TestPredict_FeatureOneHotProjectsCategoryColumns(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) > 0 {
 		t.Errorf("unexpected errors: %v", env.Errors)
 	}
@@ -148,7 +148,7 @@ func TestPredict_FeaturePolyValid(t *testing.T) {
 			{Type: types.AGG_AVERAGE, Field: "x_3", Label: "avg_x3"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) > 0 {
 		t.Errorf("unexpected errors: %v", env.Errors)
 	}
@@ -178,7 +178,7 @@ func TestPredict_FeaturePolyDegreeOutOfRange(t *testing.T) {
 					{Type: types.FEAT_POLY, Field: "x", Params: json.RawMessage(c.params)},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if len(env.Errors) == 0 {
 				t.Errorf("expected error for %s; got none", c.name)
 			}
@@ -203,7 +203,7 @@ func TestPredict_FeaturePolyRejectsCategoricalField(t *testing.T) {
 			{Type: types.FEAT_POLY, Field: "region", Params: json.RawMessage(`{"degree":2}`)},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Error("expected error: FEAT_POLY rejects non-numeric field")
 	}
@@ -221,7 +221,7 @@ func TestPredict_FeatureBucketizeMissingParams(t *testing.T) {
 			{Type: types.FEAT_BUCKETIZE, Field: "x"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Error("expected error for BUCKETIZE without params")
 	}
@@ -242,7 +242,7 @@ func TestPredict_FeatureSplitBadRatios(t *testing.T) {
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Error("expected error for ratios that do not sum to 1.0")
 	}
@@ -275,7 +275,7 @@ func TestPredict_FeatureTargetEncodeRejectsCategoricalTarget(t *testing.T) {
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Error("expected error for categorical target")
 	}

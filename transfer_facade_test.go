@@ -156,9 +156,9 @@ func TestTransfer_CompressedCohortRefusedEverywhere(t *testing.T) {
 	if err != nil || len(env.Errors) == 0 || env.Errors[0].Code != string(perrors.PULSE_COHORT_COMPRESSED) {
 		t.Fatalf("InspectEnvelope: err %v errors %+v, want PULSE_COHORT_COMPRESSED", err, env)
 	}
-	penv := descriptor.PredictFromBytes(raw, &Request{Cohort: &types.Cohort{Filename: "cohort.pulse"}}, nil)
-	if len(penv.Errors) == 0 || penv.Errors[0].Code != string(perrors.PULSE_COHORT_COMPRESSED) {
-		t.Fatalf("PredictFromBytes errors = %+v, want PULSE_COHORT_COMPRESSED", penv.Errors)
+	penv, err := p.PredictBytes(ctx, raw, &Request{Cohort: &types.Cohort{Filename: "cohort.pulse"}})
+	if err != nil || len(penv.Errors) == 0 || penv.Errors[0].Code != string(perrors.PULSE_COHORT_COMPRESSED) {
+		t.Fatalf("PredictBytes: err %v errors %+v, want PULSE_COHORT_COMPRESSED", err, penv)
 	}
 }
 

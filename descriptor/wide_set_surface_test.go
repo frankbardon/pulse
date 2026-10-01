@@ -253,7 +253,7 @@ func TestInspect_WideSetDictionaryTruncates(t *testing.T) {
 	}}
 	data := buildTestPulseFile(t, schema)
 
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("inspect errors: %v", env.Errors)
 	}
@@ -281,7 +281,7 @@ func TestInspect_WideSetDictionaryTruncates(t *testing.T) {
 		t.Errorf("rendered %d values, want DefaultDictionaryLimit (%d)", len(f.Dictionary.Values), DefaultDictionaryLimit)
 	}
 
-	full := InspectFromBytes(data, &InspectOptions{FullDict: true})
+	full := inspectFromBytes(data, &InspectOptions{FullDict: true})
 	fullRes := full.Data.(*InspectResult)
 	fd := fullRes.Fields[0].Dictionary
 	if fd == nil || fd.Truncated || len(fd.Values) != 206 {

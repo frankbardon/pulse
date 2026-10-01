@@ -27,7 +27,7 @@ func findSuggestionByPath(t *testing.T, ss []Suggestion, dotted string) *Suggest
 func runPredictForSuggestions(t *testing.T, schema *encoding.Schema, req *types.Request) []Suggestion {
 	t.Helper()
 	data := buildTestPulseFile(t, schema)
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result, ok := env.Data.(*PredictResult)
 	if !ok {
 		t.Fatal("envelope data is not *PredictResult")
@@ -313,7 +313,7 @@ func TestPredict_Suggestions_StreamabilityValidRequest(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}},
 	}
 	data := buildTestPulseFile(t, schema)
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("expected no errors; got %v", env.Errors)
 	}
@@ -359,7 +359,7 @@ func TestPredict_Suggestions_EmptySliceJSON(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "score"}},
 	}
 	data := buildTestPulseFile(t, schema)
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	buf, err := json.Marshal(env)
 	if err != nil {

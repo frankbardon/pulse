@@ -247,7 +247,7 @@ func TestPredict_DefaultsAppliedReported(t *testing.T) {
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Field: "revenue"}},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result, ok := env.Data.(*PredictResult)
 	if !ok {
 		t.Fatal("Data is not *PredictResult")
@@ -276,7 +276,7 @@ func TestPredict_DefaultsAppliedReported(t *testing.T) {
 			{Type: types.AGG_AVERAGE, Field: "revenue"},
 		},
 	}
-	env2 := PredictFromBytes(data, req2, nil)
+	env2 := predictFromBytes(data, req2, nil)
 	result2, _ := env2.Data.(*PredictResult)
 	if result2.DefaultsApplied == nil {
 		t.Error("DefaultsApplied is nil; want empty slice for JSON [] serialisation")
@@ -332,7 +332,7 @@ func TestPredict_EchoRequest_Normalized(t *testing.T) {
 	}
 
 	// Flag off: envelope.Request must be nil.
-	envOff := PredictFromBytes(data, makeReq(), &PredictOptions{})
+	envOff := predictFromBytes(data, makeReq(), &PredictOptions{})
 	if envOff.Request != nil {
 		t.Fatalf("EchoRequest=false produced envelope.Request: %#v", envOff.Request)
 	}
@@ -340,7 +340,7 @@ func TestPredict_EchoRequest_Normalized(t *testing.T) {
 	// Flag on: envelope.Request is the normalized clone; its first
 	// aggregation has the inferred Type populated.
 	rawReq := makeReq()
-	envOn := PredictFromBytes(data, rawReq, &PredictOptions{EchoRequest: true})
+	envOn := predictFromBytes(data, rawReq, &PredictOptions{EchoRequest: true})
 	if envOn.Request == nil {
 		t.Fatal("EchoRequest=true did not populate envelope.Request")
 	}

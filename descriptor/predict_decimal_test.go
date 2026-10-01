@@ -21,7 +21,7 @@ func TestPredict_DecimalAggValidity(t *testing.T) {
 			{Type: types.AGG_MEDIAN, Field: "amount"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	hit := false
 	for _, w := range env.Warnings {
 		if w.Code == string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL) {
@@ -41,7 +41,7 @@ func TestInspect_SurfacesDecimalMetadata(t *testing.T) {
 		},
 	}
 	data := buildTestPulseFile(t, schema)
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	r, ok := env.Data.(*InspectResult)
 	if !ok {
 		t.Fatalf("Data is not *InspectResult")

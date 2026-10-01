@@ -40,7 +40,7 @@ func TestValidateOverlay_DeltaVsSibling_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
 		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
@@ -77,7 +77,7 @@ func TestValidateOverlay_DeltaVsSibling_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				t.Fatalf("scope=%s: expected PULSE_OVERLAY_SCOPE_UNSUPPORTED", scope)
 			}
@@ -114,7 +114,7 @@ func TestValidateOverlay_DeltaVsSibling_RefRejected(t *testing.T) {
 					Ref:   tc.ref,
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				t.Fatalf("Ref=%s: expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", tc.name)
 			}
@@ -139,7 +139,7 @@ func TestValidateOverlay_DeltaVsSibling_MissingSiblingFieldRejected(t *testing.T
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE on empty Sibling.Field")
 	}
@@ -161,7 +161,7 @@ func TestValidateOverlay_DeltaVsSibling_MissingSiblingValueRejected(t *testing.T
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE on empty Sibling.Value")
 	}
@@ -210,7 +210,7 @@ func TestValidateOverlay_DeltaVsSibling_NoSeriesHostRejected(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			env := PredictFromBytes(data, tc.req, nil)
+			env := predictFromBytes(data, tc.req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE on missing SERIES host")
 			}
@@ -247,7 +247,7 @@ func TestValidateOverlay_DeltaVsSibling_LevelWithinRejected(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 				t.Fatalf("level=%d within=%d: expected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE", tc.level, tc.within)
 			}
@@ -275,7 +275,7 @@ func TestValidateOverlay_IndexVsSibling_HappyPath(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_KIND_UNKNOWN,
 		errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
@@ -312,7 +312,7 @@ func TestValidateOverlay_IndexVsSibling_ScopeUnsupported(t *testing.T) {
 					},
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED) {
 				t.Fatalf("scope=%s: expected PULSE_OVERLAY_SCOPE_UNSUPPORTED", scope)
 			}
@@ -357,7 +357,7 @@ func TestValidateOverlay_IndexVsSibling_MissingSiblingRejected(t *testing.T) {
 					Ref:   tc.ref,
 				},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				t.Fatalf("%s: expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", tc.name)
 			}
@@ -383,7 +383,7 @@ func TestValidateOverlay_IndexVsSibling_LevelWithinRejected(t *testing.T) {
 			},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE) {
 		t.Fatalf("expected PULSE_OVERLAY_LEVEL_OUT_OF_RANGE on non-zero Level")
 	}

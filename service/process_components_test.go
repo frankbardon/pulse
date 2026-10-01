@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"math"
@@ -371,14 +372,14 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 			// Build a header-only .pulse bytes buffer the descriptor
 			// path can validate against. The in-memory fs already
 			// carries the schema; just re-marshal a header-only blob
-			// from the same schema so PredictFromBytes can parse it.
+			// from the same schema so descriptor.Predict can parse it.
 			hdr := buildHeaderOnlyPulseBytes(t, fix.schema)
 			predictReq := &types.Request{
 				Aggregations: []*types.Aggregation{
 					{Type: op, Field: fix.field, Label: "primary", Params: fix.params},
 				},
 			}
-			env := descriptor.PredictFromBytes(hdr, predictReq, nil)
+			env := descriptor.Predict(bytes.NewReader(hdr), predictReq, nil)
 			result, ok := env.Data.(*descriptor.PredictResult)
 			if !ok {
 				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",
@@ -422,7 +423,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: op, Field: gfix.field, Interval: gfix.interval, Params: gfix.params},
 				},
 			}
-			env := descriptor.PredictFromBytes(hdr, predictReq, nil)
+			env := descriptor.Predict(bytes.NewReader(hdr), predictReq, nil)
 			result, ok := env.Data.(*descriptor.PredictResult)
 			if !ok {
 				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",
@@ -507,7 +508,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: op, Field: ffix.field, Values: ffix.values, Expression: ffix.expression, Params: ffix.params},
 				},
 			}
-			env := descriptor.PredictFromBytes(hdr, predictReq, nil)
+			env := descriptor.Predict(bytes.NewReader(hdr), predictReq, nil)
 			result, ok := env.Data.(*descriptor.PredictResult)
 			if !ok {
 				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",
@@ -1035,7 +1036,7 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 }
 
 // buildHeaderOnlyPulseBytes returns a complete header+schema (no
-// records) byte buffer suitable for descriptor.PredictFromBytes.
+// records) byte buffer suitable for descriptor.Predict.
 // Mirrors descriptor/predict_test.go's buildTestPulseFile helper but
 // lives here so service tests do not reach into another package's
 // test file.

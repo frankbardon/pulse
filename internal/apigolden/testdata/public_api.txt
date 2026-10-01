@@ -451,6 +451,7 @@ pulse: type Pulse struct
 pulse: type Pulse method (*Pulse) AddShard(ctx context.Context, archivePath string, shardPath string) (*pulse.AddShardResult, error)
 pulse: type Pulse method (*Pulse) ApplySeriesOverlays(ctx context.Context, req *pulse.SeriesOverlayRequest) (*pulse.SeriesOverlayResult, error)
 pulse: type Pulse method (*Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*pulse.BuildIndexResult, error)
+pulse: type Pulse method (*Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, error)
 pulse: type Pulse method (*Pulse) CompactShardArchive(ctx context.Context, archivePath string) error
 pulse: type Pulse method (*Pulse) Compose(ctx context.Context, req *pulse.ComposedRequest) (*pulse.ComposedResponse, error)
 pulse: type Pulse method (*Pulse) ComposeParallel(ctx context.Context, req *pulse.ComposedRequest, opts pulse.ComposeOptions) (*pulse.ComposedResponse, error)
@@ -480,6 +481,7 @@ pulse: type Pulse method (*Pulse) ImportFile(ctx context.Context, spec pulse.Imp
 pulse: type Pulse method (*Pulse) ImportTransfer(ctx context.Context, job *pulse/io.TransferImportJob) (*pulse/io.TransferReport, error)
 pulse: type Pulse method (*Pulse) Imports(ctx context.Context) ([]pulse.ImportEntry, error)
 pulse: type Pulse method (*Pulse) Inspect(ctx context.Context, path string) (*pulse/descriptor.InspectResult, error)
+pulse: type Pulse method (*Pulse) InspectBytes(ctx context.Context, data []byte, opts *pulse/descriptor.InspectOptions) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) InspectEnvelope(ctx context.Context, path string, opts *pulse/descriptor.InspectOptions) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) InvalidatedSidecars(ctx context.Context, cohortPath string) ([]pulse.StaleSidecar, error)
 pulse: type Pulse method (*Pulse) LabelTables() []pulse.LabelTableInfo
@@ -490,6 +492,7 @@ pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupR
 pulse: type Pulse method (*Pulse) Manifest(_ context.Context) *pulse/descriptor.Manifest
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
 pulse: type Pulse method (*Pulse) Predict(ctx context.Context, req *pulse.Request) (*pulse/descriptor.PredictResult, error)
+pulse: type Pulse method (*Pulse) PredictBytes(ctx context.Context, data []byte, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Request) (*pulse.Response, error)
 pulse: type Pulse method (*Pulse) ProcessChain(ctx context.Context, req *pulse.ChainRequest) (*pulse.ChainResponse, error)
 pulse: type Pulse method (*Pulse) ProcessStream(ctx context.Context, req *pulse.Request) (pulse.RowIter, error)
@@ -924,7 +927,6 @@ pulse/descriptor: type InspectFieldGroup struct
 pulse/descriptor: type InspectFieldGroup field Group int "json:\"group\""
 pulse/descriptor: type InspectFieldGroup field Key bool "json:\"key\""
 pulse/descriptor: type InspectFieldGroup field Kind string "json:\"kind\""
-pulse/descriptor: func InspectFromBytes(data []byte, opts *pulse/descriptor.InspectOptions) *pulse/descriptor.Envelope
 pulse/descriptor: type InspectGroup struct
 pulse/descriptor: type InspectGroup field BreakEvenRatio float64 "json:\"break_even_ratio\""
 pulse/descriptor: type InspectGroup field ByteDelta int64 "json:\"byte_delta\""
@@ -1070,7 +1072,6 @@ pulse/descriptor: type Param field Type string "json:\"type\""
 pulse/descriptor: const Partial pulse/types.ComponentsMergeability = "partial"
 pulse/descriptor: const PayloadSchemaFormatVersion untyped string = "1.1"
 pulse/descriptor: func Predict(fileData io.ReadSeeker, req *pulse/types.Request, opts *pulse/descriptor.PredictOptions) *pulse/descriptor.Envelope
-pulse/descriptor: func PredictFromBytes(data []byte, req *pulse/types.Request, opts *pulse/descriptor.PredictOptions) *pulse/descriptor.Envelope
 pulse/descriptor: type PredictOptions struct
 pulse/descriptor: type PredictOptions field EchoRequest bool
 pulse/descriptor: type PredictOptions field Extensions *pulse/descriptor.ExtensionsSnapshot
@@ -5262,4 +5263,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0c89d211c40e2ea2867b872fc7cf8ea53e3433439092badfd461ed45b066b384
+// golden-hash: 0e7a67603b412dee76916de1f324a2f19d8fda284b27a98881b822fddb1020ae

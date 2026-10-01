@@ -56,7 +56,7 @@ func groupedInspectFixture(t *testing.T, rows, fanout int, regions ...string) ([
 
 func inspectGrouped(t *testing.T, data []byte, opts *InspectOptions) *InspectResult {
 	t.Helper()
-	env := InspectFromBytes(data, opts)
+	env := inspectFromBytes(data, opts)
 	if len(env.Errors) != 0 {
 		t.Fatalf("inspect errors: %+v", env.Errors)
 	}
@@ -148,14 +148,14 @@ func TestInspect_GroupFigures(t *testing.T) {
 // reported figure (the record count comes from the LENGTH).
 func TestInspect_GroupFiguresReadNoRecord(t *testing.T) {
 	data, schema := groupedInspectFixture(t, 12, 3)
-	clean := mustMarshal(t, InspectFromBytes(data, nil))
+	clean := mustMarshal(t, inspectFromBytes(data, nil))
 
 	payload := 12 * schema.RecordByteSize()
 	garbled := append([]byte(nil), data...)
 	for i := len(garbled) - payload; i < len(garbled); i++ {
 		garbled[i] = 0xFF
 	}
-	if got := mustMarshal(t, InspectFromBytes(garbled, nil)); got != clean {
+	if got := mustMarshal(t, inspectFromBytes(garbled, nil)); got != clean {
 		t.Fatalf("inspect read a record:\n clean:   %s\n garbled: %s", clean, got)
 	}
 }
@@ -208,7 +208,7 @@ func TestInspect_V1CohortHasNoGroupKeys(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "score", Type: encoding.FieldTypeF64, Description: "Student test score value"},
 	}}
-	env := InspectFromBytes(buildCohortBytes(t, schema, 4), nil)
+	env := inspectFromBytes(buildCohortBytes(t, schema, 4), nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("errors: %+v", env.Errors)
 	}
@@ -227,7 +227,7 @@ func TestInspect_V1CohortHasNoGroupKeys(t *testing.T) {
 // TestInspectGroupedGolden pins the full grouped inspect envelope.
 func TestInspectGroupedGolden(t *testing.T) {
 	data, _ := groupedInspectFixture(t, 12, 3)
-	out, err := json.MarshalIndent(InspectFromBytes(data, nil), "", "  ")
+	out, err := json.MarshalIndent(inspectFromBytes(data, nil), "", "  ")
 	if err != nil {
 		t.Fatalf("json.MarshalIndent: %v", err)
 	}

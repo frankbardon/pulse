@@ -29,8 +29,8 @@ It applies in stages: `pulse.Version()` and the MCP version defaults land with *
 | `pulse.MemberSet`, `pulse.LoadMemberSetResult` | root-native types | alias-kept | none | U02 |
 | `pulse.ComposeOptions`, `BuildIndexResult`, `SetWidening`, `CreateShardArchiveResult`, `AddShardResult`, `GroupReconciliation`, `VerifyResult`, `ShardEntry`, `VerifyIndexResult`, `IndexFreshnessReason`, `IndexInfo`, `Row`, `RowIter` | same names, now aliases into `internal/service` | alias-kept | none | U02 |
 | `(*Pulse).Service()` + `service.(*Service).SetDisableCrosstabFusion` | `pulse.Options{DisableCrosstabFusion: true}` | removed / replaced | set the option at `pulse.New` instead of mutating the service | U02 |
-| `descriptor.InspectFromBytes(data, opts)` | `(*Pulse).InspectBytes(data, opts)` | replaced | call on the instance | U02 |
-| `descriptor.PredictFromBytes(data, req, opts)` | `(*Pulse).PredictBytes(data, req)` | replaced | call on the instance; the extension snapshot is now filled automatically (previously an unset snapshot treated extension operators as unknown) | U02 |
+| `descriptor.InspectFromBytes(data, opts)` | `(*Pulse).InspectBytes(ctx, data, opts) (*descriptor.Envelope, error)` | replaced | call on the instance; the envelope is returned whole (warnings included) | U02 |
+| `descriptor.PredictFromBytes(data, req, opts)` | `(*Pulse).PredictBytes(ctx, data, req) (*descriptor.Envelope, error)` | replaced | call on the instance; the extension snapshot is now filled automatically (previously an unset snapshot treated extension operators as unknown) | U02 |
 | `(*Pulse).Lookup` | unchanged | kept | none | — |
 
 ## Engine packages → internal
@@ -51,7 +51,7 @@ It applies in stages: `pulse.Version()` and the MCP version defaults land with *
 | `ReadHeader`, `ReadSchema`, `WriteSchema`, schema geometry, `ReadFieldValue` / `WriteFieldValue`, bitmap helpers | kept as the public raw-byte primitive set — **ungrouped (`0x01`) cohorts only** | kept / narrowed | none for ungrouped writes; write grouped (`0x02`) cohorts through `CohortWriter` | U02 |
 | `NewRecordLocator` / `RecordLocator` | geometry only (offset, stride, count); `ReadRecordAt` with `DecodePlan` / `FieldFilter` maps → internal | narrowed | read records through `CohortReader.RecordAt(i)`, or compute byte offsets from the geometry | U02 (narrowing), U02c (`CohortReader`) |
 | (new) | facade `CohortWriter` (schema + append rows) and `CohortReader` (`Schema()`, `Len()`, `RecordAt(i)`) | added | the recommended path; the raw primitives remain the expert escape hatch | U02c |
-| index-manifest helpers (`SidecarIndexPath`, `IndexManifestPath`, `ReadIndexManifest`, `WriteIndexManifest`, `NewIndexManifest`) | internal; new `(*Pulse).IndexArtifacts(cohort) []string` | replaced | manage indexes with `BuildIndex` / `ListIndexes` / `VerifyIndex` / `DropIndex`; to move a cohort with its sidecars, copy every path `IndexArtifacts` returns | U02 |
+| index-manifest helpers (`SidecarIndexPath`, `IndexManifestPath`, `ReadIndexManifest`, `WriteIndexManifest`, `NewIndexManifest`) | internal; new `(*Pulse).CohortArtifacts(ctx, cohort) ([]string, error)` | replaced | manage indexes with `BuildIndex` / `ListIndexes` / `VerifyIndex` / `DropIndex`; to move a cohort with its sidecars, move every path `CohortArtifacts` returns (every existing `.<keyhash>.idx`, `.indexes.json`, `.spss.json`, `.meta.json`) and keep the cohort's modification time | U02 |
 
 ## `io`
 

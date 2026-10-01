@@ -62,7 +62,7 @@ func buildCohortBytes(t *testing.T, schema *encoding.Schema, nRecord int) []byte
 
 func inspectRecordCount(t *testing.T, data []byte) (*InspectResult, *Envelope) {
 	t.Helper()
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	result, ok := env.Data.(*InspectResult)
 	if !ok {
 		t.Fatalf("Data is not *InspectResult: %T", env.Data)
@@ -202,7 +202,7 @@ func TestInspect_RecordCountTruncatedPayloadWarns(t *testing.T) {
 // TestInspect_RecordCountAnchorShardPayload pins the
 // archive.pulse#shard.pulse anchor form. pulse.Inspect extracts the
 // named shard's standalone payload and hands those bytes to
-// InspectFromBytes, so the anchor resolves down the single-file path
+// inspectFromBytes, so the anchor resolves down the single-file path
 // and must report that one shard's own count — not the archive
 // aggregate, which the archive path still reports for the whole file.
 func TestInspect_RecordCountAnchorShardPayload(t *testing.T) {

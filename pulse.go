@@ -898,8 +898,8 @@ func (p *Pulse) Inspect(ctx context.Context, path string) (*descriptor.InspectRe
 // multiple of the record stride reports its floored record count with
 // an ENCODING_INVALID warning beside it, and Inspect drops that
 // warning on the floor. `pulse cohort inspect --json` / `--full-dict`
-// used to reach descriptor.InspectFromBytes over its own os.ReadFile
-// for exactly this reason, which cost it anchor resolution
+// used to hand bytes from its own os.ReadFile to descriptor's
+// byte-level inspect for exactly this reason, which cost it anchor resolution
 // (archive.pulse#shard.pulse resolved in text mode and failed under
 // --json) and the injected filesystem along with it.
 //
@@ -928,7 +928,10 @@ func (p *Pulse) InspectEnvelope(ctx context.Context, path string, opts *descript
 		data = shardBytes
 	}
 
-	env := descriptor.InspectFromBytes(data, opts)
+	env, err := p.InspectBytes(ctx, data, opts)
+	if err != nil {
+		return nil, err
+	}
 	if len(env.Errors) == 0 {
 		// TTL slide on a successful read only — an unreadable cohort is
 		// not a use of the managed import.
@@ -970,7 +973,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		data = shardBytes
 	}
 
-	env := descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
+	env := descriptor.Predict(bytes.NewReader(data), req, &descriptor.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
@@ -987,6 +990,53 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	}
 	p.touchManaged(ctx, path)
 	return result, nil
+}
+
+// InspectBytes inspects an in-memory .pulse cohort — a single file or a
+// whole shard archive, detected by its leading magic bytes — and
+// returns the descriptor envelope WHOLE, warnings included (a payload
+// whose length is not a whole multiple of the record stride reports
+// its floored record count beside an ENCODING_INVALID warning). It is
+// the byte-level twin of InspectEnvelope for a caller that already
+// holds the bytes: no filesystem read, no anchor resolution, no
+// managed-import TTL slide. opts may be nil (defaults).
+//
+// Inspect has no request and no strict mode, so it reads nothing else
+// from the instance's Options. A returned error is a cancelled ctx;
+// every fault in the bytes themselves comes back as env.Errors so a
+// --json caller can emit the coded envelope verbatim.
+func (p *Pulse) InspectBytes(ctx context.Context, data []byte, opts *descriptor.InspectOptions) (*descriptor.Envelope, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return descriptor.Inspect(bytes.NewReader(data), opts), nil
+}
+
+// PredictBytes validates req against an in-memory .pulse cohort — a
+// single file or a whole shard archive, detected by its leading magic
+// bytes — without executing it, and returns the descriptor envelope
+// whole.
+//
+// Unlike Predict, every predict option comes from the instance: the
+// extension snapshot (so an embedder-registered operator is KNOWN, not
+// flagged unknown), Options.Strict (warnings promoted to errors) and
+// Options.EchoRequest (envelope.Request carries the normalized
+// request). req.Cohort is not read — the bytes ARE the cohort.
+//
+// A returned error is a nil req or a cancelled ctx; every validation
+// fault comes back as env.Errors with PredictResult.Valid false.
+func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*descriptor.Envelope, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if req == nil {
+		return nil, fmt.Errorf("pulse: predict requires a request")
+	}
+	return descriptor.Predict(bytes.NewReader(data), req, &descriptor.PredictOptions{
+		Strict:      p.svc.Strict(),
+		EchoRequest: p.svc.EchoRequest(),
+		Extensions:  p.svc.ExtensionsSnapshot(),
+	}), nil
 }
 
 // Sample returns up to n rows from the cohort as maps of field name to value.
@@ -1797,7 +1847,7 @@ func resolveCohortPath(c *types.Cohort) string {
 
 // extractShardBytes opens archiveBytes as a Pulse shard archive and
 // returns the named entry's payload, suitable as standalone single-file
-// .pulse input to descriptor.PredictFromBytes / descriptor.Inspect.
+// .pulse input to descriptor.Predict / descriptor.Inspect.
 func extractShardBytes(archiveBytes []byte, entryName string) ([]byte, error) {
 	arch, err := encoding.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {

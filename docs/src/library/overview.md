@@ -68,7 +68,10 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `Convert(ctx, job) (*ConvertReport, error)` | Tabular → tabular, with `.pulse` as the transparent middle |
 | `Inspect(ctx, path) (*InspectResult, error)` | Read header + schema only (no record data) |
 | `InspectEnvelope(ctx, path, opts) (*Envelope, error)` | Same read, envelope returned whole — carries the warnings `Inspect` drops (e.g. a truncated payload tail) and takes `descriptor.InspectOptions` |
+| `InspectBytes(ctx, data, opts) (*Envelope, error)` | Inspect an in-memory cohort (single file or shard archive); envelope returned whole, warnings included |
 | `Predict(ctx, req) (*PredictResult, error)` | Validate a request without executing |
+| `PredictBytes(ctx, data, req) (*Envelope, error)` | Validate a request against an in-memory cohort; the extension snapshot, `Options.Strict` and `Options.EchoRequest` come from the instance |
+| `CohortArtifacts(ctx, cohort) ([]string, error)` | Every existing Pulse-owned sidecar of a cohort (`.<keyhash>.idx`, `.indexes.json`, `.spss.json`, `.meta.json`), sorted — what must move with it (keep the cohort's mtime: both sidecars fingerprint it) |
 | `Sample(ctx, path, n) ([]Record, error)` | Up to n rows |
 | `Facet(ctx, path, field) ([]string, error)` | Distinct values of a field |
 | `Synth(ctx, spec, out, opts) (*SynthResult, error)` | Generate a synthetic cohort |

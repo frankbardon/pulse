@@ -287,8 +287,8 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 	// The public Predict facade drops envelope.Errors on the floor when
 	// Valid=false (it returns the result rather than the envelope), so
 	// `result.Valid==true` is the load-bearing acceptance signal — the
-	// negative arm below uses descriptor.PredictFromBytes directly to
-	// inspect the error code.
+	// negative arm below uses PredictBytes (the envelope-returning
+	// sibling) to inspect the error code.
 	predictResult, err := p.Predict(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Predict: %v", err)
@@ -356,8 +356,8 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 	// must reject the same formula at Predict-time with
 	// PULSE_OVERLAY_FORMULA_INVALID_IDENT. Pulse.Predict surfaces the
 	// envelope.Data on Valid=false but drops envelope.Errors, so the
-	// negative arm drops down to descriptor.PredictFromBytes directly
-	// to inspect the on-wire error codes — mirrors what the CLI surface
+	// negative arm drops down to PredictBytes (the envelope-returning
+	// sibling) to inspect the on-wire error codes — mirrors what the CLI surface
 	// emits when --json is set. Pins the predict-rejection contract
 	// embedders rely on for catching authoring errors at validation
 	// time.
@@ -381,9 +381,10 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile cohort: %v", err)
 	}
-	envBare := descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{
-		Extensions: pBare.svc.ExtensionsSnapshot(),
-	})
+	envBare, err := pBare.PredictBytes(context.Background(), data, req)
+	if err != nil {
+		t.Fatalf("PredictBytes(no Extensions): %v", err)
+	}
 	gotInvalidIdent := false
 	for _, e := range envBare.Errors {
 		if e.Code == "PULSE_OVERLAY_FORMULA_INVALID_IDENT" {

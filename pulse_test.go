@@ -1175,7 +1175,7 @@ func TestProcessChain_FacadeRoundTrip(t *testing.T) {
 // two things Inspect cannot reach and the CLI needed: the envelope's
 // warnings, and the InspectOptions knob — both read through the
 // injected afero.Fs, which is what makes this test hermetic at all.
-// `pulse cohort inspect --json` reached descriptor.InspectFromBytes
+// `pulse cohort inspect --json` reached descriptor's byte-level inspect
 // over its own os.ReadFile for exactly these two, and paid for it by
 // losing anchor resolution.
 func TestInspectEnvelope_SurfacesWarningsThroughTheInjectedFS(t *testing.T) {

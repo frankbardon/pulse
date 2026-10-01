@@ -207,7 +207,7 @@ func TestCountRecords_TruncatedTailAgreesWithInspect(t *testing.T) {
 		t.Errorf("CountRecords = %d, want the floor 5", got)
 	}
 
-	env := descriptor.InspectFromBytes(truncated, nil)
+	env := descriptor.Inspect(bytes.NewReader(truncated), nil)
 	result, ok := env.Data.(*descriptor.InspectResult)
 	if !ok {
 		t.Fatalf("inspect data = %T, want *descriptor.InspectResult", env.Data)

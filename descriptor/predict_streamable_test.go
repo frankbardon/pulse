@@ -29,7 +29,7 @@ func TestPredict_Streamable_OnlineAggregations(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if !result.Streamable {
 		t.Errorf("Streamable = false, want true. Reasons: %v", result.StreamableReasons)
@@ -55,7 +55,7 @@ func TestPredict_Streamable_StreamableGroupAllowed(t *testing.T) {
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if !result.Streamable {
 		t.Errorf("Streamable = false, want true. Reasons: %v", result.StreamableReasons)
@@ -76,7 +76,7 @@ func TestPredict_Streamable_NonStreamableGroupBlocks(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score"}},
 		Groups:       []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Error("Streamable = true, want false (QUANTILE not streamable)")
@@ -100,7 +100,7 @@ func TestPredict_Streamable_NonOnlineAggBlocksStreaming(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Error("Streamable = true, want false")
@@ -125,7 +125,7 @@ func TestPredict_Streamable_PercentileAttributeBlocks(t *testing.T) {
 		Attributes:   []*types.Attribute{{Type: types.ATTR_PERCENTILE, Field: "score"}},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Error("Streamable = true, want false")
@@ -150,7 +150,7 @@ func TestPredict_Streamable_TwoPassAttributeAllowed(t *testing.T) {
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 			Attributes:   []*types.Attribute{{Type: attrType, Field: "score"}},
 		}
-		env := PredictFromBytes(data, req, nil)
+		env := predictFromBytes(data, req, nil)
 		result := env.Data.(*PredictResult)
 		if !result.Streamable {
 			t.Errorf("%s: Streamable = false, want true. Reasons: %v", attrType, result.StreamableReasons)
@@ -176,7 +176,7 @@ func TestPredict_Streamable_RowLocalAttributesAllowed(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if !result.Streamable {
 		t.Errorf("Streamable = false, want true. Reasons: %v", result.StreamableReasons)
@@ -197,7 +197,7 @@ func TestPredict_Streamable_DecimalFieldBlocks(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount"}},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Error("Streamable = true, want false")
@@ -225,7 +225,7 @@ func TestPredict_Streamable_UnpenalizedOLSStreams(t *testing.T) {
 			{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if !result.Streamable {
 		t.Errorf("Streamable = false, want true. Reasons: %v", result.StreamableReasons)
@@ -262,7 +262,7 @@ func TestPredict_Streamable_RegressionBlocks(t *testing.T) {
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
 				Regressions:  []*types.RegressionSpec{c.spec},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			result := env.Data.(*PredictResult)
 			if result.Streamable {
 				t.Errorf("Streamable = true, want false. Reasons: %v", result.StreamableReasons)
@@ -335,7 +335,7 @@ func TestPredict_RegressionValidation(t *testing.T) {
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
 				Regressions:  c.regressions,
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			found := false
 			for _, e := range env.Errors {
 				if e.Code == c.wantCode {
@@ -365,7 +365,7 @@ func TestPredict_Streamable_EmptyAggregationsBlocks(t *testing.T) {
 	data := buildTestPulseFile(t, schema)
 
 	req := &types.Request{}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Error("Streamable = true, want false (no aggregations)")
@@ -455,7 +455,7 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			data := buildTestPulseFile(t, c.schema)
-			env := PredictFromBytes(data, c.req, nil)
+			env := predictFromBytes(data, c.req, nil)
 			result := env.Data.(*PredictResult)
 			runtime := processing.CanStreamRequest(c.req, c.schema)
 			if result.Streamable != runtime {
@@ -510,7 +510,7 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		for _, bc := range bufferedCases {
 			t.Run(bc.name, func(t *testing.T) {
 				data := buildTestPulseFile(t, numericSchema)
-				env := PredictFromBytes(data, bc.req, nil)
+				env := predictFromBytes(data, bc.req, nil)
 				result := env.Data.(*PredictResult)
 				if len(result.Aggregations) != 1 {
 					t.Fatalf("expected 1 AggregationPredict entry, got %d", len(result.Aggregations))
@@ -598,7 +598,7 @@ func TestPredict_RegressionApproximateSEWarning(t *testing.T) {
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
 				Regressions:  []*types.RegressionSpec{c.spec},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			got := hasWarning(env, "PROCESSING_REGRESSION_APPROXIMATE_SE")
 			if got != c.wantWarning {
 				t.Errorf("warning fired = %v, want %v; warnings=%v", got, c.wantWarning, env.Warnings)
@@ -645,7 +645,7 @@ func TestPredict_RegressionRegularizedSelectionWarning(t *testing.T) {
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "y"}},
 				Regressions:  []*types.RegressionSpec{c.spec},
 			}
-			env := PredictFromBytes(data, req, nil)
+			env := predictFromBytes(data, req, nil)
 			got := hasWarning(env, "PROCESSING_REGRESSION_REGULARIZED_SELECTION")
 			if got != c.wantWarning {
 				t.Errorf("warning fired = %v, want %v; warnings=%v", got, c.wantWarning, env.Warnings)

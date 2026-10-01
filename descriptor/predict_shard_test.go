@@ -28,7 +28,7 @@ func TestShardArchivePredict(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("unexpected errors: %+v", env.Errors)
 	}
@@ -83,7 +83,7 @@ func TestShardArchivePredict_BufferedRequestBuffered(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	result := env.Data.(*PredictResult)
 	if result.Streamable {
 		t.Errorf("AGG_PERCENTILE marked Streamable; want buffered. reasons=%v",
@@ -106,7 +106,7 @@ func TestShardArchivePredict_SingleFileUnchanged(t *testing.T) {
 			{Type: types.AGG_AVERAGE, Field: "score", Label: "mean"},
 		},
 	}
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("unexpected errors: %+v", env.Errors)
 	}

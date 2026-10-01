@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -55,7 +56,7 @@ func pwPartitionPredictEnvelope(t *testing.T, memFs afero.Fs, req *Request) *des
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	return descriptor.PredictFromBytes(data, req, nil)
+	return descriptor.Predict(bytes.NewReader(data), req, nil)
 }
 
 func pwPartitionEnvelopeCode(env *descriptor.Envelope, code string) *descriptor.EnvelopeEntry {

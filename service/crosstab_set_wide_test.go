@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -296,7 +297,7 @@ func TestWideSetGrouper_PredictStreamableAgreesWithRuntime(t *testing.T) {
 					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value", Label: "total"}},
 				}
 				runtime := processing.CanStreamRequest(req, schema)
-				env := descriptor.PredictFromBytes(data, req, nil)
+				env := descriptor.Predict(bytes.NewReader(data), req, nil)
 				pred, ok := env.Data.(*descriptor.PredictResult)
 				if !ok {
 					t.Fatalf("Predict data = %T, want *descriptor.PredictResult", env.Data)

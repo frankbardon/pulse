@@ -1273,7 +1273,7 @@ func TestCliCohortInspectText_ReportsRecordCount(t *testing.T) {
 // pre-existing --full-dict test does not make: it only looked for
 // "Fields:", which prints with or without the flag. The flag's whole
 // job is the InspectOptions.FullDict passthrough, and that passthrough
-// moved when the leaf stopped calling descriptor.InspectFromBytes
+// moved when the leaf stopped calling descriptor's byte-level inspect
 // itself — a dropped option would have been invisible.
 func TestCliCohortInspectFullDict_DisablesTruncation(t *testing.T) {
 	dir := t.TempDir()

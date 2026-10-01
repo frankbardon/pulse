@@ -10,7 +10,7 @@ import (
 )
 
 func TestPredict_InvalidHeader(t *testing.T) {
-	env := PredictFromBytes([]byte("not a pulse file"), &types.Request{}, nil)
+	env := predictFromBytes([]byte("not a pulse file"), &types.Request{}, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for invalid header")
 	}
@@ -26,7 +26,7 @@ func TestPredict_InvalidSchema(t *testing.T) {
 	encoding.WriteHeader(&buf)
 	buf.Write([]byte{0xFF}) // garbage schema
 
-	env := PredictFromBytes(buf.Bytes(), &types.Request{}, nil)
+	env := predictFromBytes(buf.Bytes(), &types.Request{}, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for invalid schema")
 	}
@@ -50,7 +50,7 @@ func TestPredict_FilterUnknownField(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for unknown filter field")
 	}
@@ -70,7 +70,7 @@ func TestPredict_FilterExpressionNoField(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) != 0 {
 		t.Errorf("unexpected errors for expression filter without field: %v", env.Errors)
 	}
@@ -90,7 +90,7 @@ func TestPredict_GroupUnknownField(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for unknown group field")
 	}
@@ -110,7 +110,7 @@ func TestPredict_AttributeUnknownField(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for unknown attribute field")
 	}
@@ -124,7 +124,7 @@ func TestPredict_DescriptionQuality_Strict(t *testing.T) {
 	}
 	data := buildTestPulseFile(t, schema)
 
-	env := PredictFromBytes(data, &types.Request{}, &PredictOptions{Strict: true})
+	env := predictFromBytes(data, &types.Request{}, &PredictOptions{Strict: true})
 
 	// Should be errors, not warnings, in strict mode.
 	foundDescError := false
@@ -167,7 +167,7 @@ func TestPredict_LowQualityDescriptionCases(t *testing.T) {
 }
 
 func TestInspect_InvalidHeader(t *testing.T) {
-	env := InspectFromBytes([]byte("not a pulse file"), nil)
+	env := inspectFromBytes([]byte("not a pulse file"), nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for invalid header")
 	}
@@ -178,7 +178,7 @@ func TestInspect_InvalidSchema(t *testing.T) {
 	encoding.WriteHeader(&buf)
 	buf.Write([]byte{0xFF})
 
-	env := InspectFromBytes(buf.Bytes(), nil)
+	env := inspectFromBytes(buf.Bytes(), nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected error for invalid schema")
 	}
@@ -197,7 +197,7 @@ func TestInspect_CustomDictionaryLimit(t *testing.T) {
 	}
 	data := buildTestPulseFile(t, schema)
 
-	env := InspectFromBytes(data, &InspectOptions{DictionaryLimit: 10})
+	env := inspectFromBytes(data, &InspectOptions{DictionaryLimit: 10})
 	result := env.Data.(*InspectResult)
 	field := result.Fields[0]
 	if !field.Dictionary.Truncated {
@@ -222,7 +222,7 @@ func TestPredict_FilterWithFieldSet(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) != 0 {
 		t.Errorf("unexpected errors: %v", env.Errors)
 	}

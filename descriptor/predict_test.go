@@ -39,7 +39,7 @@ func TestPredictReadsHeaderOnly(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) != 0 {
 		t.Errorf("unexpected errors: %v", env.Errors)
 	}
@@ -60,7 +60,7 @@ func TestPredict_ValidRequest(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) != 0 {
 		t.Errorf("unexpected errors: %v", env.Errors)
 	}
@@ -94,7 +94,7 @@ func TestPredict_InvalidRequest(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected errors for unknown field")
 	}
@@ -130,7 +130,7 @@ func TestPredict_CategoricalWarning(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	if len(env.Warnings) == 0 {
 		t.Fatal("expected categorical warning")
@@ -231,7 +231,7 @@ func TestPredict_DescriptionQualityWarning(t *testing.T) {
 
 	req := &types.Request{}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 
 	found := false
 	for _, w := range env.Warnings {
@@ -259,7 +259,7 @@ func TestPredict_StrictMode_WarningsAreErrors(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, &PredictOptions{Strict: true})
+	env := predictFromBytes(data, req, &PredictOptions{Strict: true})
 
 	// In strict mode, the categorical warning should be an error.
 	if len(env.Warnings) != 0 {
@@ -294,7 +294,7 @@ func TestPredict_CountOnCategorical_NoWarning(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	for _, w := range env.Warnings {
 		if w.Code == string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL) {
 			t.Error("COUNT/FREQUENCY should not trigger categorical warning")
@@ -317,7 +317,7 @@ func TestPredictGolden_SimpleRequest(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	out, err := json.MarshalIndent(env, "", "  ")
 	if err != nil {
 		t.Fatalf("json.MarshalIndent: %v", err)
@@ -346,7 +346,7 @@ func TestPredictGolden_ComposedRequest(t *testing.T) {
 		},
 	}
 
-	env := PredictFromBytes(data, req, nil)
+	env := predictFromBytes(data, req, nil)
 	out, err := json.MarshalIndent(env, "", "  ")
 	if err != nil {
 		t.Fatalf("json.MarshalIndent: %v", err)
@@ -371,7 +371,7 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 				{Type: aggType, Field: "val", Label: "result"},
 			},
 		}
-		env := PredictFromBytes(data, req, nil)
+		env := predictFromBytes(data, req, nil)
 		if len(env.Errors) != 0 {
 			t.Errorf("aggregation %s produced errors: %v", aggType, env.Errors)
 		}

@@ -97,7 +97,7 @@ func TestShardArchiveInspect(t *testing.T) {
 	}
 	data := buildShardArchiveBytes(t, schema, shards)
 
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("unexpected errors: %+v", env.Errors)
 	}
@@ -149,7 +149,7 @@ func TestShardArchiveInspect_SingleFileEmptyShards(t *testing.T) {
 	}
 	data := buildTestPulseFile(t, schema)
 
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("unexpected errors: %+v", env.Errors)
 	}
@@ -178,7 +178,7 @@ func TestShardArchiveInspect_CanonicalSchemaWins(t *testing.T) {
 		{Name: "a.pulse", NRecord: 1},
 		{Name: "b.pulse", NRecord: 2},
 	})
-	env := InspectFromBytes(data, nil)
+	env := inspectFromBytes(data, nil)
 	if len(env.Errors) != 0 {
 		t.Fatalf("unexpected errors: %+v", env.Errors)
 	}

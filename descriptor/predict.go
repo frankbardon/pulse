@@ -534,7 +534,20 @@ type PredictSchemaInfo struct {
 // It reads only the header and schema, never record data.
 // The returned Envelope contains the PredictResult in Data and any
 // errors/warnings encountered.
+//
+// Detection is by the first four bytes at the reader's position, as in
+// Inspect: zip magic PK\x03\x04 routes to the shard-archive path, where
+// the canonical _schema.pulse entry supplies the schema the request
+// validates against and per-shard headers contribute the cumulative
+// RecordCount and Shards listing (streamability is computed from the
+// same gates the single-file path uses — an archive inherits the
+// streamability of its request against the canonical schema, not of its
+// shape). Any other prefix takes the single-file path, which surfaces
+// the standard ENCODING_INVALID envelope on malformed input.
 func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *Envelope {
+	if data, ok := sniffArchive(fileData); ok {
+		return predictArchive(data, req, opts)
+	}
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -797,23 +810,11 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	return len(reasons) == 0, reasons
 }
 
-// PredictFromBytes routes data to either the single-file predict path
-// or the archive predict path based on the first four bytes. Archive
-// detection is by the zip magic PK\x03\x04; single-file (or any other
-// prefix) falls through to Predict, which surfaces the standard
-// ENCODING_INVALID envelope on malformed input.
-//
-// For archive-backed cohorts: the canonical schema is read from the
-// reserved _schema.pulse entry and used for every validation step
-// (field existence, type compatibility, streamability). The cumulative
-// record total and per-shard list are added to the PredictResult; the
-// request is validated against the canonical schema and inherits the
-// same streamability gates that a single-file cohort with the same
-// schema would produce.
-func PredictFromBytes(data []byte, req *types.Request, opts *PredictOptions) *Envelope {
-	if len(data) >= 4 && data[0] == 'P' && data[1] == 'K' && data[2] == 0x03 && data[3] == 0x04 {
-		return predictArchive(data, req, opts)
-	}
+// predictFromBytes is the in-package byte-slice convenience over
+// Predict. The public byte-level entry point is the instance method
+// (*pulse.Pulse).PredictBytes, which fills PredictOptions from the
+// instance.
+func predictFromBytes(data []byte, req *types.Request, opts *PredictOptions) *Envelope {
 	return Predict(bytes.NewReader(data), req, opts)
 }
 
