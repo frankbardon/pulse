@@ -1,66 +1,69 @@
 # Feature Profiles — feasibility
 
-**Status:** proposal · **Target:** v1.0.0 · **Question asked:** can an embedder turn whole families of functionality on or off, with the manifest, skills and documents reacting to that configuration? The default must remain "everything enabled".
+**Status:** proposal · **Target:** v1.0.0 · **Question asked:** can an embedder declare which functionality one Pulse instance offers, with the manifest, skills and documents reacting to that configuration? The default must remain "everything enabled".
 
-## Verdict: feasible, at moderate cost
+## Decisions so far
 
-Pulse already has the architectural seam this needs. The **extension snapshot pattern** makes the manifest, predict and MCP tool binding *per-instance* rather than process-global:
+| # | Decision |
+|---|---|
+| 1 | **No config → everything.** Without a profile, every feature is enabled, including features added in future releases. Output is byte-identical to today. |
+| 2 | **A config is a complete declaration (allowlist).** A non-default profile states its whole feature set; it is never "everything minus X". A feature added in a later Pulse release is **not** enabled in an existing profile until that profile names it. |
+| 3 | **Disabled means invisible.** A disabled feature looks, from every surface, *as if it was never built*. There is no "disabled" error, no "disabled" list, no hint, no banner. |
+| 4 | **Instance-wide only.** One profile per `*Pulse` instance, fixed at `pulse.New`. No per-request or per-tenant narrowing. |
+
+## Verdict: feasible
+
+Pulse already has the right seam. The **extension snapshot pattern** makes the manifest, predict and MCP tool binding per-instance rather than process-global:
 
 - `Pulse.Manifest` calls `descriptor.BuildManifestWithExtensions(p.svc.ExtensionsSnapshot())`.
 - Predict receives `PredictOptions.Extensions`.
 - MCP binds with `mcp.BindSessionToolsWithExtensions`.
 
-All three already react to *adding* operators per instance. A feature profile is the same mechanism run in reverse: a per-instance snapshot that *removes* operators. The work is mostly threading one more value through the paths extensions already travel, plus closing a few places that still read global state.
+Extensions use that seam to make an instance *larger* than the built-ins. A profile uses the same seam to make it *smaller*.
+
+Decision 3 is the part that raises cost. A hidden feature can't simply be "flagged" anywhere. Every surface has to be produced as if the feature's registration were absent, including prose that merely *mentions* it. The table reflects that.
 
 | Surface | Reacts to config today? | Work needed | Difficulty |
 |---|---|---|---|
-| Manifest (`pulse_manifest`, `pulse manifest`) | per-instance via snapshot | filter components, tests, overlays, capability blocks and commands by the profile | **Low** |
-| Predict | per-instance via snapshot | refuse disabled operators with a coded error | **Low** |
-| Runtime enforcement | — | one validation choke point before execution (not the ~28 registry lookup sites in `processing/` and `service/`) | **Low–Medium** |
-| MCP tools | registered from the global `toolmeta` list | skip disabled tools in `registerTools`; strip disabled enum values from tool input schemas | **Medium** |
-| MCP prompts (`pulse-bootstrap`, `pulse-author-request` exist today) | static | filter by profile; generated intent prompts (guided analysis) inherit it | **Low** |
-| Atomic skills (`op-*`, `tool-*`, `type-*`) | global `skills.List()` / `skills.Get()` via `//go:embed` | profile-aware `List` / `Get`; atomic skills map 1:1 to an operator via frontmatter, so filtering is exact | **Low** |
-| Topical skills (`overlay-system`, `statistical-testing`, …) | global | prose mentions many operators and cannot be filtered precisely; see the risks below | **Medium–High** |
-| Examples library | global `examples.Search` | hide examples whose `_meta.operators` include anything disabled (the tags already exist and are gate-enforced) | **Low** |
-| Payload JSON Schema (`pulse schema`, `pulse://schema`) | static `BuildPayloadSchema()`; enums come from `types.All*Types()` | add a profile-aware variant; the golden stays pinned to the default (full) profile | **Medium** |
-| Error code list | global | leave the full list (harmless), or filter codes owned only by disabled features | **Low** |
-| Smart defaults | static table in `descriptor/defaults.go` | a default that resolves to a disabled operator must fall through, not silently pick it | **Low** |
-| Guided analysis (Recommend, Explain, `NotFor`, intents) | n/a (planned) | never recommend or suggest a disabled operator; drop intents with no enabled operators | **Low** if designed in now |
-| CLI | leaves built once in `buildApp()` | leaves for disabled capabilities print a coded "disabled by profile" error (or hide under `--profile`) | **Low** |
-| Published docs site (mdBook) | static | **cannot react at runtime**; see below | n/a — different approach |
+| Manifest | yes, per-instance via snapshot | build from the instance's feature set; nothing about hidden features | **Low** |
+| Predict / runtime | yes, per-instance (extensions) | resolve names against the instance's feature set only; a hidden name takes the **same path as a name that never existed** | **Low–Medium** |
+| Payload JSON Schema | no — static `BuildPayloadSchema()` over `types.All*Types()` | per-instance variant with enums and request slots for the instance's features only | **Medium** |
+| MCP tools / resources / prompts | no — registered from global `toolmeta` and static prompt list | register only the instance's tools, prompts and resources; filtered enums in tool input schemas | **Medium** |
+| Atomic skills (`op-*`, `tool-*`, `type-*`) | no — global `skills.List()` / `Get()` | instance-aware listing; a hidden atomic skill is "not found", exactly like a nonexistent one | **Low** |
+| **Topical skills** (`overlay-system`, `statistical-testing`, `crosstab-guide`, …) | no | **cannot keep naming hidden operators.** They need paragraph-level fencing and rendering per instance (below) | **High** — the largest single cost |
+| Examples | no — global `examples.Search` | hide any example whose `_meta.operators` names a hidden feature | **Low** |
+| Error codes | no — global list | hide codes owned *only* by hidden features from the list and from `pulse errors lookup` | **Low–Medium** (needs a code → owning-feature map) |
+| CLI | built once in `buildApp()` | leaves for hidden capabilities are **not mounted** for that instance's config; help never lists them | **Medium** |
+| Smart defaults | static table | a default whose target is hidden simply doesn't apply, the same as when no default exists | **Low** |
+| Guided analysis (Recommend, Explain, intents, `NotFor`, glossary) | planned | rendered from the instance's feature set only; no "unavailable here" wording | **Low** if designed in now |
+| Published docs site | static build | documents the default (full) feature set; per-profile reference is **generated** (`pulse docs export`) for the embedder to host | n/a |
 
-**About the published documentation.** The docs site at frankbardon.github.io/pulse is a static build. It documents the full feature set and should keep doing so. "Documents react to configuration" is achieved two other ways:
-1. **Runtime documentation already is the manifest + skills + examples.** These are what agents and integrators actually query, and they react fully.
-2. **Profile-scoped reference generation.** A `pulse docs export --profile <file>` command (or library `p.ExportReference(dir)`) writes the operator catalog, question guides and glossary (from the guided-analysis theme) as Markdown for *this* profile. An embedder can then ship it inside their own product docs. It reuses the generator the guided-analysis theme already needs.
+## The hard parts
 
-## What already exists that becomes part of this
+### 1. Invisibility in prose (topical skills, generated guides)
+Atomic skills map one-to-one to a feature, so hiding them is exact. Topical skills are prose that names many operators. For example, `overlay-system.md` enumerates overlay families, and `statistical-testing.md` compares tests. Under decision 3 they can't be served as-is, and a banner would itself reveal hidden features. Options:
 
-Pulse has scattered `Disable*` switches today: `Options.DisableDefaults`, `DisableComponents`, `DisableProjection`, `gosdk.Config.DisableCohortScan` / `PULSE_MCP_NO_COHORT_SCAN`. These are **behaviour** toggles (how a feature runs), not **availability** toggles (whether it exists). The profile should present both in one place without breaking the existing fields. The existing fields keep working and are mirrored into the profile's `behaviour` section.
+- **(a) Fence-and-render.** Topical skills mark operator-specific spans, e.g. `<!-- feature: OVERLAY_CHISQ_* -->…<!-- /feature -->`. The instance renders them with hidden spans removed. A gate checks that **every operator name appearing in a topical skill sits inside a matching fence**. That makes the build guarantee that nothing leaks. Lists and tables need fences per row.
+- **(b) Rewrite topical skills to name no operators.** Point at the manifest and atomic skills instead. This is simpler to keep correct, but it loses the comparative guidance ("use X instead of Y when…") that makes topical skills worth reading.
 
-## The hard parts (where the real cost is)
+**Recommendation: (a).** It costs a one-time fencing pass over about 25 topical files plus a gate, and preserves the guidance. The same fence syntax serves the guided-analysis question guides and the generated reference export.
 
-1. **Feature dependencies.** Features are not independent, and a naive toggle produces silent breakage:
-   - `OVERLAY_{T,Z}_CELL` read `AGG_WELFORD` components;
-   - `ATTR_REG_FITTED` / `_RESIDUAL` / `_LEVERAGE` need a `REG_*`;
-   - `OVERLAY_CHISQ_*` mirror `TEST_CHISQ`;
-   - smart defaults pick `AGG_SUM` / `GROUP_RANGE`;
-   - `TEST_TUKEY_HSD` is the follow-up to ANOVA;
-   - planned `MAT_*` items build on `MAT_COVARIANCE`;
-   - Compose overlays need Compose.
+### 2. "As if never there" must still not run
+A hidden operator must never execute, and it must never be **silently ignored**. Dropping an unknown slot and returning partial results would be a wrong answer with no signal. So a request naming a hidden feature gets exactly the response it would get **if that name had never been registered**: whatever Pulse returns today for an unknown aggregation, test or overlay type, with the same code and message shape. There is no new code. Profile-specific information never appears in it.
 
-   A **dependency graph** must be declared (once, in `descriptor/`). Profile validation at `pulse.New` then either refuses an incoherent profile (`PULSE_PROFILE_DEPENDENCY`) or auto-disables the dependants with a warning. Refusing is recommended, because it is explicit and nothing surprises the embedder.
-2. **Topical skill prose.** For example, `overlay-system.md` names families of overlay kinds in running text. Three options:
-   - (a) serve it unchanged with a profile banner ("operators named here may be unavailable; the manifest is authoritative");
-   - (b) mark operator-specific paragraphs with `<!-- op: OVERLAY_CHISQ_* -->` fences and strip them when disabled;
-   - (c) hide a topical skill entirely when *all* its operators are disabled.
+**Gate.** A parity test builds a profile, then compares two responses byte-for-byte: a request using a hidden name, and the same request using a fabricated name that never existed. They must be identical. This works across manifest, schema, predict, process, MCP tool list, CLI help, skills and examples.
 
-   Recommendation: **(c) + (a)** for v1.0.0, and (b) only if real embedders complain. The skills already say "never hardcode; the manifest is authoritative", so the banner is consistent with existing guidance.
-3. **Golden discipline.** Manifest, payload-schema and skill goldens stay pinned to the default (full) profile. Add a small set of **profile goldens** (e.g. "survey-basic", "no-inferential", "descriptive-only") so filtering is tested without multiplying every golden.
-4. **Coverage gates** (`TestSkillsCoverAll*`, `TestEveryOperatorHasAnExampleTag`) keep running against the full registry. Profiles never weaken the build-time contract, only what one instance exposes.
-5. **Enforcement must be real.** Hiding an operator from the manifest while it still executes would be a leak. Embedders using profiles for licensing, tiering or tenant isolation will rely on this. Enforcement belongs at the single request-validation choke point used by every entry point (Process, Compose, ProcessChain, Facet, ProcessStream, Watch, templates at render, Recommend). It must be covered by a **parity gate** stating "anything absent from this instance's manifest is refused by this instance's runtime".
+### 3. Allowlists and upgrades
+Because a profile is a complete declaration, it can't use open-ended patterns: `TEST_*` would silently pick up new tests in a later release, breaking decision 2. Two consistent ways to keep profiles concise anyway are proposed in 01 (exact names, or patterns pinned to a baseline version). Both require each feature to carry a `Since` version in its registration. That is new metadata, but cheap and gate-able.
+
+### 4. Dependencies
+Some features need others. `OVERLAY_{T,Z}_CELL` read `AGG_WELFORD` components, the `ATTR_REG_*` attributes need a regression, and `TEST_TUKEY_HSD` follows ANOVA. A profile that enables one without the other is incoherent. Because a profile must be complete, the right response is a configuration error **at `pulse.New`**, aimed at the embedder (not visible to the instance's users), naming exactly what is missing. A `pulse profile check` tool reports this ahead of time.
+
+### 5. Goldens
+The default (full) manifest, schema and skill goldens are unchanged, because no config means today's output. A few **profile goldens** cover filtering, alongside the invisibility parity gate.
 
 ## Estimated size
 
-Roughly **one epic of moderate size** (5–7 stories). It is comparable to the original extensions work, and smaller, because the snapshot plumbing exists. If the guided-analysis and vector-matrix themes are built with profiles in mind from the start, they add little marginal cost. Retrofitting later would cost more, so ordering matters (see 01).
+**One to one-and-a-half epics.** The core plumbing is moderate, comparable to the extensions work, and reuses its snapshot path. The invisibility requirement adds the topical-skill fencing pass and its gate, the CLI-tree filtering and the error-code ownership map. As before, building the vector-matrix and guided-analysis themes *with* profiles from their first commit is much cheaper than retrofitting.
 
 Continue to [01 — Design & phasing](01-design.md).
