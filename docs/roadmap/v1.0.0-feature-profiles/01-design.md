@@ -4,7 +4,7 @@
 
 1. **No profile = the default feature set = everything**, including features added in future releases. Byte-identical to today.
 2. **A profile is a complete, closed allowlist.** It declares every feature the instance offers. It never subtracts from "everything", and it never grows when Pulse is upgraded.
-3. **Hidden is invisible.** Every *instance* surface is produced as if hidden features were never registered. There is no disabled error, disabled list, banner or hint. The two deliberate exceptions are the unprofiled admin CLI (decision 6) and reading a skill or example by its exact name (decision 7, P4a).
+3. **Hidden is invisible.** Every *instance* surface is produced as if hidden features were never registered. There is no disabled error, disabled list, banner or hint. The one deliberate exception is the unprofiled admin CLI (decision 6), which is not an MCP or embedder surface. **Nothing about a hidden feature may reach MCP context by any path** (decision 7).
 4. **Instance-wide.** One profile per `*Pulse`, fixed at `pulse.New`. There is no request-, context- or tenant-level variation.
 5. **Availability, not behaviour.** A profile decides which features exist. Per-request output choices remain per-request, e.g. the guided-analysis `Request.Explain` opt-in. If the instance's profile doesn't include `explain`, that request field doesn't exist for the instance either: it is absent from its payload schema and refused like any unknown field.
 6. **Profiles never weaken the build.** Coverage gates, goldens and the Update Demand still apply to the full registry.
@@ -111,7 +111,7 @@ The rule for every row is that **output equals what an imaginary Pulse build con
 
 ## P4a. Skills: a shrinking ontology with progressive disclosure
 
-Decision 7 sets the rule: **every skill stays readable, but the discoverable ontology shrinks to the instance's features, and every search or discovery path honours it.**
+Decision 7 sets the rule: **the ontology shrinks to the instance's features, and every path that can put text into an agent's context honours it** — listing, search, cross-links, recommendations *and* fetch by exact name. Topical skills remain available, always served rendered for the instance. A hidden feature's own skill and examples do not exist for the instance.
 
 ### The ontology
 The **ontology** is the graph that discovery walks:
@@ -132,9 +132,9 @@ Most of it already exists as metadata: skill frontmatter (`operator:`, `category
 | Manifest `skills`, `intents`, operator lists | enabled nodes only |
 | `## See` lines and cross-links in served skills | edges to pruned nodes removed at render |
 | Recommend, Explain, `NotFor`, follow-ups, glossary | pruned graph only |
-| `pulse_skills_get` / `pulse_examples_get` **by exact name** | **any** skill or example is returned (decision 7). A reader who already knows a name can read about it, but nothing in the instance will lead them to it. Running a hidden operator still behaves as unknown (P4) |
+| `pulse_skills_get` / `pulse_examples_get` / `pulse-skill://<name>` **by exact name** | a hidden feature's atomic skill or example returns the same "not found" as a name that never existed. A topical skill is returned **rendered for the instance** (hidden spans stripped), or "not found" if nothing enabled remains in it |
 
-One consequence to accept: an agent that guesses a hidden skill's exact name can read it. That is the deliberate trade in decision 7 (readable skills, invisible discovery). It never grants execution.
+So there is no path, guessed name or otherwise, by which a hidden feature's documentation enters an agent's context, which would only confuse the agent about what it can run. The library's embedded skill FS stays complete, because the full pack is a build artifact; filtering happens in the instance-scoped `List` / `Get` that every MCP and facade path calls. A gate (`TestSkillsCoverProfileGet`) asserts that for each example profile, fetching every hidden skill and example by exact name is byte-identical to fetching a never-existing name, and that no served topical skill contains a hidden name.
 
 ### Writing topical skills so they don't over-expose: progressive disclosure
 Stripping text from skills at render time works, but it is brittle when it is the *only* defence. The proposed fix is to write topical skills in layers, so most of them need no stripping at all:
@@ -171,6 +171,7 @@ These operate on profile *files* and run outside any profiled instance. They are
 | `TestProfileDefaultIsFull` | no profile → manifest, payload schema, skills, examples, errors and CLI tree byte-identical to today's goldens |
 | `TestProfileInvisibilityParity` | for each example profile and each hidden feature, every instance surface (manifest, schema, predict, process, MCP tools, prompts, skill and example discovery, errors lookup) is byte-identical to a build where that feature's registration was removed. In practice this is approximated by comparing responses for the hidden name and a never-registered name, plus "the name occurs nowhere in any rendered surface" |
 | `TestSkillsCoverFeatureFences` | every operator name in a topical skill or generated guide sits inside a matching `feature` fence |
+| `TestSkillsCoverProfileGet` | per example profile: list, search **and exact-name get** of every hidden skill or example match a never-existing name byte-for-byte; no served topical skill contains a hidden name |
 | `TestProfileDependenciesComplete` | every operator that reads another operator's components or results, or needs a host capability, declares it |
 | `TestFeaturesHaveSince` | every registered feature declares `Since` |
 | `TestProfileRejectsPatterns` | a profile entry that is not an exact registered feature name is refused |
@@ -212,5 +213,5 @@ The profile mechanism lands **first**. Every surface the vector-matrix and guide
 1. **Exact names only (recommended; awaiting confirmation).** Profiles list exact feature names, and `pulse profile init` writes the full list. Pinned patterns are documented above as the rejected alternative.
 2. ~~**Always-present core.**~~ **Decided:** as proposed; `inspect` stays always present.
 3. ~~**CLI with a profile.**~~ **Decided:** the CLI is not profiled; only `pulse mcp --profile` and the library honour profiles.
-4. ~~**Topical skills.**~~ **Decided direction:** skills stay readable by exact name, discovery walks the pruned ontology, and topical skills are rewritten for progressive disclosure with fences as a backstop (P4a).
-5. **Direct-get exposure.** Under decision 7, an agent that guesses a hidden skill's exact name can read it. Is that acceptable, or should direct get also return "not found" for hidden features' *atomic* skills while topical skills stay readable? The recommendation is to accept it as decided, and revisit if an embedder needs stricter secrecy.
+4. ~~**Topical skills.**~~ **Decided:** every MCP-reachable path walks the pruned ontology; topical skills are rewritten for progressive disclosure with fences as a backstop and always served rendered (P4a).
+5. ~~**Direct-get exposure.**~~ **Decided:** fetch by exact name honours the profile; a hidden feature's skill or example is "not found", identical to a nonexistent name.

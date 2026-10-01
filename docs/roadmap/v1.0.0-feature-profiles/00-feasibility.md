@@ -12,7 +12,7 @@
 | 4 | **Instance-wide only.** One profile per `*Pulse` instance, fixed at `pulse.New`. No per-request or per-tenant narrowing. |
 | 5 | **Self-description is always present.** Manifest, payload schema, skills, examples, errors lookup, inspect and predict exist in every profile (each rendering the instance's view). |
 | 6 | **The CLI is not profiled.** It is admin-facing and always shows the full surface. Profiles apply to the library (`pulse.New`) and the MCP server (`pulse mcp --profile`). |
-| 7 | **Skills stay readable; discovery shrinks.** Every skill remains fetchable by exact name, but the *discoverable ontology* (lists, search, intents, `## See` links, example search, recommendations) only contains enabled features. Topical skills are written for progressive disclosure so they don't expose operators the reader hasn't been routed to. See 01, P4a. |
+| 7 | **Nothing hidden ever reaches MCP context.** The ontology (lists, search, intents, `## See` links, examples, recommendations) contains only enabled features, and **direct fetch by exact name honours it too**: a hidden feature's skill or example is "not found", exactly like a name that never existed. Topical skills stay available but are always served rendered for the instance, written for progressive disclosure with fences as a backstop. See 01, P4a. |
 
 ## Verdict: feasible
 
@@ -32,9 +32,9 @@ Decision 3 is the part that raises cost. A hidden feature can't simply be "flagg
 | Predict / runtime | yes, per-instance (extensions) | resolve names against the instance's feature set only; a hidden name takes the **same path as a name that never existed** | **Low–Medium** |
 | Payload JSON Schema | no — static `BuildPayloadSchema()` over `types.All*Types()` | per-instance variant with enums and request slots for the instance's features only | **Medium** |
 | MCP tools / resources / prompts | no — registered from global `toolmeta` and static prompt list | register only the instance's tools, prompts and resources; filtered enums in tool input schemas | **Medium** |
-| Atomic skills (`op-*`, `tool-*`, `type-*`) | no — global `skills.List()` / `Get()` | hidden features' skills drop out of every **discovery** path (list, search, `## See`, intents); direct get by exact name still works (decision 7) | **Low** |
+| Atomic skills (`op-*`, `tool-*`, `type-*`) | no — global `skills.List()` / `Get()` | hidden features' skills drop out of every path: list, search, `## See`, intents **and direct get by exact name**, which returns the same "not found" as a nonexistent skill (decision 7) | **Low** |
 | **Topical skills** (`overlay-system`, `statistical-testing`, `crosstab-guide`, …) | no | rewrite for progressive disclosure (concepts and criteria, operators reached through the ontology) plus fences for any residual operator mentions (below) | **Medium–High** — the largest single cost |
-| Examples | no — global `examples.Search` | search omits any example whose `_meta.operators` names a hidden feature; direct get follows the skills rule | **Low** |
+| Examples | no — global `examples.Search` | search and direct get both omit any example whose `_meta.operators` names a hidden feature | **Low** |
 | Error codes | no — global list | hide codes owned *only* by hidden features from the list and from `pulse errors lookup` | **Low–Medium** (needs a code → owning-feature map) |
 | CLI | built once in `buildApp()` | **none** — the CLI is admin-facing and not profiled (decision 6); only `pulse mcp` accepts `--profile` | **None** |
 | Smart defaults | static table | a default whose target is hidden simply doesn't apply, the same as when no default exists | **Low** |
@@ -56,7 +56,7 @@ Atomic skills map one-to-one to a feature, so hiding them is exact. Topical skil
 ### 2. "As if never there" must still not run
 A hidden operator must never execute, and it must never be **silently ignored**. Dropping an unknown slot and returning partial results would be a wrong answer with no signal. So a request naming a hidden feature gets exactly the response it would get **if that name had never been registered**: whatever Pulse returns today for an unknown aggregation, test or overlay type, with the same code and message shape. There is no new code. Profile-specific information never appears in it.
 
-**Gate.** A parity test builds a profile, then compares two responses byte-for-byte: a request using a hidden name, and the same request using a fabricated name that never existed. They must be identical. This works across manifest, schema, predict, process, the MCP tool list, skill and example *discovery*, and errors lookup. The CLI and direct skill/example get by exact name are out of scope (decisions 6 and 7).
+**Gate.** A parity test builds a profile, then compares two responses byte-for-byte: a request using a hidden name, and the same request using a fabricated name that never existed. They must be identical. This works across manifest, schema, predict, process, the MCP tool list, skill and example list, search and get, and errors lookup. Only the admin CLI is out of scope (decision 6).
 
 ### 3. Allowlists and upgrades
 Because a profile is a complete declaration, it can't use open-ended patterns: `TEST_*` would silently pick up new tests in a later release, breaking decision 2. The recommendation in 01 is **exact names only**, with tooling that writes the full list for you. Each feature still carries a `Since` version, so `pulse profile diff` can tell an embedder what is new since their profile was written. That is new metadata, but cheap and gate-able.
