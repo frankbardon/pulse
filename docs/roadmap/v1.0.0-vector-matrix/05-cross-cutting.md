@@ -9,7 +9,7 @@ Policies that apply to every feature in documents 01–04. Most bugs in multivar
 - Every `MAT_*`, multivariate `TEST_*`, vector `ATTR_*` / `AGG_*` and `GROUP_KMEANS` accepts `weight: <field>`.
 - **Weighted means and co-moments use frequency-weight semantics by default.** Effective sample size (Kish, `(Σw)² / Σw²`) is reported in `Components` and used for df in inferential output when `params.weight_kind: "probability"`. The difference changes p-values materially, so the choice must be explicit and documented in each atomic skill.
 - Null or negative weight → the row is excluded with a counted `n_weight_invalid`, never coerced to 0 silently.
-- **Gap to note:** today only `AGG_WEIGHTED_MEAN` takes a weight. A request-level default weight (`Request.Weight`) is worth considering as a separate small proposal — every survey request repeats it.
+- **Resolved:** request-level `Request.Weight`, per-slot overrides, weight validation and Kish `n_eff` are defined once in [statistical integrity 01](../v1.0.0-statistical-integrity/01-weighting.md). Every `MAT_*` consumes that machinery rather than defining its own.
 
 ## X2. Missing data
 

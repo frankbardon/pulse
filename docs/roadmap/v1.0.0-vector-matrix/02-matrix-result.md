@@ -101,5 +101,5 @@ Matrices are the first Pulse output whose size grows quadratically with the requ
 
 1. **Prefer `upper` encoding and rounding.** Add `params.precision` (significant digits, default unlimited). For an LLM, three digits on a correlation is plenty, and cutting digits significantly reduces payload size.
 2. **Top-k summaries.** Add an optional `summary: {top_pairs: 10}` on correlation-family matrices. It emits the strongest `|r|` pairs as a short ranked list in `vectors.top_pairs`, which is often all an agent needs.
-3. **Dimension caps.** Default max p = 256 for a request (`Options.MaxMatrixDim`). Beyond the cap the request fails with `PULSE_MATRIX_DIM_EXCEEDED` instead of returning a 65K-cell payload.
+3. **Dimension caps.** `Options.Limits.MaxMatrixDim`, default **2,048** under the "high defaults" decision (see [embedder operations 01](../v1.0.0-embedder-operations/01-resource-limits.md)). Beyond the cap the request fails at predict with `PULSE_LIMIT_EXCEEDED` instead of returning a quadratic payload. Output volume below the cap is managed by the developer through [response shaping](../v1.0.0-response-shaping/00-design.md).
 4. **CLI.** `pulse api process --json` emits the typed envelope. Human output renders a labeled grid, abbreviated for large p, plus the scalar block.

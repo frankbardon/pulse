@@ -1,17 +1,34 @@
 # v1.0.0 TODO
 
-Every **committed** v1.0.0 feature across the three roadmap themes. Stretch and post-1.0 items are deliberately excluded; they stay in the theme documents.
+Every **committed** v1.0.0 feature across the roadmap themes. Stretch and post-1.0 items are deliberately excluded; they stay in the theme documents.
 
 **How to use this file:**
 - Tick a box (`- [x]`) in the same PR that completes the item.
 - An item counts as complete only when its code, tests, skills, CLAUDE.md / `.claude/reference/` companions and docs have all landed, as the Update Demand requires.
 - Sections are in build order. Feature profiles and the guided-analysis metadata core come first, so every later surface is profile-filtered and carries purpose metadata from its first commit.
 
-Theme documents: [vector & matrix](v1.0.0-vector-matrix/00-overview.md) · [guided analysis](v1.0.0-guided-analysis/00-overview.md) · [feature profiles](v1.0.0-feature-profiles/00-feasibility.md)
+Theme documents: see the [roadmap index](README.md).
 
 ---
 
-## 1. Feature profiles — foundation
+## 1. API surface & release pipeline
+
+### Public Go surface ([api-and-release 00](v1.0.0-api-and-release/00-public-surface.md))
+- [ ] Downstream usage catalog completed (maintainer)
+- [ ] Classification per package decided (public / public-narrowed / internal)
+- [ ] Package moves and narrowing done; facade re-exports added
+- [ ] API-compatibility check (`gorelease` / `apidiff`) in CI against the latest tag
+
+### Release pipeline ([api-and-release 01](v1.0.0-api-and-release/01-release-pipeline.md))
+- [ ] `internal/buildinfo` + `pulse.Version()`; ldflags injection; `ReadBuildInfo` fallback; `make build` uses `git describe`
+- [ ] `pulse version` / `--version`; `mcpserve` and `gosdk` default to the real version (remove hard-coded `"1.0.0"`); manifest `pulse_version`
+- [ ] Gate against hard-coded version literals
+- [ ] `ci.yml` callable; `release.yml` on `v*` tags gated on CI
+- [ ] Binaries for linux / darwin / windows × amd64 / arm64, plus checksums; GitHub Release with generated notes; release labels
+
+---
+
+## 2. Feature profiles — foundation
 
 ### FP1 — Feature registry
 - [ ] Stable feature names and kinds (`capability`, `operator`, `io_format`, `mcp_extra`) across all registries
@@ -55,7 +72,7 @@ Theme documents: [vector & matrix](v1.0.0-vector-matrix/00-overview.md) · [guid
 
 ---
 
-## 2. Guided analysis — metadata core
+## 3. Guided analysis — metadata core
 
 ### G1 — Metadata core
 - [ ] Intent taxonomy (`descriptor/intents.go`), projected to manifest `intents[]`
@@ -77,7 +94,44 @@ Theme documents: [vector & matrix](v1.0.0-vector-matrix/00-overview.md) · [guid
 
 ---
 
-## 3. Vector & matrix — foundation
+## 4. Statistical integrity
+
+### Weighting ([statistical-integrity 01](v1.0.0-statistical-integrity/01-weighting.md))
+- [ ] `Request.Weight`, per-slot `weight` (incl. `null`), `Options.DefaultWeight`, `kind` frequency / probability
+- [ ] Weight validation, `n_weight_invalid`, `PULSE_WEIGHT_INVALID_ROWS`
+- [ ] Weighted aggregators incl. percentiles; `AGG_WEIGHTED_MEAN` alias
+- [ ] Weighted crosstab cells and margins; unweighted base via `margin_aggregations`
+- [ ] Weighted share / index overlays
+- [ ] Weighted tests and significance overlays with Kish `n_eff`
+- [ ] Weighted attributes, `GROUP_QUANTILE`, regressions
+- [ ] Components `w_sum` / `n_eff`; manifest `weight_aware`; predict reporting; extension `WeightAware`
+- [ ] SPSS weight-variable capture and suggestion
+- [ ] `TestWeightUnityParity`, `TestWeightFrequencyExpansionParity`, reference fixtures; `weighting.md` skill
+
+### Multiple comparisons ([statistical-integrity 02](v1.0.0-statistical-integrity/02-multiple-comparisons.md))
+- [ ] `processing/multiplicity`: Bonferroni, Holm, BH, BY
+- [ ] `multiplicity {method, family}` on Request / OverlaySpec / Test / MatrixSpec; `Options.DefaultMultiplicity` (shipped `none`)
+- [ ] Families `layer` / `row` / `column` / `request` / `matrix`, incl. across Compose slots
+- [ ] Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs
+- [ ] `OVERLAY_CORR_PVALUE` fate decided (alias vs drop)
+- [ ] Advisory + Explain hooks; glossary terms
+- [ ] Reference-value, identity and family-boundary gates; `multiple-comparisons.md` skill
+
+---
+
+## 5. Time zones ([time-zones 00](v1.0.0-time-zones/00-design.md))
+
+- [ ] Step 0: `encoding/temporal`; migrate the six open-coded epoch-day sites; `TestNoZoneMathOutsideTemporal`
+- [ ] `Zone` type, embedded tzdata, transition-table fast path
+- [ ] `Options.DefaultTimeZone`, `Request.TimeZone`, per-slot `tz`; `date`-field rejection
+- [ ] Zone-aware `GROUP_DATE`, `GROUP_DATE_RANGES`, `FILTER_DATE_RANGES`, `ATTR_DATE_PART`, `FEAT_DATE_FEATURES`, `OVERLAY_YOY`, range tables, `week_start`
+- [ ] Import `--source-tz` with `--dst-policy`
+- [ ] Zone-aware output rendering; predict and manifest reporting (tzdata version)
+- [ ] `TestUTCZoneIsIdentity`, `TestDSTBoundaries`, `TestDateFieldRejectsTZ`; `time-zones.md` skill
+
+---
+
+## 6. Vector & matrix — foundation
 
 ### E1 — Linear-algebra core & co-moment accumulator
 - [ ] `linalg/` with Cholesky, SymEigen, SVD, QR, tolerances, sign convention and ordering; import-boundary gate
@@ -97,7 +151,7 @@ Theme documents: [vector & matrix](v1.0.0-vector-matrix/00-overview.md) · [guid
 
 ---
 
-## 4. Guided analysis — docs, API & MCP
+## 7. Guided analysis — docs, API & MCP
 
 ### G3 — Generated docs & skill sections
 - [ ] `internal/docgen`, `make docs` integration, `TestDocsGeneratedCurrent`
@@ -128,7 +182,39 @@ Theme documents: [vector & matrix](v1.0.0-vector-matrix/00-overview.md) · [guid
 
 ---
 
-## 5. Vector & matrix — operators
+## 8. Response shaping ([response-shaping 00](v1.0.0-response-shaping/00-design.md))
+
+- [ ] `Request.Return {preset, include, exclude, precision}`; `Options.DefaultReturn`; `pulse mcp --return`
+- [ ] Path grammar over the response schema; predict-time validation; `PULSE_RETURN_PATH_UNKNOWN`
+- [ ] Presets `full` / `standard` / `minimal` listed in the manifest
+- [ ] Selection compiled into the execution plan (unrequested parts not computed)
+- [ ] Float precision control; old switches documented as shorthands; `returned` marker
+- [ ] Predict per-section size estimates
+- [ ] `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill
+
+---
+
+## 9. Embedder operations
+
+### Resource limits ([embedder-operations 01](v1.0.0-embedder-operations/01-resource-limits.md))
+- [ ] `Options.Limits` with high defaults; validation at `pulse.New`
+- [ ] Predict-time checks + `PredictResult.LimitFindings`
+- [ ] Runtime checks (groups, crosstab cells, join build, matrix dim, compose / chain fan-out, memory estimate, timeout)
+- [ ] `PULSE_LIMIT_EXCEEDED` with tuning fixups
+- [ ] Profile-file `limits` section; manifest `limits` block; `pulse mcp --limit`
+- [ ] Defaults-never-trip, predict/runtime parity and memory-release gates; "Tuning limits" docs page
+
+### Observability ([embedder-operations 02](v1.0.0-embedder-operations/02-observability.md))
+- [ ] `Options.Logger` (`slog`, nil = silent); context-aware; no row data
+- [ ] `Options.Hooks`: operation start/end (context-returning), phase timings; panic-safe
+- [ ] `Options.Metrics` interface (opt-in) with bounded labels
+- [ ] `contrib/otelpulse` and `contrib/prompulse` as separate modules
+- [ ] `pulse mcp` / CLI `--log-level`, `--log-format`, opt-in `--metrics-addr`
+- [ ] Silence, no-row-data, dependency and panic gates; "Observability" docs page
+
+---
+
+## 10. Vector & matrix — operators
 
 ### E3 — Core matrix operators
 - [ ] `MAT_CORRELATION` Spearman / Kendall
@@ -179,13 +265,22 @@ Theme documents: [vector & matrix](v1.0.0-vector-matrix/00-overview.md) · [guid
 
 ---
 
-## 6. Cross-cutting (applies throughout; tick when verified for the whole release)
+## 11. Release v1.0.0
 
-- [ ] Weighting supported on every `MAT_*`, multivariate test, vector attribute/aggregator and `GROUP_KMEANS`
+- [ ] `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md))
+- [ ] Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
+- [ ] `v1.0.0` tagged
+
+---
+
+## 12. Cross-cutting (applies throughout; tick when verified for the whole release)
+
+- [ ] Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values
 - [ ] Missing-data modes documented and tested; PSD refusal / `repair: "nearest"`
-- [ ] New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / advisory codes all have `codeMetadata` + fixups
+- [ ] New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups
 - [ ] Every new operator has `Purpose`, `Interpretation` (if inferential), `Since`, dependency edges and an atomic skill
 - [ ] Every new gate is listed by name in CLAUDE.md "Non-Skippable CI Gates"
-- [ ] The Update Demand table has rows for: `Purpose`, `Since` / dependencies, topical-skill fences, `Request.Vectors` / `Matrices`, `Response.Matrices`
+- [ ] The Update Demand table has rows for: `Purpose`, `Since` / dependencies, topical-skill fences, `Request.Vectors` / `Matrices`, `Response.Matrices`, `Request.Weight` / `Multiplicity` / `TimeZone` / `Return`, `Options.Limits` / `Logger` / `Hooks` / `Metrics`
+- [ ] New env vars and CLI flags documented (CLAUDE.md "Build / Env", `flags.md`, `session-bootstrap.md`)
 - [ ] CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`)
 - [ ] `format_version` remains `"1.1"` (every wire change additive)

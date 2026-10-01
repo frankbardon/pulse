@@ -44,7 +44,9 @@ Every feature has a **stable name**, a **kind** and a **`Since` version**. All t
     "OVERLAY_SHARE_OF_ROW", "OVERLAY_INDEX_VS_MARGIN", "OVERLAY_STD_RESIDUAL",
     "io_format:csv", "io_format:spss"
   ],
-  "behaviour": { "disable_projection": false }   // optional; omitted = engine defaults
+  "behaviour": { "disable_projection": false },  // optional; omitted = engine defaults
+  "limits":    { "max_groups": 1000000 },        // optional; omitted keys = high defaults (embedder operations 01)
+  "return":    { "preset": "standard" }          // optional instance default response shape (response shaping)
 }
 ```
 

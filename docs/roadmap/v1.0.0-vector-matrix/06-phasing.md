@@ -105,9 +105,9 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 
 1. ~~**Vector-valued aggregator output (E5).**~~ **Decided:** an array in `Response.Data`, with `params.expand: true` for tabular consumers.
 2. **Correspondence-analysis payload (E6).** Should it be a two-axis payload (`Series2`), two layers, or a new `coordinates` shape? A new shape is cleanest but widens the overlay payload union.
-3. **Request-level default weight (X1).** Should this be a separate small proposal or folded into E2?
+3. ~~**Request-level default weight (X1).**~~ **Decided:** its own theme, [statistical integrity 01](../v1.0.0-statistical-integrity/01-weighting.md), landing before E2.
 4. **Pairwise-deletion default.** `listwise` is safe; SPSS defaults vary by procedure. Should Pulse ever default to pairwise for `MAT_CORRELATION` alone?
 5. **Probability vs frequency weights in inference.** Should probability weights use Kish effective-n in v1.0.0, or should design-based variance (stratification, clustering) be out of scope? The latter is recommended.
 6. ~~**`MAT_` as a new category vs riding `TEST_` / `AGG_`.**~~ **Decided:** a new `MAT_` category, with its manifest slice, gates and extension namespace.
 7. ~~**Should `GROUP_KMEANS` be promoted to committed?**~~ **Decided:** yes — committed, delivered in E4.
-8. **Shared multiple-comparison core.** Should `OVERLAY_CORR_PVALUE`'s Holm/BH adjustment also be offered on the existing `OVERLAY_PAIRWISE_*` family in v1.0.0?
+8. ~~**Shared multiple-comparison core.**~~ **Decided:** yes — one core for every p-value-producing family, defined in [statistical integrity 02](../v1.0.0-statistical-integrity/02-multiple-comparisons.md). `OVERLAY_CORR_PVALUE` becomes an alias or is dropped in favour of `MatrixSpec.multiplicity`; decide before E6.
