@@ -11,7 +11,7 @@
 // *pulse.Pulse and a Config:
 //
 //	srv := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "my-host", Version: "..."}, nil)
-//	if err := gosdk.Register(srv, p, gosdk.Config{Version: "1.0.0", BindOnInspect: true}); err != nil {
+//	if err := gosdk.Register(srv, p, gosdk.Config{Version: pulse.Version(), BindOnInspect: true}); err != nil {
 //	    return err
 //	}
 //	// caller owns serving: srv.Run(ctx, &mcpsdk.StdioTransport{}) — gosdk never serves.
