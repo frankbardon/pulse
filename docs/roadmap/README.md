@@ -6,11 +6,11 @@ This directory sits outside the mdBook source (`docs/src/`) on purpose: planned 
 
 ## v1.0.0
 
-Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Work is planned as 33 Flow units in [`units/`](units/README.md); each TODO item links to its unit.
+Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Work is planned as 35 Flow units in [`units/`](units/README.md); each TODO item links to its unit.
 
 | Theme | Index |
 |---|---|
-| API surface & release — public Go surface audit, release pipeline and versioning, stability policy | [`v1.0.0-api-and-release/`](v1.0.0-api-and-release/00-public-surface.md) |
+| API surface & release — public Go surface audit, release pipeline and versioning, stability policy, [embedder migration guide](v1.0.0-api-and-release/03-embedder-migration.md) | [`v1.0.0-api-and-release/`](v1.0.0-api-and-release/00-public-surface.md) |
 | Feature profiles — instance-wide allowlist configs; hidden features fully invisible to every MCP and embedder surface (manifest, skills incl. exact-name fetch, examples, generated docs) | [`v1.0.0-feature-profiles/`](v1.0.0-feature-profiles/00-feasibility.md) |
 | Guided analysis — purpose metadata, question-first docs, Recommend / Explain, MCP prompts | [`v1.0.0-guided-analysis/`](v1.0.0-guided-analysis/00-overview.md) |
 | Statistical integrity — first-class weighting, multiple-comparison correction | [`v1.0.0-statistical-integrity/`](v1.0.0-statistical-integrity/00-overview.md) |

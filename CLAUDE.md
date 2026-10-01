@@ -8,7 +8,7 @@ Pulse is a self-describing tabular data processing engine. Ships as a Go library
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
 - **Skill-augmented.** `skills/` embeds an atomic-per-surface pack (`op-*` / `tool-*` / `type-*`) plus ~20 topical design skills via `//go:embed *.md`; the filesystem walk + frontmatter parse is the source of truth.
 - **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators, expr functions and named tables. Predict, manifest, MCP and runtime treat them identically to built-ins.
-- **Harness-agnostic.** Pulse is standalone; a downstream harness discovers it via `pulse manifest --json` + the embedded skills. No reverse dependency, and no Pulse-side design decision may depend on a consumer's internals.
+- **Embedder-first, consumer-agnostic.** Library embedders are a first-class audience: the public Go surface is sized for them, and real downstream usage catalogs are valid evidence for what it must cover. Pulse never depends on a consumer — no reverse imports, no consumer names in contract docs or code, and every public symbol is justified by a general embedder use case, not one consumer's convenience. Harnesses discover Pulse via `pulse manifest --json` + the embedded skills.
 
 **Where the detail lives.** Contributor recipes are the mdBook Internals chapter under `docs/src/internals/` — one `adding-*.md` per extension point plus `regenerating-goldens.md`, `debugging-predict.md`, `wiring-mcp-client.md`, `extension-points.md`. Long-form contract prose lives under `.claude/reference/` — **see "Reference Docs" at the bottom for the index and which file each kind of work requires loading.**
 

@@ -5,7 +5,7 @@ title: "One trusted linear-algebra core and a mergeable co-moment accumulator, w
 track: Vector & matrix
 size: M
 status: not-started
-depends_on: [U02]
+depends_on: [U02, U02b]
 soft_depends_on: [U11]
 blocks: [U16]
 todo_items: [73, 74, 75, 76, 77]
@@ -16,7 +16,7 @@ branch: linalg-core
 
 **Outcome:** One trusted linear-algebra core and a mergeable co-moment accumulator, with no user-visible change.
 
-**Track:** Vector & matrix · **Size:** M · **Depends on:** [U02](U02-public-surface.md) · **Soft:** [U11](U11-weighting-descriptive.md) · **Unblocks:** [U16](U16-matrix-result.md)
+**Track:** Vector & matrix · **Size:** M · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) · **Soft:** [U11](U11-weighting-descriptive.md) · **Unblocks:** [U16](U16-matrix-result.md)
 
 ## Summary
 
