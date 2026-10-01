@@ -91,6 +91,12 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		for _, reg := range ext.Attributes {
 			r.Attributes[reg.Name] = adaptAttributeFactory(reg)
 			r.Streamable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mode != AttributeModeBuffered
+			if reg.Mode == AttributeModeTwoPass {
+				if r.TwoPassAttributes == nil {
+					r.TwoPassAttributes = make(map[types.AttributeType]bool)
+				}
+				r.TwoPassAttributes[reg.Name] = true
+			}
 			addFieldInputs("attribute", string(reg.Name), reg.FieldInputs)
 		}
 	}

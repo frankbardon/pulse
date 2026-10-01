@@ -121,36 +121,46 @@ func TestExtensions_FanOutGrouperWithComponentsStaysMultiKey(t *testing.T) {
 	}
 }
 
-// TestExtensions_GrouperComponentsEmitOnBufferedPath pins that the
-// adapter keeps ComponentsFunc emission on the buffered Process path
-// (extension groupers are buffered there: the Process stream gate
-// consults built-in GroupType.Streamable only).
-func TestExtensions_GrouperComponentsEmitOnBufferedPath(t *testing.T) {
-	calls := &r6GrouperCalls{}
-	reg := pulse.GrouperRegistration{
-		Name: "GROUP_ACME_R6_STREAM",
-		Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) {
-			return r6Grouper{calls: calls}, nil
-		},
-		Streamable:      true,
-		Accepts:         []encoding.FieldType{encoding.FieldTypeF64},
-		ComponentSchema: r6GrouperSchema(),
-		ComponentsFunc:  r6GrouperEmit,
-	}
-	p, path := brandScoreCohort(t, pulse.Extensions{Groupers: []pulse.GrouperRegistration{reg}})
-	resp, err := p.Process(context.Background(), &types.Request{
-		Cohort:       &types.Cohort{Filename: path},
-		Groups:       []*types.Group{{Type: reg.Name, Field: "score"}},
-		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score", Label: "n"}},
-	})
-	if err != nil {
-		t.Fatalf("Process: %v", err)
-	}
-	if resp.Components == nil || len(resp.Components.Groupers) != 1 ||
-		resp.Components.Groupers[0].Operator["marker"] != 7 {
-		t.Errorf("ComponentsFunc emission lost: %+v", resp.Components)
-	}
-	if len(resp.Data) != 2 {
-		t.Errorf("rows = %d, want 2 (lo, hi): %+v", len(resp.Data), resp.Data)
+// TestExtensions_GrouperComponentsEmitOnGroupedPaths pins that the
+// adapter keeps ComponentsFunc emission on both grouped Process paths:
+// a Streamable=true registration streams (KeyForRow), a
+// Streamable=false one runs buffered (Group), and the emitter's keys
+// plus the universal floor reach Components.Groupers either way.
+func TestExtensions_GrouperComponentsEmitOnGroupedPaths(t *testing.T) {
+	for _, streamable := range []bool{true, false} {
+		calls := &r6GrouperCalls{}
+		reg := pulse.GrouperRegistration{
+			Name: "GROUP_ACME_R6_STREAM",
+			Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) {
+				return r6Grouper{calls: calls}, nil
+			},
+			Streamable:      streamable,
+			Accepts:         []encoding.FieldType{encoding.FieldTypeF64},
+			ComponentSchema: r6GrouperSchema(),
+			ComponentsFunc:  r6GrouperEmit,
+		}
+		p, path := brandScoreCohort(t, pulse.Extensions{Groupers: []pulse.GrouperRegistration{reg}})
+		resp, err := p.Process(context.Background(), &types.Request{
+			Cohort:       &types.Cohort{Filename: path},
+			Groups:       []*types.Group{{Type: reg.Name, Field: "score"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score", Label: "n"}},
+		})
+		if err != nil {
+			t.Fatalf("streamable=%v: Process: %v", streamable, err)
+		}
+		if resp.Components == nil || len(resp.Components.Groupers) != 1 ||
+			resp.Components.Groupers[0].Operator["marker"] != 7 ||
+			resp.Components.Groupers[0].TotalN != 5 {
+			t.Errorf("streamable=%v: ComponentsFunc emission or floor lost: %+v", streamable, resp.Components)
+		}
+		if len(resp.Data) != 2 {
+			t.Errorf("streamable=%v: rows = %d, want 2 (lo, hi): %+v", streamable, len(resp.Data), resp.Data)
+		}
+		if streamable && (calls.keyForRow.Load() == 0 || calls.group.Load() != 0) {
+			t.Errorf("streamable: KeyForRow=%d Group=%d, want KeyForRow only", calls.keyForRow.Load(), calls.group.Load())
+		}
+		if !streamable && (calls.group.Load() == 0 || calls.keyForRow.Load() != 0) {
+			t.Errorf("buffered: KeyForRow=%d Group=%d, want Group only", calls.keyForRow.Load(), calls.group.Load())
+		}
 	}
 }

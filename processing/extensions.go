@@ -39,7 +39,23 @@ type ExtensionRegistry struct {
 	// Streamable is the per-(category, name) override consulted by
 	// IsStreamable. Built-in entries are not stored here; the
 	// fallback path consults the per-type Streamable() method.
+	//
+	// For an extension operator this is the DECLARED registration flag
+	// and it is authoritative: Processor.canStream routes aggregators,
+	// groupers, attributes and tier-1 row tests on it, never on the
+	// built-in per-type tables (which know no extension name) nor on
+	// whichever optional interface the constructed value carries.
+	// Probe-validation at pulse.New guarantees a true entry's factory
+	// returns the matching streaming interface.
 	Streamable map[string]bool
+
+	// TwoPassAttributes records which extension attributes declared the
+	// two-pass streaming tier (pulse.AttributeModeTwoPass) — the
+	// extension half of the built-in two-pass set (ZSCORE, TSCORE,
+	// NORMALIZED, REG_*). A two-pass attribute takes the PrePass +
+	// Finalize streaming drive and, like its built-in siblings, does not
+	// compose with grouped or feature streaming. Absent reads false.
+	TwoPassAttributes map[types.AttributeType]bool
 
 	// FansOut is the per-grouper fan-out declaration recorded from
 	// pulse.GrouperRegistration.FansOut — true when one record can
@@ -322,8 +338,10 @@ func (r *ExtensionRegistry) ExtensionGroupFanOut() types.ExtensionGroupFanOutFun
 
 // IsStreamable consults the Streamable overlay first, then the
 // built-in per-type Streamable() method. Unknown categories return
-// false. The cross-check between this and the runtime path lives in
-// the per-category integration phases.
+// false. Nil-receiver-safe (built-in answers only). Processor.canStream
+// reads every aggregator / grouper / attribute / tier-1 test fact
+// through here, so an extension's declared flag is what routes it;
+// predict reads the same declaration off the ExtensionsSnapshot.
 func (r *ExtensionRegistry) IsStreamable(category, name string) bool {
 	if r != nil && r.Streamable != nil {
 		if v, ok := r.Streamable[StreamabilityKey(category, name)]; ok {
@@ -347,6 +365,16 @@ func (r *ExtensionRegistry) IsStreamable(category, name string) bool {
 		return types.TestType(name).Streamable()
 	}
 	return false
+}
+
+// attributeRequiresTwoPass reports whether an attribute type takes the
+// two-pass streaming drive: the built-in two-pass set, or an extension
+// attribute that declared pulse.AttributeModeTwoPass. Nil-receiver-safe.
+func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool {
+	if requiresTwoPass(t) {
+		return true
+	}
+	return r != nil && r.TwoPassAttributes[t]
 }
 
 // isExtensionAggregator reports whether t is an embedder-registered

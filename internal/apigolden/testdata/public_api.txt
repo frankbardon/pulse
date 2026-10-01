@@ -2188,6 +2188,7 @@ pulse/processing: func CanChainRequest(req *pulse/types.Request, schema *pulse/e
 pulse/processing: func CanFuseCrosstab(req *pulse/types.Request, schema *pulse/encoding.Schema, ext *pulse/processing.ExtensionRegistry) (bool, string)
 pulse/processing: func CanMergeRequest(req *pulse/types.Request, schema *pulse/encoding.Schema) bool
 pulse/processing: func CanStreamRequest(req *pulse/types.Request, schema *pulse/encoding.Schema) bool
+pulse/processing: func CanStreamRequestWithExtensions(req *pulse/types.Request, schema *pulse/encoding.Schema, exts *pulse/processing.ExtensionRegistry) bool
 pulse/processing: func ChainOutputSchema(req *pulse/types.Request) (*pulse/encoding.Schema, error)
 pulse/processing: const ComposeComponentsDisabled pulse/processing.ComposeComponentsState = 1
 pulse/processing: const ComposeComponentsNonCrosstab pulse/processing.ComposeComponentsState = 2
@@ -2295,6 +2296,7 @@ pulse/processing: type ExtensionRegistry field PostTests map[pulse/types.TestTyp
 pulse/processing: type ExtensionRegistry field RangeTables map[string]pulse/processing.RangeTable
 pulse/processing: type ExtensionRegistry field RowTests map[pulse/types.TestType]pulse/processing.RowTestFactory
 pulse/processing: type ExtensionRegistry field Streamable map[string]bool
+pulse/processing: type ExtensionRegistry field TwoPassAttributes map[pulse/types.AttributeType]bool
 pulse/processing: type ExtensionRegistry field Windows map[pulse/types.WindowType]pulse/processing/window.WindowFactory
 pulse/processing: type ExtensionRegistry method (*ExtensionRegistry) CustomAggregatorNames() []pulse/types.AggregationType
 pulse/processing: type ExtensionRegistry method (*ExtensionRegistry) CustomAttributeNames() []pulse/types.AttributeType
@@ -2395,6 +2397,7 @@ pulse/processing: type FusedCrosstabState method (*FusedCrosstabState) Update(re
 pulse/processing: type GroupKeyer struct
 pulse/processing: type GroupKeyer method (*GroupKeyer) Keys(r *pulse/processing.Record, field string) ([]string, bool, error)
 pulse/processing: type GroupedTail struct
+pulse/processing: type GroupedTail field Assignments int64
 pulse/processing: type GroupedTail field Buckets map[string][]pulse/processing.OnlineAggregator
 pulse/processing: type GroupedTail field DisableComponents bool
 pulse/processing: type GroupedTail field FilterCounters []pulse/processing.FilterPassCounters
@@ -3956,4 +3959,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 24deae200a85321b0d4e6600e261fbd01b1e1070d26c13e05388d4ed500d6670
+// golden-hash: 9337cb8837b5301dd6c0a758dd9f70d71d5e7057e71628479eecb2d8b253257c

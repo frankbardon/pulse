@@ -132,7 +132,9 @@ type ParamMeta struct {
 // When Streamable=true the factory MUST return a value that also
 // implements extend.OnlineAggregator. Probe-validation at
 // registration time enforces the contract via
-// PULSE_EXTENSION_STREAMABLE_MISMATCH. Optional siblings
+// PULSE_EXTENSION_STREAMABLE_MISMATCH. The declaration decides the
+// run-time path: Streamable=false runs buffered even when the value
+// implements extend.OnlineAggregator. Optional siblings
 // (extend.OnlineAggregator, extend.RichAggregator) are honoured whether
 // or not ComponentsFunc is set.
 type AggregatorRegistration struct {
@@ -245,7 +247,11 @@ type FiltererRegistration struct {
 
 // GrouperRegistration installs a custom GROUP_* operator. Set
 // Streamable=true when the factory returns an extend.Grouper that
-// also implements extend.StreamingGrouper (KeyForRow).
+// also implements extend.StreamingGrouper (KeyForRow) or
+// extend.MultiKeyStreamingGrouper (KeysForRow); the grouped Process
+// request then streams. Probe-validation refuses Streamable=true
+// without either sibling (PULSE_EXTENSION_STREAMABLE_MISMATCH);
+// Streamable=false runs buffered through Group.
 //
 // Set FansOut=true when the factory returns a value that also
 // implements extend.MultiKeyStreamingGrouper — see the field
@@ -344,6 +350,8 @@ const (
 //
 // Streamable applies to tier-1 only and indicates whether the test
 // can co-stream with online aggregators (no extra pass over the data).
+// The flag alone decides: Streamable=false forces the request onto the
+// buffered path.
 type TestRegistration struct {
 	Name        types.TestType
 	Description string

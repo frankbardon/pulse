@@ -128,7 +128,11 @@ sections below.
 
 When `Streamable=true`, the probe at `pulse.New` time asserts that the
 factory's returned value implements `extend.OnlineAggregator`.
-Mismatch surfaces as `PULSE_EXTENSION_STREAMABLE_MISMATCH`.
+Mismatch surfaces as `PULSE_EXTENSION_STREAMABLE_MISMATCH`. The
+declaration is authoritative at run time: a `Streamable=false`
+aggregator runs buffered even when its value also implements
+`extend.OnlineAggregator`, so `PredictResult.Streamable` (which reads
+the declaration) and the engine never disagree.
 
 Aggregators are authored against the public `extend` package:
 `Aggregate(rows extend.Rows, field)` receives a zero-copy view of the
@@ -173,9 +177,12 @@ aggregator, extension or built-in.
 asserts the `extend` sibling on the factory's own value; the adapter
 forwards exactly the tier it implements. Attributes do NOT declare a
 `ComponentSchema` (see the table in the **Component schemas** section).
-Extension attributes run buffered on `Process` today whatever their
-`Mode`: its stream gate consults built-in `AttributeType.Streamable()`
-only.
+`Mode` also picks the run-time drive on `Process`: `row_local` streams
+through `Row`, `two_pass` takes the streaming `PrePass` → `Finalize` →
+`Row` drive, `buffered` runs `Compute` over the materialised rows. Like
+the built-in two-pass attributes (`ATTR_ZSCORE`, …), a `two_pass`
+extension runs buffered when the request also carries a grouper,
+feature, regression or tier-1 test.
 
 ### Filterer, Grouper, Window, Feature
 
@@ -211,8 +218,12 @@ returning an `extend.FiltererBuilder` whose `Build` compiles an
 `extend.FilterFunc func(extend.Record) (bool, error)`. The adapter
 forwards each keying sibling explicitly, so a fan-out grouper that also
 supplies `ComponentsFunc` stays multi-key (and fuses in a crosstab).
-Extension groupers run buffered on the plain grouped `Process` path:
-its stream gate consults built-in `GroupType.Streamable()` only.
+`Streamable=true` routes the grouped `Process` request onto the
+streaming path, driving `KeyForRow` / `KeysForRow` per row; the probe
+refuses a `Streamable=true` registration whose value implements
+neither keying sibling (`PULSE_EXTENSION_STREAMABLE_MISMATCH`). A
+`Streamable=false` grouper runs buffered through `Group` even when it
+can key per row.
 
 A window is an `extend.WindowFactory` taking the spec and an empty
 `extend.WindowOptions` and returning an `extend.WindowComputer`
@@ -255,8 +266,9 @@ Exactly one of `RowFactory` / `PostFactory` must be non-nil and match
 then `Finalize() (*types.TestResult, error)`; a tier-2 `extend.PostTest`
 runs `Run(rows []map[string]any)` once over the result rows. Tier-2
 tests always run buffered; `Streamable` on a tier-2 registration is
-ignored. Extension tier-1 tests also run buffered on `Process` today:
-its stream gate consults built-in `TestType.Streamable()` only.
+ignored. A tier-1 test declared `Streamable=true` co-streams with
+online aggregators (`UpdateRow` folds during the single pass);
+`Streamable=false` forces the request buffered.
 
 ### Synth distribution
 
@@ -722,7 +734,18 @@ ranges.
 ## Streamability contract
 
 Embedders declare streamability at registration time; the runtime
-trusts that declaration. Probe-validation catches obvious mismatches.
+routes on that declaration — never on the built-in per-type
+`Streamable()` tables (which know no extension name) nor on whichever
+optional interface the value happens to carry — and predict reads the
+same declaration from the extensions snapshot, so
+`PredictResult.Streamable` agrees with the path taken
+(`processing.CanStreamRequestWithExtensions` is the runtime parity
+hook; `TestExtensions_StreamabilityFollowsDeclaration` holds all three
+equal). Probe-validation guarantees every streamable declaration is
+backed by the interface in the table below
+(`PULSE_EXTENSION_STREAMABLE_MISMATCH`); for a tier-1 test the flag
+alone decides, since every `extend.RowTest` folds per row. Feature
+streamability is the exception: it is decided on the returned value.
 
 | Category | Streamable means | Required interface |
 |---|---|---|

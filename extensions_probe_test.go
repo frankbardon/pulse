@@ -160,3 +160,42 @@ func TestExtensions_ProbeAttribute_BufferedAcceptsAnyComputer(t *testing.T) {
 		t.Fatalf("buffered attribute rejected: %v", err)
 	}
 }
+
+// groupOnlyGrouper implements only extend.Grouper — no keying sibling.
+type groupOnlyGrouper struct{}
+
+func (groupOnlyGrouper) Group(extend.Rows, string) (map[string][]int, error) {
+	return map[string][]int{}, nil
+}
+
+// TestExtensions_ProbeGrouper_StreamableMismatch asserts a grouper
+// registered Streamable=true whose factory returns no keying sibling
+// (extend.StreamingGrouper / extend.MultiKeyStreamingGrouper) is
+// refused at pulse.New: the runtime trusts the declaration and would
+// otherwise route the request onto a streaming path the value cannot
+// drive.
+func TestExtensions_ProbeGrouper_StreamableMismatch(t *testing.T) {
+	ext := pulse.Extensions{
+		Groupers: []pulse.GrouperRegistration{{
+			Name:       "GROUP_ACME_BAD",
+			Factory:    func(*types.Group, *encoding.Schema) (extend.Grouper, error) { return groupOnlyGrouper{}, nil },
+			Streamable: true,
+		}},
+	}
+	_, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: ext})
+	assertCodedError(t, err, perr.PULSE_EXTENSION_STREAMABLE_MISMATCH)
+}
+
+// TestExtensions_ProbeGrouper_NonStreamableAccepted is the control: the
+// same buffered-only grouper declared Streamable=false registers.
+func TestExtensions_ProbeGrouper_NonStreamableAccepted(t *testing.T) {
+	ext := pulse.Extensions{
+		Groupers: []pulse.GrouperRegistration{{
+			Name:    "GROUP_ACME_GOOD",
+			Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) { return groupOnlyGrouper{}, nil },
+		}},
+	}
+	if _, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: ext}); err != nil {
+		t.Fatalf("non-streamable grouper rejected: %v", err)
+	}
+}

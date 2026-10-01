@@ -337,11 +337,8 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		if len(req.Tests) > 0 {
 			reasons = append(reasons, "regression with tier-1 tests runs via the buffered path")
 		}
-		for _, attr := range req.Attributes {
-			if attr.Type == types.ATTR_ZSCORE || attr.Type == types.ATTR_TSCORE || attr.Type == types.ATTR_NORMALIZED {
-				reasons = append(reasons, "regression with two-pass attribute "+string(attr.Type)+" runs via the buffered path")
-				break
-			}
+		if tp := firstTwoPassAttribute(req, opts); tp != "" {
+			reasons = append(reasons, "regression with two-pass attribute "+string(tp)+" runs via the buffered path")
 		}
 	}
 
@@ -369,6 +366,11 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			reasons = append(reasons, "attribute "+string(attr.Type)+" requires a full pass for population stats")
 		}
 	}
+	// Two-pass attributes do not yet compose with grouped or feature
+	// streaming (mirrors processing.canStream's combination gate).
+	if tp := firstTwoPassAttribute(req, opts); tp != "" && (len(req.Groups) > 0 || len(req.Features) > 0) {
+		reasons = append(reasons, "two-pass attribute "+string(tp)+" with groupers or features runs via the buffered path")
+	}
 	if len(req.Windows) > 0 {
 		reasons = append(reasons, "windows run over the post-aggregate row set")
 	}
@@ -393,7 +395,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		}
 	}
 
-	reasons = append(reasons, streamableTestReasons(req)...)
+	reasons = append(reasons, streamableTestReasons(req, opts)...)
 
 	return len(reasons) == 0, reasons
 }

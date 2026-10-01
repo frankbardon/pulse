@@ -67,6 +67,14 @@ type GroupedTail struct {
 	TotalRows, FilteredRows, NullRecords int64
 	FilterCounters                       []FilterPassCounters
 
+	// Assignments counts (record, bucket) routings — one per key a
+	// record was keyed into, so a fan-out record counts once per
+	// bucket. It is Components.Groupers' TotalN for a grouper whose
+	// MetaGrouper payload carries no "buckets" list (an extension
+	// grouper); built-ins derive TotalN from their buckets payload and
+	// may leave it zero.
+	Assignments int64
+
 	// ShardCount is the archive's shard count (0 for a single file); it
 	// lands on Components.Run.ShardCount.
 	ShardCount        int
@@ -149,7 +157,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		// record that landed in no bucket (null key, include rejection,
 		// empty set mask). Grouped runs emit no Components.Aggregations —
 		// per-group components is an unlanded surface.
-		entry, err := buildStreamingGrouperComponents(t.Grouper, t.Group, int(t.FilteredRows))
+		entry, err := buildStreamingGrouperComponents(t.Grouper, t.Group, int(t.FilteredRows), t.Assignments)
 		if err != nil {
 			return nil, err
 		}

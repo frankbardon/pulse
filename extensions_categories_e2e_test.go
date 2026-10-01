@@ -142,13 +142,15 @@ func TestExtensions_AttributesAuthoredAgainstExtend(t *testing.T) {
 				(calls.prePass.Load() == 0 || calls.finalize.Load() == 0) {
 				t.Errorf("two_pass Row driven without PrePass/Finalize: %+v", calls)
 			}
-			// Process gates attribute streaming on the built-in
-			// AttributeType.Streamable(), so an extension attribute runs
-			// buffered there today whatever its Mode; the Row / PrePass
-			// forwarding is pinned at the adapter seam instead
-			// (TestAdaptAttribute_ForwardsExactlyTheImplementedTier).
-			if calls.compute.Load()+calls.row.Load() == 0 {
-				t.Errorf("%s attribute never driven", mode)
+			// The declared Mode picks the drive: buffered → Compute,
+			// row_local → Row, two_pass → PrePass + Finalize + Row. The
+			// cross-category runtime == predict matrix is
+			// TestExtensions_StreamabilityFollowsDeclaration.
+			if mode == pulse.AttributeModeBuffered && (calls.compute.Load() == 0 || calls.row.Load() != 0) {
+				t.Errorf("buffered attribute: Compute=%d Row=%d, want Compute only", calls.compute.Load(), calls.row.Load())
+			}
+			if mode != pulse.AttributeModeBuffered && (calls.row.Load() == 0 || calls.compute.Load() != 0) {
+				t.Errorf("%s attribute: Compute=%d Row=%d, want Row only", mode, calls.compute.Load(), calls.row.Load())
 			}
 		})
 	}

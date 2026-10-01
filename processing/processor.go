@@ -122,7 +122,7 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 		switch {
 		case len(req.Groups) > 0:
 			resp, err = p.processStreamingGrouped(ctx, req, iter)
-		case hasTwoPassAttribute(req):
+		case hasTwoPassAttribute(req, p.exts):
 			resp, err = p.processStreamingTwoPass(ctx, req, iter)
 		default:
 			resp, err = p.processStreaming(ctx, req, iter)
@@ -152,7 +152,16 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 // PredictResult.Streamable value matches the runtime gate. Application
 // code should rely on PredictResult.Streamable, not this helper.
 func CanStreamRequest(req *types.Request, schema *encoding.Schema) bool {
-	p := &Processor{schema: schema}
+	return CanStreamRequestWithExtensions(req, schema, nil)
+}
+
+// CanStreamRequestWithExtensions is CanStreamRequest against a
+// processor whose operator lookups consult exts — the parity hook for
+// requests naming embedder-registered operators, whose streamability
+// is their DECLARED registration flag (ExtensionRegistry.IsStreamable).
+// A nil exts is exactly CanStreamRequest.
+func CanStreamRequestWithExtensions(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) bool {
+	p := &Processor{schema: schema, exts: exts}
 	return p.canStream(req)
 }
 
@@ -243,10 +252,11 @@ func requiresTwoPass(t types.AttributeType) bool {
 }
 
 // hasTwoPassAttribute reports whether req has any attribute whose type
-// requires the two-pass streaming path.
-func hasTwoPassAttribute(req *types.Request) bool {
+// requires the two-pass streaming path — a built-in two-pass type or an
+// extension attribute that declared the two-pass mode on exts.
+func hasTwoPassAttribute(req *types.Request, exts *ExtensionRegistry) bool {
 	for _, attr := range req.Attributes {
-		if requiresTwoPass(attr.Type) {
+		if exts.attributeRequiresTwoPass(attr.Type) {
 			return true
 		}
 	}
@@ -254,19 +264,26 @@ func hasTwoPassAttribute(req *types.Request) bool {
 }
 
 // canStream reports whether the request can be safely executed via the
-// streaming path. Streaming requires:
-//   - groups: empty, OR every grouper.Type.Streamable()=true (CATEGORY,
-//     RANGE, ROUNDED — partitioned via grouped streaming path).
-//     QUANTILE/DATE require a finalize-time view of the full set.
-//   - attributes: empty, OR every attribute.Type.Streamable()=true
-//     (FORMULA, DATE_PART implement RowLocalAttribute and execute
-//     inline). ZSCORE/TSCORE/NORMALIZED/PERCENTILE need population stats.
+// streaming path. Every per-operator streamability fact below is read
+// through ExtensionRegistry.IsStreamable: a built-in answers from its
+// per-type Streamable() method, an extension from its DECLARED
+// registration flag (probe-validated at pulse.New). Streaming requires:
+//   - groups: empty, OR every grouper streamable (CATEGORY, RANGE,
+//     ROUNDED, … or an extension declared Streamable — partitioned via
+//     the grouped streaming path). QUANTILE/DATE require a
+//     finalize-time view of the full set.
+//   - attributes: empty, OR every attribute streamable (FORMULA,
+//     DATE_PART implement RowLocalAttribute and execute inline;
+//     ZSCORE/TSCORE/NORMALIZED and extension two_pass attributes take
+//     the two-pass drive). PERCENTILE and extension buffered-mode
+//     attributes need the materialised set.
 //   - no windows (window operators run over the post-aggregate row set)
 //   - features either empty or every operator implements
 //     feature.StreamingComputer (PrePass + Finalize + EmitRow)
-//   - every aggregation type supports OnlineAggregator
+//   - every aggregation declared/typed streamable AND its instance
+//     implements OnlineAggregator
 //   - filters are row-level only (every registered filter today is)
-//   - tier-1 tests: empty, OR every test type streamable AND registered
+//   - tier-1 tests: empty, OR every test streamable AND registered
 //     AND no groupers / features / two-pass attributes (those
 //     combinations are not yet wired through the streaming paths)
 //
@@ -306,7 +323,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 				return false
 			}
 		}
-		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req) || len(req.Tests) > 0 {
+		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.exts) || len(req.Tests) > 0 {
 			return false
 		}
 	}
@@ -315,7 +332,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 			return false
 		}
 		for _, t := range req.Tests {
-			if !t.Type.Streamable() {
+			if !p.exts.IsStreamable("test", string(t.Type)) {
 				return false
 			}
 		}
@@ -323,21 +340,21 @@ func (p *Processor) canStream(req *types.Request) bool {
 		// two-pass attributes inside the streaming paths. Route those
 		// combinations through the buffered path so the row tests
 		// still execute correctly over the filtered record set.
-		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req) {
+		if len(req.Groups) > 0 || len(req.Features) > 0 || hasTwoPassAttribute(req, p.exts) {
 			return false
 		}
 	}
 	for _, grp := range req.Groups {
-		if !grp.Type.Streamable() {
+		if !p.exts.IsStreamable("grouper", string(grp.Type)) {
 			return false
 		}
 	}
 	hasTwoPassAttr := false
 	for _, attr := range req.Attributes {
-		if !attr.Type.Streamable() {
+		if !p.exts.IsStreamable("attribute", string(attr.Type)) {
 			return false
 		}
-		if requiresTwoPass(attr.Type) {
+		if p.exts.attributeRequiresTwoPass(attr.Type) {
 			hasTwoPassAttr = true
 		}
 	}
@@ -364,6 +381,16 @@ func (p *Processor) canStream(req *types.Request) bool {
 			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
 				return false
 			}
+		}
+		// The declared flag gates first: an extension registered
+		// Streamable=false runs buffered even when its value also
+		// implements OnlineAggregator, so predict (which reads the
+		// declaration) and runtime cannot disagree. Built-ins fall
+		// through to AggregationType.Streamable(), which
+		// TestRegistryStreamabilityMatchesTypes holds equal to the
+		// interface assertion below.
+		if !p.exts.IsStreamable("aggregator", string(agg.Type)) {
+			return false
 		}
 		factory, ok := p.exts.LookupAggregator(agg.Type)
 		if !ok {
@@ -768,7 +795,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	var primaryNullRecords int64
 
-	var totalRows, filteredRows int64
+	var totalRows, filteredRows, assignments int64
 	for iter.Next() {
 		totalRows++
 		r := iter.Record()
@@ -815,6 +842,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		if !ok {
 			continue // null group key — buffered path skips these too
 		}
+		assignments += int64(len(rowKeys))
 
 		for _, key := range rowKeys {
 			b, exists := buckets[key]
@@ -857,6 +885,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		TotalRows:         totalRows,
 		FilteredRows:      filteredRows,
 		NullRecords:       primaryNullRecords,
+		Assignments:       assignments,
 		FilterCounters:    filterCounters,
 		DisableComponents: p.disableComponents,
 		PostTests: func(rows []map[string]any) ([]*types.TestResult, error) {
@@ -1879,37 +1908,35 @@ func buildGrouperComponents(grouper Grouper, slot *types.Group, groups map[strin
 
 // buildStreamingGrouperComponents builds a types.GrouperComponents
 // from the streaming grouped path: the grouper instance KeyForRow
-// drove, the originating Group slot, and the post-filter row count
-// observed by the streaming iterator. Mirrors buildGrouperComponents
-// except TotalN is derived from MetaGrouper.Components()'s buckets
-// payload (the orchestrator never built the buffered partition map
-// on this path). When the grouper does not implement MetaGrouper,
-// TotalN collapses to totalFiltered as a conservative floor — the
-// orchestrator has no other signal for partitioned vs skipped rows.
-func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFiltered int) (types.GrouperComponents, error) {
+// drove, the originating Group slot, the post-filter row count
+// observed by the streaming iterator, and the orchestrator's own count
+// of (record, bucket) assignments. Mirrors buildGrouperComponents:
+// TotalN is derived from MetaGrouper.Components()'s buckets payload
+// when the grouper emits one (every built-in does), and otherwise from
+// assignments — the streaming twin of summing the buffered partition
+// map — so an extension grouper (no buckets payload, or no
+// MetaGrouper at all) reports the same floor on either path.
+func buildStreamingGrouperComponents(grouper any, slot *types.Group, totalFiltered int, assignments int64) (types.GrouperComponents, error) {
 	entry := types.GrouperComponents{
 		Field: slot.Field,
 	}
-	meta, ok := grouper.(MetaGrouper)
-	if !ok {
-		entry.TotalN = totalFiltered
-		return entry, nil
-	}
-	op, err := meta.Components()
-	if err != nil {
-		return types.GrouperComponents{}, err
-	}
-	entry.Operator = op
-	// Sum per-bucket counts to derive TotalN. The buckets payload is
-	// a []map[string]any with int "count" entries by GROUP_CATEGORY /
-	// GROUP_DATE convention. Other groupers that wire MetaGrouper in
-	// later stories MUST follow the same {"count": int} convention;
-	// the type assertion guards drift.
-	totalN := 0
-	if buckets, ok := op["buckets"].([]map[string]any); ok {
-		for _, b := range buckets {
-			if c, ok := b["count"].(int); ok {
-				totalN += c
+	totalN := int(assignments)
+	if meta, ok := grouper.(MetaGrouper); ok {
+		op, err := meta.Components()
+		if err != nil {
+			return types.GrouperComponents{}, err
+		}
+		entry.Operator = op
+		// Sum per-bucket counts to derive TotalN. The buckets payload is
+		// a []map[string]any with int "count" entries by GROUP_CATEGORY /
+		// GROUP_DATE convention; every built-in MetaGrouper follows it,
+		// and the type assertion guards drift.
+		if buckets, ok := op["buckets"].([]map[string]any); ok {
+			totalN = 0
+			for _, b := range buckets {
+				if c, ok := b["count"].(int); ok {
+					totalN += c
+				}
 			}
 		}
 	}

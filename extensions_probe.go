@@ -96,7 +96,10 @@ func probeAggregators(regs []AggregatorRegistration) error {
 	return nil
 }
 
-// probeGroupers validates every registered grouper. The declared
+// probeGroupers validates every registered grouper. A Streamable=true
+// registration must return a per-row keying sibling
+// (extend.StreamingGrouper or extend.MultiKeyStreamingGrouper), else
+// PULSE_EXTENSION_STREAMABLE_MISMATCH. The declared
 // FansOut trait is cross-checked against the constructed instance's
 // extend.MultiKeyStreamingGrouper implementation in BOTH
 // directions — mirroring the Streamable/OnlineAggregator check in
@@ -119,6 +122,26 @@ func probeGroupers(regs []GrouperRegistration) error {
 		_, observedFansOut := instance.(extend.MultiKeyStreamingGrouper)
 		if reg.FansOut != observedFansOut {
 			return grouperFanOutMismatch(reg, observedFansOut)
+		}
+		// The runtime routes a Streamable=true grouper onto the grouped
+		// streaming path on the declaration alone, so the value MUST
+		// carry a per-row keying sibling. One direction only, as for
+		// aggregators: a keyable grouper declared Streamable=false just
+		// runs buffered.
+		if reg.Streamable {
+			_, single := instance.(extend.StreamingGrouper)
+			if !single && !observedFansOut {
+				return errors.NewCodedErrorWithDetails(
+					errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
+					fmt.Sprintf("grouper %q declares Streamable=true but factory returns neither extend.StreamingGrouper nor extend.MultiKeyStreamingGrouper", reg.Name),
+					map[string]any{
+						"category":   "grouper",
+						"name":       string(reg.Name),
+						"streamable": true,
+						"required":   "extend.StreamingGrouper or extend.MultiKeyStreamingGrouper",
+					},
+				)
+			}
 		}
 		if reg.ComponentsFunc != nil {
 			if err := verifyComponentSchemaPresence(
