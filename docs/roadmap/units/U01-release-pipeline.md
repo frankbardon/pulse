@@ -69,11 +69,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(release-pipeline/
 
 ## Acceptance criteria
 
-- [ ] `pulse --version` on a release artifact prints the tag; a `go install …@vX.Y.Z` build prints `vX.Y.Z`; a local build prints `git describe` output (validated at finalize via `v1.0.0-alpha.0`)
+- [x] `pulse --version` on a release artifact prints the tag; a `go install …@vX.Y.Z` build prints `vX.Y.Z`; a local build prints `git describe` output (validated 2026-10-01: the `v1.0.0-alpha.0` darwin/arm64 artifact and `go install …@v1.0.0-alpha.0` both print `v1.0.0-alpha.0`)
 - [x] The MCP `initialize` response advertises the real version; no source file under `mcpserve`, `mcp/gosdk` or `cmd/pulse` contains a hard-coded semver
-- [ ] Pushing a tag on a commit with failing tests produces **no** release (verified by the `needs:` wiring); pushing on a green commit produces a release with 6 archives + checksums (validated at finalize via `v1.0.0-alpha.0`)
-- [ ] A `-rc.N` tag is marked as a pre-release (validated at finalize via `v1.0.0-alpha.0`)
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] Pushing a tag on a commit with failing tests produces **no** release (verified by the `needs:` wiring; the `v1.0.0-alpha.0` run executed `ci / test` and `ci / lint` before `release`); pushing on a green commit produces a release with 6 archives + checksums (validated with `v1.0.0-alpha.0`; checksums verify)
+- [x] A `-rc.N` tag is marked as a pre-release (validated with `v1.0.0-alpha.0`; the workflow flags any `-` suffixed tag)
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
