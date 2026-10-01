@@ -10,6 +10,6 @@ This directory sits outside the mdBook source (`docs/src/`) on purpose: planned 
 |---|---|
 | Vector & matrix math | [`v1.0.0-vector-matrix/`](v1.0.0-vector-matrix/00-overview.md) |
 | Guided analysis — purpose metadata, question-first docs, Recommend / Explain, MCP prompts | [`v1.0.0-guided-analysis/`](v1.0.0-guided-analysis/00-overview.md) |
-| Feature profiles — instance-wide allowlist configs; hidden features fully invisible across manifest, skills, MCP, CLI and docs | [`v1.0.0-feature-profiles/`](v1.0.0-feature-profiles/00-feasibility.md) |
+| Feature profiles — instance-wide allowlist configs; hidden features invisible to discovery across manifest, skills, examples, MCP and generated docs | [`v1.0.0-feature-profiles/`](v1.0.0-feature-profiles/00-feasibility.md) |
 
 **Cross-theme ordering:** feature profiles FP1–FP3 and guided-analysis G1 land first, so every new surface in the other themes is profile-filtered and carries purpose metadata from its first commit.
