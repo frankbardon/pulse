@@ -93,10 +93,16 @@ func TestAdaptGrouper_ForwardsExactlyTheImplementedSiblings(t *testing.T) {
 			if withEmit {
 				e = emit
 			}
-			got := adaptGrouper("GROUP_ACME_T", c.inner, e)
+			got := adaptGrouper("GROUP_ACME_T", "x", c.inner, e)
 			_, isS := got.(processing.StreamingGrouper)
 			_, isK := got.(processing.MultiKeyStreamingGrouper)
 			_, isM := got.(processing.MetaGrouper)
+			// StreamableGrouper (field-bound KeyFor) is synthesized for
+			// every streaming value; it is what the fused crosstab gate
+			// asserts for a single-key axis.
+			if _, isF := got.(processing.StreamableGrouper); isF != c.streaming {
+				t.Errorf("%s emit=%v: StreamableGrouper=%v, want %v", c.name, withEmit, isF, c.streaming)
+			}
 			if isS != c.streaming || isK != c.multi || isM != withEmit {
 				t.Errorf("%s emit=%v: streaming=%v multi=%v meta=%v; want %v %v %v",
 					c.name, withEmit, isS, isK, isM, c.streaming, c.multi, withEmit)
@@ -118,7 +124,7 @@ func TestAdaptGrouper_ForwardsExactlyTheImplementedSiblings(t *testing.T) {
 func TestAdaptGrouper_StreamingWithComponentsDrivesKeyForRow(t *testing.T) {
 	n := 0
 	emit := func(extend.Grouper) (map[string]any, error) { return nil, nil }
-	adapted := adaptGrouper("GROUP_ACME_T", adaptGrpStreaming{key: "hi", n: &n}, emit)
+	adapted := adaptGrouper("GROUP_ACME_T", "x", adaptGrpStreaming{key: "hi", n: &n}, emit)
 	keyer, err := processing.NewGroupKeyer(adapted)
 	if err != nil {
 		t.Fatalf("NewGroupKeyer refused the adapted streaming grouper: %v", err)
@@ -133,11 +139,11 @@ func TestAdaptGrouper_StreamingWithComponentsDrivesKeyForRow(t *testing.T) {
 // from either key method is the engine's ok=false, not a run failure.
 func TestAdaptGrouper_NullSentinelMapsToSkip(t *testing.T) {
 	rec := twoRecords()[0]
-	s := adaptGrouper("GROUP_ACME_T", adaptGrpStreaming{null: true}, nil).(processing.StreamingGrouper)
+	s := adaptGrouper("GROUP_ACME_T", "x", adaptGrpStreaming{null: true}, nil).(processing.StreamingGrouper)
 	if key, ok, err := s.KeyForRow(rec, "x"); key != "" || ok || err != nil {
 		t.Errorf("KeyForRow = %q, %v, %v; want \"\", false, nil", key, ok, err)
 	}
-	k := adaptGrouper("GROUP_ACME_T", adaptGrpMulti{null: true}, nil).(processing.MultiKeyStreamingGrouper)
+	k := adaptGrouper("GROUP_ACME_T", "x", adaptGrpMulti{null: true}, nil).(processing.MultiKeyStreamingGrouper)
 	if keys, ok, err := k.KeysForRow(rec, "x"); keys != nil || ok || err != nil {
 		t.Errorf("KeysForRow = %v, %v, %v; want nil, false, nil", keys, ok, err)
 	}
@@ -153,6 +159,62 @@ func TestAdaptGrouper_NullSentinelMapsToSkip(t *testing.T) {
 	}
 }
 
+// fieldEcho keys a row by the field name it was handed, so a test can
+// see which field reached the embedder.
+type fieldEcho struct{ adaptGrpBase }
+
+func (fieldEcho) KeyForRow(_ extend.Record, field string) (string, bool, error) {
+	switch field {
+	case "":
+		return "", false, nil
+	case "nullfield":
+		return "", true, extend.ErrGrouperKeyNull
+	case "nokey":
+		return "", false, nil
+	}
+	return field, true, nil
+}
+
+// TestAdaptGrouper_KeyForUsesBoundField: the synthesized
+// processing.StreamableGrouper keys on the factory-time field, the
+// engine's field-less KeyForRow(rec, "") call reaches the embedder
+// with that same field, and both null shapes (ok=false and
+// extend.ErrGrouperKeyNull) become processing.ErrGrouperKeyNull.
+func TestAdaptGrouper_KeyForUsesBoundField(t *testing.T) {
+	rec := twoRecords()[0]
+	g := adaptGrouper("GROUP_ACME_T", "region", fieldEcho{}, nil)
+	sg, ok := g.(processing.StreamableGrouper)
+	if !ok {
+		t.Fatal("adapted streaming grouper is not a processing.StreamableGrouper")
+	}
+	if key, err := sg.KeyFor(rec); key != "region" || err != nil {
+		t.Errorf("KeyFor = %q, %v; want \"region\", nil", key, err)
+	}
+	if key, ok, err := g.(processing.StreamingGrouper).KeyForRow(rec, ""); key != "region" || !ok || err != nil {
+		t.Errorf("KeyForRow(rec, \"\") = %q, %v, %v; want the bound field", key, ok, err)
+	}
+	if key, ok, err := g.(processing.StreamingGrouper).KeyForRow(rec, "other"); key != "other" || !ok || err != nil {
+		t.Errorf("KeyForRow(rec, \"other\") = %q, %v, %v; an explicit field must win", key, ok, err)
+	}
+	for _, field := range []string{"nullfield", "nokey"} {
+		null := adaptGrouper("GROUP_ACME_T", field, fieldEcho{}, nil).(processing.StreamableGrouper)
+		if _, err := null.KeyFor(rec); !stderrors.Is(err, processing.ErrGrouperKeyNull) {
+			t.Errorf("field %s: KeyFor err = %v, want processing.ErrGrouperKeyNull", field, err)
+		}
+	}
+	boom := stderrors.New("boom")
+	errS := adaptGrouper("GROUP_ACME_T", "x", errStreamingGrouper{errStreaming{boom}}, nil)
+	if sg, ok := errS.(processing.StreamableGrouper); !ok {
+		t.Error("adapted erroring streaming grouper is not a processing.StreamableGrouper")
+	} else if _, err := sg.KeyFor(rec); !stderrors.Is(err, boom) {
+		t.Errorf("non-sentinel KeyFor err = %v, want boom", err)
+	}
+}
+
+type errStreamingGrouper struct{ errStreaming }
+
+func (errStreamingGrouper) Group(extend.Rows, string) (map[string][]int, error) { return nil, nil }
+
 type errMulti struct{ err error }
 
 func (e errMulti) KeysForRow(extend.Record, string) ([]string, bool, error) { return nil, false, e.err }
@@ -165,7 +227,7 @@ func (e errStreaming) KeyForRow(extend.Record, string) (string, bool, error) { r
 // engine's own record pointers; an out-of-range index is a coded error.
 func TestAdaptGrouper_TranslatesIndexMap(t *testing.T) {
 	recs := twoRecords()
-	got, err := adaptGrouper("GROUP_ACME_T", adaptGrpBase{idx: map[string][]int{"a": {1, 0}, "b": {1}}}, nil).Group(recs, "x")
+	got, err := adaptGrouper("GROUP_ACME_T", "x", adaptGrpBase{idx: map[string][]int{"a": {1, 0}, "b": {1}}}, nil).Group(recs, "x")
 	if err != nil {
 		t.Fatalf("Group: %v", err)
 	}
@@ -174,13 +236,13 @@ func TestAdaptGrouper_TranslatesIndexMap(t *testing.T) {
 		t.Errorf("translated map wrong: %v", got)
 	}
 	for _, bad := range []int{2, -1} {
-		_, err := adaptGrouper("GROUP_ACME_T", adaptGrpBase{idx: map[string][]int{"a": {0, bad}}}, nil).Group(recs, "x")
+		_, err := adaptGrouper("GROUP_ACME_T", "x", adaptGrpBase{idx: map[string][]int{"a": {0, bad}}}, nil).Group(recs, "x")
 		var ce *perr.CodedError
 		if !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_INTERNAL {
 			t.Errorf("index %d: err = %v, want PROCESSING_INTERNAL", bad, err)
 		}
 	}
-	if got, err := adaptGrouper("GROUP_ACME_T", adaptGrpBase{}, nil).Group(recs, "x"); got != nil || err != nil {
+	if got, err := adaptGrouper("GROUP_ACME_T", "x", adaptGrpBase{}, nil).Group(recs, "x"); got != nil || err != nil {
 		t.Errorf("nil map = %v, %v; want nil, nil", got, err)
 	}
 }
@@ -189,7 +251,7 @@ func TestAdaptGrouper_TranslatesIndexMap(t *testing.T) {
 // value carrying its own Components() still emits (MetaGrouper), and
 // an explicit ComponentsFunc wins over it.
 func TestAdaptGrouper_SelfEmittingComponentsKept(t *testing.T) {
-	got := adaptGrouper("GROUP_ACME_T", adaptGrpSelfEmitting{}, nil)
+	got := adaptGrouper("GROUP_ACME_T", "x", adaptGrpSelfEmitting{}, nil)
 	meta, ok := got.(processing.MetaGrouper)
 	if !ok {
 		t.Fatal("self-emitting grouper lost MetaGrouper")
@@ -198,7 +260,7 @@ func TestAdaptGrouper_SelfEmittingComponentsKept(t *testing.T) {
 		t.Errorf("Components = %v, want self=true", m)
 	}
 	explicit := func(extend.Grouper) (map[string]any, error) { return map[string]any{"explicit": 1}, nil }
-	m, _ := adaptGrouper("GROUP_ACME_T", adaptGrpSelfEmitting{}, explicit).(processing.MetaGrouper).Components()
+	m, _ := adaptGrouper("GROUP_ACME_T", "x", adaptGrpSelfEmitting{}, explicit).(processing.MetaGrouper).Components()
 	if m["explicit"] != 1 {
 		t.Errorf("explicit ComponentsFunc did not win: %v", m)
 	}

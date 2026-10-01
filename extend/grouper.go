@@ -33,6 +33,10 @@ type Grouper interface {
 // implementing it (or MultiKeyStreamingGrouper for a fan-out grouper);
 // the engine then keys rows one at a time instead of buffering them.
 // ok=false (or an ErrGrouperKeyNull error) skips the row.
+//
+// Implementing it also makes the grouper eligible as a fused crosstab
+// axis, whatever Streamable declares: the engine keys each record with
+// field set to the grouper's own types.Group.Field.
 type StreamingGrouper interface {
 	KeyForRow(rec Record, field string) (key string, ok bool, err error)
 }

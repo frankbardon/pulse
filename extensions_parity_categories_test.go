@@ -6,11 +6,11 @@ package pulse_test
 // shared cohort × mode matrix in extensions_parity_test.go.
 //
 // Cells the matrix does not exercise, by design:
-//   - fused crosstab: a single-key extension grouper never takes the
-//     fused arm (deferred), and the fused gate does not yet refuse a
-//     two_pass extension attribute (deferred), so no crosstab row is
-//     carried here — a fused-crosstab two_pass parity row would pin the
-//     known gap rather than the contract.
+//   - fused crosstab: carried by dedicated tests rather than matrix
+//     rows — TestExtensions_SingleKeyGrouperFusesCrosstab (a single-key
+//     extension grouper takes the fused arm and matches GROUP_CATEGORY)
+//     and TestExtensions_TwoPassAttributeCrosstabNotFused (a two_pass
+//     extension attribute declines it, as ATTR_ZSCORE does).
 //   - parallel / per-shard: extension operators are never mergeable, so
 //     those modes compare the built-in's parallel arm against the
 //     extension's serial arm (the same comparison the aggregator suite

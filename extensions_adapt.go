@@ -215,9 +215,23 @@ func (g grpCore) Group(records []*processing.Record, field string) (map[string][
 // grpStreaming forwards extend.StreamingGrouper as
 // processing.StreamingGrouper. extend.ErrGrouperKeyNull maps to
 // ok=false, the engine's "no bucket" answer.
-type grpStreaming struct{ streaming extend.StreamingGrouper }
+//
+// It also synthesizes processing.StreamableGrouper (KeyFor) from the
+// field the grouper was constructed for, so a single-key extension
+// grouper takes the fused crosstab arm like its built-in twins. The
+// engine's field-bound callers (the fused crosstab keyer) pass "" to
+// KeyForRow because built-ins bind their field at factory time; the
+// embedder's KeyForRow always receives the real field name instead.
+// StreamableGrouper itself stays engine-only — extend never exposes it.
+type grpStreaming struct {
+	streaming extend.StreamingGrouper
+	field     string
+}
 
 func (g grpStreaming) KeyForRow(rec *processing.Record, field string) (string, bool, error) {
+	if field == "" {
+		field = g.field
+	}
 	key, ok, err := g.streaming.KeyForRow(rec, field)
 	if err != nil {
 		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
@@ -226,6 +240,20 @@ func (g grpStreaming) KeyForRow(rec *processing.Record, field string) (string, b
 		return "", false, err
 	}
 	return key, ok, nil
+}
+
+// KeyFor is processing.StreamableGrouper's field-bound key: ok=false
+// (or extend.ErrGrouperKeyNull) becomes processing.ErrGrouperKeyNull,
+// the engine's in-band "no bucket" sentinel for this shape.
+func (g grpStreaming) KeyFor(rec *processing.Record) (string, error) {
+	key, ok, err := g.KeyForRow(rec, g.field)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", processing.ErrGrouperKeyNull
+	}
+	return key, nil
 }
 
 // grpMulti forwards extend.MultiKeyStreamingGrouper as
@@ -295,8 +323,10 @@ type (
 
 // adaptGrouper wraps an extend.Grouper so the engine sees exactly the
 // keying siblings it implements, plus MetaGrouper when emit is non-nil
-// (or the value carries its own Components() method).
-func adaptGrouper(name types.GroupType, inner extend.Grouper, emit GrouperComponentsFunc) processing.Grouper {
+// (or the value carries its own Components() method). field is the
+// grouper's target field (types.Group.Field), bound so a streaming
+// grouper also satisfies processing.StreamableGrouper.
+func adaptGrouper(name types.GroupType, field string, inner extend.Grouper, emit GrouperComponentsFunc) processing.Grouper {
 	if emit == nil {
 		if self, ok := inner.(componentsEmitter); ok {
 			emit = func(extend.Grouper) (map[string]any, error) { return self.Components() }
@@ -305,7 +335,7 @@ func adaptGrouper(name types.GroupType, inner extend.Grouper, emit GrouperCompon
 	core := grpCore{inner: inner, name: name}
 	streaming, isS := inner.(extend.StreamingGrouper)
 	multi, isK := inner.(extend.MultiKeyStreamingGrouper)
-	s := grpStreaming{streaming: streaming}
+	s := grpStreaming{streaming: streaming, field: field}
 	k := grpMulti{multi: multi}
 	m := grpMeta{inner: inner, emit: emit}
 	isM := emit != nil
@@ -341,7 +371,11 @@ func adaptGrouperFactory(reg GrouperRegistration) processing.GrouperFactory {
 		if instance == nil {
 			return nil, nil
 		}
-		return adaptGrouper(name, instance, emit), nil
+		field := ""
+		if grp != nil {
+			field = grp.Field
+		}
+		return adaptGrouper(name, field, instance, emit), nil
 	}
 }
 

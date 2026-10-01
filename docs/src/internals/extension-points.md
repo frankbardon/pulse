@@ -252,6 +252,14 @@ returning an `extend.FiltererBuilder` whose `Build` compiles an
 `extend.FilterFunc func(extend.Record) (bool, error)`. The adapter
 forwards each keying sibling explicitly, so a fan-out grouper that also
 supplies `ComponentsFunc` stays multi-key (and fuses in a crosstab).
+A single-key `extend.StreamingGrouper` fuses too: the adapter binds the
+`types.Group.Field` the factory was built for and synthesizes the
+engine-only field-bound `KeyFor` from your `KeyForRow`, so your method
+always receives the real field name. The fused gate reads the
+interface, not the declaration — exactly as for the built-in
+`GROUP_DATE` — so a `Streamable=false` grouper that implements
+`KeyForRow` still fuses a crosstab while its grouped `Process` request
+runs buffered.
 `Streamable=true` routes the grouped `Process` request onto the
 streaming path, driving `KeyForRow` / `KeysForRow` per row; the probe
 refuses a `Streamable=true` registration whose value implements
@@ -806,9 +814,6 @@ State these plainly to users rather than discovering them at run time:
 - **Grouped Components lack per-operator figures.** Under a grouper the
   extension aggregator's operator-specific keys are not emitted; only the
   universal floor is.
-- **No fused crosstab for single-key extension groupers.** The fused
-  arm needs the engine-only `KeyFor` capability, which `extend`
-  omits; a fan-out (`MultiKeyStreamingGrouper`) grouper still fuses.
 - **Two-pass attributes keep a crosstab buffered.** A `two_pass`
   extension attribute declines the fused crosstab exactly as the
   built-in `ATTR_ZSCORE` does — the fused walk never runs a `PrePass`.
