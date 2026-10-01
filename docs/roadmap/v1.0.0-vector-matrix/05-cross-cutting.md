@@ -69,6 +69,8 @@ Each needs a `codeMetadata` entry with Message + ≥1 Fixup.
 | `PULSE_MATRIX_INSUFFICIENT_N` | n ≤ p (or below operator minimum) |
 | `PULSE_MATRIX_NOT_CONVERGED` | iterative fit did not converge (warning) |
 | `PULSE_MATRIX_LISTWISE_HEAVY_DROP` | warning |
+| `PULSE_VECTOR_METRIC_UNSUITED` | metric poorly matched to the vector `kind` (e.g. raw cosine on a rating scale) — warning, error under `--strict` |
+| `PULSE_VECTOR_METRIC_UNKNOWN` | metric not in the registry |
 | `PULSE_OVERLAY_MATRIX_NOT_SQUARE`, `PULSE_OVERLAY_MATRIX_SHAPE_MISMATCH`, `PULSE_OVERLAY_RAKE_NOT_CONVERGED` | overlay family — raised with their own code per the overlay rule |
 
 ## X7. Extension points

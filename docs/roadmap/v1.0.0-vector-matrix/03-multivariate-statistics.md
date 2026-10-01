@@ -74,7 +74,7 @@ Legend for each entry: **Tier** C/S/P · **Stream**: does it ride the mergeable 
 - **Why.** Run before a regression with many predictors. It pairs with `REG_OLS` and explains unstable coefficients.
 
 ### `MAT_DISTANCE` — Tier S · Stream ✔ (for centroid-based)
-- **What it computes.** A distance matrix between **group centroids**: one vector mean per bucket of `params.between` (a grouper), using metric `euclidean` | `mahalanobis` | `correlation` | `cosine`.
+- **What it computes.** A distance matrix between **group centroids**: one vector mean per bucket of `params.between` (a grouper), using any metric from the shared registry ([07](07-similarity-and-distance.md) S1), defaulted by the vector's `kind`.
 - **Why.** Answers "how different are these segments / regions / stores on the whole profile?". The output is k×k, not n×n, so it scales.
 - **Excluded.** Row-to-row distance matrices (n×n) are excluded deliberately, because they are unbounded output.
 
@@ -129,9 +129,9 @@ Each needs a fitted matrix. Pulse already has the two-pass pattern in `ATTR_REG_
 
 ---
 
-## Segmentation grouper — `GROUP_KMEANS` (Tier S)
+## Segmentation grouper — `GROUP_KMEANS` (Tier C — promoted in planning review)
 
-- **Input.** A vector, `k`, a seed, `max_iter` and `standardize` (default true).
+- **Input.** A vector, `k`, a seed, `max_iter` and `standardize` (default true). Euclidean only — k-means minimizes squared Euclidean error; cosine clustering would be spherical k-means, out of scope.
 - **Algorithm.** k-means++ initialization with a seeded PRNG, then Lloyd iterations. Ties go to the lowest centroid index. Final labels are **renumbered by descending cluster size** (ties broken by centroid lexicographic order), so the output is stable across runs and shard orders.
 - **Output.** A categorical key `cluster_1 … cluster_k`. Every aggregator, crosstab and overlay works on it unchanged. Centroids and within-SS go in `Components.Groupers` operator-specific keys.
 - **Execution.** Buffered by nature. Rows hold their vector values, and memory is predictable at `n × p × 8` bytes, which predict reports. Sharded cohorts need a gather; that is documented, not hidden.

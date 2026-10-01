@@ -146,6 +146,8 @@ Bind each vector (virtual or native) as a `[]float64` identifier in the expr env
 | `vcount(v)` | non-NaN element count, for "min valid items" rules |
 | `dot(a, b)`, `norm(v)`, `dist(a, b)`, `cosine(a, b)` | geometry |
 | `argmax(v)`, `argmin(v)` | index of the extreme value (e.g. "top-rated brand") |
+| `vcenter(v)`, `vzscore(v)`, `vnormalize(v, "l1"\|"l2")` | vector-returning, usable inside an expression (ipsatization, shares) — see [07](07-similarity-and-distance.md) S3 |
+| `jaccard(a, b)`, `dice(a, b)`, `hamming(a, b)`, `overlap(a, b)` | set / binary similarity over `set_*` masks (popcount) — see [07](07-similarity-and-distance.md) S4 |
 | `sqrt`, `log`, `exp`, `abs`, `pow` | scalar maths, closing a gap the op skill already notes |
 
 Reference vectors could be supplied as literals (`[1,0,0]`) or through a named `LookupTable`.

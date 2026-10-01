@@ -13,7 +13,7 @@ graph TD
   E1 --> E6[E6 Result overlays]
   E2 --> E6
   E2 --> E7[E7 Native vec_f32/f64 field types]
-  E3 --> E8[E8 Stretch: factor, k-means, distance, rolling]
+  E3 --> E8[E8 Stretch: factor, distance, set affinity, top-k, rolling]
   E6 --> E9[E9 Stretch overlays]
   E3 --> E10[E10 Extensions + synth + hardening]
 ```
@@ -44,10 +44,13 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 ### E4 — Multivariate tests & fitted row attributes (C)
 - `TEST_HOTELLING_T2`, `TEST_MANOVA`, `TEST_BARTLETT_SPHERICITY`.
 - `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE` (two-pass fit/score, `fit_on`).
+- `GROUP_KMEANS` (promoted to committed in planning review; buffered, seeded, size-ordered labels).
 
 ### E5 — Row-wise vector vocabulary (C)
 - expr-lang vector bindings and functions, plus the missing scalar maths functions.
 - `ATTR_SCALE_SCORE`; `AGG_VEC_MEAN`, `AGG_VEC_SUM` (array value + `expand`).
+- Shared metric registry (`linalg/metric`) and vector `kind` defaults + `PULSE_VECTOR_METRIC_UNSUITED` ([07](07-similarity-and-distance.md) S1–S2).
+- Centering and set-similarity expr functions ([07](07-similarity-and-distance.md) S3–S4).
 
 ### E6 — Matrix operations on crosstab results (C)
 - MATRIX_RESULT host and the `Ref.Matrix` reference family.
@@ -61,8 +64,8 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 
 ### E8 — Stretch operators (S)
 - `MAT_FACTOR` + `ATTR_FACTOR_SCORE`.
-- `GROUP_KMEANS`.
 - `MAT_DISTANCE`, `ATTR_PROFILE_SIMILARITY`, `ATTR_VEC_DISTANCE`.
+- `MAT_SET_AFFINITY`; exact top-k nearest rows ([07](07-similarity-and-distance.md) S4–S5).
 - `WIN_ROLLING_CORR`, `WIN_ROLLING_BETA`.
 - `TEST_BOX_M`, `TEST_MARDIA`; `AGG_VEC_SD`; `vec_u8`.
 
@@ -80,7 +83,7 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 | Release | Contents |
 |---|---|
 | v1.0.0 (committed) | E1–E7, E10 extensions |
-| v1.0.0 (if capacity) | E8 and E9 in priority order: `MAT_FACTOR` → `GROUP_KMEANS` → `OVERLAY_SERIATION` → `OVERLAY_PROFILE_SIMILARITY` → the rest |
+| v1.0.0 (if capacity) | E8 and E9 in priority order: `MAT_FACTOR` → `MAT_SET_AFFINITY` → `OVERLAY_SERIATION` → `OVERLAY_PROFILE_SIMILARITY` → the rest |
 | v1.1 | remaining stretch, streaming running-matrix chunks, synth items |
 | post-1.0 | canonical correlation, multi-Y OLS, PCR/PLS, MCA, rake-to-weights output, network centrality |
 
@@ -98,11 +101,11 @@ E6 (result overlays on crosstabs) depends only on `linalg` and the MATRIX_RESULT
 
 ## Open questions (need a decision before the relevant epic)
 
-1. **Vector-valued aggregator output (E5).** Should the value be an array in `Response.Data` or expanded columns by default? The proposal is an array with an `expand` option.
+1. ~~**Vector-valued aggregator output (E5).**~~ **Decided:** an array in `Response.Data`, with `params.expand: true` for tabular consumers.
 2. **Correspondence-analysis payload (E6).** Should it be a two-axis payload (`Series2`), two layers, or a new `coordinates` shape? A new shape is cleanest but widens the overlay payload union.
 3. **Request-level default weight (X1).** Should this be a separate small proposal or folded into E2?
 4. **Pairwise-deletion default.** `listwise` is safe; SPSS defaults vary by procedure. Should Pulse ever default to pairwise for `MAT_CORRELATION` alone?
 5. **Probability vs frequency weights in inference.** Should probability weights use Kish effective-n in v1.0.0, or should design-based variance (stratification, clustering) be out of scope? The latter is recommended.
-6. **`MAT_` as a new category vs riding `TEST_` / `AGG_`.** A new category costs a manifest slice, gates and an extension namespace, but keeps `TestResult` scalar and honest. The proposal is a new category.
-7. **Should `GROUP_KMEANS` be promoted to committed?** It is the highest-value stretch item for market research.
+6. ~~**`MAT_` as a new category vs riding `TEST_` / `AGG_`.**~~ **Decided:** a new `MAT_` category, with its manifest slice, gates and extension namespace.
+7. ~~**Should `GROUP_KMEANS` be promoted to committed?**~~ **Decided:** yes — committed, delivered in E4.
 8. **Shared multiple-comparison core.** Should `OVERLAY_CORR_PVALUE`'s Holm/BH adjustment also be offered on the existing `OVERLAY_PAIRWISE_*` family in v1.0.0?

@@ -48,6 +48,7 @@ The v1.0.0 theme lifts these into a first-class, self-describing surface that ob
 | 04 | [Matrix ops on results](04-matrix-ops-on-results.md) | new overlay kinds on crosstab / matrix / Compose hosts: correspondence analysis, Markov, raking, similarity, matrix formula |
 | 05 | [Cross-cutting concerns](05-cross-cutting.md) | weighting, missing data, numerical stability, determinism, execution modes, errors, extensions, MCP, Update Demand impact |
 | 06 | [Phasing & open questions](06-phasing.md) | epics, ordering, dependency graph, risks, decisions still needed |
+| 07 | [Similarity & distance](07-similarity-and-distance.md) | which embedding-style functions (cosine, dot, top-k, Jaccard…) fit non-embedding vectors, the metric registry, vector `kind` defaults |
 
 ## Feature map
 
@@ -60,6 +61,12 @@ Tier key: **C** = committed for v1.0.0 · **S** = stretch (v1.0.0 if capacity al
 | Foundation | Virtual vectors (`Request.Vectors`) | C | all |
 | Foundation | Native `vec_f32` / `vec_f64` field types | C | scientific, ops |
 | Foundation | expr-lang vector functions (`dot`, `norm`, `vsum`, `vmean`, `v[i]`) | C | all |
+| Similarity | Shared metric registry (`linalg/metric`) | C | all |
+| Similarity | Vector `kind` (`measure`/`scale`/`composition`/`binary`) with metric defaults + unsuited-metric warning | C | all, harness |
+| Similarity | Centering / ipsatization expr functions (`vcenter`, `vzscore`, `vnormalize`) | C | survey |
+| Similarity | Set similarity on `set_*` fields (`jaccard`, `dice`, `hamming`, `overlap`) | C | survey, ops |
+| Similarity | `MAT_SET_AFFINITY` (co-occurrence / lift matrix of a multi-select) | S | survey, ops |
+| Similarity | Exact top-k nearest rows (mergeable heap) | S | ops, survey |
 | Result | `Response.Matrices` + `MatrixResult` | C | all |
 | Result | Matrix capability block in manifest; predict shape | C | harness |
 | Multivariate | `MAT_COVARIANCE`, `MAT_CORRELATION` (Pearson / Spearman / Kendall) | C | all |
@@ -76,7 +83,7 @@ Tier key: **C** = committed for v1.0.0 · **S** = stretch (v1.0.0 if capacity al
 | Row-level | `ATTR_SCALE_SCORE` (battery mean/sum with min-valid rule) | C | survey |
 | Row-level | `ATTR_VEC_DISTANCE` / `ATTR_PROFILE_SIMILARITY` to a reference profile | S | survey, ops |
 | Aggregation | `AGG_VEC_MEAN` (centroid), `AGG_VEC_SUM` | C | all |
-| Grouping | `GROUP_KMEANS` (seeded segmentation) | S | survey, ops |
+| Grouping | `GROUP_KMEANS` (seeded segmentation, Euclidean-only) | C | survey, ops |
 | Windows | `WIN_ROLLING_CORR`, `WIN_ROLLING_BETA` | S | ops, finance |
 | Regression | coefficient covariance matrix (`vcov`) on `RegressionResult` | C | scientific |
 | Regression | multivariate (multi-Y) OLS | P | scientific |
@@ -105,7 +112,7 @@ Embeddings are the famous use, but not the main one for Pulse's audience. A fixe
 In each, the columns only mean something *together*. A native type keeps them co-located in the fixed-width row (good for decode), lets the schema declare dimension labels once, and lets every `MAT_*` operator take one field name instead of a 15-element list. Virtual vectors cover the existing-cohort case; the native type covers new imports. Recommendation: **add**, committed.
 
 **2. `GROUP_KMEANS` — segmentation.**
-Clustering is often filed under ML, but k-means segmentation has been a core deliverable in market research since the 1970s ("needs-based segments", "attitudinal clusters"). In Pulse it is simply a **grouper whose buckets are computed** — it outputs a categorical key like any `GROUP_*`, so every aggregator, crosstab and overlay works on the segments unchanged. With a fixed seed, k-means++ initialization and documented tie-breaking it is fully deterministic, so it fits Pulse's golden-test discipline. Recommendation: **add as stretch**, after the co-moment and distance work it reuses.
+Clustering is often filed under ML, but k-means segmentation has been a core deliverable in market research since the 1970s ("needs-based segments", "attitudinal clusters"). In Pulse it is simply a **grouper whose buckets are computed** — it outputs a categorical key like any `GROUP_*`, so every aggregator, crosstab and overlay works on the segments unchanged. With a fixed seed, k-means++ initialization and documented tie-breaking it is fully deterministic, so it fits Pulse's golden-test discipline. **Decided: committed** (planning review).
 
 **3. `ATTR_MAHALANOBIS` — multivariate outlier / data-quality scoring.**
 Sometimes sold as "anomaly detection", but it is one formula: distance from the centroid scaled by the inverse covariance. In surveys it flags straight-liners, speeders and fabricated interviews; in ops it flags unusual store/day combinations that no single metric would catch. It reuses the covariance matrix from `MAT_COVARIANCE`. Recommendation: **add**, committed.
@@ -114,7 +121,7 @@ Sometimes sold as "anomaly detection", but it is one formula: distance from the 
 "Dimensionality reduction" sounds ML, but scoring rows on principal components or factors is how survey analysts turn 25 statements into 3 interpretable indices that then flow into crosstabs and regressions. Without row-level scores, PCA output is a dead end. Recommendation: **add PC scores committed, factor scores stretch** alongside `MAT_FACTOR`.
 
 **5. Profile similarity (cosine / correlation distance between rows of a crosstab).**
-The same maths as embedding similarity, applied to a different question: *which brands have the most similar image profiles?* or *which regions have the most similar product mix?* It operates on aggregated results, not on raw embedding vectors, and its output is a small labeled matrix. Recommendation: **add as stretch** overlay.
+The same maths as embedding similarity, applied to a different question: *which brands have the most similar image profiles?* or *which regions have the most similar product mix?* It operates on aggregated results, not on raw embedding vectors, and its output is a small labeled matrix. Recommendation: **add as stretch** overlay. The full treatment of which embedding-style functions fit Pulse's vectors — and the cosine-on-ratings trap — is [07](07-similarity-and-distance.md).
 
 Features deliberately **left out**: nearest-neighbour / vector search indexes, model training (neural, gradient boosting), any feature whose output depends on an external model, and approximate methods whose results change between runs. They do not fit Pulse's deterministic, self-describing contract, and the user has ruled them out.
 
