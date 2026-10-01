@@ -13,6 +13,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -1330,9 +1331,9 @@ func TestCliCohortInspectFullDict_DisablesTruncation(t *testing.T) {
 	if truncated.TotalEntries != 120 {
 		t.Fatalf("total_entries = %d, want 120", truncated.TotalEntries)
 	}
-	if !truncated.Truncated || len(truncated.Values) != descriptor.DefaultDictionaryLimit {
+	if !truncated.Truncated || len(truncated.Values) != descx.DefaultDictionaryLimit {
 		t.Errorf("default inspect: truncated=%v values=%d, want true/%d",
-			truncated.Truncated, len(truncated.Values), descriptor.DefaultDictionaryLimit)
+			truncated.Truncated, len(truncated.Values), descx.DefaultDictionaryLimit)
 	}
 
 	full := dictOf(t, "cohort", "inspect", "--json", "--full-dict", pulsePath)

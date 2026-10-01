@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/spf13/afero"
 )
@@ -207,7 +208,7 @@ func TestCountRecords_TruncatedTailAgreesWithInspect(t *testing.T) {
 		t.Errorf("CountRecords = %d, want the floor 5", got)
 	}
 
-	env := descriptor.Inspect(bytes.NewReader(truncated), nil)
+	env := descx.Inspect(bytes.NewReader(truncated), nil)
 	result, ok := env.Data.(*descriptor.InspectResult)
 	if !ok {
 		t.Fatalf("inspect data = %T, want *descriptor.InspectResult", env.Data)

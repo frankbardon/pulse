@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -89,7 +90,7 @@ func (s *Service) validateSampleLabels(ctx context.Context, path string, req *ty
 	// promote the first error to a SERVICE_VALIDATION CodedError so
 	// the facade returns a single typed error rather than a slice.
 	env := descriptor.NewEnvelope(nil)
-	descriptor.ValidateLabels(env, req.Labels, schema, s.extensionsSnap, nil)
+	descx.ValidateLabels(env, req.Labels, schema, s.extensionsSnap, nil)
 	if len(env.Errors) == 0 {
 		return nil
 	}

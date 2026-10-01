@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -56,7 +57,7 @@ func pwPartitionPredictEnvelope(t *testing.T, memFs afero.Fs, req *Request) *des
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	return descriptor.Predict(bytes.NewReader(data), req, nil)
+	return descx.Predict(bytes.NewReader(data), req, nil)
 }
 
 func pwPartitionEnvelopeCode(env *descriptor.Envelope, code string) *descriptor.EnvelopeEntry {

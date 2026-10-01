@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -297,7 +298,7 @@ func TestWideSetGrouper_PredictStreamableAgreesWithRuntime(t *testing.T) {
 					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "value", Label: "total"}},
 				}
 				runtime := processing.CanStreamRequest(req, schema)
-				env := descriptor.Predict(bytes.NewReader(data), req, nil)
+				env := descx.Predict(bytes.NewReader(data), req, nil)
 				pred, ok := env.Data.(*descriptor.PredictResult)
 				if !ok {
 					t.Fatalf("Predict data = %T, want *descriptor.PredictResult", env.Data)

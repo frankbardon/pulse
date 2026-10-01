@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/processing"
@@ -23,7 +23,7 @@ type Service struct {
 	disableComponents bool
 	projectBuffered   bool
 	extensions        *processing.ExtensionRegistry
-	extensionsSnap    *descriptor.ExtensionsSnapshot
+	extensionsSnap    *descx.ExtensionsSnapshot
 
 	// shardWorkers caps the per-shard parallel worker pool the Process
 	// path spawns when a request is mergeable per
@@ -252,13 +252,13 @@ func (s *Service) EchoRequest() bool {
 // SetExtensionsSnapshot installs the descriptor-side projection of
 // the registered extensions for manifest + predict consumption. Pass
 // nil to clear; pulse.New populates this alongside SetExtensions.
-func (s *Service) SetExtensionsSnapshot(snap *descriptor.ExtensionsSnapshot) {
+func (s *Service) SetExtensionsSnapshot(snap *descx.ExtensionsSnapshot) {
 	s.extensionsSnap = snap
 }
 
 // ExtensionsSnapshot returns the descriptor-side projection of the
 // registered extensions, or nil when no extensions are installed.
-func (s *Service) ExtensionsSnapshot() *descriptor.ExtensionsSnapshot {
+func (s *Service) ExtensionsSnapshot() *descx.ExtensionsSnapshot {
 	return s.extensionsSnap
 }
 
@@ -268,7 +268,7 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 	if s.disableDefaults || req == nil || schema == nil {
 		return
 	}
-	descriptor.ResolveDefaults(req, schema)
+	descx.ResolveDefaults(req, schema)
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.
@@ -538,7 +538,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// callers still see the warning through the predict path / the
 	// CLI envelope wiring.
 	if s.strict {
-		if issues := descriptor.CategoricalAggregationIssues(req, cohort.Schema()); len(issues) > 0 {
+		if issues := descx.CategoricalAggregationIssues(req, cohort.Schema()); len(issues) > 0 {
 			first := issues[0]
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,

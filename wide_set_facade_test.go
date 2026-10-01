@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -138,8 +139,8 @@ func TestInspectEnvelope_WideSetCohort(t *testing.T) {
 	if !battery.Dictionary.Truncated {
 		t.Errorf("Truncated = false, want true for a %d-entry dictionary", wideSetOptionCount)
 	}
-	if got := len(battery.Dictionary.Values); got != descriptor.DefaultDictionaryLimit {
-		t.Errorf("truncated dictionary len = %d, want %d", got, descriptor.DefaultDictionaryLimit)
+	if got := len(battery.Dictionary.Values); got != descx.DefaultDictionaryLimit {
+		t.Errorf("truncated dictionary len = %d, want %d", got, descx.DefaultDictionaryLimit)
 	}
 
 	fullEnv, err := p.InspectEnvelope(context.Background(), "battery.pulse", &descriptor.InspectOptions{FullDict: true})

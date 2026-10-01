@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -40,7 +41,7 @@ func attachLabelExtensions(t *testing.T, svc *Service, tables map[string]process
 	t.Helper()
 	r := &processing.ExtensionRegistry{LabelTables: tables}
 	svc.SetExtensions(r)
-	snap := &descriptor.ExtensionsSnapshot{}
+	snap := &descx.ExtensionsSnapshot{}
 	for name := range tables {
 		snap.LabelTables = append(snap.LabelTables, descriptor.LabelTableMeta{Name: name, HasRowsData: true})
 	}

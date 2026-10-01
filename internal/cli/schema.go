@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 
-	"github.com/frankbardon/pulse/descriptor"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -21,7 +21,7 @@ func SchemaCommand() *cli.Command {
 		Name:  "schema",
 		Usage: "Output the JSON Schema for Pulse request/response payloads",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			out := descriptor.BuildPayloadSchema()
+			out := descx.BuildPayloadSchema()
 			if _, err := cmd.Writer.Write(out); err != nil {
 				return err
 			}

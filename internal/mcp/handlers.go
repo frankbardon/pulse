@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/skills"
 )
@@ -161,7 +162,7 @@ func HandleLookup(ctx context.Context, p *pulse.Pulse, in LookupIn) (LookupOut, 
 // descriptions live in skills and are fetched via pulse_skills_get;
 // duplicating them in the per-session bootstrap is the bloat --slim avoids.
 func HandleManifest(ctx context.Context, p *pulse.Pulse, _ ManifestIn) (ManifestOut, error) {
-	slim := descriptor.SlimManifest(p.Manifest(ctx))
+	slim := descx.SlimManifest(p.Manifest(ctx))
 	if slim == nil {
 		return ManifestOut{}, nil
 	}

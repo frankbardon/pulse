@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -259,7 +260,7 @@ func TestPairwiseExtensionFanOut_SnapshotCarriesTheFlag(t *testing.T) {
 
 	// The manifest extensions block is the operator-visible half of the
 	// same projection.
-	m := descriptor.BuildManifestWithExtensions(snap)
+	m := descx.BuildManifestWithExtensions(snap)
 	seen := map[string]bool{}
 	for _, g := range m.Extensions.Groupers {
 		seen[g.Name] = g.FansOut

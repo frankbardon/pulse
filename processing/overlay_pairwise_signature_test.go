@@ -39,7 +39,7 @@ func TestPairwiseCellAggregatorSignaturesMatchCapabilities(t *testing.T) {
 				t.Fatalf("restated signature for %s = %v, but the declared "+
 					"ComponentSchema operator keys are %v — update "+
 					"cellAggregatorIdentitySignatures in the same change as "+
-					"descriptor/capabilities_aggregators.go",
+					"internal/descriptor/capabilities_aggregators.go",
 					sig.agg, got, want)
 			}
 		})

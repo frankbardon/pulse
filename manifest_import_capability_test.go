@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	pio "github.com/frankbardon/pulse/io"
 )
 
@@ -23,7 +24,7 @@ import (
 // flag must equal Format.CanWrite, and every advertised extension must
 // resolve back through io.FormatFromPath.
 func TestManifestImportCapability_MatchesFormatRegistry(t *testing.T) {
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 
 	declared := make(map[string]descriptor.ImportFormatCapability, len(m.Import.Formats))
 	for _, f := range m.Import.Formats {

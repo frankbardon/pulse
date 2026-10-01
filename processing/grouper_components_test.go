@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -1018,7 +1018,7 @@ func mapKeysSortedAny(m map[string]any) []string {
 // clients consume rather than the private capabilities table.
 func manifestGroupOperatorKeys(t *testing.T, name string) []string {
 	t.Helper()
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 	schema, ok := m.ComponentsSchemas.Groupers[name]
 	if !ok {
 		t.Fatalf("manifest carries no components schema for %s", name)

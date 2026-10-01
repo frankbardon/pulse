@@ -35,7 +35,8 @@ var firewallCorePackages = []string{
 // errors, encoding, imports, skills, toolmeta — remains wired.
 var allowedReachableDeps = []string{
 	"github.com/frankbardon/pulse",                       // root facade (execution seam)
-	"github.com/frankbardon/pulse/descriptor",            // manifest / predict / inspect
+	"github.com/frankbardon/pulse/descriptor",            // result + envelope types
+	"github.com/frankbardon/pulse/internal/descriptor",   // manifest / predict / inspect
 	"github.com/frankbardon/pulse/types",                 // request/response structs
 	"github.com/frankbardon/pulse/errors",                // CodedError system
 	"github.com/frankbardon/pulse/encoding",              // .pulse codec

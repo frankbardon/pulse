@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -32,9 +33,9 @@ func buildApp() *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Bool("json") {
-				manifest := descriptor.BuildManifest()
+				manifest := descx.BuildManifest()
 				if cmd.Bool("slim") {
-					manifest = descriptor.SlimManifest(manifest)
+					manifest = descx.SlimManifest(manifest)
 				}
 				env := descriptor.NewEnvelope(manifest)
 				return pcli.WriteJSONPublic(cmd.Writer, env)

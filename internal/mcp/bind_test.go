@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 )
 
@@ -278,7 +279,7 @@ func TestMCPSchemaBinding_IncludesCustomAggregator(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
-	snap := &descriptor.ExtensionsSnapshot{
+	snap := &descx.ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{{Name: "AGG_ACME_BRAND_SCORE"}},
 	}
 	bound, err := BindWithExtensions(schema, snap)
@@ -301,7 +302,7 @@ func TestMCPSchemaBinding_IncludesCustomOverlayKind(t *testing.T) {
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
-	snap := &descriptor.ExtensionsSnapshot{
+	snap := &descx.ExtensionsSnapshot{
 		OverlayKinds: []descriptor.OperatorMeta{{Name: "OVERLAY_ACME_HEAT"}},
 	}
 
@@ -356,7 +357,7 @@ func TestMCPSchemaBinding_LabelsSchema(t *testing.T) {
 			{Name: "amount", Type: encoding.FieldTypeF64},
 		},
 	}
-	snap := &descriptor.ExtensionsSnapshot{
+	snap := &descx.ExtensionsSnapshot{
 		LabelTables: []descriptor.LabelTableMeta{{Name: "country_names", HasRowsData: true}},
 	}
 	bound, err := BindWithExtensions(schema, snap)
@@ -397,7 +398,7 @@ func TestMCPSchemaBinding_LabelsOmittedWhenNoTables(t *testing.T) {
 // not introduce duplicate names and the final enum is sorted.
 func TestMCPSchemaBinding_DedupAndSort(t *testing.T) {
 	builtin := []string{"AGG_COUNT", "AGG_SUM"}
-	snap := &descriptor.ExtensionsSnapshot{
+	snap := &descx.ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{
 			{Name: "AGG_COUNT"}, // duplicate of built-in
 			{Name: "AGG_ACME_Z"},

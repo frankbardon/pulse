@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
 )
@@ -115,7 +116,7 @@ func apiProcessCmd() *cli.Command {
 						cohortPath = req.Cohort.DataDir + "/" + req.Cohort.Filename
 					}
 					if cohort, openErr := p.Open(ctx, cohortPath); openErr == nil {
-						for _, entry := range descriptor.CategoricalAggregationIssues(req, cohort.Schema()) {
+						for _, entry := range descx.CategoricalAggregationIssues(req, cohort.Schema()) {
 							env.AddWarning(entry.Code, entry.Message, entry.Details)
 						}
 					}

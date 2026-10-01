@@ -35,6 +35,7 @@ var allowedIntraModuleDeps = map[string]bool{
 // allow-list miss.
 var forbiddenDeps = []string{
 	modulePrefix + "/descriptor",
+	modulePrefix + "/internal/descriptor",
 	modulePrefix + "/processing",
 	modulePrefix + "/internal/service",
 }

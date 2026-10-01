@@ -8,8 +8,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -949,7 +949,7 @@ func cellOperatorKeys(cell map[string]any) []string {
 // public surface LLM clients consume.
 func manifestAggOperatorKeysForCT(t *testing.T, name string) []string {
 	t.Helper()
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 	schema, ok := m.ComponentsSchemas.Aggregators[name]
 	if !ok {
 		t.Fatalf("manifest carries no components schema for %s", name)

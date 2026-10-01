@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -20,7 +21,7 @@ func (s *Service) validateProcessLabels(req *types.Request, schema *encoding.Sch
 	}
 	extras := collectOutputLabels(req)
 	env := descriptor.NewEnvelope(nil)
-	descriptor.ValidateLabels(env, req.Labels, schema, s.extensionsSnap, extras)
+	descx.ValidateLabels(env, req.Labels, schema, s.extensionsSnap, extras)
 	if len(env.Errors) == 0 {
 		return nil
 	}

@@ -5,9 +5,9 @@ import (
 	stderrors "errors"
 	"testing"
 
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -57,7 +57,7 @@ func TestValidateJoin_SetKeyRejectedMessageMatchesProcessing(t *testing.T) {
 	}
 
 	// Predict arm.
-	env := descriptor.ValidateJoinFromBytes(
+	env := descx.ValidateJoinFromBytes(
 		joinSetKeyHeaderBytes(t, leftFields),
 		joinSetKeyHeaderBytes(t, rightFields),
 		req)

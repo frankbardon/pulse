@@ -5,10 +5,10 @@
 // the root, so there is no cycle.
 package facadebridge
 
-import "github.com/frankbardon/pulse/descriptor"
+import descx "github.com/frankbardon/pulse/internal/descriptor"
 
 // ExtensionsSnapshot returns the read-only extension projection a
 // *pulse.Pulse was built with. The argument is typed any because this
 // package cannot import the root; passing anything other than a
 // *pulse.Pulse returns nil. Installed by the root package's init.
-var ExtensionsSnapshot func(p any) *descriptor.ExtensionsSnapshot
+var ExtensionsSnapshot func(p any) *descx.ExtensionsSnapshot

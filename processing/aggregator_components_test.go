@@ -7,8 +7,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -470,7 +470,7 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 // LLM clients consume rather than the private capabilities table.
 func manifestAggregatorOperatorKeys(t *testing.T, name string) []string {
 	t.Helper()
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 	schema, ok := m.ComponentsSchemas.Aggregators[name]
 	if !ok {
 		t.Fatalf("manifest carries no components schema for %s", name)

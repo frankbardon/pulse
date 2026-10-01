@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/examples"
 	"github.com/frankbardon/pulse/internal/fs"
@@ -977,7 +978,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		data = shardBytes
 	}
 
-	env := descriptor.Predict(bytes.NewReader(data), req, &descriptor.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
+	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
@@ -1013,7 +1014,7 @@ func (p *Pulse) InspectBytes(ctx context.Context, data []byte, opts *descriptor.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return descriptor.Inspect(bytes.NewReader(data), opts), nil
+	return descx.Inspect(bytes.NewReader(data), opts), nil
 }
 
 // PredictBytes validates req against an in-memory .pulse cohort — a
@@ -1036,7 +1037,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 	if req == nil {
 		return nil, fmt.Errorf("pulse: predict requires a request")
 	}
-	return descriptor.Predict(bytes.NewReader(data), req, &descriptor.PredictOptions{
+	return descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
 		Strict:      p.svc.Strict(),
 		EchoRequest: p.svc.EchoRequest(),
 		Extensions:  p.svc.ExtensionsSnapshot(),
@@ -1703,7 +1704,7 @@ func renderedFieldFor(target template.Target) string {
 // deterministic and process-wide: it does not depend on cohort data or
 // the filesystem. Callers cache the result for a session.
 func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
-	return descriptor.BuildManifestWithExtensions(p.svc.ExtensionsSnapshot())
+	return descx.BuildManifestWithExtensions(p.svc.ExtensionsSnapshot())
 }
 
 // Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need

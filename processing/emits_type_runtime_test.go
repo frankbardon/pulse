@@ -65,6 +65,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/processing/feature"
 	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
@@ -536,7 +537,7 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 // manifestOperatorsWithEmitsType returns every manifest operator entry,
 // across all six component categories, keyed by name.
 func manifestOperatorEntries() map[string]descriptor.Operator {
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 	out := make(map[string]descriptor.Operator)
 	groups := [][]descriptor.Operator{
 		m.Components.Aggregators,

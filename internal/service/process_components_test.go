@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -133,7 +134,7 @@ func mapKeysSorted(m map[string]any) []string {
 // — the same surface LLM clients consume.
 func manifestAggOperatorKeys(t *testing.T, name string) []string {
 	t.Helper()
-	m := descriptor.BuildManifest()
+	m := descx.BuildManifest()
 	schema, ok := m.ComponentsSchemas.Aggregators[name]
 	if !ok {
 		t.Fatalf("manifest carries no components schema for %s", name)
@@ -379,7 +380,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: op, Field: fix.field, Label: "primary", Params: fix.params},
 				},
 			}
-			env := descriptor.Predict(bytes.NewReader(hdr), predictReq, nil)
+			env := descx.Predict(bytes.NewReader(hdr), predictReq, nil)
 			result, ok := env.Data.(*descriptor.PredictResult)
 			if !ok {
 				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",
@@ -423,7 +424,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: op, Field: gfix.field, Interval: gfix.interval, Params: gfix.params},
 				},
 			}
-			env := descriptor.Predict(bytes.NewReader(hdr), predictReq, nil)
+			env := descx.Predict(bytes.NewReader(hdr), predictReq, nil)
 			result, ok := env.Data.(*descriptor.PredictResult)
 			if !ok {
 				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",
@@ -508,7 +509,7 @@ func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
 					{Type: op, Field: ffix.field, Values: ffix.values, Expression: ffix.expression, Params: ffix.params},
 				},
 			}
-			env := descriptor.Predict(bytes.NewReader(hdr), predictReq, nil)
+			env := descx.Predict(bytes.NewReader(hdr), predictReq, nil)
 			result, ok := env.Data.(*descriptor.PredictResult)
 			if !ok {
 				t.Fatalf("Predict.Data is %T, want *PredictResult (errors: %v)",

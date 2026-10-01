@@ -781,31 +781,12 @@ pulse: type WindowRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
 pulse/descriptor: package descriptor
-pulse/descriptor: func AggregationMergeability(t pulse/types.AggregationType) pulse/descriptor.ComponentsMergeability
 pulse/descriptor: type AggregationPredict struct
 pulse/descriptor: type AggregationPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type AggregationPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type AggregationPredict field Field string "json:\"field,omitempty\""
 pulse/descriptor: type AggregationPredict field Label string "json:\"label,omitempty\""
 pulse/descriptor: type AggregationPredict field Type pulse/types.AggregationType "json:\"type\""
-pulse/descriptor: func AggregatorMergeability(name string) pulse/descriptor.ComponentsMergeability
-pulse/descriptor: func BuildManifest() *pulse/descriptor.Manifest
-pulse/descriptor: func BuildManifestWithExtensions(snap *pulse/descriptor.ExtensionsSnapshot) *pulse/descriptor.Manifest
-pulse/descriptor: func BuildPayloadSchema() encoding/json.RawMessage
-pulse/descriptor: func CategoricalAggregationIssues(req *pulse/types.Request, schema *pulse/encoding.Schema) []*pulse/descriptor.EnvelopeEntry
-pulse/descriptor: type ChainOverlaySchemaDivergence struct
-pulse/descriptor: type ChainOverlaySchemaDivergence field Index int "json:\"index\""
-pulse/descriptor: type ChainOverlaySchemaDivergence field Kind pulse/types.OverlayKind "json:\"kind\""
-pulse/descriptor: type ChainOverlaySchemaDivergence field RefIndex int "json:\"ref_index\""
-pulse/descriptor: type ChainOverlaySchemaDivergence field RefShape pulse/types.OverlayShape "json:\"ref_shape\""
-pulse/descriptor: type ChainOverlaySchemaDivergence field TargetIndex int "json:\"target_index\""
-pulse/descriptor: type ChainOverlaySchemaDivergence field TargetShape pulse/types.OverlayShape "json:\"target_shape\""
-pulse/descriptor: type ChainValidationResult struct
-pulse/descriptor: type ChainValidationResult field OverlaysSchemaDivergence []pulse/descriptor.ChainOverlaySchemaDivergence "json:\"overlays_schema_divergence,omitempty\""
-pulse/descriptor: type ChainValidationResult field Request *pulse/types.ChainRequest "json:\"request\""
-pulse/descriptor: type ChainValidationResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
-pulse/descriptor: type ChainValidationResult field StageSchemas [][]string "json:\"stage_schemas,omitempty\""
-pulse/descriptor: type ChainValidationResult field Valid bool "json:\"valid\""
 pulse/descriptor: type CohortFieldType struct
 pulse/descriptor: type CohortFieldType field Categorical bool "json:\"categorical\""
 pulse/descriptor: type CohortFieldType field CompatibleAggregators []string "json:\"compatible_aggregators,omitempty\""
@@ -844,11 +825,6 @@ pulse/descriptor: type ComponentsSchemasBlock struct
 pulse/descriptor: type ComponentsSchemasBlock field Aggregators map[string]pulse/descriptor.ComponentSchema "json:\"aggregators,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Filterers map[string]pulse/descriptor.ComponentSchema "json:\"filterers,omitempty\""
 pulse/descriptor: type ComponentsSchemasBlock field Groupers map[string]pulse/descriptor.ComponentSchema "json:\"groupers,omitempty\""
-pulse/descriptor: type ComposeValidationResult struct
-pulse/descriptor: type ComposeValidationResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
-pulse/descriptor: type ComposeValidationResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
-pulse/descriptor: type ComposeValidationResult field Request *pulse/types.ComposedRequest "json:\"request\""
-pulse/descriptor: type ComposeValidationResult field Valid bool "json:\"valid\""
 pulse/descriptor: type CrosstabCapability struct
 pulse/descriptor: type CrosstabCapability field IndependentAggregators []string "json:\"independent_aggregators\""
 pulse/descriptor: type CrosstabCapability field MapValuedCellAggregators []string "json:\"map_valued_cell_aggregators\""
@@ -872,7 +848,6 @@ pulse/descriptor: type DefaultApplied field Field string "json:\"field\""
 pulse/descriptor: type DefaultApplied field Path []string "json:\"path\""
 pulse/descriptor: type DefaultApplied field Reason string "json:\"reason\""
 pulse/descriptor: type DefaultApplied field Type string "json:\"type\""
-pulse/descriptor: const DefaultDictionaryLimit untyped int = 100
 pulse/descriptor: type DictionaryInfo struct
 pulse/descriptor: type DictionaryInfo field TotalEntries int "json:\"total_entries\""
 pulse/descriptor: type DictionaryInfo field Truncated bool "json:\"truncated\""
@@ -919,22 +894,6 @@ pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.R
 pulse/descriptor: type ExtensionsManifest field SynthDistributions []pulse/descriptor.OperatorMeta "json:\"synth_distributions\""
 pulse/descriptor: type ExtensionsManifest field Tests []pulse/descriptor.OperatorMeta "json:\"tests\""
 pulse/descriptor: type ExtensionsManifest field Windows []pulse/descriptor.OperatorMeta "json:\"windows\""
-pulse/descriptor: type ExtensionsSnapshot struct
-pulse/descriptor: type ExtensionsSnapshot field Aggregators []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot field Attributes []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot field ComponentSchemas map[string]pulse/descriptor.ComponentSchema
-pulse/descriptor: type ExtensionsSnapshot field ExprFunctions []pulse/descriptor.ExprFunctionMeta
-pulse/descriptor: type ExtensionsSnapshot field Features []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot field Filterers []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot field Groupers []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot field LabelTables []pulse/descriptor.LabelTableMeta
-pulse/descriptor: type ExtensionsSnapshot field LookupTables []pulse/descriptor.LookupTableMeta
-pulse/descriptor: type ExtensionsSnapshot field OverlayKinds []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot field RangeTables []pulse/descriptor.RangeTableMeta
-pulse/descriptor: type ExtensionsSnapshot field SynthDistributions []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot field Tests []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot field Windows []pulse/descriptor.OperatorMeta
-pulse/descriptor: type ExtensionsSnapshot method (*ExtensionsSnapshot) GrouperFanOut(name string) (fansOut bool, ok bool)
 pulse/descriptor: type FacetCapability struct
 pulse/descriptor: type FacetCapability field Name string "json:\"name\""
 pulse/descriptor: type FacetCapability field StreamableConditions []string "json:\"streamable_conditions\""
@@ -945,24 +904,16 @@ pulse/descriptor: type FacetCapability field SupportsHistogram bool "json:\"supp
 pulse/descriptor: type FacetCapability field SupportsNumeric bool "json:\"supports_numeric\""
 pulse/descriptor: type FacetCapability field SupportsOverlays bool "json:\"supports_overlays,omitempty\""
 pulse/descriptor: type FacetCapability field SupportsPercentiles bool "json:\"supports_percentiles\""
-pulse/descriptor: type FacetValidationResult struct
-pulse/descriptor: type FacetValidationResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
-pulse/descriptor: type FacetValidationResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
-pulse/descriptor: type FacetValidationResult field Request *pulse/types.FacetRequest "json:\"request\""
-pulse/descriptor: type FacetValidationResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
-pulse/descriptor: type FacetValidationResult field Valid bool "json:\"valid\""
 pulse/descriptor: type FiltererPredict struct
 pulse/descriptor: type FiltererPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type FiltererPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type FiltererPredict field Field string "json:\"field,omitempty\""
 pulse/descriptor: type FiltererPredict field Type pulse/types.FiltererType "json:\"type\""
-pulse/descriptor: func GroupMergeability(t pulse/types.GroupType) pulse/descriptor.ComponentsMergeability
 pulse/descriptor: type GroupPredict struct
 pulse/descriptor: type GroupPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type GroupPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type GroupPredict field Field string "json:\"field,omitempty\""
 pulse/descriptor: type GroupPredict field Type pulse/types.GroupType "json:\"type\""
-pulse/descriptor: func GrouperMergeability(name string) pulse/descriptor.ComponentsMergeability
 pulse/descriptor: type ImportCapability struct
 pulse/descriptor: type ImportCapability field Formats []pulse/descriptor.ImportFormatCapability "json:\"formats\""
 pulse/descriptor: type ImportFormatCapability struct
@@ -970,7 +921,6 @@ pulse/descriptor: type ImportFormatCapability field Export bool "json:\"export\"
 pulse/descriptor: type ImportFormatCapability field Extensions []string "json:\"extensions\""
 pulse/descriptor: type ImportFormatCapability field Name string "json:\"name\""
 pulse/descriptor: type ImportFormatCapability field SchemaSource string "json:\"schema_source\""
-pulse/descriptor: func Inspect(fileData io.ReadSeeker, opts *pulse/descriptor.InspectOptions) *pulse/descriptor.Envelope
 pulse/descriptor: type InspectField struct
 pulse/descriptor: type InspectField field BitPosition int "json:\"bit_position\""
 pulse/descriptor: type InspectField field ByteOffset int "json:\"byte_offset\""
@@ -1026,12 +976,6 @@ pulse/descriptor: type JoinCapability field MaxJoinsPerRequest int "json:\"max_j
 pulse/descriptor: type JoinCapability field Name string "json:\"name\""
 pulse/descriptor: type JoinCapability field SpillBytes int64 "json:\"spill_bytes\""
 pulse/descriptor: type JoinCapability field SpillEnv string "json:\"spill_env,omitempty\""
-pulse/descriptor: type JoinValidationResult struct
-pulse/descriptor: type JoinValidationResult field JoinedFields []string "json:\"joined_fields,omitempty\""
-pulse/descriptor: type JoinValidationResult field LeftSchema *pulse/descriptor.PredictSchemaInfo "json:\"left_schema,omitempty\""
-pulse/descriptor: type JoinValidationResult field Request *pulse/types.Request "json:\"request\""
-pulse/descriptor: type JoinValidationResult field RightSchema *pulse/descriptor.PredictSchemaInfo "json:\"right_schema,omitempty\""
-pulse/descriptor: type JoinValidationResult field Valid bool "json:\"valid\""
 pulse/descriptor: type LabelTableMeta struct
 pulse/descriptor: type LabelTableMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type LabelTableMeta field HasRowsData bool "json:\"has_rows_data\""
@@ -1075,7 +1019,6 @@ pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeabl
 pulse/descriptor: func NewEnvelope(data any) *pulse/descriptor.Envelope
 pulse/descriptor: func NewEnvelopeWithRequest(data any, request any) *pulse/descriptor.Envelope
 pulse/descriptor: const None pulse/types.ComponentsMergeability = "none"
-pulse/descriptor: func NormalizeRequest(req *pulse/types.Request, schema *pulse/encoding.Schema) *pulse/types.Request
 pulse/descriptor: type Operator struct
 pulse/descriptor: type Operator field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type Operator field Category string "json:\"category\""
@@ -1112,7 +1055,6 @@ pulse/descriptor: type OverlayAppliedDescriptor field Ref string "json:\"ref,omi
 pulse/descriptor: type OverlayAppliedDescriptor field Scope pulse/types.OverlayScope "json:\"scope\""
 pulse/descriptor: type OverlayAppliedDescriptor field Shape pulse/types.OverlayShape "json:\"shape,omitempty\""
 pulse/descriptor: type OverlayAppliedDescriptor field Streamable bool "json:\"streamable\""
-pulse/descriptor: func OverlayCapabilities() []pulse/descriptor.OverlayCapability
 pulse/descriptor: type OverlayCapability struct
 pulse/descriptor: type OverlayCapability field Buffered bool "json:\"buffered\""
 pulse/descriptor: type OverlayCapability field Description string "json:\"description\""
@@ -1130,12 +1072,6 @@ pulse/descriptor: type Param field Name string "json:\"name\""
 pulse/descriptor: type Param field Required bool "json:\"required\""
 pulse/descriptor: type Param field Type string "json:\"type\""
 pulse/descriptor: const Partial pulse/types.ComponentsMergeability = "partial"
-pulse/descriptor: const PayloadSchemaFormatVersion untyped string = "1.1"
-pulse/descriptor: func Predict(fileData io.ReadSeeker, req *pulse/types.Request, opts *pulse/descriptor.PredictOptions) *pulse/descriptor.Envelope
-pulse/descriptor: type PredictOptions struct
-pulse/descriptor: type PredictOptions field EchoRequest bool
-pulse/descriptor: type PredictOptions field Extensions *pulse/descriptor.ExtensionsSnapshot
-pulse/descriptor: type PredictOptions field Strict bool
 pulse/descriptor: type PredictResult struct
 pulse/descriptor: type PredictResult field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
 pulse/descriptor: type PredictResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
@@ -1181,14 +1117,12 @@ pulse/descriptor: type RegressionModifier struct
 pulse/descriptor: type RegressionModifier field Description string "json:\"description\""
 pulse/descriptor: type RegressionModifier field EnumValues []string "json:\"enum_values\""
 pulse/descriptor: type RegressionModifier field Name string "json:\"name\""
-pulse/descriptor: func ResolveDefaults(req *pulse/types.Request, schema *pulse/encoding.Schema) []pulse/descriptor.DefaultApplied
 pulse/descriptor: type ShardInfo struct
 pulse/descriptor: type ShardInfo field Filename string "json:\"filename\""
 pulse/descriptor: type ShardInfo field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type SkillMeta struct
 pulse/descriptor: type SkillMeta field Description string "json:\"description\""
 pulse/descriptor: type SkillMeta field Name string "json:\"name\""
-pulse/descriptor: func SlimManifest(m *pulse/descriptor.Manifest) *pulse/descriptor.Manifest
 pulse/descriptor: type SlotPair struct
 pulse/descriptor: type SlotPair field Reason string "json:\"reason\""
 pulse/descriptor: type SlotPair field ReferenceLabel string "json:\"reference_label\""
@@ -1208,18 +1142,6 @@ pulse/descriptor: type TestMeta field Requires []string "json:\"requires,omitemp
 pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
-pulse/descriptor: func ValidateChain(fileData io.ReadSeeker, req *pulse/types.ChainRequest) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateChainFromBytes(data []byte, req *pulse/types.ChainRequest) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateCompose(req *pulse/types.ComposedRequest) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateComposeWithOptions(req *pulse/types.ComposedRequest, opts *pulse/descriptor.PredictOptions) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateFacet(fileData io.ReadSeeker, req *pulse/types.FacetRequest) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateFacetFromBytes(data []byte, req *pulse/types.FacetRequest) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateFacetOverlays(env *pulse/descriptor.Envelope, req *pulse/types.FacetRequest, schema *pulse/encoding.Schema)
-pulse/descriptor: func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *pulse/types.FacetRequest, snap *pulse/descriptor.ExtensionsSnapshot) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateJoin(leftData io.ReadSeeker, rightData io.ReadSeeker, req *pulse/types.Request) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateJoinFromBytes(left []byte, right []byte, req *pulse/types.Request) *pulse/descriptor.Envelope
-pulse/descriptor: func ValidateLabels(env *pulse/descriptor.Envelope, bindings []*pulse/types.LabelBinding, schema *pulse/encoding.Schema, snap *pulse/descriptor.ExtensionsSnapshot, extraFields map[string]bool) (augmentNames map[string]bool)
-pulse/descriptor: func ValidateOverlays(env *pulse/descriptor.Envelope, req *pulse/types.Request, schema *pulse/encoding.Schema, opts *pulse/descriptor.PredictOptions)
 pulse/encoding: package encoding
 pulse/encoding: func BitmapIsNull(bitmap []byte, i int) bool
 pulse/encoding: func BitmapSetNull(bitmap []byte, i int)
@@ -3925,4 +3847,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: da84468e2e078544869f48d3f66203a94de53d94538033f4ba23d2a41ed0b89d
+// golden-hash: 92e7d7bf43ffd4ab964da3c6e584a9c1c23cb52f4051c51a824aad02b99855ec

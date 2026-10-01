@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
@@ -377,7 +378,7 @@ func aggMergeabilityVector(req *Request) []descriptor.ComponentsMergeability {
 		if agg == nil {
 			continue
 		}
-		out[i] = descriptor.AggregationMergeability(agg.Type)
+		out[i] = descx.AggregationMergeability(agg.Type)
 	}
 	return out
 }
@@ -403,7 +404,7 @@ func grpMergeabilityVector(req *Request) []descriptor.ComponentsMergeability {
 		if grp == nil {
 			continue
 		}
-		out[i] = descriptor.GroupMergeability(grp.Type)
+		out[i] = descx.GroupMergeability(grp.Type)
 	}
 	return out
 }

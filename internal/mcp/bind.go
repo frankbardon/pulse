@@ -24,6 +24,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	"github.com/frankbardon/pulse/types"
 )
@@ -106,7 +107,7 @@ func Bind(schema *encoding.Schema) (map[string]json.RawMessage, error) {
 // enums so LLM agents can author requests that reference custom operators.
 // Empty schemas are omitted so the caller can decide which tools to
 // override. SDK-free: the go-sdk adapter consumes the returned map.
-func BindWithExtensions(schema *encoding.Schema, snap *descriptor.ExtensionsSnapshot) (map[string]json.RawMessage, error) {
+func BindWithExtensions(schema *encoding.Schema, snap *descx.ExtensionsSnapshot) (map[string]json.RawMessage, error) {
 	if schema == nil {
 		return nil, nil
 	}
@@ -159,7 +160,7 @@ func BindWithExtensions(schema *encoding.Schema, snap *descriptor.ExtensionsSnap
 // buildProcessChainSchemaWithExtensions describes the pulse_process_chain
 // tool with the per-cohort enum constraints applied to every stage's inner
 // Request shape.
-func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
+func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descx.ExtensionsSnapshot) (json.RawMessage, error) {
 	inner, err := buildRequestSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
@@ -209,7 +210,7 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descript
 
 // buildFacetSchemaRequestSchema describes the pulse_facet_schema tool with
 // field enums constrained to the bound cohort.
-func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
+func buildFacetSchemaRequestSchema(c fieldClassification, snap *descx.ExtensionsSnapshot) (json.RawMessage, error) {
 	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), snap, "filterer")
 	requestObject := map[string]any{
 		"type":        "object",
@@ -276,7 +277,7 @@ func buildFacetSchemaRequestSchema(c fieldClassification, snap *descriptor.Exten
 
 // extensionNames returns the operator-name slice for a category from the
 // snapshot, or nil when no snapshot is registered.
-func extensionNames(snap *descriptor.ExtensionsSnapshot, category string) []string {
+func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 	if snap == nil {
 		return nil
 	}
@@ -313,7 +314,7 @@ func extensionNames(snap *descriptor.ExtensionsSnapshot, category string) []stri
 
 // mergeEnumNames merges built-in names with extension names from the
 // snapshot, sorting the combined list and removing duplicates.
-func mergeEnumNames(builtin []string, snap *descriptor.ExtensionsSnapshot, category string) []string {
+func mergeEnumNames(builtin []string, snap *descx.ExtensionsSnapshot, category string) []string {
 	customs := extensionNames(snap, category)
 	if len(customs) == 0 {
 		return builtin
@@ -360,7 +361,7 @@ func orderKeySchema(enumFields []string) map[string]any {
 
 // buildRequestSchemaWithExtensions produces a JSON Schema describing
 // types.Request with per-field enums for the bound cohort.
-func buildRequestSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
+func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.ExtensionsSnapshot) (json.RawMessage, error) {
 	aggTypes := mergeEnumNames(stringSlice(types.AllAggregationTypes()), snap, "aggregator")
 	attrTypes := mergeEnumNames(stringSlice(types.AllAttributeTypes()), snap, "attribute")
 	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), snap, "filterer")
@@ -648,12 +649,12 @@ func facetOnlyOverlayKinds() []string {
 // overlayKindEnumForFacade returns the per-facade overlay_kind enum drawn
 // from descriptor.OverlayCapabilities() filtered by facade membership, with
 // embedder-registered kinds merged in.
-func overlayKindEnumForFacade(facade overlayFacade, snap *descriptor.ExtensionsSnapshot) []string {
+func overlayKindEnumForFacade(facade overlayFacade, snap *descx.ExtensionsSnapshot) []string {
 	composeSet := stringSetFrom(composeOnlyOverlayKinds())
 	chainSet := stringSetFrom(chainOnlyOverlayKinds())
 	facetSet := stringSetFrom(facetOnlyOverlayKinds())
 
-	caps := descriptor.OverlayCapabilities()
+	caps := descx.OverlayCapabilities()
 	out := make([]string, 0, len(caps))
 	for _, c := range caps {
 		name := string(c.Kind)
@@ -713,7 +714,7 @@ func sortedDedupe(in []string) []string {
 
 // overlaysSchemaForFacade returns the JSON Schema fragment describing the
 // Overlays array on the named facade's request shape.
-func overlaysSchemaForFacade(facade overlayFacade, snap *descriptor.ExtensionsSnapshot) map[string]any {
+func overlaysSchemaForFacade(facade overlayFacade, snap *descx.ExtensionsSnapshot) map[string]any {
 	kinds := overlayKindEnumForFacade(facade, snap)
 	kindField := map[string]any{
 		"type":        "string",
@@ -821,7 +822,7 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 
 // buildComposeSchemaWithExtensions describes a ComposedRequest by wrapping
 // the bound Request schema in a requests array.
-func buildComposeSchemaWithExtensions(c fieldClassification, snap *descriptor.ExtensionsSnapshot) (json.RawMessage, error) {
+func buildComposeSchemaWithExtensions(c fieldClassification, snap *descx.ExtensionsSnapshot) (json.RawMessage, error) {
 	inner, err := buildRequestSchemaWithExtensions(c, snap)
 	if err != nil {
 		return nil, err
@@ -885,7 +886,7 @@ func buildFacetSchema(c fieldClassification) (json.RawMessage, error) {
 
 // buildLabelsSchema returns the JSON Schema fragment for a Request /
 // FacetRequest Labels slot.
-func buildLabelsSchema(c fieldClassification, snap *descriptor.ExtensionsSnapshot) map[string]any {
+func buildLabelsSchema(c fieldClassification, snap *descx.ExtensionsSnapshot) map[string]any {
 	if len(c.Categorical) == 0 {
 		return nil
 	}
@@ -925,7 +926,7 @@ func buildLabelsSchema(c fieldClassification, snap *descriptor.ExtensionsSnapsho
 }
 
 // labelTableNames extracts table names from the snapshot in sorted order.
-func labelTableNames(snap *descriptor.ExtensionsSnapshot) []string {
+func labelTableNames(snap *descx.ExtensionsSnapshot) []string {
 	if snap == nil || len(snap.LabelTables) == 0 {
 		return nil
 	}

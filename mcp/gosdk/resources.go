@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/descriptor"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/skills"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
@@ -64,7 +64,7 @@ func registerSchemaResource(s *mcpsdk.Server) {
 		MIMEType:    "application/json",
 		Description: "JSON Schema (draft 2020-12) for every public Pulse request/response payload",
 	}, func(_ context.Context, req *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
-		return textResource(req.Params.URI, "application/json", string(descriptor.BuildPayloadSchema())), nil
+		return textResource(req.Params.URI, "application/json", string(descx.BuildPayloadSchema())), nil
 	})
 }
 
