@@ -131,7 +131,7 @@ func TestExtensions_RuntimeRegistryAllCategoriesPopulated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	reg := p.Service().Extensions()
+	reg := pulse.ServiceForTest(p).Extensions()
 	if reg == nil {
 		t.Fatal("expected non-nil registry")
 	}
@@ -169,7 +169,7 @@ func TestExtensions_RuntimeRegistryAllCategoriesPopulated(t *testing.T) {
 
 	// Snapshot built and reachable from descriptor side — exercises
 	// the per-category snapshot loops in buildExtensionsSnapshot.
-	snap := p.Service().ExtensionsSnapshot()
+	snap := pulse.ServiceForTest(p).ExtensionsSnapshot()
 	if snap == nil {
 		t.Fatal("expected non-nil ExtensionsSnapshot")
 	}
@@ -258,7 +258,7 @@ func TestExtensions_SynthDistributionRegistrationStable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	snap := p.Service().ExtensionsSnapshot()
+	snap := pulse.ServiceForTest(p).ExtensionsSnapshot()
 	if snap == nil {
 		t.Fatal("expected non-nil snapshot")
 	}
@@ -305,7 +305,7 @@ func TestExtensions_SynthDistributionNamespaceParsed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	snap := p.Service().ExtensionsSnapshot()
+	snap := pulse.ServiceForTest(p).ExtensionsSnapshot()
 	if snap == nil {
 		t.Fatal("snap nil")
 	}

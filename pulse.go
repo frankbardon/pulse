@@ -28,30 +28,87 @@ import (
 	"github.com/spf13/afero"
 )
 
-// MemberSet is the public alias for processing.MemberSet — the
-// read-only set type consumed by FilterToFileBySetAndExpr. Build one
-// via LoadMemberSetFromReader (recommended for newline-delimited files)
-// or by constructing a concrete impl directly.
-type MemberSet = processing.MemberSet
+// MemberSet is a read-only set of field values consumed by
+// FilterToFileBySetAndExpr as an include-set membership test. Build one
+// with LoadMemberSetFromReader, which picks the fastest representation
+// for the field's type (bitset for categorical, uint64 map for integer /
+// date, string map for decimal / fallback). Only sets returned by
+// LoadMemberSetFromReader are accepted by FilterToFileBySetAndExpr; any
+// other implementation is refused when the membership predicate is built.
+type MemberSet interface {
+	// Len is the number of distinct members in the set.
+	Len() int
+	// Kind names the representation: "bitset", "uint64" or "string".
+	Kind() string
+}
 
-// LoadMemberSetResult mirrors processing.LoadMemberSetResult so callers
-// can inspect drop counts after loading an include-set file.
-type LoadMemberSetResult = processing.LoadMemberSetResult
+// LoadMemberSetResult is the per-load report returned by
+// LoadMemberSetFromReader. Lines is the total of non-blank lines
+// processed; NotInDictionary counts categorical values absent from the
+// field's dictionary (they can never match a record, so they are
+// dropped); Invalid counts numeric lines that failed to parse on the
+// integer path. Callers decide whether to surface each counter as a
+// warning or a hard error.
+type LoadMemberSetResult struct {
+	Set             MemberSet
+	Lines           int
+	NotInDictionary int
+	Invalid         int
+}
 
-// DateRangeSpec is the public alias for processing.DateRangeSpec — the
-// wire-level shape of a single labeled date range ({label, start, end}).
-// It is the shared model authored inline on a GROUP_DATE_RANGES grouper
-// or FILTER_DATE_RANGES filter and registered in an Extensions.RangeTables
-// entry. Start / End are ISO date literals; nil / empty is an open bound.
-type DateRangeSpec = processing.DateRangeSpec
+// DateRangeSpec is the wire-level shape of a single labeled date range
+// ({label, start, end}). It is the shared model authored inline on a
+// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter and registered
+// in an Extensions.RangeTables entry. Start / End are ISO date literals;
+// nil / empty is an open bound; both bounds are inclusive.
+type DateRangeSpec struct {
+	Label string  `json:"label"`
+	Start *string `json:"start,omitempty"`
+	End   *string `json:"end,omitempty"`
+}
 
-// LoadMemberSetFromReader is the public alias for the underlying
-// processing-package loader. It reads newline-delimited values from r
-// and returns the best MemberSet impl for the named field on schema
-// (bitset for categorical, uint64 map for integer / date, string map
-// for decimal / fallback). Float fields are rejected.
+// toEngineDateRanges converts root DateRangeSpecs to the engine's
+// identical-layout type. A nil slice stays nil.
+func toEngineDateRanges(in []DateRangeSpec) []processing.DateRangeSpec {
+	if in == nil {
+		return nil
+	}
+	out := make([]processing.DateRangeSpec, len(in))
+	for i, r := range in {
+		out[i] = processing.DateRangeSpec(r)
+	}
+	return out
+}
+
+// fromEngineDateRanges is the inverse of toEngineDateRanges; it always
+// returns a fresh slice so callers never alias engine-owned state.
+func fromEngineDateRanges(in []processing.DateRangeSpec) []DateRangeSpec {
+	if in == nil {
+		return nil
+	}
+	out := make([]DateRangeSpec, len(in))
+	for i, r := range in {
+		out[i] = DateRangeSpec(r)
+	}
+	return out
+}
+
+// LoadMemberSetFromReader reads newline-delimited values from r and
+// returns the best MemberSet for the named field on schema (bitset for
+// categorical, uint64 map for integer / date, string map for decimal /
+// fallback). Lines are whitespace-trimmed, a leading UTF-8 BOM is
+// stripped and blank lines are skipped. Float fields are rejected.
 func LoadMemberSetFromReader(r io.Reader, schema *encoding.Schema, fieldName string) (LoadMemberSetResult, error) {
-	return processing.LoadMemberSetFromReader(r, schema, fieldName)
+	res, err := processing.LoadMemberSetFromReader(r, schema, fieldName)
+	if err != nil {
+		return LoadMemberSetResult{}, err
+	}
+	return LoadMemberSetResult{
+		Set:             res.Set,
+		Lines:           res.Lines,
+		NotInDictionary: res.NotInDictionary,
+		Invalid:         res.Invalid,
+	}, nil
 }
 
 // Type aliases re-exported from the types package so embedders can use
@@ -170,6 +227,15 @@ type Options struct {
 	// schema field populated in the record map regardless of what the
 	// request references). Defaults to false (projection enabled).
 	DisableProjection bool
+
+	// DisableCrosstabFusion forces every crosstab request onto the
+	// buffered path, skipping the fused in-decode streaming arm even
+	// when the fusion gate (processing.CanFuseCrosstab) admits the
+	// request. Output is identical either way — fusion is a peak-heap
+	// optimisation — so this is a diagnostic / benchmarking knob, e.g.
+	// to compare fused against buffered memory on the same request.
+	// Defaults to false (fusion engages whenever the gate accepts).
+	DisableCrosstabFusion bool
 
 	// ImportsDir overrides the managed-imports directory. Defaults to
 	// imports.DefaultImportsDir (resolved relative to the Pulse fs
@@ -380,11 +446,6 @@ type Pulse struct {
 	templates *template.Store
 }
 
-// Service returns the underlying service handle. Exposed so tests
-// (and advanced embedders) can inspect the installed extension
-// registry, FS configuration, and orchestration state.
-func (p *Pulse) Service() *service.Service { return p.svc }
-
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
 	if err := loadLabelTablesFromDir(&opts); err != nil {
@@ -449,6 +510,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetStrict(opts.Strict)
 	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
 	svc.SetEchoRequest(opts.EchoRequest)
+	svc.SetDisableCrosstabFusion(opts.DisableCrosstabFusion)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:                opts.ImportsDir,

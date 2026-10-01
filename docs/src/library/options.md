@@ -30,6 +30,13 @@ type Options struct {
     // computes and reports DefaultsApplied independently — this flag
     // governs only what the runtime mutates on the live request.
     DisableDefaults bool
+
+    // DisableCrosstabFusion forces every crosstab request onto the
+    // buffered path, skipping the fused in-decode streaming arm.
+    DisableCrosstabFusion bool
+
+    // ... further fields (concurrency, projection, imports, labels,
+    // templates) are documented on the Options type in pulse.go.
 }
 ```
 
@@ -90,6 +97,21 @@ disabled.
 CLI parity: `pulse api process --no-defaults`, `pulse api compose
 --no-defaults`.
 
+### `DisableCrosstabFusion bool`
+
+A crosstab request the fusion gate admits normally runs on the fused
+arm: the row × column grid is built in-decode, without materialising
+the filter-passing record set. Set `DisableCrosstabFusion = true` to
+force every crosstab onto the buffered path instead. Output is
+identical either way — fusion is a peak-heap optimisation — so this is
+a diagnostic and benchmarking knob, for example to compare fused and
+buffered memory on the same request. It is fixed at `pulse.New` time;
+there is no per-request override.
+
+```go
+p, err := pulse.New(pulse.Options{DisableCrosstabFusion: true})
+```
+
 ## Defaults at a glance
 
 | Field omitted from `Options` | Effective behaviour |
@@ -99,6 +121,7 @@ CLI parity: `pulse api process --no-defaults`, `pulse api compose
 | `FS` only                     | Uses the provided FS verbatim. |
 | Both                          | `FS` wins; `DataDir` is ignored. |
 | `DisableDefaults` omitted     | Defaults enabled. |
+| `DisableCrosstabFusion` omitted | Fusion engages whenever the gate admits the crosstab. |
 
 ## Re-using a Pulse instance
 

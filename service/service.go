@@ -66,9 +66,8 @@ type Service struct {
 	// streaming dispatch and always take the buffered RunCrosstab
 	// path. Default false (fusion engages when the gate accepts).
 	// Used by the equivalence test below to compare fused vs buffered
-	// output byte-for-byte; embedders can also set it via
-	// SetDisableCrosstabFusion(true) to disable the optimisation
-	// without rebuilding pulse.New().
+	// output byte-for-byte; embedders set it through
+	// pulse.Options.DisableCrosstabFusion at pulse.New time.
 	disableCrosstabFusion bool
 
 	// fingerprints memoises each cohort file's content digest against
@@ -88,6 +87,10 @@ type Service struct {
 func (s *Service) SetDisableCrosstabFusion(disabled bool) {
 	s.disableCrosstabFusion = disabled
 }
+
+// CrosstabFusionDisabled reports whether the fused-crosstab dispatch is
+// switched off (SetDisableCrosstabFusion / pulse.Options.DisableCrosstabFusion).
+func (s *Service) CrosstabFusionDisabled() bool { return s.disableCrosstabFusion }
 
 // New creates a new Service with the given filesystem configuration.
 // Smart-defaults resolution runs by default; call DisableDefaults to opt

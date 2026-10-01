@@ -72,7 +72,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		r.RangeTables = make(map[string]processing.RangeTable, len(ext.RangeTables))
 		for name, t := range ext.RangeTables {
 			r.RangeTables[name] = processing.RangeTable{
-				Ranges: t.Ranges,
+				Ranges: toEngineDateRanges(t.Ranges),
 			}
 		}
 	}

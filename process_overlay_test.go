@@ -382,7 +382,7 @@ func TestExtensions_OverlayKinds_FormulaExprFn(t *testing.T) {
 		t.Fatalf("ReadFile cohort: %v", err)
 	}
 	envBare := descriptor.PredictFromBytes(data, req, &descriptor.PredictOptions{
-		Extensions: pBare.Service().ExtensionsSnapshot(),
+		Extensions: pBare.svc.ExtensionsSnapshot(),
 	})
 	gotInvalidIdent := false
 	for _, e := range envBare.Errors {

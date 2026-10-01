@@ -599,7 +599,7 @@ func validateRangeTables(tables map[string]RangeTable) error {
 				map[string]any{"category": "range_table"},
 			)
 		}
-		if _, err := processing.CompileDateRanges(t.Ranges); err != nil {
+		if _, err := processing.CompileDateRanges(toEngineDateRanges(t.Ranges)); err != nil {
 			// CompileDateRanges emits the PULSE_RANGE_* coded error; wrap
 			// it with the offending table name for actionable diagnostics.
 			if ce, ok := err.(*errors.CodedError); ok {

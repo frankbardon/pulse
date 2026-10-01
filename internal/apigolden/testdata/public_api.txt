@@ -94,8 +94,7 @@ pulse: type CreateShardArchiveResult field Regrouped []pulse/service.GroupReconc
 pulse: type CreateShardArchiveResult field ShardCount int "json:\"shard_count\""
 pulse: type CreateShardArchiveResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
 pulse: type CreateShardArchiveResult field Widened []pulse/service.SetWidening "json:\"widened,omitempty\""
-pulse: type DateRangeSpec = pulse/processing.DateRangeSpec
-pulse: type DateRangeSpec underlying struct
+pulse: type DateRangeSpec struct
 pulse: type DateRangeSpec field End *string "json:\"end,omitempty\""
 pulse: type DateRangeSpec field Label string "json:\"label\""
 pulse: type DateRangeSpec field Start *string "json:\"start,omitempty\""
@@ -356,12 +355,11 @@ pulse: type LabelTableInfo field Enumerable bool "json:\"enumerable\""
 pulse: type LabelTableInfo field Name string "json:\"name\""
 pulse: type LabelTableInfo field RowCount int "json:\"row_count\""
 pulse: func LoadMemberSetFromReader(r io.Reader, schema *pulse/encoding.Schema, fieldName string) (pulse.LoadMemberSetResult, error)
-pulse: type LoadMemberSetResult = pulse/processing.LoadMemberSetResult
-pulse: type LoadMemberSetResult underlying struct
+pulse: type LoadMemberSetResult struct
 pulse: type LoadMemberSetResult field Invalid int
 pulse: type LoadMemberSetResult field Lines int
 pulse: type LoadMemberSetResult field NotInDictionary int
-pulse: type LoadMemberSetResult field Set pulse/processing.MemberSet
+pulse: type LoadMemberSetResult field Set pulse.MemberSet
 pulse: type LookupKey = pulse/types.LookupKey
 pulse: type LookupKey underlying struct
 pulse: type LookupKey field Field string "json:\"field\""
@@ -389,8 +387,7 @@ pulse: type LookupTable struct
 pulse: type LookupTable field Description string
 pulse: type LookupTable field Lookup func(keys ...string) (value float64, ok bool, err error)
 pulse: type LookupTable field Rows map[string]float64
-pulse: type MemberSet = pulse/processing.MemberSet
-pulse: type MemberSet underlying interface
+pulse: type MemberSet interface
 pulse: type MemberSet imethod Kind() string
 pulse: type MemberSet imethod Len() int
 pulse: func New(opts pulse.Options) (*pulse.Pulse, error)
@@ -399,6 +396,7 @@ pulse: type Options field AutoLabels []pulse.LabelBinding
 pulse: type Options field DataDir string
 pulse: type Options field DecodeWorkers int
 pulse: type Options field DisableComponents bool
+pulse: type Options field DisableCrosstabFusion bool
 pulse: type Options field DisableDefaults bool
 pulse: type Options field DisableProjection bool
 pulse: type Options field EchoRequest bool
@@ -507,7 +505,6 @@ pulse: type Pulse method (*Pulse) ResolveImport(ctx context.Context, handle stri
 pulse: type Pulse method (*Pulse) ResolveLabel(table string, query string, limit int) ([]pulse.LabelMatch, error)
 pulse: type Pulse method (*Pulse) Sample(ctx context.Context, path string, n int) ([]pulse.Record, error)
 pulse: type Pulse method (*Pulse) SampleWithRequest(ctx context.Context, req *pulse.SampleRequest) (*pulse.SampleResult, error)
-pulse: type Pulse method (*Pulse) Service() *pulse/service.Service
 pulse: type Pulse method (*Pulse) SweepImports(ctx context.Context) ([]string, error)
 pulse: type Pulse method (*Pulse) Synth(_ context.Context, spec *pulse.SynthSpec, output string, opts pulse.SynthOptions) (*pulse.SynthResult, error)
 pulse: type Pulse method (*Pulse) SynthStream(ctx context.Context, spec *pulse.SynthSpec, opts pulse.SynthOptions) (pulse.StreamResult[pulse.Row], error)
@@ -3830,6 +3827,7 @@ pulse/service: type Service method (*Service) Compose(ctx context.Context, compo
 pulse/service: type Service method (*Service) ComposeParallel(ctx context.Context, composed *pulse/types.ComposedRequest, opts pulse/service.ComposeOptions) (*pulse/types.ComposedResponse, error)
 pulse/service: type Service method (*Service) CountRecords(ctx context.Context, path string) (uint64, error)
 pulse/service: type Service method (*Service) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*pulse/service.CreateShardArchiveResult, error)
+pulse/service: type Service method (*Service) CrosstabFusionDisabled() bool
 pulse/service: type Service method (*Service) DecodeWorkers() int
 pulse/service: type Service method (*Service) DedupPreflight(_ context.Context, path string) error
 pulse/service: type Service method (*Service) DisableComponents() bool
@@ -5264,4 +5262,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: aaf71608482a845a84b0df9e4b26dba730caf92b9fd0668bcf4d45dfd2cfa9cc
+// golden-hash: 0c89d211c40e2ea2867b872fc7cf8ea53e3433439092badfd461ed45b066b384

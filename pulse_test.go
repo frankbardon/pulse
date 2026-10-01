@@ -133,7 +133,7 @@ func TestNew_DecodeWorkersPropagatedToService(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New(DecodeWorkers=%d): %v", want, err)
 		}
-		if got := p.Service().DecodeWorkers(); got != want {
+		if got := p.svc.DecodeWorkers(); got != want {
 			t.Fatalf("Service.DecodeWorkers() for opts.DecodeWorkers=%d: got %d, want %d", want, got, want)
 		}
 	}

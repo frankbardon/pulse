@@ -23,6 +23,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/facadebridge"
 	core "github.com/frankbardon/pulse/mcp"
 	"github.com/frankbardon/pulse/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -65,7 +66,7 @@ func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *enco
 	if s == nil || schema == nil {
 		return nil
 	}
-	schemas, err := core.BindWithExtensions(schema, p.Service().ExtensionsSnapshot())
+	schemas, err := core.BindWithExtensions(schema, facadebridge.ExtensionsSnapshot(p))
 	if err != nil {
 		return err
 	}
