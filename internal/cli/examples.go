@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/frankbardon/pulse/examples"
+	"github.com/frankbardon/pulse/internal/examples"
 	cli "github.com/urfave/cli/v3"
 )
 

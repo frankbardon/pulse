@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/csv"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )

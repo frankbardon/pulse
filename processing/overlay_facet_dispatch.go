@@ -131,7 +131,7 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 // slice. Returns (nil, nil, nil) when specs is empty so the
 // service-side FacetSchema finalize call site can call
 // ApplyOverlaysFacet unconditionally — mirrors the MATRIX
-// ApplyOverlays and SERIES ApplyOverlaysSeries short-circuit
+// applyOverlays and SERIES ApplyOverlaysSeries short-circuit
 // contract.
 //
 // Host policy:

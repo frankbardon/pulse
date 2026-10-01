@@ -24,8 +24,8 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/facadebridge"
-	core "github.com/frankbardon/pulse/mcp"
-	"github.com/frankbardon/pulse/mcp/toolmeta"
+	core "github.com/frankbardon/pulse/internal/mcp"
+	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

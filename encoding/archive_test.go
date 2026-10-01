@@ -9,8 +9,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/fs"
-	"github.com/frankbardon/pulse/service"
+	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/service"
 	"github.com/spf13/afero"
 )
 

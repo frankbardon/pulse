@@ -28,7 +28,7 @@ func TestPredictNoExecutionImports(t *testing.T) {
 
 		// Must not import the service package.
 		banned := []string{
-			`"github.com/frankbardon/pulse/service"`,
+			`"github.com/frankbardon/pulse/internal/service"`,
 			`"github.com/frankbardon/pulse/processing"`,
 		}
 		for _, b := range banned {

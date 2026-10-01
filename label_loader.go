@@ -23,7 +23,7 @@ const envLabelTablesDir = "PULSE_LABEL_TABLES_DIR"
 // .json becomes the registered table name.
 //
 // Files matching a known Pulse sidecar suffix (imports.SidecarSuffix,
-// spss.SidecarSuffix — see isPulseSidecarName) are skipped without
+// spsssidecar.Suffix — see isPulseSidecarName) are skipped without
 // being read: they are Pulse's own artefacts, they sit beside cohorts,
 // and this directory may legitimately be a data directory. Any other
 // *.json file that fails to parse is still a hard error naming the

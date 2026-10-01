@@ -9,8 +9,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/imports"
-	"github.com/frankbardon/pulse/io/spss"
+	"github.com/frankbardon/pulse/internal/imports"
+	"github.com/frankbardon/pulse/internal/spsssidecar"
 	"github.com/spf13/afero"
 )
 
@@ -52,7 +52,7 @@ func (p *Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, e
 	base := filepath.Base(cohort)
 	exact := map[string]bool{
 		filepath.Base(encoding.IndexManifestPath(cohort)): true, // .indexes.json
-		filepath.Base(spss.SidecarPath(cohort)):           true, // .spss.json
+		filepath.Base(spsssidecar.Path(cohort)):           true, // .spss.json
 		base + imports.SidecarSuffix:                      true, // .meta.json
 	}
 	idxName := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `\.[0-9a-f]{16}\.idx$`)

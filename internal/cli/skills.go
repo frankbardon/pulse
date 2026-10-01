@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/frankbardon/pulse/skills"
+	"github.com/frankbardon/pulse/internal/skills"
 	cli "github.com/urfave/cli/v3"
 )
 

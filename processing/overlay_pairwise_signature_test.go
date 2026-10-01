@@ -154,7 +154,7 @@ func TestPairwiseCellAggregatorIdentity_ExactKeySetOnly(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			host := NewCrosstabHostViewWithComponents(
+			host := newCrosstabHostViewWithComponents(
 				&types.MatrixPayload{
 					RowKeys:    []types.AxisKey{{"r"}},
 					ColumnKeys: []types.AxisKey{{"c"}},

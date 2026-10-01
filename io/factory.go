@@ -4,14 +4,14 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
-	parrow "github.com/frankbardon/pulse/io/arrow"
-	"github.com/frankbardon/pulse/io/csv"
-	"github.com/frankbardon/pulse/io/excel"
-	"github.com/frankbardon/pulse/io/jsonarray"
-	"github.com/frankbardon/pulse/io/ndjson"
-	"github.com/frankbardon/pulse/io/parquet"
-	"github.com/frankbardon/pulse/io/spss"
-	"github.com/frankbardon/pulse/io/tsv"
+	parrow "github.com/frankbardon/pulse/internal/io/arrow"
+	"github.com/frankbardon/pulse/internal/io/csv"
+	"github.com/frankbardon/pulse/internal/io/excel"
+	"github.com/frankbardon/pulse/internal/io/jsonarray"
+	"github.com/frankbardon/pulse/internal/io/ndjson"
+	"github.com/frankbardon/pulse/internal/io/parquet"
+	"github.com/frankbardon/pulse/internal/io/spss"
+	"github.com/frankbardon/pulse/internal/io/tsv"
 	"github.com/spf13/afero"
 )
 

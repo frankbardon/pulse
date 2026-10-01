@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/fs"
+	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )

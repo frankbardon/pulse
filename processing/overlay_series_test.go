@@ -90,7 +90,7 @@ func newStubSeriesHost(keys []types.AxisKey, values []float64) *SeriesHostView {
 }
 
 // TestApplyOverlaysSeries_EmptySpecsShortCircuits mirrors the MATRIX
-// ApplyOverlays empty-specs contract: zero specs ⇒ nil layers / nil
+// applyOverlays empty-specs contract: zero specs ⇒ nil layers / nil
 // warnings / nil error, even when host is nil. Grouped Process
 // orchestrators can call ApplyOverlaysSeries unconditionally.
 func TestApplyOverlaysSeries_EmptySpecsShortCircuits(t *testing.T) {
@@ -492,7 +492,7 @@ func TestApplyOverlaysSeries_ProductionDispatchTableRegistered(t *testing.T) {
 
 // TestApplyOverlaysSeries_MatrixPathUnchanged is the defense-in-depth
 // guard: adding the SERIES dispatch arm MUST NOT alter the MATRIX
-// ApplyOverlays surface. Runs a known-good INDEX_VS_MARGIN against the
+// applyOverlays surface. Runs a known-good INDEX_VS_MARGIN against the
 // shared indexUniformPayload fixture and asserts the layer count +
 // canonical cell value. If a future refactor unifies the two dispatches
 // behind a shared interface, this test pins the MATRIX surface against
@@ -508,9 +508,9 @@ func TestApplyOverlaysSeries_MatrixPathUnchanged(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("unexpected warnings: %+v", warnings)

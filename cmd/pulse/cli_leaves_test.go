@@ -216,7 +216,7 @@ func TestSkillsCoverAllCliLeaves(t *testing.T) {
 	})
 
 	t.Run("documented", func(t *testing.T) {
-		corpus := docCorpus(t, "skills", "docs/src")
+		corpus := docCorpus(t, "internal/skills", "docs/src")
 		for _, leaf := range leaves {
 			if !strings.Contains(corpus, leaf) {
 				t.Errorf("CLI leaf %q is named in no file under skills/ or docs/src/; "+

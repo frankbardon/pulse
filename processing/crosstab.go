@@ -991,7 +991,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	// Overlay fold. When Request.Overlays is non-empty and the
 	// buffered exit produced a MATRIX-shaped CrosstabResult, wrap the
 	// finalised MatrixPayload in a CrosstabHostView and let
-	// ApplyOverlays dispatch each spec through the per-kind runtime
+	// applyOverlays dispatch each spec through the per-kind runtime
 	// handler. Result: Response.Overlays carries one
 	// OverlayLayer per spec in matching order, and every
 	// types.OverlayWarning is promoted to types.ResponseWarning so envelope
@@ -1036,7 +1036,7 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 // ResponseWarning per types.OverlayWarning the handlers emitted (mirrors the
 // label-resolver promotion in service/process_labels.go).
 //
-// On unknown overlay kind, ApplyOverlays returns a CodedError whose own
+// On unknown overlay kind, applyOverlays returns a CodedError whose own
 // Code is the canonical errors.PULSE_OVERLAY_KIND_UNKNOWN — every overlay
 // fault carries its real code so `pulse errors lookup` resolves it.
 func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry) error {
@@ -1071,7 +1071,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 	if resp.Components != nil {
 		crosstabComps = resp.Components.Crosstab
 	}
-	host := NewCrosstabHostViewWithComponents(resp.Crosstab.Matrix, crosstabComps)
+	host := newCrosstabHostViewWithComponents(resp.Crosstab.Matrix, crosstabComps)
 	// When the Processor carries a live ExtensionRegistry the
 	// FORMULA dispatch arm of ApplyOverlaysWithExtensions threads the
 	// registry's ExprFunctions into the compile-time `[]expr.Option`

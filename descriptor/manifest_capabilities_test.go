@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/mcp/toolmeta"
+	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 )

@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/io/spss"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/spss"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )

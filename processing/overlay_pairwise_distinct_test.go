@@ -50,7 +50,7 @@ func pairwiseDistinctHost() *CrosstabHostView {
 			{nil},
 		},
 	}
-	return NewCrosstabHostViewWithComponents(mx, comps)
+	return newCrosstabHostViewWithComponents(mx, comps)
 }
 
 // TestPairwiseCellAggregatorIdentity pins the discriminating key sets
@@ -118,7 +118,7 @@ func TestPairwiseCellAggregatorIdentity(t *testing.T) {
 			comps := &types.CrosstabComponents{
 				CellComponents: [][]map[string]any{{tc.cell}},
 			}
-			host := NewCrosstabHostViewWithComponents(mx, comps)
+			host := newCrosstabHostViewWithComponents(mx, comps)
 
 			gotAgg, gotOK := host.CellAggregatorIdentity()
 			if gotOK != tc.wantOK {
@@ -204,7 +204,7 @@ func TestPairwiseRowSlabDistinctN_CardinalityKey(t *testing.T) {
 			{{"n": 4, "cardinality": 2}},
 		},
 	}
-	host := NewCrosstabHostViewWithComponents(mx, comps)
+	host := newCrosstabHostViewWithComponents(mx, comps)
 
 	if agg, key, ok := host.AdmitsDistinctKeyN(); !ok || agg != types.AGG_DISTINCT_COUNT || key != "cardinality" {
 		t.Fatalf("AdmitsDistinctKeyN = (%q, %q, %v), want (AGG_DISTINCT_COUNT, cardinality, true)", agg, key, ok)
@@ -234,7 +234,7 @@ func TestPairwiseColumnSlabDistinctN(t *testing.T) {
 			{"n": 4, "sum": 70.0, "distinct_count": 2},
 		}},
 	}
-	host := NewCrosstabHostViewWithComponents(mx, comps)
+	host := newCrosstabHostViewWithComponents(mx, comps)
 
 	if got, ok := host.ColumnSlabN(0, 0, 1); !ok || got != 6 {
 		t.Fatalf("ColumnSlabN(acme) = %d ok=%v, want 6", got, ok)
@@ -272,14 +272,14 @@ func TestOverlayPairwise_NWithinDistinctRefusesFrequencyCells(t *testing.T) {
 			{{"n": 2, "distinct_count": 5, "mode_value": "b", "mode_count": 2}},
 		},
 	}
-	host := NewCrosstabHostViewWithComponents(mx, comps)
+	host := newCrosstabHostViewWithComponents(mx, comps)
 
 	specs := []types.OverlaySpec{{
 		Kind:   types.OverlayKindPairwisePropZ,
 		Scope:  types.OverlayScopeRow,
 		Params: json.RawMessage(`{"n_source":"n_within_distinct","n_within_depth":0}`),
 	}}
-	layers, _, err := ApplyOverlays(specs, host)
+	layers, _, err := applyOverlays(specs, host)
 	if err == nil {
 		t.Fatalf("expected refusal on an AGG_FREQUENCY cell host, got %d layer(s)", len(layers))
 	}
@@ -317,7 +317,7 @@ func TestOverlayPairwise_NWithinDistinctRefusesPlainSumCells(t *testing.T) {
 		Scope:  types.OverlayScopeRow,
 		Params: json.RawMessage(`{"n_source":"n_within_distinct"}`),
 	}}
-	_, _, err := ApplyOverlays(specs, host)
+	_, _, err := applyOverlays(specs, host)
 	if err == nil {
 		t.Fatal("expected refusal on a host with no distinct-key figure")
 	}
@@ -343,9 +343,9 @@ func TestOverlayPairwise_NWithinDistinctAdmittedProducesLayer(t *testing.T) {
 			Scope:  types.OverlayScopeRow,
 			Params: json.RawMessage(`{"n_source":"` + nSource + `","n_within_depth":0}`),
 		}}
-		layers, _, err := ApplyOverlays(specs, host)
+		layers, _, err := applyOverlays(specs, host)
 		if err != nil {
-			t.Fatalf("ApplyOverlays(%s): %v", nSource, err)
+			t.Fatalf("applyOverlays(%s): %v", nSource, err)
 		}
 		mx := layers[0].Payload.Matrix
 		// Rows are pairs in axis-natural order; pair index 1 is
@@ -391,7 +391,7 @@ func TestOverlayPairwise_NWithinDistinctDepthGuard(t *testing.T) {
 		Scope:  types.OverlayScopeRow,
 		Params: json.RawMessage(`{"n_source":"n_within_distinct","n_within_depth":2}`),
 	}}
-	_, _, err := ApplyOverlays(specs, host)
+	_, _, err := applyOverlays(specs, host)
 	if err == nil {
 		t.Fatal("expected n_within_depth range refusal, got nil")
 	}
@@ -418,9 +418,9 @@ func TestOverlayPairwise_DistinctModeInertWhenUnset(t *testing.T) {
 		Kind:  types.OverlayKindPairwisePropZ,
 		Scope: types.OverlayScopeRow,
 	}}
-	layers, warns, err := ApplyOverlays(specs, host)
+	layers, warns, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings on the baseline host, got %v", warns)

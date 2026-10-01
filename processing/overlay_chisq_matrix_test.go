@@ -65,9 +65,9 @@ func TestOverlay_ChiSqMatrix_StatMatchesGonum(t *testing.T) {
 			Ref:   types.OverlayRef{}, // implicit-margin
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	// Expected counts in this contingency are 15 each — no low-expected
 	// warnings should fire (all ≥ 5).
@@ -152,9 +152,9 @@ func TestOverlay_ChiSqMatrix_ExpectedLowEmitsWarn(t *testing.T) {
 			Scope: types.OverlayScopeMatrix,
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(layers) != 1 {
 		t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -230,9 +230,9 @@ func TestOverlay_ChiSqMatrix_AbsentCellsHandled(t *testing.T) {
 			Scope: types.OverlayScopeMatrix,
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(layers) != 1 {
 		t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -271,7 +271,7 @@ func TestOverlay_ChiSqMatrix_AbsentCellsHandled(t *testing.T) {
 
 // TestOverlay_ChiSqMatrix_DegenerateShapeRejected verifies the handler
 // rejects 1×N or N×1 contingencies (χ² independence requires ≥ 2×2).
-// The error short-circuits ApplyOverlays so the orchestrator surfaces
+// The error short-circuits applyOverlays so the orchestrator surfaces
 // the failure the same way predict would have flagged it (defense in
 // depth — validator catches this at predict time too).
 func TestOverlay_ChiSqMatrix_DegenerateShapeRejected(t *testing.T) {
@@ -289,7 +289,7 @@ func TestOverlay_ChiSqMatrix_DegenerateShapeRejected(t *testing.T) {
 			Scope: types.OverlayScopeMatrix,
 		},
 	}
-	_, _, err := ApplyOverlays(specs, host)
+	_, _, err := applyOverlays(specs, host)
 	if err == nil {
 		t.Fatalf("expected error for 1×2 contingency; got nil")
 	}

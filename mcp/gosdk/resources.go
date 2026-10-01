@@ -9,7 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
-	"github.com/frankbardon/pulse/skills"
+	"github.com/frankbardon/pulse/internal/skills"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )

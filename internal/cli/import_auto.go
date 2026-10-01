@@ -10,7 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/imports"
+	"github.com/frankbardon/pulse/internal/imports"
 	pio "github.com/frankbardon/pulse/io"
 	cli "github.com/urfave/cli/v3"
 )

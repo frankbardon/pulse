@@ -154,7 +154,7 @@ func assertFacetHostByteIdentityWithStripped(t *testing.T, baseline, withOverlay
 // emission contract. The handler dispatch must produce one layer per
 // spec in the same order the specs were declared — regardless of which
 // kinds are streamable vs buffered. Mirrors the MATRIX-host /
-// SERIES-host spec-order-preserved tests on `ApplyOverlays` /
+// SERIES-host spec-order-preserved tests on `applyOverlays` /
 // `ApplyOverlaysSeries`.
 func assertFacetLayerOrderMatchesSpec(t *testing.T, layers []types.OverlayLayer, specs []types.OverlaySpec) {
 	t.Helper()

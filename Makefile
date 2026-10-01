@@ -56,13 +56,13 @@ lint: vet
 # compares Process with/without a sidecar index present; see
 # no_sidecar_touch_bench_test.go); new bench packages should be added
 # here. Reference numbers for the crosstab-perf epic come from
-# BenchmarkBufferedProcessWideCohort in ./service. Pipe output through
+# BenchmarkBufferedProcessWideCohort in ./internal/service. Pipe output through
 # `benchstat` against a saved baseline to catch wall-clock regressions
 # — this target intentionally does not assert a threshold itself (see
 # no_sidecar_touch_perf_test.go's `-tags=perf` opt-in gate for the one
 # in-repo wall-clock assertion, kept out of CI on purpose).
 bench:
-	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./service/... ./encoding/... ./processing/...
+	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./processing/...
 
 docs:
 	mdbook build docs

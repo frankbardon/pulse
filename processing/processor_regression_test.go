@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/processing/regression"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
 

@@ -1,12 +1,12 @@
 pulse: package pulse
-pulse: type AddShardResult = pulse/service.AddShardResult
+pulse: type AddShardResult = pulse/internal/service.AddShardResult
 pulse: type AddShardResult underlying struct
 pulse: type AddShardResult field Added string "json:\"added\""
 pulse: type AddShardResult field Archive string "json:\"archive\""
-pulse: type AddShardResult field Regrouped []pulse/service.GroupReconciliation "json:\"regrouped,omitempty\""
+pulse: type AddShardResult field Regrouped []pulse/internal/service.GroupReconciliation "json:\"regrouped,omitempty\""
 pulse: type AddShardResult field ShardCount int "json:\"shard_count\""
 pulse: type AddShardResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
-pulse: type AddShardResult field Widened []pulse/service.SetWidening "json:\"widened,omitempty\""
+pulse: type AddShardResult field Widened []pulse/internal/service.SetWidening "json:\"widened,omitempty\""
 pulse: type AggregatorComponentsFunc func(instance pulse/processing.Aggregator) (map[string]any, error)
 pulse: type AggregatorRegistration struct
 pulse: type AggregatorRegistration field Accepts []pulse/encoding.FieldType
@@ -35,7 +35,7 @@ pulse: type AttributeRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
 pulse: type AttributeRegistration field Params []pulse.ParamMeta
-pulse: type BuildIndexResult = pulse/service.BuildIndexResult
+pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
 pulse: type BuildIndexResult field Index *pulse/encoding.Index
 pulse: type BuildIndexResult field IndexPath string
@@ -73,7 +73,7 @@ pulse: type Cohort method (*Cohort) Field(name string) *pulse/encoding.Field
 pulse: type Cohort method (*Cohort) RecordCount() (int64, error)
 pulse: type Cohort method (*Cohort) Schema() *pulse/encoding.Schema
 pulse: type Cohort method (*Cohort) Shards() []pulse.ShardEntry
-pulse: type ComposeOptions = pulse/service.ComposeOptions
+pulse: type ComposeOptions = pulse/internal/service.ComposeOptions
 pulse: type ComposeOptions underlying struct
 pulse: type ComposeOptions field FailFast bool
 pulse: type ComposeOptions field MaxWorkers int
@@ -87,13 +87,13 @@ pulse: type ComposedResponse = pulse/types.ComposedResponse
 pulse: type ComposedResponse underlying struct
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
-pulse: type CreateShardArchiveResult = pulse/service.CreateShardArchiveResult
+pulse: type CreateShardArchiveResult = pulse/internal/service.CreateShardArchiveResult
 pulse: type CreateShardArchiveResult underlying struct
 pulse: type CreateShardArchiveResult field Archive string "json:\"archive\""
-pulse: type CreateShardArchiveResult field Regrouped []pulse/service.GroupReconciliation "json:\"regrouped,omitempty\""
+pulse: type CreateShardArchiveResult field Regrouped []pulse/internal/service.GroupReconciliation "json:\"regrouped,omitempty\""
 pulse: type CreateShardArchiveResult field ShardCount int "json:\"shard_count\""
 pulse: type CreateShardArchiveResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
-pulse: type CreateShardArchiveResult field Widened []pulse/service.SetWidening "json:\"widened,omitempty\""
+pulse: type CreateShardArchiveResult field Widened []pulse/internal/service.SetWidening "json:\"widened,omitempty\""
 pulse: type DateRangeSpec struct
 pulse: type DateRangeSpec field End *string "json:\"end,omitempty\""
 pulse: type DateRangeSpec field Label string "json:\"label\""
@@ -143,7 +143,7 @@ pulse: type ErrorMetadata field Domain string "json:\"domain\""
 pulse: type ErrorMetadata field FixupNotApplicable bool "json:\"fixup_not_applicable,omitempty\""
 pulse: type ErrorMetadata field Fixups []pulse/errors.Fixup "json:\"fixups,omitempty\""
 pulse: type ErrorMetadata field Message string "json:\"message\""
-pulse: type Example = pulse/examples.Example
+pulse: type Example = pulse/internal/examples.Example
 pulse: type Example underlying struct
 pulse: type Example field Body encoding/json.RawMessage "json:\"body\""
 pulse: type Example field Category string "json:\"category\""
@@ -151,7 +151,7 @@ pulse: type Example field Description string "json:\"description\""
 pulse: type Example field Name string "json:\"name\""
 pulse: type Example field Operators []string "json:\"operators\""
 pulse: type Example field Tags []string "json:\"tags\""
-pulse: type ExampleSummary = pulse/examples.ExampleSummary
+pulse: type ExampleSummary = pulse/internal/examples.ExampleSummary
 pulse: type ExampleSummary underlying struct
 pulse: type ExampleSummary field Category string "json:\"category\""
 pulse: type ExampleSummary field Description string "json:\"description\""
@@ -262,7 +262,7 @@ pulse: type FiltererRegistration field Factory pulse/processing.FiltererFactory
 pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FiltererRegistration field Name pulse/types.FiltererType
 pulse: type FiltererRegistration field Params []pulse.ParamMeta
-pulse: type GroupReconciliation = pulse/service.GroupReconciliation
+pulse: type GroupReconciliation = pulse/internal/service.GroupReconciliation
 pulse: type GroupReconciliation underlying struct
 pulse: type GroupReconciliation field ArchiveFormatVersion int "json:\"archive_format_version\""
 pulse: type GroupReconciliation field ArchiveRewritten bool "json:\"archive_rewritten\""
@@ -283,7 +283,7 @@ pulse: type GrouperRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type GrouperRegistration field Name pulse/types.GroupType
 pulse: type GrouperRegistration field Params []pulse.ParamMeta
 pulse: type GrouperRegistration field Streamable bool
-pulse: type ImportEntry = pulse/imports.Entry
+pulse: type ImportEntry = pulse/internal/imports.Entry
 pulse: type ImportEntry underlying struct
 pulse: type ImportEntry field Expired bool "json:\"expired\""
 pulse: type ImportEntry field ExpiresIn string "json:\"expires_in,omitempty\""
@@ -291,8 +291,8 @@ pulse: type ImportEntry field Handle string "json:\"handle\""
 pulse: type ImportEntry field Now time.Time "json:\"-\""
 pulse: type ImportEntry field Path string "json:\"path\""
 pulse: type ImportEntry field Pinned bool "json:\"pinned\""
-pulse: type ImportEntry field Sidecar pulse/imports.Sidecar "json:\"sidecar\""
-pulse: type ImportResult = pulse/imports.Result
+pulse: type ImportEntry field Sidecar pulse/internal/imports.Sidecar "json:\"sidecar\""
+pulse: type ImportResult = pulse/internal/imports.Result
 pulse: type ImportResult underlying struct
 pulse: type ImportResult field ExpiresAt *time.Time "json:\"expires_at,omitempty\""
 pulse: type ImportResult field Format string "json:\"format\""
@@ -309,7 +309,19 @@ pulse: type ImportResult field Schema *pulse/encoding.Schema "json:\"-\""
 pulse: type ImportResult field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
 pulse: type ImportResult field TTLSeconds int64 "json:\"ttl_seconds,omitempty\""
 pulse: type ImportResult field WidthWarnings []*pulse/errors.CodedError "json:\"width_warnings,omitempty\""
-pulse: type ImportSpec = pulse/imports.Spec
+pulse: type ImportSidecar = pulse/internal/imports.Sidecar
+pulse: type ImportSidecar underlying struct
+pulse: type ImportSidecar field ColumnTypeOverrides map[string]string "json:\"column_type_overrides,omitempty\""
+pulse: type ImportSidecar field ExpiresAt time.Time "json:\"expires_at,omitzero\""
+pulse: type ImportSidecar field Format string "json:\"format\""
+pulse: type ImportSidecar field Handle string "json:\"handle\""
+pulse: type ImportSidecar field ImportedAt time.Time "json:\"imported_at\""
+pulse: type ImportSidecar field RowsImported int "json:\"rows_imported\""
+pulse: type ImportSidecar field SourceFormat string "json:\"source_format\""
+pulse: type ImportSidecar field SourcePath string "json:\"source_path\""
+pulse: type ImportSidecar field TTLSeconds int64 "json:\"ttl_seconds\""
+pulse: type ImportSidecar method (ImportSidecar) Pinned() bool
+pulse: type ImportSpec = pulse/internal/imports.Spec
 pulse: type ImportSpec underlying struct
 pulse: type ImportSpec field Charset string
 pulse: type ImportSpec field ColumnTypeOverrides map[string]string
@@ -323,9 +335,9 @@ pulse: type ImportSpec field Sheet string
 pulse: type ImportSpec field SourcePath string
 pulse: type ImportSpec field SuggestGroups bool
 pulse: type ImportSpec field TTL time.Duration
-pulse: type IndexFreshnessReason = pulse/service.IndexFreshnessReason
+pulse: type IndexFreshnessReason = pulse/internal/service.IndexFreshnessReason
 pulse: type IndexFreshnessReason underlying string
-pulse: type IndexInfo = pulse/service.IndexInfo
+pulse: type IndexInfo = pulse/internal/service.IndexInfo
 pulse: type IndexInfo underlying struct
 pulse: type IndexInfo field DistinctKeys int
 pulse: type IndexInfo field IndexPath string
@@ -475,7 +487,7 @@ pulse: type Pulse method (*Pulse) FilterToFile(ctx context.Context, src string, 
 pulse: type Pulse method (*Pulse) FilterToFileBySetAndExpr(ctx context.Context, src string, dst string, includeField string, set pulse.MemberSet, filterExpr string) (int64, error)
 pulse: type Pulse method (*Pulse) FilterToFileWithRequest(ctx context.Context, req *pulse.FilterToFileRequest) (*pulse.FilterToFileResult, error)
 pulse: type Pulse method (*Pulse) Fs() github.com/spf13/afero.Fs
-pulse: type Pulse method (*Pulse) GetTemplate(name string) (*pulse/template.Template, error)
+pulse: type Pulse method (*Pulse) GetTemplate(name string) (*pulse.Template, error)
 pulse: type Pulse method (*Pulse) Import(ctx context.Context, job *pulse/io.ImportJob) (*pulse/io.ImportReport, error)
 pulse: type Pulse method (*Pulse) ImportFile(ctx context.Context, spec pulse.ImportSpec) (*pulse.ImportResult, error)
 pulse: type Pulse method (*Pulse) ImportTransfer(ctx context.Context, job *pulse/io.TransferImportJob) (*pulse/io.TransferReport, error)
@@ -487,7 +499,7 @@ pulse: type Pulse method (*Pulse) InvalidatedSidecars(ctx context.Context, cohor
 pulse: type Pulse method (*Pulse) LabelTables() []pulse.LabelTableInfo
 pulse: type Pulse method (*Pulse) ListIndexes(ctx context.Context, path string) ([]pulse.IndexInfo, error)
 pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath string) ([]pulse.ShardEntry, error)
-pulse: type Pulse method (*Pulse) ListTemplates() []pulse/template.Summary
+pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
 pulse: type Pulse method (*Pulse) Manifest(_ context.Context) *pulse/descriptor.Manifest
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
@@ -501,7 +513,7 @@ pulse: type Pulse method (*Pulse) Profile(_ context.Context, path string, opts p
 pulse: type Pulse method (*Pulse) RangeTables() []pulse.RangeTableInfo
 pulse: type Pulse method (*Pulse) ReloadTemplates() error
 pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) error
-pulse: type Pulse method (*Pulse) RenderTemplate(name string, vars map[string]any) (*pulse/template.Rendered, error)
+pulse: type Pulse method (*Pulse) RenderTemplate(name string, vars map[string]any) (*pulse.RenderedTemplate, error)
 pulse: type Pulse method (*Pulse) RenderTemplateRequest(name string, vars map[string]any) (*pulse.Request, error)
 pulse: type Pulse method (*Pulse) ResolveCanonicalSchema(ctx context.Context, src string) (*pulse/encoding.Schema, error)
 pulse: type Pulse method (*Pulse) ResolveImport(ctx context.Context, handle string) (string, error)
@@ -526,6 +538,16 @@ pulse: type RangeTableInfo field Name string "json:\"name\""
 pulse: type RangeTableInfo field RangeCount int "json:\"range_count\""
 pulse: type RangeTableInfo field Ranges []pulse.DateRangeSpec "json:\"ranges\""
 pulse: type Record = map[string]any
+pulse: type RenderedTemplate = pulse/internal/template.Rendered
+pulse: type RenderedTemplate underlying struct
+pulse: type RenderedTemplate field Chain *pulse/types.ChainRequest
+pulse: type RenderedTemplate field Composed *pulse/types.ComposedRequest
+pulse: type RenderedTemplate field Facet *pulse/types.FacetRequest
+pulse: type RenderedTemplate field JSON encoding/json.RawMessage
+pulse: type RenderedTemplate field Request *pulse/types.Request
+pulse: type RenderedTemplate field Sample *pulse/types.SampleRequest
+pulse: type RenderedTemplate field Target pulse/internal/template.Target
+pulse: type RenderedTemplate method (*RenderedTemplate) Typed() any
 pulse: type Request = pulse/types.Request
 pulse: type Request underlying struct
 pulse: type Request field Aggregations []*pulse/types.Aggregation "json:\"aggregations,omitempty\""
@@ -558,13 +580,13 @@ pulse: type Response field PostTests []*pulse/types.TestResult "json:\"post_test
 pulse: type Response field Regressions []*pulse/types.RegressionResult "json:\"regressions,omitempty\""
 pulse: type Response field Tests []*pulse/types.TestResult "json:\"tests,omitempty\""
 pulse: type Response field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
-pulse: type Row = pulse/service.Row
-pulse: type RowIter = pulse/service.RowIter
+pulse: type Row = pulse/internal/service.Row
+pulse: type RowIter = pulse/internal/service.RowIter
 pulse: type RowIter underlying interface
 pulse: type RowIter imethod Close() error
 pulse: type RowIter imethod Components() *pulse/types.ResponseComponents
 pulse: type RowIter imethod Metadata() *pulse/types.ResponseMetadata
-pulse: type RowIter imethod Next(ctx context.Context) (pulse/service.Row, bool, error)
+pulse: type RowIter imethod Next(ctx context.Context) (pulse/internal/service.Row, bool, error)
 pulse: type SampleRequest = pulse/types.SampleRequest
 pulse: type SampleRequest underlying struct
 pulse: type SampleRequest field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
@@ -587,7 +609,7 @@ pulse: type SeriesPoint struct
 pulse: type SeriesPoint field Key pulse/types.AxisKey
 pulse: type SeriesPoint field Present bool
 pulse: type SeriesPoint field Value float64
-pulse: type SetWidening = pulse/service.SetWidening
+pulse: type SetWidening = pulse/internal/service.SetWidening
 pulse: type SetWidening underlying struct
 pulse: type SetWidening field DictEntries int "json:\"dict_entries\""
 pulse: type SetWidening field Field string "json:\"field\""
@@ -605,7 +627,7 @@ pulse: type SetWidthHeadroom field Headroom int "json:\"headroom\""
 pulse: type SetWidthHeadroom field NextType string "json:\"next_type,omitempty\""
 pulse: type SetWidthHeadroom field Type string "json:\"type\""
 pulse: type SetWidthHeadroom field Used int "json:\"used\""
-pulse: type ShardEntry = pulse/service.ShardEntry
+pulse: type ShardEntry = pulse/internal/service.ShardEntry
 pulse: type ShardEntry underlying struct
 pulse: type ShardEntry field Filename string
 pulse: type ShardEntry field RecordCount int64
@@ -672,6 +694,44 @@ pulse: type SynthSpec field SetCategoricalPairs []pulse/synth.SetCategoricalPair
 pulse: type SynthSpec field SetNumericPairs []pulse/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
 pulse: type SynthSpec field SetSetPairs []pulse/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
 pulse: type SynthSpec method (*SynthSpec) Hash() string
+pulse: type Template = pulse/internal/template.Template
+pulse: type Template underlying struct
+pulse: type Template field Body encoding/json.RawMessage "json:\"body\""
+pulse: type Template field Description string "json:\"description,omitempty\""
+pulse: type Template field Name string "json:\"name,omitempty\""
+pulse: type Template field Target pulse/internal/template.Target "json:\"target\""
+pulse: type Template field Variables []*pulse/internal/template.Variable "json:\"variables,omitempty\""
+pulse: type Template method (*Template) Summarize(path string, shadows []string) pulse/internal/template.Summary
+pulse: type Template method (*Template) Variable(name string) (*pulse/internal/template.Variable, bool)
+pulse: type Template method (*Template) VariableNames() []string
+pulse: type TemplateSummary = pulse/internal/template.Summary
+pulse: type TemplateSummary underlying struct
+pulse: type TemplateSummary field Broken bool "json:\"broken,omitempty\""
+pulse: type TemplateSummary field Description string "json:\"description,omitempty\""
+pulse: type TemplateSummary field Error string "json:\"error,omitempty\""
+pulse: type TemplateSummary field Name string "json:\"name\""
+pulse: type TemplateSummary field Path string "json:\"path,omitempty\""
+pulse: type TemplateSummary field Shadows []string "json:\"shadows,omitempty\""
+pulse: type TemplateSummary field Target pulse/internal/template.Target "json:\"target\""
+pulse: type TemplateSummary field Variables []string "json:\"variables,omitempty\""
+pulse: type TemplateTarget = pulse/internal/template.Target
+pulse: type TemplateTarget underlying string
+pulse: type TemplateTarget method (TemplateTarget) String() string
+pulse: type TemplateTarget method (TemplateTarget) Valid() bool
+pulse: type TemplateVarType = pulse/internal/template.VarType
+pulse: type TemplateVarType underlying string
+pulse: type TemplateVarType method (TemplateVarType) IsScalar() bool
+pulse: type TemplateVarType method (TemplateVarType) String() string
+pulse: type TemplateVarType method (TemplateVarType) Valid() bool
+pulse: type TemplateVariable = pulse/internal/template.Variable
+pulse: type TemplateVariable underlying struct
+pulse: type TemplateVariable field Default encoding/json.RawMessage "json:\"default,omitempty\""
+pulse: type TemplateVariable field Description string "json:\"description,omitempty\""
+pulse: type TemplateVariable field Items pulse/internal/template.VarType "json:\"items,omitempty\""
+pulse: type TemplateVariable field Name string "json:\"name\""
+pulse: type TemplateVariable field Required bool "json:\"required,omitempty\""
+pulse: type TemplateVariable field Type pulse/internal/template.VarType "json:\"type\""
+pulse: type TemplateVariable field Values []string "json:\"values,omitempty\""
 pulse: type TestRegistration struct
 pulse: type TestRegistration field Accepts []pulse/encoding.FieldType
 pulse: type TestRegistration field Description string
@@ -685,14 +745,14 @@ pulse: type TestRegistration field Tier pulse.TestTier
 pulse: type TestTier string
 pulse: const TestTierPost pulse.TestTier = "tier2"
 pulse: const TestTierRow pulse.TestTier = "tier1"
-pulse: type VerifyIndexResult = pulse/service.VerifyIndexResult
+pulse: type VerifyIndexResult = pulse/internal/service.VerifyIndexResult
 pulse: type VerifyIndexResult underlying struct
 pulse: type VerifyIndexResult field FastPath bool
 pulse: type VerifyIndexResult field Fresh bool
 pulse: type VerifyIndexResult field IndexPath string
 pulse: type VerifyIndexResult field ModTimeDrift bool
-pulse: type VerifyIndexResult field Reason pulse/service.IndexFreshnessReason
-pulse: type VerifyResult = pulse/service.VerifyResult
+pulse: type VerifyIndexResult field Reason pulse/internal/service.IndexFreshnessReason
+pulse: type VerifyResult = pulse/internal/service.VerifyResult
 pulse: type VerifyResult underlying struct
 pulse: type VerifyResult field Errors []*pulse/errors.CodedError "json:\"errors\""
 pulse: type VerifyResult field GroupIndexHeadroom []pulse/encoding.GroupIndexHeadroom "json:\"group_index_headroom,omitempty\""
@@ -1923,110 +1983,6 @@ pulse/errors: const SERVICE_VALIDATION pulse/errors.Code = "SERVICE_VALIDATION"
 pulse/errors: func Search(query string) []pulse/errors.LookupResult
 pulse/errors: func SortedCodeNames() []string
 pulse/errors: func WrapCodedError(err error, code pulse/errors.Code, message string) *pulse/errors.CodedError
-pulse/examples: package examples
-pulse/examples: func AllCategories() []string
-pulse/examples: func AllTags() []string
-pulse/examples: var CanonicalTags []string
-pulse/examples: func Count() int
-pulse/examples: type Example struct
-pulse/examples: type Example field Body encoding/json.RawMessage "json:\"body\""
-pulse/examples: type Example field Category string "json:\"category\""
-pulse/examples: type Example field Description string "json:\"description\""
-pulse/examples: type Example field Name string "json:\"name\""
-pulse/examples: type Example field Operators []string "json:\"operators\""
-pulse/examples: type Example field Tags []string "json:\"tags\""
-pulse/examples: type ExampleSummary struct
-pulse/examples: type ExampleSummary field Category string "json:\"category\""
-pulse/examples: type ExampleSummary field Description string "json:\"description\""
-pulse/examples: type ExampleSummary field Name string "json:\"name\""
-pulse/examples: type ExampleSummary field Operators []string "json:\"operators\""
-pulse/examples: type ExampleSummary field Tags []string "json:\"tags\""
-pulse/examples: func Get(name string) (*pulse/examples.Example, bool)
-pulse/examples: func IsCanonicalTag(tag string) bool
-pulse/examples: func Search(query string, tags []string, category string) []pulse/examples.ExampleSummary
-pulse/fs: package fs
-pulse/fs: type Config struct
-pulse/fs: type Config method (*Config) DataDir() string
-pulse/fs: type Config method (*Config) Fs() github.com/spf13/afero.Fs
-pulse/fs: func Default() (*pulse/fs.Config, error)
-pulse/fs: func New(opts ...pulse/fs.Option) (*pulse/fs.Config, error)
-pulse/fs: func NewMemMap() *pulse/fs.Config
-pulse/fs: type Option func(*pulse/fs.Config)
-pulse/fs: func WithDataDir(dir string) pulse/fs.Option
-pulse/fs: func WithFs(fs github.com/spf13/afero.Fs) pulse/fs.Option
-pulse/imports: package imports
-pulse/imports: const DefaultImportsDir untyped string = "imports"
-pulse/imports: const DefaultTTL time.Duration = 604800000000000
-pulse/imports: type Entry struct
-pulse/imports: type Entry field Expired bool "json:\"expired\""
-pulse/imports: type Entry field ExpiresIn string "json:\"expires_in,omitempty\""
-pulse/imports: type Entry field Handle string "json:\"handle\""
-pulse/imports: type Entry field Now time.Time "json:\"-\""
-pulse/imports: type Entry field Path string "json:\"path\""
-pulse/imports: type Entry field Pinned bool "json:\"pinned\""
-pulse/imports: type Entry field Sidecar pulse/imports.Sidecar "json:\"sidecar\""
-pulse/imports: func FormatTTL(d time.Duration) string
-pulse/imports: type Manager struct
-pulse/imports: type Manager method (*Manager) DefaultTTL() time.Duration
-pulse/imports: type Manager method (*Manager) Drop(_ context.Context, handle string) error
-pulse/imports: type Manager method (*Manager) ImportsDir() string
-pulse/imports: type Manager method (*Manager) IsManagedPath(p string) bool
-pulse/imports: type Manager method (*Manager) JailRoot() string
-pulse/imports: type Manager method (*Manager) List(_ context.Context) ([]pulse/imports.Entry, error)
-pulse/imports: type Manager method (*Manager) Open(ctx context.Context, spec pulse/imports.Spec) (*pulse/imports.Result, error)
-pulse/imports: type Manager method (*Manager) Resolve(_ context.Context, handle string) (string, error)
-pulse/imports: type Manager method (*Manager) Sweep(_ context.Context) ([]string, error)
-pulse/imports: type Manager method (*Manager) Touch(_ context.Context, p string) error
-pulse/imports: func New(afs github.com/spf13/afero.Fs, opts pulse/imports.Options) (*pulse/imports.Manager, error)
-pulse/imports: type Options struct
-pulse/imports: type Options field DefaultSetInferenceMinPct int
-pulse/imports: type Options field DefaultTTL time.Duration
-pulse/imports: type Options field ImportsDir string
-pulse/imports: type Options field Now func() time.Time
-pulse/imports: type Options field SourceFS github.com/spf13/afero.Fs
-pulse/imports: type Options field SourceJailRoot string
-pulse/imports: func ParseTTL(s string) (time.Duration, error)
-pulse/imports: type Result struct
-pulse/imports: type Result field ExpiresAt *time.Time "json:\"expires_at,omitempty\""
-pulse/imports: type Result field Format string "json:\"format\""
-pulse/imports: type Result field GroupCandidates *pulse/io.GroupDetection "json:\"group_candidates,omitempty\""
-pulse/imports: type Result field GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
-pulse/imports: type Result field Groups []pulse/io.GroupReport "json:\"groups,omitempty\""
-pulse/imports: type Result field Handle string "json:\"handle\""
-pulse/imports: type Result field ImportedAt time.Time "json:\"imported_at,omitzero\""
-pulse/imports: type Result field Managed bool "json:\"managed\""
-pulse/imports: type Result field Path string "json:\"path\""
-pulse/imports: type Result field PromotedFields []string "json:\"promoted_fields,omitempty\""
-pulse/imports: type Result field RowsImported int "json:\"rows_imported,omitempty\""
-pulse/imports: type Result field Schema *pulse/encoding.Schema "json:\"-\""
-pulse/imports: type Result field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
-pulse/imports: type Result field TTLSeconds int64 "json:\"ttl_seconds,omitempty\""
-pulse/imports: type Result field WidthWarnings []*pulse/errors.CodedError "json:\"width_warnings,omitempty\""
-pulse/imports: type Sidecar struct
-pulse/imports: type Sidecar field ColumnTypeOverrides map[string]string "json:\"column_type_overrides,omitempty\""
-pulse/imports: type Sidecar field ExpiresAt time.Time "json:\"expires_at,omitzero\""
-pulse/imports: type Sidecar field Format string "json:\"format\""
-pulse/imports: type Sidecar field Handle string "json:\"handle\""
-pulse/imports: type Sidecar field ImportedAt time.Time "json:\"imported_at\""
-pulse/imports: type Sidecar field RowsImported int "json:\"rows_imported\""
-pulse/imports: type Sidecar field SourceFormat string "json:\"source_format\""
-pulse/imports: type Sidecar field SourcePath string "json:\"source_path\""
-pulse/imports: type Sidecar field TTLSeconds int64 "json:\"ttl_seconds\""
-pulse/imports: type Sidecar method (Sidecar) Pinned() bool
-pulse/imports: const SidecarSuffix untyped string = ".meta.json"
-pulse/imports: type Spec struct
-pulse/imports: type Spec field Charset string
-pulse/imports: type Spec field ColumnTypeOverrides map[string]string
-pulse/imports: type Spec field Format string
-pulse/imports: type Spec field Groups []pulse/io.GroupDecl
-pulse/imports: type Spec field Handle string
-pulse/imports: type Spec field InlineBytes []byte
-pulse/imports: type Spec field Overwrite bool
-pulse/imports: type Spec field SetInferenceMinPct int
-pulse/imports: type Spec field Sheet string
-pulse/imports: type Spec field SourcePath string
-pulse/imports: type Spec field SuggestGroups bool
-pulse/imports: type Spec field TTL time.Duration
 pulse/io: package io
 pulse/io: type BufferWriter interface
 pulse/io: type BufferWriter imethod Bytes() []byte
@@ -2433,796 +2389,6 @@ pulse/io: type Writer imethod WriteHeader(columns []string) error
 pulse/io: type Writer imethod WriteRow(values []any) error
 pulse/io: type WriterOptions struct
 pulse/io: type WriterOptions field SPSS pulse/io.SPSSWriterOptions
-pulse/io/arrow: package arrow
-pulse/io/arrow: func AppendDecimal128(b github.com/apache/arrow-go/v18/arrow/array.Builder, f pulse/encoding.Field, v any) error
-pulse/io/arrow: func AppendOverlayLayerStruct(structBldr *github.com/apache/arrow-go/v18/arrow/array.StructBuilder, layer *pulse/types.OverlayLayer) error
-pulse/io/arrow: func AppendSetList(b github.com/apache/arrow-go/v18/arrow/array.Builder, v any) (bool, error)
-pulse/io/arrow: func FieldFromPulse(f pulse/encoding.Field) github.com/apache/arrow-go/v18/arrow.Field
-pulse/io/arrow: func FormatValue(arr github.com/apache/arrow-go/v18/arrow.Array, idx int) string
-pulse/io/arrow: func JSONMarshalOverlay(v any) ([]byte, error)
-pulse/io/arrow: func NewReader(fs github.com/spf13/afero.Fs, path string) *pulse/io/arrow.Reader
-pulse/io/arrow: func NewReaderFromBytes(data []byte) *pulse/io/arrow.Reader
-pulse/io/arrow: func NewWriter(fs github.com/spf13/afero.Fs, path string) *pulse/io/arrow.Writer
-pulse/io/arrow: func NewWriterToBuffer() *pulse/io/arrow.Writer
-pulse/io/arrow: func OverlaysArrowField() github.com/apache/arrow-go/v18/arrow.Field
-pulse/io/arrow: const OverlaysFieldName untyped string = "overlays"
-pulse/io/arrow: func OverlaysFieldType() *github.com/apache/arrow-go/v18/arrow.StructType
-pulse/io/arrow: func PulseFieldFromArrow(af github.com/apache/arrow-go/v18/arrow.Field) (pulse/encoding.Field, bool)
-pulse/io/arrow: const PulseTypeMetadataKey untyped string = "pulse:type"
-pulse/io/arrow: func ReadOverlaysFromArray(listArr github.com/apache/arrow-go/v18/arrow.Array) ([]*pulse/types.OverlayLayer, error)
-pulse/io/arrow: type Reader struct
-pulse/io/arrow: type Reader method (*Reader) Close() error
-pulse/io/arrow: type Reader method (*Reader) InferPulseSchema() (*pulse/encoding.Schema, error)
-pulse/io/arrow: type Reader method (*Reader) ReadHeader() ([]string, error)
-pulse/io/arrow: type Reader method (*Reader) ReadOverlays() ([]*pulse/types.OverlayLayer, error)
-pulse/io/arrow: type Reader method (*Reader) ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io/arrow: type Reader method (*Reader) Reset() error
-pulse/io/arrow: type Reader method (*Reader) RowNulls() []bool
-pulse/io/arrow: func TypeFromPulse(ft pulse/encoding.FieldType) github.com/apache/arrow-go/v18/arrow.DataType
-pulse/io/arrow: func TypeToPulse(dt github.com/apache/arrow-go/v18/arrow.DataType) pulse/encoding.FieldType
-pulse/io/arrow: type Writer struct
-pulse/io/arrow: type Writer method (*Writer) Bytes() []byte
-pulse/io/arrow: type Writer method (*Writer) Close() error
-pulse/io/arrow: type Writer method (*Writer) SetExplicitNulls(on bool)
-pulse/io/arrow: type Writer method (*Writer) SetOverlays(layers []*pulse/types.OverlayLayer)
-pulse/io/arrow: type Writer method (*Writer) SetPulseSchema(s *pulse/encoding.Schema)
-pulse/io/arrow: type Writer method (*Writer) WriteHeader(columns []string) error
-pulse/io/arrow: type Writer method (*Writer) WriteRow(values []any) error
-pulse/io/csv: package csv
-pulse/io/csv: func NewReader(fs github.com/spf13/afero.Fs, path string) *pulse/io/csv.Reader
-pulse/io/csv: func NewReaderFromBytes(data []byte) *pulse/io/csv.Reader
-pulse/io/csv: func NewWriter(fs github.com/spf13/afero.Fs, path string) *pulse/io/csv.Writer
-pulse/io/csv: func NewWriterToBuffer() *pulse/io/csv.Writer
-pulse/io/csv: type Reader struct
-pulse/io/csv: type Reader method (*Reader) Close() error
-pulse/io/csv: type Reader method (*Reader) ReadHeader() ([]string, error)
-pulse/io/csv: type Reader method (*Reader) ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io/csv: type Reader method (*Reader) Reset() error
-pulse/io/csv: type Writer struct
-pulse/io/csv: type Writer method (*Writer) Bytes() []byte
-pulse/io/csv: type Writer method (*Writer) Close() error
-pulse/io/csv: type Writer method (*Writer) OverlayWarnings() []*pulse/errors.CodedError
-pulse/io/csv: type Writer method (*Writer) SetOverlays(layers []*pulse/types.OverlayLayer)
-pulse/io/csv: type Writer method (*Writer) WriteHeader(columns []string) error
-pulse/io/csv: type Writer method (*Writer) WriteRow(values []any) error
-pulse/io/excel: package excel
-pulse/io/excel: func NewReader(fs github.com/spf13/afero.Fs, path string, opts ...pulse/io/excel.Option) *pulse/io/excel.Reader
-pulse/io/excel: func NewReaderFromBytes(data []byte, opts ...pulse/io/excel.Option) *pulse/io/excel.Reader
-pulse/io/excel: func NewWriter(fs github.com/spf13/afero.Fs, path string, opts ...pulse/io/excel.Option) *pulse/io/excel.Writer
-pulse/io/excel: func NewWriterToBuffer(opts ...pulse/io/excel.Option) *pulse/io/excel.Writer
-pulse/io/excel: type Option func(*pulse/io/excel.config)
-pulse/io/excel: const OverlaySheetPrefix untyped string = "__overlay_"
-pulse/io/excel: type Reader struct
-pulse/io/excel: type Reader method (*Reader) Close() error
-pulse/io/excel: type Reader method (*Reader) ReadHeader() ([]string, error)
-pulse/io/excel: type Reader method (*Reader) ReadOverlays() ([]*pulse/types.OverlayLayer, error)
-pulse/io/excel: type Reader method (*Reader) ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io/excel: type Reader method (*Reader) Reset() error
-pulse/io/excel: type Reader method (*Reader) SheetNames() ([]string, error)
-pulse/io/excel: func WithSheet(name string) pulse/io/excel.Option
-pulse/io/excel: type Writer struct
-pulse/io/excel: type Writer method (*Writer) Bytes() []byte
-pulse/io/excel: type Writer method (*Writer) Close() error
-pulse/io/excel: type Writer method (*Writer) Discard() error
-pulse/io/excel: type Writer method (*Writer) SetOverlays(layers []*pulse/types.OverlayLayer)
-pulse/io/excel: type Writer method (*Writer) SetPulseSchema(s *pulse/encoding.Schema)
-pulse/io/excel: type Writer method (*Writer) WriteHeader(columns []string) error
-pulse/io/excel: type Writer method (*Writer) WriteRow(values []any) error
-pulse/io/exportoverlay: package exportoverlay
-pulse/io/jsonarray: package jsonarray
-pulse/io/jsonarray: func NewReader(fs github.com/spf13/afero.Fs, path string) *pulse/io/jsonarray.Reader
-pulse/io/jsonarray: func NewReaderFromBytes(data []byte) *pulse/io/jsonarray.Reader
-pulse/io/jsonarray: func NewWriter(fs github.com/spf13/afero.Fs, path string) *pulse/io/jsonarray.Writer
-pulse/io/jsonarray: func NewWriterToBuffer() *pulse/io/jsonarray.Writer
-pulse/io/jsonarray: type Reader struct
-pulse/io/jsonarray: type Reader method (*Reader) Close() error
-pulse/io/jsonarray: type Reader method (*Reader) ReadHeader() ([]string, error)
-pulse/io/jsonarray: type Reader method (*Reader) ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io/jsonarray: type Reader method (*Reader) Reset() error
-pulse/io/jsonarray: type Reader method (*Reader) RowNulls() []bool
-pulse/io/jsonarray: type Writer struct
-pulse/io/jsonarray: type Writer method (*Writer) Bytes() []byte
-pulse/io/jsonarray: type Writer method (*Writer) Close() error
-pulse/io/jsonarray: type Writer method (*Writer) SetExplicitNulls(on bool)
-pulse/io/jsonarray: type Writer method (*Writer) WriteHeader(columns []string) error
-pulse/io/jsonarray: type Writer method (*Writer) WriteRow(values []any) error
-pulse/io/jsonshared: package jsonshared
-pulse/io/jsonshared: func CoerceValue(v any) any
-pulse/io/jsonshared: func CoerceValueExplicitNull(v any) any
-pulse/io/jsonshared: const SetArrayDelimiter untyped string = "|"
-pulse/io/jsonshared: func ValueToString(v any) string
-pulse/io/ndjson: package ndjson
-pulse/io/ndjson: func NewReader(fs github.com/spf13/afero.Fs, path string) *pulse/io/ndjson.Reader
-pulse/io/ndjson: func NewReaderFromBytes(data []byte) *pulse/io/ndjson.Reader
-pulse/io/ndjson: func NewWriter(fs github.com/spf13/afero.Fs, path string) *pulse/io/ndjson.Writer
-pulse/io/ndjson: func NewWriterToBuffer() *pulse/io/ndjson.Writer
-pulse/io/ndjson: const OverlayTrailerKey untyped string = "_overlays"
-pulse/io/ndjson: type Reader struct
-pulse/io/ndjson: type Reader method (*Reader) Close() error
-pulse/io/ndjson: type Reader method (*Reader) ReadHeader() ([]string, error)
-pulse/io/ndjson: type Reader method (*Reader) ReadOverlays() ([]*pulse/types.OverlayLayer, error)
-pulse/io/ndjson: type Reader method (*Reader) ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io/ndjson: type Reader method (*Reader) Reset() error
-pulse/io/ndjson: type Reader method (*Reader) RowNulls() []bool
-pulse/io/ndjson: type Writer struct
-pulse/io/ndjson: type Writer method (*Writer) Bytes() []byte
-pulse/io/ndjson: type Writer method (*Writer) Close() error
-pulse/io/ndjson: type Writer method (*Writer) SetExplicitNulls(on bool)
-pulse/io/ndjson: type Writer method (*Writer) SetOverlays(layers []*pulse/types.OverlayLayer)
-pulse/io/ndjson: type Writer method (*Writer) WriteHeader(columns []string) error
-pulse/io/ndjson: type Writer method (*Writer) WriteRow(values []any) error
-pulse/io/nullcell: package nullcell
-pulse/io/parquet: package parquet
-pulse/io/parquet: func NewReader(fs github.com/spf13/afero.Fs, path string, opts ...pulse/io/parquet.Option) *pulse/io/parquet.Reader
-pulse/io/parquet: func NewReaderFromBytes(data []byte, opts ...pulse/io/parquet.Option) *pulse/io/parquet.Reader
-pulse/io/parquet: func NewWriter(fs github.com/spf13/afero.Fs, path string, opts ...pulse/io/parquet.Option) *pulse/io/parquet.Writer
-pulse/io/parquet: func NewWriterToBuffer(opts ...pulse/io/parquet.Option) *pulse/io/parquet.Writer
-pulse/io/parquet: type Option func(*pulse/io/parquet.options)
-pulse/io/parquet: type Reader struct
-pulse/io/parquet: type Reader method (*Reader) Close() error
-pulse/io/parquet: type Reader method (*Reader) InferPulseSchema() (*pulse/encoding.Schema, error)
-pulse/io/parquet: type Reader method (*Reader) ReadHeader() ([]string, error)
-pulse/io/parquet: type Reader method (*Reader) ReadOverlays() ([]*pulse/types.OverlayLayer, error)
-pulse/io/parquet: type Reader method (*Reader) ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io/parquet: type Reader method (*Reader) Reset() error
-pulse/io/parquet: type Reader method (*Reader) RowNulls() []bool
-pulse/io/parquet: func WithWorkers(n int) pulse/io/parquet.Option
-pulse/io/parquet: type Writer struct
-pulse/io/parquet: type Writer method (*Writer) Bytes() []byte
-pulse/io/parquet: type Writer method (*Writer) Close() error
-pulse/io/parquet: type Writer method (*Writer) SetExplicitNulls(on bool)
-pulse/io/parquet: type Writer method (*Writer) SetOverlays(layers []*pulse/types.OverlayLayer)
-pulse/io/parquet: type Writer method (*Writer) SetPulseSchema(s *pulse/encoding.Schema)
-pulse/io/parquet: type Writer method (*Writer) WriteHeader(columns []string) error
-pulse/io/parquet: type Writer method (*Writer) WriteRow(values []any) error
-pulse/io/settristate: package settristate
-pulse/io/setwide: package setwide
-pulse/io/spss: package spss
-pulse/io/spss: func BuildDictionary(req pulse/io/spss.DictionaryRequest) (*pulse/io/spss.DictionaryPlan, error)
-pulse/io/spss: type Case []pulse/io/spss.CaseValue
-pulse/io/spss: type CaseValue struct
-pulse/io/spss: type CaseValue field Mask pulse/encoding.SetMask
-pulse/io/spss: type CaseValue field Null bool
-pulse/io/spss: type CaseValue field Num float64
-pulse/io/spss: type Category struct
-pulse/io/spss: type Category field Code *pulse/io/spss.Float "json:\"code,omitempty\""
-pulse/io/spss: type Category field ID uint32 "json:\"id\""
-pulse/io/spss: type Category field Label string "json:\"label,omitempty\""
-pulse/io/spss: type Category field Labelled bool "json:\"labelled\""
-pulse/io/spss: type Category field Missing bool "json:\"missing,omitempty\""
-pulse/io/spss: type Category field Numeric bool "json:\"numeric\""
-pulse/io/spss: type Category field Observed bool "json:\"observed\""
-pulse/io/spss: type Category field Text *string "json:\"text,omitempty\""
-pulse/io/spss: type Category field Value string "json:\"value\""
-pulse/io/spss: type CategoryCode struct
-pulse/io/spss: type CategoryCode field Ambiguous bool
-pulse/io/spss: type CategoryCode field Code float64
-pulse/io/spss: type CategoryCode field Encoded []byte
-pulse/io/spss: type CategoryCode field Known bool
-pulse/io/spss: type CategoryCode field Text string
-pulse/io/spss: type Charset struct
-pulse/io/spss: type Charset field Declared bool "json:\"declared\""
-pulse/io/spss: type Charset field DeclaredCode int32 "json:\"declared_code,omitempty\""
-pulse/io/spss: type Charset field DeclaredName string "json:\"declared_name,omitempty\""
-pulse/io/spss: type Charset field Overridden bool "json:\"overridden\""
-pulse/io/spss: type Charset field ResolvedName string "json:\"resolved_name\""
-pulse/io/spss: type ColumnPlan struct
-pulse/io/spss: type ColumnPlan field Categories []pulse/io/spss.CategoryCode
-pulse/io/spss: type ColumnPlan field CountedValue float64
-pulse/io/spss: type ColumnPlan field Elements int
-pulse/io/spss: type ColumnPlan field Encoding pulse/io/spss.ValueEncoding
-pulse/io/spss: type ColumnPlan field Field int
-pulse/io/spss: type ColumnPlan field FieldName string
-pulse/io/spss: type ColumnPlan field FieldType pulse/encoding.FieldType
-pulse/io/spss: type ColumnPlan field Index int32
-pulse/io/spss: type ColumnPlan field MissingCodes []pulse/io/spss.MissingCode
-pulse/io/spss: type ColumnPlan field MissingField int
-pulse/io/spss: type ColumnPlan field Name string
-pulse/io/spss: type ColumnPlan field PrintFormat pulse/io/spss.Format
-pulse/io/spss: type ColumnPlan field Segments []pulse/io/spss.SegmentPlan
-pulse/io/spss: type ColumnPlan field SetBit int
-pulse/io/spss: type ColumnPlan field ShortName string
-pulse/io/spss: type ColumnPlan field Width int
-pulse/io/spss: type ColumnPlan field WriteFormat pulse/io/spss.Format
-pulse/io/spss: type DataEncoder struct
-pulse/io/spss: type DataEncoder method (*DataEncoder) Cases() int64
-pulse/io/spss: type DataEncoder method (*DataEncoder) Finish() ([]byte, error)
-pulse/io/spss: type DataEncoder method (*DataEncoder) WriteCase(c pulse/io/spss.Case) error
-pulse/io/spss: type DataEncoder method (*DataEncoder) WriteCohort(r io.Reader) error
-pulse/io/spss: type Derived struct
-pulse/io/spss: type Derived field Kind string "json:\"kind\""
-pulse/io/spss: type Derived field Name string "json:\"name\""
-pulse/io/spss: type Derived field Position int "json:\"position\""
-pulse/io/spss: type Derived field Reasons []pulse/io/spss.DerivedReason "json:\"reasons,omitempty\""
-pulse/io/spss: type Derived field SetName string "json:\"set_name,omitempty\""
-pulse/io/spss: type Derived field Sources []string "json:\"sources,omitempty\""
-pulse/io/spss: type Derived method (Derived) Complete() bool
-pulse/io/spss: type Derived method (Derived) Fold() (pulse/io/spss.DerivedFold, bool)
-pulse/io/spss: type DerivedFold int
-pulse/io/spss: type DerivedFold method (DerivedFold) String() string
-pulse/io/spss: const DerivedFoldDrop pulse/io/spss.DerivedFold = 1
-pulse/io/spss: func DerivedFoldFor(kind string) (pulse/io/spss.DerivedFold, bool)
-pulse/io/spss: const DerivedFoldRestore pulse/io/spss.DerivedFold = 2
-pulse/io/spss: const DerivedFoldUnknown pulse/io/spss.DerivedFold = 0
-pulse/io/spss: const DerivedKindMultipleDichotomy untyped string = "multiple_dichotomy"
-pulse/io/spss: const DerivedKindNumericMissing untyped string = "numeric_missing"
-pulse/io/spss: func DerivedKinds() []string
-pulse/io/spss: type DerivedReason struct
-pulse/io/spss: type DerivedReason field Code *pulse/io/spss.Float "json:\"code,omitempty\""
-pulse/io/spss: type DerivedReason field Declared bool "json:\"declared\""
-pulse/io/spss: type DerivedReason field ID uint32 "json:\"id\""
-pulse/io/spss: type DerivedReason field Label string "json:\"label,omitempty\""
-pulse/io/spss: type DerivedReason field Observed bool "json:\"observed\""
-pulse/io/spss: type DerivedReason field Reason string "json:\"reason\""
-pulse/io/spss: type DerivedReason field Sysmis bool "json:\"sysmis,omitempty\""
-pulse/io/spss: type DictionaryPlan struct
-pulse/io/spss: type DictionaryPlan field Bias float64
-pulse/io/spss: type DictionaryPlan field ByteOrder encoding/binary.ByteOrder
-pulse/io/spss: type DictionaryPlan field Bytes []byte
-pulse/io/spss: type DictionaryPlan field CaseCount int64
-pulse/io/spss: type DictionaryPlan field CaseCount64Offset int
-pulse/io/spss: type DictionaryPlan field CaseCountOffset int
-pulse/io/spss: type DictionaryPlan field Columns []pulse/io/spss.ColumnPlan
-pulse/io/spss: type DictionaryPlan field Compression int32
-pulse/io/spss: type DictionaryPlan field ElementCount int32
-pulse/io/spss: type DictionaryPlan field Renames []pulse/io/spss.NameRename
-pulse/io/spss: type DictionaryPlan field Status pulse/io/spss.SidecarStatus
-pulse/io/spss: type DictionaryPlan field Synthesised bool
-pulse/io/spss: type DictionaryPlan field Sysmis float64
-pulse/io/spss: type DictionaryPlan field UnboundFields []int
-pulse/io/spss: type DictionaryPlan field Warnings []*pulse/errors.CodedError
-pulse/io/spss: type DictionaryPlan method (*DictionaryPlan) SetCaseCount(n int64) error
-pulse/io/spss: type DictionaryRequest struct
-pulse/io/spss: type DictionaryRequest field Cases int64
-pulse/io/spss: type DictionaryRequest field Compression int32
-pulse/io/spss: type DictionaryRequest field Options pulse/io/spss.WriterOptions
-pulse/io/spss: type DictionaryRequest field Schema *pulse/encoding.Schema
-pulse/io/spss: type DictionaryRequest field Sidecar *pulse/io/spss.SidecarResolution
-pulse/io/spss: type Document struct
-pulse/io/spss: type Document field Fingerprint pulse/io/spss.Fingerprint "json:\"fingerprint\""
-pulse/io/spss: type Document field FormatVersion int "json:\"format_version\""
-pulse/io/spss: type Document field Kind string "json:\"kind\""
-pulse/io/spss: type Document field Payload pulse/io/spss.Payload "json:\"payload\""
-pulse/io/spss: type Document method (*Document) Normalise() error
-pulse/io/spss: type Document method (*Document) VerifyDigest(fsys github.com/spf13/afero.Fs, cohortPath string) error
-pulse/io/spss: const EncodeCategoricalCode pulse/io/spss.ValueEncoding = 4
-pulse/io/spss: const EncodeDateDays pulse/io/spss.ValueEncoding = 2
-pulse/io/spss: const EncodeDateTimeSeconds pulse/io/spss.ValueEncoding = 3
-pulse/io/spss: const EncodeNumeric pulse/io/spss.ValueEncoding = 1
-pulse/io/spss: const EncodeSetMember pulse/io/spss.ValueEncoding = 6
-pulse/io/spss: const EncodeText pulse/io/spss.ValueEncoding = 5
-pulse/io/spss: const EncodeUnbound pulse/io/spss.ValueEncoding = 0
-pulse/io/spss: type Fingerprint struct
-pulse/io/spss: type Fingerprint field SHA256 string "json:\"sha256\""
-pulse/io/spss: type Fingerprint field SourceModTime int64 "json:\"source_mod_time\""
-pulse/io/spss: type Fingerprint field SourceSize uint64 "json:\"source_size\""
-pulse/io/spss: type Fingerprint method (Fingerprint) Digest() (pulse/encoding.Fingerprint, bool)
-pulse/io/spss: type Float float64
-pulse/io/spss: type Float method (*Float) UnmarshalJSON(b []byte) error
-pulse/io/spss: type Float method (Float) MarshalJSON() ([]byte, error)
-pulse/io/spss: type Format struct
-pulse/io/spss: type Format field Code uint8 "json:\"code\""
-pulse/io/spss: type Format field Decimals int "json:\"decimals\""
-pulse/io/spss: type Format field Width int "json:\"width\""
-pulse/io/spss: func LoadSidecar(fsys github.com/spf13/afero.Fs, cohortPath string, opts pulse/io/spss.WriterOptions) (*pulse/io/spss.SidecarResolution, error)
-pulse/io/spss: type MRSet struct
-pulse/io/spss: type MRSet field CountedValue *string "json:\"counted_value,omitempty\""
-pulse/io/spss: type MRSet field Extended bool "json:\"extended,omitempty\""
-pulse/io/spss: type MRSet field Fields []string "json:\"fields,omitempty\""
-pulse/io/spss: type MRSet field Kind string "json:\"kind\""
-pulse/io/spss: type MRSet field Label string "json:\"label,omitempty\""
-pulse/io/spss: type MRSet field LabelFromVariableLabel bool "json:\"label_from_variable_label,omitempty\""
-pulse/io/spss: type MRSet field Name string "json:\"name\""
-pulse/io/spss: type MRSet field Subtype int32 "json:\"subtype\""
-pulse/io/spss: type MRSet field Variables []string "json:\"variables\""
-pulse/io/spss: const MRSetKindCategory untyped string = "category"
-pulse/io/spss: const MRSetKindDichotomy untyped string = "dichotomy"
-pulse/io/spss: type MachineFloat struct
-pulse/io/spss: type MachineFloat field Highest pulse/io/spss.Float "json:\"highest\""
-pulse/io/spss: type MachineFloat field Lowest pulse/io/spss.Float "json:\"lowest\""
-pulse/io/spss: type MachineFloat field Sysmis pulse/io/spss.Float "json:\"sysmis\""
-pulse/io/spss: type Missing struct
-pulse/io/spss: type Missing field Code int32 "json:\"code\""
-pulse/io/spss: type Missing field Discrete []pulse/io/spss.Float "json:\"discrete,omitempty\""
-pulse/io/spss: type Missing field DiscreteText []string "json:\"discrete_text,omitempty\""
-pulse/io/spss: type Missing field Kind string "json:\"kind\""
-pulse/io/spss: type Missing field Range *pulse/io/spss.MissingRange "json:\"range,omitempty\""
-pulse/io/spss: type Missing field Raw [][]byte "json:\"raw\""
-pulse/io/spss: const MissingAuto pulse/io/spss.MissingMode = 0
-pulse/io/spss: type MissingCode struct
-pulse/io/spss: type MissingCode field Code float64
-pulse/io/spss: type MissingCode field Known bool
-pulse/io/spss: type MissingCode field Reason string
-pulse/io/spss: type MissingCode field Sysmis bool
-pulse/io/spss: type MissingMode int
-pulse/io/spss: type MissingMode method (MissingMode) String() string
-pulse/io/spss: const MissingNull pulse/io/spss.MissingMode = 1
-pulse/io/spss: type MissingRange struct
-pulse/io/spss: type MissingRange field High pulse/io/spss.Float "json:\"high\""
-pulse/io/spss: type MissingRange field Low pulse/io/spss.Float "json:\"low\""
-pulse/io/spss: const MissingSiblingSuffix untyped string = "_missing"
-pulse/io/spss: type NameRename struct
-pulse/io/spss: type NameRename field Field string "json:\"field\""
-pulse/io/spss: type NameRename field From string "json:\"from\""
-pulse/io/spss: type NameRename field Name string "json:\"name\""
-pulse/io/spss: func NewCase(s *pulse/encoding.Schema) pulse/io/spss.Case
-pulse/io/spss: func NewDataEncoder(plan *pulse/io/spss.DictionaryPlan, schema *pulse/encoding.Schema) (*pulse/io/spss.DataEncoder, error)
-pulse/io/spss: func NewReader(fs github.com/spf13/afero.Fs, path string, opts ...pulse/io/spss.Option) *pulse/io/spss.Reader
-pulse/io/spss: func NewReaderFromBytes(data []byte, opts ...pulse/io/spss.Option) *pulse/io/spss.Reader
-pulse/io/spss: func NewWriter(fs github.com/spf13/afero.Fs, path string, opts pulse/io/spss.WriterOptions) *pulse/io/spss.Writer
-pulse/io/spss: func NewWriterToBuffer(opts pulse/io/spss.WriterOptions) *pulse/io/spss.Writer
-pulse/io/spss: type Option func(*pulse/io/spss.Reader)
-pulse/io/spss: func ParseMissingMode(s string) (pulse/io/spss.MissingMode, error)
-pulse/io/spss: type Payload struct
-pulse/io/spss: type Payload field Charset pulse/io/spss.Charset "json:\"charset\""
-pulse/io/spss: type Payload field Derived []pulse/io/spss.Derived "json:\"derived\""
-pulse/io/spss: type Payload field Documents []string "json:\"documents,omitempty\""
-pulse/io/spss: type Payload field FileAttributes *pulse/io/spss.RawText "json:\"file_attributes,omitempty\""
-pulse/io/spss: type Payload field MultipleResponseSets []pulse/io/spss.MRSet "json:\"multiple_response_sets,omitempty\""
-pulse/io/spss: type Payload field ProductInfo *pulse/io/spss.RawText "json:\"product_info,omitempty\""
-pulse/io/spss: type Payload field Source pulse/io/spss.Source "json:\"source\""
-pulse/io/spss: type Payload field VariableAttributes *pulse/io/spss.RawText "json:\"variable_attributes,omitempty\""
-pulse/io/spss: type Payload field VariableSets []pulse/io/spss.VarSet "json:\"variable_sets,omitempty\""
-pulse/io/spss: type Payload field Variables []pulse/io/spss.Variable "json:\"variables\""
-pulse/io/spss: type Payload field VeryLongStrings []pulse/io/spss.VLSDeclaration "json:\"very_long_strings,omitempty\""
-pulse/io/spss: type Payload field Weight *pulse/io/spss.Weight "json:\"weight,omitempty\""
-pulse/io/spss: type RawText struct
-pulse/io/spss: type RawText field Raw []byte "json:\"raw\""
-pulse/io/spss: type RawText field Subtype int32 "json:\"subtype\""
-pulse/io/spss: type RawText field Text string "json:\"text,omitempty\""
-pulse/io/spss: type Reader struct
-pulse/io/spss: type Reader method (*Reader) Close() error
-pulse/io/spss: type Reader method (*Reader) PulseSchema() (*pulse/encoding.Schema, error)
-pulse/io/spss: type Reader method (*Reader) ReadHeader() ([]string, error)
-pulse/io/spss: type Reader method (*Reader) ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io/spss: type Reader method (*Reader) Reset() error
-pulse/io/spss: type Reader method (*Reader) Warnings() []*pulse/errors.CodedError
-pulse/io/spss: type Reader method (*Reader) WriteSidecar(fs github.com/spf13/afero.Fs, cohortPath string) error
-pulse/io/spss: type SegmentPlan struct
-pulse/io/spss: type SegmentPlan field Content int
-pulse/io/spss: type SegmentPlan field Elements int
-pulse/io/spss: type SegmentPlan field Index int32
-pulse/io/spss: type SegmentPlan field Name string
-pulse/io/spss: type SegmentPlan field Width int
-pulse/io/spss: const SidecarFormatVersion untyped int = 1
-pulse/io/spss: const SidecarKind untyped string = "spss"
-pulse/io/spss: func SidecarPath(cohortPath string) string
-pulse/io/spss: type SidecarResolution struct
-pulse/io/spss: type SidecarResolution field Cohort string
-pulse/io/spss: type SidecarResolution field Document *pulse/io/spss.Document
-pulse/io/spss: type SidecarResolution field Path string
-pulse/io/spss: type SidecarResolution field Status pulse/io/spss.SidecarStatus
-pulse/io/spss: type SidecarResolution field Warning *pulse/errors.CodedError
-pulse/io/spss: type SidecarResolution method (*SidecarResolution) Synthesise() bool
-pulse/io/spss: type SidecarStatus int
-pulse/io/spss: type SidecarStatus method (SidecarStatus) String() string
-pulse/io/spss: const SidecarStatusAbsent pulse/io/spss.SidecarStatus = 2
-pulse/io/spss: const SidecarStatusIgnored pulse/io/spss.SidecarStatus = 3
-pulse/io/spss: const SidecarStatusPresent pulse/io/spss.SidecarStatus = 1
-pulse/io/spss: const SidecarStatusUnknown pulse/io/spss.SidecarStatus = 0
-pulse/io/spss: const SidecarSuffix untyped string = ".spss.json"
-pulse/io/spss: type Source struct
-pulse/io/spss: type Source field ByteOrder string "json:\"byte_order\""
-pulse/io/spss: type Source field CaseCount int64 "json:\"case_count\""
-pulse/io/spss: type Source field Compression string "json:\"compression\""
-pulse/io/spss: type Source field CompressionBias pulse/io/spss.Float "json:\"compression_bias\""
-pulse/io/spss: type Source field CreationDate string "json:\"creation_date,omitempty\""
-pulse/io/spss: type Source field CreationTime string "json:\"creation_time,omitempty\""
-pulse/io/spss: type Source field DeclaredCaseCount int64 "json:\"declared_case_count\""
-pulse/io/spss: type Source field ElementCount int32 "json:\"element_count\""
-pulse/io/spss: type Source field FileLabel string "json:\"file_label,omitempty\""
-pulse/io/spss: type Source field LayoutCode int32 "json:\"layout_code\""
-pulse/io/spss: type Source field MachineFloat *pulse/io/spss.MachineFloat "json:\"machine_float,omitempty\""
-pulse/io/spss: type Source field Magic string "json:\"magic\""
-pulse/io/spss: type Source field NominalCaseSize int32 "json:\"nominal_case_size\""
-pulse/io/spss: type Source field ProductName string "json:\"product_name\""
-pulse/io/spss: type Source field Sysmis pulse/io/spss.Float "json:\"sysmis\""
-pulse/io/spss: const SourceByteOrderBig untyped string = "big"
-pulse/io/spss: const SourceByteOrderLittle untyped string = "little"
-pulse/io/spss: const SysmisReason untyped string = "sysmis"
-pulse/io/spss: type VLSDeclaration struct
-pulse/io/spss: type VLSDeclaration field Name string "json:\"name\""
-pulse/io/spss: type VLSDeclaration field Width int "json:\"width\""
-pulse/io/spss: type VLSLayout struct
-pulse/io/spss: type VLSLayout field Segments []pulse/io/spss.VLSSegment "json:\"segments\""
-pulse/io/spss: type VLSLayout field Width int "json:\"width\""
-pulse/io/spss: type VLSSegment struct
-pulse/io/spss: type VLSSegment field Content int "json:\"content\""
-pulse/io/spss: type VLSSegment field Elements int "json:\"elements\""
-pulse/io/spss: type VLSSegment field Name string "json:\"name\""
-pulse/io/spss: type VLSSegment field Width int "json:\"width\""
-pulse/io/spss: type ValueEncoding int
-pulse/io/spss: type ValueEncoding method (ValueEncoding) String() string
-pulse/io/spss: type VarSet struct
-pulse/io/spss: type VarSet field Name string "json:\"name\""
-pulse/io/spss: type VarSet field Variables []string "json:\"variables\""
-pulse/io/spss: type Variable struct
-pulse/io/spss: type Variable field Alignment string "json:\"alignment\""
-pulse/io/spss: type Variable field Categories []pulse/io/spss.Category "json:\"categories,omitempty\""
-pulse/io/spss: type Variable field DeclaredWidth int "json:\"declared_width\""
-pulse/io/spss: type Variable field DefaultAggregation string "json:\"default_aggregation,omitempty\""
-pulse/io/spss: type Variable field DefaultGrouper string "json:\"default_grouper,omitempty\""
-pulse/io/spss: type Variable field DisplayWidth *int32 "json:\"display_width,omitempty\""
-pulse/io/spss: type Variable field HasDisplayParams bool "json:\"has_display_params\""
-pulse/io/spss: type Variable field HasLabel bool "json:\"has_label\""
-pulse/io/spss: type Variable field Index int32 "json:\"index\""
-pulse/io/spss: type Variable field Kind string "json:\"kind\""
-pulse/io/spss: type Variable field Label string "json:\"label,omitempty\""
-pulse/io/spss: type Variable field LongName string "json:\"long_name,omitempty\""
-pulse/io/spss: type Variable field Measure string "json:\"measure\""
-pulse/io/spss: type Variable field Missing *pulse/io/spss.Missing "json:\"missing,omitempty\""
-pulse/io/spss: type Variable field Name string "json:\"name\""
-pulse/io/spss: type Variable field Nullable bool "json:\"nullable\""
-pulse/io/spss: type Variable field Position int "json:\"position\""
-pulse/io/spss: type Variable field PrintFormat pulse/io/spss.Format "json:\"print_format\""
-pulse/io/spss: type Variable field PulseType string "json:\"pulse_type\""
-pulse/io/spss: type Variable field Segments int "json:\"segments\""
-pulse/io/spss: type Variable field ShortName string "json:\"short_name\""
-pulse/io/spss: type Variable field TypeCode int32 "json:\"type_code\""
-pulse/io/spss: type Variable field VeryLongString *pulse/io/spss.VLSLayout "json:\"very_long_string,omitempty\""
-pulse/io/spss: type Variable field WriteFormat pulse/io/spss.Format "json:\"write_format\""
-pulse/io/spss: type Weight struct
-pulse/io/spss: type Weight field Index int32 "json:\"index\""
-pulse/io/spss: type Weight field Variable string "json:\"variable,omitempty\""
-pulse/io/spss: func WithCardinalityWarnFraction(fraction float64) pulse/io/spss.Option
-pulse/io/spss: func WithCharset(name string) pulse/io/spss.Option
-pulse/io/spss: func WithMissingMode(mode pulse/io/spss.MissingMode) pulse/io/spss.Option
-pulse/io/spss: type Writer struct
-pulse/io/spss: type Writer method (*Writer) Bytes() []byte
-pulse/io/spss: type Writer method (*Writer) Close() error
-pulse/io/spss: type Writer method (*Writer) OverlayWarnings() []*pulse/errors.CodedError
-pulse/io/spss: type Writer method (*Writer) Renames() []pulse/io/spss.NameRename
-pulse/io/spss: type Writer method (*Writer) SetConvertSource(src pulse/internal/iocore.ConvertSource)
-pulse/io/spss: type Writer method (*Writer) SetOverlays(layers []*pulse/types.OverlayLayer)
-pulse/io/spss: type Writer method (*Writer) SetPulseSchema(s *pulse/encoding.Schema)
-pulse/io/spss: type Writer method (*Writer) ValidateCohort(ctx context.Context, src pulse/internal/iocore.CohortSource) ([]*pulse/errors.CodedError, error)
-pulse/io/spss: type Writer method (*Writer) Warnings() []*pulse/errors.CodedError
-pulse/io/spss: type Writer method (*Writer) WriteCohort(ctx context.Context, src pulse/internal/iocore.CohortSource) (int, error)
-pulse/io/spss: type Writer method (*Writer) WriteHeader(columns []string) error
-pulse/io/spss: type Writer method (*Writer) WriteRow(values []any) error
-pulse/io/spss: type WriterOptions struct
-pulse/io/spss: type WriterOptions field Charset string
-pulse/io/spss: type WriterOptions field IgnoreSidecar bool
-pulse/io/spss: type WriterOptions field SanitizeNames bool
-pulse/io/spss: type WriterOptions field Uncompressed bool
-pulse/io/spss: type WriterOptions method (WriterOptions) Compression() int32
-pulse/io/tsv: package tsv
-pulse/io/tsv: func NewReader(fs github.com/spf13/afero.Fs, path string) *pulse/io/tsv.Reader
-pulse/io/tsv: func NewReaderFromBytes(data []byte) *pulse/io/tsv.Reader
-pulse/io/tsv: func NewWriter(fs github.com/spf13/afero.Fs, path string) *pulse/io/tsv.Writer
-pulse/io/tsv: func NewWriterToBuffer() *pulse/io/tsv.Writer
-pulse/io/tsv: type Reader struct
-pulse/io/tsv: type Reader method (*Reader) Close() error
-pulse/io/tsv: type Reader method (*Reader) ReadHeader() ([]string, error)
-pulse/io/tsv: type Reader method (*Reader) ReadRows(ctx context.Context, fn func(row []string) error) error
-pulse/io/tsv: type Reader method (*Reader) Reset() error
-pulse/io/tsv: type Writer struct
-pulse/io/tsv: type Writer method (*Writer) Bytes() []byte
-pulse/io/tsv: type Writer method (*Writer) Close() error
-pulse/io/tsv: type Writer method (*Writer) WriteHeader(columns []string) error
-pulse/io/tsv: type Writer method (*Writer) WriteRow(values []any) error
-pulse/mcp: package mcp
-pulse/mcp: func Bind(schema *pulse/encoding.Schema) (map[string]encoding/json.RawMessage, error)
-pulse/mcp: func BindWithExtensions(schema *pulse/encoding.Schema, snap *pulse/descriptor.ExtensionsSnapshot) (map[string]encoding/json.RawMessage, error)
-pulse/mcp: type ComposeIn = pulse/types.ComposedRequest
-pulse/mcp: type ComposeIn underlying struct
-pulse/mcp: type ComposeIn field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
-pulse/mcp: type ComposeIn field Requests []*pulse/types.Request "json:\"requests\""
-pulse/mcp: type ComposeIn method (*ComposeIn) Hash() string
-pulse/mcp: type ComposeOut = pulse/types.ComposedResponse
-pulse/mcp: type ComposeOut underlying struct
-pulse/mcp: type ComposeOut field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
-pulse/mcp: type ComposeOut field Responses []*pulse/types.Response "json:\"responses\""
-pulse/mcp: type Config struct
-pulse/mcp: type Config field Version string
-pulse/mcp: type DedupIn struct
-pulse/mcp: type DedupIn field Groups []pulse/io.GroupDecl "json:\"groups,omitempty\" jsonschema:\"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]} — the same shape pulse_import takes. Each distinct member tuple is stored ONCE and every row carries a 4-byte index. FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT (cohort untouched) if a member varies within its key. Take declarations from suggest_groups candidates rather than guessing. An already-grouped cohort is regrouped from scratch. Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID.\""
-pulse/mcp: type DedupIn field Out string "json:\"out,omitempty\" jsonschema:\"Write the deduplicated cohort to this NEW path (must not exist) and leave the original untouched. Omit to rewrite the cohort IN PLACE (destructive, atomic: a failure leaves it byte-identical). Prefer out unless the user asked for an in-place conversion.\""
-pulse/mcp: type DedupIn field Path string "json:\"path\" jsonschema:\"Path to the existing single-file .pulse cohort to deduplicate (relative to PULSE_DATA_DIR). Shard archives are refused with SERVICE_VALIDATION.\""
-pulse/mcp: type DedupIn field SuggestGroups bool "json:\"suggest_groups,omitempty\" jsonschema:\"Detect candidate parent groups over the cohort's records and return them as group_candidates (ratio, resident dictionary bytes, projected size, verdict), each with key/members ready to pass back as a groups entry. With no groups this call is READ-ONLY. The loop is: call with suggest_groups only, read group_candidates.suggested, call again with those as groups.\""
-pulse/mcp: type DedupOut = pulse.DedupResult
-pulse/mcp: type DedupOut underlying struct
-pulse/mcp: type DedupOut embed pulse/io.DedupReport
-pulse/mcp: type DedupOut field DedupReport.BytesAfter int64 "json:\"bytes_after\""
-pulse/mcp: type DedupOut field DedupReport.BytesBefore int64 "json:\"bytes_before\""
-pulse/mcp: type DedupOut field DedupReport.ElidedConstants []string "json:\"elided_constants,omitempty\""
-pulse/mcp: type DedupOut field DedupReport.FormatVersionAfter int "json:\"format_version_after\""
-pulse/mcp: type DedupOut field DedupReport.FormatVersionBefore int "json:\"format_version_before\""
-pulse/mcp: type DedupOut field DedupReport.GroupCandidates *pulse/internal/io.GroupDetection "json:\"group_candidates,omitempty\""
-pulse/mcp: type DedupOut field DedupReport.GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
-pulse/mcp: type DedupOut field DedupReport.Groups []pulse/internal/io.GroupReport "json:\"groups,omitempty\""
-pulse/mcp: type DedupOut field DedupReport.InPlace bool "json:\"in_place\""
-pulse/mcp: type DedupOut field DedupReport.Records int64 "json:\"records\""
-pulse/mcp: type DedupOut field DedupReport.Rewritten bool "json:\"rewritten\""
-pulse/mcp: type DedupOut field DedupReport.Source string "json:\"source\""
-pulse/mcp: type DedupOut field DedupReport.StrideAfter int "json:\"stride_after\""
-pulse/mcp: type DedupOut field DedupReport.StrideBefore int "json:\"stride_before\""
-pulse/mcp: type DedupOut field DedupReport.Target string "json:\"target\""
-pulse/mcp: type DedupOut field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
-pulse/mcp: type DedupOut field SidecarWarnings []*pulse/errors.CodedError "json:\"sidecar_warnings,omitempty\""
-pulse/mcp: type DedupOut method (*DedupOut) Warnings() []*pulse/errors.CodedError
-pulse/mcp: type DropIn struct
-pulse/mcp: type DropIn field Handle string "json:\"handle\" jsonschema:\"Managed handle name to remove\""
-pulse/mcp: type DropOut struct
-pulse/mcp: type DropOut field Dropped bool "json:\"dropped\" jsonschema:\"True when the handle existed and was removed\""
-pulse/mcp: type DropOut field Handle string "json:\"handle\" jsonschema:\"The managed handle that was dropped\""
-pulse/mcp: type ErrorsLookupIn struct
-pulse/mcp: type ErrorsLookupIn field Code string "json:\"code,omitempty\" jsonschema:\"Exact error code identifier (e.g. 'PULSE_LOOKUP_MISS')\""
-pulse/mcp: type ErrorsLookupIn field Domain string "json:\"domain,omitempty\" jsonschema:\"Domain prefix (PULSE, ENCODING, PROCESSING, SERVICE, DATA, CLI); case-insensitive\""
-pulse/mcp: type ErrorsLookupIn field Query string "json:\"query,omitempty\" jsonschema:\"Case-insensitive substring across descriptions and fixup hints\""
-pulse/mcp: type ErrorsLookupOut struct
-pulse/mcp: type ErrorsLookupOut field Results []pulse/errors.LookupResult "json:\"results\" jsonschema:\"Matching error-code metadata records\""
-pulse/mcp: type ExamplesGetIn struct
-pulse/mcp: type ExamplesGetIn field Name string "json:\"name\" jsonschema:\"Example name from the _meta.name field (e.g. 't_test_one_sample')\""
-pulse/mcp: type ExamplesGetOut = pulse/examples.Example
-pulse/mcp: type ExamplesGetOut underlying struct
-pulse/mcp: type ExamplesGetOut field Body encoding/json.RawMessage "json:\"body\""
-pulse/mcp: type ExamplesGetOut field Category string "json:\"category\""
-pulse/mcp: type ExamplesGetOut field Description string "json:\"description\""
-pulse/mcp: type ExamplesGetOut field Name string "json:\"name\""
-pulse/mcp: type ExamplesGetOut field Operators []string "json:\"operators\""
-pulse/mcp: type ExamplesGetOut field Tags []string "json:\"tags\""
-pulse/mcp: type ExamplesSearchIn struct
-pulse/mcp: type ExamplesSearchIn field Category string "json:\"category,omitempty\" jsonschema:\"Exact directory: aggregations, attributes, features, filterers, groupers, regression, tests, windows\""
-pulse/mcp: type ExamplesSearchIn field Query string "json:\"query,omitempty\" jsonschema:\"Case-insensitive substring matched against name, description, and operators\""
-pulse/mcp: type ExamplesSearchIn field Tags []string "json:\"tags,omitempty\" jsonschema:\"Canonical taxonomy tags; results must carry every tag (AND)\""
-pulse/mcp: type ExamplesSearchOut struct
-pulse/mcp: type ExamplesSearchOut field Results []pulse/examples.ExampleSummary "json:\"results\" jsonschema:\"Matching example summaries (name, category, tags, operators, description)\""
-pulse/mcp: type FacetIn struct
-pulse/mcp: type FacetIn field Field string "json:\"field\" jsonschema:\"Field name to facet\""
-pulse/mcp: type FacetIn field Path string "json:\"path\" jsonschema:\"Filesystem path to the .pulse file\""
-pulse/mcp: type FacetOut struct
-pulse/mcp: type FacetOut field Values []string "json:\"values\" jsonschema:\"Distinct values for the faceted field\""
-pulse/mcp: type FacetSchemaIn = pulse/types.FacetRequest
-pulse/mcp: type FacetSchemaIn underlying struct
-pulse/mcp: type FacetSchemaIn field AdditiveFields []string "json:\"additive_fields,omitempty\""
-pulse/mcp: type FacetSchemaIn field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
-pulse/mcp: type FacetSchemaIn field DiscreteTopK int "json:\"discrete_top_k,omitempty\""
-pulse/mcp: type FacetSchemaIn field Fields []string "json:\"fields\""
-pulse/mcp: type FacetSchemaIn field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
-pulse/mcp: type FacetSchemaIn field HistogramBins int "json:\"histogram_bins,omitempty\""
-pulse/mcp: type FacetSchemaIn field HistogramRange [2]float64 "json:\"histogram_range,omitempty\""
-pulse/mcp: type FacetSchemaIn field IncludeHistogram bool "json:\"include_histogram,omitempty\""
-pulse/mcp: type FacetSchemaIn field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
-pulse/mcp: type FacetSchemaIn field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
-pulse/mcp: type FacetSchemaIn field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
-pulse/mcp: type FacetSchemaIn method (*FacetSchemaIn) Hash() string
-pulse/mcp: type FacetSchemaOut = pulse/types.FacetResult
-pulse/mcp: type FacetSchemaOut underlying struct
-pulse/mcp: type FacetSchemaOut field Additive map[string]*pulse/types.FacetField "json:\"additive,omitempty\""
-pulse/mcp: type FacetSchemaOut field Fields map[string]*pulse/types.FacetField "json:\"fields\""
-pulse/mcp: type FacetSchemaOut field FilteredRecords int64 "json:\"filtered_records\""
-pulse/mcp: type FacetSchemaOut field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
-pulse/mcp: type FacetSchemaOut field TotalRecords int64 "json:\"total_records\""
-pulse/mcp: type FacetSchemaOut field Warnings []string "json:\"warnings,omitempty\""
-pulse/mcp: func HandleCompose(ctx context.Context, p *pulse.Pulse, in pulse/mcp.ComposeIn) (pulse/mcp.ComposeOut, error)
-pulse/mcp: func HandleDedup(ctx context.Context, p *pulse.Pulse, in pulse/mcp.DedupIn) (pulse/mcp.DedupOut, error)
-pulse/mcp: func HandleDrop(ctx context.Context, p *pulse.Pulse, in pulse/mcp.DropIn) (pulse/mcp.DropOut, error)
-pulse/mcp: func HandleErrorsLookup(_ context.Context, _ *pulse.Pulse, in pulse/mcp.ErrorsLookupIn) (pulse/mcp.ErrorsLookupOut, error)
-pulse/mcp: func HandleExamplesGet(_ context.Context, p *pulse.Pulse, in pulse/mcp.ExamplesGetIn) (pulse/mcp.ExamplesGetOut, error)
-pulse/mcp: func HandleExamplesSearch(_ context.Context, p *pulse.Pulse, in pulse/mcp.ExamplesSearchIn) (pulse/mcp.ExamplesSearchOut, error)
-pulse/mcp: func HandleFacet(ctx context.Context, p *pulse.Pulse, in pulse/mcp.FacetIn) (pulse/mcp.FacetOut, error)
-pulse/mcp: func HandleFacetSchema(ctx context.Context, p *pulse.Pulse, in pulse/mcp.FacetSchemaIn) (pulse/mcp.FacetSchemaOut, error)
-pulse/mcp: func HandleImport(ctx context.Context, p *pulse.Pulse, in pulse/mcp.ImportIn) (pulse/mcp.ImportOut, error)
-pulse/mcp: func HandleImportsList(ctx context.Context, p *pulse.Pulse, _ pulse/mcp.ImportsListIn) (pulse/mcp.ImportsListOut, error)
-pulse/mcp: func HandleInspect(ctx context.Context, p *pulse.Pulse, in pulse/mcp.InspectIn) (pulse/mcp.InspectOut, error)
-pulse/mcp: func HandleLabelResolve(_ context.Context, p *pulse.Pulse, in pulse/mcp.LabelResolveIn) (pulse/mcp.LabelResolveOut, error)
-pulse/mcp: func HandleLabelTables(_ context.Context, p *pulse.Pulse, _ pulse/mcp.LabelTablesIn) (pulse/mcp.LabelTablesOut, error)
-pulse/mcp: func HandleLookup(ctx context.Context, p *pulse.Pulse, in pulse/mcp.LookupIn) (pulse/mcp.LookupOut, error)
-pulse/mcp: func HandleManifest(ctx context.Context, p *pulse.Pulse, _ pulse/mcp.ManifestIn) (pulse/mcp.ManifestOut, error)
-pulse/mcp: func HandlePredict(ctx context.Context, p *pulse.Pulse, in pulse/mcp.PredictIn) (pulse/mcp.PredictOut, error)
-pulse/mcp: func HandleProcess(ctx context.Context, p *pulse.Pulse, in pulse/mcp.ProcessIn) (pulse/mcp.ProcessOut, error)
-pulse/mcp: func HandleProcessChain(ctx context.Context, p *pulse.Pulse, in pulse/mcp.ProcessChainIn) (pulse/mcp.ProcessChainOut, error)
-pulse/mcp: func HandleRangeTables(_ context.Context, p *pulse.Pulse, _ pulse/mcp.RangeTablesIn) (pulse/mcp.RangeTablesOut, error)
-pulse/mcp: func HandleSample(ctx context.Context, p *pulse.Pulse, in pulse/mcp.SampleIn) (pulse/mcp.SampleOut, error)
-pulse/mcp: func HandleSkillsGet(_ context.Context, _ *pulse.Pulse, in pulse/mcp.SkillsGetIn) (pulse/mcp.SkillsGetOut, error)
-pulse/mcp: func HandleSkillsList(_ context.Context, _ *pulse.Pulse, _ pulse/mcp.SkillsListIn) (pulse/mcp.SkillsListOut, error)
-pulse/mcp: type ImportIn struct
-pulse/mcp: type ImportIn field Charset string "json:\"charset,omitempty\" jsonschema:\"SPSS ONLY: character encoding override for a .sav / .zsav source (e.g. 'windows-1252', 'cp1252', 'latin1'; spelling is forgiving). Ignored for every other format. Empty leaves the file's own declaration in force. Reach for it when an import fails PULSE_SPSS_CHARSET_INVALID or PULSE_SPSS_CHARSET_UNSUPPORTED — typically a file that kept a stale record 7/20 name after being transcoded, or a pre-Unicode file that declares no encoding at all and so fails the strict UTF-8 default on its first 8-bit byte. Decoding only; the file's own declaration is still retained.\""
-pulse/mcp: type ImportIn field Format string "json:\"format,omitempty\" jsonschema:\"Format override: csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss, pulse\""
-pulse/mcp: type ImportIn field Groups []pulse/io.GroupDecl "json:\"groups,omitempty\" jsonschema:\"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]}. Each distinct member tuple is stored ONCE and every row carries a 4-byte index instead — use it when the source is a denormalized join, where a parent's attributes (members) repeat on every child row and are determined by the parent's ID (key). The import FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT if a member varies within its key; omit key for a plain tuple group with no such check. Take declarations from suggest_groups candidates (their key/members are this exact shape) rather than guessing. Weak groups are reported, not refused: group_warnings carries PULSE_GROUP_TOO_NARROW (dropped) or PULSE_DEDUP_LOW_RATIO (written, under 2 rows per distinct tuple or no smaller). Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID. Writes format 0x02, which older pulse binaries cannot read. Not allowed on a .pulse passthrough.\""
-pulse/mcp: type ImportIn field Handle string "json:\"handle,omitempty\" jsonschema:\"Managed handle name; defaults to source basename without extension\""
-pulse/mcp: type ImportIn field Overwrite bool "json:\"overwrite,omitempty\" jsonschema:\"Replace an existing handle of the same name. Default false.\""
-pulse/mcp: type ImportIn field Sheet string "json:\"sheet,omitempty\" jsonschema:\"Excel sheet name; ignored for non-Excel sources\""
-pulse/mcp: type ImportIn field Source string "json:\"source\" jsonschema:\"Filesystem path to the source file (relative to PULSE_DATA_DIR)\""
-pulse/mcp: type ImportIn field SuggestGroups bool "json:\"suggest_groups,omitempty\" jsonschema:\"Also detect candidate parent groups and return them as group_candidates, each measured over every row (ratio, resident dictionary bytes, projected file size, verdict) with key/members ready to pass back as a groups entry. Suggests only: the import still writes exactly what groups declares. Costs one extra full pass over the source. The loop is: import with suggest_groups, read group_candidates (the suggested list is the non-overlapping viable set), then re-import with groups and overwrite=true.\""
-pulse/mcp: type ImportIn field TTL string "json:\"ttl,omitempty\" jsonschema:\"TTL: Go duration ('24h', '30m') or day form ('7d', '30d'); 'pin' disables expiry. Default 7d.\""
-pulse/mcp: type ImportOut = pulse/imports.Result
-pulse/mcp: type ImportOut underlying struct
-pulse/mcp: type ImportOut field ExpiresAt *time.Time "json:\"expires_at,omitempty\""
-pulse/mcp: type ImportOut field Format string "json:\"format\""
-pulse/mcp: type ImportOut field GroupCandidates *pulse/io.GroupDetection "json:\"group_candidates,omitempty\""
-pulse/mcp: type ImportOut field GroupWarnings []*pulse/errors.CodedError "json:\"group_warnings,omitempty\""
-pulse/mcp: type ImportOut field Groups []pulse/io.GroupReport "json:\"groups,omitempty\""
-pulse/mcp: type ImportOut field Handle string "json:\"handle\""
-pulse/mcp: type ImportOut field ImportedAt time.Time "json:\"imported_at,omitzero\""
-pulse/mcp: type ImportOut field Managed bool "json:\"managed\""
-pulse/mcp: type ImportOut field Path string "json:\"path\""
-pulse/mcp: type ImportOut field PromotedFields []string "json:\"promoted_fields,omitempty\""
-pulse/mcp: type ImportOut field RowsImported int "json:\"rows_imported,omitempty\""
-pulse/mcp: type ImportOut field Schema *pulse/encoding.Schema "json:\"-\""
-pulse/mcp: type ImportOut field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
-pulse/mcp: type ImportOut field TTLSeconds int64 "json:\"ttl_seconds,omitempty\""
-pulse/mcp: type ImportOut field WidthWarnings []*pulse/errors.CodedError "json:\"width_warnings,omitempty\""
-pulse/mcp: type ImportsListIn struct
-pulse/mcp: type ImportsListOut struct
-pulse/mcp: type ImportsListOut field Imports []pulse/imports.Entry "json:\"imports\" jsonschema:\"Managed-import pool entries with sidecar metadata\""
-pulse/mcp: type InspectIn struct
-pulse/mcp: type InspectIn field Path string "json:\"path\" jsonschema:\"Filesystem path to the .pulse file\""
-pulse/mcp: type InspectOut struct
-pulse/mcp: type InspectOut embed pulse/descriptor.InspectResult
-pulse/mcp: type InspectOut field InspectResult.FieldCount int "json:\"field_count\""
-pulse/mcp: type InspectOut field InspectResult.Fields []*pulse/descriptor.InspectField "json:\"fields\""
-pulse/mcp: type InspectOut field InspectResult.Groups []*pulse/descriptor.InspectGroup "json:\"groups,omitempty\""
-pulse/mcp: type InspectOut field InspectResult.Layout *pulse/descriptor.InspectLayout "json:\"layout,omitempty\""
-pulse/mcp: type InspectOut field InspectResult.RecordCount int64 "json:\"record_count\""
-pulse/mcp: type InspectOut field InspectResult.Shards []pulse/descriptor.ShardInfo "json:\"shards\""
-pulse/mcp: type InspectOut field Warnings []*pulse/descriptor.EnvelopeEntry "json:\"warnings,omitempty\" jsonschema:\"Diagnostics from the header read — coded {code, message, details} entries. A truncated payload tail raises ENCODING_INVALID and record_count is the floor. Absent when the read was clean.\""
-pulse/mcp: type InvokeFunc func(ctx context.Context, p *pulse.Pulse, raw encoding/json.RawMessage) (any, error)
-pulse/mcp: type LabelResolveIn struct
-pulse/mcp: type LabelResolveIn field Limit int "json:\"limit,omitempty\" jsonschema:\"Maximum matches to return. Default 10.\""
-pulse/mcp: type LabelResolveIn field Query string "json:\"query,omitempty\" jsonschema:\"Name to resolve, case-insensitive; empty returns the first rows (browse mode)\""
-pulse/mcp: type LabelResolveIn field Table string "json:\"table\" jsonschema:\"Label table name (from pulse_label_tables, e.g. 'brand')\""
-pulse/mcp: type LabelResolveOut struct
-pulse/mcp: type LabelResolveOut field Matches []pulse.LabelMatch "json:\"matches\" jsonschema:\"Ranked (key, value, score) resolution candidates\""
-pulse/mcp: type LabelTablesIn struct
-pulse/mcp: type LabelTablesOut struct
-pulse/mcp: type LabelTablesOut field Tables []pulse.LabelTableInfo "json:\"tables\" jsonschema:\"Registered label tables (name, row count, enumerable flag)\""
-pulse/mcp: type LookupIn = pulse/types.LookupRequest
-pulse/mcp: type LookupIn underlying struct
-pulse/mcp: type LookupIn field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
-pulse/mcp: type LookupIn field Field string "json:\"field,omitempty\""
-pulse/mcp: type LookupIn field Keys []pulse/types.LookupKey "json:\"keys,omitempty\""
-pulse/mcp: type LookupIn field Multiplicity pulse/types.LookupMultiplicity "json:\"multiplicity,omitempty\""
-pulse/mcp: type LookupIn field ReturnColumns []string "json:\"return_columns,omitempty\""
-pulse/mcp: type LookupIn field Value string "json:\"value,omitempty\""
-pulse/mcp: type LookupIn method (*LookupIn) Hash() string
-pulse/mcp: type LookupIn method (*LookupIn) KeyComponents() []pulse/types.LookupKey
-pulse/mcp: type LookupOut = pulse/types.LookupResult
-pulse/mcp: type LookupOut underlying struct
-pulse/mcp: type LookupOut field Rows []map[string]any "json:\"rows\""
-pulse/mcp: type LookupOut field Warnings []string "json:\"warnings,omitempty\""
-pulse/mcp: type ManifestIn struct
-pulse/mcp: type ManifestOut = pulse/descriptor.Manifest
-pulse/mcp: type ManifestOut underlying struct
-pulse/mcp: type ManifestOut field CohortTypes []pulse/descriptor.CohortFieldType "json:\"cohort_types\""
-pulse/mcp: type ManifestOut field Commands []pulse/descriptor.Command "json:\"commands\""
-pulse/mcp: type ManifestOut field Components pulse/descriptor.Components "json:\"components\""
-pulse/mcp: type ManifestOut field ComponentsSchemas pulse/descriptor.ComponentsSchemasBlock "json:\"components_schemas\""
-pulse/mcp: type ManifestOut field Crosstab pulse/descriptor.CrosstabCapability "json:\"crosstab\""
-pulse/mcp: type ManifestOut field ErrorCodes []string "json:\"error_codes\""
-pulse/mcp: type ManifestOut field ErrorCodesCount int "json:\"error_codes_count\""
-pulse/mcp: type ManifestOut field ErrorDomains []string "json:\"error_domains\""
-pulse/mcp: type ManifestOut field ExampleCategories []string "json:\"example_categories\""
-pulse/mcp: type ManifestOut field ExampleTags []string "json:\"example_tags\""
-pulse/mcp: type ManifestOut field ExamplesCount int "json:\"examples_count\""
-pulse/mcp: type ManifestOut field Export pulse/descriptor.ExportCapability "json:\"export\""
-pulse/mcp: type ManifestOut field Extensions pulse/descriptor.ExtensionsManifest "json:\"extensions\""
-pulse/mcp: type ManifestOut field Facet pulse/descriptor.FacetCapability "json:\"facet\""
-pulse/mcp: type ManifestOut field FormatVersion string "json:\"format_version\""
-pulse/mcp: type ManifestOut field Import pulse/descriptor.ImportCapability "json:\"import\""
-pulse/mcp: type ManifestOut field Join pulse/descriptor.JoinCapability "json:\"join\""
-pulse/mcp: type ManifestOut field MCPTools []pulse/descriptor.MCPTool "json:\"mcp_tools\""
-pulse/mcp: type ManifestOut field Operations []pulse/descriptor.Command "json:\"operations\""
-pulse/mcp: type ManifestOut field Overlays []pulse/descriptor.OverlayCapability "json:\"overlays\""
-pulse/mcp: type ManifestOut field PostTests []pulse/descriptor.TestMeta "json:\"post_tests\""
-pulse/mcp: type ManifestOut field ProcessChain pulse/descriptor.ProcessChainCapability "json:\"process_chain\""
-pulse/mcp: type ManifestOut field PulseVersion string "json:\"pulse_version\""
-pulse/mcp: type ManifestOut field Regressions []pulse/descriptor.RegressionMeta "json:\"regressions\""
-pulse/mcp: type ManifestOut field Skills []pulse/descriptor.SkillMeta "json:\"skills\""
-pulse/mcp: type ManifestOut field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
-pulse/mcp: type ManifestOut field Tests []pulse/descriptor.TestMeta "json:\"tests\""
-pulse/mcp: type PredictIn = pulse/types.Request
-pulse/mcp: type PredictIn underlying struct
-pulse/mcp: type PredictIn field Aggregations []*pulse/types.Aggregation "json:\"aggregations,omitempty\""
-pulse/mcp: type PredictIn field Attributes []*pulse/types.Attribute "json:\"attributes,omitempty\""
-pulse/mcp: type PredictIn field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
-pulse/mcp: type PredictIn field Crosstab *pulse/types.CrosstabSpec "json:\"crosstab,omitempty\""
-pulse/mcp: type PredictIn field DisableComponents *bool "json:\"disable_components,omitempty\""
-pulse/mcp: type PredictIn field Features []*pulse/types.Feature "json:\"features,omitempty\""
-pulse/mcp: type PredictIn field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
-pulse/mcp: type PredictIn field Groups []*pulse/types.Group "json:\"groups,omitempty\""
-pulse/mcp: type PredictIn field Joins []*pulse/types.JoinSpec "json:\"joins,omitempty\""
-pulse/mcp: type PredictIn field Label string "json:\"label,omitempty\""
-pulse/mcp: type PredictIn field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
-pulse/mcp: type PredictIn field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
-pulse/mcp: type PredictIn field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
-pulse/mcp: type PredictIn field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
-pulse/mcp: type PredictIn field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
-pulse/mcp: type PredictIn field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
-pulse/mcp: type PredictIn field Tests []*pulse/types.Test "json:\"tests,omitempty\""
-pulse/mcp: type PredictIn field Windows []*pulse/types.Window "json:\"windows,omitempty\""
-pulse/mcp: type PredictIn method (*PredictIn) Hash() string
-pulse/mcp: type PredictOut = pulse/descriptor.PredictResult
-pulse/mcp: type PredictOut underlying struct
-pulse/mcp: type PredictOut field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
-pulse/mcp: type PredictOut field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
-pulse/mcp: type PredictOut field Filterers []pulse/descriptor.FiltererPredict "json:\"filterers\""
-pulse/mcp: type PredictOut field Groups []pulse/descriptor.GroupPredict "json:\"groups\""
-pulse/mcp: type PredictOut field OverlayCost map[string]float64 "json:\"overlay_cost\""
-pulse/mcp: type PredictOut field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
-pulse/mcp: type PredictOut field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
-pulse/mcp: type PredictOut field RecordCount int64 "json:\"record_count\""
-pulse/mcp: type PredictOut field Request *pulse/types.Request "json:\"request\""
-pulse/mcp: type PredictOut field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
-pulse/mcp: type PredictOut field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
-pulse/mcp: type PredictOut field Streamable bool "json:\"streamable\""
-pulse/mcp: type PredictOut field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
-pulse/mcp: type PredictOut field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
-pulse/mcp: type PredictOut field Valid bool "json:\"valid\""
-pulse/mcp: type ProcessChainIn = pulse/types.ChainRequest
-pulse/mcp: type ProcessChainIn underlying struct
-pulse/mcp: type ProcessChainIn field Cohort *pulse/types.Cohort "json:\"cohort\""
-pulse/mcp: type ProcessChainIn field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
-pulse/mcp: type ProcessChainIn field Stages []*pulse/types.ChainStage "json:\"stages\""
-pulse/mcp: type ProcessChainIn method (*ProcessChainIn) Hash() string
-pulse/mcp: type ProcessChainOut = pulse/types.ChainResponse
-pulse/mcp: type ProcessChainOut underlying struct
-pulse/mcp: type ProcessChainOut field Final *pulse/types.Response "json:\"final\""
-pulse/mcp: type ProcessChainOut field NormalizedRequest *pulse/types.ChainRequest "json:\"normalized_request,omitempty\""
-pulse/mcp: type ProcessChainOut field Overlays []*pulse/types.OverlayLayer "json:\"overlays,omitempty\""
-pulse/mcp: type ProcessChainOut field Stages []*pulse/types.Response "json:\"stages\""
-pulse/mcp: type ProcessIn = pulse/types.Request
-pulse/mcp: type ProcessIn underlying struct
-pulse/mcp: type ProcessIn field Aggregations []*pulse/types.Aggregation "json:\"aggregations,omitempty\""
-pulse/mcp: type ProcessIn field Attributes []*pulse/types.Attribute "json:\"attributes,omitempty\""
-pulse/mcp: type ProcessIn field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
-pulse/mcp: type ProcessIn field Crosstab *pulse/types.CrosstabSpec "json:\"crosstab,omitempty\""
-pulse/mcp: type ProcessIn field DisableComponents *bool "json:\"disable_components,omitempty\""
-pulse/mcp: type ProcessIn field Features []*pulse/types.Feature "json:\"features,omitempty\""
-pulse/mcp: type ProcessIn field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
-pulse/mcp: type ProcessIn field Groups []*pulse/types.Group "json:\"groups,omitempty\""
-pulse/mcp: type ProcessIn field Joins []*pulse/types.JoinSpec "json:\"joins,omitempty\""
-pulse/mcp: type ProcessIn field Label string "json:\"label,omitempty\""
-pulse/mcp: type ProcessIn field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
-pulse/mcp: type ProcessIn field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
-pulse/mcp: type ProcessIn field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
-pulse/mcp: type ProcessIn field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
-pulse/mcp: type ProcessIn field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
-pulse/mcp: type ProcessIn field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
-pulse/mcp: type ProcessIn field Tests []*pulse/types.Test "json:\"tests,omitempty\""
-pulse/mcp: type ProcessIn field Windows []*pulse/types.Window "json:\"windows,omitempty\""
-pulse/mcp: type ProcessIn method (*ProcessIn) Hash() string
-pulse/mcp: type ProcessOut = pulse/types.Response
-pulse/mcp: type ProcessOut underlying struct
-pulse/mcp: type ProcessOut field Components *pulse/types.ResponseComponents "json:\"components,omitempty\""
-pulse/mcp: type ProcessOut field Crosstab *pulse/types.CrosstabResult "json:\"crosstab,omitempty\""
-pulse/mcp: type ProcessOut field Data []map[string]any "json:\"data,omitempty\""
-pulse/mcp: type ProcessOut field Metadata *pulse/types.ResponseMetadata "json:\"metadata,omitempty\""
-pulse/mcp: type ProcessOut field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
-pulse/mcp: type ProcessOut field PostTests []*pulse/types.TestResult "json:\"post_tests,omitempty\""
-pulse/mcp: type ProcessOut field Regressions []*pulse/types.RegressionResult "json:\"regressions,omitempty\""
-pulse/mcp: type ProcessOut field Tests []*pulse/types.TestResult "json:\"tests,omitempty\""
-pulse/mcp: type ProcessOut field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
-pulse/mcp: type RangeTablesIn struct
-pulse/mcp: type RangeTablesOut struct
-pulse/mcp: type RangeTablesOut field Tables []pulse.RangeTableInfo "json:\"tables\" jsonschema:\"Registered range tables (name, range count, ordered labeled date ranges)\""
-pulse/mcp: type SampleIn struct
-pulse/mcp: type SampleIn field Count int "json:\"count,omitempty\" jsonschema:\"Maximum rows to return (default 10)\""
-pulse/mcp: type SampleIn field Path string "json:\"path\" jsonschema:\"Filesystem path to the .pulse file\""
-pulse/mcp: type SampleOut struct
-pulse/mcp: type SampleOut field Rows []map[string]any "json:\"rows\" jsonschema:\"Sampled rows, each a field-name to value map\""
-pulse/mcp: func SchemaFor(name string) (pulse/mcp.ToolSchema, bool)
-pulse/mcp: func Schemas() []pulse/mcp.ToolSchema
-pulse/mcp: type SkillsGetIn struct
-pulse/mcp: type SkillsGetIn field Name string "json:\"name\" jsonschema:\"Skill name (e.g. 'aggregation-design')\""
-pulse/mcp: type SkillsGetOut struct
-pulse/mcp: type SkillsGetOut field Body string "json:\"body\" jsonschema:\"Markdown body of the named skill\""
-pulse/mcp: type SkillsListIn struct
-pulse/mcp: type SkillsListOut struct
-pulse/mcp: type SkillsListOut field Skills []pulse/skills.Metadata "json:\"skills\" jsonschema:\"Embedded skill-pack entries (name, description, applies_to)\""
-pulse/mcp: type ToolDescriptor struct
-pulse/mcp: type ToolDescriptor field Description string
-pulse/mcp: type ToolDescriptor field InputSchema encoding/json.RawMessage
-pulse/mcp: type ToolDescriptor field Invoke pulse/mcp.InvokeFunc
-pulse/mcp: type ToolDescriptor field Name string
-pulse/mcp: type ToolDescriptor field OutputSchema encoding/json.RawMessage
-pulse/mcp: type ToolSchema struct
-pulse/mcp: type ToolSchema field Description string "json:\"description\""
-pulse/mcp: type ToolSchema field InputSchema encoding/json.RawMessage "json:\"input_schema\""
-pulse/mcp: type ToolSchema field Name string "json:\"name\""
-pulse/mcp: type ToolSchema field OutputSchema encoding/json.RawMessage "json:\"output_schema\""
-pulse/mcp: func Tools(cfg pulse/mcp.Config) []pulse/mcp.ToolDescriptor
 pulse/mcp/gosdk: package gosdk
 pulse/mcp/gosdk: const CohortURIScheme untyped string = "pulse://"
 pulse/mcp/gosdk: const CohortURITemplate untyped string = "pulse://{+path}"
@@ -3230,7 +2396,7 @@ pulse/mcp/gosdk: type Config struct
 pulse/mcp/gosdk: type Config field BindOnInspect bool
 pulse/mcp/gosdk: type Config field DisableCohortScan bool
 pulse/mcp/gosdk: type Config field Version string
-pulse/mcp/gosdk: type Config method (Config) Core() pulse/mcp.Config
+pulse/mcp/gosdk: type Config method (Config) Core() pulse/internal/mcp.Config
 pulse/mcp/gosdk: const DescPromptAuthorRequest untyped string = "Guided workflow for authoring a Pulse request as JSON against a cohort's schema. Takes one argument: `question` — the analytical question being answered. Produces a sequence of tool-call instructions the assistant should follow to discover the right operators and example template."
 pulse/mcp/gosdk: const DescPromptBootstrap untyped string = "Inject the Pulse session-bootstrap instructions into the conversation. Tells the assistant which tools to call (and in what order) before authoring any request, and where the authoritative request-shape references live. Useful when starting a fresh session against a Pulse MCP server."
 pulse/mcp/gosdk: const PromptAuthorRequest untyped string = "pulse-author-request"
@@ -3241,56 +2407,6 @@ pulse/mcp/gosdk: func RegisteredTools() []string
 pulse/mcp/gosdk: const SchemaResourceURI untyped string = "pulse://schema"
 pulse/mcp/gosdk: const SkillURIScheme untyped string = "pulse-skill://"
 pulse/mcp/gosdk: const SkillURITemplate untyped string = "pulse-skill://{+name}"
-pulse/mcp/toolmeta: package toolmeta
-pulse/mcp/toolmeta: const DescCompose untyped string = "Execute a batch of processing requests in one round-trip. Use when you have multiple distinct types.Request payloads to run against the same or different cohorts — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes."
-pulse/mcp/toolmeta: const DescDedup untyped string = "Deduplicate an EXISTING single-file .pulse cohort: a denormalized join repeats each parent's attributes on every child row, and declaring the parent as a group (`groups`: [{key, members}], the pulse_import shape) stores each distinct parent tuple once with a 4-byte index per row — a smaller format 0x02 cohort that every request answers byte-identically. Do not guess declarations: first call with `suggest_groups: true` alone (READ-ONLY) to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict), then call again with `groups` set to the suggested key/members. With `out` the result goes to a new path and the original is untouched; without it the cohort is rewritten IN PLACE (atomic — any failure, including PULSE_GROUP_MEMBER_NOT_CONSTANT when a member varies within its key, leaves it byte-identical). Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple). An in-place rewrite lists each sidecar it invalidated (point-lookup index, SPSS metadata) under `invalidated_sidecars` with its rebuild command and rebuilds nothing. Shard archives are refused with SERVICE_VALIDATION."
-pulse/mcp/toolmeta: const DescDrop untyped string = "Drop a managed-import handle from the pool, deleting the .pulse file and its sidecar. Errors with PULSE_IMPORT_SOURCE_MISSING when the handle is unknown. Pulse-format passthroughs are unaffected (they were never managed)."
-pulse/mcp/toolmeta: const DescErrorsLookup untyped string = "Look up Pulse error code metadata. Pass code=PULSE_XXX for full detail on one code. Pass domain=PULSE/ENCODING/PROCESSING/SERVICE/DATA/CLI to enumerate that domain. Pass query=\"text\" for keyword search across descriptions and fixups. The manifest carries only the code-name list — fetch detail here on demand to keep session context lean."
-pulse/mcp/toolmeta: const DescExamplesGet untyped string = "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped — hand it straight to pulse_process or pulse_predict."
-pulse/mcp/toolmeta: const DescExamplesSearch untyped string = "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `regression`, `tests`, `windows`).\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
-pulse/mcp/toolmeta: const DescFacet untyped string = "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE). For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
-pulse/mcp/toolmeta: const DescFacetSchema untyped string = "Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional NumericPercentiles (forces buffered per-field sort), IncludeHistogram + HistogramRange + HistogramBins for fixed-width binning, DiscreteTopK truncation, and AdditiveFields contribution counts that strip the field's own filter clauses so the LLM/UI can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
-pulse/mcp/toolmeta: const DescImport untyped string = "Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a LabelTable. SPSS is now writable too: `pulse export spss` emits a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar an import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false.\n\nSPSS read knobs: `charset` overrides the encoding a `.sav` declares about itself and is the ONLY recourse for a file that is wrong about itself — a stale record 7/20 name, or a pre-Unicode file declaring nothing at all, which reads as strict UTF-8 and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte. It is ignored for every other format. There is deliberately NO missing-value mode here: the default is the fidelity-preserving split (numeric user-missing values are null in the analytic column, and a generated `<var>_missing` sibling records why), and the only alternative discards those siblings — ask for that explicitly with `pulse import spss --spss-missing=null`.\n\nParent groups (denormalized joins): `groups` takes `[{key: [...], members: [...]}]` — each distinct member tuple is stored once and every row carries a 4-byte index, a smaller format 0x02 cohort; a member that varies within its key fails PULSE_GROUP_MEMBER_NOT_CONSTANT. Do not guess declarations: set `suggest_groups: true` to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict) whose key/members paste straight back as `groups`, then re-import with `overwrite: true`. Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple), never failures; per-group figures ride `groups`."
-pulse/mcp/toolmeta: const DescImportsList untyped string = "List every managed-import handle currently in the pool with its sidecar metadata: source path, source format, imported_at, expires_at, ttl, expired flag, pinned flag. Sweep is not invoked — expired entries are flagged via Expired so callers can render them and decide whether to drop or extend."
-pulse/mcp/toolmeta: const DescInspect untyped string = "Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata. Use when you need schema-only output without running a request — listing fields for a UI, debugging dictionary contents, or confirming a field's type before authoring a request slot.\n\nrecord_count is DERIVED (payload bytes / record stride), so a cohort whose payload is not a whole multiple of the stride reports the FLOOR. That case carries a coded ENCODING_INVALID entry in the additive `warnings` array with record_stride and trailing_bytes in its details; a clean read emits no `warnings` key at all. Read it — a truncated tail is invisible in the count itself."
-pulse/mcp/toolmeta: const DescLabelResolve untyped string = "Reverse-resolve a human-readable name — including a minor misspelling — to the raw categorical key(s) a Pulse filter or grouper expects. Labels are output-only — filter / group / sort keys operate on the raw categorical value — so when a user names a brand, category, region, etc., call this to get the key before authoring a FILTER_INCLUDE or GROUP_CATEGORY. Args: table (a name from pulse_label_tables), query (the name to search; typo-tolerant), and optional limit (default 10). Returns {key, value, score} ranked by score, a confidence in [0,1]: 1.0 exact (or exact-key), ~0.9+ prefix/near-typo, lower is fuzzy (edit-distance + trigram). Matching normalizes case and punctuation. Decision rule: if the top score is high (>=0.9) and clearly ahead of the next, use it; if the best score is low or several are close, present the top names to the user and ask which they meant rather than guessing. An empty query returns the first rows (browse mode, score 0)."
-pulse/mcp/toolmeta: const DescLabelTables untyped string = "List the registered label tables (ID→display-name dictionaries for categorical fields). Returns each table's name, row count, and whether it is enumerable (reverse-searchable). Use this to discover which categorical dimensions can be resolved by name (e.g. brand, category, region) before calling pulse_label_resolve. Output surfaces already render these labels automatically; this tool and pulse_label_resolve are for the INPUT direction — turning a user-supplied name into the raw categorical key a filter / grouper needs."
-pulse/mcp/toolmeta: const DescLookup untyped string = "Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on >1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built, PULSE_INDEX_UNSUPPORTED_SHARDED for shard-archive cohorts, and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
-pulse/mcp/toolmeta: const DescManifest untyped string = "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
-pulse/mcp/toolmeta: const DescPredict untyped string = "Validate a processing request against a cohort schema without executing. Returns the same diagnostics pulse_process would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Use to verify a hand-authored or programmatically generated request before storage or execution; cheap because it reads only the cohort header + schema."
-pulse/mcp/toolmeta: const DescProcess untyped string = "Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), and tier-1 / tier-2 statistical tests.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
-pulse/mcp/toolmeta: const DescProcessChain untyped string = "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators (AGG_COUNT/SUM/AVERAGE/MIN/MAX/RANGE/VARIANCE/STDDEV/DISTINCT_COUNT/NULL_COUNT), mergeable groupers (GROUP_CATEGORY, GROUP_RANGE), and row-local attributes (ATTR_FORMULA, ATTR_DATE_PART). Windows, features, statistical tests, regressions, two-pass attributes, AGG_FREQUENCY, AGG_MODE, and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE — fall back to pulse_compose / per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
-pulse/mcp/toolmeta: const DescRangeTables untyped string = "List the registered range tables (named, reusable sets of labeled date ranges — e.g. fiscal quarters, marketing campaigns, product-launch windows). Returns each table's name, range count, and the ordered {label, start, end} ranges themselves (ISO date literals; empty start/end is an open bound). Use this to discover which named date-range partitions exist before authoring a GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter that references the table by name — the INPUT direction, turning a table name into the usable range set. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
-pulse/mcp/toolmeta: const DescSample untyped string = "Return up to N rows from a cohort. Diagnostic / preview tool — use after running a request when you want to eyeball the underlying data."
-pulse/mcp/toolmeta: const DescSkillsGet untyped string = "Fetch the markdown body of a named skill. The skill pack is the authoritative reference for HOW to use operators (params, gotchas, recipes) — prefer skills over external documentation, blog posts, or source-code inspection, which may be out of date for this Pulse deployment."
-pulse/mcp/toolmeta: const DescSkillsList untyped string = "List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Use this before authoring requests when you need domain guidance for a less common operator; fetch the markdown body via pulse_skills_get."
-pulse/mcp/toolmeta: func Meta() []pulse/mcp/toolmeta.ToolMeta
-pulse/mcp/toolmeta: func Names() []string
-pulse/mcp/toolmeta: const ToolCompose untyped string = "pulse_compose"
-pulse/mcp/toolmeta: const ToolDedup untyped string = "pulse_dedup"
-pulse/mcp/toolmeta: const ToolDrop untyped string = "pulse_drop"
-pulse/mcp/toolmeta: const ToolErrorsLookup untyped string = "pulse_errors_lookup"
-pulse/mcp/toolmeta: const ToolExamplesGet untyped string = "pulse_examples_get"
-pulse/mcp/toolmeta: const ToolExamplesSearch untyped string = "pulse_examples_search"
-pulse/mcp/toolmeta: const ToolFacet untyped string = "pulse_facet"
-pulse/mcp/toolmeta: const ToolFacetSchema untyped string = "pulse_facet_schema"
-pulse/mcp/toolmeta: const ToolImport untyped string = "pulse_import"
-pulse/mcp/toolmeta: const ToolImportsList untyped string = "pulse_imports_list"
-pulse/mcp/toolmeta: const ToolInspect untyped string = "pulse_inspect"
-pulse/mcp/toolmeta: const ToolLabelResolve untyped string = "pulse_label_resolve"
-pulse/mcp/toolmeta: const ToolLabelTables untyped string = "pulse_label_tables"
-pulse/mcp/toolmeta: const ToolLookup untyped string = "pulse_lookup"
-pulse/mcp/toolmeta: const ToolManifest untyped string = "pulse_manifest"
-pulse/mcp/toolmeta: type ToolMeta struct
-pulse/mcp/toolmeta: type ToolMeta field Description string
-pulse/mcp/toolmeta: type ToolMeta field Name string
-pulse/mcp/toolmeta: const ToolPredict untyped string = "pulse_predict"
-pulse/mcp/toolmeta: const ToolProcess untyped string = "pulse_process"
-pulse/mcp/toolmeta: const ToolProcessChain untyped string = "pulse_process_chain"
-pulse/mcp/toolmeta: const ToolRangeTables untyped string = "pulse_range_tables"
-pulse/mcp/toolmeta: const ToolSample untyped string = "pulse_sample"
-pulse/mcp/toolmeta: const ToolSkillsGet untyped string = "pulse_skills_get"
-pulse/mcp/toolmeta: const ToolSkillsList untyped string = "pulse_skills_list"
 pulse/mcpserve: package mcpserve
 pulse/mcpserve: type Options struct
 pulse/mcpserve: type Options field BindOnOpen bool
@@ -3309,7 +2425,6 @@ pulse/processing: func ApplyComposeOverlays(specs []pulse/types.ComposeOverlaySp
 pulse/processing: func ApplyComposeOverlaysWithRequests(specs []pulse/types.ComposeOverlaySpec, responses []*pulse/types.Response, labels []string, requests []*pulse/types.Request, exts *pulse/processing.ExtensionRegistry) ([]pulse/types.OverlayLayer, []pulse/types.OverlayWarning, error)
 pulse/processing: func ApplyFilterPass(record *pulse/processing.Record, filterers []*pulse/types.Filterer, filterFns []pulse/processing.FilterFunc, counters []pulse/processing.FilterPassCounters) (bool, error)
 pulse/processing: func ApplyGrouperExtensions(g pulse/processing.Grouper, exts *pulse/processing.ExtensionRegistry) pulse/processing.Grouper
-pulse/processing: func ApplyOverlays(specs []pulse/types.OverlaySpec, host *pulse/processing.CrosstabHostView) ([]pulse/types.OverlayLayer, []pulse/types.OverlayWarning, error)
 pulse/processing: func ApplyOverlaysFacet(specs []pulse/types.OverlaySpec, host *pulse/types.FacetField, pop *pulse/processing.FacetPopulationView) ([]pulse/types.OverlayLayer, []pulse/types.OverlayWarning, error)
 pulse/processing: func ApplyOverlaysSeries(specs []pulse/types.OverlaySpec, host *pulse/processing.SeriesHostView) ([]pulse/types.OverlayLayer, []pulse/types.OverlayWarning, error)
 pulse/processing: func ApplyOverlaysWithExtensions(specs []pulse/types.OverlaySpec, host *pulse/processing.CrosstabHostView, exts *pulse/processing.ExtensionRegistry) ([]pulse/types.OverlayLayer, []pulse/types.OverlayWarning, error)
@@ -3335,7 +2450,6 @@ pulse/processing: func CanFuseCrosstab(req *pulse/types.Request, schema *pulse/e
 pulse/processing: func CanMergeRequest(req *pulse/types.Request, schema *pulse/encoding.Schema) bool
 pulse/processing: func CanStreamRequest(req *pulse/types.Request, schema *pulse/encoding.Schema) bool
 pulse/processing: func ChainOutputSchema(req *pulse/types.Request) (*pulse/encoding.Schema, error)
-pulse/processing: func CompileDateRanges(specs []pulse/processing.DateRangeSpec) (*pulse/processing.DateRangeSet, error)
 pulse/processing: const ComposeComponentsDisabled pulse/processing.ComposeComponentsState = 1
 pulse/processing: const ComposeComponentsNonCrosstab pulse/processing.ComposeComponentsState = 2
 pulse/processing: const ComposeComponentsPresent pulse/processing.ComposeComponentsState = 3
@@ -3412,11 +2526,8 @@ pulse/processing: type CrosstabValidationError field Message string
 pulse/processing: type CrosstabValidationError method (*CrosstabValidationError) Error() string
 pulse/processing: type CrosstabValidationError method (*CrosstabValidationError) MarshalJSON() ([]byte, error)
 pulse/processing: type CrosstabValidationError method (*CrosstabValidationError) Unwrap() error
-pulse/processing: type DateRangeSet struct
-pulse/processing: type DateRangeSet method (*DateRangeSet) Labels() []string
-pulse/processing: type DateRangeSet method (*DateRangeSet) Len() int
-pulse/processing: type DateRangeSet method (*DateRangeSet) Match(day uint32) (string, bool)
-pulse/processing: type DateRangeSpec struct
+pulse/processing: type DateRangeSpec = pulse/internal/daterange.Spec
+pulse/processing: type DateRangeSpec underlying struct
 pulse/processing: type DateRangeSpec field End *string "json:\"end,omitempty\""
 pulse/processing: type DateRangeSpec field Label string "json:\"label\""
 pulse/processing: type DateRangeSpec field Start *string "json:\"start,omitempty\""
@@ -3614,7 +2725,6 @@ pulse/processing: type MultiKeyStreamingGrouper imethod KeysForRow(record *pulse
 pulse/processing: func NeededFields(req *pulse/types.Request, schema *pulse/encoding.Schema, ext *pulse/processing.ExtensionRegistry) pulse/processing.FieldSet
 pulse/processing: func NewComposeHostView(responses []*pulse/types.Response) *pulse/processing.ComposeHostView
 pulse/processing: func NewCrosstabHostView(payload *pulse/types.MatrixPayload) *pulse/processing.CrosstabHostView
-pulse/processing: func NewCrosstabHostViewWithComponents(payload *pulse/types.MatrixPayload, comps *pulse/types.CrosstabComponents) *pulse/processing.CrosstabHostView
 pulse/processing: func NewFieldSet(hint int) pulse/processing.FieldSet
 pulse/processing: func NewFilterPassCounters(filterers []*pulse/types.Filterer) []pulse/processing.FilterPassCounters
 pulse/processing: func NewFusedCrosstabState(spec *pulse/types.CrosstabSpec, schema *pulse/encoding.Schema, ext *pulse/processing.ExtensionRegistry) (*pulse/processing.FusedCrosstabState, error)
@@ -3751,14 +2861,6 @@ pulse/processing: type WelfordTriple struct
 pulse/processing: type WelfordTriple field Mean float64 "json:\"mean\""
 pulse/processing: type WelfordTriple field N uint64 "json:\"n\""
 pulse/processing: type WelfordTriple field Variance float64 "json:\"variance\""
-pulse/processing/arena: package arena
-pulse/processing/arena: type Arena struct
-pulse/processing/arena: type Arena method (*Arena) AllocBytes(n int) []byte
-pulse/processing/arena: type Arena method (*Arena) AllocF64s(n int) []float64
-pulse/processing/arena: type Arena method (*Arena) Cap() int
-pulse/processing/arena: type Arena method (*Arena) Len() int
-pulse/processing/arena: type Arena method (*Arena) Reset()
-pulse/processing/arena: func New(initialBytes int) *pulse/processing/arena.Arena
 pulse/processing/feature: package feature
 pulse/processing/feature: func Apply(records []pulse/processing/feature.Record, features []*pulse/types.Feature, schema *pulse/encoding.Schema) error
 pulse/processing/feature: func ApplyWithExt(records []pulse/processing/feature.Record, features []*pulse/types.Feature, schema *pulse/encoding.Schema, extFactories map[pulse/types.FeatureType]pulse/processing/feature.Factory) error
@@ -3791,35 +2893,6 @@ pulse/processing/feature: type StreamingComputer imethod PrePass(record pulse/pr
 pulse/processing/feature: type StreamingHandle struct
 pulse/processing/feature: type StreamingHandle field Computer pulse/processing/feature.StreamingComputer
 pulse/processing/feature: type StreamingHandle field Feature *pulse/types.Feature
-pulse/processing/regression: package regression
-pulse/processing/regression: type AttributeFit struct
-pulse/processing/regression: type AttributeFit field Coefficients []float64
-pulse/processing/regression: type AttributeFit field GramInverse *gonum.org/v1/gonum/mat.SymDense
-pulse/processing/regression: type AttributeFit field Intercept float64
-pulse/processing/regression: type AttributeFit field MeanX []float64
-pulse/processing/regression: type AttributeFit field NObs int
-pulse/processing/regression: type AttributeFit field PredictorOrder []string
-pulse/processing/regression: type BufferedEngine interface
-pulse/processing/regression: type BufferedEngine imethod Fit() (*pulse/types.RegressionResult, error)
-pulse/processing/regression: type BufferedEngine imethod FitBuffered(records []pulse/processing/regression.Record) (*pulse/types.RegressionResult, error)
-pulse/processing/regression: func Build(specs []*pulse/types.RegressionSpec, schema *pulse/encoding.Schema) ([]pulse/processing/regression.Engine, error)
-pulse/processing/regression: func BuildStreaming(specs []*pulse/types.RegressionSpec, schema *pulse/encoding.Schema) ([]pulse/processing/regression.StreamingEngine, error)
-pulse/processing/regression: type Engine interface
-pulse/processing/regression: type Engine imethod Fit() (*pulse/types.RegressionResult, error)
-pulse/processing/regression: type Factory func(spec *pulse/types.RegressionSpec, schema *pulse/encoding.Schema) (pulse/processing/regression.Engine, error)
-pulse/processing/regression: func Fit(specs []*pulse/types.RegressionSpec, schema *pulse/encoding.Schema) ([]*pulse/types.RegressionResult, error)
-pulse/processing/regression: func FitBuffered(specs []*pulse/types.RegressionSpec, schema *pulse/encoding.Schema, records []pulse/processing/regression.Record) ([]*pulse/types.RegressionResult, error)
-pulse/processing/regression: func FitForAttribute(spec *pulse/types.RegressionSpec, records []pulse/processing/regression.Record, needLeverage bool) (*pulse/processing/regression.AttributeFit, error)
-pulse/processing/regression: const InterceptKey untyped string = "(intercept)"
-pulse/processing/regression: func LeverageForRow(fit *pulse/processing/regression.AttributeFit, x []float64) float64
-pulse/processing/regression: func Lookup(t pulse/types.RegressionType) (pulse/processing/regression.Factory, bool)
-pulse/processing/regression: type Record interface
-pulse/processing/regression: type Record imethod NumericValue(name string) (float64, bool)
-pulse/processing/regression: func RegisteredTypes() []pulse/types.RegressionType
-pulse/processing/regression: type StreamingEngine interface
-pulse/processing/regression: type StreamingEngine imethod Finalize() (*pulse/types.RegressionResult, error)
-pulse/processing/regression: type StreamingEngine imethod UpdateRow(rec pulse/processing/regression.Record) error
-pulse/processing/regression: func ValidateRegression(spec *pulse/types.RegressionSpec) error
 pulse/processing/window: package window
 pulse/processing/window: func Apply(ctx context.Context, rows []map[string]any, windows []*pulse/types.Window) error
 pulse/processing/window: func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*pulse/types.Window, extFactories map[pulse/types.WindowType]pulse/processing/window.WindowFactory) error
@@ -3830,154 +2903,6 @@ pulse/processing/window: type WindowComputer interface
 pulse/processing/window: type WindowComputer imethod Compute(rows []map[string]any, partitions [][]int, label string) error
 pulse/processing/window: type WindowFactory func(w *pulse/types.Window, opts pulse/processing/window.WindowOptions) (pulse/processing/window.WindowComputer, error)
 pulse/processing/window: type WindowOptions struct
-pulse/service: package service
-pulse/service: type AddShardResult struct
-pulse/service: type AddShardResult field Added string "json:\"added\""
-pulse/service: type AddShardResult field Archive string "json:\"archive\""
-pulse/service: type AddShardResult field Regrouped []pulse/service.GroupReconciliation "json:\"regrouped,omitempty\""
-pulse/service: type AddShardResult field ShardCount int "json:\"shard_count\""
-pulse/service: type AddShardResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
-pulse/service: type AddShardResult field Widened []pulse/service.SetWidening "json:\"widened,omitempty\""
-pulse/service: type BuildIndexResult struct
-pulse/service: type BuildIndexResult field Index *pulse/encoding.Index
-pulse/service: type BuildIndexResult field IndexPath string
-pulse/service: type BuildIndexResult field ManifestPath string
-pulse/service: type Cohort struct
-pulse/service: type Cohort method (*Cohort) RecordCount() (int64, error)
-pulse/service: type Cohort method (*Cohort) Records(_ context.Context) (pulse/processing.RecordIterator, error)
-pulse/service: type Cohort method (*Cohort) Schema() *pulse/encoding.Schema
-pulse/service: type Cohort method (*Cohort) Shards() []pulse/service.ShardEntry
-pulse/service: type ComposeOptions struct
-pulse/service: type ComposeOptions field FailFast bool
-pulse/service: type ComposeOptions field MaxWorkers int
-pulse/service: type ComposeOptions field PerRequestTimeout time.Duration
-pulse/service: type CreateShardArchiveResult struct
-pulse/service: type CreateShardArchiveResult field Archive string "json:\"archive\""
-pulse/service: type CreateShardArchiveResult field Regrouped []pulse/service.GroupReconciliation "json:\"regrouped,omitempty\""
-pulse/service: type CreateShardArchiveResult field ShardCount int "json:\"shard_count\""
-pulse/service: type CreateShardArchiveResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
-pulse/service: type CreateShardArchiveResult field Widened []pulse/service.SetWidening "json:\"widened,omitempty\""
-pulse/service: type DecodeCallback func(rec *pulse/processing.Record) error
-pulse/service: type DecodeCallbackFactory func(workerIdx int, recordCount int) pulse/service.DecodeCallback
-pulse/service: type GroupReconciliation struct
-pulse/service: type GroupReconciliation field ArchiveFormatVersion int "json:\"archive_format_version\""
-pulse/service: type GroupReconciliation field ArchiveRewritten bool "json:\"archive_rewritten\""
-pulse/service: type GroupReconciliation field Groups []string "json:\"groups,omitempty\""
-pulse/service: type GroupReconciliation field IncomingFormatVersion int "json:\"incoming_format_version\""
-pulse/service: type GroupReconciliation field Reason string "json:\"reason\""
-pulse/service: type GroupReconciliation field RecordsRewritten int64 "json:\"records_rewritten\""
-pulse/service: type GroupReconciliation field ShardsRewritten int "json:\"shards_rewritten\""
-pulse/service: type IndexFreshnessReason string
-pulse/service: const IndexFreshnessReasonFingerprintMatch pulse/service.IndexFreshnessReason = "fingerprint_match"
-pulse/service: const IndexFreshnessReasonFingerprintMismatch pulse/service.IndexFreshnessReason = "fingerprint_mismatch"
-pulse/service: const IndexFreshnessReasonStatMismatch pulse/service.IndexFreshnessReason = "stat_mismatch"
-pulse/service: type IndexInfo struct
-pulse/service: type IndexInfo field DistinctKeys int
-pulse/service: type IndexInfo field IndexPath string
-pulse/service: type IndexInfo field IndexedRecords int
-pulse/service: type IndexInfo field Keys []string
-pulse/service: func New(fsConfig *pulse/fs.Config) *pulse/service.Service
-pulse/service: type RealPather interface
-pulse/service: type RealPather imethod RealPath(name string) (string, error)
-pulse/service: const RegroupConstantPromoted untyped string = "constant_promoted"
-pulse/service: const RegroupIncomingFlattened untyped string = "incoming_flattened"
-pulse/service: const RegroupIncomingRegrouped untyped string = "incoming_regrouped"
-pulse/service: type Row = map[string]any
-pulse/service: type RowIter interface
-pulse/service: type RowIter imethod Close() error
-pulse/service: type RowIter imethod Components() *pulse/types.ResponseComponents
-pulse/service: type RowIter imethod Metadata() *pulse/types.ResponseMetadata
-pulse/service: type RowIter imethod Next(ctx context.Context) (pulse/service.Row, bool, error)
-pulse/service: type Service struct
-pulse/service: type Service method (*Service) AddShard(ctx context.Context, archivePath string, shardPath string) (*pulse/service.AddShardResult, error)
-pulse/service: type Service method (*Service) AutoLabels() []*pulse/types.LabelBinding
-pulse/service: type Service method (*Service) BuildIndex(ctx context.Context, path string, keyFields []string) (*pulse/service.BuildIndexResult, error)
-pulse/service: type Service method (*Service) CompactShardArchive(ctx context.Context, archivePath string) error
-pulse/service: type Service method (*Service) Compose(ctx context.Context, composed *pulse/types.ComposedRequest) (*pulse/types.ComposedResponse, error)
-pulse/service: type Service method (*Service) ComposeParallel(ctx context.Context, composed *pulse/types.ComposedRequest, opts pulse/service.ComposeOptions) (*pulse/types.ComposedResponse, error)
-pulse/service: type Service method (*Service) CountRecords(ctx context.Context, path string) (uint64, error)
-pulse/service: type Service method (*Service) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*pulse/service.CreateShardArchiveResult, error)
-pulse/service: type Service method (*Service) CrosstabFusionDisabled() bool
-pulse/service: type Service method (*Service) DecodeWorkers() int
-pulse/service: type Service method (*Service) DedupPreflight(_ context.Context, path string) error
-pulse/service: type Service method (*Service) DisableComponents() bool
-pulse/service: type Service method (*Service) DropIndex(ctx context.Context, path string, keyFields []string) error
-pulse/service: type Service method (*Service) EchoRequest() bool
-pulse/service: type Service method (*Service) Extensions() *pulse/processing.ExtensionRegistry
-pulse/service: type Service method (*Service) ExtensionsSnapshot() *pulse/descriptor.ExtensionsSnapshot
-pulse/service: type Service method (*Service) ExtractShard(ctx context.Context, archivePath string, shardBasename string) (io.ReadCloser, error)
-pulse/service: type Service method (*Service) Facet(ctx context.Context, path string, field string) ([]string, error)
-pulse/service: type Service method (*Service) FacetSchema(ctx context.Context, req *pulse/types.FacetRequest) (*pulse/types.FacetResult, error)
-pulse/service: type Service method (*Service) FilterToFile(ctx context.Context, src string, dst string, filterExpr string) (int64, error)
-pulse/service: type Service method (*Service) FilterToFileBySetAndExpr(ctx context.Context, src string, dst string, includeField string, set pulse/processing.MemberSet, filterExpr string) (int64, error)
-pulse/service: type Service method (*Service) ListIndexes(ctx context.Context, path string) ([]pulse/service.IndexInfo, error)
-pulse/service: type Service method (*Service) ListShards(ctx context.Context, archivePath string) ([]pulse/service.ShardEntry, error)
-pulse/service: type Service method (*Service) Lookup(ctx context.Context, req *pulse/types.LookupRequest) (*pulse/types.LookupResult, error)
-pulse/service: type Service method (*Service) Open(ctx context.Context, path string) (*pulse/service.Cohort, error)
-pulse/service: type Service method (*Service) OpenAnchor(_ context.Context, archivePath string, entry string) (*pulse/service.Cohort, error)
-pulse/service: type Service method (*Service) Process(ctx context.Context, req *pulse/types.Request) (*pulse/types.Response, error)
-pulse/service: type Service method (*Service) ProcessChain(ctx context.Context, req *pulse/types.ChainRequest) (*pulse/types.ChainResponse, error)
-pulse/service: type Service method (*Service) ProcessStream(ctx context.Context, req *pulse/types.Request) (pulse/service.RowIter, error)
-pulse/service: type Service method (*Service) ProjectBufferedFields() bool
-pulse/service: type Service method (*Service) RemoveShard(ctx context.Context, archivePath string, shardBasename string) error
-pulse/service: type Service method (*Service) ResolveCanonicalSchema(_ context.Context, src string) (*pulse/encoding.Schema, error)
-pulse/service: type Service method (*Service) Sample(ctx context.Context, path string, n int) ([]map[string]any, error)
-pulse/service: type Service method (*Service) SampleWithRequest(ctx context.Context, req *pulse/types.SampleRequest, path string) ([]map[string]any, []pulse/processing.ResolverWarning, error)
-pulse/service: type Service method (*Service) SetAutoLabels(bindings []*pulse/types.LabelBinding)
-pulse/service: type Service method (*Service) SetDecodeWorkers(n int)
-pulse/service: type Service method (*Service) SetDisableComponents(disabled bool)
-pulse/service: type Service method (*Service) SetDisableCrosstabFusion(disabled bool)
-pulse/service: type Service method (*Service) SetDisableDefaults(disabled bool)
-pulse/service: type Service method (*Service) SetEchoRequest(enabled bool)
-pulse/service: type Service method (*Service) SetExtensions(r *pulse/processing.ExtensionRegistry)
-pulse/service: type Service method (*Service) SetExtensionsSnapshot(snap *pulse/descriptor.ExtensionsSnapshot)
-pulse/service: type Service method (*Service) SetProjectBufferedFields(enabled bool)
-pulse/service: type Service method (*Service) SetShardWorkers(n int)
-pulse/service: type Service method (*Service) SetStrict(strict bool)
-pulse/service: type Service method (*Service) ShardWorkers() int
-pulse/service: type Service method (*Service) Strict() bool
-pulse/service: type Service method (*Service) VerifyIndex(ctx context.Context, path string, keyFields []string) (*pulse/service.VerifyIndexResult, error)
-pulse/service: type Service method (*Service) VerifyShardArchive(ctx context.Context, archivePath string) (*pulse/service.VerifyResult, error)
-pulse/service: type Service method (*Service) WidenSetField(_ context.Context, path string, field string, target pulse/encoding.FieldType) (*pulse/encoding.WidenReport, error)
-pulse/service: type SetWidening struct
-pulse/service: type SetWidening field DictEntries int "json:\"dict_entries\""
-pulse/service: type SetWidening field Field string "json:\"field\""
-pulse/service: type SetWidening field From string "json:\"from\""
-pulse/service: type SetWidening field IncomingFrom string "json:\"incoming_from\""
-pulse/service: type SetWidening field RecordsRewritten int64 "json:\"records_rewritten\""
-pulse/service: type SetWidening field ShardsRewritten int "json:\"shards_rewritten\""
-pulse/service: type SetWidening field To string "json:\"to\""
-pulse/service: type SetWidening method (SetWidening) ArchiveWidened() bool
-pulse/service: type ShardEntry struct
-pulse/service: type ShardEntry field Filename string
-pulse/service: type ShardEntry field RecordCount int64
-pulse/service: func SplitAnchorPath(path string) (string, string, bool)
-pulse/service: type VerifyIndexResult struct
-pulse/service: type VerifyIndexResult field FastPath bool
-pulse/service: type VerifyIndexResult field Fresh bool
-pulse/service: type VerifyIndexResult field IndexPath string
-pulse/service: type VerifyIndexResult field ModTimeDrift bool
-pulse/service: type VerifyIndexResult field Reason pulse/service.IndexFreshnessReason
-pulse/service: type VerifyResult struct
-pulse/service: type VerifyResult field Errors []*pulse/errors.CodedError "json:\"errors\""
-pulse/service: type VerifyResult field GroupIndexHeadroom []pulse/encoding.GroupIndexHeadroom "json:\"group_index_headroom,omitempty\""
-pulse/service: type VerifyResult field SetWidthHeadroom []pulse/encoding.SetWidthHeadroom "json:\"set_width_headroom,omitempty\""
-pulse/service: type VerifyResult field Warnings []pulse/encoding.CohesionWarning "json:\"warnings\""
-pulse/skills: package skills
-pulse/skills: func Get(name string) (string, bool)
-pulse/skills: func List() []pulse/skills.Metadata
-pulse/skills: type Metadata struct
-pulse/skills: type Metadata field AppliesTo []string "json:\"applies_to\""
-pulse/skills: type Metadata field Category string "json:\"category,omitempty\""
-pulse/skills: type Metadata field Covers []string "json:\"covers,omitempty\""
-pulse/skills: type Metadata field Description string "json:\"description\""
-pulse/skills: type Metadata field ExamplesTags []string "json:\"examples_tags,omitempty\""
-pulse/skills: type Metadata field Kind string "json:\"kind,omitempty\""
-pulse/skills: type Metadata field Name string "json:\"name\""
-pulse/skills: type Metadata field Operator string "json:\"operator,omitempty\""
-pulse/skills: type Metadata field Type string "json:\"type\""
-pulse/skills: func Names() []string
-pulse/skills: func ParseFrontmatter(md string) map[string]string
 pulse/synth: package synth
 pulse/synth: func AllDistributions() []string
 pulse/synth: func ApplyRulesFile(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, path string) error
@@ -4483,85 +3408,6 @@ pulse/synth: type WarningGroup field Members []string
 pulse/synth: type WarningGroup method (WarningGroup) Count() int
 pulse/synth: func WriteRuleCandidates(fs github.com/spf13/afero.Fs, candidates []pulse/synth.RuleSpec, path string) error
 pulse/synth: func WriteSpec(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, path string) error
-pulse/template: package template
-pulse/template: func AllTargets() []pulse/template.Target
-pulse/template: func AllVarTypes() []pulse/template.VarType
-pulse/template: func IsUnresolved(v any) bool
-pulse/template: func NewStore(dirs []string) (*pulse/template.Store, error)
-pulse/template: func Parse(data []byte) (*pulse/template.Template, error)
-pulse/template: func Render(t *pulse/template.Template, supplied map[string]any) (*pulse/template.Rendered, error)
-pulse/template: func RenderJSON(t *pulse/template.Template, supplied map[string]any) (encoding/json.RawMessage, error)
-pulse/template: type Rendered struct
-pulse/template: type Rendered field Chain *pulse/types.ChainRequest
-pulse/template: type Rendered field Composed *pulse/types.ComposedRequest
-pulse/template: type Rendered field Facet *pulse/types.FacetRequest
-pulse/template: type Rendered field JSON encoding/json.RawMessage
-pulse/template: type Rendered field Request *pulse/types.Request
-pulse/template: type Rendered field Sample *pulse/types.SampleRequest
-pulse/template: type Rendered field Target pulse/template.Target
-pulse/template: type Rendered method (*Rendered) Typed() any
-pulse/template: type Resolution struct
-pulse/template: type Resolution method (*Resolution) All() map[string]any
-pulse/template: type Resolution method (*Resolution) Declared(name string) bool
-pulse/template: type Resolution method (*Resolution) Get(name string) (any, bool)
-pulse/template: type Resolution method (*Resolution) IsResolved(name string) bool
-pulse/template: type Resolution method (*Resolution) Len() int
-pulse/template: type Resolution method (*Resolution) Names() []string
-pulse/template: func Resolve(t *pulse/template.Template, supplied map[string]any) (*pulse/template.Resolution, error)
-pulse/template: type Store struct
-pulse/template: type Store method (*Store) Dirs() []string
-pulse/template: type Store method (*Store) Get(name string) (*pulse/template.Template, error)
-pulse/template: type Store method (*Store) List() []pulse/template.Summary
-pulse/template: type Store method (*Store) Reload() error
-pulse/template: type Summary struct
-pulse/template: type Summary field Broken bool "json:\"broken,omitempty\""
-pulse/template: type Summary field Description string "json:\"description,omitempty\""
-pulse/template: type Summary field Error string "json:\"error,omitempty\""
-pulse/template: type Summary field Name string "json:\"name\""
-pulse/template: type Summary field Path string "json:\"path,omitempty\""
-pulse/template: type Summary field Shadows []string "json:\"shadows,omitempty\""
-pulse/template: type Summary field Target pulse/template.Target "json:\"target\""
-pulse/template: type Summary field Variables []string "json:\"variables,omitempty\""
-pulse/template: type Target string
-pulse/template: type Target method (Target) String() string
-pulse/template: type Target method (Target) Valid() bool
-pulse/template: const TargetChain pulse/template.Target = "chain"
-pulse/template: const TargetComposed pulse/template.Target = "composed"
-pulse/template: const TargetFacet pulse/template.Target = "facet"
-pulse/template: const TargetRequest pulse/template.Target = "request"
-pulse/template: const TargetSample pulse/template.Target = "sample"
-pulse/template: type Template struct
-pulse/template: type Template field Body encoding/json.RawMessage "json:\"body\""
-pulse/template: type Template field Description string "json:\"description,omitempty\""
-pulse/template: type Template field Name string "json:\"name,omitempty\""
-pulse/template: type Template field Target pulse/template.Target "json:\"target\""
-pulse/template: type Template field Variables []*pulse/template.Variable "json:\"variables,omitempty\""
-pulse/template: type Template method (*Template) Summarize(path string, shadows []string) pulse/template.Summary
-pulse/template: type Template method (*Template) Variable(name string) (*pulse/template.Variable, bool)
-pulse/template: type Template method (*Template) VariableNames() []string
-pulse/template: var Unresolved any
-pulse/template: func Validate(t *pulse/template.Template) error
-pulse/template: const VarBoolean pulse/template.VarType = "boolean"
-pulse/template: const VarDate pulse/template.VarType = "date"
-pulse/template: const VarEnum pulse/template.VarType = "enum"
-pulse/template: const VarField pulse/template.VarType = "field"
-pulse/template: const VarInteger pulse/template.VarType = "integer"
-pulse/template: const VarList pulse/template.VarType = "list"
-pulse/template: const VarNumber pulse/template.VarType = "number"
-pulse/template: const VarPeriod pulse/template.VarType = "period"
-pulse/template: const VarString pulse/template.VarType = "string"
-pulse/template: type VarType string
-pulse/template: type VarType method (VarType) IsScalar() bool
-pulse/template: type VarType method (VarType) String() string
-pulse/template: type VarType method (VarType) Valid() bool
-pulse/template: type Variable struct
-pulse/template: type Variable field Default encoding/json.RawMessage "json:\"default,omitempty\""
-pulse/template: type Variable field Description string "json:\"description,omitempty\""
-pulse/template: type Variable field Items pulse/template.VarType "json:\"items,omitempty\""
-pulse/template: type Variable field Name string "json:\"name\""
-pulse/template: type Variable field Required bool "json:\"required,omitempty\""
-pulse/template: type Variable field Type pulse/template.VarType "json:\"type\""
-pulse/template: type Variable field Values []string "json:\"values,omitempty\""
 pulse/types: package types
 pulse/types: const AGG_AVERAGE pulse/types.AggregationType = "AGG_AVERAGE"
 pulse/types: const AGG_CI_LOWER pulse/types.AggregationType = "AGG_CI_LOWER"
@@ -5332,4 +4178,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: db4edc8baea43c74cd7eae2171b263dd43d82e562713cd51283af131da446ce4
+// golden-hash: d66e69a7871cf6f076b3c07158e85aad2117a4bb52f8aaf852c9a3668f8aebbe

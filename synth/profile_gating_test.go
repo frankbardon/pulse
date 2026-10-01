@@ -11,7 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 
 	pulseerrors "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/fs"
+	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/spf13/afero"
 )

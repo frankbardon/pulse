@@ -253,7 +253,7 @@ func TestShardArchiveLayoutDocumented(t *testing.T) {
 }
 
 func TestSkillsCoverShardingTopics(t *testing.T) {
-	schemaSkill, err := os.ReadFile(filepath.Join("skills", "cohort-schema-design.md"))
+	schemaSkill, err := os.ReadFile(filepath.Join("internal", "skills", "cohort-schema-design.md"))
 	if err != nil {
 		t.Fatalf("reading skills/cohort-schema-design.md: %v", err)
 	}
@@ -270,32 +270,32 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 //
 //	encoding/    >= 95%
 //	descriptor/  >= 95%
-//	skills/      >= 95%
+//	internal/skills/      >= 95%
 //	errors/      >= 90%
 //	processing/  >= 85%
-//	io/csv/      >= 85%
-//	io/tsv/      >= 85%
-//	io/ndjson/   >= 85%
-//	io/parquet/  >= 85%
-//	io/excel/    >= 85%
-//	service/     >= 80%
+//	internal/io/csv/      >= 85%
+//	internal/io/tsv/      >= 85%
+//	internal/io/ndjson/   >= 85%
+//	internal/io/parquet/  >= 85%
+//	internal/io/excel/    >= 85%
+//	internal/service/     >= 80%
 //	cmd/pulse/   >= 75%
 //
 // Aggregate across core packages >= 80%.
 func TestPerPackageCoverageFloors(t *testing.T) {
 	floors := map[string]int{
-		"encoding":   95,
-		"descriptor": 95,
-		"skills":     95,
-		"errors":     90,
-		"processing": 85,
-		"io/csv":     85,
-		"io/tsv":     85,
-		"io/ndjson":  85,
-		"io/parquet": 85,
-		"io/excel":   85,
-		"service":    80,
-		"cmd/pulse":  75,
+		"encoding":            95,
+		"descriptor":          95,
+		"internal/skills":     95,
+		"errors":              90,
+		"processing":          85,
+		"internal/io/csv":     85,
+		"internal/io/tsv":     85,
+		"internal/io/ndjson":  85,
+		"internal/io/parquet": 85,
+		"internal/io/excel":   85,
+		"internal/service":    80,
+		"cmd/pulse":           75,
 	}
 
 	// Verify the floor map is non-empty (structural sanity check).

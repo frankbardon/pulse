@@ -95,7 +95,7 @@ func TestOverlayErrorCodes_RoundTripToFixupMetadata(t *testing.T) {
 					Scope:  types.OverlayScopeRow,
 					Params: json.RawMessage(`{"n_source":`),
 				}}
-				_, _, err := ApplyOverlays(specs, NewCrosstabHostViewWithComponents(
+				_, _, err := applyOverlays(specs, newCrosstabHostViewWithComponents(
 					errCodeLookupMatrix(), &types.CrosstabComponents{}))
 				return err
 			},
@@ -127,7 +127,7 @@ func TestOverlayErrorCodes_RoundTripToFixupMetadata(t *testing.T) {
 					Kind:  types.OverlayKindPairwisePropZ,
 					Scope: types.OverlayScopeRow,
 				}}
-				_, _, err := ApplyOverlays(specs, NewCrosstabHostView(errCodeLookupMatrix()))
+				_, _, err := applyOverlays(specs, NewCrosstabHostView(errCodeLookupMatrix()))
 				return err
 			},
 		},
@@ -242,7 +242,7 @@ func TestPairwiseWelfordDistinct_PredictAndRuntimeAgreeOnCode(t *testing.T) {
 				Scope:  types.OverlayScopeRow,
 				Params: mustParams(t, types.PairwiseOverlayParams{NSource: mode}),
 			}}
-			_, _, err := ApplyOverlays(specs, pairwiseWelfordHost())
+			_, _, err := applyOverlays(specs, pairwiseWelfordHost())
 			if err == nil {
 				t.Fatalf("%s n_source=%s: want a refusal, got nil", kind, mode)
 			}

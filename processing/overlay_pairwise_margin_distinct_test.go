@@ -63,7 +63,7 @@ func pairwiseMarginDistinctHost() *CrosstabHostView {
 			{"n": 6, "sum": 160.0, "distinct_count": 3},
 		},
 	}
-	return NewCrosstabHostViewWithComponents(mx, comps)
+	return newCrosstabHostViewWithComponents(mx, comps)
 }
 
 // TestPairwiseMarginDistinctN_ExactWhereCellSumOverCounts is the
@@ -131,7 +131,7 @@ func TestPairwiseMarginDistinctN_Accessors(t *testing.T) {
 	}
 
 	// AGG_DISTINCT_COUNT spells its figure "cardinality".
-	cardHost := NewCrosstabHostViewWithComponents(
+	cardHost := newCrosstabHostViewWithComponents(
 		&types.MatrixPayload{RowKeys: []types.AxisKey{{"r"}}, ColumnKeys: []types.AxisKey{{"c"}}},
 		&types.CrosstabComponents{
 			RowMarginComponents:    []map[string]any{{"n": 9, "cardinality": 4}},
@@ -146,14 +146,14 @@ func TestPairwiseMarginDistinctN_Accessors(t *testing.T) {
 
 	// Every unreadable shape must report ok=false. A zero n here is the
 	// silently-wrong sample size this effort exists to remove.
-	nilEntry := NewCrosstabHostViewWithComponents(
+	nilEntry := newCrosstabHostViewWithComponents(
 		&types.MatrixPayload{RowKeys: []types.AxisKey{{"r"}}, ColumnKeys: []types.AxisKey{{"c"}}},
 		&types.CrosstabComponents{
 			RowMarginComponents:    []map[string]any{nil},
 			ColumnMarginComponents: []map[string]any{{"n": 3}}, // no distinct key at all
 		})
 	noComponents := NewCrosstabHostView(&types.MatrixPayload{RowKeys: []types.AxisKey{{"r"}}})
-	nonNumeric := NewCrosstabHostViewWithComponents(
+	nonNumeric := newCrosstabHostViewWithComponents(
 		&types.MatrixPayload{RowKeys: []types.AxisKey{{"r"}}, ColumnKeys: []types.AxisKey{{"c"}}},
 		&types.CrosstabComponents{
 			RowMarginComponents: []map[string]any{{"distinct_count": "three"}},
@@ -186,7 +186,7 @@ func TestPairwiseMarginDistinctN_Accessors(t *testing.T) {
 }
 
 // TestOverlayPairwise_MarginDistinctLegsReachTheKernel drives the two
-// modes through ApplyOverlays and checks the p-values against an
+// modes through applyOverlays and checks the p-values against an
 // independent pooled two-proportion z on the legs the margins name.
 func TestOverlayPairwise_MarginDistinctLegsReachTheKernel(t *testing.T) {
 	host := pairwiseMarginDistinctHost()
@@ -198,9 +198,9 @@ func TestOverlayPairwise_MarginDistinctLegsReachTheKernel(t *testing.T) {
 			Scope:  types.OverlayScopeRow,
 			Params: json.RawMessage(`{"n_source":"` + nSource + `"}`),
 		}}
-		layers, _, err := ApplyOverlays(specs, host)
+		layers, _, err := applyOverlays(specs, host)
 		if err != nil {
-			t.Fatalf("ApplyOverlays(%s): %v", nSource, err)
+			t.Fatalf("applyOverlays(%s): %v", nSource, err)
 		}
 		// One pair (urban, rural); column 0 is `acme`.
 		cell := layers[0].Payload.Matrix.Cells[0][0]
@@ -241,9 +241,9 @@ func TestOverlayPairwise_MarginDistinctLegsReachTheKernel(t *testing.T) {
 		Scope:  types.OverlayScopeColumn,
 		Params: json.RawMessage(`{"n_source":"` + types.PairwiseNSourceColumnMarginDistinct + `"}`),
 	}}
-	layers, _, err := ApplyOverlays(colSpecs, host)
+	layers, _, err := applyOverlays(colSpecs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays(column_margin_distinct): %v", err)
+		t.Fatalf("applyOverlays(column_margin_distinct): %v", err)
 	}
 	// Row 0 (urban), pair 0 (acme, zenith): 0.80 vs 0.70 at n = 3, 3.
 	cell := layers[0].Payload.Matrix.Cells[0][0]
@@ -265,7 +265,7 @@ func TestOverlayPairwise_MarginDistinctLegsReachTheKernel(t *testing.T) {
 // pair with the aggregated warning, never compute against n=0.
 func TestOverlayPairwise_MarginDistinctMissingEntrySkips(t *testing.T) {
 	full := pairwiseMarginDistinctHost()
-	stripped := NewCrosstabHostViewWithComponents(full.Payload(), &types.CrosstabComponents{
+	stripped := newCrosstabHostViewWithComponents(full.Payload(), &types.CrosstabComponents{
 		CellCounts:     full.Components().CellCounts,
 		CellComponents: full.Components().CellComponents,
 		// RowMarginComponents / ColumnMarginComponents deliberately absent.
@@ -281,9 +281,9 @@ func TestOverlayPairwise_MarginDistinctMissingEntrySkips(t *testing.T) {
 				Scope:  types.OverlayScopeRow,
 				Params: json.RawMessage(`{"n_source":"` + nSource + `"}`),
 			}}
-			layers, warns, err := ApplyOverlays(specs, stripped)
+			layers, warns, err := applyOverlays(specs, stripped)
 			if err != nil {
-				t.Fatalf("ApplyOverlays: %v", err)
+				t.Fatalf("applyOverlays: %v", err)
 			}
 			if len(layers) != 1 {
 				t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -317,7 +317,7 @@ func TestOverlayPairwise_MarginDistinctMissingEntrySkips(t *testing.T) {
 // VALUES of the measure field; its MARGIN slot spells it the same way,
 // so a key-presence read would report answer codes as a respondent base.
 func TestOverlayPairwise_MarginDistinctSharesTheAdmissionGate(t *testing.T) {
-	freq := NewCrosstabHostViewWithComponents(
+	freq := newCrosstabHostViewWithComponents(
 		&types.MatrixPayload{
 			RowHeader:  types.AxisHeader{Fields: []string{"segment"}},
 			RowKeys:    []types.AxisKey{{"urban"}, {"rural"}},
@@ -348,7 +348,7 @@ func TestOverlayPairwise_MarginDistinctSharesTheAdmissionGate(t *testing.T) {
 				Scope:  types.OverlayScopeRow,
 				Params: json.RawMessage(`{"n_source":"` + nSource + `"}`),
 			}}
-			_, _, err := ApplyOverlays(specs, freq)
+			_, _, err := applyOverlays(specs, freq)
 			if err == nil {
 				t.Fatal("expected an AGG_FREQUENCY cell host to be refused")
 			}
@@ -372,7 +372,7 @@ func TestOverlayPairwise_MarginDistinctSharesTheAdmissionGate(t *testing.T) {
 		Scope:  types.OverlayScopeRow,
 		Params: json.RawMessage(`{"n_source":"` + types.PairwiseNSourceRowMarginDistinct + `"}`),
 	}}
-	if _, _, err := ApplyOverlays(specs, pairwiseMarginDistinctHost()); err != nil {
+	if _, _, err := applyOverlays(specs, pairwiseMarginDistinctHost()); err != nil {
 		t.Fatalf("admitted AGG_DISTINCT_SUM host refused: %v", err)
 	}
 }

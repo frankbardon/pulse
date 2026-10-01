@@ -25,7 +25,7 @@ package gosdk
 
 import (
 	"github.com/frankbardon/pulse"
-	core "github.com/frankbardon/pulse/mcp"
+	core "github.com/frankbardon/pulse/internal/mcp"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

@@ -16,7 +16,7 @@ import (
 // returning an error. Catches example bitrot and serves as a smoke test
 // for every supported distribution kind.
 func TestSynthExamples_RunAll(t *testing.T) {
-	dir := filepath.Join("..", "examples", "synth")
+	dir := filepath.Join("..", "internal", "examples", "synth")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("read examples dir: %v", err)

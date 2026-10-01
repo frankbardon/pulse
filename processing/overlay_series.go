@@ -446,7 +446,7 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 // (FR-A2: stable spec-order layer emission), plus a flat warning slice.
 // Returns (nil, nil, nil) when specs is empty so the grouped Process
 // orchestrator can call ApplyOverlaysSeries unconditionally — mirrors
-// the MATRIX ApplyOverlays short-circuit contract.
+// the MATRIX applyOverlays short-circuit contract.
 //
 // Host policy:
 //

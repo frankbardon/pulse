@@ -236,7 +236,7 @@ func assertNoOverlayWarnings(t *testing.T, warnings []types.OverlayWarning) {
 }
 
 // TestOverlay_SharedAssertionHelpers exercises every helper defined in
-// this file at least once against real ApplyOverlays output. The test
+// this file at least once against real applyOverlays output. The test
 // is intentionally minimal — its job is to guard the helpers against
 // silent rot (staticcheck U1000 sees these as live; future refactors
 // that break a helper surface immediately) and to demonstrate the
@@ -265,9 +265,9 @@ func TestOverlay_SharedAssertionHelpers(t *testing.T) {
 				},
 			},
 		}
-		layers, warnings, err := ApplyOverlays(specs, host)
+		layers, warnings, err := applyOverlays(specs, host)
 		if err != nil {
-			t.Fatalf("ApplyOverlays: %v", err)
+			t.Fatalf("applyOverlays: %v", err)
 		}
 		assertNoOverlayWarnings(t, warnings)
 		if len(layers) != 1 {
@@ -287,9 +287,9 @@ func TestOverlay_SharedAssertionHelpers(t *testing.T) {
 				Scope: types.OverlayScopeMatrix,
 			},
 		}
-		layers, _, err := ApplyOverlays(specs, host)
+		layers, _, err := applyOverlays(specs, host)
 		if err != nil {
-			t.Fatalf("ApplyOverlays: %v", err)
+			t.Fatalf("applyOverlays: %v", err)
 		}
 		if len(layers) != 1 {
 			t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -309,9 +309,9 @@ func TestOverlay_SharedAssertionHelpers(t *testing.T) {
 				Scope: types.OverlayScopeRow,
 			},
 		}
-		layers, _, err := ApplyOverlays(specs, host)
+		layers, _, err := applyOverlays(specs, host)
 		if err != nil {
-			t.Fatalf("ApplyOverlays: %v", err)
+			t.Fatalf("applyOverlays: %v", err)
 		}
 		if len(layers) != 1 {
 			t.Fatalf("expected 1 layer, got %d", len(layers))
@@ -339,9 +339,9 @@ func TestOverlay_SharedAssertionHelpers(t *testing.T) {
 				},
 			},
 		}
-		_, warnings, err := ApplyOverlays(specs, host)
+		_, warnings, err := applyOverlays(specs, host)
 		if err != nil {
-			t.Fatalf("ApplyOverlays: %v", err)
+			t.Fatalf("applyOverlays: %v", err)
 		}
 		assertWarningCode(t, warnings, "PULSE_OVERLAY_REF_ZERO", 9)
 	})

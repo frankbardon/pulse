@@ -207,7 +207,7 @@ func newComposeSlotView(resp *types.Response) *ComposeSlotView {
 	return &ComposeSlotView{
 		response:   resp,
 		state:      ComposeComponentsPresent,
-		host:       NewCrosstabHostViewWithComponents(payload, comps),
+		host:       newCrosstabHostViewWithComponents(payload, comps),
 		components: comps,
 	}
 }

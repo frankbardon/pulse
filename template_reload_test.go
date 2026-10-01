@@ -8,7 +8,7 @@ import (
 	"time"
 
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/template"
+	"github.com/frankbardon/pulse/internal/template"
 )
 
 // touchTmpl pushes a template file's modification time forward, so a

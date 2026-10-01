@@ -3,7 +3,7 @@ package descriptor
 import (
 	"sort"
 
-	"github.com/frankbardon/pulse/mcp/toolmeta"
+	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 )
 
 // mcpToolCapabilities mirrors toolmeta.Meta() into the manifest payload.

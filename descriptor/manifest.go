@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/examples"
 	"github.com/frankbardon/pulse/internal/buildinfo"
-	"github.com/frankbardon/pulse/skills"
+	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/frankbardon/pulse/internal/skills"
 )
 
 // Command describes a CLI leaf command in the manifest.

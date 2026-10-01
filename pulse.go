@@ -16,14 +16,14 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/examples"
-	"github.com/frankbardon/pulse/fs"
-	"github.com/frankbardon/pulse/imports"
+	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/imports"
+	"github.com/frankbardon/pulse/internal/service"
+	"github.com/frankbardon/pulse/internal/template"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/processing"
-	"github.com/frankbardon/pulse/service"
 	"github.com/frankbardon/pulse/synth"
-	"github.com/frankbardon/pulse/template"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -815,6 +815,9 @@ type (
 	ImportSpec   = imports.Spec
 	ImportResult = imports.Result
 	ImportEntry  = imports.Entry
+	// ImportSidecar is the managed-import metadata document an
+	// ImportEntry carries.
+	ImportSidecar = imports.Sidecar
 )
 
 // ImportFile auto-detects the source format, converts the source into a
@@ -1477,6 +1480,24 @@ func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
 	return errors.Search(query)
 }
 
+// Request-template type aliases, so embedders name the template document
+// model through the facade rather than the internal template package.
+type (
+	// Template is one parsed request-template document (GetTemplate).
+	Template = template.Template
+	// TemplateSummary is one ListTemplates entry.
+	TemplateSummary = template.Summary
+	// RenderedTemplate is a RenderTemplate result: the substituted JSON
+	// plus the decoded, validated request for the template's target.
+	RenderedTemplate = template.Rendered
+	// TemplateTarget names the request root a template renders into.
+	TemplateTarget = template.Target
+	// TemplateVariable is one declared template variable.
+	TemplateVariable = template.Variable
+	// TemplateVarType is a template variable's declared type.
+	TemplateVarType = template.VarType
+)
+
 // ListTemplates returns one summary per registered request template,
 // sorted by name so the order is deterministic across runs and platforms.
 //
@@ -1506,10 +1527,10 @@ func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
 // Always returns a non-nil slice (possibly empty) for safe JSON marshaling.
 // An engine with no template directories configured lists nothing; that is
 // an ordinary deployment, not a fault.
-func (p *Pulse) ListTemplates() []template.Summary {
+func (p *Pulse) ListTemplates() []TemplateSummary {
 	out := p.templates.List()
 	if out == nil {
-		return []template.Summary{}
+		return []TemplateSummary{}
 	}
 	return out
 }
@@ -1581,7 +1602,7 @@ func (p *Pulse) ReloadTemplates() error {
 //
 // The returned template is the engine's own copy and must be treated as
 // read-only; rendering never mutates it.
-func (p *Pulse) GetTemplate(name string) (*template.Template, error) {
+func (p *Pulse) GetTemplate(name string) (*Template, error) {
 	return p.templates.Get(name)
 }
 
@@ -1613,7 +1634,7 @@ func (p *Pulse) GetTemplate(name string) (*template.Template, error) {
 // Rendering never opens a cohort: a template that renders is well-formed
 // against the request SHAPE. Whether it is executable against a particular
 // cohort stays Predict's question.
-func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*template.Rendered, error) {
+func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*RenderedTemplate, error) {
 	tmpl, err := p.templates.Get(name)
 	if err != nil {
 		return nil, err

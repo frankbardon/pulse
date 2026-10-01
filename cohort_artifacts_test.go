@@ -8,9 +8,9 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perrors "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/spsstest"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/spss"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )

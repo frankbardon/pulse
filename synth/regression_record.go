@@ -6,7 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing/regression"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 )
 
 // This file is the synth-side bridge onto the shipped OLS engine in

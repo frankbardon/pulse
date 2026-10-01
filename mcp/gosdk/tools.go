@@ -7,8 +7,8 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
-	core "github.com/frankbardon/pulse/mcp"
-	"github.com/frankbardon/pulse/mcp/toolmeta"
+	core "github.com/frankbardon/pulse/internal/mcp"
+	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

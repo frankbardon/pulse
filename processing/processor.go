@@ -6,8 +6,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/processing/feature"
-	"github.com/frankbardon/pulse/processing/regression"
 	"github.com/frankbardon/pulse/processing/window"
 	"github.com/frankbardon/pulse/types"
 )

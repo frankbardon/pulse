@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"os/exec"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -18,19 +19,21 @@ const publicIO = modulePrefix + "/io"
 // belowFacade lists the packages that sit UNDER the public io facade: the
 // contracts leaf, the job implementation, and every format adapter plus
 // the shared JSON helper. Each must stay free of the facade, or the
-// facade's adapter imports become a cycle.
+// facade's adapter imports become a cycle. TestIOImportBoundary widens
+// this to every package under internal/io/... (the export/null/set
+// helpers included), so a new helper is covered without editing a list.
 var belowFacade = []string{
 	modulePrefix + "/internal/iocore",
 	modulePrefix + "/internal/io",
-	modulePrefix + "/io/arrow",
-	modulePrefix + "/io/csv",
-	modulePrefix + "/io/excel",
-	modulePrefix + "/io/jsonarray",
-	modulePrefix + "/io/jsonshared",
-	modulePrefix + "/io/ndjson",
-	modulePrefix + "/io/parquet",
-	modulePrefix + "/io/spss",
-	modulePrefix + "/io/tsv",
+	modulePrefix + "/internal/io/arrow",
+	modulePrefix + "/internal/io/csv",
+	modulePrefix + "/internal/io/excel",
+	modulePrefix + "/internal/io/jsonarray",
+	modulePrefix + "/internal/io/jsonshared",
+	modulePrefix + "/internal/io/ndjson",
+	modulePrefix + "/internal/io/parquet",
+	modulePrefix + "/internal/io/spss",
+	modulePrefix + "/internal/io/tsv",
 }
 
 // iocoreAllowed is the complete set of intra-module packages the
@@ -41,6 +44,25 @@ var iocoreAllowed = map[string]bool{
 	modulePrefix + "/encoding":        true,
 	modulePrefix + "/errors":          true,
 	modulePrefix + "/types":           true,
+}
+
+// goListPackages expands a package pattern into its import paths.
+func goListPackages(t *testing.T, pattern string) []string {
+	t.Helper()
+	out, err := exec.Command("go", "list", pattern).Output()
+	if err != nil {
+		t.Fatalf("go list %s: %v", pattern, err)
+	}
+	var pkgs []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			pkgs = append(pkgs, line)
+		}
+	}
+	if len(pkgs) == 0 {
+		t.Fatalf("go list %s returned nothing", pattern)
+	}
+	return pkgs
 }
 
 func goListDeps(t *testing.T, pkg string) []string {
@@ -72,7 +94,29 @@ func goListDeps(t *testing.T, pkg string) []string {
 // and if the iocore leaf reaches anything in the module beyond encoding,
 // errors and types.
 func TestIOImportBoundary(t *testing.T) {
+	under := map[string]bool{}
 	for _, pkg := range belowFacade {
+		under[pkg] = true
+	}
+	for _, pkg := range goListPackages(t, modulePrefix+"/internal/io/...") {
+		under[pkg] = true
+	}
+	for _, want := range []string{
+		modulePrefix + "/internal/io/exportoverlay",
+		modulePrefix + "/internal/io/nullcell",
+		modulePrefix + "/internal/io/settristate",
+		modulePrefix + "/internal/io/setwide",
+	} {
+		if !under[want] {
+			t.Errorf("%s is missing from the internal/io/... listing; the boundary no longer covers it", want)
+		}
+	}
+	pkgs := make([]string, 0, len(under))
+	for pkg := range under {
+		pkgs = append(pkgs, pkg)
+	}
+	sort.Strings(pkgs)
+	for _, pkg := range pkgs {
 		for _, dep := range goListDeps(t, pkg) {
 			if dep == publicIO {
 				t.Errorf("%s depends on the public io facade; import internal/iocore (contracts) or internal/io (jobs) instead", pkg)

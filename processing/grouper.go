@@ -1238,7 +1238,7 @@ func (g *dateGrouper) Components() (map[string]any, error) {
 // Exactly one of Ranges (inline labeled ranges) or Table (a named,
 // pre-registered range table) is the source; supplying both or neither is
 // rejected with PULSE_RANGE_SOURCE_AMBIGUOUS. Whichever source is named,
-// the resolved ranges run through the same CompileDateRanges + Match path.
+// the resolved ranges run through the same compileDateRanges + Match path.
 // UnmatchedLabel overrides the default "unmatched" bucket label for rows
 // that fall outside every range.
 type dateRangesGroupParams struct {
@@ -1261,7 +1261,7 @@ const defaultUnmatchedRangeLabel = "unmatched"
 // fully row-local, so the grouper is streamable + mergeable.
 type dateRangesGrouper struct {
 	field          string
-	set            *DateRangeSet
+	set            *dateRangeSet
 	order          []string // supplied range labels, in author order
 	unmatchedLabel string
 
@@ -1340,13 +1340,13 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 
 // applyRanges compiles a resolved spec slice into the grouper's live range
 // set and preserves the author-order label list for bucket emission
-// (CompileDateRanges sorts by lower bound internally, so set.Labels() is
+// (compileDateRanges sorts by lower bound internally, so set.Labels() is
 // not author order). It also rejects a collision between the unmatched
 // label and any range label — that would silently merge out-of-range rows
 // into a real bucket. Shared by the eager inline path (factory) and the
 // deferred named-table path (SetExtensions).
 func (g *dateRangesGrouper) applyRanges(specs []DateRangeSpec) error {
-	set, err := CompileDateRanges(specs)
+	set, err := compileDateRanges(specs)
 	if err != nil {
 		return err
 	}

@@ -68,9 +68,9 @@ func TestOverlay_DeltaVsMargin_RowAxis(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings (DELTA_VS_MARGIN has no division), got %d: %+v",
@@ -144,9 +144,9 @@ func TestOverlay_DeltaVsMargin_ColAxis(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings, got %d: %+v", len(warnings), warnings)
@@ -206,9 +206,9 @@ func TestOverlay_DeltaVsMargin_GrandAxis(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings, got %d: %+v", len(warnings), warnings)
@@ -294,9 +294,9 @@ func TestOverlay_DeltaVsMargin_NullHostCell_AbsentOverlay(t *testing.T) {
 			},
 		},
 	}
-	layers, warnings, err := ApplyOverlays(specs, host)
+	layers, warnings, err := applyOverlays(specs, host)
 	if err != nil {
-		t.Fatalf("ApplyOverlays: %v", err)
+		t.Fatalf("applyOverlays: %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected zero warnings on absent host cell (no PULSE_OVERLAY_REF_ZERO for DELTA_VS_MARGIN); got %d: %+v",

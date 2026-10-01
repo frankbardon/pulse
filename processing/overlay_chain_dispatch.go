@@ -131,7 +131,7 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 // flat warning slice. Returns (nil, nil, nil) when specs is empty so
 // the service-side ProcessChain post-stage-loop call site can call
 // ApplyChainOverlays unconditionally — mirrors the MATRIX
-// ApplyOverlays / SERIES ApplyOverlaysSeries / FACET ApplyOverlaysFacet
+// applyOverlays / SERIES ApplyOverlaysSeries / FACET ApplyOverlaysFacet
 // short-circuit contract.
 //
 // `stages` is the ordered list of per-stage *Response objects in the

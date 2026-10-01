@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/skills"
+	"github.com/frankbardon/pulse/internal/skills"
 )
 
 func TestSkillsCoverAllOperatorComponents(t *testing.T) {

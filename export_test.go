@@ -1,6 +1,6 @@
 package pulse
 
-import "github.com/frankbardon/pulse/service"
+import "github.com/frankbardon/pulse/internal/service"
 
 // ServiceForTest exposes the engine handle to the external pulse_test
 // package so its extension-registry assertions can inspect wiring. It

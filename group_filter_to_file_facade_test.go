@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/csv"
 	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"

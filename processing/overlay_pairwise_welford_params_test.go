@@ -49,7 +49,7 @@ func pairwiseWelfordHost() *CrosstabHostView {
 		RowMarginCounts:    []int{7, 9},
 		ColumnMarginCounts: []int{11},
 	}
-	return NewCrosstabHostViewWithComponents(mx, comps)
+	return newCrosstabHostViewWithComponents(mx, comps)
 }
 
 func pairwiseWelfordP(t *testing.T, kind types.OverlayKind, params types.PairwiseOverlayParams) float64 {
@@ -59,9 +59,9 @@ func pairwiseWelfordP(t *testing.T, kind types.OverlayKind, params types.Pairwis
 		Scope:  types.OverlayScopeRow,
 		Params: mustParams(t, params),
 	}}
-	layers, _, err := ApplyOverlays(specs, pairwiseWelfordHost())
+	layers, _, err := applyOverlays(specs, pairwiseWelfordHost())
 	if err != nil {
-		t.Fatalf("%s: ApplyOverlays: %v", kind, err)
+		t.Fatalf("%s: applyOverlays: %v", kind, err)
 	}
 	cell := layers[0].Payload.Matrix.Cells[0][0]
 	if !cell.Present {
@@ -131,7 +131,7 @@ func TestOverlayPairwise_WelfordDistinctSelectorStillRefusedAtRuntime(t *testing
 				Scope:  types.OverlayScopeRow,
 				Params: mustParams(t, types.PairwiseOverlayParams{NSource: mode}),
 			}}
-			_, _, err := ApplyOverlays(specs, pairwiseWelfordHost())
+			_, _, err := applyOverlays(specs, pairwiseWelfordHost())
 			if err == nil {
 				t.Fatalf("%s n_source=%s: expected the distinct-key admission refusal, got nil", kind, mode)
 			}

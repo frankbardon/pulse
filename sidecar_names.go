@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/imports"
-	"github.com/frankbardon/pulse/io/spss"
+	"github.com/frankbardon/pulse/internal/imports"
+	"github.com/frankbardon/pulse/internal/spsssidecar"
 )
 
 // pulseSidecarSuffixes lists the filename suffixes Pulse itself writes
@@ -17,7 +17,7 @@ import (
 // rename in the owning package cannot silently un-skip its sidecar.
 var pulseSidecarSuffixes = []string{
 	imports.SidecarSuffix,        // ".meta.json"    — managed-import handle metadata
-	spss.SidecarSuffix,           // ".spss.json"    — SPSS dictionary metadata
+	spsssidecar.Suffix,           // ".spss.json"    — SPSS dictionary metadata
 	encoding.IndexManifestSuffix, // ".indexes.json" — sidecar point-lookup index catalog
 }
 

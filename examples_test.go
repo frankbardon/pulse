@@ -10,8 +10,8 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/csv"
 	"github.com/spf13/afero"
 )
 
@@ -31,8 +31,8 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 
 	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers"}
 	for _, name := range cohorts {
-		csvPath := filepath.Join("examples", "fixtures", name+".csv")
-		schemaPath := filepath.Join("examples", "fixtures", "schemas", name+".json")
+		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
+		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
 		outPath := filepath.Join(tmp, name+".pulse")
 
 		schema, err := loadFixtureSchema(schemaPath)
@@ -83,7 +83,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 
 	for _, cat := range categories {
 		t.Run(cat.name, func(t *testing.T) {
-			matches, err := filepath.Glob(filepath.Join("examples", cat.dir, "*.json"))
+			matches, err := filepath.Glob(filepath.Join("internal", "examples", cat.dir, "*.json"))
 			if err != nil {
 				t.Fatalf("glob %s: %v", cat.dir, err)
 			}
@@ -158,8 +158,8 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 	for _, name := range []string{"customers", "training_data"} {
-		csvPath := filepath.Join("examples", "fixtures", name+".csv")
-		schemaPath := filepath.Join("examples", "fixtures", "schemas", name+".json")
+		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
+		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
 		outPath := filepath.Join(tmp, name+".pulse")
 		schema, err := loadFixtureSchema(schemaPath)
 		if err != nil {
@@ -177,7 +177,7 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 		}
 	}
 
-	matches, err := filepath.Glob(filepath.Join("examples", "regression", "*.json"))
+	matches, err := filepath.Glob(filepath.Join("internal", "examples", "regression", "*.json"))
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 }
 
 func TestRegressionExamplesCount(t *testing.T) {
-	matches, err := filepath.Glob(filepath.Join("examples", "regression", "*.json"))
+	matches, err := filepath.Glob(filepath.Join("internal", "examples", "regression", "*.json"))
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}

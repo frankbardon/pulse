@@ -13,8 +13,8 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/io/csv"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -790,7 +790,7 @@ doneScan:
 func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := importExperimentCohort(t, dir)
-	exampleSrc := readRepoFile(t, "examples/overlays/pairwise-z-matrix.json")
+	exampleSrc := readRepoFile(t, "internal/examples/overlays/pairwise-z-matrix.json")
 	composedPath := rewriteComposedExample(t, dir, exampleSrc, pulsePath, "composed_z.json")
 
 	out, err := runApp(t, "api", "compose", "--request", composedPath, "--json")
@@ -812,7 +812,7 @@ func TestCliApiCompose_PairwiseZMatrix_OverlayReachesEnvelope(t *testing.T) {
 func TestCliApiCompose_PairwiseWelchMatrix_OverlayReachesEnvelope(t *testing.T) {
 	dir := t.TempDir()
 	pulsePath := importExperimentCohort(t, dir)
-	exampleSrc := readRepoFile(t, "examples/overlays/pairwise-welch-matrix.json")
+	exampleSrc := readRepoFile(t, "internal/examples/overlays/pairwise-welch-matrix.json")
 	composedPath := rewriteComposedExample(t, dir, exampleSrc, pulsePath, "composed_welch.json")
 
 	out, err := runApp(t, "api", "compose", "--request", composedPath, "--json")
@@ -872,8 +872,8 @@ func readRepoFile(t *testing.T, relPath string) []byte {
 func importExperimentCohort(t *testing.T, dir string) string {
 	t.Helper()
 	root := repoRoot(t)
-	csvPath := filepath.Join(root, "examples", "fixtures", "experiment.csv")
-	schemaPath := filepath.Join(root, "examples", "fixtures", "schemas", "experiment.json")
+	csvPath := filepath.Join(root, "internal", "examples", "fixtures", "experiment.csv")
+	schemaPath := filepath.Join(root, "internal", "examples", "fixtures", "schemas", "experiment.json")
 	pulsePath := filepath.Join(dir, "experiment.pulse")
 
 	out, err := runApp(t, "import", "csv",

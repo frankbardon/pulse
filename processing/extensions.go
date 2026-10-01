@@ -79,7 +79,7 @@ type ExtensionRegistry struct {
 	// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter may
 	// reference by name. Mirrors pulse.RangeTable. Indexed by the
 	// user-facing table name. Each entry's ranges are validated at
-	// pulse.New time via CompileDateRanges; operator→table resolution
+	// pulse.New time via compileDateRanges; operator→table resolution
 	// consumes this map.
 	RangeTables map[string]RangeTable
 
@@ -121,7 +121,7 @@ type LabelTable struct {
 // RangeTable is the runtime-side mirror of pulse.RangeTable. It holds
 // the ordered labeled date-range specs registered under a table name.
 // The specs are validated at pulse.New time; a consumer resolving a
-// table by name compiles them into a *DateRangeSet via CompileDateRanges
+// table by name compiles them into a *dateRangeSet via compileDateRanges
 // (validation is idempotent — the compile cannot fail post-registration).
 type RangeTable struct {
 	Ranges []DateRangeSpec

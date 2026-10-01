@@ -990,7 +990,7 @@ const (
 	// referenced an OverlayKind not present in
 	// types.AllOverlayKinds(). Surfaced by descriptor.ValidateOverlays
 	// at predict time and as a defense-in-depth guard inside
-	// processing.ApplyOverlays.
+	// processing.ApplyOverlaysWithExtensions.
 	PULSE_OVERLAY_KIND_UNKNOWN Code = "PULSE_OVERLAY_KIND_UNKNOWN"
 
 	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE indicates an
