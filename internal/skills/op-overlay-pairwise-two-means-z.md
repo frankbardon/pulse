@@ -29,6 +29,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values (layout as `op-overl
 
 - Either leg with `n <= 1` skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - Use `OVERLAY_PAIRWISE_WELCH_T` when small-sample df correction matters; this kind assumes the normal approximation.
+- Weighted cells: `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` (`op-overlay-pairwise-weighted-two-means-z`). `n_basis` here is inert; predict refuses it.
 - RAW p-values only — direction / thresholds are the embedder's job.
 - Buffered (inferential) — and so is the HOST: the `AGG_WELFORD` cell is non-mergeable, so `CanFuseCrosstab` rejects on the cell-aggregator arm. Expected (`TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`).
 

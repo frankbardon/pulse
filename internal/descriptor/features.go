@@ -296,6 +296,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("OVERLAY_PAIRWISE_PROBIT_T"),
 	op("OVERLAY_PAIRWISE_PROP_Z"),
 	op("OVERLAY_PAIRWISE_TWO_MEANS_Z"),
+	op("OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z"),
 	op("OVERLAY_PAIRWISE_WELCH_T"),
 	op("OVERLAY_PANEL_INDEX_VS_REF"),
 	op("OVERLAY_PROP_Z_CELL"),
@@ -362,6 +363,7 @@ var overlayHostKinds = map[string][]string{
 		"OVERLAY_PAIRWISE_PROBIT_T",
 		"OVERLAY_PAIRWISE_PROP_Z",
 		"OVERLAY_PAIRWISE_TWO_MEANS_Z",
+		"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z",
 		"OVERLAY_PAIRWISE_WELCH_T",
 		"OVERLAY_SHARE_OF_COL",
 		"OVERLAY_SHARE_OF_ROW",
@@ -421,16 +423,17 @@ var overlayHostKinds = map[string][]string{
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
 var hardEdges = map[string][]string{
-	"OVERLAY_T_CELL":               {"AGG_WELFORD"},
-	"OVERLAY_Z_CELL":               {"AGG_WELFORD"},
-	"OVERLAY_T_VS_REF":             {"AGG_WELFORD"},
-	"OVERLAY_Z_VS_REF":             {"AGG_WELFORD"},
-	"OVERLAY_PAIRWISE_WELCH_T":     {"AGG_WELFORD"},
-	"OVERLAY_PAIRWISE_TWO_MEANS_Z": {"AGG_WELFORD"},
-	"ATTR_REG_FITTED":              {"REG_OLS"},
-	"ATTR_REG_LEVERAGE":            {"REG_OLS"},
-	"ATTR_REG_RESIDUAL":            {"REG_OLS"},
-	"OVERLAY_YOY":                  {"GROUP_DATE"},
+	"OVERLAY_T_CELL":                        {"AGG_WELFORD"},
+	"OVERLAY_Z_CELL":                        {"AGG_WELFORD"},
+	"OVERLAY_T_VS_REF":                      {"AGG_WELFORD"},
+	"OVERLAY_Z_VS_REF":                      {"AGG_WELFORD"},
+	"OVERLAY_PAIRWISE_WELCH_T":              {"AGG_WELFORD"},
+	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          {"AGG_WELFORD"},
+	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {"AGG_WEIGHTED_MEAN"},
+	"ATTR_REG_FITTED":                       {"REG_OLS"},
+	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
+	"ATTR_REG_RESIDUAL":                     {"REG_OLS"},
+	"OVERLAY_YOY":                           {"GROUP_DATE"},
 }
 
 // RequestHostCapabilities returns the request-executing host

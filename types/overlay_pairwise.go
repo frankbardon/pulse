@@ -33,6 +33,29 @@ type PairwiseOverlayParams struct {
 	// PairwisePSource* constants. Empty = cell_value_pct. Ignored by the
 	// Welford-input kinds.
 	PSource string `json:"p_source,omitempty"`
+
+	// NBasis selects the variance / sample-size convention for
+	// OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, where it is REQUIRED (no
+	// default — the convention is the embedder's statistical call). One
+	// of the PairwiseNBasis* constants. Read by no other kind.
+	NBasis string `json:"n_basis,omitempty"`
+}
+
+// Weighted two-means sample-size conventions (PairwiseOverlayParams.NBasis),
+// read off the AGG_WEIGHTED_MEAN moments {m2_weighted, sum_weights,
+// sum_weights_sq}:
+//
+//	weights: var = m2/(Σw − 1),     n = Σw            (frequency weights)
+//	kish:    var = m2/(Σw − Σw²/Σw), n = (Σw)²/Σw²    (Kish effective base)
+const (
+	PairwiseNBasisWeights = "weights"
+	PairwiseNBasisKish    = "kish"
+)
+
+// ValidPairwiseNBasis reports whether s names a supported NBasis
+// convention. Empty is NOT valid: the weighted kind has no default.
+func ValidPairwiseNBasis(s string) bool {
+	return s == PairwiseNBasisWeights || s == PairwiseNBasisKish
 }
 
 // Pairwise sample-size source modes (PairwiseOverlayParams.NSource).
@@ -322,7 +345,8 @@ func IsPairwiseOverlayKind(kind OverlayKind) bool {
 	case OverlayKindPairwisePropZ,
 		OverlayKindPairwiseProbitT,
 		OverlayKindPairwiseWelchT,
-		OverlayKindPairwiseTwoMeansZ:
+		OverlayKindPairwiseTwoMeansZ,
+		OverlayKindPairwiseWeightedTwoMeansZ:
 		return true
 	}
 	return false
@@ -332,4 +356,13 @@ func IsPairwiseOverlayKind(kind OverlayKind) bool {
 // {mean, variance, n} (welch / two-means) rather than a proportion + n.
 func PairwiseKindUsesWelford(kind OverlayKind) bool {
 	return kind == OverlayKindPairwiseWelchT || kind == OverlayKindPairwiseTwoMeansZ
+}
+
+// PairwiseKindUsesWeightedMoments reports whether kind reads the
+// AGG_WEIGHTED_MEAN moments {weighted_mean, m2_weighted, sum_weights,
+// sum_weights_sq} and requires params.n_basis. Deliberately disjoint from
+// PairwiseKindUsesWelford: the weighted kind reads neither the triple nor
+// the universal-floor n.
+func PairwiseKindUsesWeightedMoments(kind OverlayKind) bool {
+	return kind == OverlayKindPairwiseWeightedTwoMeansZ
 }

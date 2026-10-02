@@ -340,7 +340,7 @@ func TestComponents_ParallelMergeMatchesSerial(t *testing.T) {
 			aggType:     types.AGG_WEIGHTED_MEAN,
 			field:       "score",
 			params:      json.RawMessage(`{"weight_field":"weight"}`),
-			floatKeys:   []string{"sum_weighted", "sum_weights", "weighted_mean"},
+			floatKeys:   []string{"sum_weighted", "sum_weights", "weighted_mean", "m2_weighted", "sum_weights_sq", "weighted_variance", "n_eff"},
 			floatBudget: 256,
 		},
 		{

@@ -188,8 +188,9 @@ var componentReaders = map[string]string{
 var dependencyScanAllowlist = map[[2]string]string{
 	// overlay_pairwise.go owns all four pairwise kinds; only WELCH_T and
 	// TWO_MEANS_Z run the Welford arm (runPairwiseOverlay welford=true).
-	{"OVERLAY_PAIRWISE_PROP_Z", "AGG_WELFORD"}:   "shared pairwise file; proportion arm never reads the Welford triple",
-	{"OVERLAY_PAIRWISE_PROBIT_T", "AGG_WELFORD"}: "shared pairwise file; proportion arm never reads the Welford triple",
+	{"OVERLAY_PAIRWISE_PROP_Z", "AGG_WELFORD"}:               "shared pairwise file; proportion arm never reads the Welford triple",
+	{"OVERLAY_PAIRWISE_PROBIT_T", "AGG_WELFORD"}:             "shared pairwise file; proportion arm never reads the Welford triple",
+	{"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z", "AGG_WELFORD"}: "shared pairwise file; weighted arm reads the AGG_WEIGHTED_MEAN moments, never the Welford triple",
 	// applyPanelIndexVsRef calls applyIndexVsRef directly per target
 	// through a shim spec: code reuse inside the engine, not a dispatch a
 	// profile could hide.

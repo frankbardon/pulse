@@ -108,6 +108,65 @@ func (h *CrosstabHostView) HasWelfordCells() bool {
 	return false
 }
 
+// weightedMomentKeys are the AGG_WEIGHTED_MEAN component keys the
+// OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z kind reads. None collides with
+// the Welford triple's {mean, variance, n}, so neither family's shape
+// gate admits the other's cells.
+var weightedMomentKeys = [...]string{"weighted_mean", "m2_weighted", "sum_weights", "sum_weights_sq"}
+
+// weightedMoments is one AGG_WEIGHTED_MEAN cell's sufficient statistics
+// for a weighted two-means test: the weighted mean, the weighted second
+// central moment Σw(x−mean)², Σw and Σw².
+type weightedMoments struct {
+	mean, m2, sumW, sumWSq float64
+}
+
+// WeightedMoments reads {weighted_mean, m2_weighted, sum_weights,
+// sum_weights_sq} from CellComponents[r][c]. Returns ok=false unless all
+// four keys are present and numeric. The universal-floor "n" is
+// deliberately NOT read: it counts null / zero-weight rows, so it is not
+// the weighted sample size under either n_basis.
+func (h *CrosstabHostView) WeightedMoments(rowIdx, colIdx int) (weightedMoments, bool) {
+	var vals [len(weightedMomentKeys)]float64
+	for i, key := range weightedMomentKeys {
+		f, ok := h.CellComponentFloat(rowIdx, colIdx, key)
+		if !ok {
+			return weightedMoments{}, false
+		}
+		vals[i] = f
+	}
+	return weightedMoments{mean: vals[0], m2: vals[1], sumW: vals[2], sumWSq: vals[3]}, true
+}
+
+// HasWeightedMomentCells reports whether at least one present cell
+// carries every weighted-moment key. The weighted two-means handler gates
+// on this so a host whose cell aggregator is not AGG_WEIGHTED_MEAN (an
+// AGG_WELFORD triple, a plain count) fails fast with a shape error
+// instead of skipping every pair.
+func (h *CrosstabHostView) HasWeightedMomentCells() bool {
+	if h == nil || h.components == nil {
+		return false
+	}
+	for _, row := range h.components.CellComponents {
+		for _, cell := range row {
+			if cell == nil {
+				continue
+			}
+			all := true
+			for _, key := range weightedMomentKeys {
+				if _, ok := cell[key]; !ok {
+					all = false
+					break
+				}
+			}
+			if all {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // RowMarginN reads the per-row margin record count from
 // CrosstabComponents.RowMarginCounts.
 func (h *CrosstabHostView) RowMarginN(rowIdx int) (int, bool) {

@@ -9,7 +9,7 @@ covers: [OVERLAY, PairwiseOverlayParams, n_source, p_source]
 
 # Pairwise sample-size sources
 
-All four `OVERLAY_PAIRWISE_*` kinds decode one shared `OverlaySpec.Params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`. Per-kind math stays in the atomics.
+Every `OVERLAY_PAIRWISE_*` kind decodes one shared `OverlaySpec.Params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`, `n_basis`. Per-kind math stays in the atomics.
 
 Every mode reads `Response.Components.Crosstab`; a components-disabled host fires `PULSE_OVERLAY_COMPONENTS_REQUIRED` first. An unreadable leg SKIPS the pair (aggregated `PULSE_OVERLAY_REF_ZERO`), never a zero n.
 
@@ -25,7 +25,7 @@ Every mode reads `Response.Components.Crosstab`; a components-disabled host fire
 | `n_within_distinct` | that slab, in distinct KEYS |
 | `row_margin_distinct` / `column_margin_distinct` | `RowMarginComponents[r]` / `ColumnMarginComponents[c]`, in distinct KEYS |
 
-`OVERLAY_PAIRWISE_WELCH_T` and `OVERLAY_PAIRWISE_TWO_MEANS_Z` REFUSE both selectors — every `n_source` and `p_source`, not just the distinct ones. n and both moments come from the Welford triple, so either would be a silent no-op: `PULSE_OVERLAY_PARAM_MISSING` at predict. Predict ONLY: an inert param cannot make a wrong number, so a runtime twin would only break a working `Process`. (A DISTINCT mode is still refused at runtime, under that SAME code.) `n_within_depth` applies to `n_within` / `n_within_distinct` only (`types.PairwiseNSourceUsesWithinDepth`); margin modes ignore it and `>=` the pair-axis dim count is refused.
+`OVERLAY_PAIRWISE_WELCH_T` and `OVERLAY_PAIRWISE_TWO_MEANS_Z` REFUSE both selectors — every `n_source` and `p_source`, not just the distinct ones. n and both moments come from the Welford triple, so either would be a silent no-op: `PULSE_OVERLAY_PARAM_MISSING` at predict. Predict ONLY: an inert param cannot make a wrong number, so a runtime twin would only break a working `Process`. (A DISTINCT mode is still refused at runtime, under that SAME code.) `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` refuses both selectors too, at predict AND runtime (a new kind breaks no caller), and REQUIRES `n_basis` (`weights` | `kish`); `n_basis` on any other kind is inert, refused at predict only (same code). `n_within_depth` applies to `n_within` / `n_within_distinct` only (`types.PairwiseNSourceUsesWithinDepth`); margin modes ignore it and `>=` the pair-axis dim count is refused.
 
 ## Distinct keys versus records
 
