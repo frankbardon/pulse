@@ -526,6 +526,10 @@ func aggregatorCapabilities() []Operator {
 				ComponentKey{Name: "sum_weighted", Type: "float64", Description: "Running sum of (field * weight) across contributing rows."},
 				ComponentKey{Name: "sum_weights", Type: "float64", Description: "Running sum of weights across contributing rows."},
 				ComponentKey{Name: "weighted_mean", Type: "float64", Description: "Resolved weighted mean: sum_weighted / sum_weights."},
+				ComponentKey{Name: "m2_weighted", Type: "float64", Description: "Weighted second central moment: sum(weight * (field - weighted_mean)^2)."},
+				ComponentKey{Name: "sum_weights_sq", Type: "float64", Description: "Running sum of squared weights; feeds the Kish effective sample size."},
+				ComponentKey{Name: "weighted_variance", Type: "float64", Description: "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights <= 1."},
+				ComponentKey{Name: "n_eff", Type: "float64", Description: "Kish effective sample size sum_weights^2 / sum_weights_sq; 0 for an empty cell."},
 			),
 		},
 		{

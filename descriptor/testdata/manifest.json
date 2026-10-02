@@ -1671,6 +1671,26 @@
                 "name": "weighted_mean",
                 "type": "float64",
                 "description": "Resolved weighted mean: sum_weighted / sum_weights."
+              },
+              {
+                "name": "m2_weighted",
+                "type": "float64",
+                "description": "Weighted second central moment: sum(weight * (field - weighted_mean)^2)."
+              },
+              {
+                "name": "sum_weights_sq",
+                "type": "float64",
+                "description": "Running sum of squared weights; feeds the Kish effective sample size."
+              },
+              {
+                "name": "weighted_variance",
+                "type": "float64",
+                "description": "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights \u003c= 1."
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Kish effective sample size sum_weights^2 / sum_weights_sq; 0 for an empty cell."
               }
             ],
             "mergeability": "mergeable"
@@ -9157,6 +9177,26 @@
               "name": "weighted_mean",
               "type": "float64",
               "description": "Resolved weighted mean: sum_weighted / sum_weights."
+            },
+            {
+              "name": "m2_weighted",
+              "type": "float64",
+              "description": "Weighted second central moment: sum(weight * (field - weighted_mean)^2)."
+            },
+            {
+              "name": "sum_weights_sq",
+              "type": "float64",
+              "description": "Running sum of squared weights; feeds the Kish effective sample size."
+            },
+            {
+              "name": "weighted_variance",
+              "type": "float64",
+              "description": "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights \u003c= 1."
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Kish effective sample size sum_weights^2 / sum_weights_sq; 0 for an empty cell."
             }
           ],
           "mergeability": "mergeable"
@@ -9746,4 +9786,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b3a4816cea093076544b95cb9ec6f7d732b0c9f4e6b91cf5100dee2b5ce547f2
+// golden-hash: e933b210c37f8b496833fd9e85abdba2d7f3ff0e11d6b3ef9aa91a08f78168f5

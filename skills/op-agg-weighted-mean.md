@@ -13,14 +13,14 @@ examples_tags: [streaming-friendly, comparison]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `weight_field` | string | (required) | Schema field whose value is the per-row weight. Null weight or weight==0 rows skipped. |
+| `weight_field` | string | (required) | Per-row weight field |
 
 ## Inputs
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4` |
-| `weight_field` | numeric, same family as `Field` |
+| `Field` | numeric except `decimal128` (incl. `date`, `datetime`, `packed_bool`, `u4`) |
+| `weight_field` | numeric, same family |
 
 ## Output
 
@@ -28,13 +28,17 @@ Scalar `float64` — `sum(field * weight) / sum(weight)`.
 
 ## Components
 
-Universal floor `{n, n_null}` plus operator-specific:
+Floor `{n, n_null}` plus (all float64; empty cell all 0):
 
-| Key | Type | Notes |
-|---|---|---|
-| `sum_weighted` | float64 | Running sum of `field * weight` |
-| `sum_weights` | float64 | Running sum of weights |
-| `weighted_mean` | float64 | Resolved ratio |
+| Key | Notes |
+|---|---|
+| `sum_weighted` | Σ field·w |
+| `sum_weights` | Σw |
+| `weighted_mean` | Σ field·w / Σw |
+| `m2_weighted` | Σw(x − mean)² |
+| `sum_weights_sq` | Σw² |
+| `weighted_variance` | m2/(Σw−1); 0 if Σw ≤ 1 |
+| `n_eff` | Kish (Σw)²/Σw² |
 
 - Mergeability: `Mergeable` (weighted Chan-Welford)
 - Streaming: per-chunk
