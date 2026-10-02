@@ -107,7 +107,8 @@ one name in every group must be enabled:
   for crosstab overlays, `capability:compose` for compose and series
   overlays, `capability:process_chain` for stage overlays,
   `capability:facet` for facet overlays.
-- Some operators read another's results:
+- Some operators read another's results, and filter-to-file runs on the
+  filter-expression engine:
 
 | Feature | Also needs |
 |---|---|
@@ -115,6 +116,7 @@ one name in every group must be enabled:
 | `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` | `AGG_WEIGHTED_MEAN` |
 | `ATTR_REG_FITTED`, `ATTR_REG_LEVERAGE`, `ATTR_REG_RESIDUAL` | `REG_OLS` |
 | `OVERLAY_YOY` | `GROUP_DATE` |
+| `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
 
 `TEST_TUKEY_HSD` does not require `TEST_ANOVA_F`.
 

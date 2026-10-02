@@ -419,6 +419,9 @@ var overlayHostKinds = map[string][]string{
 //   - ATTR_REG_* fit an OLS model through the regression engine.
 //   - OVERLAY_YOY refuses any series host whose first grouper is not
 //     GROUP_DATE (it reads the date grouper's frequency).
+//   - capability:filter_to_file compiles every filterer of the request
+//     into one engine-internal FILTER_EXPRESSION, so hiding
+//     FILTER_EXPRESSION would break FilterToFile for any request.
 //
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
@@ -434,6 +437,7 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
 	"ATTR_REG_RESIDUAL":                     {"REG_OLS"},
 	"OVERLAY_YOY":                           {"GROUP_DATE"},
+	featFilterToFile:                        {"FILTER_EXPRESSION"},
 }
 
 // RequestHostCapabilities returns the request-executing host
