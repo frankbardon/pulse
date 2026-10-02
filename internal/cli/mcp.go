@@ -68,7 +68,10 @@ func MCPCommand(version string) *cli.Command {
 
 			bindOnOpen := cmd.Bool("bind-on-open")
 			noCohortScan := cmd.Bool("no-cohort-scan")
-			fmt.Fprintf(os.Stderr, "pulse mcp: serving over stdio (data dir: %s, bind-on-open: %v, cohort-scan: %v)\n", dataDir, bindOnOpen, !noCohortScan)
+			// The effective settings come from the library: a feature
+			// profile can turn the cohort scan off behind the flag's back.
+			info := mcpserve.Describe(p, mcpserve.Options{BindOnOpen: bindOnOpen, DisableCohortScan: noCohortScan})
+			fmt.Fprintln(os.Stderr, mcpStartupLine(dataDir, bindOnOpen, info))
 
 			// Construct a bare go-sdk server and mount the full Pulse surface
 			// through the single registration path (the gosdk adapter), then
@@ -91,4 +94,19 @@ func MCPCommand(version string) *cli.Command {
 			return nil
 		},
 	}
+}
+
+// mcpStartupLine formats the one-line stderr startup notice from the
+// effective serving settings. Formatting only: the values are decided by
+// mcpserve.Describe.
+func mcpStartupLine(dataDir string, bindOnOpen bool, info mcpserve.ServeInfo) string {
+	line := fmt.Sprintf("pulse mcp: serving over stdio (data dir: %s, bind-on-open: %v, cohort-scan: %v", dataDir, bindOnOpen, info.CohortScan)
+	if info.FeatureProfileLoaded {
+		name := info.FeatureProfile
+		if name == "" {
+			name = "(unnamed)"
+		}
+		line += fmt.Sprintf(", feature-profile: %s", name)
+	}
+	return line + ")"
 }

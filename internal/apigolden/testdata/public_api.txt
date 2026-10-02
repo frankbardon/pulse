@@ -2206,6 +2206,7 @@ pulse/mcp/gosdk: const SchemaResourceURI untyped string = "pulse://schema"
 pulse/mcp/gosdk: const SkillURIScheme untyped string = "pulse-skill://"
 pulse/mcp/gosdk: const SkillURITemplate untyped string = "pulse-skill://{+name}"
 pulse/mcpserve: package mcpserve
+pulse/mcpserve: func Describe(p *pulse.Pulse, opts pulse/mcpserve.Options) pulse/mcpserve.ServeInfo
 pulse/mcpserve: func NewPulse(popts pulse.Options, opts pulse/mcpserve.Options) (*pulse.Pulse, error)
 pulse/mcpserve: type Options struct
 pulse/mcpserve: type Options field BindOnOpen bool
@@ -2213,6 +2214,10 @@ pulse/mcpserve: type Options field DisableCohortScan bool
 pulse/mcpserve: type Options field FeatureProfileFile string
 pulse/mcpserve: type Options field Version string
 pulse/mcpserve: func Serve(ctx context.Context, p *pulse.Pulse, opts pulse/mcpserve.Options, in io.Reader, out io.Writer) error
+pulse/mcpserve: type ServeInfo struct
+pulse/mcpserve: type ServeInfo field CohortScan bool
+pulse/mcpserve: type ServeInfo field FeatureProfile string
+pulse/mcpserve: type ServeInfo field FeatureProfileLoaded bool
 pulse/mcpserve: func ServeStdio(p *pulse.Pulse, opts pulse/mcpserve.Options) error
 pulse/synth: package synth
 pulse/synth: type CategoricalNumericCategoryFidelity = pulse/internal/synth.CategoricalNumericCategoryFidelity
@@ -3539,4 +3544,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6230651a0ab1be5d7e635ac643dbb0264f17df46117aab959fcc394936a1428b
+// golden-hash: 37f00f3875e100c2f464895016196082fabe05df125fd5a76234dd0fcb344049

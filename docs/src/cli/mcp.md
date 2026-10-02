@@ -50,6 +50,19 @@ unknown key or feature, an unmet dependency) aborts startup with a
 `disable_cohort_scan` skips the startup scan as if `--no-cohort-scan`
 were passed.
 
+The stderr startup notice reports the EFFECTIVE settings, so a profile
+that turned the scan off reads `cohort-scan: false` even without the
+flag, and a loaded profile is named by its `profile` label
+(`(unnamed)` when it has none):
+
+```
+pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: false, feature-profile: self-serve)
+```
+
+Embedders get the same effective view from
+`mcpserve.Describe(p, opts)`, which returns a `mcpserve.ServeInfo`
+(`CohortScan`, `FeatureProfileLoaded`, `FeatureProfile`).
+
 ## --bind-on-open
 
 When a session calls `pulse_inspect` successfully, the server can
@@ -151,7 +164,7 @@ serving, an MCP client controls the lifecycle.
 
 ```bash
 PULSE_DATA_DIR=/tmp/pulse-data ./bin/pulse mcp
-# Stderr: pulse mcp: serving over stdio (data dir: /tmp/pulse-data, bind-on-open: true)
+# Stderr: pulse mcp: serving over stdio (data dir: /tmp/pulse-data, bind-on-open: true, cohort-scan: true)
 ```
 
 ### Disable schema binding

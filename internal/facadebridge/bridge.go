@@ -18,3 +18,9 @@ var ExtensionsSnapshot func(p any) *descx.ExtensionsSnapshot
 // it into its own Config.DisableCohortScan. Anything other than a
 // *pulse.Pulse returns false. Installed by the root package's init.
 var CohortScanDisabled func(p any) bool
+
+// FeatureProfileName reports whether a *pulse.Pulse was built with a
+// feature profile and, if so, the profile's free-form "profile" label
+// (empty when the profile carries none). Anything other than a
+// *pulse.Pulse returns ("", false). Installed by the root package's init.
+var FeatureProfileName func(p any) (name string, loaded bool)

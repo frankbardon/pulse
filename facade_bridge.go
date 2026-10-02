@@ -23,4 +23,11 @@ func init() {
 		}
 		return p.featureProfile.Behaviour.DisableCohortScan
 	}
+	facadebridge.FeatureProfileName = func(v any) (string, bool) {
+		p, ok := v.(*Pulse)
+		if !ok || p == nil || p.featureProfile == nil {
+			return "", false
+		}
+		return p.featureProfile.Profile, true
+	}
 }
