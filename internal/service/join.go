@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -18,59 +19,11 @@ import (
 // shards on the join leg. See skills/join-design.md for the v1
 // scope envelope.
 func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*types.Response, error) {
-	// Process applied descx.JoinCountRefusal before dispatching here.
-	spec := req.Joins[0]
-	if spec == nil {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
-	}
-	if len(spec.On) == 0 {
-		return nil, errors.NewCodedError(errors.PULSE_JOIN_KEYS_EMPTY,
-			"JoinSpec.On is empty; at least one OnPair is required")
-	}
-
-	leftPath := resolveCohortPath(req.Cohort)
-	leftCohort, err := s.Open(ctx, leftPath)
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	rightCohort, err := s.Open(ctx, spec.Right)
-	if err != nil {
-		return nil, err
-	}
-
-	// Materialise the right side as a slice. v1 does not spill; the
-	// memory cost is O(right_record_count × per_record_state). Tests
-	// and skills call this out.
-	rightIter := s.newScanIter(rightCohort, spec.Right)
-	defer rightIter.Close()
-	var rightRecords []*processing.Record
-	for rightIter.Next() {
-		// Copy values so the slice survives iterator reuse.
-		src := rightIter.Record()
-		values := make(map[string]float64, len(src.Schema().Fields))
-		nulls := make(map[string]bool)
-		wide := make(map[string]any)
-		for _, f := range src.Schema().Fields {
-			if v, ok := src.NumericValue(f.Name); ok {
-				values[f.Name] = v
-			}
-			if w, ok := src.WideValue(f.Name); ok {
-				wide[f.Name] = w
-			}
-		}
-		rightRecords = append(rightRecords, processing.NewRecordWithWide(src.Schema(), values, nulls, wide))
-	}
-	if rightIter.Err() != nil {
-		return nil, rightIter.Err()
-	}
-
-	leftIter := s.newScanIter(leftCohort, leftPath)
 	defer leftIter.Close()
-
-	join, joinedSchema, err := processing.NewHashJoinIterator(leftIter, rightRecords, leftCohort.Schema(), rightCohort.Schema(), spec)
-	if err != nil {
-		return nil, err
-	}
 
 	// Strip Joins from the spec passed to the processor so the
 	// processor's standard pipeline runs against the joined records
@@ -101,4 +54,69 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 	return resp, nil
+}
+
+// openJoinStream builds the joined row stream for a Request carrying
+// exactly one JoinSpec: the right side is opened and fully decoded into
+// a slice of Records, hashed by the join-key tuple, and the left side
+// is wrapped in a HashJoinIterator. It is shared by processWithJoin and
+// the crosstab arm (processCrosstabWithJoin) so both read the identical
+// joined stream. The returned left scan iterator is the one the join
+// wraps: the caller owns it (Close, and Err after draining) whenever
+// err is nil.
+//
+// Process applied descx.JoinCountRefusal before either caller runs.
+func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
+	spec := req.Joins[0]
+	if spec == nil {
+		return nil, nil, "", nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
+	}
+	if len(spec.On) == 0 {
+		return nil, nil, "", nil, errors.NewCodedError(errors.PULSE_JOIN_KEYS_EMPTY,
+			"JoinSpec.On is empty; at least one OnPair is required")
+	}
+
+	leftPath := resolveCohortPath(req.Cohort)
+	leftCohort, err := s.Open(ctx, leftPath)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+	rightCohort, err := s.Open(ctx, spec.Right)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+
+	// Materialise the right side as a slice. v1 does not spill; the
+	// memory cost is O(right_record_count × per_record_state). Tests
+	// and skills call this out.
+	rightIter := s.newScanIter(rightCohort, spec.Right)
+	defer rightIter.Close()
+	var rightRecords []*processing.Record
+	for rightIter.Next() {
+		// Copy values so the slice survives iterator reuse.
+		src := rightIter.Record()
+		values := make(map[string]float64, len(src.Schema().Fields))
+		nulls := make(map[string]bool)
+		wide := make(map[string]any)
+		for _, f := range src.Schema().Fields {
+			if v, ok := src.NumericValue(f.Name); ok {
+				values[f.Name] = v
+			}
+			if w, ok := src.WideValue(f.Name); ok {
+				wide[f.Name] = w
+			}
+		}
+		rightRecords = append(rightRecords, processing.NewRecordWithWide(src.Schema(), values, nulls, wide))
+	}
+	if rightIter.Err() != nil {
+		return nil, nil, "", nil, rightIter.Err()
+	}
+
+	leftIter := s.newScanIter(leftCohort, leftPath)
+	join, joinedSchema, err := processing.NewHashJoinIterator(leftIter, rightRecords, leftCohort.Schema(), rightCohort.Schema(), spec)
+	if err != nil {
+		_ = leftIter.Close()
+		return nil, nil, "", nil, err
+	}
+	return join, joinedSchema, leftPath, leftIter, nil
 }

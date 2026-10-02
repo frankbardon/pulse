@@ -42,6 +42,7 @@ The joined schema is `left_fields + right_fields` (with `as` prefix on right). A
 - **Inner only.** `PULSE_JOIN_KIND_NOT_IMPLEMENTED` for `"left"` / `"outer"` / `"anti"`. Outer-join correctness depends on the null-bitmap path being fully wired through every right-side field.
 - **No spill.** Right materialises fully in RAM. Memory cost `O(right_records × per_record_state)`. Future iteration adds `PULSE_JOIN_SPILL_DIR` + `PULSE_JOIN_MAX_MEMORY_BYTES` + a partition-then-build-per-partition algorithm.
 - **No smarter-side detection.** Build is always `right`. Follow-up swaps when `count(right) > count(left)` via `pulse.CountRecords`.
+- **Crosstab honours the join.** `Request.Crosstab` crosstabs the JOINED rows — axes / cell may name `as`-prefixed fields, unmatched left rows reach no cell or margin — always buffered (the fused walk declines joins).
 - **No shard-parallel join.** When the left cohort is a shard archive, the per-shard parallel reducer does not engage on joined requests today.
 
 ## OnPair key type compatibility
@@ -58,11 +59,9 @@ Rejects:
 - `decimal128` ↔ any other type — precision/scale matter for hash bucketing.
 - `categorical_*` ↔ a non-categorical numeric type.
 
-`decimal128` keys compare on their **exact 128-bit mantissa bytes**, not the `Float64(scale)` echo — otherwise two decimals closer than float64's spacing share a key. Safe to special-case: `decimal128` is admitted only against `decimal128`.
-
 Mismatches surface `PULSE_JOIN_TYPE_MISMATCH` with the offending field names + types in `details`; a set-key rejection adds `details.reason = "set_key"` and its own sentence, since "not compatible" reads as a typo when both sides carry the same rung. Fix by re-importing one side with a matching type.
 
-**Known limit:** a `u64` key above 2^53 rides that same `float64` echo, so two ids rounding to one float join as equal. Unfixed — it needs the whole unsigned-int/float/date family renormalised together.
+`decimal128` keys compare on their exact mantissa; a `u64` key above 2^53 is a known float-echo limit — both in `.claude/reference/execution-modes.md` (Pushdown hash join).
 
 ## Field collisions and `As` prefix
 
