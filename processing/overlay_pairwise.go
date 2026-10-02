@@ -24,35 +24,112 @@ import (
 // emits RAW p-values only; direction, thresholds, and min-n flags are the
 // embedder's presentation concern.
 //
-// All four kinds reuse the shared harness below; only the per-pair Compute
-// kernel and the input shape (proportion + n vs Welford triple) differ.
+// All five kinds reuse the shared harness below; only the per-pair Compute
+// kernel and the input shape (proportion + n, Welford triple, or
+// weighted moments) differ.
 
 // applyPairwisePropZ / ...ProbitT / ...WelchT / ...TwoMeansZ are the
 // dispatch entry points registered in overlayHandlers. Each pins the kind
 // and delegates to the shared runner.
 func applyPairwisePropZ(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
-	return runPairwiseOverlay(spec, host, pairwisePropZKernel, false)
+	return runPairwiseOverlay(spec, host, pairwisePropZKernel, pwShapeProportion)
 }
 
 func applyPairwiseProbitT(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
-	return runPairwiseOverlay(spec, host, pairwiseProbitTKernel, false)
+	return runPairwiseOverlay(spec, host, pairwiseProbitTKernel, pwShapeProportion)
 }
 
 func applyPairwiseWelchT(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
-	return runPairwiseOverlay(spec, host, pairwiseWelchTKernel, true)
+	return runPairwiseOverlay(spec, host, pairwiseWelchTKernel, pwShapeWelford)
 }
 
 func applyPairwiseTwoMeansZ(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
-	return runPairwiseOverlay(spec, host, pairwiseTwoMeansZKernel, true)
+	return runPairwiseOverlay(spec, host, pairwiseTwoMeansZKernel, pwShapeWelford)
 }
 
+// applyPairwiseWeightedTwoMeansZ refuses the request-shape faults up
+// front — n_basis missing or unknown, n_source / p_source present — then
+// runs the shared harness over the AGG_WEIGHTED_MEAN moments with the
+// kernel bound to the chosen n_basis.
+//
+// The n_source / p_source refusal is a hard RUNTIME refusal here, unlike
+// the Welford siblings (predict-only, so no previously-succeeding request
+// starts failing): this kind is new, so refusing breaks no caller, and a
+// selector that is silently inert is the failure the refusal exists to
+// remove.
+func applyPairwiseWeightedTwoMeansZ(spec *types.OverlaySpec, host *CrosstabHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+	params, err := types.DecodePairwiseParams(spec.Params)
+	if err != nil {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING,
+			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
+			map[string]any{"kind": string(spec.Kind)})
+	}
+	if err := checkWeightedTwoMeansZParams(spec, params); err != nil {
+		return types.OverlayLayer{}, nil, err
+	}
+	return runPairwiseOverlay(spec, host, pairwiseWeightedTwoMeansZKernel(params.NBasis), pwShapeWeighted)
+}
+
+// checkWeightedTwoMeansZParams is the runtime param contract of
+// OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z. Every refusal carries
+// PULSE_OVERLAY_PARAM_MISSING, the code the Welford siblings use for an
+// inert or unknown selector.
+func checkWeightedTwoMeansZParams(spec *types.OverlaySpec, params types.PairwiseOverlayParams) error {
+	const inertReason = "mean, variance and sample size all come from the AGG_WEIGHTED_MEAN moments " +
+		"{weighted_mean, m2_weighted, sum_weights, sum_weights_sq} under n_basis, so the selector is inert on this kind"
+	if params.NSource != "" {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING,
+			"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+inertReason+
+				". Remove n_source and choose the sample-size convention with n_basis",
+			map[string]any{"kind": string(spec.Kind), "param": "n_source", "n_source": params.NSource})
+	}
+	if params.PSource != "" {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING,
+			"overlay "+string(spec.Kind)+" does not accept p_source ("+params.PSource+"): "+inertReason+
+				". Remove p_source",
+			map[string]any{"kind": string(spec.Kind), "param": "p_source", "p_source": params.PSource})
+	}
+	if !types.ValidPairwiseNBasis(params.NBasis) {
+		msg := "overlay " + string(spec.Kind) + " requires params.n_basis (\"" + types.PairwiseNBasisWeights +
+			"\" or \"" + types.PairwiseNBasisKish + "\"); there is no default"
+		if params.NBasis != "" {
+			msg = "overlay " + string(spec.Kind) + " has unknown n_basis: " + params.NBasis +
+				" (supports: " + types.PairwiseNBasisWeights + ", " + types.PairwiseNBasisKish + ")"
+		}
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+			map[string]any{"kind": string(spec.Kind), "param": "n_basis", "n_basis": params.NBasis,
+				"supported": []string{types.PairwiseNBasisWeights, types.PairwiseNBasisKish}})
+	}
+	return nil
+}
+
+// pwShape names a pairwise kind's per-leg input shape: what the shape
+// gate checks for and what extractPairInputs reads.
+type pwShape int
+
+const (
+	// pwShapeProportion: a proportion leg (p_source) + an n leg (n_source).
+	pwShapeProportion pwShape = iota
+	// pwShapeWelford: the AGG_WELFORD triple {mean, variance, n}.
+	pwShapeWelford
+	// pwShapeWeighted: the AGG_WEIGHTED_MEAN moments {weighted_mean,
+	// m2_weighted, sum_weights, sum_weights_sq}.
+	pwShapeWeighted
+)
+
 // pwInputs carries one pair's two legs. Proportion kinds populate p1/p2 +
-// n1/n2 (m/v are NaN); Welford kinds populate m/v/n (p is NaN).
+// n1/n2 (m/v are NaN); Welford kinds populate m/v/n (p is NaN); the
+// weighted kind populates w1/w2 only.
 type pwInputs struct {
 	p1, p2 float64
 	m1, m2 float64
 	v1, v2 float64
 	n1, n2 int
+	w1, w2 weightedMoments
 }
 
 // pwKernel computes one pair's two-sided p-value. ok=false with a reason
@@ -67,7 +144,7 @@ type pairwisePair struct {
 	labelI, labelJ string
 }
 
-func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel pwKernel, welford bool) (types.OverlayLayer, []types.OverlayWarning, error) {
+func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel pwKernel, shape pwShape) (types.OverlayLayer, []types.OverlayWarning, error) {
 	params, err := types.DecodePairwiseParams(spec.Params)
 	if err != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
@@ -85,10 +162,20 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			map[string]any{"kind": string(spec.Kind)})
 	}
 	// Welford-input kinds need {mean, variance, n} on at least one cell.
-	if welford && !host.HasWelfordCells() {
+	if shape == pwShapeWelford && !host.HasWelfordCells() {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires AGG_WELFORD cells (Welford triple on CellComponents); host matrix has none",
+			map[string]any{"kind": string(spec.Kind)})
+	}
+	// The weighted kind needs the AGG_WEIGHTED_MEAN moments on at least
+	// one cell. An AGG_WELFORD triple does not qualify: its variance is
+	// unweighted and its n is a record count.
+	if shape == pwShapeWeighted && !host.HasWeightedMomentCells() {
+		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+			"overlay "+string(spec.Kind)+" requires AGG_WEIGHTED_MEAN cells (weighted moments "+
+				"{weighted_mean, m2_weighted, sum_weights, sum_weights_sq} on CellComponents); host matrix has none",
 			map[string]any{"kind": string(spec.Kind)})
 	}
 
@@ -191,7 +278,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 		for o := 0; o < oppCount; o++ {
 			r1, c1 := pairwiseLegCoord(rowScope, pairs[p].i, o)
 			r2, c2 := pairwiseLegCoord(rowScope, pairs[p].j, o)
-			in, ok := extractPairInputs(host, params, welford, rowScope, r1, c1, r2, c2)
+			in, ok := extractPairInputs(host, params, shape, rowScope, r1, c1, r2, c2)
 			if !ok {
 				tally.add("ORBIT_STATS_SKIP_EXTRACT_FAILED", o)
 				continue
@@ -313,8 +400,18 @@ func pairwiseLegCoord(rowScope bool, pairIdx, oppIdx int) (row, col int) {
 // extractPairInputs reads both legs' inputs for a pair at a fixed
 // opposite-axis coordinate. Returns ok=false when either leg is
 // unreadable (missing cell / components).
-func extractPairInputs(host *CrosstabHostView, params types.PairwiseOverlayParams, welford, rowScope bool, r1, c1, r2, c2 int) (pwInputs, bool) {
-	if welford {
+func extractPairInputs(host *CrosstabHostView, params types.PairwiseOverlayParams, shape pwShape, rowScope bool, r1, c1, r2, c2 int) (pwInputs, bool) {
+	if shape == pwShapeWeighted {
+		w1, ok1 := host.WeightedMoments(r1, c1)
+		w2, ok2 := host.WeightedMoments(r2, c2)
+		if !ok1 || !ok2 {
+			return pwInputs{}, false
+		}
+		return pwInputs{w1: w1, w2: w2,
+			p1: math.NaN(), p2: math.NaN(), m1: math.NaN(), m2: math.NaN(),
+			v1: math.NaN(), v2: math.NaN()}, true
+	}
+	if shape == pwShapeWelford {
 		m1, v1, n1, ok1 := host.WelfordTriple(r1, c1)
 		m2, v2, n2, ok2 := host.WelfordTriple(r2, c2)
 		if !ok1 || !ok2 {
@@ -602,6 +699,74 @@ func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
 	z := (in.m1 - in.m2) / se
 	pv := 2 * standardNormalCDF(-math.Abs(z))
 	return pv, "", true
+}
+
+// pairwiseWeightedTwoMeansZKernel returns the two-means z-test kernel on
+// AGG_WEIGHTED_MEAN moments under nBasis (already validated):
+//
+//	z = (m_i − m_j) / sqrt(var_i/n_i + var_j/n_j),  p = 2·Φ(−|z|)
+//
+// with var and n per weightedLegVarianceOverN. A leg whose convention is
+// undefined skips the pair-cell as ORBIT_STATS_SKIP_N_TOO_SMALL; a pair
+// whose legs both have zero spread skips as ORBIT_STATS_SKIP_SE_ZERO.
+// Both fold into the shared PULSE_OVERLAY_REF_ZERO tally.
+func pairwiseWeightedTwoMeansZKernel(nBasis string) pwKernel {
+	return func(in pwInputs) (float64, string, bool) {
+		a, ok := weightedLegVarianceOverN(nBasis, in.w1)
+		if !ok {
+			return 0, "ORBIT_STATS_SKIP_N_TOO_SMALL", false
+		}
+		b, ok := weightedLegVarianceOverN(nBasis, in.w2)
+		if !ok {
+			return 0, "ORBIT_STATS_SKIP_N_TOO_SMALL", false
+		}
+		if !(a+b > 0) {
+			return 0, "ORBIT_STATS_SKIP_SE_ZERO", false
+		}
+		se := math.Sqrt(a + b)
+		z := (in.w1.mean - in.w2.mean) / se
+		pv := 2 * standardNormalCDF(-math.Abs(z))
+		if math.IsNaN(pv) {
+			return 0, "ORBIT_STATS_SKIP_PVALUE_NAN", false
+		}
+		return pv, "", true
+	}
+}
+
+// weightedLegVarianceOverN returns one leg's var/n under nBasis:
+//
+//	weights: var = m2/(Σw − 1),      n = Σw        — undefined when Σw ≤ 1
+//	kish:    var = m2/(Σw − Σw²/Σw), n = (Σw)²/Σw² — undefined when
+//	         Σw ≤ 0 or Σw − Σw²/Σw ≤ 0 (all weight on one row)
+//
+// The kish test reads the raw moments directly rather than the emitted
+// n_eff component: n_eff is 1 for a single row, which is a legal base but
+// an undefined variance.
+func weightedLegVarianceOverN(nBasis string, w weightedMoments) (float64, bool) {
+	switch nBasis {
+	case types.PairwiseNBasisWeights:
+		if !(w.sumW > 1) {
+			return 0, false
+		}
+		return (w.m2 / (w.sumW - 1)) / w.sumW, true
+	case types.PairwiseNBasisKish:
+		if !(w.sumW > 0) || !(w.sumWSq > 0) {
+			return 0, false
+		}
+		// Σw − Σw²/Σw computed as ((Σw)² − Σw²)/Σw. The explicit
+		// float64 conversion forbids fusing the square into an FMA, so a
+		// single-row cell — whose Σw² was accumulated as the same rounded
+		// w·w — yields an exact zero on every architecture and skips,
+		// rather than a rounding-residue denominator that admits it.
+		excess := float64(w.sumW*w.sumW) - w.sumWSq
+		if !(excess > 0) {
+			return 0, false
+		}
+		denom := excess / w.sumW
+		nEff := w.sumW * w.sumW / w.sumWSq
+		return (w.m2 / denom) / nEff, true
+	}
+	return 0, false
 }
 
 func clipUnit(x, lo, hi float64) float64 {

@@ -89,6 +89,8 @@ func TestPredict_OverlaysApplied_AllE2Kinds(t *testing.T) {
 		{Name: "pairwise_probit_t", Kind: types.OverlayKindPairwiseProbitT, Scope: types.OverlayScopeRow},
 		{Name: "pairwise_prop_z", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeRow},
 		{Name: "pairwise_two_means_z", Kind: types.OverlayKindPairwiseTwoMeansZ, Scope: types.OverlayScopeRow},
+		{Name: "pairwise_weighted_two_means_z", Kind: types.OverlayKindPairwiseWeightedTwoMeansZ, Scope: types.OverlayScopeRow,
+			Params: json.RawMessage(`{"n_basis":"weights"}`)},
 		{Name: "pairwise_welch_t", Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeRow},
 	}
 
@@ -529,6 +531,12 @@ func TestPredict_OverlayCost_E2KindsBufferedDefault(t *testing.T) {
 			Kind:  types.OverlayKindPairwiseTwoMeansZ,
 			Scope: types.OverlayScopeRow,
 		},
+		types.OverlayKindPairwiseWeightedTwoMeansZ: {
+			Name:   "pairwise_weighted_two_means_z",
+			Kind:   types.OverlayKindPairwiseWeightedTwoMeansZ,
+			Scope:  types.OverlayScopeRow,
+			Params: json.RawMessage(`{"n_basis":"weights"}`),
+		},
 		types.OverlayKindPairwiseWelchT: {
 			Name:  "pairwise_welch_t",
 			Kind:  types.OverlayKindPairwiseWelchT,
@@ -744,6 +752,12 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 			Name:  "pairwise_two_means_z",
 			Kind:  types.OverlayKindPairwiseTwoMeansZ,
 			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwiseWeightedTwoMeansZ: {
+			Name:   "pairwise_weighted_two_means_z",
+			Kind:   types.OverlayKindPairwiseWeightedTwoMeansZ,
+			Scope:  types.OverlayScopeRow,
+			Params: json.RawMessage(`{"n_basis":"weights"}`),
 		},
 		types.OverlayKindPairwiseWelchT: {
 			Name:  "pairwise_welch_t",
@@ -1202,6 +1216,12 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 			Name:  "pairwise_two_means_z",
 			Kind:  types.OverlayKindPairwiseTwoMeansZ,
 			Scope: types.OverlayScopeRow,
+		},
+		types.OverlayKindPairwiseWeightedTwoMeansZ: {
+			Name:   "pairwise_weighted_two_means_z",
+			Kind:   types.OverlayKindPairwiseWeightedTwoMeansZ,
+			Scope:  types.OverlayScopeRow,
+			Params: json.RawMessage(`{"n_basis":"weights"}`),
 		},
 		types.OverlayKindPairwiseWelchT: {
 			Name:  "pairwise_welch_t",
