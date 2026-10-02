@@ -31,8 +31,10 @@ before profiles existed.
 >
 > Library methods are **not** gated: `p.Process`, `p.Compose`, `p.Facet`,
 > `p.Lookup`, `p.Import` and the rest stay callable on every instance. A
-> profile hides names and slots, not methods. MCP registration and the
-> served skills and examples follow in later v1.0.0 pre-releases.
+> profile hides names and slots, not methods. The MCP server registers
+> only the tools, prompts and cohort listing the profile offers (see
+> below); the served skills and examples follow in a later v1.0.0
+> pre-release.
 
 The name is "feature profile" because "profile" already means synthetic
 data profiling (`Pulse.Profile`, `pulse profile create`).
@@ -300,6 +302,18 @@ the working directory, and never resolved under `--data-dir`. An invalid
 profile fails startup. Every other `pulse` command ignores the variable,
 because the CLI is an admin tool and is not profiled.
 
+The server mounts only what the profile offers. A tool tied to a
+feature (`pulse_process` to `capability:process`, `pulse_facet` to
+`capability:facet`, and so on) is registered only when that feature is
+listed; the discovery tools (`pulse_inspect`, `pulse_predict`,
+`pulse_manifest`, the skills, examples and errors lookups) are always
+there. Calling a tool the profile hides fails exactly like calling one
+that does not exist. Each prompt needs its own `mcp_extra:prompt_*`
+feature. Without `mcp_extra:cohort_resources` the server skips the
+startup walk and does not list cohorts under `resources/list`, as if
+`--no-cohort-scan` were set; every cohort stays readable by its
+`pulse://` URI.
+
 Embedders serving MCP themselves use `mcpserve.NewPulse`:
 
 ```go
@@ -320,7 +334,8 @@ Setting the field and a `pulse.Options` profile together is
 `FeatureProfileFile`: a profile is applied when the instance is built.
 
 `mcpserve.Describe(p, opts)` returns the effective serving settings: the
-cohort-scan setting after the profile's `disable_cohort_scan`, and the
+cohort-scan setting after the profile's `disable_cohort_scan` and
+`mcp_extra:cohort_resources`, and the
 loaded profile's label. The `pulse mcp` startup line prints the same
 thing:
 

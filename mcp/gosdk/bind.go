@@ -71,6 +71,7 @@ func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *enco
 		return err
 	}
 	handlers := boundHandlersFor(p, cfg)
+	inst := instanceOf(p)
 	for _, entry := range []struct {
 		name        string
 		description string
@@ -86,6 +87,10 @@ func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *enco
 	} {
 		raw, ok := schemas[entry.name]
 		if !ok || entry.handler == nil {
+			continue
+		}
+		// A rebind must never resurrect a tool the instance hides.
+		if !toolEnabled(inst, entry.name) {
 			continue
 		}
 		s.AddTool(&mcpsdk.Tool{

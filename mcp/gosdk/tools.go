@@ -18,9 +18,11 @@ var (
 	errNilPulse  = errors.New("gosdk: Register requires a non-nil *pulse.Pulse")
 )
 
-// RegisteredTools returns the canonical list of MCP tool names this adapter
-// mounts. Order is stable for deterministic documentation scans. Mirrors
-// internal/mcp/toolmeta.Names().
+// RegisteredTools returns the global canonical list of MCP tool names this
+// adapter can mount. It describes the build, not an instance: a feature
+// profile on the *pulse.Pulse passed to Register mounts only the subset it
+// offers, and this list does not shrink. Order is stable for deterministic
+// documentation scans. Mirrors internal/mcp/toolmeta.Names().
 func RegisteredTools() []string {
 	return toolmeta.Names()
 }
@@ -36,8 +38,14 @@ func RegisteredTools() []string {
 // The generic AddTool[In,Out] reflection path is deliberately avoided; it
 // panics on the recursive request types (Crosstab / overlay nesting). The
 // low-level Server.AddTool path accepts the json.RawMessage schema directly.
+//
+// A tool whose binding is a feature the instance does not offer is skipped.
 func registerTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
+	inst := instanceOf(p)
 	for _, d := range core.Tools(cfg.coreConfig()) {
+		if !toolEnabled(inst, d.Name) {
+			continue
+		}
 		s.AddTool(
 			&mcpsdk.Tool{
 				Name:        d.Name,

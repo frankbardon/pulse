@@ -29,7 +29,7 @@ Four kinds (`descriptor.AllFeatureKinds()` in `internal/descriptor/features.go`)
 - **Not features** (`TestFeatures_NonFeaturesAbsent`): synth distributions (`capability:synth` gates every one; an extension `SYNTH_*` name never resolves), field types (a cohort's schema is data), named tables, expr functions, and the behaviour switches.
 - **Extension operators ARE features** (seven categories: aggregator, attribute, filterer, grouper, window, feature, test) but are not table rows and carry no `Since`. The resolvable universe is the table plus the instance's registered extension operators.
 - **Core surfaces are always present and are NOT features**: `open`, `inspect`, `predict`, `count_records`, `manifest`, `payload_schema`, `skills`, `examples`, `errors_lookup`, `cohort_artifacts` (`coreSurfaces`). Listing one, bare or kind-prefixed, is `PULSE_FEATURE_PROFILE_UNKNOWN` reason `core_surface`.
-- **MCP tool bindings** (`mcpToolBindings`) map every tool to exactly one feature or core surface. Data only at U04; U06's registration filter consumes it.
+- **MCP tool bindings** (`mcpToolBindings`) map every tool to exactly one feature or core surface. `gosdk.Register` consumes it (`mcp/gosdk/scope.go`): a core-bound tool always mounts, a feature-bound one iff the instance enables the feature, so a hidden tool is never registered and calling it fails byte-identically to a nonexistent name. Prompts mount iff their `mcp_extra:prompt_*` feature is enabled (`mcpPromptFeatures`). `gosdk.RegisteredTools()` / `RegisteredPrompts()` stay the GLOBAL canonical lists.
 - The table is internal on purpose: no public struct gained a field, so the manifest and public API goldens did not move for it.
 
 ## `Since`
@@ -59,7 +59,7 @@ Every row carries the release (major.minor.patch) that introduced it. Every buil
 
 `pulse.FeatureProfile` mirrors the JSON file key for key: `profile` (free label), `written_with` (stored as-is, never validated), `features` (REQUIRED), `behaviour` (optional). Decode is strict (`DisallowUnknownFields`, trailing data refused): every other key — including the reserved `limits` (U19) and `return` (U17) — is refused. **A nil `Features` is invalid**; a Go embedder writes `[]string{}` for an empty profile, which is valid and offers no optional feature.
 
-**Behaviour** switches OR into `Options`: `disable_defaults`, `disable_components`, `disable_projection` (also forces the deprecated `ProjectBufferedFields` off), `disable_cohort_scan`. A profile can turn a switch on; `Options` cannot turn it back off. `disable_cohort_scan` does nothing to the engine — `gosdk.Register` ORs it into `Config.DisableCohortScan` through the `internal/facadebridge.CohortScanDisabled` hook.
+**Behaviour** switches OR into `Options`: `disable_defaults`, `disable_components`, `disable_projection` (also forces the deprecated `ProjectBufferedFields` off), `disable_cohort_scan`. A profile can turn a switch on; `Options` cannot turn it back off. `disable_cohort_scan` does nothing to the engine — `gosdk.Register` ORs it into `Config.DisableCohortScan` through the `internal/facadebridge.CohortScanDisabled` hook. A profile that omits `mcp_extra:cohort_resources` takes the same path (the instance snapshot reaches the adapter through `facadebridge.InstanceSnapshot`): no startup walk, no `pulse://` enumeration, the template still registered so cohorts stay readable by URI; `mcpserve.Describe` folds both.
 
 **Sources.** `Options.FeatureProfile` (Go value, copied) XOR `Options.FeatureProfileFile` (read through the INSTANCE afero Fs, so relative to `Options.FS` / `DataDir`). Both set → `INVALID` `both_options_set`. `pulse.ParseFeatureProfile([]byte)` is the same strict decode, decode-only — names and dependencies are checked when the value reaches `pulse.New`, and those errors carry no `path` detail.
 
@@ -155,9 +155,9 @@ Three classes, run in order; validation **stops at the first failing class and r
 
 **Deferred to U06 (MCP and tooling; inherited interim leaks).**
 
-- **`BindOnInspect` rebinds tools by name** (`internal/mcp/bind.go` `mergeEnumNames`, `buildRequestSchemaWithExtensions`), bypassing any registration-time filter — U06 must filter the rebind too.
+- **`BindOnInspect` rebinds tools by name** (`internal/mcp/bind.go` `mergeEnumNames`, `buildRequestSchemaWithExtensions`), bypassing any registration-time filter. The rebind now skips a tool the instance hides (`bindSessionTools`); the rebound ENUMS are still unscoped.
 - **`toolmeta` descriptions name operators in prose** (`internal/mcp/toolmeta/meta.go`); filtering enums alone leaves hidden names in tool text.
-- **Prompts and skill resources take no `*Pulse`** (`registerPrompts`, `registerSkillResources` in `mcp/gosdk`); instance-scoping needs the instance threaded in. (`registerSchemaResource` already takes it — landed in U05.)
+- **Prompts and skill resources take the `*Pulse`** (`registerPrompts`, `registerSkillResources` in `mcp/gosdk`). Prompts are filtered; skill resources route the enumeration AND the reader through one seam, `skillVisible` (`mcp/gosdk/scope.go`), which still exposes every skill until the skill prune lands. (`registerSchemaResource` took it in U05.)
 - `SeriesOverlayRequest.Overlays` is method-level and ungated (by design: methods are ungated); `synth_fidelity.go` builds an unscoped processor for internal `TEST_KS` / `TEST_CHISQ` (audited, left).
 - Pre-existing, unrelated: a second `Request.Groups` entry with an unknown type is silently ignored; the manifest's inner `format_version` is `"1.0"`.
 - A manifest sentence about an enabled operator that also names a hidden one is dropped by the prose scrub (documented price).

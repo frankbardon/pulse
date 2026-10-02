@@ -3,6 +3,7 @@ package gosdk
 import (
 	"context"
 
+	"github.com/frankbardon/pulse"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -30,12 +31,20 @@ const promptRoleUser mcpsdk.Role = "user"
 // caller-supplied server. The bootstrap prompt is the primary signal we use
 // to steer remote LLM clients away from inferring request shapes from external
 // documentation or source code — and toward the manifest + example library.
-func registerPrompts(s *mcpsdk.Server) {
-	s.AddPrompt(&mcpsdk.Prompt{
-		Name:        PromptBootstrap,
-		Description: DescPromptBootstrap,
-	}, bootstrapPromptHandler)
+// A prompt whose mcp_extra:prompt_* feature the instance does not offer is
+// not registered.
+func registerPrompts(s *mcpsdk.Server, p *pulse.Pulse) {
+	inst := instanceOf(p)
+	if promptEnabled(inst, PromptBootstrap) {
+		s.AddPrompt(&mcpsdk.Prompt{
+			Name:        PromptBootstrap,
+			Description: DescPromptBootstrap,
+		}, bootstrapPromptHandler)
+	}
 
+	if !promptEnabled(inst, PromptAuthorRequest) {
+		return
+	}
 	s.AddPrompt(&mcpsdk.Prompt{
 		Name:        PromptAuthorRequest,
 		Description: DescPromptAuthorRequest,
@@ -108,8 +117,10 @@ func authorRequestPromptHandler(_ context.Context, req *mcpsdk.GetPromptRequest)
 	}, nil
 }
 
-// RegisteredPrompts returns the canonical list of prompt names Register
-// mounts. Stable order. Used by tests + manifest aggregation.
+// RegisteredPrompts returns the global canonical list of prompt names
+// Register can mount. It describes the build, not an instance: a feature
+// profile mounts only the prompts it offers, and this list does not
+// shrink. Stable order. Used by tests + manifest aggregation.
 func RegisteredPrompts() []string {
 	return []string{
 		PromptBootstrap,
