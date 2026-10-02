@@ -218,8 +218,10 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		// smart default resolves later) or an extension type defers to
 		// runtime: an extension may emit the moment keys, and runtime
 		// gates on the keys, not the type name.
+		// A cell type the instance hides is judged as a never-registered
+		// (non-built-in) name.
 		if cell := req.Crosstab.Cell; cell != nil && cell.Type != "" &&
-			cell.Type != types.AGG_WEIGHTED_MEAN && isBuiltinAggregationType(cell.Type) {
+			cell.Type != types.AGG_WEIGHTED_MEAN && isBuiltinAggregationType(opRoute(opts.instance(), cell.Type)) {
 			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"overlay "+string(spec.Kind)+" requires an AGG_WEIGHTED_MEAN cell (it reads the weighted moments off Response.Components); the crosstab cell is "+string(cell.Type),
 				map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(cell.Type),
@@ -670,7 +672,7 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		spec := &req.Overlays[i]
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
-		validateOverlayBaselineIndexPredict(env, req, spec, schema, i)
+		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
 	}
 }
 
@@ -720,7 +722,7 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 //     no shipping kind consumes those). The gate skips when
 //     `req.Crosstab` is set so a future MATRIX-host kind landing on a
 //     different Ref arm does not collide with the SERIES check.
-func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, index int) {
+func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, inst *InstanceSnapshot, index int) {
 	if spec == nil || spec.Ref.BaselineIndex == nil {
 		return
 	}
@@ -734,7 +736,7 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 	ref := spec.Ref.BaselineIndex
 	// Compute the predicted series length upper bound. -1 means "not
 	// derivable from schema; defer the range check to runtime".
-	predictedLength := overlayBaselineIndexPredictedSeriesLength(req, schema)
+	predictedLength := overlayBaselineIndexPredictedSeriesLength(req, schema, inst)
 	if ref.Position < 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			"overlay "+string(spec.Kind)+" baseline-index position must be non-negative",
@@ -778,8 +780,9 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 // caller-supplied bin width, so the gate defers to runtime for those.
 // Multi-grouper hosts multiply per-axis dict counts (cartesian upper
 // bound); a single non-categorical grouper anywhere in the list yields
-// -1 (the cartesian is non-computable).
-func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encoding.Schema) int {
+// -1 (the cartesian is non-computable). A grouper inst hides counts as
+// a non-categorical (never-registered) one.
+func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) int {
 	if req == nil || schema == nil {
 		return -1
 	}
@@ -791,7 +794,7 @@ func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encod
 		if g == nil {
 			return -1
 		}
-		if g.Type != types.GROUP_CATEGORY {
+		if opRoute(inst, g.Type) != types.GROUP_CATEGORY {
 			return -1
 		}
 		f := schema.Field(g.Field)
@@ -1223,13 +1226,13 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 				"host":  "request",
 			})
 	case types.OverlayKindTCell:
-		validateOverlayTCell(env, req, spec, index)
+		validateOverlayTCell(env, req, spec, opts.instance(), index)
 	case types.OverlayKindTVsRef:
-		validateOverlayTVsRef(env, req, spec, index)
+		validateOverlayTVsRef(env, req, spec, opts.instance(), index)
 	case types.OverlayKindZCell:
-		validateOverlayZCell(env, req, spec, index)
+		validateOverlayZCell(env, req, spec, opts.instance(), index)
 	case types.OverlayKindZVsRef:
-		validateOverlayZVsRef(env, req, spec, index)
+		validateOverlayZVsRef(env, req, spec, opts.instance(), index)
 	case types.OverlayKindDeltaVsBaseline:
 		validateOverlayDeltaVsBaseline(env, req, spec, index)
 	case types.OverlayKindDeltaVsMargin:
@@ -1267,7 +1270,7 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	case types.OverlayKindShareOfTotal:
 		validateOverlayShareOfTotal(env, req, spec, index)
 	case types.OverlayKindYoY:
-		validateOverlayYoY(env, req, spec, index)
+		validateOverlayYoY(env, req, spec, opts.instance(), index)
 	case types.OverlayKindZScoreVsMargin:
 		validateOverlayZScoreVsMargin(env, req, spec, index)
 	case types.OverlayKindZScoreVsRolling:
@@ -1825,7 +1828,7 @@ func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same
 // rule.
-func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
 	// Ref family: YoY must be populated; reject any other family pointer
 	// (mirrors the windowed-family rejection set used by INDEX_VS_PRIOR /
 	// INDEX_VS_ROLLING_MEAN / ZSCORE_VS_ROLLING).
@@ -1875,7 +1878,9 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 
 	// First grouper MUST be GROUP_DATE. The YoY kind cannot resolve
 	// "same period one year prior" semantics against non-DATE groupers.
-	if g := req.Groups[0]; g == nil || g.Type != types.GROUP_DATE {
+	// A GROUP_DATE the instance hides is not GROUP_DATE here; the
+	// message keeps naming the authored type.
+	if g := req.Groups[0]; g == nil || opRoute(inst, g.Type) != types.GROUP_DATE {
 		actual := ""
 		if g != nil {
 			actual = string(g.Type)
@@ -3217,16 +3222,16 @@ var twoSampleStatParamKeys = []string{
 // sample_size_target / sample_size_ref); predict requires all four keys
 // in that case so callers cannot silently accept the runtime's
 // 1.0-variance, 2-sample defaults.
-func validateOverlayTCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlayTwoSampleStatCell(env, req, spec, index, tCellSupportedScopes, "cell")
+func validateOverlayTCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
+	validateOverlayTwoSampleStatCell(env, req, spec, inst, index, tCellSupportedScopes, "cell")
 }
 
 // validateOverlayZCell mirrors validateOverlayTCell for OVERLAY_Z_CELL.
 // The two kinds share the same host-shape / scope / Params contract —
 // only the runtime finaliser differs (standardNormalCDF vs
 // studentTTwoSidedP).
-func validateOverlayZCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlayTwoSampleStatCell(env, req, spec, index, zCellSupportedScopes, "cell")
+func validateOverlayZCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
+	validateOverlayTwoSampleStatCell(env, req, spec, inst, index, zCellSupportedScopes, "cell")
 }
 
 // validateOverlayTVsRef enforces the per-kind contract for
@@ -3236,15 +3241,15 @@ func validateOverlayZCell(env *descriptor.Envelope, req *types.Request, spec *ty
 // lives on Request.Aggregations; if any of them is map-valued
 // (`AggregationType.MapValued() == true`) Params are optional, otherwise
 // the four per-side Params keys are required.
-func validateOverlayTVsRef(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlayTwoSampleStatVsRef(env, req, spec, index, tVsRefSupportedScopes, "group")
+func validateOverlayTVsRef(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
+	validateOverlayTwoSampleStatVsRef(env, req, spec, inst, index, tVsRefSupportedScopes, "group")
 }
 
 // validateOverlayZVsRef mirrors validateOverlayTVsRef for OVERLAY_Z_VS_REF.
 // Same SERIES-host / Params contract as OVERLAY_T_VS_REF; only the
 // runtime finaliser differs (standardNormalCDF vs studentTTwoSidedP).
-func validateOverlayZVsRef(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlayTwoSampleStatVsRef(env, req, spec, index, zVsRefSupportedScopes, "group")
+func validateOverlayZVsRef(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
+	validateOverlayTwoSampleStatVsRef(env, req, spec, inst, index, zVsRefSupportedScopes, "group")
 }
 
 // validateOverlayTwoSampleStatCell is the shared MATRIX-host predict-time
@@ -3274,7 +3279,7 @@ func validateOverlayZVsRef(env *descriptor.Envelope, req *types.Request, spec *t
 //     error per missing key so a caller surfacing multiple gaps sees
 //     them all in one pass.
 func validateOverlayTwoSampleStatCell(
-	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int,
+	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int,
 	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
 ) {
 	// Host must be MATRIX-shaped — the per-cell stat-test decorates
@@ -3303,7 +3308,7 @@ func validateOverlayTwoSampleStatCell(
 
 	// Params requirement: optional when the cell aggregator is map-
 	// valued (AGG_WELFORD triple), required otherwise.
-	if req.Crosstab.Cell != nil && req.Crosstab.Cell.Type.MapValued() {
+	if req.Crosstab.Cell != nil && opRoute(inst, req.Crosstab.Cell.Type).MapValued() {
 		return
 	}
 	validateOverlayTwoSampleStatParams(env, spec, index)
@@ -3334,7 +3339,7 @@ func validateOverlayTwoSampleStatCell(
 //     per-side Params defaults; predict requires all four keys
 //     (mirrors validateOverlayTwoSampleStatCell).
 func validateOverlayTwoSampleStatVsRef(
-	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int,
+	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int,
 	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
 ) {
 	// Host must be SERIES-shaped — grouped Process result.
@@ -3366,7 +3371,7 @@ func validateOverlayTwoSampleStatVsRef(
 		if agg == nil {
 			continue
 		}
-		if agg.Type.MapValued() {
+		if opRoute(inst, agg.Type).MapValued() {
 			return
 		}
 	}

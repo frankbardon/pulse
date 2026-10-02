@@ -35,7 +35,7 @@ func (s *Service) ZoneLoader() descx.ZoneLoader {
 // before any record is read; a refusal is returned as the coded error
 // itself.
 func (s *Service) resolveZones(req *types.Request, schema *encoding.Schema) error {
-	_, err := descx.ResolveZones(req, schema, s.defaultZone, s.ZoneLoader())
+	_, err := descx.ResolveZones(req, schema, s.defaultZone, s.ZoneLoader(), s.instance)
 	return markLocated(err)
 }
 
@@ -47,7 +47,7 @@ func (s *Service) resolveZones(req *types.Request, schema *encoding.Schema) erro
 // as an all-null column. A located refusal: Compose adds
 // details.request, a chain details.stage.
 func (s *Service) checkFieldRefs(req *types.Request, schema *encoding.Schema) error {
-	return markLocated(descx.FieldRefRefusal(req, schema, s.ExtensionsSnapshot()))
+	return markLocated(descx.ScopedFieldRefRefusal(req, schema, s.instance))
 }
 
 // checkFacetFieldRefs is checkFieldRefs for a FacetRequest's
@@ -55,7 +55,7 @@ func (s *Service) checkFieldRefs(req *types.Request, schema *encoding.Schema) er
 // ValidateFacet reports). FacetSchema calls it right after
 // resolveFacetZones, before any record is read.
 func (s *Service) checkFacetFieldRefs(req *types.FacetRequest, schema *encoding.Schema) error {
-	if all := descx.FacetFieldRefRefusals(req, schema, s.ExtensionsSnapshot()); len(all) > 0 {
+	if all := descx.ScopedFacetFieldRefRefusals(req, schema, s.instance); len(all) > 0 {
 		return markLocated(all[0])
 	}
 	return nil
@@ -63,6 +63,6 @@ func (s *Service) checkFacetFieldRefs(req *types.FacetRequest, schema *encoding.
 
 // resolveFacetZones is resolveZones for a FacetRequest's filterers.
 func (s *Service) resolveFacetZones(req *types.FacetRequest, schema *encoding.Schema) error {
-	_, err := descx.ResolveFacetZones(req, schema, s.defaultZone, s.ZoneLoader())
+	_, err := descx.ResolveFacetZones(req, schema, s.defaultZone, s.ZoneLoader(), s.instance)
 	return markLocated(err)
 }

@@ -194,13 +194,15 @@ func applyDefaultGroupParams(grp *types.Group) {
 // The clone is a shallow-deep hybrid identical to the one Predict uses
 // internally: Aggregations and Groups are deep-cloned (the slots
 // ResolveDefaults mutates), every other slot is shared with the input.
-// Safe to expose on read-only paths.
-func NormalizeRequest(req *types.Request, schema *encoding.Schema) *types.Request {
+// Safe to expose on read-only paths. inst is the instance feature set:
+// a default whose target it hides is never inferred (nil hides
+// nothing), as in ResolveDefaults.
+func NormalizeRequest(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) *types.Request {
 	if req == nil {
 		return nil
 	}
 	clone := cloneRequestForDefaults(req)
-	ResolveDefaults(clone, schema, nil)
+	ResolveDefaults(clone, schema, inst)
 	return clone
 }
 

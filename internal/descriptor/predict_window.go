@@ -120,8 +120,6 @@ func validateSort(env *descriptor.Envelope, req *types.Request, _ *encoding.Sche
 // All rejections produce errors via env.AddError. The function does not execute
 // any window logic; it inspects only the schema and the request.
 func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) {
-	_ = opts
-
 	// Build the set of valid window types once.
 	validTypes := make(map[types.WindowType]bool, len(types.AllWindowTypes()))
 	for _, t := range types.AllWindowTypes() {
@@ -134,8 +132,9 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 	for i, w := range req.Windows {
 		idx := strconv.Itoa(i)
 
-		// Unknown type.
-		if !validTypes[w.Type] && !isExtensionWindowType(opts, w.Type) {
+		// Unknown type — a type the instance hides included, exactly
+		// as a never-registered one.
+		if !validTypes[opRoute(opts.instance(), w.Type)] && !isExtensionWindowType(opts, w.Type) {
 			env.AddError(
 				string(errors.PULSE_WINDOW_INVALID),
 				"window["+idx+"]: unknown window type "+string(w.Type),

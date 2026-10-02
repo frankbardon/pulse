@@ -51,7 +51,11 @@ var numericAggregations = map[types.AggregationType]bool{
 //   - service.Process — wraps the first entry as a coded error when
 //     Service is configured strict; non-strict emission flows through
 //     the envelope at the CLI boundary.
-func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema) []*descriptor.EnvelopeEntry {
+//
+// inst is the instance feature set: an aggregator it hides is judged
+// as a never-registered name (not in numericAggregations). Nil hides
+// nothing.
+func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []*descriptor.EnvelopeEntry {
 	if req == nil || schema == nil || len(req.Aggregations) == 0 {
 		return nil
 	}
@@ -61,7 +65,7 @@ func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema) [
 		if f == nil {
 			continue
 		}
-		if !f.Type.IsCategorical() || !numericAggregations[agg.Type] {
+		if !f.Type.IsCategorical() || !numericAggregations[opRoute(inst, agg.Type)] {
 			continue
 		}
 		out = append(out, &descriptor.EnvelopeEntry{
@@ -147,6 +151,29 @@ type PredictOptions struct {
 	// kind gates (Request, Compose and Facet hosts) report a kind it
 	// hides exactly as a kind not in the catalog. Nil hides nothing.
 	Instance *InstanceSnapshot
+}
+
+// instance returns the options' instance feature set (nil — hide
+// nothing — on a nil receiver). Nil-receiver-safe.
+func (o *PredictOptions) instance() *InstanceSnapshot {
+	if o == nil {
+		return nil
+	}
+	return o.Instance
+}
+
+// opRoute returns t, or "" — a name no operator table, switch or
+// capability lookup knows — when inst hides it, so every type-keyed
+// predict site takes the never-registered branch for a hidden name.
+// Callers key lookups on the route and keep naming the authored t in
+// messages; an emptiness check (a slot with no Type) never reads the
+// route. Nil-instance-safe: nil hides nothing. The descriptor twin of
+// the runtime registry's hidden-name lookups.
+func opRoute[T ~string](inst *InstanceSnapshot, t T) T {
+	if inst.Hidden(string(t)) {
+		return ""
+	}
+	return t
 }
 
 // overlayRoute returns the kind the overlay validators key on: the
@@ -241,10 +268,10 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// DefaultsApplied still reports what the rules table would infer.
 	resolved := cloneRequestForDefaults(req)
 	if opts.DisableDefaults {
-		if applied := ResolveDefaults(cloneRequestForDefaults(req), schema, nil); len(applied) > 0 {
+		if applied := ResolveDefaults(cloneRequestForDefaults(req), schema, opts.Instance); len(applied) > 0 {
 			result.DefaultsApplied = applied
 		}
-	} else if applied := ResolveDefaults(resolved, schema, nil); len(applied) > 0 {
+	} else if applied := ResolveDefaults(resolved, schema, opts.Instance); len(applied) > 0 {
 		result.DefaultsApplied = applied
 	}
 	req = resolved
@@ -260,7 +287,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Zone resolution — the same single pass the runtime runs before
 	// executing (ResolveZones). A refusal is a predict error carrying
 	// the runtime's own code and details.
-	if zones, zerr := ResolveZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader); zerr != nil {
+	if zones, zerr := ResolveZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader, opts.Instance); zerr != nil {
 		addCodedError(env, zerr)
 	} else {
 		result.TimeZones = zones
@@ -269,7 +296,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Field references — the one rule the runtime refuses with at the
 	// same point (after defaults and zones, against the schema the
 	// request executes over). Every unknown name is reported.
-	for _, ce := range FieldRefRefusals(req, schema, extensionsFromOpts(opts)) {
+	for _, ce := range fieldRefRefusals(req, schema, extensionsFromOpts(opts), opts.Instance) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 
@@ -286,7 +313,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// inject labels mid-pipeline (after features, before grouping); without
 	// this projection, aggregations and sort keys that reference attribute
 	// labels would falsely trip the unknown-field check.
-	projectAttributeOutputs(req, projected)
+	projectAttributeOutputs(req, projected, opts.Instance)
 
 	// Validate request fields exist in schema (or in feature outputs).
 	validateRequestFields(env, req, schema, projected, opts)
@@ -322,7 +349,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// kinds carry overlayCostBuffered. OverlaysSchemaDivergence stays
 	// empty on Predict — Compose wiring exposes divergence on
 	// ValidateCompose.
-	populateOverlayDescriptors(result, req)
+	populateOverlayDescriptors(result, req, opts)
 
 	// Populate the per-aggregation predict surface: one
 	// AggregationPredict descriptor per req.Aggregations slot in
@@ -372,7 +399,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Compute autocomplete-style suggestions. Suggestions may surface even
 	// when the request is otherwise valid (streamability hints), so this
 	// runs unconditionally after every other validator.
-	result.Suggestions = computeSuggestions(req, schema, result.Streamable, opts.Extensions)
+	result.Suggestions = computeSuggestions(req, schema, result.Streamable, opts.Extensions, opts.Instance)
 
 	// If any errors were added, mark invalid.
 	if len(env.Errors) > 0 {
@@ -403,7 +430,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		if reg == nil {
 			continue
 		}
-		if !reg.Streamable() {
+		if !routedRegression(reg, opts.instance()).Streamable() {
 			reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec")
 		}
 	}
@@ -440,12 +467,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		reasons = append(reasons, "no aggregations: streaming path requires at least one OnlineAggregator")
 	}
 	for _, grp := range req.Groups {
-		if !streamableWithOverlay(opts, "grouper", string(grp.Type), grp.Type.Streamable()) {
+		if !streamableWithOverlay(opts, "grouper", string(grp.Type), opRoute(opts.instance(), grp.Type).Streamable()) {
 			reasons = append(reasons, "group "+string(grp.Type)+" requires the buffered path")
 		}
 	}
 	for _, attr := range req.Attributes {
-		if !streamableWithOverlay(opts, "attribute", string(attr.Type), attr.Type.Streamable()) {
+		if !streamableWithOverlay(opts, "attribute", string(attr.Type), opRoute(opts.instance(), attr.Type).Streamable()) {
 			reasons = append(reasons, "attribute "+string(attr.Type)+" requires a full pass for population stats")
 		}
 	}
@@ -459,7 +486,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	}
 
 	for _, agg := range req.Aggregations {
-		if !streamableWithOverlay(opts, "aggregator", string(agg.Type), agg.Type.Streamable()) {
+		if !streamableWithOverlay(opts, "aggregator", string(agg.Type), opRoute(opts.instance(), agg.Type).Streamable()) {
 			reasons = append(reasons, "aggregation "+string(agg.Type)+" is not streamable")
 			continue
 		}
@@ -476,7 +503,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	}
 
 	for _, feat := range req.Features {
-		if !streamableWithOverlay(opts, "feature", string(feat.Type), feat.Type.Streamable()) {
+		if !streamableWithOverlay(opts, "feature", string(feat.Type), opRoute(opts.instance(), feat.Type).Streamable()) {
 			reasons = append(reasons, "feature "+string(feat.Type)+" is not streamable")
 		}
 	}
@@ -616,7 +643,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// Numeric aggregation on categorical field — single helper, strict
 	// promotion happens here so service.Process can share the helper
 	// without owning predict's strict semantics.
-	for _, entry := range CategoricalAggregationIssues(req, schema) {
+	for _, entry := range CategoricalAggregationIssues(req, schema, opts.Instance) {
 		if opts.Strict {
 			env.Errors = append(env.Errors, entry)
 		} else {
@@ -634,7 +661,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 		if f == nil {
 			continue
 		}
-		if f.Type.IsDecimal() && decimalAggregationRefused(agg.Type, opts.Extensions) {
+		if f.Type.IsDecimal() && decimalAggregationRefused(opRoute(opts.Instance, agg.Type), opts.Extensions) {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL),
 				Message: "aggregation " + string(agg.Type) + " has no decimal128 implementation; field " + agg.Field + " is decimal128",
@@ -652,7 +679,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// (known type, target + predictors named, fields exist); deeper
 	// runtime checks (n ≥ p + 1, family/link compatibility) land with
 	// the engines in Phases 1–4.
-	validateRegressions(env, req, schema, projected)
+	validateRegressions(env, req, schema, projected, opts.Instance)
 
 	// Check attribute fields.
 	for _, attr := range req.Attributes {
@@ -670,7 +697,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 		// their own Target + Predictors instead of a single Field. Validate
 		// those references here; the factory rechecks numeric-type
 		// compatibility at construction time.
-		if attr.Type == types.ATTR_REG_FITTED || attr.Type == types.ATTR_REG_RESIDUAL || attr.Type == types.ATTR_REG_LEVERAGE {
+		if rt := opRoute(opts.Instance, attr.Type); rt == types.ATTR_REG_FITTED || rt == types.ATTR_REG_RESIDUAL || rt == types.ATTR_REG_LEVERAGE {
 			if attr.Target == "" {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
@@ -700,11 +727,11 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 // Duplicated locally rather than imported from internal/processing/ because
 // descriptor must not import the processing package (predict is a
 // no-execute path).
-func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
+func projectAttributeOutputs(req *types.Request, projected map[string]bool, inst *InstanceSnapshot) {
 	for _, attr := range req.Attributes {
 		label := attr.Label
 		if label == "" {
-			label = attributeDefaultLabel(attr)
+			label = attributeDefaultLabel(attr, inst)
 		}
 		projected[label] = true
 	}
@@ -713,9 +740,10 @@ func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
 // attributeDefaultLabel mirrors processing.defaultAttributeLabel so
 // predict produces the same projected column names process would emit.
 // The duplication is intentional — descriptor/predict.go must not
-// import internal/processing/.
-func attributeDefaultLabel(attr *types.Attribute) string {
-	switch attr.Type {
+// import internal/processing/. A type inst hides takes the
+// never-registered label rule.
+func attributeDefaultLabel(attr *types.Attribute, inst *InstanceSnapshot) string {
+	switch opRoute(inst, attr.Type) {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 		return string(attr.Type) + "_" + attr.Target
 	}
@@ -806,12 +834,12 @@ func overlayCostForKind(kind types.OverlayKind) float64 {
 // types.OverlayStreamable(kind) — the static table in
 // types/overlay_streamability.go is the single source of truth, so a
 // kind that flips streamable automatically flips here.
-func populateOverlayDescriptors(result *descriptor.PredictResult, req *types.Request) {
+func populateOverlayDescriptors(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil || len(req.Overlays) == 0 {
 		return
 	}
 	result.OverlaysApplied, result.OverlayCost = appendOverlayDescriptors(
-		result.OverlaysApplied, result.OverlayCost, req.Overlays,
+		result.OverlaysApplied, result.OverlayCost, req.Overlays, opts,
 	)
 }
 
@@ -910,7 +938,7 @@ func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request,
 		if grp == nil {
 			continue
 		}
-		schema := idx[string(grp.Type)]
+		schema := idx[string(opRoute(opts.instance(), grp.Type))]
 		out = append(out, descriptor.GroupPredict{
 			Type:               grp.Type,
 			Field:              grp.Field,
@@ -955,7 +983,7 @@ func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Re
 		if agg == nil {
 			continue
 		}
-		schema := idx[string(agg.Type)]
+		schema := idx[string(opRoute(opts.instance(), agg.Type))]
 		out = append(out, descriptor.AggregationPredict{
 			Type:               agg.Type,
 			Field:              agg.Field,
@@ -1032,7 +1060,7 @@ func populateFiltererPredicts(result *descriptor.PredictResult, req *types.Reque
 		if fil == nil {
 			continue
 		}
-		schema := idx[string(fil.Type)]
+		schema := idx[string(opRoute(opts.instance(), fil.Type))]
 		out = append(out, descriptor.FiltererPredict{
 			Type:               fil.Type,
 			Field:              fil.Field,
@@ -1055,19 +1083,25 @@ func populateFiltererPredicts(result *descriptor.PredictResult, req *types.Reque
 // map is mutated in place when non-nil; callers must seed an empty map
 // on the destination struct before invoking this helper so the JSON
 // output stays empty-but-not-nil (matching the PredictResult contract).
+//
+// Streamability, shape and cost key on the kind's route
+// (PredictOptions.overlayRoute), so a kind the instance hides is
+// described exactly as a kind not in the catalog; Name and Kind keep
+// the authored kind. opts may be nil.
 func appendOverlayDescriptors(
 	descriptors []descriptor.OverlayAppliedDescriptor, costs map[string]float64,
-	specs []types.OverlaySpec,
+	specs []types.OverlaySpec, opts *PredictOptions,
 ) ([]descriptor.OverlayAppliedDescriptor, map[string]float64) {
 	for i := range specs {
 		spec := &specs[i]
 		name := overlayDescriptorName(spec)
-		streamable, _ := types.OverlayStreamable(spec.Kind)
+		route := opts.overlayRoute(spec.Kind)
+		streamable, _ := types.OverlayStreamable(route)
 		descriptors = append(descriptors, descriptor.OverlayAppliedDescriptor{
 			Name:       name,
 			Kind:       spec.Kind,
 			Scope:      spec.Scope,
-			Shape:      resolveOverlayShape(spec.Kind, spec.Scope),
+			Shape:      resolveOverlayShape(route, spec.Scope),
 			Ref:        resolveOverlayRef(spec),
 			Streamable: streamable,
 		})
@@ -1078,7 +1112,7 @@ func appendOverlayDescriptors(
 		// they re-walk the materialised host structure at the post-
 		// host exit.
 		if costs != nil {
-			costs[name] = overlayCostForKind(spec.Kind)
+			costs[name] = overlayCostForKind(route)
 		}
 	}
 	return descriptors, costs
@@ -1219,12 +1253,12 @@ func itoa(n int) string {
 // and OVERLAY_KS_VS_POP as buffered (cost ~1.0) per PRD §2 Non-Goals
 // ("Streaming overlay path for inferential kinds"). Cost flips
 // automatically when a kind's streamability flag flips.
-func populateFacetOverlayDescriptors(result *FacetValidationResult, req *types.FacetRequest) {
+func populateFacetOverlayDescriptors(result *FacetValidationResult, req *types.FacetRequest, opts *PredictOptions) {
 	if result == nil || req == nil || len(req.Overlays) == 0 {
 		return
 	}
 	result.OverlaysApplied, result.OverlayCost = appendOverlayDescriptors(
-		result.OverlaysApplied, result.OverlayCost, req.Overlays,
+		result.OverlaysApplied, result.OverlayCost, req.Overlays, opts,
 	)
 }
 

@@ -40,12 +40,13 @@ func isExtensionTestType(opts *PredictOptions, t types.TestType) bool {
 // attributeTwoPass reports whether an attribute takes the runtime's
 // two-pass streaming drive: the built-in two-pass set (mirrors
 // processing.requiresTwoPass, which predict cannot import) or an
-// extension attribute whose snapshot Mode is two_pass. Two-pass
+// extension attribute whose snapshot Mode is two_pass (a built-in the
+// instance hides is neither). Two-pass
 // attributes do not compose with groupers, features, regressions or
 // tier-1 tests on the streaming path, so every such gate in
 // computeStreamable asks this one helper.
 func attributeTwoPass(opts *PredictOptions, t types.AttributeType) bool {
-	switch t {
+	switch opRoute(opts.instance(), t) {
 	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
 		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 		return true

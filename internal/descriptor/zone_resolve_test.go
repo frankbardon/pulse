@@ -137,7 +137,7 @@ func TestResolveZones_RefusalDetails(t *testing.T) {
 		Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}},
 		Columns: []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "ts"}},
 	}, TimeZone: "America/New_York"}
-	_, err := ResolveZones(req, zoneSchema(), "", nil)
+	_, err := ResolveZones(req, zoneSchema(), "", nil, nil)
 	ce, ok := err.(*errors.CodedError)
 	if !ok || ce.Code != errors.PROCESSING_CONFIG {
 		t.Fatalf("err = %v", err)
@@ -152,13 +152,13 @@ func TestResolveZones_RefusalDetails(t *testing.T) {
 		}
 	}
 
-	if zs, err := ResolveZones(nil, nil, "", nil); err != nil || zs == nil || len(zs) != 0 {
+	if zs, err := ResolveZones(nil, nil, "", nil, nil); err != nil || zs == nil || len(zs) != 0 {
 		t.Fatalf("nil request: %v %v", zs, err)
 	}
-	if zs, err := ResolveFacetZones(nil, nil, "", nil); err != nil || zs == nil || len(zs) != 0 {
+	if zs, err := ResolveFacetZones(nil, nil, "", nil, nil); err != nil || zs == nil || len(zs) != 0 {
 		t.Fatalf("nil facet request: %v %v", zs, err)
 	}
-	fz, err := ResolveFacetZones(&types.FacetRequest{Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts"}}}, zoneSchema(), "Etc/UTC", nil)
+	fz, err := ResolveFacetZones(&types.FacetRequest{Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "ts"}}}, zoneSchema(), "Etc/UTC", nil, nil)
 	if err != nil || len(fz) != 1 || fz[0].Source != "options" || *fz[0].TZ != "Etc/UTC" {
 		t.Fatalf("facet resolve = %+v, %v", fz, err)
 	}
@@ -172,7 +172,7 @@ func TestResolveZones_EmptyOperatorSkipped(t *testing.T) {
 		Groups:    []*types.Group{{Field: "ts", TimeZone: "Europe/Berlin"}},
 		Filterers: []*types.Filterer{{Field: "d", TimeZone: "UTC"}},
 	}
-	zs, err := ResolveZones(req, zoneSchema(), "", nil)
+	zs, err := ResolveZones(req, zoneSchema(), "", nil, nil)
 	if err != nil || len(zs) != 0 {
 		t.Fatalf("ResolveZones = %+v, %v; want no slot and no refusal", zs, err)
 	}
@@ -183,11 +183,11 @@ func TestResolveZones_EmptyOperatorSkipped(t *testing.T) {
 // may accept), while the field-independent ones still fire.
 func TestResolveZones_NilSchemaFieldIndependentOnly(t *testing.T) {
 	inherited := &types.Request{TimeZone: "Asia/Tokyo", Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "d"}}}
-	if _, err := ResolveZones(inherited, nil, "", nil); err != nil {
+	if _, err := ResolveZones(inherited, nil, "", nil, nil); err != nil {
 		t.Fatalf("schema-less inherited zone refused: %v", err)
 	}
 	explicit := &types.Request{Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "d", TimeZone: "UTC"}}}
-	if _, err := ResolveZones(explicit, nil, "", nil); err != nil {
+	if _, err := ResolveZones(explicit, nil, "", nil, nil); err != nil {
 		t.Fatalf("schema-less explicit tz refused: %v", err)
 	}
 	for name, req := range map[string]*types.Request{
@@ -195,7 +195,7 @@ func TestResolveZones_NilSchemaFieldIndependentOnly(t *testing.T) {
 		"unknown slot": {Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "ts", TimeZone: "Mars/Base"}}},
 		"unknown req":  {TimeZone: "EST"},
 	} {
-		if _, err := ResolveZones(req, nil, "", nil); err == nil {
+		if _, err := ResolveZones(req, nil, "", nil, nil); err == nil {
 			t.Errorf("%s: schema-less resolution accepted a field-independent refusal", name)
 		}
 	}

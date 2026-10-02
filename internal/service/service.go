@@ -596,7 +596,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// callers still see the warning through the predict path / the
 	// CLI envelope wiring.
 	if s.strict {
-		if issues := descx.CategoricalAggregationIssues(req, cohort.Schema()); len(issues) > 0 {
+		if issues := descx.CategoricalAggregationIssues(req, cohort.Schema(), s.instance); len(issues) > 0 {
 			first := issues[0]
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,

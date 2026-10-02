@@ -91,7 +91,7 @@ func chainOverlayKindAllowed(kind types.OverlayKind) bool {
 // alongside the per-stage ones in a single envelope (mirrors how
 // Predict accumulates errors across overlay / field / streamability
 // gates).
-func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResult, req *types.ChainRequest) {
+func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResult, req *types.ChainRequest, opts *PredictOptions) {
 	if req == nil || len(req.Overlays) == 0 {
 		return
 	}
@@ -115,8 +115,10 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 			continue
 		}
 		// Per-kind validity check: only OVERLAY_INDEX_VS_STAGE /
-		// OVERLAY_DELTA_VS_STAGE accepted in ChainOverlaySpec.Kind.
-		if !chainOverlayKindAllowed(spec.Kind) {
+		// OVERLAY_DELTA_VS_STAGE accepted in ChainOverlaySpec.Kind. A
+		// kind the instance hides keys on its route, as a kind not in
+		// the catalog.
+		if !chainOverlayKindAllowed(opts.overlayRoute(spec.Kind)) {
 			env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 				"chain overlay kind not supported on ChainRequest.Overlays: "+string(spec.Kind),
 				map[string]any{

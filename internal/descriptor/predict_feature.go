@@ -32,7 +32,9 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 
 	splitSeenAt := -1
 	for idx, feat := range req.Features {
-		if !isKnownFeatureType(feat.Type) && !isExtensionFeatureType(opts, feat.Type) {
+		// A type the instance hides is unknown here, exactly as a
+		// never-registered one.
+		if !isKnownFeatureType(opRoute(opts.instance(), feat.Type)) && !isExtensionFeatureType(opts, feat.Type) {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"unknown feature type: "+string(feat.Type),

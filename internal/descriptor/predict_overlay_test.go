@@ -1014,7 +1014,7 @@ func TestPredict_OverlaysApplied_AllKinds_DescriptorCoverage(t *testing.T) {
 	}
 
 	costs := map[string]float64{}
-	descriptors, _ := appendOverlayDescriptors(nil, costs, orderedSpecs)
+	descriptors, _ := appendOverlayDescriptors(nil, costs, orderedSpecs, nil)
 
 	if got, want := len(descriptors), len(orderedSpecs); got != want {
 		t.Fatalf("descriptors length = %d, want %d (one per spec)", got, want)
@@ -1449,7 +1449,7 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 	}
 
 	costs := map[string]float64{}
-	descriptors, costs := appendOverlayDescriptors(nil, costs, orderedSpecs)
+	descriptors, costs := appendOverlayDescriptors(nil, costs, orderedSpecs, nil)
 
 	if got, want := len(descriptors), len(orderedSpecs); got != want {
 		t.Fatalf("descriptors length = %d, want %d (one per spec)", got, want)
@@ -1492,7 +1492,7 @@ func TestPredict_OverlayCost_AllKindsHaveMultiplier(t *testing.T) {
 	// Empty map sanity-check: with zero specs the dispatcher should not
 	// emit any keys (the map stays empty-but-not-nil).
 	emptyCosts := map[string]float64{}
-	_, emptyCosts = appendOverlayDescriptors(nil, emptyCosts, nil)
+	_, emptyCosts = appendOverlayDescriptors(nil, emptyCosts, nil, nil)
 	if emptyCosts == nil {
 		t.Errorf("OverlayCost map = nil; expected empty (non-nil) map")
 	}

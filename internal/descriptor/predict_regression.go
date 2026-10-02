@@ -29,13 +29,14 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 // Deeper runtime checks (n ≥ p + 1, link compatibility, regularization
 // parameter bounds) live with the engines in Phases 1–4. predict
 // cannot import internal/processing/regression, so registry membership is
-// checked against types.AllRegressionTypes() instead.
-func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool) {
+// checked against types.AllRegressionTypes() instead. A type inst hides
+// is refused exactly as a type outside that set.
+func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, inst *InstanceSnapshot) {
 	for _, reg := range req.Regressions {
 		if reg == nil {
 			continue
 		}
-		if _, ok := knownRegressionTypes[reg.Type]; !ok {
+		if _, ok := knownRegressionTypes[opRoute(inst, reg.Type)]; !ok {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"regression references unknown type: "+string(reg.Type),
@@ -154,4 +155,16 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 func regressionAcceptsType(rt types.RegressionType, t encoding.FieldType) bool {
 	_ = rt
 	return t.IsNumericForAnalytics()
+}
+
+// routedRegression returns reg, or a copy whose Type is the route ("")
+// when inst hides reg.Type — so RegressionSpec.Streamable answers for a
+// hidden type exactly as for a never-registered one.
+func routedRegression(reg *types.RegressionSpec, inst *InstanceSnapshot) *types.RegressionSpec {
+	if !inst.Hidden(string(reg.Type)) {
+		return reg
+	}
+	routed := *reg
+	routed.Type = ""
+	return &routed
 }

@@ -93,6 +93,10 @@ type parityHost struct {
 type parityEntryPoint struct {
 	name string
 	run  func(t *testing.T, h *parityHost, c parityCategory, op string) (outcome []byte, applicable bool)
+	// neverOK names why a never-registered name may SUCCEED at this
+	// entry point whatever the category (the outcome is still compared
+	// byte for byte); empty defers to the category's neverOK.
+	neverOK string
 	// vacuousOK names why a cell may be vacuous for this entry point —
 	// the request is refused before the name resolves for EVERY name
 	// (e.g. the chain gate excludes the slot). Keyed by category name
@@ -256,10 +260,11 @@ var chainVacuous = map[string]string{
 }
 
 // parityEntryPoints is every entry point the harness drives: the
-// Request-, Facet- and FilterToFile-carrying ones plus the entry points
+// Request-, Facet- and FilterToFile-carrying ones, the entry points
 // whose own top-level slot carries the name (ComposedRequest.Overlays,
-// ChainRequest.Overlays; feature_parity_overlay_test.go).
-var parityEntryPoints = append(append([]parityEntryPoint(nil), requestParityEntryPoints...), overlayParityEntryPoints...)
+// ChainRequest.Overlays; feature_parity_overlay_test.go) and the
+// predict entry points (feature_parity_predict_test.go).
+var parityEntryPoints = append(append(append([]parityEntryPoint(nil), requestParityEntryPoints...), overlayParityEntryPoints...), predictParityEntryPoints...)
 
 // requestParityEntryPoints are the public entry points that carry a
 // Request, FacetRequest or FilterToFileRequest.
@@ -497,7 +502,7 @@ func runHiddenParity(t *testing.T, fixtures []string, categories []parityCategor
 					}
 					applicable++
 					want, _ := ep.run(t, host, c, c.never)
-					if !parityIsError(want) && c.neverOK == "" {
+					if !parityIsError(want) && c.neverOK == "" && ep.neverOK == "" {
 						t.Fatalf("never-registered %s succeeded: %s", c.never, want)
 					}
 					if subst := strings.ReplaceAll(string(got), hidden, c.never); subst != string(want) {

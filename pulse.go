@@ -1066,6 +1066,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 
 	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
 		Extensions:      p.svc.ExtensionsSnapshot(),
+		Instance:        p.svc.InstanceSnapshot(),
 		DefaultTimeZone: p.svc.DefaultTimeZone(),
 		ZoneLoader:      p.svc.ZoneLoader(),
 		DisableDefaults: p.svc.DefaultsDisabled(),
@@ -1133,6 +1134,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		Strict:          p.svc.Strict(),
 		EchoRequest:     p.svc.EchoRequest(),
 		Extensions:      p.svc.ExtensionsSnapshot(),
+		Instance:        p.svc.InstanceSnapshot(),
 		DefaultTimeZone: p.svc.DefaultTimeZone(),
 		ZoneLoader:      p.svc.ZoneLoader(),
 		DisableDefaults: p.svc.DefaultsDisabled(),

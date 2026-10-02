@@ -161,7 +161,7 @@ func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
 	}
 
 	t.Run("nil request returns nil", func(t *testing.T) {
-		if got := CategoricalAggregationIssues(nil, schema); got != nil {
+		if got := CategoricalAggregationIssues(nil, schema, nil); got != nil {
 			t.Errorf("nil request: got %d issues, want nil", len(got))
 		}
 	})
@@ -170,7 +170,7 @@ func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
 		req := &types.Request{Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "color"},
 		}}
-		if got := CategoricalAggregationIssues(req, nil); got != nil {
+		if got := CategoricalAggregationIssues(req, nil, nil); got != nil {
 			t.Errorf("nil schema: got %d issues, want nil", len(got))
 		}
 	})
@@ -179,7 +179,7 @@ func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
 		req := &types.Request{Aggregations: []*types.Aggregation{
 			{Type: types.AGG_AVERAGE, Field: "color"},
 		}}
-		got := CategoricalAggregationIssues(req, schema)
+		got := CategoricalAggregationIssues(req, schema, nil)
 		if len(got) != 1 {
 			t.Fatalf("got %d issues, want 1", len(got))
 		}
@@ -192,7 +192,7 @@ func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
 		req := &types.Request{Aggregations: []*types.Aggregation{
 			{Type: types.AGG_AVERAGE, Field: "score"},
 		}}
-		if got := CategoricalAggregationIssues(req, schema); len(got) != 0 {
+		if got := CategoricalAggregationIssues(req, schema, nil); len(got) != 0 {
 			t.Errorf("numeric-on-numeric: got %d issues, want 0", len(got))
 		}
 	})
@@ -205,7 +205,7 @@ func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
 			{Type: types.AGG_DISTINCT_COUNT, Field: "color"},
 			{Type: types.AGG_NULL_COUNT, Field: "color"},
 		}}
-		if got := CategoricalAggregationIssues(req, schema); len(got) != 0 {
+		if got := CategoricalAggregationIssues(req, schema, nil); len(got) != 0 {
 			t.Errorf("categorical-friendly aggs: got %d issues, want 0", len(got))
 		}
 	})
@@ -214,7 +214,7 @@ func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
 		req := &types.Request{Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "missing"},
 		}}
-		if got := CategoricalAggregationIssues(req, schema); len(got) != 0 {
+		if got := CategoricalAggregationIssues(req, schema, nil); len(got) != 0 {
 			t.Errorf("unknown field: got %d issues, want 0 (predict path emits the unknown-field error separately)", len(got))
 		}
 	})
