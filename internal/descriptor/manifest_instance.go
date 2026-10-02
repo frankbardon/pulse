@@ -28,8 +28,10 @@ import (
 //   - every remaining prose string (descriptions, hints, rule lists) is
 //     scrubbed of sentences naming a hidden operator or MCP tool.
 //
-// skills, the examples counts / tags and the error-code lists are left
-// whole: they are owned by other units.
+// skills and the examples count / categories / tags follow the
+// instance's Discovery prune (a skill or example for a hidden surface is
+// absent) but are not prose-scrubbed; the error-code lists are filtered
+// in assembleManifest.
 func BuildManifestForInstance(inst *InstanceSnapshot) *descriptor.Manifest {
 	m := assembleManifest(inst, inst.Enabled)
 	hidden := hiddenProseNames(inst)

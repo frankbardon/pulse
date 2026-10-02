@@ -32,9 +32,8 @@ before profiles existed.
 > Library methods are **not** gated: `p.Process`, `p.Compose`, `p.Facet`,
 > `p.Lookup`, `p.Import` and the rest stay callable on every instance. A
 > profile hides names and slots, not methods. The MCP server registers
-> only the tools, prompts and cohort listing the profile offers (see
-> below); the served skills and examples follow in a later v1.0.0
-> pre-release.
+> only the tools, prompts, cohort listing, skills and examples the
+> profile offers (see below).
 
 The name is "feature profile" because "profile" already means synthetic
 data profiling (`Pulse.Profile`, `pulse profile create`).
@@ -247,8 +246,9 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   `ProcessChain`, `Join`, `Crosstab`, `Export` and `Import` are now
   pointers (nil when hidden), so code that read them as values must
   check for nil. Prose that names a hidden feature is dropped from
-  descriptions and hints. The manifest's `skills` and examples counts
-  are not scoped yet. `extensions.label_tables` is empty (`[]`) when
+  descriptions and hints. The manifest's `skills` list and examples
+  count, categories and tags cover only the skills and examples the
+  instance serves (see the MCP section). `extensions.label_tables` is empty (`[]`) when
   `capability:labels` is off and `extensions.range_tables` when
   `capability:range_tables` is off, exactly as on an instance that
   registered no tables, and requests resolve them the same way: a label
@@ -332,6 +332,20 @@ profile does not mount; a numbered step dropped from a prompt
 renumbers the rest of its list. A sentence about an enabled operator
 that also names a hidden one goes too. The text a caller supplies to
 `pulse-author-request` is never touched.
+
+Skills and examples follow the profile as well. The reference skill for
+a hidden operator, overlay kind, regression or synth distribution, and
+for a tool the server does not mount, is left out of
+`pulse_skills_list`, `pulse_skills_get`, the `pulse-skill://` resources
+and the manifest's `skills` list. Field-type skills and the design
+guides stay, and a design guide is served as written even where it
+mentions an operator the profile hides. An example is left out of
+`pulse_examples_search`, `pulse_examples_get`, `p.ExamplesSearch`,
+`p.ExampleGet` and the manifest's examples count, categories and tags
+when it uses a hidden operator or overlay kind, or needs a hidden
+`facet`, `crosstab`, `joins` or `compose` capability. Asking for a
+hidden skill or example by name fails exactly like asking for one that
+does not exist.
 
 Embedders serving MCP themselves use `mcpserve.NewPulse`:
 

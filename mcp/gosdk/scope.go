@@ -50,12 +50,12 @@ func promptEnabled(inst *descx.InstanceSnapshot, prompt string) bool {
 }
 
 // skillVisible reports whether the instance exposes the named embedded
-// skill as a pulse-skill:// resource. It is the one seam the
-// instance-scoped skill prune plugs into; both the enumeration and the
-// reader consult it, so a pruned skill reads exactly like a nonexistent
-// one. Today every skill is visible.
-func skillVisible(_ *descx.InstanceSnapshot, _ string) bool {
-	return true
+// skill as a pulse-skill:// resource: the instance's Discovery prune,
+// the same one pulse_skills_list / pulse_skills_get and the manifest read.
+// Both the enumeration and the reader consult it, so a pruned skill reads
+// exactly like a nonexistent one.
+func skillVisible(inst *descx.InstanceSnapshot, name string) bool {
+	return inst.Discovery().SkillVisible(name)
 }
 
 // scrubbedSchema applies the instance's prose scrub to every description
