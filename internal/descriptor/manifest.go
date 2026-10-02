@@ -286,6 +286,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	grps := filterOps(grouperCapabilities(), on)
 	wins := filterOps(windowCapabilities(), on)
 	feats := filterOps(featureCapabilities(), on)
+	errCodes := errorCodeNamesFor(on)
 
 	m := &descriptor.Manifest{
 		FormatVersion:    "1.0",
@@ -305,9 +306,9 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		PostTests:          tier2,
 		Regressions:        sortRegressions(filterRegressions(regressionCapabilities(), on)),
 		SynthDistributions: sortDistributions(distributionCapabilities()),
-		ErrorCodesCount:    errorCodesCount(),
-		ErrorDomains:       errorDomains(),
-		ErrorCodes:         errorCodeNames(),
+		ErrorCodesCount:    len(errCodes),
+		ErrorDomains:       errorDomainsFor(errCodes),
+		ErrorCodes:         errCodes,
 		MCPTools:           filterMCPTools(mcpToolCapabilities(), on),
 		CohortTypes:        cohortFieldTypesFrom(aggs, attrs, filts, grps, wins, feats),
 		Skills:             sortedSkills(),

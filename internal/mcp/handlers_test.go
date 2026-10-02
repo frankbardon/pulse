@@ -192,6 +192,34 @@ func TestHandleErrorsLookup_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestHandleErrorsLookup_InstanceScoped: the tool answers through the
+// facade, so a feature-profiled instance hides the codes of its hidden
+// features on every axis.
+func TestHandleErrorsLookup_InstanceScoped(t *testing.T) {
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), FeatureProfile: &pulse.FeatureProfile{
+		Features: []string{"capability:process", "AGG_COUNT"},
+	}})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	const code = string(perr.PULSE_SPSS_FILE_EMPTY)
+	for _, in := range []ErrorsLookupIn{{Code: code}, {Domain: "PULSE", Query: "spss"}, {Query: "SPSS"}} {
+		out, err := HandleErrorsLookup(context.Background(), p, in)
+		if err != nil {
+			t.Fatalf("HandleErrorsLookup(%+v): %v", in, err)
+		}
+		for _, r := range out.Results {
+			if strings.HasPrefix(r.Code, "PULSE_SPSS_") {
+				t.Errorf("%+v returned hidden %s", in, r.Code)
+			}
+		}
+	}
+	full, _ := newImportTestPulse(t)
+	if out, _ := HandleErrorsLookup(context.Background(), full, ErrorsLookupIn{Code: code}); len(out.Results) != 1 {
+		t.Fatalf("default instance does not find %s: vacuous", code)
+	}
+}
+
 // TestTools_CatalogComplete asserts Tools(cfg) yields one descriptor per
 // registered tool, each carrying schemas and a non-nil Invoke.
 func TestTools_CatalogComplete(t *testing.T) {

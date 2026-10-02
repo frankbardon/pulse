@@ -1596,25 +1596,32 @@ func (p *Pulse) ExampleGet(name string) (*Example, bool) {
 // Message + Fixup detail lives behind this facade so per-session
 // bootstrap stays lean. Use ErrorsByDomain / ErrorsSearch to enumerate
 // in bulk.
+//
+// The view is the instance's: under a feature profile a code every
+// owning feature of which is hidden is not found, and a fixup naming a
+// hidden feature is stripped from the result. With no profile it is
+// the full registry.
 func (p *Pulse) ErrorLookup(code string) (ErrorMetadata, bool) {
-	return errors.Lookup(code)
+	return descx.ErrorLookup(p.svc.InstanceSnapshot(), code)
 }
 
 // ErrorsByDomain returns every code's metadata in the named domain
 // (CLI, DATA, ENCODING, PROCESSING, PULSE, SERVICE). Match is
 // case-insensitive. Returns a non-nil empty slice when nothing
-// matches; results are sorted alphabetically by code.
+// matches; results are sorted alphabetically by code. Instance-scoped
+// as ErrorLookup: hidden codes are absent, hidden-naming fixups stripped.
 func (p *Pulse) ErrorsByDomain(domain string) []ErrorMetadata {
-	return errors.ByDomain(domain)
+	return descx.ErrorsByDomain(p.svc.InstanceSnapshot(), domain)
 }
 
 // ErrorsSearch returns codes whose Message or Fixup hints contain the
 // query (case-insensitive substring). Results are ranked by match
 // source: description hits before fixup hits before code-name hits;
 // ties resolve alphabetically. Returns a non-nil empty slice when
-// nothing matches.
+// nothing matches. Instance-scoped as ErrorLookup; the query matches
+// only the text the instance renders, never a stripped fixup.
 func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
-	return errors.Search(query)
+	return descx.ErrorsSearch(p.svc.InstanceSnapshot(), query)
 }
 
 // Request-template type aliases, so embedders name the template document

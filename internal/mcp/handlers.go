@@ -210,11 +210,13 @@ func HandleExamplesGet(_ context.Context, p *pulse.Pulse, in ExamplesGetIn) (Exa
 
 // HandleErrorsLookup runs pulse_errors_lookup. At least one axis must be
 // set; supplied axes are intersected.
-func HandleErrorsLookup(_ context.Context, _ *pulse.Pulse, in ErrorsLookupIn) (ErrorsLookupOut, error) {
+// It reads through the facade, so a feature-profiled instance answers
+// with its own scoped view.
+func HandleErrorsLookup(_ context.Context, p *pulse.Pulse, in ErrorsLookupIn) (ErrorsLookupOut, error) {
 	if in.Code == "" && in.Domain == "" && in.Query == "" {
 		return ErrorsLookupOut{}, errors.New("specify at least one of code, domain, query")
 	}
-	return ErrorsLookupOut{Results: intersectErrorLookup(in.Code, in.Domain, in.Query)}, nil
+	return ErrorsLookupOut{Results: intersectErrorLookup(p, in.Code, in.Domain, in.Query)}, nil
 }
 
 // HandleImport runs pulse_import: converts a tabular source into a managed
@@ -330,10 +332,10 @@ func HandleLabelResolve(_ context.Context, p *pulse.Pulse, in LabelResolveIn) (L
 // only one axis is set, the result is that axis's natural output
 // (preserving Search's ranking; ByDomain's alphabetical order; Lookup's
 // 0/1 element). Returns a non-nil empty slice when nothing matches.
-func intersectErrorLookup(code, domain, query string) []perr.LookupResult {
+func intersectErrorLookup(p *pulse.Pulse, code, domain, query string) []perr.LookupResult {
 	axes := make([][]perr.LookupResult, 0, 3)
 	if code != "" {
-		hit, ok := perr.Lookup(code)
+		hit, ok := p.ErrorLookup(code)
 		if ok {
 			axes = append(axes, []perr.LookupResult{hit})
 		} else {
@@ -341,10 +343,10 @@ func intersectErrorLookup(code, domain, query string) []perr.LookupResult {
 		}
 	}
 	if domain != "" {
-		axes = append(axes, perr.ByDomain(domain))
+		axes = append(axes, p.ErrorsByDomain(domain))
 	}
 	if query != "" {
-		axes = append(axes, perr.Search(query))
+		axes = append(axes, p.ErrorsSearch(query))
 	}
 	if len(axes) == 0 {
 		return []perr.LookupResult{}

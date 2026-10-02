@@ -114,7 +114,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PROCESSING_REGRESSION_NO_CONVERGE: {
-		Message: "An iterative regression fit (IRLS for REG_GLM, coordinate descent for regularized REG_OLS) failed to converge within MaxIters.",
+		Message: "An iterative regression fit (IRLS for a generalized linear model, coordinate descent for a regularized least-squares fit) failed to converge within MaxIters.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -546,7 +546,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
-		Message: "FEAT_TARGET_ENCODE was requested without a prior FEAT_TRAIN_TEST_SPLIT; encoded values include rows that should be held out.",
+		Message: "FEAT_TARGET_ENCODE was requested without a prior train/test split feature; encoded values include rows that should be held out.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -589,7 +589,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: {
-		Message: "An aggregation has no defined semantics for the decimal128 field type (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1).",
+		Message: "An aggregation has no defined semantics for the decimal128 field type (e.g., median or percentile in v1).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
@@ -1206,7 +1206,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CHAIN_NOT_MERGEABLE: {
-		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, AGG_FREQUENCY, AGG_MODE, or a non-mergeable grouper/aggregator).",
+		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, frequency and mode aggregators, or a non-mergeable grouper/aggregator).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -1306,7 +1306,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_EMPTY: {
-		Message: "A labeled-date-range set (GROUP_DATE_RANGES / FILTER_DATE_RANGES inline ranges, or a named range table) was presented with zero ranges.",
+		Message: "A labeled-date-range set (the inline ranges of a date-range grouper or filterer, or a named range table) was presented with zero ranges.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -1342,7 +1342,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_SOURCE_AMBIGUOUS: {
-		Message: "A GROUP_DATE_RANGES / FILTER_DATE_RANGES operator must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
+		Message: "A date-range grouper or filterer must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -1351,7 +1351,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_UNKNOWN: {
-		Message: "A GROUP_DATE_RANGES / FILTER_DATE_RANGES operator referenced a range table by a name that is not registered.",
+		Message: "A date-range grouper or filterer referenced a range table by a name that is not registered.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1594,7 +1594,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED: {
-		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (AGG_SET_FREQUENCY emits map[string]int per cell). Dividing one map by another is undefined; the normalize directive cannot be applied.",
+		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (a set-frequency aggregator emits map[string]int per cell). Dividing one map by another is undefined; the normalize directive cannot be applied.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -1615,7 +1615,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Rename the offending key to its canonical request slot (the error details carry the nearest valid key). Request slots are: cohort, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, regressions, joins, labels, outputs. The manifest's \"groupers\"/\"aggregators\" name the available OPERATORS; the request slots that hold them are \"groups\"/\"aggregations\".",
+				Hint:     "Rename the offending key to its canonical request slot: the error details carry the nearest valid key under suggestions and every slot this instance accepts under valid_keys. The manifest's \"groupers\"/\"aggregators\" name the available OPERATORS; the request slots that hold them are \"groups\"/\"aggregations\".",
 				Examples: []any{"groupers -> groups", "aggregators -> aggregations"},
 			},
 		},
@@ -1633,7 +1633,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE: {
-		Message: "An OverlaySpec's Ref does not match the host shape required by the chosen Kind. OVERLAY_INDEX_VS_MARGIN requires a Ref.Margin pointer with a known MarginAxis (row / column / grand) AND a MATRIX-shaped host (Request.Crosstab non-nil).",
+		Message: "An OverlaySpec's Ref does not match the host shape required by the chosen Kind. The index-vs-margin overlay, for example, requires a Ref.Margin pointer with a known MarginAxis (row / column / grand) AND a MATRIX-shaped host (Request.Crosstab non-nil).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -1655,7 +1655,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_SCOPE_UNSUPPORTED: {
-		Message: "An OverlaySpec named a Scope that is not supported for the chosen Kind. OVERLAY_INDEX_VS_MARGIN currently supports Scope=cell only; row / column / total / matrix / group land in later releases alongside the matching payload shapes.",
+		Message: "An OverlaySpec named a Scope that is not supported for the chosen Kind. The index-vs-margin overlay, for example, currently supports Scope=cell only; row / column / total / matrix / group land in later releases alongside the matching payload shapes.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -1676,7 +1676,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_EXPECTED_LOW: {
-		Message: "An inferential overlay (OVERLAY_CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL / FISHER_EXACT_CELL / CHISQ_VS_POP) observed an expected count below the χ² approximation's reliability threshold (canonical rule: any expected cell below 5; Fisher's 2×2 rule: any cell < 1 OR ≥ 20% cells < 5). The statistic is still emitted alongside; the warning flags rows / columns / cells / categories where the approximation may be unreliable. Warning-class — surfaced as a Response.Warning, never as an envelope error. PRD FR-J1 shares the code across the χ² / Fisher overlay surfaces — Crosstab MATRIX-host kinds and Facet GROUP-host CHISQ_VS_POP emit the same warning shape so renderers can lift it into a single \"approximation may be unreliable\" surface regardless of host shape.",
+		Message: "An inferential overlay (the chi-square matrix / row / column, Fisher exact cell or chi-square-vs-population overlay) observed an expected count below the χ² approximation's reliability threshold (canonical rule: any expected cell below 5; Fisher's 2×2 rule: any cell < 1 OR ≥ 20% cells < 5). The statistic is still emitted alongside; the warning flags rows / columns / cells / categories where the approximation may be unreliable. Warning-class — surfaced as a Response.Warning, never as an envelope error. PRD FR-J1 shares the code across the χ² / Fisher overlay surfaces — Crosstab MATRIX-host kinds and Facet GROUP-host CHISQ_VS_POP emit the same warning shape so renderers can lift it into a single \"approximation may be unreliable\" surface regardless of host shape.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -1707,7 +1707,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARAM_MISSING: {
-		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. OVERLAY_INDEX_VS_ROLLING_MEAN requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name.",
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -1751,7 +1751,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_REF_UNKNOWN: {
-		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (OVERLAY_DELTA_VS_SIBLING / OVERLAY_INDEX_VS_SIBLING) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_YOY) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; (3) Facet-host population overlays (OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
+		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (delta- and index-vs-sibling) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (index- and delta-vs-baseline, rolling-mean index, year-over-year) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; (3) Facet-host population overlays (index, z-score, chi-square and KS vs population) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1793,7 +1793,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT: {
-		Message: "A whole-chain overlay spec (OVERLAY_INDEX_VS_STAGE / OVERLAY_DELTA_VS_STAGE) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
+		Message: "A whole-chain overlay spec (the index-vs-stage or delta-vs-stage overlay) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -1834,7 +1834,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_REFERENCE_UNKNOWN: {
-		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (OVERLAY_DELTA_VS_STAGE) with `ref_missing: true` (handler folds against an implicit zero reference).",
+		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (the delta-vs-stage overlay) with `ref_missing: true` (handler folds against an implicit zero reference).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1926,7 +1926,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP: {
-		Message: "A multi-reference COMPOSE-host overlay spec (today: OVERLAY_PROP_Z_PANEL) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap`.",
+		Message: "A multi-reference COMPOSE-host overlay spec (today: the panel proportion-z and panel index-vs-ref overlays) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1941,7 +1941,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED: {
-		Message: "An OVERLAY_PAIRWISE_* spec asked for a distinct-key slab sample size (`params.n_source = \"n_within_distinct\"`) over a pair axis whose summed-across dims include a fan-out grouper (`types.GroupType.FansOut()` — today GROUP_SET_PER_ELEMENT). The slab fixes the first `n_within_depth + 1` pair-axis dims and sums the cells after them; summing per-cell DISTINCT cardinalities equals the slab's true distinct count only when those cells PARTITION the key set. Under a fan-out grouper one key lands in two summed cells, so the n over-states the sample size — silently, and liberally, which is the exact failure the distinct mode exists to remove. A fan-out grouper at depth <= n_within_depth is fine (it sits inside the FIXED prefix and multiplies slabs, not cells), as is one on the opposite axis at any depth. Plain `n_within` is never refused: record counts are additive. Details carry the offending `dim_index`, `group_type`, `field` and `axis` alongside `index`, `kind`, `n_source` and `n_within_depth`. THE COMPOSE-HOST PANEL RAISES THE SAME CODE for the same condition on its own host. `OVERLAY_PROP_Z_PANEL` with `params.n_source = \"row_margin_value_within\"` AND an explicit `n_within_depth` sums each SLOT's row margins over a row-key prefix, so the summed-across dims must partition too. Three differences from the axis-pairing arm, all in the Details: `axis` is always `row` (the panel pairs across SLOTS, so no mode name ever refers to a pair axis); the offending slot is named by BOTH `panel_index` (0 = the reference) and the authored `slot_index`, plus `slot_label`; and every slot is walked, so one offending slot refuses the WHOLE spec rather than dropping out — dropping it would change M, and M sets the length and the pair ordering of every cell's flattened upper-triangular vector. Unlike the axis-pairing arm the panel gates its RECORD-COUNTED-looking mode too, because a panel row margin is whatever that slot's cell aggregator emitted (a count, a distinct cardinality, a weighted sum, a percentage) and the host cannot claim additivity for it. OMITTING `n_within_depth` is always a valid fix on the panel: that form reads the exact per-slot row margin and sums nothing.",
+		Message: "An OVERLAY_PAIRWISE_* spec asked for a distinct-key slab sample size (`params.n_source = \"n_within_distinct\"`) over a pair axis whose summed-across dims include a fan-out grouper (`types.GroupType.FansOut()` — today the per-element set grouper). The slab fixes the first `n_within_depth + 1` pair-axis dims and sums the cells after them; summing per-cell DISTINCT cardinalities equals the slab's true distinct count only when those cells PARTITION the key set. Under a fan-out grouper one key lands in two summed cells, so the n over-states the sample size — silently, and liberally, which is the exact failure the distinct mode exists to remove. A fan-out grouper at depth <= n_within_depth is fine (it sits inside the FIXED prefix and multiplies slabs, not cells), as is one on the opposite axis at any depth. Plain `n_within` is never refused: record counts are additive. Details carry the offending `dim_index`, `group_type`, `field` and `axis` alongside `index`, `kind`, `n_source` and `n_within_depth`. THE COMPOSE-HOST PANEL RAISES THE SAME CODE for the same condition on its own host. The panel proportion-z overlay with `params.n_source = \"row_margin_value_within\"` AND an explicit `n_within_depth` sums each SLOT's row margins over a row-key prefix, so the summed-across dims must partition too. Three differences from the axis-pairing arm, all in the Details: `axis` is always `row` (the panel pairs across SLOTS, so no mode name ever refers to a pair axis); the offending slot is named by BOTH `panel_index` (0 = the reference) and the authored `slot_index`, plus `slot_label`; and every slot is walked, so one offending slot refuses the WHOLE spec rather than dropping out — dropping it would change M, and M sets the length and the pair ordering of every cell's flattened upper-triangular vector. Unlike the axis-pairing arm the panel gates its RECORD-COUNTED-looking mode too, because a panel row margin is whatever that slot's cell aggregator emitted (a count, a distinct cardinality, a weighted sum, a percentage) and the host cannot claim additivity for it. OMITTING `n_within_depth` is always a valid fix on the panel: that form reads the exact per-slot row margin and sums nothing.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2401,7 +2401,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SPSS_MEASURE_LEVEL_MISMATCH: {
-		Message: "An SPSS variable whose record 7/11 measurement level is 'scale' carries value labels, so it mapped to a Pulse categorical field. Its smart defaults are therefore AGG_FREQUENCY / GROUP_CATEGORY rather than the AGG_SUM / GROUP_RANGE the declared level implies. This is a warning: every code and label is preserved, but the analytic defaults will not be the ones the source file declared.",
+		Message: "An SPSS variable whose record 7/11 measurement level is 'scale' carries value labels, so it mapped to a Pulse categorical field. Its smart defaults are therefore the categorical ones (frequency aggregation, category grouping) rather than the numeric ones (sum aggregation, range grouping) the declared level implies. This is a warning: every code and label is preserved, but the analytic defaults will not be the ones the source file declared.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2571,7 +2571,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SPSS_MR_SET_NOT_DERIVED: {
-		Message: "An SPSS multiple-DICHOTOMY response set did not get the derived `set_*` convenience column the import normally emits for one. This is informational and the import succeeded: the derived column is ADDITIVE, so every constituent variable of the set was imported as its own ordinary column either way. What is lost is ergonomics — FILTER_SET and GROUP_SET_PER_ELEMENT over one column — never data. The reason is one of: the set names more than 64 constituents (a set_u64 bitmask has 64 bits); it names a variable no record type 2 declares; it names the same variable twice, which would need one bit to be two; its counted value will not compare against a numeric member; or a constituent's Pulse field name contains the set-token delimiter `|` or IS a null sentinel token (`NA`, `N/A`, `NULL`), either of which would make the derived cell ambiguous. Details name the set under `response_set`, the member count under `distinct`, and any single offending member under `variable`.",
+		Message: "An SPSS multiple-DICHOTOMY response set did not get the derived `set_*` convenience column the import normally emits for one. This is informational and the import succeeded: the derived column is ADDITIVE, so every constituent variable of the set was imported as its own ordinary column either way. What is lost is ergonomics — set filters and per-element set grouping over one column — never data. The reason is one of: the set names more than 64 constituents (a set_u64 bitmask has 64 bits); it names a variable no record type 2 declares; it names the same variable twice, which would need one bit to be two; its counted value will not compare against a numeric member; or a constituent's Pulse field name contains the set-token delimiter `|` or IS a null sentinel token (`NA`, `N/A`, `NULL`), either of which would make the derived cell ambiguous. Details name the set under `response_set`, the member count under `distinct`, and any single offending member under `variable`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
