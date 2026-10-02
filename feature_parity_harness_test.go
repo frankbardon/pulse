@@ -423,7 +423,25 @@ func jsonNumber(f float64) string {
 // operators it offers.
 func newParityHost(t *testing.T, fsys afero.Fs, fixture string) *parityHost {
 	t.Helper()
+	return newParityHostWith(t, fsys, fixture, parityHostConfig{})
+}
+
+// parityHostConfig varies the instance and cohort a harness run drives:
+// options mutates the Options (e.g. Strict) and cohort / fields replace
+// the default parity cohort and its numeric / categorical columns.
+// Zero values keep the defaults.
+type parityHostConfig struct {
+	options func(*Options)
+	cohort  string
+	fields  parityFields
+}
+
+func newParityHostWith(t *testing.T, fsys afero.Fs, fixture string, cfg parityHostConfig) *parityHost {
+	t.Helper()
 	opts := Options{FS: fsys}
+	if cfg.options != nil {
+		cfg.options(&opts)
+	}
 	if fixture != "" {
 		raw, err := os.ReadFile(featureSetFixtureDir + fixture + ".json")
 		if err != nil {
@@ -441,6 +459,12 @@ func newParityHost(t *testing.T, fsys afero.Fs, fixture string) *parityHost {
 	}
 	inst := p.svc.InstanceSnapshot()
 	h := &parityHost{p: p, cohort: parityCohort, fields: parityFields{num: "age", cat: "region"}}
+	if cfg.cohort != "" {
+		h.cohort = cfg.cohort
+	}
+	if cfg.fields != (parityFields{}) {
+		h.fields = cfg.fields
+	}
 	h.base = func() *types.Request {
 		req := &types.Request{}
 		if inst.Enabled(string(types.GROUP_CATEGORY)) {
@@ -478,11 +502,17 @@ func hiddenCandidate(h *parityHost, c parityCategory) (string, bool) {
 // extend: pass a wider category or entry-point table.
 func runHiddenParity(t *testing.T, fixtures []string, categories []parityCategory, entries []parityEntryPoint) {
 	t.Helper()
-	fsys := parityFS(t)
-	unscoped := newParityHost(t, fsys, "")
+	runHiddenParityWith(t, parityFS(t), parityHostConfig{}, fixtures, categories, entries)
+}
+
+// runHiddenParityWith is runHiddenParity over fsys with every host —
+// the fixture ones and the unprofiled control — built from cfg.
+func runHiddenParityWith(t *testing.T, fsys afero.Fs, cfg parityHostConfig, fixtures []string, categories []parityCategory, entries []parityEntryPoint) {
+	t.Helper()
+	unscoped := newParityHostWith(t, fsys, "", cfg)
 	applicable := 0
 	for _, fixture := range fixtures {
-		host := newParityHost(t, fsys, fixture)
+		host := newParityHostWith(t, fsys, fixture, cfg)
 		// The unprofiled control runs the SAME base the fixture
 		// offers, so a vacuous cell is one the name never reaches.
 		control := *unscoped

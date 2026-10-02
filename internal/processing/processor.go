@@ -1722,7 +1722,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		// (extend.Record.DecimalValue) and falls through to its factory.
 		if p.schema != nil && !p.exts.isExtensionAggregator(agg.Type) {
 			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
-				if !IsDecimalAggregationSupported(agg.Type) {
+				if !p.exts.decimalAggregationSupported(agg.Type) {
 					return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 						"aggregation has no decimal128 implementation",
 						map[string]any{"aggregation": string(agg.Type), "field": agg.Field})

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -59,7 +60,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	}
 	schema := cohort.Schema()
 
-	if err := validateFacetSchemaRequest(req, schema); err != nil {
+	if err := validateFacetSchemaRequest(req, schema, s.InstanceSnapshot()); err != nil {
 		return nil, err
 	}
 	if err := s.resolveFacetZones(req, schema); err != nil {
@@ -194,7 +195,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 
 // validateFacetSchemaRequest checks structural rules + schema-references
 // before the streaming pass. Failure surfaces as SERVICE_VALIDATION.
-func validateFacetSchemaRequest(req *types.FacetRequest, schema *encoding.Schema) error {
+func validateFacetSchemaRequest(req *types.FacetRequest, schema *encoding.Schema, inst *descx.InstanceSnapshot) error {
 	if req.DiscreteTopK < 0 {
 		return errors.NewCodedError(errors.SERVICE_VALIDATION, "discrete_top_k must be >= 0")
 	}
@@ -242,7 +243,10 @@ func validateFacetSchemaRequest(req *types.FacetRequest, schema *encoding.Schema
 			if f == nil {
 				continue
 			}
-			if f.Type == types.FILTER_EXPRESSION && filterExpressionMentions(f, name) {
+			// Keyed by name ahead of the filter build, so a
+			// FILTER_EXPRESSION the instance hides is not one: it fails
+			// at the build as a never-registered filter type.
+			if f.Type == types.FILTER_EXPRESSION && !inst.Hidden(string(f.Type)) && filterExpressionMentions(f, name) {
 				return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 					fmt.Sprintf("additive field %q referenced inside FILTER_EXPRESSION; express the predicate as discrete filterers instead", name),
 					map[string]any{"field": name, "expression": f.Expression})
