@@ -246,9 +246,11 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   pointers (nil when hidden), so code that read them as values must
   check for nil. Prose that names a hidden feature is dropped from
   descriptions and hints. The manifest's `skills` and examples counts
-  are not scoped yet, and `extensions.label_tables` / `range_tables`
-  still list the instance's named tables even when `capability:labels`
-  or `capability:range_tables` is off.
+  are not scoped yet. `extensions.label_tables` is empty (`[]`) when
+  `capability:labels` is off and `extensions.range_tables` when
+  `capability:range_tables` is off, exactly as on an instance that
+  registered no tables. `p.LabelTables()` and `p.RangeTables()` still
+  return them: facade methods are not gated.
 - **Payload schema.** `p.PayloadSchema()` returns the JSON Schema for
   the instance: enums keep only enabled names, hidden slots are not
   properties, and a request root whose capability is off (compose,

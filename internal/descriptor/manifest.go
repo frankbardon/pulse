@@ -323,6 +323,15 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		m.SynthDistributions = []descriptor.DistributionMeta{}
 		m.Extensions.SynthDistributions = []descriptor.OperatorMeta{}
 	}
+	// A named table rides its capability: with capability:labels /
+	// capability:range_tables hidden the instance lists no such table,
+	// exactly as one that registered none.
+	if !on(featLabels) {
+		m.Extensions.LabelTables = []descriptor.LabelTableMeta{}
+	}
+	if !on(featRangeTables) {
+		m.Extensions.RangeTables = []descriptor.RangeTableMeta{}
+	}
 	if on(featFacet) {
 		c := facetCapability()
 		c.SupportedOverlayKinds = filterNames(c.SupportedOverlayKinds, on)

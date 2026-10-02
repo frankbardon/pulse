@@ -104,5 +104,5 @@ U05 enforced the feature set through `*Pulse` and the descriptor builders; contr
 - **`strict.go` location keys** are `request_index` / `stage_index`; the service names `request` / `stage`. Unify. Slot and unknown-field logic already delegates to `descx.JSONObjectKeys` / `descx.UnknownFieldError`.
 - **`TestProfileInvisibilityParity`**: the parity harness exists in the root package (`runHiddenParity`, per-entry-point tables); finalize it over MCP and add malformed-request cells (zone `tz`, field-ref parameter keys and strict categorical checks run before lookup and may diverge).
 - **Runtime refusal text** under `internal/processing` and `internal/service` is not swept for hidden names; `SeriesOverlayRequest.Overlays` is method-level and ungated.
-- **Open decision:** whether manifest `extensions.label_tables` / `range_tables` empty when `capability:labels` / `range_tables` is hidden (today they do not).
+- **Label-table enum in `BindOnInspect`** (`labelTableNames`, `internal/mcp/bind.go`) lists every label table even when `capability:labels` is hidden; the manifest already lists none (U05 decision: a hidden capability's named tables are listed as if none were registered).
 - **Public example profiles** (`examples/profiles/*.json`): U05's `minimal`, `survey-crosstab` and `empty` fixtures are private under `descriptor/testdata/profiles/`.

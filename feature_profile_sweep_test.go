@@ -138,8 +138,24 @@ func TestProfileDefaultIsFull(t *testing.T) {
 	}
 }
 
+const (
+	sweepLabelTable = "sweep_label_tbl"
+	sweepRangeTable = "sweep_range_tbl"
+)
+
+// sweepNamedTables registers one label table and one range table so the
+// sweep can prove a hidden capability's table names never surface.
+func sweepNamedTables() Extensions {
+	start := "2024-01-01"
+	return Extensions{
+		LabelTables: map[string]LabelTable{sweepLabelTable: {Rows: map[string]string{"1": "one"}}},
+		RangeTables: map[string]RangeTable{sweepRangeTable: {Ranges: []DateRangeSpec{{Label: "all", Start: &start}}}},
+	}
+}
+
 // TestProfileHiddenNameSweep: for every fixture profile, no hidden
-// operator name or hidden-feature MCP tool appears on any instance
+// operator name, hidden-feature MCP tool or hidden-capability named
+// table appears on any instance
 // self-description surface — the manifest (outside the U10-owned
 // skills and examples sections), the payload schema, the error list,
 // lookup and search — nor in any predict refusal or suggestion beyond
@@ -148,10 +164,21 @@ func TestProfileHiddenNameSweep(t *testing.T) {
 	data := parityCohortBytes(t)
 	for _, name := range featureSetFixtures {
 		t.Run(name, func(t *testing.T) {
-			p := newFixturePulse(t, name, Options{})
+			p := newFixturePulse(t, name, Options{Extensions: sweepNamedTables()})
 			hidden := errorsHiddenTokens(p)
 			if len(hidden) == 0 {
 				t.Fatal("fixture hides no named feature: vacuous")
+			}
+			// A named table rides its capability: hidden capability,
+			// hidden table names.
+			inst := p.svc.InstanceSnapshot()
+			for feat, tbl := range map[string]string{
+				"capability:labels":       sweepLabelTable,
+				"capability:range_tables": sweepRangeTable,
+			} {
+				if !inst.Enabled(feat) {
+					hidden[tbl] = true
+				}
 			}
 			check := func(surface, text string, allowed map[string]bool) {
 				t.Helper()
