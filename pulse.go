@@ -513,6 +513,9 @@ func New(opts Options) (*Pulse, error) {
 	if err := probeExtensions(opts.Extensions); err != nil {
 		return nil, err
 	}
+	if err := validateExtensionDependsOn(newFeatureUniverse(opts.Extensions, Version())); err != nil {
+		return nil, err
+	}
 	if err := validateAutoLabels(opts.AutoLabels, opts.Extensions.LabelTables); err != nil {
 		return nil, err
 	}

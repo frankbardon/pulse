@@ -117,7 +117,7 @@ func TestFeatureProfile_DuplicatesListsEveryName(t *testing.T) {
 // TestFeatureProfile_ValidFileStored asserts a well-formed file is read
 // through the instance Fs (it exists only in the MemMap) and stored.
 func TestFeatureProfile_ValidFileStored(t *testing.T) {
-	body := `{"profile": "self-serve", "written_with": "not-a-version", "features": ["AGG_SUM"],
+	body := `{"profile": "self-serve", "written_with": "not-a-version", "features": ["AGG_SUM", "capability:process"],
 		"behaviour": {"disable_cohort_scan": true}}`
 	p, err := New(Options{
 		FS:                 memFsWith(t, map[string]string{"profiles/p.json": body}),
@@ -129,7 +129,7 @@ func TestFeatureProfile_ValidFileStored(t *testing.T) {
 	want := &FeatureProfile{
 		Profile:     "self-serve",
 		WrittenWith: "not-a-version",
-		Features:    []string{"AGG_SUM"},
+		Features:    []string{"AGG_SUM", "capability:process"},
 		Behaviour:   &FeatureProfileBehaviour{DisableCohortScan: true},
 	}
 	if !reflect.DeepEqual(p.featureProfile, want) {
@@ -151,7 +151,7 @@ func TestFeatureProfile_EmptyFeaturesValid(t *testing.T) {
 // TestFeatureProfile_ValueIsCopied asserts the instance keeps its own
 // copy: mutating the caller's profile after New changes nothing.
 func TestFeatureProfile_ValueIsCopied(t *testing.T) {
-	in := &FeatureProfile{Features: []string{"AGG_SUM"}, Behaviour: &FeatureProfileBehaviour{}}
+	in := &FeatureProfile{Features: []string{"AGG_SUM", "capability:process"}, Behaviour: &FeatureProfileBehaviour{}}
 	p, err := New(Options{FS: memFsWith(t, nil), FeatureProfile: in})
 	if err != nil {
 		t.Fatalf("New: %v", err)

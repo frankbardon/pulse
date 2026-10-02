@@ -12,6 +12,7 @@ pulse: type AggregatorRegistration struct
 pulse: type AggregatorRegistration field Accepts []pulse/encoding.FieldType
 pulse: type AggregatorRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponentsFunc
+pulse: type AggregatorRegistration field DependsOn []string
 pulse: type AggregatorRegistration field Description string
 pulse: type AggregatorRegistration field Factory pulse/extend.AggregatorFactory
 pulse: type AggregatorRegistration field FieldInputs pulse.FieldInputsFunc
@@ -30,6 +31,7 @@ pulse: const AttributeModeRowLocal pulse.AttributeMode = "row_local"
 pulse: const AttributeModeTwoPass pulse.AttributeMode = "two_pass"
 pulse: type AttributeRegistration struct
 pulse: type AttributeRegistration field Accepts []pulse/encoding.FieldType
+pulse: type AttributeRegistration field DependsOn []string
 pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
 pulse: type AttributeRegistration field Factory pulse/extend.AttributeFactory
@@ -253,6 +255,7 @@ pulse: type FeatureProfileBehaviour field DisableDefaults bool "json:\"disable_d
 pulse: type FeatureProfileBehaviour field DisableProjection bool "json:\"disable_projection,omitempty\""
 pulse: type FeatureRegistration struct
 pulse: type FeatureRegistration field Accepts []pulse/encoding.FieldType
+pulse: type FeatureRegistration field DependsOn []string
 pulse: type FeatureRegistration field Description string
 pulse: type FeatureRegistration field Factory pulse/extend.FeatureFactory
 pulse: type FeatureRegistration field FieldInputs pulse.FieldInputsFunc
@@ -277,6 +280,7 @@ pulse: type FiltererRegistration struct
 pulse: type FiltererRegistration field Accepts []pulse/encoding.FieldType
 pulse: type FiltererRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type FiltererRegistration field ComponentsFunc pulse.FiltererComponentsFunc
+pulse: type FiltererRegistration field DependsOn []string
 pulse: type FiltererRegistration field Description string
 pulse: type FiltererRegistration field Factory pulse/extend.FiltererFactory
 pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
@@ -304,6 +308,7 @@ pulse: type GrouperRegistration struct
 pulse: type GrouperRegistration field Accepts []pulse/encoding.FieldType
 pulse: type GrouperRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type GrouperRegistration field ComponentsFunc pulse.GrouperComponentsFunc
+pulse: type GrouperRegistration field DependsOn []string
 pulse: type GrouperRegistration field Description string
 pulse: type GrouperRegistration field Factory pulse/extend.GrouperFactory
 pulse: type GrouperRegistration field FansOut bool
@@ -799,6 +804,7 @@ pulse: type TemplateVariable field Type pulse/internal/template.VarType "json:\"
 pulse: type TemplateVariable field Values []string "json:\"values,omitempty\""
 pulse: type TestRegistration struct
 pulse: type TestRegistration field Accepts []pulse/encoding.FieldType
+pulse: type TestRegistration field DependsOn []string
 pulse: type TestRegistration field Description string
 pulse: type TestRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type TestRegistration field Name pulse/types.TestType
@@ -840,6 +846,7 @@ pulse: type WidenReport field StrideBefore int
 pulse: type WidenReport field To pulse/encoding.FieldType
 pulse: type WindowRegistration struct
 pulse: type WindowRegistration field Accepts []pulse/encoding.FieldType
+pulse: type WindowRegistration field DependsOn []string
 pulse: type WindowRegistration field Description string
 pulse: type WindowRegistration field Factory pulse/extend.WindowFactory
 pulse: type WindowRegistration field FieldInputs pulse.FieldInputsFunc
@@ -1558,7 +1565,9 @@ pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTE
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
+pulse/errors: const PULSE_FEATURE_PROFILE_DEPENDENCY pulse/errors.Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
 pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEATURE_PROFILE_INVALID"
+pulse/errors: const PULSE_FEATURE_PROFILE_UNKNOWN pulse/errors.Code = "PULSE_FEATURE_PROFILE_UNKNOWN"
 pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
@@ -3521,4 +3530,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8e1ee7a72d8db2b3042922602c4628d4ca09029352b453542d120e2635e5275f
+// golden-hash: bb740c561ab8c0727db976c499dcec73bb27b0ea48c431b7164a316c6cdc462b

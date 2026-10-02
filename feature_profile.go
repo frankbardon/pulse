@@ -94,9 +94,13 @@ type featureProfileFile struct {
 // neither is set. fsys is the instance filesystem — FeatureProfileFile
 // is read through it, never through the OS directly.
 //
-// Validation runs in classes and stops at the first failing class:
-// structural faults (PULSE_FEATURE_PROFILE_INVALID) come first; the
-// name and dependency classes slot in after validateFeatureProfileShape.
+// Validation runs in classes and stops at the first failing class,
+// reporting every instance of that class: structural faults
+// (PULSE_FEATURE_PROFILE_INVALID), then names that do not resolve
+// against the built-in table plus the registered extension operators
+// (PULSE_FEATURE_PROFILE_UNKNOWN), then unmet dependency groups
+// (PULSE_FEATURE_PROFILE_DEPENDENCY). An extension omitted from the
+// profile is not an error.
 func resolveFeatureProfile(opts Options, fsys afero.Fs) (*FeatureProfile, error) {
 	if opts.FeatureProfile != nil && opts.FeatureProfileFile != "" {
 		return nil, featureProfileInvalid(featureProfileReasonBothSet,
@@ -119,6 +123,13 @@ func resolveFeatureProfile(opts Options, fsys afero.Fs) (*FeatureProfile, error)
 	}
 
 	if err := validateFeatureProfileShape(fp, opts.FeatureProfileFile); err != nil {
+		return nil, err
+	}
+	u := newFeatureUniverse(opts.Extensions, Version())
+	if err := validateFeatureProfileNames(fp, u, opts.FeatureProfileFile); err != nil {
+		return nil, err
+	}
+	if err := validateFeatureProfileDependencies(fp, u, opts.FeatureProfileFile); err != nil {
 		return nil, err
 	}
 	return fp, nil

@@ -433,6 +433,15 @@ var hardEdges = map[string][]string{
 	"OVERLAY_YOY":                  {"GROUP_DATE"},
 }
 
+// RequestHostCapabilities returns the request-executing host
+// capabilities, in a fresh slice: the any-of group every non-overlay
+// operator depends on. The profile validator gives extension operators
+// the same group, so an extension operator is never enabled without a
+// host to run it.
+func RequestHostCapabilities() []string {
+	return append([]string(nil), requestHosts...)
+}
+
 // OverlayHostCapabilities returns the host capabilities an overlay kind
 // can run under, sorted. The engine-side gate compares it to handler-map
 // membership; nil means the kind is listed under no host.
