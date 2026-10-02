@@ -7346,7 +7346,7 @@
       },
       {
         "name": "type-datetime",
-        "description": "Second-granularity instant stored as epoch seconds in an 8-byte unsigned slot, naive UTC."
+        "description": "Second-granularity instant stored as signed epoch seconds (int64, negative = pre-1970), naive UTC."
       },
       {
         "name": "type-decimal128",
@@ -9766,4 +9766,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7094dab37aab6769214b2f96396e8bb33317d895e03dabb1384ef6b82fdd7183
+// golden-hash: 2cca48b04713bc2b53ade89fb5e331b83ec5257c969e7d525a142a8acfee8fcd

@@ -1,7 +1,7 @@
 ---
 name: type-datetime
 kind: type
-description: Second-granularity instant stored as epoch seconds in an 8-byte unsigned slot, naive UTC.
+description: Second-granularity instant stored as signed epoch seconds (int64, negative = pre-1970), naive UTC.
 type: reference
 applies_to: inspect, predict
 ---
