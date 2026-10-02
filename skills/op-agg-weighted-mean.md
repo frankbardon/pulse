@@ -45,7 +45,7 @@ Floor `{n, n_null}` plus (all float64; empty cell all 0):
 
 ## Gotchas
 
-- Rows with null weight OR weight==0 are SKIPPED (do not count toward `n`).
+- Null/zero-weight rows are skipped by the mean but STILL count in floor `n` (`n`/`n_null` track `Field` only); size from `sum_weights`/`n_eff`.
 - `decimal128` rejected.
 - For unweighted mean use `AGG_AVERAGE`.
 

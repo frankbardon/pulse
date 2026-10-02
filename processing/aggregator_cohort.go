@@ -134,8 +134,10 @@ func (a *weightedMeanAggregator) Finalize() (float64, error) {
 // as mean * wSum (algebraically identical to the running sum-of-
 // weighted-values for the Chan-Welford recurrence). Empty-input case
 // (wSum == 0) emits zero sums and a zero weighted_mean to mirror the
-// scalar return path's 0 fallback — callers can detect the zero-weight
-// case via the universal-floor n == 0 channel.
+// scalar return path's 0 fallback — callers detect the zero-weight
+// case via sum_weights == 0, NOT the universal floor: floor n counts
+// every row whose value Field is present, including null/zero-weight
+// rows (pinned by aggregator_weighted_floor_test.go).
 func (a *weightedMeanAggregator) freeze() {
 	a.frozenHasResult = true
 	a.frozenSumWeights = a.wSum
