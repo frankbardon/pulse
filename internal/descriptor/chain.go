@@ -247,7 +247,7 @@ func ValidateChainFromBytes(data []byte, req *types.ChainRequest) *descriptor.En
 func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictOptions) *types.Request {
 	clone := cloneRequestForDefaults(req)
 	if !opts.DisableDefaults && in != nil {
-		ResolveDefaults(clone, in)
+		ResolveDefaults(clone, in, nil)
 	}
 	return clone
 }

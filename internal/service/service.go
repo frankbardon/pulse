@@ -23,8 +23,12 @@ type Service struct {
 	disableDefaults   bool
 	disableComponents bool
 	projectBuffered   bool
-	extensions        *processing.ExtensionRegistry
-	instance          *descx.InstanceSnapshot
+	// extensions is the runtime registry every engine path resolves
+	// operators through: baseExtensions scoped by the instance feature
+	// set (see rescopeExtensions). Never assign it directly.
+	extensions     *processing.ExtensionRegistry
+	baseExtensions *processing.ExtensionRegistry
+	instance       *descx.InstanceSnapshot
 
 	// shardWorkers caps the per-shard parallel worker pool the Process
 	// path spawns when a request is mergeable per
@@ -167,9 +171,25 @@ func (s *Service) ProjectBufferedFields() bool {
 // SetExtensions installs an ExtensionRegistry containing embedder-
 // registered operator overlays. The registry is read-only after this
 // call; pass nil to clear. The processor consults this registry
-// before falling through to built-in factories.
+// before falling through to built-in factories. The installed
+// instance snapshot's hidden names are applied on top (either call
+// order works).
 func (s *Service) SetExtensions(r *processing.ExtensionRegistry) {
-	s.extensions = r
+	s.baseExtensions = r
+	s.rescopeExtensions()
+}
+
+// rescopeExtensions derives the runtime registry from the installed
+// extensions and the instance feature set: a scoped snapshot that hides
+// anything makes every operator it hides resolve as never registered
+// (processing.ExtensionRegistry.WithHidden). Without hidden names the
+// installed registry is used as-is — nil stays nil.
+func (s *Service) rescopeExtensions() {
+	var hidden func(string) bool
+	if inst := s.instance; inst != nil && len(inst.HiddenNames()) > 0 {
+		hidden = inst.Hidden
+	}
+	s.extensions = s.baseExtensions.WithHidden(hidden)
 }
 
 // Extensions returns the installed ExtensionRegistry, or nil when no
@@ -264,6 +284,7 @@ func (s *Service) EchoRequest() bool {
 // pulse.New populates this alongside SetExtensions. Pass nil to clear.
 func (s *Service) SetInstanceSnapshot(snap *descx.InstanceSnapshot) {
 	s.instance = snap
+	s.rescopeExtensions()
 }
 
 // InstanceSnapshot returns the installed instance snapshot. A nil
@@ -277,6 +298,7 @@ func (s *Service) InstanceSnapshot() *descx.InstanceSnapshot {
 // service by hand; pulse.New uses SetInstanceSnapshot.
 func (s *Service) SetExtensionsSnapshot(snap *descx.ExtensionsSnapshot) {
 	s.instance = descx.UnscopedInstanceSnapshot(snap)
+	s.rescopeExtensions()
 }
 
 // ExtensionsSnapshot returns the descriptor-side projection of the
@@ -291,7 +313,7 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 	if s.disableDefaults || req == nil || schema == nil {
 		return
 	}
-	descx.ResolveDefaults(req, schema)
+	descx.ResolveDefaults(req, schema, s.instance)
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.

@@ -144,3 +144,35 @@ func TestEmitsScalar(t *testing.T) {
 		}
 	}
 }
+
+// hidesFormula claims the built-in ATTR_FORMULA as known-and-not
+// row-local, the answer an instance feature set gives a hidden name.
+type hidesFormula struct{ None }
+
+func (hidesFormula) Attribute(n string) (bool, bool) {
+	if n == string(types.ATTR_FORMULA) {
+		return false, true
+	}
+	return false, false
+}
+
+// TestMergeRefusal_ExtensionAnswerPrecedesBuiltinAttributeList: the
+// adapter's attribute answer is consulted before the built-in row-local
+// list, so a hidden ATTR_FORMULA is refused with the reason a
+// never-registered attribute gets instead of passing on the list.
+func TestMergeRefusal_ExtensionAnswerPrecedesBuiltinAttributeList(t *testing.T) {
+	req := func(attr types.AttributeType) *types.Request {
+		return &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x"}},
+			Attributes:   []*types.Attribute{{Type: attr, Field: "x"}},
+		}
+	}
+	if r := MergeRefusal(req(types.ATTR_FORMULA), nil, None{}); r != "" {
+		t.Fatalf("ATTR_FORMULA refused built-in only: %s", r)
+	}
+	got := MergeRefusal(req(types.ATTR_FORMULA), nil, hidesFormula{})
+	want := strings.ReplaceAll(MergeRefusal(req("ATTR_NEVER_REGISTERED"), nil, hidesFormula{}), "ATTR_NEVER_REGISTERED", string(types.ATTR_FORMULA))
+	if got == "" || got != want {
+		t.Errorf("hidden ATTR_FORMULA refusal %q, want %q", got, want)
+	}
+}

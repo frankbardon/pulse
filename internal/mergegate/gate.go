@@ -24,7 +24,9 @@ import (
 // Extensions answers the embedder-registered half of the rule. Each
 // method reports ok=false for a name that is not a registered
 // extension of that category, in which case the built-in per-type
-// facts in package types decide. An implementation must be safe to
+// facts in package types decide. An implementation may also answer
+// ok=true, false for a built-in name its instance hides, which refuses
+// it exactly as an unregistered name is refused. An implementation must be safe to
 // call on its zero / nil value (no extensions).
 type Extensions interface {
 	// Aggregator reports an extension aggregator's DECLARED Mergeable
@@ -77,11 +79,19 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 		if attr == nil {
 			return "an attribute slot is nil"
 		}
-		switch attr.Type {
-		case types.ATTR_FORMULA, types.ATTR_DATE_PART:
-			continue
+		// The extension answer is consulted FIRST, like every other
+		// category below: an adapter may claim a built-in name (an
+		// instance feature set reports a hidden one as known-and-not
+		// row-local), and it must then refuse exactly as an
+		// unregistered name does rather than pass on the built-in list.
+		rowLocal, ok := ext.Attribute(string(attr.Type))
+		if !ok {
+			switch attr.Type {
+			case types.ATTR_FORMULA, types.ATTR_DATE_PART:
+				rowLocal = true
+			}
 		}
-		if rowLocal, ok := ext.Attribute(string(attr.Type)); ok && rowLocal {
+		if rowLocal {
 			continue
 		}
 		return fmt.Sprintf("attribute %s is not row-local (two-pass and buffered attributes are excluded)", attr.Type)

@@ -343,7 +343,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if hasTwoPassAttr && (len(req.Features) > 0 || len(req.Groups) > 0) {
 		return false
 	}
-	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.FeatureFactories()) {
+	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.LookupFeature) {
 		return false
 	}
 	if len(req.Aggregations) == 0 {
@@ -407,7 +407,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// PROCESSING_CONFIG bubbling up the canonical error.
 	var streamingFeatures []feature.StreamingHandle
 	if len(req.Features) > 0 {
-		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.FeatureFactories())
+		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.LookupFeature)
 		if err != nil {
 			return nil, err
 		}
@@ -724,7 +724,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// Build feature handles + filter funcs + row-local attrs once.
 	var streamingFeatures []feature.StreamingHandle
 	if len(req.Features) > 0 {
-		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.FeatureFactories())
+		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.LookupFeature)
 		if err != nil {
 			return nil, err
 		}
@@ -1317,7 +1317,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	if len(req.Windows) > 0 {
-		if err := window.ApplyWithExt(ctx, data, req.Windows, p.exts.WindowFactories()); err != nil {
+		if err := window.ApplyWithExt(ctx, data, req.Windows, p.exts.LookupWindow); err != nil {
 			return nil, err
 		}
 	}
@@ -1543,7 +1543,7 @@ func (p *Processor) applyFeatures(features []*types.Feature, records []*Record) 
 	for i, r := range records {
 		view[i] = r
 	}
-	return feature.ApplyWithExt(view, features, p.schema, p.exts.FeatureFactories())
+	return feature.ApplyWithExt(view, features, p.schema, p.exts.LookupFeature)
 }
 
 func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) error {

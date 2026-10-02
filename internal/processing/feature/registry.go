@@ -45,15 +45,17 @@ type StreamingHandle struct {
 	Computer StreamingComputer
 }
 
-// lookupWithExt consults the extension overlay first, then the built-in
-// registry.
-func lookupWithExt(t types.FeatureType, ext map[types.FeatureType]Factory) (Factory, bool) {
-	if ext != nil {
-		if f, ok := ext[t]; ok {
-			return f, true
-		}
+// Resolver resolves a feature type to its factory. The engine passes
+// processing.ExtensionRegistry.LookupFeature, which consults the
+// embedder overlay and the instance feature set before the built-in
+// registry. A nil Resolver is the built-in registry alone (Lookup).
+type Resolver func(t types.FeatureType) (Factory, bool)
+
+func (r Resolver) lookup(t types.FeatureType) (Factory, bool) {
+	if r == nil {
+		return Lookup(t)
 	}
-	return Lookup(t)
+	return r(t)
 }
 
 // IsStreamable reports whether every feature's Computer implements
@@ -63,12 +65,12 @@ func IsStreamable(features []*types.Feature, schema *encoding.Schema) bool {
 }
 
 // IsStreamableWithExt reports whether every feature's Computer implements
-// StreamingComputer, honouring an optional embedder overlay. Returns
+// StreamingComputer, resolving operators through resolve (nil = built-ins). Returns
 // false on any unknown type or factory error so the buffered path can
 // surface the canonical error.
-func IsStreamableWithExt(features []*types.Feature, schema *encoding.Schema, extFactories map[types.FeatureType]Factory) bool {
+func IsStreamableWithExt(features []*types.Feature, schema *encoding.Schema, resolve Resolver) bool {
 	for _, feat := range features {
-		factory, ok := lookupWithExt(feat.Type, extFactories)
+		factory, ok := resolve.lookup(feat.Type)
 		if !ok {
 			return false
 		}
@@ -89,17 +91,17 @@ func BuildStreaming(features []*types.Feature, schema *encoding.Schema) ([]Strea
 }
 
 // BuildStreamingWithExt constructs StreamingComputer instances for each
-// feature in order, honouring an optional embedder overlay. Caller
+// feature in order, resolving operators through resolve (nil = built-ins). Caller
 // should verify streamability via IsStreamable[WithExt] first;
 // PROCESSING_INTERNAL is returned when an operator lacks streaming
 // support, PROCESSING_CONFIG for unknown types or factory failures.
-func BuildStreamingWithExt(features []*types.Feature, schema *encoding.Schema, extFactories map[types.FeatureType]Factory) ([]StreamingHandle, error) {
+func BuildStreamingWithExt(features []*types.Feature, schema *encoding.Schema, resolve Resolver) ([]StreamingHandle, error) {
 	if len(features) == 0 {
 		return nil, nil
 	}
 	out := make([]StreamingHandle, 0, len(features))
 	for _, feat := range features {
-		factory, ok := lookupWithExt(feat.Type, extFactories)
+		factory, ok := resolve.lookup(feat.Type)
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown feature type: %s", feat.Type))
@@ -126,19 +128,19 @@ func Apply(records []Record, features []*types.Feature, schema *encoding.Schema)
 }
 
 // ApplyWithExt runs every feature in features against the record set,
-// honouring an optional embedder overlay. Failures return coded errors:
+// resolving operators through resolve (nil = built-ins). Failures return coded errors:
 // PROCESSING_CONFIG for unknown types or factory errors, PROCESSING_RUNTIME
 // for compute failures.
 //
 // ApplyWithExt trusts that internal/descriptor.Predict has validated the request
 // shape upstream; it does not re-check field existence, only operator
 // dispatch and per-operator runtime errors.
-func ApplyWithExt(records []Record, features []*types.Feature, schema *encoding.Schema, extFactories map[types.FeatureType]Factory) error {
+func ApplyWithExt(records []Record, features []*types.Feature, schema *encoding.Schema, resolve Resolver) error {
 	if len(features) == 0 || len(records) == 0 {
 		return nil
 	}
 	for _, feat := range features {
-		factory, ok := lookupWithExt(feat.Type, extFactories)
+		factory, ok := resolve.lookup(feat.Type)
 		if !ok {
 			return errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown feature type: %s", feat.Type))

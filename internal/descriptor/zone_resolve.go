@@ -301,7 +301,7 @@ func validatorRequestSchema(req *types.Request, base *encoding.Schema, opts *Pre
 func defaultedForValidation(req *types.Request, schema *encoding.Schema, opts *PredictOptions) *types.Request {
 	clone := cloneRequestForDefaults(req)
 	if (opts == nil || !opts.DisableDefaults) && schema != nil {
-		ResolveDefaults(clone, schema)
+		ResolveDefaults(clone, schema, nil)
 	}
 	return clone
 }

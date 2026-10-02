@@ -143,6 +143,8 @@ Landing with **U05** (`profiles-enforcement`). Contract: [Feature Profiles](../.
 | (none) | `(*Pulse).FeatureSetDigest() string` — `"fs1:" + sha256hex` over the sorted enabled feature names and the effective behaviour switches | added | key caches of self-description output on it; every instance has one, profile or not | U05 |
 | (none) | `(*Pulse).FeatureProfile() (*FeatureProfile, bool)` — a copy of the stored profile, `false` without one | added | adopt when convenient | U05 |
 | an extension operator omitted from a profile was still registered | it is dropped at `pulse.New`: absent from the runtime registry and the extension snapshot. Its `DependsOn` is still validated against every registration | behaviour change | list every extension operator the profiled instance should offer | U05 |
+| a built-in aggregator / attribute / filter / grouper / window / feature / statistical test omitted from a profile still ran | it fails on every entry point exactly as a never-registered name (same code, message, details); a smart default never picks it | behaviour change | list every built-in operator the profiled instance should run, smart-default targets (`AGG_SUM`, `AGG_FREQUENCY`, `GROUP_CATEGORY`, …) included | U05 |
+| a `FacetSchema` `additive_fields` scope filter naming an extension filterer failed as an unknown filter type | it resolves through the instance registry like the base filters | behaviour change (fix) | none | U05 |
 
 ## Third-party dependency
 

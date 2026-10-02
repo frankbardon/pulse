@@ -85,7 +85,7 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	}
 
 	// Build additive accumulators with the field's own clauses stripped.
-	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema)
+	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema, s.extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -297,8 +297,11 @@ func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types
 }
 
 // buildAdditiveAccumulators constructs one fieldAcc per AdditiveFields
-// entry plus the per-additive-field scope-filter set.
-func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
+// entry plus the per-additive-field scope-filter set. Scope filters
+// resolve through exts — the same instance registry the base filters
+// use — so an extension filterer works and a hidden one is refused
+// here exactly as an unregistered one is.
+func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema, exts *processing.ExtensionRegistry) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
 	if len(req.AdditiveFields) == 0 {
 		return nil, nil, nil
 	}
@@ -312,7 +315,7 @@ func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema)
 		}
 		entries = append(entries, &additiveEntry{field: name, acc: &fieldAcc{name: name, kind: acc}})
 		scopeFilters := stripFieldFromFilterers(req.Filterers, name)
-		fns, err := processing.BuildFilters(scopeFilters, schema, nil)
+		fns, err := processing.BuildFilters(scopeFilters, schema, exts)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -223,10 +223,10 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// DefaultsApplied still reports what the rules table would infer.
 	resolved := cloneRequestForDefaults(req)
 	if opts.DisableDefaults {
-		if applied := ResolveDefaults(cloneRequestForDefaults(req), schema); len(applied) > 0 {
+		if applied := ResolveDefaults(cloneRequestForDefaults(req), schema, nil); len(applied) > 0 {
 			result.DefaultsApplied = applied
 		}
-	} else if applied := ResolveDefaults(resolved, schema); len(applied) > 0 {
+	} else if applied := ResolveDefaults(resolved, schema, nil); len(applied) > 0 {
 		result.DefaultsApplied = applied
 	}
 	req = resolved

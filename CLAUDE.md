@@ -223,7 +223,7 @@ Surface: root `extensions*.go`; runtime overlay `internal/processing/extensions.
 
 ## Feature profiles
 
-A **feature profile** (never bare "profile" — synth owns it) is an instance's closed feature allowlist: operators bare, other kinds `<kind>:<name>`. `pulse.New` validates it (`PULSE_FEATURE_PROFILE_INVALID` → `_UNKNOWN` → `_DEPENDENCY`) and stores it; **only omitted extensions are hidden yet** (U05/U06) — only `behaviour` switches apply, ORed into `Options`. `pulse.New` never reads `PULSE_FEATURE_PROFILE`, and no runtime skill mentions profiles. **Contract: `.claude/reference/feature-profiles.md`.**
+A **feature profile** (never bare "profile" — synth owns it) is an instance's closed feature allowlist: operators bare, other kinds `<kind>:<name>`. `pulse.New` validates it (`PULSE_FEATURE_PROFILE_INVALID` → `_UNKNOWN` → `_DEPENDENCY`) and stores it; **hidden registry operators resolve as never registered; other surfaces pending** (U05/U06); `behaviour` switches OR into `Options`. `pulse.New` never reads `PULSE_FEATURE_PROFILE`, and no runtime skill mentions profiles. **Contract: `.claude/reference/feature-profiles.md`.**
 
 ## Request templating
 

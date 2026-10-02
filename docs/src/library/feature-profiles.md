@@ -14,10 +14,13 @@ before profiles existed.
 
 > **Status (v1.0.0 alphas).** `pulse.New` parses, validates and stores a
 > profile, its `behaviour` switches take effect, and an extension
-> operator the profile omits is not registered. **Built-in features are
-> not hidden yet.** Enforcement (request handling, manifest, payload
-> schema, predict, errors) and MCP filtering land in later v1.0.0
-> pre-releases. Writing and validating your profile now means it is
+> operator the profile omits is not registered. A built-in aggregator,
+> attribute, filter, grouper, window, feature or statistical test the
+> profile omits fails at run time exactly as a name Pulse has never
+> heard of — same error, on every entry point — and smart defaults never
+> pick it. Regressions, overlay kinds, request slots, predict, the
+> manifest, the payload schema, errors and MCP filtering land in later
+> v1.0.0 pre-releases. Writing and validating your profile now means it is
 > ready when they do.
 
 The name is "feature profile" because "profile" already means synthetic
