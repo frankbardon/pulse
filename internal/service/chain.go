@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -15,11 +16,12 @@ import (
 // rows as its input, materialised through an in-memory SliceIterator
 // against a synthesised schema.
 //
-// All stages must pass processing.CanChainRequest (mergeable +
-// scalar-emitting aggregators only). The executor returns
+// All stages must pass processing.ChainRefusal (mergeable +
+// scalar-emitting aggregators only — internal/mergegate, the rule the
+// chain validator shares). The executor returns
 // PULSE_CHAIN_NOT_MERGEABLE with the offending stage index in details
 // on first failure, allowing callers to fall back to per-stage
-// Process. Stage 0's Request.Cohort is replaced with req.Cohort; any
+// Process; a stage >= 1 carrying Joins is PULSE_CHAIN_STAGE_JOIN. Stage 0's Request.Cohort is replaced with req.Cohort; any
 // Request.Cohort on stages >= 1 is ignored.
 func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, error) {
 	if req == nil || len(req.Stages) == 0 {
@@ -52,13 +54,11 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 	// instead (its refusal is located below).
 	if len(stage0.Joins) == 0 {
 		if err := s.resolveZones(stage0, cohort.Schema()); err != nil {
-			return nil, locateZoneRefusal(err, "stage", 0)
+			return nil, locate(err, "stage", 0)
 		}
 	}
-	if !processing.CanChainRequestWithExtensions(stage0, cohort.Schema(), s.extensions) {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
-			"chain stage 0 is not mergeable",
-			map[string]any{"stage_index": 0, "stage_name": req.Stages[0].Name})
+	if err := processing.ChainRefusal(stage0, cohort.Schema(), s.extensions, 0, req.Stages[0].Name); err != nil {
+		return nil, err
 	}
 
 	// Capture the post-defaults form of every stage when echo is on so
@@ -76,7 +76,7 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 
 	firstResp, err := s.Process(ctx, stage0)
 	if err != nil {
-		return nil, locateZoneRefusal(err, "stage", 0)
+		return nil, locate(err, "stage", 0)
 	}
 
 	out := &types.ChainResponse{Stages: make([]*types.Response, 0, len(req.Stages))}
@@ -91,6 +91,11 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 	for i := 1; i < len(req.Stages); i++ {
 		stage := req.Stages[i].Request
 		stage.Cohort = nil // chain stages >= 1 do not name a cohort
+		// Only stage 0 may join: a later stage reads the previous
+		// stage's rows, so its Joins are refused, not dropped.
+		if err := mergegate.StageJoinRefusal(stage, i, req.Stages[i].Name); err != nil {
+			return nil, err
+		}
 
 		synthSchema, err := processing.ChainOutputSchema(priorReq)
 		if err != nil {
@@ -103,12 +108,10 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 
 		s.applyDefaults(stage, synthSchema)
 		if err := s.resolveZones(stage, synthSchema); err != nil {
-			return nil, locateZoneRefusal(err, "stage", i)
+			return nil, locate(err, "stage", i)
 		}
-		if !processing.CanChainRequestWithExtensions(stage, synthSchema, s.extensions) {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
-				"chain stage is not mergeable",
-				map[string]any{"stage_index": i, "stage_name": req.Stages[i].Name})
+		if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
+			return nil, err
 		}
 
 		if s.echoRequest {

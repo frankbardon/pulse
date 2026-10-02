@@ -52,6 +52,8 @@ Two slots resolving to the same final label (caller duplicates OR caller-vs-auto
 
 `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (CLI: `pulse api compose --parallel N --fail-fast --timeout 30s`) gates a bounded worker pool. `MaxWorkers <= 1` forces serial. `FailFast: true` cancels in-flight slots on the first error; default mode runs every slot and collects per-slot errors. Determinism: response order matches request order regardless of completion order.
 
+**Located refusals.** A slot's zone refusal or `PULSE_JOIN_TOO_MANY` (more than one `JoinSpec`) keeps its own code and gains `details.request` (0-based slot) — serial and `FailFast` alike; `ValidateComposeWithOptions` reports the same entry. `FailFast: false` folds slot failures into one `SERVICE_INTERNAL {failed_indices, first_error}`.
+
 ## Post-slot Compose-overlay fold
 
 `ComposedRequest.Overlays []OverlaySpec` runs AFTER every slot finalises. The fold reads each slot's already-emitted `Response.Crosstab` / `Response.Data` / `Response.Components` (read-only) and writes a sibling `Response.Overlays[i]` entry. **The fold never mutates per-slot `Components` or the per-slot payload** — overlays are an additive decoration keyed to host coordinates (see `skills/overlay-system.md`).

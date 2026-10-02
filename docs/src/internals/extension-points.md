@@ -723,9 +723,11 @@ advisory reads it through
 predict-side chain gate reads it:
 `internal/descriptor.ValidateChainWithExtensions` admits an extension
 aggregator or grouper on its declared `Mergeable` flag and a
-`row_local` extension attribute as row-local — the answers the runtime
-gate `CanChainRequestWithExtensions` gives — while `ValidateChain`
-(the nil-snapshot case) knows built-ins only.
+`row_local` extension attribute as row-local and an extension filterer
+on its `Streamable` flag — the same `internal/mergegate.ChainRefusal`
+call the runtime gate makes over the `ExtensionRegistry`, so the answers
+cannot drift — while `ValidateChain` (the nil-snapshot case) knows
+built-ins only.
 
 `descriptor.OperatorMeta` carries `FansOut bool`
 (`json:"fans_out,omitempty"`) alongside `Streamable`, and

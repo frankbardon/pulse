@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	stderrors "errors"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -14,31 +13,6 @@ import (
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
-
-// sameCodeAndDetails asserts the validator's first error carries the
-// runtime error's code and details. The chain gate's runtime message is
-// a generic "chain stage N is not mergeable" while the validator names
-// the offending slot family, so the message is deliberately not
-// compared here.
-func sameCodeAndDetails(t *testing.T, env *descriptor.Envelope, runtimeErr error) {
-	t.Helper()
-	var ce *errors.CodedError
-	if !stderrors.As(runtimeErr, &ce) {
-		t.Fatalf("runtime error is not coded: %v", runtimeErr)
-	}
-	if len(env.Errors) == 0 {
-		t.Fatalf("validator accepted what the runtime refused (%v)", runtimeErr)
-	}
-	got := env.Errors[0]
-	if got.Code != string(ce.Code) {
-		t.Fatalf("validator code = %s (%q), runtime = %s (%q)", got.Code, got.Message, ce.Code, ce.Message)
-	}
-	want, _ := json.Marshal(ce.Details)
-	have, _ := json.Marshal(got.Details)
-	if string(want) != string(have) {
-		t.Fatalf("validator details = %s, runtime details = %s", have, want)
-	}
-}
 
 // TestChainDefaults_ValidatorMatchesRuntime: ValidateChain judges each
 // stage after the same smart-defaults pass the runtime applies (unless
@@ -105,13 +79,13 @@ func TestChainDefaults_ValidatorMatchesRuntime(t *testing.T) {
 	t.Run("non-mergeable after default", func(t *testing.T) {
 		_, rerr := on.ProcessChain(ctx, nonMergeable())
 		requireCode(t, rerr, errors.PULSE_CHAIN_NOT_MERGEABLE)
-		sameCodeAndDetails(t, descx.ValidateChain(bytes.NewReader(data), nonMergeable()), rerr)
+		sameEntry(t, descx.ValidateChain(bytes.NewReader(data), nonMergeable()), rerr)
 	})
 	t.Run("defaults disabled", func(t *testing.T) {
 		_, rerr := off.ProcessChain(ctx, mergeable())
 		requireCode(t, rerr, errors.PULSE_CHAIN_NOT_MERGEABLE)
 		env := descx.ValidateChainWithOptions(bytes.NewReader(data), mergeable(), &descx.PredictOptions{DisableDefaults: true})
-		sameCodeAndDetails(t, env, rerr)
+		sameEntry(t, env, rerr)
 	})
 	t.Run("defaults disabled on a later stage", func(t *testing.T) {
 		mk := func() *types.ChainRequest {
@@ -127,7 +101,7 @@ func TestChainDefaults_ValidatorMatchesRuntime(t *testing.T) {
 			t.Fatalf("runtime details = %v, want stage_index 1", ce.Details)
 		}
 		env := descx.ValidateChainWithOptions(bytes.NewReader(data), mk(), &descx.PredictOptions{DisableDefaults: true})
-		sameCodeAndDetails(t, env, rerr)
+		sameEntry(t, env, rerr)
 	})
 }
 

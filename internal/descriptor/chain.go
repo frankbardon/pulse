@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -160,6 +161,11 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		// and the next stage's synthesised schema (whose aggregator
 		// labels embed the Type) all see the defaulted stage. The
 		// echoed Request stays as written.
+		// Only stage 0 may join (the runtime refuses a later stage's
+		// Joins before its defaults, zones and gate).
+		if jerr := mergegate.StageJoinRefusal(stage.Request, i, stage.Name); jerr != nil {
+			addCodedError(env, jerr)
+		}
 		staged := chainStageDefaulted(stage.Request, current, opts)
 		// A joined stage 0 resolves zones inside Process — after the
 		// gate and the join-count rule; every other stage resolves
@@ -167,15 +173,19 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		joined := i == 0 && len(stage.Request.Joins) > 0
 		if !joined {
 			if _, zerr := resolveRequestZones(stage.Request, current, opts); zerr != nil {
-				addCodedError(env, ZoneRefusalAt(zerr, "stage", i))
+				addCodedError(env, RefusalAt(zerr, "stage", i))
 			}
 		}
-		gateOK := chainGateOK(staged, snap, env, i, stage.Name)
+		gerr := mergegate.ChainRefusal(staged, current, snap.mergeFacts(), i, stage.Name)
+		if gerr != nil {
+			addCodedError(env, gerr)
+		}
+		gateOK := gerr == nil
 		if joined {
 			if jerr := JoinCountRefusal(stage.Request); jerr != nil {
-				addCodedError(env, jerr)
+				addCodedError(env, RefusalAt(jerr, "stage", i))
 			} else if _, zerr := resolveRequestZones(stage.Request, validatorRequestSchema(stage.Request, current, opts), opts); zerr != nil {
-				addCodedError(env, ZoneRefusalAt(zerr, "stage", i))
+				addCodedError(env, RefusalAt(zerr, "stage", i))
 			}
 		}
 		if !gateOK {
@@ -215,69 +225,6 @@ func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictO
 		ResolveDefaults(clone, in)
 	}
 	return clone
-}
-
-// chainGateOK checks that a stage's operator set fits the v1 chain
-// gate. Adds errors directly into the envelope and returns true iff
-// the stage passed; downstream field validation can run only on a
-// gate-passing stage.
-func chainGateOK(req *types.Request, snap *ExtensionsSnapshot, env *descriptor.Envelope, idx int, name string) bool {
-	details := map[string]any{"stage_index": idx, "stage_name": name}
-	if len(req.Aggregations) == 0 {
-		env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-			"chain stage requires at least one aggregator", details)
-		return false
-	}
-	if len(req.Windows) > 0 || len(req.Features) > 0 ||
-		len(req.Regressions) > 0 || len(req.Tests) > 0 ||
-		len(req.PostTests) > 0 {
-		env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-			"chain gate excludes windows, features, tests, post-tests, and regressions",
-			details)
-		return false
-	}
-	for _, attr := range req.Attributes {
-		if attr == nil {
-			continue
-		}
-		switch {
-		case attr.Type == types.ATTR_FORMULA, attr.Type == types.ATTR_DATE_PART:
-			// row-local
-		case snap.attributeRowLocal(string(attr.Type)):
-			// row_local extension attribute
-		default:
-			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-				"chain gate excludes two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
-				details)
-			return false
-		}
-	}
-	for _, g := range req.Groups {
-		if g != nil && !g.Type.Mergeable() && !snap.mergeable(snap.groupers(), string(g.Type)) {
-			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-				"chain gate requires mergeable grouper (GROUP_CATEGORY or GROUP_RANGE)",
-				details)
-			return false
-		}
-	}
-	for _, agg := range req.Aggregations {
-		if agg == nil {
-			continue
-		}
-		if !agg.Type.Mergeable() && !snap.mergeable(snap.aggregators(), string(agg.Type)) {
-			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-				"chain gate requires mergeable aggregators",
-				details)
-			return false
-		}
-		if agg.Type == types.AGG_FREQUENCY || agg.Type == types.AGG_MODE {
-			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-				"chain gate excludes AGG_FREQUENCY and AGG_MODE (non-scalar emit)",
-				details)
-			return false
-		}
-	}
-	return true
 }
 
 // validateChainStageFields confirms that every field reference in a

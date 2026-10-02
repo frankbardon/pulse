@@ -752,14 +752,14 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 			continue
 		}
 		// The slot's Process refuses a second JoinSpec before it
-		// resolves a zone (the runtime carries no slot location).
+		// resolves a zone; Compose locates it like a zone refusal.
 		if jerr := JoinCountRefusal(slot); jerr != nil {
-			addCodedError(env, jerr)
+			addCodedError(env, RefusalAt(jerr, "request", i))
 			continue
 		}
 		schema := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
 		if _, err := resolveRequestZones(slot, schema, opts); err != nil {
-			addCodedError(env, ZoneRefusalAt(err, "request", i))
+			addCodedError(env, RefusalAt(err, "request", i))
 		}
 	}
 }

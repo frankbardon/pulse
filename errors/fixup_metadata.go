@@ -1201,6 +1201,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_CHAIN_STAGE_JOIN: {
+		Message: "Only ProcessChain stage 0 may carry Joins: a later stage reads the previous stage's output rows, not a cohort, so there is no left side to join.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Stages", "*", "Request", "Joins"},
+				Hint:   "Move the JoinSpec onto stage 0 (the details name the offending stage), or run the joined step as a standalone Process call and chain from its output.",
+			},
+		},
+	},
 	PULSE_CHAIN_EMPTY: {
 		Message: "A ProcessChain request must carry at least one stage with a non-nil Request.",
 		Fixups: []Fixup{

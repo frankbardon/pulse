@@ -728,7 +728,8 @@ const (
 
 	// PULSE_CHAIN_NOT_MERGEABLE indicates a stage inside a
 	// ProcessChain request fails the chain gate. The gate accepts
-	// mergeable requests (same set as processing.CanMergeRequest)
+	// mergeable requests (internal/mergegate.MergeRefusal, the rule
+	// processing.CanMergeRequest delegates to)
 	// whose aggregators emit a single scalar per output row. Stages
 	// using windows, features, tier-1/tier-2 tests, regressions,
 	// two-pass attributes, AGG_FREQUENCY, AGG_MODE, or non-mergeable
@@ -741,6 +742,13 @@ const (
 	// stages, or a stage with a nil inner Request. The chain
 	// executor needs at least one stage with a real Request to run.
 	PULSE_CHAIN_EMPTY Code = "PULSE_CHAIN_EMPTY"
+
+	// PULSE_CHAIN_STAGE_JOIN indicates a ProcessChain stage after
+	// stage 0 carries Joins. A later stage reads the previous stage's
+	// output rows rather than a cohort, so only stage 0 may join; the
+	// details carry the join count, the stage index (key "stage") and
+	// the stage name.
+	PULSE_CHAIN_STAGE_JOIN Code = "PULSE_CHAIN_STAGE_JOIN"
 
 	// PULSE_COMPOSE_LABEL_COLLISION indicates that two slots inside a
 	// ComposedRequest resolve to the same final Label after the
@@ -2629,6 +2637,7 @@ var allCodes = []Code{
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,
+	PULSE_CHAIN_STAGE_JOIN,
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,

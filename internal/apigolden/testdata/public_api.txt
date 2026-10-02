@@ -1509,6 +1509,7 @@ pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_COR
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
+pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
 pulse/errors: const PULSE_COHORT_COMPRESSED pulse/errors.Code = "PULSE_COHORT_COMPRESSED"
 pulse/errors: const PULSE_COMPOSE_LABEL_COLLISION pulse/errors.Code = "PULSE_COMPOSE_LABEL_COLLISION"
 pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
@@ -3506,4 +3507,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5603a14a819a59036556d200778783e718fa696cceb426f066decc49c6047165
+// golden-hash: 2f2c6f350de08b9157b23e57dcef8c441c76f9153fbe9fcad644dde4c33e34f0

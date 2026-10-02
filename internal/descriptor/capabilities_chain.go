@@ -32,8 +32,10 @@ func processChainCapability() descriptor.ProcessChainCapability {
 			"chain rejects AGG_FREQUENCY and AGG_MODE (non-scalar emit)",
 			"chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
 			"chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
-			"chain rejects decimal128 aggregation targets",
-			"chain rejects extension aggregators (custom MergeOnline surface deferred)",
+			"chain rejects built-in aggregators over decimal128 targets",
+			"chain rejects extension aggregators and groupers not declared Mergeable",
+			"chain rejects non-streamable filterers",
+			"chain rejects Joins on any stage after stage 0 (PULSE_CHAIN_STAGE_JOIN)",
 		},
 		OverlayKinds: []string{
 			"OVERLAY_DELTA_VS_STAGE",

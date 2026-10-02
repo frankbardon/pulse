@@ -201,20 +201,20 @@ func TestResolveZones_NilSchemaFieldIndependentOnly(t *testing.T) {
 	}
 }
 
-// TestZoneRefusalAt: the location key joins the copied details; code
+// TestRefusalAt: the location key joins the copied details; code
 // and message are unchanged and the input is not mutated.
-func TestZoneRefusalAt(t *testing.T) {
+func TestRefusalAt(t *testing.T) {
 	src := errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, "m", map[string]any{"slot": "groups[0]"})
-	got := ZoneRefusalAt(src, "stage", 2)
+	got := RefusalAt(src, "stage", 2)
 	ce, ok := got.(*errors.CodedError)
 	if !ok || ce.Code != errors.PROCESSING_CONFIG || ce.Message != "m" || ce.Details["stage"] != 2 || ce.Details["slot"] != "groups[0]" {
-		t.Fatalf("ZoneRefusalAt = %#v", got)
+		t.Fatalf("RefusalAt = %#v", got)
 	}
 	if _, leaked := src.Details["stage"]; leaked {
-		t.Fatal("ZoneRefusalAt mutated its input")
+		t.Fatal("RefusalAt mutated its input")
 	}
 	plain := json.Unmarshal([]byte("{"), new(any))
-	if ZoneRefusalAt(plain, "stage", 0) != plain {
+	if RefusalAt(plain, "stage", 0) != plain {
 		t.Fatal("an uncoded error must pass through unchanged")
 	}
 }

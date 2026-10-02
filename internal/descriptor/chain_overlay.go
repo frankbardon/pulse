@@ -46,7 +46,7 @@ import (
 //   - otherwise (nil request or no aggregations) ⇒ OverlayShapeScalar
 //     (matches the runtime helper's empty-Data fallthrough).
 //
-// The chain gate (chainGateOK) already rejects req == nil and
+// The chain gate (mergegate.ChainRefusal) already rejects req == nil and
 // len(req.Aggregations) == 0 before the overlay walk runs, so the
 // fallthrough case is defensive — it keeps the helper total over every
 // *types.Request value so test fixtures can exercise the shape table

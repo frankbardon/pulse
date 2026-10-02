@@ -146,7 +146,7 @@ func (s *Service) ComposeParallel(
 			// applyComposeOverlays call, no partial emission. The
 			// failing call returns immediately with the first
 			// observed error.
-			return nil, fmt.Errorf("compose parallel: request %d: %w", failed[0], locateZoneRefusal(firstErr, "request", failed[0]))
+			return nil, fmt.Errorf("compose parallel: request %d: %w", failed[0], locate(firstErr, "request", failed[0]))
 		}
 		details := map[string]any{"failed_indices": failed, "first_error": firstErr.Error()}
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_INTERNAL,

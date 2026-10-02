@@ -218,12 +218,17 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 	return out, nil
 }
 
-// ZoneRefusalAt returns err with its location inside a multi-request
-// root added to its details — key "request" (0-based Compose slot) or
-// "stage" (0-based chain stage) set to idx. A *errors.CodedError
-// anywhere in err's chain is copied (code and message unchanged, so the
-// code still survives errors.As); any other error is returned as is.
-func ZoneRefusalAt(err error, key string, idx int) error {
+// RefusalAt returns a located request-level refusal: err with its
+// location inside a multi-request root added to its details — key
+// "request" (0-based Compose slot) or "stage" (0-based chain stage) set
+// to idx. A *errors.CodedError anywhere in err's chain is copied (code
+// and message unchanged, so the code still survives errors.As); any
+// other error is returned as is. The located refusals are the zone
+// refusals (ResolveZones / ResolveFacetZones) and the join-count rule
+// (JoinCountRefusal); the runtime marks them where they are raised and
+// the validators call RefusalAt at the same points, so both sides add
+// the same location.
+func RefusalAt(err error, key string, idx int) error {
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) {
 		return err

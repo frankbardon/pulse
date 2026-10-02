@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -273,47 +274,56 @@ func (s *ExtensionsSnapshot) AggregatorMarginReducibility(t types.AggregationTyp
 	return t.MarginReducibility()
 }
 
-// aggregators / groupers are nil-safe slice accessors for the chain
-// gate's merge lookups.
-func (s *ExtensionsSnapshot) aggregators() []descriptor.OperatorMeta {
-	if s == nil {
-		return nil
-	}
-	return s.Aggregators
+// mergeFacts adapts the snapshot to mergegate.Extensions — the
+// predict-side twin of the runtime ExtensionRegistry adapter, so the
+// chain validator and ProcessChain run the one shared gate
+// (internal/mergegate) over the same DECLARED facts: an aggregator's or
+// grouper's Mergeable flag, a filterer's Streamable flag, and an
+// attribute's row_local mode (the runtime's "streamable and not
+// two-pass"). Nil-safe.
+func (s *ExtensionsSnapshot) mergeFacts() mergegate.Extensions {
+	return snapshotMergeFacts{s}
 }
 
-func (s *ExtensionsSnapshot) groupers() []descriptor.OperatorMeta {
-	if s == nil {
-		return nil
-	}
-	return s.Groupers
-}
+type snapshotMergeFacts struct{ s *ExtensionsSnapshot }
 
-// mergeable reports the DECLARED Mergeable flag of the operator named
-// name in metas; false when absent. Nil-safe.
-func (s *ExtensionsSnapshot) mergeable(metas []descriptor.OperatorMeta, name string) bool {
-	if s == nil {
-		return false
-	}
+func findMeta(metas []descriptor.OperatorMeta, name string) (descriptor.OperatorMeta, bool) {
 	for _, m := range metas {
 		if m.Name == name {
-			return m.Mergeable
+			return m, true
 		}
 	}
-	return false
+	return descriptor.OperatorMeta{}, false
 }
 
-// attributeRowLocal reports whether name is an extension attribute
-// registered with the row_local mode — the extension half of the
-// built-in row-local set (ATTR_FORMULA, ATTR_DATE_PART). Nil-safe.
-func (s *ExtensionsSnapshot) attributeRowLocal(name string) bool {
-	if s == nil {
-		return false
+func (f snapshotMergeFacts) Aggregator(name string) (bool, bool) {
+	if f.s == nil {
+		return false, false
 	}
-	for _, m := range s.Attributes {
-		if m.Name == name {
-			return m.Mode == "row_local"
-		}
+	m, ok := findMeta(f.s.Aggregators, name)
+	return m.Mergeable, ok
+}
+
+func (f snapshotMergeFacts) Grouper(name string) (bool, bool) {
+	if f.s == nil {
+		return false, false
 	}
-	return false
+	m, ok := findMeta(f.s.Groupers, name)
+	return m.Mergeable, ok
+}
+
+func (f snapshotMergeFacts) Filterer(name string) (bool, bool) {
+	if f.s == nil {
+		return false, false
+	}
+	m, ok := findMeta(f.s.Filterers, name)
+	return m.Streamable, ok
+}
+
+func (f snapshotMergeFacts) Attribute(name string) (bool, bool) {
+	if f.s == nil {
+		return false, false
+	}
+	m, ok := findMeta(f.s.Attributes, name)
+	return m.Mode == "row_local", ok
 }

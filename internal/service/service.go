@@ -512,7 +512,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// It runs before the crosstab dispatch so a crosstab carrying more
 	// than one JoinSpec is refused under the same code.
 	if err := descx.JoinCountRefusal(req); err != nil {
-		return nil, err
+		return nil, markLocated(err)
 	}
 
 	if req.Crosstab != nil {
@@ -907,7 +907,7 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 	for i, req := range requests {
 		resp, err := s.Process(ctx, req)
 		if err != nil {
-			return nil, fmt.Errorf("request %d: %w", i, locateZoneRefusal(err, "request", i))
+			return nil, fmt.Errorf("request %d: %w", i, locate(err, "request", i))
 		}
 		responses[i] = resp
 	}

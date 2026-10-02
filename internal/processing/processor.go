@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -205,71 +206,12 @@ func CanMergeRequest(req *types.Request, schema *encoding.Schema) bool {
 //     registered extension filterer is).
 //   - attributes: a row_local extension attribute merges like
 //     ATTR_FORMULA / ATTR_DATE_PART; two_pass and buffered ones do not.
+//
+// The decision itself is internal/mergegate.MergeRefusal — the one
+// rule the chain validator in internal/descriptor also calls, through
+// the ExtensionsSnapshot instead of this registry.
 func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) bool {
-	if req == nil {
-		return false
-	}
-	if len(req.Aggregations) == 0 {
-		return false
-	}
-	if len(req.Windows) > 0 || len(req.Features) > 0 ||
-		len(req.Regressions) > 0 || len(req.Tests) > 0 ||
-		len(req.PostTests) > 0 {
-		return false
-	}
-	for _, attr := range req.Attributes {
-		// Row-local attributes (FORMULA, DATE_PART, and row_local
-		// extensions) are mergeable in principle — they add a derived
-		// column per row before each aggregator folds it. Two-pass
-		// attributes (ZSCORE, TSCORE, NORMALIZED, REG_*, two_pass
-		// extensions) need pass-1 population stats that the per-shard
-		// reducer would have to derive from merged Welford state; v1
-		// routes those through the serial path.
-		if attr == nil {
-			return false
-		}
-		switch attr.Type {
-		case types.ATTR_FORMULA, types.ATTR_DATE_PART:
-			// row-local: mergeable.
-		default:
-			if !exts.isExtensionAttribute(attr.Type) ||
-				!exts.IsStreamable("attribute", string(attr.Type)) ||
-				exts.attributeRequiresTwoPass(attr.Type) {
-				return false
-			}
-		}
-	}
-	for _, grp := range req.Groups {
-		if grp == nil || !exts.IsMergeable("grouper", string(grp.Type)) {
-			return false
-		}
-	}
-	for _, f := range req.Filterers {
-		if f == nil || !exts.IsStreamable("filterer", string(f.Type)) {
-			return false
-		}
-	}
-	for _, agg := range req.Aggregations {
-		if agg == nil || !exts.IsMergeable("aggregator", string(agg.Type)) {
-			return false
-		}
-		if exts.isExtensionAggregator(agg.Type) {
-			continue
-		}
-		// Built-in decimal-typed fields aggregate via
-		// AggregateDecimalField; the per-shard reducer doesn't yet
-		// handle the wide path.
-		if schema != nil {
-			if f := schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
-				return false
-			}
-		}
-		// A built-in name must resolve in the built-in registry.
-		if _, builtin := aggregatorRegistry[agg.Type]; !builtin {
-			return false
-		}
-	}
-	return true
+	return mergegate.MergeRefusal(req, schema, exts.mergeFacts()) == ""
 }
 
 // requiresTwoPass reports whether the attribute type implements

@@ -5014,7 +5014,7 @@
         ]
       }
     ],
-    "error_codes_count": 244,
+    "error_codes_count": 245,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5055,6 +5055,7 @@
       "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
+      "PULSE_CHAIN_STAGE_JOIN",
       "PULSE_COHORT_COMPRESSED",
       "PULSE_COMPOSE_LABEL_COLLISION",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
@@ -7557,8 +7558,10 @@
         "chain rejects AGG_FREQUENCY and AGG_MODE (non-scalar emit)",
         "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
         "chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
-        "chain rejects decimal128 aggregation targets",
-        "chain rejects extension aggregators (custom MergeOnline surface deferred)"
+        "chain rejects built-in aggregators over decimal128 targets",
+        "chain rejects extension aggregators and groupers not declared Mergeable",
+        "chain rejects non-streamable filterers",
+        "chain rejects Joins on any stage after stage 0 (PULSE_CHAIN_STAGE_JOIN)"
       ],
       "overlay_kinds": [
         "OVERLAY_DELTA_VS_STAGE",
@@ -9766,4 +9769,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2cca48b04713bc2b53ade89fb5e331b83ec5257c969e7d525a142a8acfee8fcd
+// golden-hash: 54d34dada79b9a8e53fd41c5b66ea32f38dfc1409225aaef3d89046450a8bd1f
