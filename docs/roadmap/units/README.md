@@ -1,13 +1,13 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **35 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **36 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
 - links to the theme sections to read first;
 - epics and stories, acceptance criteria, gates, Update Demand companions, and the human inputs needed.
 
-Every one of the 192 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
+Every one of the 197 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
 
 These files were generated once from the theme documents and `TODO.md`, and are now maintained by hand. Edit them directly, and keep a unit's `todo_items` in step with the `· [Uxx]` links in `TODO.md`.
 
@@ -54,7 +54,7 @@ The IDs are already in a valid dependency order. Units on different tracks with 
 | U14 | [zone-aware-operators](U14-zone-aware-operators.md): Days, weeks and date ranges can mean local calendar days, while storage stays UTC | Time zones | M | U03 | 69, 70, 71, 72 |
 | U15 | [linalg-core](U15-linalg-core.md): One trusted linear-algebra core and a mergeable co-moment accumulator, with no user-visible change | Vector & matrix | M | U02, U02b | 73, 74, 75, 76, 77 |
 | U16 | [matrix-result](U16-matrix-result.md): A first correlation matrix, end to end, through the library, CLI and MCP | Vector & matrix | L | U15, U11 | 78, 79, 80, 81, 82, 83, 84, 172 |
-| U17 | [response-shaping-core](U17-response-shaping-core.md): Callers can say which parts of a response they want | Response shaping | M | U05 | 104, 106, 107, 109 |
+| U17 | [response-shaping-core](U17-response-shaping-core.md): Callers can say which parts of a response they want | Response shaping | M | U05 | 104, 106, 107, 109, 193 |
 | U18 | [response-shaping-execution](U18-response-shaping-execution.md): Unrequested work is never computed, and MCP returns lean responses by default | Response shaping | M | U17 | 105, 108, 110, 111 |
 | U19 | [resource-limits](U19-resource-limits.md): Embedders can bound runaway requests, with defaults that never get in the way | Embedder operations | M | U05 | 112, 113, 114, 115, 116, 117 |
 | U20 | [observability](U20-observability.md): Hosts can see what Pulse is doing, whether or not they are a server | Embedder operations | M | U02, U02b | 118, 119, 120, 121, 122, 123 |
@@ -69,8 +69,9 @@ The IDs are already in a valid dependency order. Units on different tracks with 
 | U29 | [vector-field-types](U29-vector-field-types.md): Cohorts can store fixed-length numeric vectors natively | Vector & matrix | L | U16, U27 | 151, 152, 153, 154, 155 |
 | U30 | [matrix-extensions-hardening](U30-matrix-extensions-hardening.md): Embedders can add their own matrix operators, and the matrix stack is proven at scale | Vector & matrix | M | U25, U28, U29 | 156, 157, 158 |
 | U31 | [guidance-guides](U31-guidance-guides.md): A developer can start from a question and find the right analysis without knowing statistics | Guided analysis | M | U21, U24, U28 | 100, 101, 102, 103 |
-| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U06, U10, U18, U19, U20, U23, U30, U31 | 159, 160, 161, 162, 163, 164, 165, 166, 167 |
+| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U06, U10, U18, U19, U20, U23, U30, U31 | 159, 160, 161, 162, 163, 164, 165, 166, 167 |
 | U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179 |
+| U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | S | U02b | 194, 195, 196, 197 |
 
 ## Dependency graph
 
@@ -111,6 +112,7 @@ graph TD
   U31["U31 guidance-guides"]
   U32["U32 docs-audit"]
   U33["U33 v1-release"]
+  U34["U34 extension-validation"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -169,6 +171,8 @@ graph TD
   U30 --> U32
   U31 --> U32
   U32 --> U33
+  U02b --> U34
+  U34 --> U32
 ```
 
 ## Human inputs that gate units
@@ -181,6 +185,7 @@ graph TD
 - **U25 multivariate-tests-segmentation:** Statistics reviewer
 - **U28 matrix-overlays:** Decide the correspondence-analysis payload shape (open question in vm6)
 - **U32 docs-audit:** Maintainer sign-off; a fresh reader (developer without a statistics background) for the review
+- **U34 extension-validation:** the synth-distribution decision (#197): extension category or retire the slot
 - **U33 v1-release:** Maintainer runs the downstream validation and tags the release
 
 Sizes: **S** ≈ one focused session; **M** ≈ 2–3 sessions; **L** ≈ 3–5 sessions. These are relative and meant for Flow's planning, not commitments.
