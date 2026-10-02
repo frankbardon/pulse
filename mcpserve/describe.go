@@ -2,7 +2,6 @@ package mcpserve
 
 import (
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/internal/facadebridge"
 )
 
 // ServeInfo is the effective serving configuration of an MCP server
@@ -30,13 +29,11 @@ type ServeInfo struct {
 // ServeStdio or gosdk.Register would run p with under opts. It reads
 // the instance; it starts nothing.
 func Describe(p *pulse.Pulse, opts Options) ServeInfo {
-	scanOff := opts.DisableCohortScan
-	if facadebridge.CohortScanDisabled != nil && facadebridge.CohortScanDisabled(p) {
-		scanOff = true
-	}
-	info := ServeInfo{CohortScan: !scanOff}
-	if facadebridge.FeatureProfileName != nil {
-		info.FeatureProfile, info.FeatureProfileLoaded = facadebridge.FeatureProfileName(p)
+	fp, loaded := p.FeatureProfile()
+	scanOff := opts.DisableCohortScan || (loaded && fp.Behaviour != nil && fp.Behaviour.DisableCohortScan)
+	info := ServeInfo{CohortScan: !scanOff, FeatureProfileLoaded: loaded}
+	if loaded {
+		info.FeatureProfile = fp.Profile
 	}
 	return info
 }

@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"context"
 	stderrors "errors"
 	"reflect"
 	"testing"
@@ -308,5 +309,39 @@ func TestExtensionDependsOnMustBeKnown(t *testing.T) {
 	ext.Filterers = []FiltererRegistration{{Name: "FILTER_ACME_OTHER", Factory: profileStubFilterFactory}}
 	if _, err := New(Options{FS: memFsWith(t, nil), Extensions: ext}); err != nil {
 		t.Errorf("known DependsOn refused: %v", err)
+	}
+}
+
+// TestFeatureProfile_FilterToFileRequiresFilterExpression: FilterToFile
+// compiles every filterer into an engine-internal FILTER_EXPRESSION, so
+// a profile enabling capability:filter_to_file without FILTER_EXPRESSION
+// is refused at pulse.New — never reaching a run-time "unknown filter
+// type" that would also leak the hidden name. With both, a request using
+// only a visible FILTER_INCLUDE runs.
+func TestFeatureProfile_FilterToFileRequiresFilterExpression(t *testing.T) {
+	base := []string{"capability:process", "capability:filter_to_file", "FILTER_INCLUDE"}
+	ce := requireCode(t, newWithProfile(t, Extensions{}, base...), errors.PULSE_FEATURE_PROFILE_DEPENDENCY)
+	want := []map[string]any{{"feature": "capability:filter_to_file", "requires_any_of": []string{"FILTER_EXPRESSION"}}}
+	if got := ce.Details["unmet"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("unmet = %v; want %v", got, want)
+	}
+
+	p, err := New(Options{
+		FS:             parityFS(t),
+		FeatureProfile: &FeatureProfile{Features: append(base, "FILTER_EXPRESSION")},
+	})
+	if err != nil {
+		t.Fatalf("New with FILTER_EXPRESSION: %v", err)
+	}
+	res, err := p.FilterToFileWithRequest(context.Background(), &FilterToFileRequest{
+		SourcePath: parityCohort,
+		OutputDir:  "out",
+		Filterers:  []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{"south"}}},
+	})
+	if err != nil {
+		t.Fatalf("FilterToFileWithRequest: %v", err)
+	}
+	if res.RowCount <= 0 {
+		t.Errorf("RowCount = %d; want > 0", res.RowCount)
 	}
 }

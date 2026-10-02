@@ -127,6 +127,13 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		result.Valid = false
 		return env
 	}
+	// A slot the instance hides is an unknown field, refused before
+	// anything else — the runtime's order.
+	if serr := SlotRefusal(req, opts.instance()); serr != nil {
+		addCodedError(env, serr)
+		result.Valid = false
+		return env
+	}
 	if req.Cohort == nil {
 		env.AddError(string(errors.SERVICE_VALIDATION), "chain request requires Cohort for stage 0", nil)
 	}
@@ -182,7 +189,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 				fieldsReached = false
 			}
 		}
-		gerr := mergegate.ChainRefusal(staged, current, snap.mergeFacts(), i, stage.Name)
+		gerr := mergegate.ChainRefusal(staged, current, snap.mergeFacts(opts.instance()), i, stage.Name)
 		if gerr != nil {
 			addCodedError(env, gerr)
 		}
@@ -213,7 +220,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			continue
 		}
 		if fieldsReached {
-			for _, ce := range FieldRefRefusals(fieldReq, fieldSchema, extensionsFromOpts(opts)) {
+			for _, ce := range fieldRefRefusals(fieldReq, fieldSchema, extensionsFromOpts(opts), opts.instance()) {
 				addCodedError(env, RefusalAt(ce, "stage", i))
 			}
 		}
@@ -225,7 +232,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// Whole-chain overlay walk. Runs after the per-stage gate so
 	// stage-level errors and overlay-level errors land in the same
 	// envelope; the walk is a no-op when req.Overlays is empty.
-	validateChainOverlays(env, result, req)
+	validateChainOverlays(env, result, req, opts)
 
 	if len(env.Errors) > 0 {
 		result.Valid = false
@@ -247,7 +254,7 @@ func ValidateChainFromBytes(data []byte, req *types.ChainRequest) *descriptor.En
 func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictOptions) *types.Request {
 	clone := cloneRequestForDefaults(req)
 	if !opts.DisableDefaults && in != nil {
-		ResolveDefaults(clone, in)
+		ResolveDefaults(clone, in, opts.Instance)
 	}
 	return clone
 }

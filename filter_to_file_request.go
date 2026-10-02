@@ -12,6 +12,7 @@ import (
 	"time"
 
 	perr "github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -88,7 +89,7 @@ func (p *Pulse) FilterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	if req.OutputDir == "" {
 		return nil, errors.New("filter_to_file: output dir required")
 	}
-	expr, err := req.canonicalExpression()
+	expr, err := req.canonicalExpression(p.svc.InstanceSnapshot())
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +151,10 @@ func (p *Pulse) FilterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 // equivalent expression with " && " so the structured-predicate path
 // produces the same hash that an explicit Expression with the same
 // semantics would.
-func (r *FilterToFileRequest) canonicalExpression() (string, error) {
+//
+// inst is the instance feature set: a filterer type it hides is
+// translated exactly as an unknown type is (see filtererToExpression).
+func (r *FilterToFileRequest) canonicalExpression(inst *descx.InstanceSnapshot) (string, error) {
 	hasExpr := r.Expression != ""
 	hasFilts := len(r.Filterers) > 0
 	if hasExpr && hasFilts {
@@ -164,7 +168,7 @@ func (r *FilterToFileRequest) canonicalExpression() (string, error) {
 	}
 	parts := make([]string, 0, len(r.Filterers))
 	for _, f := range r.Filterers {
-		s, err := filtererToExpression(f)
+		s, err := filtererToExpression(f, inst)
 		if err != nil {
 			return "", err
 		}
@@ -183,8 +187,10 @@ func (r *FilterToFileRequest) canonicalExpression() (string, error) {
 // filtererToExpression translates a single Filterer into the equivalent
 // expr-lang predicate string. Covers FILTER_EXPRESSION (pass-through),
 // FILTER_INCLUDE / FILTER_EXCLUDE (in / not in list), FILTER_RANGE
-// (closed interval), and FILTER_NULL (is_null / is_not_null).
-func filtererToExpression(f *types.Filterer) (string, error) {
+// (closed interval), and FILTER_NULL (is_null / is_not_null). A type
+// inst hides falls through to the unsupported-type refusal, the same
+// one a never-registered type gets, after the same `tz` check.
+func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot) (string, error) {
 	if f == nil {
 		return "", errors.New("filter_to_file: nil filterer")
 	}
@@ -195,6 +201,9 @@ func filtererToExpression(f *types.Filterer) (string, error) {
 		return "", perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
 			fmt.Sprintf("filter_to_file: operator %s does not accept `tz`", f.Type),
 			map[string]any{"operator": string(f.Type), perr.DetailTimeZone: f.TimeZone})
+	}
+	if inst.Hidden(string(f.Type)) {
+		return "", unsupportedFilterType(f.Type)
 	}
 	switch f.Type {
 	case types.FILTER_EXPRESSION:
@@ -225,7 +234,13 @@ func filtererToExpression(f *types.Filterer) (string, error) {
 			return "", fmt.Errorf("filter_to_file: FILTER_NULL mode %q not supported (expected is_null / is_not_null)", mode)
 		}
 	}
-	return "", fmt.Errorf("filter_to_file: unsupported filter type %q", f.Type)
+	return "", unsupportedFilterType(f.Type)
+}
+
+// unsupportedFilterType is the one refusal filtererToExpression gives a
+// type it cannot translate — never-registered and hidden alike.
+func unsupportedFilterType(t types.FiltererType) error {
+	return fmt.Errorf("filter_to_file: unsupported filter type %q", t)
 }
 
 // inListExpr builds a `field in ["a","b"]` or `not (field in [...])`

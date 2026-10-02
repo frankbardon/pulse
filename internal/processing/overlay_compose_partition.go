@@ -53,7 +53,7 @@ import (
 // ApplyComposeOverlays entry point has no request list to judge, and a
 // gate that cannot see the request must not invent a refusal.
 func checkPanelSlabPartition(spec *types.ComposeOverlaySpec, specIdx, refIdx int, targetIdxs []int, requests []*types.Request, exts *ExtensionRegistry) error {
-	if spec == nil || requests == nil || !types.IsPanelOverlayParamsKind(spec.Kind) {
+	if spec == nil || requests == nil || !types.IsPanelOverlayParamsKind(exts.overlayRoute(spec.Kind)) {
 		return nil
 	}
 	// Cap first — the standing rule on both arms. An over-cap spec is

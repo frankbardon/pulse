@@ -92,7 +92,8 @@ func op(name string) Feature {
 	return Feature{Name: name, Kind: FeatureKindOperator, Since: BuiltinFeatureSince}
 }
 
-// Capability feature names, referenced by the MCP tool binding table.
+// Capability feature names, referenced by the MCP tool and command
+// binding tables and the instance manifest.
 var (
 	featProcess      = FeatureName(FeatureKindCapability, "process")
 	featCompose      = FeatureName(FeatureKindCapability, "compose")
@@ -109,6 +110,11 @@ var (
 	featStream       = FeatureName(FeatureKindCapability, "stream")
 	featWatch        = FeatureName(FeatureKindCapability, "watch")
 	featFilterToFile = FeatureName(FeatureKindCapability, "filter_to_file")
+	featIndex        = FeatureName(FeatureKindCapability, "index")
+	featShard        = FeatureName(FeatureKindCapability, "shard")
+	featWiden        = FeatureName(FeatureKindCapability, "widen")
+	featSynth        = FeatureName(FeatureKindCapability, "synth")
+	featExport       = FeatureName(FeatureKindCapability, "export")
 )
 
 // builtinFeatures is THE feature table. Adding an operator, capability,
@@ -419,6 +425,9 @@ var overlayHostKinds = map[string][]string{
 //   - ATTR_REG_* fit an OLS model through the regression engine.
 //   - OVERLAY_YOY refuses any series host whose first grouper is not
 //     GROUP_DATE (it reads the date grouper's frequency).
+//   - capability:filter_to_file compiles every filterer of the request
+//     into one engine-internal FILTER_EXPRESSION, so hiding
+//     FILTER_EXPRESSION would break FilterToFile for any request.
 //
 // TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
 // are plain numeric params, so the pairing is advice, not a dependency.
@@ -434,6 +443,7 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
 	"ATTR_REG_RESIDUAL":                     {"REG_OLS"},
 	"OVERLAY_YOY":                           {"GROUP_DATE"},
+	featFilterToFile:                        {"FILTER_EXPRESSION"},
 }
 
 // RequestHostCapabilities returns the request-executing host
@@ -570,6 +580,76 @@ var mcpToolBindings = []MCPToolBinding{
 	{Tool: "pulse_range_tables", Feature: featRangeTables},
 }
 
+// CommandBinding records which feature (or core surface) owns one
+// manifest command (a CLI leaf, Manifest.Commands) or library-only
+// operation (Manifest.Operations). Exactly one of Feature, Core and
+// Ungated is set. Ungated marks a process-level leaf that describes the
+// binary rather than the instance (the MCP server, the build version):
+// it is neither a feature nor a core surface and is always listed.
+type CommandBinding struct {
+	Command string
+	Feature string
+	Core    string
+	Ungated bool
+}
+
+// commandBindings binds every manifest command and operation. The
+// instance manifest lists an entry iff its binding is core, ungated or
+// an enabled feature. TestCommandBindings_Complete pins it to
+// commands() / operations() in both directions.
+var commandBindings = []CommandBinding{
+	// Manifest.Commands.
+	{Command: "process", Feature: featProcess},
+	{Command: "compose", Feature: featCompose},
+	{Command: "process-chain", Feature: featProcessChain},
+	{Command: "sample", Feature: featSample},
+	{Command: "facet", Feature: featFacet},
+	{Command: "lookup", Feature: featLookup},
+	{Command: "inspect", Core: CoreInspect},
+	{Command: "predict", Core: CorePredict},
+	{Command: "manifest", Core: CoreManifest},
+	{Command: "schema", Core: CorePayloadSchema},
+	{Command: "mcp", Ungated: true},
+	{Command: "synth", Feature: featSynth},
+	{Command: "profile", Feature: featSynth},
+	{Command: "shard create", Feature: featShard},
+	{Command: "shard add", Feature: featShard},
+	{Command: "shard remove", Feature: featShard},
+	{Command: "shard list", Feature: featShard},
+	{Command: "shard compact", Feature: featShard},
+	{Command: "shard verify", Feature: featShard},
+	{Command: "shard extract", Feature: featShard},
+	{Command: "index build", Feature: featIndex},
+	{Command: "index list", Feature: featIndex},
+	{Command: "index verify", Feature: featIndex},
+	{Command: "index drop", Feature: featIndex},
+	{Command: "widen", Feature: featWiden},
+	{Command: "dedup", Feature: featDedup},
+	{Command: "version", Ungated: true},
+	// Manifest.Operations.
+	{Command: "filter_to_file", Feature: featFilterToFile},
+	{Command: "process_stream", Feature: featStream},
+	{Command: "synth_stream", Feature: featSynth},
+	{Command: "watch", Feature: featWatch},
+}
+
+// CommandBindings returns the manifest command / operation → feature
+// table in a stable order.
+func CommandBindings() []CommandBinding {
+	return append([]CommandBinding(nil), commandBindings...)
+}
+
+// CommandBindingOf returns the binding for one manifest command or
+// operation name.
+func CommandBindingOf(command string) (CommandBinding, bool) {
+	for _, b := range commandBindings {
+		if b.Command == command {
+			return b, true
+		}
+	}
+	return CommandBinding{}, false
+}
+
 // mcpPromptFeatures binds every registered MCP prompt
 // (gosdk.RegisteredPrompts()) to its mcp_extra feature.
 var mcpPromptFeatures = map[string]string{
@@ -696,4 +776,61 @@ func ParseSince(s string) (major, minor, patch int, ok bool) {
 		out[i] = n
 	}
 	return out[0], out[1], out[2], true
+}
+
+// SinceReached reports whether a feature introduced in since is
+// available in the running build version. The running version is
+// compared on its major.minor.patch core only, so a pre-release or
+// git-describe build of a release line offers that line's features
+// (1.0.0-alpha.2 offers Since 1.0.0). A running version with no usable
+// core is treated as newest. An unparseable since (a table bug
+// TestFeaturesHaveSince refuses) is never reached.
+func SinceReached(since, running string) bool {
+	sMaj, sMin, sPatch, ok := ParseSince(since)
+	if !ok {
+		return false
+	}
+	rMaj, rMin, rPatch, newest := runningVersionCore(running)
+	if newest {
+		return true
+	}
+	if rMaj != sMaj {
+		return rMaj > sMaj
+	}
+	if rMin != sMin {
+		return rMin > sMin
+	}
+	return rPatch >= sPatch
+}
+
+// runningVersionCore extracts the major.minor.patch core of a running
+// build version: a leading "v" is dropped and everything from the first
+// "-" or "+" (pre-release, build metadata, git-describe suffix) is cut.
+// newest is true for a version with no comparable core: "devel" and
+// "devel+<sha>", a bare commit SHA, anything unparseable, and a 0.0.0
+// core (the Go pseudo-version of an untagged build), which no release
+// carries.
+func runningVersionCore(v string) (major, minor, patch int, newest bool) {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if i := strings.IndexAny(v, "-+"); i >= 0 {
+		v = v[:i]
+	}
+	major, minor, patch, ok := ParseSince(v)
+	if !ok || (major == 0 && minor == 0 && patch == 0) {
+		return 0, 0, 0, true
+	}
+	return major, minor, patch, false
+}
+
+// ReachedFeatureNames returns every built-in feature name whose Since
+// the running build version has reached, in table order: the enabled
+// set of a profile-free instance with no extensions.
+func ReachedFeatureNames(running string) []string {
+	out := make([]string, 0, len(builtinFeatures))
+	for _, f := range builtinFeatures {
+		if SinceReached(f.Since, running) {
+			out = append(out, f.Name)
+		}
+	}
+	return out
 }

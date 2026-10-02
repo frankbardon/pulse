@@ -1,0 +1,2490 @@
+{
+  "format_version": "1.1",
+  "data": {
+    "format_version": "1.0",
+    "pulse_version": "v0.0.0-test",
+    "feature_set_digest": "fs1:727c5f2f1b5b40af128ab1fcc3233aa64b215f0104e02f541e16006a18ec5a50",
+    "commands": [
+      {
+        "name": "process",
+        "description": "Execute a processing request against a cohort",
+        "annotations": {
+          "streamable": true,
+          "deterministic": true,
+          "expensive": true
+        }
+      },
+      {
+        "name": "facet",
+        "description": "Return distinct values for a field",
+        "annotations": {
+          "streamable": true,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "inspect",
+        "description": "Inspect a .pulse file header and schema",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "predict",
+        "description": "Validate a request without executing",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "manifest",
+        "description": "Output the root manifest",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "schema",
+        "description": "Output the JSON Schema for request/response payloads",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "mcp",
+        "description": "Serve the Model Context Protocol over stdio",
+        "annotations": {
+          "streamable": true,
+          "deterministic": false,
+          "expensive": false
+        }
+      },
+      {
+        "name": "version",
+        "description": "Print the Pulse build version (--json adds Go version, commit and envelope format_version)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      }
+    ],
+    "operations": [],
+    "components": {
+      "aggregators": [
+        {
+          "name": "AGG_AVERAGE",
+          "category": "aggregator",
+          "description": "Arithmetic mean of the field across the input set.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum",
+                "type": "float64",
+                "description": "Running sum of non-null field values; combined with n to recover the mean."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        },
+        {
+          "name": "AGG_COUNT",
+          "category": "aggregator",
+          "description": "Count records that pass the active filter, optionally by group.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "set_u128",
+            "set_u16",
+            "set_u256",
+            "set_u32",
+            "set_u64",
+            "set_u8",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar int64",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        },
+        {
+          "name": "AGG_FREQUENCY",
+          "category": "aggregator",
+          "description": "Per-distinct-value count of the field (returned as map in Details).",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "map[string]int64",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "distinct_count",
+                "type": "int",
+                "description": "Number of distinct values observed."
+              },
+              {
+                "name": "mode_value",
+                "type": "any",
+                "description": "Most-frequent value (ties broken by first-seen order)."
+              },
+              {
+                "name": "mode_count",
+                "type": "int",
+                "description": "Row count of the modal value."
+              }
+            ],
+            "mergeability": "partial"
+          }
+        },
+        {
+          "name": "AGG_SUM",
+          "category": "aggregator",
+          "description": "Sum the numeric values of the field across the input set.",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (decimal128 preserved when input is decimal)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum",
+                "type": "float64",
+                "description": "Running sum of non-null field values."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        },
+        {
+          "name": "AGG_WELFORD",
+          "category": "aggregator",
+          "description": "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Margin recompute (variance does not pool by addition).",
+          "params": null,
+          "accepts_types": [
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 (running mean; NaN when no rows); rich WelfordTriple{Mean, Variance, N}",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "mean",
+                "type": "float64",
+                "description": "Running Welford mean of non-null field values."
+              },
+              {
+                "name": "m2",
+                "type": "float64",
+                "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+              },
+              {
+                "name": "variance",
+                "type": "float64",
+                "description": "Unbiased sample variance derived from m2 / (n-1)."
+              },
+              {
+                "name": "stddev",
+                "type": "float64",
+                "description": "Sample standard deviation (square root of variance)."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        }
+      ],
+      "attributes": [],
+      "filterers": [
+        {
+          "name": "FILTER_INCLUDE",
+          "category": "filterer",
+          "description": "Keep records whose field value appears in the supplied Values list.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate (no emitted column)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        },
+        {
+          "name": "FILTER_RANGE",
+          "category": "filterer",
+          "description": "Keep records whose numeric field value falls within [low, high]; Values=[low, high].",
+          "params": null,
+          "accepts_types": [
+            "date",
+            "decimal128",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "record-level predicate",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n_in",
+                "type": "int",
+                "description": "Records that entered this filter pass."
+              },
+              {
+                "name": "n_out",
+                "type": "int",
+                "description": "Records that passed (entered the downstream stage)."
+              },
+              {
+                "name": "n_null_input",
+                "type": "int",
+                "description": "Records where the filter input field was null at evaluation time."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        }
+      ],
+      "groupers": [
+        {
+          "name": "GROUP_CATEGORY",
+          "category": "grouper",
+          "description": "Partition records by exact field value; ideal for categorical fields.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "string group key per row",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "dict_size",
+                "type": "int",
+                "description": "Number of distinct values observed across all buckets (cardinality of the partition key)."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, label, count}."
+              }
+            ],
+            "mergeability": "mergeable"
+          }
+        },
+        {
+          "name": "GROUP_DATE",
+          "category": "grouper",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, day_of_week). A datetime field is truncated to the UTC calendar day containing its instant before bucketing. Optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "params": [
+            {
+              "name": "component",
+              "type": "enum",
+              "required": false,
+              "default": "month",
+              "description": "Calendar component to bucket by.",
+              "enum_values": [
+                "day",
+                "day_of_week",
+                "month",
+                "quarter",
+                "week",
+                "year"
+              ]
+            },
+            {
+              "name": "fiscal_offset",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "Months after January when the fiscal year starts; valid only with component=year or component=quarter. Range [-11, 11]; offsets normalise mod 12 (offset=-3 == offset=9 =\u003e October start). 0 (default) = calendar year. Non-zero offsets prefix keys with FY using the end-year convention (Apr 2024-Mar 2025 with offset=3 =\u003e FY2025)."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "datetime"
+          ],
+          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1)",
+          "streamable": false,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "granularity",
+                "type": "string",
+                "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+              },
+              {
+                "name": "range_start",
+                "type": "string",
+                "description": "ISO date string of the earliest period observed."
+              },
+              {
+                "name": "range_end",
+                "type": "string",
+                "description": "ISO date string of the latest period observed."
+              },
+              {
+                "name": "n_buckets",
+                "type": "int",
+                "description": "Number of distinct calendar buckets observed."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records, ordered by emission; each entry carries {key, period_start, period_end, count}."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "zone": "capable"
+        }
+      ],
+      "windows": [],
+      "features": []
+    },
+    "tests": [
+      {
+        "name": "TEST_CHISQ",
+        "family": "TEST_CHISQ",
+        "tier": 1,
+        "description": "Chi-square independence test on a 2D Rows×Cols contingency table.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Rows",
+          "Cols"
+        ]
+      },
+      {
+        "name": "TEST_T",
+        "family": "TEST_T",
+        "tier": 1,
+        "description": "One-sample or two-sample Welch t-test on a numeric Field; SplitBy switches to the two-sample variant.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          },
+          {
+            "name": "mu",
+            "type": "float",
+            "required": false,
+            "default": 0,
+            "description": "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."
+          }
+        ],
+        "requires": [
+          "Field"
+        ]
+      },
+      {
+        "name": "TEST_WELCH",
+        "family": "TEST_WELCH",
+        "tier": 1,
+        "description": "Explicit two-sample Welch t-test alias; identical to TEST_T with SplitBy.",
+        "streamable": true,
+        "params": [
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "default": 0.05,
+            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
+          }
+        ],
+        "requires": [
+          "Field",
+          "SplitBy"
+        ]
+      }
+    ],
+    "post_tests": [],
+    "regressions": [],
+    "synth_distributions": [],
+    "error_codes_count": 144,
+    "error_domains": [
+      "CLI",
+      "DATA",
+      "ENCODING",
+      "PROCESSING",
+      "PULSE",
+      "SERVICE"
+    ],
+    "error_codes": [
+      "CLI_COMMAND",
+      "CLI_INPUT",
+      "CLI_INTERNAL",
+      "CLI_OUTPUT",
+      "DATA_CALCULATION",
+      "DATA_CONFIG",
+      "DATA_FILE",
+      "DATA_INTERNAL",
+      "DATA_PARSE",
+      "ENCODING_INTERNAL",
+      "ENCODING_INVALID",
+      "ENCODING_IO",
+      "ENCODING_TYPE_MISMATCH",
+      "PROCESSING_CONFIG",
+      "PROCESSING_GROUP",
+      "PROCESSING_INTERNAL",
+      "PROCESSING_RUNTIME",
+      "PROCESSING_STATE",
+      "PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL",
+      "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
+      "PULSE_ARCHIVE_CORRUPT",
+      "PULSE_ARCHIVE_MAGIC_INVALID",
+      "PULSE_COHORT_COMPRESSED",
+      "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
+      "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS",
+      "PULSE_CROSSTAB_EMPTY_COLUMNS",
+      "PULSE_CROSSTAB_EMPTY_ROWS",
+      "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL",
+      "PULSE_CROSSTAB_MARGIN_AGG_INVALID",
+      "PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED",
+      "PULSE_CROSSTAB_MISSING_CELL",
+      "PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE",
+      "PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE",
+      "PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS",
+      "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED",
+      "PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE",
+      "PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE",
+      "PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE",
+      "PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS",
+      "PULSE_DECIMAL_DIVIDE_BY_ZERO",
+      "PULSE_DECIMAL_OVERFLOW",
+      "PULSE_DECIMAL_PRECISION_LOSS",
+      "PULSE_DEDUP_LOW_RATIO",
+      "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
+      "PULSE_EXTENSION_DUPLICATE",
+      "PULSE_EXTENSION_FACTORY_PANIC",
+      "PULSE_EXTENSION_FANOUT_MISMATCH",
+      "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH",
+      "PULSE_EXTENSION_MERGEABLE_MISMATCH",
+      "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA",
+      "PULSE_EXTENSION_NAME_COLLISION",
+      "PULSE_EXTENSION_NAME_INVALID",
+      "PULSE_EXTENSION_NAME_RESERVED",
+      "PULSE_EXTENSION_PARAM_INVALID",
+      "PULSE_EXTENSION_STREAMABLE_MISMATCH",
+      "PULSE_FEATURE_PROFILE_DEPENDENCY",
+      "PULSE_FEATURE_PROFILE_INVALID",
+      "PULSE_FEATURE_PROFILE_UNKNOWN",
+      "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
+      "PULSE_GROUP_DECLARATION_INVALID",
+      "PULSE_GROUP_ENTRIES_EXHAUSTED",
+      "PULSE_GROUP_FIELD_CONFLICT",
+      "PULSE_GROUP_FIELD_UNKNOWN",
+      "PULSE_GROUP_MEMBER_NOT_CONSTANT",
+      "PULSE_GROUP_TOO_NARROW",
+      "PULSE_IMPORT_DESCRIPTION_TOO_LONG",
+      "PULSE_LABEL_COLLISION",
+      "PULSE_LABEL_DUPLICATE_BINDING",
+      "PULSE_LABEL_FIELD_COLLISION",
+      "PULSE_LABEL_FIELD_NOT_CATEGORICAL",
+      "PULSE_LABEL_FIELD_UNKNOWN",
+      "PULSE_LABEL_LOOKUP_MISS",
+      "PULSE_LABEL_TABLE_UNKNOWN",
+      "PULSE_OVERLAY_COMPONENTS_REQUIRED",
+      "PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED",
+      "PULSE_OVERLAY_EXPECTED_LOW",
+      "PULSE_OVERLAY_KIND_UNKNOWN",
+      "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE",
+      "PULSE_OVERLAY_PARAM_MISSING",
+      "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE",
+      "PULSE_OVERLAY_REF_UNKNOWN",
+      "PULSE_OVERLAY_REF_ZERO",
+      "PULSE_OVERLAY_SCOPE_UNSUPPORTED",
+      "PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT",
+      "PULSE_REQUEST_UNKNOWN_FIELD",
+      "PULSE_SHARD_HEADER_INVALID",
+      "PULSE_SHARD_MISSING",
+      "PULSE_SHARD_RESERVED_NAME",
+      "PULSE_SPSS_CARDINALITY_HIGH",
+      "PULSE_SPSS_CATEGORICAL_OVERFLOW",
+      "PULSE_SPSS_CATEGORICAL_USER_MISSING",
+      "PULSE_SPSS_CHARSET_INVALID",
+      "PULSE_SPSS_CHARSET_MISMATCH",
+      "PULSE_SPSS_CHARSET_UNENCODABLE",
+      "PULSE_SPSS_CHARSET_UNSUPPORTED",
+      "PULSE_SPSS_COLUMN_UNMAPPED",
+      "PULSE_SPSS_COMPRESSION_INVALID",
+      "PULSE_SPSS_COMPRESSION_UNSUPPORTED",
+      "PULSE_SPSS_DATA_CASE_COUNT_MISMATCH",
+      "PULSE_SPSS_DATA_TRUNCATED",
+      "PULSE_SPSS_DATE_WIDENED",
+      "PULSE_SPSS_DERIVED_NAME_COLLISION",
+      "PULSE_SPSS_DERIVED_UNFOLDABLE",
+      "PULSE_SPSS_DICT_INVALID",
+      "PULSE_SPSS_DICT_TRUNCATED",
+      "PULSE_SPSS_ENDIANNESS_MISMATCH",
+      "PULSE_SPSS_EXPORT_UNSUPPORTED",
+      "PULSE_SPSS_EXTENSION_INVALID",
+      "PULSE_SPSS_EXTENSION_UNKNOWN",
+      "PULSE_SPSS_FILE_EMPTY",
+      "PULSE_SPSS_MAGIC_FLAG_MISMATCH",
+      "PULSE_SPSS_MEASURE_LEVEL_MISMATCH",
+      "PULSE_SPSS_MISSING_MODE_INVALID",
+      "PULSE_SPSS_MR_SET_NOT_DERIVED",
+      "PULSE_SPSS_NAME_COLLISION",
+      "PULSE_SPSS_NAME_INVALID",
+      "PULSE_SPSS_NAME_SANITIZED",
+      "PULSE_SPSS_NULL_TOKEN_COLLISION",
+      "PULSE_SPSS_SIDECAR_ABSENT",
+      "PULSE_SPSS_SIDECAR_IGNORED",
+      "PULSE_SPSS_SIDECAR_INVALID",
+      "PULSE_SPSS_SIDECAR_STALE",
+      "PULSE_SPSS_TEMPORAL_PRECISION",
+      "PULSE_SPSS_VALUE_COLLISION",
+      "PULSE_SPSS_VALUE_LABELS_DROPPED",
+      "PULSE_SPSS_VERY_LONG_STRING_INVALID",
+      "PULSE_SPSS_WIDTH_OVERFLOW",
+      "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
+      "PULSE_SPSS_ZSAV_INVALID",
+      "PULSE_TEST_CONTINGENCY_DEGENERATE",
+      "PULSE_TEST_CORRELATION_UNDEFINED",
+      "PULSE_TEST_EXPECTED_COUNT_TOO_LOW",
+      "PULSE_TEST_FIELD_NOT_NUMERIC",
+      "PULSE_TEST_INSUFFICIENT_N",
+      "PULSE_TEST_INVALID_ALPHA",
+      "PULSE_TEST_SPLIT_GROUPS_LT_2",
+      "PULSE_TEST_TIES_DOMINATE",
+      "PULSE_TEST_UNKNOWN_TYPE",
+      "PULSE_TEST_VARIANCE_ZERO",
+      "PULSE_TIMEZONE_UNKNOWN",
+      "SERVICE_INTERNAL",
+      "SERVICE_REGISTRY",
+      "SERVICE_RESOURCE",
+      "SERVICE_VALIDATION"
+    ],
+    "mcp_tools": [
+      {
+        "name": "pulse_errors_lookup",
+        "description": "Look up Pulse error code metadata. Pass code=PULSE_XXX for full detail on one code. Pass domain=PULSE/ENCODING/PROCESSING/SERVICE/DATA/CLI to enumerate that domain. Pass query=\"text\" for keyword search across descriptions and fixups. The manifest carries only the code-name list — fetch detail here on demand to keep session context lean."
+      },
+      {
+        "name": "pulse_examples_get",
+        "description": "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped — hand it straight to pulse_process or pulse_predict."
+      },
+      {
+        "name": "pulse_examples_search",
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the embedded request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters: `query` (case-insensitive substring across name, description, and operators), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `regression`, `tests`, `windows`).\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+      },
+      {
+        "name": "pulse_facet",
+        "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE). For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
+      },
+      {
+        "name": "pulse_facet_schema",
+        "description": "Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional NumericPercentiles (forces buffered per-field sort), IncludeHistogram + HistogramRange + HistogramBins for fixed-width binning, DiscreteTopK truncation, and AdditiveFields contribution counts that strip the field's own filter clauses so the LLM/UI can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
+      },
+      {
+        "name": "pulse_inspect",
+        "description": "Read header and schema of a .pulse file without touching record data. Returns the field list (name, type, nullable, dictionary contents for categorical fields), record count, and format metadata. Use when you need schema-only output without running a request — listing fields for a UI, debugging dictionary contents, or confirming a field's type before authoring a request slot.\n\nrecord_count is DERIVED (payload bytes / record stride), so a cohort whose payload is not a whole multiple of the stride reports the FLOOR. That case carries a coded ENCODING_INVALID entry in the additive `warnings` array with record_stride and trailing_bytes in its details; a clean read emits no `warnings` key at all. Read it — a truncated tail is invisible in the count itself."
+      },
+      {
+        "name": "pulse_manifest",
+        "description": "CALL FIRST. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+      },
+      {
+        "name": "pulse_predict",
+        "description": "Validate a processing request against a cohort schema without executing. Returns the same diagnostics pulse_process would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Use to verify a hand-authored or programmatically generated request before storage or execution; cheap because it reads only the cohort header + schema."
+      },
+      {
+        "name": "pulse_process",
+        "description": "Execute a pre-built processing request against an existing cohort. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. Unknown keys are silently dropped on decode, so a misnamed slot is treated as absent — pulse_predict and pulse_process reject unrecognized top-level keys with PULSE_REQUEST_UNKNOWN_FIELD and a 'did you mean' suggestion."
+      },
+      {
+        "name": "pulse_skills_get",
+        "description": "Fetch the markdown body of a named skill. The skill pack is the authoritative reference for HOW to use operators (params, gotchas, recipes) — prefer skills over external documentation, blog posts, or source-code inspection, which may be out of date for this Pulse deployment."
+      },
+      {
+        "name": "pulse_skills_list",
+        "description": "List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Use this before authoring requests when you need domain guidance for a less common operator; fetch the markdown body via pulse_skills_get."
+      }
+    ],
+    "cohort_types": [
+      {
+        "name": "u8",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM",
+          "AGG_WELFORD"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "u16",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM",
+          "AGG_WELFORD"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "u32",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM",
+          "AGG_WELFORD"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "u64",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM",
+          "AGG_WELFORD"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "f32",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM",
+          "AGG_WELFORD"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "f64",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM",
+          "AGG_WELFORD"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "u4",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "date",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_DATE"
+        ]
+      },
+      {
+        "name": "packed_bool",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "categorical_u8",
+        "categorical": true,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_FREQUENCY"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "categorical_u16",
+        "categorical": true,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_FREQUENCY"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "categorical_u32",
+        "categorical": true,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT",
+          "AGG_FREQUENCY"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "decimal128",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE",
+          "FILTER_RANGE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      {
+        "name": "set_u8",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT"
+        ]
+      },
+      {
+        "name": "set_u16",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT"
+        ]
+      },
+      {
+        "name": "set_u32",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT"
+        ]
+      },
+      {
+        "name": "set_u64",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT"
+        ]
+      },
+      {
+        "name": "datetime",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_AVERAGE",
+          "AGG_COUNT",
+          "AGG_FREQUENCY",
+          "AGG_SUM"
+        ],
+        "compatible_filterers": [
+          "FILTER_INCLUDE"
+        ],
+        "compatible_groupers": [
+          "GROUP_CATEGORY",
+          "GROUP_DATE"
+        ]
+      },
+      {
+        "name": "set_u128",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT"
+        ]
+      },
+      {
+        "name": "set_u256",
+        "categorical": false,
+        "sharded_capable": true,
+        "compatible_aggregators": [
+          "AGG_COUNT"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "name": "aggregation-design",
+        "description": "Aggregation + filterer slot semantics — what `aggregations` does, how it composes with `filterers`, when smart defaults fire, when to use `attributes` instead. Topical design; per-AGG / per-FILTER detail lives in atomic op-* skills."
+      },
+      {
+        "name": "attribute-composition",
+        "description": "ATTR_* composition rules — slot ordering, two-pass attributes, ATTR_FORMULA expression environment, ATTR vs FEAT distinction. Topical design; per-ATTR detail lives in atomic op-attr-* skills."
+      },
+      {
+        "name": "cohort-schema-design",
+        "description": "Field-type selection for .pulse cohorts — 20 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+      },
+      {
+        "name": "compose-requests",
+        "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
+      },
+      {
+        "name": "crosstab-guide",
+        "description": "Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics."
+      },
+      {
+        "name": "facet-design",
+        "description": "FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics."
+      },
+      {
+        "name": "feature-engineering",
+        "description": "Feature slot semantics — pre-filter ordering (FEAT runs before FILTER), target-leakage trap, train/test split. Topical design; per-FEAT detail lives in atomic op-feat-* skills."
+      },
+      {
+        "name": "financial-cohorts",
+        "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
+      },
+      {
+        "name": "grouper-design",
+        "description": "Grouper slot semantics — multi-grouper composition (key product), fused crosstab eligibility, Group.Include inclusion-list, smart defaults per field type. Topical design; per-GROUP detail lives in atomic op-group-* skills."
+      },
+      {
+        "name": "join-design",
+        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validate-join predict surface."
+      },
+      {
+        "name": "label-display",
+        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
+      },
+      {
+        "name": "op-agg-average",
+        "description": "Arithmetic mean of a numeric field across the input set."
+      },
+      {
+        "name": "op-agg-ci-lower",
+        "description": "Lower bound of the confidence interval for the mean."
+      },
+      {
+        "name": "op-agg-ci-upper",
+        "description": "Upper bound of the confidence interval for the mean."
+      },
+      {
+        "name": "op-agg-count",
+        "description": "Count records that pass the active filter, optionally per group."
+      },
+      {
+        "name": "op-agg-distinct-count",
+        "description": "Count distinct non-null values across the input set."
+      },
+      {
+        "name": "op-agg-distinct-sum",
+        "description": "Sum a value field once per distinct key."
+      },
+      {
+        "name": "op-agg-frequency",
+        "description": "Per-distinct-value count of the field; returned as map[string]int64."
+      },
+      {
+        "name": "op-agg-kurtosis",
+        "description": "Bias-corrected excess kurtosis via online moments."
+      },
+      {
+        "name": "op-agg-max",
+        "description": "Largest non-null value of the field."
+      },
+      {
+        "name": "op-agg-median",
+        "description": "50th percentile of the field; requires sorting the full value set."
+      },
+      {
+        "name": "op-agg-min",
+        "description": "Smallest non-null value of the field."
+      },
+      {
+        "name": "op-agg-mode",
+        "description": "Most-frequent value of the field (ties broken by first-seen order)."
+      },
+      {
+        "name": "op-agg-null-count",
+        "description": "Count records where the field is null. Inverse of AGG_COUNT."
+      },
+      {
+        "name": "op-agg-percentile",
+        "description": "Configurable percentile of the field; requires sorting the full value set."
+      },
+      {
+        "name": "op-agg-range",
+        "description": "Spread (max minus min) of the field across the input set."
+      },
+      {
+        "name": "op-agg-ratio",
+        "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored."
+      },
+      {
+        "name": "op-agg-set-cardinality-avg",
+        "description": "Average popcount per contributing row — typical number of selections."
+      },
+      {
+        "name": "op-agg-set-cardinality-sum",
+        "description": "Sum of popcounts across contributing rows — total label selections seen."
+      },
+      {
+        "name": "op-agg-set-distinct-values",
+        "description": "Count of distinct exact mask values seen; each combination is atomic."
+      },
+      {
+        "name": "op-agg-set-frequency",
+        "description": "Per-bit row count — how many rows had each set label selected."
+      },
+      {
+        "name": "op-agg-set-intersection",
+        "description": "Bitwise-AND a set field across rows; returns labels for every bit set in every contributing row."
+      },
+      {
+        "name": "op-agg-set-union",
+        "description": "Bitwise-OR a set field across rows; returns labels for every bit set in any contributing row."
+      },
+      {
+        "name": "op-agg-skewness",
+        "description": "Bias-corrected skewness via online moments."
+      },
+      {
+        "name": "op-agg-stddev",
+        "description": "Population standard deviation via Welford's online algorithm."
+      },
+      {
+        "name": "op-agg-sum",
+        "description": "Sum the numeric values of a field across the input set."
+      },
+      {
+        "name": "op-agg-variance",
+        "description": "Population variance via Welford's online algorithm."
+      },
+      {
+        "name": "op-agg-weighted-mean",
+        "description": "Weighted arithmetic mean — sum(field * weight) / sum(weight)."
+      },
+      {
+        "name": "op-agg-welford",
+        "description": "Streaming Welford-Pébaÿ moment triple — running mean, sample variance (n-1), and observed count."
+      },
+      {
+        "name": "op-agg-zscore",
+        "description": "Standardized z-score aggregate — mean-centered, stddev-scaled summary."
+      },
+      {
+        "name": "op-attr-date-part",
+        "description": "Extract a calendar component (year, month, day, year_month, ...) from a date field."
+      },
+      {
+        "name": "op-attr-formula",
+        "description": "Per-row expression evaluation against the record's fields via expr-lang."
+      },
+      {
+        "name": "op-attr-normalized",
+        "description": "Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1]."
+      },
+      {
+        "name": "op-attr-percentile",
+        "description": "Per-row percentile rank column against the post-filter value set; requires sorting."
+      },
+      {
+        "name": "op-attr-reg-fitted",
+        "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass."
+      },
+      {
+        "name": "op-attr-reg-leverage",
+        "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic."
+      },
+      {
+        "name": "op-attr-reg-residual",
+        "description": "Per-row residual yᵢ − ŷᵢ from an OLS refit during the attribute prepass."
+      },
+      {
+        "name": "op-attr-set-has",
+        "description": "Per-row 0/1 — whether the configured label's bit is set on a set field."
+      },
+      {
+        "name": "op-attr-set-popcount",
+        "description": "Per-row popcount of a set field — number of selected labels."
+      },
+      {
+        "name": "op-attr-tscore",
+        "description": "Per-row T-score column — z-score rescaled to mean 50, stddev 10."
+      },
+      {
+        "name": "op-attr-zscore",
+        "description": "Per-row standardized z-score column — (value − mean) / stddev via two-pass Welford."
+      },
+      {
+        "name": "op-feat-bucketize",
+        "description": "Bin a numeric column into ordered buckets — explicit boundaries or N equal-population quantiles."
+      },
+      {
+        "name": "op-feat-date-features",
+        "description": "Expand a date field into year / month / day / day-of-week / quarter columns."
+      },
+      {
+        "name": "op-feat-frequency-encode",
+        "description": "Replace each categorical value with its observed relative frequency in the cohort."
+      },
+      {
+        "name": "op-feat-log",
+        "description": "Per-row log1p(x) of a numeric field; emits one f64 column. Standard skew-tamer."
+      },
+      {
+        "name": "op-feat-one-hot",
+        "description": "One-hot encode a categorical field as one f64 column per dictionary entry."
+      },
+      {
+        "name": "op-feat-poly",
+        "description": "Per-row polynomial expansion x^2..x^Degree of a numeric field; pair with REG_OLS for polynomial regression."
+      },
+      {
+        "name": "op-feat-sqrt",
+        "description": "Per-row sqrt(x) of a numeric field; emits one f64 column."
+      },
+      {
+        "name": "op-feat-target-encode",
+        "description": "Replace each categorical value with the smoothed mean of a numeric Target field for that category. Leakage trap — see Gotchas."
+      },
+      {
+        "name": "op-feat-train-test-split",
+        "description": "Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows."
+      },
+      {
+        "name": "op-filter-date-ranges",
+        "description": "Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges."
+      },
+      {
+        "name": "op-filter-exclude",
+        "description": "Drop records whose field value appears in the supplied Values list."
+      },
+      {
+        "name": "op-filter-expression",
+        "description": "Keep records for which an expr-lang expression evaluates truthy against record fields."
+      },
+      {
+        "name": "op-filter-false",
+        "description": "Keep records where Field is logically false. Strict packed_bool by default; opt into JS falsiness."
+      },
+      {
+        "name": "op-filter-include",
+        "description": "Keep records whose field value appears in the supplied Values list."
+      },
+      {
+        "name": "op-filter-null",
+        "description": "Keep or drop records based on null state of a field."
+      },
+      {
+        "name": "op-filter-range",
+        "description": "Keep records whose numeric field value falls within [low, high] inclusive."
+      },
+      {
+        "name": "op-filter-set-contains-all",
+        "description": "Keep records whose set field has every bit in the supplied label mask set."
+      },
+      {
+        "name": "op-filter-set-contains-any",
+        "description": "Keep records whose set field shares at least one bit with the supplied label mask."
+      },
+      {
+        "name": "op-filter-set-contains-none",
+        "description": "Keep records whose set field shares no bits with the supplied label mask."
+      },
+      {
+        "name": "op-filter-set-equals",
+        "description": "Keep records whose set field mask exactly equals the supplied label mask."
+      },
+      {
+        "name": "op-filter-true",
+        "description": "Keep records where Field is logically true. Strict packed_bool by default; opt into JS truthiness."
+      },
+      {
+        "name": "op-group-category",
+        "description": "Partition records by exact field value; ideal for categorical fields."
+      },
+      {
+        "name": "op-group-date",
+        "description": "Partition date/datetime records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
+      },
+      {
+        "name": "op-group-date-ranges",
+        "description": "Bucket date records by inline labeled date ranges; the range label becomes the bucket key."
+      },
+      {
+        "name": "op-group-quantile",
+        "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100)."
+      },
+      {
+        "name": "op-group-range",
+        "description": "Partition numeric records into half-open ranges [a, b); Interval controls bucket width."
+      },
+      {
+        "name": "op-group-rounded",
+        "description": "Round each numeric value to the nearest multiple of Interval and group by the rounded scalar."
+      },
+      {
+        "name": "op-group-set-per-element",
+        "description": "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount."
+      },
+      {
+        "name": "op-group-set-value",
+        "description": "Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with \"|\"."
+      },
+      {
+        "name": "op-overlay-chisq-col",
+        "description": "Per-column χ² goodness-of-fit test across the host crosstab's contingency table."
+      },
+      {
+        "name": "op-overlay-chisq-matrix",
+        "description": "Whole-matrix χ² independence test across the host crosstab's row × column contingency table."
+      },
+      {
+        "name": "op-overlay-chisq-row",
+        "description": "Per-row χ² goodness-of-fit test across the host crosstab's contingency table."
+      },
+      {
+        "name": "op-overlay-chisq-vs-pop",
+        "description": "χ² goodness-of-fit comparing host Facet subset distribution against the resolved population distribution."
+      },
+      {
+        "name": "op-overlay-chisq-vs-ref",
+        "description": "Compose-host whole-matrix χ² comparing target slot's matrix against the reference slot's matrix (rescaled to target N)."
+      },
+      {
+        "name": "op-overlay-delta-vs-baseline",
+        "description": "Per-point additive delta against a fixed positional baseline of an ordered SERIES host."
+      },
+      {
+        "name": "op-overlay-delta-vs-margin",
+        "description": "Per-cell additive delta against the matching axis margin (cell − margin)."
+      },
+      {
+        "name": "op-overlay-delta-vs-prior",
+        "description": "Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host."
+      },
+      {
+        "name": "op-overlay-delta-vs-ref",
+        "description": "Compose-host additive delta of target slot value against the matching reference slot value (matrix or series)."
+      },
+      {
+        "name": "op-overlay-delta-vs-sibling",
+        "description": "Per-group additive delta against a sibling group named by (Field, Value) on the SERIES host."
+      },
+      {
+        "name": "op-overlay-delta-vs-stage",
+        "description": "Whole-chain additive delta of target stage's result against the reference stage's result."
+      },
+      {
+        "name": "op-overlay-fisher-exact-cell",
+        "description": "Per-cell Fisher's exact two-sided p-value over a 2×2 contingency formed from each host crosstab cell + its margins."
+      },
+      {
+        "name": "op-overlay-formula",
+        "description": "Expression-driven projection computed via expr-lang against a per-host-shape variable namespace."
+      },
+      {
+        "name": "op-overlay-index-vs-baseline",
+        "description": "Per-point ratio index against a fixed positional baseline of an ordered SERIES host (×100)."
+      },
+      {
+        "name": "op-overlay-index-vs-margin",
+        "description": "Per-cell index against the matching axis margin (100 × cell / margin)."
+      },
+      {
+        "name": "op-overlay-index-vs-pop",
+        "description": "Per-value population-comparison index for a Facet host (subset_freq / pop_freq × 100)."
+      },
+      {
+        "name": "op-overlay-index-vs-prior",
+        "description": "Per-point streamable windowed index against the immediately preceding point of an ordered SERIES host (×100)."
+      },
+      {
+        "name": "op-overlay-index-vs-ref",
+        "description": "Compose-host ratio index of target slot value against the matching reference slot value (matrix or series)."
+      },
+      {
+        "name": "op-overlay-index-vs-rolling-mean",
+        "description": "Per-point windowed index against the arithmetic mean of the W preceding points of an ordered SERIES host."
+      },
+      {
+        "name": "op-overlay-index-vs-sibling",
+        "description": "Per-group ratio index against a sibling group named by (Field, Value) on the SERIES host (×100)."
+      },
+      {
+        "name": "op-overlay-index-vs-stage",
+        "description": "Whole-chain ratio index of target stage's result against the reference stage's result (×100)."
+      },
+      {
+        "name": "op-overlay-index-vs-total",
+        "description": "Per-group streamable ratio index against the SERIES host's grand total (×100)."
+      },
+      {
+        "name": "op-overlay-ks-vs-pop",
+        "description": "Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population."
+      },
+      {
+        "name": "op-overlay-pairwise-probit-t",
+        "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail)."
+      },
+      {
+        "name": "op-overlay-pairwise-prop-z",
+        "description": "Intra-matrix axis-pairwise pooled-SE two-proportion z-test (row-vs-row or col-vs-col within one crosstab)."
+      },
+      {
+        "name": "op-overlay-pairwise-two-means-z",
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df)."
+      },
+      {
+        "name": "op-overlay-pairwise-weighted-two-means-z",
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells under a required n_basis (weights | kish)."
+      },
+      {
+        "name": "op-overlay-pairwise-welch-t",
+        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells."
+      },
+      {
+        "name": "op-overlay-panel-index-vs-ref",
+        "description": "Compose-host multi-reference index — indexes every target slot against a shared reference; emits one layer per target."
+      },
+      {
+        "name": "op-overlay-prop-z-cell",
+        "description": "Compose-host per-cell two-proportion z-test against the reference slot's matching cell."
+      },
+      {
+        "name": "op-overlay-prop-z-panel",
+        "description": "Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots."
+      },
+      {
+        "name": "op-overlay-rank",
+        "description": "Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix)."
+      },
+      {
+        "name": "op-overlay-share-of-col",
+        "description": "Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column."
+      },
+      {
+        "name": "op-overlay-share-of-row",
+        "description": "Per-cell share-of-row ratio (cell / row_margin) — raw share, sums to 1.0 per row."
+      },
+      {
+        "name": "op-overlay-share-of-total",
+        "description": "Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0."
+      },
+      {
+        "name": "op-overlay-t-cell",
+        "description": "Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents."
+      },
+      {
+        "name": "op-overlay-t-vs-ref",
+        "description": "Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents."
+      },
+      {
+        "name": "op-overlay-yoy",
+        "description": "Per-point year-over-year ratio against the same period one year prior; requires GROUP_DATE host."
+      },
+      {
+        "name": "op-overlay-z-cell",
+        "description": "Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; parity overlay reading from CellComponents."
+      },
+      {
+        "name": "op-overlay-z-vs-ref",
+        "description": "Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); parity overlay reading from CellComponents."
+      },
+      {
+        "name": "op-overlay-zscore-vs-margin",
+        "description": "Per-cell standardized-margin z-score — (cell − margin) / sd where sd is the population SD within the same margin slice."
+      },
+      {
+        "name": "op-overlay-zscore-vs-pop",
+        "description": "Per-value population-comparison z-score for a Facet host — (subset_freq − pop_freq) / sd_pop."
+      },
+      {
+        "name": "op-overlay-zscore-vs-rolling",
+        "description": "Per-point windowed z-score against the rolling-window mean + SAMPLE SD of the W preceding points."
+      },
+      {
+        "name": "op-overlay-zscore-vs-total",
+        "description": "Per-group streamable z-score against the SERIES host's grand-total distribution (population SD)."
+      },
+      {
+        "name": "op-reg-bayes-linear",
+        "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as REG_OLS."
+      },
+      {
+        "name": "op-reg-glm",
+        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-specific link functions. Always buffered."
+      },
+      {
+        "name": "op-reg-mod-resample",
+        "description": "Spec-level resampling modifier (jackknife / bootstrap) that composes with REG_OLS or REG_GLM; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
+      },
+      {
+        "name": "op-reg-mod-selection",
+        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with REG_OLS or REG_GLM; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
+      },
+      {
+        "name": "op-reg-ols",
+        "description": "Ordinary least squares with optional l1/l2/elasticnet penalty; covers simple, multiple, ridge, lasso, and elastic-net regression over streaming sufficient statistics."
+      },
+      {
+        "name": "op-synth-bernoulli",
+        "description": "Bernoulli samples emitting 0 or 1 with probability p; pairs with packed_bool or unsigned int fields."
+      },
+      {
+        "name": "op-synth-constant",
+        "description": "Emit a constant value on every row; useful for unit testing, sentinel columns, and placeholder fields."
+      },
+      {
+        "name": "op-synth-discrete",
+        "description": "Exact per-level histogram for an integer column; what a profile reconstructs every u4/u8/u16/u32/u64 field from."
+      },
+      {
+        "name": "op-synth-exponential",
+        "description": "Exponential samples with rate parameter lambda; mean is 1/lambda."
+      },
+      {
+        "name": "op-synth-lognormal",
+        "description": "Log-normal samples parameterised by log-space mu and sigma; output strictly positive."
+      },
+      {
+        "name": "op-synth-mixture",
+        "description": "Mixture-of-normals samples — per-row component draw by weight, then a Gaussian from that component; reproduces bimodal/multimodal shapes."
+      },
+      {
+        "name": "op-synth-monotonic-from",
+        "description": "Strictly increasing or decreasing integer counter; deterministic per row, ignores RNG. Synthetic primary keys."
+      },
+      {
+        "name": "op-synth-normal",
+        "description": "Gaussian samples with optional [min, max] clamp; default mean=0, std=1."
+      },
+      {
+        "name": "op-synth-pareto",
+        "description": "Heavy-tailed Pareto samples; xm is the scale (minimum), alpha the shape (tail weight)."
+      },
+      {
+        "name": "op-synth-poisson",
+        "description": "Poisson-distributed non-negative integer counts with mean lambda; Knuth multiplicative below 30, normal-approximation above."
+      },
+      {
+        "name": "op-synth-regex",
+        "description": "String samples generated from a Perl/RE2 regex pattern; walks regexp/syntax AST with bounded repetition."
+      },
+      {
+        "name": "op-synth-set-bernoulli",
+        "description": "Multi-select set_* bitmask generation — independent per-option Bernoulli draws, or a joint-structure resample when a paired field is declared."
+      },
+      {
+        "name": "op-synth-uniform",
+        "description": "Uniform real-valued samples in [min, max); default [0, 1)."
+      },
+      {
+        "name": "op-synth-uniform-date",
+        "description": "Uniform calendar-date samples in [start, end] inclusive; days-since-epoch internally."
+      },
+      {
+        "name": "op-synth-weighted-categorical",
+        "description": "Discrete categorical draws from a values list with optional weights; uniform when weights absent."
+      },
+      {
+        "name": "op-test-anova-f",
+        "description": "One-way ANOVA F-test comparing the means of a numeric Field across k groups defined by SplitBy."
+      },
+      {
+        "name": "op-test-anova-rm",
+        "description": "Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition."
+      },
+      {
+        "name": "op-test-anova-welch",
+        "description": "Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction; streamable per-group Welford."
+      },
+      {
+        "name": "op-test-brown-forsythe",
+        "description": "Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians."
+      },
+      {
+        "name": "op-test-chisq",
+        "description": "Chi-square independence test on a 2D Rows × Cols contingency table."
+      },
+      {
+        "name": "op-test-fisher-exact",
+        "description": "Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative."
+      },
+      {
+        "name": "op-test-kendall-tau",
+        "description": "Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction."
+      },
+      {
+        "name": "op-test-kruskal-wallis",
+        "description": "Nonparametric k-group location test; ANOVA-like rank sums under tie correction."
+      },
+      {
+        "name": "op-test-ks",
+        "description": "Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy."
+      },
+      {
+        "name": "op-test-mann-whitney-u",
+        "description": "Nonparametric two-sample location test; buffered tie-corrected rank sum (Mann-Whitney U)."
+      },
+      {
+        "name": "op-test-paired-t",
+        "description": "Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d."
+      },
+      {
+        "name": "op-test-pearson-r",
+        "description": "Parametric Pearson correlation test between two numeric fields; streamable via online cross-product."
+      },
+      {
+        "name": "op-test-prop-z",
+        "description": "Two-proportion z-test on the success rate of Field across two SplitBy groups; streamable via success / total counts."
+      },
+      {
+        "name": "op-test-shapiro-wilk",
+        "description": "Shapiro-Wilk normality test on Field; runs per-group when SplitBy is set; supports n ≤ 5000."
+      },
+      {
+        "name": "op-test-spearman-r",
+        "description": "Rank-based correlation between Field and Field2 (monotonic association); buffered mid-ranks then Pearson."
+      },
+      {
+        "name": "op-test-t",
+        "description": "One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant."
+      },
+      {
+        "name": "op-test-trend",
+        "description": "Mann-Kendall trend test over an ordered numeric series; tier-2 over windowed result rows."
+      },
+      {
+        "name": "op-test-tukey-hsd",
+        "description": "Tier-2 post-hoc pairwise comparison of group means using Tukey's Honestly Significant Difference (Tukey-Kramer)."
+      },
+      {
+        "name": "op-test-welch",
+        "description": "Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition."
+      },
+      {
+        "name": "op-test-wilcoxon-sr",
+        "description": "Wilcoxon signed-rank test on per-row difference d = Field − Field2; buffered tie-corrected sign-rank."
+      },
+      {
+        "name": "op-test-z-two-sample",
+        "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ."
+      },
+      {
+        "name": "op-win-delta",
+        "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of WIN_PCT_CHANGE."
+      },
+      {
+        "name": "op-win-dense-rank",
+        "description": "Dense rank with no gaps after ties (1, 2, 2, 3, ...) within the ordered partition."
+      },
+      {
+        "name": "op-win-ewma",
+        "description": "Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}."
+      },
+      {
+        "name": "op-win-lag",
+        "description": "Per-row value of Field from N rows earlier in the ordered partition."
+      },
+      {
+        "name": "op-win-lead",
+        "description": "Per-row value of Field from N rows later in the ordered partition."
+      },
+      {
+        "name": "op-win-moving-avg",
+        "description": "Moving average of Field over a bounded Frame; both ends must be set."
+      },
+      {
+        "name": "op-win-pct-change",
+        "description": "Percent change relative to the row `periods` positions earlier in the ordered partition."
+      },
+      {
+        "name": "op-win-rank",
+        "description": "Sparse rank with gaps after ties (1, 2, 2, 4, ...) within the ordered partition."
+      },
+      {
+        "name": "op-win-row-number",
+        "description": "1-based row index within the ordered partition; never ties."
+      },
+      {
+        "name": "op-win-running-avg",
+        "description": "Running average of Field over the configured Frame within the ordered partition."
+      },
+      {
+        "name": "op-win-running-sum",
+        "description": "Running total of Field over the configured Frame within the ordered partition."
+      },
+      {
+        "name": "overlay-system",
+        "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics."
+      },
+      {
+        "name": "pairwise-n-sources",
+        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and the direct-caller bypass."
+      },
+      {
+        "name": "process-chain",
+        "description": "ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning."
+      },
+      {
+        "name": "regression-modeling",
+        "description": "REG_* operator + modifier composition (`Resample`, `Selection`), `FEAT_POLY` upstream composition, how 13 textbook regression names map to 3 operators + 2 modifiers. Topical design; per-REG detail in atomic op-reg-* skills."
+      },
+      {
+        "name": "request-envelope",
+        "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability, and the v0.20.0 Response.Components additive field. Use when authoring or adapting any Pulse Request."
+      },
+      {
+        "name": "request-templating",
+        "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
+      },
+      {
+        "name": "response-components",
+        "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
+      },
+      {
+        "name": "session-bootstrap",
+        "description": "Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session."
+      },
+      {
+        "name": "spss-cohorts",
+        "description": "SPSS .sav / .zsav import and .sav writing — the schema-authoritative dictionary, derived columns (\u003cvar\u003e_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, the dictionary + data-section writer, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, when a cohort has more columns than its source file had variables, or when emitting a .sav."
+      },
+      {
+        "name": "statistical-testing",
+        "description": "Tier-1 (`tests`) vs tier-2 (`post_tests`) pairing, assumption gates, ANOVA + post-hoc composition, p-value conventions. Topical design; per-TEST detail in atomic op-test-* skills."
+      },
+      {
+        "name": "streaming-and-watching",
+        "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
+      },
+      {
+        "name": "synth-models",
+        "description": "Synth `--fit-models` — per-numeric linear model capture, predictor selection, thin-level shrinkage, the composed latent draw, correlated residuals, and the fidelity recovery sections that score whether the captured structure survived generation. Split out of the synthetic-data topical."
+      },
+      {
+        "name": "synth-structural-rules",
+        "description": "Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical."
+      },
+      {
+        "name": "synthetic-data",
+        "description": "`pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules."
+      },
+      {
+        "name": "tool-compose",
+        "description": "Execute a batch of processing requests in one round-trip."
+      },
+      {
+        "name": "tool-dedup",
+        "description": "Deduplicate an existing cohort's repeated parent blocks into parent groups (format 0x02), or suggest groups read-only."
+      },
+      {
+        "name": "tool-drop",
+        "description": "Remove a managed-import handle — delete its .pulse file and sidecar."
+      },
+      {
+        "name": "tool-errors-lookup",
+        "description": "Look up Pulse error code metadata — message and fixup hints."
+      },
+      {
+        "name": "tool-examples-get",
+        "description": "Fetch one runnable request example from the embedded library by name."
+      },
+      {
+        "name": "tool-examples-search",
+        "description": "Search the runnable request-example library for templates matching a question."
+      },
+      {
+        "name": "tool-facet",
+        "description": "Return distinct values for one field in a cohort."
+      },
+      {
+        "name": "tool-facet-schema",
+        "description": "Multi-field rich facet — counts, nulls, percentiles, histograms, additive contributions."
+      },
+      {
+        "name": "tool-import",
+        "description": "Import a tabular source file (or pass through .pulse) into a managed handle."
+      },
+      {
+        "name": "tool-imports-list",
+        "description": "Enumerate every managed-import handle with sidecar metadata."
+      },
+      {
+        "name": "tool-inspect",
+        "description": "Read header + schema of a .pulse file without touching record data."
+      },
+      {
+        "name": "tool-label-resolve",
+        "description": "Reverse-resolve a human-readable name (typo-tolerant) to raw categorical key(s)."
+      },
+      {
+        "name": "tool-label-tables",
+        "description": "List registered label tables — ID→display-name dictionaries for categorical fields."
+      },
+      {
+        "name": "tool-lookup",
+        "description": "Resolve a point lookup against a cohort's prebuilt sidecar index."
+      },
+      {
+        "name": "tool-manifest",
+        "description": "Bootstrap blob — call once per session for the operator + capability catalog."
+      },
+      {
+        "name": "tool-predict",
+        "description": "Validate a request against a cohort schema without executing."
+      },
+      {
+        "name": "tool-process",
+        "description": "Execute one pre-built processing request against a cohort."
+      },
+      {
+        "name": "tool-process-chain",
+        "description": "Linear chain of stages; stage N+1 consumes stage N's output rows."
+      },
+      {
+        "name": "tool-range-tables",
+        "description": "List registered range tables — named, reusable sets of labeled date ranges."
+      },
+      {
+        "name": "tool-sample",
+        "description": "Return up to N rows from a cohort for eyeball / preview."
+      },
+      {
+        "name": "tool-skills-get",
+        "description": "Fetch the markdown body of one named skill."
+      },
+      {
+        "name": "tool-skills-list",
+        "description": "List the embedded skill pack — domain guides and atomic operator/type/tool refs."
+      },
+      {
+        "name": "type-categorical-u16",
+        "description": "2-byte categorical with inline dictionary up to 65,536 labels."
+      },
+      {
+        "name": "type-categorical-u32",
+        "description": "4-byte categorical with inline dictionary up to ~4.29B labels."
+      },
+      {
+        "name": "type-categorical-u8",
+        "description": "1-byte categorical with inline dictionary up to 256 labels."
+      },
+      {
+        "name": "type-date",
+        "description": "Day-granularity date stored as epoch days (signed since 1970-01-01)."
+      },
+      {
+        "name": "type-datetime",
+        "description": "Second-granularity instant stored as signed epoch seconds (int64, negative = pre-1970), naive UTC."
+      },
+      {
+        "name": "type-decimal128",
+        "description": "128-bit fixed-point decimal with per-field (precision, scale); exact base-10 arithmetic."
+      },
+      {
+        "name": "type-f32",
+        "description": "IEEE-754 single-precision float; ~7 significant digits."
+      },
+      {
+        "name": "type-f64",
+        "description": "IEEE-754 double-precision float; ~15 significant digits."
+      },
+      {
+        "name": "type-packed-bool",
+        "description": "1-bit boolean; bit-packed with adjacent packed_bool / u4 fields."
+      },
+      {
+        "name": "type-set-u128",
+        "description": "16-byte multi-select bitmask over an inline dictionary of up to 128 labels."
+      },
+      {
+        "name": "type-set-u16",
+        "description": "2-byte multi-select bitmask over an inline dictionary of up to 16 labels."
+      },
+      {
+        "name": "type-set-u256",
+        "description": "32-byte multi-select bitmask over an inline dictionary of up to 256 labels — the widest set rung."
+      },
+      {
+        "name": "type-set-u32",
+        "description": "4-byte multi-select bitmask over an inline dictionary of up to 32 labels."
+      },
+      {
+        "name": "type-set-u64",
+        "description": "8-byte multi-select bitmask over an inline dictionary of up to 64 labels."
+      },
+      {
+        "name": "type-set-u8",
+        "description": "1-byte multi-select bitmask over an inline dictionary of up to 8 labels."
+      },
+      {
+        "name": "type-u16",
+        "description": "2-byte unsigned integer; fits cardinals through 65,535."
+      },
+      {
+        "name": "type-u32",
+        "description": "4-byte unsigned integer; the common wide-cardinal default."
+      },
+      {
+        "name": "type-u4",
+        "description": "4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields."
+      },
+      {
+        "name": "type-u64",
+        "description": "8-byte unsigned integer; for sub-day timestamps and very wide cardinals."
+      },
+      {
+        "name": "type-u8",
+        "description": "1-byte unsigned integer; fits cardinals through 255."
+      },
+      {
+        "name": "window-design",
+        "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
+      }
+    ],
+    "examples_count": 169,
+    "example_categories": [
+      "aggregations",
+      "attributes",
+      "crosstab",
+      "facet",
+      "features",
+      "filterers",
+      "groupers",
+      "overlays",
+      "regression",
+      "tests",
+      "windows"
+    ],
+    "example_tags": [
+      "anchor",
+      "bayesian",
+      "before-after",
+      "buffered-pipeline",
+      "byte-equal-test",
+      "cardinality-analysis",
+      "cohort-analysis",
+      "comparison",
+      "compose",
+      "composed",
+      "correlation-analysis",
+      "cross-tabulation",
+      "crosstab",
+      "data-quality",
+      "distribution-shape",
+      "ecological",
+      "elasticnet",
+      "exact-test",
+      "experiment-analysis",
+      "facet",
+      "feature-engineering",
+      "feature-pipeline",
+      "financial",
+      "glm",
+      "homogeneity-test",
+      "hypothesis-test",
+      "jackknife",
+      "k-sample",
+      "lasso",
+      "leakage-risk",
+      "leakage-safe",
+      "logistic",
+      "nonparametric",
+      "normality-test",
+      "ols",
+      "one-sample",
+      "outlier-detection",
+      "overlay",
+      "paired",
+      "parametric",
+      "polynomial",
+      "post-hoc",
+      "pre-filter",
+      "proportion-analysis",
+      "regression",
+      "regularization",
+      "repeated-measures",
+      "resampling",
+      "ridge",
+      "selection",
+      "sharded",
+      "small-sample",
+      "stepwise",
+      "streaming-friendly",
+      "t-test",
+      "tier-1-test",
+      "tier-2-test",
+      "time-series",
+      "top-n",
+      "trend-detection",
+      "two-sample",
+      "welch",
+      "welford-triple",
+      "window-operator",
+      "z"
+    ],
+    "extensions": {
+      "aggregators": [],
+      "attributes": [],
+      "filterers": [],
+      "groupers": [],
+      "windows": [],
+      "features": [],
+      "tests": [],
+      "synth_distributions": [],
+      "expr_functions": [],
+      "lookup_tables": [],
+      "label_tables": [],
+      "range_tables": []
+    },
+    "facet": {
+      "name": "facet_schema",
+      "supports_discrete": true,
+      "supports_numeric": true,
+      "supports_percentiles": true,
+      "supports_histogram": true,
+      "supports_additive": true,
+      "supports_overlays": true,
+      "streamable_conditions": [
+        "NumericPercentiles is empty (percentiles force a buffered per-field value slice + sort)",
+        "IncludeHistogram=false OR HistogramRange supplies caller-known [min, max] bounds"
+      ]
+    },
+    "crosstab": {
+      "name": "crosstab",
+      "normalize_modes": [
+        "column",
+        "none",
+        "row",
+        "total"
+      ],
+      "shapes": [
+        "long",
+        "matrix"
+      ],
+      "summable_aggregators": [
+        "AGG_COUNT",
+        "AGG_FREQUENCY",
+        "AGG_SUM"
+      ],
+      "mean_reducible_aggregators": [
+        "AGG_AVERAGE"
+      ],
+      "independent_aggregators": [],
+      "recompute_aggregators": [
+        "AGG_WELFORD"
+      ],
+      "streaming_exceptions": [
+        "shape=long with margins.rows / margins.columns / margins.grand all false and normalize=none streams through the standard grouped path"
+      ],
+      "rejection_rules": [
+        "crosstab requires at least one grouper in rows (PULSE_CROSSTAB_EMPTY_ROWS)",
+        "crosstab requires at least one grouper in columns (PULSE_CROSSTAB_EMPTY_COLUMNS)",
+        "crosstab requires a cell aggregation (PULSE_CROSSTAB_MISSING_CELL)",
+        "crosstab cannot coexist with top-level groups or aggregations (PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS)",
+        "matrix shape, any margin, or any normalization forces the buffered path"
+      ],
+      "supports_normalize_level": true,
+      "normalize_level_rules": [
+        "normalize_level must be in [0, len(axis)-1] for the axis selected by normalize (PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE)",
+        "normalize_level requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS)",
+        "normalize_level cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE)"
+      ],
+      "supports_normalize_within": true,
+      "normalize_within_rules": [
+        "normalize_within must be in [0, len(other-axis)-1] where other-axis is columns when normalize=row and rows when normalize=column (PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE)",
+        "normalize_within requires normalize to be row or column (PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS)",
+        "normalize_within cannot be combined with normalize=total (PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE)"
+      ],
+      "supports_margin_aggregations": true,
+      "margin_aggregation_rules": [
+        "every margin_aggregations entry needs an aggregation type; null entries are refused (PULSE_CROSSTAB_MARGIN_AGG_INVALID)",
+        "margin_aggregations effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL)",
+        "auxiliary figures are emitted only where the margin is DISPLAYED (margins.rows / margins.columns / margins.grand), matching the emission rule the cell aggregator's own margin counts and components follow; declaring margin_aggregations on a section that displays no margin computes them into nowhere — advisory warning, not a refusal (PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED) — and a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator"
+      ],
+      "map_valued_cell_aggregators": [
+        "AGG_WELFORD"
+      ]
+    },
+    "overlays": [
+      {
+        "kind": "OVERLAY_INDEX_VS_MARGIN",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [
+          "Margin"
+        ],
+        "buffered": true,
+        "fields": [
+          "level",
+          "within"
+        ],
+        "description": "Per-cell index score against the matching axis margin: 100 * cell / margin. CELL scope over a MATRIX (crosstab) host with a Margin reference. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation."
+      },
+      {
+        "kind": "OVERLAY_PAIRWISE_WELCH_T",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "column",
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+      },
+      {
+        "kind": "OVERLAY_SHARE_OF_ROW",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "cell"
+        ],
+        "ref_kinds": [
+          "Margin"
+        ],
+        "buffered": true,
+        "fields": [
+          "level",
+          "within"
+        ],
+        "description": "Per-cell share-of-row ratio: cell / row_margin. CELL scope over a MATRIX (crosstab) host. Row cells sum to 1.0 in the absence of missing cells; renderers can present the layer as a 100%-stacked horizontal projection. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation."
+      }
+    ],
+    "components_schemas": {
+      "aggregators": {
+        "AGG_AVERAGE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values; combined with n to recover the mean."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_COUNT": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_FREQUENCY": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "distinct_count",
+              "type": "int",
+              "description": "Number of distinct values observed."
+            },
+            {
+              "name": "mode_value",
+              "type": "any",
+              "description": "Most-frequent value (ties broken by first-seen order)."
+            },
+            {
+              "name": "mode_count",
+              "type": "int",
+              "description": "Row count of the modal value."
+            }
+          ],
+          "mergeability": "partial"
+        },
+        "AGG_SUM": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum",
+              "type": "float64",
+              "description": "Running sum of non-null field values."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_WELFORD": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "mean",
+              "type": "float64",
+              "description": "Running Welford mean of non-null field values."
+            },
+            {
+              "name": "m2",
+              "type": "float64",
+              "description": "Welford second-moment accumulator (sum of squared deviations from the running mean)."
+            },
+            {
+              "name": "variance",
+              "type": "float64",
+              "description": "Unbiased sample variance derived from m2 / (n-1)."
+            },
+            {
+              "name": "stddev",
+              "type": "float64",
+              "description": "Sample standard deviation (square root of variance)."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      },
+      "groupers": {
+        "GROUP_CATEGORY": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "dict_size",
+              "type": "int",
+              "description": "Number of distinct values observed across all buckets (cardinality of the partition key)."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, label, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "GROUP_DATE": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "granularity",
+              "type": "string",
+              "description": "Calendar component used to bucket (day, day_of_week, week, month, quarter, year)."
+            },
+            {
+              "name": "range_start",
+              "type": "string",
+              "description": "ISO date string of the earliest period observed."
+            },
+            {
+              "name": "range_end",
+              "type": "string",
+              "description": "ISO date string of the latest period observed."
+            },
+            {
+              "name": "n_buckets",
+              "type": "int",
+              "description": "Number of distinct calendar buckets observed."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records, ordered by emission; each entry carries {key, period_start, period_end, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      },
+      "filterers": {
+        "FILTER_INCLUDE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "FILTER_RANGE": {
+          "keys": [
+            {
+              "name": "n_in",
+              "type": "int",
+              "description": "Records that entered this filter pass."
+            },
+            {
+              "name": "n_out",
+              "type": "int",
+              "description": "Records that passed (entered the downstream stage)."
+            },
+            {
+              "name": "n_null_input",
+              "type": "int",
+              "description": "Records where the filter input field was null at evaluation time."
+            }
+          ],
+          "mergeability": "mergeable"
+        }
+      }
+    }
+  },
+  "errors": [],
+  "warnings": []
+}
+// golden-hash: 826195b927839126f648bd722735af86a68faed63fefe38aec51cfe5a53199a9

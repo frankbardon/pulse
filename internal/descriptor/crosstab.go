@@ -114,9 +114,12 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 	// Axis / cell / margin-aggregation field existence is the
 	// field-reference rule's (FieldRefRefusals).
 	if spec.Cell != nil {
+		// A cell type the instance hides is judged as a never-registered
+		// name; messages keep naming the authored type.
+		cellRoute := opRoute(opts.instance(), spec.Cell.Type)
 		// Numeric aggregation on categorical field — promote per
 		// strict (predict honours opts.Strict here too).
-		if f := schema.Field(spec.Cell.Field); f != nil && f.Type.IsCategorical() && numericAggregations[spec.Cell.Type] {
+		if f := schema.Field(spec.Cell.Field); f != nil && f.Type.IsCategorical() && numericAggregations[cellRoute] {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
 				Message: "numeric aggregation " + string(spec.Cell.Type) + " is not meaningful for categorical field " + spec.Cell.Field,
@@ -139,7 +142,7 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 		if opts != nil {
 			snap = opts.Extensions
 		}
-		if mode != types.CrosstabNormalizeNone && snap.AggregatorMarginReducibility(spec.Cell.Type) == types.MarginRecompute {
+		if mode != types.CrosstabNormalizeNone && snap.AggregatorMarginReducibility(cellRoute) == types.MarginRecompute {
 			env.AddWarning(string(errors.PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE),
 				"normalize="+string(mode)+" on a recompute-margin aggregator ("+string(spec.Cell.Type)+") requires recomputing the margin over raw rows; v1 does this automatically but cost is non-trivial",
 				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
@@ -147,7 +150,7 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 		// Reject normalize × map-valued aggregator. Map cells
 		// (AGG_SET_FREQUENCY today) cannot be divided by a margin —
 		// the operation is undefined.
-		if mode != types.CrosstabNormalizeNone && spec.Cell.Type.MapValued() {
+		if mode != types.CrosstabNormalizeNone && cellRoute.MapValued() {
 			env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED),
 				"crosstab normalize="+string(mode)+" is incompatible with map-valued cell aggregator "+string(spec.Cell.Type)+
 					" — drop normalize or pick a scalar aggregator",
@@ -183,7 +186,7 @@ func validateCrosstabMarginAggregations(
 		if agg == nil {
 			continue
 		}
-		if f := schema.Field(agg.Field); f != nil && f.Type.IsCategorical() && numericAggregations[agg.Type] {
+		if f := schema.Field(agg.Field); f != nil && f.Type.IsCategorical() && numericAggregations[opRoute(opts.instance(), agg.Type)] {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),
 				Message: "numeric aggregation " + string(agg.Type) + " is not meaningful for categorical field " + agg.Field,

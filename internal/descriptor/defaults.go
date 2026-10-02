@@ -95,9 +95,13 @@ const defaultDateComponent = "day"
 //     are intent-bearing.
 //   - Field types absent from defaultRules (or with no rule for the slot's
 //     category) are left untouched and contribute no entry.
+//   - A rule whose target operator inst hides is treated exactly like no
+//     rule: the slot is left untouched and contributes no entry, so a
+//     default never synthesizes an operator the instance does not offer.
+//     A nil inst hides nothing.
 //
 // Returns a nil slice when nothing changed.
-func ResolveDefaults(req *types.Request, schema *encoding.Schema) []descriptor.DefaultApplied {
+func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []descriptor.DefaultApplied {
 	if req == nil || schema == nil {
 		return nil
 	}
@@ -113,7 +117,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema) []descriptor.D
 			continue
 		}
 		rule, ok := defaultRules[f.Type]
-		if !ok || rule.Agg == "" {
+		if !ok || rule.Agg == "" || inst.Hidden(string(rule.Agg)) {
 			continue
 		}
 		agg.Type = rule.Agg
@@ -135,7 +139,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema) []descriptor.D
 			continue
 		}
 		rule, ok := defaultRules[f.Type]
-		if !ok || rule.Group == "" {
+		if !ok || rule.Group == "" || inst.Hidden(string(rule.Group)) {
 			continue
 		}
 		grp.Type = rule.Group
@@ -190,13 +194,15 @@ func applyDefaultGroupParams(grp *types.Group) {
 // The clone is a shallow-deep hybrid identical to the one Predict uses
 // internally: Aggregations and Groups are deep-cloned (the slots
 // ResolveDefaults mutates), every other slot is shared with the input.
-// Safe to expose on read-only paths.
-func NormalizeRequest(req *types.Request, schema *encoding.Schema) *types.Request {
+// Safe to expose on read-only paths. inst is the instance feature set:
+// a default whose target it hides is never inferred (nil hides
+// nothing), as in ResolveDefaults.
+func NormalizeRequest(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) *types.Request {
 	if req == nil {
 		return nil
 	}
 	clone := cloneRequestForDefaults(req)
-	ResolveDefaults(clone, schema)
+	ResolveDefaults(clone, schema, inst)
 	return clone
 }
 

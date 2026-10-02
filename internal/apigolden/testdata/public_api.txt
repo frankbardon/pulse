@@ -521,6 +521,8 @@ pulse: type Pulse method (*Pulse) ExportTransfer(ctx context.Context, job *pulse
 pulse: type Pulse method (*Pulse) ExtractShard(ctx context.Context, archivePath string, shardBasename string) (io.ReadCloser, error)
 pulse: type Pulse method (*Pulse) Facet(ctx context.Context, path string, field string) ([]string, error)
 pulse: type Pulse method (*Pulse) FacetSchema(ctx context.Context, req *pulse.FacetRequest) (*pulse.FacetResult, error)
+pulse: type Pulse method (*Pulse) FeatureProfile() (*pulse.FeatureProfile, bool)
+pulse: type Pulse method (*Pulse) FeatureSetDigest() string
 pulse: type Pulse method (*Pulse) FilterToFile(ctx context.Context, src string, dst string, filterExpr string) (int64, error)
 pulse: type Pulse method (*Pulse) FilterToFileBySetAndExpr(ctx context.Context, src string, dst string, includeField string, set pulse.MemberSet, filterExpr string) (int64, error)
 pulse: type Pulse method (*Pulse) FilterToFileWithRequest(ctx context.Context, req *pulse.FilterToFileRequest) (*pulse.FilterToFileResult, error)
@@ -541,6 +543,7 @@ pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
 pulse: type Pulse method (*Pulse) Manifest(_ context.Context) *pulse/descriptor.Manifest
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
+pulse: type Pulse method (*Pulse) PayloadSchema() ([]byte, error)
 pulse: type Pulse method (*Pulse) Predict(ctx context.Context, req *pulse.Request) (*pulse/descriptor.PredictResult, error)
 pulse: type Pulse method (*Pulse) PredictBytes(ctx context.Context, data []byte, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Request) (*pulse.Response, error)
@@ -1065,24 +1068,25 @@ pulse/descriptor: type Manifest field CohortTypes []pulse/descriptor.CohortField
 pulse/descriptor: type Manifest field Commands []pulse/descriptor.Command "json:\"commands\""
 pulse/descriptor: type Manifest field Components pulse/descriptor.Components "json:\"components\""
 pulse/descriptor: type Manifest field ComponentsSchemas pulse/descriptor.ComponentsSchemasBlock "json:\"components_schemas\""
-pulse/descriptor: type Manifest field Crosstab pulse/descriptor.CrosstabCapability "json:\"crosstab\""
+pulse/descriptor: type Manifest field Crosstab *pulse/descriptor.CrosstabCapability "json:\"crosstab,omitempty\""
 pulse/descriptor: type Manifest field ErrorCodes []string "json:\"error_codes\""
 pulse/descriptor: type Manifest field ErrorCodesCount int "json:\"error_codes_count\""
 pulse/descriptor: type Manifest field ErrorDomains []string "json:\"error_domains\""
 pulse/descriptor: type Manifest field ExampleCategories []string "json:\"example_categories\""
 pulse/descriptor: type Manifest field ExampleTags []string "json:\"example_tags\""
 pulse/descriptor: type Manifest field ExamplesCount int "json:\"examples_count\""
-pulse/descriptor: type Manifest field Export pulse/descriptor.ExportCapability "json:\"export\""
+pulse/descriptor: type Manifest field Export *pulse/descriptor.ExportCapability "json:\"export,omitempty\""
 pulse/descriptor: type Manifest field Extensions pulse/descriptor.ExtensionsManifest "json:\"extensions\""
-pulse/descriptor: type Manifest field Facet pulse/descriptor.FacetCapability "json:\"facet\""
+pulse/descriptor: type Manifest field Facet *pulse/descriptor.FacetCapability "json:\"facet,omitempty\""
+pulse/descriptor: type Manifest field FeatureSetDigest string "json:\"feature_set_digest\""
 pulse/descriptor: type Manifest field FormatVersion string "json:\"format_version\""
-pulse/descriptor: type Manifest field Import pulse/descriptor.ImportCapability "json:\"import\""
-pulse/descriptor: type Manifest field Join pulse/descriptor.JoinCapability "json:\"join\""
+pulse/descriptor: type Manifest field Import *pulse/descriptor.ImportCapability "json:\"import,omitempty\""
+pulse/descriptor: type Manifest field Join *pulse/descriptor.JoinCapability "json:\"join,omitempty\""
 pulse/descriptor: type Manifest field MCPTools []pulse/descriptor.MCPTool "json:\"mcp_tools\""
 pulse/descriptor: type Manifest field Operations []pulse/descriptor.Command "json:\"operations\""
 pulse/descriptor: type Manifest field Overlays []pulse/descriptor.OverlayCapability "json:\"overlays\""
 pulse/descriptor: type Manifest field PostTests []pulse/descriptor.TestMeta "json:\"post_tests\""
-pulse/descriptor: type Manifest field ProcessChain pulse/descriptor.ProcessChainCapability "json:\"process_chain\""
+pulse/descriptor: type Manifest field ProcessChain *pulse/descriptor.ProcessChainCapability "json:\"process_chain,omitempty\""
 pulse/descriptor: type Manifest field PulseVersion string "json:\"pulse_version\""
 pulse/descriptor: type Manifest field Regressions []pulse/descriptor.RegressionMeta "json:\"regressions\""
 pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:\"skills\""
@@ -3544,4 +3548,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 37f00f3875e100c2f464895016196082fabe05df125fd5a76234dd0fcb344049
+// golden-hash: 0811edeb3c89d97f2a1fe3320942c6d074de0c4e84a8218f82600778cf76c33e

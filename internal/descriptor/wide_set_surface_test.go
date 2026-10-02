@@ -73,7 +73,7 @@ func TestDefaults_WideSetsMatchNarrow(t *testing.T) {
 			Aggregations: []*types.Aggregation{{Field: "tags"}},
 			Groups:       []*types.Group{{Field: "tags"}},
 		}
-		applied := ResolveDefaults(req, schema)
+		applied := ResolveDefaults(req, schema, nil)
 		if len(applied) != 2 {
 			t.Fatalf("nullable=%v: ResolveDefaults applied %d defaults, want 2", nullable, len(applied))
 		}
@@ -91,7 +91,7 @@ func TestDefaults_WideSetsMatchNarrow(t *testing.T) {
 			Description: "Multi-select survey tags"},
 	}}
 	req := &types.Request{Aggregations: []*types.Aggregation{{Field: "tags", Type: types.AGG_SET_UNION}}}
-	if applied := ResolveDefaults(req, schema); len(applied) != 0 {
+	if applied := ResolveDefaults(req, schema, nil); len(applied) != 0 {
 		t.Errorf("ResolveDefaults overrode an explicit Type: %+v", applied)
 	}
 }

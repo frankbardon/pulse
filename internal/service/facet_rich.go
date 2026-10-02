@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -33,6 +34,11 @@ const maxHistogramBins = 256
 // counts run a parallel discrete accumulator with the additive field's
 // own filter clauses stripped from the base filter.
 func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*types.FacetResult, error) {
+	resp, err := s.facetSchema(ctx, req)
+	return resp, s.scopeRefusal(err)
+}
+
+func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*types.FacetResult, error) {
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "facet schema requires a request")
 	}
@@ -42,6 +48,10 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if len(req.Fields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "facet schema requires a non-empty fields list")
 	}
+	// A hidden FacetRequest.Overlays slot is an unknown field.
+	if err := s.slotRefusal(req); err != nil {
+		return nil, err
+	}
 
 	path := resolveCohortPath(req.Cohort)
 	cohort, err := s.Open(ctx, path)
@@ -50,7 +60,7 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	}
 	schema := cohort.Schema()
 
-	if err := validateFacetSchemaRequest(req, schema); err != nil {
+	if err := validateFacetSchemaRequest(req, schema, s.InstanceSnapshot()); err != nil {
 		return nil, err
 	}
 	if err := s.resolveFacetZones(req, schema); err != nil {
@@ -85,7 +95,7 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	}
 
 	// Build additive accumulators with the field's own clauses stripped.
-	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema)
+	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema, s.extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +195,7 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 
 // validateFacetSchemaRequest checks structural rules + schema-references
 // before the streaming pass. Failure surfaces as SERVICE_VALIDATION.
-func validateFacetSchemaRequest(req *types.FacetRequest, schema *encoding.Schema) error {
+func validateFacetSchemaRequest(req *types.FacetRequest, schema *encoding.Schema, inst *descx.InstanceSnapshot) error {
 	if req.DiscreteTopK < 0 {
 		return errors.NewCodedError(errors.SERVICE_VALIDATION, "discrete_top_k must be >= 0")
 	}
@@ -233,7 +243,10 @@ func validateFacetSchemaRequest(req *types.FacetRequest, schema *encoding.Schema
 			if f == nil {
 				continue
 			}
-			if f.Type == types.FILTER_EXPRESSION && filterExpressionMentions(f, name) {
+			// Keyed by name ahead of the filter build, so a
+			// FILTER_EXPRESSION the instance hides is not one: it fails
+			// at the build as a never-registered filter type.
+			if f.Type == types.FILTER_EXPRESSION && !inst.Hidden(string(f.Type)) && filterExpressionMentions(f, name) {
 				return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 					fmt.Sprintf("additive field %q referenced inside FILTER_EXPRESSION; express the predicate as discrete filterers instead", name),
 					map[string]any{"field": name, "expression": f.Expression})
@@ -297,8 +310,11 @@ func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types
 }
 
 // buildAdditiveAccumulators constructs one fieldAcc per AdditiveFields
-// entry plus the per-additive-field scope-filter set.
-func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
+// entry plus the per-additive-field scope-filter set. Scope filters
+// resolve through exts — the same instance registry the base filters
+// use — so an extension filterer works and a hidden one is refused
+// here exactly as an unregistered one is.
+func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema, exts *processing.ExtensionRegistry) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
 	if len(req.AdditiveFields) == 0 {
 		return nil, nil, nil
 	}
@@ -312,7 +328,7 @@ func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema)
 		}
 		entries = append(entries, &additiveEntry{field: name, acc: &fieldAcc{name: name, kind: acc}})
 		scopeFilters := stripFieldFromFilterers(req.Filterers, name)
-		fns, err := processing.BuildFilters(scopeFilters, schema, nil)
+		fns, err := processing.BuildFilters(scopeFilters, schema, exts)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -58,7 +58,7 @@ func TestDefaults_Applied(t *testing.T) {
 				Aggregations: []*types.Aggregation{{Field: "x"}},
 			}
 			schema := schemaForType("x", tc.ft)
-			applied := ResolveDefaults(aggReq, schema)
+			applied := ResolveDefaults(aggReq, schema, nil)
 
 			if tc.expAgg == "" {
 				// No aggregation default expected — Type must remain empty.
@@ -81,7 +81,7 @@ func TestDefaults_Applied(t *testing.T) {
 			grpReq := &types.Request{
 				Groups: []*types.Group{{Field: "x"}},
 			}
-			applied = ResolveDefaults(grpReq, schema)
+			applied = ResolveDefaults(grpReq, schema, nil)
 
 			if tc.expGroup == "" {
 				if grpReq.Groups[0].Type != "" {
@@ -112,7 +112,7 @@ func TestDefaults_DoNotOverride(t *testing.T) {
 		},
 	}
 
-	applied := ResolveDefaults(req, schema)
+	applied := ResolveDefaults(req, schema, nil)
 
 	if got := req.Aggregations[0].Type; got != types.AGG_AVERAGE {
 		t.Errorf("explicit AGG_AVERAGE overridden to %q", got)
@@ -136,7 +136,7 @@ func TestDefaults_NeverCrossCategory(t *testing.T) {
 	grpOnly := &types.Request{
 		Groups: []*types.Group{{Field: "revenue"}},
 	}
-	applied := ResolveDefaults(grpOnly, schema)
+	applied := ResolveDefaults(grpOnly, schema, nil)
 	if len(grpOnly.Aggregations) != 0 {
 		t.Errorf("resolver invented %d aggregation slots; want 0", len(grpOnly.Aggregations))
 	}
@@ -153,7 +153,7 @@ func TestDefaults_NeverCrossCategory(t *testing.T) {
 	aggOnly := &types.Request{
 		Aggregations: []*types.Aggregation{{Field: "revenue"}},
 	}
-	applied = ResolveDefaults(aggOnly, schema)
+	applied = ResolveDefaults(aggOnly, schema, nil)
 	if len(aggOnly.Groups) != 0 {
 		t.Errorf("resolver invented %d grouper slots; want 0", len(aggOnly.Groups))
 	}
@@ -178,7 +178,7 @@ func TestDefaults_TestsNotDefaulted(t *testing.T) {
 		},
 	}
 
-	applied := ResolveDefaults(req, schema)
+	applied := ResolveDefaults(req, schema, nil)
 	if len(applied) != 0 {
 		t.Errorf("DefaultsApplied = %d; want 0 (tests must not be defaulted)", len(applied))
 	}
@@ -197,14 +197,14 @@ func TestDefaults_TestsNotDefaulted(t *testing.T) {
 func TestDefaults_GroupParamsFilled(t *testing.T) {
 	// GROUP_RANGE picks up Interval = 10.
 	rng := &types.Request{Groups: []*types.Group{{Field: "x"}}}
-	ResolveDefaults(rng, schemaForType("x", encoding.FieldTypeF64))
+	ResolveDefaults(rng, schemaForType("x", encoding.FieldTypeF64), nil)
 	if got := rng.Groups[0].Interval; got != 10 {
 		t.Errorf("GROUP_RANGE default Interval = %v; want 10", got)
 	}
 
 	// GROUP_DATE picks up component = "day".
 	dt := &types.Request{Groups: []*types.Group{{Field: "dt"}}}
-	ResolveDefaults(dt, schemaForType("dt", encoding.FieldTypeDate))
+	ResolveDefaults(dt, schemaForType("dt", encoding.FieldTypeDate), nil)
 	if got := dt.Groups[0].Type; got != types.GROUP_DATE {
 		t.Fatalf("date grouper default = %q; want GROUP_DATE", got)
 	}
@@ -226,7 +226,7 @@ func TestDefaults_ExplicitParamsPreserved(t *testing.T) {
 	rng := &types.Request{
 		Groups: []*types.Group{{Field: "x", Interval: 42}},
 	}
-	ResolveDefaults(rng, schemaForType("x", encoding.FieldTypeF64))
+	ResolveDefaults(rng, schemaForType("x", encoding.FieldTypeF64), nil)
 	if got := rng.Groups[0].Interval; got != 42 {
 		t.Errorf("explicit Interval overwritten: got %v; want 42", got)
 	}
@@ -306,7 +306,7 @@ func TestDefaults_UnknownFieldLeftAlone(t *testing.T) {
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{{Field: "no_such_field"}},
 	}
-	applied := ResolveDefaults(req, schema)
+	applied := ResolveDefaults(req, schema, nil)
 	if len(applied) != 0 {
 		t.Errorf("DefaultsApplied = %d for unknown field; want 0", len(applied))
 	}
@@ -373,14 +373,14 @@ func TestPredict_EchoRequest_Normalized(t *testing.T) {
 // TestDefaults_NilInputs verifies that ResolveDefaults is safe against
 // nil requests and nil schemas (returns nil, no panic).
 func TestDefaults_NilInputs(t *testing.T) {
-	if got := ResolveDefaults(nil, nil); got != nil {
-		t.Errorf("ResolveDefaults(nil, nil) = %v; want nil", got)
+	if got := ResolveDefaults(nil, nil, nil); got != nil {
+		t.Errorf("ResolveDefaults(nil, nil, nil) = %v; want nil", got)
 	}
-	if got := ResolveDefaults(&types.Request{}, nil); got != nil {
-		t.Errorf("ResolveDefaults(req, nil) = %v; want nil", got)
+	if got := ResolveDefaults(&types.Request{}, nil, nil); got != nil {
+		t.Errorf("ResolveDefaults(req, nil, nil) = %v; want nil", got)
 	}
-	if got := ResolveDefaults(nil, &encoding.Schema{}); got != nil {
-		t.Errorf("ResolveDefaults(nil, schema) = %v; want nil", got)
+	if got := ResolveDefaults(nil, &encoding.Schema{}, nil); got != nil {
+		t.Errorf("ResolveDefaults(nil, schema, nil) = %v; want nil", got)
 	}
 }
 
@@ -411,4 +411,46 @@ func hasGroupApplied(entries []descriptor.DefaultApplied) bool {
 		}
 	}
 	return false
+}
+
+// TestDefaults_HiddenTargetGetsNoDefault: a rule whose target operator
+// the instance hides behaves exactly like a field type with no rule —
+// the slot keeps its empty Type and no DefaultApplied entry is
+// reported — while a target the instance offers still defaults.
+func TestDefaults_HiddenTargetGetsNoDefault(t *testing.T) {
+	inst := NewInstanceSnapshot(nil, FeatureSet{
+		Enabled: []string{"capability:process", "GROUP_CATEGORY", "AGG_FREQUENCY"},
+		Hidden:  []string{"AGG_SUM", "GROUP_RANGE"},
+	})
+	num := schemaForType("x", encoding.FieldTypeF64)
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Field: "x"}},
+		Groups:       []*types.Group{{Field: "x"}},
+	}
+	if applied := ResolveDefaults(req, num, inst); len(applied) != 0 {
+		t.Errorf("applied = %+v, want none for hidden targets", applied)
+	}
+	if req.Aggregations[0].Type != "" || req.Groups[0].Type != "" || req.Groups[0].Interval != 0 {
+		t.Errorf("hidden defaults written: agg %q group %q interval %v",
+			req.Aggregations[0].Type, req.Groups[0].Type, req.Groups[0].Interval)
+	}
+
+	// Unscoped, the same request defaults both slots — the case bites.
+	again := &types.Request{
+		Aggregations: []*types.Aggregation{{Field: "x"}},
+		Groups:       []*types.Group{{Field: "x"}},
+	}
+	if applied := ResolveDefaults(again, num, nil); len(applied) != 2 {
+		t.Fatalf("unscoped applied = %+v, want 2 entries", applied)
+	}
+
+	// An offered target on the same instance still defaults.
+	cat := schemaForType("c", encoding.FieldTypeCategoricalU8)
+	visible := &types.Request{
+		Aggregations: []*types.Aggregation{{Field: "c"}},
+		Groups:       []*types.Group{{Field: "c"}},
+	}
+	if applied := ResolveDefaults(visible, cat, inst); len(applied) != 2 {
+		t.Errorf("visible applied = %+v, want 2 entries", applied)
+	}
 }

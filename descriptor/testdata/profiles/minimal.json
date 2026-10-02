@@ -1,0 +1,11 @@
+{
+  "profile": "minimal",
+  "written_with": "1.0.0",
+  "features": [
+    "capability:process",
+    "AGG_COUNT",
+    "AGG_SUM",
+    "GROUP_CATEGORY",
+    "GROUP_RANGE"
+  ]
+}

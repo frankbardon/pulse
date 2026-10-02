@@ -283,7 +283,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 	// gate stays central — every other canStream branch already runs
 	// in O(req-slot-count); one extra slice walk here keeps the
 	// streaming-eligibility decision single-pass.
-	if !canStreamOverlays(req) {
+	if !canStreamOverlays(req, p.exts) {
 		return false
 	}
 	// Regression slots stream only when every spec opts in via
@@ -297,7 +297,10 @@ func (p *Processor) canStream(req *types.Request) bool {
 			if reg == nil {
 				return false
 			}
-			if !reg.Streamable() {
+			// A hidden type is never streamable, like a type nothing
+			// registered: both route buffered and fail at the same
+			// "unknown regression type" site.
+			if !reg.Streamable() || p.exts.isHidden(string(reg.Type)) {
 				return false
 			}
 		}
@@ -343,7 +346,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if hasTwoPassAttr && (len(req.Features) > 0 || len(req.Groups) > 0) {
 		return false
 	}
-	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.FeatureFactories()) {
+	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.LookupFeature) {
 		return false
 	}
 	if len(req.Aggregations) == 0 {
@@ -407,7 +410,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// PROCESSING_CONFIG bubbling up the canonical error.
 	var streamingFeatures []feature.StreamingHandle
 	if len(req.Features) > 0 {
-		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.FeatureFactories())
+		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.LookupFeature)
 		if err != nil {
 			return nil, err
 		}
@@ -489,7 +492,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// regression spec is streamable (today: unpenalized REG_OLS with no
 	// modifiers); BuildStreaming surfaces PROCESSING_INTERNAL if any
 	// engine slipped through without a streaming implementation.
-	regressionEngines, err := regression.BuildStreaming(req.Regressions, p.schema)
+	regressionEngines, err := regression.BuildStreamingWith(req.Regressions, p.schema, p.exts.LookupRegression)
 	if err != nil {
 		return nil, err
 	}
@@ -724,7 +727,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// Build feature handles + filter funcs + row-local attrs once.
 	var streamingFeatures []feature.StreamingHandle
 	if len(req.Features) > 0 {
-		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.FeatureFactories())
+		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.LookupFeature)
 		if err != nil {
 			return nil, err
 		}
@@ -878,6 +881,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		PostTests: func(rows []map[string]any) ([]*types.TestResult, error) {
 			return p.runPostTests(req.PostTests, rows)
 		},
+		Extensions: p.exts,
 	})
 }
 
@@ -1317,7 +1321,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	if len(req.Windows) > 0 {
-		if err := window.ApplyWithExt(ctx, data, req.Windows, p.exts.WindowFactories()); err != nil {
+		if err := window.ApplyWithExt(ctx, data, req.Windows, p.exts.LookupWindow); err != nil {
 			return nil, err
 		}
 	}
@@ -1358,7 +1362,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// for unimplemented operators (penalized OLS, GLM, Bayes, and the
 	// Resample/Selection modifier wrappers) still surface
 	// PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit().
-	regressionResults, err := regression.FitBuffered(req.Regressions, p.schema, recordsAsRegressionRecords(filtered))
+	regressionResults, err := regression.FitBufferedWith(req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
 	if err != nil {
 		return nil, err
 	}
@@ -1444,7 +1448,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// processRecords (Service.Process dispatches them to
 	// processCrosstab), so the SERIES hook never collides with the
 	// MATRIX hook in internal/processing/crosstab.go.
-	if err := applyOverlaysSeriesToResponse(req, resp); err != nil {
+	if err := applyOverlaysSeriesToResponse(req, resp, p.exts); err != nil {
 		return nil, err
 	}
 
@@ -1543,7 +1547,7 @@ func (p *Processor) applyFeatures(features []*types.Feature, records []*Record) 
 	for i, r := range records {
 		view[i] = r
 	}
-	return feature.ApplyWithExt(view, features, p.schema, p.exts.FeatureFactories())
+	return feature.ApplyWithExt(view, features, p.schema, p.exts.LookupFeature)
 }
 
 func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record) error {
@@ -1718,7 +1722,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 		// (extend.Record.DecimalValue) and falls through to its factory.
 		if p.schema != nil && !p.exts.isExtensionAggregator(agg.Type) {
 			if f := p.schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
-				if !IsDecimalAggregationSupported(agg.Type) {
+				if !p.exts.decimalAggregationSupported(agg.Type) {
 					return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 						"aggregation has no decimal128 implementation",
 						map[string]any{"aggregation": string(agg.Type), "field": agg.Field})

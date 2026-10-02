@@ -62,6 +62,14 @@ func IsDecimalAggregationSupported(agg types.AggregationType) bool {
 	return decimalSupportedAgg[agg]
 }
 
+// decimalAggregationSupported is IsDecimalAggregationSupported for the
+// instance r serves: a built-in the instance hides has no decimal
+// implementation here, so the decimal dispatch — which runs BEFORE the
+// registry lookup — refuses it exactly as a never-registered name.
+func (r *ExtensionRegistry) decimalAggregationSupported(agg types.AggregationType) bool {
+	return !r.isHidden(string(agg)) && IsDecimalAggregationSupported(agg)
+}
+
 // AggregateDecimalField runs the decimal-aware aggregator for `agg` over
 // the given records, reading the wide map for `field`. Used by the
 // orchestrator when the field type is decimal128 or nullable_decimal128.

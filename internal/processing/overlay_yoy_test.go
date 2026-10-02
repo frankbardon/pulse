@@ -541,7 +541,7 @@ func TestOverlay_YoY_FrequencyPromotedFromGroupParams_E2E(t *testing.T) {
 		Overlays: specs,
 	}
 
-	promoted := promoteYoYFrequencyFromGroupParams(req)
+	promoted := promoteYoYFrequencyFromGroupParams(req, nil)
 	if len(promoted) != 1 {
 		t.Fatalf("len(promoted) = %d, want 1", len(promoted))
 	}
@@ -584,7 +584,7 @@ func TestOverlay_YoY_FrequencyPromotionSkipsWhenSpecHasOverride(t *testing.T) {
 		Overlays: specs,
 	}
 
-	promoted := promoteYoYFrequencyFromGroupParams(req)
+	promoted := promoteYoYFrequencyFromGroupParams(req, nil)
 	freq, ok := readYoYFrequencyFromParams(promoted[0].Params)
 	if !ok {
 		t.Fatalf("spec.Params missing frequency entry: %s", string(promoted[0].Params))

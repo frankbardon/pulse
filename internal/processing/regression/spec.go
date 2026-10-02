@@ -233,7 +233,7 @@ func validateGLMSpec(spec *types.RegressionSpec) error {
 	if spec.Alpha != 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_GLM Alpha is not supported in this phase (no GLM penalty); use REG_OLS for regularized fits or wait for the GLM regularization phase",
+			"REG_GLM Alpha is not supported in this phase (no GLM penalty)"+remedyGLMAlpha(nil),
 			map[string]any{"alpha": spec.Alpha, "type": string(spec.Type)},
 		)
 	}
@@ -283,14 +283,14 @@ func validateBayesLinearSpec(spec *types.RegressionSpec) error {
 	if spec.Resample != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Resample: the posterior already conveys uncertainty (credible intervals via the Student-t marginal); use REG_OLS if you want resample-based uncertainty",
+			"REG_BAYES_LINEAR does not accept Resample: the posterior already conveys uncertainty (credible intervals via the Student-t marginal)"+remedyBayesResample(nil),
 			map[string]any{"resample": spec.Resample, "type": string(spec.Type)},
 		)
 	}
 	if spec.Selection != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Selection: Bayesian feature selection is a posterior-based question (e.g., spike-and-slab); the conjugate-NIG engine doesn't support it. Use REG_OLS for greedy AIC/BIC selection",
+			"REG_BAYES_LINEAR does not accept Selection: Bayesian feature selection is a posterior-based question (e.g., spike-and-slab); the conjugate-NIG engine doesn't support it"+remedyBayesSelection(nil),
 			map[string]any{"selection": spec.Selection, "type": string(spec.Type)},
 		)
 	}
@@ -350,7 +350,7 @@ func validateBayesLinearSpec(spec *types.RegressionSpec) error {
 	if spec.Penalty != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Penalty; remove it or switch to REG_OLS",
+			"REG_BAYES_LINEAR does not accept Penalty; remove it"+remedyBayesPenalty(nil),
 			map[string]any{"penalty": spec.Penalty, "type": string(spec.Type)},
 		)
 	}
@@ -371,14 +371,14 @@ func validateBayesLinearSpec(spec *types.RegressionSpec) error {
 	if spec.Family != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Family; Family is a REG_GLM knob",
+			"REG_BAYES_LINEAR does not accept Family"+remedyBayesFamily(nil),
 			map[string]any{"family": spec.Family, "type": string(spec.Type)},
 		)
 	}
 	if spec.Link != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Link; Link is a REG_GLM knob",
+			"REG_BAYES_LINEAR does not accept Link"+remedyBayesLink(nil),
 			map[string]any{"link": spec.Link, "type": string(spec.Type)},
 		)
 	}

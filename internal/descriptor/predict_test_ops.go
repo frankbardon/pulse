@@ -62,8 +62,10 @@ func validateTests(env *descriptor.Envelope, req *types.Request, schema *encodin
 }
 
 func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.Schema, projected map[string]bool, tier1 bool, opts *PredictOptions) {
-	// Unknown type — emitted as an error regardless of strict mode.
-	if !isKnownTestType(t.Type) && !isExtensionTestType(opts, t.Type) {
+	// Unknown type — emitted as an error regardless of strict mode. A
+	// type the instance hides is unknown exactly as a never-registered
+	// one.
+	if !isKnownTestType(opRoute(opts.instance(), t.Type)) && !isExtensionTestType(opts, t.Type) {
 		env.AddError(string(errors.PULSE_TEST_UNKNOWN_TYPE),
 			"unknown test type: "+string(t.Type),
 			map[string]any{"type": string(t.Type)})
@@ -235,7 +237,7 @@ func isKnownTestType(t types.TestType) bool {
 func streamableTestReasons(req *types.Request, opts *PredictOptions) []string {
 	var reasons []string
 	for _, t := range req.Tests {
-		if !streamableWithOverlay(opts, "test", string(t.Type), t.Type.Streamable()) {
+		if !streamableWithOverlay(opts, "test", string(t.Type), opRoute(opts.instance(), t.Type).Streamable()) {
 			reasons = append(reasons, "test "+string(t.Type)+" is not streamable")
 		}
 	}

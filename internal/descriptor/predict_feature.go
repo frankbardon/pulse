@@ -32,7 +32,9 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 
 	splitSeenAt := -1
 	for idx, feat := range req.Features {
-		if !isKnownFeatureType(feat.Type) && !isExtensionFeatureType(opts, feat.Type) {
+		// A type the instance hides is unknown here, exactly as a
+		// never-registered one.
+		if !isKnownFeatureType(opRoute(opts.instance(), feat.Type)) && !isExtensionFeatureType(opts, feat.Type) {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"unknown feature type: "+string(feat.Type),
@@ -53,7 +55,7 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 		if feat.Type == types.FEAT_TARGET_ENCODE && splitSeenAt < 0 {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_FEAT_TARGET_LEAKAGE_RISK),
-				Message: "FEAT_TARGET_ENCODE applied without a preceding FEAT_TRAIN_TEST_SPLIT; target information may leak from val/test rows into training features",
+				Message: "FEAT_TARGET_ENCODE applied without a preceding " + trainTestSplitName(opts) + "; target information may leak from val/test rows into training features",
 				Details: map[string]any{"feature": string(feat.Type), "feature_index": idx},
 			}
 			if opts.Strict {
@@ -454,4 +456,14 @@ func featureAcceptsType(op types.FeatureType, ft encoding.FieldType) bool {
 		return false
 	}
 	return false
+}
+
+// trainTestSplitName names the split operator in the target-leakage
+// warning, or describes it when the instance hides FEAT_TRAIN_TEST_SPLIT
+// so the warning never advertises an operator it does not offer.
+func trainTestSplitName(opts *PredictOptions) string {
+	if opts.instance().Hidden(string(types.FEAT_TRAIN_TEST_SPLIT)) {
+		return "train/test split"
+	}
+	return string(types.FEAT_TRAIN_TEST_SPLIT)
 }

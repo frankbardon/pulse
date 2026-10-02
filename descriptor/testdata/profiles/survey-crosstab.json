@@ -1,0 +1,29 @@
+{
+  "profile": "survey-crosstab",
+  "written_with": "1.0.0",
+  "features": [
+    "capability:process",
+    "capability:crosstab",
+    "capability:facet",
+    "AGG_AVERAGE",
+    "AGG_COUNT",
+    "AGG_FREQUENCY",
+    "AGG_SUM",
+    "AGG_WELFORD",
+    "GROUP_CATEGORY",
+    "GROUP_DATE",
+    "FILTER_INCLUDE",
+    "FILTER_RANGE",
+    "TEST_CHISQ",
+    "TEST_T",
+    "TEST_WELCH",
+    "OVERLAY_SHARE_OF_ROW",
+    "OVERLAY_INDEX_VS_MARGIN",
+    "OVERLAY_PAIRWISE_WELCH_T",
+    "io_format:csv",
+    "io_format:spss"
+  ],
+  "behaviour": {
+    "disable_projection": true
+  }
+}

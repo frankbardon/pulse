@@ -93,5 +93,17 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(profiles-mcp-tool
 - **MCP tool → feature bindings** are data in `internal/descriptor/features.go` (`MCPToolBindings`, plus the prompt → `mcp_extra` map), pinned to `toolmeta` by `TestFeaturesHaveSince`. Registration should consume them.
 - **`BindOnInspect` rebinds tools by name** (`internal/mcp/bind.go` `mergeEnumNames`, `buildRequestSchemaWithExtensions`), bypassing a registration-time filter — filter the rebind too.
 - **`toolmeta` descriptions name operators in prose**; filtering enums alone leaves hidden names in tool text.
-- **Prompts, the `pulse://schema` resource and skill resources take no `*Pulse`** (`registerPrompts`, `registerSchemaResource`, `registerSkillResources`); thread the instance in.
+- **Prompts and skill resources take no `*Pulse`** (`registerPrompts`, `registerSkillResources`); thread the instance in (`registerSchemaResource` already takes it — landed in U05).
 - **Tooling leaf naming** is open: `pulse profile` belongs to synth data profiling.
+
+## Inherited from U05
+
+U05 enforced the feature set through `*Pulse` and the descriptor builders; contract in `.claude/reference/feature-profiles.md` ("Notes for U05 / U06"). Interim leaks this unit closes:
+
+- **Profiled `pulse mcp` still advertises hidden names** through tool registration, tool-input enums and `toolmeta` prose.
+
+Landed in U05 after all (no longer this unit's): the `pulse://schema` resource serves `p.PayloadSchema()`; the `strict.go` location keys are the service's `request` / `stage` (slot and unknown-field logic already delegates to `descx.JSONObjectKeys` / `descx.UnknownFieldError`); runtime refusal text under `internal/processing` / `internal/service` names only offered built-ins (remedy clauses rewritten by `ExtensionRegistry.ScopeRefusal`, the chain gate's non-scalar note at its site; `TestProfileRuntimeRefusalSweep`); malformed-request parity cells over every library entry point incl. Predict (`TestHiddenOperatorMalformedParity`: zone `tz`, field-ref parameter keys, empty filter field, strict categorical, decimal128 dispatch, facet `additive_fields` over an expression filter, crosstab fused-gate bails), which found and fixed the decimal-dispatch and facet-additive divergences; a hidden `capability:labels` / `capability:range_tables` makes its registered tables resolve as unregistered at run time and in predict (`TestHiddenNamedTableParity`).
+- **`TestProfileInvisibilityParity`**: the parity harness exists in the root package (`runHiddenParity` / `runHiddenParityWith`, per-entry-point tables, malformed cells in `feature_parity_malformed_test.go`); finalize it over MCP (add MCP tool entry points to the same tables).
+- **`SeriesOverlayRequest.Overlays`** is method-level and ungated (methods are ungated by design; revisit only if a served surface exposes it).
+- **Label-table enum in `BindOnInspect`** (`labelTableNames`, `internal/mcp/bind.go`) lists every label table even when `capability:labels` is hidden; the manifest already lists none (U05 decision: a hidden capability's named tables are listed as if none were registered).
+- **Public example profiles** (`examples/profiles/*.json`): U05's `minimal`, `survey-crosstab` and `empty` fixtures are private under `descriptor/testdata/profiles/`.

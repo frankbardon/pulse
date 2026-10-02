@@ -120,28 +120,46 @@ func (r *Rendered) Typed() any {
 // request SHAPE; whether it is executable against a particular cohort is
 // a separate question with a separate answer.
 func Render(t *Template, supplied map[string]any) (*Rendered, error) {
+	return RenderWith(t, supplied, RenderOptions{})
+}
+
+// RenderWith is Render with options. With RenderOptions.WithheldSlots
+// set, a withheld top-level key is refused by the strict decode exactly
+// as a key the target type does not declare — same code, message,
+// details and cause, reported at the same point in document order — so
+// a slot the engine does not offer and a typo are indistinguishable.
+// Rendered.JSON is always the unmodified rendered body.
+func RenderWith(t *Template, supplied map[string]any, opts RenderOptions) (*Rendered, error) {
 	raw, err := RenderJSON(t, supplied)
 	if err != nil {
 		return nil, err
+	}
+
+	decodeRaw := raw
+	withholding := opts.WithheldSlots != nil
+	if withholding {
+		if decodeRaw, err = withholdSlots(t.Target, raw, opts.WithheldSlots); err != nil {
+			return nil, invalidAt(t, bodyPath, "", "rendered template body could not be re-encoded: "+err.Error())
+		}
 	}
 
 	out := &Rendered{Target: t.Target, JSON: raw}
 	switch t.Target {
 	case TargetRequest:
 		out.Request = new(types.Request)
-		err = strictDecode(t, raw, out.Request)
+		err = strictDecode(t, decodeRaw, out.Request, withholding)
 	case TargetComposed:
 		out.Composed = new(types.ComposedRequest)
-		err = strictDecode(t, raw, out.Composed)
+		err = strictDecode(t, decodeRaw, out.Composed, withholding)
 	case TargetChain:
 		out.Chain = new(types.ChainRequest)
-		err = strictDecode(t, raw, out.Chain)
+		err = strictDecode(t, decodeRaw, out.Chain, withholding)
 	case TargetFacet:
 		out.Facet = new(types.FacetRequest)
-		err = strictDecode(t, raw, out.Facet)
+		err = strictDecode(t, decodeRaw, out.Facet, withholding)
 	case TargetSample:
 		out.Sample = new(types.SampleRequest)
-		err = strictDecode(t, raw, out.Sample)
+		err = strictDecode(t, decodeRaw, out.Sample, withholding)
 	default:
 		// Unreachable in practice: Validate (via RenderJSON) rejects an
 		// absent or unrecognised target before any substitution runs.
@@ -170,10 +188,16 @@ const unknownFieldPrefix = "json: unknown field "
 // There is no shared strict-decode helper in the repo; this is the local
 // one, and it is deliberately local. Strictness is a template-package
 // policy, not a Pulse-wide one.
-func strictDecode(t *Template, raw json.RawMessage, out any) error {
+//
+// withholding reports that raw carries withheld keys renamed by
+// withholdSlots; their faults are mapped back to the original spelling.
+func strictDecode(t *Template, raw json.RawMessage, out any, withholding bool) error {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(out); err != nil {
+		if withholding {
+			err = unwithheldCause(err)
+		}
 		return renderInvalid(t, err)
 	}
 	return nil

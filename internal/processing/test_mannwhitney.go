@@ -105,7 +105,7 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 	}
 	if len(keys) > 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
-			fmt.Sprintf("TEST_MANN_WHITNEY_U sees %d groups; filter to two via FILTER_INCLUDE/FILTER_EXCLUDE", len(keys)),
+			fmt.Sprintf("TEST_MANN_WHITNEY_U sees %d groups", len(keys))+remedyTwoGroupsFilterTo(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
 	a := m.values[keys[0]]

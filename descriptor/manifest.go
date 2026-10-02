@@ -107,8 +107,16 @@ type Manifest struct {
 	// produced the manifest (buildinfo.Version: ldflags, then module
 	// version, then "devel[+rev]"). It identifies the build, not the
 	// payload contract — that is the envelope format_version.
-	PulseVersion string    `json:"pulse_version"`
-	Commands     []Command `json:"commands"`
+	PulseVersion string `json:"pulse_version"`
+	// FeatureSetDigest identifies the feature set the manifest
+	// describes: "fs1:" + sha256hex over the instance's sorted enabled
+	// feature names and its effective behaviour switches. Two manifests
+	// with the same pulse_version and digest describe the same surface,
+	// so it keys caches of self-description output. Every manifest
+	// carries one; a profile-free instance (and the CLI) carries the
+	// full-registry digest.
+	FeatureSetDigest string    `json:"feature_set_digest"`
+	Commands         []Command `json:"commands"`
 
 	// Operations enumerates library-only entry points that do not back a
 	// CLI leaf (today: filter_to_file, watch, process_stream). Each entry
@@ -148,25 +156,29 @@ type Manifest struct {
 	// Facet is the rich-facet endpoint capability descriptor. One
 	// entry today (facet_schema); future variants land under a slice
 	// when added.
-	Facet FacetCapability `json:"facet"`
+	// Omitted (nil) when the instance does not offer capability:facet.
+	Facet *FacetCapability `json:"facet,omitempty"`
 
 	// ProcessChain is the source-rooted linear chain endpoint
 	// capability descriptor (one entry today: process_chain).
 	// Carries the mergeable-operator allowlist and rejection rules
 	// so LLM clients can route between chain and per-stage fallback.
-	ProcessChain ProcessChainCapability `json:"process_chain"`
+	// Omitted (nil) when the instance does not offer capability:process_chain.
+	ProcessChain *ProcessChainCapability `json:"process_chain,omitempty"`
 
 	// Join is the pushdown hash-join capability descriptor (one
 	// entry today: hash_join). Carries the kind allowlist, spill
 	// envelope, and v1 limitations.
-	Join JoinCapability `json:"join"`
+	// Omitted (nil) when the instance does not offer capability:joins.
+	Join *JoinCapability `json:"join,omitempty"`
 
 	// Crosstab is the cross-tabulation endpoint capability
 	// descriptor (Request.Crosstab). Carries the normalize / shape
 	// allowlists plus the per-aggregator margin-reducibility
 	// classification so LLM clients can decide which cell aggregator
 	// will recompute its margin and which is summable.
-	Crosstab CrosstabCapability `json:"crosstab"`
+	// Omitted (nil) when the instance does not offer capability:crosstab.
+	Crosstab *CrosstabCapability `json:"crosstab,omitempty"`
 
 	// Export is the cross-format export envelope. Carries one
 	// ExportFormatCapability entry per format the export dispatcher
@@ -174,7 +186,8 @@ type Manifest struct {
 	// (sidecar / sheets / trailing_block / warn_and_skip) so LLM
 	// planners can route Response.Overlays through ExportJob without
 	// inspecting the io/ packages.
-	Export ExportCapability `json:"export"`
+	// Omitted (nil) when the instance does not offer capability:export. Formats lists only the I/O formats the instance offers.
+	Export *ExportCapability `json:"export,omitempty"`
 
 	// Import is the cross-format import envelope — the read-side peer
 	// of Export. Carries one ImportFormatCapability per format
@@ -185,7 +198,8 @@ type Manifest struct {
 	// written. Read and write surfaces are NOT symmetric — SPSS is
 	// import-only — so a planner must consult both blocks rather than
 	// assuming one implies the other.
-	Import ImportCapability `json:"import"`
+	// Omitted (nil) when the instance does not offer capability:import. Formats lists only the I/O formats the instance offers.
+	Import *ImportCapability `json:"import,omitempty"`
 
 	// Overlays enumerates the registered overlay catalog — one
 	// OverlayCapability per types.AllOverlayKinds() entry. Each entry

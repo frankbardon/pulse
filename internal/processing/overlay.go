@@ -357,7 +357,10 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 	var warnings []types.OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
-		if err := validateOverlayLevelWithinRuntime(spec, host, i); err != nil {
+		// Every kind-keyed decision below takes the route: a kind the
+		// instance feature set hides routes as never registered.
+		route := exts.overlayRoute(spec.Kind)
+		if err := validateOverlayLevelWithinRuntime(spec, route, host, i); err != nil {
 			return nil, nil, err
 		}
 		// FORMULA dispatch bypasses the static handler table when the
@@ -366,7 +369,7 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 		// `[]expr.Option` slice. Every other kind (and FORMULA with a
 		// nil registry) routes through the static dispatch table where
 		// every handler shares the (spec, host) signature.
-		if spec.Kind == types.OverlayKindFormula {
+		if route == types.OverlayKindFormula {
 			layer, ws, err := applyFormulaWithExtensions(spec, host, exts)
 			if err != nil {
 				return nil, nil, err
@@ -377,7 +380,7 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 			}
 			continue
 		}
-		handler, ok := overlayHandlers[spec.Kind]
+		handler, ok := overlayHandlers[route]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_KIND_UNKNOWN,
@@ -425,11 +428,14 @@ func ApplyOverlaysWithExtensions(specs []types.OverlaySpec, host *CrosstabHostVi
 // the materialised host. They agree on the failure code; the runtime
 // gate uses host RowAxisDepth / ColumnAxisDepth for the upper bound
 // where predict uses len(spec.Rows) / len(spec.Columns).
-func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, host *CrosstabHostView, specIndex int) error {
+//
+// route is the kind the gate keys on (ExtensionRegistry.overlayRoute);
+// messages name the authored spec.Kind.
+func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.OverlayKind, host *CrosstabHostView, specIndex int) error {
 	if spec == nil {
 		return nil
 	}
-	switch spec.Kind {
+	switch route {
 	case types.OverlayKindChiSqCol,
 		types.OverlayKindChiSqMatrix,
 		types.OverlayKindChiSqRow,
@@ -456,7 +462,7 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, host *CrosstabHo
 	// truncates is the same axis the overlay is centerpoint-locked to;
 	// Within truncates the OPPOSITE axis. Resolve the axis pair off the
 	// kind so the gate stays kind-aware (mirrors the handler dispatch).
-	levelAxisDepth, withinAxisDepth := overlayLevelWithinAxisDepths(spec, host)
+	levelAxisDepth, withinAxisDepth := overlayLevelWithinAxisDepths(spec, route, host)
 	if spec.Level < 0 || (levelAxisDepth > 0 && spec.Level >= levelAxisDepth) {
 		return errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
@@ -497,10 +503,10 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, host *CrosstabHo
 //     truncates the opposite one. When Ref.Margin is nil (predict
 //     would have rejected) the helper returns (0, 0) so the gate falls
 //     through gracefully — the per-kind handler still defends.
-func overlayLevelWithinAxisDepths(spec *types.OverlaySpec, host *CrosstabHostView) (levelAxisDepth, withinAxisDepth int) {
+func overlayLevelWithinAxisDepths(spec *types.OverlaySpec, route types.OverlayKind, host *CrosstabHostView) (levelAxisDepth, withinAxisDepth int) {
 	rowDepth := host.RowAxisDepth()
 	colDepth := host.ColumnAxisDepth()
-	switch spec.Kind {
+	switch route {
 	case types.OverlayKindShareOfRow:
 		return rowDepth, colDepth
 	case types.OverlayKindShareOfCol:

@@ -314,12 +314,18 @@ func (s *ExtensionsSnapshot) AggregatorMarginReducibility(t types.AggregationTyp
 // (internal/mergegate) over the same DECLARED facts: an aggregator's or
 // grouper's Mergeable flag, a filterer's Streamable flag, and an
 // attribute's row_local mode (the runtime's "streamable and not
-// two-pass"). Nil-safe.
-func (s *ExtensionsSnapshot) mergeFacts() mergegate.Extensions {
-	return snapshotMergeFacts{s}
+// two-pass"). Nil-safe. inst is the instance feature set: a name it
+// hides answers (false, true) — known and not mergeable — which refuses
+// it with the same reason the built-in tables give a never-registered
+// name, exactly as the runtime adapter does. Nil hides nothing.
+func (s *ExtensionsSnapshot) mergeFacts(inst *InstanceSnapshot) mergegate.Extensions {
+	return snapshotMergeFacts{s, inst}
 }
 
-type snapshotMergeFacts struct{ s *ExtensionsSnapshot }
+type snapshotMergeFacts struct {
+	s    *ExtensionsSnapshot
+	inst *InstanceSnapshot
+}
 
 func findMeta(metas []descriptor.OperatorMeta, name string) (descriptor.OperatorMeta, bool) {
 	for _, m := range metas {
@@ -330,7 +336,14 @@ func findMeta(metas []descriptor.OperatorMeta, name string) (descriptor.Operator
 	return descriptor.OperatorMeta{}, false
 }
 
+// Hidden reports a built-in the instance does not offer, for the
+// gate's refusal prose (mergegate's optional hider).
+func (f snapshotMergeFacts) Hidden(name string) bool { return f.inst.Hidden(name) }
+
 func (f snapshotMergeFacts) Aggregator(name string) (bool, bool) {
+	if f.inst.Hidden(name) {
+		return false, true
+	}
 	if f.s == nil {
 		return false, false
 	}
@@ -339,6 +352,9 @@ func (f snapshotMergeFacts) Aggregator(name string) (bool, bool) {
 }
 
 func (f snapshotMergeFacts) Grouper(name string) (bool, bool) {
+	if f.inst.Hidden(name) {
+		return false, true
+	}
 	if f.s == nil {
 		return false, false
 	}
@@ -347,6 +363,9 @@ func (f snapshotMergeFacts) Grouper(name string) (bool, bool) {
 }
 
 func (f snapshotMergeFacts) Filterer(name string) (bool, bool) {
+	if f.inst.Hidden(name) {
+		return false, true
+	}
 	if f.s == nil {
 		return false, false
 	}
@@ -355,6 +374,9 @@ func (f snapshotMergeFacts) Filterer(name string) (bool, bool) {
 }
 
 func (f snapshotMergeFacts) Attribute(name string) (bool, bool) {
+	if f.inst.Hidden(name) {
+		return false, true
+	}
 	if f.s == nil {
 		return false, false
 	}

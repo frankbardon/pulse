@@ -433,6 +433,16 @@ compatibility, operator applicability and streamability are all
 that succeeds and a `Predict` that fails is the expected division of
 labour, not a bug.
 
+The one engine fact render does consult is the **feature profile**. On
+an engine whose profile hides a request slot (`crosstab`, `joins`,
+`overlays` — see [Feature profiles](feature-profiles.md)), a rendered
+body that sets it fails `PULSE_TEMPLATE_RENDER_INVALID` exactly as a
+misspelled key would: same message, same `{template, target, field}`
+details, at the same point in the body, even when the slot's value is
+empty. An operator *name* is not a slot — a template naming a hidden
+operator renders, and fails at execution just as one naming an operator
+that never existed.
+
 There is also **no CLI surface** for templating. It is a library and
 embedding feature: `Options.TemplateDirs` /
 `PULSE_TEMPLATES_DIR` plus the five facade methods.

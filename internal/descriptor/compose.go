@@ -121,6 +121,13 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		result.Valid = false
 		return env
 	}
+	// A slot the instance hides is an unknown field, refused before
+	// anything else — the runtime's order.
+	if serr := SlotRefusal(req, opts.instance()); serr != nil {
+		addCodedError(env, serr)
+		result.Valid = false
+		return env
+	}
 	// Zone resolution per slot — the pass Compose runs inside each
 	// slot's Process — against the slot's cohort (or joined) schema
 	// read through opts.SchemaLoader. A refusal carries the slot index
@@ -170,7 +177,11 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		// budget. Mirrors the per-spec cost emission rule on
 		// PredictResult.OverlayCost / FacetValidationResult.OverlayCost.
 		name := composeOverlayDescriptorName(&spec)
-		result.OverlayCost[name] = composeOverlayCostForSpec(&spec)
+		// Cost keys on the route, so a hidden kind is costed like a
+		// kind not in the catalog; the name keeps the authored kind.
+		costed := spec
+		costed.Kind = opts.overlayRoute(spec.Kind)
+		result.OverlayCost[name] = composeOverlayCostForSpec(&costed)
 	}
 
 	if len(env.Errors) > 0 {
@@ -248,7 +259,7 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// Gate 0: unknown kind. The catalog lookup runs against
 	// types.AllOverlayKinds() so a new kind shows up here automatically
 	// once it's appended to the catalog.
-	if !composeOverlayKindKnown(spec.Kind) {
+	if !composeOverlayKindKnown(opts.overlayRoute(spec.Kind)) {
 		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 			"compose overlay spec carries unknown kind: "+string(spec.Kind),
 			map[string]any{"index": specIdx, "kind": string(spec.Kind)})
@@ -769,7 +780,7 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 			addCodedError(env, RefusalAt(err, "request", i))
 			continue
 		}
-		for _, ce := range FieldRefRefusals(defaultedForValidation(slot, schema, opts), schema, extensionsFromOpts(opts)) {
+		for _, ce := range fieldRefRefusals(defaultedForValidation(slot, schema, opts), schema, extensionsFromOpts(opts), opts.instance()) {
 			addCodedError(env, RefusalAt(ce, "request", i))
 		}
 	}

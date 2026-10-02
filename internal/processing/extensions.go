@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/processing/feature"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
@@ -131,6 +132,41 @@ type ExtensionRegistry struct {
 	// the projection to "every field" so the runtime stays correct
 	// for embedders that haven't opted in.
 	FieldInputs map[string]FieldInputsFunc
+
+	// hidden is the instance feature-set predicate installed by
+	// WithHidden: true for an operator name that resolves on this
+	// build but is not offered by the instance's feature profile. Every
+	// Lookup* and every streamability / mergeability fact consults it
+	// FIRST, so a hidden name takes exactly the path a never-registered
+	// name takes — its site's own unknown-name error, no re-wording and
+	// no pre-check. Nil hides nothing.
+	hidden func(name string) bool
+}
+
+// WithHidden returns a registry that resolves exactly like r except that
+// every operator name hidden reports true for answers as never
+// registered. r is not mutated: the result is a shallow copy sharing r's
+// read-only maps. A nil r yields a registry carrying only the predicate
+// (no extension operators), which every method treats like a nil
+// registry for any name the predicate does not hide. A nil hidden
+// returns r unchanged, so an instance without a feature profile keeps
+// the exact registry it had.
+func (r *ExtensionRegistry) WithHidden(hidden func(name string) bool) *ExtensionRegistry {
+	if hidden == nil {
+		return r
+	}
+	var out ExtensionRegistry
+	if r != nil {
+		out = *r
+	}
+	out.hidden = hidden
+	return &out
+}
+
+// isHidden reports whether name is hidden by the instance feature set.
+// Nil-receiver-safe: a nil registry hides nothing.
+func (r *ExtensionRegistry) isHidden(name string) bool {
+	return r != nil && r.hidden != nil && r.hidden(name)
 }
 
 // ExprFunction is the runtime-side mirror of pulse.ExprFunction. The
@@ -167,11 +203,22 @@ type RangeTable struct {
 	Ranges []DateRangeSpec
 }
 
+// Named tables are not features; each rides its capability. These are
+// the internal/descriptor feature names (pinned by
+// TestNamedTableFeatureNames), spelled here because the engine does not
+// import the descriptor layer.
+const (
+	featureLabels      = "capability:labels"
+	featureRangeTables = "capability:range_tables"
+)
+
 // LookupRangeTable returns the RangeTable registered under name, and the
 // standard "found" signal. Nil-safe: a nil registry or absent name
-// returns ok=false.
+// returns ok=false. A range table rides capability:range_tables: with
+// it hidden every table misses, exactly as on an instance that
+// registered none.
 func (r *ExtensionRegistry) LookupRangeTable(name string) (RangeTable, bool) {
-	if r == nil {
+	if r == nil || r.isHidden(featureRangeTables) {
 		return RangeTable{}, false
 	}
 	t, ok := r.RangeTables[name]
@@ -245,6 +292,9 @@ func StreamabilityKey(category, name string) string {
 // overlay map wins over the built-in registry. The boolean second
 // return is the standard "found" signal.
 func (r *ExtensionRegistry) LookupAggregator(t types.AggregationType) (AggregatorFactory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
 	if r != nil {
 		if f, ok := r.Aggregators[t]; ok {
 			return f, true
@@ -257,6 +307,9 @@ func (r *ExtensionRegistry) LookupAggregator(t types.AggregationType) (Aggregato
 // LookupAttribute returns the factory for an attribute type. Overlay
 // wins.
 func (r *ExtensionRegistry) LookupAttribute(t types.AttributeType) (AttributeFactory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
 	if r != nil {
 		if f, ok := r.Attributes[t]; ok {
 			return f, true
@@ -268,6 +321,9 @@ func (r *ExtensionRegistry) LookupAttribute(t types.AttributeType) (AttributeFac
 
 // LookupFilterer returns the factory for a filterer type. Overlay wins.
 func (r *ExtensionRegistry) LookupFilterer(t types.FiltererType) (FiltererFactory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
 	if r != nil {
 		if f, ok := r.Filterers[t]; ok {
 			return f, true
@@ -279,6 +335,9 @@ func (r *ExtensionRegistry) LookupFilterer(t types.FiltererType) (FiltererFactor
 
 // LookupGrouper returns the factory for a grouper type. Overlay wins.
 func (r *ExtensionRegistry) LookupGrouper(t types.GroupType) (GrouperFactory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
 	if r != nil {
 		if f, ok := r.Groupers[t]; ok {
 			return f, true
@@ -291,6 +350,9 @@ func (r *ExtensionRegistry) LookupGrouper(t types.GroupType) (GrouperFactory, bo
 // LookupWindow returns the factory for a window type. Overlay wins.
 // Falls through to window.Lookup for built-ins.
 func (r *ExtensionRegistry) LookupWindow(t types.WindowType) (window.WindowFactory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
 	if r != nil {
 		if f, ok := r.Windows[t]; ok {
 			return f, true
@@ -299,9 +361,42 @@ func (r *ExtensionRegistry) LookupWindow(t types.WindowType) (window.WindowFacto
 	return window.Lookup(t)
 }
 
+// LookupRegression returns the factory for a regression type. Only
+// built-ins register regressions; a type the instance feature set hides
+// misses exactly like one nothing registered, so regression.BuildWith
+// raises its own "unknown regression type" error.
+func (r *ExtensionRegistry) LookupRegression(t types.RegressionType) (regression.Factory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
+	return regression.Lookup(t)
+}
+
+// hiddenOverlayRoute is the kind a hidden overlay kind is ROUTED as: a
+// value no handler table, kind switch or types-side catalog knows.
+const hiddenOverlayRoute types.OverlayKind = ""
+
+// overlayRoute returns the kind every kind-keyed decision on an overlay
+// spec is taken on: the authored kind, or hiddenOverlayRoute when the
+// instance feature set hides it. The five per-host handler tables, the
+// OVERLAY_FORMULA special case, the streamability downgrade and every
+// per-kind pre-dispatch gate (Level/Within, pairwise and panel slab
+// partitions, compose MATRIX-shape) key on the route, so a hidden kind
+// takes exactly the branches a never-registered kind takes. Messages
+// and details keep naming the authored kind. Nil-receiver-safe.
+func (r *ExtensionRegistry) overlayRoute(kind types.OverlayKind) types.OverlayKind {
+	if r.isHidden(string(kind)) {
+		return hiddenOverlayRoute
+	}
+	return kind
+}
+
 // LookupFeature returns the factory for a feature type. Overlay wins.
 // Falls through to feature.Lookup for built-ins.
 func (r *ExtensionRegistry) LookupFeature(t types.FeatureType) (feature.Factory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
 	if r != nil {
 		if f, ok := r.Features[t]; ok {
 			return f, true
@@ -313,6 +408,9 @@ func (r *ExtensionRegistry) LookupFeature(t types.FeatureType) (feature.Factory,
 // LookupRowTest returns the tier-1 row-test factory for a test type.
 // Overlay wins.
 func (r *ExtensionRegistry) LookupRowTest(t types.TestType) (RowTestFactory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
 	if r != nil {
 		if f, ok := r.RowTests[t]; ok {
 			return f, true
@@ -325,6 +423,9 @@ func (r *ExtensionRegistry) LookupRowTest(t types.TestType) (RowTestFactory, boo
 // LookupPostTest returns the tier-2 post-test factory for a test type.
 // Overlay wins.
 func (r *ExtensionRegistry) LookupPostTest(t types.TestType) (PostTestFactory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
 	if r != nil {
 		if f, ok := r.PostTests[t]; ok {
 			return f, true
@@ -353,6 +454,14 @@ func (r *ExtensionRegistry) GrouperFanOut(t types.GroupType) (fansOut bool, ok b
 // ExtensionGroupFanOut adapts GrouperFanOut to the types-side resolver
 // signature the pairwise slab-partition gate takes. Returns nil for a
 // nil registry, which the gate reads as "no extension groupers".
+//
+// The gate consults types.ResolveBuiltinGroupFanOut BEFORE this
+// resolver, so it would read a hidden built-in fan-out grouper as
+// fanning out. That is unreachable for a hidden name: both slab gates
+// (crosstab pairwise, Compose panel) run only once their host has
+// materialised, and materialising it resolved every grouper through
+// this registry — a hidden grouper has already failed there with its
+// unknown-group-type error.
 func (r *ExtensionRegistry) ExtensionGroupFanOut() types.ExtensionGroupFanOutFunc {
 	if r == nil {
 		return nil
@@ -367,6 +476,9 @@ func (r *ExtensionRegistry) ExtensionGroupFanOut() types.ExtensionGroupFanOutFun
 // through here, so an extension's declared flag is what routes it;
 // predict reads the same declaration off the ExtensionsSnapshot.
 func (r *ExtensionRegistry) IsStreamable(category, name string) bool {
+	if r.isHidden(name) {
+		return false
+	}
 	if r != nil && r.Streamable != nil {
 		if v, ok := r.Streamable[StreamabilityKey(category, name)]; ok {
 			return v
@@ -397,6 +509,9 @@ func (r *ExtensionRegistry) IsStreamable(category, name string) bool {
 // method. Only aggregators and groupers carry a merge fact; every other
 // category answers false. Nil-receiver-safe (built-in answers only).
 func (r *ExtensionRegistry) IsMergeable(category, name string) bool {
+	if r.isHidden(name) {
+		return false
+	}
 	if r != nil && r.Mergeable != nil {
 		if v, ok := r.Mergeable[StreamabilityKey(category, name)]; ok {
 			return v
@@ -417,6 +532,9 @@ func (r *ExtensionRegistry) IsMergeable(category, name string) bool {
 // per-type MarginReducibility(). Nil-receiver-safe (built-in answers
 // only).
 func (r *ExtensionRegistry) AggregatorMarginReducibility(t types.AggregationType) types.MarginReducibility {
+	if r.isHidden(string(t)) {
+		return types.MarginRecompute // the built-in table's answer for any unregistered name
+	}
 	if r != nil && r.MarginReducibility != nil {
 		if v, ok := r.MarginReducibility[t]; ok {
 			if v == "" {
@@ -432,6 +550,9 @@ func (r *ExtensionRegistry) AggregatorMarginReducibility(t types.AggregationType
 // two-pass streaming drive: the built-in two-pass set, or an extension
 // attribute that declared pulse.AttributeModeTwoPass. Nil-receiver-safe.
 func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool {
+	if r.isHidden(string(t)) {
+		return false
+	}
 	if requiresTwoPass(t) {
 		return true
 	}

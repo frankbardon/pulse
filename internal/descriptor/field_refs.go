@@ -26,6 +26,27 @@ func FieldRefRefusal(req *types.Request, schema *encoding.Schema, snap *Extensio
 	return nil
 }
 
+// ScopedFieldRefRefusal is FieldRefRefusal for one instance: the
+// extension projection is inst's, and an operator inst hides is walked
+// as a never-registered name (its type-specific slots, params and
+// output labels are not judged). The runtime's form; nil inst is
+// FieldRefRefusal(req, schema, nil).
+func ScopedFieldRefRefusal(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) error {
+	if all := fieldRefRefusals(req, schema, inst.Extensions(), inst); len(all) > 0 {
+		return all[0]
+	}
+	return nil
+}
+
+// ScopedFacetFieldRefRefusals is FacetFieldRefRefusals for one
+// instance, on ScopedFieldRefRefusal's terms.
+func ScopedFacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, inst *InstanceSnapshot) []*errors.CodedError {
+	if req == nil {
+		return nil
+	}
+	return fieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema, inst.Extensions(), inst)
+}
+
 // FacetFieldRefRefusals is FieldRefRefusals for a FacetRequest: its
 // filterers are judged by the Request filterer rule against the cohort
 // schema (a facet has no features, so the schema is the whole column
@@ -92,10 +113,19 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 // judges built-ins only. A nil request or schema yields nil — the
 // schema-less mode of a validator that cannot read the cohort.
 func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) []*errors.CodedError {
+	return fieldRefRefusals(req, schema, snap, nil)
+}
+
+// fieldRefRefusals is the walk behind every exported form. inst is the
+// instance feature set: every type-keyed decision (which slots a type
+// reads, its params, its default output label) reads the type's route
+// (opRoute), so a hidden operator is walked exactly as a
+// never-registered name. Nil hides nothing.
+func fieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) []*errors.CodedError {
 	if req == nil || schema == nil {
 		return nil
 	}
-	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap}
+	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap, inst: inst}
 	for i := range schema.Fields {
 		w.cols[schema.Fields[i].Name] = true
 	}
@@ -111,7 +141,8 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 					map[string]any{"field": field, "feature": string(feat.Type)})
 			}
 		}
-		switch feat.Type {
+		featRoute := opRoute(inst, feat.Type)
+		switch featRoute {
 		case types.FEAT_TRAIN_TEST_SPLIT:
 			if s := paramString(feat.Params, "stratify"); s != "" {
 				w.check(s, func() *errors.CodedError {
@@ -123,7 +154,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 			if feat.Field != "" {
 				w.check(feat.Field, mk(feat.Field))
 			}
-			if feat.Type == types.FEAT_TARGET_ENCODE {
+			if featRoute == types.FEAT_TARGET_ENCODE {
 				if t := paramString(feat.Params, "target"); t != "" {
 					w.check(t, func() *errors.CodedError {
 						return refusal("feature FEAT_TARGET_ENCODE: target references unknown field "+t,
@@ -133,7 +164,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 			}
 		}
 		w.checkInputs("feature", string(feat.Type), feat.Params, "feature")
-		if !isKnownFeatureType(feat.Type) {
+		if !isKnownFeatureType(featRoute) {
 			w.open = true
 			continue
 		}
@@ -152,7 +183,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 			continue
 		}
 		w.checkInputs("filterer", string(fil.Type), nil, "filter")
-		if fil.Field == "" && !filterFieldRequired(fil.Type) {
+		if fil.Field == "" && !filterFieldRequired(opRoute(inst, fil.Type)) {
 			continue
 		}
 		w.check(fil.Field, func() *errors.CodedError {
@@ -166,7 +197,8 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 		if attr == nil || attr.Type == "ATTR_RANK" {
 			continue
 		}
-		switch attr.Type {
+		attrRoute := opRoute(inst, attr.Type)
+		switch attrRoute {
 		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 			if attr.Target != "" {
 				w.check(attr.Target, func() *errors.CodedError {
@@ -181,7 +213,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 				})
 			}
 		default:
-			if attr.Type != types.ATTR_FORMULA || attr.Field != "" {
+			if attrRoute != types.ATTR_FORMULA || attr.Field != "" {
 				w.check(attr.Field, func() *errors.CodedError {
 					return refusal("attribute references unknown field: "+attr.Field,
 						map[string]any{"field": attr.Field, "attribute": string(attr.Type)})
@@ -191,7 +223,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 		w.checkInputs("attribute", string(attr.Type), attr.Params, "attribute")
 		label := attr.Label
 		if label == "" {
-			label = attributeDefaultLabel(attr)
+			label = attributeDefaultLabel(attr, inst)
 		}
 		w.shadow(label, func() *errors.CodedError {
 			return refusal("attribute label "+label+" shadows an existing field",
@@ -365,7 +397,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 		// Only a value-bearing operator reads Field (WIN_ROW_NUMBER /
 		// RANK / DENSE_RANK name none, and an extension window's Field
 		// is its own business).
-		if win.Field != "" && windowFieldRequired[win.Type] {
+		if win.Field != "" && windowFieldRequired[opRoute(inst, win.Type)] {
 			w.check(win.Field, func() *errors.CodedError {
 				return refusal("window["+idx+"] ("+string(win.Type)+"): field "+win.Field+" does not exist in schema or upstream pipeline output",
 					map[string]any{"window_index": i, "field": win.Field, "type": string(win.Type)})
@@ -405,6 +437,9 @@ type fieldRefWalk struct {
 	cols map[string]bool
 	open bool
 	snap *ExtensionsSnapshot
+	// inst routes every type-keyed decision (opRoute); nil hides
+	// nothing.
+	inst *InstanceSnapshot
 	out  []*errors.CodedError
 }
 
@@ -434,7 +469,7 @@ var postTestParamFieldKeys = map[types.TestType][]string{
 // AGG_RATIO", "crosstab cell aggregation AGG_RATIO"); slotKey /
 // slotValue is the details entry naming the slot.
 func (w *fieldRefWalk) checkAgg(agg *types.Aggregation, prefix, slotKey string, slotValue any) {
-	for _, key := range aggParamFieldKeys[agg.Type] {
+	for _, key := range aggParamFieldKeys[opRoute(w.inst, agg.Type)] {
 		name := paramString(agg.Params, key)
 		if name == "" {
 			continue // missing: the operator's own PROCESSING_CONFIG refusal
@@ -519,7 +554,8 @@ func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 		})
 	}
 	typ := string(t.Type)
-	switch t.Type {
+	route := opRoute(w.inst, t.Type)
+	switch route {
 	case types.TEST_CHISQ, types.TEST_FISHER_EXACT:
 		add(t.Rows, "TEST_CHISQ rows references unknown field: "+t.Rows, map[string]any{"axis": "rows", "field": t.Rows})
 		add(t.Cols, "TEST_CHISQ cols references unknown field: "+t.Cols, map[string]any{"axis": "cols", "field": t.Cols})
@@ -528,11 +564,11 @@ func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 		add(t.SplitBy, "TEST_PROP_Z split_by references unknown field: "+t.SplitBy, map[string]any{"axis": "split_by", "field": t.SplitBy})
 	default:
 		add(t.Field, typ+" references unknown field: "+t.Field, map[string]any{"type": typ, "field": t.Field})
-		if numericField2Tests[t.Type] {
+		if numericField2Tests[route] {
 			add(t.Field2, typ+" references unknown field2: "+t.Field2, map[string]any{"type": typ, "field2": t.Field2})
 		}
 		add(t.SplitBy, typ+" split_by references unknown field: "+t.SplitBy, map[string]any{"type": typ, "split_by": t.SplitBy})
-		if t.Type == types.TEST_ANOVA_RM {
+		if route == types.TEST_ANOVA_RM {
 			add(t.SubjectField, "TEST_ANOVA_RM subject_field references unknown field: "+t.SubjectField,
 				map[string]any{"type": typ, "subject_field": t.SubjectField})
 		}
@@ -541,7 +577,7 @@ func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 		for _, ok := range t.OrderBy {
 			add(ok.Field, typ+" order_by references unknown field: "+ok.Field, map[string]any{"type": typ, "field": ok.Field})
 		}
-		for _, key := range postTestParamFieldKeys[t.Type] {
+		for _, key := range postTestParamFieldKeys[route] {
 			name := paramString(t.Params, key)
 			add(name, typ+": params."+key+" references unknown field "+name, map[string]any{"type": typ, "field": name, "param": key})
 		}

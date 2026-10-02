@@ -53,6 +53,27 @@ If the gate still fails after `-update`, the cause is usually one of:
 - The generator emits map iteration without a sort — non-determinism
   itself.
 
+## Per-feature-profile goldens
+
+Beside the full-registry `manifest.json` and `payload-schema.json`, each
+fixture feature profile under `descriptor/testdata/profiles/` (`minimal`,
+`survey-crosstab`, `empty`) pins its instance's self-description:
+`manifest.<fixture>.json` (the `--json` envelope around
+`Pulse.Manifest`) and `payload-schema.<fixture>.json` (`Pulse.PayloadSchema`
+byte for byte), written by `TestProfileManifestGolden` and
+`TestProfilePayloadSchemaGolden`. Both match `Test.*Golden`, so the
+regenerate command above rewrites them too, and they sit at the top of
+`testdata/` where `TestGoldensNotHandEdited` checks their hashes. The
+profile inputs themselves live in the `profiles/` subdirectory, which the
+gate skips because they are hand-written.
+
+Regenerate them whenever a change moves what an instance offers or how it
+describes it: a feature added to or removed from the feature table, a
+change to a fixture profile, a capability block or schema root that
+gating omits, or prose the hidden-name scrub redacts. The manifest
+goldens also carry the skill list, so a skill-pack edit churns them like
+`manifest.json`.
+
 ## Never hand-edit a golden
 
 The gate exists to catch the case where a contributor edits a golden

@@ -393,6 +393,14 @@ func KindRequiresMatrix(kind types.OverlayKind) bool {
 //	    ("<rowKinds>/<colKinds>") from extractSchemaShape.canonical
 //	  - "target_schema": same form for the target slot
 func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Response, spec types.ComposeOverlaySpec, specIdx int) error {
+	return checkSlotShapeAndSchemaRouted(refResp, targetResps, spec, spec.Kind, specIdx)
+}
+
+// checkSlotShapeAndSchemaRouted is checkSlotShapeAndSchema keying the
+// MATRIX requirement on route (ExtensionRegistry.overlayRoute) rather
+// than the authored kind, so a kind the instance feature set hides is
+// gated like a never-registered one. Messages name spec.Kind.
+func checkSlotShapeAndSchemaRouted(refResp *types.Response, targetResps []*types.Response, spec types.ComposeOverlaySpec, route types.OverlayKind, specIdx int) error {
 	refSchema := extractSchemaShape(refResp)
 
 	// SLOT_NOT_CROSSTAB applies to the reference slot too — when the
@@ -402,7 +410,7 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 	// "reference" string so the MCP fix-up surface can render the
 	// matrix-required failure regardless of whether the reference or
 	// a target violated the contract.
-	if kindRequiresMatrix(spec.Kind) && refSchema.shape != types.OverlayShapeMatrix {
+	if kindRequiresMatrix(route) && refSchema.shape != types.OverlayShapeMatrix {
 		return errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 			"compose overlay kind requires a MATRIX-shape host but the reference slot is not a crosstab",
@@ -440,7 +448,7 @@ func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Respo
 		// declares MATRIX-required AND the target is non-MATRIX. The
 		// reference arm above caught the symmetric case; this one
 		// catches a non-MATRIX target paired with a MATRIX reference.
-		if kindRequiresMatrix(spec.Kind) && tSchema.shape != types.OverlayShapeMatrix {
+		if kindRequiresMatrix(route) && tSchema.shape != types.OverlayShapeMatrix {
 			return errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB,
 				"compose overlay kind requires a MATRIX-shape host but a target slot is not a crosstab",

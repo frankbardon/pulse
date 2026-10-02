@@ -812,7 +812,7 @@ func rejectSetFieldForNumericAggregator(agg *types.Aggregation, schema *encoding
 	}
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 		string(agg.Type)+": field "+agg.Field+" is a set column ("+f.Type.String()+
-			"); its numeric value is the low 64 bits of the membership bitmask, not a quantity. Use AGG_SET_FREQUENCY for per-member counts, AGG_SET_DISTINCT_VALUES for distinct combinations, or AGG_COUNT for answered rows.",
+			"); its numeric value is the low 64 bits of the membership bitmask, not a quantity."+remedyAggregatorSetField(nil),
 		map[string]any{
 			"field":      agg.Field,
 			"type":       f.Type.String(),

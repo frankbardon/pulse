@@ -96,6 +96,13 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		result.Valid = false
 		return env
 	}
+	// A slot the instance hides is an unknown field, refused before
+	// anything else — the runtime's order.
+	if serr := SlotRefusal(req, opts.instance()); serr != nil {
+		addCodedError(env, serr)
+		result.Valid = false
+		return env
+	}
 
 	pulseVersion, err := encoding.ReadHeader(fileData)
 	if err != nil {
@@ -196,7 +203,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 			if fil == nil {
 				continue
 			}
-			if fil.Type == types.FILTER_EXPRESSION && filterExpressionMentionsField(fil.Expression, name) {
+			if opRoute(opts.instance(), fil.Type) == types.FILTER_EXPRESSION && filterExpressionMentionsField(fil.Expression, name) {
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					fmt.Sprintf("additive field %q referenced inside FILTER_EXPRESSION; express the predicate as discrete filterers instead", name),
 					map[string]any{"field": name, "expression": fil.Expression})
@@ -206,10 +213,10 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 
 	// Zones, then the shared filterer field-reference rule — the order
 	// FacetSchema applies them in.
-	if _, zerr := ResolveFacetZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader); zerr != nil {
+	if _, zerr := ResolveFacetZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader, opts.instance()); zerr != nil {
 		addCodedError(env, zerr)
 	}
-	for _, ce := range FacetFieldRefRefusals(req, schema, snap) {
+	for _, ce := range fieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema, snap, opts.instance()) {
 		addCodedError(env, ce)
 	}
 
@@ -217,13 +224,13 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// projected output columns beyond the requested fields, so the extra
 	// set is empty — augment-mode collision detection only checks the
 	// schema namespace.
-	ValidateLabels(env, req.Labels, schema, snap, nil)
+	ValidateLabels(env, req.Labels, schema, snap, opts.instance(), nil)
 
 	// Validate FACET-host overlay specs. Per-kind contracts live in
 	// internal/descriptor/overlay_facet.go; the validator is no-op when
 	// req.Overlays is empty so the no-overlay envelope shape stays
 	// byte-identical to the legacy Facet path.
-	ValidateFacetOverlays(env, req, schema)
+	ValidateFacetOverlaysWithOptions(env, req, schema, opts)
 
 	// Populate the FACET-host predict surface (OverlaysApplied + OverlayCost)
 	// per kind-catalog-v1 PRD §I-FR-I3. The four FACET-host kinds route
@@ -231,7 +238,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// PredictResult emission. The populator walks every spec regardless of
 	// whether ValidateFacetOverlays surfaced errors so LLM callers see the
 	// catalog identity of the spec the engine would attempt to dispatch.
-	populateFacetOverlayDescriptors(result, req)
+	populateFacetOverlayDescriptors(result, req, opts)
 
 	if len(env.Errors) > 0 {
 		result.Valid = false

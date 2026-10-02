@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 
-	descx "github.com/frankbardon/pulse/internal/descriptor"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -15,17 +14,25 @@ import (
 //
 // This is the offline equivalent of fetching the published file at the
 // $id URL or the pulse://schema MCP resource. CLI is a thin adapter: the
-// schema is built by descriptor.BuildPayloadSchema().
+// schema is the default instance's (Pulse.PayloadSchema), which without a
+// feature profile is the full-registry schema the docs site publishes.
 func SchemaCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "schema",
 		Usage: "Output the JSON Schema for Pulse request/response payloads",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			out := descx.BuildPayloadSchema()
+			p, err := newPulse()
+			if err != nil {
+				return err
+			}
+			out, err := p.PayloadSchema()
+			if err != nil {
+				return err
+			}
 			if _, err := cmd.Writer.Write(out); err != nil {
 				return err
 			}
-			_, err := cmd.Writer.Write([]byte("\n"))
+			_, err = cmd.Writer.Write([]byte("\n"))
 			return err
 		},
 	}

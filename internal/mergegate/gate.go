@@ -24,7 +24,9 @@ import (
 // Extensions answers the embedder-registered half of the rule. Each
 // method reports ok=false for a name that is not a registered
 // extension of that category, in which case the built-in per-type
-// facts in package types decide. An implementation must be safe to
+// facts in package types decide. An implementation may also answer
+// ok=true, false for a built-in name its instance hides, which refuses
+// it exactly as an unregistered name is refused. An implementation must be safe to
 // call on its zero / nil value (no extensions).
 type Extensions interface {
 	// Aggregator reports an extension aggregator's DECLARED Mergeable
@@ -77,11 +79,19 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 		if attr == nil {
 			return "an attribute slot is nil"
 		}
-		switch attr.Type {
-		case types.ATTR_FORMULA, types.ATTR_DATE_PART:
-			continue
+		// The extension answer is consulted FIRST, like every other
+		// category below: an adapter may claim a built-in name (an
+		// instance feature set reports a hidden one as known-and-not
+		// row-local), and it must then refuse exactly as an
+		// unregistered name does rather than pass on the built-in list.
+		rowLocal, ok := ext.Attribute(string(attr.Type))
+		if !ok {
+			switch attr.Type {
+			case types.ATTR_FORMULA, types.ATTR_DATE_PART:
+				rowLocal = true
+			}
 		}
-		if rowLocal, ok := ext.Attribute(string(attr.Type)); ok && rowLocal {
+		if rowLocal {
 			continue
 		}
 		return fmt.Sprintf("attribute %s is not row-local (two-pass and buffered attributes are excluded)", attr.Type)
@@ -141,7 +151,7 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 	if reason == "" {
 		for _, agg := range req.Aggregations {
 			if !EmitsScalar(agg.Type) {
-				reason = fmt.Sprintf("aggregator %s emits a non-scalar value (AGG_FREQUENCY and AGG_MODE are excluded)", agg.Type)
+				reason = fmt.Sprintf("aggregator %s emits a non-scalar value", agg.Type) + nonScalarNote(ext)
 				break
 			}
 		}
@@ -164,6 +174,34 @@ func EmitsScalar(t types.AggregationType) bool {
 		return false
 	}
 	return true
+}
+
+// hider is the optional half of Extensions an instance-scoped adapter
+// implements: Hidden reports a built-in name the instance does not
+// offer, so refusal prose can leave it out.
+type hider interface {
+	Hidden(name string) bool
+}
+
+// nonScalarNote is the chain refusal's parenthetical naming the
+// non-scalar aggregators — only those the instance offers (the
+// refusal never names a hidden operator). With every one offered it is
+// the historical " (AGG_FREQUENCY and AGG_MODE are excluded)".
+func nonScalarNote(ext Extensions) string {
+	h, _ := ext.(hider)
+	var named []string
+	for _, t := range []types.AggregationType{types.AGG_FREQUENCY, types.AGG_MODE} {
+		if h == nil || !h.Hidden(string(t)) {
+			named = append(named, string(t))
+		}
+	}
+	switch len(named) {
+	case 0:
+		return ""
+	case 1:
+		return " (" + named[0] + " is excluded)"
+	}
+	return " (" + named[0] + " and " + named[1] + " are excluded)"
 }
 
 // StageJoinRefusal is the ProcessChain rule that only stage 0 may

@@ -37,20 +37,21 @@ func RegisteredTypes() []types.WindowType {
 	return out
 }
 
-// lookupWithExt consults the extension overlay first, then the built-in
-// registry. Used by ApplyWithExt to honour embedder-registered window
-// operators without changing the call site for every window type.
-func lookupWithExt(t types.WindowType, ext map[types.WindowType]WindowFactory) (WindowFactory, bool) {
-	if ext != nil {
-		if f, ok := ext[t]; ok {
-			return f, true
-		}
+// Resolver resolves a window type to its factory. The engine passes
+// processing.ExtensionRegistry.LookupWindow, which consults the
+// embedder overlay and the instance feature set before the built-in
+// registry. A nil Resolver is the built-in registry alone (Lookup).
+type Resolver func(t types.WindowType) (WindowFactory, bool)
+
+func (r Resolver) lookup(t types.WindowType) (WindowFactory, bool) {
+	if r == nil {
+		return Lookup(t)
 	}
-	return Lookup(t)
+	return r(t)
 }
 
 // Apply runs every window in windows over rows. Equivalent to
-// ApplyWithExt with a nil overlay; preserved so existing callers and
+// ApplyWithExt with a nil Resolver; preserved so existing callers and
 // per-operator unit tests stay shape-compatible.
 func Apply(ctx context.Context, rows []map[string]any, windows []*types.Window) error {
 	return ApplyWithExt(ctx, rows, windows, nil)
@@ -63,10 +64,10 @@ func Apply(ctx context.Context, rows []map[string]any, windows []*types.Window) 
 //  2. Builds partitions from the sorted index slice.
 //  3. Invokes the operator's Compute to mutate rows with the output column.
 //
-// extFactories is an optional embedder-registered overlay. Nil takes the
-// built-in-only path; non-nil consults the overlay before falling through
-// to the package-level registry.
-func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*types.Window, extFactories map[types.WindowType]WindowFactory) error {
+// resolve is the operator resolver (see Resolver). Nil takes the
+// built-in-only path; an unresolved type fails with the canonical
+// unknown-window error.
+func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*types.Window, resolve Resolver) error {
 	_ = ctx
 	if len(windows) == 0 || len(rows) == 0 {
 		return nil
@@ -75,7 +76,7 @@ func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*types.W
 	cache := newSortCache(rows)
 
 	for _, w := range windows {
-		factory, ok := lookupWithExt(w.Type, extFactories)
+		factory, ok := resolve.lookup(w.Type)
 		if !ok {
 			return errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown window type: %s", w.Type))

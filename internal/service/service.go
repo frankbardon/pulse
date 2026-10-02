@@ -23,8 +23,12 @@ type Service struct {
 	disableDefaults   bool
 	disableComponents bool
 	projectBuffered   bool
-	extensions        *processing.ExtensionRegistry
-	extensionsSnap    *descx.ExtensionsSnapshot
+	// extensions is the runtime registry every engine path resolves
+	// operators through: baseExtensions scoped by the instance feature
+	// set (see rescopeExtensions). Never assign it directly.
+	extensions     *processing.ExtensionRegistry
+	baseExtensions *processing.ExtensionRegistry
+	instance       *descx.InstanceSnapshot
 
 	// shardWorkers caps the per-shard parallel worker pool the Process
 	// path spawns when a request is mergeable per
@@ -167,9 +171,25 @@ func (s *Service) ProjectBufferedFields() bool {
 // SetExtensions installs an ExtensionRegistry containing embedder-
 // registered operator overlays. The registry is read-only after this
 // call; pass nil to clear. The processor consults this registry
-// before falling through to built-in factories.
+// before falling through to built-in factories. The installed
+// instance snapshot's hidden names are applied on top (either call
+// order works).
 func (s *Service) SetExtensions(r *processing.ExtensionRegistry) {
-	s.extensions = r
+	s.baseExtensions = r
+	s.rescopeExtensions()
+}
+
+// rescopeExtensions derives the runtime registry from the installed
+// extensions and the instance feature set: a scoped snapshot that hides
+// anything makes every operator it hides resolve as never registered
+// (processing.ExtensionRegistry.WithHidden). Without hidden names the
+// installed registry is used as-is — nil stays nil.
+func (s *Service) rescopeExtensions() {
+	var hidden func(string) bool
+	if inst := s.instance; inst != nil && len(inst.HiddenNames()) > 0 {
+		hidden = inst.Hidden
+	}
+	s.extensions = s.baseExtensions.WithHidden(hidden)
 }
 
 // Extensions returns the installed ExtensionRegistry, or nil when no
@@ -259,17 +279,49 @@ func (s *Service) EchoRequest() bool {
 	return s.echoRequest
 }
 
-// SetExtensionsSnapshot installs the descriptor-side projection of
-// the registered extensions for manifest + predict consumption. Pass
-// nil to clear; pulse.New populates this alongside SetExtensions.
+// SetInstanceSnapshot installs the instance's no-execute view — its
+// extension projection plus its resolved feature set and digest.
+// pulse.New populates this alongside SetExtensions. Pass nil to clear.
+func (s *Service) SetInstanceSnapshot(snap *descx.InstanceSnapshot) {
+	s.instance = snap
+	s.rescopeExtensions()
+}
+
+// scopeRefusal rewrites a refusal leaving the service so its remedy
+// prose names only operators the instance offers
+// (processing.ExtensionRegistry.ScopeRefusal). Every request entry
+// point returns through it; an instance without a feature profile is
+// untouched.
+func (s *Service) scopeRefusal(err error) error {
+	return s.extensions.ScopeRefusal(err)
+}
+
+// InstanceSnapshot returns the installed instance snapshot. A nil
+// result is unscoped: every feature enabled, no extensions.
+func (s *Service) InstanceSnapshot() *descx.InstanceSnapshot {
+	return s.instance
+}
+
+// slotRefusal is the request-slot gate (descx.SlotRefusal) against this
+// service's instance: a capability-gated slot the instance hides is
+// refused as PULSE_REQUEST_UNKNOWN_FIELD. Every funnel runs it before
+// any other request check, the point an unknown JSON key is refused.
+func (s *Service) slotRefusal(v any) error {
+	return descx.SlotRefusal(v, s.instance)
+}
+
+// SetExtensionsSnapshot installs an extension projection with NO feature
+// scoping (descx.UnscopedInstanceSnapshot). For callers that wire a
+// service by hand; pulse.New uses SetInstanceSnapshot.
 func (s *Service) SetExtensionsSnapshot(snap *descx.ExtensionsSnapshot) {
-	s.extensionsSnap = snap
+	s.instance = descx.UnscopedInstanceSnapshot(snap)
+	s.rescopeExtensions()
 }
 
 // ExtensionsSnapshot returns the descriptor-side projection of the
-// registered extensions, or nil when no extensions are installed.
+// registered (visible) extensions, or nil when none are installed.
 func (s *Service) ExtensionsSnapshot() *descx.ExtensionsSnapshot {
-	return s.extensionsSnap
+	return s.instance.Extensions()
 }
 
 // applyDefaults runs descriptor.ResolveDefaults against the cohort schema
@@ -278,7 +330,7 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 	if s.disableDefaults || req == nil || schema == nil {
 		return
 	}
-	descx.ResolveDefaults(req, schema)
+	descx.ResolveDefaults(req, schema, s.instance)
 }
 
 // Open reads a .pulse file and returns a Cohort with the parsed schema.
@@ -504,8 +556,20 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 // Records are streamed from disk — the full file is never held in memory as raw bytes
 // alongside the decoded records.
 func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Response, error) {
+	resp, err := s.process(ctx, req)
+	return resp, s.scopeRefusal(err)
+}
+
+func (s *Service) process(ctx context.Context, req *types.Request) (*types.Response, error) {
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
+	}
+
+	// A slot the instance hides is an unknown field. It runs before the
+	// join-count rule and the crosstab / joins dispatch below, so a
+	// hidden slot never reaches the code that would execute it.
+	if err := s.slotRefusal(req); err != nil {
+		return nil, markLocated(err)
 	}
 
 	// The v1 join-count rule, shared with predict and the validators.
@@ -561,7 +625,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// callers still see the warning through the predict path / the
 	// CLI envelope wiring.
 	if s.strict {
-		if issues := descx.CategoricalAggregationIssues(req, cohort.Schema()); len(issues) > 0 {
+		if issues := descx.CategoricalAggregationIssues(req, cohort.Schema(), s.instance); len(issues) > 0 {
 			first := issues[0]
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL,
@@ -897,8 +961,18 @@ func (s *Service) installProjection(iter scanIterator, req *types.Request, schem
 // Compose-only overlay kinds resolve sibling references by final Label
 // so the names must be unique across the batch.
 func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
+	resp, err := s.compose(ctx, composed)
+	return resp, s.scopeRefusal(err)
+}
+
+func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
+	}
+	// Hidden slots — the composed root's own, then every slot's — are
+	// refused before any slot runs (details.request locates a slot's).
+	if err := s.slotRefusal(composed); err != nil {
+		return nil, err
 	}
 
 	requests, err := applyComposeLabelDefaults(composed)

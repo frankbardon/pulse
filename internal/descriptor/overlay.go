@@ -54,6 +54,37 @@ var pairwiseSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeColumn: true,
 }
 
+// pairwiseNBasisAdvice completes the n_basis refusal on a kind that
+// does not read it. The weighted kind (and the AGG_WEIGHTED_MEAN cell it
+// requires) is named only when the instance offers it: a refusal never
+// advertises a hidden feature.
+func pairwiseNBasisAdvice(opts *PredictOptions) string {
+	if opts.overlayRoute(types.OverlayKindPairwiseWeightedTwoMeansZ) == "" {
+		return "no pairwise kind this instance offers reads it. Remove n_basis"
+	}
+	return "it is read only by " + string(types.OverlayKindPairwiseWeightedTwoMeansZ) +
+		". Remove n_basis, or use that kind over an AGG_WEIGHTED_MEAN cell"
+}
+
+// pairwiseProportionAdvice is the ", or use …" tail of a Welford-kind
+// selector refusal: the proportion kinds the instance offers, which
+// what. Empty when it offers neither.
+func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
+	var offered []string
+	for _, k := range []types.OverlayKind{types.OverlayKindPairwisePropZ, types.OverlayKindPairwiseProbitT} {
+		if opts.overlayRoute(k) != "" {
+			offered = append(offered, string(k))
+		}
+	}
+	switch len(offered) {
+	case 0:
+		return ""
+	case 1:
+		return ", or use " + offered[0] + ", which can " + what
+	}
+	return ", or use " + strings.Join(offered, " / ") + ", which " + what
+}
+
 // validateOverlayPairwise validates the shared contract for every
 // OVERLAY_PAIRWISE_* kind: implicit-margin (empty Ref), MATRIX host,
 // ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
@@ -149,9 +180,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	nBasisRefused := false
 	if params.NBasis != "" && !types.PairwiseKindUsesWeightedMoments(spec.Kind) {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(spec.Kind)+" does not accept n_basis ("+params.NBasis+"): it is read only by "+
-				string(types.OverlayKindPairwiseWeightedTwoMeansZ)+
-				". Remove n_basis, or use that kind over an AGG_WEIGHTED_MEAN cell",
+			"overlay "+string(spec.Kind)+" does not accept n_basis ("+params.NBasis+"): "+pairwiseNBasisAdvice(opts),
 			map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_basis",
 				"n_basis": params.NBasis})
 		nBasisRefused = true
@@ -163,7 +192,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		if params.NSource != "" {
 			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+welfordReason+
-					". Remove n_source, or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a proportion and a separate n leg",
+					". Remove n_source"+pairwiseProportionAdvice(opts, "read a proportion and a separate n leg"),
 				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
 					"n_source": params.NSource, "reason": welfordReason})
 			refused = true
@@ -171,7 +200,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		if params.PSource != "" {
 			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"overlay "+string(spec.Kind)+" does not accept p_source ("+params.PSource+"): "+welfordReason+
-					". Remove p_source, or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which derive a proportion leg",
+					". Remove p_source"+pairwiseProportionAdvice(opts, "derive a proportion leg"),
 				map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
 					"p_source": params.PSource, "reason": welfordReason})
 			refused = true
@@ -218,8 +247,10 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		// smart default resolves later) or an extension type defers to
 		// runtime: an extension may emit the moment keys, and runtime
 		// gates on the keys, not the type name.
+		// A cell type the instance hides is judged as a never-registered
+		// (non-built-in) name.
 		if cell := req.Crosstab.Cell; cell != nil && cell.Type != "" &&
-			cell.Type != types.AGG_WEIGHTED_MEAN && isBuiltinAggregationType(cell.Type) {
+			cell.Type != types.AGG_WEIGHTED_MEAN && isBuiltinAggregationType(opRoute(opts.instance(), cell.Type)) {
 			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 				"overlay "+string(spec.Kind)+" requires an AGG_WEIGHTED_MEAN cell (it reads the weighted moments off Response.Components); the crosstab cell is "+string(cell.Type),
 				map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(cell.Type),
@@ -669,8 +700,8 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
 		validateOverlaySpec(env, req, spec, opts, i)
-		validateOverlayLevelWithinPredict(env, req, spec, i)
-		validateOverlayBaselineIndexPredict(env, req, spec, schema, i)
+		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
 	}
 }
 
@@ -720,7 +751,7 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 //     no shipping kind consumes those). The gate skips when
 //     `req.Crosstab` is set so a future MATRIX-host kind landing on a
 //     different Ref arm does not collide with the SERIES check.
-func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, index int) {
+func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, inst *InstanceSnapshot, index int) {
 	if spec == nil || spec.Ref.BaselineIndex == nil {
 		return
 	}
@@ -734,7 +765,7 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 	ref := spec.Ref.BaselineIndex
 	// Compute the predicted series length upper bound. -1 means "not
 	// derivable from schema; defer the range check to runtime".
-	predictedLength := overlayBaselineIndexPredictedSeriesLength(req, schema)
+	predictedLength := overlayBaselineIndexPredictedSeriesLength(req, schema, inst)
 	if ref.Position < 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			"overlay "+string(spec.Kind)+" baseline-index position must be non-negative",
@@ -778,8 +809,9 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 // caller-supplied bin width, so the gate defers to runtime for those.
 // Multi-grouper hosts multiply per-axis dict counts (cartesian upper
 // bound); a single non-categorical grouper anywhere in the list yields
-// -1 (the cartesian is non-computable).
-func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encoding.Schema) int {
+// -1 (the cartesian is non-computable). A grouper inst hides counts as
+// a non-categorical (never-registered) one.
+func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) int {
 	if req == nil || schema == nil {
 		return -1
 	}
@@ -791,7 +823,7 @@ func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encod
 		if g == nil {
 			return -1
 		}
-		if g.Type != types.GROUP_CATEGORY {
+		if opRoute(inst, g.Type) != types.GROUP_CATEGORY {
 			return -1
 		}
 		f := schema.Field(g.Field)
@@ -850,7 +882,11 @@ func baselineIndexSeriesLengthDetail(predictedLength int) int {
 // Zero defaults (Level == 0 && Within == 0) pass — the runtime
 // resolver short-circuits to the legacy MarginFor lookup, preserving
 // the byte-identity contract.
-func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+//
+// route is the kind the gate keys on (PredictOptions.overlayRoute): a
+// kind the instance hides takes the never-registered branches, while
+// messages keep naming spec.Kind.
+func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) {
 	if spec == nil {
 		return
 	}
@@ -859,7 +895,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// since the implicit-grand-total denominator does not partition by
 	// any axis prefix. Run the gate before the no-crosstab short-circuit
 	// so the rule still fires when Request.Crosstab is nil.
-	if spec.Kind == types.OverlayKindIndexVsTotal {
+	if route == types.OverlayKindIndexVsTotal {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-grand-total kind)",
@@ -883,7 +919,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Run the gate before the
 	// no-crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil.
-	if spec.Kind == types.OverlayKindDeltaVsSibling || spec.Kind == types.OverlayKindIndexVsSibling {
+	if route == types.OverlayKindDeltaVsSibling || route == types.OverlayKindIndexVsSibling {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (sibling reference is a single fixed group)",
@@ -903,7 +939,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// twin of INDEX_VS_BASELINE — same windowed-family implicit-margin rule.
 	// Run the gate before the no-crosstab short-circuit so the rule still
 	// fires when Request.Crosstab is nil.
-	if spec.Kind == types.OverlayKindDeltaVsBaseline {
+	if route == types.OverlayKindDeltaVsBaseline {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
@@ -922,7 +958,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// anchor (Ref.BaselineIndex.Position), not an axis prefix. Run the gate
 	// before the no-crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindIndexVsBaseline {
+	if route == types.OverlayKindIndexVsBaseline {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
@@ -941,7 +977,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// without a prefix-bucket denominator. Run the gate before the no-
 	// crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindIndexVsPrior {
+	if route == types.OverlayKindIndexVsPrior {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
@@ -960,7 +996,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// finalize step divides or subtracts. Run the gate before the
 	// no-crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindDeltaVsPrior {
+	if route == types.OverlayKindDeltaVsPrior {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
@@ -979,7 +1015,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// without a prefix-bucket denominator. Run the gate before the no-
 	// crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindIndexVsRollingMean {
+	if route == types.OverlayKindIndexVsRollingMean {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator)",
@@ -997,7 +1033,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// INDEX_VS_ROLLING_MEAN because the year-over-year prior-period
 	// lookup folds across the ordered axis without a prefix-bucket
 	// denominator. Same implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindYoY {
+	if route == types.OverlayKindYoY {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed year-over-year lookup folds across the ordered axis without a prefix-bucket denominator)",
@@ -1015,7 +1051,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// because the rolling-window carrier folds across the ordered axis
 	// without a prefix-bucket denominator. Sibling windowed-rolling kind
 	// — same implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindZScoreVsRolling {
+	if route == types.OverlayKindZScoreVsRolling {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed rolling sample-SD carrier folds across the ordered axis without a prefix-bucket denominator)",
@@ -1034,7 +1070,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// Run the gate before the no-crosstab short-circuit so the rule still
 	// fires when Request.Crosstab is nil. Sibling rule to the
 	// INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES dispatch above.
-	if spec.Kind == types.OverlayKindZScoreVsTotal {
+	if route == types.OverlayKindZScoreVsTotal {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-grand-total kind)",
@@ -1054,7 +1090,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// are accepted, preserving the byte-identity contract with the
 	// original SHARE_OF_TOTAL MATRIX requests. Host-shape disambiguation
 	// matches `validateOverlayShareOfTotal`'s dispatch policy.
-	if spec.Kind == types.OverlayKindShareOfTotal && req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
+	if route == types.OverlayKindShareOfTotal && req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" SERIES dispatch does not support Level / Within (implicit-grand-total contract)",
@@ -1071,7 +1107,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if req == nil || req.Crosstab == nil {
 		return
 	}
-	switch spec.Kind {
+	switch route {
 	case types.OverlayKindChiSqCol,
 		types.OverlayKindChiSqMatrix,
 		types.OverlayKindChiSqRow,
@@ -1092,7 +1128,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// Share / index / delta / zscore family — Level on SAME axis,
 	// Within on OPPOSITE axis. Resolve the axis pair off the kind so
 	// the gate stays kind-aware (mirrors the runtime dispatch).
-	levelAxisDepth, withinAxisDepth, levelAxisLabel, withinAxisLabel := overlayLevelWithinAxisDepthsPredict(spec, req)
+	levelAxisDepth, withinAxisDepth, levelAxisLabel, withinAxisLabel := overlayLevelWithinAxisDepthsPredict(spec, route, req)
 	if spec.Level < 0 || (levelAxisDepth > 0 && spec.Level >= levelAxisDepth) {
 		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 			"overlay "+string(spec.Kind)+" Level is out of range for the "+levelAxisLabel+" axis",
@@ -1132,7 +1168,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 //   - INDEX_VS_MARGIN / DELTA_VS_MARGIN / ZSCORE_VS_MARGIN: axis is
 //     driven by Ref.Margin.Axis; Level addresses that axis and
 //     Within addresses the opposite one.
-func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, req *types.Request) (
+func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.OverlayKind, req *types.Request) (
 	levelAxisDepth, withinAxisDepth int,
 	levelAxisLabel, withinAxisLabel string,
 ) {
@@ -1141,7 +1177,7 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, req *types.Req
 	}
 	rowDepth := len(req.Crosstab.Rows)
 	colDepth := len(req.Crosstab.Columns)
-	switch spec.Kind {
+	switch route {
 	case types.OverlayKindShareOfRow:
 		return rowDepth, colDepth, "rows", "columns"
 	case types.OverlayKindShareOfCol:
@@ -1185,7 +1221,7 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	// catalog entry. OverlayStreamable(known=false) is the authoritative
 	// "is this kind in the catalog?" probe; AllOverlayKinds() and the
 	// streamability table are co-maintained per TestStreamability_OverlaysKnown.
-	if _, known := types.OverlayStreamable(spec.Kind); !known {
+	if _, known := types.OverlayStreamable(opts.overlayRoute(spec.Kind)); !known {
 		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 			"overlay kind is not in the catalog: "+string(spec.Kind),
 			map[string]any{
@@ -1219,13 +1255,13 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 				"host":  "request",
 			})
 	case types.OverlayKindTCell:
-		validateOverlayTCell(env, req, spec, index)
+		validateOverlayTCell(env, req, spec, opts.instance(), index)
 	case types.OverlayKindTVsRef:
-		validateOverlayTVsRef(env, req, spec, index)
+		validateOverlayTVsRef(env, req, spec, opts.instance(), index)
 	case types.OverlayKindZCell:
-		validateOverlayZCell(env, req, spec, index)
+		validateOverlayZCell(env, req, spec, opts.instance(), index)
 	case types.OverlayKindZVsRef:
-		validateOverlayZVsRef(env, req, spec, index)
+		validateOverlayZVsRef(env, req, spec, opts.instance(), index)
 	case types.OverlayKindDeltaVsBaseline:
 		validateOverlayDeltaVsBaseline(env, req, spec, index)
 	case types.OverlayKindDeltaVsMargin:
@@ -1263,7 +1299,7 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	case types.OverlayKindShareOfTotal:
 		validateOverlayShareOfTotal(env, req, spec, index)
 	case types.OverlayKindYoY:
-		validateOverlayYoY(env, req, spec, index)
+		validateOverlayYoY(env, req, spec, opts.instance(), index)
 	case types.OverlayKindZScoreVsMargin:
 		validateOverlayZScoreVsMargin(env, req, spec, index)
 	case types.OverlayKindZScoreVsRolling:
@@ -1821,7 +1857,7 @@ func validateOverlayZScoreVsRolling(env *descriptor.Envelope, req *types.Request
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. The runtime mirror
 // (processing.validateOverlayLevelWithinRuntime) enforces the same
 // rule.
-func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
 	// Ref family: YoY must be populated; reject any other family pointer
 	// (mirrors the windowed-family rejection set used by INDEX_VS_PRIOR /
 	// INDEX_VS_ROLLING_MEAN / ZSCORE_VS_ROLLING).
@@ -1871,7 +1907,9 @@ func validateOverlayYoY(env *descriptor.Envelope, req *types.Request, spec *type
 
 	// First grouper MUST be GROUP_DATE. The YoY kind cannot resolve
 	// "same period one year prior" semantics against non-DATE groupers.
-	if g := req.Groups[0]; g == nil || g.Type != types.GROUP_DATE {
+	// A GROUP_DATE the instance hides is not GROUP_DATE here; the
+	// message keeps naming the authored type.
+	if g := req.Groups[0]; g == nil || opRoute(inst, g.Type) != types.GROUP_DATE {
 		actual := ""
 		if g != nil {
 			actual = string(g.Type)
@@ -3213,16 +3251,16 @@ var twoSampleStatParamKeys = []string{
 // sample_size_target / sample_size_ref); predict requires all four keys
 // in that case so callers cannot silently accept the runtime's
 // 1.0-variance, 2-sample defaults.
-func validateOverlayTCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlayTwoSampleStatCell(env, req, spec, index, tCellSupportedScopes, "cell")
+func validateOverlayTCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
+	validateOverlayTwoSampleStatCell(env, req, spec, inst, index, tCellSupportedScopes, "cell")
 }
 
 // validateOverlayZCell mirrors validateOverlayTCell for OVERLAY_Z_CELL.
 // The two kinds share the same host-shape / scope / Params contract —
 // only the runtime finaliser differs (standardNormalCDF vs
 // studentTTwoSidedP).
-func validateOverlayZCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlayTwoSampleStatCell(env, req, spec, index, zCellSupportedScopes, "cell")
+func validateOverlayZCell(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
+	validateOverlayTwoSampleStatCell(env, req, spec, inst, index, zCellSupportedScopes, "cell")
 }
 
 // validateOverlayTVsRef enforces the per-kind contract for
@@ -3232,15 +3270,15 @@ func validateOverlayZCell(env *descriptor.Envelope, req *types.Request, spec *ty
 // lives on Request.Aggregations; if any of them is map-valued
 // (`AggregationType.MapValued() == true`) Params are optional, otherwise
 // the four per-side Params keys are required.
-func validateOverlayTVsRef(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlayTwoSampleStatVsRef(env, req, spec, index, tVsRefSupportedScopes, "group")
+func validateOverlayTVsRef(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
+	validateOverlayTwoSampleStatVsRef(env, req, spec, inst, index, tVsRefSupportedScopes, "group")
 }
 
 // validateOverlayZVsRef mirrors validateOverlayTVsRef for OVERLAY_Z_VS_REF.
 // Same SERIES-host / Params contract as OVERLAY_T_VS_REF; only the
 // runtime finaliser differs (standardNormalCDF vs studentTTwoSidedP).
-func validateOverlayZVsRef(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
-	validateOverlayTwoSampleStatVsRef(env, req, spec, index, zVsRefSupportedScopes, "group")
+func validateOverlayZVsRef(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int) {
+	validateOverlayTwoSampleStatVsRef(env, req, spec, inst, index, zVsRefSupportedScopes, "group")
 }
 
 // validateOverlayTwoSampleStatCell is the shared MATRIX-host predict-time
@@ -3270,7 +3308,7 @@ func validateOverlayZVsRef(env *descriptor.Envelope, req *types.Request, spec *t
 //     error per missing key so a caller surfacing multiple gaps sees
 //     them all in one pass.
 func validateOverlayTwoSampleStatCell(
-	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int,
+	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int,
 	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
 ) {
 	// Host must be MATRIX-shaped — the per-cell stat-test decorates
@@ -3299,7 +3337,7 @@ func validateOverlayTwoSampleStatCell(
 
 	// Params requirement: optional when the cell aggregator is map-
 	// valued (AGG_WELFORD triple), required otherwise.
-	if req.Crosstab.Cell != nil && req.Crosstab.Cell.Type.MapValued() {
+	if req.Crosstab.Cell != nil && opRoute(inst, req.Crosstab.Cell.Type).MapValued() {
 		return
 	}
 	validateOverlayTwoSampleStatParams(env, spec, index)
@@ -3330,7 +3368,7 @@ func validateOverlayTwoSampleStatCell(
 //     per-side Params defaults; predict requires all four keys
 //     (mirrors validateOverlayTwoSampleStatCell).
 func validateOverlayTwoSampleStatVsRef(
-	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int,
+	env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, inst *InstanceSnapshot, index int,
 	supportedScopes map[types.OverlayScope]bool, supportedScopeLabel string,
 ) {
 	// Host must be SERIES-shaped — grouped Process result.
@@ -3362,7 +3400,7 @@ func validateOverlayTwoSampleStatVsRef(
 		if agg == nil {
 			continue
 		}
-		if agg.Type.MapValued() {
+		if opRoute(inst, agg.Type).MapValued() {
 			return
 		}
 	}

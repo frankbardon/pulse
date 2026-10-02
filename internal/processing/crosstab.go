@@ -1122,7 +1122,7 @@ func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry) err
 	}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
-		if !types.IsPairwiseOverlayKind(spec.Kind) {
+		if !types.IsPairwiseOverlayKind(exts.overlayRoute(spec.Kind)) {
 			continue
 		}
 		params, err := types.DecodePairwiseParams(spec.Params)
@@ -1639,7 +1639,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 	// table and runs its own factory.
 	if p.schema != nil && !p.exts.isExtensionAggregator(slot.Type) {
 		if f := p.schema.Field(slot.Field); f != nil && f.Type.IsDecimal() {
-			if !IsDecimalAggregationSupported(slot.Type) {
+			if !p.exts.decimalAggregationSupported(slot.Type) {
 				return cellAggregationResult{}, nil, 0, 0, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 					"aggregation has no decimal128 implementation",
 					map[string]any{"aggregation": string(slot.Type), "field": slot.Field})

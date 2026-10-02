@@ -76,7 +76,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:crosstab":          {requestHosts},
 		"capability:stream":            {{"capability:process"}},
 		"capability:watch":             {{"capability:process"}},
-		"capability:filter_to_file":    {{"capability:process"}},
+		"capability:filter_to_file":    {{"capability:process"}, {"FILTER_EXPRESSION"}},
 		"ATTR_REG_FITTED":              {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_LEVERAGE":            {requestHosts, {"REG_OLS"}},
 		"ATTR_REG_RESIDUAL":            {requestHosts, {"REG_OLS"}},

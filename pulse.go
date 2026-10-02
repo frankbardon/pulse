@@ -488,8 +488,9 @@ type Pulse struct {
 
 	// featureProfile is the validated feature profile from
 	// Options.FeatureProfile or Options.FeatureProfileFile, nil when
-	// none was given. Stored, not yet applied beyond its behaviour
-	// switches (folded into the engine at New).
+	// none was given. Its behaviour switches are folded into the engine
+	// at New; its feature list is resolved into the service's
+	// InstanceSnapshot. Read it through FeatureProfile (a copy).
 	featureProfile *FeatureProfile
 }
 
@@ -513,7 +514,8 @@ func New(opts Options) (*Pulse, error) {
 	if err := probeExtensions(opts.Extensions); err != nil {
 		return nil, err
 	}
-	if err := validateExtensionDependsOn(newFeatureUniverse(opts.Extensions, Version())); err != nil {
+	universe := newFeatureUniverse(opts.Extensions, Version())
+	if err := validateExtensionDependsOn(universe); err != nil {
 		return nil, err
 	}
 	if err := validateAutoLabels(opts.AutoLabels, opts.Extensions.LabelTables); err != nil {
@@ -559,6 +561,11 @@ func New(opts Options) (*Pulse, error) {
 		return nil, err
 	}
 	applyFeatureProfileBehaviour(&opts, featureProfile)
+	// Resolved once: the enabled set + digest every scoped surface
+	// reads. Hidden extension operators are dropped only now — their
+	// DependsOn was validated above against ALL registrations.
+	featureSet := resolveFeatureSet(universe, featureProfile, effectiveFeatureBehaviour(opts, featureProfile))
+	visibleExt := withoutHiddenExtensions(opts.Extensions, featureSet)
 
 	if opts.ShardWorkers < 0 {
 		return nil, fmt.Errorf("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
@@ -571,8 +578,8 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetDisableDefaults(opts.DisableDefaults)
 	svc.SetDisableComponents(opts.DisableComponents)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
-	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
-	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
+	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
+	svc.SetInstanceSnapshot(descx.NewInstanceSnapshot(buildExtensionsSnapshot(visibleExt), featureSet))
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)
@@ -1059,6 +1066,7 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 
 	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
 		Extensions:      p.svc.ExtensionsSnapshot(),
+		Instance:        p.svc.InstanceSnapshot(),
 		DefaultTimeZone: p.svc.DefaultTimeZone(),
 		ZoneLoader:      p.svc.ZoneLoader(),
 		DisableDefaults: p.svc.DefaultsDisabled(),
@@ -1126,6 +1134,7 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		Strict:          p.svc.Strict(),
 		EchoRequest:     p.svc.EchoRequest(),
 		Extensions:      p.svc.ExtensionsSnapshot(),
+		Instance:        p.svc.InstanceSnapshot(),
 		DefaultTimeZone: p.svc.DefaultTimeZone(),
 		ZoneLoader:      p.svc.ZoneLoader(),
 		DisableDefaults: p.svc.DefaultsDisabled(),
@@ -1587,25 +1596,32 @@ func (p *Pulse) ExampleGet(name string) (*Example, bool) {
 // Message + Fixup detail lives behind this facade so per-session
 // bootstrap stays lean. Use ErrorsByDomain / ErrorsSearch to enumerate
 // in bulk.
+//
+// The view is the instance's: under a feature profile a code every
+// owning feature of which is hidden is not found, and a fixup naming a
+// hidden feature is stripped from the result. With no profile it is
+// the full registry.
 func (p *Pulse) ErrorLookup(code string) (ErrorMetadata, bool) {
-	return errors.Lookup(code)
+	return descx.ErrorLookup(p.svc.InstanceSnapshot(), code)
 }
 
 // ErrorsByDomain returns every code's metadata in the named domain
 // (CLI, DATA, ENCODING, PROCESSING, PULSE, SERVICE). Match is
 // case-insensitive. Returns a non-nil empty slice when nothing
-// matches; results are sorted alphabetically by code.
+// matches; results are sorted alphabetically by code. Instance-scoped
+// as ErrorLookup: hidden codes are absent, hidden-naming fixups stripped.
 func (p *Pulse) ErrorsByDomain(domain string) []ErrorMetadata {
-	return errors.ByDomain(domain)
+	return descx.ErrorsByDomain(p.svc.InstanceSnapshot(), domain)
 }
 
 // ErrorsSearch returns codes whose Message or Fixup hints contain the
 // query (case-insensitive substring). Results are ranked by match
 // source: description hits before fixup hits before code-name hits;
 // ties resolve alphabetically. Returns a non-nil empty slice when
-// nothing matches.
+// nothing matches. Instance-scoped as ErrorLookup; the query matches
+// only the text the instance renders, never a stripped fixup.
 func (p *Pulse) ErrorsSearch(query string) []ErrorMetadata {
-	return errors.Search(query)
+	return descx.ErrorsSearch(p.svc.InstanceSnapshot(), query)
 }
 
 // Request-template type aliases, so embedders name the template document
@@ -1803,12 +1819,25 @@ func (p *Pulse) GetTemplate(name string) (*Template, error) {
 // Rendering never opens a cohort: a template that renders is well-formed
 // against the request SHAPE. Whether it is executable against a particular
 // cohort stays Predict's question.
+//
+// On an engine whose feature profile hides a request slot (crosstab,
+// joins, overlays), a rendered body that sets that slot is refused with
+// the PULSE_TEMPLATE_RENDER_INVALID a key the target type does not
+// declare gets — same message, details and document-order position. An
+// operator name is not a slot: a hidden operator renders and fails at
+// execution, exactly as a never-registered one does.
 func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*RenderedTemplate, error) {
 	tmpl, err := p.templates.Get(name)
 	if err != nil {
 		return nil, err
 	}
-	return template.Render(tmpl, vars)
+	inst := p.svc.InstanceSnapshot()
+	if !inst.Scoped() {
+		return template.Render(tmpl, vars)
+	}
+	return template.RenderWith(tmpl, vars, template.RenderOptions{
+		WithheldSlots: func(root any) []string { return descx.HiddenSlotKeys(root, inst) },
+	})
 }
 
 // RenderTemplateRequest renders the named template and returns the typed
@@ -1867,11 +1896,32 @@ func renderedFieldFor(target template.Target) string {
 	}
 }
 
-// Manifest returns the root Pulse self-description. The manifest is
-// deterministic and process-wide: it does not depend on cohort data or
-// the filesystem. Callers cache the result for a session.
+// Manifest returns the instance's self-description: only the features
+// it offers. Without a feature profile that is the full registry plus
+// the instance's extensions; with one, hidden operators, capabilities,
+// I/O formats, commands and MCP tools are absent (a hidden capability's
+// block is omitted) and no prose names them. FeatureSetDigest
+// identifies the described set. The manifest is deterministic per
+// instance and does not depend on cohort data or the filesystem;
+// callers cache it keyed by (PulseVersion, FeatureSetDigest).
 func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
-	return descx.BuildManifestWithExtensions(p.svc.ExtensionsSnapshot())
+	return descx.BuildManifestForInstance(p.svc.InstanceSnapshot())
+}
+
+// PayloadSchema returns the instance's payload JSON Schema (draft
+// 2020-12) as raw JSON: only what it offers. The operator, overlay-kind
+// and regression enums list only enabled names; a hidden request slot
+// (crosstab, joins, overlays) is not a property; a hidden capability's
+// root (compose, process_chain, facet, sample, lookup) is not an entry
+// point; and no def reachable only through an omitted part remains.
+// Request, Response and Envelope are always present and $id is
+// unchanged. The root $comment carries the instance's
+// feature_set_digest ("feature_set_digest: fs1:…"), equal to
+// FeatureSetDigest and to the manifest's, so the two self-descriptions
+// cache under one key. Without a feature profile the output is the
+// published full-registry schema.
+func (p *Pulse) PayloadSchema() ([]byte, error) {
+	return descx.PayloadSchemaForInstance(p.svc.InstanceSnapshot())
 }
 
 // Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need

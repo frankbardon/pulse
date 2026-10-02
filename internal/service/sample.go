@@ -28,6 +28,11 @@ func (s *Service) Sample(ctx context.Context, path string, n int) ([]map[string]
 // (PULSE_LABEL_COLLISION / PULSE_LABEL_LOOKUP_MISS) so callers can
 // fold them into the response envelope at their boundary.
 func (s *Service) SampleWithRequest(ctx context.Context, req *types.SampleRequest, path string) ([]map[string]any, []processing.ResolverWarning, error) {
+	rows, warns, err := s.sampleWithRequest(ctx, req, path)
+	return rows, warns, s.scopeRefusal(err)
+}
+
+func (s *Service) sampleWithRequest(ctx context.Context, req *types.SampleRequest, path string) ([]map[string]any, []processing.ResolverWarning, error) {
 	if req == nil {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "sample request is required")
 	}
@@ -90,7 +95,7 @@ func (s *Service) validateSampleLabels(ctx context.Context, path string, req *ty
 	// promote the first error to a SERVICE_VALIDATION CodedError so
 	// the facade returns a single typed error rather than a slice.
 	env := descriptor.NewEnvelope(nil)
-	descx.ValidateLabels(env, req.Labels, schema, s.extensionsSnap, nil)
+	descx.ValidateLabels(env, req.Labels, schema, s.ExtensionsSnapshot(), s.InstanceSnapshot(), nil)
 	if len(env.Errors) == 0 {
 		return nil
 	}

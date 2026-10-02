@@ -191,7 +191,7 @@ func rejectSetFieldForNumericAttribute(attr *types.Attribute, schema *encoding.S
 	}
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 		string(attr.Type)+": field "+attr.Field+" is a set column ("+f.Type.String()+
-			"); it has no numeric value to standardise. Use ATTR_SET_POPCOUNT for set size or ATTR_SET_HAS for membership.",
+			"); it has no numeric value to standardise."+remedyAttributeSetField(nil),
 		map[string]any{
 			"field":      attr.Field,
 			"type":       f.Type.String(),

@@ -63,18 +63,39 @@ type StreamingEngine interface {
 	Finalize() (*types.RegressionResult, error)
 }
 
+// Resolver resolves a regression type to its factory. The engine passes
+// processing.ExtensionRegistry.LookupRegression, which answers a type
+// the instance feature set hides as never registered. A nil Resolver is
+// the built-in registry alone (Lookup).
+type Resolver func(t types.RegressionType) (Factory, bool)
+
+func (r Resolver) lookup(t types.RegressionType) (Factory, bool) {
+	if r == nil {
+		return Lookup(t)
+	}
+	return r(t)
+}
+
 // Build returns an Engine for each spec. Unknown types surface
 // PROCESSING_CONFIG; per-spec factory errors propagate untouched. This
 // is the orchestrator's entry point — both streaming and buffered
 // paths invoke Build first, then route the returned engines through
-// the appropriate execution interface.
+// the appropriate execution interface. Equivalent to BuildWith with a
+// nil Resolver.
 func Build(specs []*types.RegressionSpec, schema *encoding.Schema) ([]Engine, error) {
+	return BuildWith(specs, schema, nil)
+}
+
+// BuildWith is Build resolving each type through resolve. A type the
+// resolver misses surfaces the same PROCESSING_CONFIG
+// "unknown regression type" error as a type nothing registered.
+func BuildWith(specs []*types.RegressionSpec, schema *encoding.Schema, resolve Resolver) ([]Engine, error) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
 	out := make([]Engine, 0, len(specs))
 	for _, s := range specs {
-		factory, ok := regressionRegistry[s.Type]
+		factory, ok := resolve.lookup(s.Type)
 		if !ok {
 			return nil, errors.NewCodedError(
 				errors.PROCESSING_CONFIG,
@@ -130,7 +151,12 @@ func Fit(specs []*types.RegressionSpec, schema *encoding.Schema) ([]*types.Regre
 // the same filtered set, so per-spec listwise null filtering happens
 // inside the engine (callers don't pre-filter per spec).
 func FitBuffered(specs []*types.RegressionSpec, schema *encoding.Schema, records []Record) ([]*types.RegressionResult, error) {
-	engines, err := Build(specs, schema)
+	return FitBufferedWith(specs, schema, records, nil)
+}
+
+// FitBufferedWith is FitBuffered resolving each type through resolve.
+func FitBufferedWith(specs []*types.RegressionSpec, schema *encoding.Schema, records []Record, resolve Resolver) ([]*types.RegressionResult, error) {
+	engines, err := BuildWith(specs, schema, resolve)
 	if err != nil {
 		return nil, err
 	}
@@ -166,10 +192,16 @@ func FitBuffered(specs []*types.RegressionSpec, schema *encoding.Schema, records
 // Returns nil, nil for an empty spec slice so the orchestrator can call
 // it unconditionally on streaming requests.
 func BuildStreaming(specs []*types.RegressionSpec, schema *encoding.Schema) ([]StreamingEngine, error) {
+	return BuildStreamingWith(specs, schema, nil)
+}
+
+// BuildStreamingWith is BuildStreaming resolving each type through
+// resolve.
+func BuildStreamingWith(specs []*types.RegressionSpec, schema *encoding.Schema, resolve Resolver) ([]StreamingEngine, error) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
-	engines, err := Build(specs, schema)
+	engines, err := BuildWith(specs, schema, resolve)
 	if err != nil {
 		return nil, err
 	}

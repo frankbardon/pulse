@@ -48,14 +48,24 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, exts *ExtensionRe
 }
 
 // mergeFacts adapts the registry to mergegate.Extensions. Nil-safe: a
-// nil registry answers ok=false for every name (built-ins only).
+// nil registry answers ok=false for every name (built-ins only). A name
+// the instance feature set hides answers (false, true) — known and not
+// mergeable — which refuses it with the same reason the built-in tables
+// give a never-registered name.
 func (r *ExtensionRegistry) mergeFacts() mergegate.Extensions {
 	return registryMergeFacts{r}
 }
 
 type registryMergeFacts struct{ r *ExtensionRegistry }
 
+// Hidden reports a built-in the instance does not offer, for the
+// gate's refusal prose (mergegate's optional hider).
+func (f registryMergeFacts) Hidden(name string) bool { return f.r.isHidden(name) }
+
 func (f registryMergeFacts) Aggregator(name string) (bool, bool) {
+	if f.r.isHidden(name) {
+		return false, true
+	}
 	if !f.r.isExtensionAggregator(types.AggregationType(name)) {
 		return false, false
 	}
@@ -63,6 +73,9 @@ func (f registryMergeFacts) Aggregator(name string) (bool, bool) {
 }
 
 func (f registryMergeFacts) Grouper(name string) (bool, bool) {
+	if f.r.isHidden(name) {
+		return false, true
+	}
 	if f.r == nil {
 		return false, false
 	}
@@ -73,6 +86,9 @@ func (f registryMergeFacts) Grouper(name string) (bool, bool) {
 }
 
 func (f registryMergeFacts) Filterer(name string) (bool, bool) {
+	if f.r.isHidden(name) {
+		return false, true
+	}
 	if f.r == nil {
 		return false, false
 	}
@@ -83,6 +99,9 @@ func (f registryMergeFacts) Filterer(name string) (bool, bool) {
 }
 
 func (f registryMergeFacts) Attribute(name string) (bool, bool) {
+	if f.r.isHidden(name) {
+		return false, true
+	}
 	t := types.AttributeType(name)
 	if !f.r.isExtensionAttribute(t) {
 		return false, false

@@ -71,7 +71,11 @@ func numericFallbackFields(schema *encoding.Schema) []any {
 // returns a non-nil empty slice when nothing fires (so JSON serialises
 // as []). Source order: typos → operator/type → date-misuse →
 // missing-params → streamability.
-func computeSuggestions(req *types.Request, schema *encoding.Schema, streamable bool, snap *ExtensionsSnapshot) []descriptor.Suggestion {
+//
+// inst is the instance feature set: an operator it hides is judged as a
+// never-registered name, and no suggestion proposes a hidden operator.
+// Nil hides nothing.
+func computeSuggestions(req *types.Request, schema *encoding.Schema, streamable bool, snap *ExtensionsSnapshot, inst *InstanceSnapshot) []descriptor.Suggestion {
 	out := []descriptor.Suggestion{}
 	if req == nil || schema == nil {
 		return out
@@ -79,12 +83,12 @@ func computeSuggestions(req *types.Request, schema *encoding.Schema, streamable 
 
 	fieldNames := schemaFieldNames(schema)
 
-	out = appendTypoSuggestions(out, req, schema, fieldNames)
-	out = appendOperatorTypeSuggestions(out, req, schema, snap)
-	out = appendDateMisuseSuggestions(out, req, schema)
-	out = appendMissingParamSuggestions(out, req, schema)
+	out = appendTypoSuggestions(out, req, schema, fieldNames, inst)
+	out = appendOperatorTypeSuggestions(out, req, schema, snap, inst)
+	out = appendDateMisuseSuggestions(out, req, schema, inst)
+	out = appendMissingParamSuggestions(out, req, schema, inst)
 	if !streamable {
-		out = appendStreamabilitySuggestions(out, req)
+		out = appendStreamabilitySuggestions(out, req, inst)
 	}
 
 	return out
@@ -105,7 +109,7 @@ func schemaFieldNames(schema *encoding.Schema) []string {
 // proposes Levenshtein-near matches (distance ≤ 2) when the reference
 // does not resolve in the schema. Confidence: 0.9 at distance 1, 0.7 at
 // distance 2.
-func appendTypoSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema, fieldNames []string) []descriptor.Suggestion {
+func appendTypoSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema, fieldNames []string, inst *InstanceSnapshot) []descriptor.Suggestion {
 	emit := func(path []string, supplied string) {
 		if supplied == "" {
 			return
@@ -138,7 +142,7 @@ func appendTypoSuggestions(out []descriptor.Suggestion, req *types.Request, sche
 		emit([]string{"Aggregations", strconv.Itoa(i), "Field"}, agg.Field)
 	}
 	for i, fil := range req.Filterers {
-		if fil.Type == types.FILTER_EXPRESSION {
+		if fil.Type == types.FILTER_EXPRESSION && !inst.Hidden(string(fil.Type)) {
 			continue
 		}
 		emit([]string{"Filterers", strconv.Itoa(i), "Field"}, fil.Field)
@@ -177,43 +181,44 @@ func appendTypoSuggestions(out []descriptor.Suggestion, req *types.Request, sche
 // Reuses the fixup hint from errors.MetadataFor when one is registered
 // for the underlying code so prose stays in lockstep with the fixup
 // table.
-func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) []descriptor.Suggestion {
+func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) []descriptor.Suggestion {
 	for i, agg := range req.Aggregations {
 		f := schema.Field(agg.Field)
 		if f == nil {
 			continue
 		}
 		path := []string{"Aggregations", strconv.Itoa(i), "Type"}
+		route := opRoute(inst, agg.Type)
 
 		switch {
-		case f.Type.IsCategorical() && numericAggregations[agg.Type]:
-			proposed := []any{
-				string(types.AGG_DISTINCT_COUNT),
-				string(types.AGG_FREQUENCY),
-				string(types.AGG_MODE),
-			}
+		case f.Type.IsCategorical() && numericAggregations[route]:
+			proposed := visibleOperators(inst,
+				types.AGG_DISTINCT_COUNT,
+				types.AGG_FREQUENCY,
+				types.AGG_MODE,
+			)
 			out = append(out, descriptor.Suggestion{
 				Path:       path,
-				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, "numeric aggregation does not apply to a categorical field; use a categorical-friendly aggregator"),
+				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, "numeric aggregation does not apply to a categorical field; use a categorical-friendly aggregator", inst),
 				Current:    string(agg.Type),
 				Proposed:   proposed,
 				Confidence: 0.6,
 			})
 
-		case f.Type.IsDecimal() && decimalAggregationRefused(agg.Type, snap):
-			proposed := []any{
-				string(types.AGG_AVERAGE),
-				string(types.AGG_COUNT),
-				string(types.AGG_DISTINCT_COUNT),
-				string(types.AGG_MAX),
-				string(types.AGG_MIN),
-				string(types.AGG_STDDEV),
-				string(types.AGG_SUM),
-				string(types.AGG_VARIANCE),
-			}
+		case f.Type.IsDecimal() && decimalAggregationRefused(route, snap):
+			proposed := visibleOperators(inst,
+				types.AGG_AVERAGE,
+				types.AGG_COUNT,
+				types.AGG_DISTINCT_COUNT,
+				types.AGG_MAX,
+				types.AGG_MIN,
+				types.AGG_STDDEV,
+				types.AGG_SUM,
+				types.AGG_VARIANCE,
+			)
 			out = append(out, descriptor.Suggestion{
 				Path:       path,
-				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL, "aggregation has no decimal128 implementation; pick from the decimal-supported aggregators"),
+				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL, "aggregation has no decimal128 implementation; pick from the decimal-supported aggregators", inst),
 				Current:    string(agg.Type),
 				Proposed:   proposed,
 				Confidence: 0.6,
@@ -225,13 +230,30 @@ func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Reque
 	return out
 }
 
+// visibleOperators returns the candidates inst does not hide, as a
+// Suggestion.Proposed list (nil when none is left) — a suggestion never
+// proposes an operator the instance does not offer.
+func visibleOperators[T ~string](inst *InstanceSnapshot, candidates ...T) []any {
+	var out []any
+	for _, c := range candidates {
+		if !inst.Hidden(string(c)) {
+			out = append(out, string(c))
+		}
+	}
+	return out
+}
+
 // appendDateMisuseSuggestions proposes GROUP_DATE when GROUP_CATEGORY is
 // applied to a date-typed field. The category grouper still works on
 // dates (each distinct epoch value becomes a key), but it is almost
-// never what the caller wants.
-func appendDateMisuseSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema) []descriptor.Suggestion {
+// never what the caller wants. Nothing is proposed when the instance
+// hides GROUP_DATE.
+func appendDateMisuseSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []descriptor.Suggestion {
+	if inst.Hidden(string(types.GROUP_DATE)) {
+		return out
+	}
 	for i, grp := range req.Groups {
-		if grp.Type != types.GROUP_CATEGORY {
+		if opRoute(inst, grp.Type) != types.GROUP_CATEGORY {
 			continue
 		}
 		f := schema.Field(grp.Field)
@@ -257,7 +279,7 @@ func appendDateMisuseSuggestions(out []descriptor.Suggestion, req *types.Request
 //     OrderBy → propose every date or numeric field (confidence 0.5).
 //   - AGG_PERCENTILE missing percentile → propose the common quantiles
 //     (confidence 0.5).
-func appendMissingParamSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema) []descriptor.Suggestion {
+func appendMissingParamSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []descriptor.Suggestion {
 	// Window OrderBy.
 	for i, w := range req.Windows {
 		if len(w.OrderBy) != 0 {
@@ -278,7 +300,7 @@ func appendMissingParamSuggestions(out []descriptor.Suggestion, req *types.Reque
 
 	// AGG_PERCENTILE percentile.
 	for i, agg := range req.Aggregations {
-		if agg.Type != types.AGG_PERCENTILE {
+		if opRoute(inst, agg.Type) != types.AGG_PERCENTILE {
 			continue
 		}
 		if hasPercentileParam(agg.Params) {
@@ -325,9 +347,14 @@ func hasPercentileParam(raw json.RawMessage) bool {
 // Operators with no streamable peer still get a row (Proposed: nil) so
 // the caller is not left in silence. Confidence: 0.8 when a replacement
 // is available, 0.6 when none exists (the suggestion is advisory only).
-func appendStreamabilitySuggestions(out []descriptor.Suggestion, req *types.Request) []descriptor.Suggestion {
+// An operator inst hides is looked up as a never-registered name, and a
+// substitute inst hides is no substitute.
+func appendStreamabilitySuggestions(out []descriptor.Suggestion, req *types.Request, inst *InstanceSnapshot) []descriptor.Suggestion {
 	emit := func(path []string, current string) {
-		alt, ok := streamableAlternatives[current]
+		alt, ok := streamableAlternatives[opRoute(inst, current)]
+		if ok && inst.Hidden(alt.Replacement) {
+			alt.Replacement = ""
+		}
 		if !ok {
 			// Operator not in the table (e.g. WIN_* — every window
 			// operator is buffered).
@@ -360,19 +387,19 @@ func appendStreamabilitySuggestions(out []descriptor.Suggestion, req *types.Requ
 	}
 
 	for i, agg := range req.Aggregations {
-		if agg.Type.Streamable() {
+		if opRoute(inst, agg.Type).Streamable() {
 			continue
 		}
 		emit([]string{"Aggregations", strconv.Itoa(i), "Type"}, string(agg.Type))
 	}
 	for i, attr := range req.Attributes {
-		if attr.Type.Streamable() {
+		if opRoute(inst, attr.Type).Streamable() {
 			continue
 		}
 		emit([]string{"Attributes", strconv.Itoa(i), "Type"}, string(attr.Type))
 	}
 	for i, grp := range req.Groups {
-		if grp.Type.Streamable() {
+		if opRoute(inst, grp.Type).Streamable() {
 			continue
 		}
 		emit([]string{"Groups", strconv.Itoa(i), "Type"}, string(grp.Type))
@@ -388,14 +415,15 @@ func appendStreamabilitySuggestions(out []descriptor.Suggestion, req *types.Requ
 // reasonFromCode prefers the canonical Hint from the fixup metadata
 // table when available; falls back to the supplied prose otherwise.
 // Opportunistic reuse: stable prose without inventing wording per call
-// site.
-func reasonFromCode(c errors.Code, fallback string) string {
+// site. A hint naming a feature inst hides yields to the fallback, so a
+// suggestion never advertises an operator the instance does not offer.
+func reasonFromCode(c errors.Code, fallback string, inst *InstanceSnapshot) string {
 	meta, ok := errors.MetadataFor(c)
 	if !ok || meta.FixupNotApplicable || len(meta.Fixups) == 0 {
 		return fallback
 	}
-	if meta.Fixups[0].Hint != "" {
-		return meta.Fixups[0].Hint
+	if h := meta.Fixups[0].Hint; h != "" && !mentionsHidden(h, hiddenProseNames(inst)) {
+		return h
 	}
 	return fallback
 }

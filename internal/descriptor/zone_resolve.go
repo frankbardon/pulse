@@ -3,6 +3,7 @@ package descriptor
 import (
 	stderrors "errors"
 	"fmt"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -25,6 +26,9 @@ type zoneSlot struct {
 	operator string
 	field    string
 	tz       string
+	// hidden: the instance hides operator, so it is judged as a
+	// never-registered (not zone-capable) name; messages keep naming it.
+	hidden bool
 }
 
 // ResolveZones is the single zone-resolution pass for a Request. The
@@ -60,64 +64,67 @@ type zoneSlot struct {
 // only a caller with no cohort schema in reach passes nil, and it must
 // never refuse what the schema-holding runtime accepts.
 //
+// inst is the instance feature set: an operator it hides is not
+// zone-capable, exactly as a never-registered name. Nil hides nothing.
+//
 // It never mutates req. The returned slice is never nil.
-func ResolveZones(req *types.Request, schema *encoding.Schema, defaultZone string, load ZoneLoader) ([]descriptor.ResolvedZone, error) {
+func ResolveZones(req *types.Request, schema *encoding.Schema, defaultZone string, load ZoneLoader, inst *InstanceSnapshot) ([]descriptor.ResolvedZone, error) {
 	if req == nil {
 		return []descriptor.ResolvedZone{}, nil
 	}
 	var slots []zoneSlot
 	for i, f := range req.Filterers {
 		if f != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("filterers[%d]", i), string(f.Type), f.Field, f.TimeZone})
+			slots = append(slots, zoneSlot{fmt.Sprintf("filterers[%d]", i), string(f.Type), f.Field, f.TimeZone, inst.Hidden(string(f.Type))})
 		}
 	}
 	for i, f := range req.Features {
 		if f != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("features[%d]", i), string(f.Type), f.Field, f.TimeZone})
+			slots = append(slots, zoneSlot{fmt.Sprintf("features[%d]", i), string(f.Type), f.Field, f.TimeZone, inst.Hidden(string(f.Type))})
 		}
 	}
 	for i, a := range req.Attributes {
 		if a != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("attributes[%d]", i), string(a.Type), a.Field, a.TimeZone})
+			slots = append(slots, zoneSlot{fmt.Sprintf("attributes[%d]", i), string(a.Type), a.Field, a.TimeZone, inst.Hidden(string(a.Type))})
 		}
 	}
 	for i, g := range req.Groups {
 		if g != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("groups[%d]", i), string(g.Type), g.Field, g.TimeZone})
+			slots = append(slots, zoneSlot{fmt.Sprintf("groups[%d]", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
 		for i, g := range ct.Rows {
 			if g != nil {
-				slots = append(slots, zoneSlot{fmt.Sprintf("crosstab.rows[%d]", i), string(g.Type), g.Field, g.TimeZone})
+				slots = append(slots, zoneSlot{fmt.Sprintf("crosstab.rows[%d]", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
 			}
 		}
 		for i, g := range ct.Columns {
 			if g != nil {
-				slots = append(slots, zoneSlot{fmt.Sprintf("crosstab.columns[%d]", i), string(g.Type), g.Field, g.TimeZone})
+				slots = append(slots, zoneSlot{fmt.Sprintf("crosstab.columns[%d]", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
 			}
 		}
 	}
-	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load)
+	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load, inst)
 }
 
 // ResolveFacetZones is ResolveZones for a FacetRequest: its filterers
 // resolve through slot `tz` → req.TimeZone → defaultZone → "UTC" under
 // the same rules.
-func ResolveFacetZones(req *types.FacetRequest, schema *encoding.Schema, defaultZone string, load ZoneLoader) ([]descriptor.ResolvedZone, error) {
+func ResolveFacetZones(req *types.FacetRequest, schema *encoding.Schema, defaultZone string, load ZoneLoader, inst *InstanceSnapshot) ([]descriptor.ResolvedZone, error) {
 	if req == nil {
 		return []descriptor.ResolvedZone{}, nil
 	}
 	var slots []zoneSlot
 	for i, f := range req.Filterers {
 		if f != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("filterers[%d]", i), string(f.Type), f.Field, f.TimeZone})
+			slots = append(slots, zoneSlot{fmt.Sprintf("filterers[%d]", i), string(f.Type), f.Field, f.TimeZone, inst.Hidden(string(f.Type))})
 		}
 	}
-	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load)
+	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load, inst)
 }
 
-func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Schema, defaultZone string, load ZoneLoader) ([]descriptor.ResolvedZone, error) {
+func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Schema, defaultZone string, load ZoneLoader, inst *InstanceSnapshot) ([]descriptor.ResolvedZone, error) {
 	if load == nil {
 		load = temporal.LoadZone
 	}
@@ -151,11 +158,11 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 			// `tz`, so the slot is not inspected here.
 			continue
 		}
-		capable := IsZoneCapable(s.operator)
+		capable := !s.hidden && IsZoneCapable(s.operator)
 		if !capable {
 			if s.tz != "" {
 				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-					fmt.Sprintf("%s: operator %s does not accept `tz`; only zone-capable operators (GROUP_DATE, GROUP_DATE_RANGES, FILTER_DATE_RANGES, ATTR_DATE_PART, FEAT_DATE_FEATURES) take a per-slot time zone", s.slot, s.operator),
+					fmt.Sprintf("%s: operator %s does not accept `tz`; %s", s.slot, s.operator, zoneCapableAdvice(inst)),
 					map[string]any{"slot": s.slot, "operator": s.operator, errors.DetailTimeZone: s.tz})
 			}
 			continue
@@ -249,7 +256,7 @@ func resolveRequestZones(req *types.Request, schema *encoding.Schema, opts *Pred
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
-	return ResolveZones(defaultedForValidation(req, schema, opts), schema, opts.DefaultTimeZone, opts.ZoneLoader)
+	return ResolveZones(defaultedForValidation(req, schema, opts), schema, opts.DefaultTimeZone, opts.ZoneLoader, opts.instance())
 }
 
 // addCodedError records err on env under its own code (a
@@ -301,7 +308,7 @@ func validatorRequestSchema(req *types.Request, base *encoding.Schema, opts *Pre
 func defaultedForValidation(req *types.Request, schema *encoding.Schema, opts *PredictOptions) *types.Request {
 	clone := cloneRequestForDefaults(req)
 	if (opts == nil || !opts.DisableDefaults) && schema != nil {
-		ResolveDefaults(clone, schema)
+		ResolveDefaults(clone, schema, opts.instance())
 	}
 	return clone
 }
@@ -323,4 +330,30 @@ func cohortSchemaFor(c *types.Cohort, opts *PredictOptions) *encoding.Schema {
 		return nil
 	}
 	return schema
+}
+
+// zoneCapableOperators is the zone-capable set in the order the
+// not-capable refusal lists it.
+var zoneCapableOperators = []string{
+	string(types.GROUP_DATE),
+	string(types.GROUP_DATE_RANGES),
+	string(types.FILTER_DATE_RANGES),
+	string(types.ATTR_DATE_PART),
+	string(types.FEAT_DATE_FEATURES),
+}
+
+// zoneCapableAdvice is the not-capable refusal's advice clause, listing
+// only the zone-capable operators inst offers: a refusal never names an
+// operator the instance hides.
+func zoneCapableAdvice(inst *InstanceSnapshot) string {
+	var offered []string
+	for _, n := range zoneCapableOperators {
+		if !inst.Hidden(n) {
+			offered = append(offered, n)
+		}
+	}
+	if len(offered) == 0 {
+		return "no operator this instance offers takes a per-slot time zone"
+	}
+	return "only zone-capable operators (" + strings.Join(offered, ", ") + ") take a per-slot time zone"
 }

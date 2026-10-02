@@ -116,6 +116,9 @@ func TestPredictGolden_ComposedRequest(t *testing.T) {
 //
 //	go test ./descriptor/ -run TestPayloadSchemaGolden -update
 func TestPayloadSchemaGolden(t *testing.T) {
+	// The root $comment carries the profile-free feature_set_digest,
+	// whose reached-feature set depends on the build version: pin it.
+	defer buildinfo.SetForTest("v0.0.0-test")()
 	compareGolden(t, "payload-schema.json", descx.BuildPayloadSchema())
 }
 

@@ -209,7 +209,7 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	}
 	if len(keys) > 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
-			fmt.Sprintf("TEST_T two-sample sees %d groups; use TEST_ANOVA_F for k>2", len(keys)),
+			fmt.Sprintf("TEST_T two-sample sees %d groups", len(keys))+remedyAnovaForK(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
 	a, b := tt.groups[keys[0]], tt.groups[keys[1]]

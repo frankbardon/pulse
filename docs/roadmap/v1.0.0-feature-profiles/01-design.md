@@ -40,10 +40,10 @@ Every feature has a **stable name**, a **kind** and a **`Since` version**. All t
   "written_with": "1.0.0",                 // informational: the Pulse version `profile init` ran on
   "features": [                            // exact names only — what is listed is exactly what exists
     "capability:process", "capability:crosstab", "capability:facet",
-    "AGG_AVERAGE", "AGG_COUNT", "AGG_FREQUENCY", "AGG_SUM",
+    "AGG_AVERAGE", "AGG_COUNT", "AGG_FREQUENCY", "AGG_SUM", "AGG_WELFORD",
     "GROUP_CATEGORY", "GROUP_DATE", "FILTER_INCLUDE", "FILTER_RANGE",
     "TEST_CHISQ", "TEST_T", "TEST_WELCH",
-    "OVERLAY_SHARE_OF_ROW", "OVERLAY_INDEX_VS_MARGIN", "OVERLAY_STD_RESIDUAL",
+    "OVERLAY_SHARE_OF_ROW", "OVERLAY_INDEX_VS_MARGIN", "OVERLAY_PAIRWISE_WELCH_T",
     "io_format:csv", "io_format:spss"
   ],
   "behaviour": { "disable_projection": true }   // optional; each switch ORs into Options (on only, never off)
@@ -93,15 +93,17 @@ The rule for every row is that **output equals what an imaginary Pulse build con
   - Built from an `InstanceSnapshot`, which merges `ExtensionsSnapshot` and the resolved feature set.
   - Components, tests, overlays, regressions, synth distributions, commands, MCP tools, capability blocks, intents, error codes and skills list only enabled features.
   - It has no profile section that lists or counts hidden things.
-  - **Caching.** Response caches need to tell instances apart, so the manifest carries a `feature_set_digest` *on every instance, including the default*. Because it is always present, it reveals nothing about whether a profile exists.
+  - **Caching.** Response caches need to tell instances apart, so the manifest carries a `feature_set_digest` *on every instance, including the default*. It is unsalted so it keys caches across processes, which means a same-version observer can tell a profiled digest from the default; the digest hides the feature list, not the existence of a profile. It covers the sorted enabled names AND the effective behaviour switches.
 - **Request handling.**
   - Names resolve against the instance's feature set only, so a hidden name follows the path of an unknown name.
-  - One resolution step, at the request-validation choke point used by every entry point (Process, Compose, ProcessChain, Facet, ProcessStream, Watch, FilterToFile, template render, Recommend drafts), returns the existing unknown-type error.
+  - **Landed (U05): there is no single choke point.** Unknown-name errors differ per site and per execution path, and a pre-check would reorder errors, so hiding happens at the NATIVE lookup sites (every registry `Lookup*`, the regression resolver, the overlay route, predict's routed lookups) and each site returns its own existing unknown-type error. Entry points covered: Process, Compose, ProcessChain, Facet, ProcessStream, Watch, FilterToFile, template render. Recommend drafts arrive with their unit.
+  - **Facade methods are not gated:** a profile hides names and slots, not Go methods; the embedder owns their calls.
   - Hidden request slots (e.g. `crosstab` when the capability is hidden) are refused exactly as an unknown JSON field is today under strict decode.
 - **Payload schema.** `p.PayloadSchema()` is instance-scoped, and `pulse schema` and `pulse://schema` serve it. The schema `$id` follows `format_version`, and `feature_set_digest` is always present in `$comment`.
-- **Skills and examples:** discovery shrinks, direct reads stay (P4a).
+- **Skills and examples:** discovery shrinks, direct reads stay (P4a). Not scoped by U05; the manifest `skills` list and examples counts wait for U10.
+- **Example profiles.** U05's fixtures (`minimal`, `survey-crosstab`, `empty`) are private under `descriptor/testdata/profiles/`; U06 publishes the public examples.
 
-- **Errors.** Codes owned only by hidden features are absent from the errors list and `pulse errors lookup`. Codes shared with enabled features remain.
+- **Errors.** Codes owned only by hidden features are absent from the errors list and `pulse errors lookup`. Codes shared with enabled features remain. Landed (U05): the owner table is internal (`internal/descriptor/error_owners.go`), not a field on the public `errors` metadata, so the feature model stays internal.
 - **MCP.**
   - Only enabled tools, prompts and resources are registered.
   - Tool input schemas carry the instance's enums.
