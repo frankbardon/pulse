@@ -18,7 +18,7 @@ func stubBuildInfo(t *testing.T, info *debug.BuildInfo, ok bool) {
 }
 
 func withSettings(mainVersion string, kv ...string) *debug.BuildInfo {
-	info := &debug.BuildInfo{GoVersion: "go1.99.0", Main: debug.Module{Path: "github.com/frankbardon/pulse", Version: mainVersion}}
+	info := &debug.BuildInfo{GoVersion: "go1.99.0", Main: debug.Module{Path: ModulePath, Version: mainVersion}}
 	for i := 0; i+1 < len(kv); i += 2 {
 		info.Settings = append(info.Settings, debug.BuildSetting{Key: kv[i], Value: kv[i+1]})
 	}
@@ -48,6 +48,46 @@ func TestVersionChain(t *testing.T) {
 			t.Cleanup(SetForTest(tc.ldflags))
 			if got := Version(); got != tc.want {
 				t.Fatalf("Version() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// embedderInfo models Pulse linked into an embedder binary: Main is the
+// embedder at embedderVersion, Pulse appears (or not) among deps.
+func embedderInfo(embedderVersion string, deps ...*debug.Module) *debug.BuildInfo {
+	return &debug.BuildInfo{
+		GoVersion: "go1.99.0",
+		Main:      debug.Module{Path: "example.com/embedder", Version: embedderVersion},
+		Deps:      deps,
+		Settings:  []debug.BuildSetting{{Key: "vcs.revision", Value: fullRev}},
+	}
+}
+
+func TestVersionResolvesPulseModuleNotEmbedder(t *testing.T) {
+	other := &debug.Module{Path: "example.com/other", Version: "v5.0.0"}
+	cases := []struct {
+		name string
+		info *debug.BuildInfo
+		want string
+	}{
+		{"pulse is main", withSettings("v1.4.0", "vcs.revision", fullRev), "v1.4.0"},
+		{"pulse is a versioned dep", embedderInfo("v0.3.0", other, &debug.Module{Path: ModulePath, Version: "v1.2.0"}), "v1.2.0"},
+		{"pulse dep replaced with a version", embedderInfo("v0.3.0", &debug.Module{Path: ModulePath, Version: "v1.2.0", Replace: &debug.Module{Path: "example.com/fork", Version: "v1.2.1-fork"}}), "v1.2.1-fork"},
+		{"pulse dep replaced by local path is devel", embedderInfo("v0.3.0", &debug.Module{Path: ModulePath, Version: "v1.2.0", Replace: &debug.Module{Path: "../pulse"}}), "devel+" + fullRev[:12]},
+		{"pulse absent from deps is devel", embedderInfo("v3.0.0", other), "devel+" + fullRev[:12]},
+		{"embedder version never returned with no deps", embedderInfo("v0.3.0"), "devel+" + fullRev[:12]},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stubBuildInfo(t, tc.info, true)
+			t.Cleanup(SetForTest(""))
+			got := Version()
+			if got != tc.want {
+				t.Fatalf("Version() = %q, want %q", got, tc.want)
+			}
+			if tc.info.Main.Path != ModulePath && got == tc.info.Main.Version {
+				t.Fatalf("Version() returned the embedder's Main.Version %q", got)
 			}
 		})
 	}

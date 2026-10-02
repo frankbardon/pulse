@@ -46,7 +46,7 @@ internal/facadebridge/     init-installed hooks from the root to mcp/gosdk (repl
 internal/processing/       operator engine: operators, crosstab, joins, registry, ExtensionRegistry
 internal/processing/{feature,window}/     FEAT_* pre-filter engineers, WIN_* operators
 internal/processing/{regression,arena}/   REG_* engine, arena allocator
-internal/buildinfo/        VERSION injected by ldflags, read by pulse.Version()
+internal/buildinfo/        VERSION injected by ldflags, else Pulse's own module version (never an embedder's), read by pulse.Version()
 internal/apigolden/        TestPublicAPIGolden + testdata/public_api.txt
 internal/embeddersmoke/    nested module (own go.mod) compiled by `make smoke` in CI
 internal/shardfixtures/, internal/spsstest/, internal/tools/pkgsplit/   test + tooling support
