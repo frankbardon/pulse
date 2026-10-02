@@ -22,7 +22,7 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `u64` | 8 | no | no | |
 | `f32` | 4 | no | no | ~7 sig digits; index key = raw bit pattern (`-0.0`/NaN caveat) |
 | `f64` | 8 | no | no | ~15 sig digits; same bit-pattern caveat |
-| `date` | 4 | no | no | epoch days since 1970-01-01 |
+| `date` | 4 | no | no | signed int32 epoch days (pre-1970 negative) |
 | `datetime` | 8 | no | no | epoch **seconds**, naive UTC; index-key literal parses as a datetime, never a float |
 | `packed_bool` | 0 | no | yes | 1 bit |
 | `categorical_u8` | 1 | inline, ≤256 | no | dict-encoded; index key = dictionary ID |

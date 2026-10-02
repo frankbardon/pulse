@@ -40,7 +40,7 @@ to add a type without invalidating every existing file.
 | `f32`             | 4  | 4  | 32-bit IEEE 754 float |
 | `f64`             | 5  | 8  | 64-bit IEEE 754 float |
 | `u4`              | 6  | 0  | **Bit-packed** 4-bit unsigned (0–15); shares a byte with a neighbour |
-| `date`            | 7  | 4  | Epoch **DAYS** as u32 |
+| `date`            | 7  | 4  | Epoch **DAYS** as signed int32 |
 | `packed_bool`     | 8  | 0  | **Bit-packed** boolean; up to 8 share one byte |
 | `categorical_u8`  | 9  | 1  | Dictionary-backed single value; ≤ 256 entries |
 | `categorical_u16` | 10 | 2  | ≤ 65,536 entries |
@@ -50,7 +50,7 @@ to add a type without invalidating every existing file.
 | `set_u16`         | 14 | 2  | ≤ 16 labels |
 | `set_u32`         | 15 | 4  | ≤ 32 labels |
 | `set_u64`         | 16 | 8  | ≤ 64 labels |
-| `datetime`        | 17 | 8  | Epoch **SECONDS** as u64 |
+| `datetime`        | 17 | 8  | Epoch **SECONDS** as signed int64 |
 | `set_u128`        | 18 | 16 | ≤ 128 labels; two little-endian 64-bit words, `words[0]` = bits 0–63 |
 | `set_u256`        | 19 | 32 | ≤ 256 labels; four little-endian words. Widest set rung — a hard ceiling |
 
@@ -72,8 +72,11 @@ does. See [Record Layout → Bit-packing](records.md#bit-packing).
 
 ### Temporal types
 
-`date` is a u32 count of **days** since the Unix epoch. `datetime` is a
-u64 count of **seconds** since the same epoch.
+`date` is a signed (two's-complement int32) count of **days** since the
+Unix epoch. `datetime` is a signed (two's-complement int64) count of
+**seconds** since the same epoch. Pre-1970 values are negative and
+supported end to end; `encoding.DateDays` / `encoding.DateTimeSeconds`
+interpret a raw `ReadFieldValue` word.
 
 **They are never interchangeable: swapping them rescales every value by
 86,400.** Everything downstream of the operator boundary speaks epoch
