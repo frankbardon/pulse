@@ -125,9 +125,20 @@ func TestFieldRefRefusals_SlotShapes(t *testing.T) {
 			},
 			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY}},
 			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT}},
-			Filterers:    []*types.Filterer{{Type: types.FILTER_INCLUDE}}, // optional here
+			Filterers: []*types.Filterer{
+				{Type: types.FILTER_INCLUDE},                         // required
+				{Type: types.FILTER_EXPRESSION, Expression: "n > 1"}, // optional
+				{Type: "FILTER_ACME_NEAR"},                           // extension: its own business
+			},
 		}
-		sameNames(t, refusedNames(t, req), "", "", "")
+		sameNames(t, refusedNames(t, req), "", "", "", "")
+	})
+	t.Run("an empty name is refused even once the set is open", func(t *testing.T) {
+		req := &types.Request{
+			Features:     []*types.Feature{{Type: "FEAT_ACME_EMBED", Field: "n"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT}, {Type: types.AGG_SUM, Field: "acme_vec_0"}},
+		}
+		sameNames(t, refusedNames(t, req), "")
 	})
 	t.Run("feature params and regression shapes", func(t *testing.T) {
 		req := &types.Request{

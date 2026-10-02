@@ -45,7 +45,7 @@ For each `AdditiveFields` entry F, the engine builds a scope filter = base `Filt
 
 Single-pass when: no `numeric_percentiles`; AND `include_histogram=false` OR `histogram_range` supplied; AND every filterer is row-local. Buffered otherwise. Manifest: `manifest.facet.streamable_conditions`.
 
-A filterer naming an unknown field is refused by `FacetSchema` and predict alike with `Process`'s rule: `SERVICE_VALIDATION` `filter references unknown field: <f>`.
+A filterer naming an unknown field — or, outside `FILTER_EXPRESSION`, none — is refused by `FacetSchema` and predict alike with `Process`'s rule: `SERVICE_VALIDATION` `filter references unknown field: <f>`.
 
 ## FACET-host overlays
 

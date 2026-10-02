@@ -60,3 +60,74 @@ func TestFieldRefs_FacetFiltererRefusedLikeValidator(t *testing.T) {
 		t.Fatalf("validator refused a known field: %+v", env.Errors)
 	}
 }
+
+// TestFieldRefs_EmptyFilterFieldRefusedLikePredict: every built-in
+// filterer except FILTER_EXPRESSION reads Field, so an empty one is a
+// field-reference refusal — the shared rule's code, message and details
+// on Process, ProcessStream, predict, FacetSchema / ValidateFacet and,
+// located, inside Compose. Before, predict accepted it and the runtime
+// failed later with an operator-specific PROCESSING_CONFIG (or kept no
+// rows). FILTER_EXPRESSION without a Field still runs on both sides.
+func TestFieldRefs_EmptyFilterFieldRefusedLikePredict(t *testing.T) {
+	fs, cohort := zoneCohort(t)
+	data, err := afero.ReadFile(fs, cohort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := zonePulse(t, fs, "")
+	ctx := context.Background()
+	opts := &descx.PredictOptions{SchemaLoader: schemaLoaderFor(fs)}
+	for _, typ := range types.AllFiltererTypes() {
+		if typ == types.FILTER_EXPRESSION {
+			continue
+		}
+		fil := func() []*types.Filterer {
+			return []*types.Filterer{{Type: typ, Values: []string{"a"}}}
+		}
+		mk := func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Filterers: fil(), Aggregations: countAgg()}
+		}
+		t.Run(string(typ), func(t *testing.T) {
+			_, rerr := p.Process(ctx, mk())
+			ce := requireCode(t, rerr, errors.SERVICE_VALIDATION)
+			if ce.Message != "filter references unknown field: " || ce.Details["filter"] != string(typ) {
+				t.Fatalf("runtime = %q %v", ce.Message, ce.Details)
+			}
+			sameEntry(t, predictEnvelope(t, p, fs, cohort, mk()), rerr)
+			_, serr := p.ProcessStream(ctx, mk())
+			if se := requireCode(t, serr, errors.SERVICE_VALIDATION); se.Message != ce.Message {
+				t.Fatalf("stream = %q, process = %q", se.Message, ce.Message)
+			}
+
+			facet := func() *types.FacetRequest {
+				return &types.FacetRequest{Cohort: &types.Cohort{Filename: cohort}, Fields: []string{"cat"}, Filterers: fil()}
+			}
+			_, ferr := p.FacetSchema(ctx, facet())
+			requireCode(t, ferr, errors.SERVICE_VALIDATION)
+			sameEntry(t, descx.ValidateFacetWithOptions(bytes.NewReader(data), facet(), opts), ferr)
+
+			compose := func() *types.ComposedRequest {
+				return &types.ComposedRequest{Requests: []*types.Request{
+					{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg()}, mk(),
+				}}
+			}
+			_, cerr := p.Compose(ctx, compose())
+			if cc := requireCode(t, cerr, errors.SERVICE_VALIDATION); cc.Details["request"] != 1 {
+				t.Fatalf("details = %v, want request=1", cc.Details)
+			}
+			sameEntry(t, descx.ValidateComposeWithOptions(compose(), opts), cerr)
+		})
+	}
+	t.Run("FILTER_EXPRESSION needs no field", func(t *testing.T) {
+		req := func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg(),
+				Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "n > 1"}}}
+		}
+		if _, err := p.Process(ctx, req()); err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		if env := predictEnvelope(t, p, fs, cohort, req()); len(env.Errors) != 0 {
+			t.Fatalf("predict: %+v", env.Errors)
+		}
+	})
+}

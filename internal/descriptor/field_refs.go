@@ -68,7 +68,8 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema) []*
 // column set open: every later record- and output-level name is
 // accepted, as the runtime may legitimately produce it. Empty names are
 // judged where the slot requires one (aggregation, group, attribute
-// other than ATTR_FORMULA) and skipped where it is optional. Fields
+// other than ATTR_FORMULA, every built-in filterer but
+// FILTER_EXPRESSION) and skipped where it is optional. Fields
 // named only inside an operator's params (other than the two feature
 // params above) are not judged. A nil request or schema yields nil —
 // the schema-less mode of a validator that cannot read the cohort.
@@ -124,7 +125,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 
 	// 2. Filterers.
 	for _, fil := range req.Filterers {
-		if fil == nil || fil.Field == "" {
+		if fil == nil || (fil.Field == "" && !filterFieldRequired(fil.Type)) {
 			continue
 		}
 		w.check(fil.Field, func() *errors.CodedError {
@@ -322,8 +323,12 @@ type fieldRefWalk struct {
 	out  []*errors.CodedError
 }
 
+// check refuses name unless it is an available column. An empty name
+// reaches check only from a slot that requires one, and is refused even
+// once an extension feature opened the set — no operator produces a
+// column named "".
 func (w *fieldRefWalk) check(name string, mk func() *errors.CodedError) {
-	if w.open || w.cols[name] {
+	if name != "" && (w.open || w.cols[name]) {
 		return
 	}
 	w.out = append(w.out, mk())
@@ -396,4 +401,20 @@ func featureParamField(raw json.RawMessage, key string) string {
 		return ""
 	}
 	return s
+}
+
+// filterFieldRequired reports whether a filterer type reads Field:
+// every built-in except FILTER_EXPRESSION (which reads its expression).
+// An extension filterer's Field is its own business, so an empty one is
+// not judged.
+func filterFieldRequired(t types.FiltererType) bool {
+	if t == types.FILTER_EXPRESSION {
+		return false
+	}
+	for _, b := range types.AllFiltererTypes() {
+		if b == t {
+			return true
+		}
+	}
+	return false
 }
