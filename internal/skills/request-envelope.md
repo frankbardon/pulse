@@ -19,7 +19,7 @@ Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 
 - `format_version` — `"1.1"`. Additive `data` fields do NOT bump; renames / removals do.
 - `data` — operation-specific payload.
-- `request` — opt-in echo of the *normalized* request (defaults applied; `EchoRequest: true` / `--echo-request`) — confirms defaults, debugs silent slot-key drops. Streaming skips.
+- `request` — opt-in echo of the *normalized* request (defaults applied; `EchoRequest: true` / `--echo-request`). Streaming skips.
 - `errors` / `warnings` — always arrays (never null). Each: `{code, message, details}`. Resolve via `pulse_errors_lookup`.
 
 ## Request shapes (per command)
@@ -32,7 +32,7 @@ Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 | `pulse_facet`, `pulse api facet` | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
 | `pulse_sample`, `pulse api sample` | `SampleRequest` | `cohort, count, offset` |
 
-`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. Tests / joins / crosstab / overlays plug specific stages — see per-skill.
+`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer — a filter cannot read an attribute label. A field name nothing produces is refused by runtime and predict alike.
 
 ## Canonical process Request
 
@@ -107,6 +107,5 @@ Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `t
 - `response-components` — full Components contract + per-operator keys.
 - `session-bootstrap` — MCP session order.
 - `aggregation-design` / `grouper-design` / `attribute-composition` — per-category slot shapes.
-- `compose-requests` — `ComposedRequest` semantics; `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
+- `compose-requests` — `ComposedRequest`; `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
 - `streaming-and-watching` — stream chunks, request hashing, watch loop.
-- `docs/src/internals/debugging-predict.md` — predict iteration loop.

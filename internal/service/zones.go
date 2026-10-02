@@ -39,6 +39,17 @@ func (s *Service) resolveZones(req *types.Request, schema *encoding.Schema) erro
 	return markLocated(err)
 }
 
+// checkFieldRefs runs the one field-reference rule
+// (internal/descriptor.FieldRefRefusal — the rule predict and the
+// validators report) for one Request against the schema it executes
+// over. Every execution mode calls it right after resolveZones, before
+// any record is read, so an unknown name is refused instead of reading
+// as an all-null column. A located refusal: Compose adds
+// details.request, a chain details.stage.
+func (s *Service) checkFieldRefs(req *types.Request, schema *encoding.Schema) error {
+	return markLocated(descx.FieldRefRefusal(req, schema))
+}
+
 // resolveFacetZones is resolveZones for a FacetRequest's filterers.
 func (s *Service) resolveFacetZones(req *types.FacetRequest, schema *encoding.Schema) error {
 	_, err := descx.ResolveFacetZones(req, schema, s.defaultZone, s.ZoneLoader())

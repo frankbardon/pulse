@@ -113,6 +113,9 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 		if err := processing.ChainRefusal(stage, synthSchema, s.extensions, i, req.Stages[i].Name); err != nil {
 			return nil, err
 		}
+		if err := s.checkFieldRefs(stage, synthSchema); err != nil {
+			return nil, locate(err, "stage", i)
+		}
 
 		if s.echoRequest {
 			normStages = append(normStages, &types.ChainStage{

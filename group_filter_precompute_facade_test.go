@@ -87,7 +87,7 @@ func TestGroupedCohort_FilterPrecomputeParity(t *testing.T) {
 		{"ProcessChain", perRun, func(p *Pulse) (any, error) {
 			return p.ProcessChain(ctx, &ChainRequest{Cohort: cohort, Stages: []*types.ChainStage{
 				{Request: streaming()},
-				{Request: &Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount_sum"}}}},
+				{Request: &Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "AGG_SUM_amount"}}}},
 			}})
 		}},
 		{"FacetSchema", perRun, func(p *Pulse) (any, error) {

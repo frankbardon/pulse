@@ -95,11 +95,10 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 		return
 	}
 	if tier1 && schema != nil {
+		// Unknown names are FieldRefRefusals' refusals; only schema
+		// fields are type-checked here.
 		f := schema.Field(t.Field)
 		if f == nil && !projected[t.Field] {
-			env.AddError(string(errors.SERVICE_VALIDATION),
-				string(t.Type)+" references unknown field: "+t.Field,
-				map[string]any{"type": string(t.Type), "field": t.Field})
 			return
 		}
 		if f != nil && numericTestFields[t.Type] {
@@ -114,23 +113,14 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					string(t.Type)+" requires field2 (second numeric column)",
 					map[string]any{"type": string(t.Type)})
-			} else if f2 := schema.Field(t.Field2); f2 == nil && !projected[t.Field2] {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					string(t.Type)+" references unknown field2: "+t.Field2,
-					map[string]any{"type": string(t.Type), "field2": t.Field2})
-			} else if f2 != nil && f2.Type.IsCategorical() {
+			} else if f2 := schema.Field(t.Field2); f2 != nil && f2.Type.IsCategorical() {
 				env.AddError(string(errors.PULSE_TEST_FIELD2_NOT_NUMERIC),
 					string(t.Type)+" field2 "+t.Field2+" has non-numeric type "+f2.Type.String(),
 					map[string]any{"type": string(t.Type), "field2": t.Field2, "field_type": f2.Type.String()})
 			}
 		}
 		if t.SplitBy != "" {
-			sf := schema.Field(t.SplitBy)
-			if sf == nil && !projected[t.SplitBy] {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					string(t.Type)+" split_by references unknown field: "+t.SplitBy,
-					map[string]any{"type": string(t.Type), "split_by": t.SplitBy})
-			} else if sf != nil && !sf.Type.IsCategorical() {
+			if sf := schema.Field(t.SplitBy); sf != nil && !sf.Type.IsCategorical() {
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					string(t.Type)+" split_by "+t.SplitBy+" must be categorical, got "+sf.Type.String(),
 					map[string]any{"type": string(t.Type), "split_by": t.SplitBy, "field_type": sf.Type.String()})
@@ -141,11 +131,7 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					"TEST_ANOVA_RM requires subject_field",
 					map[string]any{"type": string(t.Type)})
-			} else if sf := schema.Field(t.SubjectField); sf == nil && !projected[t.SubjectField] {
-				env.AddError(string(errors.SERVICE_VALIDATION),
-					"TEST_ANOVA_RM subject_field references unknown field: "+t.SubjectField,
-					map[string]any{"type": string(t.Type), "subject_field": t.SubjectField})
-			} else if sf != nil && !sf.Type.IsCategorical() {
+			} else if sf := schema.Field(t.SubjectField); sf != nil && !sf.Type.IsCategorical() {
 				env.AddError(string(errors.SERVICE_VALIDATION),
 					"TEST_ANOVA_RM subject_field "+t.SubjectField+" must be categorical, got "+sf.Type.String(),
 					map[string]any{"type": string(t.Type), "subject_field": t.SubjectField, "field_type": sf.Type.String()})
@@ -184,14 +170,8 @@ func validateProportionZ(env *descriptor.Envelope, t *types.Test, schema *encodi
 		if name == "" {
 			continue
 		}
-		f := schema.Field(name)
-		if f == nil && !projected[name] {
-			env.AddError(string(errors.SERVICE_VALIDATION),
-				"TEST_PROP_Z "+axis+" references unknown field: "+name,
-				map[string]any{"axis": axis, "field": name})
-			continue
-		}
-		if f != nil && !f.Type.IsCategorical() {
+		// An unknown name is FieldRefRefusals' refusal.
+		if f := schema.Field(name); f != nil && !f.Type.IsCategorical() {
 			env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
 				"TEST_PROP_Z "+axis+" field "+name+" must be categorical, got "+f.Type.String(),
 				map[string]any{"axis": axis, "field": name, "field_type": f.Type.String()})
@@ -228,14 +208,8 @@ func validateChiSquareFields(env *descriptor.Envelope, t *types.Test, schema *en
 		return
 	}
 	for axis, field := range map[string]string{"rows": t.Rows, "cols": t.Cols} {
-		f := schema.Field(field)
-		if f == nil && !projected[field] {
-			env.AddError(string(errors.SERVICE_VALIDATION),
-				"TEST_CHISQ "+axis+" references unknown field: "+field,
-				map[string]any{"axis": axis, "field": field})
-			continue
-		}
-		if f != nil && !f.Type.IsCategorical() {
+		// An unknown name is FieldRefRefusals' refusal.
+		if f := schema.Field(field); f != nil && !f.Type.IsCategorical() {
 			env.AddError(string(errors.PULSE_TEST_FIELD_NOT_NUMERIC),
 				"TEST_CHISQ "+axis+" field "+field+" must be categorical, got "+f.Type.String(),
 				map[string]any{"axis": axis, "field": field, "field_type": f.Type.String()})

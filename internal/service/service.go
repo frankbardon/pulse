@@ -537,6 +537,9 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := s.resolveZones(req, cohort.Schema()); err != nil {
 		return nil, err
 	}
+	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
 
 	// Inject configured default label bindings (schema-filtered) before
 	// validation so registered tables render display strings without the

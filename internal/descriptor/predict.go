@@ -248,6 +248,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		result.TimeZones = zones
 	}
 
+	// Field references — the one rule the runtime refuses with at the
+	// same point (after defaults and zones, against the schema the
+	// request executes over). Every unknown name is reported.
+	for _, ce := range FieldRefRefusals(req, schema) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+
 	// A slot still without an operator Type is refused by the runtime's
 	// operator construction; report it with the runtime's code and
 	// message.
@@ -583,10 +590,10 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 	return env
 }
 
-// validateRequestFields checks that all referenced fields exist and that
-// numeric aggregations on categorical fields produce warnings. The
-// projected column set augments the schema with feature output names so
-// downstream stages can address derived columns.
+// validateRequestFields reports the schema-typed checks on the request's
+// slots (numeric aggregations on categorical fields, decimal
+// aggregations, regression and attribute shape). Whether a referenced
+// name exists at all is FieldRefRefusals' judgement, not this one's.
 func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, opts *PredictOptions) {
 	// Numeric aggregation on categorical field — single helper, strict
 	// promotion happens here so service.Process can share the helper
@@ -599,22 +606,16 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 		}
 	}
 
-	// Check aggregation fields.
+	// Unknown names are the field-reference rule's refusals
+	// (FieldRefRefusals, reported right after zone resolution); the
+	// checks below judge only fields the schema carries.
+
+	// Decimal field aggregation validity matrix.
 	for _, agg := range req.Aggregations {
 		f := schema.Field(agg.Field)
 		if f == nil {
-			if projected[agg.Field] {
-				continue // derived column from feature stage
-			}
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"aggregation references unknown field: "+agg.Field,
-				map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
-			)
 			continue
 		}
-
-		// Decimal field aggregation validity matrix.
 		if f.Type.IsDecimal() && decimalAggregationRefused(agg.Type, opts.Extensions) {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL),
@@ -627,40 +628,6 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 				env.Warnings = append(env.Warnings, entry)
 			}
 		}
-
-	}
-
-	// Check filter fields.
-	for _, fil := range req.Filterers {
-		if fil.Field == "" && fil.Type == types.FILTER_EXPRESSION {
-			continue // expression filters don't require a field
-		}
-		if fil.Field != "" {
-			f := schema.Field(fil.Field)
-			if f == nil && !projected[fil.Field] {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					"filter references unknown field: "+fil.Field,
-					map[string]any{"field": fil.Field, "filter": string(fil.Type)},
-				)
-				continue
-			}
-			_ = f
-		}
-	}
-
-	// Check group fields.
-	for _, grp := range req.Groups {
-		f := schema.Field(grp.Field)
-		if f == nil && !projected[grp.Field] {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"group references unknown field: "+grp.Field,
-				map[string]any{"field": grp.Field, "group": string(grp.Type)},
-			)
-			continue
-		}
-		_ = f
 	}
 
 	// Check regression slots. Phase 0 validates structural shape only
@@ -692,12 +659,6 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 					string(attr.Type)+" requires Target",
 					map[string]any{"attribute": string(attr.Type)},
 				)
-			} else if schema.Field(attr.Target) == nil && !projected[attr.Target] {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					string(attr.Type)+" Target references unknown field: "+attr.Target,
-					map[string]any{"field": attr.Target, "attribute": string(attr.Type)},
-				)
 			}
 			if len(attr.Predictors) == 0 {
 				env.AddError(
@@ -706,24 +667,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 					map[string]any{"attribute": string(attr.Type)},
 				)
 			}
-			for _, name := range attr.Predictors {
-				if schema.Field(name) == nil && !projected[name] {
-					env.AddError(
-						string(errors.SERVICE_VALIDATION),
-						string(attr.Type)+" predictor references unknown field: "+name,
-						map[string]any{"field": name, "attribute": string(attr.Type)},
-					)
-				}
-			}
 			continue
-		}
-		f := schema.Field(attr.Field)
-		if f == nil && !projected[attr.Field] {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"attribute references unknown field: "+attr.Field,
-				map[string]any{"field": attr.Field, "attribute": string(attr.Type)},
-			)
 		}
 	}
 }
@@ -1295,9 +1239,10 @@ func overlayDescriptorName(spec *types.OverlaySpec) string {
 // predictJoinedSchema returns the schema a Request executes over: for a
 // single JoinSpec whose right cohort opts.SchemaLoader can read, the
 // joined schema (internal/encoding.JoinedSchema — the runtime's own
-// rule); otherwise schema unchanged. A right cohort that cannot be read
-// or a joined-field collision is a predict error under its own code,
-// as the runtime refuses both.
+// rule); otherwise schema unchanged. A right cohort that cannot be read,
+// a join-key refusal (internal/encoding.JoinKeysRefusals) or a
+// joined-field collision is a predict error under its own code, as the
+// runtime refuses each.
 func predictJoinedSchema(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) *encoding.Schema {
 	if req == nil || len(req.Joins) != 1 || req.Joins[0] == nil || opts == nil || opts.SchemaLoader == nil {
 		return schema
@@ -1307,6 +1252,12 @@ func predictJoinedSchema(env *descriptor.Envelope, req *types.Request, schema *e
 	if err != nil {
 		addCodedError(env, err)
 		return schema
+	}
+	// Kind and OnPairs: the one join-key rule the runtime refuses with
+	// before it decodes the right side. The joined schema below does
+	// not depend on the keys, so validation continues against it.
+	for _, ce := range encx.JoinKeysRefusals(schema, right, spec) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 	joined, err := encx.JoinedSchema(schema, right, spec.As)
 	if err != nil {

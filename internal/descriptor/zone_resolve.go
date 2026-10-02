@@ -249,11 +249,7 @@ func resolveRequestZones(req *types.Request, schema *encoding.Schema, opts *Pred
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
-	clone := cloneRequestForDefaults(req)
-	if !opts.DisableDefaults && schema != nil {
-		ResolveDefaults(clone, schema)
-	}
-	return ResolveZones(clone, schema, opts.DefaultTimeZone, opts.ZoneLoader)
+	return ResolveZones(defaultedForValidation(req, schema, opts), schema, opts.DefaultTimeZone, opts.ZoneLoader)
 }
 
 // addCodedError records err on env under its own code (a
@@ -267,29 +263,47 @@ func addCodedError(env *descriptor.Envelope, err error) {
 	env.AddError(string(errors.PROCESSING_CONFIG), err.Error(), nil)
 }
 
-// validatorRequestSchema is the schema a validator resolves one
-// Request's zones against: base (the cohort schema), or for a single
-// JoinSpec the joined schema the runtime executes over. A join whose
-// right cohort opts.SchemaLoader cannot read (or no loader at all)
-// yields nil — the schema-less mode in which ResolveZones applies only
-// the field-independent refusals, so a validator never refuses what
-// the runtime accepts.
-func validatorRequestSchema(req *types.Request, base *encoding.Schema, opts *PredictOptions) *encoding.Schema {
+// validatorRequestSchema is the schema a validator judges one
+// Request's zones and field references against: base (the cohort
+// schema), or for a single JoinSpec the joined schema the runtime
+// executes over. A join whose right cohort opts.SchemaLoader cannot
+// read (or no loader at all) yields nil — the schema-less mode in which
+// ResolveZones applies only the field-independent refusals and
+// FieldRefRefusals none, so a validator never refuses what the runtime
+// accepts. A readable join also returns the join-key rule's refusals
+// (internal/encoding.JoinKeysRefusals) — the runtime meets them before
+// zones or field references, so a caller reports them and stops there.
+func validatorRequestSchema(req *types.Request, base *encoding.Schema, opts *PredictOptions) (*encoding.Schema, []*errors.CodedError) {
 	if base == nil || req == nil || len(req.Joins) == 0 {
-		return base
+		return base, nil
 	}
 	if len(req.Joins) != 1 || req.Joins[0] == nil || opts == nil || opts.SchemaLoader == nil {
-		return nil
+		return nil, nil
 	}
 	right, err := opts.SchemaLoader(req.Joins[0].Right)
 	if err != nil {
-		return nil
+		return nil, nil
+	}
+	if refusals := encx.JoinKeysRefusals(base, right, req.Joins[0]); len(refusals) > 0 {
+		return nil, refusals
 	}
 	joined, err := encx.JoinedSchema(base, right, req.Joins[0].As)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	return joined
+	return joined, nil
+}
+
+// defaultedForValidation is the Request a validator judges: a clone
+// with the shared smart-defaults pass run against schema (the
+// runtime's applyDefaults), unless opts.DisableDefaults or the schema
+// is unknown. The caller's request is never mutated.
+func defaultedForValidation(req *types.Request, schema *encoding.Schema, opts *PredictOptions) *types.Request {
+	clone := cloneRequestForDefaults(req)
+	if (opts == nil || !opts.DisableDefaults) && schema != nil {
+		ResolveDefaults(clone, schema)
+	}
+	return clone
 }
 
 // cohortSchemaFor loads the schema of the cohort a Compose slot names

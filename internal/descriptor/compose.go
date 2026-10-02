@@ -739,10 +739,11 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 }
 
 // validateComposeSlots runs each slot's runtime-entry checks in the
-// runtime's order — the join-count rule (processJoinCountRefusal), then
-// zones the way the runtime resolves them (defaults, then
-// ResolveZones) — and records each zone refusal tagged with its slot
-// index. Without a SchemaLoader (or for a cohort it
+// runtime's order — the join-count rule (JoinCountRefusal), the
+// join-key rule for a join, zones the way the runtime resolves them
+// (defaults, then ResolveZones), then the field-reference rule
+// (FieldRefRefusals) on the defaulted slot — and records each refusal
+// tagged with its slot index. Without a SchemaLoader (or for a cohort it
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
@@ -757,9 +758,19 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 			addCodedError(env, RefusalAt(jerr, "request", i))
 			continue
 		}
-		schema := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+		schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+		if len(keyRefusals) > 0 {
+			for _, ce := range keyRefusals {
+				addCodedError(env, RefusalAt(ce, "request", i))
+			}
+			continue
+		}
 		if _, err := resolveRequestZones(slot, schema, opts); err != nil {
 			addCodedError(env, RefusalAt(err, "request", i))
+			continue
+		}
+		for _, ce := range FieldRefRefusals(defaultedForValidation(slot, schema, opts), schema) {
+			addCodedError(env, RefusalAt(ce, "request", i))
 		}
 	}
 }

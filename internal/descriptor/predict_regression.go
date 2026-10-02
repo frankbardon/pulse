@@ -22,7 +22,6 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 //   - unknown Type
 //   - missing Target
 //   - empty Predictors slice
-//   - Target / Predictors that name unknown fields
 //   - Target / Predictors that name non-numeric fields
 //   - GLM-required Family present and in the supported set
 //   - Modifier coupling (Selection requires Criterion)
@@ -52,15 +51,9 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 				map[string]any{"type": string(reg.Type)},
 			)
 		} else {
-			if f := schema.Field(reg.Target); f == nil {
-				if !projected[reg.Target] {
-					env.AddError(
-						string(errors.SERVICE_VALIDATION),
-						"regression references unknown target field: "+reg.Target,
-						map[string]any{"field": reg.Target, "type": string(reg.Type)},
-					)
-				}
-			} else if !regressionAcceptsType(reg.Type, f.Type) {
+			// An unknown name is the field-reference rule's refusal
+			// (FieldRefRefusals); only a schema field is type-checked.
+			if f := schema.Field(reg.Target); f != nil && !regressionAcceptsType(reg.Type, f.Type) {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
 					"regression target field "+reg.Target+" is not numeric (got "+f.Type.String()+")",
@@ -79,14 +72,7 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		for _, p := range reg.Predictors {
 			f := schema.Field(p)
 			if f == nil {
-				if !projected[p] {
-					env.AddError(
-						string(errors.SERVICE_VALIDATION),
-						"regression references unknown predictor field: "+p,
-						map[string]any{"field": p, "type": string(reg.Type)},
-					)
-				}
-				continue
+				continue // unknown: FieldRefRefusals; derived: untyped
 			}
 			if !regressionAcceptsType(reg.Type, f.Type) {
 				env.AddError(

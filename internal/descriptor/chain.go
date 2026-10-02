@@ -103,8 +103,10 @@ func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest
 // reach: opts.Extensions is the chain-gate snapshot, and
 // opts.DefaultTimeZone / ZoneLoader / DisableDefaults / SchemaLoader
 // drive the per-stage zone resolution — the runtime's order: defaults,
-// zones, then the chain gate, each zone refusal tagged details.stage
-// (a joined stage 0: gate, the join-count rule, then zones). The gate,
+// zones, the chain gate, then the field-reference rule
+// (FieldRefRefusals), each zone and field refusal tagged details.stage
+// (a joined stage 0: gate, the join-count rule, the join-key rule,
+// zones, then field references against the joined schema). The gate,
 // the field checks and stage-schema propagation run on the defaulted
 // stage, as the runtime does. A nil opts is ValidateChain.
 func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
@@ -171,9 +173,13 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		// gate and the join-count rule; every other stage resolves
 		// before the gate.
 		joined := i == 0 && len(stage.Request.Joins) > 0
+		// fieldsReached: the runtime gets as far as the field-reference
+		// rule (no earlier located refusal on this stage).
+		fieldsReached := true
 		if !joined {
 			if _, zerr := resolveRequestZones(stage.Request, current, opts); zerr != nil {
 				addCodedError(env, RefusalAt(zerr, "stage", i))
+				fieldsReached = false
 			}
 		}
 		gerr := mergegate.ChainRefusal(staged, current, snap.mergeFacts(), i, stage.Name)
@@ -181,17 +187,36 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			addCodedError(env, gerr)
 		}
 		gateOK := gerr == nil
+		// The schema the stage's field references are judged against:
+		// its input schema, or for a joined stage 0 the joined schema
+		// (nil — no judgement — when the right side is unreadable).
+		fieldSchema, fieldReq := current, staged
 		if joined {
+			fieldSchema = nil
 			if jerr := JoinCountRefusal(stage.Request); jerr != nil {
 				addCodedError(env, RefusalAt(jerr, "stage", i))
-			} else if _, zerr := resolveRequestZones(stage.Request, validatorRequestSchema(stage.Request, current, opts), opts); zerr != nil {
+				fieldsReached = false
+			} else if js, keyRefusals := validatorRequestSchema(stage.Request, current, opts); len(keyRefusals) > 0 {
+				for _, ce := range keyRefusals {
+					addCodedError(env, RefusalAt(ce, "stage", i))
+				}
+				fieldsReached = false
+			} else if _, zerr := resolveRequestZones(stage.Request, js, opts); zerr != nil {
 				addCodedError(env, RefusalAt(zerr, "stage", i))
+				fieldsReached = false
+			} else if js != nil {
+				// Process re-applies defaults against the joined schema.
+				fieldSchema, fieldReq = js, chainStageDefaulted(staged, js, opts)
 			}
 		}
 		if !gateOK {
 			continue
 		}
-		validateChainStageFields(staged, current, env, i, stage.Name)
+		if fieldsReached {
+			for _, ce := range FieldRefRefusals(fieldReq, fieldSchema) {
+				addCodedError(env, RefusalAt(ce, "stage", i))
+			}
+		}
 		next := chainPredictedOutputFields(staged)
 		result.StageSchemas = append(result.StageSchemas, next)
 		current = synthChainSchema(staged)
@@ -225,45 +250,6 @@ func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictO
 		ResolveDefaults(clone, in)
 	}
 	return clone
-}
-
-// validateChainStageFields confirms that every field reference in a
-// stage resolves against the current input schema. Adds errors for
-// unknown fields. Mirrors the validation surface in Predict but
-// scoped to chain-relevant slots.
-func validateChainStageFields(req *types.Request, in *encoding.Schema, env *descriptor.Envelope, idx int, name string) {
-	check := func(field string) {
-		if field == "" || in.Field(field) != nil {
-			return
-		}
-		env.AddError(string(errors.SERVICE_VALIDATION),
-			"chain stage references unknown field",
-			map[string]any{"stage_index": idx, "stage_name": name, "field": field})
-	}
-	for _, f := range req.Filterers {
-		if f == nil {
-			continue
-		}
-		check(f.Field)
-	}
-	for _, agg := range req.Aggregations {
-		if agg == nil {
-			continue
-		}
-		check(agg.Field)
-	}
-	for _, g := range req.Groups {
-		if g == nil {
-			continue
-		}
-		check(g.Field)
-	}
-	for _, attr := range req.Attributes {
-		if attr == nil {
-			continue
-		}
-		check(attr.Field)
-	}
 }
 
 // chainPredictedOutputFields names the output columns a chain stage

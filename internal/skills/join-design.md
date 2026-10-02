@@ -69,7 +69,7 @@ The joined schema unions left + right field names. Two fields with the same name
 
 ## Validation surface
 
-`internal/descriptor.ValidateJoin(left, right io.ReadSeeker, req)` is the no-execute predict equivalent. Reads both files' header + schema, validates every `OnPair`, emits the inferred joined field list at `result.joined_fields`. Error codes mirror runtime: `PULSE_JOIN_KIND_NOT_IMPLEMENTED`, `PULSE_JOIN_FIELD_UNKNOWN`, `PULSE_JOIN_TYPE_MISMATCH`, `PULSE_JOIN_KEYS_EMPTY`, `PULSE_JOIN_FIELD_COLLISION`, `PULSE_JOIN_TOO_MANY` (one rule, `JoinCountRefusal`, shared with runtime `Process` — crosstab included — predict and the Compose / chain validators). `Manifest.Join` (`JoinCapability`) carries the kind allowlist, the spill envelope (zero) and the limitations.
+`internal/descriptor.ValidateJoin(left, right io.ReadSeeker, req)` is the no-execute predict equivalent. Reads both files' header + schema, validates every `OnPair`, emits the inferred joined field list at `result.joined_fields`. Codes, messages and details match runtime: `PULSE_JOIN_KIND_NOT_IMPLEMENTED`, `PULSE_JOIN_FIELD_UNKNOWN`, `PULSE_JOIN_TYPE_MISMATCH`, `PULSE_JOIN_KEYS_EMPTY` (one key rule, `JoinKeysRefusals`), `PULSE_JOIN_FIELD_COLLISION`, `PULSE_JOIN_TOO_MANY` (`JoinCountRefusal`); both rules are shared with runtime `Process` — crosstab included — predict and the Compose / chain validators. `Manifest.Join` (`JoinCapability`) carries the kind allowlist, the spill envelope (zero) and the limitations.
 
 ## Performance notes
 

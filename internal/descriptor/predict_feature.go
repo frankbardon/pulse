@@ -130,11 +130,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 			}
 			return
 		}
-		env.AddError(
-			string(errors.SERVICE_VALIDATION),
-			"feature references unknown field: "+feat.Field,
-			map[string]any{"field": feat.Field, "feature": string(feat.Type)},
-		)
+		// Unknown: the field-reference rule's refusal (FieldRefRefusals).
 		return
 	}
 
@@ -221,14 +217,8 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 		)
 	}
 	if p.Stratify != "" {
-		f := schema.Field(p.Stratify)
-		if f == nil {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature FEAT_TRAIN_TEST_SPLIT: stratify references unknown field "+p.Stratify,
-				map[string]any{"field": p.Stratify, "feature": string(feat.Type)},
-			)
-		} else if !f.Type.IsCategorical() {
+		// An unknown name is FieldRefRefusals' refusal.
+		if f := schema.Field(p.Stratify); f != nil && !f.Type.IsCategorical() {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"feature FEAT_TRAIN_TEST_SPLIT: stratify field must be categorical",
@@ -350,14 +340,8 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 			map[string]any{"feature": string(feat.Type)},
 		)
 	}
-	f := schema.Field(p.Target)
-	if f == nil {
-		env.AddError(
-			string(errors.SERVICE_VALIDATION),
-			"feature FEAT_TARGET_ENCODE: target references unknown field "+p.Target,
-			map[string]any{"field": p.Target, "feature": string(feat.Type)},
-		)
-	} else if f.Type.IsCategorical() {
+	// An unknown name is FieldRefRefusals' refusal.
+	if f := schema.Field(p.Target); f != nil && f.Type.IsCategorical() {
 		env.AddError(
 			string(errors.SERVICE_VALIDATION),
 			"feature FEAT_TARGET_ENCODE: target field must be numeric, got categorical",

@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -34,6 +35,9 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 
 	s.applyDefaults(&clone, joinedSchema)
 	if err := s.resolveZones(&clone, joinedSchema); err != nil {
+		return nil, err
+	}
+	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
 		return nil, err
 	}
 
@@ -71,11 +75,6 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*proc
 	if spec == nil {
 		return nil, nil, "", nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
 	}
-	if len(spec.On) == 0 {
-		return nil, nil, "", nil, errors.NewCodedError(errors.PULSE_JOIN_KEYS_EMPTY,
-			"JoinSpec.On is empty; at least one OnPair is required")
-	}
-
 	leftPath := resolveCohortPath(req.Cohort)
 	leftCohort, err := s.Open(ctx, leftPath)
 	if err != nil {
@@ -84,6 +83,14 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*proc
 	rightCohort, err := s.Open(ctx, spec.Right)
 	if err != nil {
 		return nil, nil, "", nil, err
+	}
+	// Kind and OnPairs, before the right side is decoded: the one
+	// join-key rule predict and the validators call
+	// (internal/encoding.JoinKeysRefusals). A located refusal, like the
+	// join-count rule: Compose adds details.request, a chain
+	// details.stage.
+	if err := encx.JoinKeysRefusal(leftCohort.Schema(), rightCohort.Schema(), spec); err != nil {
+		return nil, nil, "", nil, markLocated(err)
 	}
 
 	// Materialise the right side as a slice. v1 does not spill; the

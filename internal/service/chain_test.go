@@ -401,7 +401,7 @@ func TestProcessChain_StubOverlayRoundTrip(t *testing.T) {
 			{
 				Name: "stage_0",
 				Request: &types.Request{
-					Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+					Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "id"}},
 					Aggregations: []*types.Aggregation{
 						{Type: types.AGG_SUM, Field: "score", Label: "s"},
 					},

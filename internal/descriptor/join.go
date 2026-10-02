@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -83,58 +84,10 @@ func ValidateJoin(leftData, rightData io.ReadSeeker, req *types.Request) *descri
 	result.LeftSchema = schemaInfo(leftSchema)
 	result.RightSchema = schemaInfo(rightSchema)
 
-	kind := spec.Kind
-	if kind == "" {
-		kind = "inner"
-	}
-	if kind != "inner" {
-		env.AddError(string(errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED),
-			"only inner join is implemented in v1",
-			map[string]any{"kind": kind})
-	}
-
-	if len(spec.On) == 0 {
-		env.AddError(string(errors.PULSE_JOIN_KEYS_EMPTY),
-			"JoinSpec.On is empty",
-			nil)
-	}
-
-	for i, pair := range spec.On {
-		if pair.LeftField == "" || pair.RightField == "" {
-			env.AddError(string(errors.PULSE_JOIN_KEYS_EMPTY),
-				"OnPair requires both LeftField and RightField",
-				map[string]any{"index": i})
-			continue
-		}
-		lf := leftSchema.Field(pair.LeftField)
-		rf := rightSchema.Field(pair.RightField)
-		if lf == nil {
-			env.AddError(string(errors.PULSE_JOIN_FIELD_UNKNOWN),
-				"OnPair.LeftField not found in left schema",
-				map[string]any{"field": pair.LeftField, "index": i})
-			continue
-		}
-		if rf == nil {
-			env.AddError(string(errors.PULSE_JOIN_FIELD_UNKNOWN),
-				"OnPair.RightField not found in right schema",
-				map[string]any{"field": pair.RightField, "index": i})
-			continue
-		}
-		if !joinTypesCompatible(lf.Type, rf.Type) {
-			details := map[string]any{
-				"left_field":  pair.LeftField,
-				"left_type":   lf.Type.String(),
-				"right_field": pair.RightField,
-				"right_type":  rf.Type.String(),
-				"index":       i,
-			}
-			msg := "join key types are not compatible"
-			if lf.Type.IsSet() || rf.Type.IsSet() {
-				msg = joinKeySetRejection
-				details["reason"] = "set_key"
-			}
-			env.AddError(string(errors.PULSE_JOIN_TYPE_MISMATCH), msg, details)
-		}
+	// Kind and OnPairs: the one join-key rule the runtime refuses with
+	// (internal/encoding.JoinKeysRefusals), every refusal reported.
+	for _, ce := range encx.JoinKeysRefusals(leftSchema, rightSchema, spec) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 
 	// Field-collision check.
@@ -187,44 +140,4 @@ func schemaInfo(s *encoding.Schema) *descriptor.PredictSchemaInfo {
 		info.Fields = append(info.Fields, f.Name)
 	}
 	return info
-}
-
-// joinKeySetRejection mirrors processing.joinKeySetRejection verbatim
-// — duplicated rather than imported because descriptor must stay free
-// of processing imports (TestPredictNoExecutionImports). Predict and
-// runtime must give a caller the SAME sentence for the same refusal,
-// so TestValidateJoin_SetKeyRejectedMessageMatchesProcessing pins the
-// two strings together.
-const joinKeySetRejection = "a set_* column cannot be a join key: a multi-select bitmask has no single unambiguous equality value (empty selection, single-member and multi-member masks are all distinct legal states), and its numeric echo is lossy — use a FILTER_SET_* membership predicate instead"
-
-// joinTypesCompatible mirrors processing.typesCompatibleForJoin —
-// kept here so descriptor stays free of processing imports.
-func joinTypesCompatible(a, b encoding.FieldType) bool {
-	// Mirrors processing's set rejection: a set column is never a join
-	// key, not even against an identical rung. Keyed off
-	// FieldType.IsSet() so a new rung inherits it.
-	if a.IsSet() || b.IsSet() {
-		return false
-	}
-	if a == b {
-		return true
-	}
-	if a.IsCategorical() && b.IsCategorical() {
-		return true
-	}
-	if joinNumericFamily(a) && joinNumericFamily(b) {
-		return true
-	}
-	return false
-}
-
-func joinNumericFamily(t encoding.FieldType) bool {
-	switch t {
-	case encoding.FieldTypeU4,
-		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeDate:
-		return true
-	}
-	return false
 }
