@@ -43,7 +43,7 @@ with a feature profile gets a narrower document:
 
 `Request`, `Response` and `Envelope` are always present. `pulse schema`
 serves the CLI's default instance; the `pulse://schema` MCP resource
-serves the full schema.
+serves the mounted instance's schema (`p.PayloadSchema()`).
 
 ## Structure
 

@@ -257,7 +257,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   process chain, facet, sample, lookup) is not offered. A profile-free
   instance's schema is byte-identical to `pulse schema`'s published
   golden apart from the digest comment. `pulse schema` serves the
-  default instance; the MCP `pulse://schema` resource is not scoped yet.
+  default instance; the MCP `pulse://schema` resource serves the
+  mounted instance's `p.PayloadSchema()`.
 - **Errors.** `p.ErrorLookup`, `p.ErrorsByDomain` and `p.ErrorsSearch`,
   and the manifest's error lists, show only codes the instance can
   raise. A hidden code looks up as unknown. `pulse errors lookup` on the

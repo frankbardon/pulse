@@ -158,8 +158,10 @@ Landed with **U05** (`profiles-enforcement`). Contract: [Feature Profiles](../..
 | `capability:filter_to_file` needed only `capability:process` | also requires `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) | behaviour change | add `FILTER_EXPRESSION` wherever you list `capability:filter_to_file` | U05 |
 | some refusals and hints named built-ins as fixed text (zone-capable operator list, `ATTR_RANK` to `WIN_RANK` hint, pairwise `n_source` / `p_source` / `n_basis` advice, facet overlay kind list, `FEAT_TARGET_ENCODE` warning, categorical and decimal suggestion reasons) | they name only what the instance offers; the `WIN_RANK` hint is skipped when `WIN_RANK` is hidden (generic unknown-attribute error). Unprofiled output is byte-identical | behaviour change | none | U05 |
 | the error list included every code | a code owned only by hidden features is absent from `p.ErrorsByDomain` / `p.ErrorsSearch` and the manifest, and `p.ErrorLookup` treats it as unknown; fixup text naming a hidden feature is stripped. The three `PULSE_FEATURE_PROFILE_*` codes always stay. The CLI `pulse errors lookup` stays full | behaviour change | none | U05 |
+| MCP `pulse://schema` resource served the full-registry `BuildPayloadSchema()` on every server | serves the mounted instance's `p.PayloadSchema()`: a profiled server lists only enabled names and carries its digest in the root `$comment`; a profile-free server without extensions is byte-identical | behaviour change | none without a profile or extensions | U05 |
+| MCP `PULSE_REQUEST_UNKNOWN_FIELD` inside a compose request / chain stage carried `details.request_index` / `details.stage_index` (+ `details.stage_name`) | `details.request` / `details.stage` (index only), the keys the library's located refusals use | breaking (MCP wire) | read `request` / `stage`; look the stage name up by index | U05 |
 
-U05 leaves for later units: MCP registration and tool enums, prompts and the `pulse://schema` resource (U06); manifest `skills` and the examples catalog (U10).
+U05 leaves for later units: MCP registration and tool enums and prompts (U06); manifest `skills` and the examples catalog (U10).
 
 ## Third-party dependency
 

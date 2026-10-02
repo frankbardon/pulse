@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse"
-	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/skills"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
@@ -48,23 +47,31 @@ const (
 // templates, so the reserved pulse://schema resource always wins over the
 // cohort template.
 func registerResources(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
-	registerSchemaResource(s)
+	registerSchemaResource(s, p)
 	registerSkillResources(s)
 	registerCohortResources(s, p, cfg)
 }
 
-// registerSchemaResource exposes internal/descriptor.BuildPayloadSchema() as a static
-// MCP resource so agents can fetch the request/response contract in-session
-// alongside pulse_manifest. A resource (not a tool) keeps the tool surface
-// unchanged.
-func registerSchemaResource(s *mcpsdk.Server) {
+// registerSchemaResource exposes the instance's payload schema
+// (Pulse.PayloadSchema) as a static MCP resource so agents can fetch the
+// request/response contract in-session alongside pulse_manifest. A
+// resource (not a tool) keeps the tool surface unchanged. Serving the
+// instance's schema — not the global BuildPayloadSchema — keeps a
+// feature-profiled server from advertising hidden names and gives the
+// root $comment the instance's feature_set_digest; a profile-free
+// instance without extensions serves the published schema byte for byte.
+func registerSchemaResource(s *mcpsdk.Server, p *pulse.Pulse) {
 	s.AddResource(&mcpsdk.Resource{
 		URI:         SchemaResourceURI,
 		Name:        "payload-schema",
 		MIMEType:    "application/json",
 		Description: "JSON Schema (draft 2020-12) for every public Pulse request/response payload",
 	}, func(_ context.Context, req *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
-		return textResource(req.Params.URI, "application/json", string(descx.BuildPayloadSchema())), nil
+		schema, err := p.PayloadSchema()
+		if err != nil {
+			return nil, err
+		}
+		return textResource(req.Params.URI, "application/json", string(schema)), nil
 	})
 }
 

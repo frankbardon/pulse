@@ -93,15 +93,16 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(profiles-mcp-tool
 - **MCP tool → feature bindings** are data in `internal/descriptor/features.go` (`MCPToolBindings`, plus the prompt → `mcp_extra` map), pinned to `toolmeta` by `TestFeaturesHaveSince`. Registration should consume them.
 - **`BindOnInspect` rebinds tools by name** (`internal/mcp/bind.go` `mergeEnumNames`, `buildRequestSchemaWithExtensions`), bypassing a registration-time filter — filter the rebind too.
 - **`toolmeta` descriptions name operators in prose**; filtering enums alone leaves hidden names in tool text.
-- **Prompts, the `pulse://schema` resource and skill resources take no `*Pulse`** (`registerPrompts`, `registerSchemaResource`, `registerSkillResources`); thread the instance in.
+- **Prompts and skill resources take no `*Pulse`** (`registerPrompts`, `registerSkillResources`); thread the instance in (`registerSchemaResource` already takes it — landed in U05).
 - **Tooling leaf naming** is open: `pulse profile` belongs to synth data profiling.
 
 ## Inherited from U05
 
 U05 enforced the feature set through `*Pulse` and the descriptor builders; contract in `.claude/reference/feature-profiles.md` ("Notes for U05 / U06"). Interim leaks this unit closes:
 
-- **Profiled `pulse mcp` still advertises hidden names** through tool registration, tool-input enums, the `strict.go` message and `toolmeta` prose; the `pulse://schema` resource serves the full schema, not `p.PayloadSchema()`.
-- **`strict.go` location keys** are `request_index` / `stage_index`; the service names `request` / `stage`. Unify. Slot and unknown-field logic already delegates to `descx.JSONObjectKeys` / `descx.UnknownFieldError`.
+- **Profiled `pulse mcp` still advertises hidden names** through tool registration, tool-input enums, the `strict.go` message and `toolmeta` prose.
+
+Landed in U05 after all (no longer this unit's): the `pulse://schema` resource serves `p.PayloadSchema()`, and the `strict.go` location keys are the service's `request` / `stage` (slot and unknown-field logic already delegates to `descx.JSONObjectKeys` / `descx.UnknownFieldError`).
 - **`TestProfileInvisibilityParity`**: the parity harness exists in the root package (`runHiddenParity`, per-entry-point tables); finalize it over MCP and add malformed-request cells (zone `tz`, field-ref parameter keys and strict categorical checks run before lookup and may diverge).
 - **Runtime refusal text** under `internal/processing` and `internal/service` is not swept for hidden names; `SeriesOverlayRequest.Overlays` is method-level and ungated.
 - **Label-table enum in `BindOnInspect`** (`labelTableNames`, `internal/mcp/bind.go`) lists every label table even when `capability:labels` is hidden; the manifest already lists none (U05 decision: a hidden capability's named tables are listed as if none were registered).

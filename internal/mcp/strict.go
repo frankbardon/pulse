@@ -56,9 +56,18 @@ func checkUnknownRequestKeys(body []byte) *perr.CodedError {
 	return descx.UnknownFieldError(unknown, requestSlotKeys)
 }
 
+// Location detail keys for a nested unknown-key refusal. They are the
+// service's located-refusal keys (descx.RefusalAt, as descx.SlotRefusal
+// uses them), so an MCP client sees the same details a library caller
+// does for the same request.
+const (
+	locationRequest = "request"
+	locationStage   = "stage"
+)
+
 // checkUnknownKeysComposed validates each request inside a
 // ComposedRequest body, tagging the offending request's index into the
-// returned error's details.
+// returned error's details as details.request.
 func checkUnknownKeysComposed(body []byte) *perr.CodedError {
 	var probe struct {
 		Requests []json.RawMessage `json:"requests"`
@@ -68,7 +77,7 @@ func checkUnknownKeysComposed(body []byte) *perr.CodedError {
 	}
 	for i, r := range probe.Requests {
 		if ce := checkUnknownRequestKeys(r); ce != nil {
-			ce.Details["request_index"] = i
+			ce.Details[locationRequest] = i
 			return ce
 		}
 	}
@@ -76,12 +85,12 @@ func checkUnknownKeysComposed(body []byte) *perr.CodedError {
 }
 
 // checkUnknownKeysChain validates each stage's request inside a
-// ChainRequest body, tagging the offending stage index (and name when
-// set) into the returned error's details.
+// ChainRequest body, tagging the offending stage index into the
+// returned error's details as details.stage (no stage name: the
+// service's located refusal carries the index alone).
 func checkUnknownKeysChain(body []byte) *perr.CodedError {
 	var probe struct {
 		Stages []struct {
-			Name    string          `json:"name"`
 			Request json.RawMessage `json:"request"`
 		} `json:"stages"`
 	}
@@ -93,10 +102,7 @@ func checkUnknownKeysChain(body []byte) *perr.CodedError {
 			continue
 		}
 		if ce := checkUnknownRequestKeys(st.Request); ce != nil {
-			ce.Details["stage_index"] = i
-			if st.Name != "" {
-				ce.Details["stage_name"] = st.Name
-			}
+			ce.Details[locationStage] = i
 			return ce
 		}
 	}

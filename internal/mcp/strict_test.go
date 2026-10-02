@@ -4,6 +4,7 @@ import (
 	stderrors "errors"
 	"reflect"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -92,9 +93,12 @@ func TestCheckUnknownKeysComposed_TagsIndex(t *testing.T) {
 	if ce == nil {
 		t.Fatal("expected error for unknown key in composed request[1], got nil")
 	}
-	if idx, _ := ce.Details["request_index"].(int); idx != 1 {
-		t.Errorf("request_index = %v, want 1", ce.Details["request_index"])
+	// The location key is the service's (descx.RefusalAt): an MCP client
+	// sees the same details a library caller does.
+	if idx, ok := ce.Details["request"].(int); !ok || idx != 1 {
+		t.Errorf("request = %v, want 1", ce.Details["request"])
 	}
+	assertDetailKeys(t, ce.Details, "unknown_keys", "suggestions", "valid_keys", "request")
 }
 
 func TestCheckUnknownKeysChain_TagsStage(t *testing.T) {
@@ -103,11 +107,25 @@ func TestCheckUnknownKeysChain_TagsStage(t *testing.T) {
 	if ce == nil {
 		t.Fatal("expected error for unknown key in chain stage 0, got nil")
 	}
-	if idx, _ := ce.Details["stage_index"].(int); idx != 0 {
-		t.Errorf("stage_index = %v, want 0", ce.Details["stage_index"])
+	if idx, ok := ce.Details["stage"].(int); !ok || idx != 0 {
+		t.Errorf("stage = %v, want 0", ce.Details["stage"])
 	}
-	if ce.Details["stage_name"] != "s0" {
-		t.Errorf("stage_name = %v, want s0", ce.Details["stage_name"])
+	assertDetailKeys(t, ce.Details, "unknown_keys", "suggestions", "valid_keys", "stage")
+}
+
+// assertDetailKeys pins the exact detail key set: the located
+// PULSE_REQUEST_UNKNOWN_FIELD shape descx.SlotRefusal returns to a
+// library caller (no MCP-only request_index / stage_index / stage_name).
+func assertDetailKeys(t *testing.T, details map[string]any, want ...string) {
+	t.Helper()
+	got := make([]string, 0, len(details))
+	for k := range details {
+		got = append(got, k)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("detail keys = %v, want %v", got, want)
 	}
 }
 
