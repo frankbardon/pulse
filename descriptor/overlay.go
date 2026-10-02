@@ -58,10 +58,12 @@ var pairwiseSupportedScopes = map[types.OverlayScope]bool{
 // ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
 // p_source modes, non-negative pair_along_dim / n_within_depth) — plus the
 // per-kind rule that the two Welford-input kinds accept NEITHER mode
-// selector, because both legs come from the triple. The
-// per-cell components requirement (PULSE_OVERLAY_COMPONENTS_REQUIRED) and
-// the Welford-shape requirement are runtime conditions — they depend on
-// the materialised host, not the request shape, so the handler raises
+// selector, because both legs come from the triple; the weighted kind
+// likewise refuses both selectors, requires n_basis and refuses a
+// built-in non-AGG_WEIGHTED_MEAN cell; every other kind refuses n_basis.
+// The per-cell components requirement (PULSE_OVERLAY_COMPONENTS_REQUIRED)
+// and the Welford-shape requirement are runtime conditions — they depend
+// on the materialised host, not the request shape, so the handler raises
 // them, not predict.
 func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	// Ref must be empty — the pairwise test compares two slots of the
@@ -134,9 +136,29 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 	// cell-aggregator admission in processing.runPairwiseOverlay, whose
 	// three modes are new in this release and can break no existing
 	// caller.
+	// n_basis on any kind but the weighted one. It is read ONLY by
+	// OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z; on every other pairwise
+	// kind it changes nothing while the caller believes they picked a
+	// weighted variance convention (most plausibly on the Welford
+	// OVERLAY_PAIRWISE_TWO_MEANS_Z twin). Same rule and same scope as
+	// the Welford selector refusal above: predict-only, because the
+	// param is inert and no wrong number can come of it, so a runtime
+	// twin would fail a succeeding pulse.Process for no correctness
+	// gain. Reported alongside any selector refusal, not instead of it.
+	nBasisRefused := false
+	if params.NBasis != "" && !types.PairwiseKindUsesWeightedMoments(spec.Kind) {
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+			"overlay "+string(spec.Kind)+" does not accept n_basis ("+params.NBasis+"): it is read only by "+
+				string(types.OverlayKindPairwiseWeightedTwoMeansZ)+
+				". Remove n_basis, or use that kind over an AGG_WEIGHTED_MEAN cell",
+			map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_basis",
+				"n_basis": params.NBasis})
+		nBasisRefused = true
+	}
+
 	if types.PairwiseKindUsesWelford(spec.Kind) {
 		const welfordReason = "n, mean and variance all come from the AGG_WELFORD triple {mean, variance, n}, so the mode selector is inert on this kind"
-		refused := false
+		refused := nBasisRefused
 		if params.NSource != "" {
 			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+welfordReason+
@@ -156,6 +178,9 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 		if refused {
 			return
 		}
+	}
+	if nBasisRefused {
+		return
 	}
 
 	// Weighted-moments kind. OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z reads
@@ -182,6 +207,22 @@ func validateOverlayPairwise(env *Envelope, req *types.Request, spec *types.Over
 					". Remove p_source",
 				map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
 					"p_source": params.PSource, "reason": weightedReason})
+			refused = true
+		}
+		// Cell host. Only AGG_WEIGHTED_MEAN emits the weighted moments
+		// among the built-ins, so a cell naming any OTHER built-in
+		// aggregator is a shape error predict can see from the request
+		// alone — the same PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE the
+		// runtime raises off the materialised host. An empty Type (a
+		// smart default resolves later) or an extension type defers to
+		// runtime: an extension may emit the moment keys, and runtime
+		// gates on the keys, not the type name.
+		if cell := req.Crosstab.Cell; cell != nil && cell.Type != "" &&
+			cell.Type != types.AGG_WEIGHTED_MEAN && isBuiltinAggregationType(cell.Type) {
+			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+				"overlay "+string(spec.Kind)+" requires an AGG_WEIGHTED_MEAN cell (it reads the weighted moments off Response.Components); the crosstab cell is "+string(cell.Type),
+				map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(cell.Type),
+					"required_cell_type": string(types.AGG_WEIGHTED_MEAN)})
 			refused = true
 		}
 		if !types.ValidPairwiseNBasis(params.NBasis) {
@@ -3402,4 +3443,16 @@ func snapshotGroupFanOut(snap *ExtensionsSnapshot) types.ExtensionGroupFanOutFun
 	return func(t types.GroupType) (bool, bool) {
 		return snap.GrouperFanOut(string(t))
 	}
+}
+
+// isBuiltinAggregationType reports whether t is a built-in aggregator
+// (types.AllAggregationTypes). Extension-registered types are NOT
+// built-in, so a shape check keyed on it defers them to runtime.
+func isBuiltinAggregationType(t types.AggregationType) bool {
+	for _, b := range types.AllAggregationTypes() {
+		if b == t {
+			return true
+		}
+	}
+	return false
 }

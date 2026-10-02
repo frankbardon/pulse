@@ -45,11 +45,11 @@ Floor `{n, n_null}` plus (all float64; empty cell all 0):
 
 ## Gotchas
 
-- Null/zero-weight rows are skipped by the mean but STILL count in floor `n` (`n`/`n_null` track `Field` only); size from `sum_weights`/`n_eff`.
+- Null/zero-weight rows skip the mean but STILL count in floor `n` (`n`/`n_null` track `Field`); size from `sum_weights`/`n_eff`.
 - `decimal128` rejected.
-- For unweighted mean use `AGG_AVERAGE`.
+- Unweighted: `AGG_AVERAGE`.
 
 ## See
 
 - `pulse_examples_search tags=[streaming-friendly]`
-- Skills: `aggregation-design`, `response-components`
+- Skills: `aggregation-design`, `response-components`, `op-overlay-pairwise-weighted-two-means-z`
