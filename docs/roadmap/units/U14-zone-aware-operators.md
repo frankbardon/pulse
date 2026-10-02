@@ -92,8 +92,8 @@ Open items [U03](U03-temporal-foundation.md) handed forward:
 
 - **`ParseLocal` + `Ambiguity`** move here from U03; import consumes them for `--source-tz` / `--dst-policy`.
 - **Remove the U03 refusal.** Today a non-UTC zone reaching a `datetime` field — or a derived field absent from the schema — is `PROCESSING_CONFIG` (`internal/descriptor/zone_resolve.go`, rule 5). Zone-aware arithmetic replaces it; `Options.DefaultTimeZone` non-UTC is already accepted at `New`, so only the per-request refusal flips.
-- **Tzdata version in the manifest.**
-- **Embedded tzdata determinism.** `LoadZone` goes through `time.LoadLocation`, which consults host zoneinfo before the embedded `time/tzdata`; pin the embedded copy so every host gives the same answer.
+- **Tzdata version in the manifest.** `temporal.TZDataVersion` (the IANA release of the embedded `internal/temporal/zoneinfo.zip`, pinned to the file's hash by `TestTZDataVersion_MatchesEmbeddedZip`) already exists; only the manifest exposure remains.
+- ~~**Embedded tzdata determinism.**~~ Resolved in U03 (temporal-foundation E4-S2): `LoadZone` reads only Pulse's embedded `zoneinfo.zip` via `time.LoadLocationFromTZData`, never `$ZONEINFO` or host zoneinfo (`TestLoadZone_IgnoresHostZoneinfo`); `time/tzdata` is no longer imported.
 - **Stdlib `Time.ZoneBounds` quirk:** past ~2037 (the rule-extended range) it reports a leap-year year-end transition one day early; `internal/temporal`'s table builder does not trust it blindly (`TestZoneOffset_LeapYearEnd`). Keep that guard when extending the table.
 - **`ParseDate` pre-epoch floor edge** — re-check day flooring for pre-1970 inputs when local-day parsing lands.
 - **Predict / runtime gaps** — closed in U03 (temporal-foundation E4-S1): predict resolves a join against the joined schema, honours `DisableDefaults`, the `Validate*` entry points resolve zones, Compose / chain refusals carry `details.request` / `details.stage`, and every chain stage resolves zones before the chain gate. See `.claude/reference/execution-modes.md` (Time zones).

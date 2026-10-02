@@ -94,7 +94,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(temporal-foundati
 
 ## Notes
 
-- Binary size grows by about 450 KB from embedded tzdata. This is accepted in the design.
+- Binary size grows by about 400 KB from embedded tzdata (`internal/temporal/zoneinfo.zip`, Pulse's own copy of the Go toolchain's zip, replacing the `time/tzdata` import so host zoneinfo is never consulted). This is accepted in the design.
 
 ## Landed deviations
 

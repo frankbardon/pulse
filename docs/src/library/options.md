@@ -123,8 +123,10 @@ nor the request's `time_zone` names one — precedence is slot `tz` →
 `time_zone` → `DefaultTimeZone` → `UTC`. The name must be exactly `UTC`
 or an IANA `Area/Location` zone (`Europe/Berlin`); anything else
 (`EST`, `Local`, `+05:00`) fails `pulse.New` with
-`PULSE_TIMEZONE_UNKNOWN`. tzdata is embedded, so resolution does not
-depend on the host.
+`PULSE_TIMEZONE_UNKNOWN`. Names resolve only from Pulse's own embedded
+copy of the tz database (never `$ZONEINFO` or the host's zoneinfo
+files), so the accepted set and every offset are identical on every
+host, and the lookup is case-sensitive everywhere.
 
 Zone-aware operator arithmetic has not landed yet: a non-UTC default is
 accepted at `pulse.New`, but a request in which it reaches a `datetime`

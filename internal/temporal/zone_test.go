@@ -300,10 +300,11 @@ func BenchmarkZoneOffset(b *testing.B) {
 // TestFirstChange pins the bisect the table walk falls back on when the
 // stdlib's ZoneBounds reports a degenerate (non-advancing) end.
 func TestFirstChange(t *testing.T) {
-	loc, err := time.LoadLocation("America/New_York")
+	ny, err := LoadZone("America/New_York")
 	if err != nil {
 		t.Fatal(err)
 	}
+	loc := ny.Location()
 	// 2041-03-10T07:00:00Z is the spring-forward instant (02:00 EST).
 	tr := time.Date(2041, 3, 10, 7, 0, 0, 0, time.UTC).Unix()
 	if got := firstChange(loc, tr-1800, tr+1800); got != tr {

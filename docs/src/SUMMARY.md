@@ -93,6 +93,7 @@
 - [Wiring Pulse into an MCP Client](internals/wiring-mcp-client.md)
 - [Debugging a Predict Mismatch](internals/debugging-predict.md)
 - [Regenerating Goldens](internals/regenerating-goldens.md)
+- [Refreshing the Time-Zone Database](internals/refreshing-tzdata.md)
 - [The Update Demand](internals/update-demand.md)
 
 # Operations

@@ -6,11 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	// The IANA tz database is embedded so zone resolution never depends
-	// on the host having /usr/share/zoneinfo. This is the ONLY import of
-	// it in the module (TestNoZoneMathOutsideTemporal).
-	_ "time/tzdata"
-
 	perr "github.com/frankbardon/pulse/errors"
 )
 
@@ -56,8 +51,10 @@ var UTC = &Zone{name: "UTC", loc: time.UTC, utc: true}
 // exactly "UTC" (the UTC sentinel), or an IANA Area/Location name — it
 // contains a '/', every '/'-separated segment opens with an ASCII
 // upper-case letter and carries only letters, digits, '_', '-' and '+' —
-// that time.LoadLocation resolves (the tz database is embedded, so this
-// never depends on the host). "Etc/UTC", "Etc/GMT-5" and "Europe/Berlin"
+// with an exact, case-sensitive entry in Pulse's embedded tz database
+// (zoneinfo.zip, version TZDataVersion). $ZONEINFO, the host zoneinfo
+// directory and time/tzdata are never consulted, so the accepted set and
+// every offset are identical on every host. "Etc/UTC", "Etc/GMT-5" and "Europe/Berlin"
 // are accepted. Empty, "Local", abbreviations and legacy names without a
 // '/' ("EST", "MST", "GMT", "EST5EDT") and offset strings ("+05:00") are
 // refused with a PULSE_TIMEZONE_UNKNOWN *errors.CodedError whose details
@@ -69,8 +66,8 @@ func LoadZone(name string) (*Zone, error) {
 	if !wellFormedZoneName(name) {
 		return nil, unknownZone(name, "it is not \"UTC\" or an IANA Area/Location name")
 	}
-	loc, err := time.LoadLocation(name)
-	if err != nil {
+	loc, ok := loadEmbeddedLocation(name)
+	if !ok {
 		return nil, unknownZone(name, "it is not in the tz database")
 	}
 	z := &Zone{name: name, loc: loc}
@@ -81,9 +78,9 @@ func LoadZone(name string) (*Zone, error) {
 }
 
 // wellFormedZoneName reports whether name has the shape of an IANA
-// Area/Location name. The shape check runs BEFORE time.LoadLocation so a
-// host whose zoneinfo directory is case-insensitive or carries extra
-// trees (posix/, right/) cannot widen the accepted set.
+// Area/Location name. It runs BEFORE the embedded lookup as defence in
+// depth: the shape alone already refuses lowercase, abbreviations and
+// offset strings, whatever the embedded zip happens to carry.
 func wellFormedZoneName(name string) bool {
 	if !strings.Contains(name, "/") {
 		return false
