@@ -151,7 +151,7 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 	if reason == "" {
 		for _, agg := range req.Aggregations {
 			if !EmitsScalar(agg.Type) {
-				reason = fmt.Sprintf("aggregator %s emits a non-scalar value (AGG_FREQUENCY and AGG_MODE are excluded)", agg.Type)
+				reason = fmt.Sprintf("aggregator %s emits a non-scalar value", agg.Type) + nonScalarNote(ext)
 				break
 			}
 		}
@@ -174,6 +174,34 @@ func EmitsScalar(t types.AggregationType) bool {
 		return false
 	}
 	return true
+}
+
+// hider is the optional half of Extensions an instance-scoped adapter
+// implements: Hidden reports a built-in name the instance does not
+// offer, so refusal prose can leave it out.
+type hider interface {
+	Hidden(name string) bool
+}
+
+// nonScalarNote is the chain refusal's parenthetical naming the
+// non-scalar aggregators — only those the instance offers (the
+// refusal never names a hidden operator). With every one offered it is
+// the historical " (AGG_FREQUENCY and AGG_MODE are excluded)".
+func nonScalarNote(ext Extensions) string {
+	h, _ := ext.(hider)
+	var named []string
+	for _, t := range []types.AggregationType{types.AGG_FREQUENCY, types.AGG_MODE} {
+		if h == nil || !h.Hidden(string(t)) {
+			named = append(named, string(t))
+		}
+	}
+	switch len(named) {
+	case 0:
+		return ""
+	case 1:
+		return " (" + named[0] + " is excluded)"
+	}
+	return " (" + named[0] + " and " + named[1] + " are excluded)"
 }
 
 // StageJoinRefusal is the ProcessChain rule that only stage 0 may

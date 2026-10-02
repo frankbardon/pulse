@@ -628,8 +628,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 					errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 					"overlay "+string(spec.Kind)+" n_source="+params.NSource+
 						" requires a distinct-key cell aggregator on every slot; observed cell aggregator "+
-						observedName+" on slot "+panelSlotLabel(spec, s)+", admitted: "+
-						strings.Join(admittedNames, ", "),
+						observedName+" on slot "+panelSlotLabel(spec, s)+remedyDistinctNAdmitted(nil),
 					map[string]any{
 						"kind":                      string(spec.Kind),
 						"n_source":                  params.NSource,

@@ -70,7 +70,7 @@ func newTukeyHSDPost(spec *types.Test, schema *encoding.Schema) (PostTest, error
 	}
 	if params.MSWithin <= 0 || params.DFWithin <= 0 {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"TEST_TUKEY_HSD: params.ms_within > 0 and params.df_within > 0 are required (typically lifted from a preceding TEST_ANOVA_F)")
+			"TEST_TUKEY_HSD: params.ms_within > 0 and params.df_within > 0 are required"+remedyTukeyFromAnova(nil))
 	}
 	nCol := params.NColumn
 	if nCol == "" {

@@ -24,6 +24,11 @@ import (
 // Process; a stage >= 1 carrying Joins is PULSE_CHAIN_STAGE_JOIN. Stage 0's Request.Cohort is replaced with req.Cohort; any
 // Request.Cohort on stages >= 1 is ignored.
 func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, error) {
+	resp, err := s.processChain(ctx, req)
+	return resp, s.scopeRefusal(err)
+}
+
+func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, error) {
 	if req == nil || len(req.Stages) == 0 {
 		return nil, errors.NewCodedError(errors.PULSE_CHAIN_EMPTY, "chain request must carry at least one stage")
 	}

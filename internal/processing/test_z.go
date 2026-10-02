@@ -104,7 +104,7 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 	}
 	if len(keys) > 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
-			fmt.Sprintf("TEST_Z_TWO_SAMPLE sees %d groups; specify a two-group SplitBy or use TEST_ANOVA_F", len(keys)),
+			fmt.Sprintf("TEST_Z_TWO_SAMPLE sees %d groups", len(keys))+remedyTwoGroupsOrAnova(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
 	a, b := zt.groups[keys[0]], zt.groups[keys[1]]

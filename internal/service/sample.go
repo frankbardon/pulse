@@ -28,6 +28,11 @@ func (s *Service) Sample(ctx context.Context, path string, n int) ([]map[string]
 // (PULSE_LABEL_COLLISION / PULSE_LABEL_LOOKUP_MISS) so callers can
 // fold them into the response envelope at their boundary.
 func (s *Service) SampleWithRequest(ctx context.Context, req *types.SampleRequest, path string) ([]map[string]any, []processing.ResolverWarning, error) {
+	rows, warns, err := s.sampleWithRequest(ctx, req, path)
+	return rows, warns, s.scopeRefusal(err)
+}
+
+func (s *Service) sampleWithRequest(ctx context.Context, req *types.SampleRequest, path string) ([]map[string]any, []processing.ResolverWarning, error) {
 	if req == nil {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "sample request is required")
 	}

@@ -121,9 +121,10 @@ Decided in the unit interview; contract of record is `.claude/reference/feature-
 - **Instance-dependent wording** of some refusals and hints (zone-capable operators, `ATTR_RANK` to `WIN_RANK` hint, pairwise advice, facet overlay kinds, `FEAT_TARGET_ENCODE` warning, suggestion reasons); a profile-free instance reads byte-identically.
 - **Template render** withholds hidden slots (`template.RenderWith`) so a hidden slot fails like a never-existing key.
 
+- **Runtime refusal text follows the instance** (pulled forward from U06). Runtime refusals that recommend other built-ins (set-field alternatives, two-sample tests' too-many-groups advice, `TEST_TUKEY_HSD`'s `TEST_ANOVA_F` pairing, pairwise `n_source` advice and admitted cell aggregators, regression `REG_OLS` / `REG_GLM` pointers, the chain gate's non-scalar note) name only what the instance offers; names behind a hard dependency edge stay literal. Unprofiled refusals are byte-identical.
 - **MCP schema resource and strict-decode details follow the instance** (pulled forward from U06). `pulse://schema` serves `p.PayloadSchema()` — a profile-free instance without extensions is byte-identical to `BuildPayloadSchema()`. `internal/mcp/strict.go` locates an unknown key inside a compose request or chain stage with the service's `details.request` / `details.stage` (was `request_index` / `stage_index`, plus `stage_name`), so an MCP client sees what a library caller sees.
 
 ## Handed to U06 / U10
 
-- **U06:** MCP registration and tool enums, the `BindOnInspect` rebind, `toolmeta` prose, prompts, `TestProfileInvisibilityParity` including malformed-request cells (pre-lookup validators may diverge), a sweep of runtime refusal text under `internal/processing` and `internal/service`, `SeriesOverlayRequest.Overlays` (method-level, ungated), and the decision on emptying the label and range tables.
+- **U06:** MCP registration and tool enums, the `BindOnInspect` rebind, `toolmeta` prose, prompts, `TestProfileInvisibilityParity` including malformed-request cells (pre-lookup validators may diverge), `SeriesOverlayRequest.Overlays` (method-level, ungated), and the decision on emptying the label and range tables.
 - **U10:** manifest `skills` and examples counts and tags; skills and examples that name hidden operators.

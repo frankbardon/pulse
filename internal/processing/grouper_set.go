@@ -70,7 +70,7 @@ func rejectSetFieldForNumericGrouper(grp *types.Group, schema *encoding.Schema) 
 	}
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 		string(grp.Type)+": field "+grp.Field+" is a set column ("+f.Type.String()+
-			"); use GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT",
+			")"+remedyGrouperSetField(nil),
 		map[string]any{
 			"field":    grp.Field,
 			"type":     f.Type.String(),

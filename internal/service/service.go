@@ -287,6 +287,15 @@ func (s *Service) SetInstanceSnapshot(snap *descx.InstanceSnapshot) {
 	s.rescopeExtensions()
 }
 
+// scopeRefusal rewrites a refusal leaving the service so its remedy
+// prose names only operators the instance offers
+// (processing.ExtensionRegistry.ScopeRefusal). Every request entry
+// point returns through it; an instance without a feature profile is
+// untouched.
+func (s *Service) scopeRefusal(err error) error {
+	return s.extensions.ScopeRefusal(err)
+}
+
 // InstanceSnapshot returns the installed instance snapshot. A nil
 // result is unscoped: every feature enabled, no extensions.
 func (s *Service) InstanceSnapshot() *descx.InstanceSnapshot {
@@ -547,6 +556,11 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 // Records are streamed from disk — the full file is never held in memory as raw bytes
 // alongside the decoded records.
 func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Response, error) {
+	resp, err := s.process(ctx, req)
+	return resp, s.scopeRefusal(err)
+}
+
+func (s *Service) process(ctx context.Context, req *types.Request) (*types.Response, error) {
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
 	}
@@ -947,6 +961,11 @@ func (s *Service) installProjection(iter scanIterator, req *types.Request, schem
 // Compose-only overlay kinds resolve sibling references by final Label
 // so the names must be unique across the batch.
 func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
+	resp, err := s.compose(ctx, composed)
+	return resp, s.scopeRefusal(err)
+}
+
+func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
 	}

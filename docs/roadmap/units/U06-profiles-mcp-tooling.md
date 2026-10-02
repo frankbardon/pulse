@@ -102,8 +102,8 @@ U05 enforced the feature set through `*Pulse` and the descriptor builders; contr
 
 - **Profiled `pulse mcp` still advertises hidden names** through tool registration, tool-input enums, the `strict.go` message and `toolmeta` prose.
 
-Landed in U05 after all (no longer this unit's): the `pulse://schema` resource serves `p.PayloadSchema()`, and the `strict.go` location keys are the service's `request` / `stage` (slot and unknown-field logic already delegates to `descx.JSONObjectKeys` / `descx.UnknownFieldError`).
+Landed in U05 after all (no longer this unit's): the `pulse://schema` resource serves `p.PayloadSchema()`; the `strict.go` location keys are the service's `request` / `stage` (slot and unknown-field logic already delegates to `descx.JSONObjectKeys` / `descx.UnknownFieldError`); runtime refusal text under `internal/processing` / `internal/service` names only offered built-ins (remedy clauses rewritten by `ExtensionRegistry.ScopeRefusal`, the chain gate's non-scalar note at its site; `TestProfileRuntimeRefusalSweep`).
 - **`TestProfileInvisibilityParity`**: the parity harness exists in the root package (`runHiddenParity`, per-entry-point tables); finalize it over MCP and add malformed-request cells (zone `tz`, field-ref parameter keys and strict categorical checks run before lookup and may diverge).
-- **Runtime refusal text** under `internal/processing` and `internal/service` is not swept for hidden names; `SeriesOverlayRequest.Overlays` is method-level and ungated.
+- **`SeriesOverlayRequest.Overlays`** is method-level and ungated (methods are ungated by design; revisit only if a served surface exposes it).
 - **Label-table enum in `BindOnInspect`** (`labelTableNames`, `internal/mcp/bind.go`) lists every label table even when `capability:labels` is hidden; the manifest already lists none (U05 decision: a hidden capability's named tables are listed as if none were registered).
 - **Public example profiles** (`examples/profiles/*.json`): U05's `minimal`, `survey-crosstab` and `empty` fixtures are private under `descriptor/testdata/profiles/`.

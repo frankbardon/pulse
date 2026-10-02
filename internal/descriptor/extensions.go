@@ -336,6 +336,10 @@ func findMeta(metas []descriptor.OperatorMeta, name string) (descriptor.Operator
 	return descriptor.OperatorMeta{}, false
 }
 
+// Hidden reports a built-in the instance does not offer, for the
+// gate's refusal prose (mergegate's optional hider).
+func (f snapshotMergeFacts) Hidden(name string) bool { return f.inst.Hidden(name) }
+
 func (f snapshotMergeFacts) Aggregator(name string) (bool, bool) {
 	if f.inst.Hidden(name) {
 		return false, true

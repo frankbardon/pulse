@@ -33,6 +33,11 @@ const maxHistogramBins = 256
 // counts run a parallel discrete accumulator with the additive field's
 // own filter clauses stripped from the base filter.
 func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*types.FacetResult, error) {
+	resp, err := s.facetSchema(ctx, req)
+	return resp, s.scopeRefusal(err)
+}
+
+func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*types.FacetResult, error) {
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "facet schema requires a request")
 	}

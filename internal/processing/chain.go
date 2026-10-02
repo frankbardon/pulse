@@ -58,6 +58,10 @@ func (r *ExtensionRegistry) mergeFacts() mergegate.Extensions {
 
 type registryMergeFacts struct{ r *ExtensionRegistry }
 
+// Hidden reports a built-in the instance does not offer, for the
+// gate's refusal prose (mergegate's optional hider).
+func (f registryMergeFacts) Hidden(name string) bool { return f.r.isHidden(name) }
+
 func (f registryMergeFacts) Aggregator(name string) (bool, bool) {
 	if f.r.isHidden(name) {
 		return false, true

@@ -102,8 +102,8 @@ func rejectSetFieldForNumericFilter(filter *types.Filterer, schema *encoding.Sch
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-		fmt.Sprintf("%s cannot read set field %q (%s): its numeric value is the low 64 bits of the membership bitmask, not a quantity. Use FILTER_SET_CONTAINS_ANY / _ALL / _NONE / _EQUALS, or ATTR_SET_POPCOUNT for set size.",
-			filter.Type, filter.Field, f.Type),
+		fmt.Sprintf("%s cannot read set field %q (%s): its numeric value is the low 64 bits of the membership bitmask, not a quantity.",
+			filter.Type, filter.Field, f.Type)+remedyFiltererSetField(nil),
 		map[string]any{"field": filter.Field, "type": f.Type.String()})
 }
 

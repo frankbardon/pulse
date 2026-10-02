@@ -268,8 +268,11 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   zone-capable operator list, the `ATTR_RANK` to `WIN_RANK` hint (the
   generic unknown-attribute error when `WIN_RANK` is hidden), pairwise
   overlay advice, the facet overlay kind list, and the categorical and
-  decimal suggestion reasons. An instance without a profile reads
-  byte-identically to before.
+  decimal suggestion reasons. Runtime refusals follow the same rule:
+  one that recommends other operators (for example "use
+  GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT" or "use TEST_ANOVA_F for
+  k>2") names only the ones the instance offers, keeping its error
+  code. An instance without a profile reads byte-identically to before.
 - **Digest.** Manifest and payload schema carry `feature_set_digest`
   (the schema as its root `$comment`), equal to `p.FeatureSetDigest()`.
   The field is additive; the envelope `format_version` stays `"1.1"`.

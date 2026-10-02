@@ -523,3 +523,24 @@ func TestValidateChain_HiddenDefaultNotInferred(t *testing.T) {
 		t.Error("vacuous: the unscoped default changes nothing")
 	}
 }
+
+// TestValidateChain_NonScalarNoteNamesOnlyOffered: the chain
+// validator's non-scalar refusal names AGG_MODE as excluded only when
+// the instance offers it (the snapshot adapter's Hidden).
+func TestValidateChain_NonScalarNoteNamesOnlyOffered(t *testing.T) {
+	data := buildTestPulseFile(t, hiddenPredictSchema(t))
+	req := &types.ChainRequest{Stages: []*types.ChainStage{{Name: "a", Request: &types.Request{
+		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "grade", Label: "f"}},
+	}}}}
+	msg := func(opts *PredictOptions) string {
+		return hiddenEnvJSON(t, ValidateChainWithOptions(bytes.NewReader(data), req, opts))
+	}
+	if got := msg(nil); !strings.Contains(got, "(AGG_FREQUENCY and AGG_MODE are excluded)") {
+		t.Fatalf("vacuous: unscoped refusal lacks the historical note: %s", got)
+	}
+	got := msg(&PredictOptions{Instance: hideOnly(string(types.AGG_MODE))})
+	if strings.Contains(got, "AGG_MODE") || !strings.Contains(got, "(AGG_FREQUENCY is excluded)") {
+		t.Errorf("scoped refusal = %s", got)
+	}
+}

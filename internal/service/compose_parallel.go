@@ -57,6 +57,15 @@ func (s *Service) ComposeParallel(
 	composed *types.ComposedRequest,
 	opts ComposeOptions,
 ) (*types.ComposedResponse, error) {
+	resp, err := s.composeParallel(ctx, composed, opts)
+	return resp, s.scopeRefusal(err)
+}
+
+func (s *Service) composeParallel(
+	ctx context.Context,
+	composed *types.ComposedRequest,
+	opts ComposeOptions,
+) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"composed request must contain at least one request")

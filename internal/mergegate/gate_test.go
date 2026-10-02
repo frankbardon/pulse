@@ -176,3 +176,45 @@ func TestMergeRefusal_ExtensionAnswerPrecedesBuiltinAttributeList(t *testing.T) 
 		t.Errorf("hidden ATTR_FORMULA refusal %q, want %q", got, want)
 	}
 }
+
+// hidingExt is an instance-scoped adapter hiding a fixed name set.
+type hidingExt struct {
+	None
+	hidden map[string]bool
+}
+
+func (h hidingExt) Hidden(n string) bool { return h.hidden[n] }
+
+// TestChainRefusal_NonScalarNoteNamesOnlyOffered: the chain refusal's
+// excluded-aggregator parenthetical names only aggregators the adapter
+// does not hide; an adapter without Hidden keeps the historical text.
+func TestChainRefusal_NonScalarNoteNamesOnlyOffered(t *testing.T) {
+	req := func(t types.AggregationType) *types.Request {
+		return &types.Request{Aggregations: []*types.Aggregation{{Type: t, Field: "x"}}}
+	}
+	cases := []struct {
+		name string
+		ext  Extensions
+		agg  types.AggregationType
+		want string
+	}{
+		{"unscoped", None{}, types.AGG_FREQUENCY, "chain stage is not mergeable: aggregator AGG_FREQUENCY emits a non-scalar value (AGG_FREQUENCY and AGG_MODE are excluded)"},
+		{"nothing hidden", hidingExt{}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_FREQUENCY and AGG_MODE are excluded)"},
+		{"mode hidden", hidingExt{hidden: map[string]bool{"AGG_MODE": true}}, types.AGG_FREQUENCY, "chain stage is not mergeable: aggregator AGG_FREQUENCY emits a non-scalar value (AGG_FREQUENCY is excluded)"},
+		{"frequency hidden", hidingExt{hidden: map[string]bool{"AGG_FREQUENCY": true}}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
+	}
+	for _, tc := range cases {
+		err := ChainRefusal(req(tc.agg), nil, tc.ext, 1, "s")
+		ce, ok := err.(*errors.CodedError)
+		if !ok {
+			t.Fatalf("%s: err = %v", tc.name, err)
+		}
+		if ce.Message != tc.want {
+			t.Errorf("%s: %q, want %q", tc.name, ce.Message, tc.want)
+		}
+	}
+	both := hidingExt{hidden: map[string]bool{"AGG_FREQUENCY": true, "AGG_MODE": true}}
+	if got := nonScalarNote(both); got != "" {
+		t.Errorf("both hidden: %q, want empty", got)
+	}
+}

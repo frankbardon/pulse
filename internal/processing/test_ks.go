@@ -96,7 +96,7 @@ func (k *ksRow) Finalize() (*types.TestResult, error) {
 	}
 	if len(keys) > 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
-			fmt.Sprintf("TEST_KS sees %d groups; specify two groups via a FILTER_INCLUDE/FILTER_EXCLUDE upstream", len(keys)),
+			fmt.Sprintf("TEST_KS sees %d groups", len(keys))+remedyTwoGroupsFilterUpstream(nil),
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
 	a := append([]float64(nil), k.values[keys[0]]...)

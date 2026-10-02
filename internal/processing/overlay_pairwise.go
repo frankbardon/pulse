@@ -220,8 +220,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+
 				"): n, mean and variance all come from the AGG_WELFORD triple {mean, variance, n}, "+
-				"so the mode selector is inert on this kind. Remove n_source, or use "+
-				"OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a separate n leg",
+				"so the mode selector is inert on this kind. Remove n_source"+remedyPairwiseNLeg(nil),
 			map[string]any{
 				"kind":     string(spec.Kind),
 				"param":    "n_source",
@@ -244,7 +243,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 			return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 				"overlay "+string(spec.Kind)+" n_source="+params.NSource+" requires a distinct-key cell aggregator; observed cell aggregator "+
-					observedName+", admitted: "+joinCommaSpace(admittedNames),
+					observedName+remedyDistinctNAdmitted(nil),
 				map[string]any{
 					"kind":                      string(spec.Kind),
 					"n_source":                  params.NSource,
@@ -580,20 +579,6 @@ func stringifyOverlayAxisKey(k types.AxisKey) string {
 		}
 		return joinPipe(parts)
 	}
-}
-
-// joinCommaSpace joins parts with ", ". Kept alongside joinPipe rather
-// than reaching for strings.Join so the file stays consistent with the
-// no-Sprintf posture of the surrounding diagnostics.
-func joinCommaSpace(parts []string) string {
-	out := ""
-	for i, p := range parts {
-		if i > 0 {
-			out += ", "
-		}
-		out += p
-	}
-	return out
 }
 
 func joinPipe(parts []string) string {
