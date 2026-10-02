@@ -128,5 +128,13 @@ Decided in the unit interview; contract of record is `.claude/reference/feature-
 
 ## Handed to U06 / U10
 
-- **U06:** MCP registration and tool enums, the `BindOnInspect` rebind, `toolmeta` prose, prompts, `TestProfileInvisibilityParity` over MCP, `SeriesOverlayRequest.Overlays` (method-level, ungated), and the decision on emptying the label and range tables.
+- **U06:** MCP registration and tool enums, the `BindOnInspect` rebind, `toolmeta` prose, prompts, `TestProfileInvisibilityParity` over MCP, `SeriesOverlayRequest.Overlays` (method-level, ungated), the label-table enum in `BindOnInspect`, and the public `examples/profiles/*.json`.
 - **U10:** manifest `skills` and examples counts and tags; skills and examples that name hidden operators.
+
+## Notes: pre-existing gaps found incidentally (not new work)
+
+Found while building the malformed-request parity cells; none is caused by feature profiles, and none is fixed here.
+
+- **Predict accepts a bad crosstab cell aggregator.** Predict reports a never-registered (or decimal128-unsupported) crosstab cell aggregator as valid while the runtime refuses it.
+- **ProcessChain stage 1 and later ignore label bindings.** A later stage's label bindings are silently dropped rather than applied or refused.
+- **`LookupTables` are gated by no capability.** They always resolve, even when `capability:labels` and `capability:range_tables` are hidden. Open design question: whether a profile should be able to hide them (they are expression-function data, not a named-table capability today).
