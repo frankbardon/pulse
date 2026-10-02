@@ -683,8 +683,10 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// Check attribute fields.
 	for _, attr := range req.Attributes {
 		// Removed-type sentinel: ATTR_RANK was retired in favor of WIN_RANK.
-		// Surface a migration hint instead of the generic registry-miss error.
-		if attr.Type == "ATTR_RANK" {
+		// Surface a migration hint instead of the generic registry-miss error
+		// — unless the instance hides WIN_RANK: then the hint would advertise
+		// an operator it does not offer, so ATTR_RANK takes the generic miss.
+		if attr.Type == "ATTR_RANK" && !opts.instance().Hidden(string(types.WIN_RANK)) {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"ATTR_RANK was removed in this release; use WIN_RANK with empty partition_by and a single ASC order_by on the same field",

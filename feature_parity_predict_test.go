@@ -120,8 +120,8 @@ func TestHiddenOperatorSharedRuleParity(t *testing.T) {
 			if !scoped.svc.InstanceSnapshot().Hidden(tc.hidden) {
 				t.Fatalf("minimal does not hide %s", tc.hidden)
 			}
-			// The zone refusal's message lists every zone-capable
-			// operator by name — a fixed list, not the slot's name —
+			// The zone refusal's message lists the zone-capable
+			// operators the instance offers — not the slot's name —
 			// so it is elided before substitution.
 			zoneList := regexp.MustCompile(`only zone-capable operators \([^)]*\)`)
 			run := func(p *Pulse, op string) string {

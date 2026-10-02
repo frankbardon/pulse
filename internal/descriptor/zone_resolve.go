@@ -3,6 +3,7 @@ package descriptor
 import (
 	stderrors "errors"
 	"fmt"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -104,7 +105,7 @@ func ResolveZones(req *types.Request, schema *encoding.Schema, defaultZone strin
 			}
 		}
 	}
-	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load)
+	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load, inst)
 }
 
 // ResolveFacetZones is ResolveZones for a FacetRequest: its filterers
@@ -120,10 +121,10 @@ func ResolveFacetZones(req *types.FacetRequest, schema *encoding.Schema, default
 			slots = append(slots, zoneSlot{fmt.Sprintf("filterers[%d]", i), string(f.Type), f.Field, f.TimeZone, inst.Hidden(string(f.Type))})
 		}
 	}
-	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load)
+	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load, inst)
 }
 
-func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Schema, defaultZone string, load ZoneLoader) ([]descriptor.ResolvedZone, error) {
+func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Schema, defaultZone string, load ZoneLoader, inst *InstanceSnapshot) ([]descriptor.ResolvedZone, error) {
 	if load == nil {
 		load = temporal.LoadZone
 	}
@@ -161,7 +162,7 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 		if !capable {
 			if s.tz != "" {
 				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-					fmt.Sprintf("%s: operator %s does not accept `tz`; only zone-capable operators (GROUP_DATE, GROUP_DATE_RANGES, FILTER_DATE_RANGES, ATTR_DATE_PART, FEAT_DATE_FEATURES) take a per-slot time zone", s.slot, s.operator),
+					fmt.Sprintf("%s: operator %s does not accept `tz`; %s", s.slot, s.operator, zoneCapableAdvice(inst)),
 					map[string]any{"slot": s.slot, "operator": s.operator, errors.DetailTimeZone: s.tz})
 			}
 			continue
@@ -329,4 +330,30 @@ func cohortSchemaFor(c *types.Cohort, opts *PredictOptions) *encoding.Schema {
 		return nil
 	}
 	return schema
+}
+
+// zoneCapableOperators is the zone-capable set in the order the
+// not-capable refusal lists it.
+var zoneCapableOperators = []string{
+	string(types.GROUP_DATE),
+	string(types.GROUP_DATE_RANGES),
+	string(types.FILTER_DATE_RANGES),
+	string(types.ATTR_DATE_PART),
+	string(types.FEAT_DATE_FEATURES),
+}
+
+// zoneCapableAdvice is the not-capable refusal's advice clause, listing
+// only the zone-capable operators inst offers: a refusal never names an
+// operator the instance hides.
+func zoneCapableAdvice(inst *InstanceSnapshot) string {
+	var offered []string
+	for _, n := range zoneCapableOperators {
+		if !inst.Hidden(n) {
+			offered = append(offered, n)
+		}
+	}
+	if len(offered) == 0 {
+		return "no operator this instance offers takes a per-slot time zone"
+	}
+	return "only zone-capable operators (" + strings.Join(offered, ", ") + ") take a per-slot time zone"
 }

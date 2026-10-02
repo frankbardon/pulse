@@ -199,7 +199,7 @@ func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Reque
 			)
 			out = append(out, descriptor.Suggestion{
 				Path:       path,
-				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, "numeric aggregation does not apply to a categorical field; use a categorical-friendly aggregator"),
+				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, "numeric aggregation does not apply to a categorical field; use a categorical-friendly aggregator", inst),
 				Current:    string(agg.Type),
 				Proposed:   proposed,
 				Confidence: 0.6,
@@ -218,7 +218,7 @@ func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Reque
 			)
 			out = append(out, descriptor.Suggestion{
 				Path:       path,
-				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL, "aggregation has no decimal128 implementation; pick from the decimal-supported aggregators"),
+				Reason:     reasonFromCode(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL, "aggregation has no decimal128 implementation; pick from the decimal-supported aggregators", inst),
 				Current:    string(agg.Type),
 				Proposed:   proposed,
 				Confidence: 0.6,
@@ -415,14 +415,15 @@ func appendStreamabilitySuggestions(out []descriptor.Suggestion, req *types.Requ
 // reasonFromCode prefers the canonical Hint from the fixup metadata
 // table when available; falls back to the supplied prose otherwise.
 // Opportunistic reuse: stable prose without inventing wording per call
-// site.
-func reasonFromCode(c errors.Code, fallback string) string {
+// site. A hint naming a feature inst hides yields to the fallback, so a
+// suggestion never advertises an operator the instance does not offer.
+func reasonFromCode(c errors.Code, fallback string, inst *InstanceSnapshot) string {
 	meta, ok := errors.MetadataFor(c)
 	if !ok || meta.FixupNotApplicable || len(meta.Fixups) == 0 {
 		return fallback
 	}
-	if meta.Fixups[0].Hint != "" {
-		return meta.Fixups[0].Hint
+	if h := meta.Fixups[0].Hint; h != "" && !mentionsHidden(h, hiddenProseNames(inst)) {
+		return h
 	}
 	return fallback
 }

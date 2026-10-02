@@ -54,6 +54,37 @@ var pairwiseSupportedScopes = map[types.OverlayScope]bool{
 	types.OverlayScopeColumn: true,
 }
 
+// pairwiseNBasisAdvice completes the n_basis refusal on a kind that
+// does not read it. The weighted kind (and the AGG_WEIGHTED_MEAN cell it
+// requires) is named only when the instance offers it: a refusal never
+// advertises a hidden feature.
+func pairwiseNBasisAdvice(opts *PredictOptions) string {
+	if opts.overlayRoute(types.OverlayKindPairwiseWeightedTwoMeansZ) == "" {
+		return "no pairwise kind this instance offers reads it. Remove n_basis"
+	}
+	return "it is read only by " + string(types.OverlayKindPairwiseWeightedTwoMeansZ) +
+		". Remove n_basis, or use that kind over an AGG_WEIGHTED_MEAN cell"
+}
+
+// pairwiseProportionAdvice is the ", or use …" tail of a Welford-kind
+// selector refusal: the proportion kinds the instance offers, which
+// what. Empty when it offers neither.
+func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
+	var offered []string
+	for _, k := range []types.OverlayKind{types.OverlayKindPairwisePropZ, types.OverlayKindPairwiseProbitT} {
+		if opts.overlayRoute(k) != "" {
+			offered = append(offered, string(k))
+		}
+	}
+	switch len(offered) {
+	case 0:
+		return ""
+	case 1:
+		return ", or use " + offered[0] + ", which can " + what
+	}
+	return ", or use " + strings.Join(offered, " / ") + ", which " + what
+}
+
 // validateOverlayPairwise validates the shared contract for every
 // OVERLAY_PAIRWISE_* kind: implicit-margin (empty Ref), MATRIX host,
 // ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
@@ -149,9 +180,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	nBasisRefused := false
 	if params.NBasis != "" && !types.PairwiseKindUsesWeightedMoments(spec.Kind) {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(spec.Kind)+" does not accept n_basis ("+params.NBasis+"): it is read only by "+
-				string(types.OverlayKindPairwiseWeightedTwoMeansZ)+
-				". Remove n_basis, or use that kind over an AGG_WEIGHTED_MEAN cell",
+			"overlay "+string(spec.Kind)+" does not accept n_basis ("+params.NBasis+"): "+pairwiseNBasisAdvice(opts),
 			map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_basis",
 				"n_basis": params.NBasis})
 		nBasisRefused = true
@@ -163,7 +192,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		if params.NSource != "" {
 			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+welfordReason+
-					". Remove n_source, or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a proportion and a separate n leg",
+					". Remove n_source"+pairwiseProportionAdvice(opts, "read a proportion and a separate n leg"),
 				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
 					"n_source": params.NSource, "reason": welfordReason})
 			refused = true
@@ -171,7 +200,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		if params.PSource != "" {
 			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 				"overlay "+string(spec.Kind)+" does not accept p_source ("+params.PSource+"): "+welfordReason+
-					". Remove p_source, or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which derive a proportion leg",
+					". Remove p_source"+pairwiseProportionAdvice(opts, "derive a proportion leg"),
 				map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
 					"p_source": params.PSource, "reason": welfordReason})
 			refused = true

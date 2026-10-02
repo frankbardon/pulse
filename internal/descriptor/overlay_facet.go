@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -120,7 +121,7 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 	// kind belongs on a Request.Overlays slot, not FacetRequest.Overlays.
 	if !isFacetOverlayKind(spec.Kind) {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-			"overlay "+string(spec.Kind)+" is not a FACET-host kind; FacetRequest.Overlays accepts only OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP / OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP",
+			"overlay "+string(spec.Kind)+" is not a FACET-host kind; "+facetOverlayKindsAdvice(opts),
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
@@ -164,6 +165,23 @@ func isFacetOverlayKind(kind types.OverlayKind) bool {
 		return true
 	}
 	return false
+}
+
+// facetOverlayKindsAdvice names the FACET-host kinds FacetRequest.Overlays
+// accepts — only those the instance offers, so the refusal never
+// advertises a hidden kind.
+func facetOverlayKindsAdvice(opts *PredictOptions) string {
+	var offered []string
+	for _, k := range []types.OverlayKind{types.OverlayKindIndexVsPop, types.OverlayKindZScoreVsPop,
+		types.OverlayKindChiSqVsPop, types.OverlayKindKSVsPop} {
+		if opts.overlayRoute(k) != "" {
+			offered = append(offered, string(k))
+		}
+	}
+	if len(offered) == 0 {
+		return "FacetRequest.Overlays accepts no kind on this instance"
+	}
+	return "FacetRequest.Overlays accepts only " + strings.Join(offered, " / ")
 }
 
 // validateFacetOverlayRef enforces the Ref.Population-only contract for
