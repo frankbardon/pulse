@@ -69,21 +69,30 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		name    string
 		dir     string
 		minJSON int
+		glob    string // "" = every *.json in dir
 	}{
-		{"features", "features", 10},
-		{"attributes", "attributes", 6},
-		{"filterers", "filterers", 4},
-		{"groupers", "groupers", 5},
-		{"windows", "windows", 10},
-		{"aggregations", "aggregations", 4},
-		{"tests", "tests", 27},
-		{"regression", "regression", 16},
-		{"crosstab", "crosstab", 13},
+		{"features", "features", 10, ""},
+		{"attributes", "attributes", 6, ""},
+		{"filterers", "filterers", 4, ""},
+		{"groupers", "groupers", 5, ""},
+		{"windows", "windows", 10, ""},
+		{"aggregations", "aggregations", 4, ""},
+		{"tests", "tests", 27, ""},
+		{"regression", "regression", 16, ""},
+		{"crosstab", "crosstab", 13, ""},
+		// The overlays directory mixes Request-, Compose- and Facet-host
+		// examples, and only Request-host ones run through pulse.Process,
+		// so this arm is scoped to the MATRIX-host axis-pairing family.
+		{"overlays-crosstab-pairwise", "overlays", 4, "*_crosstab_pairwise_*.json"},
 	}
 
 	for _, cat := range categories {
 		t.Run(cat.name, func(t *testing.T) {
-			matches, err := filepath.Glob(filepath.Join("internal", "examples", cat.dir, "*.json"))
+			pattern := cat.glob
+			if pattern == "" {
+				pattern = "*.json"
+			}
+			matches, err := filepath.Glob(filepath.Join("internal", "examples", cat.dir, pattern))
 			if err != nil {
 				t.Fatalf("glob %s: %v", cat.dir, err)
 			}
@@ -142,6 +151,11 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) {
 	// instead of Data.
 	if resp.Data == nil && len(resp.Tests) == 0 && len(resp.PostTests) == 0 && len(resp.Regressions) == 0 && resp.Crosstab == nil {
 		t.Fatalf("%s: nil data and no test/regression/crosstab results", examplePath)
+	}
+	// Every requested overlay must come back as a layer — a dropped
+	// spec would otherwise pass as a clean run.
+	if len(resp.Overlays) != len(req.Overlays) {
+		t.Fatalf("%s: %d overlay specs but %d layers", examplePath, len(req.Overlays), len(resp.Overlays))
 	}
 }
 

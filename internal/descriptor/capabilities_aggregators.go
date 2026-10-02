@@ -517,7 +517,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 					Name:        "weight_field",
 					Type:        "string",
 					Required:    true,
-					Description: "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are skipped.",
+					Description: "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only).",
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
