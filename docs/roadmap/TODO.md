@@ -67,15 +67,15 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#16** `Options.FeatureProfile`, `Options.FeatureProfileFile`, the `PULSE_FEATURE_PROFILE` env var (read only by `pulse mcp` / `mcpserve.NewPulse`), and `pulse mcp --feature-profile` (the CLI is otherwise unprofiled) · [U04](units/U04-profiles-model.md)
 
 ### FP3 — Instance snapshot & request path
-- [ ] **#17** `InstanceSnapshot` (merges the extensions snapshot with the resolved feature set) · [U05](units/U05-profiles-enforcement.md)
-- [ ] **#18** Hidden names resolve exactly like never-registered names at the single validation choke point, for every entry point · [U05](units/U05-profiles-enforcement.md)
-- [ ] **#19** Hidden request slots refused like unknown fields under strict decode · [U05](units/U05-profiles-enforcement.md)
-- [ ] **#20** `feature_set_digest` present on every instance, including the default · [U05](units/U05-profiles-enforcement.md)
+- [x] **#17** `InstanceSnapshot` (merges the extensions snapshot with the resolved feature set) · [U05](units/U05-profiles-enforcement.md)
+- [x] **#18** Hidden names resolve exactly like never-registered names at the single validation choke point, for every entry point · [U05](units/U05-profiles-enforcement.md)
+- [x] **#19** Hidden request slots refused like unknown fields under strict decode · [U05](units/U05-profiles-enforcement.md)
+- [x] **#20** `feature_set_digest` present on every instance, including the default · [U05](units/U05-profiles-enforcement.md)
 
 ### FP4 — Self-description
-- [ ] **#21** Instance-scoped manifest, payload schema (`p.PayloadSchema()`), predict and errors list · [U05](units/U05-profiles-enforcement.md)
-- [ ] **#22** Profile goldens for each example profile · [U05](units/U05-profiles-enforcement.md)
-- [ ] **#23** `TestProfileDefaultIsFull`: no profile produces output byte-identical to today · [U05](units/U05-profiles-enforcement.md)
+- [x] **#21** Instance-scoped manifest, payload schema (`p.PayloadSchema()`), predict and errors list · [U05](units/U05-profiles-enforcement.md)
+- [x] **#22** Profile goldens for each example profile · [U05](units/U05-profiles-enforcement.md)
+- [x] **#23** `TestProfileDefaultIsFull`: no profile produces output byte-identical to today · [U05](units/U05-profiles-enforcement.md)
 
 ### FP5 — Skills & ontology
 - [ ] **#24** Ontology graph (intents → operators → skills / examples / glossary / NotFor edges), pruned once at `pulse.New` · [U10](units/U10-skill-ontology.md)

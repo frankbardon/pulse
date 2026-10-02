@@ -89,3 +89,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(skill-ontology/E<
 ## Notes
 
 - Pair the rewrite with Purpose metadata from U08/U09: comparisons move into `NotFor`.
+
+## Inherited from U05
+
+The manifest `skills` list and examples counts / tags are NOT scoped by U05 (`manifestScrubSkip` leaves them alone), so a profiled instance's manifest still lists hidden atomic-skill stems. Per-fixture manifest goldens include the skill list, so a skill edit moves them (`docs/src/internals/regenerating-goldens.md`).

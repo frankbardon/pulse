@@ -1,6 +1,6 @@
 # 03 — Embedder migration guide
 
-**Status:** decided · U01, U02, U02b and U04 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
+**Status:** decided · U01, U02, U02b, U04 and U05 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
 
 ## Purpose
 
@@ -136,7 +136,7 @@ Landed with **U04** (`profiles-model`). Everything here is additive except the `
 
 ## Additions from U05 (feature-profile enforcement)
 
-Landing with **U05** (`profiles-enforcement`). Contract: [Feature Profiles](../../src/library/feature-profiles.md).
+Landed with **U05** (`profiles-enforcement`). Contract: [Feature Profiles](../../src/library/feature-profiles.md).
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
@@ -148,6 +148,18 @@ Landing with **U05** (`profiles-enforcement`). Contract: [Feature Profiles](../.
 | a request slot whose capability a profile omitted (`Request.Crosstab` / `Joins` / `Overlays`, `ComposedRequest` / `ChainRequest` / `FacetRequest.Overlays`) still ran | it is refused with `PULSE_REQUEST_UNKNOWN_FIELD` before any other check, as an unrecognised JSON key; `valid_keys` / `suggestions` name only visible slots. An overlay slot is hidden unless one of its hosts and one of that host's kinds is enabled | behaviour change | list the capability (and an overlay kind for its host) for every slot the profiled instance should accept | U05 |
 | `Predict` / `PredictBytes` on a profiled instance judged a hidden built-in as offered (its component schema, streamability, defaults and suggestions) | predict reports a hidden name exactly as a never-registered one — the unknown-type error where predict has one, the never-registered streamability and descriptors otherwise; `DefaultsApplied` and suggestions never name a hidden operator | behaviour change | none beyond the profile list | U05 |
 | a `FacetSchema` `additive_fields` scope filter naming an extension filterer failed as an unknown filter type | it resolves through the instance registry like the base filters | behaviour change (fix) | none | U05 |
+
+| `p.Manifest(ctx).Facet`, `.ProcessChain`, `.Join`, `.Crosstab`, `.Export`, `.Import` were value fields | pointers, `nil` (omitted from JSON) when the instance hides the capability | breaking (public type change) | nil-check before reading; an unprofiled instance never has a nil block | U05 |
+| (none) | `Manifest.FeatureSetDigest` (`feature_set_digest`), equal to `p.FeatureSetDigest()` | added | none; additive, `format_version` stays `"1.1"` | U05 |
+| the manifest, payload schema and errors list described the full registry on every instance | on a profiled instance they list only enabled operators, tests, regressions, overlays, commands, MCP tools, synth distributions, I/O formats and reachable error codes; descriptions that name a hidden feature are scrubbed. `skills`, the examples counts and `extensions.label_tables` / `range_tables` are not scoped | behaviour change | read self-description through the instance (`p.Manifest`, `p.PayloadSchema()`, `p.ErrorLookup` / `ErrorsByDomain` / `ErrorsSearch`) | U05 |
+| (none) | `(*Pulse).PayloadSchema() ([]byte, error)`, the instance's payload JSON Schema; `$id` unchanged, root `$comment` is `"feature_set_digest: <digest>"`, and a root whose capability is hidden (compose, process chain, facet, sample, lookup) is absent. `pulse schema` serves the default instance | added | use it instead of the published file when you serve your own self-description | U05 |
+| a request template rendering a hidden slot rendered it | it fails `PULSE_TEMPLATE_RENDER_INVALID`, as a misspelled key | behaviour change | list the capability the template needs | U05 |
+| facade methods are callable regardless of profile | unchanged: methods are NOT gated. A profile hides names and slots; a request naming a hidden operator fails with that name's own unknown-name error | none | do not rely on a profile as an authorization boundary for Go calls | U05 |
+| `capability:filter_to_file` needed only `capability:process` | also requires `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) | behaviour change | add `FILTER_EXPRESSION` wherever you list `capability:filter_to_file` | U05 |
+| some refusals and hints named built-ins as fixed text (zone-capable operator list, `ATTR_RANK` to `WIN_RANK` hint, pairwise `n_source` / `p_source` / `n_basis` advice, facet overlay kind list, `FEAT_TARGET_ENCODE` warning, categorical and decimal suggestion reasons) | they name only what the instance offers; the `WIN_RANK` hint is skipped when `WIN_RANK` is hidden (generic unknown-attribute error). Unprofiled output is byte-identical | behaviour change | none | U05 |
+| the error list included every code | a code owned only by hidden features is absent from `p.ErrorsByDomain` / `p.ErrorsSearch` and the manifest, and `p.ErrorLookup` treats it as unknown; fixup text naming a hidden feature is stripped. The three `PULSE_FEATURE_PROFILE_*` codes always stay. The CLI `pulse errors lookup` stays full | behaviour change | none | U05 |
+
+U05 leaves for later units: MCP registration and tool enums, prompts and the `pulse://schema` resource (U06); manifest `skills` and the examples catalog (U10).
 
 ## Third-party dependency
 
