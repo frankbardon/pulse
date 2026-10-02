@@ -97,9 +97,12 @@ type Spec struct {
 	SetInferenceMinPct int
 
 	// ColumnTypeOverrides force-types specific columns (matching
-	// header names), bypassing inference for those columns. Values
-	// are canonical FieldType strings (e.g. "set_u8",
-	// "categorical_u16"). Persisted onto the sidecar.
+	// header names exactly), bypassing inference for those columns.
+	// Values are canonical FieldType strings (e.g. "u8", "set_u8",
+	// "categorical_u16"). Persisted onto the sidecar. Applied exactly or
+	// refused with PULSE_IMPORT_OVERRIDE_INVALID (unknown column, a value
+	// the type cannot hold, or an SPSS source) — see
+	// io.ImportJob.ColumnTypeOverrides.
 	ColumnTypeOverrides map[string]string
 
 	// Groups declares parent groups exactly as io.ImportJob.Groups does:

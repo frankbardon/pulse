@@ -631,6 +631,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 		dicts[i] = d
 	}
 	conv := newRowConverter(schema, inferred, dicts, delimFor, widenable)
+	conv.force(j.ColumnTypeOverrides)
 	l := newMeasuredLayout(schema)
 	byName := make(map[string]int, len(schema.Fields))
 	for i := range schema.Fields {
@@ -695,6 +696,9 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 			declaredNulls = nullSource.RowNulls()
 		}
 		re := conv.convert(rowNum, row, declaredNulls)
+		if re != nil && isOverrideRefusal(re.Err) {
+			return re.Err
+		}
 		if len(conv.widened) > 0 {
 			// The layout just changed under every tracker: finish
 			// the source for its promotions only (see

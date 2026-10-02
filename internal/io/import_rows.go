@@ -43,6 +43,28 @@ type rowConverter struct {
 	widenable []bool
 	widened   []widening
 	pending   []widening
+
+	// forced[i]: field i's type was fixed by ColumnTypeOverrides. A
+	// present value that does not convert at that type is the fatal
+	// PULSE_IMPORT_OVERRIDE_INVALID, not a skipped row (see
+	// import_override.go). Nil when no override is in force.
+	forced []bool
+}
+
+// force marks the fields overrides names (by field name) as forced.
+func (c *rowConverter) force(overrides map[string]encoding.FieldType) {
+	if len(overrides) == 0 {
+		return
+	}
+	c.forced = make([]bool, len(c.schema.Fields))
+	for i := range c.schema.Fields {
+		_, c.forced[i] = overrides[c.schema.Fields[i].Name]
+	}
+}
+
+// isForced reports whether field i carries a column type override.
+func (c *rowConverter) isForced(i int) bool {
+	return c.forced != nil && c.forced[i]
 }
 
 func newRowConverter(schema *encoding.Schema, inferred bool, dicts map[int]*encoding.Dictionary, delimFor func(string) string, widenable []bool) *rowConverter {
@@ -134,9 +156,19 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 			continue
 		}
 
+		if c.isForced(i) && f.Type == encoding.FieldTypeDecimal128 {
+			// The forced scale is the sample's largest; a wider value
+			// would be silently rounded by the rescale below.
+			if err := convertForced(raw, f, nil, ""); err != nil {
+				return &RowError{Row: rowNum, Err: overrideRefusal(f.Name, f.Type, raw, rowNum, err)}
+			}
+		}
 		if isWideFieldType(f.Type) {
 			wb, err := convertValueWide(raw, f, c.dicts[i], c.delimFor(f.Name))
 			if err != nil {
+				if c.isForced(i) {
+					return &RowError{Row: rowNum, Err: overrideRefusal(f.Name, f.Type, raw, rowNum, err)}
+				}
 				return rowErr(f, err.Error())
 			}
 			c.wide[i] = wb
@@ -156,6 +188,9 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 			f = c.schema.Fields[i]
 		}
 		if err != nil {
+			if c.isForced(i) {
+				return &RowError{Row: rowNum, Err: overrideRefusal(f.Name, f.Type, raw, rowNum, err)}
+			}
 			return rowErr(f, err.Error())
 		}
 		c.vals[i] = v

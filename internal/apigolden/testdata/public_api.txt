@@ -1560,6 +1560,7 @@ pulse/errors: const PULSE_IMPORT_DESCRIPTION_TOO_LONG pulse/errors.Code = "PULSE
 pulse/errors: const PULSE_IMPORT_FORMAT_UNKNOWN pulse/errors.Code = "PULSE_IMPORT_FORMAT_UNKNOWN"
 pulse/errors: const PULSE_IMPORT_HANDLE_EXISTS pulse/errors.Code = "PULSE_IMPORT_HANDLE_EXISTS"
 pulse/errors: const PULSE_IMPORT_NULL_PROMOTED pulse/errors.Code = "PULSE_IMPORT_NULL_PROMOTED"
+pulse/errors: const PULSE_IMPORT_OVERRIDE_INVALID pulse/errors.Code = "PULSE_IMPORT_OVERRIDE_INVALID"
 pulse/errors: const PULSE_IMPORT_ROW_ERROR pulse/errors.Code = "PULSE_IMPORT_ROW_ERROR"
 pulse/errors: const PULSE_IMPORT_SCHEMA_AMBIGUOUS pulse/errors.Code = "PULSE_IMPORT_SCHEMA_AMBIGUOUS"
 pulse/errors: const PULSE_IMPORT_SET_OVERFLOW pulse/errors.Code = "PULSE_IMPORT_SET_OVERFLOW"
@@ -3507,4 +3508,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2f2c6f350de08b9157b23e57dcef8c441c76f9153fbe9fcad644dde4c33e34f0
+// golden-hash: c984bb5c02378a99530b9d06620bf076d3fc44f1071ac2ed1df13a5e0170ce6a

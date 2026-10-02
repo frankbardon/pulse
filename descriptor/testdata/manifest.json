@@ -5015,7 +5015,7 @@
         ]
       }
     ],
-    "error_codes_count": 245,
+    "error_codes_count": 246,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5107,6 +5107,7 @@
       "PULSE_IMPORT_FORMAT_UNKNOWN",
       "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_NULL_PROMOTED",
+      "PULSE_IMPORT_OVERRIDE_INVALID",
       "PULSE_IMPORT_ROW_ERROR",
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
       "PULSE_IMPORT_SET_OVERFLOW",
@@ -9772,4 +9773,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e41ff1d0f2dcfa6e8fb711acbfe2c3cecd5b313adeae261e0d1d27a09cb0440f
+// golden-hash: 0b76ae5287d5affacec1dcc5dd34155cb7c34433382bcc57483edf5e962e8b63

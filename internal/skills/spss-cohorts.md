@@ -21,7 +21,7 @@ The one import source whose schema Pulse does **not** infer, and the one produci
 
 `.sav` declares every column ⇒ `internal/io/spss` implements `io.SchemaAwareReader`, `internal/io/infer.go`'s sample-and-vote pass skipped for `pulse import spss` / `pulse import auto` / `pulse_import` / `pulse convert` alike. Hence:
 
-- Inference-steering slots inert: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters`, `ColumnTypeOverrides`.
+- Inference-steering slots inert: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters`. `ColumnTypeOverrides` is refused (`PULSE_IMPORT_OVERRIDE_INVALID`) — re-type via an explicit `ImportJob.Schema`.
 - **No null promotion** — declared nullability is a contract; an unexpected null is `PULSE_IMPORT_ROW_ERROR`, never a silent widening. `promoted_fields` always empty.
 - Explicit `ImportJob.Schema` still wins.
 

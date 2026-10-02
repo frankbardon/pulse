@@ -150,9 +150,23 @@ const (
 	// field is promoted to the narrowest type that holds it (details:
 	// field, from, to, source_row) and the row imports instead of
 	// becoming a PULSE_IMPORT_ROW_ERROR. Never emitted for an explicit
-	// schema, a ColumnTypeOverrides column or an authoritative source
-	// schema, whose overflow stays a row error.
+	// schema or an authoritative source schema, whose overflow stays a
+	// row error, nor for a ColumnTypeOverrides column, whose overflow is
+	// the fatal PULSE_IMPORT_OVERRIDE_INVALID.
 	PULSE_IMPORT_WIDTH_PROMOTED Code = "PULSE_IMPORT_WIDTH_PROMOTED"
+
+	// PULSE_IMPORT_OVERRIDE_INVALID indicates an ImportJob /
+	// ImportSpec ColumnTypeOverrides entry cannot be honoured: it names
+	// a column the source header does not carry (details: column, type,
+	// columns), the source holds a present value the forced type cannot
+	// represent (details: column, type, value, row, reason — checked on
+	// every row, in and past the inference sample), or the job has no
+	// inferred schema to override — an explicit Schema was supplied or
+	// the source is a SchemaAwareReader (SPSS) whose authoritative
+	// schema is not a guess (details: reason). An override is a
+	// contract: it is applied exactly or the import is refused, never
+	// silently dropped, narrowed or partially imported.
+	PULSE_IMPORT_OVERRIDE_INVALID Code = "PULSE_IMPORT_OVERRIDE_INVALID"
 
 	// PULSE_EXPORT_ROW_ERROR indicates a per-row export error.
 	PULSE_EXPORT_ROW_ERROR Code = "PULSE_EXPORT_ROW_ERROR"
@@ -2547,6 +2561,7 @@ var allCodes = []Code{
 	PULSE_IMPORT_ROW_ERROR,
 	PULSE_IMPORT_NULL_PROMOTED,
 	PULSE_IMPORT_WIDTH_PROMOTED,
+	PULSE_IMPORT_OVERRIDE_INVALID,
 	PULSE_EXPORT_ROW_ERROR,
 	PULSE_EXPORT_FIELD_UNKNOWN,
 	PULSE_IMPORT_CATEGORICAL_OVERFLOW,

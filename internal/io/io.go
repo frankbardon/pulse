@@ -200,14 +200,16 @@ type ImportJob struct {
 	// SchemaAwareReader that yields a schema.
 	SetInferenceMinPct int
 	// ColumnTypeOverrides bypasses inference for the named columns
-	// (keyed by column name). Used by the managed-import sidecar's
-	// force_type escape hatch. Ignored when Schema is supplied, and
-	// inert when the Source is a SchemaAwareReader that yields a
-	// schema — an authoritative source dictionary is not a guess to
-	// override, and forcing a type onto a dictionary-carrying column
-	// would silently discard the source's category IDs / mask bit
-	// positions. Override an authoritative schema by supplying Schema.
-	// See SchemaAwareReader.
+	// (keyed by exact header name). Used by the managed-import
+	// sidecar's force_type escape hatch. An override is applied exactly
+	// or refused with PULSE_IMPORT_OVERRIDE_INVALID — never narrowed,
+	// widened or ignored: an unknown column, a present value the forced
+	// type cannot hold (on ANY row, not just the inference sample —
+	// never a skipped row), and an override on a job with no inferred
+	// schema (Schema supplied, or a SchemaAwareReader source whose
+	// authoritative dictionary is not a guess to override) are all
+	// refused. Re-type an authoritative column by supplying Schema.
+	// See SchemaAwareReader and import_override.go.
 	ColumnTypeOverrides map[string]encoding.FieldType
 	// SetDelimiters maps set-typed column name to the delimiter the
 	// importer should use when splitting cell strings into tokens

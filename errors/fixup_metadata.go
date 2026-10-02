@@ -304,11 +304,25 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_WIDTH_PROMOTED: {
-		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema, a column_type_overrides column or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW).",
+		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "No action is required — the cohort holds every row at the promoted width. To make the width explicit, raise --sample-rows so inference sees the wide values, or pin the type with column_type_overrides / an explicit --schema (which then refuses, rather than promotes, any value past it).",
+				Hint:   "No action is required — the cohort holds every row at the promoted width. To make the width explicit, raise --sample-rows so inference sees the wide values, or pin the type with an explicit --schema (a value past it is then a row error) or column_type_overrides (a value past it then refuses the whole import with PULSE_IMPORT_OVERRIDE_INVALID).",
+			},
+		},
+	},
+	PULSE_IMPORT_OVERRIDE_INVALID: {
+		Message: "A column_type_overrides (ImportJob.ColumnTypeOverrides / ImportSpec.ColumnTypeOverrides) entry cannot be honoured, so the import is refused and no cohort is written. Three causes, told apart by details: the override names a column the source header does not carry (`column`, `type`, `columns` — names match the header exactly, case and whitespace included); a present value in an overridden column cannot be represented in the forced type, such as 300 into u8, a non-integer into u16 or a non-date into date (`column`, `type`, `value`, `row` — the 1-based source data row — and `reason`), checked on every row, inside the inference sample and past it; or the job has no inferred schema to override because an explicit Schema was supplied or the source carries an authoritative schema (SPSS) (`reason`). An override is applied exactly or refused — it is never narrowed, widened or ignored, and an out-of-range value never becomes a skipped row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"ColumnTypeOverrides", "*"},
+				Hint:   "Correct the override's column name to the exact header spelling, or drop the entry. When a value does not fit, choose a type that holds every value (u16 for 300, f64 for a fraction, categorical_* for free text) or remove the override and let inference pick the width.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For an explicit-schema import or an SPSS source, drop ColumnTypeOverrides and declare the column's type in the explicit Schema instead — an authoritative source dictionary is not re-typed by an override.",
 			},
 		},
 	},

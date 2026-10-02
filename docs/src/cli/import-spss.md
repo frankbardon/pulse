@@ -656,11 +656,14 @@ empty string.
 
 The same inertness applies to the library and managed-import knobs that
 exist only to steer inference — `ImportJob.SampleRows`,
-`SetInferenceMinPct`, `SetDelimiters` and the `force_type` column
-overrides on `pulse import auto`. Forcing a type onto a
-dictionary-carrying column would discard the source's category IDs and
-rebuild them in first-seen order, which is exactly what an authoritative
-schema exists to prevent.
+`SetInferenceMinPct` and `SetDelimiters`. The `force_type` column
+overrides (`ColumnTypeOverrides`) are a type instruction rather than a
+hint, so an SPSS import that carries them is refused with
+`PULSE_IMPORT_OVERRIDE_INVALID` instead of silently ignoring them:
+forcing a type onto a dictionary-carrying column would discard the
+source's category IDs and rebuild them in first-seen order, which is
+exactly what an authoritative schema exists to prevent. Re-type a column
+with an explicit schema.
 
 There is also **no null promotion**. For inferred formats a null found
 past the sample window widens the field to nullable and reports it in

@@ -341,9 +341,11 @@ a value f32 merely rounds (`0.1`) never promotes. Every step is lossless
 for every value already read. Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
 warning (`field`, `from`, `to`, `source_row`) in the envelope `warnings`
 and `data.WidthWarnings` (`width_warnings` on `import auto` /
-`pulse_import`). A `--schema`, a `column_type_overrides` column or an
-authoritative source schema (SPSS, Arrow, Parquet) never promotes: its
-overflow stays a `PULSE_IMPORT_ROW_ERROR`. So does a non-number, a
+`pulse_import`). A `--schema` or an authoritative source schema (SPSS,
+Arrow, Parquet) never promotes: its overflow stays a
+`PULSE_IMPORT_ROW_ERROR`. A `column_type_overrides` column never promotes
+either, and any value it cannot hold refuses the whole import with
+`PULSE_IMPORT_OVERRIDE_INVALID`. So does a non-number, a
 non-integer in a `u64` column, a non-boolean in a `packed_bool` column
 (no type holds both losslessly), and a dictionary past `categorical_u32`.
 
