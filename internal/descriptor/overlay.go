@@ -159,6 +159,50 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		}
 	}
 
+	// Weighted-moments kind. OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z reads
+	// mean, variance and sample size from the AGG_WEIGHTED_MEAN moments
+	// under n_basis, so n_source / p_source are inert and refused, and
+	// n_basis is REQUIRED (no default: the convention is the embedder's
+	// call). Unlike the Welford refusal this one has a runtime twin in
+	// processing.applyPairwiseWeightedTwoMeansZ under the same code — the
+	// kind is new, so a hard runtime refusal breaks no existing caller.
+	if types.PairwiseKindUsesWeightedMoments(spec.Kind) {
+		const weightedReason = "mean, variance and sample size all come from the AGG_WEIGHTED_MEAN moments under n_basis, so the selector is inert on this kind"
+		refused := false
+		if params.NSource != "" {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" does not accept n_source ("+params.NSource+"): "+weightedReason+
+					". Remove n_source and choose the sample-size convention with n_basis",
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_source",
+					"n_source": params.NSource, "reason": weightedReason})
+			refused = true
+		}
+		if params.PSource != "" {
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
+				"overlay "+string(spec.Kind)+" does not accept p_source ("+params.PSource+"): "+weightedReason+
+					". Remove p_source",
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "p_source",
+					"p_source": params.PSource, "reason": weightedReason})
+			refused = true
+		}
+		if !types.ValidPairwiseNBasis(params.NBasis) {
+			msg := "overlay " + string(spec.Kind) + " requires params.n_basis (" + types.PairwiseNBasisWeights +
+				" or " + types.PairwiseNBasisKish + "); there is no default"
+			if params.NBasis != "" {
+				msg = "overlay " + string(spec.Kind) + " has unknown n_basis: " + params.NBasis +
+					" (supports: " + types.PairwiseNBasisWeights + ", " + types.PairwiseNBasisKish + ")"
+			}
+			env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING), msg,
+				map[string]any{"index": index, "kind": string(spec.Kind), "param": "n_basis",
+					"n_basis":   params.NBasis,
+					"supported": []string{types.PairwiseNBasisWeights, types.PairwiseNBasisKish}})
+			refused = true
+		}
+		if refused {
+			return
+		}
+	}
+
 	if !types.ValidPairwiseNSource(params.NSource) {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
 			"overlay "+string(spec.Kind)+" has unknown n_source: "+params.NSource,
@@ -1152,6 +1196,7 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	case types.OverlayKindPairwiseProbitT,
 		types.OverlayKindPairwisePropZ,
 		types.OverlayKindPairwiseTwoMeansZ,
+		types.OverlayKindPairwiseWeightedTwoMeansZ,
 		types.OverlayKindPairwiseWelchT:
 		validateOverlayPairwise(env, req, spec, opts, index)
 	case types.OverlayKindFormula:

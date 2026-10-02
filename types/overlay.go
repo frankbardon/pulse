@@ -2036,6 +2036,9 @@ const (
 	//   - p_source (string): "cell_value_pct" (default; cell value is a
 	//     0..100 percentage, divided by 100) or "cell_value" (already a
 	//     0..1 proportion). Ignored by the Welford-input kinds.
+	//   - n_basis (string): REQUIRED on OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z
+	//     and only read there — "weights" (frequency-weight variance, n =
+	//     Σw) or "kish" (Kish effective base n_eff = (Σw)²/Σw²).
 	//
 	// Components requirement: every kind reads Response.Components.Crosstab
 	// (cell n, weight sums, Welford triples, margin counts). A host built
@@ -2069,6 +2072,23 @@ const (
 	// standardNormalCDF. A non-Welford host fails fast with
 	// PULSE_OVERLAY_SHAPE_MISMATCH. See the OVERLAY_PAIRWISE_* family note.
 	OverlayKindPairwiseTwoMeansZ OverlayKind = "OVERLAY_PAIRWISE_TWO_MEANS_Z"
+
+	// OverlayKindPairwiseWeightedTwoMeansZ is the intra-matrix
+	// axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells. Per
+	// opposite-axis position it tests weighted_mean_i vs weighted_mean_j
+	// from the weighted moments {weighted_mean, m2_weighted, sum_weights,
+	// sum_weights_sq} on CellComponents, with a normal-CDF tail:
+	// z = (m_i - m_j) / sqrt(var_i/n_i + var_j/n_j). The REQUIRED
+	// params.n_basis picks the convention (no default):
+	//   - "weights": var = m2/(Σw - 1), n = Σw (frequency weights);
+	//   - "kish":    var = m2/(Σw - Σw²/Σw), n = (Σw)²/Σw² (Kish n_eff).
+	// The universal-floor n is never read — it counts null / zero-weight
+	// rows. A non-weighted-mean host fails fast with
+	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; n_source / p_source are
+	// refused (PULSE_OVERLAY_PARAM_MISSING). Unlike the AGG_WELFORD
+	// sibling, the cell aggregator is mergeable, so the crosstab stays on
+	// the fused path. See the OVERLAY_PAIRWISE_* family note.
+	OverlayKindPairwiseWeightedTwoMeansZ OverlayKind = "OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z"
 
 	// OverlayKindPairwiseWelchT is the intra-matrix axis-pairwise
 	// Welch–Satterthwaite t-test on AGG_WELFORD cells (AU Q99 family). Per
@@ -2424,6 +2444,7 @@ func AllOverlayKinds() []OverlayKind {
 		OverlayKindPairwiseProbitT,
 		OverlayKindPairwisePropZ,
 		OverlayKindPairwiseTwoMeansZ,
+		OverlayKindPairwiseWeightedTwoMeansZ,
 		OverlayKindPairwiseWelchT,
 		OverlayKindPanelIndexVsRef,
 		OverlayKindPropZCell,
