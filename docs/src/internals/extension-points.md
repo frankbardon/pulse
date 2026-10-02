@@ -887,9 +887,15 @@ State these plainly to users rather than discovering them at run time:
   aggregator by its built-in margin class, which an extension
   aggregator does not declare, so a crosstab with an extension cell
   runs the buffered arm.
-- **Grouped Components lack per-operator figures.** Under a grouper the
-  extension aggregator's operator-specific keys are not emitted; only the
-  universal floor is.
+- **Grouped Components: grouper figures yes, per-group aggregator
+  figures no — for every operator.** An extension grouper's
+  `ComponentsFunc` output lands on `Components.Groupers[i].Operator` on
+  every grouped path (streaming, buffered, and the merged parallel arms
+  via `MergeState`), exactly as a built-in grouper's does. What no
+  grouped run emits — built-in or extension — is
+  `Components.Aggregations` (operator figures inside each group): that
+  is an unlanded surface, not an extension gap. Ungrouped runs emit an
+  extension aggregator's figures on every path.
 - **Two-pass attributes keep a crosstab buffered.** A `two_pass`
   extension attribute declines the fused crosstab exactly as the
   built-in `ATTR_ZSCORE` does — the fused walk never runs a `PrePass`.

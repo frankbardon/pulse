@@ -339,10 +339,6 @@ type paritySuite struct {
 	// in the extension arm's output before comparison — for categories
 	// whose payload echoes the operator type (TestResult.Type).
 	rename map[string]string
-	// stripGrouperOperator drops Components.Groupers[i].Operator on both
-	// arms: the known gap that extension groupers surface no
-	// per-operator figures. The universal floor is still compared.
-	stripGrouperOperator bool
 }
 
 func paritySuites() []paritySuite {
@@ -552,39 +548,9 @@ type parityOutcome struct {
 	chunks                            []string
 }
 
-// stripGrouperOperator deletes every Groupers[i].Operator from a
-// Components document, or from a stream chunk's "components" member.
-func stripGrouperOperator(t *testing.T, doc string) string {
-	t.Helper()
-	var v map[string]any
-	if err := json.Unmarshal([]byte(doc), &v); err != nil || v == nil {
-		return doc
-	}
-	c := v
-	if inner, ok := v["components"].(map[string]any); ok {
-		c = inner
-	}
-	if gs, ok := c["groupers"].([]any); ok {
-		for _, g := range gs {
-			if m, ok := g.(map[string]any); ok {
-				delete(m, "operator")
-			}
-		}
-	}
-	return mustJSON(t, v)
-}
-
-// normalize applies the suite's known-gap and rename rules to one arm.
+// normalize applies the suite's rename rules to one arm.
 func (o parityOutcome) normalize(t *testing.T, s paritySuite, ext bool) parityOutcome {
 	t.Helper()
-	if s.stripGrouperOperator {
-		o.components = stripGrouperOperator(t, o.components)
-		chunks := make([]string, len(o.chunks))
-		for i, c := range o.chunks {
-			chunks[i] = stripGrouperOperator(t, c)
-		}
-		o.chunks = chunks
-	}
 	if ext {
 		r := func(v string) string {
 			for from, to := range s.rename {

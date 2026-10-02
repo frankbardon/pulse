@@ -27,6 +27,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
@@ -188,6 +189,49 @@ var (
 	_ extend.MergeableGrouper         = (*parityPerElementGrouper)(nil)
 )
 
+// parityCategoryComponents reproduces GROUP_CATEGORY's Components():
+// dict_size (the categorical dictionary's cardinality, 0 otherwise) and
+// buckets [{key, label, count}] sorted by key. The Go shapes match too
+// ([]map[string]any, int counts): the orchestrator derives total_n from
+// exactly that buckets payload.
+func parityCategoryComponents(inst extend.Grouper) (map[string]any, error) {
+	g := inst.(*parityCategoryGrouper)
+	dictSize := 0
+	if g.dict != nil {
+		dictSize = g.dict.Count()
+	}
+	keys := make([]string, 0, len(g.live))
+	for k := range g.live {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	buckets := make([]map[string]any, 0, len(keys))
+	for _, k := range keys {
+		buckets = append(buckets, map[string]any{"key": k, "label": k, "count": g.live[k]})
+	}
+	return map[string]any{"dict_size": dictSize, "buckets": buckets}, nil
+}
+
+// parityPerElementComponents reproduces GROUP_SET_PER_ELEMENT's
+// Components(): total_label_observations and buckets
+// [{key, label, count, dict_index}] in dictionary order.
+func parityPerElementComponents(inst extend.Grouper) (map[string]any, error) {
+	g := inst.(*parityPerElementGrouper)
+	labels := make([]string, 0, len(g.live))
+	for l := range g.live {
+		labels = append(labels, l)
+	}
+	sort.SliceStable(labels, func(i, j int) bool { return g.live[labels[i]].dictIndex < g.live[labels[j]].dictIndex })
+	total := 0
+	buckets := make([]map[string]any, 0, len(labels))
+	for _, l := range labels {
+		st := g.live[l]
+		total += st.count
+		buckets = append(buckets, map[string]any{"key": l, "label": l, "count": st.count, "dict_index": st.dictIndex})
+	}
+	return map[string]any{"total_label_observations": total, "buckets": buckets}, nil
+}
+
 func fieldDict(schema *encoding.Schema, name string) *encoding.Dictionary {
 	if schema == nil {
 		return nil
@@ -232,6 +276,14 @@ func grouperParitySuite() paritySuite {
 						return &parityCategoryGrouper{probe: probe, dict: dict, live: map[string]int{}}, nil
 					},
 					FieldInputs: func(json.RawMessage) []string { return nil },
+					ComponentSchema: descriptor.ComponentSchema{
+						Keys: []descriptor.ComponentKey{
+							{Name: "dict_size", Type: "int", Description: "Categorical dictionary cardinality (0 for a non-categorical key)."},
+							{Name: "buckets", Type: "[]bucket", Description: "Per-bucket {key, label, count}, sorted by key."},
+						},
+						Mergeability: descriptor.Mergeable,
+					},
+					ComponentsFunc: parityCategoryComponents,
 				},
 				{
 					Name:        grpParityPerElement,
@@ -243,6 +295,14 @@ func grouperParitySuite() paritySuite {
 						return &parityPerElementGrouper{probe: probe, dict: fieldDict(schema, spec.Field), live: map[string]parityLabelStat{}}, nil
 					},
 					FieldInputs: func(json.RawMessage) []string { return nil },
+					ComponentSchema: descriptor.ComponentSchema{
+						Keys: []descriptor.ComponentKey{
+							{Name: "total_label_observations", Type: "int", Description: "Sum of buckets[].count."},
+							{Name: "buckets", Type: "[]bucket", Description: "Per-label {key, label, count, dict_index}, in dictionary order."},
+						},
+						Mergeability: descriptor.Mergeable,
+					},
+					ComponentsFunc: parityPerElementComponents,
 				},
 			}}
 		},
@@ -255,10 +315,6 @@ func grouperParitySuite() paritySuite {
 			contains(row("fanout_wide_u128_nullable", fan, grpParityPerElement, "w128", nil), "a070", "a073"),
 			contains(row("fanout_wide_u256", fan, grpParityPerElement, "w256", nil), "b200", "b202"),
 		},
-		// Known gap: extension groupers surface no per-operator
-		// Components figures (built-in GROUP_CATEGORY / GROUP_SET_PER_ELEMENT
-		// emit buckets); the universal floor is still compared.
-		stripGrouperOperator: true,
 	}
 }
 
