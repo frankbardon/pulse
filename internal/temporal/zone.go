@@ -192,16 +192,7 @@ func (z *Zone) Offset(sec int64) int32 {
 	if starts[i] <= sec && (i+1 == n || sec < starts[i+1]) {
 		return z.offs[i]
 	}
-	// Largest i with starts[i] <= sec; starts[0] == windowStart <= sec.
-	lo, hi := 0, n
-	for hi-lo > 1 {
-		mid := int(uint(lo+hi) >> 1)
-		if starts[mid] <= sec {
-			lo = mid
-		} else {
-			hi = mid
-		}
-	}
+	lo := z.span(sec)
 	z.last.Store(int64(lo))
 	return z.offs[lo]
 }
