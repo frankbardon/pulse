@@ -521,6 +521,8 @@ pulse: type Pulse method (*Pulse) ExportTransfer(ctx context.Context, job *pulse
 pulse: type Pulse method (*Pulse) ExtractShard(ctx context.Context, archivePath string, shardBasename string) (io.ReadCloser, error)
 pulse: type Pulse method (*Pulse) Facet(ctx context.Context, path string, field string) ([]string, error)
 pulse: type Pulse method (*Pulse) FacetSchema(ctx context.Context, req *pulse.FacetRequest) (*pulse.FacetResult, error)
+pulse: type Pulse method (*Pulse) FeatureProfile() (*pulse.FeatureProfile, bool)
+pulse: type Pulse method (*Pulse) FeatureSetDigest() string
 pulse: type Pulse method (*Pulse) FilterToFile(ctx context.Context, src string, dst string, filterExpr string) (int64, error)
 pulse: type Pulse method (*Pulse) FilterToFileBySetAndExpr(ctx context.Context, src string, dst string, includeField string, set pulse.MemberSet, filterExpr string) (int64, error)
 pulse: type Pulse method (*Pulse) FilterToFileWithRequest(ctx context.Context, req *pulse.FilterToFileRequest) (*pulse.FilterToFileResult, error)
@@ -3544,4 +3546,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 37f00f3875e100c2f464895016196082fabe05df125fd5a76234dd0fcb344049
+// golden-hash: 4a1cfe07e35c9a20fd6e425fdd2563ad05b07ca23968dfd7e4b08cc00885ab6a

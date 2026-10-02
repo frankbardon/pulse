@@ -21,7 +21,7 @@ func (s *Service) validateProcessLabels(req *types.Request, schema *encoding.Sch
 	}
 	extras := collectOutputLabels(req)
 	env := descriptor.NewEnvelope(nil)
-	descx.ValidateLabels(env, req.Labels, schema, s.extensionsSnap, extras)
+	descx.ValidateLabels(env, req.Labels, schema, s.ExtensionsSnapshot(), extras)
 	if len(env.Errors) == 0 {
 		return nil
 	}

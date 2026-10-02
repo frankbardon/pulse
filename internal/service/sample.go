@@ -90,7 +90,7 @@ func (s *Service) validateSampleLabels(ctx context.Context, path string, req *ty
 	// promote the first error to a SERVICE_VALIDATION CodedError so
 	// the facade returns a single typed error rather than a slice.
 	env := descriptor.NewEnvelope(nil)
-	descx.ValidateLabels(env, req.Labels, schema, s.extensionsSnap, nil)
+	descx.ValidateLabels(env, req.Labels, schema, s.ExtensionsSnapshot(), nil)
 	if len(env.Errors) == 0 {
 		return nil
 	}

@@ -64,26 +64,3 @@ func TestCohortScanDisabledHookInstalled(t *testing.T) {
 		t.Error("CohortScanDisabled(non-Pulse) should be false")
 	}
 }
-
-func TestFeatureProfileNameHookInstalled(t *testing.T) {
-	if facadebridge.FeatureProfileName == nil {
-		t.Fatal("root package did not install the FeatureProfileName hook")
-	}
-	newWith := func(fp *pulse.FeatureProfile) *pulse.Pulse {
-		t.Helper()
-		p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), FeatureProfile: fp})
-		if err != nil {
-			t.Fatalf("New: %v", err)
-		}
-		return p
-	}
-	if name, ok := facadebridge.FeatureProfileName(newWith(nil)); ok || name != "" {
-		t.Errorf("profile-free Pulse = (%q, %v), want (\"\", false)", name, ok)
-	}
-	if name, ok := facadebridge.FeatureProfileName(newWith(&pulse.FeatureProfile{Profile: "self-serve", Features: []string{}})); !ok || name != "self-serve" {
-		t.Errorf("named profile = (%q, %v), want (\"self-serve\", true)", name, ok)
-	}
-	if name, ok := facadebridge.FeatureProfileName("not a pulse"); ok || name != "" {
-		t.Errorf("non-Pulse = (%q, %v), want (\"\", false)", name, ok)
-	}
-}

@@ -4,7 +4,7 @@ Relocated long form for CLAUDE.md "Feature profiles". CLAUDE.md keeps the always
 
 **Load it before:** adding an operator, capability, I/O format, MCP tool or MCP prompt (each one is a feature and needs a row); touching `internal/descriptor/features.go`, root `feature_profile*.go`, an extension registration's `DependsOn`, `mcpserve/feature_profile.go`, `mcpserve/describe.go`, or the `pulse mcp --feature-profile` leaf.
 
-Status at U04 (`profiles-model`): the feature vocabulary, its dependency graph and the profile model exist; `pulse.New` validates a profile and stores it on the instance. **Nothing is hidden or filtered yet.** The feature list takes effect in U05 (request path, manifest, payload schema, predict, errors) and U06 (MCP registration, tooling). The `behaviour` switches are the one part that takes effect today.
+Status at U04 (`profiles-model`): the feature vocabulary, its dependency graph and the profile model exist; `pulse.New` validates a profile and stores it on the instance. **U05 in progress:** the resolved feature set, `InstanceSnapshot` and digest exist and omitted extension operators are dropped (see "The resolved feature set"); built-ins are not hidden yet. The feature list takes effect in U05 (request path, manifest, payload schema, predict, errors) and U06 (MCP registration, tooling). The `behaviour` switches are the one part that takes effect today.
 
 ## Naming
 
@@ -63,7 +63,17 @@ Every row carries the release (major.minor.patch) that introduced it. Every buil
 
 **Sources.** `Options.FeatureProfile` (Go value, copied) XOR `Options.FeatureProfileFile` (read through the INSTANCE afero Fs, so relative to `Options.FS` / `DataDir`). Both set → `INVALID` `both_options_set`. `pulse.ParseFeatureProfile([]byte)` is the same strict decode, decode-only — names and dependencies are checked when the value reaches `pulse.New`, and those errors carry no `path` detail.
 
-**Order in `pulse.New`:** `validateExtensions` → `probeExtensions` → `validateExtensionDependsOn` → filesystem resolution → `resolveFeatureProfile` → `applyFeatureProfileBehaviour` → `service.New`. The stored profile has no public accessor (U05 decides one).
+**Order in `pulse.New`:** `validateExtensions` → `probeExtensions` → `validateExtensionDependsOn` (against ALL registrations) → filesystem resolution → `resolveFeatureProfile` → `applyFeatureProfileBehaviour` → `resolveFeatureSet` → `withoutHiddenExtensions` → `service.New`, then `buildRuntimeExtensions` / `buildExtensionsSnapshot` over the VISIBLE registrations only. `p.FeatureProfile()` returns a copy of the stored profile (`nil, false` without one).
+
+## The resolved feature set (U05)
+
+`pulse.New` computes the instance's feature set once (`feature_set.go`): the universe is every built-in row whose `Since` is reached plus every registered extension operator; no profile enables the whole universe, a profile enables exactly its list and HIDES the rest of the universe. A hidden extension operator is never registered — dropped after `validateExtensionDependsOn`, so a `DependsOn` naming a hidden-but-registered extension still validates.
+
+The set lives in `internal/descriptor.InstanceSnapshot` (`instance_snapshot.go`), installed with `Service.SetInstanceSnapshot` and read back through `Service.InstanceSnapshot()`; it wraps the `*ExtensionsSnapshot`, which `Service.ExtensionsSnapshot()` and the `facadebridge.ExtensionsSnapshot` hook still return. `Enabled(name)` is membership in the resolved set; `Hidden(name)` is "resolvable here but not offered" — the predicate a native lookup site consults, since an unknown name already fails on its own. Both are O(1) map lookups. A nil or `UnscopedInstanceSnapshot` (`Service.SetExtensionsSnapshot`, hand-wired services) enables everything, hides nothing and has an empty digest.
+
+**`feature_set_digest`** (`p.FeatureSetDigest()`, `descx.FeatureSetDigest`) = `"fs1:" + sha256hex` over the sorted unique enabled names followed by the four EFFECTIVE behaviour switches (`behaviour:<switch>=<bool>`, fixed order, all newline-joined). Effective = the profile's `behaviour` ORed with `Options` (projection read the way `New` wires it, `ProjectBufferedFields` included); `disable_cohort_scan` comes from the profile alone. Every instance has one; it is unsalted so it keys caches across processes, which also lets a same-version observer tell a profiled digest from the default. Changing what it covers bumps the `fs1:` prefix.
+
+Fixture profiles for goldens live at `descriptor/testdata/profiles/{minimal,survey-crosstab,empty}.json` (a subdirectory, so `TestGoldensNotHandEdited` does not read them); `TestFeatureSet_FixturesLoad` keeps each one valid at `pulse.New`.
 
 ## Validation codes and order
 
@@ -86,5 +96,5 @@ Three classes, run in order; validation **stops at the first failing class and r
 - **`BindOnInspect` rebinds tools by name** (`internal/mcp/bind.go` `mergeEnumNames`, `buildRequestSchemaWithExtensions`), bypassing any registration-time filter — U06 must filter the rebind too.
 - **`toolmeta` descriptions name operators in prose** (`internal/mcp/toolmeta/meta.go`); filtering enums alone leaves hidden names in tool text.
 - **Prompts, the schema resource and skill resources take no `*Pulse`** (`registerPrompts`, `registerSchemaResource`, `registerSkillResources` in `mcp/gosdk`); instance-scoping needs the instance threaded in.
-- **Extension operators omitted from a profile become hidden** once U05 applies the list; U05 must say so in the embedder docs.
-- The stored-profile accessor and the profile-tooling CLI naming (`pulse profile create` collision) are open for U05 / U06.
+- **Extension operators omitted from a profile are hidden** (done in U05: dropped at `pulse.New`; documented in the embedder docs).
+- The stored-profile accessor is `p.FeatureProfile()` (U05). The profile-tooling CLI naming (`pulse profile create` collision) is open for U06.

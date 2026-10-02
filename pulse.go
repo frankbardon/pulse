@@ -488,8 +488,9 @@ type Pulse struct {
 
 	// featureProfile is the validated feature profile from
 	// Options.FeatureProfile or Options.FeatureProfileFile, nil when
-	// none was given. Stored, not yet applied beyond its behaviour
-	// switches (folded into the engine at New).
+	// none was given. Its behaviour switches are folded into the engine
+	// at New; its feature list is resolved into the service's
+	// InstanceSnapshot. Read it through FeatureProfile (a copy).
 	featureProfile *FeatureProfile
 }
 
@@ -513,7 +514,8 @@ func New(opts Options) (*Pulse, error) {
 	if err := probeExtensions(opts.Extensions); err != nil {
 		return nil, err
 	}
-	if err := validateExtensionDependsOn(newFeatureUniverse(opts.Extensions, Version())); err != nil {
+	universe := newFeatureUniverse(opts.Extensions, Version())
+	if err := validateExtensionDependsOn(universe); err != nil {
 		return nil, err
 	}
 	if err := validateAutoLabels(opts.AutoLabels, opts.Extensions.LabelTables); err != nil {
@@ -559,6 +561,11 @@ func New(opts Options) (*Pulse, error) {
 		return nil, err
 	}
 	applyFeatureProfileBehaviour(&opts, featureProfile)
+	// Resolved once: the enabled set + digest every scoped surface
+	// reads. Hidden extension operators are dropped only now — their
+	// DependsOn was validated above against ALL registrations.
+	featureSet := resolveFeatureSet(universe, featureProfile, effectiveFeatureBehaviour(opts, featureProfile))
+	visibleExt := withoutHiddenExtensions(opts.Extensions, featureSet)
 
 	if opts.ShardWorkers < 0 {
 		return nil, fmt.Errorf("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
@@ -571,8 +578,8 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetDisableDefaults(opts.DisableDefaults)
 	svc.SetDisableComponents(opts.DisableComponents)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
-	svc.SetExtensions(buildRuntimeExtensions(opts.Extensions))
-	svc.SetExtensionsSnapshot(buildExtensionsSnapshot(opts.Extensions))
+	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
+	svc.SetInstanceSnapshot(descx.NewInstanceSnapshot(buildExtensionsSnapshot(visibleExt), featureSet))
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)

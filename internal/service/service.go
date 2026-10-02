@@ -24,7 +24,7 @@ type Service struct {
 	disableComponents bool
 	projectBuffered   bool
 	extensions        *processing.ExtensionRegistry
-	extensionsSnap    *descx.ExtensionsSnapshot
+	instance          *descx.InstanceSnapshot
 
 	// shardWorkers caps the per-shard parallel worker pool the Process
 	// path spawns when a request is mergeable per
@@ -259,17 +259,30 @@ func (s *Service) EchoRequest() bool {
 	return s.echoRequest
 }
 
-// SetExtensionsSnapshot installs the descriptor-side projection of
-// the registered extensions for manifest + predict consumption. Pass
-// nil to clear; pulse.New populates this alongside SetExtensions.
+// SetInstanceSnapshot installs the instance's no-execute view — its
+// extension projection plus its resolved feature set and digest.
+// pulse.New populates this alongside SetExtensions. Pass nil to clear.
+func (s *Service) SetInstanceSnapshot(snap *descx.InstanceSnapshot) {
+	s.instance = snap
+}
+
+// InstanceSnapshot returns the installed instance snapshot. A nil
+// result is unscoped: every feature enabled, no extensions.
+func (s *Service) InstanceSnapshot() *descx.InstanceSnapshot {
+	return s.instance
+}
+
+// SetExtensionsSnapshot installs an extension projection with NO feature
+// scoping (descx.UnscopedInstanceSnapshot). For callers that wire a
+// service by hand; pulse.New uses SetInstanceSnapshot.
 func (s *Service) SetExtensionsSnapshot(snap *descx.ExtensionsSnapshot) {
-	s.extensionsSnap = snap
+	s.instance = descx.UnscopedInstanceSnapshot(snap)
 }
 
 // ExtensionsSnapshot returns the descriptor-side projection of the
-// registered extensions, or nil when no extensions are installed.
+// registered (visible) extensions, or nil when none are installed.
 func (s *Service) ExtensionsSnapshot() *descx.ExtensionsSnapshot {
-	return s.extensionsSnap
+	return s.instance.Extensions()
 }
 
 // applyDefaults runs descriptor.ResolveDefaults against the cohort schema

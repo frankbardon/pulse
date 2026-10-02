@@ -134,6 +134,16 @@ Landed with **U04** (`profiles-model`). Everything here is additive except the `
 | `gosdk.Register` with `Config.DisableCohortScan: false` always scanned | a profile on the instance with `behaviour.disable_cohort_scan` skips the scan | behaviour change | none without a profile | U04 |
 | `pulse.Version()` in an embedder binary could report the EMBEDDER's module version (`Main.Version`) | reports Pulse's own module version from build-info `Deps` (honouring a `replace`), else `devel` | behaviour change (fix) | none; a version string you logged from `pulse.Version()` may change in your binary | U04 |
 
+## Additions from U05 (feature-profile enforcement)
+
+Landing with **U05** (`profiles-enforcement`). Contract: [Feature Profiles](../../src/library/feature-profiles.md).
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| (none) | `(*Pulse).FeatureSetDigest() string` — `"fs1:" + sha256hex` over the sorted enabled feature names and the effective behaviour switches | added | key caches of self-description output on it; every instance has one, profile or not | U05 |
+| (none) | `(*Pulse).FeatureProfile() (*FeatureProfile, bool)` — a copy of the stored profile, `false` without one | added | adopt when convenient | U05 |
+| an extension operator omitted from a profile was still registered | it is dropped at `pulse.New`: absent from the runtime registry and the extension snapshot. Its `DependsOn` is still validated against every registration | behaviour change | list every extension operator the profiled instance should offer | U05 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

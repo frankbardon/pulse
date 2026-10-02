@@ -13,8 +13,9 @@ in later releases. Its output is byte-identical to an instance built
 before profiles existed.
 
 > **Status (v1.0.0 alphas).** `pulse.New` parses, validates and stores a
-> profile, and its `behaviour` switches take effect. **The feature list
-> hides nothing yet.** Enforcement (request handling, manifest, payload
+> profile, its `behaviour` switches take effect, and an extension
+> operator the profile omits is not registered. **Built-in features are
+> not hidden yet.** Enforcement (request handling, manifest, payload
 > schema, predict, errors) and MCP filtering land in later v1.0.0
 > pre-releases. Writing and validating your profile now means it is
 > ready when they do.
@@ -85,7 +86,9 @@ Rules:
   examples, errors lookup and cohort artifacts exist on every instance.
   Listing one is an error.
 - **Extension operators are features.** List them by their registered
-  name, like a built-in.
+  name, like a built-in. An extension operator the profile omits is
+  hidden: `pulse.New` still validates its registration and its
+  `DependsOn`, then does not register it.
 
 ## Dependencies
 
@@ -201,6 +204,20 @@ silently lose features on an older one. Only the running version's
 `major.minor.patch` is compared, so `1.0.0-alpha.2` offers every `1.0.0`
 feature. Development builds (`devel`, untagged builds) offer everything.
 `pulse.Version()` reports Pulse's own version, even inside your binary.
+
+## Reading an instance's feature set
+
+- `p.FeatureProfile()` returns a copy of the profile the instance was
+  built with, or `nil, false` without one. Changing the copy changes
+  nothing on the instance.
+- `p.FeatureSetDigest()` returns the instance's feature-set digest,
+  `"fs1:"` plus the hex SHA-256 of its sorted enabled feature names and
+  its effective `behaviour` switches (the profile's ORed with `Options`).
+  Every instance has one. It is the same across processes for the same
+  features and switches, and any difference in either changes it, so it
+  can key a cache of an instance's self-description. It hides the list
+  but not its identity: anyone running the same Pulse version can tell
+  an unprofiled instance's digest from a profiled one's.
 
 ## The MCP server
 
