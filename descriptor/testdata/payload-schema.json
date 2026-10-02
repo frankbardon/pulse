@@ -117,6 +117,9 @@
         },
         "type": {
           "$ref": "#/$defs/AttributeType"
+        },
+        "tz": {
+          "type": "string"
         }
       },
       "required": [
@@ -870,6 +873,9 @@
             "array",
             "null"
           ]
+        },
+        "time_zone": {
+          "type": "string"
         }
       },
       "required": [
@@ -954,6 +960,9 @@
         },
         "type": {
           "$ref": "#/$defs/FeatureType"
+        },
+        "tz": {
+          "type": "string"
         }
       },
       "required": [
@@ -989,6 +998,9 @@
         },
         "type": {
           "$ref": "#/$defs/FiltererType"
+        },
+        "tz": {
+          "type": "string"
         },
         "values": {
           "items": {
@@ -1086,6 +1098,9 @@
         },
         "type": {
           "$ref": "#/$defs/GroupType"
+        },
+        "tz": {
+          "type": "string"
         }
       },
       "required": [
@@ -2138,6 +2153,9 @@
             "null"
           ]
         },
+        "time_zone": {
+          "type": "string"
+        },
         "windows": {
           "items": {
             "$ref": "#/$defs/Window"
@@ -2625,4 +2643,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7fbed487d13d98c19ce49c1630b7ed6267d3701691b9730af0b67f2249f00b96
+// golden-hash: b6a822dc908bd025850ee5a6e5573f06c0173be836015c34826e66f319078917

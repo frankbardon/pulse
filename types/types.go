@@ -702,6 +702,12 @@ type Feature struct {
 	// Params holds operator-specific parameters as raw JSON. See the
 	// feature-engineering skill for the per-operator schema.
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// TimeZone is the per-slot IANA zone override (`"UTC"` or an
+	// `Area/Location` name). Empty inherits Request.TimeZone, then
+	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
+	// zone-capable operators (see the manifest operator `zone` key).
+	TimeZone string `json:"tz,omitempty"`
 }
 
 // OrderKey specifies an ordering key for a window's ORDER BY clause.
@@ -788,6 +794,12 @@ type Filterer struct {
 	// FILTER_DATE_RANGES, which carries a structured inline `ranges`
 	// array of {label, start, end} objects.
 	Params json.RawMessage `json:"params,omitempty"`
+
+	// TimeZone is the per-slot IANA zone override (`"UTC"` or an
+	// `Area/Location` name). Empty inherits Request.TimeZone, then
+	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
+	// zone-capable operators (see the manifest operator `zone` key).
+	TimeZone string `json:"tz,omitempty"`
 }
 
 // Group defines a grouping operation to partition results.
@@ -832,6 +844,12 @@ type Group struct {
 	// Other grouper types ignore Include — predict / runtime gates flag
 	// misuse.
 	Include []string `json:"include,omitempty"`
+
+	// TimeZone is the per-slot IANA zone override (`"UTC"` or an
+	// `Area/Location` name). Empty inherits Request.TimeZone, then
+	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
+	// zone-capable operators (see the manifest operator `zone` key).
+	TimeZone string `json:"tz,omitempty"`
 }
 
 // Attribute defines a derived attribute computation.
@@ -881,6 +899,12 @@ type Attribute struct {
 	// L1Ratio is the elastic-net mixing parameter for the regression-
 	// attribute family when Penalty == "elasticnet" (0 < L1Ratio < 1).
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
+
+	// TimeZone is the per-slot IANA zone override (`"UTC"` or an
+	// `Area/Location` name). Empty inherits Request.TimeZone, then
+	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
+	// zone-capable operators (see the manifest operator `zone` key).
+	TimeZone string `json:"tz,omitempty"`
 }
 
 // Output configures how processing results are formatted.
@@ -1037,6 +1061,12 @@ type Request struct {
 	// MetaGrouper.Components construction work is skipped — not
 	// built-then-discarded.
 	DisableComponents *bool `json:"disable_components,omitempty"`
+
+	// TimeZone is the request-level IANA zone (`"UTC"` or an
+	// `Area/Location` name) inherited by every zone-capable slot that
+	// sets no `tz` of its own. Empty inherits
+	// pulse.Options.DefaultTimeZone, then UTC.
+	TimeZone string `json:"time_zone,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.

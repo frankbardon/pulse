@@ -227,6 +227,7 @@ pulse: type FacetRequest field IncludeHistogram bool "json:\"include_histogram,o
 pulse: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FacetRequest method (*FacetRequest) Hash() string
 pulse: type FacetResult = pulse/types.FacetResult
 pulse: type FacetResult underlying struct
@@ -425,6 +426,7 @@ pulse: type Options struct
 pulse: type Options field AutoLabels []pulse.LabelBinding
 pulse: type Options field DataDir string
 pulse: type Options field DecodeWorkers int
+pulse: type Options field DefaultTimeZone string
 pulse: type Options field DisableComponents bool
 pulse: type Options field DisableCrosstabFusion bool
 pulse: type Options field DisableDefaults bool
@@ -585,6 +587,7 @@ pulse: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omite
 pulse: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
 pulse: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
+pulse: type Request field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
 pulse: type Request method (*Request) Hash() string
 pulse: type Response = pulse/types.Response
@@ -1081,6 +1084,7 @@ pulse/descriptor: type Operator field Name string "json:\"name\""
 pulse/descriptor: type Operator field Params []pulse/descriptor.Param "json:\"params\""
 pulse/descriptor: type Operator field Streamable bool "json:\"streamable\""
 pulse/descriptor: type Operator field StreamableHint string "json:\"streamable_hint,omitempty\""
+pulse/descriptor: type Operator field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type OperatorMeta struct
 pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omitempty\""
 pulse/descriptor: type OperatorMeta field Description string "json:\"description,omitempty\""
@@ -1115,6 +1119,7 @@ pulse/descriptor: type OverlayCapability field Kind pulse/types.OverlayKind "jso
 pulse/descriptor: type OverlayCapability field RefKinds []string "json:\"ref_kinds\""
 pulse/descriptor: type OverlayCapability field Scopes []pulse/types.OverlayScope "json:\"scopes\""
 pulse/descriptor: type OverlayCapability field Shapes []pulse/types.OverlayShape "json:\"shapes\""
+pulse/descriptor: type OverlayCapability field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
@@ -2788,6 +2793,7 @@ pulse/types: type Attribute field Params encoding/json.RawMessage "json:\"params
 pulse/types: type Attribute field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type Attribute field Predictors []string "json:\"predictors,omitempty\""
 pulse/types: type Attribute field Target string "json:\"target,omitempty\""
+pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Attribute field Type pulse/types.AttributeType "json:\"type\""
 pulse/types: type AttributeType string
 pulse/types: type AttributeType method (AttributeType) Streamable() bool
@@ -2964,6 +2970,7 @@ pulse/types: type FacetRequest field IncludeHistogram bool "json:\"include_histo
 pulse/types: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse/types: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse/types: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type FacetRequest method (*FacetRequest) Hash() string
 pulse/types: type FacetResult struct
 pulse/types: type FacetResult field Additive map[string]*pulse/types.FacetField "json:\"additive,omitempty\""
@@ -2979,6 +2986,7 @@ pulse/types: type Feature struct
 pulse/types: type Feature field Field string "json:\"field,omitempty\""
 pulse/types: type Feature field Label string "json:\"label,omitempty\""
 pulse/types: type Feature field Params encoding/json.RawMessage "json:\"params,omitempty\""
+pulse/types: type Feature field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Feature field Type pulse/types.FeatureType "json:\"type\""
 pulse/types: type FeatureType string
 pulse/types: type FeatureType method (FeatureType) Streamable() bool
@@ -2993,6 +3001,7 @@ pulse/types: type Filterer struct
 pulse/types: type Filterer field Expression string "json:\"expression,omitempty\""
 pulse/types: type Filterer field Field string "json:\"field,omitempty\""
 pulse/types: type Filterer field Params encoding/json.RawMessage "json:\"params,omitempty\""
+pulse/types: type Filterer field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Filterer field Type pulse/types.FiltererType "json:\"type\""
 pulse/types: type Filterer field Values []string "json:\"values,omitempty\""
 pulse/types: type FiltererComponents struct
@@ -3020,6 +3029,7 @@ pulse/types: type Group field Field string "json:\"field\""
 pulse/types: type Group field Include []string "json:\"include,omitempty\""
 pulse/types: type Group field Interval float64 "json:\"interval,omitempty\""
 pulse/types: type Group field Params encoding/json.RawMessage "json:\"params,omitempty\""
+pulse/types: type Group field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Group field Type pulse/types.GroupType "json:\"type\""
 pulse/types: type GroupType string
 pulse/types: type GroupType method (GroupType) FansOut() bool
@@ -3362,6 +3372,7 @@ pulse/types: type Request field PostTests []*pulse/types.Test "json:\"post_tests
 pulse/types: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
 pulse/types: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse/types: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
+pulse/types: type Request field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
 pulse/types: type Request method (*Request) Hash() string
 pulse/types: func ResolveBuiltinGroupFanOut(t pulse/types.GroupType) (fansOut bool, known bool)
@@ -3482,4 +3493,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c9cb38b71b4b9d946274a8c75acc88a4fec9e30bc8e685b34623cc65056e3bf9
+// golden-hash: c5b1818b2b917a3dc9ae73f72c6969301f4794eedf2fb833759daa677a08e568

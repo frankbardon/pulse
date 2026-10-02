@@ -69,6 +69,7 @@ func chainOverlayCapabilities() []descriptor.OverlayCapability {
 		streamable, _ := types.OverlayStreamable(k)
 		entry := overlayCapabilityFor(k)
 		entry.Buffered = !streamable
+		entry.Zone = ZoneCapabilityOf(string(k))
 		sort.Slice(entry.Shapes, func(i, j int) bool {
 			return string(entry.Shapes[i]) < string(entry.Shapes[j])
 		})

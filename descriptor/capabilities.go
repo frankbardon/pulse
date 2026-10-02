@@ -409,6 +409,12 @@ type OverlayCapability struct {
 	// Description is a short human-readable summary of what the kind
 	// computes. Mirrors the prose in the matching skill.
 	Description string `json:"description"`
+
+	// Zone declares the kind's time-zone participation. "following"
+	// means the kind carries no zone of its own and inherits the
+	// resolved zone of its host grouper (OVERLAY_YOY follows its host
+	// GROUP_DATE). Empty (omitted) means the kind is zone-agnostic.
+	Zone string `json:"zone,omitempty"`
 }
 
 // RegressionMeta describes a registered REG_* operator in the manifest.

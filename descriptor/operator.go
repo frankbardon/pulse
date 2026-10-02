@@ -84,6 +84,14 @@ type Operator struct {
 	// specific keys are appended in emission order. Mergeability
 	// classifies how the components map folds across streaming chunks.
 	ComponentSchema ComponentSchema `json:"component_schema"`
+
+	// Zone declares the operator's time-zone participation. "capable"
+	// means the slot accepts a per-slot `tz` and resolves a zone through
+	// the slot → request → Options.DefaultTimeZone → UTC precedence.
+	// Empty (omitted) means the operator is not zone-capable and an
+	// explicit `tz` on its slot is refused. Extension operators are
+	// never zone-capable.
+	Zone string `json:"zone,omitempty"`
 }
 
 // Param describes a single parameter accepted by an operator, test, or
