@@ -32,7 +32,7 @@ Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 | `pulse_facet`, `pulse api facet` | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
 | `pulse_sample`, `pulse api sample` | `SampleRequest` | `cohort, count, offset` |
 
-`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict alike refuse a name nothing produces, and an attribute label / feature output / window label that shadows an existing column (`SERVICE_VALIDATION`).
+`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict alike refuse (`SERVICE_VALIDATION`) a name nothing produces, an attribute / feature / window label shadowing an existing column, and an aggregation label equal to a group field or another aggregation label.
 
 ## Canonical process Request
 
@@ -50,7 +50,7 @@ Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 
 ## Slot-key gotchas
 
-Unknown keys are silently dropped on decode — no warning.
+Unknown keys are silently dropped on decode.
 
 | Wrong | Right |
 |---|---|
@@ -88,7 +88,7 @@ Rules: never override explicit `type`; never cross categories; `Nullable` irrele
 
 ## Response.Components
 
-`Response.Components` is additive `omitempty`: `aggregations[i]` `{n, n_null, operator}`, `groupers[i]` `{total_n, n_null, operator}`, `crosstab`, `filterers[i]` `{n_in, n_out, n_null_input}`, `run`. Per-operator keys: `manifest.components_schemas`. Full contract: `pulse_skills_get` `name: "response-components"`.
+`Response.Components` is additive `omitempty`: `aggregations[i]` `{n, n_null, operator}`, `groupers[i]` `{total_n, n_null, operator}`, `crosstab`, `filterers[i]` `{n_in, n_out, n_null_input}`, `run`. Per-operator keys: `manifest.components_schemas`; full contract: skill `response-components`.
 
 ## Time zones
 

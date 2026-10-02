@@ -101,6 +101,24 @@ func TestFieldRefRefusals_OutputColumns(t *testing.T) {
 		}
 		sameNames(t, refusedNames(t, req))
 	})
+	t.Run("aggregation labels collide with group fields and each other", func(t *testing.T) {
+		req := &types.Request{
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "n", Label: "n"}, // its own field: not an output column
+				{Type: types.AGG_MAX, Field: "n", Label: "cat"},
+				{Type: types.AGG_MIN, Field: "n", Label: "n"},
+			},
+		}
+		var labels []string
+		for _, ce := range FieldRefRefusals(req, fieldRefSchema(), nil) {
+			labels = append(labels, ce.Details["label"].(string))
+		}
+		sameNames(t, labels, "cat", "n")
+		// A crosstab's output is its cell grid: top-level labels are not judged.
+		req.Crosstab = &types.CrosstabSpec{Rows: req.Groups, Columns: req.Groups, Cell: &types.Aggregation{Type: types.AGG_SUM, Field: "n"}}
+		sameNames(t, refusedNames(t, req))
+	})
 	t.Run("a crosstab's post-tests are not judged", func(t *testing.T) {
 		req := &types.Request{
 			Crosstab: &types.CrosstabSpec{

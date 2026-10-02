@@ -61,7 +61,11 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     is also judged for orderability (IsOrderableType — set_* is
 //     refused). A crosstab's sort and windows judge against
 //     the record columns; its post-tests run over cell rows and are not
-//     judged here.
+//     judged here. The output namespace itself is judged too: an
+//     aggregation label (explicit or "<TYPE>_<field>") equal to a group
+//     field or to an earlier aggregation's label is refused, since the
+//     row holds one value per name and the other figure was silently
+//     lost (not on a crosstab, whose output is its cell grid).
 //
 // Derived names follow the runtime's own naming (featureOutputLabels,
 // attributeDefaultLabel, "<TYPE>_<field>" for an aggregation,
@@ -281,12 +285,19 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 	// 5. Output-row consumers.
 	if req.Crosstab == nil && (len(req.Groups) > 0 || len(req.Aggregations) > 0) {
 		out := make(map[string]bool, len(req.Groups)+len(req.Aggregations)+len(req.Windows))
-		for _, grp := range req.Groups {
-			if grp != nil {
-				out[grp.Field] = true
+		// owner names the slot that claimed each output column, so a
+		// collision's details can name both sides.
+		owner := make(map[string]map[string]any, len(req.Groups)+len(req.Aggregations))
+		for gi, grp := range req.Groups {
+			if grp == nil {
+				continue
+			}
+			out[grp.Field] = true
+			if _, ok := owner[grp.Field]; !ok {
+				owner[grp.Field] = map[string]any{"group_index": gi, "group": string(grp.Type)}
 			}
 		}
-		for _, agg := range req.Aggregations {
+		for ai, agg := range req.Aggregations {
 			if agg == nil {
 				continue
 			}
@@ -294,7 +305,28 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 			if label == "" {
 				label = string(agg.Type) + "_" + agg.Field
 			}
+			// Output-namespace collision: the row map holds one value
+			// per name, so an aggregation label equal to a group field
+			// was overwritten by the group key (the aggregation
+			// silently dropped) and a duplicate label kept only the
+			// last aggregation's figure.
+			if prior, ok := owner[label]; ok && label != "" {
+				details := map[string]any{"label": label, "aggregation_index": ai, "aggregation": string(agg.Type)}
+				var with string
+				if gi, isGroup := prior["group_index"]; isGroup {
+					with = "group[" + strconv.Itoa(gi.(int)) + "] field"
+				} else {
+					with = "aggregation[" + strconv.Itoa(prior["other_aggregation_index"].(int)) + "] label"
+				}
+				for k, v := range prior {
+					details[k] = v
+				}
+				w.out = append(w.out, refusal("aggregation["+strconv.Itoa(ai)+"] label "+label+" collides with "+with+" "+label,
+					details))
+				continue
+			}
 			out[label] = true
+			owner[label] = map[string]any{"other_aggregation_index": ai, "other_aggregation": string(agg.Type)}
 		}
 		w.cols = out
 	}
