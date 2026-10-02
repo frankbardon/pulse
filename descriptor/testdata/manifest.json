@@ -3485,6 +3485,7 @@
           ],
           "accepts_types": [
             "date",
+            "decimal128",
             "f32",
             "f64",
             "u16",
@@ -6168,6 +6169,7 @@
           "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
+          "FEAT_POLY",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -9770,4 +9772,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 826815a0ac0d807f209686756b08f761e5c805cbed0d1f5bc03956aa7b4bcef5
+// golden-hash: e41ff1d0f2dcfa6e8fb711acbfe2c3cecd5b313adeae261e0d1d27a09cb0440f

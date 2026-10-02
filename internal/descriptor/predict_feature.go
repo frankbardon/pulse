@@ -157,7 +157,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 	case types.FEAT_BUCKETIZE:
 		validateBucketizeParams(env, feat)
 	case types.FEAT_POLY:
-		if !isNumericFieldType(f.Type) {
+		if !featureAcceptsType(feat.Type, f.Type) {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"feature FEAT_POLY requires a numeric field",
@@ -432,4 +432,26 @@ func singleLabel(feat *types.Feature, prefix string) string {
 		return feat.Label
 	}
 	return prefix + feat.Field
+}
+
+// featureAcceptsType reports whether the feature's capability
+// declaration (featureCapabilities AcceptsTypes — the manifest's
+// accepts_types) lists ft, so predict refuses exactly the types the
+// manifest says the operator does not take. FEAT_POLY used the strict
+// FieldType.IsNumeric here and refused u4 and date, which the runtime
+// expands correctly and the skill documents.
+func featureAcceptsType(op types.FeatureType, ft encoding.FieldType) bool {
+	name := ft.String()
+	for _, c := range featureCapabilities() {
+		if c.Name != string(op) {
+			continue
+		}
+		for _, t := range c.AcceptsTypes {
+			if t == name {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }

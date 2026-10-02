@@ -142,14 +142,6 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 	}
 }
 
-// isNumericFieldType is the narrow numeric predicate (integer + float +
-// decimal). Delegates to the canonical encoding.FieldType.IsNumeric().
-// Retained as a package-local helper so call sites read like other
-// descriptor predicates; widening the predicate happens on FieldType.
-func isNumericFieldType(t encoding.FieldType) bool {
-	return t.IsNumeric()
-}
-
 // regressionAcceptsType reports whether a given encoding.FieldType is a
 // valid Target / Predictor for the named regression operator. All three
 // engines (REG_OLS, REG_GLM, REG_BAYES_LINEAR) consume the analytics-
