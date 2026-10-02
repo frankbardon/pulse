@@ -47,6 +47,14 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 	}
 
 	s.applyDefaults(stage0, cohort.Schema())
+	// Zones resolve before the chain gate on every stage. A joined
+	// stage 0 resolves inside Process against the joined schema
+	// instead (its refusal is located below).
+	if len(stage0.Joins) == 0 {
+		if err := s.resolveZones(stage0, cohort.Schema()); err != nil {
+			return nil, locateZoneRefusal(err, "stage", 0)
+		}
+	}
 	if !processing.CanChainRequestWithExtensions(stage0, cohort.Schema(), s.extensions) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
 			"chain stage 0 is not mergeable",
@@ -68,7 +76,7 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 
 	firstResp, err := s.Process(ctx, stage0)
 	if err != nil {
-		return nil, err
+		return nil, locateZoneRefusal(err, "stage", 0)
 	}
 
 	out := &types.ChainResponse{Stages: make([]*types.Response, 0, len(req.Stages))}
@@ -95,7 +103,7 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 
 		s.applyDefaults(stage, synthSchema)
 		if err := s.resolveZones(stage, synthSchema); err != nil {
-			return nil, err
+			return nil, locateZoneRefusal(err, "stage", i)
 		}
 		if !processing.CanChainRequestWithExtensions(stage, synthSchema, s.extensions) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,

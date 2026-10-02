@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -20,39 +21,14 @@ import (
 //
 // Returns PULSE_JOIN_FIELD_COLLISION when a non-prefixed right
 // field shares a name with a left field. Callers can set spec.As
-// to disambiguate.
+// to disambiguate. The rule itself lives in
+// internal/encoding.JoinedSchema, which predict calls too.
 func JoinedSchema(left, right *encoding.Schema, spec *types.JoinSpec) (*encoding.Schema, error) {
-	if left == nil || right == nil {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"joined schema requires non-nil left and right schemas")
+	as := ""
+	if spec != nil {
+		as = spec.As
 	}
-	fields := make([]encoding.Field, 0, len(left.Fields)+len(right.Fields))
-	seen := make(map[string]struct{}, len(left.Fields)+len(right.Fields))
-	for _, f := range left.Fields {
-		// Copy without the byte-offset / Dictionary reuse beyond the
-		// in-memory record use. The joined records own their own
-		// values map; categorical-dict lookups still work because
-		// every Field references the original schema's Dictionary
-		// via pointer (left side's view).
-		seen[f.Name] = struct{}{}
-		fields = append(fields, f)
-	}
-	for _, f := range right.Fields {
-		name := f.Name
-		if spec.As != "" {
-			name = spec.As + f.Name
-		}
-		if _, dup := seen[name]; dup {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_FIELD_COLLISION,
-				"joined schema field name collides between left and right",
-				map[string]any{"field": name, "as": spec.As})
-		}
-		seen[name] = struct{}{}
-		copied := f
-		copied.Name = name
-		fields = append(fields, copied)
-	}
-	return &encoding.Schema{Fields: fields}, nil
+	return encx.JoinedSchema(left, right, as)
 }
 
 // HashJoinIterator wraps a left-side iterator and yields joined

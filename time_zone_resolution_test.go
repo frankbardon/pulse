@@ -191,9 +191,10 @@ func TestTimeZone_NonUTCDatetimeRefusedEveryMode(t *testing.T) {
 			assertRefusal(t, err, "groups[0]", "GROUP_DATE", berlin)
 		})
 		t.Run(src.name+"/chain", func(t *testing.T) {
-			// GROUP_DATE is not chain-mergeable (the chain gate refuses
-			// it first), so the chain arm uses the mergeable
-			// FILTER_DATE_RANGES over the datetime field.
+			// The chain arm uses the mergeable FILTER_DATE_RANGES over
+			// the datetime field so the request would otherwise run
+			// (zones resolve before the chain gate either way —
+			// TestTimeZone_RefusalCarriesLocation).
 			_, err := p.ProcessChain(ctx, &types.ChainRequest{
 				Cohort: &types.Cohort{Filename: cohort},
 				Stages: []*types.ChainStage{{Request: &types.Request{

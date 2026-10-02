@@ -92,11 +92,11 @@ Rules: never override explicit `type`; never cross categories; `Nullable` irrele
 
 ## Time zones
 
-`time_zone` sits on `Request` and `FacetRequest` (Compose / Chain inherit it per inner Request; `SampleRequest` has none). Slot `tz` sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — a slot key, never inside `params`. Names are `UTC` or IANA `Area/Location` (`Europe/Berlin`, `Etc/GMT-5`); `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
+`time_zone` sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request; `SampleRequest`: none). Slot `tz` sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — a slot key, never inside `params`. Names are `UTC` or IANA `Area/Location` (`Europe/Berlin`, `Etc/GMT-5`); `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
 Precedence per slot: `tz` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; `OVERLAY_YOY` is `zone: "following"` (inherits its host grouper); extension operators are never capable.
 
-Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `tz` on a `date` field (even `"UTC"`); and — until zone-aware operator math lands — any non-UTC zone reaching a `datetime` (or derived / joined) field. An inherited zone on a `date` field is not applied. UTC (and fixed-zero aliases like `Etc/UTC`) is byte-identical to no zone.
+Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `tz` on a `date` field (even `"UTC"`); and — until zone-aware operator math lands — any non-UTC zone reaching a `datetime` (or derived) field. Compose/chain refusals add `details.request`/`stage`. An inherited zone on a `date` field is not applied. UTC (and fixed-zero aliases like `Etc/UTC`) is byte-identical to no zone.
 
 ## Predict-specific data fields
 

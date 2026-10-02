@@ -114,6 +114,10 @@ func (s *Service) SetDisableDefaults(disabled bool) {
 	s.disableDefaults = disabled
 }
 
+// DefaultsDisabled reports SetDisableDefaults, so the facade's predict
+// validates the request the runtime will execute.
+func (s *Service) DefaultsDisabled() bool { return s.disableDefaults }
+
 // SetDisableComponents toggles the engine-level default for
 // Response.Components emission. When true, every Process /
 // Compose / ProcessChain / Facet response on this service skips the
@@ -896,7 +900,7 @@ func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) 
 	for i, req := range requests {
 		resp, err := s.Process(ctx, req)
 		if err != nil {
-			return nil, fmt.Errorf("request %d: %w", i, err)
+			return nil, fmt.Errorf("request %d: %w", i, locateZoneRefusal(err, "request", i))
 		}
 		responses[i] = resp
 	}

@@ -70,6 +70,19 @@ func ValidateFacet(fileData io.ReadSeeker, req *types.FacetRequest) *descriptor.
 // embedder-registered extension snapshot so label-table references
 // can be resolved. Pass nil to opt out (same behavior as ValidateFacet).
 func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest, snap *ExtensionsSnapshot) *descriptor.Envelope {
+	return ValidateFacetWithOptions(fileData, req, &PredictOptions{Extensions: snap})
+}
+
+// ValidateFacetWithOptions is ValidateFacet with the predict options in
+// reach: opts.Extensions resolves label tables, and
+// opts.DefaultTimeZone / ZoneLoader drive the filterer zone resolution
+// (ResolveFacetZones — the pass FacetSchema runs). A nil opts is
+// ValidateFacet.
+func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
+	if opts == nil {
+		opts = &PredictOptions{}
+	}
+	snap := opts.Extensions
 	result := &FacetValidationResult{
 		Valid:           true,
 		Request:         req,
@@ -200,6 +213,10 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 				fmt.Sprintf("filterer references unknown field: %s", fil.Field),
 				map[string]any{"field": fil.Field, "filterer": string(fil.Type)})
 		}
+	}
+
+	if _, zerr := ResolveFacetZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader); zerr != nil {
+		addCodedError(env, zerr)
 	}
 
 	// Validate label bindings against the resolved schema. Facet has no

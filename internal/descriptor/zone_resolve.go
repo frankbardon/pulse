@@ -1,11 +1,13 @@
 package descriptor
 
 import (
+	stderrors "errors"
 	"fmt"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 )
@@ -50,6 +52,13 @@ type zoneSlot struct {
 //     details {slot, operator, tz}. Zone-aware operator arithmetic is
 //     not implemented yet; refusing keeps a zone from being silently
 //     ignored.
+//
+// A slot with an empty operator Type is skipped (it is a type error,
+// not a zone error, and type validation reports it identically with or
+// without a `tz`). A nil schema skips the two field-dependent refusals
+// (explicit `tz` on a non-datetime field; a non-UTC zone onto instants):
+// only a caller with no cohort schema in reach passes nil, and it must
+// never refuse what the schema-holding runtime accepts.
 //
 // It never mutates req. The returned slice is never nil.
 func ResolveZones(req *types.Request, schema *encoding.Schema, defaultZone string, load ZoneLoader) ([]descriptor.ResolvedZone, error) {
@@ -135,6 +144,13 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 	}
 
 	for _, s := range slots {
+		if s.operator == "" {
+			// No operator type (smart defaults disabled, or no default
+			// rule fits): not a zone question. Type validation reports
+			// the empty Type with the same error it gives without a
+			// `tz`, so the slot is not inspected here.
+			continue
+		}
 		capable := IsZoneCapable(s.operator)
 		if !capable {
 			if s.tz != "" {
@@ -152,10 +168,17 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 			}
 		}
 		instants := !known || fieldType == encoding.FieldTypeDateTime.String()
+		// A nil schema means the caller cannot see the field types (a
+		// validator without a cohort schema). The field-dependent
+		// refusals (explicit `tz` on a non-datetime field, a non-UTC
+		// zone onto instants) are then not decided here, so a
+		// schema-less check never refuses what the runtime — which
+		// always has the schema — accepts.
+		schemaKnown := schema != nil
 
 		name, source := inherited, inheritedSource
 		if s.tz != "" {
-			if !instants {
+			if !instants && schemaKnown {
 				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 					fmt.Sprintf("%s: `tz` is set on %s over field %q of type %s; a time zone applies only to a datetime field (a calendar date carries no instant)", s.slot, s.operator, s.field, fieldType),
 					map[string]any{"slot": s.slot, "operator": s.operator, errors.DetailTimeZone: s.tz, "field": s.field, "field_type": fieldType})
@@ -183,7 +206,7 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 		if err != nil {
 			return nil, err
 		}
-		if !z.IsUTC() {
+		if !z.IsUTC() && schemaKnown {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("%s: %s resolves time zone %q (from %s); zone-aware evaluation of datetime fields is not supported yet — only UTC (or a fixed-zero alias such as \"Etc/UTC\") is accepted", s.slot, s.operator, name, source),
 				map[string]any{"slot": s.slot, "operator": s.operator, errors.DetailTimeZone: name})
@@ -195,6 +218,39 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 	return out, nil
 }
 
+// ZoneRefusalAt returns err with its location inside a multi-request
+// root added to its details — key "request" (0-based Compose slot) or
+// "stage" (0-based chain stage) set to idx. A *errors.CodedError
+// anywhere in err's chain is copied (code and message unchanged, so the
+// code still survives errors.As); any other error is returned as is.
+func ZoneRefusalAt(err error, key string, idx int) error {
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) {
+		return err
+	}
+	details := make(map[string]any, len(ce.Details)+1)
+	for k, v := range ce.Details {
+		details[k] = v
+	}
+	details[key] = idx
+	return errors.NewCodedErrorWithDetails(ce.Code, ce.Message, details)
+}
+
+// resolveRequestZones is the validators' mirror of one runtime
+// resolution: smart defaults on a clone (unless opts.DisableDefaults)
+// against schema, then ResolveZones with the options' default zone and
+// loader — the order every execution mode uses.
+func resolveRequestZones(req *types.Request, schema *encoding.Schema, opts *PredictOptions) ([]descriptor.ResolvedZone, error) {
+	if opts == nil {
+		opts = &PredictOptions{}
+	}
+	clone := cloneRequestForDefaults(req)
+	if !opts.DisableDefaults && schema != nil {
+		ResolveDefaults(clone, schema)
+	}
+	return ResolveZones(clone, schema, opts.DefaultTimeZone, opts.ZoneLoader)
+}
+
 // addCodedError records err on env under its own code (a
 // *errors.CodedError keeps its Code and Details), falling back to
 // PROCESSING_CONFIG for an uncoded error.
@@ -204,4 +260,48 @@ func addCodedError(env *descriptor.Envelope, err error) {
 		return
 	}
 	env.AddError(string(errors.PROCESSING_CONFIG), err.Error(), nil)
+}
+
+// validatorRequestSchema is the schema a validator resolves one
+// Request's zones against: base (the cohort schema), or for a single
+// JoinSpec the joined schema the runtime executes over. A join whose
+// right cohort opts.SchemaLoader cannot read (or no loader at all)
+// yields nil — the schema-less mode in which ResolveZones applies only
+// the field-independent refusals, so a validator never refuses what
+// the runtime accepts.
+func validatorRequestSchema(req *types.Request, base *encoding.Schema, opts *PredictOptions) *encoding.Schema {
+	if base == nil || req == nil || len(req.Joins) == 0 {
+		return base
+	}
+	if len(req.Joins) != 1 || req.Joins[0] == nil || opts == nil || opts.SchemaLoader == nil {
+		return nil
+	}
+	right, err := opts.SchemaLoader(req.Joins[0].Right)
+	if err != nil {
+		return nil
+	}
+	joined, err := encx.JoinedSchema(base, right, req.Joins[0].As)
+	if err != nil {
+		return nil
+	}
+	return joined
+}
+
+// cohortSchemaFor loads the schema of the cohort a Compose slot names
+// through opts.SchemaLoader, joining path segments the way the runtime
+// does (Cohort.DataDir + "/" + Cohort.Filename). Nil when there is no
+// loader, no cohort, or the read fails.
+func cohortSchemaFor(c *types.Cohort, opts *PredictOptions) *encoding.Schema {
+	if c == nil || opts == nil || opts.SchemaLoader == nil {
+		return nil
+	}
+	path := c.Filename
+	if c.DataDir != "" {
+		path = c.DataDir + "/" + c.Filename
+	}
+	schema, err := opts.SchemaLoader(path)
+	if err != nil {
+		return nil
+	}
+	return schema
 }

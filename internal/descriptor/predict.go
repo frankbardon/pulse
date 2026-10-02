@@ -126,6 +126,22 @@ type PredictOptions struct {
 	// facade passes its per-instance cache so predict and the runtime
 	// resolve through the same loader.
 	ZoneLoader ZoneLoader
+
+	// DisableDefaults is pulse.Options.DisableDefaults. When set,
+	// predict validates the request WITHOUT smart defaults — exactly
+	// what the runtime executes — so a slot left with an empty Type is
+	// reported the way the runtime reports it. DefaultsApplied is still
+	// computed: it then lists the defaults that WOULD apply.
+	DisableDefaults bool
+
+	// SchemaLoader reads the header + schema of the cohort at a path
+	// (no record data). The facade passes the runtime's own cohort
+	// opener. Predict uses it for Request.Joins: the request is
+	// validated against the joined schema (internal/encoding.
+	// JoinedSchema, the rule the runtime builds its join over), so a
+	// right-side field is resolved by its real type. Nil leaves a join
+	// unresolved and validation runs against the left schema alone.
+	SchemaLoader func(path string) (*encoding.Schema, error)
 }
 
 // Predict validates a request against a .pulse file without executing it.
@@ -188,12 +204,23 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		result.SchemaInfo.Fields = append(result.SchemaInfo.Fields, f.Name)
 	}
 
+	// A join executes over the joined schema; validate against it.
+	// SchemaInfo above stays the cohort's own schema.
+	cohortSchema := schema
+	schema = predictJoinedSchema(env, req, schema, opts)
+
 	// Compute defaults on a clone so the echoed Request is untouched. The
 	// rest of validation runs against the resolved clone so a slot that
 	// only got its Type from the default rules table isn't flagged as
-	// missing a Type by downstream validators.
+	// missing a Type by downstream validators. Under DisableDefaults the
+	// runtime executes the request as written, so validation does too;
+	// DefaultsApplied still reports what the rules table would infer.
 	resolved := cloneRequestForDefaults(req)
-	if applied := ResolveDefaults(resolved, schema); len(applied) > 0 {
+	if opts.DisableDefaults {
+		if applied := ResolveDefaults(cloneRequestForDefaults(req), schema); len(applied) > 0 {
+			result.DefaultsApplied = applied
+		}
+	} else if applied := ResolveDefaults(resolved, schema); len(applied) > 0 {
 		result.DefaultsApplied = applied
 	}
 	req = resolved
@@ -214,6 +241,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	} else {
 		result.TimeZones = zones
 	}
+
+	// A slot still without an operator Type is refused by the runtime's
+	// operator construction; report it with the runtime's code and
+	// message.
+	validateOperatorTypes(env, req)
 
 	// Validate pre-filter feature operators and compute the post-feature
 	// column set so downstream stages can reference derived columns.
@@ -298,8 +330,8 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// "<field>_label" cannot shadow an aggregation/attribute label.
 	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), projected)
 
-	// Check description quality.
-	validateDescriptionQuality(env, schema, opts)
+	// Check description quality (the cohort's own fields only).
+	validateDescriptionQuality(env, cohortSchema, opts)
 
 	// Compute streamability — per-type Streamable() methods plus schema-aware
 	// gates (decimal fields force buffered). Honours
@@ -1252,4 +1284,67 @@ func overlayDescriptorName(spec *types.OverlaySpec) string {
 		name += "|margin:" + string(spec.Ref.Margin.Axis)
 	}
 	return name
+}
+
+// predictJoinedSchema returns the schema a Request executes over: for a
+// single JoinSpec whose right cohort opts.SchemaLoader can read, the
+// joined schema (internal/encoding.JoinedSchema — the runtime's own
+// rule); otherwise schema unchanged. A right cohort that cannot be read
+// or a joined-field collision is a predict error under its own code,
+// as the runtime refuses both.
+func predictJoinedSchema(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) *encoding.Schema {
+	if req == nil || len(req.Joins) != 1 || req.Joins[0] == nil || opts == nil || opts.SchemaLoader == nil {
+		return schema
+	}
+	spec := req.Joins[0]
+	right, err := opts.SchemaLoader(spec.Right)
+	if err != nil {
+		addCodedError(env, err)
+		return schema
+	}
+	joined, err := encx.JoinedSchema(schema, right, spec.As)
+	if err != nil {
+		addCodedError(env, err)
+		return schema
+	}
+	return joined
+}
+
+// validateOperatorTypes reports every top-level slot whose operator
+// Type is still empty once defaults have (or, under DisableDefaults,
+// have not) run. The runtime refuses each one at operator construction
+// with PROCESSING_CONFIG "unknown <family> type: "; predict mirrors
+// code and message, adding the slot path.
+func validateOperatorTypes(env *descriptor.Envelope, req *types.Request) {
+	if req == nil {
+		return
+	}
+	report := func(family, slot string) {
+		env.AddError(string(errors.PROCESSING_CONFIG), "unknown "+family+" type: ", map[string]any{"slot": slot})
+	}
+	for i, a := range req.Aggregations {
+		if a != nil && a.Type == "" {
+			report("aggregation", "aggregations["+strconv.Itoa(i)+"]")
+		}
+	}
+	for i, f := range req.Filterers {
+		if f != nil && f.Type == "" {
+			report("filter", "filterers["+strconv.Itoa(i)+"]")
+		}
+	}
+	for i, f := range req.Features {
+		if f != nil && f.Type == "" {
+			report("feature", "features["+strconv.Itoa(i)+"]")
+		}
+	}
+	for i, a := range req.Attributes {
+		if a != nil && a.Type == "" {
+			report("attribute", "attributes["+strconv.Itoa(i)+"]")
+		}
+	}
+	for i, g := range req.Groups {
+		if g != nil && g.Type == "" {
+			report("group", "groups["+strconv.Itoa(i)+"]")
+		}
+	}
 }

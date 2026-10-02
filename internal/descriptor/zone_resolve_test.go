@@ -163,3 +163,82 @@ func TestResolveZones_RefusalDetails(t *testing.T) {
 		t.Fatalf("facet resolve = %+v, %v", fz, err)
 	}
 }
+
+// TestResolveZones_EmptyOperatorSkipped: a slot with no operator Type
+// is a type error, not a zone error — the resolver leaves it to type
+// validation even when it carries a `tz`.
+func TestResolveZones_EmptyOperatorSkipped(t *testing.T) {
+	req := &types.Request{
+		Groups:    []*types.Group{{Field: "ts", TimeZone: "Europe/Berlin"}},
+		Filterers: []*types.Filterer{{Field: "d", TimeZone: "UTC"}},
+	}
+	zs, err := ResolveZones(req, zoneSchema(), "", nil)
+	if err != nil || len(zs) != 0 {
+		t.Fatalf("ResolveZones = %+v, %v; want no slot and no refusal", zs, err)
+	}
+}
+
+// TestResolveZones_NilSchemaFieldIndependentOnly: with no schema the
+// field-dependent refusals are not decided (a schema-holding runtime
+// may accept), while the field-independent ones still fire.
+func TestResolveZones_NilSchemaFieldIndependentOnly(t *testing.T) {
+	inherited := &types.Request{TimeZone: "Asia/Tokyo", Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "d"}}}
+	if _, err := ResolveZones(inherited, nil, "", nil); err != nil {
+		t.Fatalf("schema-less inherited zone refused: %v", err)
+	}
+	explicit := &types.Request{Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "d", TimeZone: "UTC"}}}
+	if _, err := ResolveZones(explicit, nil, "", nil); err != nil {
+		t.Fatalf("schema-less explicit tz refused: %v", err)
+	}
+	for name, req := range map[string]*types.Request{
+		"non-capable":  {Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n", TimeZone: "UTC"}}},
+		"unknown slot": {Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "ts", TimeZone: "Mars/Base"}}},
+		"unknown req":  {TimeZone: "EST"},
+	} {
+		if _, err := ResolveZones(req, nil, "", nil); err == nil {
+			t.Errorf("%s: schema-less resolution accepted a field-independent refusal", name)
+		}
+	}
+}
+
+// TestZoneRefusalAt: the location key joins the copied details; code
+// and message are unchanged and the input is not mutated.
+func TestZoneRefusalAt(t *testing.T) {
+	src := errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, "m", map[string]any{"slot": "groups[0]"})
+	got := ZoneRefusalAt(src, "stage", 2)
+	ce, ok := got.(*errors.CodedError)
+	if !ok || ce.Code != errors.PROCESSING_CONFIG || ce.Message != "m" || ce.Details["stage"] != 2 || ce.Details["slot"] != "groups[0]" {
+		t.Fatalf("ZoneRefusalAt = %#v", got)
+	}
+	if _, leaked := src.Details["stage"]; leaked {
+		t.Fatal("ZoneRefusalAt mutated its input")
+	}
+	plain := json.Unmarshal([]byte("{"), new(any))
+	if ZoneRefusalAt(plain, "stage", 0) != plain {
+		t.Fatal("an uncoded error must pass through unchanged")
+	}
+}
+
+// TestPredict_EmptyTypeRefused: predict reports a slot still without a
+// Type with the runtime's own PROCESSING_CONFIG message, and under
+// DisableDefaults validates the request as written (DefaultsApplied
+// still lists what would apply).
+func TestPredict_EmptyTypeRefused(t *testing.T) {
+	data := buildTestPulseFile(t, zoneSchema())
+	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "n"}},
+		Groups: []*types.Group{{Field: "ts"}}}
+	if env := predictFromBytes(data, req, &PredictOptions{}); len(env.Errors) != 0 {
+		t.Fatalf("defaults on: errors %+v", env.Errors)
+	}
+	env := predictFromBytes(data, req, &PredictOptions{DisableDefaults: true})
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PROCESSING_CONFIG) ||
+		env.Errors[0].Message != "unknown group type: " || env.Errors[0].Details["slot"] != "groups[0]" {
+		t.Fatalf("DisableDefaults errors = %+v", env.Errors)
+	}
+	if pr := env.Data.(*descriptor.PredictResult); len(pr.DefaultsApplied) != 1 || pr.Valid {
+		t.Fatalf("DefaultsApplied = %+v valid=%v", pr.DefaultsApplied, pr.Valid)
+	}
+	if req.Groups[0].Type != "" {
+		t.Fatal("predict mutated the caller's request")
+	}
+}

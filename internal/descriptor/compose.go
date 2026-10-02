@@ -121,7 +121,16 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		result.Valid = false
 		return env
 	}
+	// Zone resolution per slot — the pass Compose runs inside each
+	// slot's Process — against the slot's cohort (or joined) schema
+	// read through opts.SchemaLoader. A refusal carries the slot index
+	// under details.request, as the runtime's does.
+	validateComposeZones(env, req, opts)
+
 	if len(req.Overlays) == 0 {
+		if len(env.Errors) > 0 {
+			result.Valid = false
+		}
 		// Nothing to validate at the overlay surface; downstream
 		// per-slot validation (the standard Predict on each Request)
 		// runs through a separate entry point.
@@ -727,4 +736,22 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 		TargetLabel:    target,
 		Reason:         reason,
 	})
+}
+
+// validateComposeZones resolves every slot's zones the way the runtime
+// does (defaults, then ResolveZones) and records each refusal tagged
+// with its slot index. Without a SchemaLoader (or for a cohort it
+// cannot read) the slot resolves schema-less: the field-independent
+// refusals still apply, the field-dependent ones are left to the
+// runtime.
+func validateComposeZones(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions) {
+	for i, slot := range req.Requests {
+		if slot == nil {
+			continue
+		}
+		schema := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+		if _, err := resolveRequestZones(slot, schema, opts); err != nil {
+			addCodedError(env, ZoneRefusalAt(err, "request", i))
+		}
+	}
 }

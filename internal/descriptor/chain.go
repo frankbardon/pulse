@@ -95,6 +95,20 @@ func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *descriptor.
 // no-execute ban holds (TestPredictNoExecutionImports). A nil snap is
 // exactly ValidateChain.
 func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest, snap *ExtensionsSnapshot) *descriptor.Envelope {
+	return ValidateChainWithOptions(fileData, req, &PredictOptions{Extensions: snap})
+}
+
+// ValidateChainWithOptions is ValidateChain with the predict options in
+// reach: opts.Extensions is the chain-gate snapshot, and
+// opts.DefaultTimeZone / ZoneLoader / DisableDefaults / SchemaLoader
+// drive the per-stage zone resolution — the runtime's order: defaults,
+// zones, then the chain gate, each refusal tagged details.stage. A nil
+// opts is ValidateChain.
+func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
+	if opts == nil {
+		opts = &PredictOptions{}
+	}
+	snap := opts.Extensions
 	result := &ChainValidationResult{Valid: true, Request: req}
 	env := descriptor.NewEnvelope(result)
 
@@ -137,6 +151,13 @@ func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest
 				"chain stage requires a non-nil Request",
 				map[string]any{"stage_index": i})
 			continue
+		}
+		zoneSchema := current
+		if i == 0 {
+			zoneSchema = validatorRequestSchema(stage.Request, current, opts)
+		}
+		if _, zerr := resolveRequestZones(stage.Request, zoneSchema, opts); zerr != nil {
+			addCodedError(env, ZoneRefusalAt(zerr, "stage", i))
 		}
 		if !chainGateOK(stage.Request, snap, env, i, stage.Name) {
 			continue

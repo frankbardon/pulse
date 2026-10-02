@@ -16,6 +16,8 @@ import (
 // details) for a non-UTC zone on a datetime GROUP_DATE, and
 // PULSE_TIMEZONE_UNKNOWN for an unknown name — on process, compose and
 // the rich facet leaf alike, never a PROCESS_ERROR-style placeholder.
+// Compose and chain refusals keep their location (details.request /
+// details.stage) through the envelope.
 func TestAPI_TimeZoneRefusalKeepsItsCode(t *testing.T) {
 	dir := withTempDataDir(t)
 	csv := "ts,cat,n\n"
@@ -43,14 +45,25 @@ func TestAPI_TimeZoneRefusalKeepsItsCode(t *testing.T) {
 			"groups":       []any{map[string]any{"type": "GROUP_DATE", "field": "ts"}},
 		}
 	}
+	chain := map[string]any{
+		"cohort": map[string]any{"filename": cohort},
+		"stages": []any{map[string]any{"request": map[string]any{
+			"time_zone":    "Asia/Tokyo",
+			"aggregations": []any{map[string]any{"type": "AGG_SUM", "field": "n", "label": "total"}},
+			"groups":       []any{map[string]any{"type": "GROUP_DATE", "field": "ts"}},
+		}}},
+	}
 	cases := []struct {
 		name string
 		args []string
 		code string
+		loc  string // details key naming the request / stage index (0)
 	}{
-		{"process non-UTC", []string{"api", "process", "--json", "-r", write("p.json", request("Europe/Berlin"))}, "PROCESSING_CONFIG"},
-		{"process unknown", []string{"api", "process", "--json", "-r", write("u.json", request("Mars/Base"))}, "PULSE_TIMEZONE_UNKNOWN"},
-		{"compose non-UTC", []string{"api", "compose", "--json", "-r", write("c.json", map[string]any{"requests": []any{request("Asia/Tokyo")}})}, "PROCESSING_CONFIG"},
+		{"process non-UTC", []string{"api", "process", "--json", "-r", write("p.json", request("Europe/Berlin"))}, "PROCESSING_CONFIG", ""},
+		{"process unknown", []string{"api", "process", "--json", "-r", write("u.json", request("Mars/Base"))}, "PULSE_TIMEZONE_UNKNOWN", ""},
+		{"compose non-UTC", []string{"api", "compose", "--json", "-r", write("c.json", map[string]any{"requests": []any{request("Asia/Tokyo")}})}, "PROCESSING_CONFIG", "request"},
+		{"compose parallel non-UTC", []string{"api", "compose", "--json", "--parallel", "2", "-r", write("c1.json", map[string]any{"requests": []any{request("Asia/Tokyo")}})}, "PROCESSING_CONFIG", "request"},
+		{"chain non-UTC", []string{"api", "process-chain", "--json", "-r", write("ch.json", chain)}, "PROCESSING_CONFIG", "stage"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -74,6 +87,9 @@ func TestAPI_TimeZoneRefusalKeepsItsCode(t *testing.T) {
 			}
 			if tc.code == "PROCESSING_CONFIG" && (env.Errors[0].Details["slot"] != "groups[0]" || env.Errors[0].Details["operator"] != "GROUP_DATE") {
 				t.Errorf("details = %v", env.Errors[0].Details)
+			}
+			if tc.loc != "" && env.Errors[0].Details[tc.loc] != float64(0) {
+				t.Errorf("details[%q] = %v, want 0; details = %v", tc.loc, env.Errors[0].Details[tc.loc], env.Errors[0].Details)
 			}
 		})
 	}

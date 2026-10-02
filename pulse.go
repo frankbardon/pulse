@@ -1020,6 +1020,8 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		Extensions:      p.svc.ExtensionsSnapshot(),
 		DefaultTimeZone: p.svc.DefaultTimeZone(),
 		ZoneLoader:      p.svc.ZoneLoader(),
+		DisableDefaults: p.svc.DefaultsDisabled(),
+		SchemaLoader:    p.predictSchemaLoader(ctx),
 	})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
@@ -1085,7 +1087,23 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		Extensions:      p.svc.ExtensionsSnapshot(),
 		DefaultTimeZone: p.svc.DefaultTimeZone(),
 		ZoneLoader:      p.svc.ZoneLoader(),
+		DisableDefaults: p.svc.DefaultsDisabled(),
+		SchemaLoader:    p.predictSchemaLoader(ctx),
 	}), nil
+}
+
+// predictSchemaLoader reads a cohort's header + schema through the
+// runtime's own opener (anchors and shard archives included), so
+// predict validates a join against the joined schema the runtime
+// builds. Only the header and schema of a single-file cohort are read.
+func (p *Pulse) predictSchemaLoader(ctx context.Context) func(string) (*encoding.Schema, error) {
+	return func(path string) (*encoding.Schema, error) {
+		c, err := p.svc.Open(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		return c.Schema(), nil
+	}
 }
 
 // Sample returns up to n rows from the cohort as maps of field name to value.
