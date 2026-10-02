@@ -1812,12 +1812,25 @@ func (p *Pulse) GetTemplate(name string) (*Template, error) {
 // Rendering never opens a cohort: a template that renders is well-formed
 // against the request SHAPE. Whether it is executable against a particular
 // cohort stays Predict's question.
+//
+// On an engine whose feature profile hides a request slot (crosstab,
+// joins, overlays), a rendered body that sets that slot is refused with
+// the PULSE_TEMPLATE_RENDER_INVALID a key the target type does not
+// declare gets — same message, details and document-order position. An
+// operator name is not a slot: a hidden operator renders and fails at
+// execution, exactly as a never-registered one does.
 func (p *Pulse) RenderTemplate(name string, vars map[string]any) (*RenderedTemplate, error) {
 	tmpl, err := p.templates.Get(name)
 	if err != nil {
 		return nil, err
 	}
-	return template.Render(tmpl, vars)
+	inst := p.svc.InstanceSnapshot()
+	if !inst.Scoped() {
+		return template.Render(tmpl, vars)
+	}
+	return template.RenderWith(tmpl, vars, template.RenderOptions{
+		WithheldSlots: func(root any) []string { return descx.HiddenSlotKeys(root, inst) },
+	})
 }
 
 // RenderTemplateRequest renders the named template and returns the typed

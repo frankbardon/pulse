@@ -23,7 +23,9 @@ before profiles existed.
 > capability the profile omits (`crosstab`, `joins`, or an `overlays`
 > slot with no enabled host and kind) is refused with
 > `PULSE_REQUEST_UNKNOWN_FIELD`, exactly as an unrecognised JSON key,
-> and the error's `valid_keys` list only the slots the instance offers.
+> and the error's `valid_keys` list only the slots the instance offers;
+> a request template that renders such a slot fails
+> `PULSE_TEMPLATE_RENDER_INVALID`, exactly as a misspelled key.
 > The manifest, the payload schema,
 > errors and MCP filtering land in later v1.0.0 pre-releases. Writing and validating your profile now means it is
 > ready when they do.
