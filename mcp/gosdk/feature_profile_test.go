@@ -2,6 +2,7 @@ package gosdk_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"slices"
 	"strings"
@@ -263,5 +264,66 @@ func TestRegister_CanonicalListsIgnoreFeatureProfile(t *testing.T) {
 	}
 	if got := gosdk.RegisteredPrompts(); !slices.Equal(got, []string{gosdk.PromptBootstrap, gosdk.PromptAuthorRequest}) {
 		t.Errorf("RegisteredPrompts = %v", got)
+	}
+}
+
+// boundInputSchema returns the advertised input schema of the named
+// tool, re-marshalled to JSON.
+func boundInputSchema(t *testing.T, c *mcpsdk.ClientSession, name string) string {
+	t.Helper()
+	out, err := c.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	for _, tool := range out.Tools {
+		if tool.Name == name {
+			raw, err := json.Marshal(tool.InputSchema)
+			if err != nil {
+				t.Fatalf("marshal %s schema: %v", name, err)
+			}
+			return string(raw)
+		}
+	}
+	t.Fatalf("%s not in tool list", name)
+	return ""
+}
+
+// TestRegister_BindOnInspectScopesEnums pins that the rebound input
+// schemas after an inspect name only what the instance enables: no
+// hidden operator / overlay kind appears, the enabled ones do, and a
+// hidden request slot is gone.
+func TestRegister_BindOnInspectScopesEnums(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	writeRichCohort(t, fs, "rich.pulse")
+	fp := fixtureProfile(t, "survey-crosstab")
+	p, err := pulse.New(pulse.Options{FS: fs, FeatureProfile: fp})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	srv := newServer()
+	if err := gosdk.Register(srv, p, gosdk.Config{Version: "9.9.9", BindOnInspect: true, DisableCohortScan: true}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	c, cancel := connect(t, srv)
+	defer cancel()
+	if _, err := c.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: toolmeta.ToolInspect, Arguments: map[string]any{"path": "rich.pulse"}}); err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if !processToolBound(t, c) {
+		t.Fatal("pulse_process was not rebound: the enum assertions would be vacuous")
+	}
+	schema := boundInputSchema(t, c, toolmeta.ToolProcess)
+	for _, hidden := range []string{"AGG_MEDIAN", "FILTER_EXCLUDE", "GROUP_RANGE", "TEST_ANOVA_F", "WIN_LAG", "FEAT_LOG", "OVERLAY_SHARE_OF_COL", "ATTR_ZSCORE"} {
+		if strings.Contains(schema, `"`+hidden+`"`) {
+			t.Errorf("rebound pulse_process schema names hidden %s", hidden)
+		}
+	}
+	for _, enabled := range []string{"AGG_WELFORD", "GROUP_DATE", "FILTER_RANGE", "TEST_WELCH", "OVERLAY_SHARE_OF_ROW"} {
+		if !strings.Contains(schema, `"`+enabled+`"`) {
+			t.Errorf("rebound pulse_process schema lacks enabled %s", enabled)
+		}
+	}
+	if facet := boundInputSchema(t, c, toolmeta.ToolFacetSchema); strings.Contains(facet, `"overlays"`) {
+		t.Error("facet host enables no overlay kind: the rebound pulse_facet_schema must not offer overlays")
 	}
 }

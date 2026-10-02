@@ -314,6 +314,16 @@ startup walk and does not list cohorts under `resources/list`, as if
 `--no-cohort-scan` were set; every cohort stays readable by its
 `pulse://` URI.
 
+Tool input schemas follow the profile too. With `BindOnInspect` on,
+the schemas re-bound after an inspect list only the operators, tests
+and overlay kinds the profile enables (an operator family with none
+enabled carries no list at all), offer the `labels` slot only with
+`capability:labels`, and leave out any request slot the profile hides.
+A request naming a hidden slot (say `crosstab` without
+`capability:crosstab`) is refused as `PULSE_REQUEST_UNKNOWN_FIELD`,
+exactly like a misspelt key, and the valid-key list and suggestions
+name only the slots the profile offers.
+
 Embedders serving MCP themselves use `mcpserve.NewPulse`:
 
 ```go

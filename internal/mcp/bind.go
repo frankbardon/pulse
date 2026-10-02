@@ -107,7 +107,19 @@ func Bind(schema *encoding.Schema) (map[string]json.RawMessage, error) {
 // enums so LLM agents can author requests that reference custom operators.
 // Empty schemas are omitted so the caller can decide which tools to
 // override. SDK-free: the go-sdk adapter consumes the returned map.
+// Unscoped: equivalent to BindForInstance with no feature profile.
 func BindWithExtensions(schema *encoding.Schema, snap *descx.ExtensionsSnapshot) (map[string]json.RawMessage, error) {
+	return BindForInstance(schema, descx.UnscopedInstanceSnapshot(snap))
+}
+
+// BindForInstance is BindWithExtensions scoped to one instance: every
+// operator / overlay-kind enum keeps only the names inst enables (plus
+// its visible extension names), the labels table enum is absent when
+// capability:labels is hidden, and a request slot the instance hides is
+// dropped from the schema. A hidden name is therefore advertised exactly
+// as a never-registered one. A nil or unscoped inst is byte-identical to
+// BindWithExtensions(schema, inst.Extensions()).
+func BindForInstance(schema *encoding.Schema, inst *descx.InstanceSnapshot) (map[string]json.RawMessage, error) {
 	if schema == nil {
 		return nil, nil
 	}
@@ -117,14 +129,14 @@ func BindWithExtensions(schema *encoding.Schema, snap *descx.ExtensionsSnapshot)
 
 	// pulse_process and pulse_predict share the same Request shape; the
 	// builder produces one schema body and we register it under both names.
-	reqBody, err := buildRequestSchemaWithExtensions(c, snap)
+	reqBody, err := buildRequestSchemaWithExtensions(c, inst)
 	if err != nil {
 		return nil, err
 	}
 	out[toolmeta.ToolProcess] = reqBody
 	out[toolmeta.ToolPredict] = reqBody
 
-	composeBody, err := buildComposeSchemaWithExtensions(c, snap)
+	composeBody, err := buildComposeSchemaWithExtensions(c, inst)
 	if err != nil {
 		return nil, err
 	}
@@ -142,13 +154,13 @@ func BindWithExtensions(schema *encoding.Schema, snap *descx.ExtensionsSnapshot)
 	}
 	out[toolmeta.ToolFacet] = facetBody
 
-	facetSchemaBody, err := buildFacetSchemaRequestSchema(c, snap)
+	facetSchemaBody, err := buildFacetSchemaRequestSchema(c, inst)
 	if err != nil {
 		return nil, err
 	}
 	out[toolmeta.ToolFacetSchema] = facetSchemaBody
 
-	chainBody, err := buildProcessChainSchemaWithExtensions(c, snap)
+	chainBody, err := buildProcessChainSchemaWithExtensions(c, inst)
 	if err != nil {
 		return nil, err
 	}
@@ -160,8 +172,8 @@ func BindWithExtensions(schema *encoding.Schema, snap *descx.ExtensionsSnapshot)
 // buildProcessChainSchemaWithExtensions describes the pulse_process_chain
 // tool with the per-cohort enum constraints applied to every stage's inner
 // Request shape.
-func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descx.ExtensionsSnapshot) (json.RawMessage, error) {
-	inner, err := buildRequestSchemaWithExtensions(c, snap)
+func buildProcessChainSchemaWithExtensions(c fieldClassification, inst *descx.InstanceSnapshot) (json.RawMessage, error) {
+	inner, err := buildRequestSchemaWithExtensions(c, inst)
 	if err != nil {
 		return nil, err
 	}
@@ -199,19 +211,20 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, snap *descx.Ex
 				"description": "Ordered list of chain stages. Mergeable-only at v1; see Manifest.ProcessChain for the per-stage catalog gate.",
 				"items":       stageItem,
 			},
-			"overlays": overlaysSchemaForFacade(overlayFacadeChain, snap),
+			"overlays": overlaysSchemaForFacade(overlayFacadeChain, inst),
 		},
 		"required":             []string{"stages"},
 		"additionalProperties": true,
 	}
+	dropHiddenSlots(requestObject, &types.ChainRequest{}, inst)
 
 	return json.Marshal(requestObject)
 }
 
 // buildFacetSchemaRequestSchema describes the pulse_facet_schema tool with
 // field enums constrained to the bound cohort.
-func buildFacetSchemaRequestSchema(c fieldClassification, snap *descx.ExtensionsSnapshot) (json.RawMessage, error) {
-	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), snap, "filterer")
+func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSnapshot) (json.RawMessage, error) {
+	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), inst, "filterer")
 	requestObject := map[string]any{
 		"type":        "object",
 		"description": "pulse.FacetRequest — schema-bound for this cohort. fields and additive_fields enums are constrained to the cohort's actual fields.",
@@ -238,7 +251,7 @@ func buildFacetSchemaRequestSchema(c fieldClassification, snap *descx.Extensions
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":       map[string]any{"type": "string", "enum": filterTypes},
+						"type":       enumStringField(filterTypes, ""),
 						"field":      enumStringField(c.AllFields, "Field to filter on. FILTER_EXPRESSION may omit this."),
 						"values":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 						"expression": map[string]any{"type": "string"},
@@ -264,14 +277,15 @@ func buildFacetSchemaRequestSchema(c fieldClassification, snap *descx.Extensions
 				"maxItems":    2,
 				"description": "[min, max] bounds for fixed-width histogram binning. Required when include_histogram=true.",
 			},
-			"overlays": overlaysSchemaForFacade(overlayFacadeFacet, snap),
+			"overlays": overlaysSchemaForFacade(overlayFacadeFacet, inst),
 		},
 		"required":             []string{"fields"},
 		"additionalProperties": true,
 	}
-	if labels := buildLabelsSchema(c, snap); labels != nil {
+	if labels := buildLabelsSchema(c, inst); labels != nil {
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
+	dropHiddenSlots(requestObject, &types.FacetRequest{}, inst)
 	return json.Marshal(requestObject)
 }
 
@@ -312,10 +326,29 @@ func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 	return out
 }
 
-// mergeEnumNames merges built-in names with extension names from the
-// snapshot, sorting the combined list and removing duplicates.
-func mergeEnumNames(builtin []string, snap *descx.ExtensionsSnapshot, category string) []string {
-	customs := extensionNames(snap, category)
+// enabledNames keeps the names inst enables, in order. A nil or
+// unscoped inst returns names unchanged (same slice), so a profile-free
+// enum is byte-identical.
+func enabledNames(names []string, inst *descx.InstanceSnapshot) []string {
+	if !inst.Scoped() {
+		return names
+	}
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		if inst.Enabled(n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// mergeEnumNames merges the built-in names inst enables with the
+// instance's extension names, sorting the combined list and removing
+// duplicates. Extension names arrive already visible-only (pulse.New
+// drops the ones a feature profile omits).
+func mergeEnumNames(builtin []string, inst *descx.InstanceSnapshot, category string) []string {
+	builtin = enabledNames(builtin, inst)
+	customs := extensionNames(inst.Extensions(), category)
 	if len(customs) == 0 {
 		return builtin
 	}
@@ -361,14 +394,14 @@ func orderKeySchema(enumFields []string) map[string]any {
 
 // buildRequestSchemaWithExtensions produces a JSON Schema describing
 // types.Request with per-field enums for the bound cohort.
-func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.ExtensionsSnapshot) (json.RawMessage, error) {
-	aggTypes := mergeEnumNames(stringSlice(types.AllAggregationTypes()), snap, "aggregator")
-	attrTypes := mergeEnumNames(stringSlice(types.AllAttributeTypes()), snap, "attribute")
-	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), snap, "filterer")
-	groupTypes := mergeEnumNames(stringSlice(types.AllGroupTypes()), snap, "grouper")
-	windowTypes := mergeEnumNames(stringSlice(types.AllWindowTypes()), snap, "window")
-	featureTypes := mergeEnumNames(stringSlice(types.AllFeatureTypes()), snap, "feature")
-	testTypes := mergeEnumNames(stringSlice(types.AllTestTypes()), snap, "test")
+func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.InstanceSnapshot) (json.RawMessage, error) {
+	aggTypes := mergeEnumNames(stringSlice(types.AllAggregationTypes()), inst, "aggregator")
+	attrTypes := mergeEnumNames(stringSlice(types.AllAttributeTypes()), inst, "attribute")
+	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), inst, "filterer")
+	groupTypes := mergeEnumNames(stringSlice(types.AllGroupTypes()), inst, "grouper")
+	windowTypes := mergeEnumNames(stringSlice(types.AllWindowTypes()), inst, "window")
+	featureTypes := mergeEnumNames(stringSlice(types.AllFeatureTypes()), inst, "feature")
+	testTypes := mergeEnumNames(stringSlice(types.AllTestTypes()), inst, "test")
 
 	requestObject := map[string]any{
 		"type":        "object",
@@ -389,11 +422,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type": map[string]any{
-							"type":        "string",
-							"enum":        aggTypes,
-							"description": "Aggregator. Operators differ in accepted field-type classes — AGG_SUM/AVG/STDDEV/MIN/MAX need numeric fields; AGG_COUNT/FREQUENCY/MODE/DISTINCT_COUNT accept any. See pulse_manifest for the full Accepts table.",
-						},
+						"type":   enumStringField(aggTypes, "Aggregator. Operators differ in accepted field-type classes — AGG_SUM/AVG/STDDEV/MIN/MAX need numeric fields; AGG_COUNT/FREQUENCY/MODE/DISTINCT_COUNT accept any. See pulse_manifest for the full Accepts table."),
 						"field":  enumStringField(c.AllFields, "Field to aggregate. Categorical and decimal fields are valid for some operators only — see Type description and the manifest's Operator.AcceptsTypes."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
@@ -407,7 +436,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":       map[string]any{"type": "string", "enum": attrTypes},
+						"type":       enumStringField(attrTypes, ""),
 						"field":      enumStringField(c.Numeric, "Source field (numeric, including decimal)."),
 						"label":      map[string]any{"type": "string"},
 						"expression": map[string]any{"type": "string"},
@@ -422,7 +451,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":       map[string]any{"type": "string", "enum": filterTypes},
+						"type":       enumStringField(filterTypes, ""),
 						"field":      enumStringField(c.AllFields, "Field to filter on. FILTER_EXPRESSION may omit this."),
 						"values":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 						"expression": map[string]any{"type": "string"},
@@ -437,7 +466,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":     map[string]any{"type": "string", "enum": groupTypes},
+						"type":     enumStringField(groupTypes, ""),
 						"field":    enumStringField(c.AllFields, "Field to group by. GROUP_CATEGORY expects a categorical field; GROUP_ROUNDED/RANGE expect numeric; GROUP_DATE expects date."),
 						"interval": map[string]any{"type": "number"},
 						"params":   map[string]any{},
@@ -451,7 +480,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":         map[string]any{"type": "string", "enum": windowTypes},
+						"type":         enumStringField(windowTypes, ""),
 						"field":        enumStringField(c.AllFields, "Source field for the window operator (omitted for ROW_NUMBER/RANK/DENSE_RANK)."),
 						"label":        map[string]any{"type": "string"},
 						"partition_by": map[string]any{"type": "array", "items": enumStringField(c.AllFields, "Partition key field name.")},
@@ -468,7 +497,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":   map[string]any{"type": "string", "enum": featureTypes},
+						"type":   enumStringField(featureTypes, ""),
 						"field":  enumStringField(c.AllFields, "Source field for the feature operator."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
@@ -484,7 +513,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 			"tests":      testsArraySchema(c, testTypes),
 			"post_tests": testsArraySchema(c, testTypes),
 			"crosstab":   crosstabSchema(c, aggTypes, groupTypes),
-			"overlays":   overlaysSchemaForFacade(overlayFacadeRequest, snap),
+			"overlays":   overlaysSchemaForFacade(overlayFacadeRequest, inst),
 			"outputs": map[string]any{
 				"type": "array",
 				"items": map[string]any{
@@ -501,9 +530,10 @@ func buildRequestSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 		},
 		"additionalProperties": true,
 	}
-	if labels := buildLabelsSchema(c, snap); labels != nil {
+	if labels := buildLabelsSchema(c, inst); labels != nil {
 		requestObject["properties"].(map[string]any)["labels"] = labels
 	}
+	dropHiddenSlots(requestObject, &types.Request{}, inst)
 
 	return json.Marshal(requestObject)
 }
@@ -513,7 +543,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 	groupItem := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"type":     map[string]any{"type": "string", "enum": groupTypes},
+			"type":     enumStringField(groupTypes, ""),
 			"field":    enumStringField(c.AllFields, "Field to group by on this axis."),
 			"interval": map[string]any{"type": "number"},
 			"params":   map[string]any{},
@@ -539,7 +569,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"type":        "object",
 				"description": "Cell aggregation. Most aggregators emit scalar cells (number in matrix payload). Map-valued aggregators (advertised under Manifest.Crosstab.MapValuedCellAggregators — AGG_SET_FREQUENCY today) emit per-label row-count maps (object); pairing them with normalize=row/column/total raises PULSE_CROSSTAB_NORMALIZE_MAP_VALUED.",
 				"properties": map[string]any{
-					"type":   map[string]any{"type": "string", "enum": aggTypes},
+					"type":   enumStringField(aggTypes, ""),
 					"field":  enumStringField(c.AllFields, "Field the cell aggregation reads. AGG_COUNT may name any field."),
 					"label":  map[string]any{"type": "string"},
 					"params": map[string]any{},
@@ -553,7 +583,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":   map[string]any{"type": "string", "enum": aggTypes},
+						"type":   enumStringField(aggTypes, ""),
 						"field":  enumStringField(c.AllFields, "Field the auxiliary margin aggregation reads. AGG_COUNT may name any field."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
@@ -649,7 +679,7 @@ func facetOnlyOverlayKinds() []string {
 // overlayKindEnumForFacade returns the per-facade overlay_kind enum drawn
 // from descriptor.OverlayCapabilities() filtered by facade membership, with
 // embedder-registered kinds merged in.
-func overlayKindEnumForFacade(facade overlayFacade, snap *descx.ExtensionsSnapshot) []string {
+func overlayKindEnumForFacade(facade overlayFacade, inst *descx.InstanceSnapshot) []string {
 	composeSet := stringSetFrom(composeOnlyOverlayKinds())
 	chainSet := stringSetFrom(chainOnlyOverlayKinds())
 	facetSet := stringSetFrom(facetOnlyOverlayKinds())
@@ -676,10 +706,13 @@ func overlayKindEnumForFacade(facade overlayFacade, snap *descx.ExtensionsSnapsh
 				continue
 			}
 		}
+		if !inst.Enabled(name) {
+			continue
+		}
 		out = append(out, name)
 	}
 	if facade == overlayFacadeRequest {
-		out = append(out, extensionNames(snap, "overlay")...)
+		out = append(out, extensionNames(inst.Extensions(), "overlay")...)
 	}
 	return sortedDedupe(out)
 }
@@ -714,8 +747,8 @@ func sortedDedupe(in []string) []string {
 
 // overlaysSchemaForFacade returns the JSON Schema fragment describing the
 // Overlays array on the named facade's request shape.
-func overlaysSchemaForFacade(facade overlayFacade, snap *descx.ExtensionsSnapshot) map[string]any {
-	kinds := overlayKindEnumForFacade(facade, snap)
+func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot) map[string]any {
+	kinds := overlayKindEnumForFacade(facade, inst)
 	kindField := map[string]any{
 		"type":        "string",
 		"description": "Overlay catalog kind. Enum is constrained to the kinds the bound facade's request shape accepts (Request / Compose / Facet / Chain). Drawn from descriptor.OverlayCapabilities() filtered by facade membership; new kinds in the same facade flow through automatically. See Manifest.Overlays for the per-kind shape / scope / ref-kind matrix.",
@@ -802,7 +835,7 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"type":          map[string]any{"type": "string", "enum": testTypes},
+				"type":          enumStringField(testTypes, ""),
 				"field":         enumStringField(c.Numeric, "Primary numeric field under test."),
 				"field2":        enumStringField(c.Numeric, "Secondary numeric field (paired / bivariate tests)."),
 				"split_by":      enumStringField(c.AllFields, "Categorical split field for two-sample / k-group tests."),
@@ -822,8 +855,8 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 
 // buildComposeSchemaWithExtensions describes a ComposedRequest by wrapping
 // the bound Request schema in a requests array.
-func buildComposeSchemaWithExtensions(c fieldClassification, snap *descx.ExtensionsSnapshot) (json.RawMessage, error) {
-	inner, err := buildRequestSchemaWithExtensions(c, snap)
+func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.InstanceSnapshot) (json.RawMessage, error) {
+	inner, err := buildRequestSchemaWithExtensions(c, inst)
 	if err != nil {
 		return nil, err
 	}
@@ -839,11 +872,12 @@ func buildComposeSchemaWithExtensions(c fieldClassification, snap *descx.Extensi
 				"type":  "array",
 				"items": reqSchema,
 			},
-			"overlays": overlaysSchemaForFacade(overlayFacadeCompose, snap),
+			"overlays": overlaysSchemaForFacade(overlayFacadeCompose, inst),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
 	}
+	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
 	return json.Marshal(outer)
 }
 
@@ -886,11 +920,11 @@ func buildFacetSchema(c fieldClassification) (json.RawMessage, error) {
 
 // buildLabelsSchema returns the JSON Schema fragment for a Request /
 // FacetRequest Labels slot.
-func buildLabelsSchema(c fieldClassification, snap *descx.ExtensionsSnapshot) map[string]any {
+func buildLabelsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[string]any {
 	if len(c.Categorical) == 0 {
 		return nil
 	}
-	tables := labelTableNames(snap)
+	tables := labelTableNames(inst)
 	if len(tables) == 0 {
 		return nil
 	}
@@ -925,9 +959,15 @@ func buildLabelsSchema(c fieldClassification, snap *descx.ExtensionsSnapshot) ma
 	}
 }
 
-// labelTableNames extracts table names from the snapshot in sorted order.
-func labelTableNames(snap *descx.ExtensionsSnapshot) []string {
-	if snap == nil || len(snap.LabelTables) == 0 {
+// labelsFeature gates the label tables: hidden, the instance lists them
+// exactly as one that registered none.
+var labelsFeature = descx.FeatureName(descx.FeatureKindCapability, "labels")
+
+// labelTableNames extracts the instance's label-table names in sorted
+// order — none when capability:labels is hidden.
+func labelTableNames(inst *descx.InstanceSnapshot) []string {
+	snap := inst.Extensions()
+	if snap == nil || len(snap.LabelTables) == 0 || !inst.Enabled(labelsFeature) {
 		return nil
 	}
 	out := make([]string, 0, len(snap.LabelTables))
@@ -936,6 +976,16 @@ func labelTableNames(snap *descx.ExtensionsSnapshot) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// dropHiddenSlots deletes from object's properties every top-level slot
+// of the request root sample that inst hides (descx.HiddenSlotKeys) — the
+// same properties the instance payload schema drops. No-op unscoped.
+func dropHiddenSlots(object map[string]any, sample any, inst *descx.InstanceSnapshot) {
+	props, _ := object["properties"].(map[string]any)
+	for _, k := range descx.HiddenSlotKeys(sample, inst) {
+		delete(props, k)
+	}
 }
 
 // enumStringField returns a property schema for a string with an enum drawn

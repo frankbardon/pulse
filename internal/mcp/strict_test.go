@@ -14,7 +14,7 @@ import (
 )
 
 func TestJsonObjectKeys_RequestSlots(t *testing.T) {
-	keys := requestSlotKeys
+	keys := requestSlotKeys(nil)
 	for _, want := range []string{"cohort", "groups", "aggregations", "filterers", "windows", "tests", "post_tests"} {
 		if !slices.Contains(keys, want) {
 			t.Errorf("requestSlotKeys missing %q; got %v", want, keys)
@@ -31,7 +31,7 @@ func TestJsonObjectKeys_RequestSlots(t *testing.T) {
 
 func TestCheckUnknownRequestKeys_GroupersSuggestsGroups(t *testing.T) {
 	body := []byte(`{"cohort":{"filename":"x.pulse"},"groupers":[{"type":"GROUP_CATEGORY","field":"region"}]}`)
-	ce := checkUnknownRequestKeys(body)
+	ce := checkUnknownRequestKeys(body, nil)
 	if ce == nil {
 		t.Fatal("expected error for unknown key 'groupers', got nil")
 	}
@@ -49,7 +49,7 @@ func TestCheckUnknownRequestKeys_GroupersSuggestsGroups(t *testing.T) {
 
 func TestCheckUnknownRequestKeys_AggregatorsSuggestsAggregations(t *testing.T) {
 	body := []byte(`{"aggregators":[{"type":"AGG_SUM","field":"amount"}]}`)
-	ce := checkUnknownRequestKeys(body)
+	ce := checkUnknownRequestKeys(body, nil)
 	if ce == nil {
 		t.Fatal("expected error for unknown key 'aggregators', got nil")
 	}
@@ -61,14 +61,14 @@ func TestCheckUnknownRequestKeys_AggregatorsSuggestsAggregations(t *testing.T) {
 
 func TestCheckUnknownRequestKeys_ValidPasses(t *testing.T) {
 	body := []byte(`{"cohort":{"filename":"x.pulse"},"groups":[{"type":"GROUP_CATEGORY","field":"region"}],"aggregations":[{"type":"AGG_SUM","field":"amount"}]}`)
-	if ce := checkUnknownRequestKeys(body); ce != nil {
+	if ce := checkUnknownRequestKeys(body, nil); ce != nil {
 		t.Fatalf("valid request flagged: %s", ce.Message)
 	}
 }
 
 func TestCheckUnknownRequestKeys_UnrelatedKeyNoSuggestion(t *testing.T) {
 	body := []byte(`{"xyzzy":1}`)
-	ce := checkUnknownRequestKeys(body)
+	ce := checkUnknownRequestKeys(body, nil)
 	if ce == nil {
 		t.Fatal("expected error for unknown key 'xyzzy', got nil")
 	}
@@ -79,17 +79,17 @@ func TestCheckUnknownRequestKeys_UnrelatedKeyNoSuggestion(t *testing.T) {
 }
 
 func TestCheckUnknownRequestKeys_NonObjectIsNil(t *testing.T) {
-	if ce := checkUnknownRequestKeys([]byte(`[1,2,3]`)); ce != nil {
+	if ce := checkUnknownRequestKeys([]byte(`[1,2,3]`), nil); ce != nil {
 		t.Errorf("array body should defer to typed decoder, got %s", ce.Code)
 	}
-	if ce := checkUnknownRequestKeys(nil); ce != nil {
+	if ce := checkUnknownRequestKeys(nil, nil); ce != nil {
 		t.Errorf("empty body should be nil, got %s", ce.Code)
 	}
 }
 
 func TestCheckUnknownKeysComposed_TagsIndex(t *testing.T) {
 	body := []byte(`{"requests":[{"cohort":{"filename":"x.pulse"}},{"groupers":[]}]}`)
-	ce := checkUnknownKeysComposed(body)
+	ce := checkUnknownKeysComposed(body, nil)
 	if ce == nil {
 		t.Fatal("expected error for unknown key in composed request[1], got nil")
 	}
@@ -103,7 +103,7 @@ func TestCheckUnknownKeysComposed_TagsIndex(t *testing.T) {
 
 func TestCheckUnknownKeysChain_TagsStage(t *testing.T) {
 	body := []byte(`{"cohort":{"filename":"x.pulse"},"stages":[{"name":"s0","request":{"groupers":[]}}]}`)
-	ce := checkUnknownKeysChain(body)
+	ce := checkUnknownKeysChain(body, nil)
 	if ce == nil {
 		t.Fatal("expected error for unknown key in chain stage 0, got nil")
 	}
@@ -132,7 +132,7 @@ func assertDetailKeys(t *testing.T, details map[string]any, want ...string) {
 // TestStrictRequestDecode_RejectsUnknownKey proves the decode wrapper used by
 // Invoke surfaces the coded error verbatim before the typed unmarshal.
 func TestStrictRequestDecode_RejectsUnknownKey(t *testing.T) {
-	_, err := strictRequestDecode([]byte(`{"groupers":[]}`))
+	_, err := strictRequestDecode([]byte(`{"groupers":[]}`), nil)
 	if err == nil {
 		t.Fatal("expected unknown-key error")
 	}
@@ -145,14 +145,14 @@ func TestStrictRequestDecode_RejectsUnknownKey(t *testing.T) {
 // TestCheckUnknownRequestKeys_SharesSlotGateShape: the MCP strict
 // decoder and the instance-scoped request-slot gate build the SAME
 // PULSE_REQUEST_UNKNOWN_FIELD error — only the candidate list differs
-// (this package's requestSlotKeys stays the full, unscoped list until
-// U06 scopes MCP registration).
+// (here the unscoped list; TestCheckUnknownKeys_HiddenSlot* pin the
+// scoped one).
 func TestCheckUnknownRequestKeys_SharesSlotGateShape(t *testing.T) {
-	ce := checkUnknownRequestKeys([]byte(`{"crosstabz":{},"groupers":[]}`))
+	ce := checkUnknownRequestKeys([]byte(`{"crosstabz":{},"groupers":[]}`), nil)
 	if ce == nil {
 		t.Fatal("expected an unknown-field error")
 	}
-	want := descx.UnknownFieldError([]string{"crosstabz", "groupers"}, requestSlotKeys)
+	want := descx.UnknownFieldError([]string{"crosstabz", "groupers"}, requestSlotKeys(nil))
 	if ce.Code != want.Code || ce.Message != want.Message || !reflect.DeepEqual(ce.Details, want.Details) {
 		t.Errorf("strict decode diverges from the shared shape\ngot:  %s %v\nwant: %s %v", ce.Message, ce.Details, want.Message, want.Details)
 	}
