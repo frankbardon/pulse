@@ -375,7 +375,7 @@ func TestPredictWindow_MissingField(t *testing.T) {
 	}
 }
 
-func TestPredictWindow_LabelCollision(t *testing.T) {
+func TestPredictWindow_LabelCollisionRefused(t *testing.T) {
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -393,15 +393,16 @@ func TestPredictWindow_LabelCollision(t *testing.T) {
 			},
 		},
 	}
+	// A collision is the shared field rule's shadow REFUSAL (an error,
+	// which the runtime raises too), no longer a predict-only warning.
 	env := predictFromBytes(data, req, nil)
-	found := false
-	for _, w := range env.Warnings {
-		if w.Code == string(errors.PULSE_WINDOW_INVALID) && strings.Contains(w.Message, "collides") {
-			found = true
-		}
+	if !envHasErrorContaining(env, "window[0] label x shadows an existing column") {
+		t.Fatalf("expected label-shadow error, got warnings=%+v errors=%+v", env.Warnings, env.Errors)
 	}
-	if !found {
-		t.Fatalf("expected label-collision warning, got warnings=%+v errors=%+v", env.Warnings, env.Errors)
+	for _, w := range env.Warnings {
+		if strings.Contains(w.Message, "collides") {
+			t.Fatalf("stale collision warning alongside the refusal: %+v", w)
+		}
 	}
 }
 

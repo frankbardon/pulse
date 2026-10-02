@@ -32,7 +32,7 @@ Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 | `pulse_facet`, `pulse api facet` | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
 | `pulse_sample`, `pulse api sample` | `SampleRequest` | `cohort, count, offset` |
 
-`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer — a filter cannot read an attribute label. A field name nothing produces is refused by runtime and predict alike.
+`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict alike refuse a name nothing produces, and an attribute label / feature output / window label that shadows an existing column (`SERVICE_VALIDATION`).
 
 ## Canonical process Request
 
@@ -50,7 +50,7 @@ Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 
 ## Slot-key gotchas
 
-Unknown keys are silently dropped on decode — the engine does NOT warn.
+Unknown keys are silently dropped on decode — no warning.
 
 | Wrong | Right |
 |---|---|
@@ -100,12 +100,12 @@ Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `t
 
 ## Predict-specific data fields
 
-`streamable`, `streamable_reasons`, `defaults_applied`, `time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default`), `suggestions` (when `on_invalid="suggest"`), per-slot `buffered_components` (true for non-mergeable: median, percentile, quantile).
+`streamable`, `streamable_reasons`, `defaults_applied`, `time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
 
 ## Cross-links
 
 - `response-components` — full Components contract + per-operator keys.
 - `session-bootstrap` — MCP session order.
-- `aggregation-design` / `grouper-design` / `attribute-composition` — per-category slot shapes.
-- `compose-requests` — `ComposedRequest`; `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
+- `aggregation-design` / `grouper-design` / `attribute-composition` — slot shapes.
+- `compose-requests`; `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
 - `streaming-and-watching` — stream chunks, request hashing, watch loop.

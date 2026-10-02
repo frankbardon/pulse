@@ -128,26 +128,9 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 		validTypes[t] = true
 	}
 
-	// Build the set of labels already produced by aggregations / groups / attributes.
-	usedLabels := make(map[string]string)
-	for _, agg := range req.Aggregations {
-		label := agg.Label
-		if label == "" {
-			label = string(agg.Type) + "_" + agg.Field
-		}
-		usedLabels[label] = "aggregation"
-	}
-	for _, attr := range req.Attributes {
-		label := attr.Label
-		if label == "" {
-			label = string(attr.Type) + "_" + attr.Field
-		}
-		usedLabels[label] = "attribute"
-	}
-	for _, grp := range req.Groups {
-		usedLabels[grp.Field] = "group"
-	}
-
+	// Label collisions with an available column (aggregation / group
+	// output, record column, earlier window) are FieldRefRefusals'
+	// shadow refusal on both sides.
 	for i, w := range req.Windows {
 		idx := strconv.Itoa(i)
 
@@ -253,17 +236,6 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 		// Operator-specific param validation.
 		validateWindowParams(env, i, w)
 
-		// Label collision check (warning-level error per plan: predict warning).
-		label := windowLabel(w)
-		if other, exists := usedLabels[label]; exists {
-			entry := &descriptor.EnvelopeEntry{
-				Code:    string(errors.PULSE_WINDOW_INVALID),
-				Message: "window[" + idx + "] label " + label + " collides with " + other + " label",
-				Details: map[string]any{"window_index": i, "label": label, "collides_with": other},
-			}
-			env.Warnings = append(env.Warnings, entry)
-		}
-		usedLabels[label] = "window"
 	}
 }
 

@@ -134,6 +134,10 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 			continue
 		}
 		for _, label := range featureOutputLabels(feat, schema) {
+			w.shadow(label, func() *errors.CodedError {
+				return refusal("feature "+string(feat.Type)+" output "+label+" shadows an existing field",
+					map[string]any{"label": label, "feature": string(feat.Type)})
+			})
 			w.cols[label] = true
 		}
 	}
@@ -185,6 +189,10 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 		if label == "" {
 			label = attributeDefaultLabel(attr)
 		}
+		w.shadow(label, func() *errors.CodedError {
+			return refusal("attribute label "+label+" shadows an existing field",
+				map[string]any{"label": label, "attribute": string(attr.Type)})
+		})
 		w.cols[label] = true
 	}
 
@@ -332,7 +340,12 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 			})
 		}
 		w.checkInputs("window", string(win.Type), win.Params, "window")
-		w.cols[windowLabel(win)] = true
+		label := windowLabel(win)
+		w.shadow(label, func() *errors.CodedError {
+			return refusal("window["+idx+"] label "+label+" shadows an existing column",
+				map[string]any{"window_index": i, "label": label, "type": string(win.Type)})
+		})
+		w.cols[label] = true
 	}
 	for i, k := range req.Sort {
 		if k.Field == "" {
@@ -437,6 +450,20 @@ func (w *fieldRefWalk) check(name string, mk func() *errors.CodedError) {
 		return
 	}
 	w.out = append(w.out, mk())
+}
+
+// shadow refuses a derived column (attribute label, feature output,
+// window label) whose name is already an available column — a schema
+// field, an earlier derived column or, for a window, an output-row
+// column. Writing it would overwrite that column in place, and the
+// buffered and streaming attribute arms disagreed about the overwritten
+// field's null mark; no documented request relies on the overwrite, so
+// both sides refuse it. A collision with a name only an extension
+// feature might produce (open set) is not knowable and not judged.
+func (w *fieldRefWalk) shadow(label string, mk func() *errors.CodedError) {
+	if label != "" && w.cols[label] {
+		w.out = append(w.out, mk())
+	}
 }
 
 // checkTest judges the fields a test reads: tier-1 (postIndex < 0)
