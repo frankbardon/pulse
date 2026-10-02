@@ -11,18 +11,17 @@ package pulse_test
 //     extension grouper takes the fused arm and matches GROUP_CATEGORY)
 //     and TestExtensions_TwoPassAttributeCrosstabNotFused (a two_pass
 //     extension attribute declines it, as ATTR_ZSCORE does).
-//   - parallel / per-shard: an extension aggregator merges when its
-//     registration declares Mergeable (the aggregator suite asserts
-//     Merge ran); extension filterers and row_local attributes merge as
-//     row-local operators; extension groupers do not merge yet
-//     (grouperParitySuite sets extSerial), so those rows compare the
-//     built-in's parallel arm against the extension's serial arm.
+//   - parallel / per-shard: extension aggregators and groupers merge
+//     when their registration declares Mergeable (the aggregator and
+//     grouper suites assert Merge / MergeState ran); extension
+//     filterers and row_local attributes merge as row-local operators.
 //   - windows and post-tests run over materialised result rows, so the
 //     streaming mode is only "streaming" up to the result set; their
 //     suites carry no path probe.
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -85,6 +84,8 @@ func (g *parityCategoryGrouper) KeyForRow(rec extend.Record, field string) (stri
 
 func (g *parityCategoryGrouper) Group(rows extend.Rows, field string) (map[string][]int, error) {
 	g.probe.buffered.Add(1)
+	// Reset like the built-in: a buffered Group replaces the live state.
+	g.live = map[string]int{}
 	out := map[string][]int{}
 	for i := 0; i < rows.Len(); i++ {
 		if k, ok := g.key(rows.At(i), field); ok {
@@ -95,14 +96,36 @@ func (g *parityCategoryGrouper) Group(rows extend.Rows, field string) (map[strin
 	return out, nil
 }
 
+// MergeState folds another partition's per-bucket counts into the
+// receiver exactly as the built-in GROUP_CATEGORY's MergeGrouperState
+// does (a per-key sum). The probe counts the call so the parallel
+// modes can prove a merge ran.
+func (g *parityCategoryGrouper) MergeState(other extend.Grouper) error {
+	o, ok := other.(*parityCategoryGrouper)
+	if !ok {
+		return fmt.Errorf("parityCategoryGrouper.MergeState: got %T", other)
+	}
+	g.probe.merges.Add(1)
+	for k, n := range o.live {
+		g.live[k] += n
+	}
+	return nil
+}
+
 // parityPerElementGrouper mirrors GROUP_SET_PER_ELEMENT: one bucket per
 // selected dictionary label in ascending bit order; a null or empty
 // mask drops the row.
 type parityPerElementGrouper struct {
 	probe *parityProbe
 	dict  *encoding.Dictionary
+	// live mirrors the built-in's per-label {count, dict_index} state.
+	live map[string]parityLabelStat
 }
 
+type parityLabelStat struct{ count, dictIndex int }
+
+// keys returns the selected labels and their dictionary indices, and
+// folds each observation into the live state.
 func (g *parityPerElementGrouper) keys(rec extend.Record, field string) []string {
 	m, ok := rec.SetMaskValue(field)
 	if !ok || g.dict == nil {
@@ -113,6 +136,10 @@ func (g *parityPerElementGrouper) keys(rec extend.Record, field string) []string
 	for i, ok := m.NextBit(0); ok && i < n; i, ok = m.NextBit(i + 1) {
 		if l := g.dict.Resolve(uint32(i)); l != "" {
 			out = append(out, l)
+			st := g.live[l]
+			st.count++
+			st.dictIndex = i
+			g.live[l] = st
 		}
 	}
 	return out
@@ -126,6 +153,7 @@ func (g *parityPerElementGrouper) KeysForRow(rec extend.Record, field string) ([
 
 func (g *parityPerElementGrouper) Group(rows extend.Rows, field string) (map[string][]int, error) {
 	g.probe.buffered.Add(1)
+	g.live = map[string]parityLabelStat{}
 	out := map[string][]int{}
 	for i := 0; i < rows.Len(); i++ {
 		for _, k := range g.keys(rows.At(i), field) {
@@ -135,9 +163,29 @@ func (g *parityPerElementGrouper) Group(rows extend.Rows, field string) (map[str
 	return out, nil
 }
 
+// MergeState folds another partition's per-label counts into the
+// receiver, as the built-in GROUP_SET_PER_ELEMENT does (counts sum; the
+// dictionary index is a pure function of the label).
+func (g *parityPerElementGrouper) MergeState(other extend.Grouper) error {
+	o, ok := other.(*parityPerElementGrouper)
+	if !ok {
+		return fmt.Errorf("parityPerElementGrouper.MergeState: got %T", other)
+	}
+	g.probe.merges.Add(1)
+	for l, os := range o.live {
+		st := g.live[l]
+		st.count += os.count
+		st.dictIndex = os.dictIndex
+		g.live[l] = st
+	}
+	return nil
+}
+
 var (
 	_ extend.StreamingGrouper         = (*parityCategoryGrouper)(nil)
 	_ extend.MultiKeyStreamingGrouper = (*parityPerElementGrouper)(nil)
+	_ extend.MergeableGrouper         = (*parityCategoryGrouper)(nil)
+	_ extend.MergeableGrouper         = (*parityPerElementGrouper)(nil)
 )
 
 func fieldDict(schema *encoding.Schema, name string) *encoding.Dictionary {
@@ -165,14 +213,15 @@ func grouperParitySuite() paritySuite {
 	contains := func(r parityRow, subs ...string) parityRow { r.mustContain = subs; return r }
 	cat, fan := types.GROUP_CATEGORY, types.GROUP_SET_PER_ELEMENT
 	return paritySuite{
-		name:      "grouper",
-		extSerial: true, // extension groupers carry no merge surface yet
+		name:       "grouper",
+		mergeProbe: true,
 		register: func(probe *parityProbe) pulse.Extensions {
 			return pulse.Extensions{Groupers: []pulse.GrouperRegistration{
 				{
 					Name:        grpParityCategory,
 					Description: "Test-only extend reimplementation of GROUP_CATEGORY.",
 					Streamable:  true,
+					Mergeable:   true,
 					Factory: func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
 						var dict *encoding.Dictionary
 						if schema != nil {
@@ -188,9 +237,10 @@ func grouperParitySuite() paritySuite {
 					Name:        grpParityPerElement,
 					Description: "Test-only extend reimplementation of GROUP_SET_PER_ELEMENT.",
 					Streamable:  true,
+					Mergeable:   true,
 					FansOut:     true,
 					Factory: func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
-						return &parityPerElementGrouper{probe: probe, dict: fieldDict(schema, spec.Field)}, nil
+						return &parityPerElementGrouper{probe: probe, dict: fieldDict(schema, spec.Field), live: map[string]parityLabelStat{}}, nil
 					},
 					FieldInputs: func(json.RawMessage) []string { return nil },
 				},

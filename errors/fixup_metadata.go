@@ -980,11 +980,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_MERGEABLE_MISMATCH: {
-		Message: "An aggregator registration declared Mergeable=true but cannot merge: it is not Streamable, its factory does not return extend.MergeableAggregator, or its ComponentSchema declares keys with Mergeability \"none\".",
+		Message: "An aggregator or grouper registration declared Mergeable=true but cannot merge: it is not Streamable, its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Declare Mergeable=true only alongside Streamable=true, implement Merge(other extend.OnlineAggregator) error on the returned type (fold other's running state into the receiver), and classify ComponentSchema.Mergeability as \"mergeable\" or \"partial\" — or set Mergeable=false and the parallel reducers run the operator serially.",
+				Hint:   "Declare Mergeable=true only alongside Streamable=true, implement Merge(other extend.OnlineAggregator) error on an aggregator (or MergeState(other extend.Grouper) error on a grouper that emits components) to fold other's state into the receiver, and classify ComponentSchema.Mergeability as \"mergeable\" or \"partial\" — or set Mergeable=false and the parallel reducers run the operator serially.",
 			},
 		},
 	},

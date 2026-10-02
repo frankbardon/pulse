@@ -73,6 +73,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Description: r.Description,
 			Streamable:  r.Streamable,
 			FansOut:     r.FansOut,
+			Mergeable:   r.Mergeable,
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Params:      paramMetaSnapshot(r.Params),
 		})

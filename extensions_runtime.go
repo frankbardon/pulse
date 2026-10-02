@@ -121,6 +121,9 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		for _, reg := range ext.Groupers {
 			r.Groupers[reg.Name] = adaptGrouperFactory(reg)
 			r.Streamable[processing.StreamabilityKey("grouper", string(reg.Name))] = reg.Streamable
+			// Recorded false as well as true, as for aggregators, so
+			// IsMergeable never falls through to the built-in table.
+			r.Mergeable[processing.StreamabilityKey("grouper", string(reg.Name))] = reg.Mergeable
 			// Runtime half of the fan-out bridge. The predict half is
 			// the same fact on internal/descriptor.ExtensionsSnapshot.Groupers;
 			// both are read through types.CheckPairwiseSlabPartitionWith

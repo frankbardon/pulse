@@ -552,16 +552,18 @@ const (
 	// extensions_probe.probeGroupers.
 	PULSE_EXTENSION_FANOUT_MISMATCH Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
 
-	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator
-	// registration declared Mergeable=true but cannot honour it: the
-	// registration is not also Streamable (merge folds ONLINE state, so
-	// mergeable is a strict subset of streamable), the factory's value
-	// does not implement extend.MergeableAggregator, or its
+	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator or
+	// grouper registration declared Mergeable=true but cannot honour it:
+	// the registration is not also Streamable (merge folds ONLINE state,
+	// so mergeable is a strict subset of streamable), the factory's
+	// value does not implement extend.MergeableAggregator (or, for a
+	// grouper that emits components, extend.MergeableGrouper), or its
 	// ComponentSchema declares keys with Mergeability "none" (the
 	// parallel reducers read Components() off the MERGED instance, so a
 	// non-mergeable figure would be silently wrong under ShardWorkers /
 	// DecodeWorkers). Details carry the category, name and a reason
-	// discriminator. Wired into extensions_probe.probeAggregators.
+	// discriminator. Wired into extensions_probe.probeAggregators and
+	// probeGroupers.
 	PULSE_EXTENSION_MERGEABLE_MISMATCH Code = "PULSE_EXTENSION_MERGEABLE_MISMATCH"
 
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory

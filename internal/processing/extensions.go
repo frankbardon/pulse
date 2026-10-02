@@ -52,10 +52,11 @@ type ExtensionRegistry struct {
 	// Mergeable is the per-(category, name) merge declaration consulted
 	// by IsMergeable, keyed like Streamable. Built-in entries are not
 	// stored here; the fallback consults the per-type Mergeable()
-	// method. For an extension aggregator this is the DECLARED
-	// pulse.AggregatorRegistration.Mergeable flag, probe-validated at
+	// method. For an extension aggregator or grouper this is the
+	// DECLARED pulse.AggregatorRegistration.Mergeable /
+	// pulse.GrouperRegistration.Mergeable flag, probe-validated at
 	// pulse.New (PULSE_EXTENSION_MERGEABLE_MISMATCH) so a true entry's
-	// value implements MergeableAggregator through the adapter. Absent
+	// adapted value implements MergeableAggregator / MergeableGrouper. Absent
 	// reads as the built-in answer, which is false for any name the
 	// built-in tables do not know.
 	Mergeable map[string]bool

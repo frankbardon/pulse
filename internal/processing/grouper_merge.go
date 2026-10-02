@@ -18,7 +18,10 @@ import (
 // same request answering in two shapes depending on a worker count.
 //
 // Implemented by exactly the groupers types.GroupType.Mergeable()
-// admits (CATEGORY, RANGE, DATE_RANGES, SET_VALUE, SET_PER_ELEMENT).
+// admits (CATEGORY, RANGE, DATE_RANGES, SET_VALUE, SET_PER_ELEMENT),
+// and by every adapted extension grouper whose registration declares
+// Mergeable (the root adapter forwards extend.MergeableGrouper, or
+// folds nothing when the grouper emits no components).
 // `other` must be a fresh instance of the same concrete type built
 // from the same *types.Group; a mismatch is PROCESSING_INTERNAL.
 // Partials are folded in partition order, and every fold below is

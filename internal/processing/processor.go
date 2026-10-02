@@ -194,9 +194,13 @@ func CanMergeRequest(req *types.Request, schema *encoding.Schema) bool {
 //     decimal128 target does not refuse an extension aggregator — the
 //     built-in decimal fold is buffered-only, but an extension reads
 //     decimals through Record.DecimalValue on every path.
-//   - groupers: IsMergeable, which for an extension grouper is false —
-//     no grouper merge surface is registered yet, so the per-shard
-//     reducer's MergeableGrouper fold never meets one.
+//   - groupers: their DECLARED Mergeable flag (IsMergeable), single-key
+//     and fan-out alike, probe-validated at pulse.New to imply
+//     Streamable and — when the grouper emits components — an
+//     extend.MergeableGrouper value. The adapter always exposes
+//     MergeableGrouper on a declared grouper (a no-op fold when it
+//     emits nothing), so the reducers' grouper fold never meets a
+//     grouper it cannot merge.
 //   - filterers: row-local, so mergeable when streamable (every
 //     registered extension filterer is).
 //   - attributes: a row_local extension attribute merges like

@@ -294,8 +294,20 @@ type GrouperRegistration struct {
 	// records. Omitting the field defaults it to false, so a multi-key
 	// factory is refused rather than silently over-counting.
 	FansOut bool
-	Accepts []encoding.FieldType
-	Params  []ParamMeta
+	// Mergeable declares that the grouper may run under the parallel
+	// reducers (ShardWorkers / DecodeWorkers) and in ProcessChain
+	// stages: one instance per partition, components state folded
+	// through extend.MergeableGrouper.MergeState. Requires Streamable
+	// (the reducers key rows one at a time). A Mergeable grouper that
+	// emits components (ComponentsFunc, or a value with its own
+	// Components() method) MUST return an extend.MergeableGrouper,
+	// and its ComponentSchema must not classify the keys "none"; a
+	// grouper that emits none needs no merge method. Probe-validation
+	// refuses anything else with PULSE_EXTENSION_MERGEABLE_MISMATCH.
+	// Omitted, a request naming the grouper runs serially.
+	Mergeable bool
+	Accepts   []encoding.FieldType
+	Params    []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc

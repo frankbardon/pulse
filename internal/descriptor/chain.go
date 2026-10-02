@@ -78,7 +78,23 @@ type ChainOverlaySchemaDivergence struct {
 //
 // The validator does not import internal/service or processing — predict's
 // structural ban applies to the broader descriptor surface in spirit.
+//
+// ValidateChain knows built-in operators only: it is
+// ValidateChainWithExtensions with a nil snapshot, so every
+// embedder-registered name fails the chain gate.
 func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *descriptor.Envelope {
+	return ValidateChainWithExtensions(fileData, req, nil)
+}
+
+// ValidateChainWithExtensions is ValidateChain against an
+// ExtensionsSnapshot, the predict-side twin of the runtime gate
+// processing.CanChainRequestWithExtensions: an extension aggregator or
+// grouper passes the chain gate on its DECLARED Mergeable flag
+// (OperatorMeta.Mergeable), a row_local extension attribute as a
+// row-local operator. The snapshot carries the declarations, so the
+// no-execute ban holds (TestPredictNoExecutionImports). A nil snap is
+// exactly ValidateChain.
+func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest, snap *ExtensionsSnapshot) *descriptor.Envelope {
 	result := &ChainValidationResult{Valid: true, Request: req}
 	env := descriptor.NewEnvelope(result)
 
@@ -122,7 +138,7 @@ func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *descriptor.
 				map[string]any{"stage_index": i})
 			continue
 		}
-		if !chainGateOK(stage.Request, env, i, stage.Name) {
+		if !chainGateOK(stage.Request, snap, env, i, stage.Name) {
 			continue
 		}
 		validateChainStageFields(stage.Request, current, env, i, stage.Name)
@@ -152,7 +168,7 @@ func ValidateChainFromBytes(data []byte, req *types.ChainRequest) *descriptor.En
 // gate. Adds errors directly into the envelope and returns true iff
 // the stage passed; downstream field validation can run only on a
 // gate-passing stage.
-func chainGateOK(req *types.Request, env *descriptor.Envelope, idx int, name string) bool {
+func chainGateOK(req *types.Request, snap *ExtensionsSnapshot, env *descriptor.Envelope, idx int, name string) bool {
 	details := map[string]any{"stage_index": idx, "stage_name": name}
 	if len(req.Aggregations) == 0 {
 		env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
@@ -171,9 +187,11 @@ func chainGateOK(req *types.Request, env *descriptor.Envelope, idx int, name str
 		if attr == nil {
 			continue
 		}
-		switch attr.Type {
-		case types.ATTR_FORMULA, types.ATTR_DATE_PART:
+		switch {
+		case attr.Type == types.ATTR_FORMULA, attr.Type == types.ATTR_DATE_PART:
 			// row-local
+		case snap.attributeRowLocal(string(attr.Type)):
+			// row_local extension attribute
 		default:
 			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
 				"chain gate excludes two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
@@ -182,7 +200,7 @@ func chainGateOK(req *types.Request, env *descriptor.Envelope, idx int, name str
 		}
 	}
 	for _, g := range req.Groups {
-		if g != nil && !g.Type.Mergeable() {
+		if g != nil && !g.Type.Mergeable() && !snap.mergeable(snap.groupers(), string(g.Type)) {
 			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
 				"chain gate requires mergeable grouper (GROUP_CATEGORY or GROUP_RANGE)",
 				details)
@@ -193,7 +211,7 @@ func chainGateOK(req *types.Request, env *descriptor.Envelope, idx int, name str
 		if agg == nil {
 			continue
 		}
-		if !agg.Type.Mergeable() {
+		if !agg.Type.Mergeable() && !snap.mergeable(snap.aggregators(), string(agg.Type)) {
 			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
 				"chain gate requires mergeable aggregators",
 				details)

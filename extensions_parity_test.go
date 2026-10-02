@@ -275,7 +275,8 @@ type parityProbe struct {
 	online, buffered atomic.Int64
 	// decimalReads counts DecimalValue hits that returned a value.
 	decimalReads atomic.Int64
-	// merges counts extend.MergeableAggregator.Merge calls — proof the
+	// merges counts extend.MergeableAggregator.Merge and
+	// extend.MergeableGrouper.MergeState calls — proof the
 	// parallel reducers folded the extension's partials rather than
 	// running it serially.
 	merges atomic.Int64
@@ -338,10 +339,6 @@ type paritySuite struct {
 	// in the extension arm's output before comparison — for categories
 	// whose payload echoes the operator type (TestResult.Type).
 	rename map[string]string
-	// extSerial: the extension twins never merge even where the
-	// built-in does (extension groupers carry no merge surface yet), so
-	// CanMergeRequestWithExtensions must refuse every row.
-	extSerial bool
 	// stripGrouperOperator drops Components.Groupers[i].Operator on both
 	// arms: the known gap that extension groupers surface no
 	// per-operator figures. The universal floor is still compared.
@@ -699,7 +696,7 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 								t.Fatalf("CanStreamRequestWithExtensions(extension) = %v but row.bufferedOnly = %v", got, row.bufferedOnly)
 							}
 						}
-						extMerge := (!row.serialOnly || row.extMerges) && !suite.extSerial
+						extMerge := !row.serialOnly || row.extMerges
 						if mode.mergeable {
 							if got := processing.CanMergeRequest(bReq, schema); got == row.serialOnly {
 								t.Fatalf("CanMergeRequest(builtin) = %v but row.serialOnly = %v; mode %s would not run the path it names",
@@ -707,8 +704,8 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 							}
 							reg := pulse.ServiceForTest(p).Extensions()
 							if got := processing.CanMergeRequestWithExtensions(eReq, schema, reg); got != extMerge {
-								t.Fatalf("CanMergeRequestWithExtensions(extension) = %v, want %v (serialOnly=%v extMerges=%v extSerial=%v)",
-									got, extMerge, row.serialOnly, row.extMerges, suite.extSerial)
+								t.Fatalf("CanMergeRequestWithExtensions(extension) = %v, want %v (serialOnly=%v extMerges=%v)",
+									got, extMerge, row.serialOnly, row.extMerges)
 							}
 						}
 						builtin := runParityArm(t, p, path, bReq).normalize(t, suite, false)

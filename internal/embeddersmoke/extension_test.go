@@ -311,9 +311,11 @@ var (
 func TestExtendGroupersAndFiltererThroughProcess(t *testing.T) {
 	p, fs := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
 		Groupers: []pulse.GrouperRegistration{
-			{Name: "GROUP_SMOKE_REGION", Streamable: true,
+			// Mergeable with no components: the public spelling
+			// needs no extend.MergeableGrouper method.
+			{Name: "GROUP_SMOKE_REGION", Streamable: true, Mergeable: true,
 				Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) { return smokeKeyGrouper{}, nil }},
-			{Name: "GROUP_SMOKE_REGION_ALL", Streamable: true, FansOut: true,
+			{Name: "GROUP_SMOKE_REGION_ALL", Streamable: true, FansOut: true, Mergeable: true,
 				Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) {
 					return smokeFanOutGrouper{smokeRegionGrouper{all: true}}, nil
 				}},

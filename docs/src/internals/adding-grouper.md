@@ -117,10 +117,41 @@ The orchestrator owns the universal floor `{total_n, n_null}` — the
 post-filter record walker fills it unconditionally. Your `Components()`
 MUST NOT re-emit those keys.
 
-For single-key groupers, `total_n` equals the sum of bucket counts.
-For multi-key streaming groupers (`GROUP_SET_PER_ELEMENT`), the sum
-of bucket counts exceeds `total_n` because a single record contributes
-to multiple buckets — `total_n` reflects the row count.
+`total_n` is the number of (record, bucket) assignments: the sum of
+your `buckets[].count` when `Components()` returns a `buckets` list of
+`[]map[string]any` with `int` counts (as `GROUP_CATEGORY` and `GROUP_SET_PER_ELEMENT` do), otherwise
+the orchestrator's own assignment count. For single-key groupers that
+is the number of keyed records; for multi-key streaming groupers
+(`GROUP_SET_PER_ELEMENT`) a record contributes once per selected label,
+so `total_n` can exceed the record count.
+
+### Merging under the parallel reducers
+
+The parallel reducers (`ShardWorkers` over a shard archive,
+`DecodeWorkers` over a large single file) build one grouper per
+partition and fold the per-key aggregator buckets themselves. Your
+grouper's own components state (the counters behind `Components()`)
+is folded through `MergeableGrouper.MergeGrouperState(other)`
+(`internal/processing/grouper_merge.go`); `other` is a fresh instance
+of the same concrete type from the same spec. Implement it and return
+true from `GroupType.Mergeable()` (`types/streamability.go`) only when
+the fold is associative — a sum, or the same first/last-write rule the
+serial tracker applies — so the merged `Components()` equals a serial
+instance's. The reducers sum the assignment count across partitions
+and hand it to `processing.FinalizeGroupedStream`, so `total_n` /
+`n_null` match the serial path even for a bucket-less grouper. A
+grouper not `Mergeable()` runs those requests serially
+(`processing.CanMergeRequestWithExtensions`).
+
+An **extension** grouper takes the same paths through the public
+contract: declare `Streamable: true` and `Mergeable: true` on its
+`pulse.GrouperRegistration` and, if it emits components, implement
+`extend.MergeableGrouper.MergeState(other)`; the adapter hands
+`MergeState` your own value. A grouper that emits no components needs
+no method (the adapter folds nothing). Probe-validation refuses a
+declaration the value cannot honour
+(`PULSE_EXTENSION_MERGEABLE_MISMATCH`). See
+[Extension points — Grouper](extension-points.md).
 
 The full Response.Components contract for groupers — streaming
 behaviour by mergeability class, the orchestrator-owned floor, the

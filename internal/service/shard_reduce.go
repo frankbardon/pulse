@@ -217,6 +217,14 @@ type shardPartial struct {
 	grouper processing.Grouper
 	// keyer is the partition grouper's resolved key dispatch.
 	keyer *processing.GroupKeyer
+	// assignments counts (record, bucket) routings — one per key a
+	// record is keyed into — exactly as the serial streaming-grouped
+	// path does. It is Components.Groupers' TotalN for a grouper whose
+	// components carry no "buckets" list (a bucket-less extension
+	// grouper), so the merge sums it and hands it to GroupedTail; a
+	// merged tail without it reported total_n 0 and n_null = every
+	// filtered record.
+	assignments int64
 	// keyOrder preserves the order distinct group keys were first seen
 	// in this shard. The merger's stable sort by key ensures the
 	// final response row order is deterministic across worker
@@ -407,6 +415,7 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, spe
 	if err != nil || !ok {
 		return err
 	}
+	sp.assignments += int64(len(keys))
 	for _, key := range keys {
 		bucket, exists := sp.groups[key]
 		if !exists {
@@ -538,6 +547,7 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		merged.totalRows += p.totalRows
 		merged.filteredRows += p.filteredRows
 		merged.nullRecords += p.nullRecords
+		merged.assignments += p.assignments
 
 		// Universal-floor and filter counters are plain tallies: the
 		// fold is a slot-wise sum, associative and commutative, so no
@@ -686,6 +696,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			TotalRows:         merged.totalRows,
 			FilteredRows:      merged.filteredRows,
 			NullRecords:       merged.nullRecords,
+			Assignments:       merged.assignments,
 			FilterCounters:    merged.filterCounters,
 			ShardCount:        shardCount,
 			DisableComponents: disableComponents,

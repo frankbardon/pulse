@@ -51,6 +51,39 @@ type MultiKeyStreamingGrouper interface {
 	KeysForRow(rec Record, field string) (keys []string, ok bool, err error)
 }
 
+// MergeableGrouper is the optional merge sibling for groupers whose
+// components state folds across input partitions. When a registration
+// declares both Streamable: true and Mergeable: true, the parallel
+// reducers (pulse.Options.ShardWorkers over a shard archive,
+// pulse.Options.DecodeWorkers over a large single-file cohort) build
+// one grouper per partition, key that partition's rows through
+// KeyForRow / KeysForRow, then fold the partials into the first with
+// MergeState before reading the ComponentsFunc (or Components())
+// output once, off the merged receiver. The same declaration admits
+// the operator to ProcessChain stages. Without it the request runs
+// serially and a chain refuses it.
+//
+// The bucket rows themselves are merged by the engine (per-key
+// aggregator state), so MergeState folds ONLY what the grouper keeps
+// for its components figures — per-bucket counts, an observed range.
+// A Mergeable grouper that emits no components has nothing to fold
+// and need not implement this interface; one that does emit must, or
+// pulse.New refuses the registration with
+// PULSE_EXTENSION_MERGEABLE_MISMATCH.
+//
+// MergeState receives another instance built by the SAME factory from
+// the SAME spec — the embedder's own value, never an engine wrapper —
+// so a type assertion to the concrete type succeeds. It absorbs
+// other's state into the receiver; other is not reused afterwards.
+// Partials arrive in a deterministic order (shard order, or segment
+// order for a single file), but how the cohort is partitioned depends
+// on the worker count, so the fold must be associative.
+type MergeableGrouper interface {
+	Grouper
+	// MergeState folds other's components state into the receiver.
+	MergeState(other Grouper) error
+}
+
 // GrouperFactory builds a fresh Grouper for one group slot of one
 // request. During probe-validation at pulse.New it is called once with
 // a spec carrying only the operator name and an empty schema, and must

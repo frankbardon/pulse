@@ -296,6 +296,7 @@ pulse: type GrouperRegistration field Description string
 pulse: type GrouperRegistration field Factory pulse/extend.GrouperFactory
 pulse: type GrouperRegistration field FansOut bool
 pulse: type GrouperRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type GrouperRegistration field Mergeable bool
 pulse: type GrouperRegistration field Name pulse/types.GroupType
 pulse: type GrouperRegistration field Params []pulse.ParamMeta
 pulse: type GrouperRegistration field Streamable bool
@@ -1727,6 +1728,9 @@ pulse/extend: type MergeableAggregator interface
 pulse/extend: type MergeableAggregator imethod Finalize() (float64, error)
 pulse/extend: type MergeableAggregator imethod Merge(other pulse/extend.OnlineAggregator) error
 pulse/extend: type MergeableAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
+pulse/extend: type MergeableGrouper interface
+pulse/extend: type MergeableGrouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
+pulse/extend: type MergeableGrouper imethod MergeState(other pulse/extend.Grouper) error
 pulse/extend: type MultiKeyStreamingGrouper interface
 pulse/extend: type MultiKeyStreamingGrouper imethod KeysForRow(rec pulse/extend.Record, field string) (keys []string, ok bool, err error)
 pulse/extend: type OnlineAggregator interface
@@ -3473,4 +3477,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c5b4682d06af5f2a754e5096a55ff0b69657b9ea5526d5a5a7c6bbba8de34b12
+// golden-hash: f6272f88fb539f29d39772fdf3fb5ef9890a4f7352d2b93d19a5de766bf3342c

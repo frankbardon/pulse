@@ -71,8 +71,10 @@ type GroupedTail struct {
 	// record was keyed into, so a fan-out record counts once per
 	// bucket. It is Components.Groupers' TotalN for a grouper whose
 	// MetaGrouper payload carries no "buckets" list (an extension
-	// grouper); built-ins derive TotalN from their buckets payload and
-	// may leave it zero.
+	// grouper); built-ins derive TotalN from their buckets payload.
+	// Every caller sets it — the serial path counts it per record, the
+	// parallel reducers sum the per-partition counts — so a bucket-less
+	// grouper's floor is identical whatever the worker count.
 	Assignments int64
 
 	// ShardCount is the archive's shard count (0 for a single file); it

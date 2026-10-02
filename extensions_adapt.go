@@ -373,8 +373,46 @@ type grpMeta struct {
 
 func (g grpMeta) Components() (map[string]any, error) { return g.emit(g.inner) }
 
+// extendInner exposes the embedder's own value. Every grouper wrapper
+// embeds grpCore, so grpMerge can unwrap its merge partner.
+func (g grpCore) extendInner() extend.Grouper { return g.inner }
+
+// extendGrouperWrapper is satisfied by every adapted grouper.
+type extendGrouperWrapper interface {
+	extendInner() extend.Grouper
+}
+
+// grpMerge forwards extend.MergeableGrouper as
+// processing.MergeableGrouper. The engine hands MergeGrouperState
+// another ADAPTED instance; MergeState receives the embedder's own
+// value behind it. A nil merge is the declared-only fold: a Mergeable
+// registration whose grouper emits no components has no state to fold
+// (probe-validation requires extend.MergeableGrouper whenever it
+// emits), so the fold is a no-op — the engine merges the per-key
+// bucket aggregators and counts the floor itself. A partner the
+// adapter did not build is PROCESSING_INTERNAL on both shapes.
+type grpMerge struct {
+	merge extend.MergeableGrouper
+	name  types.GroupType
+}
+
+func (g grpMerge) MergeGrouperState(other processing.Grouper) error {
+	w, ok := other.(extendGrouperWrapper)
+	if !ok {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("extension grouper %s: MergeGrouperState partner %T is not an adapted extension grouper", g.name, other),
+			map[string]any{"group_type": string(g.name), "partner": fmt.Sprintf("%T", other)})
+	}
+	if g.merge == nil {
+		return nil
+	}
+	return g.merge.MergeState(w.extendInner())
+}
+
 // One wrapper per capability combination: (S)treaming, multi-(K)ey,
-// (M)eta.
+// (M)eta, mer(G)e — sixteen, selected by the bitmask switch in
+// adaptGrouper. Every sibling is forwarded by an explicit field, never
+// by embedding the embedder's interface (the R6 bug).
 type (
 	grpAdapted  struct{ grpCore }
 	grpAdaptedS struct {
@@ -410,14 +448,69 @@ type (
 		grpMulti
 		grpMeta
 	}
+	grpAdaptedG struct {
+		grpCore
+		grpMerge
+	}
+	grpAdaptedSG struct {
+		grpCore
+		grpStreaming
+		grpMerge
+	}
+	grpAdaptedKG struct {
+		grpCore
+		grpMulti
+		grpMerge
+	}
+	grpAdaptedMG struct {
+		grpCore
+		grpMeta
+		grpMerge
+	}
+	grpAdaptedSKG struct {
+		grpCore
+		grpStreaming
+		grpMulti
+		grpMerge
+	}
+	grpAdaptedSMG struct {
+		grpCore
+		grpStreaming
+		grpMeta
+		grpMerge
+	}
+	grpAdaptedKMG struct {
+		grpCore
+		grpMulti
+		grpMeta
+		grpMerge
+	}
+	grpAdaptedSKMG struct {
+		grpCore
+		grpStreaming
+		grpMulti
+		grpMeta
+		grpMerge
+	}
+)
+
+// Capability bits for the adaptGrouper switch.
+const (
+	grpCapStreaming = 1 << iota
+	grpCapMulti
+	grpCapMeta
+	grpCapMerge
 )
 
 // adaptGrouper wraps an extend.Grouper so the engine sees exactly the
 // keying siblings it implements, plus MetaGrouper when emit is non-nil
-// (or the value carries its own Components() method). field is the
-// grouper's target field (types.Group.Field), bound so a streaming
-// grouper also satisfies processing.StreamableGrouper.
-func adaptGrouper(name types.GroupType, field string, inner extend.Grouper, emit GrouperComponentsFunc) processing.Grouper {
+// (or the value carries its own Components() method), plus
+// MergeableGrouper when the value implements extend.MergeableGrouper or
+// the registration declares mergeable (the no-op fold of a grouper with
+// no components state). field is the grouper's target field
+// (types.Group.Field), bound so a streaming grouper also satisfies
+// processing.StreamableGrouper.
+func adaptGrouper(name types.GroupType, field string, inner extend.Grouper, emit GrouperComponentsFunc, mergeable bool) processing.Grouper {
 	if emit == nil {
 		if self, ok := inner.(componentsEmitter); ok {
 			emit = func(extend.Grouper) (map[string]any, error) { return self.Components() }
@@ -426,25 +519,55 @@ func adaptGrouper(name types.GroupType, field string, inner extend.Grouper, emit
 	core := grpCore{inner: inner, name: name}
 	streaming, isS := inner.(extend.StreamingGrouper)
 	multi, isK := inner.(extend.MultiKeyStreamingGrouper)
+	merge, isG := inner.(extend.MergeableGrouper)
 	s := grpStreaming{streaming: streaming, field: field}
 	k := grpMulti{multi: multi}
 	m := grpMeta{inner: inner, emit: emit}
-	isM := emit != nil
-	switch {
-	case isS && isK && isM:
+	g := grpMerge{merge: merge, name: name}
+	caps := 0
+	if isS {
+		caps |= grpCapStreaming
+	}
+	if isK {
+		caps |= grpCapMulti
+	}
+	if emit != nil {
+		caps |= grpCapMeta
+	}
+	if isG || mergeable {
+		caps |= grpCapMerge
+	}
+	switch caps {
+	case grpCapStreaming | grpCapMulti | grpCapMeta | grpCapMerge:
+		return &grpAdaptedSKMG{core, s, k, m, g}
+	case grpCapStreaming | grpCapMulti | grpCapMeta:
 		return &grpAdaptedSKM{core, s, k, m}
-	case isS && isK:
+	case grpCapStreaming | grpCapMulti | grpCapMerge:
+		return &grpAdaptedSKG{core, s, k, g}
+	case grpCapStreaming | grpCapMeta | grpCapMerge:
+		return &grpAdaptedSMG{core, s, m, g}
+	case grpCapMulti | grpCapMeta | grpCapMerge:
+		return &grpAdaptedKMG{core, k, m, g}
+	case grpCapStreaming | grpCapMulti:
 		return &grpAdaptedSK{core, s, k}
-	case isS && isM:
+	case grpCapStreaming | grpCapMeta:
 		return &grpAdaptedSM{core, s, m}
-	case isK && isM:
+	case grpCapStreaming | grpCapMerge:
+		return &grpAdaptedSG{core, s, g}
+	case grpCapMulti | grpCapMeta:
 		return &grpAdaptedKM{core, k, m}
-	case isS:
+	case grpCapMulti | grpCapMerge:
+		return &grpAdaptedKG{core, k, g}
+	case grpCapMeta | grpCapMerge:
+		return &grpAdaptedMG{core, m, g}
+	case grpCapStreaming:
 		return &grpAdaptedS{core, s}
-	case isK:
+	case grpCapMulti:
 		return &grpAdaptedK{core, k}
-	case isM:
+	case grpCapMeta:
 		return &grpAdaptedM{core, m}
+	case grpCapMerge:
+		return &grpAdaptedG{core, g}
 	default:
 		return &grpAdapted{core}
 	}
@@ -453,7 +576,7 @@ func adaptGrouper(name types.GroupType, field string, inner extend.Grouper, emit
 // adaptGrouperFactory turns a registration's extend factory into the
 // engine factory. A nil instance passes through as nil.
 func adaptGrouperFactory(reg GrouperRegistration) processing.GrouperFactory {
-	inner, emit, name := reg.Factory, reg.ComponentsFunc, reg.Name
+	inner, emit, name, mergeable := reg.Factory, reg.ComponentsFunc, reg.Name, reg.Mergeable
 	return func(grp *types.Group, schema *encoding.Schema) (processing.Grouper, error) {
 		instance, err := inner(grp, schema)
 		if err != nil {
@@ -466,7 +589,7 @@ func adaptGrouperFactory(reg GrouperRegistration) processing.GrouperFactory {
 		if grp != nil {
 			field = grp.Field
 		}
-		return adaptGrouper(name, field, instance, emit), nil
+		return adaptGrouper(name, field, instance, emit, mergeable), nil
 	}
 }
 

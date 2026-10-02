@@ -252,3 +252,48 @@ func (s *ExtensionsSnapshot) HasAggregator(name string) bool {
 	}
 	return false
 }
+
+// aggregators / groupers are nil-safe slice accessors for the chain
+// gate's merge lookups.
+func (s *ExtensionsSnapshot) aggregators() []descriptor.OperatorMeta {
+	if s == nil {
+		return nil
+	}
+	return s.Aggregators
+}
+
+func (s *ExtensionsSnapshot) groupers() []descriptor.OperatorMeta {
+	if s == nil {
+		return nil
+	}
+	return s.Groupers
+}
+
+// mergeable reports the DECLARED Mergeable flag of the operator named
+// name in metas; false when absent. Nil-safe.
+func (s *ExtensionsSnapshot) mergeable(metas []descriptor.OperatorMeta, name string) bool {
+	if s == nil {
+		return false
+	}
+	for _, m := range metas {
+		if m.Name == name {
+			return m.Mergeable
+		}
+	}
+	return false
+}
+
+// attributeRowLocal reports whether name is an extension attribute
+// registered with the row_local mode — the extension half of the
+// built-in row-local set (ATTR_FORMULA, ATTR_DATE_PART). Nil-safe.
+func (s *ExtensionsSnapshot) attributeRowLocal(name string) bool {
+	if s == nil {
+		return false
+	}
+	for _, m := range s.Attributes {
+		if m.Name == name {
+			return m.Mode == "row_local"
+		}
+	}
+	return false
+}

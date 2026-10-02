@@ -16,17 +16,21 @@ import (
 	"github.com/spf13/afero"
 )
 
-// Extension aggregator merge (U02b E4-B1): a registration declaring
-// Mergeable folds per-partition partials through
-// extend.MergeableAggregator.Merge under ShardWorkers / DecodeWorkers
-// and is admitted to ProcessChain. The cross-mode output parity lives
-// in aggregatorParitySuite (extensions_parity_test.go), which also
-// asserts Merge actually ran in both parallel modes.
+// Extension aggregator / grouper merge (U02b E4-B1, E4-B2): a
+// registration declaring Mergeable folds per-partition partials through
+// extend.MergeableAggregator.Merge / extend.MergeableGrouper.MergeState
+// under ShardWorkers / DecodeWorkers and is admitted to ProcessChain.
+// The cross-mode output parity lives in aggregatorParitySuite and
+// grouperParitySuite (extensions_parity_*_test.go), which also assert
+// the merge actually ran in both parallel modes.
 
 const (
 	aggMrgSum    types.AggregationType = "AGG_MRG_SUM"
 	aggMrgSerial types.AggregationType = "AGG_MRG_SERIAL"
 	grpMrgCat    types.GroupType       = "GROUP_MRG_CAT"
+	grpMrgMerge  types.GroupType       = "GROUP_MRG_MERGE"
+	grpMrgFloor  types.GroupType       = "GROUP_MRG_FLOOR"
+	grpMrgFan    types.GroupType       = "GROUP_MRG_FAN"
 	fltMrgAll    types.FiltererType    = "FILTER_MRG_ALL"
 	attrMrgRow   types.AttributeType   = "ATTR_MRG_ROW"
 	attrMrgTwo   types.AttributeType   = "ATTR_MRG_TWO"
@@ -117,6 +121,23 @@ func mergeGateExtensions(probe *parityProbe) pulse.Extensions {
 				return &parityCategoryGrouper{probe: probe, dict: fieldDict(schema, spec.Field), live: map[string]int{}}, nil
 			},
 			FieldInputs: noFields,
+		}, {
+			Name:       grpMrgMerge,
+			Streamable: true,
+			Mergeable:  true,
+			Factory: func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
+				return &parityCategoryGrouper{probe: probe, dict: fieldDict(schema, spec.Field), live: map[string]int{}}, nil
+			},
+			FieldInputs: noFields,
+		}, {
+			Name:       grpMrgFan,
+			Streamable: true,
+			Mergeable:  true,
+			FansOut:    true,
+			Factory: func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
+				return &parityPerElementGrouper{probe: probe, dict: fieldDict(schema, spec.Field), live: map[string]parityLabelStat{}}, nil
+			},
+			FieldInputs: noFields,
 		}},
 		Filterers: []pulse.FiltererRegistration{{
 			Name:        fltMrgAll,
@@ -141,10 +162,10 @@ func mergeGateExtensions(probe *parityProbe) pulse.Extensions {
 }
 
 // TestExtensions_CanMergeRequestWithExtensions pins the merge gate per
-// extension category: aggregators on their declaration (decimal
-// targets included), filterers and row_local attributes as row-local
-// operators, two_pass / buffered attributes and extension groupers
-// never. A nil registry is exactly CanMergeRequest.
+// extension category: aggregators and groupers (single-key and
+// fan-out) on their declaration (decimal targets included), filterers
+// and row_local attributes as row-local operators, two_pass / buffered
+// attributes never. A nil registry is exactly CanMergeRequest.
 func TestExtensions_CanMergeRequestWithExtensions(t *testing.T) {
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: mergeGateExtensions(&parityProbe{})})
 	if err != nil {
@@ -170,7 +191,11 @@ func TestExtensions_CanMergeRequestWithExtensions(t *testing.T) {
 		{"ext_mergeable_decimal", &types.Request{Aggregations: agg(aggMrgSum, "amount")}, true, true},
 		{"builtin_decimal", &types.Request{Aggregations: agg(types.AGG_SUM, "amount")}, false, false},
 		{"ext_agg_builtin_grouper", &types.Request{Aggregations: agg(aggMrgSum, "score"), Groups: byRegion(types.GROUP_CATEGORY)}, true, true},
-		{"ext_grouper", &types.Request{Aggregations: agg(types.AGG_SUM, "score"), Groups: byRegion(grpMrgCat)}, false, false},
+		{"ext_grouper_undeclared", &types.Request{Aggregations: agg(types.AGG_SUM, "score"), Groups: byRegion(grpMrgCat)}, false, false},
+		{"ext_grouper_mergeable", &types.Request{Aggregations: agg(types.AGG_SUM, "score"), Groups: byRegion(grpMrgMerge)}, true, true},
+		{"ext_grouper_fanout_mergeable", &types.Request{Aggregations: agg(types.AGG_SUM, "score"),
+			Groups: []*types.Group{{Type: grpMrgFan, Field: "tags"}}}, true, true},
+		{"ext_agg_ext_grouper", &types.Request{Aggregations: agg(aggMrgSum, "score"), Groups: byRegion(grpMrgMerge)}, true, true},
 		{"ext_filterer", &types.Request{Aggregations: agg(types.AGG_SUM, "score"),
 			Filterers: []*types.Filterer{{Type: fltMrgAll, Field: "region", Values: []string{"north"}}}}, true, true},
 		{"ext_row_local_attr", &types.Request{Aggregations: agg(types.AGG_SUM, "d"), Attributes: attr(attrMrgRow)}, true, true},
@@ -368,5 +393,224 @@ func TestRunNullRecords_AttributePrimaryFieldAcrossModes(t *testing.T) {
 				t.Errorf("NullRecords = %d, buffered exit says %d", got, want)
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------
+// Extension grouper merge (E4-B2).
+// ---------------------------------------------------------------------
+
+// floorCategoryGrouper keys exactly like GROUP_CATEGORY but carries no
+// components state and no MergeState: the bucket-less shape whose
+// Components.Groupers floor (TotalN) can only come from the
+// orchestrator's own (record, bucket) assignment count.
+type floorCategoryGrouper struct{ inner *parityCategoryGrouper }
+
+func (g floorCategoryGrouper) Group(rows extend.Rows, field string) (map[string][]int, error) {
+	return g.inner.Group(rows, field)
+}
+
+func (g floorCategoryGrouper) KeyForRow(rec extend.Record, field string) (string, bool, error) {
+	return g.inner.KeyForRow(rec, field)
+}
+
+// floorPerElementGrouper is the fan-out twin of floorCategoryGrouper.
+type floorPerElementGrouper struct{ inner *parityPerElementGrouper }
+
+func (g floorPerElementGrouper) Group(rows extend.Rows, field string) (map[string][]int, error) {
+	return g.inner.Group(rows, field)
+}
+
+func (g floorPerElementGrouper) KeysForRow(rec extend.Record, field string) ([]string, bool, error) {
+	return g.inner.KeysForRow(rec, field)
+}
+
+// selfEmittingGrouper carries its own Components() method — an emitter
+// the adapter adopts — but no MergeState.
+type selfEmittingGrouper struct{ floorCategoryGrouper }
+
+func (selfEmittingGrouper) Components() (map[string]any, error) { return map[string]any{"n": 0}, nil }
+
+func floorGrouperRegistrations(probe *parityProbe) []pulse.GrouperRegistration {
+	noFields := func(json.RawMessage) []string { return nil }
+	return []pulse.GrouperRegistration{{
+		Name:       grpMrgFloor,
+		Streamable: true,
+		Mergeable:  true,
+		Factory: func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
+			return floorCategoryGrouper{&parityCategoryGrouper{probe: probe, dict: fieldDict(schema, spec.Field), live: map[string]int{}}}, nil
+		},
+		FieldInputs: noFields,
+	}, {
+		Name:       grpMrgFan,
+		Streamable: true,
+		Mergeable:  true,
+		FansOut:    true,
+		Factory: func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
+			return floorPerElementGrouper{&parityPerElementGrouper{probe: probe, dict: fieldDict(schema, spec.Field), live: map[string]parityLabelStat{}}}, nil
+		},
+		FieldInputs: noFields,
+	}}
+}
+
+func grouperMergeMismatch(t *testing.T, reg pulse.GrouperRegistration, reason string) {
+	t.Helper()
+	_, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(),
+		Extensions: pulse.Extensions{Groupers: []pulse.GrouperRegistration{reg}}})
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) {
+		t.Fatalf("expected *errors.CodedError, got %T: %v", err, err)
+	}
+	if ce.Code != perr.PULSE_EXTENSION_MERGEABLE_MISMATCH {
+		t.Fatalf("code = %s (%s), want PULSE_EXTENSION_MERGEABLE_MISMATCH", ce.Code, ce.Message)
+	}
+	if got := ce.Details["reason"]; got != reason {
+		t.Errorf("details.reason = %v, want %s", got, reason)
+	}
+	if got := ce.Details["category"]; got != "grouper" {
+		t.Errorf("details.category = %v, want grouper", got)
+	}
+}
+
+// TestExtensions_ProbeGrouper_MergeableMismatch covers the probe
+// triggers for a grouper declaring Mergeable=true. MergeState is
+// required only when the grouper EMITS components (ComponentsFunc or
+// its own Components() method): a bucket-less grouper has no state to
+// fold, so the adapter supplies a no-op merge.
+func TestExtensions_ProbeGrouper_MergeableMismatch(t *testing.T) {
+	probe := &parityProbe{}
+	floor := floorGrouperRegistrations(probe)[0]
+	emitSchema := descriptor.ComponentSchema{
+		Keys:         []descriptor.ComponentKey{{Name: "n", Type: "int", Description: "Bucket count."}},
+		Mergeability: descriptor.Mergeable,
+	}
+	emit := func(extend.Grouper) (map[string]any, error) { return map[string]any{"n": 0}, nil }
+	t.Run("not_streamable", func(t *testing.T) {
+		reg := floor
+		reg.Streamable = false
+		grouperMergeMismatch(t, reg, "mergeable_without_streamable")
+	})
+	t.Run("emitter_lacks_merge", func(t *testing.T) {
+		reg := floor
+		reg.ComponentSchema, reg.ComponentsFunc = emitSchema, emit
+		grouperMergeMismatch(t, reg, "missing_merge_interface")
+	})
+	t.Run("self_emitter_lacks_merge", func(t *testing.T) {
+		// No ComponentsFunc and no schema: the value's own Components()
+		// method is the emitter the adapter adopts.
+		reg := floor
+		reg.Factory = func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
+			return selfEmittingGrouper{floorCategoryGrouper{&parityCategoryGrouper{probe: probe, live: map[string]int{}}}}, nil
+		}
+		grouperMergeMismatch(t, reg, "missing_merge_interface")
+	})
+	t.Run("components_not_mergeable", func(t *testing.T) {
+		reg := floor
+		reg.Factory = func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
+			return &parityCategoryGrouper{probe: probe, live: map[string]int{}}, nil
+		}
+		reg.ComponentSchema, reg.ComponentsFunc = emitSchema, emit
+		reg.ComponentSchema.Mergeability = descriptor.None
+		grouperMergeMismatch(t, reg, "components_not_mergeable")
+	})
+	t.Run("emitter_with_merge_accepted", func(t *testing.T) {
+		reg := floor
+		reg.Factory = func(spec *types.Group, schema *encoding.Schema) (extend.Grouper, error) {
+			return &parityCategoryGrouper{probe: probe, live: map[string]int{}}, nil
+		}
+		reg.ComponentSchema, reg.ComponentsFunc = emitSchema, emit
+		if _, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(),
+			Extensions: pulse.Extensions{Groupers: []pulse.GrouperRegistration{reg}}}); err != nil {
+			t.Fatalf("Mergeable emitting grouper with MergeState refused: %v", err)
+		}
+	})
+	t.Run("floor_only_accepted", func(t *testing.T) {
+		if _, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(),
+			Extensions: pulse.Extensions{Groupers: floorGrouperRegistrations(probe)}}); err != nil {
+			t.Fatalf("Mergeable floor-only grouper refused: %v", err)
+		}
+	})
+}
+
+// TestExtensions_MergeableGrouperFloorAcrossModes pins
+// Components.Groupers' universal floor for a Mergeable extension
+// grouper that emits no components (single-key and fan-out) against
+// its built-in twin in every mode. With no buckets payload TotalN is
+// the orchestrator's (record, bucket) assignment count; the parallel
+// reducers used to drop it from the merged GroupedTail, so the merged
+// arm reported total_n 0 and n_null = every filtered record.
+func TestExtensions_MergeableGrouperFloorAcrossModes(t *testing.T) {
+	large := parityLargeCohort(t.TempDir())
+	cases := []struct {
+		name    string
+		builtin types.GroupType
+		ext     types.GroupType
+		field   string
+	}{
+		{"single_key", types.GROUP_CATEGORY, grpMrgFloor, "region"},
+		{"fan_out", types.GROUP_SET_PER_ELEMENT, grpMrgFan, "tags"},
+	}
+	for _, mode := range parityModes(large) {
+		t.Run(mode.name, func(t *testing.T) {
+			p, path := mode.open(t, pulse.Extensions{Groupers: floorGrouperRegistrations(&parityProbe{})})
+			for _, c := range cases {
+				t.Run(c.name, func(t *testing.T) {
+					run := func(gt types.GroupType) (*types.Response, *types.Request) {
+						t.Helper()
+						r := &types.Request{
+							Cohort:       &types.Cohort{Filename: path},
+							Aggregations: []*types.Aggregation{sumAgg("s", "score")},
+							Groups:       []*types.Group{{Type: gt, Field: c.field}},
+						}
+						if mode.decorate != nil {
+							r = mode.decorate(r)
+						}
+						resp, err := p.Process(context.Background(), r)
+						if err != nil {
+							t.Fatalf("Process(%s): %v", gt, err)
+						}
+						return resp, r
+					}
+					b, _ := run(c.builtin)
+					e, eReq := run(c.ext)
+					if mode.mergeable {
+						reg := pulse.ServiceForTest(p).Extensions()
+						if !processing.CanMergeRequestWithExtensions(eReq, paritySchema(t), reg) {
+							t.Fatal("extension request does not clear the merge gate; the mode would not merge")
+						}
+					}
+					if bd, ed := mustJSON(t, b.Data), mustJSON(t, e.Data); bd != ed {
+						t.Errorf("Data differs\nbuiltin:   %s\nextension: %s", bd, ed)
+					}
+					if b.Components == nil || e.Components == nil || len(b.Components.Groupers) != 1 || len(e.Components.Groupers) != 1 {
+						t.Fatalf("missing Components.Groupers: builtin %+v extension %+v", b.Components, e.Components)
+					}
+					bg, eg := b.Components.Groupers[0], e.Components.Groupers[0]
+					if bg.TotalN == 0 {
+						t.Fatal("built-in total_n is 0; the fixture proves nothing")
+					}
+					if bg.TotalN != eg.TotalN || bg.NNull != eg.NNull {
+						t.Errorf("floor differs: builtin {total_n %d, n_null %d}, extension {total_n %d, n_null %d}",
+							bg.TotalN, bg.NNull, eg.TotalN, eg.NNull)
+					}
+				})
+			}
+		})
+	}
+}
+
+// TestExtensions_ManifestProjectsMergeableGrouper asserts the grouper
+// declaration reaches the manifest's extensions block.
+func TestExtensions_ManifestProjectsMergeableGrouper(t *testing.T) {
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: mergeGateExtensions(&parityProbe{})})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	got := map[string]bool{}
+	for _, m := range p.Manifest(context.Background()).Extensions.Groupers {
+		got[m.Name] = m.Mergeable
+	}
+	if !got[string(grpMrgMerge)] || !got[string(grpMrgFan)] || got[string(grpMrgCat)] {
+		t.Errorf("manifest mergeable = %v; want %s and %s true, %s false", got, grpMrgMerge, grpMrgFan, grpMrgCat)
 	}
 }

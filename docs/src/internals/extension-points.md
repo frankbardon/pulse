@@ -24,8 +24,11 @@ importable by embedders; `extend` imports only `encoding`, `types` and
 `TestExtendImportBoundary_NoTransitiveEngine`), and no public root
 signature names an engine type (`TestRootSurfaceNamesNoProcessing`).
 Engine-only capabilities — `MetaWindow`, `ExtensionAware`, `KeyFor`
-and the merge hooks — are deliberately absent from `extend`
-(`TestExtendOmitsEngineOnlyCapabilities`).
+and the engine's merge hooks (`MergeOnline`, `MergeGrouperState`) —
+are deliberately absent from `extend`
+(`TestExtendOmitsEngineOnlyCapabilities`); merging is public through
+`extend.MergeableAggregator` / `extend.MergeableGrouper`, behind an
+explicit `Mergeable` declaration.
 
 The implementation lives in the repository root: `extensions.go`
 (public registration types), `extensions_adapt.go` (the adapters that
@@ -298,6 +301,26 @@ neither keying sibling (`PULSE_EXTENSION_STREAMABLE_MISMATCH`). A
 `Streamable=false` grouper runs buffered through `Group` even when it
 can key per row.
 
+**Mergeable groupers.** `Mergeable: true` (with `Streamable: true`)
+admits the grouper — single-key or fan-out — to the parallel reducers
+(`ShardWorkers`, `DecodeWorkers`) and to ProcessChain stages. Each
+partition gets its own instance keyed through `KeyForRow` /
+`KeysForRow`; the engine merges the per-key aggregator buckets and
+sums the (record, bucket) assignment count behind the
+`{total_n, n_null}` floor itself. What it cannot merge is your
+components state, so a grouper that EMITS components (`ComponentsFunc`,
+or its own `Components()` method) must implement
+`extend.MergeableGrouper.MergeState(other)`: fold `other`'s counters
+into the receiver — `other` is your own value from the same factory
+and spec — and `ComponentsFunc` then runs once, on the merged receiver.
+A grouper that emits no components needs no method; the adapter folds
+nothing. Probe-validation refuses `Mergeable` without `Streamable`, an
+emitting value without `MergeState`, and `ComponentSchema` keys
+classified `None` (`PULSE_EXTENSION_MERGEABLE_MISMATCH`). The flag
+reaches the manifest as `extensions.groupers[].mergeable`. Omitted,
+grouped requests naming the grouper run serially and a chain refuses
+it.
+
 A window is an `extend.WindowFactory` taking the spec and an empty
 `extend.WindowOptions` and returning an `extend.WindowComputer`
 (`Compute(rows []map[string]any, partitions [][]int, label string)`);
@@ -477,11 +500,11 @@ Choose the axis that matches the math, not the convenience of the
 registration site. Declaring `Mergeable` on an operator whose state
 cannot actually fold produces silently-wrong components in parallel
 shard processing — there is no runtime gate for the math, only the
-streaming-tier wiring. For an aggregator the components class is
-separate from the registration's `Mergeable` flag (which decides
-whether the operator merges at all), but the two must agree: a
-`Mergeable` aggregator whose components class is `None` is refused at
-`pulse.New` (`PULSE_EXTENSION_MERGEABLE_MISMATCH`).
+streaming-tier wiring. For an aggregator or grouper the components
+class is separate from the registration's `Mergeable` flag (which
+decides whether the operator merges at all), but the two must agree: a
+`Mergeable` aggregator or grouper whose components class is `None` is
+refused at `pulse.New` (`PULSE_EXTENSION_MERGEABLE_MISMATCH`).
 
 ### Two emission paths: `ComponentsFunc` and `Components()`
 
@@ -659,7 +682,16 @@ the embedder additions in one fetch. The schema-bound MCP tools (after
 `pulse_inspect`) also include custom operator names in their enum
 lists.
 
-### The snapshot carries `fans_out`
+### The snapshot carries `fans_out` and `mergeable`
+
+`OperatorMeta.Mergeable` (`json:"mergeable,omitempty"`) projects the
+aggregator / grouper `Mergeable` declaration the same way. The
+predict-side chain gate reads it:
+`internal/descriptor.ValidateChainWithExtensions` admits an extension
+aggregator or grouper on its declared `Mergeable` flag and a
+`row_local` extension attribute as row-local — the answers the runtime
+gate `CanChainRequestWithExtensions` gives — while `ValidateChain`
+(the nil-snapshot case) knows built-ins only.
 
 `descriptor.OperatorMeta` carries `FansOut bool`
 (`json:"fans_out,omitempty"`) alongside `Streamable`, and
@@ -842,15 +874,15 @@ buffered.
 
 State these plainly to users rather than discovering them at run time:
 
-- **Merging is opt-in, aggregator-first.** An extension aggregator
-  merges only when its registration declares `Mergeable` (see
-  Aggregator above); extension filterers and `row_local` attributes
-  merge as row-local operators; `two_pass` / `buffered` attributes,
-  features, windows and tests never merge (as for built-ins).
-  Extension groupers carry no merge surface yet, so a request naming
-  one runs the parallel shard and parallel buffered `Process` arms
-  serially. Declaring `Mergeable` in a `ComponentSchema` describes the
-  components shape; it does not make the operator fold across workers.
+- **Merging is opt-in.** An extension aggregator or grouper merges
+  only when its registration declares `Mergeable` (see Aggregator and
+  Grouper above); extension filterers and `row_local` attributes merge
+  as row-local operators; `two_pass` / `buffered` attributes,
+  features, windows and tests never merge (as for built-ins), so a
+  request naming one runs the parallel shard and parallel buffered
+  `Process` arms serially. Declaring `Mergeable` in a `ComponentSchema`
+  describes the components shape; it does not make the operator fold
+  across workers.
 - **Crosstab cells do not fuse.** The fused crosstab admits a cell
   aggregator by its built-in margin class, which an extension
   aggregator does not declare, so a crosstab with an extension cell
@@ -919,7 +951,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
-| `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator`, or `ComponentSchema` keys classified `None` |
+| `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |
