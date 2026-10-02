@@ -31,6 +31,7 @@ pulse/
     ├── descriptor/         # manifest / predict / inspect / payload-schema builders, capabilities_*.go
     ├── encoding/           # codec remainder: shard archives, groups, decode plans, sidecar index
     ├── encodingbridge/     # init-installed hooks from public encoding to its internal twin
+    ├── temporal/           # stdlib-only epoch-day / calendar / zone math (TestNoZoneMathOutsideTemporal)
     ├── iocore/             # Reader / Writer contracts the public io aliases
     ├── io/                 # import/export/convert jobs, inference, transfer
     │   ├── csv/ tsv/ ndjson/ jsonarray/ jsonshared/

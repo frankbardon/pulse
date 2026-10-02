@@ -44,13 +44,15 @@ var belowFacade = []string{
 // iocoreAllowed is the complete set of intra-module packages the
 // contracts leaf may reach. It is a LEAF: anything wider and an adapter
 // importing it would drag engine code under the facade. The .pulse codec
-// counts as one unit: public encoding, its internal twin and the bridge
-// between them.
+// counts as one unit: public encoding, its internal twin, the bridge
+// between them and internal/temporal, the stdlib-only epoch-day leaf that
+// public encoding forwards into.
 var iocoreAllowed = map[string]bool{
 	modulePrefix + "/internal/iocore":         true,
 	modulePrefix + "/encoding":                true,
 	modulePrefix + "/internal/encoding":       true,
 	modulePrefix + "/internal/encodingbridge": true,
+	modulePrefix + "/internal/temporal":       true,
 	modulePrefix + "/errors":                  true,
 	modulePrefix + "/types":                   true,
 }
