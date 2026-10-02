@@ -98,6 +98,39 @@ with top-level `groups`; every `crosstab.margin_aggregations` entry needs
 a type and a label distinct from every other entry's and from the cell's)
 are enforced by `pulse predict` at request time, not by the schema.
 
+## Time-zone slots
+
+Two additive, optional string slots name a time zone (`format_version`
+stays `"1.1"`; omitting them is byte-identical to the earlier wire form):
+
+- **`time_zone`** on `Request` and `FacetRequest` — the request-level
+  zone. `ComposedRequest` and `ChainRequest` carry none of their own
+  (each inner `Request` does); `SampleRequest` has none.
+- **`tz`** on every `Group` (so also `crosstab.rows[]` /
+  `crosstab.columns[]`), `Filterer`, `Attribute` and `Feature` entry —
+  the per-slot override. It is a slot key beside `type` / `field`,
+  never a key inside `params`.
+
+Both are typed as plain strings. The schema does not encode the zone
+name set or which operators accept `tz`; three rules are enforced by
+`pulse predict` and at run time instead:
+
+- a name must be exactly `UTC` or an IANA `Area/Location` zone
+  (`Europe/Berlin`, `Etc/GMT-5`) — anything else is
+  `PULSE_TIMEZONE_UNKNOWN`;
+- `tz` is accepted only on operators whose manifest entry carries
+  `"zone": "capable"`, and never on a `date` field — otherwise
+  `PROCESSING_CONFIG`;
+- precedence is slot `tz` → `time_zone` → the engine's
+  `DefaultTimeZone` → `UTC`, and a resolved non-UTC zone reaching a
+  `datetime` field is currently refused with `PROCESSING_CONFIG`
+  (zone-aware operator arithmetic has not landed).
+
+The resolved zone per slot is echoed by predict as
+`data.time_zones[]` — `{slot, operator, field_type, tz, source}` —
+which is a predict result field, not part of this schema. See
+`skills/request-envelope.md` (Time zones).
+
 ## What the schema cannot say about `margin_aggregations`
 
 The auxiliary margin-only slot is fully described structurally — it is an

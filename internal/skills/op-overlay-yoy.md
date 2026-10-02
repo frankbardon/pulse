@@ -17,19 +17,19 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES grouped Process host whose single grouper is `GROUP_DATE`; others → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. Reads `frequency` from `spec.Params`, else `req.Groups[0].Params["frequency"]`.
+SERIES Process host whose single grouper is `GROUP_DATE`, else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `frequency` from `spec.Params`, else `req.Groups[0].Params`. No `tz` of its own — follows the host grouper's zone (manifest `zone: following`).
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key in host order carrying `yoy = point / prior × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
+SERIES — one `SeriesEntry` per host key, `yoy = point / prior × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
 
 ## Gotchas
 
-- Strides: annual `-1`, quarterly `-4`, monthly `-12`, weekly `-52`. Daily/hourly do an exact-key lookup via `Key(i).AddDate(-1,0,0)` / `Add(-365*24*time.Hour)`.
-- Feb 29 in a non-leap prior year → NaN (no exact-key match; no leap-year realignment at v1).
+- Strides: annual `-1`, quarterly `-4`, monthly `-12`, weekly `-52`; daily/hourly exact-key lookup one year back.
+- Feb 29 with a non-leap prior year → NaN (no realignment).
 - Missing `frequency` → `PULSE_OVERLAY_YOY_FREQUENCY_MISSING`; unsupported → `PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY`.
 - First year of data → NaN, no warning. Zero prior value → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
-- Buffered — per-frequency lookup over the materialised host series.
+- Buffered.
 
 ## See
 

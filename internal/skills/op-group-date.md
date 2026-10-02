@@ -11,14 +11,13 @@ examples_tags: [time-series, streaming-friendly]
 
 ## Params
 
-- `component` — enum, default `month`. `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
+- `component` — enum, default `month`: `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
 - `fiscal_offset` — int, default 0. Months after Jan the FY starts; `year`/`quarter` only. Non-zero prefixes keys `FY` (end-year).
+- `tz` — slot key, not `params`; IANA zone, beats `time_zone`.
 
 ## Inputs
 
-`Field` — `date`, `datetime`.
-
-`datetime` truncates to the UTC calendar day (time discarded, never rounded — `23:59:59` stays on its day).
+`Field` — `date`, `datetime` (floored to the UTC day).
 
 ## Output
 
@@ -26,15 +25,16 @@ String key per row (`2024-Q1`, `FY2025-Q1`). Smart default for `date` and `datet
 
 ## Components
 
-Floor `{total_n, n_null}` + `granularity` (string, component used), `range_start` / `range_end` (ISO, earliest / latest period), `n_buckets` (int, distinct buckets), `buckets` (`[]bucket` of `{key, period_start, period_end, count}`). `Mergeable`; `Streamable=false` — hint: `GROUP_CATEGORY` on an `ATTR_DATE_PART` column for streaming.
+Floor `{total_n, n_null}` + `granularity` (component used), `range_start` / `range_end` (ISO), `n_buckets` (int), `buckets` (`[]bucket` of `{key, period_start, period_end, count}`). `Mergeable`; `Streamable=false` (to stream: `GROUP_CATEGORY` over `ATTR_DATE_PART`).
 
 ## Gotchas
 
-- `day_of_week` weekday names lex-sort — sort explicitly.
+- `day_of_week` names lex-sort — sort explicitly.
 - `fiscal_offset` with sub-quarter components rejected.
-- `Group.Include` not honoured; no sub-day `component` even for `datetime`.
+- `Group.Include` not honoured; no sub-day `component`.
+- `tz` on a `date` field, or a non-UTC zone reaching a `datetime`, → `PROCESSING_CONFIG` (not yet applied).
 
 ## See
 
 - `pulse_examples_search tags=[time-series]`
-- Skills: `grouper-design`, `response-components`
+- Skills: `grouper-design`, `response-components`, `request-envelope` (Time zones)

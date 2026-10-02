@@ -11,32 +11,32 @@ examples_tags: [time-series, cohort-analysis]
 
 ## Params
 
-Exactly one range source — `ranges` XOR `table`.
+Exactly one range source — `ranges` XOR `table`:
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `ranges` | array | (one source) | Ordered `{label, start, end}`. ISO dates, omitted bound = open, inclusive, non-overlapping, distinct labels. |
-| `table` | string | (one source) | Registered `RangeTable` (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`). |
-| `unmatched_label` | string | `unmatched` | Out-of-range bucket; must not equal a range label. |
+- `ranges` — ordered `[]{label, start, end}`; ISO, omitted bound = open, inclusive.
+- `table` — registered `RangeTable` (`Options.Extensions.RangeTables` / `PULSE_RANGE_TABLES_DIR`).
+- `unmatched_label` — default `unmatched`; must not equal a range label.
+- `tz` — slot key, not `params`; IANA zone, beats `time_zone`.
 
 ## Inputs
 
-`Field` — `date`, `datetime`. `datetime` truncates to the UTC calendar day first; ranges compile in whole days.
+`Field` — `date`, `datetime` (floored to the UTC day).
 
 ## Output
 
-The matching range's label per row, else the unmatched label; buckets emit in supplied range order.
+Matching range label per row, else the unmatched label; supplied range order.
 
 ## Components
 
-Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`[]bucket` of `{key, label, count}`, supplied order, unmatched last). `Mergeable`, `Streamable=true`.
+Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, unmatched last). `Mergeable`, `Streamable=true`.
 
 ## Gotchas
 
-- Both or neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`. Field neither `date` nor `datetime` → `PROCESSING_CONFIG`.
+- Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; non-date field → `PROCESSING_CONFIG`.
 - Overlap / dup label / bad boundary → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
+- `tz` on `date`, or a non-UTC zone on `datetime` → `PROCESSING_CONFIG` (not yet applied).
 - `Group.Include` not honoured.
 
 ## See
 
-- Skills: `grouper-design`, `response-components`
+- Skills: `grouper-design`, `response-components`, `request-envelope` (Time zones)

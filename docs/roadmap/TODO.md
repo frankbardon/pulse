@@ -145,9 +145,9 @@ Theme documents: see the [roadmap index](README.md).
 
 ## 5. Time zones ([time-zones 00](v1.0.0-time-zones/00-design.md))
 
-- [ ] **#66** Step 0: `encoding/temporal`; migrate the six open-coded epoch-day sites; `TestNoZoneMathOutsideTemporal` · [U03](units/U03-temporal-foundation.md)
-- [ ] **#67** `Zone` type, embedded tzdata, transition-table fast path · [U03](units/U03-temporal-foundation.md)
-- [ ] **#68** `Options.DefaultTimeZone`, `Request.TimeZone`, per-slot `tz`; `date`-field rejection · [U03](units/U03-temporal-foundation.md)
+- [x] **#66** Step 0: `internal/temporal`; migrate every open-coded epoch-day site; `TestNoZoneMathOutsideTemporal` · [U03](units/U03-temporal-foundation.md)
+- [x] **#67** `Zone` type, embedded tzdata, transition-table fast path · [U03](units/U03-temporal-foundation.md)
+- [x] **#68** `Options.DefaultTimeZone`, `Request.TimeZone`, per-slot `tz`; `date`-field rejection · [U03](units/U03-temporal-foundation.md)
 - [ ] **#69** Zone-aware `GROUP_DATE`, `GROUP_DATE_RANGES`, `FILTER_DATE_RANGES`, `ATTR_DATE_PART`, `FEAT_DATE_FEATURES`, `OVERLAY_YOY`, range tables, `week_start` · [U14](units/U14-zone-aware-operators.md)
 - [ ] **#70** Import `--source-tz` with `--dst-policy` · [U14](units/U14-zone-aware-operators.md)
 - [ ] **#71** Zone-aware output rendering; predict and manifest reporting (tzdata version) · [U14](units/U14-zone-aware-operators.md)

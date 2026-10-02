@@ -40,6 +40,8 @@ For a cohort newer than `0x01`, `InspectResult` adds `layout` (`pulse_format_ver
 
 `PredictResult.Streamable` mirrors the per-type `Streamable()` methods plus schema gates (decimal — built-in aggregators only; an extension aggregator on a `decimal128` field skips that gate, as `processing.canStream` does); an extension operator answers from its DECLARED registration flag on the `ExtensionsSnapshot` (attributes: `Mode`, whose `two_pass` also trips the two-pass combination gates), which is exactly what the runtime routes on. Runtime parity is asserted against `processing.CanStreamRequest(req, schema)` by `TestPredict_Streamable_MatchesRuntime`, and for extension requests against `processing.CanStreamRequestWithExtensions(req, schema, exts)` by `TestExtensions_StreamabilityFollowsDeclaration`. `DefaultsApplied` is always computed, whatever the request.
 
+`PredictResult.TimeZones` (`time_zones`, never nil) comes from the SAME pure resolver the runtime calls — `ResolveZones` in `internal/descriptor/zone_resolve.go`, which imports `internal/temporal` (allowed: it is a stdlib leaf, not the engine). Predict runs it on the defaults-resolved clone with `PredictOptions.DefaultTimeZone` / `ZoneLoader`, which the facade fills from the service, so a zone refusal is a predict error (`Valid=false`) exactly when runtime would refuse. Known divergences (join LEFT-schema resolution, `DisableDefaults`, the `Validate*` skips): `execution-modes.md` (Time zones).
+
 Debugging procedure: `docs/src/internals/debugging-predict.md`.
 
 ## Import predict is not descriptor predict

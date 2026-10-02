@@ -31,17 +31,18 @@ FIVE columns prefixed by `Label` (default the field name):
 | `<prefix>_dow` | f64 | `0..6` — `time.Weekday`, `0` = Sunday |
 | `<prefix>_quarter` | f64 | `1..4` |
 
-Date storage: days since the Unix epoch, decoded as UTC (mirrors `ATTR_DATE_PART`).
+Epoch days decoded as UTC (mirrors `ATTR_DATE_PART`).
 
 ## Gotchas
 
 - Non-`date` source → `PROCESSING_CONFIG` at construction.
-- Null date → ALL FIVE columns emit `null` for that row.
-- DOW is `0` = Sunday (Go `time.Weekday` convention), NOT ISO `1` = Monday.
-- Capabilities metadata historically listed `day_of_week` / `is_weekend`; the emitted columns are `dow` / `quarter`. Code is authoritative — use the suffixes above.
+- Null date → all five columns `null`.
+- `dow` `0` = Sunday (Go), NOT ISO `1` = Monday.
+- Emitted suffixes are `dow` / `quarter` (not the historical `day_of_week` / `is_weekend`).
+- Zone-capable, but `date`-only: explicit slot `tz` → `PROCESSING_CONFIG`; inherited `time_zone` not applied.
 - Streamable per-row.
 
 ## See
 
 - `pulse_examples_search tags=[time-series]`, `tags=[feature-engineering]`
-- Skills: `feature-engineering`, `op-attr-date-part`, `op-group-date`
+- Skills: `feature-engineering`, `op-attr-date-part`, `request-envelope` (Time zones)

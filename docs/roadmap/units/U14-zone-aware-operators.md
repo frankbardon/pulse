@@ -20,7 +20,7 @@ branch: zone-aware-operators
 
 ## Summary
 
-Make the date-family operators zone-aware through the `encoding/temporal` adapter: `GROUP_DATE`, `GROUP_DATE_RANGES`, `FILTER_DATE_RANGES`, `ATTR_DATE_PART`, `FEAT_DATE_FEATURES`, `OVERLAY_YOY`, range tables and `week_start`. Adds import `--source-tz` with a DST policy, zone-aware output rendering, and predict/manifest reporting.
+Make the date-family operators zone-aware through the `internal/temporal` adapter U03 landed (`Zone`, `LocalDay`, `LocalMidnightUTC`, `LocalParts`): `GROUP_DATE`, `GROUP_DATE_RANGES`, `FILTER_DATE_RANGES`, `ATTR_DATE_PART`, `FEAT_DATE_FEATURES`, `OVERLAY_YOY`, range tables and `week_start`. Adds import `--source-tz` with a DST policy, zone-aware output rendering, and predict/manifest reporting.
 
 ## References
 
@@ -40,7 +40,7 @@ Make the date-family operators zone-aware through the `encoding/temporal` adapte
 - Zone-aware operators and range tables
 - Import `--source-tz` (global/per column) + `--dst-policy`
 - Output rendering with offsets
-- Predict per-slot zone; manifest tzdata version
+- Manifest tzdata version (predict per-slot zone echo already landed in U03)
 - Identity + DST gates; `time-zones.md`
 
 **Out of scope**
@@ -64,14 +64,15 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(zone-aware-operat
 - [ ] `tz` absent or `UTC` is byte-identical to today, at the same speed (benchmark)
 - [ ] Berlin-day buckets across the March and October DST changes match `time.In` grouping
 - [ ] An ambiguous local time at import fails under the default policy, naming the row
-- [ ] Still no zone math outside `encoding/temporal` (gate from U03)
+- [ ] Still no zone math outside `internal/temporal` (gate from U03)
+- [ ] The U03 interim refusal (non-UTC zone on a `datetime` → `PROCESSING_CONFIG`) is gone for every zone-capable operator, and its test (`TestTimeZone_NonUTCDatetimeRefusedEveryMode`) is rewritten into DST-correct expectations
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
 - `TestUTCZoneIsIdentity`
 - `TestDSTBoundaries`
-- `TestNoZoneMathOutsideTemporal` (from U03)
+- `TestNoZoneMathOutsideTemporal`, `TestDateFieldRejectsTZ` (both landed in U03)
 
 ## Update Demand companions
 
@@ -82,4 +83,18 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(zone-aware-operat
 
 ## Human inputs & decisions
 
-- None.
+- **Default-zone env var / CLI flag.** U03 shipped `Options.DefaultTimeZone` only. Decide whether to add a `PULSE_*` env var and a CLI default-zone flag (each would need the CLAUDE.md "Build / Env" + `session-bootstrap` companions).
+- **Extension zone capability.** Extensions are not zone-capable in U03 (an explicit `tz` on one is `PROCESSING_CONFIG`). Decide here or in [U34](U34-extension-validation.md) whether registrations gain a zone declaration and public temporal helpers.
+
+## Inherited from U03
+
+Open items [U03](U03-temporal-foundation.md) handed forward:
+
+- **`ParseLocal` + `Ambiguity`** move here from U03; import consumes them for `--source-tz` / `--dst-policy`.
+- **Remove the U03 refusal.** Today a non-UTC zone reaching a `datetime` field — or a derived / joined field absent from the schema — is `PROCESSING_CONFIG` (`internal/descriptor/zone_resolve.go`, rule 5). Zone-aware arithmetic replaces it; `Options.DefaultTimeZone` non-UTC is already accepted at `New`, so only the per-request refusal flips.
+- **Tzdata version in the manifest.**
+- **Embedded tzdata determinism.** `LoadZone` goes through `time.LoadLocation`, which consults host zoneinfo before the embedded `time/tzdata`; pin the embedded copy so every host gives the same answer.
+- **Stdlib `Time.ZoneBounds` quirk:** past ~2037 (the rule-extended range) it reports a leap-year year-end transition one day early; `internal/temporal`'s table builder does not trust it blindly (`TestZoneOffset_LeapYearEnd`). Keep that guard when extending the table.
+- **`ParseDate` pre-epoch floor edge** — re-check day flooring for pre-1970 inputs when local-day parsing lands.
+- **Predict / runtime gaps** (see `.claude/reference/execution-modes.md`, Time zones): predict for a join resolves against the LEFT schema, so it can refuse an inherited non-UTC zone over a joined `date` field that runtime accepts; with `DisableDefaults`, runtime sees an empty `Type` and refuses a `tz` on a would-be-defaulted slot as non-capable while predict applies defaults first; `ValidateCompose` / `ValidateChain` / `ValidateFacet` skip zone resolution; Chain / Compose refusals lack a stage / request index in `details` (Compose prefixes the message only); a chain stage-0 `GROUP_DATE` hits `PULSE_CHAIN_NOT_MERGEABLE` before any zone refusal.
+- **`TestDateFieldRejectsTZ`** already landed in U03 — #72 keeps only `TestUTCZoneIsIdentity` (U03's request-level form is `TestTimeZone_UTCIdentity`), `TestDSTBoundaries` and the `time-zones.md` skill.

@@ -938,6 +938,13 @@ State these plainly to users rather than discovering them at run time:
   are admitted on `decimal128` and read `DecimalValue`; they stream
   there per their declared `Streamable` flag and merge per `Mergeable`
   (built-ins over decimal stay buffered and serial).
+- **Extensions are never zone-capable.** There is no registration
+  field for time-zone participation, so an extension operator carries
+  no manifest `zone` key and an explicit slot `tz` on it is refused
+  with `PROCESSING_CONFIG` (details `{slot, operator, tz}`), in
+  runtime and predict alike. A request-level `time_zone` simply does
+  not reach it. Only the built-in date-family operators declared in
+  `internal/descriptor/capabilities_zone.go` resolve a zone.
 
 ## Migration recipe — pre-processing → registration
 
