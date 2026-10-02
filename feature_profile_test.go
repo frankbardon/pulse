@@ -253,3 +253,72 @@ func TestFeatureProfile_ValidatedAfterExtensions(t *testing.T) {
 }
 
 func profileBody(s string) *string { return &s }
+
+// TestParseFeatureProfile_SharesFileArmRefusals asserts the public
+// decoder and the Options.FeatureProfileFile arm refuse the same bodies
+// with the same reason — they are one decode, so an OS-path entry point
+// (pulse mcp --feature-profile) cannot accept what the file arm refuses.
+func TestParseFeatureProfile_SharesFileArmRefusals(t *testing.T) {
+	bodies := []string{
+		`{"features": [`,
+		`["AGG_SUM"]`,
+		`{"features": []} {}`,
+		`{"features": "AGG_SUM"}`,
+		`{"features": [], "extra": 1}`,
+		`{"features": [], "limits": {}}`,
+		`{"features": [], "behaviour": {"disable_everything": true}}`,
+		`{"profile": "x"}`,
+		`{"features": null}`,
+		`null`,
+	}
+	for _, body := range bodies {
+		t.Run(body, func(t *testing.T) {
+			_, fileErr := New(Options{FS: memFsWith(t, map[string]string{"p.json": body}), FeatureProfileFile: "p.json"})
+			if fileErr == nil {
+				t.Fatal("file arm accepted the body")
+			}
+			var fileCE *errors.CodedError
+			if !stderrors.As(fileErr, &fileCE) {
+				t.Fatalf("file arm error %v is not coded", fileErr)
+			}
+
+			fp, err := ParseFeatureProfile([]byte(body))
+			if fp != nil {
+				t.Errorf("ParseFeatureProfile returned a profile alongside the error: %+v", fp)
+			}
+			ce := requireProfileInvalid(t, err, fileCE.Details["reason"].(string))
+			if _, ok := ce.Details["path"]; ok {
+				t.Errorf("ParseFeatureProfile details carry a path: %v", ce.Details)
+			}
+		})
+	}
+}
+
+// TestParseFeatureProfile_ValidRoundTripsThroughNew asserts a parsed
+// profile is the same value the file arm stores, and that New still runs
+// the shape class over it (ParseFeatureProfile only decodes).
+func TestParseFeatureProfile_ValidRoundTripsThroughNew(t *testing.T) {
+	body := `{"profile": "self-serve", "features": ["AGG_SUM", "capability:process"], "behaviour": {"disable_cohort_scan": true}}`
+	fp, err := ParseFeatureProfile([]byte(body))
+	if err != nil {
+		t.Fatalf("ParseFeatureProfile: %v", err)
+	}
+	fromFile, err := New(Options{FS: memFsWith(t, map[string]string{"p.json": body}), FeatureProfileFile: "p.json"})
+	if err != nil {
+		t.Fatalf("New(file): %v", err)
+	}
+	fromValue, err := New(Options{FS: memFsWith(t, nil), FeatureProfile: fp})
+	if err != nil {
+		t.Fatalf("New(value): %v", err)
+	}
+	if !reflect.DeepEqual(fromFile.featureProfile, fromValue.featureProfile) {
+		t.Errorf("parsed profile stored %+v; file arm stored %+v", fromValue.featureProfile, fromFile.featureProfile)
+	}
+
+	dup, err := ParseFeatureProfile([]byte(`{"features": ["AGG_SUM", "AGG_SUM"]}`))
+	if err != nil {
+		t.Fatalf("ParseFeatureProfile(duplicate): %v", err)
+	}
+	_, err = New(Options{FS: memFsWith(t, nil), FeatureProfile: dup})
+	requireProfileInvalid(t, err, featureProfileReasonDuplicate)
+}

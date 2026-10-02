@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/mcp/gosdk"
+	"github.com/frankbardon/pulse/mcpserve"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	cli "github.com/urfave/cli/v3"
 )
@@ -40,6 +41,11 @@ func MCPCommand(version string) *cli.Command {
 					"Cohorts stay readable by URI; only the resources/list enumeration is withheld.",
 				Sources: cli.EnvVars("PULSE_MCP_NO_COHORT_SCAN"),
 			},
+			&cli.StringFlag{
+				Name: "feature-profile",
+				Usage: "Feature profile JSON file (OS path, relative to the working directory, not the data dir). " +
+					"Falls back to PULSE_FEATURE_PROFILE. An invalid profile fails startup.",
+			},
 			&cli.BoolFlag{
 				Name:  "bind-on-open",
 				Usage: "Register session-scoped schema-bound tool variants on successful pulse_inspect (default true). Disable for clients that bind tool schemas themselves.",
@@ -52,7 +58,10 @@ func MCPCommand(version string) *cli.Command {
 				return fmt.Errorf("data directory required: set PULSE_DATA_DIR or pass --data-dir")
 			}
 
-			p, err := pulse.New(pulse.Options{DataDir: dataDir})
+			// mcpserve.NewPulse owns the profile resolution: the flag, else
+			// PULSE_FEATURE_PROFILE, read as an OS path and parsed strictly.
+			p, err := mcpserve.NewPulse(pulse.Options{DataDir: dataDir},
+				mcpserve.Options{FeatureProfileFile: cmd.String("feature-profile")})
 			if err != nil {
 				return fmt.Errorf("constructing pulse: %w", err)
 			}

@@ -468,6 +468,7 @@ pulse: type ParamMeta field Description string "json:\"description,omitempty\""
 pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
+pulse: func ParseFeatureProfile(data []byte) (*pulse.FeatureProfile, error)
 pulse: type Profile = pulse/synth.Profile
 pulse: type Profile underlying struct
 pulse: type Profile field Conditional *pulse/internal/synth.ConditionalProfile "json:\"conditional,omitempty\""
@@ -2205,9 +2206,11 @@ pulse/mcp/gosdk: const SchemaResourceURI untyped string = "pulse://schema"
 pulse/mcp/gosdk: const SkillURIScheme untyped string = "pulse-skill://"
 pulse/mcp/gosdk: const SkillURITemplate untyped string = "pulse-skill://{+name}"
 pulse/mcpserve: package mcpserve
+pulse/mcpserve: func NewPulse(popts pulse.Options, opts pulse/mcpserve.Options) (*pulse.Pulse, error)
 pulse/mcpserve: type Options struct
 pulse/mcpserve: type Options field BindOnOpen bool
 pulse/mcpserve: type Options field DisableCohortScan bool
+pulse/mcpserve: type Options field FeatureProfileFile string
 pulse/mcpserve: type Options field Version string
 pulse/mcpserve: func Serve(ctx context.Context, p *pulse.Pulse, opts pulse/mcpserve.Options, in io.Reader, out io.Writer) error
 pulse/mcpserve: func ServeStdio(p *pulse.Pulse, opts pulse/mcpserve.Options) error
@@ -3536,4 +3539,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3060fb379be9c46e02732ae35fbaa6784051d9bf9b6cd42f607326b0f30d2cac
+// golden-hash: 6230651a0ab1be5d7e635ac643dbb0264f17df46117aab959fcc394936a1428b

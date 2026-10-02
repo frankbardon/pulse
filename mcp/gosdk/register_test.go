@@ -650,3 +650,40 @@ func TestRegister_DisableCohortScanSkipsTheWalkButKeepsCohortsReadable(t *testin
 		t.Errorf("cohort read did not return the cohort schema: %+v", readOut.Contents)
 	}
 }
+
+// TestRegister_FeatureProfileDisablesCohortScan asserts a feature profile
+// whose behaviour sets disable_cohort_scan ORs into Config: Register
+// skips the walk even though Config.DisableCohortScan is false. The
+// profile-free arm runs alongside so a scan that stopped running cannot
+// make the profiled arm pass vacuously.
+func TestRegister_FeatureProfileDisablesCohortScan(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		behaviour *pulse.FeatureProfileBehaviour
+		wantWalk  bool
+	}{
+		{name: "no behaviour", behaviour: nil, wantWalk: true},
+		{name: "behaviour without the switch", behaviour: &pulse.FeatureProfileBehaviour{}, wantWalk: true},
+		{name: "disable_cohort_scan", behaviour: &pulse.FeatureProfileBehaviour{DisableCohortScan: true}, wantWalk: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fs := &countingFs{Fs: afero.NewMemMapFs()}
+			writeTestCohort(t, fs, "demo.pulse")
+			p, err := pulse.New(pulse.Options{FS: fs, FeatureProfile: &pulse.FeatureProfile{
+				Features:  []string{},
+				Behaviour: tc.behaviour,
+			}})
+			if err != nil {
+				t.Fatalf("pulse.New: %v", err)
+			}
+
+			fs.reset()
+			if err := gosdk.Register(newServer(), p, gosdk.Config{Version: "9.9.9"}); err != nil {
+				t.Fatalf("Register: %v", err)
+			}
+			if got := fs.count() > 0; got != tc.wantWalk {
+				t.Errorf("filesystem walked = %v (%d opens), want %v", got, fs.count(), tc.wantWalk)
+			}
+		})
+	}
+}

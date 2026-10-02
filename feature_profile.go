@@ -62,9 +62,10 @@ type FeatureProfileBehaviour struct {
 	DisableProjection bool `json:"disable_projection,omitempty"`
 
 	// DisableCohortScan has no effect on the engine pulse.New builds:
-	// the cohort resource scan belongs to the MCP server, so it is
-	// stored on the instance for the MCP layers (mcpserve, mcp/gosdk) to
-	// honour alongside their own DisableCohortScan setting.
+	// the cohort resource scan belongs to the MCP server. It is stored
+	// on the instance and ORed into the MCP adapter's own setting by
+	// gosdk.Register (and so by mcpserve and `pulse mcp`): true skips
+	// the startup scan even when Config.DisableCohortScan is false.
 	DisableCohortScan bool `json:"disable_cohort_scan,omitempty"`
 }
 
@@ -135,13 +136,47 @@ func resolveFeatureProfile(opts Options, fsys afero.Fs) (*FeatureProfile, error)
 	return fp, nil
 }
 
-// loadFeatureProfileFile reads and strictly decodes a profile file.
+// loadFeatureProfileFile reads and strictly decodes a profile file
+// through the instance filesystem.
 func loadFeatureProfileFile(fsys afero.Fs, path string) (*FeatureProfile, error) {
 	raw, err := afero.ReadFile(fsys, path)
 	if err != nil {
 		return nil, featureProfileInvalid(featureProfileReasonFileUnreadable,
 			fmt.Sprintf("feature profile: cannot read %q: %v", path, err),
 			map[string]any{"path": path})
+	}
+	return decodeFeatureProfile(raw, path)
+}
+
+// ParseFeatureProfile strictly decodes the JSON form of a feature
+// profile — the same decode, with the same refusals, that pulse.New
+// applies to Options.FeatureProfileFile. Every refusal is
+// PULSE_FEATURE_PROFILE_INVALID with a "reason" detail: malformed_json
+// (including trailing data after the object), unknown_key, or
+// missing_features (an absent or null "features" key).
+//
+// It only decodes: feature names and dependencies are validated when
+// the result is handed to pulse.New through Options.FeatureProfile.
+//
+// It exists for entry points that read a profile from somewhere other
+// than the instance filesystem. Options.FeatureProfileFile stays
+// relative to the instance afero Fs (hermetic, and inside DataDir when
+// DataDir is set); a caller holding a host OS path — the MCP server's
+// --feature-profile flag and PULSE_FEATURE_PROFILE — reads the bytes
+// itself and passes the parsed value through Options.FeatureProfile.
+func ParseFeatureProfile(data []byte) (*FeatureProfile, error) {
+	return decodeFeatureProfile(data, "")
+}
+
+// decodeFeatureProfile is the one strict decode shared by the file arm
+// and ParseFeatureProfile. path, when non-empty, names the source in
+// the message and the "path" detail.
+func decodeFeatureProfile(raw []byte, path string) (*FeatureProfile, error) {
+	details := map[string]any{}
+	prefix := "feature profile: "
+	if path != "" {
+		details["path"] = path
+		prefix = fmt.Sprintf("feature profile: %q: ", path)
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -152,19 +187,15 @@ func loadFeatureProfileFile(fsys afero.Fs, path string) (*FeatureProfile, error)
 		if strings.HasPrefix(err.Error(), "json: unknown field ") {
 			reason = featureProfileReasonUnknownKey
 		}
-		return nil, featureProfileInvalid(reason,
-			fmt.Sprintf("feature profile: %q: %v", path, err),
-			map[string]any{"path": path})
+		return nil, featureProfileInvalid(reason, prefix+err.Error(), details)
 	}
 	if err := dec.Decode(new(json.RawMessage)); !stderrors.Is(err, io.EOF) {
 		return nil, featureProfileInvalid(featureProfileReasonMalformedJSON,
-			fmt.Sprintf("feature profile: %q: trailing data after the profile object", path),
-			map[string]any{"path": path})
+			prefix+"trailing data after the profile object", details)
 	}
 	if doc == nil || doc.Features == nil {
 		return nil, featureProfileInvalid(featureProfileReasonMissingFeatures,
-			fmt.Sprintf("feature profile: %q: \"features\" is required (an empty array is allowed)", path),
-			map[string]any{"path": path})
+			prefix+"\"features\" is required (an empty array is allowed)", details)
 	}
 
 	return &FeatureProfile{

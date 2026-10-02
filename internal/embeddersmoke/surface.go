@@ -181,4 +181,7 @@ var (
 	_                                                                                   = gosdk.Config{Version: "embedder", DisableCohortScan: true}
 	_                                                                                   = mcpserve.Options{Version: "embedder", DisableCohortScan: true}
 	_ func(context.Context, *pulse.Pulse, mcpserve.Options, io.Reader, io.Writer) error = mcpserve.Serve
+	_                                                                                   = mcpserve.Options{FeatureProfileFile: "profile.json"}
+	_ func(pulse.Options, mcpserve.Options) (*pulse.Pulse, error)                       = mcpserve.NewPulse
+	_ func([]byte) (*pulse.FeatureProfile, error)                                       = pulse.ParseFeatureProfile
 )

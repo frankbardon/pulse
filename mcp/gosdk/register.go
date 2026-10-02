@@ -25,6 +25,7 @@ package gosdk
 
 import (
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/internal/facadebridge"
 	core "github.com/frankbardon/pulse/internal/mcp"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -58,6 +59,10 @@ type Config struct {
 	// root is large, remote or volatile enough that walking it at startup
 	// costs more than the listing is worth. The zero value keeps the scan, so
 	// an existing Register call is unchanged.
+	//
+	// A feature profile on p whose behaviour sets disable_cohort_scan ORs
+	// into this field: either one skips the scan, and false here cannot
+	// turn a profile's true back off.
 	DisableCohortScan bool
 }
 
@@ -88,6 +93,12 @@ func Register(server *mcpsdk.Server, p *pulse.Pulse, cfg Config) error {
 	}
 	if p == nil {
 		return errNilPulse
+	}
+
+	// A feature profile's behaviour.disable_cohort_scan ORs into the
+	// caller's setting; the profile can turn the scan off, never on.
+	if facadebridge.CohortScanDisabled != nil && facadebridge.CohortScanDisabled(p) {
+		cfg.DisableCohortScan = true
 	}
 
 	registerTools(server, p, cfg)
