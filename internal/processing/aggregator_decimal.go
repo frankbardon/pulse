@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -289,4 +290,15 @@ func decimalVarianceFloat64(values []encoding.Decimal128, scale uint8, agg types
 		return decimalAggResult{FellBack: true, Float: populationStdDev(fs)}
 	}
 	return decimalAggResult{FellBack: true, Float: populationVariance(fs)}
+}
+
+// SortValue orders a decimal aggregate cell by value under window
+// ORDER BY and Request.Sort (window.SortValuer). Without it the
+// comparator saw an opaque struct and every row compared equal, so a
+// sort by a decimal aggregate label was a silent no-op.
+func (r decimalAggResult) SortValue() any {
+	if r.FellBack {
+		return r.Float
+	}
+	return window.ScaledDecimal{Value: r.Value, Scale: r.Scale}
 }

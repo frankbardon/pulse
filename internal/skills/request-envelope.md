@@ -32,7 +32,7 @@ Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 | `pulse_facet`, `pulse api facet` | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
 | `pulse_sample`, `pulse api sample` | `SampleRequest` | `cohort, count, offset` |
 
-`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict alike refuse (`SERVICE_VALIDATION`) a name nothing produces, an attribute / feature / window label shadowing an existing column, and an aggregation label equal to a group field or another aggregation label.
+`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a column, and an aggregation label equal to a group field or another aggregation label.
 
 ## Canonical process Request
 

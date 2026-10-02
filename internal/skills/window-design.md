@@ -35,7 +35,7 @@ Entry shape:
 | `field` | conditional | Required for value-bearing ops; forbidden for `WIN_ROW_NUMBER` / `WIN_RANK` / `WIN_DENSE_RANK`. |
 | `label` | no | Output column; default `<TYPE>_<field>`. Naming an existing output column or earlier window label is `SERVICE_VALIDATION` (shadow). |
 | `partition_by` | no | Field names. Empty → single global partition. |
-| `order_by` | yes (≥1) | `{field, desc}`. Any type but `set_*` (`PULSE_WINDOW_INVALID`, predict and runtime): numbers / `decimal128` by value, `date` / `datetime` by signed epoch (pre-1970 first), `packed_bool` false first, categorical by LABEL byte-wise. Nulls last. |
+| `order_by` | yes (≥1) | `{field, desc}`. Any type but `set_*` (`PULSE_WINDOW_INVALID`, predict and runtime): numbers / `decimal128` by value, `date` / `datetime` by signed epoch (pre-1970 first), `packed_bool` false first, categorical by LABEL byte-wise. Nulls last in BOTH directions — `desc` reverses non-null values only. |
 | `frame` | conditional | Required for `RUNNING_*` / `MOVING_AVG` / `EWMA`. Forbidden for `LAG` / `LEAD` / `ROW_NUMBER` / `RANK` / `DENSE_RANK` / `PCT_CHANGE` / `DELTA`. Mode always `"rows"` in v1. |
 | `params` | per op | Operator-specific overrides (`offset`, `alpha`, `periods`, `default`, ...). |
 
@@ -44,7 +44,7 @@ Entry shape:
 The three axes every window shares:
 
 - **Partition** — `partition_by` carves the row set into independent slices. The math computes inside one slice and never crosses. Empty → one global slice.
-- **Order** — `order_by` defines the scan direction inside the partition. Stable, nulls-last comparator. Date / datetime fields sort numerically (signed epoch days / seconds).
+- **Order** — `order_by` defines the scan direction inside the partition. Stable, nulls-last comparator (under `desc` too; shared with `Request.Sort` and post-test `order_by`). Date / datetime fields sort numerically (signed epoch days / seconds).
 - **Frame** — bounds the rows the operator can read relative to the current row.
 
 Frame (mode `"rows"`): `preceding: null` → UNBOUNDED PRECEDING; `preceding: N` → up to N rows before; `following: null` → UNBOUNDED FOLLOWING; `following: N` → up to N rows after; `preceding: 0, following: 0` → current row only.

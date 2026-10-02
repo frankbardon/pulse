@@ -163,3 +163,86 @@ func TestCompareCell_Decimal128ByValue(t *testing.T) {
 		t.Errorf("idx = %v, want %v", idx, want)
 	}
 }
+
+// nilSortValue is a SortValuer whose SortValue is null.
+type nilSortValue struct{}
+
+func (nilSortValue) SortValue() any { return nil }
+
+// TestCompareKey_NullsLastBothDirections: a null (nil, missing, or a
+// SortValuer whose SortValue is nil) trails every non-null cell under
+// Desc as well as Asc, for every cell family the comparator orders.
+// Before, Desc negated compareCell wholesale — null term included — so
+// nulls led every descending order.
+func TestCompareKey_NullsLastBothDirections(t *testing.T) {
+	d := encoding.NewDecimal128FromInt
+	families := map[string]any{
+		"float":          2.5,
+		"negative epoch": float64(-1),
+		"bool":           true,
+		"decimal":        d(1050),
+		"scaled decimal": ScaledDecimal{Value: d(1050), Scale: 2},
+		"label":          "b",
+	}
+	for name, v := range families {
+		for _, desc := range []bool{false, true} {
+			for _, null := range []any{nil, nilSortValue{}} {
+				if got := CompareKey(v, null, desc); got >= 0 {
+					t.Errorf("%s desc=%v: CompareKey(value, %T) = %d, want < 0", name, desc, null, got)
+				}
+				if got := CompareKey(null, v, desc); got <= 0 {
+					t.Errorf("%s desc=%v: CompareKey(%T, value) = %d, want > 0", name, desc, null, got)
+				}
+			}
+		}
+	}
+	if got := CompareKey(nil, nilSortValue{}, true); got != 0 {
+		t.Errorf("two nulls = %d, want 0", got)
+	}
+}
+
+// TestSortAndSortIndices_DescNullsLast: both public ordering entry
+// points (Request.Sort's Sort, window order_by's sortIndices) keep nulls
+// and missing keys last under Desc.
+func TestSortAndSortIndices_DescNullsLast(t *testing.T) {
+	mk := func() []map[string]any {
+		return []map[string]any{{"id": 1, "x": 1.0}, {"id": 2, "x": nil}, {"id": 3, "x": 3.0}, {"id": 4}, {"id": 5, "x": 2.0}}
+	}
+	keys := []types.OrderKey{{Field: "x", Desc: true}}
+	rows := mk()
+	Sort(rows, keys)
+	var got []any
+	for _, r := range rows {
+		got = append(got, r["id"])
+	}
+	if want := []any{3, 5, 1, 2, 4}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Sort desc ids = %v, want %v", got, want)
+	}
+	rows = mk()
+	idx := []int{0, 1, 2, 3, 4}
+	sortIndices(rows, idx, nil, keys)
+	if want := []int{2, 4, 0, 1, 3}; !reflect.DeepEqual(idx, want) {
+		t.Errorf("sortIndices desc idx = %v, want %v", idx, want)
+	}
+}
+
+// TestCompareCell_ScaledDecimal: ScaledDecimal cells of one scale order
+// exactly; across scales and against a plain number (an aggregate that
+// fell back to f64) by value.
+func TestCompareCell_ScaledDecimal(t *testing.T) {
+	d := encoding.NewDecimal128FromInt
+	cases := []struct {
+		a, b any
+		want int
+	}{
+		{ScaledDecimal{d(-325), 2}, ScaledDecimal{d(250), 2}, -1},
+		{ScaledDecimal{d(10000), 2}, ScaledDecimal{d(1050), 2}, 1},
+		{ScaledDecimal{d(105), 1}, ScaledDecimal{d(1049), 2}, 1}, // 10.5 > 10.49
+		{ScaledDecimal{d(1050), 2}, 11.0, -1},
+	}
+	for _, c := range cases {
+		if got := compareCell(c.a, c.b); got != c.want {
+			t.Errorf("compareCell(%v, %v) = %d, want %d", c.a, c.b, got, c.want)
+		}
+	}
+}
