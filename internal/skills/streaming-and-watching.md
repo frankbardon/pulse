@@ -59,7 +59,11 @@ for chunk := range res.Chunks {
 <-res.Done; finalise(terminal)
 ```
 
-Backpressure: 4-deep buffer. `ctx` cancel closes both channels with `StreamCancelled + ctx.Err()`. Mid-stream errors deliver `StreamErrored`.
+`ctx` cancel closes both channels with `StreamCancelled + ctx.Err()`. Mid-stream errors deliver `StreamErrored`.
+
+### Two-pass attributes
+
+Streaming two-pass (`ATTR_ZSCORE`, `ATTR_REG_*`, extensions) keep declared order and read earlier labels as buffered does; each dependent layer adds a scan.
 
 ## `Watch` / `WatchDir`
 
@@ -72,7 +76,7 @@ ch := p.WatchDir(ctx, "cohorts/", true)
 for ev := range ch { handle(ev.Kind, ev.Path, ev.Hash) }
 ```
 
-No pre-seed — pre-existing files surface as `ChangeCreated` on first tick; drain if you only care about subsequent mutations.
+No pre-seed — pre-existing files surface as `ChangeCreated` on the first tick.
 
 `WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network filesystems should raise `PollInterval` to ~30 s.
 
@@ -107,11 +111,11 @@ Every `Manifest.Commands` (CLI leaves) and `Manifest.Operations` (library-only: 
 
 `streamable` — has a `*Stream` variant. `deterministic` — same inputs ⇒ byte-identical output; cache keyed by `req.Hash()` + source hash. Non-deterministic entries MUST NOT be cached as stable. `expensive` — hint.
 
-A buffered overlay on a streamable Process downgrades the whole request to buffered — price as buffered regardless of the entry-point annotation.
+A buffered overlay downgrades a streamable Process to buffered — price it as buffered.
 
 ## Compose streaming vs. overlays
 
-`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold (`internal/service/compose_overlay.go`) runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered; `Pulse.Compose` / `Pulse.ComposeParallel` callers see overlays on the returned `*ComposedResponse`, never on row events.
+`pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered; `Pulse.Compose` / `Pulse.ComposeParallel` callers see overlays on the returned `*ComposedResponse`, never on row events.
 
 ## See
 

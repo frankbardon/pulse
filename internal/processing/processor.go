@@ -881,63 +881,70 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	})
 }
 
-// twoPassAttrEntry pairs an attribute spec with its constructed
-// two-pass computer and resolved output label. processStreamingTwoPass
-// drives one entry per filter-passing record (PrePass) then one per
-// record again in pass 2 (Row).
-type twoPassAttrEntry struct {
-	attr     *types.Attribute
-	computer TwoPassAttribute
-	label    string
+// twoPassStage is one attribute in DECLARED order on the two-pass
+// streaming path: its constructed computer (Row for every stage; tp is
+// non-nil when it also drives PrePass/Finalize) and its output label.
+type twoPassStage struct {
+	attr  *types.Attribute
+	row   RowLocalAttribute
+	tp    TwoPassAttribute
+	label string
 }
 
-// buildTwoPassAttributes splits the attribute list into two-pass and
-// row-local buckets. Both buckets share the same construction +
-// validation path; only the runtime drive differs.
-func (p *Processor) buildTwoPassAttributes(attrs []*types.Attribute) (twoPass []twoPassAttrEntry, rowLocal []rowLocalAttrEntry, err error) {
+// buildTwoPassStages constructs every attribute in declared order and
+// plans its prepass layers (see twoPassPlan). Construction and
+// validation are shared with the buffered arm; only the drive differs.
+func (p *Processor) buildTwoPassStages(attrs []*types.Attribute) ([]twoPassStage, twoPassPlan, error) {
+	stages := make([]twoPassStage, 0, len(attrs))
+	isTwoPass := make([]bool, 0, len(attrs))
 	for _, attr := range attrs {
 		factory, ok := p.exts.LookupAttribute(attr.Type)
 		if !ok {
-			return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			return nil, twoPassPlan{}, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown attribute type: %s", attr.Type))
 		}
 		computer, factoryErr := factory(attr, p.schema)
 		if factoryErr != nil {
-			return nil, nil, factoryErr
+			return nil, twoPassPlan{}, factoryErr
 		}
 		if err := bindAttribute(computer, p.exts); err != nil {
-			return nil, nil, err
+			return nil, twoPassPlan{}, err
 		}
 		label := attr.Label
 		if label == "" {
 			label = defaultAttributeLabel(attr)
 		}
+		st := twoPassStage{attr: attr, label: label}
 		if tp, ok := computer.(TwoPassAttribute); ok {
-			twoPass = append(twoPass, twoPassAttrEntry{attr: attr, computer: tp, label: label})
-			continue
+			st.tp, st.row = tp, tp
+		} else if rl, ok := computer.(RowLocalAttribute); ok {
+			st.row = rl
+		} else {
+			return nil, twoPassPlan{}, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("attribute %s implements neither TwoPassAttribute nor RowLocalAttribute", attr.Type))
 		}
-		if rl, ok := computer.(RowLocalAttribute); ok {
-			rowLocal = append(rowLocal, rowLocalAttrEntry{attr: attr, computer: rl, label: label})
-			continue
-		}
-		return nil, nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-			fmt.Sprintf("attribute %s implements neither TwoPassAttribute nor RowLocalAttribute", attr.Type))
+		stages = append(stages, st)
+		isTwoPass = append(isTwoPass, st.tp != nil)
 	}
-	return twoPass, rowLocal, nil
+	return stages, planTwoPassStages(attrs, isTwoPass, p.exts), nil
 }
 
-// processStreamingTwoPass runs the two-pass streaming path: pass 1
-// folds every filter-passing record into TwoPassAttribute.PrePass,
-// Finalize locks population stats, iter.Reset() rewinds, and pass 2
-// emits attribute values + folds online aggregations row-by-row.
+// processStreamingTwoPass runs the two-pass streaming path in DECLARED
+// attribute order (see twoPassPlan): prepass scans 0..layers-1 each
+// evaluate the attributes their layer's PrePass depends on, then fold
+// that layer's two-pass attributes and Finalize them; iter.Reset()
+// rewinds between scans; the final scan emits every attribute in
+// declared order and folds online aggregations row-by-row. Every scan
+// applies the filters, so each attribute observes the same filtered,
+// declared-order record state the buffered arm's Compute does.
 //
 // canStream verified: no features, no groups, no windows, every
 // aggregation online, every attribute either two-pass or row-local.
-// These restrictions keep the orchestration matrix manageable for v1;
-// extending to feature/grouped combinations is tracked separately.
 //
-// Memory bound: O(per_attribute_state). Pass 1 + pass 2 = 2× iter
-// scan; the underlying file is typically OS-page-cached after pass 1.
+// Memory bound: O(per_attribute_state). Scans = prepass layers + 1 —
+// two for any request whose two-pass attributes read only source
+// fields or row-locals of them; one more per dependent two-pass layer.
+// The underlying file is typically OS-page-cached after scan 1.
 func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
 	EnableReuse(iter)
 	filterFns, err := p.buildFilterFuncs(req.Filterers)
@@ -945,15 +952,19 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		return nil, err
 	}
 	// Per-slot filter-pass counters track {n_in, n_out,
-	// n_null_input}. The two-pass path walks every filter-passing
-	// record twice (PrePass + Row); counters increment ONLY on pass 1
-	// so the values match the single-pass observed record set —
-	// per-slot n_in / n_out / n_null_input count distinct input rows,
-	// not pass-1+pass-2 doubled visits.
+	// n_null_input}. The two-pass path walks every record once per
+	// scan; counters increment ONLY on scan 0 so the values match the
+	// single-pass observed record set — per-slot n_in / n_out /
+	// n_null_input count distinct input rows, not repeated visits.
 	filterCounters := newFilterPassCounters(req.Filterers)
-	twoPassAttrs, rowLocalAttrs, err := p.buildTwoPassAttributes(req.Attributes)
+	stages, plan, err := p.buildTwoPassStages(req.Attributes)
 	if err != nil {
 		return nil, err
+	}
+	if plan.layers == 0 {
+		// Defensive: the router only sends requests with a two-pass
+		// attribute here, but scan 0 is also where rows are counted.
+		plan.layers, plan.needed = 1, [][]int{nil}
 	}
 
 	// Build aggregator instances once; they are reset implicitly by
@@ -982,72 +993,99 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		entries[i] = onlineEntry{agg: agg, online: online}
 	}
 
-	// Pass 1: fold every filter-passing record into each two-pass
-	// attribute's PrePass. Filters apply here so attribute population
-	// stats match the buffered Compute path (which receives the already-
-	// filtered slice). Per-slot {n_in, n_out, n_null_input} counters
-	// increment only here so totals match the single-pass observed
-	// record set.
+	// passesFilters re-runs the filter chain without touching the
+	// counters (closed on scan 0).
+	passesFilters := func(r *Record) (bool, error) {
+		for _, fn := range filterFns {
+			ok, err := fn(r)
+			if err != nil || !ok {
+				return false, err
+			}
+		}
+		return true, nil
+	}
+	setRow := func(st *twoPassStage, r *Record) error {
+		val, err := st.row.Row(r, st.attr.Field)
+		if err != nil {
+			return err
+		}
+		r.Set(st.label, val)
+		return nil
+	}
+
+	// Prepass scans: one per layer. Filters apply so attribute
+	// population stats match the buffered Compute path (which receives
+	// the already-filtered slice). Row counts and per-slot filter
+	// counters are taken on scan 0 only.
 	var totalRows, filteredRows int64
+	for layer := 0; layer < plan.layers; layer++ {
+		if layer > 0 {
+			iter.Reset()
+		}
+		needed := plan.needed[layer]
+		for iter.Next() {
+			r := iter.Record()
+			var pass bool
+			if layer == 0 {
+				totalRows++
+				pass, err = applyFilterPass(r, req.Filterers, filterFns, filterCounters)
+			} else {
+				pass, err = passesFilters(r)
+			}
+			if err != nil {
+				return nil, err
+			}
+			if !pass {
+				continue
+			}
+			if layer == 0 {
+				filteredRows++
+			}
+			// Walk declared order: evaluate each stage this layer
+			// depends on, and fold each layer-L PrePass at its own
+			// position so it sees exactly the earlier stages' output.
+			k := 0
+			for i := range stages {
+				if k < len(needed) && needed[k] == i {
+					k++
+					if err := setRow(&stages[i], r); err != nil {
+						return nil, err
+					}
+					continue
+				}
+				if stages[i].tp != nil && plan.layer[i] == layer {
+					if err := stages[i].tp.PrePass(r, stages[i].attr.Field); err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+		for i := range stages {
+			if stages[i].tp != nil && plan.layer[i] == layer {
+				if err := stages[i].tp.Finalize(); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	iter.Reset()
+
+	// Emission scan: re-apply filters, emit every attribute in declared
+	// order (each sees every earlier label, as on the buffered arm),
+	// fold each aggregation.
 	for iter.Next() {
-		totalRows++
 		r := iter.Record()
-		pass, err := applyFilterPass(r, req.Filterers, filterFns, filterCounters)
+		pass, err := passesFilters(r)
 		if err != nil {
 			return nil, err
 		}
 		if !pass {
 			continue
 		}
-		filteredRows++
-		for _, ta := range twoPassAttrs {
-			if err := ta.computer.PrePass(r, ta.attr.Field); err != nil {
+		for i := range stages {
+			if err := setRow(&stages[i], r); err != nil {
 				return nil, err
 			}
-		}
-	}
-	for _, ta := range twoPassAttrs {
-		if err := ta.computer.Finalize(); err != nil {
-			return nil, err
-		}
-	}
-	iter.Reset()
-
-	// Pass 2: re-scan, apply filters again, emit attribute values onto
-	// each filter-passing record (two-pass first so any row-local
-	// attribute referencing a two-pass label sees it), fold each agg.
-	// Counters were closed in pass 1; the per-record filter walk here
-	// re-runs each FilterFunc to gate the per-record work but skips
-	// the counter increment so values stay aligned with pass 1.
-	for iter.Next() {
-		r := iter.Record()
-		pass := true
-		for _, fn := range filterFns {
-			ok, err := fn(r)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				pass = false
-				break
-			}
-		}
-		if !pass {
-			continue
-		}
-		for _, ta := range twoPassAttrs {
-			val, err := ta.computer.Row(r, ta.attr.Field)
-			if err != nil {
-				return nil, err
-			}
-			r.Set(ta.label, val)
-		}
-		for _, ra := range rowLocalAttrs {
-			val, err := ra.computer.Row(r, ra.attr.Field)
-			if err != nil {
-				return nil, err
-			}
-			r.Set(ra.label, val)
 		}
 		for i := range entries {
 			e := &entries[i]

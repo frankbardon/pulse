@@ -281,6 +281,12 @@ through `Row`, `two_pass` takes the streaming `PrePass` → `Finalize` →
 the built-in two-pass attributes (`ATTR_ZSCORE`, …), a `two_pass`
 extension runs buffered when the request also carries a grouper,
 feature, regression or tier-1 test.
+On the streaming drive every attribute runs in declared order, so a
+`two_pass` attribute can read an earlier attribute's label: the engine
+learns which earlier labels it reads from `Field` plus its
+`FieldInputs` hook. Without the hook it assumes the attribute reads
+every earlier attribute — still correct, but each earlier `two_pass`
+attribute then costs an extra scan.
 
 ### Filterer, Grouper, Window, Feature
 

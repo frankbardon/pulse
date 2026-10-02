@@ -146,3 +146,54 @@ func BenchmarkProcessor_ManyAggregationsManyFields(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkProcessor_StreamingTwoPass drives the two-pass streaming
+// orchestrator over 200K records. "independent" is the historical
+// shape (two-pass attribute on a source field plus an unrelated
+// row-local) and must stay at two scans; "rowlocal_feeds" has the
+// two-pass attribute read a formula output (one prepass layer, the
+// formula now also evaluated in the prepass); "layered" adds a second
+// dependent two-pass layer (three scans).
+func BenchmarkProcessor_StreamingTwoPass(b *testing.B) {
+	records, schema := benchRecords(200_000)
+	cases := []struct {
+		name  string
+		attrs []*types.Attribute
+	}{
+		{"independent", []*types.Attribute{
+			{Type: types.ATTR_ZSCORE, Field: "score", Label: "z"},
+			{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "x"},
+		}},
+		{"rowlocal_feeds", []*types.Attribute{
+			{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "x"},
+			{Type: types.ATTR_ZSCORE, Field: "x", Label: "z"},
+		}},
+		{"layered", []*types.Attribute{
+			{Type: types.ATTR_FORMULA, Expression: "score * 2", Label: "x"},
+			{Type: types.ATTR_ZSCORE, Field: "x", Label: "z1"},
+			{Type: types.ATTR_NORMALIZED, Field: "z1", Label: "z"},
+		}},
+	}
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			proc := NewProcessor(schema)
+			req := &types.Request{
+				Attributes: tc.attrs,
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_SUM, Field: "z", Label: "s"},
+					{Type: types.AGG_MAX, Field: "z", Label: "m"},
+				},
+			}
+			ctx := context.Background()
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := proc.Process(ctx, req, NewSliceIterator(records)); err != nil {
+					b.Fatal(err)
+				}
+			}
+			if proc.LastPath() != PathStreaming {
+				b.Fatalf("expected streaming, got %s", proc.LastPath())
+			}
+		})
+	}
+}
