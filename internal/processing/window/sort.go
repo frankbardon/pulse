@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -115,6 +116,14 @@ func sortIndices(rows []map[string]any, idx []int, partitionBy []string, orderBy
 // compareCell returns -1, 0, or +1 comparing two cell values. Null values
 // (nil, missing) sort LAST regardless of direction (caller's Desc flag still
 // determines order of non-null values; nulls always trail).
+//
+// Ordering per decoded value: numbers (every numeric field type, signed
+// date / datetime epoch counts, packed_bool as 0/1) by float64 value;
+// encoding.Decimal128 by Cmp — one column shares one scale, so comparing
+// the unscaled mantissas is comparing the values; strings (categorical
+// labels, bucket keys) byte-wise. Anything else (a set_* label slice)
+// compares equal, which is why the shared orderability rule
+// (internal/descriptor.IsOrderableType) refuses a set order_by key.
 func compareCell(a, b any) int {
 	aNull := isNullCell(a)
 	bNull := isNullCell(b)
@@ -125,6 +134,12 @@ func compareCell(a, b any) int {
 		return 1 // a comes after b (nulls last)
 	case bNull:
 		return -1
+	}
+
+	if ad, ok := asDecimal(a); ok {
+		if bd, ok := asDecimal(b); ok {
+			return ad.Cmp(bd)
+		}
 	}
 
 	af, aOk := toFloat(a)
@@ -143,6 +158,21 @@ func compareCell(a, b any) int {
 	as, _ := a.(string)
 	bs, _ := b.(string)
 	return strings.Compare(as, bs)
+}
+
+// asDecimal unwraps a decimal128 cell (the Record stores it unboxed and
+// AllValues hands it over by value; a pointer is accepted for callers
+// that box it).
+func asDecimal(v any) (encoding.Decimal128, bool) {
+	switch d := v.(type) {
+	case encoding.Decimal128:
+		return d, true
+	case *encoding.Decimal128:
+		if d != nil {
+			return *d, true
+		}
+	}
+	return encoding.Decimal128{}, false
 }
 
 // isNullCell reports whether a cell value is null/missing for sort purposes.

@@ -55,23 +55,27 @@ var windowFieldRequired = map[types.WindowType]bool{
 	types.WIN_DELTA:       true,
 }
 
-// isOrderableType lists encoding field types that can serve as window
-// ORDER BY keys. A categorical column orders by its dictionary LABEL —
-// the window comparator (internal/processing/window compareCell, shared
-// with Request.Sort) compares the decoded string byte-wise, nulls last —
-// never by dictionary index, so the order is stable across imports and
-// shards (TestWindowOrderBy_CategoricalOrdersByLabel). Bit-packed
-// boolean types are excluded.
-func isOrderableType(ft encoding.FieldType) bool {
-	switch ft {
-	case encoding.FieldTypeU4,
-		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeDate,
-		encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
-		return true
-	}
-	return false
+// IsOrderableType is the ONE window ORDER BY orderability rule, applied
+// on both sides by the shared FieldRefRefusals walk (predict reports it,
+// every runtime execution mode refuses with it). It admits exactly the
+// types the window comparator (internal/processing/window compareCell,
+// shared with Request.Sort) orders by value:
+//
+//   - every unsigned integer and float type, by numeric value;
+//   - date (signed epoch days) and datetime (signed epoch SECONDS) —
+//     pre-1970 values are negative and sort before 1970;
+//   - packed_bool as 0/1, false before true;
+//   - decimal128 by value (Decimal128.Cmp — one column shares one scale);
+//   - categorical_* by dictionary LABEL, byte-wise — never by dictionary
+//     index, so the order is stable across imports and shards
+//     (TestWindowOrderBy_CategoricalOrdersByLabel).
+//
+// set_* is refused: a set cell decodes to a label slice the comparator
+// cannot order, so every row would compare equal
+// (TestWindowOrderBy_OrderabilityPredictMatchesRuntime). Nulls sort last
+// for every admitted type.
+func IsOrderableType(ft encoding.FieldType) bool {
+	return !ft.IsSet()
 }
 
 // isNumericType reports whether the field type carries a meaningful scalar
@@ -166,7 +170,7 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 			)
 		}
 
-		// OrderBy fields must exist and be orderable.
+		// OrderBy keys must name a field.
 		for j, ok := range w.OrderBy {
 			if ok.Field == "" {
 				env.AddError(
@@ -174,21 +178,8 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 					"window["+idx+"]: order_by["+strconv.Itoa(j)+"] missing field",
 					map[string]any{"window_index": i, "order_index": j},
 				)
-				continue
 			}
-			// An unknown name is FieldRefRefusals' refusal; a derived
-			// output column carries no schema type to judge.
-			f := schema.Field(ok.Field)
-			if f == nil {
-				continue
-			}
-			if !isOrderableType(f.Type) {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"]: order_by field "+ok.Field+" is not orderable (type "+f.Type.String()+")",
-					map[string]any{"window_index": i, "field": ok.Field, "field_type": f.Type.String()},
-				)
-			}
+			// Existence and orderability: FieldRefRefusals.
 		}
 
 		// PartitionBy existence: FieldRefRefusals.

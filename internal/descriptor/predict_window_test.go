@@ -12,8 +12,8 @@ import (
 )
 
 // windowTestSchema returns a schema rich enough to drive predict-window tests:
-// numeric (revenue), date (ts), categorical (region), and a non-orderable
-// packed_bool (flag).
+// numeric (revenue), date (ts), categorical (region), packed_bool (flag),
+// datetime (at), decimal128 (amt) and a non-orderable set_u8 (tags).
 func windowTestSchema(t *testing.T) *encoding.Schema {
 	t.Helper()
 	return &encoding.Schema{
@@ -22,6 +22,9 @@ func windowTestSchema(t *testing.T) *encoding.Schema {
 			{Name: "ts", Type: encoding.FieldTypeDate, Description: "Date of observation row"},
 			{Name: "region", Type: encoding.FieldTypeCategoricalU8, Description: "Region code for tenant", Dictionary: makeDictionary(t, "us", "eu", "apac")},
 			{Name: "flag", Type: encoding.FieldTypePackedBool, Description: "Bit-packed boolean indicator"},
+			{Name: "at", Type: encoding.FieldTypeDateTime, Description: "Event timestamp in epoch seconds"},
+			{Name: "amt", Type: encoding.FieldTypeDecimal128, Precision: 18, Scale: 2, Description: "Exact amount in USD cents"},
+			{Name: "tags", Type: encoding.FieldTypeSetU8, Description: "Selected tag memberships", Dictionary: makeDictionary(t, "a", "b")},
 		},
 	}
 }
@@ -130,7 +133,7 @@ func TestPredictWindow_OrderByNonOrderable(t *testing.T) {
 		name  string
 		field string
 	}{
-		{"packed_bool", "flag"},
+		{"set_u8", "tags"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -147,18 +150,43 @@ func TestPredictWindow_OrderByNonOrderable(t *testing.T) {
 	}
 }
 
-// TestPredictWindow_OrderByCategoricalAccepted: a categorical order_by
-// orders by dictionary label at runtime, so predict accepts it.
-func TestPredictWindow_OrderByCategoricalAccepted(t *testing.T) {
+// TestPredictWindow_OrderByOrderableAccepted: every type the window
+// comparator orders at runtime — categorical by dictionary label,
+// packed_bool as 0/1, datetime by signed epoch seconds, decimal128 by
+// value — is accepted by predict (IsOrderableType).
+func TestPredictWindow_OrderByOrderableAccepted(t *testing.T) {
 	schema := windowTestSchema(t)
 	data := buildTestPulseFile(t, schema)
-	req := &types.Request{
-		Windows: []*types.Window{
-			{Type: types.WIN_RANK, OrderBy: []types.OrderKey{{Field: "region"}}},
-		},
+	for _, field := range []string{"revenue", "ts", "region", "flag", "at", "amt"} {
+		req := &types.Request{
+			Windows: []*types.Window{
+				{Type: types.WIN_RANK, OrderBy: []types.OrderKey{{Field: field}}},
+			},
+		}
+		if env := predictFromBytes(data, req, nil); envHasErrorContaining(env, "is not orderable") {
+			t.Fatalf("%s order_by refused: %+v", field, env.Errors)
+		}
 	}
-	if env := predictFromBytes(data, req, nil); envHasErrorContaining(env, "is not orderable") {
-		t.Fatalf("categorical order_by refused: %+v", env.Errors)
+}
+
+// TestIsOrderableType_RefusesExactlySets pins the rule over every
+// registered field type (type bytes 0..19): only the six set_* rungs
+// are refused.
+func TestIsOrderableType_RefusesExactlySets(t *testing.T) {
+	refused := map[string]bool{"set_u8": true, "set_u16": true, "set_u32": true, "set_u64": true, "set_u128": true, "set_u256": true}
+	n := 0
+	for b := 0; b < 256; b++ {
+		ft := encoding.FieldType(b)
+		if !ft.IsKnown() {
+			continue
+		}
+		n++
+		if got, want := IsOrderableType(ft), !refused[ft.String()]; got != want {
+			t.Errorf("IsOrderableType(%s) = %v, want %v", ft, got, want)
+		}
+	}
+	if n != 20 {
+		t.Fatalf("walked %d known field types, want 20 — extend the table", n)
 	}
 }
 

@@ -57,7 +57,9 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     operator), sort and tier-2 post-tests — the OUTPUT row columns: the
 //     group fields and aggregation labels (or, with neither, the record
 //     columns), plus each earlier window's label (sort and post-tests
-//     see every window). A crosstab's sort and windows judge against
+//     see every window). A window order_by key that is a schema field
+//     is also judged for orderability (IsOrderableType — set_* is
+//     refused). A crosstab's sort and windows judge against
 //     the record columns; its post-tests run over cell rows and are not
 //     judged here.
 //
@@ -302,6 +304,13 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *Extensi
 					"window["+idx+"]: order_by field "+ok.Field+" does not exist in schema or upstream pipeline output",
 					map[string]any{"window_index": i, "field": ok.Field})
 			})
+			// Orderability (IsOrderableType) is judged by the schema
+			// type; a derived output column carries none.
+			if f := schema.Field(ok.Field); f != nil && !IsOrderableType(f.Type) {
+				w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
+					"window["+idx+"]: order_by field "+ok.Field+" is not orderable (type "+f.Type.String()+")",
+					map[string]any{"window_index": i, "field": ok.Field, "field_type": f.Type.String()}))
+			}
 		}
 		for _, p := range win.PartitionBy {
 			if p == "" {

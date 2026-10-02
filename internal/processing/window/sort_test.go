@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -147,5 +148,18 @@ func TestSortCache_DistinctTuplesGetDistinctSorts(t *testing.T) {
 	b, _ := cache.get(nil, []types.OrderKey{{Field: "x", Desc: true}})
 	if &a[0] == &b[0] {
 		t.Error("expected distinct sorts for ASC vs DESC")
+	}
+}
+
+// TestCompareCell_Decimal128ByValue: decimal128 cells (the Record's
+// unboxed encoding.Decimal128) order by value, negatives first, nulls
+// last — before, every decimal compared equal and kept input order.
+func TestCompareCell_Decimal128ByValue(t *testing.T) {
+	d := encoding.NewDecimal128FromInt
+	rows := []map[string]any{{"x": d(1050)}, {"x": d(-325)}, {"x": nil}, {"x": d(250)}, {"x": d(10000)}}
+	idx := []int{0, 1, 2, 3, 4}
+	sortIndices(rows, idx, nil, []types.OrderKey{{Field: "x"}})
+	if want := []int{1, 3, 0, 4, 2}; !reflect.DeepEqual(idx, want) {
+		t.Errorf("idx = %v, want %v", idx, want)
 	}
 }
