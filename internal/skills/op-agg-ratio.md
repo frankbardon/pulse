@@ -23,9 +23,7 @@ examples_tags: [proportion-analysis, streaming-friendly]
 | `Field` | IGNORED — manifest marks the entry `ignores_field` |
 | `numerator_field` / `denominator_field` | any cohort field, read through the numeric channel (a categorical contributes its dictionary code) |
 
-The wire form still requires `Field`; the manifest's `accepts_types` on
-this operator says only that no type is refused there, not that any type
-is read.
+`Field` is still required on the wire; `accepts_types` says no type is refused there, not that one is read. An unknown params field is refused (`SERVICE_VALIDATION`), predict and runtime alike.
 
 ## Output
 
@@ -46,7 +44,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Aggregation's `Field` is IGNORED — inputs come from Params.
 - Denominator-zero returns NaN, not Inf or error.
 - `n` counts contributing rows, not distinct den-non-zero rows.
 

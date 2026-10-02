@@ -251,7 +251,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Field references — the one rule the runtime refuses with at the
 	// same point (after defaults and zones, against the schema the
 	// request executes over). Every unknown name is reported.
-	for _, ce := range FieldRefRefusals(req, schema) {
+	for _, ce := range FieldRefRefusals(req, schema, extensionsFromOpts(opts)) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 

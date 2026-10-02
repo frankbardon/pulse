@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -65,6 +66,39 @@ type ExtensionsSnapshot struct {
 	// only (the lowest-risk fallback) until the registration
 	// surface lands the tag.
 	OverlayKinds []descriptor.OperatorMeta
+
+	// FieldInputs carries each registration's optional FieldInputs hook
+	// (pulse.FieldInputsFunc — the callback the runtime's buffered
+	// projection already consults), keyed "<category>|<name>" with the
+	// category spelled as processing.StreamabilityKey spells it
+	// (aggregator, attribute, filterer, grouper, window, feature, test).
+	// FieldRefRefusals calls it with the slot's Params so the
+	// no-execute layer judges the names an extension declares it reads,
+	// exactly as the runtime does; a registration without the hook is
+	// absent and its params are not judged. Never serialised.
+	FieldInputs map[string]func(raw json.RawMessage) []string `json:"-"`
+}
+
+// DeclaredFieldInputs returns the field names the extension operator
+// (category, name) declares it reads for params raw, and whether it
+// declares any hook at all. A hook that panics is treated as no
+// declaration (ok=false) rather than crashing predict or the runtime
+// check — the same input the projection extractor would then widen
+// for. Nil-safe.
+func (s *ExtensionsSnapshot) DeclaredFieldInputs(category, name string, raw json.RawMessage) (names []string, ok bool) {
+	if s == nil || s.FieldInputs == nil {
+		return nil, false
+	}
+	fn, found := s.FieldInputs[category+"|"+name]
+	if !found || fn == nil {
+		return nil, false
+	}
+	defer func() {
+		if recover() != nil {
+			names, ok = nil, false
+		}
+	}()
+	return fn(raw), true
 }
 
 // emptyExtensionsManifest returns a fully-populated ExtensionsManifest

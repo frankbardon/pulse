@@ -213,7 +213,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			continue
 		}
 		if fieldsReached {
-			for _, ce := range FieldRefRefusals(fieldReq, fieldSchema) {
+			for _, ce := range FieldRefRefusals(fieldReq, fieldSchema, extensionsFromOpts(opts)) {
 				addCodedError(env, RefusalAt(ce, "stage", i))
 			}
 		}

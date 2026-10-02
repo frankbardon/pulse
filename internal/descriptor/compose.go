@@ -769,7 +769,7 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 			addCodedError(env, RefusalAt(err, "request", i))
 			continue
 		}
-		for _, ce := range FieldRefRefusals(defaultedForValidation(slot, schema, opts), schema) {
+		for _, ce := range FieldRefRefusals(defaultedForValidation(slot, schema, opts), schema, extensionsFromOpts(opts)) {
 			addCodedError(env, RefusalAt(ce, "request", i))
 		}
 	}

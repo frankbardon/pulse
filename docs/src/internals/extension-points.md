@@ -806,7 +806,9 @@ an operator does — `AGG_DISTINCT_SUM`'s `distinct_by`,
 `AGG_WEIGHTED_MEAN`'s `weight_field`, `AGG_RATIO`'s
 `numerator_field` / `denominator_field`, `FEAT_TRAIN_TEST_SPLIT`'s
 `stratify` and `FEAT_TARGET_ENCODE`'s `target` are the whole set
-today. **Forgetting one fails silently, not loudly:** the field is
+today, and the field-reference rule (`aggParamFieldKeys` in
+`internal/descriptor/field_refs.go`) must gain the same arm so an
+unknown name there is refused rather than read as all-null. **Forgetting one fails silently, not loudly:** the field is
 decoded onto no `Record`, `Record.NumericValue` answers `ok=false` for
 it on every row, and the operator reads that as a missing input rather
 than as a broken request — so the request succeeds and publishes a
@@ -850,9 +852,21 @@ pulse.AggregatorRegistration{
 Return-value semantics:
 
 - `nil` or empty slice: no extra fields beyond the spec's `Field`.
-- Names not present in the schema are silently dropped by
-  the extractor — return-what-you-read; the extractor filters
-  against the live schema.
+- Every returned name is also **validated**: the hook rides the
+  read-only extensions snapshot, and the shared field-reference rule
+  (the one predict, the Compose / chain validators and the runtime all
+  apply before a record is read) judges each declared name against the
+  columns available at the operator's pipeline point — schema fields,
+  earlier feature outputs and attribute labels, or, for a window, the
+  output row columns. A name nothing produces is refused with
+  `SERVICE_VALIDATION`
+  `"<category> <NAME>: FieldInputs references unknown field <f>"`,
+  details `{field, <slot>, field_inputs: true}`, identically on both
+  sides. So return exactly the names the operator reads — never a
+  speculative superset. A hook that panics is treated as undeclared
+  (nothing judged), not as a crash. The projection extractor itself
+  still drops non-schema names, so a declared derived column costs
+  nothing there.
 - Errors are not part of the signature on purpose — `FieldInputs`
   runs on the hot path and should be allocation-free. Anything that
   needs decoding belongs in the factory.

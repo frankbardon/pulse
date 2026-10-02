@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
+	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
@@ -130,4 +132,181 @@ func TestFieldRefs_EmptyFilterFieldRefusedLikePredict(t *testing.T) {
 			t.Fatalf("predict: %+v", env.Errors)
 		}
 	})
+}
+
+// paramFieldRequests is one request per built-in slot whose PARAMS name
+// a column, each naming the unknown "zz", with the runtime's expected
+// message. Unjudged, the runtime read each name as an all-null column:
+// AGG_WEIGHTED_MEAN / AGG_RATIO / AGG_DISTINCT_SUM answered a confident
+// empty result and the post-test failed per row.
+func paramFieldRequests(cohort string) map[string]struct {
+	message string
+	req     func() *types.Request
+} {
+	co := func() *types.Cohort { return &types.Cohort{Filename: cohort} }
+	cat := func() []*types.Group { return []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}} }
+	agg := func(typ types.AggregationType, params string) *types.Aggregation {
+		return &types.Aggregation{Type: typ, Field: "n", Label: "v", Params: json.RawMessage(params)}
+	}
+	xt := func(cell *types.Aggregation, margins ...*types.Aggregation) *types.CrosstabSpec {
+		return &types.CrosstabSpec{
+			Rows:               []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Columns:            []*types.Group{{Type: types.GROUP_RANGE, Field: "n", Params: json.RawMessage(`{"interval":20}`)}},
+			Cell:               cell,
+			MarginAggregations: margins,
+			Margins:            types.CrosstabMargins{Grand: true},
+		}
+	}
+	type entry = struct {
+		message string
+		req     func() *types.Request
+	}
+	return map[string]entry{
+		"weighted mean weight_field": {"aggregation AGG_WEIGHTED_MEAN: params.weight_field references unknown field zz", func() *types.Request {
+			return &types.Request{Cohort: co(), Groups: cat(), Aggregations: []*types.Aggregation{agg(types.AGG_WEIGHTED_MEAN, `{"weight_field":"zz"}`)}}
+		}},
+		"ratio denominator_field": {"aggregation AGG_RATIO: params.denominator_field references unknown field zz", func() *types.Request {
+			return &types.Request{Cohort: co(), Groups: cat(), Aggregations: []*types.Aggregation{agg(types.AGG_RATIO, `{"numerator_field":"n","denominator_field":"zz"}`)}}
+		}},
+		"distinct sum distinct_by": {"aggregation AGG_DISTINCT_SUM: params.distinct_by references unknown field zz", func() *types.Request {
+			return &types.Request{Cohort: co(), Groups: cat(), Aggregations: []*types.Aggregation{agg(types.AGG_DISTINCT_SUM, `{"distinct_by":"zz"}`)}}
+		}},
+		"crosstab cell": {"crosstab cell aggregation AGG_WEIGHTED_MEAN: params.weight_field references unknown field zz", func() *types.Request {
+			return &types.Request{Cohort: co(), Crosstab: xt(agg(types.AGG_WEIGHTED_MEAN, `{"weight_field":"zz"}`))}
+		}},
+		"crosstab margin aggregation": {"crosstab margin aggregation AGG_RATIO: params.numerator_field references unknown field zz", func() *types.Request {
+			return &types.Request{Cohort: co(), Crosstab: xt(&types.Aggregation{Type: types.AGG_SUM, Field: "n"},
+				agg(types.AGG_RATIO, `{"numerator_field":"zz","denominator_field":"n"}`))}
+		}},
+		"post-test n_col": {"TEST_ANOVA_F: params.n_col references unknown field zz", func() *types.Request {
+			return &types.Request{Cohort: co(), Groups: cat(),
+				Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "n", Label: "m"}, {Type: types.AGG_COUNT, Field: "n", Label: "c"}, {Type: types.AGG_VARIANCE, Field: "n", Label: "var"}},
+				PostTests:    []*types.Test{{Type: types.TEST_ANOVA_F, Field: "m", SplitBy: "cat", Params: json.RawMessage(`{"n_col":"zz","variance_col":"var"}`)}}}
+		}},
+	}
+}
+
+// TestFieldRefs_ParamFieldsRefusedLikePredict: a column named inside a
+// built-in operator's params is judged by the shared rule — Process
+// (both crosstab arms), ProcessStream, predict and, located, Compose
+// return the same code, message and details.
+func TestFieldRefs_ParamFieldsRefusedLikePredict(t *testing.T) {
+	fs, cohort := zoneCohort(t)
+	ctx := context.Background()
+	opts := &descx.PredictOptions{SchemaLoader: schemaLoaderFor(fs)}
+	for _, disable := range []bool{false, true} {
+		p, err := pulse.New(pulse.Options{FS: fs, DisableCrosstabFusion: disable})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for name, c := range paramFieldRequests(cohort) {
+			t.Run(fmt.Sprintf("%s/disable_fusion_%v", name, disable), func(t *testing.T) {
+				_, rerr := p.Process(ctx, c.req())
+				ce := requireCode(t, rerr, errors.SERVICE_VALIDATION)
+				if ce.Message != c.message || ce.Details["field"] != "zz" {
+					t.Fatalf("runtime = %q %v, want %q", ce.Message, ce.Details, c.message)
+				}
+				sameEntry(t, predictEnvelope(t, p, fs, cohort, c.req()), rerr)
+				_, serr := p.ProcessStream(ctx, c.req())
+				if se := requireCode(t, serr, errors.SERVICE_VALIDATION); se.Message != ce.Message {
+					t.Fatalf("stream = %q, process = %q", se.Message, ce.Message)
+				}
+				compose := func() *types.ComposedRequest {
+					return &types.ComposedRequest{Requests: []*types.Request{
+						{Cohort: &types.Cohort{Filename: cohort}, Aggregations: countAgg()}, c.req(),
+					}}
+				}
+				_, cerr := p.Compose(ctx, compose())
+				if cc := requireCode(t, cerr, errors.SERVICE_VALIDATION); cc.Details["request"] != 1 {
+					t.Fatalf("details = %v, want request=1", cc.Details)
+				}
+				sameEntry(t, descx.ValidateComposeWithOptions(compose(), opts), cerr)
+			})
+		}
+	}
+}
+
+// TestFieldRefs_ParamFieldsDerivedNamesAccepted: a params name the
+// pipeline produces — an attribute label as a weight, an aggregation
+// label as a post-test column — is not unknown; both sides run it.
+func TestFieldRefs_ParamFieldsDerivedNamesAccepted(t *testing.T) {
+	fs, cohort := zoneCohort(t)
+	p := zonePulse(t, fs, "")
+	ctx := context.Background()
+	co := func() *types.Cohort { return &types.Cohort{Filename: cohort} }
+	cat := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}
+	cases := map[string]func() *types.Request{
+		"attribute label as weight": func() *types.Request {
+			return &types.Request{Cohort: co(), Groups: cat,
+				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "w", Expression: "n + 1"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_WEIGHTED_MEAN, Field: "n", Params: json.RawMessage(`{"weight_field":"w"}`)}}}
+		},
+		"aggregation labels as post-test columns": func() *types.Request {
+			return &types.Request{Cohort: co(), Groups: cat,
+				Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "n", Label: "m"}, {Type: types.AGG_COUNT, Field: "n", Label: "c"}, {Type: types.AGG_VARIANCE, Field: "n", Label: "var"}},
+				PostTests:    []*types.Test{{Type: types.TEST_ANOVA_F, Field: "m", SplitBy: "cat", Params: json.RawMessage(`{"n_col":"c","variance_col":"var"}`)}}}
+		},
+	}
+	for name, mk := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := p.Process(ctx, mk()); err != nil {
+				t.Fatalf("runtime refused a derived name: %v", err)
+			}
+			if env := predictEnvelope(t, p, fs, cohort, mk()); len(env.Errors) != 0 {
+				t.Fatalf("predict refused a derived name: %+v", env.Errors)
+			}
+		})
+	}
+}
+
+// TestFieldRefs_ExtensionFieldInputsJudged: the names an extension
+// declares through its registration's FieldInputs hook ride the
+// ExtensionsSnapshot, so predict and the runtime judge them with the
+// same refusal; a declared name that exists runs on both sides.
+func TestFieldRefs_ExtensionFieldInputsJudged(t *testing.T) {
+	fs, cohort := zoneCohort(t)
+	ctx := context.Background()
+	reg := parityMeanRegistration(&parityProbe{}, "AGG_ACME_BYMEAN")
+	reg.FieldInputs = func(raw json.RawMessage) []string {
+		var p struct {
+			By string `json:"by"`
+		}
+		_ = json.Unmarshal(raw, &p)
+		return []string{p.By}
+	}
+	p, err := pulse.New(pulse.Options{FS: fs, Extensions: pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{reg}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mk := func(by string) *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: cohort},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Aggregations: []*types.Aggregation{{Type: "AGG_ACME_BYMEAN", Field: "n", Label: "v", Params: json.RawMessage(`{"by":"` + by + `"}`)}}}
+	}
+	_, rerr := p.Process(ctx, mk("zz"))
+	ce := requireCode(t, rerr, errors.SERVICE_VALIDATION)
+	if ce.Message != "aggregator AGG_ACME_BYMEAN: FieldInputs references unknown field zz" || ce.Details["field_inputs"] != true {
+		t.Fatalf("runtime = %q %v", ce.Message, ce.Details)
+	}
+	sameEntry(t, predictEnvelope(t, p, fs, cohort, mk("zz")), rerr)
+	if _, err := p.Process(ctx, mk("cat")); err != nil {
+		t.Fatalf("runtime refused a declared name that exists: %v", err)
+	}
+	if env := predictEnvelope(t, p, fs, cohort, mk("cat")); len(env.Errors) != 0 {
+		t.Fatalf("predict refused a declared name that exists: %+v", env.Errors)
+	}
+
+	// A hook that panics is treated as undeclared, never a crash.
+	reg.Name = "AGG_ACME_PANICMEAN"
+	reg.FieldInputs = func(json.RawMessage) []string { panic("boom") }
+	pp, err := pulse.New(pulse.Options{FS: fs, Extensions: pulse.Extensions{Aggregators: []pulse.AggregatorRegistration{reg}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := mk("zz")
+	req.Aggregations[0].Type = "AGG_ACME_PANICMEAN"
+	data, _ := afero.ReadFile(fs, cohort)
+	if env, err := pp.PredictBytes(ctx, data, req); err != nil || len(env.Errors) != 0 {
+		t.Fatalf("predict over a panicking hook = %v %+v", err, env)
+	}
 }

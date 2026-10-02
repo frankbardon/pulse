@@ -209,7 +209,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	if _, zerr := ResolveFacetZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader); zerr != nil {
 		addCodedError(env, zerr)
 	}
-	for _, ce := range FacetFieldRefRefusals(req, schema) {
+	for _, ce := range FacetFieldRefRefusals(req, schema, snap) {
 		addCodedError(env, ce)
 	}
 

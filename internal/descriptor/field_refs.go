@@ -19,8 +19,8 @@ import (
 // report every entry of FieldRefRefusals at the same point. A runtime
 // that skipped it would treat each unknown name as an all-null column
 // and answer with wrong numbers and no error.
-func FieldRefRefusal(req *types.Request, schema *encoding.Schema) error {
-	if all := FieldRefRefusals(req, schema); len(all) > 0 {
+func FieldRefRefusal(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) error {
+	if all := FieldRefRefusals(req, schema, snap); len(all) > 0 {
 		return all[0]
 	}
 	return nil
@@ -32,11 +32,11 @@ func FieldRefRefusal(req *types.Request, schema *encoding.Schema) error {
 // set). FacetSchema applies the first entry right after its zone pass;
 // ValidateFacet reports every entry at the same point. Fields and
 // AdditiveFields keep their own facet-specific refusals.
-func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema) []*errors.CodedError {
+func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, snap *ExtensionsSnapshot) []*errors.CodedError {
 	if req == nil {
 		return nil
 	}
-	return FieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema)
+	return FieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema, snap)
 }
 
 // FieldRefRefusals walks every slot that names a field, in PIPELINE
@@ -69,15 +69,27 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema) []*
 // accepted, as the runtime may legitimately produce it. Empty names are
 // judged where the slot requires one (aggregation, group, attribute
 // other than ATTR_FORMULA, every built-in filterer but
-// FILTER_EXPRESSION) and skipped where it is optional. Fields
-// named only inside an operator's params (other than the two feature
-// params above) are not judged. A nil request or schema yields nil —
-// the schema-less mode of a validator that cannot read the cohort.
-func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.CodedError {
+// FILTER_EXPRESSION) and skipped where it is optional.
+//
+// Names inside params are judged where an operator reads them: the two
+// feature params above, the built-in aggregation params
+// (aggParamFieldKeys — AGG_WEIGHTED_MEAN weight_field, AGG_RATIO
+// numerator_field / denominator_field, AGG_DISTINCT_SUM distinct_by, on
+// every aggregation slot, crosstab cell and margin aggregations
+// included) and the post-test row-column params (postTestParamFieldKeys
+// — TEST_ANOVA_F / TEST_ANOVA_WELCH n_col / variance_col,
+// TEST_TUKEY_HSD n_column when given). An extension operator's names
+// are the ones its registration's FieldInputs hook declares for the
+// slot's Params (snap.DeclaredFieldInputs; a filterer's hook gets nil,
+// as the projection extractor passes it), judged at the slot's own
+// pipeline point; without a hook its params are not judged. A nil snap
+// judges built-ins only. A nil request or schema yields nil — the
+// schema-less mode of a validator that cannot read the cohort.
+func FieldRefRefusals(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) []*errors.CodedError {
 	if req == nil || schema == nil {
 		return nil
 	}
-	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields))}
+	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap}
 	for i := range schema.Fields {
 		w.cols[schema.Fields[i].Name] = true
 	}
@@ -95,7 +107,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 		}
 		switch feat.Type {
 		case types.FEAT_TRAIN_TEST_SPLIT:
-			if s := featureParamField(feat.Params, "stratify"); s != "" {
+			if s := paramString(feat.Params, "stratify"); s != "" {
 				w.check(s, func() *errors.CodedError {
 					return refusal("feature FEAT_TRAIN_TEST_SPLIT: stratify references unknown field "+s,
 						map[string]any{"field": s, "feature": string(feat.Type)})
@@ -106,7 +118,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 				w.check(feat.Field, mk(feat.Field))
 			}
 			if feat.Type == types.FEAT_TARGET_ENCODE {
-				if t := featureParamField(feat.Params, "target"); t != "" {
+				if t := paramString(feat.Params, "target"); t != "" {
 					w.check(t, func() *errors.CodedError {
 						return refusal("feature FEAT_TARGET_ENCODE: target references unknown field "+t,
 							map[string]any{"field": t, "feature": string(feat.Type)})
@@ -114,6 +126,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 				}
 			}
 		}
+		w.checkInputs("feature", string(feat.Type), feat.Params, "feature")
 		if !isKnownFeatureType(feat.Type) {
 			w.open = true
 			continue
@@ -125,7 +138,11 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 
 	// 2. Filterers.
 	for _, fil := range req.Filterers {
-		if fil == nil || (fil.Field == "" && !filterFieldRequired(fil.Type)) {
+		if fil == nil {
+			continue
+		}
+		w.checkInputs("filterer", string(fil.Type), nil, "filter")
+		if fil.Field == "" && !filterFieldRequired(fil.Type) {
 			continue
 		}
 		w.check(fil.Field, func() *errors.CodedError {
@@ -161,6 +178,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 				})
 			}
 		}
+		w.checkInputs("attribute", string(attr.Type), attr.Params, "attribute")
 		label := attr.Label
 		if label == "" {
 			label = attributeDefaultLabel(attr)
@@ -172,6 +190,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 	for _, t := range req.Tests {
 		if t != nil {
 			w.checkTest(t, -1)
+			w.checkInputs("test", string(t.Type), t.Params, "type")
 		}
 	}
 	for _, reg := range req.Regressions {
@@ -199,6 +218,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 			return refusal("group references unknown field: "+grp.Field,
 				map[string]any{"field": grp.Field, "group": string(grp.Type)})
 		})
+		w.checkInputs("grouper", string(grp.Type), grp.Params, "group")
 	}
 	for _, agg := range req.Aggregations {
 		if agg == nil {
@@ -208,6 +228,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 			return refusal("aggregation references unknown field: "+agg.Field,
 				map[string]any{"field": agg.Field, "aggregation": string(agg.Type)})
 		})
+		w.checkAgg(agg, "aggregation "+string(agg.Type), "aggregation", string(agg.Type))
 	}
 	if spec := req.Crosstab; spec != nil {
 		axis := func(field, role string) {
@@ -219,22 +240,30 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 					map[string]any{"field": field, "role": role})
 			})
 		}
+		grouper := func(g *types.Group, role string) {
+			axis(g.Field, role)
+			w.checkInputs("grouper", string(g.Type), g.Params, "role", role)
+		}
+		agg := func(a *types.Aggregation, role string) {
+			axis(a.Field, role)
+			w.checkAgg(a, "crosstab "+role+" "+string(a.Type), "role", role)
+		}
 		for _, g := range spec.Rows {
 			if g != nil {
-				axis(g.Field, "row grouper")
+				grouper(g, "row grouper")
 			}
 		}
 		for _, g := range spec.Columns {
 			if g != nil {
-				axis(g.Field, "column grouper")
+				grouper(g, "column grouper")
 			}
 		}
 		if spec.Cell != nil {
-			axis(spec.Cell.Field, "cell aggregation")
+			agg(spec.Cell, "cell aggregation")
 		}
-		for _, agg := range spec.MarginAggregations {
-			if agg != nil {
-				axis(agg.Field, "margin aggregation")
+		for _, a := range spec.MarginAggregations {
+			if a != nil {
+				agg(a, "margin aggregation")
 			}
 		}
 	}
@@ -293,6 +322,7 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 					map[string]any{"window_index": i, "field": win.Field, "type": string(win.Type)})
 			})
 		}
+		w.checkInputs("window", string(win.Type), win.Params, "window")
 		w.cols[windowLabel(win)] = true
 	}
 	for i, k := range req.Sort {
@@ -320,7 +350,73 @@ func FieldRefRefusals(req *types.Request, schema *encoding.Schema) []*errors.Cod
 type fieldRefWalk struct {
 	cols map[string]bool
 	open bool
+	snap *ExtensionsSnapshot
 	out  []*errors.CodedError
+}
+
+// aggParamFieldKeys lists, per built-in aggregation, the Params keys
+// that name a record column (the set the projection extractor's
+// addAggParamFields decodes). Unjudged, an unknown name there read as
+// an all-null column and the operator answered a confident empty or
+// zero result.
+var aggParamFieldKeys = map[types.AggregationType][]string{
+	types.AGG_WEIGHTED_MEAN: {"weight_field"},
+	types.AGG_RATIO:         {"numerator_field", "denominator_field"},
+	types.AGG_DISTINCT_SUM:  {"distinct_by"},
+}
+
+// postTestParamFieldKeys lists, per built-in tier-2 test, the Params
+// keys that name an OUTPUT row column. TEST_TUKEY_HSD's n_column
+// defaults to "n" when omitted; only an explicit name is judged.
+var postTestParamFieldKeys = map[types.TestType][]string{
+	types.TEST_ANOVA_F:     {"n_col", "variance_col"},
+	types.TEST_ANOVA_WELCH: {"n_col", "variance_col"},
+	types.TEST_TUKEY_HSD:   {"n_column"},
+}
+
+// checkAgg judges the column names an aggregation reads beyond Field:
+// a built-in's params (aggParamFieldKeys) and an extension's
+// FieldInputs. prefix names the slot in the message ("aggregation
+// AGG_RATIO", "crosstab cell aggregation AGG_RATIO"); slotKey /
+// slotValue is the details entry naming the slot.
+func (w *fieldRefWalk) checkAgg(agg *types.Aggregation, prefix, slotKey string, slotValue any) {
+	for _, key := range aggParamFieldKeys[agg.Type] {
+		name := paramString(agg.Params, key)
+		if name == "" {
+			continue // missing: the operator's own PROCESSING_CONFIG refusal
+		}
+		w.check(name, func() *errors.CodedError {
+			return refusal(prefix+": params."+key+" references unknown field "+name,
+				map[string]any{"field": name, "param": key, slotKey: slotValue})
+		})
+	}
+	w.checkInputs("aggregator", string(agg.Type), agg.Params, slotKey, slotValue)
+}
+
+// checkInputs judges the names an extension operator's FieldInputs hook
+// declares for raw, against the columns available at this pipeline
+// point. slotKey is the details key naming the slot ("aggregation",
+// "filter", "group", ...); its value is the operator type unless an
+// explicit slotValue is given (a crosstab role). A built-in operator, or
+// an extension without a hook, declares nothing.
+func (w *fieldRefWalk) checkInputs(category, name string, raw json.RawMessage, slotKey string, slotValue ...any) {
+	inputs, ok := w.snap.DeclaredFieldInputs(category, name, raw)
+	if !ok {
+		return
+	}
+	var slot any = name
+	if len(slotValue) > 0 {
+		slot = slotValue[0]
+	}
+	for _, in := range inputs {
+		if in == "" {
+			continue
+		}
+		w.check(in, func() *errors.CodedError {
+			return refusal(category+" "+name+": FieldInputs references unknown field "+in,
+				map[string]any{"field": in, slotKey: slot, "field_inputs": true})
+		})
+	}
 }
 
 // check refuses name unless it is an available column. An empty name
@@ -377,6 +473,10 @@ func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 		for _, ok := range t.OrderBy {
 			add(ok.Field, typ+" order_by references unknown field: "+ok.Field, map[string]any{"type": typ, "field": ok.Field})
 		}
+		for _, key := range postTestParamFieldKeys[t.Type] {
+			name := paramString(t.Params, key)
+			add(name, typ+": params."+key+" references unknown field "+name, map[string]any{"type": typ, "field": name, "param": key})
+		}
 	}
 }
 
@@ -384,11 +484,11 @@ func refusal(msg string, details map[string]any) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION, msg, details)
 }
 
-// featureParamField reads one string field name out of a feature's
-// params (FEAT_TARGET_ENCODE "target", FEAT_TRAIN_TEST_SPLIT
-// "stratify"); "" when absent or unparseable — malformed params are
-// the feature validators' refusal, not this rule's.
-func featureParamField(raw json.RawMessage, key string) string {
+// paramString reads one string field name out of an operator's params
+// (FEAT_TARGET_ENCODE "target", AGG_RATIO "numerator_field", ...); ""
+// when absent or unparseable — malformed params are the operator's own
+// refusal, not this rule's.
+func paramString(raw json.RawMessage, key string) string {
 	if len(raw) == 0 {
 		return ""
 	}

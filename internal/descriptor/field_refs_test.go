@@ -23,7 +23,7 @@ func fieldRefSchema() *encoding.Schema {
 func refusedNames(t *testing.T, req *types.Request) []string {
 	t.Helper()
 	var out []string
-	for _, ce := range FieldRefRefusals(req, fieldRefSchema()) {
+	for _, ce := range FieldRefRefusals(req, fieldRefSchema(), nil) {
 		if ce.Code != errors.SERVICE_VALIDATION && ce.Code != errors.PULSE_WINDOW_INVALID {
 			t.Fatalf("unexpected code %s", ce.Code)
 		}
@@ -89,7 +89,7 @@ func TestFieldRefRefusals_OutputColumns(t *testing.T) {
 			PostTests: []*types.Test{{Type: types.TEST_TREND, Field: "WIN_RANK_ignored", OrderBy: []types.OrderKey{{Field: "n"}}}},
 		}
 		sameNames(t, refusedNames(t, req), "WIN_LAG_AGG_SUM_n", "m", "n")
-		post := FieldRefRefusals(req, fieldRefSchema())
+		post := FieldRefRefusals(req, fieldRefSchema(), nil)
 		if post[len(post)-1].Details["post_test_index"] != 0 {
 			t.Fatalf("post-test refusal details = %v, want post_test_index", post[len(post)-1].Details)
 		}
@@ -172,12 +172,72 @@ func TestFieldRefRefusals_SlotShapes(t *testing.T) {
 	})
 	t.Run("no schema, no judgement", func(t *testing.T) {
 		req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "zz"}}}
-		if FieldRefRefusals(req, nil) != nil || FieldRefRefusal(req, nil) != nil || FieldRefRefusals(nil, fieldRefSchema()) != nil {
+		if FieldRefRefusals(req, nil, nil) != nil || FieldRefRefusal(req, nil, nil) != nil || FieldRefRefusals(nil, fieldRefSchema(), nil) != nil {
 			t.Fatal("nil schema or request must yield no refusal")
 		}
-		err, ok := FieldRefRefusal(req, fieldRefSchema()).(*errors.CodedError)
+		err, ok := FieldRefRefusal(req, fieldRefSchema(), nil).(*errors.CodedError)
 		if !ok || err.Message != "aggregation references unknown field: zz" {
 			t.Fatalf("FieldRefRefusal = %v", err)
 		}
 	})
+}
+
+// TestFieldRefRefusals_ParamsAndFieldInputs: built-in params name
+// columns on every aggregation slot and post-test, and an extension's
+// FieldInputs declaration is judged at its own slot's pipeline point
+// (a feature's before it opens the set, a filterer's before attribute
+// labels exist, a window's against the output columns).
+func TestFieldRefRefusals_ParamsAndFieldInputs(t *testing.T) {
+	declares := func(names ...string) func(json.RawMessage) []string {
+		return func(json.RawMessage) []string { return names }
+	}
+	snap := &ExtensionsSnapshot{FieldInputs: map[string]func(json.RawMessage) []string{
+		"filterer|FILTER_ACME_NEAR":  declares("x", "n"), // x is an attribute label: not yet visible
+		"attribute|ATTR_ACME_SCORE":  declares("x", "later"),
+		"grouper|GROUP_ACME_BAND":    declares("g_unknown"),
+		"aggregator|AGG_ACME_MEAN":   declares("m", "a_unknown"),
+		"window|WIN_ACME_DECAY":      declares("n"), // a record column, not an output column
+		"feature|FEAT_ACME_EMBED":    declares("fe_unknown"),
+		"test|TEST_ACME_DRIFT":       declares("cat"),
+		"aggregator|AGG_ACME_SILENT": nil,
+	}}
+	req := &types.Request{
+		Filterers: []*types.Filterer{{Type: "FILTER_ACME_NEAR"}},
+		Attributes: []*types.Attribute{
+			{Type: types.ATTR_FORMULA, Label: "x", Expression: "n"},
+			{Type: "ATTR_ACME_SCORE", Field: "n", Label: "later"},
+		},
+		Tests:  []*types.Test{{Type: "TEST_ACME_DRIFT"}},
+		Groups: []*types.Group{{Type: "GROUP_ACME_BAND", Field: "cat"}},
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_WEIGHTED_MEAN, Field: "n", Params: json.RawMessage(`{"weight_field":"w_unknown"}`)},
+			{Type: types.AGG_RATIO, Field: "n", Params: json.RawMessage(`{"numerator_field":"m","denominator_field":"x"}`)},
+			{Type: "AGG_ACME_MEAN", Field: "n"},
+			{Type: "AGG_ACME_SILENT", Field: "n", Params: json.RawMessage(`{"weight_field":"ignored"}`)},
+		},
+		Windows:   []*types.Window{{Type: "WIN_ACME_DECAY", OrderBy: []types.OrderKey{{Field: "n"}}}},
+		PostTests: []*types.Test{{Type: types.TEST_TUKEY_HSD, Field: "AGG_RATIO_n", SplitBy: "n", Params: json.RawMessage(`{"n_column":"nc_unknown"}`)}},
+	}
+	// The "later" attribute input is its own label: not yet produced.
+	names := func(all []*errors.CodedError) []string {
+		var out []string
+		for _, ce := range all {
+			for _, k := range []string{"field", "split_by"} {
+				if v, ok := ce.Details[k].(string); ok {
+					out = append(out, v)
+					break
+				}
+			}
+		}
+		return out
+	}
+	sameNames(t, names(FieldRefRefusals(req, fieldRefSchema(), snap)),
+		"x", "later", "g_unknown", "w_unknown", "a_unknown", "n", "n", "n", "nc_unknown")
+	// Without the snapshot only the built-in params are judged.
+	sameNames(t, names(FieldRefRefusals(req, fieldRefSchema(), nil)), "w_unknown", "n", "n", "nc_unknown")
+
+	// A feature's declaration is judged before it opens the set.
+	feat := &types.Request{Features: []*types.Feature{{Type: "FEAT_ACME_EMBED", Field: "n"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "anything"}}}
+	sameNames(t, names(FieldRefRefusals(feat, fieldRefSchema(), snap)), "fe_unknown")
 }
