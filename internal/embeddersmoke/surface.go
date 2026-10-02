@@ -188,4 +188,6 @@ var (
 	_ func(*pulse.Pulse) string                                                         = (*pulse.Pulse).FeatureSetDigest
 	_ func(*pulse.Pulse) (*pulse.FeatureProfile, bool)                                  = (*pulse.Pulse).FeatureProfile
 	_ func(*pulse.Pulse) ([]byte, error)                                                = (*pulse.Pulse).PayloadSchema
+	_ func() []string                                                                   = pulse.ExampleFeatureProfiles
+	_ func(string) (*pulse.FeatureProfile, error)                                       = pulse.ExampleFeatureProfile
 )

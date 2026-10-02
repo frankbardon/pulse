@@ -50,6 +50,7 @@ internal/buildinfo/        VERSION injected by ldflags, else Pulse's own module 
 internal/apigolden/        TestPublicAPIGolden + testdata/public_api.txt
 internal/embeddersmoke/    nested module (own go.mod) compiled by `make smoke` in CI
 internal/shardfixtures/, internal/spsstest/, internal/tools/pkgsplit/   test + tooling support
+examples/profiles/         published example feature profiles (frozen; root //go:embed, pulse.ExampleFeatureProfile)
 docs/                      mdBook source (docs/book/ is generated)
 ```
 

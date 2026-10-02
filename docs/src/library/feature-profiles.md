@@ -208,7 +208,7 @@ code up with `pulse errors lookup CODE`.
 
 | Code | When | Read |
 |---|---|---|
-| `PULSE_FEATURE_PROFILE_INVALID` | The profile cannot be used as written | `details.reason`: `both_options_set`, `file_unreadable`, `malformed_json`, `unknown_key`, `missing_features`, `duplicate_feature` (the names are under `duplicates`). `details.path` names the file when one was read |
+| `PULSE_FEATURE_PROFILE_INVALID` | The profile cannot be used as written | `details.reason`: `both_options_set`, `file_unreadable`, `malformed_json`, `unknown_key`, `missing_features`, `duplicate_feature` (the names are under `duplicates`), `unknown_example` (from `pulse.ExampleFeatureProfile`). `details.path` names the file when one was read |
 | `PULSE_FEATURE_PROFILE_UNKNOWN` | A name does not resolve | `details.unknown[]`, each with `name` and `reason`: `unregistered`, `pattern`, `wrong_kind` (see `did_you_mean`), `core_surface`, `newer_than_running` (see `since`; the running build is under `details.version`). An unknown extension `DependsOn` entry also carries `extension` and `category` |
 | `PULSE_FEATURE_PROFILE_DEPENDENCY` | An enabled feature is missing what it needs | `details.unmet[]`, each with `feature` and `requires_any_of`. Add one name from the group, or remove the feature |
 
@@ -375,6 +375,32 @@ thing:
 ```
 pulse mcp: serving over stdio (data dir: /var/data/pulse, bind-on-open: true, cohort-scan: false, feature-profile: survey-self-serve)
 ```
+
+## Example profiles
+
+Pulse publishes example profiles to copy, in the repository's
+`examples/profiles/` directory and embedded in the library:
+
+| Name | Offers |
+|---|---|
+| `minimal` | `capability:process` plus core aggregators and the default groupers |
+| `survey-crosstab` | Process, Compose, crosstab, facet and labels, with survey tests and the crosstab, compose and facet overlays they feed, closed over their dependencies |
+| `read-only-analyst` | Every analytic capability and operator; nothing that writes data (`import`, `export`, `filter_to_file`, `dedup`, `widen`, `shard`, `index`, `synth`) and no I/O formats |
+
+```go
+names := pulse.ExampleFeatureProfiles()        // sorted: minimal, read-only-analyst, survey-crosstab
+fp, err := pulse.ExampleFeatureProfile("minimal") // a fresh *pulse.FeatureProfile you own
+p, err := pulse.New(pulse.Options{FeatureProfile: fp})
+```
+
+Each example passes `pulse.New` validation. An unknown name fails with
+`PULSE_FEATURE_PROFILE_INVALID`, `details.reason` `unknown_example`, and
+the available names under `details.examples`.
+
+**Published examples are never edited in place.** Each lists exact
+feature names as of the release in its `written_with`, so upgrading Pulse
+never grows the feature set of a profile copied from one. A changed
+example ships under a new name. Copy one and own the copy.
 
 ## Related
 

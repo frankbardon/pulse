@@ -162,6 +162,8 @@ pulse: type Example field Description string "json:\"description\""
 pulse: type Example field Name string "json:\"name\""
 pulse: type Example field Operators []string "json:\"operators\""
 pulse: type Example field Tags []string "json:\"tags\""
+pulse: func ExampleFeatureProfile(name string) (*pulse.FeatureProfile, error)
+pulse: func ExampleFeatureProfiles() []string
 pulse: type ExampleSummary = pulse/internal/examples.ExampleSummary
 pulse: type ExampleSummary underlying struct
 pulse: type ExampleSummary field Category string "json:\"category\""
@@ -3548,4 +3550,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0811edeb3c89d97f2a1fe3320942c6d074de0c4e84a8218f82600778cf76c33e
+// golden-hash: f1a352c6e532709f2e3d14a1d083bf3a4b057b697b940a24b0ad5fe1a8247942
