@@ -16,7 +16,7 @@ No arguments. (CLI: `pulse manifest --json` accepts `--slim` for the same payloa
 
 ## Output
 
-`descriptor.Envelope` shape (`format_version: "1.0"`). `data` is the manifest payload — `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, plus capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Overlays`. Sort-stable; golden-checked.
+`descriptor.Envelope` shape (`format_version: "1.0"`). `data` is the manifest payload — `commands`, `components` (six operator slices), `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes_count` + `error_domains` + `error_codes` (slim), `mcp_tools`, `cohort_types`, `skills`, `extensions`, plus capability blocks `Facet`, `Join`, `ProcessChain`, `Crosstab`, `Export`, `Import`, `Overlays` (a block is absent when this deployment does not offer that capability), and `feature_set_digest` — key a cached manifest on it plus the build version. Sort-stable; golden-checked.
 
 ## Gotchas
 

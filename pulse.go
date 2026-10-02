@@ -1889,11 +1889,16 @@ func renderedFieldFor(target template.Target) string {
 	}
 }
 
-// Manifest returns the root Pulse self-description. The manifest is
-// deterministic and process-wide: it does not depend on cohort data or
-// the filesystem. Callers cache the result for a session.
+// Manifest returns the instance's self-description: only the features
+// it offers. Without a feature profile that is the full registry plus
+// the instance's extensions; with one, hidden operators, capabilities,
+// I/O formats, commands and MCP tools are absent (a hidden capability's
+// block is omitted) and no prose names them. FeatureSetDigest
+// identifies the described set. The manifest is deterministic per
+// instance and does not depend on cohort data or the filesystem;
+// callers cache it keyed by (PulseVersion, FeatureSetDigest).
 func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
-	return descx.BuildManifestWithExtensions(p.svc.ExtensionsSnapshot())
+	return descx.BuildManifestForInstance(p.svc.InstanceSnapshot())
 }
 
 // Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need

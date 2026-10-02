@@ -258,45 +258,7 @@ func sortEntriesByName(entries []map[string]any) {
 }
 
 // sinceReached reports whether a feature introduced in since is
-// available in the running build version. The running version is
-// compared on its major.minor.patch core only, so a pre-release or
-// git-describe build of a release line offers that line's features
-// (1.0.0-alpha.2 offers Since 1.0.0). A running version with no usable
-// core is treated as newest. An unparseable since (a table bug
-// TestFeaturesHaveSince refuses) is never reached.
+// available in the running build version (descx.SinceReached).
 func sinceReached(since, running string) bool {
-	sMaj, sMin, sPatch, ok := descx.ParseSince(since)
-	if !ok {
-		return false
-	}
-	rMaj, rMin, rPatch, newest := runningVersionCore(running)
-	if newest {
-		return true
-	}
-	if rMaj != sMaj {
-		return rMaj > sMaj
-	}
-	if rMin != sMin {
-		return rMin > sMin
-	}
-	return rPatch >= sPatch
-}
-
-// runningVersionCore extracts the major.minor.patch core of a running
-// build version: a leading "v" is dropped and everything from the first
-// "-" or "+" (pre-release, build metadata, git-describe suffix) is cut.
-// newest is true for a version with no comparable core: "devel" and
-// "devel+<sha>", a bare commit SHA, anything unparseable, and a 0.0.0
-// core (the Go pseudo-version of an untagged build), which no release
-// carries.
-func runningVersionCore(v string) (major, minor, patch int, newest bool) {
-	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	if i := strings.IndexAny(v, "-+"); i >= 0 {
-		v = v[:i]
-	}
-	major, minor, patch, ok := descx.ParseSince(v)
-	if !ok || (major == 0 && minor == 0 && patch == 0) {
-		return 0, 0, 0, true
-	}
-	return major, minor, patch, false
+	return descx.SinceReached(since, running)
 }

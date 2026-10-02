@@ -60,7 +60,7 @@ func commands() []descriptor.Command {
 
 // rawCohortFieldTypes returns the bare (name, categorical) tuples for
 // every defined field type. Compatible* cross-refs are computed by
-// cohortFieldTypes() from the operator capability tables.
+// cohortFieldTypesFrom from the operator capability tables.
 //
 // The walk is bounded by FieldType.IsKnown() (which compares against
 // encoding's own fieldTypeCount sentinel) rather than a literal count.
@@ -89,17 +89,13 @@ func rawCohortFieldTypes() []descriptor.CohortFieldType {
 	return out
 }
 
-// cohortFieldTypes returns CohortFieldType descriptors enriched with
+// cohortFieldTypesFrom returns CohortFieldType descriptors enriched with
 // Compatible* cross-references derived deterministically from the
-// per-operator AcceptsTypes declarations.
-func cohortFieldTypes() []descriptor.CohortFieldType {
+// per-operator AcceptsTypes declarations of the given operator
+// tables. The instance manifest passes its filtered tables so no
+// compatible_* list names an operator the instance hides.
+func cohortFieldTypesFrom(aggs, attrs, filts, grps, wins, feats []descriptor.Operator) []descriptor.CohortFieldType {
 	base := rawCohortFieldTypes()
-	aggs := aggregatorCapabilities()
-	attrs := attributeCapabilities()
-	filts := filtererCapabilities()
-	grps := grouperCapabilities()
-	wins := windowCapabilities()
-	feats := featureCapabilities()
 
 	indexByType := func(ops []descriptor.Operator) map[string][]string {
 		m := make(map[string][]string)
@@ -178,7 +174,7 @@ func sortRegressions(rs []descriptor.RegressionMeta) []descriptor.RegressionMeta
 }
 
 // componentsSchemasBlock collects every populated ComponentSchema from
-// the per-category capability tables into the top-level
+// the (instance-filtered) per-category capability tables into the top-level
 // ComponentsSchemasBlock projection. Map serialization is sorted by
 // encoding/json since Go 1.12, so the golden manifest stays
 // deterministic without a wrapping sort step. Every registered category
@@ -192,9 +188,9 @@ func sortRegressions(rs []descriptor.RegressionMeta) []descriptor.RegressionMeta
 // matching any snapshot category are dropped (defensive — the
 // registration surface only populates ComponentSchemas alongside one
 // of the three category slices).
-func componentsSchemasBlock(snap *ExtensionsSnapshot) descriptor.ComponentsSchemasBlock {
+func componentsSchemasBlock(aggs, grps, filts []descriptor.Operator, snap *ExtensionsSnapshot) descriptor.ComponentsSchemasBlock {
 	out := descriptor.ComponentsSchemasBlock{}
-	if aggs := aggregatorCapabilities(); len(aggs) > 0 {
+	if len(aggs) > 0 {
 		m := make(map[string]descriptor.ComponentSchema, len(aggs))
 		for _, op := range aggs {
 			if len(op.ComponentSchema.Keys) == 0 && op.ComponentSchema.Mergeability == "" {
@@ -206,7 +202,7 @@ func componentsSchemasBlock(snap *ExtensionsSnapshot) descriptor.ComponentsSchem
 			out.Aggregators = m
 		}
 	}
-	if grps := grouperCapabilities(); len(grps) > 0 {
+	if len(grps) > 0 {
 		m := make(map[string]descriptor.ComponentSchema, len(grps))
 		for _, op := range grps {
 			if len(op.ComponentSchema.Keys) == 0 && op.ComponentSchema.Mergeability == "" {
@@ -218,7 +214,7 @@ func componentsSchemasBlock(snap *ExtensionsSnapshot) descriptor.ComponentsSchem
 			out.Groupers = m
 		}
 	}
-	if filts := filtererCapabilities(); len(filts) > 0 {
+	if len(filts) > 0 {
 		m := make(map[string]descriptor.ComponentSchema, len(filts))
 		for _, op := range filts {
 			if len(op.ComponentSchema.Keys) == 0 && op.ComponentSchema.Mergeability == "" {
@@ -253,61 +249,126 @@ func componentsSchemasBlock(snap *ExtensionsSnapshot) descriptor.ComponentsSchem
 	return out
 }
 
-// BuildManifest constructs a deterministic Manifest from the current
-// registries and capability tables. The result is safe to cache and
-// share across goroutines; callers do not mutate the returned slices.
+// BuildManifest constructs the deterministic FULL-registry Manifest: the
+// view of a profile-free instance with no extensions, carrying that
+// instance's feature_set_digest. The unprofiled CLI serves it. The
+// result is safe to cache and share across goroutines; callers do not
+// mutate the returned slices.
 func BuildManifest() *descriptor.Manifest {
-	return BuildManifestWithExtensions(nil)
+	return BuildManifestForInstance(nil)
 }
 
-// BuildManifestWithExtensions constructs a Manifest that includes the
-// embedder-registered extension surface. A nil snapshot is equivalent
-// to BuildManifest — the Extensions block becomes the empty manifest
-// (every category is `[]`, not `null`).
+// BuildManifestWithExtensions constructs a full-registry Manifest that
+// includes the embedder-registered extension surface (an UNSCOPED
+// instance over snap). A nil snapshot is equivalent to BuildManifest —
+// the Extensions block becomes the empty manifest (every category is
+// `[]`, not `null`).
 //
 // descriptor stays free of service / processing imports; the snapshot
 // is the only way the live ExtensionRegistry reaches this layer.
 func BuildManifestWithExtensions(snap *ExtensionsSnapshot) *descriptor.Manifest {
-	allTests := append([]descriptor.TestMeta{}, testCapabilities()...)
-	allTests = append(allTests, postTestCapabilities()...)
+	return BuildManifestForInstance(UnscopedInstanceSnapshot(snap))
+}
+
+// assembleManifest builds every manifest section, keeping only what
+// on(name) offers. on is total for an unscoped instance, so the full
+// registry assembles byte-identically to the pre-feature-profile
+// manifest.
+func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.Manifest {
+	snap := inst.Extensions()
+	allTests := append([]descriptor.TestMeta{}, filterTests(testCapabilities(), on)...)
+	allTests = append(allTests, filterTests(postTestCapabilities(), on)...)
 	tier1, tier2 := partitionTier(allTests)
 
-	return &descriptor.Manifest{
-		FormatVersion: "1.0",
-		PulseVersion:  buildinfo.Version(),
-		Commands:      commands(),
-		Operations:    operations(),
+	aggs := filterOps(aggregatorCapabilities(), on)
+	attrs := filterOps(attributeCapabilities(), on)
+	filts := filterOps(filtererCapabilities(), on)
+	grps := filterOps(grouperCapabilities(), on)
+	wins := filterOps(windowCapabilities(), on)
+	feats := filterOps(featureCapabilities(), on)
+
+	m := &descriptor.Manifest{
+		FormatVersion:    "1.0",
+		PulseVersion:     buildinfo.Version(),
+		FeatureSetDigest: manifestDigest(inst),
+		Commands:         filterCommands(commands(), on),
+		Operations:       filterCommands(operations(), on),
 		Components: descriptor.Components{
-			Aggregators: withZone(sortByName(aggregatorCapabilities())),
-			Attributes:  withZone(sortByName(attributeCapabilities())),
-			Filterers:   withZone(sortByName(filtererCapabilities())),
-			Groupers:    withZone(sortByName(grouperCapabilities())),
-			Windows:     withZone(sortByName(windowCapabilities())),
-			Features:    withZone(sortByName(featureCapabilities())),
+			Aggregators: withZone(sortByName(aggs)),
+			Attributes:  withZone(sortByName(attrs)),
+			Filterers:   withZone(sortByName(filts)),
+			Groupers:    withZone(sortByName(grps)),
+			Windows:     withZone(sortByName(wins)),
+			Features:    withZone(sortByName(feats)),
 		},
 		Tests:              tier1,
 		PostTests:          tier2,
-		Regressions:        sortRegressions(regressionCapabilities()),
+		Regressions:        sortRegressions(filterRegressions(regressionCapabilities(), on)),
 		SynthDistributions: sortDistributions(distributionCapabilities()),
 		ErrorCodesCount:    errorCodesCount(),
 		ErrorDomains:       errorDomains(),
 		ErrorCodes:         errorCodeNames(),
-		MCPTools:           mcpToolCapabilities(),
-		CohortTypes:        cohortFieldTypes(),
+		MCPTools:           filterMCPTools(mcpToolCapabilities(), on),
+		CohortTypes:        cohortFieldTypesFrom(aggs, attrs, filts, grps, wins, feats),
 		Skills:             sortedSkills(),
 		ExamplesCount:      examples.Count(),
 		ExampleCategories:  examples.AllCategories(),
 		ExampleTags:        examples.AllTags(),
 		Extensions:         extensionsManifestFromSnapshot(snap),
-		Facet:              facetCapability(),
-		ProcessChain:       processChainCapability(),
-		Join:               joinCapability(),
-		Crosstab:           crosstabCapability(),
-		Export:             exportCapability(),
-		Import:             importCapability(),
-		Overlays:           OverlayCapabilities(),
-		ComponentsSchemas:  componentsSchemasBlock(snap),
+		Overlays:           filterOverlays(OverlayCapabilities(), on),
+		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap),
 	}
+	if !on(featSynth) {
+		m.SynthDistributions = []descriptor.DistributionMeta{}
+		m.Extensions.SynthDistributions = []descriptor.OperatorMeta{}
+	}
+	if on(featFacet) {
+		c := facetCapability()
+		c.SupportedOverlayKinds = filterNames(c.SupportedOverlayKinds, on)
+		m.Facet = &c
+	}
+	if on(featProcessChain) {
+		c := processChainCapability()
+		c.MergeableAggregators = filterNames(c.MergeableAggregators, on)
+		c.MergeableGroupers = filterNames(c.MergeableGroupers, on)
+		c.RowLocalAttributes = filterNames(c.RowLocalAttributes, on)
+		c.OverlayKinds = filterNames(c.OverlayKinds, on)
+		c.Overlays = filterOverlays(c.Overlays, on)
+		m.ProcessChain = &c
+	}
+	if on(featJoins) {
+		c := joinCapability()
+		m.Join = &c
+	}
+	if on(featCrosstab) {
+		c := crosstabCapability()
+		c.SummableAggregators = filterNames(c.SummableAggregators, on)
+		c.MeanReducibleAggregators = filterNames(c.MeanReducibleAggregators, on)
+		c.IndependentAggregators = filterNames(c.IndependentAggregators, on)
+		c.RecomputeAggregators = filterNames(c.RecomputeAggregators, on)
+		c.MapValuedCellAggregators = filterNames(c.MapValuedCellAggregators, on)
+		m.Crosstab = &c
+	}
+	if on(featExport) {
+		c := exportCapability()
+		c.Formats = filterSlice(c.Formats, func(f descriptor.ExportFormatCapability) bool {
+			return on(FeatureName(FeatureKindIOFormat, f.Name))
+		})
+		m.Export = &c
+	}
+	if on(featImport) {
+		c := importCapability()
+		c.Formats = filterSlice(c.Formats, func(f descriptor.ImportFormatCapability) bool {
+			return on(FeatureName(FeatureKindIOFormat, f.Name))
+		})
+		if !on(featExport) {
+			for i := range c.Formats {
+				c.Formats[i].Export = false
+			}
+		}
+		m.Import = &c
+	}
+	return m
 }
 
 // sortedSkills returns the embedded skill metadata as descriptor SkillMeta
