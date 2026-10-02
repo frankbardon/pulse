@@ -1440,6 +1440,7 @@ pulse/errors: const DetailSPSSWidth untyped string = "width"
 pulse/errors: const DetailSynthRule untyped string = "rule_index"
 pulse/errors: const DetailSynthRuleSlot untyped string = "slot"
 pulse/errors: const DetailTemplate untyped string = "template"
+pulse/errors: const DetailTimeZone untyped string = "tz"
 pulse/errors: const DetailVariable untyped string = "variable"
 pulse/errors: func Domain(c pulse/errors.Code) string
 pulse/errors: const ENCODING_INTERNAL pulse/errors.Code = "ENCODING_INTERNAL"
@@ -1696,6 +1697,7 @@ pulse/errors: const PULSE_TEST_TIES_DOMINATE pulse/errors.Code = "PULSE_TEST_TIE
 pulse/errors: const PULSE_TEST_TUKEY_REQUIRES_K_GE_3 pulse/errors.Code = "PULSE_TEST_TUKEY_REQUIRES_K_GE_3"
 pulse/errors: const PULSE_TEST_UNKNOWN_TYPE pulse/errors.Code = "PULSE_TEST_UNKNOWN_TYPE"
 pulse/errors: const PULSE_TEST_VARIANCE_ZERO pulse/errors.Code = "PULSE_TEST_VARIANCE_ZERO"
+pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_UNKNOWN"
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
 pulse/errors: const PULSE_WINDOW_INVALID pulse/errors.Code = "PULSE_WINDOW_INVALID"
 pulse/errors: func ParseCode(s string) (pulse/errors.Code, bool)
@@ -3480,4 +3482,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 37cfd0fd35e4df9a40f87dcf026fb580a8ec69553f2ce1a46092ec69a59bd32d
+// golden-hash: c9cb38b71b4b9d946274a8c75acc88a4fec9e30bc8e685b34623cc65056e3bf9

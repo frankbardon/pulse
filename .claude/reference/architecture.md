@@ -32,7 +32,7 @@ internal/io/               jobs, inference, transfer; internal/io/<fmt>/ adapter
                            + helpers exportoverlay, nullcell, settristate, setwide
 internal/synth/            generator, profile capture, structural rules, fidelity
 internal/template/         request templating (import ceiling: stdlib + types + errors)
-internal/temporal/         epoch-day + calendar math (stdlib-only leaf; public encoding forwards into it)
+internal/temporal/         epoch-day + calendar + zone math (leaf over stdlib + errors; public encoding forwards into it)
 internal/mcp/              SDK-free MCP core; internal/mcp/toolmeta/ leaf metadata
 internal/skills/           embedded skill pack (//go:embed *.md)
 internal/examples/         embedded runnable requests

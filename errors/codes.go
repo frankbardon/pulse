@@ -2272,7 +2272,22 @@ const (
 	// Details carry every rename under DetailSPSSRenames as an ordered
 	// list of {"field","name"} objects, in cohort schema order.
 	PULSE_SPSS_NAME_SANITIZED Code = "PULSE_SPSS_NAME_SANITIZED"
+
+	// PULSE_TIMEZONE_UNKNOWN indicates a time-zone name was not one
+	// Pulse accepts. The rule is strict: exactly "UTC", or an IANA
+	// Area/Location name (it contains a '/') that resolves against the
+	// tz database embedded in the binary — "Europe/Berlin", "Etc/UTC",
+	// "Etc/GMT-5". Empty, "Local", abbreviations and legacy names
+	// without a '/' ("EST", "GMT", "EST5EDT") and offset strings
+	// ("+05:00") are all refused, because each either depends on the
+	// host or names an ambiguous zone. Details carry the rejected name
+	// under DetailTimeZone.
+	PULSE_TIMEZONE_UNKNOWN Code = "PULSE_TIMEZONE_UNKNOWN"
 )
+
+// DetailTimeZone is the CodedError.Details key carrying the rejected
+// zone name on a PULSE_TIMEZONE_UNKNOWN error.
+const DetailTimeZone = "tz"
 
 // Detail map keys shared by the PULSE_TEMPLATE_* family. Every template
 // error that can name a template does so under DetailTemplate; every one
@@ -2734,6 +2749,7 @@ var allCodes = []Code{
 	PULSE_SPSS_SIDECAR_INVALID,
 	PULSE_SPSS_SIDECAR_IGNORED,
 	PULSE_SPSS_NAME_SANITIZED,
+	PULSE_TIMEZONE_UNKNOWN,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

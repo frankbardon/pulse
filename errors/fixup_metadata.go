@@ -2647,4 +2647,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TIMEZONE_UNKNOWN: {
+		Message: "The time-zone name is not one Pulse accepts. A zone is exactly \"UTC\" or an IANA Area/Location name (it contains a '/') resolved against the tz database embedded in the binary. Empty, \"Local\", abbreviations and legacy names without a '/' (EST, GMT, EST5EDT) and offset strings (+05:00) are refused because they depend on the host or name an ambiguous zone. The rejected name is under `tz` in the details.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"TimeZone"},
+				Hint:     "Use an IANA Area/Location name such as America/New_York or Europe/Berlin (names are case-sensitive), or exactly UTC.",
+				Examples: []any{"America/New_York", "Europe/Berlin", "UTC"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"TimeZone"},
+				Hint:     "For a fixed offset with no daylight-saving rules use Etc/GMT±N — note the POSIX sign is INVERTED: Etc/GMT-5 is UTC+05:00 and Etc/GMT+5 is UTC-05:00.",
+				Examples: []any{"Etc/GMT-5", "Etc/GMT+8"},
+			},
+		},
+	},
 }

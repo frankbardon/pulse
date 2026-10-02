@@ -5009,7 +5009,7 @@
         ]
       }
     ],
-    "error_codes_count": 243,
+    "error_codes_count": 244,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5256,6 +5256,7 @@
       "PULSE_TEST_TUKEY_REQUIRES_K_GE_3",
       "PULSE_TEST_UNKNOWN_TYPE",
       "PULSE_TEST_VARIANCE_ZERO",
+      "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
@@ -9759,4 +9760,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8d32bc87379e3c8802d7f1b9ab39077da00f231e86a686a4b01632a774397731
+// golden-hash: 287073584553ea878d1fc37f35155ccf70d0afa7302fe9583892decf38b0a651

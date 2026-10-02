@@ -4,8 +4,11 @@
 // and every calendar boundary computed from a day, goes through this
 // package rather than open-coding the 86,400 factor at a call site.
 //
-// It is a stdlib-only leaf: it must never import the public `encoding`
-// package (which forwards into it) or any other Pulse package.
+// It is a leaf over the stdlib plus the public `errors` package (for the
+// coded PULSE_TIMEZONE_UNKNOWN refusal): it must never import the public
+// `encoding` package (which forwards into it) or any other Pulse package.
+// It is also the only package that embeds the tz database and resolves
+// IANA zones (zone.go).
 package temporal
 
 import "time"
