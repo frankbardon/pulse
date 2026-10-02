@@ -12,23 +12,27 @@ With no profile, an instance offers everything, including features added
 in later releases. Its output is byte-identical to an instance built
 before profiles existed.
 
-> **Status (v1.0.0 alphas).** `pulse.New` parses, validates and stores a
-> profile, its `behaviour` switches take effect, and an extension
-> operator the profile omits is not registered. A built-in aggregator,
-> attribute, filter, grouper, window, feature, statistical test,
-> regression or overlay kind the profile omits behaves at run time
-> exactly as a name Pulse has never heard of — same result or error, on
-> every entry point and every overlay host, predict included — and
-> smart defaults never pick it. A request that sets a slot whose
-> capability the profile omits (`crosstab`, `joins`, or an `overlays`
-> slot with no enabled host and kind) is refused with
-> `PULSE_REQUEST_UNKNOWN_FIELD`, exactly as an unrecognised JSON key,
-> and the error's `valid_keys` list only the slots the instance offers;
-> a request template that renders such a slot fails
-> `PULSE_TEMPLATE_RENDER_INVALID`, exactly as a misspelled key.
-> The manifest, the payload schema,
-> errors and MCP filtering land in later v1.0.0 pre-releases. Writing and validating your profile now means it is
-> ready when they do.
+> **Status (v1.0.0 alphas).** An instance enforces its profile. Everything
+> the profile omits is hidden:
+>
+> - An extension operator the profile omits is not registered.
+> - A built-in aggregator, attribute, filter, grouper, window, feature,
+>   statistical test, regression or overlay kind the profile omits behaves
+>   at run time exactly as a name Pulse has never heard of: same result
+>   or error, on every entry point and every overlay host, predict
+>   included. Smart defaults never pick it.
+> - A request that sets a slot the profile omits (`crosstab`, `joins`, or
+>   an `overlays` slot with no enabled host and kind) is refused with
+>   `PULSE_REQUEST_UNKNOWN_FIELD`, exactly as an unrecognised JSON key,
+>   and `valid_keys` lists only the slots the instance offers. A request
+>   template that renders such a slot fails `PULSE_TEMPLATE_RENDER_INVALID`.
+> - `p.Manifest`, `p.PayloadSchema()` and the errors lookup describe only
+>   what the instance offers (see below).
+>
+> Library methods are **not** gated: `p.Process`, `p.Compose`, `p.Facet`,
+> `p.Lookup`, `p.Import` and the rest stay callable on every instance. A
+> profile hides names and slots, not methods. MCP registration and the
+> served skills and examples follow in later v1.0.0 pre-releases.
 
 The name is "feature profile" because "profile" already means synthetic
 data profiling (`Pulse.Profile`, `pulse profile create`).
@@ -230,6 +234,51 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   can key a cache of an instance's self-description. It hides the list
   but not its identity: anyone running the same Pulse version can tell
   an unprofiled instance's digest from a profiled one's.
+
+## What a profiled instance describes
+
+- **Manifest.** `p.Manifest(ctx)` lists only enabled operators, tests,
+  regressions, overlays, commands, MCP tools, synth distributions and
+  I/O formats. The `facet`, `process_chain`, `join`, `crosstab`, `export`
+  and `import` capability blocks are omitted when their capability is
+  off. This is a public type change: `descriptor.Manifest.Facet`,
+  `ProcessChain`, `Join`, `Crosstab`, `Export` and `Import` are now
+  pointers (nil when hidden), so code that read them as values must
+  check for nil. Prose that names a hidden feature is dropped from
+  descriptions and hints. The manifest's `skills` and examples counts
+  are not scoped yet, and `extensions.label_tables` / `range_tables`
+  still list the instance's named tables even when `capability:labels`
+  or `capability:range_tables` is off.
+- **Payload schema.** `p.PayloadSchema()` returns the JSON Schema for
+  the instance: enums keep only enabled names, hidden slots are not
+  properties, and a request root whose capability is off (compose,
+  process chain, facet, sample, lookup) is not offered. A profile-free
+  instance's schema is byte-identical to `pulse schema`'s published
+  golden apart from the digest comment. `pulse schema` serves the
+  default instance; the MCP `pulse://schema` resource is not scoped yet.
+- **Errors.** `p.ErrorLookup`, `p.ErrorsByDomain` and `p.ErrorsSearch`,
+  and the manifest's error lists, show only codes the instance can
+  raise. A hidden code looks up as unknown. `pulse errors lookup` on the
+  CLI stays unscoped.
+- **Wording follows the instance.** Some refusals and hints that used to
+  name built-ins now name only what the instance offers: the
+  zone-capable operator list, the `ATTR_RANK` to `WIN_RANK` hint (the
+  generic unknown-attribute error when `WIN_RANK` is hidden), pairwise
+  overlay advice, the facet overlay kind list, and the categorical and
+  decimal suggestion reasons. An instance without a profile reads
+  byte-identically to before.
+- **Digest.** Manifest and payload schema carry `feature_set_digest`
+  (the schema as its root `$comment`), equal to `p.FeatureSetDigest()`.
+  The field is additive; the envelope `format_version` stays `"1.1"`.
+  Do not read the digest as hiding the profile: a same-version observer
+  can tell a profiled digest from the default.
+
+### Upgrading an existing profiled instance
+
+An instance built with a profile before this release hid nothing. It now
+hides everything the profile omits, including extension operators. A
+request that used an omitted name or slot fails as if the name never
+existed. Add the names you still need to `features`.
 
 ## The MCP server
 

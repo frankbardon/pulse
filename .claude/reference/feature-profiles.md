@@ -1,10 +1,10 @@
 # Feature profiles — feature table, dependency model, profile model, validation
 
-Relocated long form for CLAUDE.md "Feature profiles". CLAUDE.md keeps the always-load half — the naming rule, "stored, not yet applied", `pulse.New` never reads the env var — plus a pointer here.
+Relocated long form for CLAUDE.md "Feature profiles". CLAUDE.md keeps the always-load half — the naming rule, the enforcement summary, `pulse.New` never reads the env var — plus a pointer here.
 
 **Load it before:** adding an operator, capability, I/O format, MCP tool or MCP prompt (each one is a feature and needs a row); touching `internal/descriptor/features.go`, root `feature_profile*.go`, an extension registration's `DependsOn`, `mcpserve/feature_profile.go`, `mcpserve/describe.go`, or the `pulse mcp --feature-profile` leaf.
 
-Status at U04 (`profiles-model`): the feature vocabulary, its dependency graph and the profile model exist; `pulse.New` validates a profile and stores it on the instance. **U05 in progress:** the resolved feature set, `InstanceSnapshot` and digest exist, omitted extension operators are dropped (see "The resolved feature set"), and a hidden built-in AGG / ATTR / FILTER / GROUP / WIN / FEAT / TEST / REG name or OVERLAY kind resolves at run time exactly as a never-registered one (see "Runtime hiding"). Predict sees only the instance too (see "Predict hiding"). A hidden request slot is refused as an unknown field (see "Request-slot gate"). Self-description is not scoped yet. The feature list takes effect in U05 (request path, manifest, payload schema, predict, errors) and U06 (MCP registration, tooling). The `behaviour` switches are the one part that takes effect today.
+Status after U05 (`profiles-enforcement`): the feature vocabulary, dependency graph and profile model exist (U04), and the instance ENFORCES its feature set. Omitted extension operators are dropped at `pulse.New` ("The resolved feature set"); a hidden built-in AGG / ATTR / FILTER / GROUP / WIN / FEAT / TEST / REG name or OVERLAY kind resolves at run time exactly as a never-registered one ("Runtime hiding", "Predict hiding"); a hidden request slot is refused as an unknown field ("Request-slot gate"); the manifest, payload schema and error lists describe only the instance ("Manifest hiding", "Payload schema hiding", "Error hiding"). **Facade methods are NOT gated** — `Process`, `Compose`, `Facet`, `Lookup`, `Import` … stay callable on every instance; a profile hides names and slots, and a method whose request needs a hidden name fails with that name's own unknown-name error. Remaining surface (MCP registration, tooling, skills/examples, session prose) is U06 / U10 — see "Notes for U05 / U06". The `behaviour` switches take effect too.
 
 ## Naming
 
@@ -109,13 +109,27 @@ On a scoped instance the assembly keeps only what `inst.Enabled` offers: `compon
 
 **Prose scrub.** Descriptions, hints and rule lists name other operators (`GROUP_CATEGORY` points at `GROUP_SET_VALUE`, chain rejection rules list aggregators, tool descriptions name tools). After filtering, `scrubManifest` deep-copies the manifest by reflection — never writing the shared capability tables (`TestBuildManifestForInstance_ScopingLeavesTablesIntact`) — and, outside `skills`, the examples fields and the error lists, drops any `[]string` element or map key that IS a hidden token and every SENTENCE (split at `. `) of any other string that mentions one; a list element left empty is dropped. Tokens are hidden operator names plus the MCP tools a hidden capability owns, matched as whole `[A-Za-z0-9_]` runs, so a family wildcard (`FILTER_SET_*`) or a longer name (`OVERLAY_PANEL_INDEX_VS_REF`) is not a hit. A sentence about an enabled operator that also names a hidden one goes too — the price of never leaking a name. Pinned per fixture by `TestManifest_FixturesNameNoHiddenFeature` (root).
 
-**Not filtered here:** `skills` and the examples counts / tags (U10), `error_codes` / `error_codes_count` / `error_domains` (E3-S3), `extensions.label_tables` / `range_tables` (named tables are not features).
+**Not filtered here:** `skills` and the examples counts / tags (U10); `error_codes` / `error_codes_count` / `error_domains` are filtered inside `assembleManifest` (see "Error hiding"); `extensions.label_tables` / `range_tables` are NOT emptied when `capability:labels` / `capability:range_tables` is hidden (named tables are not features) — an OPEN user decision, current behaviour documented, no code change.
 
 ## Payload schema hiding
 
 **`Pulse.PayloadSchema() ([]byte, error)` serves the instance's schema** (`descx.PayloadSchemaForInstance(inst)` / panic-on-marshal twin `BuildPayloadSchemaForInstance`, `internal/descriptor/schema.go`). `BuildPayloadSchema()` is the nil-instance view — the full registry — and the published golden. On a scoped instance: the registry-backed enums (`AggregationType` … `TestType`, `OverlayKind`, `RegressionType`) keep only enabled names (a family with none is an empty `enum`); the slots `HiddenSlotKeys` hides on each request root (`Request.crosstab` / `joins` / `overlays`, the `overlays` slot of `ComposedRequest` / `ChainRequest` / `FacetRequest`) are not properties; a root whose capability is hidden is not an entry point — `compose` → `ComposedRequest` / `ComposedResponse`, `process_chain` → `ChainRequest` / `ChainResponse`, `facet` → `FacetRequest` / `FacetResult`, `sample` → `SampleRequest`, `lookup` → `LookupRequest` / `LookupResult`. `Request`, `Response` and `Envelope` are always present (`Response` keeps its result-side `crosstab` / `overlays` slots; only their enums narrow). Defs are registered by walking from the surviving entries, so a def reachable only through something omitted is absent and no `$ref` dangles (`TestPayloadSchema_FixturesNameNoHiddenFeature` checks both directions per fixture). The root description names only the request roots present.
 
 `$id` never changes. The root **`$comment`** is `"feature_set_digest: <digest>"` — the manifest's digest (`manifestDigest(inst)`), so a profile-free instance's schema is byte-identical to `BuildPayloadSchema()` and the default golden moved once, by that line. `pulse schema` routes through the default CLI instance (`newPulse` + `p.PayloadSchema()`); the `pulse://schema` MCP resource still serves `BuildPayloadSchema()` (U06 scopes it).
+
+## Error hiding
+
+`Pulse.ErrorLookup` / `ErrorsByDomain` / `ErrorsSearch` and the manifest `error_codes` / `error_codes_count` / `error_domains` list only codes the instance can raise (`descx.ErrorCodeVisible`, `ErrorLookup`, `ErrorsByDomain`, `ErrorsSearch`, `internal/descriptor/errors_instance.go`); `pulse_errors_lookup` routes through the facade. A hidden code looks up exactly like an unknown one; fixup templates are stripped of hidden whole tokens (a fully stripped fixup list becomes nil). The CLI `pulse errors lookup` stays full (the CLI is not profiled). Shown codes' `Message` is never stripped, so 19 messages were reworded to name only owning features (`TestErrorMessagesNameOnlyOwners`).
+
+**The error-owner table is internal** (`internal/descriptor/error_owners.go`, `errorOwners map[errors.Code][]string`; `TestErrorOwners_Complete` pins it to `errors.AllCodes()`). A code is visible iff ANY owner is enabled, or its owner is the `shared` sentinel (listed on every instance, the empty one included). **A new error code MUST get an owner entry** (CLAUDE.md Update Demand). Rule of thumb: a code only one feature's path can raise is owned by it; a code reachable from a core path (open, inspect, predict, request decode, extension registration) or a request slot every host carries is `shared`. Contested classifications, decided: `GROUP_*` and `DEDUP_*` shared; `LABEL_*` shared except `PULSE_LABEL_TABLE_NOT_ENUMERABLE`; `SHARD_*` read codes shared; unknown-name codes (`*_UNKNOWN`, which a hidden name also raises) shared; `OVERLAY_*` / `TEST_*` / `REG_*` owned by their families; `*IMPORT_*` owned by `capability:import` + `capability:export` (Convert runs the import core); `LOOKUP_*` owned by the formula operators (`ATTR_FORMULA`, `FILTER_EXPRESSION`, `OVERLAY_FORMULA`); `RANGE` codes by `capability:range_tables` + the date-range operators. The `PULSE_FEATURE_PROFILE_*` codes are always shared.
+
+## Instance-dependent wording
+
+Refusal and hint prose that used to name built-ins as fixed text now depends on the instance; an instance with no profile is byte-identical to before. Changed: the zone-capable refusal (lists only enabled zone-capable operators), the `ATTR_RANK` → `WIN_RANK` hint (skipped when `WIN_RANK` is hidden, falling back to the generic unknown-attribute error), the pairwise `n_source` / `p_source` / `n_basis` advice, the facet-host overlay kind list, the `FEAT_TARGET_ENCODE` warning and the categorical / decimal suggestion reason fallback. Per-fixture manifest goldens include the skill list, so a skill edit moves them (`docs/src/internals/regenerating-goldens.md`).
+
+## Hard edges
+
+`capability:filter_to_file` hard-depends on `FILTER_EXPRESSION`: filter-to-file compiles every filterer into one filter expression, so a hidden `FILTER_EXPRESSION` would make every call fail.
 
 ## Validation codes and order
 
@@ -135,8 +149,17 @@ Three classes, run in order; validation **stops at the first failing class and r
 
 ## Notes for U05 / U06
 
+**Done in U05.** Extension operators omitted from a profile are hidden (dropped at `pulse.New`; embedder docs). `p.FeatureProfile()`, `p.FeatureSetDigest()` and `p.PayloadSchema()` exist. Design-doc amendments live in the roadmap (no single choke point; fixtures private; digest wording).
+
+**Deferred to U06 (MCP and tooling; inherited interim leaks).**
+
 - **`BindOnInspect` rebinds tools by name** (`internal/mcp/bind.go` `mergeEnumNames`, `buildRequestSchemaWithExtensions`), bypassing any registration-time filter — U06 must filter the rebind too.
 - **`toolmeta` descriptions name operators in prose** (`internal/mcp/toolmeta/meta.go`); filtering enums alone leaves hidden names in tool text.
-- **Prompts, the schema resource and skill resources take no `*Pulse`** (`registerPrompts`, `registerSchemaResource`, `registerSkillResources` in `mcp/gosdk`); instance-scoping needs the instance threaded in.
-- **Extension operators omitted from a profile are hidden** (done in U05: dropped at `pulse.New`; documented in the embedder docs).
-- The stored-profile accessor is `p.FeatureProfile()` (U05). The profile-tooling CLI naming (`pulse profile create` collision) is open for U06.
+- **Prompts, the `pulse://schema` resource (still `BuildPayloadSchema()`) and skill resources take no `*Pulse`** (`registerPrompts`, `registerSchemaResource`, `registerSkillResources` in `mcp/gosdk`); instance-scoping needs the instance threaded in.
+- MCP strict-decode location keys are `request_index` / `stage_index`, while the service names `request` / `stage`; unify in U06.
+- `TestProfileInvisibilityParity` malformed-request cells: pre-lookup validators (zone `tz`, field-ref param keys, strict categorical) may diverge from never-registered on malformed requests.
+- Runtime refusal text under `internal/processing` and `internal/service` is not systematically swept for hidden names; `SeriesOverlayRequest.Overlays` is method-level and ungated; `synth_fidelity.go` builds an unscoped processor for internal `TEST_KS` / `TEST_CHISQ` (audited, left).
+- Pre-existing, unrelated: a second `Request.Groups` entry with an unknown type is silently ignored; the manifest's inner `format_version` is `"1.0"`.
+- A manifest sentence about an enabled operator that also names a hidden one is dropped by the prose scrub (documented price).
+- The profile-tooling CLI naming (`pulse profile create` collision) is open for U06.
+- **U10** owns skills / examples that name hidden operators.
