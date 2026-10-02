@@ -15,8 +15,35 @@ The schema is reachable three ways, all backed by the same generator
 | **Docs URL** | <https://frankbardon.github.io/pulse/payload-schema.json> — the file's own `$id`. |
 | **CLI** | `pulse schema` prints it to stdout (offline; no cohort needed). |
 | **MCP resource** | Read `pulse://schema` (MIME `application/json`) alongside `pulse_manifest`. |
+| **Go library** | `p.PayloadSchema()` returns the schema of instance `p` as raw JSON. |
 
 The CLI and MCP surfaces emit byte-identical output to the published file.
+
+## Per-instance schema
+
+The root `$comment` carries the describing instance's feature-set digest,
+`"feature_set_digest: fs1:…"` — the same value as the manifest's
+`feature_set_digest` and `p.FeatureSetDigest()`, so both self-descriptions
+can be cached under one key. `$id` never changes.
+
+`p.PayloadSchema()` describes only what instance `p` offers. Without a
+feature profile it is the published file byte for byte. An instance built
+with a feature profile gets a narrower document:
+
+- the operator, overlay-kind and regression enums list only the enabled
+  names;
+- a request slot the instance does not offer (`crosstab`, `joins`,
+  `overlays`) is not a property of its request root;
+- a root whose capability is not offered is absent — `ComposedRequest` /
+  `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
+  (process-chain), `FacetRequest` / `FacetResult` (facet),
+  `SampleRequest` (sample), `LookupRequest` / `LookupResult` (lookup);
+- every def reachable only through an omitted part is dropped, so the
+  document stays a valid draft 2020-12 schema with no dangling `$ref`.
+
+`Request`, `Response` and `Envelope` are always present. `pulse schema`
+serves the CLI's default instance; the `pulse://schema` MCP resource
+serves the full schema.
 
 ## Structure
 

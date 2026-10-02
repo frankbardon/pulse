@@ -187,4 +187,5 @@ var (
 	_ func(*pulse.Pulse, mcpserve.Options) mcpserve.ServeInfo                           = mcpserve.Describe
 	_ func(*pulse.Pulse) string                                                         = (*pulse.Pulse).FeatureSetDigest
 	_ func(*pulse.Pulse) (*pulse.FeatureProfile, bool)                                  = (*pulse.Pulse).FeatureProfile
+	_ func(*pulse.Pulse) ([]byte, error)                                                = (*pulse.Pulse).PayloadSchema
 )

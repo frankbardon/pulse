@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/buildinfo"
 	"github.com/frankbardon/pulse/types"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -147,5 +148,157 @@ func validateAgainst(t *testing.T, c *jsonschema.Compiler, fragment string, payl
 	}
 	if err := sch.Validate(inst); err != nil {
 		t.Errorf("payload failed %s validation: %v\npayload: %s", fragment, err, raw)
+	}
+}
+
+// schemaDoc decodes a payload schema into a generic document.
+func schemaDoc(t *testing.T, raw []byte) map[string]any {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	return doc
+}
+
+// compileSchema proves raw is a valid draft 2020-12 document whose every
+// $ref resolves.
+func compileSchema(t *testing.T, raw []byte) {
+	t.Helper()
+	c := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	if err := c.AddResource(payloadSchemaID, doc); err != nil {
+		t.Fatalf("add resource: %v", err)
+	}
+	if _, err := c.Compile(payloadSchemaID); err != nil {
+		t.Fatalf("schema is not a valid draft-2020-12 schema: %v", err)
+	}
+}
+
+// TestPayloadSchemaForInstance_FullScopedEqualsBuildPayloadSchema: a
+// scoped instance enabling every reached built-in (a profile-free
+// pulse.New) and the nil instance both serve BuildPayloadSchema byte for
+// byte, and the $comment carries the digest the manifest carries.
+func TestPayloadSchemaForInstance_FullScopedEqualsBuildPayloadSchema(t *testing.T) {
+	want := string(BuildPayloadSchema())
+	full := NewInstanceSnapshot(nil, FeatureSet{Enabled: ReachedFeatureNames(buildinfo.Version())})
+	if got := string(BuildPayloadSchemaForInstance(full)); got != want {
+		t.Error("full scoped instance schema differs from BuildPayloadSchema")
+	}
+	if got, err := PayloadSchemaForInstance(nil); err != nil || string(got) != want {
+		t.Errorf("nil instance schema differs from BuildPayloadSchema (err %v)", err)
+	}
+	doc := schemaDoc(t, []byte(want))
+	if got, wantC := doc["$comment"], payloadSchemaDigestPrefix+BuildManifest().FeatureSetDigest; got != wantC {
+		t.Errorf("$comment = %v, want %q", got, wantC)
+	}
+}
+
+// TestPayloadSchemaForInstance_ScopedOmitsHidden: a narrow instance's
+// schema lists only enabled enum values, drops the hidden Request slots
+// and every def reachable only through them, drops hidden-capability
+// roots, keeps Request / Response / Envelope, stays a valid draft
+// 2020-12 document and carries the instance digest.
+func TestPayloadSchemaForInstance_ScopedOmitsHidden(t *testing.T) {
+	inst := NewInstanceSnapshot(nil, FeatureSet{Enabled: []string{
+		featProcess, "AGG_COUNT", "AGG_SUM", "GROUP_CATEGORY", "TEST_T",
+	}})
+	raw := BuildPayloadSchemaForInstance(inst)
+	compileSchema(t, raw)
+	doc := schemaDoc(t, raw)
+
+	if got, want := doc["$comment"], payloadSchemaDigestPrefix+inst.Digest(); got != want {
+		t.Errorf("$comment = %v, want %q", got, want)
+	}
+	if doc["$id"] != payloadSchemaID {
+		t.Errorf("$id = %v, want %q", doc["$id"], payloadSchemaID)
+	}
+	defs := doc["$defs"].(map[string]any)
+
+	enum := func(name string) []any {
+		def, ok := defs[name].(map[string]any)
+		if !ok {
+			t.Fatalf("$defs.%s missing", name)
+		}
+		e, _ := def["enum"].([]any)
+		return e
+	}
+	for name, want := range map[string][]any{
+		"AggregationType": {"AGG_COUNT", "AGG_SUM"},
+		"GroupType":       {"GROUP_CATEGORY"},
+		"TestType":        {"TEST_T"},
+		"FiltererType":    {},
+		"OverlayKind":     {},
+		"RegressionType":  {},
+	} {
+		got := enum(name)
+		if len(got) != len(want) {
+			t.Errorf("$defs.%s enum = %v, want %v", name, got, want)
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("$defs.%s enum = %v, want %v", name, got, want)
+				break
+			}
+		}
+	}
+
+	props := defs["Request"].(map[string]any)["properties"].(map[string]any)
+	for _, k := range []string{"crosstab", "joins", "overlays"} {
+		if _, ok := props[k]; ok {
+			t.Errorf("Request.%s present on an instance hiding it", k)
+		}
+	}
+	if _, ok := props["aggregations"]; !ok {
+		t.Error("Request.aggregations missing")
+	}
+	for _, name := range []string{
+		"CrosstabSpec", "JoinSpec", "OverlaySpec", // reachable only through hidden slots
+		"ComposedRequest", "ComposedResponse", "ChainRequest", "ChainResponse",
+		"FacetRequest", "FacetResult", "SampleRequest", "LookupRequest", "LookupResult",
+	} {
+		if _, ok := defs[name]; ok {
+			t.Errorf("$defs.%s present on an instance hiding it", name)
+		}
+	}
+	for _, name := range []string{"Request", "Response", "Envelope"} {
+		if _, ok := defs[name]; !ok {
+			t.Errorf("$defs.%s missing", name)
+		}
+	}
+	if desc := doc["description"].(string); bytes.Contains([]byte(desc), []byte("ComposedRequest")) {
+		t.Errorf("root description names a hidden root: %q", desc)
+	}
+}
+
+// TestPayloadSchemaForInstance_EnabledCapabilityKeepsRoot: enabling a
+// capability brings its root (and, for a host listing an enabled
+// overlay kind, the overlays slot) back.
+func TestPayloadSchemaForInstance_EnabledCapabilityKeepsRoot(t *testing.T) {
+	inst := NewInstanceSnapshot(nil, FeatureSet{Enabled: []string{
+		featProcess, featCompose, featSample, featCrosstab, "AGG_COUNT", "OVERLAY_SHARE_OF_ROW",
+	}})
+	raw := BuildPayloadSchemaForInstance(inst)
+	compileSchema(t, raw)
+	defs := schemaDoc(t, raw)["$defs"].(map[string]any)
+	for _, name := range []string{"ComposedRequest", "ComposedResponse", "SampleRequest", "CrosstabSpec", "OverlaySpec"} {
+		if _, ok := defs[name]; !ok {
+			t.Errorf("$defs.%s missing on an instance enabling it", name)
+		}
+	}
+	for _, name := range []string{"ChainRequest", "FacetRequest", "LookupRequest", "JoinSpec"} {
+		if _, ok := defs[name]; ok {
+			t.Errorf("$defs.%s present on an instance hiding it", name)
+		}
+	}
+	props := defs["Request"].(map[string]any)["properties"].(map[string]any)
+	for _, k := range []string{"crosstab", "overlays"} {
+		if _, ok := props[k]; !ok {
+			t.Errorf("Request.%s missing on an instance enabling it", k)
+		}
 	}
 }

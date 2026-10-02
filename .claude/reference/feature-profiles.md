@@ -111,6 +111,12 @@ On a scoped instance the assembly keeps only what `inst.Enabled` offers: `compon
 
 **Not filtered here:** `skills` and the examples counts / tags (U10), `error_codes` / `error_codes_count` / `error_domains` (E3-S3), `extensions.label_tables` / `range_tables` (named tables are not features).
 
+## Payload schema hiding
+
+**`Pulse.PayloadSchema() ([]byte, error)` serves the instance's schema** (`descx.PayloadSchemaForInstance(inst)` / panic-on-marshal twin `BuildPayloadSchemaForInstance`, `internal/descriptor/schema.go`). `BuildPayloadSchema()` is the nil-instance view — the full registry — and the published golden. On a scoped instance: the registry-backed enums (`AggregationType` … `TestType`, `OverlayKind`, `RegressionType`) keep only enabled names (a family with none is an empty `enum`); the slots `HiddenSlotKeys` hides on each request root (`Request.crosstab` / `joins` / `overlays`, the `overlays` slot of `ComposedRequest` / `ChainRequest` / `FacetRequest`) are not properties; a root whose capability is hidden is not an entry point — `compose` → `ComposedRequest` / `ComposedResponse`, `process_chain` → `ChainRequest` / `ChainResponse`, `facet` → `FacetRequest` / `FacetResult`, `sample` → `SampleRequest`, `lookup` → `LookupRequest` / `LookupResult`. `Request`, `Response` and `Envelope` are always present (`Response` keeps its result-side `crosstab` / `overlays` slots; only their enums narrow). Defs are registered by walking from the surviving entries, so a def reachable only through something omitted is absent and no `$ref` dangles (`TestPayloadSchema_FixturesNameNoHiddenFeature` checks both directions per fixture). The root description names only the request roots present.
+
+`$id` never changes. The root **`$comment`** is `"feature_set_digest: <digest>"` — the manifest's digest (`manifestDigest(inst)`), so a profile-free instance's schema is byte-identical to `BuildPayloadSchema()` and the default golden moved once, by that line. `pulse schema` routes through the default CLI instance (`newPulse` + `p.PayloadSchema()`); the `pulse://schema` MCP resource still serves `BuildPayloadSchema()` (U06 scopes it).
+
 ## Validation codes and order
 
 Three classes, run in order; validation **stops at the first failing class and reports EVERY instance of that class, sorted** (`TestFeatureProfile_ClassOrder`). All raised with their own code; prose and fixups in `errors/fixup_metadata.go`.

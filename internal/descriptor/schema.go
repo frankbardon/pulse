@@ -3,7 +3,9 @@ package descriptor
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/types"
@@ -56,8 +58,76 @@ const (
 // The result marshals deterministically: every object is a map (encoding
 // /json sorts keys) and every enum / required list is sorted, so the
 // golden is stable across runs and Go versions.
+//
+// It is the profile-free view: BuildPayloadSchemaForInstance(nil).
 func BuildPayloadSchema() json.RawMessage {
-	b := newSchemaBuilder()
+	return BuildPayloadSchemaForInstance(nil)
+}
+
+// payloadEntry is one root entry point of the payload schema. feature,
+// when set, is the capability that offers the entry: an instance hiding
+// it omits the entry (and every def reachable only through it).
+type payloadEntry struct {
+	t       reflect.Type
+	note    string
+	feature string
+}
+
+// payloadEntries lists the schema's root entry points. Request,
+// Response and Envelope are ungated: every instance describes them.
+func payloadEntries() []payloadEntry {
+	return []payloadEntry{
+		{reflect.TypeFor[types.Request](), "process / predict request", ""},
+		{reflect.TypeFor[types.ComposedRequest](), "compose request", featCompose},
+		{reflect.TypeFor[types.ChainRequest](), "process-chain request", featProcessChain},
+		{reflect.TypeFor[types.FacetRequest](), "facet request", featFacet},
+		{reflect.TypeFor[types.SampleRequest](), "sample request", featSample},
+		{reflect.TypeFor[types.LookupRequest](), "point-lookup request", featLookup},
+		{reflect.TypeFor[types.Response](), "process / predict result", ""},
+		{reflect.TypeFor[types.ComposedResponse](), "compose result", featCompose},
+		{reflect.TypeFor[types.ChainResponse](), "process-chain result", featProcessChain},
+		{reflect.TypeFor[types.FacetResult](), "facet result", featFacet},
+		{reflect.TypeFor[types.LookupResult](), "point-lookup result", featLookup},
+		{reflect.TypeFor[descriptor.Envelope](), "universal --json output envelope (data wraps the operation result)", ""},
+	}
+}
+
+// payloadSchemaDigestPrefix leads the root $comment; the instance's
+// feature_set_digest follows it.
+const payloadSchemaDigestPrefix = "feature_set_digest: "
+
+// BuildPayloadSchemaForInstance returns the payload schema of ONE
+// instance — only what inst offers:
+//
+//   - the registry-backed enums (operator, overlay-kind and regression
+//     families) list only enabled names;
+//   - the capability-gated request slots inst hides (HiddenSlotKeys:
+//     Request.crosstab / joins / overlays and the overlays slot of each
+//     other request root) are not properties;
+//   - a root whose capability is hidden (compose, process_chain, facet,
+//     sample, lookup) is not an entry point;
+//
+// and every def reachable only through something omitted is absent,
+// because defs are registered by walking from the surviving entries.
+// Request, Response and Envelope are always present. $id is unchanged;
+// the root $comment carries the instance's feature_set_digest (the same
+// value its manifest carries). A nil / unscoped instance is the full
+// registry view BuildPayloadSchema serves.
+func BuildPayloadSchemaForInstance(inst *InstanceSnapshot) json.RawMessage {
+	out, err := PayloadSchemaForInstance(inst)
+	if err != nil {
+		// The input is composed entirely of marshalable maps/slices/strings;
+		// a failure here is a programming error, surfaced loudly.
+		panic("descriptor: BuildPayloadSchema marshal: " + err.Error())
+	}
+	return out
+}
+
+// PayloadSchemaForInstance is BuildPayloadSchemaForInstance returning
+// the (programming-error-only) marshal failure instead of panicking —
+// the form the Pulse.PayloadSchema facade serves.
+func PayloadSchemaForInstance(inst *InstanceSnapshot) (json.RawMessage, error) {
+	b := newSchemaBuilder(inst)
 
 	// Entry points. Order matters only for the root oneOf, which we sort.
 	// Both request and result shapes are first-class entry points. The
@@ -65,50 +135,40 @@ func BuildPayloadSchema() json.RawMessage {
 	// process, manifest, predict, inspect, …), so it stays open; consumers
 	// validate the unwrapped result against its own def (#/$defs/Response,
 	// etc.) rather than relying on the envelope to constrain it.
-	entries := []struct {
-		t    reflect.Type
-		note string
-	}{
-		{reflect.TypeFor[types.Request](), "process / predict request"},
-		{reflect.TypeFor[types.ComposedRequest](), "compose request"},
-		{reflect.TypeFor[types.ChainRequest](), "process-chain request"},
-		{reflect.TypeFor[types.FacetRequest](), "facet request"},
-		{reflect.TypeFor[types.SampleRequest](), "sample request"},
-		{reflect.TypeFor[types.LookupRequest](), "point-lookup request"},
-		{reflect.TypeFor[types.Response](), "process / predict result"},
-		{reflect.TypeFor[types.ComposedResponse](), "compose result"},
-		{reflect.TypeFor[types.ChainResponse](), "process-chain result"},
-		{reflect.TypeFor[types.FacetResult](), "facet result"},
-		{reflect.TypeFor[types.LookupResult](), "point-lookup result"},
-		{reflect.TypeFor[descriptor.Envelope](), "universal --json output envelope (data wraps the operation result)"},
-	}
-
 	var rootOneOf []any
-	for _, e := range entries {
+	var altRequests []string
+	for _, e := range payloadEntries() {
+		if e.feature != "" && !inst.Enabled(e.feature) {
+			continue
+		}
 		name := b.register(e.t)
 		rootOneOf = append(rootOneOf, map[string]any{"$ref": "#/$defs/" + name})
+		// The root description names the alternative request roots
+		// present (point lookup is not a validated request body there).
+		if name != "Request" && strings.HasSuffix(name, "Request") && name != "LookupRequest" {
+			altRequests = append(altRequests, name)
+		}
 	}
 	sort.Slice(rootOneOf, func(i, j int) bool {
 		return rootOneOf[i].(map[string]any)["$ref"].(string) < rootOneOf[j].(map[string]any)["$ref"].(string)
 	})
 
+	validate := "#/$defs/Request"
+	if len(altRequests) > 0 {
+		validate += " (or " + strings.Join(altRequests, " / ") + ")"
+	}
 	root := map[string]any{
 		"$schema":     payloadSchemaDialect,
 		"$id":         payloadSchemaID,
+		"$comment":    payloadSchemaDigestPrefix + manifestDigest(inst),
 		"title":       "Pulse payload contract",
-		"description": "JSON Schema for every public Pulse payload. Validate a request against #/$defs/Request (or ComposedRequest / ChainRequest / FacetRequest / SampleRequest); all --json output is #/$defs/Envelope. format_version " + PayloadSchemaFormatVersion + ".",
+		"description": "JSON Schema for every public Pulse payload. Validate a request against " + validate + "; all --json output is #/$defs/Envelope. format_version " + PayloadSchemaFormatVersion + ".",
 		"oneOf":       rootOneOf,
 		"$defs":       b.defs,
 	}
 
 	// MarshalIndent for a human-readable, diffable golden + published file.
-	out, err := json.MarshalIndent(root, "", "  ")
-	if err != nil {
-		// The input is composed entirely of marshalable maps/slices/strings;
-		// a failure here is a programming error, surfaced loudly.
-		panic("descriptor: BuildPayloadSchema marshal: " + err.Error())
-	}
-	return out
+	return json.MarshalIndent(root, "", "  ")
 }
 
 // rawMessageType and anyType are reused across the reflective walk.
@@ -120,7 +180,10 @@ var (
 // enumValues maps an enum string type to its registry-backed value list.
 // Only the high-cardinality, drift-prone families are listed; the small
 // closed mode enums intentionally fall through to a plain string schema.
-func enumValues() map[reflect.Type][]string {
+//
+// On a scoped instance each list keeps only the names inst enables; a
+// family left with nothing enabled is an empty enum (no value is valid).
+func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	m := map[reflect.Type][]string{
 		reflect.TypeFor[types.AggregationType](): stringify(types.AllAggregationTypes()),
 		reflect.TypeFor[types.FiltererType]():    stringify(types.AllFiltererTypes()),
@@ -131,6 +194,9 @@ func enumValues() map[reflect.Type][]string {
 		reflect.TypeFor[types.TestType]():        stringify(types.AllTestTypes()),
 		reflect.TypeFor[types.OverlayKind]():     stringify(types.AllOverlayKinds()),
 		reflect.TypeFor[types.RegressionType]():  stringify(types.AllRegressionTypes()),
+	}
+	for t, vals := range m {
+		m[t] = filterNames(vals, inst.Enabled)
 	}
 	return m
 }
@@ -149,12 +215,14 @@ func stringify[T ~string](in []T) []string {
 type schemaBuilder struct {
 	defs  map[string]any
 	enums map[reflect.Type][]string
+	inst  *InstanceSnapshot
 }
 
-func newSchemaBuilder() *schemaBuilder {
+func newSchemaBuilder(inst *InstanceSnapshot) *schemaBuilder {
 	return &schemaBuilder{
 		defs:  map[string]any{},
-		enums: enumValues(),
+		enums: enumValues(inst),
+		inst:  inst,
 	}
 }
 
@@ -260,9 +328,13 @@ func (b *schemaBuilder) schemaFor(t reflect.Type, inlineNamed bool) any {
 
 // structSchema reflects a struct into an object schema, honouring json
 // tags, omitempty/omitzero (→ optional), and "-" (→ skipped).
+//
+// A capability-gated request slot the instance hides is skipped like a
+// "-" field, so neither it nor any def reachable only through it appears.
 func (b *schemaBuilder) structSchema(t reflect.Type) any {
 	props := map[string]any{}
 	var required []string
+	hidden := HiddenSlotKeys(reflect.New(t).Interface(), b.inst)
 
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -270,7 +342,7 @@ func (b *schemaBuilder) structSchema(t reflect.Type) any {
 			continue
 		}
 		name, opts, skip := jsonFieldName(f)
-		if skip {
+		if skip || slices.Contains(hidden, name) {
 			continue
 		}
 		if f.Anonymous && f.Type.Kind() == reflect.Struct && name == f.Name {

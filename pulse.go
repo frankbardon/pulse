@@ -1901,6 +1901,22 @@ func (p *Pulse) Manifest(_ context.Context) *descriptor.Manifest {
 	return descx.BuildManifestForInstance(p.svc.InstanceSnapshot())
 }
 
+// PayloadSchema returns the instance's payload JSON Schema (draft
+// 2020-12) as raw JSON: only what it offers. The operator, overlay-kind
+// and regression enums list only enabled names; a hidden request slot
+// (crosstab, joins, overlays) is not a property; a hidden capability's
+// root (compose, process_chain, facet, sample, lookup) is not an entry
+// point; and no def reachable only through an omitted part remains.
+// Request, Response and Envelope are always present and $id is
+// unchanged. The root $comment carries the instance's
+// feature_set_digest ("feature_set_digest: fs1:…"), equal to
+// FeatureSetDigest and to the manifest's, so the two self-descriptions
+// cache under one key. Without a feature profile the output is the
+// published full-registry schema.
+func (p *Pulse) PayloadSchema() ([]byte, error) {
+	return descx.PayloadSchemaForInstance(p.svc.InstanceSnapshot())
+}
+
 // Fs returns the underlying afero.Fs. Embedders (e.g. the MCP server) need
 // this to enumerate .pulse files; processing methods route through service
 // and never expose the filesystem directly.
