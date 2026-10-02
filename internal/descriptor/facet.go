@@ -204,19 +204,13 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		}
 	}
 
-	for _, fil := range req.Filterers {
-		if fil == nil || fil.Field == "" {
-			continue
-		}
-		if schema.Field(fil.Field) == nil {
-			env.AddError(string(errors.SERVICE_VALIDATION),
-				fmt.Sprintf("filterer references unknown field: %s", fil.Field),
-				map[string]any{"field": fil.Field, "filterer": string(fil.Type)})
-		}
-	}
-
+	// Zones, then the shared filterer field-reference rule — the order
+	// FacetSchema applies them in.
 	if _, zerr := ResolveFacetZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader); zerr != nil {
 		addCodedError(env, zerr)
+	}
+	for _, ce := range FacetFieldRefRefusals(req, schema) {
+		addCodedError(env, ce)
 	}
 
 	// Validate label bindings against the resolved schema. Facet has no

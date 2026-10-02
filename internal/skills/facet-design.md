@@ -37,13 +37,15 @@ Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictio
 
 ## Additive contribution counts
 
-For each `AdditiveFields` entry F, the engine builds a scope filter = base `Filterers` minus every clause targeting F, then runs a parallel discrete accumulator. Result at `FacetResult.Additive[F]`. Answers "if I added V to my filter on F, how many records survive?" per V — no round-trip per value. When no base clause names F, the scope filter equals the base filter.
+For each `AdditiveFields` entry F, the engine builds a scope filter = base `Filterers` minus every clause targeting F, then runs a parallel discrete accumulator. Result at `FacetResult.Additive[F]`. Answers "if I added V to my filter on F, how many records survive?" per V. When no base clause names F, the scope filter equals the base filter.
 
 `FILTER_EXPRESSION` restriction: the scope-stripper cannot remove a clause hidden inside an expression body — requests referencing an additive field inside `FILTER_EXPRESSION` are rejected with `SERVICE_VALIDATION`. Use discrete `FILTER_INCLUDE`/`FILTER_EXCLUDE` instead.
 
 ## Streamability
 
 Single-pass when: no `numeric_percentiles`; AND `include_histogram=false` OR `histogram_range` supplied; AND every filterer is row-local. Buffered otherwise. Manifest: `manifest.facet.streamable_conditions`.
+
+A filterer naming an unknown field is refused by `FacetSchema` and predict alike with `Process`'s rule: `SERVICE_VALIDATION` `filter references unknown field: <f>`.
 
 ## FACET-host overlays
 

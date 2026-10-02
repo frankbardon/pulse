@@ -50,6 +50,17 @@ func (s *Service) checkFieldRefs(req *types.Request, schema *encoding.Schema) er
 	return markLocated(descx.FieldRefRefusal(req, schema))
 }
 
+// checkFacetFieldRefs is checkFieldRefs for a FacetRequest's
+// filterers (internal/descriptor.FacetFieldRefRefusals — the rule
+// ValidateFacet reports). FacetSchema calls it right after
+// resolveFacetZones, before any record is read.
+func (s *Service) checkFacetFieldRefs(req *types.FacetRequest, schema *encoding.Schema) error {
+	if all := descx.FacetFieldRefRefusals(req, schema); len(all) > 0 {
+		return markLocated(all[0])
+	}
+	return nil
+}
+
 // resolveFacetZones is resolveZones for a FacetRequest's filterers.
 func (s *Service) resolveFacetZones(req *types.FacetRequest, schema *encoding.Schema) error {
 	_, err := descx.ResolveFacetZones(req, schema, s.defaultZone, s.ZoneLoader())

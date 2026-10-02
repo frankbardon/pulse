@@ -26,6 +26,19 @@ func FieldRefRefusal(req *types.Request, schema *encoding.Schema) error {
 	return nil
 }
 
+// FacetFieldRefRefusals is FieldRefRefusals for a FacetRequest: its
+// filterers are judged by the Request filterer rule against the cohort
+// schema (a facet has no features, so the schema is the whole column
+// set). FacetSchema applies the first entry right after its zone pass;
+// ValidateFacet reports every entry at the same point. Fields and
+// AdditiveFields keep their own facet-specific refusals.
+func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema) []*errors.CodedError {
+	if req == nil {
+		return nil
+	}
+	return FieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema)
+}
+
 // FieldRefRefusals walks every slot that names a field, in PIPELINE
 // order, against the columns available at that point:
 //
