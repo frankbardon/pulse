@@ -508,6 +508,13 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
 	}
 
+	// The v1 join-count rule, shared with predict and the validators.
+	// It runs before the crosstab dispatch so a crosstab carrying more
+	// than one JoinSpec is refused under the same code.
+	if err := descx.JoinCountRefusal(req); err != nil {
+		return nil, err
+	}
+
 	if req.Crosstab != nil {
 		return s.processCrosstab(ctx, req)
 	}

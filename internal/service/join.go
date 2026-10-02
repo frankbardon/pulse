@@ -18,11 +18,7 @@ import (
 // shards on the join leg. See skills/join-design.md for the v1
 // scope envelope.
 func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*types.Response, error) {
-	if len(req.Joins) > 1 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_TOO_MANY,
-			"v1 supports exactly one JoinSpec per Request",
-			map[string]any{"count": len(req.Joins)})
-	}
+	// Process applied descx.JoinCountRefusal before dispatching here.
 	spec := req.Joins[0]
 	if spec == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")

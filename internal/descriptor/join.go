@@ -21,6 +21,22 @@ type JoinValidationResult struct {
 	JoinedFields []string                      `json:"joined_fields,omitempty"`
 }
 
+// JoinCountRefusal is the v1 join-count rule — exactly one JoinSpec
+// per Request — shared by runtime Process (internal/service, checked
+// before the crosstab and join dispatch) and every no-execute
+// validator (Predict, ValidateJoin, the Compose slots, chain stage 0),
+// so both refuse with the same code, message and details: a
+// PULSE_JOIN_TOO_MANY {count} for more than one JoinSpec, nil
+// otherwise (including no join at all).
+func JoinCountRefusal(req *types.Request) error {
+	if req == nil || len(req.Joins) <= 1 {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_TOO_MANY,
+		"v1 supports exactly one JoinSpec per Request",
+		map[string]any{"count": len(req.Joins)})
+}
+
 // ValidateJoin validates a Request whose Joins slot carries one
 // JoinSpec against the headers + schemas of the left and right
 // cohorts. It never reads record data — descriptor's no-execute
@@ -41,10 +57,8 @@ func ValidateJoin(leftData, rightData io.ReadSeeker, req *types.Request) *descri
 		result.Valid = false
 		return env
 	}
-	if len(req.Joins) > 1 {
-		env.AddError(string(errors.PULSE_JOIN_TOO_MANY),
-			"v1 supports exactly one JoinSpec per Request",
-			map[string]any{"count": len(req.Joins)})
+	if jerr := JoinCountRefusal(req); jerr != nil {
+		addCodedError(env, jerr)
 	}
 	spec := req.Joins[0]
 	if spec == nil {

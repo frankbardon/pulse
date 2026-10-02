@@ -125,7 +125,7 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 	// slot's Process — against the slot's cohort (or joined) schema
 	// read through opts.SchemaLoader. A refusal carries the slot index
 	// under details.request, as the runtime's does.
-	validateComposeZones(env, req, opts)
+	validateComposeSlots(env, req, opts)
 
 	if len(req.Overlays) == 0 {
 		if len(env.Errors) > 0 {
@@ -738,15 +738,23 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 	})
 }
 
-// validateComposeZones resolves every slot's zones the way the runtime
-// does (defaults, then ResolveZones) and records each refusal tagged
-// with its slot index. Without a SchemaLoader (or for a cohort it
+// validateComposeSlots runs each slot's runtime-entry checks in the
+// runtime's order — the join-count rule (processJoinCountRefusal), then
+// zones the way the runtime resolves them (defaults, then
+// ResolveZones) — and records each zone refusal tagged with its slot
+// index. Without a SchemaLoader (or for a cohort it
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
-func validateComposeZones(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions) {
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions) {
 	for i, slot := range req.Requests {
 		if slot == nil {
+			continue
+		}
+		// The slot's Process refuses a second JoinSpec before it
+		// resolves a zone (the runtime carries no slot location).
+		if jerr := JoinCountRefusal(slot); jerr != nil {
+			addCodedError(env, jerr)
 			continue
 		}
 		schema := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)

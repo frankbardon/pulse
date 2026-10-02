@@ -204,6 +204,12 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		result.SchemaInfo.Fields = append(result.SchemaInfo.Fields, f.Name)
 	}
 
+	// More than one JoinSpec: the runtime refuses before it opens a
+	// cohort or applies a default, so predict reports it first.
+	if jerr := JoinCountRefusal(req); jerr != nil {
+		addCodedError(env, jerr)
+	}
+
 	// A join executes over the joined schema; validate against it.
 	// SchemaInfo above stays the cohort's own schema.
 	cohortSchema := schema

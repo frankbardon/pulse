@@ -102,8 +102,10 @@ func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest
 // reach: opts.Extensions is the chain-gate snapshot, and
 // opts.DefaultTimeZone / ZoneLoader / DisableDefaults / SchemaLoader
 // drive the per-stage zone resolution — the runtime's order: defaults,
-// zones, then the chain gate, each refusal tagged details.stage. A nil
-// opts is ValidateChain.
+// zones, then the chain gate, each zone refusal tagged details.stage
+// (a joined stage 0: gate, the join-count rule, then zones). The gate,
+// the field checks and stage-schema propagation run on the defaulted
+// stage, as the runtime does. A nil opts is ValidateChain.
 func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
@@ -152,20 +154,37 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 				map[string]any{"stage_index": i})
 			continue
 		}
-		zoneSchema := current
-		if i == 0 {
-			zoneSchema = validatorRequestSchema(stage.Request, current, opts)
+		// The runtime applies smart defaults to every stage against
+		// its input schema (the cohort's for stage 0, even when it
+		// joins) BEFORE the chain gate, so the gate, the field checks
+		// and the next stage's synthesised schema (whose aggregator
+		// labels embed the Type) all see the defaulted stage. The
+		// echoed Request stays as written.
+		staged := chainStageDefaulted(stage.Request, current, opts)
+		// A joined stage 0 resolves zones inside Process — after the
+		// gate and the join-count rule; every other stage resolves
+		// before the gate.
+		joined := i == 0 && len(stage.Request.Joins) > 0
+		if !joined {
+			if _, zerr := resolveRequestZones(stage.Request, current, opts); zerr != nil {
+				addCodedError(env, ZoneRefusalAt(zerr, "stage", i))
+			}
 		}
-		if _, zerr := resolveRequestZones(stage.Request, zoneSchema, opts); zerr != nil {
-			addCodedError(env, ZoneRefusalAt(zerr, "stage", i))
+		gateOK := chainGateOK(staged, snap, env, i, stage.Name)
+		if joined {
+			if jerr := JoinCountRefusal(stage.Request); jerr != nil {
+				addCodedError(env, jerr)
+			} else if _, zerr := resolveRequestZones(stage.Request, validatorRequestSchema(stage.Request, current, opts), opts); zerr != nil {
+				addCodedError(env, ZoneRefusalAt(zerr, "stage", i))
+			}
 		}
-		if !chainGateOK(stage.Request, snap, env, i, stage.Name) {
+		if !gateOK {
 			continue
 		}
-		validateChainStageFields(stage.Request, current, env, i, stage.Name)
-		next := chainPredictedOutputFields(stage.Request)
+		validateChainStageFields(staged, current, env, i, stage.Name)
+		next := chainPredictedOutputFields(staged)
 		result.StageSchemas = append(result.StageSchemas, next)
-		current = synthChainSchema(stage.Request)
+		current = synthChainSchema(staged)
 	}
 
 	// Whole-chain overlay walk. Runs after the per-stage gate so
@@ -183,6 +202,19 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 // reader from bytes.
 func ValidateChainFromBytes(data []byte, req *types.ChainRequest) *descriptor.Envelope {
 	return ValidateChain(bytes.NewReader(data), req)
+}
+
+// chainStageDefaulted is the stage the runtime gates and executes: a
+// clone with the shared smart-defaults pass (ResolveDefaults — the
+// one the runtime's applyDefaults calls) run against the stage's input
+// schema, unless opts.DisableDefaults. The caller's request is never
+// mutated.
+func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictOptions) *types.Request {
+	clone := cloneRequestForDefaults(req)
+	if !opts.DisableDefaults && in != nil {
+		ResolveDefaults(clone, in)
+	}
+	return clone
 }
 
 // chainGateOK checks that a stage's operator set fits the v1 chain
