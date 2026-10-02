@@ -22,6 +22,8 @@ branch: weighting-inferential
 
 Extend weighting to inference: weighted `TEST_*` and significance overlays using Kish `n_eff` for probability weights, weighted attributes (`ATTR_ZSCORE`/`PERCENTILE`/`NORMALIZED`), weighted `GROUP_QUANTILE`, and weighted regressions (WLS / weighted IRLS). Completes the weighting gates and fixtures.
 
+> **Already shipped (v0.39.1, forward-ported to `main`; status unchanged, nothing ticked here).** The weighted pairwise two-means z overlay `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` exists, with a required `n_basis` param: `weights` (`n = Σw`) or `kish` (`n = n_eff`). It reads `m2_weighted`, `sum_weights_sq`, `weighted_variance` and `n_eff` off `AGG_WEIGHTED_MEAN` cell Components. The remaining overlays, tests, attributes and regressions in this unit are not started. The existing `sum_weights` key versus the planned `w_sum` naming is U11's to reconcile.
+
 ## References
 
 **Theme documents (read before starting):**
