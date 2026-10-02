@@ -114,7 +114,7 @@ func runProcessAndExpectOneAggSlot(t *testing.T, svc *Service, req *types.Reques
 }
 
 // mapKeysSorted returns the sorted key set of m. Local copy of the
-// helper from processing/aggregator_components_test.go so this file
+// helper from internal/processing/aggregator_components_test.go so this file
 // can stand alone in internal/service/.
 func mapKeysSorted(m map[string]any) []string {
 	if len(m) == 0 {

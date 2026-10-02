@@ -49,7 +49,7 @@ const (
 	//	p_value       = 1 - chi2_cdf(chisq, df)
 	//
 	// Implementation reuses the χ² survival helper that backs TEST_CHISQ
-	// (processing/test_stat.go chiSquareSurvival) so the overlay and the
+	// (internal/processing/test_stat.go chiSquareSurvival) so the overlay and the
 	// row-test surface produce identical p-values for the same
 	// contingency.
 	//
@@ -203,7 +203,7 @@ const (
 	//
 	// Reuses the χ² survival helper backing TEST_CHISQ and the
 	// MATRIX-host CHISQ family (chiSquareSurvival in
-	// processing/test_stat.go) so the overlay and the row-test surface
+	// internal/processing/test_stat.go) so the overlay and the row-test surface
 	// produce identical p-values for the same contingency.
 	//
 	// Streaming finalize hook: the handler runs at the FacetSchema
@@ -309,7 +309,7 @@ const (
 	// probabilities P(X = x | row_margin, col_margin, grand_total) for
 	// every feasible x in the marginal-constrained range whose log-
 	// probability is at most logPObs (the observed table's log-prob).
-	// Reuses logHypergeometric (processing/test_fisher.go) so the overlay
+	// Reuses logHypergeometric (internal/processing/test_fisher.go) so the overlay
 	// surface produces identical p-values to TEST_FISHER_EXACT for the
 	// same 2×2.
 	//
@@ -593,7 +593,7 @@ const (
 	// — `Field` names a grouper Field present on the SERIES host, `Value`
 	// names the specific axis-key value to compare against. The sibling
 	// reference resolves to a single host group via the sibling resolver
-	// (`processing/overlay_sibling_resolver.go`); every present group
+	// (`internal/processing/overlay_sibling_resolver.go`); every present group
 	// emits a delta against that fixed reference point. The sibling
 	// group itself emits `0` (self-vs-self under additive subtraction).
 	//
@@ -997,7 +997,7 @@ const (
 	// (ProcessChain) host with a shape inherited from the target stage
 	// (scalar / series / matrix depending on the target stage's host
 	// result shape). The first whole-chain overlay in the catalog
-	// (whole-chain kind; runtime handler in processing/) and the
+	// (whole-chain kind; runtime handler in internal/processing/) and the
 	// first kind to consume the StageRef discriminated reference family
 	// (Ref + Target slots on `ChainOverlaySpec` — both populate exactly
 	// one of Index / Name per StageRef value).
@@ -1060,7 +1060,7 @@ const (
 	// host with a shape inherited from the target stage (scalar / series
 	// / matrix depending on the target stage's host result shape).
 	// Second whole-chain overlay in the catalog (runtime handler in
-	// processing/).
+	// internal/processing/).
 	//
 	// Math (per host coordinate `k`):
 	//
@@ -1101,7 +1101,7 @@ const (
 	// grouper Field present on the SERIES host, `Value` names the
 	// specific axis-key value to compare against. The sibling reference
 	// resolves to a single host group via the sibling resolver
-	// (`processing/overlay_sibling_resolver.go`); every present group
+	// (`internal/processing/overlay_sibling_resolver.go`); every present group
 	// emits an index against that fixed reference point. The sibling
 	// group itself emits `100.0` (self-vs-self under the ratio scaling).
 	//
@@ -1230,10 +1230,10 @@ const (
 	//	p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
 	//
 	// Reuses the same Kolmogorov-survival helper backing TEST_KS
-	// (kolmogorovSurvival in processing/test_stat.go) so the overlay and
+	// (kolmogorovSurvival in internal/processing/test_stat.go) so the overlay and
 	// the row-test surface produce identical p-values for the same D + N.
 	// The empirical-CDF distance reuses the same `ksTwoSampleD` helper
-	// pattern (processing/test_ks.go) — for KS_VS_POP the handler hand-
+	// pattern (internal/processing/test_ks.go) — for KS_VS_POP the handler hand-
 	// rolls a histogram-edge or percentile-anchor sup-CDF walk because the
 	// population view does not retain raw values (see below).
 	//
@@ -1378,7 +1378,7 @@ const (
 	//     order, each carrying the share on `Summary.Statistic`.
 	//     Streamable — sibling kind to OVERLAY_INDEX_VS_TOTAL, same
 	//     grand-total accumulator (`computeSeriesGrandTotal` in
-	//     processing/overlay_series.go) carried alongside the per-group
+	//     internal/processing/overlay_series.go) carried alongside the per-group
 	//     accumulators in the streaming Process fold (the streaming
 	//     orchestrator wires it inline; this kind ships the
 	//     post-finalize entry today). `Ref` MUST be empty
@@ -1897,7 +1897,7 @@ const (
 	// cell's matching row margin is treated as the sample size on the
 	// target side. The two-proportion z-test reuses the same pooled-
 	// standard-error formula that backs `TEST_PROP_Z` (see
-	// `processing/test_propz.go`):
+	// `internal/processing/test_propz.go`):
 	//
 	//	p_target = target_cell / target_row_margin
 	//	p_ref    = ref_cell    / ref_row_margin
@@ -2160,7 +2160,7 @@ const (
 	// defaults to `Params["sample_size"]` (or `2` when not supplied).
 	// The Welch t-test reuses the same Welch-Satterthwaite degrees-of-
 	// freedom recurrence that backs `TEST_T` two-sample (see
-	// `processing/test_t.go`):
+	// `internal/processing/test_t.go`):
 	//
 	//	se      = sqrt(var_target/n_target + var_ref/n_ref)
 	//	t       = (target_cell - ref_cell) / se
@@ -2197,7 +2197,7 @@ const (
 	// The z-test reuses the same Welch-style standard-error recurrence
 	// that backs `OVERLAY_T_CELL` and finalises against the standard
 	// normal survival helper that backs `TEST_Z_TWO_SAMPLE` (see
-	// `processing/test_z.go`):
+	// `internal/processing/test_z.go`):
 	//
 	//	se      = sqrt(var_target/n_target + var_ref/n_ref)
 	//	z       = (target_cell - ref_cell) / se
@@ -2470,7 +2470,7 @@ const (
 // FormulaNamespace returns the canonical variable identifier set the
 // OVERLAY_FORMULA evaluator exposes for a given host shape. It is the
 // single source of truth both the runtime FORMULA env builders
-// (`processing/overlay_formula.go` `buildFormulaPrototypeEnv*`) and the
+// (`internal/processing/overlay_formula.go` `buildFormulaPrototypeEnv*`) and the
 // predict-time identifier validator
 // (`internal/descriptor/overlay_formula.go` `validateFormulaOverlay`) consult so
 // the two surfaces stay in lock-step — adding a new variable to the
@@ -2478,7 +2478,7 @@ const (
 // prototype env + the predict-time allowed set widen automatically.
 //
 // Living at this leaf (types/) lets descriptor/ read the namespace
-// without importing processing/ — preserving the
+// without importing internal/processing/ — preserving the
 // TestPredictNoExecutionImports gate (CLAUDE.md "What NOT to Do").
 //
 // Per-shape contents (research note
@@ -2855,7 +2855,7 @@ type OverlaySpec struct {
 	// rejects non-zero values with PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
 	// because those kinds compute their own contingency from the host
 	// row + column margins (Level/Within would alter the implicit-
-	// margin contract). See processing/crosstab_normalize.go for the
+	// margin contract). See internal/processing/crosstab_normalize.go for the
 	// shared key-prefix helpers and skills/overlay-system.md for the
 	// per-kind matrix.
 	Level int `json:"level,omitempty"`
@@ -2874,7 +2874,7 @@ type OverlaySpec struct {
 	// share/index/delta/zscore family; the χ²/Fisher inferential family
 	// rejects non-zero values with PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
 	// (same rationale as Level above). See
-	// processing/crosstab_normalize.go and
+	// internal/processing/crosstab_normalize.go and
 	// skills/overlay-system.md for the per-kind matrix.
 	Within int `json:"within,omitempty"`
 }
@@ -3113,9 +3113,9 @@ type OverlayLayer struct {
 // the envelope.
 //
 // Relocated from processing.OverlayWarning so the OverlayLayer slot
-// can carry it directly without types/ importing processing/. Moving
+// can carry it directly without types/ importing internal/processing/. Moving
 // the value-only diagnostic up the dependency graph keeps the types
-// package behavioural-import-free while letting both processing/ and
+// package behavioural-import-free while letting both internal/processing/ and
 // internal/service/ produce warnings against the same shape.
 type OverlayWarning struct {
 	// Code is the canonical overlay error code (today: errors.PULSE_OVERLAY_REF_ZERO).

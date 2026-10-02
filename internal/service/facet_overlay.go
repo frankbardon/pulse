@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -14,13 +14,13 @@ import (
 // OVERLAY_CHISQ_VS_POP / OVERLAY_KS_VS_POP) at the FacetSchema buffered
 // exit.
 //
-// The runtime handlers live entirely inside processing/ (the overlay
+// The runtime handlers live entirely inside internal/processing/ (the overlay
 // catalog stays free of internal/service/ imports per CLAUDE.md "What NOT to
 // Do"); this file owns:
 //
 //   - Population cohort opening (the service-layer cohort opener is the
 //     only surface that can resolve a Ref.Population.Cohort to a
-//     *FacetResult — the resolver in processing/ consumes already-
+//     *FacetResult — the resolver in internal/processing/ consumes already-
 //     materialised state).
 //   - Population FacetResult materialisation via FacetSchema recursion
 //     (every population-comparison kind reads against a finalised

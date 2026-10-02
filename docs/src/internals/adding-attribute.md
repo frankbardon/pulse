@@ -1,5 +1,7 @@
 # Adding an Attribute
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `ATTR_*`
 operator — a per-record derived value computed from one or more cohort
 fields (z-score, formula, lookup, etc.).
@@ -29,8 +31,8 @@ func AllAttributeTypes() []AttributeType {
 
 ## 2. Implement and register
 
-Implement the attribute in `processing/`. Each attribute is a factory
-function registered in `attributeRegistry` (`processing/registry.go`).
+Implement the attribute in `internal/processing/`. Each attribute is a factory
+function registered in `attributeRegistry` (`internal/processing/registry.go`).
 Attribute factories return a closure with the signature
 `func(record encoding.RecordView) (any, error)`.
 
@@ -40,7 +42,7 @@ invokes the closure on every record.
 
 ## 3. Tests
 
-Write tests first in `processing/attribute_test.go`. Run the suite,
+Write tests first in `internal/processing/attribute_test.go`. Run the suite,
 confirm informative failure, port the implementation until green.
 
 ## 4. Declare the capability metadata
@@ -75,7 +77,7 @@ operator introduces a contract it states directly, and mind
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllComponents
 go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./processing/ -run TestAttribute
+go test ./internal/processing/ -run TestAttribute
 ```
 
 The Update Demand row for attributes covers all of these in one PR;

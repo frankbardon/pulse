@@ -8,7 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -27,7 +27,7 @@ func joinSetKeyHeaderBytes(t *testing.T, fields []encoding.Field) []byte {
 }
 
 // Predict and runtime must refuse a set_* join key with the SAME code
-// and the SAME sentence. descriptor/ cannot import processing/, so the
+// and the SAME sentence. descriptor/ cannot import internal/processing/, so the
 // rejection text is duplicated by hand in internal/descriptor/join.go — this
 // test is what keeps the two copies honest. A caller who runs
 // `pulse predict` and then `pulse api process` must not be told two

@@ -12,7 +12,7 @@ import (
 
 // reusableTestRecord is a minimal encoding.ReusableRecord implementation
 // used to exercise ReadRecordReused in isolation (encoding_test may not
-// import processing/ — that would form an import cycle). Its null handling
+// import internal/processing/ — that would form an import cycle). Its null handling
 // mirrors processing.Record's contract *plus* the ReadRecordWithWide
 // reference semantics for wide-on-null (delete the wide entry when a field
 // is marked null) so the differential assertion against ReadRecordWithWide

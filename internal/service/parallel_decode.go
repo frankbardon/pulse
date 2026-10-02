@@ -11,7 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -93,7 +93,7 @@ type DecodeCallbackFactory func(workerIdx, recordCount int) DecodeCallback
 //   - resolveRealPath succeeds on the cohort fs+path pair — mmap
 //     requires a real on-disk file; MemMapFs, the anchor overlay, and
 //     custom afero.Fs implementations without RealPather all bail here
-//   - processing.CanMergeRequest(req, schema) is true — the request's
+//   - processing.CanMergeRequestWithExtensions(req, schema, s.extensions) is true — the request's
 //     online state must be mergeable across worker partitions (the same
 //     gate the per-shard reducer in shard_reduce.go consults)
 //
@@ -134,7 +134,7 @@ func (s *Service) canParallelDecode(
 	if _, ok := resolveRealPath(cohort.fs, cohort.path); !ok {
 		return false, "mmap unavailable (no RealPath)"
 	}
-	if !processing.CanMergeRequest(req, schema) {
+	if !processing.CanMergeRequestWithExtensions(req, schema, s.extensions) {
 		return false, "non-mergeable request"
 	}
 	return true, ""

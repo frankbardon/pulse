@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -12,7 +12,7 @@ import (
 // `service.Compose` (serial) and `service.ComposeParallel` (bounded
 // worker pool).
 //
-// The runtime handlers live entirely inside processing/ (the overlay
+// The runtime handlers live entirely inside internal/processing/ (the overlay
 // catalog stays free of internal/service/ imports per CLAUDE.md "What NOT to
 // Do"); this file owns the orchestrator-side hook that:
 //

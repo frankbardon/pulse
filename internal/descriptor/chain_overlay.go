@@ -19,7 +19,7 @@ import (
 //   - StageRef resolution: Ref / Target must resolve to a known stage.
 //     XOR is enforced on Index / Name; Target defaults to the latest
 //     stage when both slots are nil/empty (mirroring the runtime
-//     resolveChainStageRef contract in processing/overlay_chain_dispatch.go).
+//     resolveChainStageRef contract in internal/processing/overlay_chain_dispatch.go).
 //     Ref has no default — empty Ref fires PULSE_OVERLAY_REFERENCE_UNKNOWN.
 //     Out-of-range Index or unknown Name fires
 //     PULSE_OVERLAY_REFERENCE_UNKNOWN / PULSE_OVERLAY_TARGET_UNKNOWN per arm.
@@ -177,7 +177,7 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 
 // resolveChainOverlayStageRef resolves a StageRef into a stages-slice
 // index. Mirrors the runtime resolveChainStageRef contract
-// (processing/overlay_chain_dispatch.go) at predict time:
+// (internal/processing/overlay_chain_dispatch.go) at predict time:
 //
 //   - Index non-nil takes precedence; out-of-range fires the unknown-
 //     stage coded error for the matching arm.

@@ -11,13 +11,13 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
 // shard_reduce.go implements per-shard parallel execution for the
-// subset of requests that processing.CanMergeRequest accepts: every
+// subset of requests that processing.CanMergeRequestWithExtensions accepts: every
 // aggregator and grouper is mergeable, no windows/features/tests/
 // regressions, attributes are at most row-local, and the cohort backs
 // onto a shard archive with N >= 2 shards.
@@ -44,7 +44,7 @@ import (
 //
 //   - the cohort is archive-backed (cohort.Shards() non-empty)
 //   - more than one shard (no point parallelising N=1)
-//   - the request is mergeable per processing.CanMergeRequest
+//   - the request is mergeable per processing.CanMergeRequestWithExtensions
 //   - the configured worker cap is not 1 (1 forces serial)
 //
 // Returns the resolved worker count (>= 2) and true when fan-out
@@ -58,7 +58,7 @@ func (s *Service) shouldFanOut(req *types.Request, cohort *Cohort) (int, bool) {
 	if len(shards) < 2 {
 		return 0, false
 	}
-	if !processing.CanMergeRequest(req, cohort.Schema()) {
+	if !processing.CanMergeRequestWithExtensions(req, cohort.Schema(), s.extensions) {
 		return 0, false
 	}
 	workers := s.shardWorkers
@@ -217,6 +217,14 @@ type shardPartial struct {
 	grouper processing.Grouper
 	// keyer is the partition grouper's resolved key dispatch.
 	keyer *processing.GroupKeyer
+	// assignments counts (record, bucket) routings — one per key a
+	// record is keyed into — exactly as the serial streaming-grouped
+	// path does. It is Components.Groupers' TotalN for a grouper whose
+	// components carry no "buckets" list (a bucket-less extension
+	// grouper), so the merge sums it and hands it to GroupedTail; a
+	// merged tail without it reported total_n 0 and n_null = every
+	// filtered record.
+	assignments int64
 	// keyOrder preserves the order distinct group keys were first seen
 	// in this shard. The merger's stable sort by key ensures the
 	// final response row order is deterministic across worker
@@ -354,16 +362,19 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		}
 		out.filteredRows++
 
-		if primaryNullField != "" && rec.IsNull(primaryNullField) {
-			out.nullRecords++
-		}
-
 		for _, ra := range rowLocalAttrs {
 			val, err := ra.computer.Row(rec, ra.attr.Field)
 			if err != nil {
 				return nil, err
 			}
 			rec.Set(ra.label, val)
+		}
+
+		// Run.NullRecords' primary-field tally, AFTER row-local
+		// attributes land: the primary field may be an attribute
+		// label, absent from the decoded record until Set above.
+		if primaryNullField != "" && rec.IsNull(primaryNullField) {
+			out.nullRecords++
 		}
 
 		// Universal floor, tallied AFTER row-local attributes land so a
@@ -404,6 +415,7 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, spe
 	if err != nil || !ok {
 		return err
 	}
+	sp.assignments += int64(len(keys))
 	for _, key := range keys {
 		bucket, exists := sp.groups[key]
 		if !exists {
@@ -435,7 +447,7 @@ func (sp *shardPartial) foldGroupedRow(rec *processing.Record, field string, spe
 // primaryNullFieldFor resolves the field whose per-record null tally
 // feeds Response.Components.Run.NullRecords: the first aggregator's
 // Field, else the first grouper's Field, else empty (no tally).
-// Convention matches processing/run_components.go's
+// Convention matches internal/processing/run_components.go's
 // primaryNullFieldName. Shared by BOTH parallel reducers — the
 // per-shard one (shard_reduce.go) and the per-segment one
 // (parallel_reduce.go) — because two copies of a convention is how
@@ -535,6 +547,7 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 		merged.totalRows += p.totalRows
 		merged.filteredRows += p.filteredRows
 		merged.nullRecords += p.nullRecords
+		merged.assignments += p.assignments
 
 		// Universal-floor and filter counters are plain tallies: the
 		// fold is a slot-wise sum, associative and commutative, so no
@@ -683,6 +696,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			TotalRows:         merged.totalRows,
 			FilteredRows:      merged.filteredRows,
 			NullRecords:       merged.nullRecords,
+			Assignments:       merged.assignments,
 			FilterCounters:    merged.filterCounters,
 			ShardCount:        shardCount,
 			DisableComponents: disableComponents,
@@ -704,10 +718,13 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 // OPERATOR STATE via MergeableAggregator.MergeOnline, so after
 // mergeShardPartials each slot holds the complete cohort state and its
 // Components() is byte-for-byte what a serial instance would report.
-// processing.CanMergeRequest has already refused any request whose
-// operator state cannot fold, so no mergeability-class gate is needed
-// here — every operator that clears that gate folds its components
-// with its state.
+// processing.CanMergeRequestWithExtensions has already refused any
+// request whose operator state cannot fold, so no mergeability-class
+// gate is needed here — every operator that clears that gate folds its
+// components with its state. For an extension aggregator that is
+// guaranteed at pulse.New: a Mergeable registration whose
+// ComponentSchema classifies its keys "none" is refused with
+// PULSE_EXTENSION_MERGEABLE_MISMATCH.
 //
 // No-op when disableComponents is true, so the build cost is skipped
 // rather than incurred and discarded.

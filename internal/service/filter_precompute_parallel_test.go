@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/fs"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )

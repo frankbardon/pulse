@@ -375,7 +375,7 @@ func widestSetRung(t *testing.T) uint32 {
 //
 // EmitsType never narrows a value on the wire — the attribute channel is
 // float64 end to end — so this was a wrong declaration rather than a
-// truncation; processing/attribute_set_popcount_range_test.go pins the
+// truncation; internal/processing/attribute_set_popcount_range_test.go pins the
 // wire side. Asserted against the registry so adding a wider rung fails
 // here instead of quietly re-breaking the declaration. This is the
 // STATIC half: it reads the declaration against the registry without

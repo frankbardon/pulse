@@ -971,11 +971,29 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_FANOUT_MISMATCH: {
-		Message: "A grouper registration's FansOut declaration disagrees with whether its factory returns processing.MultiKeyStreamingGrouper.",
+		Message: "A grouper registration's FansOut declaration disagrees with whether its factory returns extend.MultiKeyStreamingGrouper.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Set FansOut=true when the returned grouper implements MultiKeyStreamingGrouper (KeysForRow fans one record into several buckets), FansOut=false when it maps each record to exactly one key. Declaring false for a multi-key grouper is the silent over-count the check exists to prevent — fix the declaration, not the check.",
+			},
+		},
+	},
+	PULSE_EXTENSION_MERGEABLE_MISMATCH: {
+		Message: "An aggregator or grouper registration declared Mergeable=true but cannot merge: it is not Streamable, its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Declare Mergeable=true only alongside Streamable=true, implement Merge(other extend.OnlineAggregator) error on an aggregator (or MergeState(other extend.Grouper) error on a grouper that emits components) to fold other's state into the receiver, and classify ComponentSchema.Mergeability as \"mergeable\" or \"partial\" — or set Mergeable=false and the parallel reducers run the operator serially.",
+			},
+		},
+	},
+	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH: {
+		Message: "An aggregator registration declared a MarginReducibility it cannot honour: the class is unknown, or it is a fusable class (summable, mean_reducible, independent) on a registration that is not also Mergeable and Streamable.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Declare MarginReducibility as one of summable, mean_reducible, independent or recompute; a fusable class (anything but recompute) admits the operator as a fused crosstab cell and needs Mergeable=true and Streamable=true alongside it — or omit it and the crosstab cell runs buffered.",
 			},
 		},
 	},

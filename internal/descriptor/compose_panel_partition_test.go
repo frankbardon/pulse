@@ -158,7 +158,7 @@ func TestValidateCompose_PanelWithinInertDepthKeepsItsOwnCode(t *testing.T) {
 }
 
 // Extension groupers reach the predict arm through
-// PredictOptions.Extensions — descriptor/ may not import processing/,
+// PredictOptions.Extensions — descriptor/ may not import internal/processing/,
 // so the snapshot is the only route. A registration declaring
 // FansOut=true is gated exactly like GROUP_SET_PER_ELEMENT; an
 // unregistered name passes, because it cannot execute.

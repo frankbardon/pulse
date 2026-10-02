@@ -40,12 +40,30 @@ type OperatorMeta struct {
 	// bucket counts SUM to more than the record total. Omitted (and
 	// meaningless) for every other operator category; absent reads as
 	// false, which is also the registration default.
-	FansOut bool                `json:"fans_out,omitempty"`
-	Accepts []string            `json:"accepts,omitempty"`
-	Emits   string              `json:"emits,omitempty"`
-	Mode    string              `json:"mode,omitempty"`
-	Tier    string              `json:"tier,omitempty"`
-	Params  []OperatorParamMeta `json:"params,omitempty"`
+	FansOut bool `json:"fans_out,omitempty"`
+	// Mergeable is the aggregator / grouper projection of
+	// pulse.AggregatorRegistration.Mergeable and
+	// pulse.GrouperRegistration.Mergeable — the embedder-side sibling
+	// of types.AggregationType.Mergeable() / types.GroupType.Mergeable().
+	// True means partial states fold (extend.MergeableAggregator.Merge,
+	// extend.MergeableGrouper.MergeState), so the parallel reducers
+	// (ShardWorkers / DecodeWorkers) and ProcessChain accept the
+	// operator. Omitted for every other category; absent reads as
+	// false, which is also the registration default.
+	Mergeable bool `json:"mergeable,omitempty"`
+	// MarginReducibility is the aggregator-only projection of
+	// pulse.AggregatorRegistration.MarginReducibility — the
+	// embedder-side sibling of types.AggregationType.MarginReducibility()
+	// ("summable", "mean_reducible", "independent" or "recompute").
+	// A non-recompute class admits the operator as a fused crosstab
+	// cell. Omitted when undeclared, which reads as "recompute": the
+	// crosstab cell runs buffered.
+	MarginReducibility string              `json:"margin_reducibility,omitempty"`
+	Accepts            []string            `json:"accepts,omitempty"`
+	Emits              string              `json:"emits,omitempty"`
+	Mode               string              `json:"mode,omitempty"`
+	Tier               string              `json:"tier,omitempty"`
+	Params             []OperatorParamMeta `json:"params,omitempty"`
 }
 
 // OperatorParamMeta is the manifest-friendly mirror of pulse.ParamMeta.

@@ -4,10 +4,10 @@ slug: extension-contract
 title: "Embedders author custom operators against a public contract, and the engine is fully internal"
 track: API & release
 size: L
-status: not-started
+status: done
 depends_on: [U02]
 soft_depends_on: []
-blocks: [U04, U07, U15, U20, U32]
+blocks: [U04, U07, U15, U20, U32, U34]
 todo_items: [185, 186, 187, 188, 189]
 branch: extension-contract
 ---
@@ -20,9 +20,9 @@ branch: extension-contract
 
 ## Summary
 
-Today an extension operator is written against `processing`'s interfaces and its concrete record type, so `processing` cannot go internal without stranding every extension author. This unit adds a new public package, `extend`, holding the extension-authoring contract: the operator interfaces, the factory types and a small read-only `Record` interface. Registration through `pulse.Options.Extensions` stays the same shape; the engine adapts an `extend` operator onto its internal one. Built-ins keep their concrete fast path, so the interface-dispatch cost falls on extension operators only. Parity tests prove an operator behaves identically built in and adapted. Then `processing`, `processing/feature` and `processing/window` become fully internal.
+Before this unit an extension operator was written against `processing`'s interfaces and its concrete record type, so `processing` cannot go internal without stranding every extension author. This unit adds a new public package, `extend`, holding the extension-authoring contract: the operator interfaces, the factory types and a small read-only `Record` interface. Registration through `pulse.Options.Extensions` stays the same shape; the engine adapts an `extend` operator onto its internal one. Built-ins keep their concrete fast path, so the interface-dispatch cost falls on extension operators only. Parity tests prove an operator behaves identically built in and adapted. Then `processing`, `processing/feature` and `processing/window` become fully internal.
 
-New operators in U04, U07, U15 and U20 are born against `extend`, which is why those units depend on this one.
+New operators in U04, U07, U15 and U20 land after `processing` is internal, which is why those units depend on this one.
 
 ## References
 
@@ -34,17 +34,17 @@ New operators in U04, U07, U15 and U20 are born against `extend`, which is why t
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#185** (1. API surface & release pipeline › Public Go surface › Extension contract) Public `extend` package: aggregator, online aggregator, grouper + streaming variants, filterer builder / filter func, attribute and test interfaces, window and feature computers, factory types
-- [ ] **#186** (1. API surface & release pipeline › Public Go surface › Extension contract) `extend.Record`: a small read-only record interface (values, nulls, wide and set accessors), sized by an inventory of what built-in operators read
-- [ ] **#187** (1. API surface & release pipeline › Public Go surface › Extension contract) Registration adapts `extend` operators onto the engine; built-ins keep the concrete fast path; built-in vs adapted parity tests
-- [ ] **#188** (1. API surface & release pipeline › Public Go surface › Extension contract) `processing`, `processing/feature`, `processing/window` fully internal; any interim root aliases from U02 removed
-- [ ] **#189** (1. API surface & release pipeline › Public Go surface › Extension contract) `extension-points.md` and the `adding-*` recipes rewritten against `extend`
+- [x] **#185** (1. API surface & release pipeline › Public Go surface › Extension contract) Public `extend` package: aggregator, online aggregator, grouper + streaming variants, filterer builder / filter func, attribute and test interfaces, window and feature computers, factory types
+- [x] **#186** (1. API surface & release pipeline › Public Go surface › Extension contract) `extend.Record`: a small read-only record interface (values, nulls, wide and set accessors), sized by an inventory of what built-in operators read
+- [x] **#187** (1. API surface & release pipeline › Public Go surface › Extension contract) Registration adapts `extend` operators onto the engine; built-ins keep the concrete fast path; built-in vs adapted parity tests
+- [x] **#188** (1. API surface & release pipeline › Public Go surface › Extension contract) `processing`, `processing/feature`, `processing/window` fully internal; any interim root aliases from U02 removed
+- [x] **#189** (1. API surface & release pipeline › Public Go surface › Extension contract) `extension-points.md` and the `adding-*` recipes rewritten against `extend`
 
 ## Scope
 
 **In scope**
 - New public package `github.com/frankbardon/pulse/extend`: `Aggregator`, `OnlineAggregator`, `Grouper` + streaming variants, `FiltererBuilder` / `FilterFunc`, attribute and test interfaces, window and feature computers, factory types, and `Record`
-- Every `pulse.Options.Extensions` registration slot whose signature names a `processing` type re-expressed in `extend` types (the first story inventories them, including the synth-distribution and overlay-kind slots)
+- Every `pulse.Options.Extensions` registration slot whose signature names a `processing` type re-expressed in `extend` types (the first story inventories them; the synth-distribution registration only reserves its namespace, and overlay kinds are not an extension category)
 - Adapters from `extend` operators to the engine's internal interfaces, preserving probe-validation (`PULSE_EXTENSION_STREAMABLE_MISMATCH`, `PULSE_EXTENSION_FACTORY_PANIC`, `PULSE_EXTENSION_FANOUT_MISMATCH`), the `FieldInputs` hook and lazy table resolution
 - Built-in vs adapted parity tests
 - Moving `processing`, `processing/feature`, `processing/window` under `internal/` (or finishing the move U02 started), and removing any interim root aliases
@@ -77,13 +77,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-co
 
 ## Acceptance criteria
 
-- [ ] No `processing` package is importable from outside the module
-- [ ] An extension operator of every category is authored using only `pulse`, `extend`, `types`, `encoding` and `errors`
-- [ ] For every category, the same operator registered built in and adapted through `extend` produces identical results, components and streaming behaviour (parity tests)
-- [ ] Probe-validation, `FieldInputs` projection and lazy table resolution behave as before for extension operators
-- [ ] Built-in operator benchmarks show no regression
-- [ ] Every [03](../v1.0.0-api-and-release/03-embedder-migration.md) row tagged U02b is true of the branch
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] No `processing` package is importable from outside the module
+- [x] An extension operator of every category is authored using only `pulse`, `extend`, `types`, `encoding` and `errors`
+- [x] For every category, the same operator registered built in and adapted through `extend` produces identical results, components and streaming behaviour (parity tests)
+- [x] Probe-validation, `FieldInputs` projection and lazy table resolution behave as before for extension operators
+- [x] Built-in operator benchmarks show no regression
+- [x] Every [03](../v1.0.0-api-and-release/03-embedder-migration.md) row tagged U02b is true of the branch
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -109,3 +109,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-co
 - **`Record` coverage risk.** The interface may not cover every accessor extension-style code uses (sets, wide values, nulls). E1-S1's inventory sizes it before any interface is written, and the parity tests guard behaviour.
 - **Interface dispatch cost** applies to extension operators only; built-ins keep the concrete fast path.
 - **Interim aliases.** If U02 moved `processing` with temporary root aliases for the extension types, this unit removes them; if U02 left `processing` in place, this unit performs the move.
+
+## Landed deviations
+
+- **`Components()` self-emission kept.** An operator's own `Components()` method still emits when no `ComponentsFunc` is registered, in every emitting category (a deliberate deviation from strict "emission only through `ComponentsFunc`"); it is not probe-validated (owned by [U34](U34-extension-validation.md), #195).
+- **Streamability follows the declaration.** Extension aggregators, groupers, attributes and row tests route on the declared `Streamable` flag; predict agrees. Features decide on the returned value; `FeatureRegistration.Streamable` is not probe-validated (owned by [U34](U34-extension-validation.md), #196). A grouper declaring `Streamable: true` without a keying sibling is `PULSE_EXTENSION_STREAMABLE_MISMATCH`.
+- **Behaviour fixes.** Built-in `ATTR_ZSCORE` + `GROUP_CATEGORY` now predicts `Streamable=false` (matches runtime); the predict two-pass list includes `ATTR_REG_FITTED` / `ATTR_REG_RESIDUAL` / `ATTR_REG_LEVERAGE`; streaming grouped Components floor fixed for bucket-less groupers, and the parallel reducers now carry the same (record, bucket) assignment count so the merged floor matches; a streamable extension with `ComponentsFunc` streams instead of silently buffering; a two-pass attribute (built-in or `two_pass` extension) now declines the fused crosstab — before, a built-in `ATTR_ZSCORE` crosstab failed `PROCESSING_INTERNAL` and a `two_pass` extension one fused and returned cells valued against empty stats.
+- **Limits.** Extension aggregators merge only when the registration declares `Mergeable` (`extend.MergeableAggregator`; `PULSE_EXTENSION_MERGEABLE_MISMATCH`); extension groupers merge the same way on a declared `Mergeable` (`extend.MergeableGrouper`, needed only when the grouper emits components); extension grouper Components figures emit on every grouped path. Per-group AGGREGATOR Components (operator figures inside each group) is an unlanded surface for built-ins and extensions alike (owned by [U17](U17-response-shaping-core.md), #193); single-key extension groupers take fused crosstab through an adapter-synthesized `KeyFor` (still omitted from `extend`); an extension crosstab CELL aggregator takes fused crosstab on a declared `MarginReducibility` (fusable class + `Mergeable`; `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH`), undeclared it runs buffered.
+- **Decimal.** Extension aggregators are admitted on `decimal128` targets (they read `DecimalValue`) and stream / merge there per their declared `Streamable` / `Mergeable` flags; built-ins over decimal stay buffered and serial.
+- **Dispatch cost.** Adapted vs built-in `AGG_SUM`, 50K rows: streaming 6.12 vs 5.88 ms, buffered 18.60 vs 18.72 ms (geomean +1.75%, not significant).
+- **Open follow-ups, each owned.** Per-group aggregator Components: [U17](U17-response-shaping-core.md) (#193). Predict-side chain validation (`ValidateChain` / `ValidateChainWithExtensions` have only test callers; a chain-predict entry point must pass the `ExtensionsSnapshot`): [U34](U34-extension-validation.md) (#194). Self-`Components()` and feature `Streamable` probe validation: [U34](U34-extension-validation.md) (#195, #196). Synth-distribution `extend` factory shape (the registration only reserves a namespace): [U34](U34-extension-validation.md) (#197).

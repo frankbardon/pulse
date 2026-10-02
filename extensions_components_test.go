@@ -11,7 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -77,8 +77,9 @@ type brandScoreAggregator struct {
 	weights int
 }
 
-func (a *brandScoreAggregator) Aggregate(records []*processing.Record, field string) (float64, error) {
-	for _, r := range records {
+func (a *brandScoreAggregator) Aggregate(rows extend.Rows, field string) (float64, error) {
+	for i := 0; i < rows.Len(); i++ {
+		r := rows.At(i)
 		v, ok := r.NumericValue(field)
 		if !ok {
 			continue
@@ -93,7 +94,7 @@ func (a *brandScoreAggregator) Aggregate(records []*processing.Record, field str
 	return a.sum / float64(a.count), nil
 }
 
-func (a *brandScoreAggregator) UpdateRow(r *processing.Record, field string) error {
+func (a *brandScoreAggregator) UpdateRow(r extend.Record, field string) error {
 	v, ok := r.NumericValue(field)
 	if !ok {
 		return nil
@@ -111,11 +112,11 @@ func (a *brandScoreAggregator) Finalize() (float64, error) {
 	return a.sum / float64(a.count), nil
 }
 
-func brandScoreFactory(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+func brandScoreFactory(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 	return &brandScoreAggregator{}, nil
 }
 
-func brandScoreEmit(instance processing.Aggregator) (map[string]any, error) {
+func brandScoreEmit(instance extend.Aggregator) (map[string]any, error) {
 	a, ok := instance.(*brandScoreAggregator)
 	if !ok {
 		return nil, errors.New("brandScoreEmit: unexpected instance type")
@@ -275,7 +276,7 @@ func TestExtensions_ComponentSchema_MissingMergeabilityRejected(t *testing.T) {
 }
 
 func TestExtensions_ComponentsFunc_EmittedKeyMismatchRejected(t *testing.T) {
-	emit := func(processing.Aggregator) (map[string]any, error) {
+	emit := func(extend.Aggregator) (map[string]any, error) {
 		return map[string]any{"undeclared_key": 1.0}, nil
 	}
 	schema := descriptor.ComponentSchema{
@@ -459,7 +460,7 @@ func TestExtensions_MissingComponentSchema_MergeabilityWithoutKeys(t *testing.T)
 // rejected at pulse.New() time with
 // PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
 func TestExtensions_ComponentSchemaMismatch(t *testing.T) {
-	emit := func(processing.Aggregator) (map[string]any, error) {
+	emit := func(extend.Aggregator) (map[string]any, error) {
 		return map[string]any{
 			"sum":         42.0,
 			"extra_field": "uh oh",
@@ -489,7 +490,7 @@ func TestExtensions_ComponentSchemaMismatch(t *testing.T) {
 // during probe-validation. The probe wraps the emitter in a deferred
 // recover, so an embedder bug never crashes pulse.New().
 func TestExtensions_ComponentsFunc_PanicDuringProbe(t *testing.T) {
-	emit := func(processing.Aggregator) (map[string]any, error) {
+	emit := func(extend.Aggregator) (map[string]any, error) {
 		panic("boom")
 	}
 	schema := descriptor.ComponentSchema{

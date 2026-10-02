@@ -7,7 +7,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -34,22 +34,22 @@ func requireCodedError(t *testing.T, err error, want perr.Code) *perr.CodedError
 // buckets. GROUP_SET_PER_ELEMENT is the built-in equivalent.
 type multiKeyGrouper struct{}
 
-func (multiKeyGrouper) Group(records []*processing.Record, field string) (map[string][]*processing.Record, error) {
-	_, _ = records, field
+func (multiKeyGrouper) Group(rows extend.Rows, field string) (map[string][]int, error) {
+	_, _ = rows, field
 	return nil, nil
 }
 
-func (multiKeyGrouper) KeysForRow(*processing.Record, string) ([]string, bool, error) {
+func (multiKeyGrouper) KeysForRow(extend.Record, string) ([]string, bool, error) {
 	return []string{"a", "b"}, true, nil
 }
 
-func multiKeyGrouperFactory(*types.Group, *encoding.Schema) (processing.Grouper, error) {
+func multiKeyGrouperFactory(*types.Group, *encoding.Schema) (extend.Grouper, error) {
 	return multiKeyGrouper{}, nil
 }
 
 // singleKeyGrouperFactory returns a grouper that maps each record to
 // exactly one key (stubGrouper implements StreamingGrouper only).
-func singleKeyGrouperFactory(*types.Group, *encoding.Schema) (processing.Grouper, error) {
+func singleKeyGrouperFactory(*types.Group, *encoding.Schema) (extend.Grouper, error) {
 	return stubGrouper{}, nil
 }
 
@@ -64,7 +64,7 @@ func TestExtensions_ProbeGrouper_FanOutClaimVerified(t *testing.T) {
 		name     string
 		regName  types.GroupType
 		fansOut  bool
-		factory  processing.GrouperFactory
+		factory  extend.GrouperFactory
 		wantCode perr.Code // "" means the registration must be accepted
 	}{
 		{
@@ -154,7 +154,7 @@ func TestExtensions_ProbeGrouper_FanOutMismatchDetails(t *testing.T) {
 		name         string
 		regName      string
 		fansOut      bool
-		factory      processing.GrouperFactory
+		factory      extend.GrouperFactory
 		wantDeclared bool
 		wantObserved bool
 	}{
@@ -221,7 +221,7 @@ func TestExtensions_ProbeGrouper_FanOutPanicStaysFactoryPanic(t *testing.T) {
 				Groupers: []pulse.GrouperRegistration{{
 					Name:    "GROUP_ACME_PANICKY_FANOUT",
 					FansOut: tc.fansOut,
-					Factory: func(*types.Group, *encoding.Schema) (processing.Grouper, error) {
+					Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) {
 						panic("boom")
 					},
 				}},

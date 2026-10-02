@@ -21,7 +21,7 @@ adapter over it.
   library; it never contains business logic.
 - **A deliberate public surface.** Only the root package and a small set of
   "noun" packages (`types`, `errors`, `encoding`, `descriptor`, `io`, `synth`,
-  `mcp/gosdk`, `mcpserve`, plus the interim `processing` tree) are importable.
+  `mcp/gosdk`, `mcpserve`, `extend`) are importable.
   The engine, the adapters, the MCP core and every support package live under
   `internal/`. `TestPublicAPIGolden` freezes the exported shape; see
   [Package Layout](packages.md).

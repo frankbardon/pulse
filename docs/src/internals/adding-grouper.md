@@ -1,5 +1,7 @@
 # Adding a Grouper
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `GROUP_*`
 operator — a bucketing function that maps each record to a group key
 the orchestrator uses to partition the aggregation.
@@ -29,8 +31,8 @@ func AllGroupTypes() []GroupType {
 
 ## 2. Implement and register
 
-Implement the grouper in `processing/`. Register the factory in
-`grouperRegistry` (`processing/registry.go`). The interface choice
+Implement the grouper in `internal/processing/`. Register the factory in
+`grouperRegistry` (`internal/processing/registry.go`). The interface choice
 depends on whether the grouper can run in the streaming path:
 
 - **`Grouper`** — buffered-only. `Group(rows)` returns a slice of
@@ -46,7 +48,7 @@ depends on whether the grouper can run in the streaming path:
 
 ## 3. Tests
 
-Add tests in `processing/grouper_test.go` (or the per-grouper test
+Add tests in `internal/processing/grouper_test.go` (or the per-grouper test
 file) before the implementation. Cover empty input, single-value
 input, null-bearing input, the `Include` filter slot if your grouper
 honours it, and the streaming-vs-buffered parity assertions where
@@ -91,7 +93,7 @@ those keys in your `extra` slice:
 
 ## 6. Emit per-operator component values at runtime
 
-Implement `processing.MetaGrouper` on the grouper type and add a
+Implement `MetaGrouper` (`internal/processing`) on the grouper type and add a
 compile-time assertion in the grouper implementation file:
 
 ```go
@@ -115,10 +117,41 @@ The orchestrator owns the universal floor `{total_n, n_null}` — the
 post-filter record walker fills it unconditionally. Your `Components()`
 MUST NOT re-emit those keys.
 
-For single-key groupers, `total_n` equals the sum of bucket counts.
-For multi-key streaming groupers (`GROUP_SET_PER_ELEMENT`), the sum
-of bucket counts exceeds `total_n` because a single record contributes
-to multiple buckets — `total_n` reflects the row count.
+`total_n` is the number of (record, bucket) assignments: the sum of
+your `buckets[].count` when `Components()` returns a `buckets` list of
+`[]map[string]any` with `int` counts (as `GROUP_CATEGORY` and `GROUP_SET_PER_ELEMENT` do), otherwise
+the orchestrator's own assignment count. For single-key groupers that
+is the number of keyed records; for multi-key streaming groupers
+(`GROUP_SET_PER_ELEMENT`) a record contributes once per selected label,
+so `total_n` can exceed the record count.
+
+### Merging under the parallel reducers
+
+The parallel reducers (`ShardWorkers` over a shard archive,
+`DecodeWorkers` over a large single file) build one grouper per
+partition and fold the per-key aggregator buckets themselves. Your
+grouper's own components state (the counters behind `Components()`)
+is folded through `MergeableGrouper.MergeGrouperState(other)`
+(`internal/processing/grouper_merge.go`); `other` is a fresh instance
+of the same concrete type from the same spec. Implement it and return
+true from `GroupType.Mergeable()` (`types/streamability.go`) only when
+the fold is associative — a sum, or the same first/last-write rule the
+serial tracker applies — so the merged `Components()` equals a serial
+instance's. The reducers sum the assignment count across partitions
+and hand it to `processing.FinalizeGroupedStream`, so `total_n` /
+`n_null` match the serial path even for a bucket-less grouper. A
+grouper not `Mergeable()` runs those requests serially
+(`processing.CanMergeRequestWithExtensions`).
+
+An **extension** grouper takes the same paths through the public
+contract: declare `Streamable: true` and `Mergeable: true` on its
+`pulse.GrouperRegistration` and, if it emits components, implement
+`extend.MergeableGrouper.MergeState(other)`; the adapter hands
+`MergeState` your own value. A grouper that emits no components needs
+no method (the adapter folds nothing). Probe-validation refuses a
+declaration the value cannot honour
+(`PULSE_EXTENSION_MERGEABLE_MISMATCH`). See
+[Extension points — Grouper](extension-points.md).
 
 The full Response.Components contract for groupers — streaming
 behaviour by mergeability class, the orchestrator-owned floor, the
@@ -131,7 +164,7 @@ Embedder extensions implement the same `MetaGrouper` interface via
 ## 7. The `Include` inclusion-list slot
 
 If your grouper honours an `Include` whitelist of allowed bucket
-labels, update `processing/grouper.go` + `processing/grouper_set.go`
+labels, update `internal/processing/grouper.go` + `internal/processing/grouper_set.go`
 so the include filter is applied at key-emission time, not on the
 output table after the fact. The contract is enforced by the
 following gates:
@@ -162,7 +195,7 @@ operator introduces a contract it states directly, and mind
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllComponents
 go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./processing/ -run TestGroup
+go test ./internal/processing/ -run TestGroup
 ```
 
 The Update Demand row for groupers (and the `Group.Include` slot) covers

@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U05]
 soft_depends_on: []
 blocks: [U18]
-todo_items: [104, 106, 107, 109]
+todo_items: [104, 106, 107, 109, 193]
 branch: response-shaping-core
 ---
 
@@ -33,6 +33,7 @@ Add `Request.Return {preset, include, exclude, precision}` and `Options.DefaultR
 - [ ] **#106** (8. Response shaping) Path grammar over the response schema; predict-time validation; `PULSE_RETURN_PATH_UNKNOWN`
 - [ ] **#107** (8. Response shaping) Presets `full` / `standard` / `minimal` listed in the manifest
 - [ ] **#109** (8. Response shaping) Float precision control; old switches documented as shorthands; `returned` marker
+- [ ] **#193** (8. Response shaping) Per-group aggregator Components: `Components.Aggregations` figures emitted inside each group of a grouped response, for built-in and extension operators alike
 
 ## Scope
 
@@ -41,6 +42,7 @@ Add `Request.Return {preset, include, exclude, precision}` and `Options.DefaultR
 - Path grammar, validation, `PULSE_RETURN_PATH_UNKNOWN`
 - Presets in `descriptor/` + manifest
 - Precision, `returned` marker, shorthand mapping
+- Per-group aggregator Components (#193), carried over from [U02b](U02b-extension-contract.md): today `Components.Aggregations` is emitted only for ungrouped responses, so no operator, built-in or extension, reports figures inside each group. Landing it reshapes `Response.Components`, so it rides this unit's payload-schema and selection-path work (the new paths must be addressable by `Request.Return`). Touches `descriptor/testdata/payload-schema.json`, `.claude/reference/response-components.md` (load first) and the Components skills
 - `TestReturnFullIsIdentity`, `TestReturnPathsMatchSchema`
 
 **Out of scope**
@@ -62,6 +64,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(response-shaping-
 - [ ] Every preset path resolves in the payload schema
 - [ ] An unknown path, including one owned by a hidden feature, is `PULSE_RETURN_PATH_UNKNOWN` at predict
 - [ ] Excluded fields are absent, never null
+- [ ] Every grouped response carries per-group aggregator Components, byte-identical to the ungrouped figures for the same records; the new paths resolve in the payload schema and are selectable through `Request.Return`; `Request.DisableComponents` still yields the pre-Components wire form
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
@@ -72,6 +75,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(response-shaping-
 ## Update Demand companions
 
 - Payload-schema golden; CLAUDE.md Output Format Contract
+- `Response.Components` per-group aggregator rows: `.claude/reference/response-components.md`, `skills/response-components.md`, each aggregator's atomic skill `## Components`, `docs/src/contract/payload-schema.md`
 - `skills/response-shaping.md`; `request-envelope.md`
 - `update-demand.md` row for `Request.Return`
 

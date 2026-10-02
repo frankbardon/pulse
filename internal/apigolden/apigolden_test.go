@@ -310,3 +310,28 @@ func lineDiff(want, got string) string {
 	}
 	return b.String()
 }
+
+// TestRootSurfaceNamesNoProcessing pins the extension-contract boundary:
+// no exported root-package (pulse) signature names a type from the
+// engine — internal/processing or its feature/ and window/
+// subpackages (public before U02b moved them). Extension authors
+// reach every operator contract through the public extend package.
+func TestRootSurfaceNamesNoProcessing(t *testing.T) {
+	pkgs, err := Load(filepath.Join("..", ".."), modulePath)
+	if err != nil {
+		t.Fatalf("loading public packages: %v", err)
+	}
+	rootLines := 0
+	for _, line := range strings.Split(string(Render(modulePath, pkgs)), "\n") {
+		if !strings.HasPrefix(line, "pulse: ") {
+			continue
+		}
+		rootLines++
+		if strings.Contains(line, "/processing") {
+			t.Errorf("root surface names an engine type: %s", line)
+		}
+	}
+	if rootLines == 0 {
+		t.Fatal("no root-package lines rendered")
+	}
+}

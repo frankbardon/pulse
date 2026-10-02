@@ -410,7 +410,7 @@ func checkScalar(t *Template, v *Variable, vt VarType, value any, src provenance
 //
 // Validation is shape plus per-boundary date parse ONLY. Overlap and
 // duplicate-label detection stay in the execution layer's range
-// compilation, so this package never has to reach for processing/. A
+// compilation, so this package never has to reach for internal/processing/. A
 // period that passes here can still be rejected at execution — that is the
 // intended division, not a gap.
 func checkPeriod(t *Template, v *Variable, obj map[string]any, src provenance) error {

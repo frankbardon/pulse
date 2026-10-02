@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 

@@ -1,12 +1,14 @@
 # Adding a Feature Operator
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `FEAT_*`
 operator — a pre-filter feature engineer that runs before the
 aggregation / window pass and emits one or more derived columns
 (`FEAT_LOG`, `FEAT_SQRT`, `FEAT_BUCKETIZE`, …).
 
 The recipe mirrors the aggregator recipe; the feature-specific moving
-parts are the `feature.StreamingComputer` interface, the output-label
+parts are the `StreamingComputer` (`internal/processing/feature`; embedders implement `extend.StreamingFeatureComputer`) interface, the output-label
 emitter, and the predict-side label projection.
 
 ## 1. Declare the type constant
@@ -28,9 +30,9 @@ func AllFeatureTypes() []FeatureType {
 }
 ```
 
-## 2. Implement in `processing/feature/`
+## 2. Implement in `internal/processing/feature/`
 
-Each feature operator lives in `processing/feature/<name>.go`.
+Each feature operator lives in `internal/processing/feature/<name>.go`.
 Register via the package's `init()` calling
 `register(types.FEAT_X, newX)`.
 
@@ -48,7 +50,7 @@ single-pass row transforms.
 
 ## 3. Tests
 
-Write tests in `processing/feature/<name>_test.go` before the
+Write tests in `internal/processing/feature/<name>_test.go` before the
 implementation. Cover the empty-input, single-row, null-bearing, and
 boundary cases.
 
@@ -90,7 +92,7 @@ operator introduces a contract it states directly, and mind
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllComponents
 go test ./internal/descriptor/ -run 'TestManifestOperatorsComplete|TestPredict_Feature'
-go test ./processing/feature/...
+go test ./internal/processing/feature/...
 ```
 
 The Update Demand row for feature operators covers all of these in

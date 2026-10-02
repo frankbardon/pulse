@@ -189,7 +189,7 @@ func TestRegOLS_RegularizedStreaming(t *testing.T) {
 //
 // CanStreamRequest lives in the parent processing package and we
 // cannot import it without an import cycle. The streamability matrix
-// in processing/streamability_test.go does this round-trip check
+// in internal/processing/streamability_test.go does this round-trip check
 // for the full request → CanStreamRequest path; here we exercise the
 // type-level helper that processing.canStream consults.
 func TestCanStreamRequest_RegularizedOLS(t *testing.T) {

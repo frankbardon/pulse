@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -86,14 +86,14 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	// them into a single []*processing.Record consumed by RunCrosstab
 	// unchanged. The dispatch also layers per-worker partial aggregator
 	// state on top via reduceParallelBuffered, but only mergeable
-	// requests (processing.CanMergeRequest) qualify. A crosstab request
+	// requests (processing.CanMergeRequestWithExtensions) qualify. A crosstab request
 	// always fails that gate today — validateCrosstabSpec rejects
 	// req.Aggregations and CanMergeRequest requires non-empty
 	// Aggregations — so the dispatch keeps the slice path for every
 	// crosstab call. The mergeable arm is wired here so the broader
 	// Process-level eligibility gate has a single, documented dispatch
 	// point to share.
-	if processing.CanMergeRequest(req, cohort.Schema()) {
+	if processing.CanMergeRequestWithExtensions(req, cohort.Schema(), s.extensions) {
 		mergedResp, mergedOK, err := s.crosstabDecodeReduceMergeable(ctx, req, cohort, path, iter)
 		if err != nil {
 			return nil, err

@@ -5,9 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/processing"
-	"github.com/frankbardon/pulse/processing/feature"
-	"github.com/frankbardon/pulse/processing/window"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -21,14 +19,15 @@ import (
 // "no operator-specific keys; orchestrator's universal floor is the
 // entire payload" (floor-only operators).
 //
-// The instance passed in is the value the registration's Factory
-// returned (after Aggregate / Finalize); the func should not call
+// The instance passed in is the extend.Aggregator the registration's
+// Factory returned (after Aggregate / Finalize), so a type assertion to
+// the embedder's concrete type succeeds; the func should not call
 // Aggregate / UpdateRow / Finalize on it. The returned map's keys must
 // be a SUBSET of the registration's ComponentSchema.Keys (universal-
 // floor keys allowed but not required) — probe-validation enforces
 // this contract at pulse.New time and runtime mismatches surface as
 // PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH.
-type AggregatorComponentsFunc func(instance processing.Aggregator) (map[string]any, error)
+type AggregatorComponentsFunc func(instance extend.Aggregator) (map[string]any, error)
 
 // GrouperComponentsFunc is the grouper-shape sibling of
 // AggregatorComponentsFunc. The orchestrator invokes the func ONCE
@@ -36,15 +35,17 @@ type AggregatorComponentsFunc func(instance processing.Aggregator) (map[string]a
 // onto Response.Components.Groupers[i].Operator. The universal floor
 // ({total_n, n_null}) is filled unconditionally by the orchestrator.
 // Returning (nil, nil) is the canonical signal for "no operator-
-// specific keys".
-type GrouperComponentsFunc func(instance processing.Grouper) (map[string]any, error)
+// specific keys". The instance passed in is the extend.Grouper the
+// registration's Factory returned, so a type assertion to the
+// embedder's concrete type succeeds.
+type GrouperComponentsFunc func(instance extend.Grouper) (map[string]any, error)
 
 // FiltererComponentsFunc is the filterer-shape sibling. In v1 every
 // built-in filterer leaves its operator-specific payload empty
 // (uniform floor of {n_in, n_out, n_null_input}); extensions may opt
 // in by supplying a ComponentSchema + this emitter. The instance passed
-// in is the FiltererBuilder the registration's Factory returned.
-type FiltererComponentsFunc func(instance processing.FiltererBuilder) (map[string]any, error)
+// in is the extend.FiltererBuilder the registration's Factory returned.
+type FiltererComponentsFunc func(instance extend.FiltererBuilder) (map[string]any, error)
 
 // FieldInputsFunc is the optional introspection callback an extension
 // registration may supply so the buffered-projection extractor can
@@ -125,20 +126,53 @@ type ParamMeta struct {
 }
 
 // AggregatorRegistration installs a custom AGG_* operator. The factory
-// must obey processing.AggregatorFactory: it builds a fresh Aggregator
+// is an extend.AggregatorFactory: it builds a fresh extend.Aggregator
 // per Process call against the supplied Aggregation spec + schema.
 //
 // When Streamable=true the factory MUST return a value that also
-// implements processing.OnlineAggregator. Probe-validation at
+// implements extend.OnlineAggregator. Probe-validation at
 // registration time enforces the contract via
-// PULSE_EXTENSION_STREAMABLE_MISMATCH.
+// PULSE_EXTENSION_STREAMABLE_MISMATCH. The declaration decides the
+// run-time path: Streamable=false runs buffered even when the value
+// implements extend.OnlineAggregator. Optional siblings
+// (extend.OnlineAggregator, extend.RichAggregator,
+// extend.MergeableAggregator) are honoured whether or not
+// ComponentsFunc is set.
+//
+// When Mergeable=true (which requires Streamable=true) the factory MUST
+// return an extend.MergeableAggregator and any ComponentSchema keys
+// must be classified "mergeable" or "partial"; probe-validation refuses
+// anything else with PULSE_EXTENSION_MERGEABLE_MISMATCH. The
+// declaration decides whether ShardWorkers / DecodeWorkers fan the
+// request out and whether a ProcessChain stage accepts it; omitted, the
+// request runs serially.
+//
+// MarginReducibility declares the operator's crosstab margin class —
+// the embedder-side sibling of types.AggregationType.MarginReducibility.
+// A fusable class (types.MarginSummable, types.MarginMeanReducible,
+// types.MarginIndependent) admits the operator as a crosstab CELL to
+// the fused in-decode arm and requires Mergeable=true (and so
+// Streamable=true); probe-validation refuses an unknown class or a
+// fusable class without Mergeable with
+// PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH. The fused walk feeds
+// each margin its own accumulator record by record, so the class gates
+// admission only and never changes a margin figure. Omitted (or
+// types.MarginRecompute) keeps the crosstab cell on the buffered arm.
 type AggregatorRegistration struct {
 	Name        types.AggregationType
 	Description string
-	Factory     processing.AggregatorFactory
+	Factory     extend.AggregatorFactory
 	Streamable  bool
-	Accepts     []encoding.FieldType
-	Params      []ParamMeta
+	// Mergeable declares that partial states fold via
+	// extend.MergeableAggregator.Merge, admitting the operator to the
+	// parallel reducers and ProcessChain. Requires Streamable.
+	Mergeable bool
+	// MarginReducibility declares the crosstab margin class; a fusable
+	// class admits the operator as a fused crosstab cell. Requires
+	// Mergeable unless empty or types.MarginRecompute.
+	MarginReducibility types.MarginReducibility
+	Accepts            []encoding.FieldType
+	Params             []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
 	// projection (runtime widens the field set when this operator
@@ -159,7 +193,6 @@ type AggregatorRegistration struct {
 	// Response.Components.Aggregations[i].Operator after the
 	// aggregator's Aggregate / Finalize call terminates. Nil is the
 	// floor-only path (universal floor fills the entire payload).
-	// Mirrors processing.MetaAggregator.Components() in shape.
 	ComponentsFunc AggregatorComponentsFunc
 }
 
@@ -168,14 +201,14 @@ type AggregatorRegistration struct {
 type AttributeMode string
 
 const (
-	// AttributeModeRowLocal — factory returns a processing.RowLocalAttribute.
+	// AttributeModeRowLocal — factory returns an extend.RowLocalAttribute.
 	// Equivalent to built-in ATTR_FORMULA / ATTR_DATE_PART.
 	AttributeModeRowLocal AttributeMode = "row_local"
-	// AttributeModeTwoPass — factory returns a processing.TwoPassAttribute.
+	// AttributeModeTwoPass — factory returns an extend.TwoPassAttribute.
 	// Equivalent to ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED.
 	AttributeModeTwoPass AttributeMode = "two_pass"
 	// AttributeModeBuffered — factory returns a plain
-	// processing.AttributeComputer; no streaming. Equivalent to
+	// extend.AttributeComputer; no streaming. Equivalent to
 	// ATTR_PERCENTILE.
 	AttributeModeBuffered AttributeMode = "buffered"
 )
@@ -190,11 +223,14 @@ const (
 	AttributeEmitString  AttributeEmitType = "string"
 )
 
-// AttributeRegistration installs a custom ATTR_* operator.
+// AttributeRegistration installs a custom ATTR_* operator. The factory
+// is an extend.AttributeFactory; Mode declares which extend sibling the
+// returned value implements, and probe-validation at pulse.New refuses
+// a mismatch with PULSE_EXTENSION_STREAMABLE_MISMATCH.
 type AttributeRegistration struct {
 	Name        types.AttributeType
 	Description string
-	Factory     processing.AttributeFactory
+	Factory     extend.AttributeFactory
 	Mode        AttributeMode
 	Accepts     []encoding.FieldType
 	Emits       AttributeEmitType
@@ -212,7 +248,7 @@ type AttributeRegistration struct {
 type FiltererRegistration struct {
 	Name        types.FiltererType
 	Description string
-	Factory     processing.FiltererFactory
+	Factory     extend.FiltererFactory
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
@@ -234,30 +270,34 @@ type FiltererRegistration struct {
 	// Response.Components.Filterers[i].Operator after the filter pass
 	// terminates. Nil is the floor-only path (the orchestrator's
 	// universal floor is the entire payload). Mirrors
-	// processing.MetaFilterer.Components() in shape.
+	// the engine's per-operator Components() emission in shape.
 	ComponentsFunc FiltererComponentsFunc
 }
 
 // GrouperRegistration installs a custom GROUP_* operator. Set
-// Streamable=true when the factory returns a processing.Grouper that
-// also implements processing.StreamingGrouper (KeyForRow).
+// Streamable=true when the factory returns an extend.Grouper that
+// also implements extend.StreamingGrouper (KeyForRow) or
+// extend.MultiKeyStreamingGrouper (KeysForRow); the grouped Process
+// request then streams. Probe-validation refuses Streamable=true
+// without either sibling (PULSE_EXTENSION_STREAMABLE_MISMATCH);
+// Streamable=false runs buffered through Group.
 //
 // Set FansOut=true when the factory returns a value that also
-// implements processing.MultiKeyStreamingGrouper — see the field
+// implements extend.MultiKeyStreamingGrouper — see the field
 // comment. Probe-validation at registration time enforces the claim in
 // BOTH directions via PULSE_EXTENSION_FANOUT_MISMATCH, mirroring the
 // Streamable contract on AggregatorRegistration.
 type GrouperRegistration struct {
 	Name        types.GroupType
 	Description string
-	Factory     processing.GrouperFactory
+	Factory     extend.GrouperFactory
 	Streamable  bool
 	// FansOut declares that a single record can land in MORE THAN ONE
 	// bucket of this grouper — the embedder-registered sibling of
 	// types.GroupType.FansOut(), which knows built-in constants only.
 	//
 	// The runtime expression of the same fact is the optional
-	// processing.MultiKeyStreamingGrouper interface (KeysForRow). A
+	// extend.MultiKeyStreamingGrouper interface (KeysForRow). A
 	// registration whose factory returns that interface MUST declare
 	// FansOut=true, and one that declares FansOut=true MUST return it:
 	// probe-validation at pulse.New() rejects either mismatch with
@@ -270,8 +310,20 @@ type GrouperRegistration struct {
 	// records. Omitting the field defaults it to false, so a multi-key
 	// factory is refused rather than silently over-counting.
 	FansOut bool
-	Accepts []encoding.FieldType
-	Params  []ParamMeta
+	// Mergeable declares that the grouper may run under the parallel
+	// reducers (ShardWorkers / DecodeWorkers) and in ProcessChain
+	// stages: one instance per partition, components state folded
+	// through extend.MergeableGrouper.MergeState. Requires Streamable
+	// (the reducers key rows one at a time). A Mergeable grouper that
+	// emits components (ComponentsFunc, or a value with its own
+	// Components() method) MUST return an extend.MergeableGrouper,
+	// and its ComponentSchema must not classify the keys "none"; a
+	// grouper that emits none needs no merge method. Probe-validation
+	// refuses anything else with PULSE_EXTENSION_MERGEABLE_MISMATCH.
+	// Omitted, a request naming the grouper runs serially.
+	Mergeable bool
+	Accepts   []encoding.FieldType
+	Params    []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
@@ -287,7 +339,7 @@ type GrouperRegistration struct {
 	// set, the orchestrator routes the returned map onto
 	// Response.Components.Groupers[i].Operator after the grouper's
 	// terminal partitioning pass. Nil is the floor-only path. Mirrors
-	// processing.MetaGrouper.Components() in shape.
+	// the engine's per-operator Components() emission in shape.
 	ComponentsFunc GrouperComponentsFunc
 }
 
@@ -298,7 +350,7 @@ type GrouperRegistration struct {
 type WindowRegistration struct {
 	Name        types.WindowType
 	Description string
-	Factory     window.WindowFactory
+	Factory     extend.WindowFactory
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
@@ -307,12 +359,14 @@ type WindowRegistration struct {
 }
 
 // FeatureRegistration installs a custom FEAT_* operator. Set
-// Streamable=true when the factory returns a feature.Computer that
-// also implements feature.StreamingComputer.
+// Streamable=true when the factory returns an extend.FeatureComputer
+// that also implements extend.StreamingFeatureComputer. The operator
+// only reads rows and returns extend.FeatureOutput columns; the engine
+// writes them.
 type FeatureRegistration struct {
 	Name        types.FeatureType
 	Description string
-	Factory     feature.Factory
+	Factory     extend.FeatureFactory
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta
@@ -337,12 +391,14 @@ const (
 //
 // Streamable applies to tier-1 only and indicates whether the test
 // can co-stream with online aggregators (no extra pass over the data).
+// The flag alone decides: Streamable=false forces the request onto the
+// buffered path.
 type TestRegistration struct {
 	Name        types.TestType
 	Description string
 	Tier        TestTier
-	RowFactory  processing.RowTestFactory
-	PostFactory processing.PostTestFactory
+	RowFactory  extend.RowTestFactory
+	PostFactory extend.PostTestFactory
 	Streamable  bool
 	Accepts     []encoding.FieldType
 	Params      []ParamMeta

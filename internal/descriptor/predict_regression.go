@@ -8,7 +8,7 @@ import (
 )
 
 // knownRegressionTypes is the lookup set used by Predict to flag
-// unknown REG_* types without taking a dependency on processing/.
+// unknown REG_* types without taking a dependency on internal/processing/.
 var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 	out := make(map[types.RegressionType]struct{}, len(types.AllRegressionTypes()))
 	for _, rt := range types.AllRegressionTypes() {

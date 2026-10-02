@@ -7,7 +7,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -18,11 +18,11 @@ import (
 // pulse.New.
 type nonOnlineAggregator struct{}
 
-func (nonOnlineAggregator) Aggregate([]*processing.Record, string) (float64, error) {
+func (nonOnlineAggregator) Aggregate(extend.Rows, string) (float64, error) {
 	return 0, nil
 }
 
-func nonOnlineAggregatorFactory(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+func nonOnlineAggregatorFactory(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 	return nonOnlineAggregator{}, nil
 }
 
@@ -61,7 +61,7 @@ func TestExtensions_ProbeAggregator_FactoryPanicCaught(t *testing.T) {
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_PANICKY",
-			Factory: func(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+			Factory: func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 				panic("boom")
 			},
 		}},
@@ -74,7 +74,7 @@ func TestExtensions_ProbeAggregator_FactoryReturnsError(t *testing.T) {
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_ERRORS",
-			Factory: func(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+			Factory: func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 				return nil, stderrors.New("factory said no")
 			},
 		}},
@@ -87,7 +87,7 @@ func TestExtensions_ProbeAggregator_FactoryReturnsNil(t *testing.T) {
 	ext := pulse.Extensions{
 		Aggregators: []pulse.AggregatorRegistration{{
 			Name: "AGG_ACME_NIL",
-			Factory: func(*types.Aggregation, *encoding.Schema) (processing.Aggregator, error) {
+			Factory: func(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
 				return nil, nil
 			},
 		}},
@@ -101,13 +101,13 @@ func TestExtensions_ProbeAggregator_FactoryReturnsNil(t *testing.T) {
 // the factory only emits row-local capability.
 type rowLocalOnlyAttribute struct{}
 
-func (rowLocalOnlyAttribute) Compute(records []*processing.Record, field string) ([]float64, error) {
+func (rowLocalOnlyAttribute) Compute(rows extend.Rows, field string) ([]float64, error) {
 	_ = field
-	return make([]float64, len(records)), nil
+	return make([]float64, rows.Len()), nil
 }
-func (rowLocalOnlyAttribute) Row(*processing.Record, string) (float64, error) { return 0, nil }
+func (rowLocalOnlyAttribute) Row(extend.Record, string) (float64, error) { return 0, nil }
 
-func rowLocalOnlyFactory(*types.Attribute, *encoding.Schema) (processing.AttributeComputer, error) {
+func rowLocalOnlyFactory(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 	return rowLocalOnlyAttribute{}, nil
 }
 
@@ -115,12 +115,12 @@ func rowLocalOnlyFactory(*types.Attribute, *encoding.Schema) (processing.Attribu
 // must-fail probe target for row_local and two_pass modes.
 type computeOnlyAttribute struct{}
 
-func (computeOnlyAttribute) Compute(records []*processing.Record, field string) ([]float64, error) {
+func (computeOnlyAttribute) Compute(rows extend.Rows, field string) ([]float64, error) {
 	_ = field
-	return make([]float64, len(records)), nil
+	return make([]float64, rows.Len()), nil
 }
 
-func computeOnlyFactory(*types.Attribute, *encoding.Schema) (processing.AttributeComputer, error) {
+func computeOnlyFactory(*types.Attribute, *encoding.Schema) (extend.AttributeComputer, error) {
 	return computeOnlyAttribute{}, nil
 }
 
@@ -158,5 +158,44 @@ func TestExtensions_ProbeAttribute_BufferedAcceptsAnyComputer(t *testing.T) {
 	}
 	if _, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: ext}); err != nil {
 		t.Fatalf("buffered attribute rejected: %v", err)
+	}
+}
+
+// groupOnlyGrouper implements only extend.Grouper — no keying sibling.
+type groupOnlyGrouper struct{}
+
+func (groupOnlyGrouper) Group(extend.Rows, string) (map[string][]int, error) {
+	return map[string][]int{}, nil
+}
+
+// TestExtensions_ProbeGrouper_StreamableMismatch asserts a grouper
+// registered Streamable=true whose factory returns no keying sibling
+// (extend.StreamingGrouper / extend.MultiKeyStreamingGrouper) is
+// refused at pulse.New: the runtime trusts the declaration and would
+// otherwise route the request onto a streaming path the value cannot
+// drive.
+func TestExtensions_ProbeGrouper_StreamableMismatch(t *testing.T) {
+	ext := pulse.Extensions{
+		Groupers: []pulse.GrouperRegistration{{
+			Name:       "GROUP_ACME_BAD",
+			Factory:    func(*types.Group, *encoding.Schema) (extend.Grouper, error) { return groupOnlyGrouper{}, nil },
+			Streamable: true,
+		}},
+	}
+	_, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: ext})
+	assertCodedError(t, err, perr.PULSE_EXTENSION_STREAMABLE_MISMATCH)
+}
+
+// TestExtensions_ProbeGrouper_NonStreamableAccepted is the control: the
+// same buffered-only grouper declared Streamable=false registers.
+func TestExtensions_ProbeGrouper_NonStreamableAccepted(t *testing.T) {
+	ext := pulse.Extensions{
+		Groupers: []pulse.GrouperRegistration{{
+			Name:    "GROUP_ACME_GOOD",
+			Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) { return groupOnlyGrouper{}, nil },
+		}},
+	}
+	if _, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: ext}); err != nil {
+		t.Fatalf("non-streamable grouper rejected: %v", err)
 	}
 }

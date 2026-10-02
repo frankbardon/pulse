@@ -5,7 +5,7 @@ title: "Pulse goes live with the most helpful, current and comprehensive documen
 track: API & release
 size: L
 status: not-started
-depends_on: [U01, U02, U02b, U02c, U06, U10, U18, U19, U20, U23, U30, U31]
+depends_on: [U01, U02, U02b, U02c, U34, U06, U10, U18, U19, U20, U23, U30, U31]
 soft_depends_on: [all feature units]
 blocks: [U33]
 todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167]

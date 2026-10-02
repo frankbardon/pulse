@@ -111,8 +111,9 @@ row into your own struct before processing — `Row` is
 Under the hood, `ProcessStream` calls one of four orchestrator modes
 depending on the request shape: single-pass streaming, grouped
 streaming, two-pass streaming, or the buffered fallback. The choice
-is made via `processing.CanStreamRequest(req, schema)`, which is the
-same predicate `Predict.Streamable` reports — this parity is
+is made by the engine's internal streamability gate, which is the
+same predicate `Predict.Streamable` reports — call `Predict` to learn
+the path before you run — this parity is
 enforced by `TestPredict_Streamable_MatchesRuntime`.
 
 If you find a request that predict says is streamable but `Next`

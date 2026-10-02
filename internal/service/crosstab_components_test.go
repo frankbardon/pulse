@@ -841,7 +841,7 @@ func TestCrosstabComponents_CellComponents_NullInputTracking(t *testing.T) {
 // the built-in registry: scalar (AGG_SUM), Welford (AGG_VARIANCE),
 // floor-only (AGG_COUNT). Map-state, composite, order-stat, and set-
 // family aggregators are exercised by their own per-operator
-// components tests under processing/; this test locks the cell-level
+// components tests under internal/processing/; this test locks the cell-level
 // parity between manifest declaration and runtime emission.
 //
 // A divergence here means either (a) the cell aggregator's

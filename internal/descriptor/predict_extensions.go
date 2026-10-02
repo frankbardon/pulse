@@ -37,6 +37,42 @@ func isExtensionTestType(opts *PredictOptions, t types.TestType) bool {
 	return snapshotHasName(snap.Tests, string(t))
 }
 
+// attributeTwoPass reports whether an attribute takes the runtime's
+// two-pass streaming drive: the built-in two-pass set (mirrors
+// processing.requiresTwoPass, which predict cannot import) or an
+// extension attribute whose snapshot Mode is two_pass. Two-pass
+// attributes do not compose with groupers, features, regressions or
+// tier-1 tests on the streaming path, so every such gate in
+// computeStreamable asks this one helper.
+func attributeTwoPass(opts *PredictOptions, t types.AttributeType) bool {
+	switch t {
+	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
+		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		return true
+	}
+	snap := extensionsFromOpts(opts)
+	if snap == nil {
+		return false
+	}
+	for _, m := range snap.Attributes {
+		if m.Name == string(t) {
+			return m.Mode == "two_pass"
+		}
+	}
+	return false
+}
+
+// firstTwoPassAttribute returns the first attribute on req that takes
+// the two-pass drive, or "" when there is none.
+func firstTwoPassAttribute(req *types.Request, opts *PredictOptions) types.AttributeType {
+	for _, attr := range req.Attributes {
+		if attr != nil && attributeTwoPass(opts, attr.Type) {
+			return attr.Type
+		}
+	}
+	return ""
+}
+
 // streamableWithOverlay reports whether (category, name) is streamable,
 // preferring the extensions overlay when it carries an entry for the
 // name and falling back to the built-in `builtin` value otherwise.

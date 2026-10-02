@@ -1,9 +1,9 @@
 package pulse
 
 import (
-	"github.com/frankbardon/pulse/processing"
-	"github.com/frankbardon/pulse/processing/feature"
-	"github.com/frankbardon/pulse/processing/window"
+	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/processing/feature"
+	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -27,6 +27,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 
 	r := &processing.ExtensionRegistry{
 		Streamable:  make(map[string]bool),
+		Mergeable:   make(map[string]bool),
 		FansOut:     make(map[types.GroupType]bool),
 		FieldInputs: make(map[string]processing.FieldInputsFunc),
 	}
@@ -80,8 +81,19 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Aggregators) > 0 {
 		r.Aggregators = make(map[types.AggregationType]processing.AggregatorFactory, len(ext.Aggregators))
 		for _, reg := range ext.Aggregators {
-			r.Aggregators[reg.Name] = wrapAggregatorFactory(reg)
+			r.Aggregators[reg.Name] = adaptAggregatorFactory(reg)
 			r.Streamable[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.Streamable
+			// The merge declaration, recorded false as well as true so
+			// IsMergeable never falls through to the built-in table for
+			// an extension name.
+			r.Mergeable[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.Mergeable
+			// The crosstab margin class, recorded empty as well so
+			// AggregatorMarginReducibility never falls through to the
+			// built-in table for an extension name.
+			if r.MarginReducibility == nil {
+				r.MarginReducibility = make(map[types.AggregationType]types.MarginReducibility, len(ext.Aggregators))
+			}
+			r.MarginReducibility[reg.Name] = reg.MarginReducibility
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}
 	}
@@ -89,8 +101,14 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Attributes) > 0 {
 		r.Attributes = make(map[types.AttributeType]processing.AttributeFactory, len(ext.Attributes))
 		for _, reg := range ext.Attributes {
-			r.Attributes[reg.Name] = reg.Factory
+			r.Attributes[reg.Name] = adaptAttributeFactory(reg)
 			r.Streamable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mode != AttributeModeBuffered
+			if reg.Mode == AttributeModeTwoPass {
+				if r.TwoPassAttributes == nil {
+					r.TwoPassAttributes = make(map[types.AttributeType]bool)
+				}
+				r.TwoPassAttributes[reg.Name] = true
+			}
 			addFieldInputs("attribute", string(reg.Name), reg.FieldInputs)
 		}
 	}
@@ -98,7 +116,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Filterers) > 0 {
 		r.Filterers = make(map[types.FiltererType]processing.FiltererFactory, len(ext.Filterers))
 		for _, reg := range ext.Filterers {
-			r.Filterers[reg.Name] = wrapFiltererFactory(reg)
+			r.Filterers[reg.Name] = adaptFiltererFactory(reg)
 			// Custom filterers are always row-local streamable today.
 			r.Streamable[processing.StreamabilityKey("filterer", string(reg.Name))] = true
 			addFieldInputs("filterer", string(reg.Name), reg.FieldInputs)
@@ -108,8 +126,11 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Groupers) > 0 {
 		r.Groupers = make(map[types.GroupType]processing.GrouperFactory, len(ext.Groupers))
 		for _, reg := range ext.Groupers {
-			r.Groupers[reg.Name] = wrapGrouperFactory(reg)
+			r.Groupers[reg.Name] = adaptGrouperFactory(reg)
 			r.Streamable[processing.StreamabilityKey("grouper", string(reg.Name))] = reg.Streamable
+			// Recorded false as well as true, as for aggregators, so
+			// IsMergeable never falls through to the built-in table.
+			r.Mergeable[processing.StreamabilityKey("grouper", string(reg.Name))] = reg.Mergeable
 			// Runtime half of the fan-out bridge. The predict half is
 			// the same fact on internal/descriptor.ExtensionsSnapshot.Groupers;
 			// both are read through types.CheckPairwiseSlabPartitionWith
@@ -122,7 +143,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Windows) > 0 {
 		r.Windows = make(map[types.WindowType]window.WindowFactory, len(ext.Windows))
 		for _, reg := range ext.Windows {
-			r.Windows[reg.Name] = reg.Factory
+			r.Windows[reg.Name] = adaptWindowFactory(reg)
 			// Custom windows run buffered today; the runtime path
 			// reflects the built-in behaviour.
 			r.Streamable[processing.StreamabilityKey("window", string(reg.Name))] = false
@@ -133,7 +154,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Features) > 0 {
 		r.Features = make(map[types.FeatureType]feature.Factory, len(ext.Features))
 		for _, reg := range ext.Features {
-			r.Features[reg.Name] = reg.Factory
+			r.Features[reg.Name] = adaptFeatureFactory(reg)
 			r.Streamable[processing.StreamabilityKey("feature", string(reg.Name))] = reg.Streamable
 			addFieldInputs("feature", string(reg.Name), reg.FieldInputs)
 		}
@@ -146,14 +167,14 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 				if r.RowTests == nil {
 					r.RowTests = make(map[types.TestType]processing.RowTestFactory)
 				}
-				r.RowTests[reg.Name] = reg.RowFactory
+				r.RowTests[reg.Name] = adaptRowTestFactory(reg)
 				r.Streamable[processing.StreamabilityKey("test", string(reg.Name))] = reg.Streamable
 				addFieldInputs("test", string(reg.Name), reg.FieldInputs)
 			case TestTierPost:
 				if r.PostTests == nil {
 					r.PostTests = make(map[types.TestType]processing.PostTestFactory)
 				}
-				r.PostTests[reg.Name] = reg.PostFactory
+				r.PostTests[reg.Name] = adaptPostTestFactory(reg)
 				// Tier-2 tests are always buffered at runtime.
 				r.Streamable[processing.StreamabilityKey("test", string(reg.Name))] = false
 			}

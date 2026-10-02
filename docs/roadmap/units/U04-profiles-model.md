@@ -16,7 +16,7 @@ branch: profiles-model
 
 **Outcome:** Every feature has a name, and a profile file can declare an instance's feature set.
 
-**Track:** Feature profiles · **Size:** M · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) · **Unblocks:** [U05](U05-profiles-enforcement.md), [U11](U11-weighting-descriptive.md), [U13](U13-multiplicity.md)
+**Track:** Feature profiles · **Size:** M · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) (landed: `extend` public, `processing` internal) · **Unblocks:** [U05](U05-profiles-enforcement.md), [U11](U11-weighting-descriptive.md), [U13](U13-multiplicity.md)
 
 ## Summary
 

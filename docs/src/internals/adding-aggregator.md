@@ -1,5 +1,7 @@
 # Adding an Aggregator
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `AGG_*`
 operator.
 
@@ -34,9 +36,9 @@ friends) will fail until you add the streamability case in step 4.
 
 ## 2. Implement the aggregator and register it
 
-The operator implementation lives in `processing/`. Write the factory
+The operator implementation lives in `internal/processing/`. Write the factory
 function (`newGini(...)` returning the aggregator interface) and
-register it in `aggregatorRegistry` in `processing/registry.go`.
+register it in `aggregatorRegistry` in `internal/processing/registry.go`.
 
 If the aggregator can update one row at a time, also implement the
 `OnlineAggregator` interface so it joins the streaming Process path.
@@ -45,7 +47,7 @@ Sort-based or sum-of-deviation aggregators (like `AGG_MEDIAN`,
 
 ## 3. Tests
 
-Tests come first: write them in `processing/aggregator_test.go`
+Tests come first: write them in `internal/processing/aggregator_test.go`
 before the implementation, run the suite, confirm they fail
 informatively, then port the implementation until green. See
 [Testing Conventions](../contributing/testing.md).
@@ -136,8 +138,8 @@ Two equivalent paths exist for emitting the operator-specific keys at
 runtime; pick whichever fits your aggregator type.
 
 **Sibling interface (preferred for built-in operators).** Implement
-`processing.MetaAggregator` on your aggregator type and add a
-compile-time assertion in `processing/aggregator.go`:
+`MetaAggregator` (`internal/processing`) on your aggregator type and add a
+compile-time assertion in `internal/processing/aggregator.go`:
 
 ```go
 type giniAggregator struct {
@@ -150,11 +152,11 @@ func (g *giniAggregator) Components() (map[string]any, error) {
     }, nil
 }
 
-// In processing/aggregator.go's compile-time assertion block:
+// In internal/processing/aggregator.go's compile-time assertion block:
 var _ MetaAggregator = (*giniAggregator)(nil)
 ```
 
-The assertion list near the bottom of `processing/aggregator.go` is the
+The assertion list near the bottom of `internal/processing/aggregator.go` is the
 grep-discoverable record of which operators emit components. Add the
 new entry so interface drift is caught at build time.
 
@@ -180,17 +182,35 @@ that file remains the authoritative contract document.
 
 ## 6c. Mergeable-aggregator rule
 
-If your aggregator is mergeable, implement `MergeableAggregator.Merge(other)`
-and declare it as `Mergeable()` in `AggregationType.Mergeable()`
-(`types/types.go`) so it composes correctly under parallel decode
+If your aggregator is mergeable, implement the engine's
+`MergeableAggregator.MergeOnline(other)` and declare it as `Mergeable()`
+in `AggregationType.Mergeable()` (`types/streamability.go`) so it
+composes correctly under parallel decode
 (`internal/service/parallel_reduce.go`) and shard reduce (`internal/service/shard_reduce.go`).
 Both surfaces fold per-worker / per-shard partials in deterministic
 index order via `mergeShardPartials` + `finalizeMergedPartial`.
 
 An aggregator registered but not `Mergeable()` silently forces the request
 down the serial `scanIter` / `shardIter` path; both parallel paths gate on
-`processing.CanMergeRequest` and fall through cleanly when an entry is not
-flagged.
+`internal/processing`'s `CanMergeRequestWithExtensions` (the built-in-only
+`CanMergeRequest` is its nil-registry case) and fall through cleanly when
+an entry is not flagged.
+
+An **extension** aggregator takes the same paths through the public
+contract instead: it implements `extend.MergeableAggregator.Merge(other)`
+and its `pulse.AggregatorRegistration` declares `Streamable: true` and
+`Mergeable: true`; probe-validation at `pulse.New` refuses a declaration
+the value cannot honour (`PULSE_EXTENSION_MERGEABLE_MISMATCH`). See
+[Extension points — Aggregator](extension-points.md).
+
+**Crosstab margin class.** A built-in cell aggregator is admitted to the
+fused crosstab arm by `AggregationType.MarginReducibility()`
+(`types/streamability.go`) — classify every new aggregator there (the
+default is `MarginRecompute`, which keeps its crosstabs buffered). An
+extension aggregator declares the same class on its registration's
+`MarginReducibility` field (needs `Mergeable`; refused otherwise with
+`PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH`); undeclared, its
+crosstab cells run buffered.
 
 Associative + commutative aggregators (count, sum, min, max, frequency,
 distinct_count, mode) produce byte-equal merge output; Welford-Pébaÿ
@@ -219,7 +239,7 @@ also update `internal/descriptor/predict.go`'s `numericAggregations` map.
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllComponents
 go test ./descriptor/ ./internal/descriptor/ -run 'TestManifest|TestPredict'
-go test ./processing/ -run TestRegistryStreamability
+go test ./internal/processing/ -run TestRegistryStreamability
 go test ./...
 ```
 

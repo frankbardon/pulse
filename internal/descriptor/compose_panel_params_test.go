@@ -10,7 +10,7 @@ import (
 // Predict-time params gate for the COMPOSE-host OVERLAY_PROP_Z_PANEL.
 //
 // ComposedRequest.Overlays is the ONLY slot the panel can execute out
-// of — processing/overlay_compose_dispatch.go is the only dispatch
+// of — internal/processing/overlay_compose_dispatch.go is the only dispatch
 // table carrying the kind, ChainRequest.Overlays refuses it via
 // chainOverlayKindAllowed and FacetRequest.Overlays via
 // isFacetOverlayKind — so descriptor.ValidateCompose is the only

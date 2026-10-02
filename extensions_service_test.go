@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -181,9 +180,3 @@ func TestExtensions_AttributeStreamabilityFromMode(t *testing.T) {
 		})
 	}
 }
-
-// stubAggregatorFactoryRef is needed to keep the processing import
-// non-empty in this file when other helpers stay test-local. Pinned
-// here so a future refactor that drops the last processing reference
-// still surfaces a meaningful build error.
-var _ = processing.AggregatorFactory(nil)

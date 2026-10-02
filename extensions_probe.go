@@ -6,7 +6,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -15,7 +15,11 @@ import (
 // instance satisfies the streaming interface declared on the
 // registration. Panics during the probe surface as
 // PULSE_EXTENSION_FACTORY_PANIC; type-mismatch surfaces as
-// PULSE_EXTENSION_STREAMABLE_MISMATCH.
+// PULSE_EXTENSION_STREAMABLE_MISMATCH, and an aggregator or grouper
+// Mergeable declaration it cannot honour as
+// PULSE_EXTENSION_MERGEABLE_MISMATCH, and an aggregator
+// MarginReducibility declaration it cannot honour as
+// PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH.
 //
 // Embedder factories MUST tolerate a nil/empty Schema and a spec
 // carrying only the operator Name; documented in
@@ -57,10 +61,10 @@ func probeAggregators(regs []AggregatorRegistration) error {
 			return err
 		}
 		if reg.Streamable {
-			if _, ok := instance.(processing.OnlineAggregator); !ok {
+			if _, ok := instance.(extend.OnlineAggregator); !ok {
 				return errors.NewCodedErrorWithDetails(
 					errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
-					fmt.Sprintf("aggregator %q declares Streamable=true but factory does not return processing.OnlineAggregator", reg.Name),
+					fmt.Sprintf("aggregator %q declares Streamable=true but factory does not return extend.OnlineAggregator", reg.Name),
 					map[string]any{
 						"category":   "aggregator",
 						"name":       string(reg.Name),
@@ -68,6 +72,14 @@ func probeAggregators(regs []AggregatorRegistration) error {
 					},
 				)
 			}
+		}
+		if reg.Mergeable {
+			if err := verifyAggregatorMergeable(reg, instance); err != nil {
+				return err
+			}
+		}
+		if err := verifyAggregatorMarginReducibility(reg); err != nil {
+			return err
 		}
 		if reg.ComponentsFunc != nil {
 			if err := verifyComponentSchemaPresence(
@@ -96,9 +108,95 @@ func probeAggregators(regs []AggregatorRegistration) error {
 	return nil
 }
 
-// probeGroupers validates every registered grouper. The declared
+// verifyAggregatorMergeable checks a Mergeable=true registration can
+// honour the declaration, raising PULSE_EXTENSION_MERGEABLE_MISMATCH
+// with a reason discriminator when it cannot:
+//
+//   - mergeable_without_streamable — merge folds ONLINE partial state,
+//     so Mergeable is a strict subset of Streamable (as for built-ins).
+//   - missing_merge_interface — the factory's value does not implement
+//     extend.MergeableAggregator.
+//   - components_not_mergeable — ComponentSchema declares keys with
+//     Mergeability "none". The parallel reducers read Components() off
+//     the MERGED instance, so a figure that cannot be computed from
+//     partials would be silently wrong under ShardWorkers /
+//     DecodeWorkers.
+func verifyAggregatorMergeable(reg AggregatorRegistration, instance extend.Aggregator) error {
+	mismatch := func(reason, msg string) error {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MERGEABLE_MISMATCH,
+			fmt.Sprintf("aggregator %q declares Mergeable=true but %s", reg.Name, msg),
+			map[string]any{
+				"category":  "aggregator",
+				"name":      string(reg.Name),
+				"mergeable": true,
+				"reason":    reason,
+			},
+		)
+	}
+	if !reg.Streamable {
+		return mismatch("mergeable_without_streamable",
+			"Streamable=false (merge folds online state; declare Streamable=true as well)")
+	}
+	if _, ok := instance.(extend.MergeableAggregator); !ok {
+		return mismatch("missing_merge_interface",
+			"factory does not return extend.MergeableAggregator")
+	}
+	if len(reg.ComponentSchema.Keys) > 0 && reg.ComponentSchema.Mergeability == descriptor.None {
+		return mismatch("components_not_mergeable",
+			`ComponentSchema.Mergeability is "none" (merged partials cannot reproduce the declared figures)`)
+	}
+	return nil
+}
+
+// verifyAggregatorMarginReducibility checks a declared crosstab margin
+// class, raising PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH with a
+// reason discriminator when the registration cannot honour it:
+//
+//   - unknown_class — not one of the four types.MarginReducibility
+//     values.
+//   - margin_without_mergeable — a FUSABLE class (summable,
+//     mean_reducible, independent) without Mergeable=true. The class
+//     admits the operator as a fused crosstab cell, which folds online
+//     state per record, and the fused gate holds a cell to the same
+//     mergeable bar as a built-in cell. Mergeable is itself
+//     probe-validated to imply Streamable and extend.MergeableAggregator.
+//
+// Empty and types.MarginRecompute are the not-fusable classes and need
+// nothing.
+func verifyAggregatorMarginReducibility(reg AggregatorRegistration) error {
+	mismatch := func(reason, msg string) error {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
+			fmt.Sprintf("aggregator %q declares MarginReducibility=%q but %s", reg.Name, reg.MarginReducibility, msg),
+			map[string]any{
+				"category":            "aggregator",
+				"name":                string(reg.Name),
+				"margin_reducibility": string(reg.MarginReducibility),
+				"reason":              reason,
+			},
+		)
+	}
+	switch reg.MarginReducibility {
+	case "", types.MarginRecompute:
+		return nil
+	case types.MarginSummable, types.MarginMeanReducible, types.MarginIndependent:
+		if !reg.Mergeable {
+			return mismatch("margin_without_mergeable",
+				"Mergeable=false (a fusable margin class admits the operator as a fused crosstab cell; declare Mergeable=true and Streamable=true as well)")
+		}
+		return nil
+	}
+	return mismatch("unknown_class",
+		`the class is unknown (want "summable", "mean_reducible", "independent" or "recompute")`)
+}
+
+// probeGroupers validates every registered grouper. A Streamable=true
+// registration must return a per-row keying sibling
+// (extend.StreamingGrouper or extend.MultiKeyStreamingGrouper), else
+// PULSE_EXTENSION_STREAMABLE_MISMATCH. The declared
 // FansOut trait is cross-checked against the constructed instance's
-// processing.MultiKeyStreamingGrouper implementation in BOTH
+// extend.MultiKeyStreamingGrouper implementation in BOTH
 // directions — mirroring the Streamable/OnlineAggregator check in
 // probeAggregators — because a fan-out grouper the per-record-
 // denominator gates cannot see produces a silently inflated n. A
@@ -116,9 +214,34 @@ func probeGroupers(regs []GrouperRegistration) error {
 		if err != nil {
 			return err
 		}
-		_, observedFansOut := instance.(processing.MultiKeyStreamingGrouper)
+		_, observedFansOut := instance.(extend.MultiKeyStreamingGrouper)
 		if reg.FansOut != observedFansOut {
 			return grouperFanOutMismatch(reg, observedFansOut)
+		}
+		// The runtime routes a Streamable=true grouper onto the grouped
+		// streaming path on the declaration alone, so the value MUST
+		// carry a per-row keying sibling. One direction only, as for
+		// aggregators: a keyable grouper declared Streamable=false just
+		// runs buffered.
+		if reg.Streamable {
+			_, single := instance.(extend.StreamingGrouper)
+			if !single && !observedFansOut {
+				return errors.NewCodedErrorWithDetails(
+					errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
+					fmt.Sprintf("grouper %q declares Streamable=true but factory returns neither extend.StreamingGrouper nor extend.MultiKeyStreamingGrouper", reg.Name),
+					map[string]any{
+						"category":   "grouper",
+						"name":       string(reg.Name),
+						"streamable": true,
+						"required":   "extend.StreamingGrouper or extend.MultiKeyStreamingGrouper",
+					},
+				)
+			}
+		}
+		if reg.Mergeable {
+			if err := verifyGrouperMergeable(reg, instance); err != nil {
+				return err
+			}
 		}
 		if reg.ComponentsFunc != nil {
 			if err := verifyComponentSchemaPresence(
@@ -143,6 +266,51 @@ func probeGroupers(regs []GrouperRegistration) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// verifyGrouperMergeable checks a Mergeable=true grouper registration
+// can honour the declaration, raising PULSE_EXTENSION_MERGEABLE_MISMATCH
+// with the same reason discriminators as verifyAggregatorMergeable:
+//
+//   - mergeable_without_streamable — the parallel reducers key each
+//     partition's rows one at a time, so Mergeable implies Streamable.
+//   - missing_merge_interface — the grouper EMITS components (a
+//     ComponentsFunc, or its own Components() method the adapter
+//     adopts) but its value does not implement extend.MergeableGrouper.
+//     The reducers read the figures off ONE merged instance, so without
+//     a fold they would describe the first partition only. A grouper
+//     that emits nothing has no state to fold and needs no method.
+//   - components_not_mergeable — ComponentSchema declares keys with
+//     Mergeability "none".
+func verifyGrouperMergeable(reg GrouperRegistration, instance extend.Grouper) error {
+	mismatch := func(reason, msg string) error {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MERGEABLE_MISMATCH,
+			fmt.Sprintf("grouper %q declares Mergeable=true but %s", reg.Name, msg),
+			map[string]any{
+				"category":  "grouper",
+				"name":      string(reg.Name),
+				"mergeable": true,
+				"reason":    reason,
+			},
+		)
+	}
+	if !reg.Streamable {
+		return mismatch("mergeable_without_streamable",
+			"Streamable=false (the parallel reducers key rows one at a time; declare Streamable=true as well)")
+	}
+	_, selfEmits := instance.(componentsEmitter)
+	if reg.ComponentsFunc != nil || selfEmits {
+		if _, ok := instance.(extend.MergeableGrouper); !ok {
+			return mismatch("missing_merge_interface",
+				"it emits components and its factory does not return extend.MergeableGrouper")
+		}
+	}
+	if len(reg.ComponentSchema.Keys) > 0 && reg.ComponentSchema.Mergeability == descriptor.None {
+		return mismatch("components_not_mergeable",
+			`ComponentSchema.Mergeability is "none" (merged partials cannot reproduce the declared figures)`)
 	}
 	return nil
 }
@@ -195,11 +363,11 @@ func probeAttributes(regs []AttributeRegistration) error {
 		}
 		switch reg.Mode {
 		case AttributeModeRowLocal:
-			if _, ok := instance.(processing.RowLocalAttribute); !ok {
+			if _, ok := instance.(extend.RowLocalAttribute); !ok {
 				return attributeModeMismatch(reg, "RowLocalAttribute")
 			}
 		case AttributeModeTwoPass:
-			if _, ok := instance.(processing.TwoPassAttribute); !ok {
+			if _, ok := instance.(extend.TwoPassAttribute); !ok {
 				return attributeModeMismatch(reg, "TwoPassAttribute")
 			}
 		case AttributeModeBuffered:
@@ -218,9 +386,9 @@ func probeAttributes(regs []AttributeRegistration) error {
 func grouperFanOutMismatch(reg GrouperRegistration, observed bool) error {
 	var msg string
 	if reg.FansOut {
-		msg = fmt.Sprintf("grouper %q declares FansOut=true but factory does not return processing.MultiKeyStreamingGrouper", reg.Name)
+		msg = fmt.Sprintf("grouper %q declares FansOut=true but factory does not return extend.MultiKeyStreamingGrouper", reg.Name)
 	} else {
-		msg = fmt.Sprintf("grouper %q declares FansOut=false but factory returns processing.MultiKeyStreamingGrouper", reg.Name)
+		msg = fmt.Sprintf("grouper %q declares FansOut=false but factory returns extend.MultiKeyStreamingGrouper", reg.Name)
 	}
 	return errors.NewCodedErrorWithDetails(
 		errors.PULSE_EXTENSION_FANOUT_MISMATCH,
@@ -230,7 +398,7 @@ func grouperFanOutMismatch(reg GrouperRegistration, observed bool) error {
 			"name":     string(reg.Name),
 			"declared": reg.FansOut,
 			"observed": observed,
-			"required": "processing.MultiKeyStreamingGrouper",
+			"required": "extend.MultiKeyStreamingGrouper",
 		},
 	)
 }
@@ -238,19 +406,19 @@ func grouperFanOutMismatch(reg GrouperRegistration, observed bool) error {
 func attributeModeMismatch(reg AttributeRegistration, want string) error {
 	return errors.NewCodedErrorWithDetails(
 		errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
-		fmt.Sprintf("attribute %q declares Mode=%s but factory does not return processing.%s", reg.Name, reg.Mode, want),
+		fmt.Sprintf("attribute %q declares Mode=%s but factory does not return extend.%s", reg.Name, reg.Mode, want),
 		map[string]any{
 			"category": "attribute",
 			"name":     string(reg.Name),
 			"mode":     string(reg.Mode),
-			"required": "processing." + want,
+			"required": "extend." + want,
 		},
 	)
 }
 
 // safeBuildAggregator invokes the factory under a deferred recover so
 // embedder panics become a coded error instead of crashing pulse.New.
-func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema) (instance processing.Aggregator, err error) {
+func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema) (instance extend.Aggregator, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -281,7 +449,7 @@ func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema) (i
 
 // safeBuildAttribute invokes an attribute factory under a deferred
 // recover with the same contract as safeBuildAggregator.
-func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema) (instance processing.AttributeComputer, err error) {
+func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema) (instance extend.AttributeComputer, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -312,7 +480,7 @@ func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema) (ins
 
 // safeBuildGrouper invokes a grouper factory under a deferred recover
 // with the same contract as safeBuildAggregator.
-func safeBuildGrouper(reg GrouperRegistration, schema *encoding.Schema) (instance processing.Grouper, err error) {
+func safeBuildGrouper(reg GrouperRegistration, schema *encoding.Schema) (instance extend.Grouper, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -344,7 +512,7 @@ func safeBuildGrouper(reg GrouperRegistration, schema *encoding.Schema) (instanc
 // safeBuildFilterer invokes a filterer factory under a deferred recover
 // with the same contract as safeBuildAggregator. Filterer factories take
 // no arguments — they always return a fresh FiltererBuilder.
-func safeBuildFilterer(reg FiltererRegistration) (builder processing.FiltererBuilder, err error) {
+func safeBuildFilterer(reg FiltererRegistration) (builder extend.FiltererBuilder, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -368,7 +536,7 @@ func safeBuildFilterer(reg FiltererRegistration) (builder processing.FiltererBui
 // safeInvokeAggregatorComponents calls the registration's
 // ComponentsFunc under a deferred recover so a panic in the emitter
 // becomes a coded error instead of crashing pulse.New.
-func safeInvokeAggregatorComponents(reg AggregatorRegistration, instance processing.Aggregator) (out map[string]any, err error) {
+func safeInvokeAggregatorComponents(reg AggregatorRegistration, instance extend.Aggregator) (out map[string]any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -391,7 +559,7 @@ func safeInvokeAggregatorComponents(reg AggregatorRegistration, instance process
 
 // safeInvokeGrouperComponents mirrors safeInvokeAggregatorComponents
 // for grouper registrations.
-func safeInvokeGrouperComponents(reg GrouperRegistration, instance processing.Grouper) (out map[string]any, err error) {
+func safeInvokeGrouperComponents(reg GrouperRegistration, instance extend.Grouper) (out map[string]any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(
@@ -414,7 +582,7 @@ func safeInvokeGrouperComponents(reg GrouperRegistration, instance processing.Gr
 
 // safeInvokeFiltererComponents mirrors safeInvokeAggregatorComponents
 // for filterer registrations.
-func safeInvokeFiltererComponents(reg FiltererRegistration, builder processing.FiltererBuilder) (out map[string]any, err error) {
+func safeInvokeFiltererComponents(reg FiltererRegistration, builder extend.FiltererBuilder) (out map[string]any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.NewCodedErrorWithDetails(

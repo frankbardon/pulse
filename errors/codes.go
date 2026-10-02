@@ -284,8 +284,9 @@ const (
 	PULSE_DECIMAL_DIVIDE_BY_ZERO Code = "PULSE_DECIMAL_DIVIDE_BY_ZERO"
 
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL is a predict warning emitted
-	// when an aggregation has no defined semantics on a decimal128 field
-	// (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1).
+	// when a built-in aggregation has no defined semantics on a decimal128
+	// field (e.g., AGG_MEDIAN, AGG_PERCENTILE in v1). Registered extension
+	// aggregators are exempt.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 
 	// PULSE_SYNTH_DISTRIBUTION_UNKNOWN indicates a synth spec referenced
@@ -538,7 +539,7 @@ const (
 
 	// PULSE_EXTENSION_FANOUT_MISMATCH indicates a grouper registration's
 	// FansOut declaration disagrees with what its factory returns. The
-	// runtime fact is the optional processing.MultiKeyStreamingGrouper
+	// runtime fact is the optional extend.MultiKeyStreamingGrouper
 	// interface (KeysForRow); the declaration is
 	// GrouperRegistration.FansOut, the embedder-side sibling of
 	// types.GroupType.FansOut(), which knows built-in constants only.
@@ -550,6 +551,31 @@ const (
 	// category, name, declared value and observed value. Wired into
 	// extensions_probe.probeGroupers.
 	PULSE_EXTENSION_FANOUT_MISMATCH Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
+
+	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator or
+	// grouper registration declared Mergeable=true but cannot honour it:
+	// the registration is not also Streamable (merge folds ONLINE state,
+	// so mergeable is a strict subset of streamable), the factory's
+	// value does not implement extend.MergeableAggregator (or, for a
+	// grouper that emits components, extend.MergeableGrouper), or its
+	// ComponentSchema declares keys with Mergeability "none" (the
+	// parallel reducers read Components() off the MERGED instance, so a
+	// non-mergeable figure would be silently wrong under ShardWorkers /
+	// DecodeWorkers). Details carry the category, name and a reason
+	// discriminator. Wired into extensions_probe.probeAggregators and
+	// probeGroupers.
+	PULSE_EXTENSION_MERGEABLE_MISMATCH Code = "PULSE_EXTENSION_MERGEABLE_MISMATCH"
+
+	// PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH indicates an
+	// aggregator registration declared a MarginReducibility it cannot
+	// honour: the class is not one of summable / mean_reducible /
+	// independent / recompute, or it is a FUSABLE class (summable,
+	// mean_reducible, independent — the classes that admit the operator
+	// as a fused crosstab cell) on a registration that is not also
+	// Mergeable (and so Streamable). Details carry the category, name,
+	// the declared class and a reason discriminator. Wired into
+	// extensions_probe.probeAggregators.
+	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH Code = "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH"
 
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
@@ -2564,6 +2590,8 @@ var allCodes = []Code{
 	PULSE_EXTENSION_DUPLICATE,
 	PULSE_EXTENSION_STREAMABLE_MISMATCH,
 	PULSE_EXTENSION_FANOUT_MISMATCH,
+	PULSE_EXTENSION_MERGEABLE_MISMATCH,
+	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,

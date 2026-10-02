@@ -71,7 +71,7 @@ lint: vet
 # no_sidecar_touch_perf_test.go's `-tags=perf` opt-in gate for the one
 # in-repo wall-clock assertion, kept out of CI on purpose).
 bench:
-	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./processing/...
+	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./internal/processing/...
 
 docs:
 	mdbook build docs

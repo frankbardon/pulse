@@ -52,7 +52,7 @@ import (
 // Structural invariants (mirrors internal/descriptor/overlay.go):
 //
 //   - This file MUST NOT import github.com/frankbardon/pulse/service or
-//     github.com/frankbardon/pulse/processing. Predict is no-execute;
+//     github.com/frankbardon/pulse/internal/processing. Predict is no-execute;
 //     overlay catalog data lives in types/, capability lookups go
 //     through types/ constants.
 //   - No fmt.Sprintf in any JSON-bearing path. Error messages are built

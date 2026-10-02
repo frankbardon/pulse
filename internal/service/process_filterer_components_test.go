@@ -565,7 +565,7 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 		}
 		got := runProcessForFiltererComponents(t, svc, req)
 		// Nulls PASS FILTER_SET_CONTAINS_NONE (matches the in-band
-		// convention documented at processing/filterer_set.go).
+		// convention documented at internal/processing/filterer_set.go).
 		assertFiltererSlot(t, "FILTER_SET_CONTAINS_NONE/all-null", got[0], 5, 5, 5)
 	})
 

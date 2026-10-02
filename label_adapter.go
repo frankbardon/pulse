@@ -1,8 +1,8 @@
 package pulse
 
 import (
+	"github.com/frankbardon/pulse/internal/processing"
 	pio "github.com/frankbardon/pulse/io"
-	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 )
 

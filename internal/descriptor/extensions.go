@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/types"
 )
 
 // ExtensionsSnapshot is the immutable read-only view that the service
@@ -220,7 +221,7 @@ func snapshotHasName(metas []descriptor.OperatorMeta, name string) bool {
 // a grouper at all. Nil-snapshot-safe: ok=false.
 //
 // This is the descriptor half of the bridge that keeps predict free of
-// internal/service/ and processing/ imports (TestPredictNoExecutionImports).
+// internal/service/ and internal/processing/ imports (TestPredictNoExecutionImports).
 // The runtime half is processing.ExtensionRegistry.GrouperFanOut; both
 // feed types.CheckPairwiseSlabPartitionWith, which owns the built-in-
 // first resolution order so the two arms cannot drift.
@@ -237,4 +238,82 @@ func (s *ExtensionsSnapshot) GrouperFanOut(name string) (fansOut bool, ok bool) 
 		}
 	}
 	return false, false
+}
+
+// HasAggregator reports whether name is an embedder-registered
+// aggregator in the snapshot. Nil-safe.
+func (s *ExtensionsSnapshot) HasAggregator(name string) bool {
+	if s == nil {
+		return false
+	}
+	for _, m := range s.Aggregators {
+		if m.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// AggregatorMarginReducibility reports the crosstab margin class of
+// aggregator t: an extension's DECLARED class from the snapshot (empty
+// reads as types.MarginRecompute, the not-fusable default), else the
+// built-in per-type MarginReducibility(). The no-execute twin of
+// processing.ExtensionRegistry.AggregatorMarginReducibility. Nil-safe.
+func (s *ExtensionsSnapshot) AggregatorMarginReducibility(t types.AggregationType) types.MarginReducibility {
+	if s != nil {
+		for _, m := range s.Aggregators {
+			if m.Name == string(t) {
+				if m.MarginReducibility == "" {
+					return types.MarginRecompute
+				}
+				return types.MarginReducibility(m.MarginReducibility)
+			}
+		}
+	}
+	return t.MarginReducibility()
+}
+
+// aggregators / groupers are nil-safe slice accessors for the chain
+// gate's merge lookups.
+func (s *ExtensionsSnapshot) aggregators() []descriptor.OperatorMeta {
+	if s == nil {
+		return nil
+	}
+	return s.Aggregators
+}
+
+func (s *ExtensionsSnapshot) groupers() []descriptor.OperatorMeta {
+	if s == nil {
+		return nil
+	}
+	return s.Groupers
+}
+
+// mergeable reports the DECLARED Mergeable flag of the operator named
+// name in metas; false when absent. Nil-safe.
+func (s *ExtensionsSnapshot) mergeable(metas []descriptor.OperatorMeta, name string) bool {
+	if s == nil {
+		return false
+	}
+	for _, m := range metas {
+		if m.Name == name {
+			return m.Mergeable
+		}
+	}
+	return false
+}
+
+// attributeRowLocal reports whether name is an extension attribute
+// registered with the row_local mode — the extension half of the
+// built-in row-local set (ATTR_FORMULA, ATTR_DATE_PART). Nil-safe.
+func (s *ExtensionsSnapshot) attributeRowLocal(name string) bool {
+	if s == nil {
+		return false
+	}
+	for _, m := range s.Attributes {
+		if m.Name == name {
+			return m.Mode == "row_local"
+		}
+	}
+	return false
 }

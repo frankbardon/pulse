@@ -73,9 +73,10 @@ func CategoricalAggregationIssues(req *types.Request, schema *encoding.Schema) [
 	return out
 }
 
-// decimalSupportedAggregations are the v1 set of aggregations defined on
-// decimal128 fields. Any aggregation outside this set on a decimal field
-// emits PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
+// decimalSupportedAggregations are the v1 set of BUILT-IN aggregations
+// defined on decimal128 fields. Any other built-in on a decimal field
+// emits PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL; a registered extension
+// aggregator is exempt (see decimalAggregationRefused).
 var decimalSupportedAggregations = map[types.AggregationType]bool{
 	types.AGG_SUM:            true,
 	types.AGG_AVERAGE:        true,
@@ -85,6 +86,16 @@ var decimalSupportedAggregations = map[types.AggregationType]bool{
 	types.AGG_STDDEV:         true,
 	types.AGG_COUNT:          true,
 	types.AGG_DISTINCT_COUNT: true,
+}
+
+// decimalAggregationRefused reports whether agg on a decimal128 field
+// draws PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL. A registered extension
+// aggregator is never refused: it owns its decimal semantics
+// (extend.Record.DecimalValue) and the runtime dispatches it to its own
+// factory, mirroring the processing-side exemption without importing
+// processing.
+func decimalAggregationRefused(agg types.AggregationType, snap *ExtensionsSnapshot) bool {
+	return !decimalSupportedAggregations[agg] && !snap.HasAggregator(string(agg))
 }
 
 // PredictOptions controls predict behavior.
@@ -278,7 +289,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// Compute autocomplete-style suggestions. Suggestions may surface even
 	// when the request is otherwise valid (streamability hints), so this
 	// runs unconditionally after every other validator.
-	result.Suggestions = computeSuggestions(req, schema, result.Streamable)
+	result.Suggestions = computeSuggestions(req, schema, result.Streamable, opts.Extensions)
 
 	// If any errors were added, mark invalid.
 	if len(env.Errors) > 0 {
@@ -326,11 +337,8 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		if len(req.Tests) > 0 {
 			reasons = append(reasons, "regression with tier-1 tests runs via the buffered path")
 		}
-		for _, attr := range req.Attributes {
-			if attr.Type == types.ATTR_ZSCORE || attr.Type == types.ATTR_TSCORE || attr.Type == types.ATTR_NORMALIZED {
-				reasons = append(reasons, "regression with two-pass attribute "+string(attr.Type)+" runs via the buffered path")
-				break
-			}
+		if tp := firstTwoPassAttribute(req, opts); tp != "" {
+			reasons = append(reasons, "regression with two-pass attribute "+string(tp)+" runs via the buffered path")
 		}
 	}
 
@@ -358,6 +366,11 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			reasons = append(reasons, "attribute "+string(attr.Type)+" requires a full pass for population stats")
 		}
 	}
+	// Two-pass attributes do not yet compose with grouped or feature
+	// streaming (mirrors processing.canStream's combination gate).
+	if tp := firstTwoPassAttribute(req, opts); tp != "" && (len(req.Groups) > 0 || len(req.Features) > 0) {
+		reasons = append(reasons, "two-pass attribute "+string(tp)+" with groupers or features runs via the buffered path")
+	}
 	if len(req.Windows) > 0 {
 		reasons = append(reasons, "windows run over the post-aggregate row set")
 	}
@@ -367,9 +380,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 			reasons = append(reasons, "aggregation "+string(agg.Type)+" is not streamable")
 			continue
 		}
-		// Decimal field aggregation routes through AggregateDecimalField to
-		// preserve precision; the streaming numeric fold loses it.
-		if schema != nil {
+		// Built-in decimal field aggregation routes through
+		// AggregateDecimalField to preserve precision; the streaming
+		// numeric fold loses it. An extension aggregator reads the
+		// decimal itself (DecimalValue), so its declared Streamable flag
+		// (checked above) decides — mirrors processing.canStream.
+		if schema != nil && !extensionsFromOpts(opts).HasAggregator(string(agg.Type)) {
 			if f := schema.Field(agg.Field); f != nil && f.Type.IsDecimal() {
 				reasons = append(reasons, "aggregation on decimal field "+agg.Field+" forces buffered path")
 			}
@@ -382,7 +398,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		}
 	}
 
-	reasons = append(reasons, streamableTestReasons(req)...)
+	reasons = append(reasons, streamableTestReasons(req, opts)...)
 
 	return len(reasons) == 0, reasons
 }
@@ -538,7 +554,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 		}
 
 		// Decimal field aggregation validity matrix.
-		if f.Type.IsDecimal() && !decimalSupportedAggregations[agg.Type] {
+		if f.Type.IsDecimal() && decimalAggregationRefused(agg.Type, opts.Extensions) {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL),
 				Message: "aggregation " + string(agg.Type) + " has no decimal128 implementation; field " + agg.Field + " is decimal128",
@@ -658,7 +674,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 // attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE) substituting
 // Target for Field since they do not carry a single source field.
 //
-// Duplicated locally rather than imported from processing/ because
+// Duplicated locally rather than imported from internal/processing/ because
 // descriptor must not import the processing package (predict is a
 // no-execute path).
 func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
@@ -674,7 +690,7 @@ func projectAttributeOutputs(req *types.Request, projected map[string]bool) {
 // attributeDefaultLabel mirrors processing.defaultAttributeLabel so
 // predict produces the same projected column names process would emit.
 // The duplication is intentional — descriptor/predict.go must not
-// import processing/.
+// import internal/processing/.
 func attributeDefaultLabel(attr *types.Attribute) string {
 	switch attr.Type {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
@@ -855,7 +871,7 @@ func grouperComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.Com
 // does NOT flip PredictResult.Streamable.
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `internal/service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `internal/processing/` imports.
 func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
@@ -900,7 +916,7 @@ func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request,
 // (the data slice still streams).
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `internal/service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `internal/processing/` imports.
 func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return
@@ -977,7 +993,7 @@ func filtererComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.Co
 // PredictResult.Streamable.
 //
 // Predict stays no-execute: this helper reads only the static
-// capabilities table — no `internal/service/` or `processing/` imports.
+// capabilities table — no `internal/service/` or `internal/processing/` imports.
 func populateFiltererPredicts(result *descriptor.PredictResult, req *types.Request, opts *PredictOptions) {
 	if result == nil || req == nil {
 		return

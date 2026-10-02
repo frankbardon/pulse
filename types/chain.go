@@ -141,7 +141,7 @@ type StageRef struct {
 //
 // Validation rules (enforced in descriptor + processing layers, not
 // this file — land in internal/descriptor/chain_overlay.go +
-// processing/overlay_chain_dispatch.go):
+// internal/processing/overlay_chain_dispatch.go):
 //   - Kind is required and must be a known OverlayKind whose
 //     whole-chain catalog entry exists (OVERLAY_INDEX_VS_STAGE,
 //     OVERLAY_DELTA_VS_STAGE).

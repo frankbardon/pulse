@@ -62,7 +62,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-metadata
 ### E2 — Guidance is gated and kept out of default payloads
 - S1: report-only coverage gates listing missing operators
 - S2: `TestManifestGuidanceBudget` (≤ ~4 KB growth; no prose in default manifest/response/predict)
-- S3: extension `Purpose` hook (absent → "no guidance" and never recommended)
+- S3: extension `Purpose` hook on `extend`-registered operators (the `extend` package is landed; absent → "no guidance" and never recommended)
 
 ## Acceptance criteria
 

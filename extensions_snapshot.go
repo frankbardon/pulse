@@ -28,8 +28,11 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Namespace:   parseNamespace(string(r.Name)),
 			Description: r.Description,
 			Streamable:  r.Streamable,
-			Accepts:     fieldTypeStrings(r.Accepts),
-			Params:      paramMetaSnapshot(r.Params),
+			Mergeable:   r.Mergeable,
+			// The declared crosstab margin class; empty stays omitted.
+			MarginReducibility: string(r.MarginReducibility),
+			Accepts:            fieldTypeStrings(r.Accepts),
+			Params:             paramMetaSnapshot(r.Params),
 		})
 		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
 			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema
@@ -72,6 +75,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Description: r.Description,
 			Streamable:  r.Streamable,
 			FansOut:     r.FansOut,
+			Mergeable:   r.Mergeable,
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Params:      paramMetaSnapshot(r.Params),
 		})

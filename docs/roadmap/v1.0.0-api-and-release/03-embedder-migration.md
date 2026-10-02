@@ -1,6 +1,6 @@
 # 03 — Embedder migration guide
 
-**Status:** decided · U01 and U02 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
+**Status:** decided · U01, U02 and U02b rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
 
 ## Purpose
 
@@ -44,7 +44,12 @@ It applies in stages: `pulse.Version()` and the MCP version defaults land with *
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
 | `processing.CanFuseCrosstab(req, schema)` | `PredictResult.CrosstabFusable` (from `Predict` / `PredictBytes`) | replaced | run predict and read the field; a parity test keeps it equal to the runtime decision | U02c |
-| `processing.*` extension-authoring interfaces and factories (`Aggregator`, `Grouper`, `FiltererBuilder`, `Record`, `*Factory`, …), `processing/feature`, `processing/window` | `github.com/frankbardon/pulse/extend` | moved + reshaped | port custom operators to `extend`; `Record` becomes a small read-only interface (values, nulls, wide and set accessors). Registration through `pulse.Options.Extensions` is unchanged. **Until U02b lands, `processing`, `processing/feature` and `processing/window` stay public at their current paths** | U02b |
+| `processing.*` extension-authoring interfaces and factories (`Aggregator`, `Grouper`, `FiltererBuilder`, `Record`, `*Factory`, …), `processing/feature`, `processing/window` | `github.com/frankbardon/pulse/extend` (`extend.Aggregator`, `extend.Grouper`, `extend.FiltererBuilder`, `extend.AttributeComputer`, `extend.FeatureComputer`, `extend.WindowComputer`, `extend.RowTest`, `extend.PostTest`, their `*Factory` types, `extend.Record`, `extend.Rows`) | moved + reshaped | port custom operators to `extend`. `Record` is a small read-only interface (`Schema`, `IsNull`, `NumericValue`, `StringValue`, `SetMaskValue`, `DecimalValue`) and buffered calls take an `extend.Rows` (`Len`, `At`) instead of a slice of engine records; both are valid only for the call that received them and are consumer-only. Registration through `pulse.Options.Extensions` keeps its shape, but every `Factory` / `ComponentsFunc` field now names `extend` types. `processing`, `processing/feature` and `processing/window` are now `internal/processing/...` and cannot be imported; engine-only capabilities (`MetaWindow`, `ExtensionAware`, `KeyFor`, merge hooks) have no `extend` equivalent | U02b |
+| `pulse.Options.Extensions` operator with `Streamable: true` (aggregator, grouper, attribute, row test) | runtime follows the DECLARED flag; a streamable operator that also supplies `ComponentsFunc` now streams instead of silently running buffered | behaviour change | none; set `Streamable: false` to force the buffered path. A grouper declaring `Streamable: true` without `extend.StreamingGrouper` / `extend.MultiKeyStreamingGrouper` is refused at `pulse.New` with `PULSE_EXTENSION_STREAMABLE_MISMATCH` | U02b |
+| extension aggregator on a `decimal128` target | admitted (reads `extend.Record.DecimalValue`); decimal targets run buffered and serial | behaviour change | none | U02b |
+| `Predict` for a built-in `ATTR_ZSCORE` + `GROUP_CATEGORY` request | `Streamable=false`, matching the runtime; the two-pass attribute list now includes `ATTR_REG_FITTED` / `ATTR_REG_RESIDUAL` / `ATTR_REG_LEVERAGE` | behaviour change | read `PredictResult.Streamable` as before | U02b |
+| streaming grouped `Response.Components` for a bucket-less grouper | the universal floor is now tallied correctly | behaviour change | none | U02b |
+| an operator's own `Components()` method with no `ComponentsFunc` | still emits (all emitting categories); not probe-validated | kept (deliberate deviation) | prefer `ComponentsFunc` to get the schema-parity probe | U02b |
 | `processing.ApplyOverlays`, `CompileDateRanges`, `DateRangeSet`, `NewCrosstabHostViewWithComponents` | internal, no replacement | removed | drive overlays through `Request.Overlays` / `(*Pulse).ApplySeriesOverlays`; range tables are validated at `pulse.New` | U02 |
 | `processing/regression`, `processing/arena` | `internal/processing/regression`, `internal/processing/arena` | moved | none; reach regressions through `REG_*` requests | U02 |
 | `service` package | `internal/service` | moved | use the root aliases above | U02 |

@@ -12,7 +12,7 @@ import (
 
 // ReusableRecord is the subset of *processing.Record needed by the reuse
 // fast path. Declared here as an interface so encoding/ does not depend
-// on processing/. Implementations (processing.Record) MUST clear their
+// on internal/processing/. Implementations (processing.Record) MUST clear their
 // own null/wide maps before this call returns successfully; the reader
 // populates them in place but only on fields where the value applies.
 //
@@ -32,7 +32,7 @@ type ReusableRecord interface {
 
 // IndexedReusableRecord is the index-keyed sibling of ReusableRecord. It
 // exists for the same reason ReusableRecord does — it lets the decoder
-// populate a *processing.Record without encoding/ importing processing/
+// populate a *processing.Record without encoding/ importing internal/processing/
 // — but its writes are keyed by the field's POSITION in the reader's
 // schema (the index into Schema.Fields) rather than by name, so a
 // positional record implementation can store the value with a slice
@@ -99,7 +99,7 @@ type TypedSetRecord interface {
 // meaningless against any other dictionary.
 //
 // It is how a per-dictionary-entry precompute (filter precompute) learns
-// which entry a row holds without encoding/ importing processing/ and
+// which entry a row holds without encoding/ importing internal/processing/ and
 // without the precompute reaching into reader internals. An ungrouped
 // schema never calls it; neither do the map decoders.
 type GroupIndexRecord interface {

@@ -11,7 +11,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -27,7 +27,7 @@ type Service struct {
 
 	// shardWorkers caps the per-shard parallel worker pool the Process
 	// path spawns when a request is mergeable per
-	// processing.CanMergeRequest. Zero is interpreted as
+	// processing.CanMergeRequestWithExtensions. Zero is interpreted as
 	// runtime.NumCPU() at dispatch time; 1 forces strictly serial
 	// execution. The reducer caps spawn count at the shard count
 	// regardless of this knob.
@@ -559,7 +559,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	}
 
 	// Per-cohort parallel decode fast path (single-file branch). When
-	// the request is mergeable (processing.CanMergeRequest), the cohort
+	// the request is mergeable (processing.CanMergeRequestWithExtensions), the cohort
 	// is a single .pulse file (not a shard archive — those route through
 	// shouldFanOut above), the cohort is large enough to amortise
 	// per-worker spawn overhead (recordCount >= the documented threshold),
@@ -694,7 +694,7 @@ func (s *Service) processSingleFileParallelMaybe(
 	if _, ok := resolveRealPath(cohort.fs, path); !ok {
 		return nil, false, nil
 	}
-	if !processing.CanMergeRequest(req, schema) {
+	if !processing.CanMergeRequestWithExtensions(req, schema, s.extensions) {
 		return nil, false, nil
 	}
 

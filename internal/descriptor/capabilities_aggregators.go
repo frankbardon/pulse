@@ -75,7 +75,7 @@ var numericFieldTypesNoDecimal = []string{
 // Both decode through the same encoding.decodeFixed branch and both
 // reach collectValues identically, so the manifest was simply telling a
 // caller that AGG_SUM could not sum a column it sums fine. Note that the
-// day-truncation adapter (processing/date_field.go) sits on the date
+// day-truncation adapter (internal/processing/date_field.go) sits on the date
 // FAMILY grouper/filter boundary, not on the aggregation path: a
 // datetime aggregate is in seconds, a date aggregate in days.
 var numericFieldTypesAnalytics = []string{
@@ -100,7 +100,7 @@ var numericFieldTypesAnalytics = []string{
 // PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL.
 //
 // AGG_VARIANCE and AGG_STDDEV are NOT here. They read the decimal-
-// carrying list, because processing/aggregator_decimal.go computes both
+// carrying list, because internal/processing/aggregator_decimal.go computes both
 // in decimal128 two-pass form and predict has always permitted the
 // pairing (decimalSupportedAggregations). Carrying them here was an
 // under-declaration, not a restriction anything enforced.
@@ -124,7 +124,7 @@ var numericFieldTypesAnalyticsNoDecimal = []string{
 // u8/u16/u32/u64/f32/f64 only. Excludes decimal128, date, and every
 // bit-packed encoding (u4, packed_bool). Used by aggregators that drive
 // a single float64 hot path with no per-type branch (AGG_WELFORD — see
-// processing/aggregator_welford.go's factory gate, which admits exactly
+// internal/processing/aggregator_welford.go's factory gate, which admits exactly
 // these six and mirrors the TEST_WELCH field-type policy).
 var numericFieldTypesStrictScalar = []string{
 	"f32",
@@ -200,7 +200,7 @@ var setFieldTypes = []string{
 // refusal these operators matched the echo (a plausible wrong answer),
 // after it they drop every row (a plausible empty answer). The
 // declaration is therefore part of the fix, alongside the construction
-// -time refusals in processing/ (rejectSetFieldForNumericFilter,
+// -time refusals in internal/processing/ (rejectSetFieldForNumericFilter,
 // rejectSetFieldForNumericGrouper, rejectSetFieldForNumericAggregator,
 // rejectSetFieldForNumericAttribute).
 //
@@ -313,7 +313,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 			Description: "Population standard deviation via Welford's online algorithm. On a decimal128 field the engine runs a decimal two-pass instead, falling back to float64 only if an intermediate would overflow.",
 			// decimal128 included: predict permits the pairing
 			// (decimalSupportedAggregations) and
-			// processing/aggregator_decimal.go implements it.
+			// internal/processing/aggregator_decimal.go implements it.
 			// Gated by TestCapabilities_DecimalDeclaredOnlyWhereSupported.
 			AcceptsTypes:  numericFieldTypesAnalytics,
 			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result)",

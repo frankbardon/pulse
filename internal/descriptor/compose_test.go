@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/processing"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -113,7 +113,7 @@ func seriesRangeGroupedRequest(label, field, groupField string) *types.Request {
 // catalog (kindRequiresMatrixCompose) against the processing original
 // (processing.KindRequiresMatrix exposed via the schema match helper).
 // Both surfaces must accept exactly the same set of OverlayKinds; a
-// new matrix-required kind landing in processing/ without an
+// new matrix-required kind landing in internal/processing/ without an
 // accompanying descriptor row would break the predict-time gate.
 func TestKindRequiresMatrixCompose_MatchesProcessing(t *testing.T) {
 	for _, kind := range types.AllOverlayKinds() {

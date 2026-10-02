@@ -14,7 +14,7 @@ import (
 // multi-key grouper on a summed-across dim passed and inflated n
 // silently. The fact reaches this arm over
 // descriptor.ExtensionsSnapshot — descriptor/ may not import
-// processing/ and so cannot assert MultiKeyStreamingGrouper itself.
+// internal/processing/ and so cannot assert MultiKeyStreamingGrouper itself.
 
 const pwExtGrouper = "GROUP_ACME_PANEL_X"
 

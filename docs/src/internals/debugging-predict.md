@@ -57,7 +57,7 @@ If predict reports the request as valid but execution fails, the bug
 is in the processing layer — not predict.
 
 `internal/descriptor/predict.go` has a structural ban on importing `internal/service/`
-and `processing/` (`TestPredictNoExecutionImports`). The predict path
+and `internal/processing/` (`TestPredictNoExecutionImports`). The predict path
 runs against `encoding.ReadHeader` + `encoding.ReadSchema` only,
 never against records. A divergence between predict's verdict and
 runtime's verdict is therefore always either:
@@ -81,9 +81,13 @@ drift before it ships.
 ## Streamability mismatch
 
 Predict surfaces a per-slot `Streamable` flag derived from the
-per-type `Streamable()` methods plus schema gates (decimal). The
-runtime parity check is `processing.CanStreamRequest(req, schema)`.
-A divergence means either:
+per-type `Streamable()` methods plus schema gates (decimal); an
+extension operator answers from its declared registration flag on the
+extensions snapshot. The runtime parity check is
+`internal/processing`'s `CanStreamRequest(req, schema)` —
+`CanStreamRequestWithExtensions(req, schema, exts)` for a
+request naming an extension operator (internal; embedders see the
+answer through `PredictResult.Streamable`). A divergence means either:
 
 - `Streamable()` returned a value that doesn't match the
   `OnlineAggregator` capability of the registered operator

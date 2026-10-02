@@ -27,11 +27,17 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#184** Root-native `DateRangeSpec`, `MemberSet`, `LoadMemberSetResult` (spelling unchanged) · [U02](units/U02-public-surface.md)
 
 #### Extension contract
-- [ ] **#185** Public `extend` package: aggregator, online aggregator, grouper + streaming variants, filterer builder / filter func, attribute and test interfaces, window and feature computers, factory types · [U02b](units/U02b-extension-contract.md)
-- [ ] **#186** `extend.Record`: a small read-only record interface (values, nulls, wide and set accessors), sized by an inventory of what built-in operators read · [U02b](units/U02b-extension-contract.md)
-- [ ] **#187** Registration adapts `extend` operators onto the engine; built-ins keep the concrete fast path; built-in vs adapted parity tests · [U02b](units/U02b-extension-contract.md)
-- [ ] **#188** `processing`, `processing/feature`, `processing/window` fully internal; any interim root aliases from U02 removed · [U02b](units/U02b-extension-contract.md)
-- [ ] **#189** `extension-points.md` and the `adding-*` recipes rewritten against `extend` · [U02b](units/U02b-extension-contract.md)
+- [x] **#185** Public `extend` package: aggregator, online aggregator, grouper + streaming variants, filterer builder / filter func, attribute and test interfaces, window and feature computers, factory types · [U02b](units/U02b-extension-contract.md)
+- [x] **#186** `extend.Record`: a small read-only record interface (values, nulls, wide and set accessors), sized by an inventory of what built-in operators read · [U02b](units/U02b-extension-contract.md)
+- [x] **#187** Registration adapts `extend` operators onto the engine; built-ins keep the concrete fast path; built-in vs adapted parity tests · [U02b](units/U02b-extension-contract.md)
+- [x] **#188** `processing`, `processing/feature`, `processing/window` fully internal; any interim root aliases from U02 removed · [U02b](units/U02b-extension-contract.md)
+- [x] **#189** `extension-points.md` and the `adding-*` recipes rewritten against `extend` · [U02b](units/U02b-extension-contract.md)
+
+#### Extension hardening
+- [ ] **#194** Chain predict has a production caller that passes the `ExtensionsSnapshot` (`ValidateChain` / `ValidateChainWithExtensions` reachable outside tests) · [U34](units/U34-extension-validation.md)
+- [ ] **#195** An operator's own `Components()` keys probe-validated against its `ComponentSchema` at `pulse.New` · [U34](units/U34-extension-validation.md)
+- [ ] **#196** `FeatureRegistration.Streamable` probe-validated at `pulse.New` · [U34](units/U34-extension-validation.md)
+- [ ] **#197** Synth-distribution extension contract: an `extend` factory shape, or a documented decision that distributions are not an extension category · [U34](units/U34-extension-validation.md)
 
 #### Cohort facade
 - [ ] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
@@ -210,6 +216,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#109** Float precision control; old switches documented as shorthands; `returned` marker · [U17](units/U17-response-shaping-core.md)
 - [ ] **#110** Predict per-section size estimates · [U18](units/U18-response-shaping-execution.md)
 - [ ] **#111** `TestReturnFullIsIdentity`, `TestReturnSkipsComputation`, `TestReturnPathsMatchSchema`; `response-shaping.md` skill · [U18](units/U18-response-shaping-execution.md)
+- [ ] **#193** Per-group aggregator Components: `Components.Aggregations` figures emitted inside each group of a grouped response, for built-in and extension operators alike (wire + payload-schema change, `format_version` stays `"1.1"`) · [U17](units/U17-response-shaping-core.md)
 
 ---
 

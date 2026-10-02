@@ -53,9 +53,9 @@ Every package under the module root has a class. "Forced public" in the rational
 | `descriptor` | Public, narrowed (split in place; remainder in `internal/descriptor`) | `Envelope`, `EnvelopeEntry`, `NewEnvelope`, `NewEnvelopeWithRequest`, `InspectResult`, `InspectOptions`, `PredictResult`, `Manifest` + sub-types, `ComponentSchema`, `ComponentKey`, `ShardInfo` | `PredictOptions`, `ExtensionsSnapshot`, `BuildManifest`, `BuildPayloadSchema`, capability builders, `InspectFromBytes`, `PredictFromBytes` | embedders re-emit the standard envelope and read manifest / inspect / predict results. Builders and the snapshot are implementation; byte-level inspect and predict become facade methods. Forced public (`Inspect`, `Predict`, `Manifest`, extension `ComponentSchema`) |
 | `errors` | Public **(amended: left whole, not split)** | everything — `CodedError`, `Code` + every code constant, constructors, `HasCode`, `WrapCodedError`, `Lookup`, `LookupResult`, `Fixup`, `Metadata`, `ByDomain`, `Search`, `AllCodes`, `AllDomains`, `ParseCode`, `SortedCodeNames`, `Detail*` keys | — | code strings reach end users inside envelopes; embedders branch on them. Forced public. Splitting the metadata tables out bought little and cost a twin package |
 | `synth` | Public, narrowed (**alias facade** over `internal/synth`) | `Spec`, `FieldSpec`, `Options`, `Result`, `Profile`, `ProfileOptions`, distribution-spec types and `Dist*` constants, `Synth`, `SynthBytes`; **gap identifiers (U02):** `ProfileFile`, `ProfileBytes`, `SpecFromProfile`, `ParseSpec`, `WriteSpec`, the `FidelityReport` family | generators, capture, structural-rule detectors, `Build*` fidelity builders, rule-file plumbing, tuning constants | embedders build test fixtures without a facade instance. Forced public (`Synth`, `Profile` aliases) |
-| `extend` | **New**, public | extension-authoring contract: `Aggregator`, `OnlineAggregator`, `Grouper` + streaming variants, `FiltererBuilder` / `FilterFunc`, attribute and test interfaces, window / feature computers, factory types, a small read-only `Record` interface | — | embedders author custom operators against a contract that does not freeze the engine's record representation. Built-ins keep their concrete fast path. Delivered by U02b |
-| `processing` | Internal (**interim: still public until U02b**) | — | all | engine. Forced public today only through extension factories, `MemberSet` and `DateRangeSpec`; those move to `extend` and root-native types. Test-only helpers `ApplyOverlays`, `CompileDateRanges`, `NewCrosstabHostViewWithComponents` go internal with no replacement; `CanFuseCrosstab` is replaced by `PredictResult.CrosstabFusable` |
-| `processing/feature`, `processing/window` | Internal (interim: still public until U02b) | — | all | forced public today only through `FEAT_*` / `WIN_*` extension factories, which move to `extend` |
+| `extend` | **New**, public | extension-authoring contract: `Aggregator`, `OnlineAggregator`, `Grouper` + streaming variants, `FiltererBuilder` / `FilterFunc`, attribute and test interfaces, window / feature computers, factory types, a small read-only `Record` / `Rows` pair (consumer-only) | — | embedders author custom operators against a contract that does not freeze the engine's record representation. Built-ins keep their concrete fast path. **Landed (U02b)**: `extend` imports only `encoding`, `types` and `errors`; engine-only capabilities (`MetaWindow`, `ExtensionAware`, `KeyFor`, merge hooks) are omitted |
+| `processing` | Internal (**landed: `internal/processing`**) | — | all | engine. Its extension factories moved to `extend`; `MemberSet` and `DateRangeSpec` are root-native types. Test-only helpers `ApplyOverlays`, `CompileDateRanges`, `NewCrosstabHostViewWithComponents` go internal with no replacement; `CanFuseCrosstab` is replaced by `PredictResult.CrosstabFusable` |
+| `processing/feature`, `processing/window` | Internal (**landed: `internal/processing/feature`, `internal/processing/window`**) | — | all | their extension factories moved to `extend` |
 | `processing/regression`, `processing/arena` | Internal | — | all | freely internal |
 | `service` | Internal | — | all | orchestration. Its 13 facade-returned result types stay reachable as root aliases; `(*Pulse).Service()` is removed |
 | `fs` | Internal | — | all | freely internal; embedders pass an `afero.Fs` through `Options.FS` (unchanged) |
@@ -85,7 +85,7 @@ Recorded when U02 landed; the rows above already carry them.
 | `ExportJob.Hash` / `ConvertJob.Hash` | not classified | **kept public** (maintainer decision, 2026-10-01) | the job hash is the stable identity embedders key caches and dedup on; it freezes with the job types |
 | Ordering | factory (E1) before the moves (E2) | the `io` structural move into `internal/io` + `internal/iocore` landed with the factory story; the later narrowing story only trimmed the facade | the factory and the cycle break could not be built separately |
 | Template target / var-type constants | not classified (aliases only; compare `.String()`) | root constants `pulse.TemplateTarget*` and `pulse.TemplateVar*` for every value, each equal to the internal value; `TestTemplateConstants_RootSetComplete` fails on an internal value with no root spelling | an alias carries the type but not its constants; embedders could not name a target without a string compare |
-| `processing` interim | keep in place or move with aliases | kept public in place; U02b moves it | avoids throwaway aliases and double path churn for extension authors |
+| `processing` interim | keep in place or move with aliases | kept public in place; U02b moved it (landed, no aliases) | avoids throwaway aliases and double path churn for extension authors |
 
 ### Root aliases into internal packages
 
@@ -144,20 +144,21 @@ Every contract difference above — old spelling, new spelling, kind and how to 
 ## Interaction with other themes
 
 - **Feature profiles** and **guided analysis** add new public types (`Profile`, `Purpose`, `Interpretation`). They are born in their final package — a public noun package or the root — never in a package this audit makes internal.
-- **New operators** in U04, U07, U15 and U20 are born against `extend` (those units depend on U02b), so no new operator is written against the soon-internal `processing` interfaces.
+- **New operators** in U04, U07, U15 and U20 land after `processing` is internal (those units depend on U02b); built-ins are written against the internal engine interfaces and embedder-facing contracts against `extend`.
 - `descriptor.ExtensionsSnapshot` and the planned `InstanceSnapshot` are implementation types. Decided: internal; the facade fills them.
-- The docs audit (U32) depends on U02, U02b and U02c so it audits the final surface.
+- The docs audit (U32) depends on U02, U02b, U02c and U34 so it audits the final surface.
 
 ## Deliverables
 
 - [x] Downstream catalog completed (maintainer)
 - [x] Classification decided per package
 - [x] Package moves / narrowing done; facade re-exports added (U02)
-- [ ] `extend` package; `processing` fully internal (U02b)
+- [x] `extend` package; `processing` fully internal (U02b)
+  - Landed deviations: an operator's own `Components()` method still emits when no `ComponentsFunc` is registered (not probe-validated, [U34](../units/U34-extension-validation.md)); runtime streamability follows the DECLARED `Streamable` flag (feature `Streamable` not probe-validated, U34); extension aggregators and groupers merge when they declare `extend.MergeableAggregator` / `extend.MergeableGrouper`; single-key extension groupers fuse in a crosstab through an adapter-synthesized `KeyFor`; extension crosstab cells fuse on a declared `MarginReducibility`; per-group aggregator Components is unlanded for every operator ([U17](../units/U17-response-shaping-core.md)); predict-side chain validation has no production caller yet and the synth-distribution registration has no `extend` factory shape (both [U34](../units/U34-extension-validation.md)); overlay kinds are not an extension category
 - [ ] `CohortReader` / `CohortWriter`; `PredictResult.CrosstabFusable` (U02c)
 - [x] API-compatibility check in CI against the latest release tag (U02: advisory `apidiff` + blocking `TestPublicAPIGolden`)
 - [x] Public package list recorded in the `STABILITY.md` draft ([02](02-stability-policy.md)); the root file lands with U33
-- [ ] Embedder migration guide handed off ([03](03-embedder-migration.md)) — U01 and U02 rows landed and compiled by the smoke module; U02b / U02c rows pending
+- [ ] Embedder migration guide handed off ([03](03-embedder-migration.md)) — U01, U02 and U02b rows landed and compiled by the smoke module; U02c rows pending
 
 ## Appendix: downstream usage catalog
 

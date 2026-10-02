@@ -6,13 +6,13 @@ stage.
 
 `ProcessChain` (`pulse.ProcessChain`, `pulse_process_chain`,
 `pulse api process-chain`) executes a linear pipeline whose stages all
-pass `processing.CanChainRequest`. The gate enforces that each stage
+pass `internal/processing`'s `CanChainRequest`. The gate enforces that each stage
 emits a shape the next stage can consume; v1 admits mergeable scalar-
 emitting operators only.
 
 ## 1. Edit the runtime gate
 
-Edit `processing/chain.go`. `CanChainRequest` calls `CanMergeRequest`
+Edit `internal/processing/chain.go`. `CanChainRequest` calls `CanMergeRequest`
 first, then layers chain-specific exclusions
 (`aggregatorEmitsScalar`). Add a new exclusion branch when an
 operator is mergeable but its emit shape would break the synthesised
@@ -81,7 +81,7 @@ to the overlay-free baseline; populated overlays fold into the hash
 automatically. Locked by `TestChainCanonicalHash_OverlayFreeByteIdentity`
 and `TestChainCanonicalHash_OverlaysIncluded`.
 
-Whole-chain handler dispatch lives in `processing/overlay_chain_dispatch.go`.
+Whole-chain handler dispatch lives in `internal/processing/overlay_chain_dispatch.go`.
 Predict-time validation lives in `internal/descriptor/chain_overlay.go` —
 `ValidateChain` walks `ChainRequest.Overlays` after the per-stage
 gate and emits:

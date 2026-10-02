@@ -3,7 +3,7 @@ package regression
 // Record is the minimal contract the regression engines need from the
 // parent processing.Record. Defining it locally keeps this subpackage
 // free of the processing import and mirrors the pattern used by
-// processing/feature.
+// internal/processing/feature.
 //
 // processing.Record satisfies this interface; the orchestrator passes
 // records through unchanged.

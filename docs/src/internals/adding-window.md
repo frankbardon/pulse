@@ -1,5 +1,7 @@
 # Adding a Window Operator
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** Pulse internals contributors adding a new `WIN_*`
 operator — a window-frame function that emits a per-row value derived
 from a sliding or anchored frame around the current record
@@ -30,7 +32,7 @@ func AllWindowTypes() []WindowType {
 
 ## 2. Implement and register
 
-Window operators live under `processing/window/`. Each file is one
+Window operators live under `internal/processing/window/`. Each file is one
 operator; register the factory in the package's `init()` via the
 `register(types.WIN_X, newX)` call shape used by sibling files.
 
@@ -66,7 +68,7 @@ window operator.
 
 ## 5. Tests
 
-Add tests in `processing/window/<name>_test.go`. Cover the empty-frame,
+Add tests in `internal/processing/window/<name>_test.go`. Cover the empty-frame,
 single-row, null-bearing, and order-sensitive cases.
 
 ## 6. Write the atomic skill
@@ -97,7 +99,7 @@ if the operator introduces a contract CLAUDE.md states directly, and mind
 ```bash
 go test ./internal/skills/ -run TestSkillsCoverAllWindowTypes
 go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./processing/window/...
+go test ./internal/processing/window/...
 go test ./types/ -run TestStreamability_WindowsKnown
 ```
 

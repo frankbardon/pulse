@@ -1,5 +1,7 @@
 # Adding a Statistical Test
 
+> **Embedding Pulse, not contributing to it?** This recipe adds a *built-in* in `internal/processing/`, which embedders cannot import. To add your own operator, implement the matching contract in the public `extend` package instead — see [Extension Points](extension-points.md).
+
 **Audience:** internals contributors adding a new `TEST_*` operator —
 tier-1 (row-stream) or tier-2 (post-test on the materialised result
 set).
@@ -35,16 +37,16 @@ Add it to `types.AllTestTypes()`.
 
 ## 3. Implement and register
 
-Tests live in `processing/test_*.go`. Existing examples to mirror:
+Tests live in `internal/processing/test_*.go`. Existing examples to mirror:
 
-- `processing/test_t.go` — online tier-1 test.
-- `processing/test_anova.go` — tier-1 ANOVA with grouper support.
-- `processing/test_post.go` and `processing/test_post_more.go` —
+- `internal/processing/test_t.go` — online tier-1 test.
+- `internal/processing/test_anova.go` — tier-1 ANOVA with grouper support.
+- `internal/processing/test_post.go` and `internal/processing/test_post_more.go` —
   tier-2 post-tests.
-- `processing/test_studentized.go` — numerical integration utilities
+- `internal/processing/test_studentized.go` — numerical integration utilities
   (used by `TEST_TUKEY_HSD`).
 
-Register the test in `processing/test.go` (the registry construction
+Register the test in `internal/processing/test.go` (the registry construction
 calls). For tier-2 variants, declare both the base type and the
 variant identifier the post-test surface uses.
 
@@ -120,7 +122,7 @@ belongs in `skills/statistical-testing.md`, not CLAUDE.md.
 
 ```bash
 go test ./types/      -run TestStreamability_TestsKnown   # declared TestType.Streamable() table
-go test ./processing/ -run 'TestProcessor_Tier1|TestProcessor_PostTest'   # tier-1 streaming vs buffered, post-test dispatch
+go test ./internal/processing/ -run 'TestProcessor_Tier1|TestProcessor_PostTest'   # tier-1 streaming vs buffered, post-test dispatch
 go test ./descriptor/ ./internal/descriptor/ -run TestManifest
 go test ./internal/skills/    -run TestSkillsCoverAll
 go test ./...

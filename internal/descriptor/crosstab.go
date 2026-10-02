@@ -162,8 +162,15 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 		// Warn when normalization is requested on a recompute aggregator
 		// without the implied margin: harmless under v1's always-
 		// recompute path, but flag so the warning trail is informative.
+		// An extension cell answers with its DECLARED class through the
+		// snapshot (undeclared reads as recompute) — the runtime twin is
+		// processing.ExtensionRegistry.AggregatorMarginReducibility.
 		mode := spec.NormalizeOrDefault()
-		if mode != types.CrosstabNormalizeNone && spec.Cell.Type.MarginReducibility() == types.MarginRecompute {
+		var snap *ExtensionsSnapshot
+		if opts != nil {
+			snap = opts.Extensions
+		}
+		if mode != types.CrosstabNormalizeNone && snap.AggregatorMarginReducibility(spec.Cell.Type) == types.MarginRecompute {
 			env.AddWarning(string(errors.PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE),
 				"normalize="+string(mode)+" on a recompute-margin aggregator ("+string(spec.Cell.Type)+") requires recomputing the margin over raw rows; v1 does this automatically but cost is non-trivial",
 				map[string]any{"aggregation": string(spec.Cell.Type), "normalize": string(mode)})
@@ -242,7 +249,7 @@ func validateCrosstabMarginAggregations(
 }
 
 // marginAggregationFaultCode maps a shared structural fault kind onto
-// the predict-side coded surface. processing/crosstab.go holds the
+// the predict-side coded surface. internal/processing/crosstab.go holds the
 // execution-side twin; keeping the MAPPING separate from the DETECTION
 // is what lets one report an envelope entry and the other a CodedError
 // without either owning the rules.

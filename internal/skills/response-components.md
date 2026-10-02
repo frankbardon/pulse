@@ -103,7 +103,7 @@ Predict surfaces per-slot `BufferedComponents` = `(Mergeability == None)`; check
 | `Aggregations` | **ungrouped:** emitted, per-slot. Floor `{n, n_null}` from per-worker tallies summed on merge; `Operator` read off the MERGED aggregator. **grouped:** not emitted — parity with serial, which does not emit it either (per-group components is an unlanded surface). |
 | `Filterers` | emitted, per-slot. `{n_in, n_out, n_null_input}` are plain tallies and sum slot-wise. |
 | `Run` | emitted. `ShardCount` is the archive's shard count on BOTH arms (serial included), 0 for a single file. |
-| `Groupers` | emitted — per-worker grouper state folds through `processing.MergeableGrouper`. |
+| `Groupers` | emitted — per-worker grouper state folds through `processing.MergeableGrouper` (an extension grouper's through `extend.MergeableGrouper.MergeState`); the floor's (record, bucket) assignment count is summed on merge, so a bucket-less grouper's `{total_n, n_null}` matches serial. |
 
 Why no per-operator components merge exists: the parallel arms fold OPERATOR STATE (`MergeableAggregator.MergeOnline`), so after the merge each slot holds the whole cohort's state and its `Components()` is what a serial instance would report. `processing.CanMergeRequest` has already refused anything whose state cannot fold, so the `Mergeable` / `Partial` / `None` classes need no second gate on the parallel path — an operator that clears that gate folds its components with its state. Mergeable folds without buffering, partial allocates, none never reaches the arm at all.
 
@@ -119,7 +119,7 @@ The legacy `processing.WelfordTriple` smuggled inside `MatrixCell.Value` is GONE
 
 ## Extension contract
 
-Extensions registered via `pulse.Options.Extensions` declare a `ComponentSchema` and implement either `ComponentsFunc` (closure) or the sibling interface (`processing.MetaAggregator` / `MetaGrouper` / `MetaFilterer`). Probe-validation at `pulse.New()` checks declaration-vs-emission parity:
+Extensions registered via `pulse.Options.Extensions` declare a `ComponentSchema` and supply a `ComponentsFunc` (closure; an operator's own `Components()` method is adopted when none is registered). Probe-validation at `pulse.New()` checks declaration-vs-emission parity:
 
 | Code | Cause | Fix |
 |---|---|---|

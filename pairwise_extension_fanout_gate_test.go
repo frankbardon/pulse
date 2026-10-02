@@ -8,8 +8,8 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
-	"github.com/frankbardon/pulse/processing"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -40,21 +40,21 @@ const (
 // that has no set field.
 type pwExtFan struct{}
 
-func (pwExtFan) Group(records []*processing.Record, field string) (map[string][]*processing.Record, error) {
+func (pwExtFan) Group(rows extend.Rows, field string) (map[string][]int, error) {
 	_ = field
-	out := make(map[string][]*processing.Record, 2)
-	for _, r := range records {
-		out["alpha"] = append(out["alpha"], r)
-		out["beta"] = append(out["beta"], r)
+	out := make(map[string][]int, 2)
+	for i := 0; i < rows.Len(); i++ {
+		out["alpha"] = append(out["alpha"], i)
+		out["beta"] = append(out["beta"], i)
 	}
 	return out, nil
 }
 
-func (pwExtFan) KeyForRow(*processing.Record, string) (string, bool, error) {
+func (pwExtFan) KeyForRow(extend.Record, string) (string, bool, error) {
 	return "alpha", true, nil
 }
 
-func (pwExtFan) KeysForRow(*processing.Record, string) ([]string, bool, error) {
+func (pwExtFan) KeysForRow(extend.Record, string) ([]string, bool, error) {
 	return []string{"alpha", "beta"}, true, nil
 }
 
@@ -62,12 +62,16 @@ func (pwExtFan) KeysForRow(*processing.Record, string) ([]string, bool, error) {
 // FansOut=false registration.
 type pwExtFlat struct{}
 
-func (pwExtFlat) Group(records []*processing.Record, field string) (map[string][]*processing.Record, error) {
+func (pwExtFlat) Group(rows extend.Rows, field string) (map[string][]int, error) {
 	_ = field
-	return map[string][]*processing.Record{"all": records}, nil
+	all := make([]int, rows.Len())
+	for i := range all {
+		all[i] = i
+	}
+	return map[string][]int{"all": all}, nil
 }
 
-func (pwExtFlat) KeyForRow(*processing.Record, string) (string, bool, error) {
+func (pwExtFlat) KeyForRow(extend.Record, string) (string, bool, error) {
 	return "all", true, nil
 }
 
@@ -79,7 +83,7 @@ func pwExtExtensions() Extensions {
 			{
 				Name:        pwExtFanGrouper,
 				Description: "test fan-out grouper",
-				Factory: func(*types.Group, *encoding.Schema) (processing.Grouper, error) {
+				Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) {
 					return pwExtFan{}, nil
 				},
 				Streamable: true,
@@ -88,7 +92,7 @@ func pwExtExtensions() Extensions {
 			{
 				Name:        pwExtFlatGrouper,
 				Description: "test single-key grouper",
-				Factory: func(*types.Group, *encoding.Schema) (processing.Grouper, error) {
+				Factory: func(*types.Group, *encoding.Schema) (extend.Grouper, error) {
 					return pwExtFlat{}, nil
 				},
 				Streamable: true,
