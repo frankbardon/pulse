@@ -50,6 +50,7 @@ func TestValidateLabels_OKReplace(t *testing.T) {
 		labelTestSchema(t),
 		snapshotWith("country_names"),
 		nil,
+		nil,
 	)
 	if len(env.Errors) > 0 {
 		t.Fatalf("unexpected errors: %+v", env.Errors)
@@ -62,6 +63,7 @@ func TestValidateLabels_OKAugment(t *testing.T) {
 		[]*types.LabelBinding{{Field: "country", Table: "country_names", Mode: types.LabelModeAugment}},
 		labelTestSchema(t),
 		snapshotWith("country_names"),
+		nil,
 		nil,
 	)
 	if len(env.Errors) > 0 {
@@ -79,6 +81,7 @@ func TestValidateLabels_UnknownField(t *testing.T) {
 		labelTestSchema(t),
 		snapshotWith("country_names"),
 		nil,
+		nil,
 	)
 	if !envHasCode(env, errors.PULSE_LABEL_FIELD_UNKNOWN) {
 		t.Fatalf("expected PULSE_LABEL_FIELD_UNKNOWN, got %+v", env.Errors)
@@ -91,6 +94,7 @@ func TestValidateLabels_NonCategoricalField(t *testing.T) {
 		[]*types.LabelBinding{{Field: "amount", Table: "country_names"}},
 		labelTestSchema(t),
 		snapshotWith("country_names"),
+		nil,
 		nil,
 	)
 	if !envHasCode(env, errors.PULSE_LABEL_FIELD_NOT_CATEGORICAL) {
@@ -105,6 +109,7 @@ func TestValidateLabels_UnknownTable(t *testing.T) {
 		labelTestSchema(t),
 		snapshotWith("country_names"),
 		nil,
+		nil,
 	)
 	if !envHasCode(env, errors.PULSE_LABEL_TABLE_UNKNOWN) {
 		t.Fatalf("expected PULSE_LABEL_TABLE_UNKNOWN, got %+v", env.Errors)
@@ -116,6 +121,7 @@ func TestValidateLabels_NilSnapshotRejects(t *testing.T) {
 	ValidateLabels(env,
 		[]*types.LabelBinding{{Field: "country", Table: "country_names"}},
 		labelTestSchema(t),
+		nil,
 		nil,
 		nil,
 	)
@@ -133,6 +139,7 @@ func TestValidateLabels_DuplicateField(t *testing.T) {
 		},
 		labelTestSchema(t),
 		snapshotWith("country_names"),
+		nil,
 		nil,
 	)
 	if !envHasCode(env, errors.PULSE_LABEL_DUPLICATE_BINDING) {
@@ -152,6 +159,7 @@ func TestValidateLabels_AugmentCollidesWithSchema(t *testing.T) {
 		schema,
 		snapshotWith("country_names"),
 		nil,
+		nil,
 	)
 	if !envHasCode(env, errors.PULSE_LABEL_FIELD_COLLISION) {
 		t.Fatalf("expected PULSE_LABEL_FIELD_COLLISION, got %+v", env.Errors)
@@ -164,6 +172,7 @@ func TestValidateLabels_AugmentCollidesWithExtraField(t *testing.T) {
 		[]*types.LabelBinding{{Field: "country", Table: "country_names", Mode: types.LabelModeAugment}},
 		labelTestSchema(t),
 		snapshotWith("country_names"),
+		nil,
 		map[string]bool{"country_label": true},
 	)
 	if !envHasCode(env, errors.PULSE_LABEL_FIELD_COLLISION) {
@@ -178,6 +187,7 @@ func TestValidateLabels_InvalidMode(t *testing.T) {
 		labelTestSchema(t),
 		snapshotWith("country_names"),
 		nil,
+		nil,
 	)
 	if !envHasCode(env, errors.SERVICE_VALIDATION) {
 		t.Fatalf("expected SERVICE_VALIDATION for invalid mode, got %+v", env.Errors)
@@ -186,7 +196,7 @@ func TestValidateLabels_InvalidMode(t *testing.T) {
 
 func TestValidateLabels_NilOrEmpty(t *testing.T) {
 	env := descriptor.NewEnvelope(nil)
-	if names := ValidateLabels(env, nil, labelTestSchema(t), snapshotWith("country_names"), nil); len(names) > 0 {
+	if names := ValidateLabels(env, nil, labelTestSchema(t), snapshotWith("country_names"), nil, nil); len(names) > 0 {
 		t.Fatalf("expected empty augment set for nil bindings; got %v", names)
 	}
 	if len(env.Errors) > 0 {

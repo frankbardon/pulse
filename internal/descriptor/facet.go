@@ -224,7 +224,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// projected output columns beyond the requested fields, so the extra
 	// set is empty — augment-mode collision detection only checks the
 	// schema namespace.
-	ValidateLabels(env, req.Labels, schema, snap, nil)
+	ValidateLabels(env, req.Labels, schema, snap, opts.instance(), nil)
 
 	// Validate FACET-host overlay specs. Per-kind contracts live in
 	// internal/descriptor/overlay_facet.go; the validator is no-op when

@@ -385,7 +385,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// carries the registered label tables; augment-mode collisions are
 	// checked against the projected output column set so a sibling
 	// "<field>_label" cannot shadow an aggregation/attribute label.
-	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), projected)
+	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), projected)
 
 	// Check description quality (the cohort's own fields only).
 	validateDescriptionQuality(env, cohortSchema, opts)

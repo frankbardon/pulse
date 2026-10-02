@@ -310,10 +310,18 @@ func resolveLabel(tbl LabelTable, key string) (string, bool, error) {
 	return "", false, nil
 }
 
+// LookupLabelTable returns the label table registered under name, or
+// false when none is or the instance hides capability:labels.
+func (r *ExtensionRegistry) LookupLabelTable(name string) (LabelTable, bool) {
+	return lookupLabelTable(r, name)
+}
+
 // lookupLabelTable returns the label table registered under name.
-// Falls through cleanly on nil registry.
+// Falls through cleanly on nil registry. A label table rides
+// capability:labels: with it hidden every table misses, exactly as on
+// an instance that registered none.
 func lookupLabelTable(r *ExtensionRegistry, name string) (LabelTable, bool) {
-	if r == nil || r.LabelTables == nil {
+	if r == nil || r.LabelTables == nil || r.isHidden(featureLabels) {
 		return LabelTable{}, false
 	}
 	t, ok := r.LabelTables[name]

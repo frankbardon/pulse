@@ -20,7 +20,7 @@ func (s *Service) validateFacetLabels(req *types.FacetRequest, schema *encoding.
 		return nil
 	}
 	env := descriptor.NewEnvelope(nil)
-	descx.ValidateLabels(env, req.Labels, schema, s.ExtensionsSnapshot(), nil)
+	descx.ValidateLabels(env, req.Labels, schema, s.ExtensionsSnapshot(), s.InstanceSnapshot(), nil)
 	if len(env.Errors) == 0 {
 		return nil
 	}

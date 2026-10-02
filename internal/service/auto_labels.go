@@ -69,12 +69,10 @@ func (s *Service) applyAutoLabels(labels *[]*types.LabelBinding, schema *encodin
 }
 
 // labelTableRegistered reports whether a label table is registered on
-// the runtime extension registry.
+// the runtime extension registry and offered by the instance (a hidden
+// capability:labels offers none).
 func (s *Service) labelTableRegistered(name string) bool {
-	if s.extensions == nil || s.extensions.LabelTables == nil {
-		return false
-	}
-	_, ok := s.extensions.LabelTables[name]
+	_, ok := s.extensions.LookupLabelTable(name)
 	return ok
 }
 

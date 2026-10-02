@@ -249,8 +249,13 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   are not scoped yet. `extensions.label_tables` is empty (`[]`) when
   `capability:labels` is off and `extensions.range_tables` when
   `capability:range_tables` is off, exactly as on an instance that
-  registered no tables. `p.LabelTables()` and `p.RangeTables()` still
-  return them: facade methods are not gated.
+  registered no tables, and requests resolve them the same way: a label
+  binding naming one fails `PULSE_LABEL_TABLE_UNKNOWN`, an
+  `AutoLabels` default naming one is not applied, and a date-range
+  `table:` fails `PULSE_RANGE_TABLE_UNKNOWN`. `p.LabelTables()` and
+  `p.RangeTables()` still return them: facade methods are not gated.
+  Lookup tables (the expression `lookup()` function) have no
+  capability and always resolve.
 - **Payload schema.** `p.PayloadSchema()` returns the JSON Schema for
   the instance: enums keep only enabled names, hidden slots are not
   properties, and a request root whose capability is off (compose,

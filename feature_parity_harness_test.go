@@ -68,6 +68,11 @@ type parityCategory struct {
 	// category (the outcome is still compared byte for byte); empty
 	// requires the never-registered outcome to be an error.
 	neverOK string
+	// hiddenBy, when set, is the feature whose hiding hides the
+	// candidates — for names that are not features themselves (a
+	// named table rides its capability). The cell uses the first
+	// candidate when the fixture hides hiddenBy.
+	hiddenBy string
 }
 
 // parityHost is one instance plus the cohort the harness drives.
@@ -434,6 +439,9 @@ type parityHostConfig struct {
 	options func(*Options)
 	cohort  string
 	fields  parityFields
+	// profiles are inline fixture profiles by name, consulted before
+	// the fixture files.
+	profiles map[string][]string
 }
 
 func newParityHostWith(t *testing.T, fsys afero.Fs, fixture string, cfg parityHostConfig) *parityHost {
@@ -442,7 +450,9 @@ func newParityHostWith(t *testing.T, fsys afero.Fs, fixture string, cfg parityHo
 	if cfg.options != nil {
 		cfg.options(&opts)
 	}
-	if fixture != "" {
+	if feats, ok := cfg.profiles[fixture]; ok {
+		opts.FeatureProfile = &FeatureProfile{Profile: fixture, Features: feats}
+	} else if fixture != "" {
 		raw, err := os.ReadFile(featureSetFixtureDir + fixture + ".json")
 		if err != nil {
 			t.Fatalf("read fixture %s: %v", fixture, err)
@@ -489,6 +499,12 @@ func newParityHostWith(t *testing.T, fsys afero.Fs, fixture string, cfg parityHo
 
 // hiddenCandidate returns the first candidate the instance hides.
 func hiddenCandidate(h *parityHost, c parityCategory) (string, bool) {
+	if c.hiddenBy != "" {
+		if len(c.candidates) > 0 && h.p.svc.InstanceSnapshot().Hidden(c.hiddenBy) {
+			return c.candidates[0], true
+		}
+		return "", false
+	}
 	for _, n := range c.candidates {
 		if h.p.svc.InstanceSnapshot().Hidden(n) {
 			return n, true

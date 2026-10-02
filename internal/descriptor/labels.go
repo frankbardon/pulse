@@ -31,6 +31,7 @@ func ValidateLabels(
 	env *descriptor.Envelope, bindings []*types.LabelBinding,
 	schema *encoding.Schema,
 	snap *ExtensionsSnapshot,
+	inst *InstanceSnapshot,
 	extraFields map[string]bool,
 ) (augmentNames map[string]bool) {
 	augmentNames = map[string]bool{}
@@ -87,7 +88,7 @@ func ValidateLabels(
 				map[string]any{"index": i, "field": b.Field, "field_type": field.Type.String()})
 			continue
 		}
-		if !labelTableRegistered(snap, b.Table) {
+		if !labelTableRegistered(snap, inst, b.Table) {
 			env.AddError(string(errors.PULSE_LABEL_TABLE_UNKNOWN),
 				fmt.Sprintf("labels[%d]: table %q not registered on Service", i, b.Table),
 				map[string]any{"index": i, "field": b.Field, "table": b.Table})
@@ -144,8 +145,8 @@ func isCategoricalFieldType(t encoding.FieldType) bool {
 // Service either has no extension state or the predict caller did not
 // pass one. Built-in pulse ships no label tables, so absence is
 // authoritative.
-func labelTableRegistered(snap *ExtensionsSnapshot, name string) bool {
-	if snap == nil {
+func labelTableRegistered(snap *ExtensionsSnapshot, inst *InstanceSnapshot, name string) bool {
+	if snap == nil || inst.Hidden(featLabels) {
 		return false
 	}
 	for _, t := range snap.LabelTables {

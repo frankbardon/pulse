@@ -203,11 +203,22 @@ type RangeTable struct {
 	Ranges []DateRangeSpec
 }
 
+// Named tables are not features; each rides its capability. These are
+// the internal/descriptor feature names (pinned by
+// TestNamedTableFeatureNames), spelled here because the engine does not
+// import the descriptor layer.
+const (
+	featureLabels      = "capability:labels"
+	featureRangeTables = "capability:range_tables"
+)
+
 // LookupRangeTable returns the RangeTable registered under name, and the
 // standard "found" signal. Nil-safe: a nil registry or absent name
-// returns ok=false.
+// returns ok=false. A range table rides capability:range_tables: with
+// it hidden every table misses, exactly as on an instance that
+// registered none.
 func (r *ExtensionRegistry) LookupRangeTable(name string) (RangeTable, bool) {
-	if r == nil {
+	if r == nil || r.isHidden(featureRangeTables) {
 		return RangeTable{}, false
 	}
 	t, ok := r.RangeTables[name]
