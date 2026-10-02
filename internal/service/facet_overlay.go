@@ -127,7 +127,7 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 		// point; we pass a one-element slice and accept the returned
 		// layer / warning slice verbatim.
 		singleSpec := []types.OverlaySpec{*spec}
-		dispatched, warnings, err := processing.ApplyOverlaysFacet(singleSpec, hostField, popView)
+		dispatched, warnings, err := processing.ApplyOverlaysFacetWithExtensions(singleSpec, hostField, popView, s.extensions)
 		if err != nil {
 			return err
 		}

@@ -142,6 +142,24 @@ type PredictOptions struct {
 	// right-side field is resolved by its real type. Nil leaves a join
 	// unresolved and validation runs against the left schema alone.
 	SchemaLoader func(path string) (*encoding.Schema, error)
+
+	// Instance is the instance feature set. The request-time overlay
+	// kind gates (Request, Compose and Facet hosts) report a kind it
+	// hides exactly as a kind not in the catalog. Nil hides nothing.
+	Instance *InstanceSnapshot
+}
+
+// overlayRoute returns the kind the overlay validators key on: the
+// authored kind, or "" — a kind no catalog, table or switch knows —
+// when the instance hides it, so a hidden kind takes the
+// never-registered branch while messages keep naming the authored kind.
+// The descriptor twin of processing.ExtensionRegistry.overlayRoute.
+// Nil-receiver-safe.
+func (o *PredictOptions) overlayRoute(kind types.OverlayKind) types.OverlayKind {
+	if o != nil && o.Instance.Hidden(string(kind)) {
+		return ""
+	}
+	return kind
 }
 
 // Predict validates a request against a .pulse file without executing it.

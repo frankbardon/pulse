@@ -223,7 +223,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// internal/descriptor/overlay_facet.go; the validator is no-op when
 	// req.Overlays is empty so the no-overlay envelope shape stays
 	// byte-identical to the legacy Facet path.
-	ValidateFacetOverlays(env, req, schema)
+	ValidateFacetOverlaysWithOptions(env, req, schema, opts)
 
 	// Populate the FACET-host predict surface (OverlaysApplied + OverlayCost)
 	// per kind-catalog-v1 PRD §I-FR-I3. The four FACET-host kinds route

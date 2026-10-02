@@ -669,7 +669,7 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
 		validateOverlaySpec(env, req, spec, opts, i)
-		validateOverlayLevelWithinPredict(env, req, spec, i)
+		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, i)
 	}
 }
@@ -850,7 +850,11 @@ func baselineIndexSeriesLengthDetail(predictedLength int) int {
 // Zero defaults (Level == 0 && Within == 0) pass — the runtime
 // resolver short-circuits to the legacy MarginFor lookup, preserving
 // the byte-identity contract.
-func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, index int) {
+//
+// route is the kind the gate keys on (PredictOptions.overlayRoute): a
+// kind the instance hides takes the never-registered branches, while
+// messages keep naming spec.Kind.
+func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) {
 	if spec == nil {
 		return
 	}
@@ -859,7 +863,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// since the implicit-grand-total denominator does not partition by
 	// any axis prefix. Run the gate before the no-crosstab short-circuit
 	// so the rule still fires when Request.Crosstab is nil.
-	if spec.Kind == types.OverlayKindIndexVsTotal {
+	if route == types.OverlayKindIndexVsTotal {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-grand-total kind)",
@@ -883,7 +887,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE. Run the gate before the
 	// no-crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil.
-	if spec.Kind == types.OverlayKindDeltaVsSibling || spec.Kind == types.OverlayKindIndexVsSibling {
+	if route == types.OverlayKindDeltaVsSibling || route == types.OverlayKindIndexVsSibling {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (sibling reference is a single fixed group)",
@@ -903,7 +907,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// twin of INDEX_VS_BASELINE — same windowed-family implicit-margin rule.
 	// Run the gate before the no-crosstab short-circuit so the rule still
 	// fires when Request.Crosstab is nil.
-	if spec.Kind == types.OverlayKindDeltaVsBaseline {
+	if route == types.OverlayKindDeltaVsBaseline {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
@@ -922,7 +926,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// anchor (Ref.BaselineIndex.Position), not an axis prefix. Run the gate
 	// before the no-crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindIndexVsBaseline {
+	if route == types.OverlayKindIndexVsBaseline {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
@@ -941,7 +945,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// without a prefix-bucket denominator. Run the gate before the no-
 	// crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindIndexVsPrior {
+	if route == types.OverlayKindIndexVsPrior {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
@@ -960,7 +964,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// finalize step divides or subtracts. Run the gate before the
 	// no-crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindDeltaVsPrior {
+	if route == types.OverlayKindDeltaVsPrior {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
@@ -979,7 +983,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// without a prefix-bucket denominator. Run the gate before the no-
 	// crosstab short-circuit so the rule still fires when
 	// Request.Crosstab is nil. Implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindIndexVsRollingMean {
+	if route == types.OverlayKindIndexVsRollingMean {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator)",
@@ -997,7 +1001,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// INDEX_VS_ROLLING_MEAN because the year-over-year prior-period
 	// lookup folds across the ordered axis without a prefix-bucket
 	// denominator. Same implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindYoY {
+	if route == types.OverlayKindYoY {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed year-over-year lookup folds across the ordered axis without a prefix-bucket denominator)",
@@ -1015,7 +1019,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// because the rolling-window carrier folds across the ordered axis
 	// without a prefix-bucket denominator. Sibling windowed-rolling kind
 	// — same implicit-margin / windowed family rule.
-	if spec.Kind == types.OverlayKindZScoreVsRolling {
+	if route == types.OverlayKindZScoreVsRolling {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed rolling sample-SD carrier folds across the ordered axis without a prefix-bucket denominator)",
@@ -1034,7 +1038,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// Run the gate before the no-crosstab short-circuit so the rule still
 	// fires when Request.Crosstab is nil. Sibling rule to the
 	// INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES dispatch above.
-	if spec.Kind == types.OverlayKindZScoreVsTotal {
+	if route == types.OverlayKindZScoreVsTotal {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-grand-total kind)",
@@ -1054,7 +1058,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// are accepted, preserving the byte-identity contract with the
 	// original SHARE_OF_TOTAL MATRIX requests. Host-shape disambiguation
 	// matches `validateOverlayShareOfTotal`'s dispatch policy.
-	if spec.Kind == types.OverlayKindShareOfTotal && req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
+	if route == types.OverlayKindShareOfTotal && req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 				"overlay "+string(spec.Kind)+" SERIES dispatch does not support Level / Within (implicit-grand-total contract)",
@@ -1071,7 +1075,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if req == nil || req.Crosstab == nil {
 		return
 	}
-	switch spec.Kind {
+	switch route {
 	case types.OverlayKindChiSqCol,
 		types.OverlayKindChiSqMatrix,
 		types.OverlayKindChiSqRow,
@@ -1092,7 +1096,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	// Share / index / delta / zscore family — Level on SAME axis,
 	// Within on OPPOSITE axis. Resolve the axis pair off the kind so
 	// the gate stays kind-aware (mirrors the runtime dispatch).
-	levelAxisDepth, withinAxisDepth, levelAxisLabel, withinAxisLabel := overlayLevelWithinAxisDepthsPredict(spec, req)
+	levelAxisDepth, withinAxisDepth, levelAxisLabel, withinAxisLabel := overlayLevelWithinAxisDepthsPredict(spec, route, req)
 	if spec.Level < 0 || (levelAxisDepth > 0 && spec.Level >= levelAxisDepth) {
 		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
 			"overlay "+string(spec.Kind)+" Level is out of range for the "+levelAxisLabel+" axis",
@@ -1132,7 +1136,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 //   - INDEX_VS_MARGIN / DELTA_VS_MARGIN / ZSCORE_VS_MARGIN: axis is
 //     driven by Ref.Margin.Axis; Level addresses that axis and
 //     Within addresses the opposite one.
-func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, req *types.Request) (
+func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, route types.OverlayKind, req *types.Request) (
 	levelAxisDepth, withinAxisDepth int,
 	levelAxisLabel, withinAxisLabel string,
 ) {
@@ -1141,7 +1145,7 @@ func overlayLevelWithinAxisDepthsPredict(spec *types.OverlaySpec, req *types.Req
 	}
 	rowDepth := len(req.Crosstab.Rows)
 	colDepth := len(req.Crosstab.Columns)
-	switch spec.Kind {
+	switch route {
 	case types.OverlayKindShareOfRow:
 		return rowDepth, colDepth, "rows", "columns"
 	case types.OverlayKindShareOfCol:
@@ -1185,7 +1189,7 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	// catalog entry. OverlayStreamable(known=false) is the authoritative
 	// "is this kind in the catalog?" probe; AllOverlayKinds() and the
 	// streamability table are co-maintained per TestStreamability_OverlaysKnown.
-	if _, known := types.OverlayStreamable(spec.Kind); !known {
+	if _, known := types.OverlayStreamable(opts.overlayRoute(spec.Kind)); !known {
 		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 			"overlay kind is not in the catalog: "+string(spec.Kind),
 			map[string]any{

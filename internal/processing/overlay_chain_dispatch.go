@@ -167,6 +167,14 @@ var chainOverlayHandlers = map[types.OverlayKind]chainOverlayHandler{
 // fallback payload (the canonical rule today is "empty payload that
 // inherits the target stage's shape").
 func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
+	return ApplyChainOverlaysWithExtensions(specs, stages, stageNames, nil)
+}
+
+// ApplyChainOverlaysWithExtensions is ApplyChainOverlays dispatching on
+// the route exts gives each kind (ExtensionRegistry.overlayRoute): a
+// kind the instance feature set hides misses the CHAIN table exactly
+// like a never-registered kind. A nil exts is ApplyChainOverlays.
+func ApplyChainOverlaysWithExtensions(specs []*types.ChainOverlaySpec, stages []*types.Response, stageNames []string, exts *ExtensionRegistry) ([]*types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -194,7 +202,7 @@ func ApplyChainOverlays(specs []*types.ChainOverlaySpec, stages []*types.Respons
 					"index": i,
 				})
 		}
-		handler, ok := chainOverlayHandlers[spec.Kind]
+		handler, ok := chainOverlayHandlers[exts.overlayRoute(spec.Kind)]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_KIND_UNKNOWN,

@@ -190,7 +190,7 @@ func (s *Service) applyChainOverlays(req *types.ChainRequest, out *types.ChainRe
 		}
 		stageNames[i] = st.Name
 	}
-	layers, warnings, err := processing.ApplyChainOverlays(req.Overlays, out.Stages, stageNames)
+	layers, warnings, err := processing.ApplyChainOverlaysWithExtensions(req.Overlays, out.Stages, stageNames, s.extensions)
 	if err != nil {
 		return err
 	}

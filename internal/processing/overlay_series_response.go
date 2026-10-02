@@ -79,7 +79,10 @@ import (
 // On unknown overlay kind, ApplyOverlaysSeries returns a coded
 // error whose own Code is PULSE_OVERLAY_KIND_UNKNOWN.
 // The error bubbles to the caller; resp.Overlays is left nil.
-func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response) error {
+//
+// exts is the processor's registry: a kind the instance feature set
+// hides routes as never registered (ExtensionRegistry.overlayRoute).
+func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, exts *ExtensionRegistry) error {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
 	}
@@ -116,8 +119,8 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response) err
 	// dispatch so the per-handler surface stays consistent. When the
 	// spec already carries its own frequency Param (the override path),
 	// the orchestrator leaves it unchanged.
-	specs := promoteYoYFrequencyFromGroupParams(req)
-	layers, warnings, err := ApplyOverlaysSeries(specs, host)
+	specs := promoteYoYFrequencyFromGroupParams(req, exts)
+	layers, warnings, err := applyOverlaysSeriesWith(specs, host, exts)
 	if err != nil {
 		return err
 	}
@@ -236,7 +239,7 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 // the caller's request shape — Canonical hash byte-identity demands
 // it). When the request carries no OVERLAY_YOY specs the helper
 // returns the caller's slice unchanged.
-func promoteYoYFrequencyFromGroupParams(req *types.Request) []types.OverlaySpec {
+func promoteYoYFrequencyFromGroupParams(req *types.Request, exts *ExtensionRegistry) []types.OverlaySpec {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
 	}
@@ -251,11 +254,16 @@ func promoteYoYFrequencyFromGroupParams(req *types.Request) []types.OverlaySpec 
 	if !hasGroupFrequency {
 		return req.Overlays
 	}
+	// A spec is a YoY spec by its route: a hidden OVERLAY_YOY is left
+	// as authored, like any kind with no promotion rule.
+	isYoY := func(kind types.OverlayKind) bool {
+		return exts.overlayRoute(kind) == types.OverlayKindYoY
+	}
 	// Walk the overlay specs and identify YoY specs that need
 	// promotion. If none, return the caller's slice unchanged.
 	needsPromotion := false
 	for i := range req.Overlays {
-		if req.Overlays[i].Kind != types.OverlayKindYoY {
+		if !isYoY(req.Overlays[i].Kind) {
 			continue
 		}
 		if _, specHasFrequency := readYoYFrequencyFromParams(req.Overlays[i].Params); specHasFrequency {
@@ -273,7 +281,7 @@ func promoteYoYFrequencyFromGroupParams(req *types.Request) []types.OverlaySpec 
 	out := make([]types.OverlaySpec, len(req.Overlays))
 	copy(out, req.Overlays)
 	for i := range out {
-		if out[i].Kind != types.OverlayKindYoY {
+		if !isYoY(out[i].Kind) {
 			continue
 		}
 		if _, specHasFrequency := readYoYFrequencyFromParams(out[i].Params); specHasFrequency {
@@ -321,12 +329,16 @@ func mergeYoYFrequencyParams(orig json.RawMessage, freq string) json.RawMessage 
 // kind that predict has not yet certified falls through to the
 // buffered path where ApplyOverlaysSeries can surface the canonical
 // PULSE_OVERLAY_KIND_UNKNOWN error.
-func canStreamOverlays(req *types.Request) bool {
+//
+// exts routes a kind the instance feature set hides as unknown
+// (ExtensionRegistry.overlayRoute), so it downgrades exactly like a
+// never-registered kind.
+func canStreamOverlays(req *types.Request, exts *ExtensionRegistry) bool {
 	if req == nil || len(req.Overlays) == 0 {
 		return true
 	}
 	for i := range req.Overlays {
-		streamable, known := types.OverlayStreamable(req.Overlays[i].Kind)
+		streamable, known := types.OverlayStreamable(exts.overlayRoute(req.Overlays[i].Kind))
 		if !known {
 			return false
 		}

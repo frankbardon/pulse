@@ -236,6 +236,10 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 	var warnings []types.OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
+		// Every kind-keyed decision below takes the route: a kind the
+		// instance feature set hides routes as never registered
+		// (falling through to the stub, as an unknown kind does).
+		route := exts.overlayRoute(spec.Kind)
 		// Reference must resolve to a known label AND a non-nil slot.
 		// LookupReference owns the canonical-code dispatch for the
 		// reference arm — empty label, unknown label, or nil slot all
@@ -300,7 +304,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// by `kindRequiresMatrix`), and PULSE_OVERLAY_SCHEMA_DIVERGENT
 		// (per-axis grouper-kind tuples disagree across slots).
 		// Dict-drift fires AFTER this one.
-		if err := checkSlotShapeAndSchema(refResp, targetResps, *spec, i); err != nil {
+		if err := checkSlotShapeAndSchemaRouted(refResp, targetResps, *spec, route, i); err != nil {
 			return nil, nil, err
 		}
 		// Categorical dictionary-prefix drift probe. Runs ONLY when
@@ -323,7 +327,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 		// emit N layers per spec (one per target). The single-layer
 		// dispatch below is the historical default; the two tables are
 		// mutually exclusive per kind.
-		if mhandler, ok := composeOverlayMultiLayerHandlers[spec.Kind]; ok {
+		if mhandler, ok := composeOverlayMultiLayerHandlers[route]; ok {
 			multi, ws, err := mhandler(spec, refResp, targetResps, refIdx, targetIdxs)
 			if err != nil {
 				return nil, nil, err
@@ -351,7 +355,7 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 			}
 			continue
 		}
-		handler, ok := composeOverlayHandlers[spec.Kind]
+		handler, ok := composeOverlayHandlers[route]
 		if !ok {
 			// Chassis fallback: an unknown kind reaching this branch
 			// is a genuine kind-unknown error (predict catches

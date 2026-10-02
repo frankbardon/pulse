@@ -143,7 +143,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.effectiveDisableComponents(req))
+	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.effectiveDisableComponents(req), s.extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -634,7 +634,7 @@ func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []
 // true, attachMergedRunComponents is a no-op and Response.Components
 // stays nil so the merged-shard wire form is byte-identical to the
 // pre-Components baseline.
-func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, disableComponents bool) (*types.Response, error) {
+func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, disableComponents bool, exts *processing.ExtensionRegistry) (*types.Response, error) {
 	_ = schema
 	resp := &types.Response{
 		Metadata: &types.ResponseMetadata{
@@ -700,6 +700,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 			FilterCounters:    merged.filterCounters,
 			ShardCount:        shardCount,
 			DisableComponents: disableComponents,
+			Extensions:        exts,
 		})
 	}
 	attachMergedFiltererComponents(resp, req, merged, disableComponents)

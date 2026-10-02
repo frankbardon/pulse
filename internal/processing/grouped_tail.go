@@ -85,6 +85,11 @@ type GroupedTail struct {
 	// PostTests runs Request.PostTests over the finished rows; nil
 	// means none (the parallel reducers' merge gate refuses post-tests).
 	PostTests func(rows []map[string]any) ([]*types.TestResult, error)
+
+	// Extensions is the instance registry the SERIES overlay fold
+	// routes kinds through, so a kind the feature set hides misses
+	// like a never-registered one. Nil is the built-in catalog.
+	Extensions *ExtensionRegistry
 }
 
 // FinalizeGroupedStream is the ONE emission tail of a single-grouper
@@ -179,7 +184,7 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 	// the parallel arms (CanMergeRequest does not look at overlays) fold
 	// it here, which is equivalent because the hook reads only the
 	// materialised response (pinned by the shard parity suite).
-	if err := applyOverlaysSeriesToResponse(req, resp); err != nil {
+	if err := applyOverlaysSeriesToResponse(req, resp, t.Extensions); err != nil {
 		return nil, err
 	}
 	return resp, nil

@@ -80,12 +80,19 @@ var facetOverlaySupportedScopes = map[types.OverlayScope]bool{
 // for the per-kind host-arm gates (CHISQ rejects numeric; KS rejects
 // categorical); when schema is nil those gates short-circuit.
 func ValidateFacetOverlays(env *descriptor.Envelope, req *types.FacetRequest, schema *encoding.Schema) {
+	ValidateFacetOverlaysWithOptions(env, req, schema, nil)
+}
+
+// ValidateFacetOverlaysWithOptions is ValidateFacetOverlays with the
+// predict options in reach: opts.Instance makes a kind the instance
+// feature set hides fail the catalog probe like an unknown kind.
+func ValidateFacetOverlaysWithOptions(env *descriptor.Envelope, req *types.FacetRequest, schema *encoding.Schema, opts *PredictOptions) {
 	if req == nil || len(req.Overlays) == 0 {
 		return
 	}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
-		validateFacetOverlaySpec(env, req, schema, spec, i)
+		validateFacetOverlaySpec(env, req, schema, spec, opts, i)
 	}
 }
 
@@ -93,14 +100,14 @@ func ValidateFacetOverlays(env *descriptor.Envelope, req *types.FacetRequest, sc
 // OverlaySpec. Errors are emitted with deterministic Details so MCP /
 // CLI envelopes can render the index, kind, and offending value
 // without re-parsing the message string.
-func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest, schema *encoding.Schema, spec *types.OverlaySpec, index int) {
+func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest, schema *encoding.Schema, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if spec == nil {
 		return
 	}
 	// Unknown-kind probe first — every other rule is keyed by Kind so we
 	// cannot reasonably validate Scope / Ref against an unknown catalog
 	// entry. Mirrors the Request-host validator's policy.
-	if _, known := types.OverlayStreamable(spec.Kind); !known {
+	if _, known := types.OverlayStreamable(opts.overlayRoute(spec.Kind)); !known {
 		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 			"overlay kind is not in the catalog: "+string(spec.Kind),
 			map[string]any{

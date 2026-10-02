@@ -474,6 +474,13 @@ func computeSeriesGrandTotal(host *SeriesHostView) (grandTotal float64, presentM
 // do not engage prefix-bucket denominators, and the per-kind handlers
 // add their own gates when their math requires it.
 func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	return applyOverlaysSeriesWith(specs, host, nil)
+}
+
+// applyOverlaysSeriesWith is ApplyOverlaysSeries dispatching on the
+// route exts gives each kind: a kind the instance feature set hides
+// misses the table exactly like a never-registered kind.
+func applyOverlaysSeriesWith(specs []types.OverlaySpec, host *SeriesHostView, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -481,7 +488,7 @@ func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]typ
 	var warnings []types.OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
-		handler, ok := seriesOverlayHandlers[spec.Kind]
+		handler, ok := seriesOverlayHandlers[exts.overlayRoute(spec.Kind)]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_KIND_UNKNOWN,

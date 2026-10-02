@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/processing/feature"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
@@ -349,6 +350,36 @@ func (r *ExtensionRegistry) LookupWindow(t types.WindowType) (window.WindowFacto
 	return window.Lookup(t)
 }
 
+// LookupRegression returns the factory for a regression type. Only
+// built-ins register regressions; a type the instance feature set hides
+// misses exactly like one nothing registered, so regression.BuildWith
+// raises its own "unknown regression type" error.
+func (r *ExtensionRegistry) LookupRegression(t types.RegressionType) (regression.Factory, bool) {
+	if r.isHidden(string(t)) {
+		return nil, false
+	}
+	return regression.Lookup(t)
+}
+
+// hiddenOverlayRoute is the kind a hidden overlay kind is ROUTED as: a
+// value no handler table, kind switch or types-side catalog knows.
+const hiddenOverlayRoute types.OverlayKind = ""
+
+// overlayRoute returns the kind every kind-keyed decision on an overlay
+// spec is taken on: the authored kind, or hiddenOverlayRoute when the
+// instance feature set hides it. The five per-host handler tables, the
+// OVERLAY_FORMULA special case, the streamability downgrade and every
+// per-kind pre-dispatch gate (Level/Within, pairwise and panel slab
+// partitions, compose MATRIX-shape) key on the route, so a hidden kind
+// takes exactly the branches a never-registered kind takes. Messages
+// and details keep naming the authored kind. Nil-receiver-safe.
+func (r *ExtensionRegistry) overlayRoute(kind types.OverlayKind) types.OverlayKind {
+	if r.isHidden(string(kind)) {
+		return hiddenOverlayRoute
+	}
+	return kind
+}
+
 // LookupFeature returns the factory for a feature type. Overlay wins.
 // Falls through to feature.Lookup for built-ins.
 func (r *ExtensionRegistry) LookupFeature(t types.FeatureType) (feature.Factory, bool) {
@@ -412,6 +443,14 @@ func (r *ExtensionRegistry) GrouperFanOut(t types.GroupType) (fansOut bool, ok b
 // ExtensionGroupFanOut adapts GrouperFanOut to the types-side resolver
 // signature the pairwise slab-partition gate takes. Returns nil for a
 // nil registry, which the gate reads as "no extension groupers".
+//
+// The gate consults types.ResolveBuiltinGroupFanOut BEFORE this
+// resolver, so it would read a hidden built-in fan-out grouper as
+// fanning out. That is unreachable for a hidden name: both slab gates
+// (crosstab pairwise, Compose panel) run only once their host has
+// materialised, and materialising it resolved every grouper through
+// this registry — a hidden grouper has already failed there with its
+// unknown-group-type error.
 func (r *ExtensionRegistry) ExtensionGroupFanOut() types.ExtensionGroupFanOutFunc {
 	if r == nil {
 		return nil

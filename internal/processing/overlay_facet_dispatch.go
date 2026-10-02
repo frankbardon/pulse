@@ -163,6 +163,14 @@ var facetOverlayHandlers = map[types.OverlayKind]facetOverlayHandler{
 // denominators, and the per-kind handlers add their own
 // gates when their math requires it.
 func ApplyOverlaysFacet(specs []types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	return ApplyOverlaysFacetWithExtensions(specs, host, pop, nil)
+}
+
+// ApplyOverlaysFacetWithExtensions is ApplyOverlaysFacet dispatching on
+// the route exts gives each kind (ExtensionRegistry.overlayRoute): a
+// kind the instance feature set hides misses the FACET table exactly
+// like a never-registered kind. A nil exts is ApplyOverlaysFacet.
+func ApplyOverlaysFacetWithExtensions(specs []types.OverlaySpec, host *types.FacetField, pop *FacetPopulationView, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}
@@ -170,7 +178,7 @@ func ApplyOverlaysFacet(specs []types.OverlaySpec, host *types.FacetField, pop *
 	var warnings []types.OverlayWarning
 	for i := range specs {
 		spec := &specs[i]
-		handler, ok := facetOverlayHandlers[spec.Kind]
+		handler, ok := facetOverlayHandlers[exts.overlayRoute(spec.Kind)]
 		if !ok {
 			return nil, nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_KIND_UNKNOWN,

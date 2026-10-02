@@ -170,7 +170,11 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		// budget. Mirrors the per-spec cost emission rule on
 		// PredictResult.OverlayCost / FacetValidationResult.OverlayCost.
 		name := composeOverlayDescriptorName(&spec)
-		result.OverlayCost[name] = composeOverlayCostForSpec(&spec)
+		// Cost keys on the route, so a hidden kind is costed like a
+		// kind not in the catalog; the name keeps the authored kind.
+		costed := spec
+		costed.Kind = opts.overlayRoute(spec.Kind)
+		result.OverlayCost[name] = composeOverlayCostForSpec(&costed)
 	}
 
 	if len(env.Errors) > 0 {
@@ -248,7 +252,7 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// Gate 0: unknown kind. The catalog lookup runs against
 	// types.AllOverlayKinds() so a new kind shows up here automatically
 	// once it's appended to the catalog.
-	if !composeOverlayKindKnown(spec.Kind) {
+	if !composeOverlayKindKnown(opts.overlayRoute(spec.Kind)) {
 		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 			"compose overlay spec carries unknown kind: "+string(spec.Kind),
 			map[string]any{"index": specIdx, "kind": string(spec.Kind)})

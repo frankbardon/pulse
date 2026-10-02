@@ -280,7 +280,7 @@ func (s *Service) reduceParallelBuffered(
 		if partials[0] == nil {
 			partials[0] = &shardPartial{}
 		}
-		resp, err := finalizeMergedPartial(req, schema, partials[0], 0, s.effectiveDisableComponents(req))
+		resp, err := finalizeMergedPartial(req, schema, partials[0], 0, s.effectiveDisableComponents(req), s.extensions)
 		if err != nil {
 			return nil, err
 		}
@@ -297,7 +297,7 @@ func (s *Service) reduceParallelBuffered(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged, 0, s.effectiveDisableComponents(req))
+	resp, err := finalizeMergedPartial(req, schema, merged, 0, s.effectiveDisableComponents(req), s.extensions)
 	if err != nil {
 		return nil, err
 	}

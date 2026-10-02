@@ -1122,7 +1122,7 @@ func checkPairwiseSlabPartition(req *types.Request, exts *ExtensionRegistry) err
 	}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
-		if !types.IsPairwiseOverlayKind(spec.Kind) {
+		if !types.IsPairwiseOverlayKind(exts.overlayRoute(spec.Kind)) {
 			continue
 		}
 		params, err := types.DecodePairwiseParams(spec.Params)

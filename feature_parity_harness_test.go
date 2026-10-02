@@ -56,6 +56,18 @@ type parityCategory struct {
 	// filterToFile places op in a FilterToFileRequest; nil when the
 	// category has no slot there.
 	filterToFile func(r *FilterToFileRequest, op string, f parityFields)
+	// compose places op in a ComposedRequest's own slot (its
+	// Overlays); nil when the category has none. The ComposedRequest
+	// arrives with two base slots labelled "a" and "b".
+	compose func(r *ComposedRequest, op string, f parityFields)
+	// chain places op in a ChainRequest's own slot (its Overlays); nil
+	// when the category has none. The ChainRequest arrives with one
+	// base stage.
+	chain func(r *ChainRequest, op string, f parityFields)
+	// neverOK names why a never-registered name may SUCCEED in this
+	// category (the outcome is still compared byte for byte); empty
+	// requires the never-registered outcome to be an error.
+	neverOK string
 }
 
 // parityHost is one instance plus the cohort the harness drives.
@@ -114,10 +126,15 @@ func parityIsError(outcome []byte) bool {
 	return !strings.HasPrefix(string(outcome), "ok: ")
 }
 
-// parityCategories are the seven registry categories (tests split into
-// their two registries), plus the aggregator and grouper again in the
-// crosstab slots, which resolve them at their own sites.
-var parityCategories = []parityCategory{
+// parityCategories is every category the harness drives: the registry
+// categories plus the regression and per-host overlay categories
+// (feature_parity_overlay_test.go).
+var parityCategories = append(append([]parityCategory(nil), registryParityCategories...), regOverlayParityCategories...)
+
+// registryParityCategories are the seven registry categories (tests
+// split into their two registries), plus the aggregator and grouper
+// again in the crosstab slots, which resolve them at their own sites.
+var registryParityCategories = []parityCategory{
 	{
 		name:       "aggregator",
 		candidates: []string{"AGG_MAX", "AGG_MIN"},
@@ -229,13 +246,24 @@ const chainExcluded = "the chain stage gate excludes the slot for every name"
 var chainVacuous = map[string]string{
 	"window": chainExcluded, "feature": chainExcluded,
 	"row_test": chainExcluded, "post_test": chainExcluded,
-	"crosstab_axis": "a crosstab stage has no aggregator slot, so the chain stage gate refuses it for every name",
-	"crosstab_cell": "a crosstab stage has no aggregator slot, so the chain stage gate refuses it for every name",
-	"GROUP_ROUNDED": "GROUP_ROUNDED is not mergeable, so the chain stage gate refuses it like any unregistered grouper",
+	"crosstab_axis":    "a crosstab stage has no aggregator slot, so the chain stage gate refuses it for every name",
+	"crosstab_cell":    "a crosstab stage has no aggregator slot, so the chain stage gate refuses it for every name",
+	"GROUP_ROUNDED":    "GROUP_ROUNDED is not mergeable, so the chain stage gate refuses it like any unregistered grouper",
+	"regression":       chainExcluded,
+	"overlay_crosstab": "a crosstab stage has no aggregator slot, so the chain stage gate refuses it for every name",
+	"overlay_formula":  "a crosstab stage has no aggregator slot, so the chain stage gate refuses it for every name",
+	"overlay_series":   "the stage-1 request is ungrouped, so the SERIES fold never reads the kind",
 }
 
-// parityEntryPoints are the public entry points the harness drives.
-var parityEntryPoints = []parityEntryPoint{
+// parityEntryPoints is every entry point the harness drives: the
+// Request-, Facet- and FilterToFile-carrying ones plus the entry points
+// whose own top-level slot carries the name (ComposedRequest.Overlays,
+// ChainRequest.Overlays; feature_parity_overlay_test.go).
+var parityEntryPoints = append(append([]parityEntryPoint(nil), requestParityEntryPoints...), overlayParityEntryPoints...)
+
+// requestParityEntryPoints are the public entry points that carry a
+// Request, FacetRequest or FilterToFileRequest.
+var requestParityEntryPoints = []parityEntryPoint{
 	{name: "Process", run: func(t *testing.T, h *parityHost, c parityCategory, op string) ([]byte, bool) {
 		req, ok := h.request(c, op)
 		if !ok {
@@ -469,7 +497,7 @@ func runHiddenParity(t *testing.T, fixtures []string, categories []parityCategor
 					}
 					applicable++
 					want, _ := ep.run(t, host, c, c.never)
-					if !parityIsError(want) {
+					if !parityIsError(want) && c.neverOK == "" {
 						t.Fatalf("never-registered %s succeeded: %s", c.never, want)
 					}
 					if subst := strings.ReplaceAll(string(got), hidden, c.never); subst != string(want) {
