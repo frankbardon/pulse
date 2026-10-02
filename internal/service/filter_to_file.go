@@ -95,6 +95,23 @@ func (s *Service) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includ
 	})
 }
 
+// FilterToFileFilterers is FilterToFile for a structured predicate:
+// filterExpr is the expression the filterers translate to (the facade's
+// FilterToFileRequest.canonicalExpression), and the filterers
+// themselves are judged by the shared field rule
+// (internal/descriptor.FieldRefRefusals, filterer half) against the
+// cohort schema — the canonical one for a shard archive — before the
+// expression compiles, so an unknown or empty Field is refused with the
+// code, message and details Process and predict use rather than an
+// expression compile error.
+func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, filterers []*types.Filterer, filterExpr string) (int64, error) {
+	if filterExpr == "" {
+		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"filter_to_file requires a non-empty filter expression")
+	}
+	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers})
+}
+
 // filterPlan captures the per-call predicate inputs so the input-shape
 // dispatch (single-file, shard archive, anchor) doesn't have to take a
 // growing list of optional arguments.
@@ -102,6 +119,9 @@ type filterPlan struct {
 	set          processing.MemberSet
 	includeField string
 	filterExpr   string
+	// filterers is the structured predicate filterExpr was translated
+	// from (FilterToFileFilterers), judged by the shared field rule.
+	filterers []*types.Filterer
 }
 
 // ResolveCanonicalSchema reads the canonical schema for src without
@@ -476,6 +496,11 @@ func (s *Service) buildSingleFilter(schema *encoding.Schema, filterExpr string) 
 // predicate runs first when both are present, so per-row work
 // short-circuits on misses without paying the expr eval cost.
 func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) (processing.FilterFunc, error) {
+	if len(plan.filterers) > 0 {
+		if err := s.checkFieldRefs(&types.Request{Filterers: plan.filterers}, schema); err != nil {
+			return nil, err
+		}
+	}
 	var setFn processing.FilterFunc
 	if plan.set != nil {
 		fn, err := processing.BuildMemberSetPredicate(plan.set, schema, plan.includeField)

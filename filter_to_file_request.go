@@ -115,7 +115,14 @@ func (p *Pulse) FilterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	_ = p.fsys.Remove(tempPath)
 
 	start := time.Now()
-	rows, err := p.svc.FilterToFile(ctx, req.SourcePath, tempPath, expr)
+	var rows int64
+	if len(req.Filterers) > 0 {
+		// The structured predicate is judged by the shared field rule
+		// before its translated expression compiles.
+		rows, err = p.svc.FilterToFileFilterers(ctx, req.SourcePath, tempPath, req.Filterers, expr)
+	} else {
+		rows, err = p.svc.FilterToFile(ctx, req.SourcePath, tempPath, expr)
+	}
 	if err != nil {
 		_ = p.fsys.Remove(tempPath)
 		return nil, err
