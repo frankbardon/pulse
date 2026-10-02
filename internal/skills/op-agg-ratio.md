@@ -11,27 +11,19 @@ examples_tags: [proportion-analysis, streaming-friendly]
 
 ## Params
 
-| Name | Type | Default | Description |
-|---|---|---|---|
-| `numerator_field` | field (any type) | (required) | Schema field summed as the numerator. |
-| `denominator_field` | field (any type) | (required) | Schema field summed as the denominator. |
+`numerator_field`, `denominator_field` — required field names, any type, read through the numeric channel (a categorical contributes its dictionary code). An unknown name is `SERVICE_VALIDATION`, predict and runtime alike.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | IGNORED — manifest marks the entry `ignores_field` |
-| `numerator_field` / `denominator_field` | any cohort field, read through the numeric channel (a categorical contributes its dictionary code) |
-
-`Field` is still required on the wire; `accepts_types` says no type is refused there, not that one is read. An unknown params field is refused (`SERVICE_VALIDATION`), predict and runtime alike.
+`Field` is IGNORED (manifest `ignores_field`) but still required on the wire; `accepts_types` refuses no type there.
 
 ## Output
 
-Scalar `float64` — `sum(num) / sum(den)`. NaN when denominator sum == 0.
+Scalar `float64` — `sum(num) / sum(den)`. NaN when the denominator sum is 0 (not Inf, not an error).
 
 ## Components
 
-Universal floor `{n, n_null}` plus operator-specific:
+Floor `{n, n_null}` plus:
 
 | Key | Type | Notes |
 |---|---|---|
@@ -39,13 +31,11 @@ Universal floor `{n, n_null}` plus operator-specific:
 | `denominator` | float64 | Running den sum |
 | `ratio` | float64 | Resolved ratio (NaN if den==0) |
 
-- Mergeability: `Mergeable` (two independent sums)
-- Streaming: per-chunk
+`Mergeable` (two independent sums); streams per chunk.
 
 ## Gotchas
 
-- Denominator-zero returns NaN, not Inf or error.
-- `n` counts contributing rows, not distinct den-non-zero rows.
+- `n` counts contributing rows, not den-non-zero rows.
 
 ## See
 
