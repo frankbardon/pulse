@@ -241,6 +241,16 @@ pulse: type FacetValueCount = pulse/types.FacetValueCount
 pulse: type FacetValueCount underlying struct
 pulse: type FacetValueCount field Count int64 "json:\"count\""
 pulse: type FacetValueCount field Value string "json:\"value\""
+pulse: type FeatureProfile struct
+pulse: type FeatureProfile field Behaviour *pulse.FeatureProfileBehaviour "json:\"behaviour,omitempty\""
+pulse: type FeatureProfile field Features []string "json:\"features\""
+pulse: type FeatureProfile field Profile string "json:\"profile,omitempty\""
+pulse: type FeatureProfile field WrittenWith string "json:\"written_with,omitempty\""
+pulse: type FeatureProfileBehaviour struct
+pulse: type FeatureProfileBehaviour field DisableCohortScan bool "json:\"disable_cohort_scan,omitempty\""
+pulse: type FeatureProfileBehaviour field DisableComponents bool "json:\"disable_components,omitempty\""
+pulse: type FeatureProfileBehaviour field DisableDefaults bool "json:\"disable_defaults,omitempty\""
+pulse: type FeatureProfileBehaviour field DisableProjection bool "json:\"disable_projection,omitempty\""
 pulse: type FeatureRegistration struct
 pulse: type FeatureRegistration field Accepts []pulse/encoding.FieldType
 pulse: type FeatureRegistration field Description string
@@ -434,6 +444,8 @@ pulse: type Options field DisableProjection bool
 pulse: type Options field EchoRequest bool
 pulse: type Options field Extensions pulse.Extensions
 pulse: type Options field FS github.com/spf13/afero.Fs
+pulse: type Options field FeatureProfile *pulse.FeatureProfile
+pulse: type Options field FeatureProfileFile string
 pulse: type Options field ImportSourceFS github.com/spf13/afero.Fs
 pulse: type Options field ImportSourceJailRoot string
 pulse: type Options field ImportTTL time.Duration
@@ -1546,6 +1558,7 @@ pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTE
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
+pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEATURE_PROFILE_INVALID"
 pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
@@ -3508,4 +3521,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c984bb5c02378a99530b9d06620bf076d3fc44f1071ac2ed1df13a5e0170ce6a
+// golden-hash: 8e1ee7a72d8db2b3042922602c4628d4ca09029352b453542d120e2635e5275f

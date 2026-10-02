@@ -2305,6 +2305,19 @@ const (
 	// host or names an ambiguous zone. Details carry the rejected name
 	// under DetailTimeZone.
 	PULSE_TIMEZONE_UNKNOWN Code = "PULSE_TIMEZONE_UNKNOWN"
+
+	// PULSE_FEATURE_PROFILE_INVALID indicates a feature profile handed
+	// to pulse.New is structurally unusable: the profile file is
+	// missing or unreadable, its body is not well-formed JSON, it
+	// carries a key the profile model does not declare (including the
+	// reserved "limits" and "return" sections), "features" is absent,
+	// a feature name is listed more than once, or both
+	// Options.FeatureProfile and Options.FeatureProfileFile are set.
+	// Structural faults are the first validation class: a profile that
+	// fails here is never checked for unknown names or dependencies.
+	// Details carry the failure under "reason", the file under "path"
+	// when one was read, and every repeated name under "duplicates".
+	PULSE_FEATURE_PROFILE_INVALID Code = "PULSE_FEATURE_PROFILE_INVALID"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -2774,6 +2787,7 @@ var allCodes = []Code{
 	PULSE_SPSS_SIDECAR_IGNORED,
 	PULSE_SPSS_NAME_SANITIZED,
 	PULSE_TIMEZONE_UNKNOWN,
+	PULSE_FEATURE_PROFILE_INVALID,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

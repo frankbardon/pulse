@@ -2688,4 +2688,26 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FEATURE_PROFILE_INVALID: {
+		Message: "The feature profile is structurally unusable, so pulse.New refused it before checking any feature name. The `reason` detail names the fault: the profile file is missing or unreadable, its body is not well-formed JSON, it carries a key the profile model does not declare (only `profile`, `written_with`, `features` and `behaviour` exist; `limits` and `return` are reserved and refused), `features` is absent, a feature is listed more than once, or both Options.FeatureProfile and Options.FeatureProfileFile were set.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupRemoveParam,
+				Path:     []string{"FeatureProfileFile"},
+				Hint:     "Set exactly one of Options.FeatureProfile (a Go value) and Options.FeatureProfileFile (a JSON file read through the instance filesystem, relative to its root); setting both is refused rather than silently preferring one.",
+				Examples: []any{"profiles/self-serve.json"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"features"},
+				Hint:     "Give the profile a `features` array — it is required, may be empty, and must not repeat a name (every repeated name is listed under `duplicates`). Remove any key other than `profile`, `written_with`, `features` and `behaviour`.",
+				Examples: []any{`{"profile": "self-serve", "features": []}`},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"FeatureProfileFile"},
+				Hint:   "For a `file_unreadable` reason, check that the path in the `path` detail exists under the instance filesystem root (DataDir, or the root of Options.FS) and is a readable file; for `malformed_json`, validate the body with a JSON linter.",
+			},
+		},
+	},
 }
