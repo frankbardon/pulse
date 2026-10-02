@@ -23,13 +23,17 @@ import (
 //
 //   - req.Crosstab != nil — nothing to fuse otherwise.
 //
-//   - The cell aggregator is mergeable per AggregationType.Mergeable().
-//     The fused path folds per-cell online state row-by-row; non-
-//     mergeable aggregators (median/percentile/zscore/skewness/kurtosis)
-//     need a finalize-time sorted view that the fused walk cannot
-//     provide.
+//   - The cell aggregator is mergeable per ext.IsMergeable — the
+//     built-in AggregationType.Mergeable(), or an extension's DECLARED
+//     pulse.AggregatorRegistration.Mergeable. The fused path folds
+//     per-cell online state row-by-row; non-mergeable aggregators
+//     (median/percentile/zscore/skewness/kurtosis) need a finalize-time
+//     sorted view that the fused walk cannot provide.
 //
-//   - The cell aggregator's MarginReducibility is MarginSummable,
+//   - The cell aggregator's margin class (ext.AggregatorMarginReducibility:
+//     the built-in table, or an extension's DECLARED
+//     pulse.AggregatorRegistration.MarginReducibility, where undeclared
+//     reads as recompute) is MarginSummable,
 //     MarginMeanReducible, or MarginIndependent. MarginRecompute
 //     aggregators force a re-scan of raw rows for margin derivation,
 //     which defeats the fused path by construction. The three non-
@@ -79,13 +83,17 @@ import (
 //     widen the projection to "every field", which collapses the fused
 //     path's decode-cost advantage and is treated as ineligible here.
 //
-//   - No mergeable-but-decimal aggregation target on the cell. Decimal-
-//     typed fields aggregate via AggregateDecimalField (the wide
-//     decimal path); Pulse forces buffered for those today and the
-//     fused gate mirrors that constraint.
+//   - No mergeable-but-decimal BUILT-IN aggregation target on the cell.
+//     Decimal-typed fields aggregate via AggregateDecimalField (the
+//     wide decimal path); Pulse forces buffered for those today and the
+//     fused gate mirrors that constraint. An extension aggregator never
+//     takes that path — it reads the decimal through DecimalValue on
+//     both arms — so a decimal extension cell fuses on its declarations.
 //
-//   - Every entry of req.Crosstab.MarginAggregations is mergeable and
-//     does not target a decimal-typed field — the same two checks the
+//   - Every entry of req.Crosstab.MarginAggregations is mergeable
+//     (ext.IsMergeable, so an extension auxiliary answers with its
+//     declaration) and, for a built-in, does not target a decimal-typed
+//     field — the same two checks the
 //     cell gets, for the same two reasons: an auxiliary rides the same
 //     per-record UpdateRow walk (so it must be online, which Mergeable
 //     implies) and the wide decimal path is buffered-only. An auxiliary
@@ -131,10 +139,14 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 	if cell == nil {
 		return false, "missing cell aggregator"
 	}
-	if !cell.Type.Mergeable() {
+	// Both facts are read through the registry so an extension cell
+	// answers with its DECLARED Mergeable flag and MarginReducibility
+	// class (an undeclared class reads as recompute); a nil registry
+	// is the built-in table alone.
+	if !ext.IsMergeable("aggregator", string(cell.Type)) {
 		return false, fmt.Sprintf("non-mergeable cell aggregator (%s)", cell.Type)
 	}
-	switch cell.Type.MarginReducibility() {
+	switch ext.AggregatorMarginReducibility(cell.Type) {
 	case types.MarginSummable, types.MarginMeanReducible, types.MarginIndependent:
 		// fused-eligible. MarginIndependent operators (AGG_DISTINCT_COUNT,
 		// AGG_DISTINCT_SUM) are admitted because the fused walk already
@@ -149,8 +161,11 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 		return false, fmt.Sprintf("recompute-margin cell aggregator (%s)", cell.Type)
 	}
 
-	// Decimal-typed cell field forces the buffered decimal path today.
-	if schema != nil && cell.Field != "" {
+	// Decimal-typed cell field forces the buffered decimal path for a
+	// built-in. An extension aggregator bypasses the built-in decimal
+	// table on every path (it reads the field through DecimalValue in
+	// UpdateRow), so its decimal cell fuses on its declaration.
+	if schema != nil && cell.Field != "" && !ext.isExtensionAggregator(cell.Type) {
 		if f := schema.Field(cell.Field); f != nil && f.Type.IsDecimal() {
 			return false, fmt.Sprintf("decimal128 cell field (%s)", cell.Field)
 		}
@@ -172,10 +187,10 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 			// entry point reported the identical error.
 			continue
 		}
-		if !aux.Type.Mergeable() {
+		if !ext.IsMergeable("aggregator", string(aux.Type)) {
 			return false, fmt.Sprintf("non-mergeable margin aggregation (%s)", aux.Type)
 		}
-		if schema != nil && aux.Field != "" {
+		if schema != nil && aux.Field != "" && !ext.isExtensionAggregator(aux.Type) {
 			if f := schema.Field(aux.Field); f != nil && f.Type.IsDecimal() {
 				return false, fmt.Sprintf("decimal128 margin aggregation field (%s)", aux.Field)
 			}

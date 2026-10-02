@@ -203,6 +203,15 @@ and its `pulse.AggregatorRegistration` declares `Streamable: true` and
 the value cannot honour (`PULSE_EXTENSION_MERGEABLE_MISMATCH`). See
 [Extension points — Aggregator](extension-points.md).
 
+**Crosstab margin class.** A built-in cell aggregator is admitted to the
+fused crosstab arm by `AggregationType.MarginReducibility()`
+(`types/streamability.go`) — classify every new aggregator there (the
+default is `MarginRecompute`, which keeps its crosstabs buffered). An
+extension aggregator declares the same class on its registration's
+`MarginReducibility` field (needs `Mergeable`; refused otherwise with
+`PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH`); undeclared, its
+crosstab cells run buffered.
+
 Associative + commutative aggregators (count, sum, min, max, frequency,
 distinct_count, mode) produce byte-equal merge output; Welford-Pébaÿ
 aggregators (mean, variance, stddev) use Chan-Welford and stay within ULP

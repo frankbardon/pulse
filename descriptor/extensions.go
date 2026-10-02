@@ -50,12 +50,20 @@ type OperatorMeta struct {
 	// (ShardWorkers / DecodeWorkers) and ProcessChain accept the
 	// operator. Omitted for every other category; absent reads as
 	// false, which is also the registration default.
-	Mergeable bool                `json:"mergeable,omitempty"`
-	Accepts   []string            `json:"accepts,omitempty"`
-	Emits     string              `json:"emits,omitempty"`
-	Mode      string              `json:"mode,omitempty"`
-	Tier      string              `json:"tier,omitempty"`
-	Params    []OperatorParamMeta `json:"params,omitempty"`
+	Mergeable bool `json:"mergeable,omitempty"`
+	// MarginReducibility is the aggregator-only projection of
+	// pulse.AggregatorRegistration.MarginReducibility — the
+	// embedder-side sibling of types.AggregationType.MarginReducibility()
+	// ("summable", "mean_reducible", "independent" or "recompute").
+	// A non-recompute class admits the operator as a fused crosstab
+	// cell. Omitted when undeclared, which reads as "recompute": the
+	// crosstab cell runs buffered.
+	MarginReducibility string              `json:"margin_reducibility,omitempty"`
+	Accepts            []string            `json:"accepts,omitempty"`
+	Emits              string              `json:"emits,omitempty"`
+	Mode               string              `json:"mode,omitempty"`
+	Tier               string              `json:"tier,omitempty"`
+	Params             []OperatorParamMeta `json:"params,omitempty"`
 }
 
 // OperatorParamMeta is the manifest-friendly mirror of pulse.ParamMeta.

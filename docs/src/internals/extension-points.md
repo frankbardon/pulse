@@ -157,6 +157,7 @@ sections below.
     Factory:     acme.NewBrandScoreAggregator,    // extend.AggregatorFactory
     Streamable:  true,                            // factory MUST return extend.OnlineAggregator
     Mergeable:   true,                            // factory MUST return extend.MergeableAggregator; needs Streamable
+    MarginReducibility: types.MarginSummable,     // optional: fused crosstab cell; needs Mergeable
     Accepts:     []encoding.FieldType{encoding.FieldTypeF64},
     Params:      []pulse.ParamMeta{{Name: "weights", JSONType: "array"}},
     ComponentSchema: descriptor.ComponentSchema{ /* see below */ },
@@ -222,6 +223,35 @@ declares keys with `Mergeability: None` — the reducers read
 `Components()` off the MERGED instance, so a figure that needs the full
 input would be silently wrong. The manifest projects the flag as
 `extensions.aggregators[].mergeable`.
+
+**MarginReducibility (fused crosstab cells).** A crosstab whose cell is
+an extension aggregator takes the fused in-decode arm
+(`processing.CanFuseCrosstab`) only when the registration declares a
+margin class — the embedder-side sibling of
+`types.AggregationType.MarginReducibility()`: `types.MarginSummable`
+(the margin is the sum of the cells), `types.MarginMeanReducible`
+(derivable from per-cell value + count) or `types.MarginIndependent`
+(set-valued state whose margin is neither a sum nor a re-scan). Any of
+the three admits the cell; omitted or `types.MarginRecompute` keeps the
+crosstab on the buffered arm, which is what every undeclared extension
+cell did before. The class gates ADMISSION only: the fused walk gives
+every row, column, grand and cross-axis margin its own instance fed
+record by record through `UpdateRow`, exactly as it does for a built-in,
+so the class never changes a margin figure — an honest class is still
+required, because the manifest and predict read it. A fusable class
+requires `Mergeable: true` (and so `Streamable: true`) — the fused gate
+holds an extension cell to the built-in cell's mergeable bar — and the
+usual fused-gate conditions apply (a `FieldInputs` hook, keyable
+groupers, no tests / features / two-pass attributes). Like the decimal
+rule above, a decimal128 extension cell fuses on its declaration while a
+built-in decimal cell stays buffered. Probe-validation refuses an
+unknown class, or a fusable class without `Mergeable`, with
+`PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH`. An extension used as a
+`margin_aggregations` AUXILIARY needs no class — an auxiliary is
+independent in role — only `Mergeable`. The manifest projects the class
+as `extensions.aggregators[].margin_reducibility`, and predict's
+`PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE` advisory reads it from the
+snapshot.
 
 ### Attribute
 
@@ -685,7 +715,11 @@ lists.
 ### The snapshot carries `fans_out` and `mergeable`
 
 `OperatorMeta.Mergeable` (`json:"mergeable,omitempty"`) projects the
-aggregator / grouper `Mergeable` declaration the same way. The
+aggregator / grouper `Mergeable` declaration the same way, and
+`OperatorMeta.MarginReducibility` (`json:"margin_reducibility,omitempty"`)
+the aggregator's declared crosstab margin class (predict's normalize
+advisory reads it through
+`ExtensionsSnapshot.AggregatorMarginReducibility`). The
 predict-side chain gate reads it:
 `internal/descriptor.ValidateChainWithExtensions` admits an extension
 aggregator or grouper on its declared `Mergeable` flag and a
@@ -883,10 +917,11 @@ State these plainly to users rather than discovering them at run time:
   `Process` arms serially. Declaring `Mergeable` in a `ComponentSchema`
   describes the components shape; it does not make the operator fold
   across workers.
-- **Crosstab cells do not fuse.** The fused crosstab admits a cell
-  aggregator by its built-in margin class, which an extension
-  aggregator does not declare, so a crosstab with an extension cell
-  runs the buffered arm.
+- **Crosstab cells fuse only on a declared margin class.** An
+  extension cell aggregator takes the fused crosstab arm when its
+  registration declares `MarginReducibility` (summable,
+  mean_reducible or independent) alongside `Mergeable`; undeclared, the
+  crosstab runs the buffered arm with the same result.
 - **Grouped Components: grouper figures yes, per-group aggregator
   figures no — for every operator.** An extension grouper's
   `ComponentsFunc` output lands on `Components.Groupers[i].Operator` on
@@ -958,6 +993,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
+| `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |

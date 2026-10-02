@@ -146,6 +146,18 @@ type ParamMeta struct {
 // declaration decides whether ShardWorkers / DecodeWorkers fan the
 // request out and whether a ProcessChain stage accepts it; omitted, the
 // request runs serially.
+//
+// MarginReducibility declares the operator's crosstab margin class —
+// the embedder-side sibling of types.AggregationType.MarginReducibility.
+// A fusable class (types.MarginSummable, types.MarginMeanReducible,
+// types.MarginIndependent) admits the operator as a crosstab CELL to
+// the fused in-decode arm and requires Mergeable=true (and so
+// Streamable=true); probe-validation refuses an unknown class or a
+// fusable class without Mergeable with
+// PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH. The fused walk feeds
+// each margin its own accumulator record by record, so the class gates
+// admission only and never changes a margin figure. Omitted (or
+// types.MarginRecompute) keeps the crosstab cell on the buffered arm.
 type AggregatorRegistration struct {
 	Name        types.AggregationType
 	Description string
@@ -155,8 +167,12 @@ type AggregatorRegistration struct {
 	// extend.MergeableAggregator.Merge, admitting the operator to the
 	// parallel reducers and ProcessChain. Requires Streamable.
 	Mergeable bool
-	Accepts   []encoding.FieldType
-	Params    []ParamMeta
+	// MarginReducibility declares the crosstab margin class; a fusable
+	// class admits the operator as a fused crosstab cell. Requires
+	// Mergeable unless empty or types.MarginRecompute.
+	MarginReducibility types.MarginReducibility
+	Accepts            []encoding.FieldType
+	Params             []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
 	// projection (runtime widens the field set when this operator

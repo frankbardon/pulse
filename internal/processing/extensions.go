@@ -61,6 +61,18 @@ type ExtensionRegistry struct {
 	// built-in tables do not know.
 	Mergeable map[string]bool
 
+	// MarginReducibility is the per-aggregator crosstab margin class
+	// declared by pulse.AggregatorRegistration.MarginReducibility — the
+	// extension half of types.AggregationType.MarginReducibility().
+	// Consulted through AggregatorMarginReducibility by the fused
+	// crosstab gate. A registered aggregator always has an entry (empty
+	// included, which reads as types.MarginRecompute), so a missing key
+	// means "not an extension" and falls back to the built-in table.
+	// Probe-validated at pulse.New
+	// (PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH): a fusable class is
+	// only ever recorded alongside a true Mergeable entry.
+	MarginReducibility map[types.AggregationType]types.MarginReducibility
+
 	// TwoPassAttributes records which extension attributes declared the
 	// two-pass streaming tier (pulse.AttributeModeTwoPass) — the
 	// extension half of the built-in two-pass set (ZSCORE, TSCORE,
@@ -397,6 +409,23 @@ func (r *ExtensionRegistry) IsMergeable(category, name string) bool {
 		return types.GroupType(name).Mergeable()
 	}
 	return false
+}
+
+// AggregatorMarginReducibility reports the crosstab margin class of
+// aggregator t: an extension's DECLARED class (empty reads as
+// types.MarginRecompute, the not-fusable default), else the built-in
+// per-type MarginReducibility(). Nil-receiver-safe (built-in answers
+// only).
+func (r *ExtensionRegistry) AggregatorMarginReducibility(t types.AggregationType) types.MarginReducibility {
+	if r != nil && r.MarginReducibility != nil {
+		if v, ok := r.MarginReducibility[t]; ok {
+			if v == "" {
+				return types.MarginRecompute
+			}
+			return v
+		}
+	}
+	return t.MarginReducibility()
 }
 
 // attributeRequiresTwoPass reports whether an attribute type takes the

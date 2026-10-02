@@ -566,6 +566,17 @@ const (
 	// probeGroupers.
 	PULSE_EXTENSION_MERGEABLE_MISMATCH Code = "PULSE_EXTENSION_MERGEABLE_MISMATCH"
 
+	// PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH indicates an
+	// aggregator registration declared a MarginReducibility it cannot
+	// honour: the class is not one of summable / mean_reducible /
+	// independent / recompute, or it is a FUSABLE class (summable,
+	// mean_reducible, independent — the classes that admit the operator
+	// as a fused crosstab cell) on a registration that is not also
+	// Mergeable (and so Streamable). Details carry the category, name,
+	// the declared class and a reason discriminator. Wired into
+	// extensions_probe.probeAggregators.
+	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH Code = "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
@@ -2580,6 +2591,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_STREAMABLE_MISMATCH,
 	PULSE_EXTENSION_FANOUT_MISMATCH,
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
+	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,

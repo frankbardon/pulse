@@ -17,7 +17,9 @@ import (
 // PULSE_EXTENSION_FACTORY_PANIC; type-mismatch surfaces as
 // PULSE_EXTENSION_STREAMABLE_MISMATCH, and an aggregator or grouper
 // Mergeable declaration it cannot honour as
-// PULSE_EXTENSION_MERGEABLE_MISMATCH.
+// PULSE_EXTENSION_MERGEABLE_MISMATCH, and an aggregator
+// MarginReducibility declaration it cannot honour as
+// PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH.
 //
 // Embedder factories MUST tolerate a nil/empty Schema and a spec
 // carrying only the operator Name; documented in
@@ -75,6 +77,9 @@ func probeAggregators(regs []AggregatorRegistration) error {
 			if err := verifyAggregatorMergeable(reg, instance); err != nil {
 				return err
 			}
+		}
+		if err := verifyAggregatorMarginReducibility(reg); err != nil {
+			return err
 		}
 		if reg.ComponentsFunc != nil {
 			if err := verifyComponentSchemaPresence(
@@ -142,6 +147,48 @@ func verifyAggregatorMergeable(reg AggregatorRegistration, instance extend.Aggre
 			`ComponentSchema.Mergeability is "none" (merged partials cannot reproduce the declared figures)`)
 	}
 	return nil
+}
+
+// verifyAggregatorMarginReducibility checks a declared crosstab margin
+// class, raising PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH with a
+// reason discriminator when the registration cannot honour it:
+//
+//   - unknown_class — not one of the four types.MarginReducibility
+//     values.
+//   - margin_without_mergeable — a FUSABLE class (summable,
+//     mean_reducible, independent) without Mergeable=true. The class
+//     admits the operator as a fused crosstab cell, which folds online
+//     state per record, and the fused gate holds a cell to the same
+//     mergeable bar as a built-in cell. Mergeable is itself
+//     probe-validated to imply Streamable and extend.MergeableAggregator.
+//
+// Empty and types.MarginRecompute are the not-fusable classes and need
+// nothing.
+func verifyAggregatorMarginReducibility(reg AggregatorRegistration) error {
+	mismatch := func(reason, msg string) error {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
+			fmt.Sprintf("aggregator %q declares MarginReducibility=%q but %s", reg.Name, reg.MarginReducibility, msg),
+			map[string]any{
+				"category":            "aggregator",
+				"name":                string(reg.Name),
+				"margin_reducibility": string(reg.MarginReducibility),
+				"reason":              reason,
+			},
+		)
+	}
+	switch reg.MarginReducibility {
+	case "", types.MarginRecompute:
+		return nil
+	case types.MarginSummable, types.MarginMeanReducible, types.MarginIndependent:
+		if !reg.Mergeable {
+			return mismatch("margin_without_mergeable",
+				"Mergeable=false (a fusable margin class admits the operator as a fused crosstab cell; declare Mergeable=true and Streamable=true as well)")
+		}
+		return nil
+	}
+	return mismatch("unknown_class",
+		`the class is unknown (want "summable", "mean_reducible", "independent" or "recompute")`)
 }
 
 // probeGroupers validates every registered grouper. A Streamable=true

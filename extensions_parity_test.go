@@ -733,7 +733,9 @@ func TestExtensions_BuiltinParity(t *testing.T) {
 // it against the built-in decimal table — and reaches
 // extend.Record.DecimalValue on the aggregation's own field, through
 // Process (streamed per its Streamable declaration), ProcessStream and
-// a crosstab cell (buffered: an extension cell is not mergeable). The built-in
+// a crosstab cell (buffered: AGG_PARITY_SUM declares no
+// MarginReducibility; the declared twin's fused decimal cell is pinned
+// by TestExtensions_DeclaredMarginCellFusesCrosstab). The built-in
 // refusal of a non-decimal built-in (AGG_MEDIAN) stays exactly as it
 // was. The cross-mode output parity lives in aggregatorParitySuite's
 // decimal128 row.

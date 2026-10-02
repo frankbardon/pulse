@@ -76,6 +76,9 @@ func TestExtendAggregatorThroughProcess(t *testing.T) {
 			Factory:     newSmokeSum(&updates),
 			Streamable:  true,
 			Mergeable:   true,
+			// The fused-crosstab cell declaration, spelled with the
+			// public types constant (probe-validated at pulse.New).
+			MarginReducibility: types.MarginSummable,
 		}},
 	}})
 	ingest(t, p, fs, "sales.pulse")

@@ -15,6 +15,7 @@ pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponen
 pulse: type AggregatorRegistration field Description string
 pulse: type AggregatorRegistration field Factory pulse/extend.AggregatorFactory
 pulse: type AggregatorRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type AggregatorRegistration field MarginReducibility pulse/types.MarginReducibility
 pulse: type AggregatorRegistration field Mergeable bool
 pulse: type AggregatorRegistration field Name pulse/types.AggregationType
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
@@ -1085,6 +1086,7 @@ pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omite
 pulse/descriptor: type OperatorMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorMeta field Emits string "json:\"emits,omitempty\""
 pulse/descriptor: type OperatorMeta field FansOut bool "json:\"fans_out,omitempty\""
+pulse/descriptor: type OperatorMeta field MarginReducibility string "json:\"margin_reducibility,omitempty\""
 pulse/descriptor: type OperatorMeta field Mergeable bool "json:\"mergeable,omitempty\""
 pulse/descriptor: type OperatorMeta field Mode string "json:\"mode,omitempty\""
 pulse/descriptor: type OperatorMeta field Name string "json:\"name\""
@@ -1516,6 +1518,7 @@ pulse/errors: const PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH pulse/errors.Code 
 pulse/errors: const PULSE_EXTENSION_DUPLICATE pulse/errors.Code = "PULSE_EXTENSION_DUPLICATE"
 pulse/errors: const PULSE_EXTENSION_FACTORY_PANIC pulse/errors.Code = "PULSE_EXTENSION_FACTORY_PANIC"
 pulse/errors: const PULSE_EXTENSION_FANOUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
+pulse/errors: const PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_MERGEABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_MERGEABLE_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA pulse/errors.Code = "PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA"
 pulse/errors: const PULSE_EXTENSION_NAME_COLLISION pulse/errors.Code = "PULSE_EXTENSION_NAME_COLLISION"
@@ -3477,4 +3480,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: f6272f88fb539f29d39772fdf3fb5ef9890a4f7352d2b93d19a5de766bf3342c
+// golden-hash: 37cfd0fd35e4df9a40f87dcf026fb580a8ec69553f2ce1a46092ec69a59bd32d

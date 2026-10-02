@@ -988,6 +988,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH: {
+		Message: "An aggregator registration declared a MarginReducibility it cannot honour: the class is unknown, or it is a fusable class (summable, mean_reducible, independent) on a registration that is not also Mergeable and Streamable.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Declare MarginReducibility as one of summable, mean_reducible, independent or recompute; a fusable class (anything but recompute) admits the operator as a fused crosstab cell and needs Mergeable=true and Streamable=true alongside it — or omit it and the crosstab cell runs buffered.",
+			},
+		},
+	},
 	PULSE_EXTENSION_FACTORY_PANIC: {
 		Message: "An embedder factory panicked during probe-validation at registration time.",
 		Fixups: []Fixup{

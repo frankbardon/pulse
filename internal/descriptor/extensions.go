@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/types"
 )
 
 // ExtensionsSnapshot is the immutable read-only view that the service
@@ -251,6 +252,25 @@ func (s *ExtensionsSnapshot) HasAggregator(name string) bool {
 		}
 	}
 	return false
+}
+
+// AggregatorMarginReducibility reports the crosstab margin class of
+// aggregator t: an extension's DECLARED class from the snapshot (empty
+// reads as types.MarginRecompute, the not-fusable default), else the
+// built-in per-type MarginReducibility(). The no-execute twin of
+// processing.ExtensionRegistry.AggregatorMarginReducibility. Nil-safe.
+func (s *ExtensionsSnapshot) AggregatorMarginReducibility(t types.AggregationType) types.MarginReducibility {
+	if s != nil {
+		for _, m := range s.Aggregators {
+			if m.Name == string(t) {
+				if m.MarginReducibility == "" {
+					return types.MarginRecompute
+				}
+				return types.MarginReducibility(m.MarginReducibility)
+			}
+		}
+	}
+	return t.MarginReducibility()
 }
 
 // aggregators / groupers are nil-safe slice accessors for the chain

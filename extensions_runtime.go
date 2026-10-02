@@ -87,6 +87,13 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			// IsMergeable never falls through to the built-in table for
 			// an extension name.
 			r.Mergeable[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.Mergeable
+			// The crosstab margin class, recorded empty as well so
+			// AggregatorMarginReducibility never falls through to the
+			// built-in table for an extension name.
+			if r.MarginReducibility == nil {
+				r.MarginReducibility = make(map[types.AggregationType]types.MarginReducibility, len(ext.Aggregators))
+			}
+			r.MarginReducibility[reg.Name] = reg.MarginReducibility
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}
 	}
