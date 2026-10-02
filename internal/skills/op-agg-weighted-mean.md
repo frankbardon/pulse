@@ -45,8 +45,8 @@ Floor `{n, n_null}` plus (all float64; empty cell all 0):
 
 ## Gotchas
 
-- Rows with null weight OR weight==0 are SKIPPED (not in `n`).
-- An unknown `weight_field` is refused (`SERVICE_VALIDATION`), predict and runtime alike.
+- Null/zero-weight rows: skipped by the mean, STILL counted in floor `n` (`n`/`n_null` track `Field` only); size from `sum_weights`/`n_eff`.
+- Unknown `weight_field` → `SERVICE_VALIDATION` (predict + runtime).
 - `decimal128` rejected.
 - For unweighted mean use `AGG_AVERAGE`.
 
