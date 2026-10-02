@@ -293,6 +293,11 @@ var OverlayStreamability = map[OverlayKind]bool{
 	OverlayKindPairwisePropZ:     false,
 	OverlayKindPairwiseTwoMeansZ: false,
 	OverlayKindPairwiseWelchT:    false,
+	// The weighted two-means z kind is post-fold inferential like its
+	// siblings. Its AGG_WEIGHTED_MEAN host keeps the crosstab SCAN fused;
+	// this row describes the overlay, which still folds the finalised
+	// response once.
+	OverlayKindPairwiseWeightedTwoMeansZ: false,
 	// OVERLAY_PROP_Z_CELL is inherently buffered — COMPOSE-only kind,
 	// per-cell two-proportion z-test against the reference slot's
 	// matching cell. Reuses the standardNormalCDF helper backing

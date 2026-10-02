@@ -98,8 +98,8 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 // authoritative iteration surface, and the per-kind switch below is
 // expected to grow in lock-step.
 // pairwiseDescription composes the shared OVERLAY_PAIRWISE_* manifest
-// blurb around the per-kind test sentence so the four entries stay
-// consistent on the catalog surface.
+// blurb around the per-kind test sentence so every OVERLAY_PAIRWISE_*
+// entry stays consistent on the catalog surface.
 func pairwiseDescription(test string) string {
 	return "Intra-matrix axis-pairwise " + test + ". " +
 		"ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — " +
@@ -107,7 +107,7 @@ func pairwiseDescription(test string) string {
 		"axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) " +
 		"index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other " +
 		"axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test " +
-		"degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts " +
+		"degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts " +
 		"pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), " +
 		"cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY " +
 		"modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell " +
@@ -116,7 +116,9 @@ func pairwiseDescription(test string) string {
 		"aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY " +
 		"and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the " +
 		"within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion " +
-		"cell values. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must " +
+		"cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any " +
+		"other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the " +
+		"summed-across pair-axis dims must " +
 		"PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires " +
 		"PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / " +
 		"column_margin_distinct accumulate over raw records and are exact by construction, never gated. " +
@@ -493,6 +495,14 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
 			Description: pairwiseDescription("two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code"),
+		}
+	case types.OverlayKindPairwiseWeightedTwoMeansZ:
+		return descriptor.OverlayCapability{
+			Kind:        types.OverlayKindPairwiseWeightedTwoMeansZ,
+			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
+			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
+			RefKinds:    []string{},
+			Description: pairwiseDescription("two-means z-test on AGG_WEIGHTED_MEAN cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. A non-weighted-mean host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path"),
 		}
 	case types.OverlayKindPairwiseWelchT:
 		return descriptor.OverlayCapability{

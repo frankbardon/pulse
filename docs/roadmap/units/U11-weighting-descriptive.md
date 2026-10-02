@@ -22,6 +22,8 @@ branch: weighting-descriptive
 
 Introduce first-class weighting and apply it to descriptive figures: `Request.Weight` + per-slot override (incl. `null`), `kind`, validation, weighted aggregators (incl. weighted percentiles, `AGG_WEIGHTED_MEAN` alias), weighted crosstab cells/margins, share/index overlays, components/manifest/predict/extension plumbing, and SPSS weight capture.
 
+> **Already shipped (v0.39.1, forward-ported to `main`; status unchanged, nothing ticked here).** `AGG_WEIGHTED_MEAN` Components already carry `m2_weighted`, `sum_weights_sq`, `weighted_variance` and `n_eff` (Kish) alongside `sum_weights`, and `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` already tests weighted-mean crosstab cells with a required `n_basis` (`weights` | `kish`). Naming to reconcile: the shipped key is `sum_weights`, while this unit plans `w_sum` — U11 owns choosing one spelling (and any alias or deprecation) when it lands the Components floor.
+
 ## References
 
 **Theme documents (read before starting):**

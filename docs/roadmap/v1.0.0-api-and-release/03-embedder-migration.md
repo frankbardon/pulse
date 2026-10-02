@@ -106,6 +106,18 @@ It applies in stages: `pulse.Version()` and the MCP version defaults land with *
 | `mcpserve` | public, unchanged: `Options`, `Serve`, `ServeStdio` | kept | none | — |
 | `mcp` core, `mcp/toolmeta`, `skills` | internal | moved | use the manifest (`(*Pulse).Manifest`, `pulse manifest --json`), the MCP tools, or `pulse skills list` / `show` | U02 |
 
+## Additions from the v0.39.1 weighted-variance line
+
+Landed with the `weighted-variance-z` effort: shipped on `release/v0.39` as `v0.39.1` and forward-ported to `main`. An embedder coming from `v0.39.1` has **no migration action**; these rows are for embedders coming from `v0.39.0`. The wire change is additive, so `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| (none) | `types.OverlayKindPairwiseWeightedTwoMeansZ` (`OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`), an intra-crosstab pairwise two-means z-test over `AGG_WEIGHTED_MEAN` cells | added | adopt when convenient. Sample sizes come from `sum_weights` / `n_eff`, never the floor `n`; a non-weighted-mean cell is refused with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; Components disabled is `PULSE_OVERLAY_COMPONENTS_REQUIRED` | weighted-variance-z |
+| (none) | `types.PairwiseOverlayParams.NBasis`, `types.PairwiseNBasisWeights`, `types.PairwiseNBasisKish`, `types.ValidPairwiseNBasis`, `types.PairwiseKindUsesWeightedMoments` | added | none unless you build pairwise overlay params in Go; `n_basis` is required (no default) on the weighted kind and takes `weights` or `kish` | weighted-variance-z |
+| `AGG_WEIGHTED_MEAN` `Components.Operator` carried `sum_weights`, `weighted_mean` | adds `m2_weighted`, `sum_weights_sq`, `weighted_variance`, `n_eff` (Kish effective n); existing keys unchanged | added (wire-additive) | embedders that snapshot these Components should expect the four new keys; ignore-unknown consumers are unaffected. `format_version` stays `"1.1"`, no new error codes | weighted-variance-z |
+| (none) | `n_basis` overlay param, accepted only on `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` | added | none | weighted-variance-z |
+| `n_basis` on `OVERLAY_PAIRWISE_PROP_Z` / `_PROBIT_T` / `_WELCH_T` / `_TWO_MEANS_Z` | predict refuses with `PULSE_OVERLAY_PARAM_MISSING` (`details.param = "n_basis"`); the runtime ignores it | behaviour change (predict only) | the param did not exist before, so no previously valid request changes; drop `n_basis` from non-weighted pairwise kinds | weighted-variance-z |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

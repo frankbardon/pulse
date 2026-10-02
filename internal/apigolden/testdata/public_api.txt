@@ -3172,6 +3172,7 @@ pulse/types: const OverlayKindKSVsPop pulse/types.OverlayKind = "OVERLAY_KS_VS_P
 pulse/types: const OverlayKindPairwiseProbitT pulse/types.OverlayKind = "OVERLAY_PAIRWISE_PROBIT_T"
 pulse/types: const OverlayKindPairwisePropZ pulse/types.OverlayKind = "OVERLAY_PAIRWISE_PROP_Z"
 pulse/types: const OverlayKindPairwiseTwoMeansZ pulse/types.OverlayKind = "OVERLAY_PAIRWISE_TWO_MEANS_Z"
+pulse/types: const OverlayKindPairwiseWeightedTwoMeansZ pulse/types.OverlayKind = "OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z"
 pulse/types: const OverlayKindPairwiseWelchT pulse/types.OverlayKind = "OVERLAY_PAIRWISE_WELCH_T"
 pulse/types: const OverlayKindPanelIndexVsRef pulse/types.OverlayKind = "OVERLAY_PANEL_INDEX_VS_REF"
 pulse/types: const OverlayKindPropZCell pulse/types.OverlayKind = "OVERLAY_PROP_Z_CELL"
@@ -3261,7 +3262,10 @@ pulse/types: type OverlayWarning field Code string
 pulse/types: type OverlayWarning field Details map[string]any
 pulse/types: type OverlayWarning field Message string
 pulse/types: type OverlayYoYRef struct
+pulse/types: func PairwiseKindUsesWeightedMoments(kind pulse/types.OverlayKind) bool
 pulse/types: func PairwiseKindUsesWelford(kind pulse/types.OverlayKind) bool
+pulse/types: const PairwiseNBasisKish untyped string = "kish"
+pulse/types: const PairwiseNBasisWeights untyped string = "weights"
 pulse/types: const PairwiseNSourceCellNUnweighted untyped string = "cell_n_unweighted"
 pulse/types: const PairwiseNSourceCellValueWeight untyped string = "cell_value_weighted"
 pulse/types: const PairwiseNSourceCellWeightSum untyped string = "cell_weight_sum"
@@ -3275,6 +3279,7 @@ pulse/types: const PairwiseNSourceRowMarginN untyped string = "row_margin_n"
 pulse/types: func PairwiseNSourceSumsDistinctCells(s string) bool
 pulse/types: func PairwiseNSourceUsesWithinDepth(s string) bool
 pulse/types: type PairwiseOverlayParams struct
+pulse/types: type PairwiseOverlayParams field NBasis string "json:\"n_basis,omitempty\""
 pulse/types: type PairwiseOverlayParams field NSource string "json:\"n_source,omitempty\""
 pulse/types: type PairwiseOverlayParams field NWithinDepth int "json:\"n_within_depth,omitempty\""
 pulse/types: type PairwiseOverlayParams field PSource string "json:\"p_source,omitempty\""
@@ -3479,6 +3484,7 @@ pulse/types: type TestResult field Variant string "json:\"variant,omitempty\""
 pulse/types: type TestResult field Warnings []string "json:\"warnings,omitempty\""
 pulse/types: type TestType string
 pulse/types: type TestType method (TestType) Streamable() bool
+pulse/types: func ValidPairwiseNBasis(s string) bool
 pulse/types: func ValidPairwiseNSource(s string) bool
 pulse/types: func ValidPairwisePSource(s string) bool
 pulse/types: func ValidPanelNSource(s string) bool
@@ -3508,4 +3514,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c984bb5c02378a99530b9d06620bf076d3fc44f1071ac2ed1df13a5e0170ce6a
+// golden-hash: cdb484e5affea8265ff011983e0ac9cef25963ed2a2e408344d89c7147e30648
