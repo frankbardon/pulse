@@ -46,7 +46,8 @@ func pwProportionKinds(t *testing.T) []types.OverlayKind {
 	t.Helper()
 	var out []types.OverlayKind
 	for _, k := range types.AllOverlayKinds() {
-		if types.IsPairwiseOverlayKind(k) && !types.PairwiseKindUsesWelford(k) {
+		if types.IsPairwiseOverlayKind(k) && !types.PairwiseKindUsesWelford(k) &&
+			!types.PairwiseKindUsesWeightedMoments(k) {
 			out = append(out, k)
 		}
 	}

@@ -31,18 +31,19 @@ type weightedMeanParams struct {
 //	delta   = x − mean
 //	wSum   += w
 //	mean   += (w / wSum) * delta
-//	m2     += w * delta * (x − mean)   // weighted moment (informative
-//	                                   // only; weighted mean does not
-//	                                   // expose variance to callers).
+//	m2     += w * delta * (x − mean)   // Σw(x − mean)², the weighted
+//	                                   // second central moment
+//	wSumSq += w * w                    // Σw², feeds Kish n_eff
 //
 // MergeOnline combines two weighted partials via the same parallel
-// formula used by varianceAggregator, weighted by wSum instead of n.
+// formula used by varianceAggregator, weighted by wSum instead of n;
+// wSumSq merges as a plain sum.
 //
-// frozen{SumWeighted, SumWeights, WeightedMean, HasResult} mirror the
-// post-Aggregate / post-Finalize state so Components() works on both
-// buffered and streaming code paths — the streaming Finalize step
-// zeros out (wSum, mean, m2) before Components() runs, so the frozen
-// mirrors are the source of truth. sum_weighted is reconstructed as
+// frozen{SumWeighted, SumWeights, WeightedMean, M2, SumWeightsSq,
+// HasResult} mirror the post-Aggregate / post-Finalize state so
+// Components() works on both buffered and streaming code paths — the
+// streaming Finalize step zeros out (wSum, mean, m2, wSumSq) before
+// Components() runs, so the frozen mirrors are the source of truth. sum_weighted is reconstructed as
 // mean * wSum at the freeze point (algebraically identical to the
 // running sum of (field * weight) for the Chan-Welford recurrence).
 type weightedMeanAggregator struct {
@@ -50,10 +51,13 @@ type weightedMeanAggregator struct {
 	wSum        float64
 	mean        float64
 	m2          float64
+	wSumSq      float64
 
 	frozenSumWeighted  float64
 	frozenSumWeights   float64
 	frozenWeightedMean float64
+	frozenM2           float64
+	frozenSumWeightsSq float64
 	frozenHasResult    bool
 }
 
@@ -72,7 +76,7 @@ func newWeightedMeanAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggr
 }
 
 func (a *weightedMeanAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	a.wSum, a.mean, a.m2 = 0, 0, 0
+	a.wSum, a.mean, a.m2, a.wSumSq = 0, 0, 0, 0
 	for _, r := range records {
 		v, ok := r.NumericValue(field)
 		if !ok {
@@ -109,16 +113,17 @@ func (a *weightedMeanAggregator) foldOne(x, w float64) {
 	delta := x - a.mean
 	a.mean += (w / a.wSum) * delta
 	a.m2 += w * delta * (x - a.mean)
+	a.wSumSq += w * w
 }
 
 func (a *weightedMeanAggregator) Finalize() (float64, error) {
 	a.freeze()
 	if a.wSum == 0 {
-		a.mean, a.wSum, a.m2 = 0, 0, 0
+		a.mean, a.wSum, a.m2, a.wSumSq = 0, 0, 0, 0
 		return 0, nil
 	}
 	out := a.mean
-	a.mean, a.wSum, a.m2 = 0, 0, 0
+	a.mean, a.wSum, a.m2, a.wSumSq = 0, 0, 0, 0
 	return out, nil
 }
 
@@ -129,23 +134,51 @@ func (a *weightedMeanAggregator) Finalize() (float64, error) {
 // as mean * wSum (algebraically identical to the running sum-of-
 // weighted-values for the Chan-Welford recurrence). Empty-input case
 // (wSum == 0) emits zero sums and a zero weighted_mean to mirror the
-// scalar return path's 0 fallback — callers can detect the zero-weight
-// case via the universal-floor n == 0 channel.
+// scalar return path's 0 fallback — callers detect the zero-weight
+// case via sum_weights == 0, NOT the universal floor: floor n counts
+// every row whose value Field is present, including null/zero-weight
+// rows (pinned by aggregator_weighted_floor_test.go).
 func (a *weightedMeanAggregator) freeze() {
 	a.frozenHasResult = true
 	a.frozenSumWeights = a.wSum
 	if a.wSum == 0 {
 		a.frozenSumWeighted = 0
 		a.frozenWeightedMean = 0
+		a.frozenM2 = 0
+		a.frozenSumWeightsSq = 0
 		return
 	}
 	a.frozenSumWeighted = a.mean * a.wSum
 	a.frozenWeightedMean = a.mean
+	a.frozenM2 = a.m2
+	a.frozenSumWeightsSq = a.wSumSq
 }
 
-// Components returns {sum_weighted, sum_weights, weighted_mean} —
-// the running weighted accumulators that feed the scalar return plus
-// the resolved weighted mean. Reads the frozen mirrors stamped by
+// weightedVariance is the frequency-weights variance m2 / (Σw − 1)
+// (statsmodels DescrStatsW.var with ddof=1). Σw ≤ 1 has no positive
+// denominator, so it reports 0 — the same zero floor the empty cell
+// uses; callers detect it from sum_weights.
+func weightedVariance(m2, wSum float64) float64 {
+	if wSum <= 1 {
+		return 0
+	}
+	return m2 / (wSum - 1)
+}
+
+// kishNEff is Kish's effective sample size (Σw)² / Σw². An empty cell
+// (Σw² == 0) reports 0.
+func kishNEff(wSum, wSumSq float64) float64 {
+	if wSumSq == 0 {
+		return 0
+	}
+	return wSum * wSum / wSumSq
+}
+
+// Components returns {sum_weighted, sum_weights, weighted_mean,
+// m2_weighted, sum_weights_sq, weighted_variance, n_eff} — the running
+// weighted accumulators that feed the scalar return, the resolved
+// weighted mean, and the sufficient statistics for both weighted
+// variance conventions (frequency m2/(Σw−1) and Kish n_eff). Reads the frozen mirrors stamped by
 // Aggregate / Finalize so the streaming Finalize-reset on
 // (wSum, mean, m2) does not erase the values before Components() runs.
 //
@@ -158,15 +191,23 @@ func (a *weightedMeanAggregator) freeze() {
 func (a *weightedMeanAggregator) Components() (map[string]any, error) {
 	if !a.frozenHasResult {
 		return map[string]any{
-			"sum_weighted":  0.0,
-			"sum_weights":   0.0,
-			"weighted_mean": 0.0,
+			"sum_weighted":      0.0,
+			"sum_weights":       0.0,
+			"weighted_mean":     0.0,
+			"m2_weighted":       0.0,
+			"sum_weights_sq":    0.0,
+			"weighted_variance": 0.0,
+			"n_eff":             0.0,
 		}, nil
 	}
 	return map[string]any{
-		"sum_weighted":  a.frozenSumWeighted,
-		"sum_weights":   a.frozenSumWeights,
-		"weighted_mean": a.frozenWeightedMean,
+		"sum_weighted":      a.frozenSumWeighted,
+		"sum_weights":       a.frozenSumWeights,
+		"weighted_mean":     a.frozenWeightedMean,
+		"m2_weighted":       a.frozenM2,
+		"sum_weights_sq":    a.frozenSumWeightsSq,
+		"weighted_variance": weightedVariance(a.frozenM2, a.frozenSumWeights),
+		"n_eff":             kishNEff(a.frozenSumWeights, a.frozenSumWeightsSq),
 	}, nil
 }
 
@@ -183,7 +224,7 @@ func (a *weightedMeanAggregator) MergeOnline(other OnlineAggregator) error {
 		return nil
 	}
 	if a.wSum == 0 {
-		a.wSum, a.mean, a.m2 = b.wSum, b.mean, b.m2
+		a.wSum, a.mean, a.m2, a.wSumSq = b.wSum, b.mean, b.m2, b.wSumSq
 		return nil
 	}
 	total := a.wSum + b.wSum
@@ -193,6 +234,7 @@ func (a *weightedMeanAggregator) MergeOnline(other OnlineAggregator) error {
 	a.wSum = total
 	a.mean = newMean
 	a.m2 = newM2
+	a.wSumSq += b.wSumSq
 	return nil
 }
 

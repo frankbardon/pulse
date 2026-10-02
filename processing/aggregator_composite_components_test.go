@@ -38,7 +38,9 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 		//
 		// Normal positive-weight inputs. Values (10, 20, 30) weighted
 		// (1, 1, 2): sum_weighted = 10*1 + 20*1 + 30*2 = 90;
-		// sum_weights = 4; weighted_mean = 22.5.
+		// sum_weights = 4; weighted_mean = 22.5. m2_weighted =
+		// 1·12.5² + 1·2.5² + 2·7.5² = 275; sum_weights_sq = 1+1+4 = 6;
+		// weighted_variance = 275/(4−1); n_eff = 4²/6.
 		{
 			name:    "WEIGHTED_MEAN_positiveWeights",
 			aggType: types.AGG_WEIGHTED_MEAN,
@@ -49,9 +51,13 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 				cohortRec(30, 2, 0, 0, nil),
 			},
 			want: expectation{n: 3, nNull: 0, operator: map[string]any{
-				"sum_weighted":  90.0,
-				"sum_weights":   4.0,
-				"weighted_mean": 22.5,
+				"sum_weighted":      90.0,
+				"sum_weights":       4.0,
+				"weighted_mean":     22.5,
+				"m2_weighted":       275.0,
+				"sum_weights_sq":    6.0,
+				"weighted_variance": 275.0 / 3.0,
+				"n_eff":             16.0 / 6.0,
 			}},
 		},
 		// Zero-weight rows: every contributing row has weight==0.
@@ -70,9 +76,13 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 				cohortRec(30, 0, 0, 0, nil),
 			},
 			want: expectation{n: 3, nNull: 0, operator: map[string]any{
-				"sum_weighted":  0.0,
-				"sum_weights":   0.0,
-				"weighted_mean": 0.0,
+				"sum_weighted":      0.0,
+				"sum_weights":       0.0,
+				"weighted_mean":     0.0,
+				"m2_weighted":       0.0,
+				"sum_weights_sq":    0.0,
+				"weighted_variance": 0.0,
+				"n_eff":             0.0,
 			}},
 		},
 		// Empty input: no records contributed. Frozen-mirror stamps
@@ -83,13 +93,18 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 			params:  wmParams,
 			records: []*Record{},
 			want: expectation{n: 0, nNull: 0, operator: map[string]any{
-				"sum_weighted":  0.0,
-				"sum_weights":   0.0,
-				"weighted_mean": 0.0,
+				"sum_weighted":      0.0,
+				"sum_weights":       0.0,
+				"weighted_mean":     0.0,
+				"m2_weighted":       0.0,
+				"sum_weights_sq":    0.0,
+				"weighted_variance": 0.0,
+				"n_eff":             0.0,
 			}},
 		},
 		// Single-row input. value=42, weight=2 → sum_weighted=84,
-		// sum_weights=2, weighted_mean=42.
+		// sum_weights=2, weighted_mean=42; m2=0, Σw²=4, variance
+		// 0/(2−1)=0, n_eff=2²/4=1.
 		{
 			name:    "WEIGHTED_MEAN_singleRow",
 			aggType: types.AGG_WEIGHTED_MEAN,
@@ -98,9 +113,13 @@ func TestMetaAggregator_CompositeOps_Components(t *testing.T) {
 				cohortRec(42, 2, 0, 0, nil),
 			},
 			want: expectation{n: 1, nNull: 0, operator: map[string]any{
-				"sum_weighted":  84.0,
-				"sum_weights":   2.0,
-				"weighted_mean": 42.0,
+				"sum_weighted":      84.0,
+				"sum_weights":       2.0,
+				"weighted_mean":     42.0,
+				"m2_weighted":       0.0,
+				"sum_weights_sq":    4.0,
+				"weighted_variance": 0.0,
+				"n_eff":             1.0,
 			}},
 		},
 
@@ -288,9 +307,13 @@ func TestMetaAggregator_CompositeOps_StreamingEmits(t *testing.T) {
 		// AGG_WEIGHTED_MEAN — sum_weighted (10 + 20 + 60), sum_weights
 		// (4), weighted_mean (22.5).
 		{
-			"sum_weighted":  90.0,
-			"sum_weights":   4.0,
-			"weighted_mean": 22.5,
+			"sum_weighted":      90.0,
+			"sum_weights":       4.0,
+			"weighted_mean":     22.5,
+			"m2_weighted":       275.0,
+			"sum_weights_sq":    6.0,
+			"weighted_variance": 275.0 / 3.0,
+			"n_eff":             16.0 / 6.0,
 		},
 		// AGG_RATIO — numerator (10), denominator (10), ratio (1.0).
 		{

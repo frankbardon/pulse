@@ -275,21 +275,22 @@ type overlayHandler func(spec *types.OverlaySpec, host *CrosstabHostView) (types
 // (types/overlay.go + types/overlay_streamability.go), add the runtime
 // handler in this package, and add the dispatch entry here.
 var overlayHandlers = map[types.OverlayKind]overlayHandler{
-	types.OverlayKindChiSqCol:          applyChiSqCol,
-	types.OverlayKindChiSqMatrix:       applyChiSqMatrix,
-	types.OverlayKindChiSqRow:          applyChiSqRow,
-	types.OverlayKindDeltaVsMargin:     applyDeltaVsMargin,
-	types.OverlayKindFisherExactCell:   applyFisherExactCell,
-	types.OverlayKindFormula:           applyFormula,
-	types.OverlayKindIndexVsMargin:     applyIndexVsMargin,
-	types.OverlayKindPairwiseProbitT:   applyPairwiseProbitT,
-	types.OverlayKindPairwisePropZ:     applyPairwisePropZ,
-	types.OverlayKindPairwiseTwoMeansZ: applyPairwiseTwoMeansZ,
-	types.OverlayKindPairwiseWelchT:    applyPairwiseWelchT,
-	types.OverlayKindShareOfCol:        applyShareOfCol,
-	types.OverlayKindShareOfRow:        applyShareOfRow,
-	types.OverlayKindShareOfTotal:      applyShareOfTotal,
-	types.OverlayKindZScoreVsMargin:    applyZScoreVsMargin,
+	types.OverlayKindChiSqCol:                  applyChiSqCol,
+	types.OverlayKindChiSqMatrix:               applyChiSqMatrix,
+	types.OverlayKindChiSqRow:                  applyChiSqRow,
+	types.OverlayKindDeltaVsMargin:             applyDeltaVsMargin,
+	types.OverlayKindFisherExactCell:           applyFisherExactCell,
+	types.OverlayKindFormula:                   applyFormula,
+	types.OverlayKindIndexVsMargin:             applyIndexVsMargin,
+	types.OverlayKindPairwiseProbitT:           applyPairwiseProbitT,
+	types.OverlayKindPairwisePropZ:             applyPairwisePropZ,
+	types.OverlayKindPairwiseTwoMeansZ:         applyPairwiseTwoMeansZ,
+	types.OverlayKindPairwiseWeightedTwoMeansZ: applyPairwiseWeightedTwoMeansZ,
+	types.OverlayKindPairwiseWelchT:            applyPairwiseWelchT,
+	types.OverlayKindShareOfCol:                applyShareOfCol,
+	types.OverlayKindShareOfRow:                applyShareOfRow,
+	types.OverlayKindShareOfTotal:              applyShareOfTotal,
+	types.OverlayKindZScoreVsMargin:            applyZScoreVsMargin,
 }
 
 // ApplyOverlays executes every spec in specs against the host view

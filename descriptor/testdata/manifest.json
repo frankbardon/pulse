@@ -1628,7 +1628,7 @@
               "name": "weight_field",
               "type": "string",
               "required": true,
-              "description": "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are skipped."
+              "description": "Schema field whose value is the per-row weight. Rows with a null weight or weight==0 are excluded from the mean and every weighted moment; the universal floor n / n_null still counts them (it keys on the value field only)."
             }
           ],
           "accepts_types": [
@@ -1671,6 +1671,26 @@
                 "name": "weighted_mean",
                 "type": "float64",
                 "description": "Resolved weighted mean: sum_weighted / sum_weights."
+              },
+              {
+                "name": "m2_weighted",
+                "type": "float64",
+                "description": "Weighted second central moment: sum(weight * (field - weighted_mean)^2)."
+              },
+              {
+                "name": "sum_weights_sq",
+                "type": "float64",
+                "description": "Running sum of squared weights; feeds the Kish effective sample size."
+              },
+              {
+                "name": "weighted_variance",
+                "type": "float64",
+                "description": "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights \u003c= 1."
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Kish effective sample size sum_weights^2 / sum_weights_sq; 0 for an empty cell."
               }
             ],
             "mergeability": "mergeable"
@@ -6890,6 +6910,10 @@
         "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df)."
       },
       {
+        "name": "op-overlay-pairwise-weighted-two-means-z",
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells under a required n_basis (weights | kish)."
+      },
+      {
         "name": "op-overlay-pairwise-welch-t",
         "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells."
       },
@@ -7394,7 +7418,7 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 168,
+    "examples_count": 169,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -8126,7 +8150,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail on df = n_i + n_j - 2; reuses the Student-t survival helper backing TEST_T). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+        "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail on df = n_i + n_j - 2; reuses the Student-t survival helper backing TEST_T). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
       },
       {
         "kind": "OVERLAY_PAIRWISE_PROP_Z",
@@ -8139,7 +8163,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise pooled-SE two-proportion z-test (reuses the twoProportionZ helper backing OVERLAY_PROP_Z_CELL / TEST_PROP_Z, so p-values match byte-for-byte). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+        "description": "Intra-matrix axis-pairwise pooled-SE two-proportion z-test (reuses the twoProportionZ helper backing OVERLAY_PROP_Z_CELL / TEST_PROP_Z, so p-values match byte-for-byte). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
       },
       {
         "kind": "OVERLAY_PAIRWISE_TWO_MEANS_Z",
@@ -8152,7 +8176,20 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+      },
+      {
+        "kind": "OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z",
+        "shapes": [
+          "matrix"
+        ],
+        "scopes": [
+          "column",
+          "row"
+        ],
+        "ref_kinds": [],
+        "buffered": true,
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. A non-weighted-mean host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
       },
       {
         "kind": "OVERLAY_PAIRWISE_WELCH_T",
@@ -8165,7 +8202,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (all optional): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
       },
       {
         "kind": "OVERLAY_PANEL_INDEX_VS_REF",
@@ -9157,6 +9194,26 @@
               "name": "weighted_mean",
               "type": "float64",
               "description": "Resolved weighted mean: sum_weighted / sum_weights."
+            },
+            {
+              "name": "m2_weighted",
+              "type": "float64",
+              "description": "Weighted second central moment: sum(weight * (field - weighted_mean)^2)."
+            },
+            {
+              "name": "sum_weights_sq",
+              "type": "float64",
+              "description": "Running sum of squared weights; feeds the Kish effective sample size."
+            },
+            {
+              "name": "weighted_variance",
+              "type": "float64",
+              "description": "Frequency-weights variance m2_weighted / (sum_weights - 1); 0 when sum_weights \u003c= 1."
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Kish effective sample size sum_weights^2 / sum_weights_sq; 0 for an empty cell."
             }
           ],
           "mergeability": "mergeable"
@@ -9746,4 +9803,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b3a4816cea093076544b95cb9ec6f7d732b0c9f4e6b91cf5100dee2b5ce547f2
+// golden-hash: ac575bfe0225e5c483bd8657974b12a40ccb0822cddf8f444ba665148eb7829b
