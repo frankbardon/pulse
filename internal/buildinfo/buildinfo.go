@@ -9,8 +9,14 @@
 //  1. the link-time value of version, set by the build system with
 //     -ldflags "-X github.com/frankbardon/pulse/internal/buildinfo.version=<v>"
 //     (make build does this from `git describe`);
-//  2. debug.ReadBuildInfo().Main.Version when it is a real module version
-//     (a `go install module@vX.Y.Z` build), never "(devel)" or empty;
+//  2. Pulse's OWN module version from debug.ReadBuildInfo(): Main.Version
+//     when Main is the Pulse module (a `go install module@vX.Y.Z` build),
+//     otherwise the version of the ModulePath entry in Deps (Pulse linked
+//     as a library dependency) — honouring a replace directive, whose
+//     Replace.Version is used when set and whose local-path form (no
+//     version) counts as a dev build. The embedder's Main.Version is never
+//     reported: it versions the embedder, not Pulse. "(devel)" and empty
+//     versions are skipped;
 //  3. "devel", suffixed "+<short vcs.revision>" when the binary embeds
 //     VCS metadata.
 package buildinfo
@@ -26,6 +32,10 @@ var version = ""
 // readBuildInfo is the BuildInfo reader. It is a package-level variable so
 // tests can substitute each arm of the fallback chain.
 var readBuildInfo = debug.ReadBuildInfo
+
+// ModulePath is the Pulse module path, used to find Pulse's own entry in
+// the build info when Pulse is linked into an embedder's binary.
+const ModulePath = "github.com/frankbardon/pulse"
 
 // Devel is the version reported when neither ldflags nor the module
 // version supply one.
@@ -43,7 +53,7 @@ func Version() string {
 	}
 	info, ok := readBuildInfo()
 	if ok && info != nil {
-		if v := info.Main.Version; v != "" && v != "(devel)" {
+		if v := moduleVersion(info); v != "" && v != "(devel)" {
 			return v
 		}
 		if rev := setting(info, "vcs.revision"); rev != "" {
@@ -54,6 +64,26 @@ func Version() string {
 		}
 	}
 	return Devel
+}
+
+// moduleVersion returns Pulse's own module version recorded in info, or ""
+// when none is recorded. It never returns the version of another module:
+// when Pulse is a dependency, Main is the embedder.
+func moduleVersion(info *debug.BuildInfo) string {
+	if info.Main.Path == ModulePath {
+		return info.Main.Version
+	}
+	for _, dep := range info.Deps {
+		if dep == nil || dep.Path != ModulePath {
+			continue
+		}
+		if dep.Replace != nil {
+			// A local-path replace carries no version: a dev build.
+			return dep.Replace.Version
+		}
+		return dep.Version
+	}
+	return ""
 }
 
 // Commit returns the full VCS revision (BuildInfo setting vcs.revision),

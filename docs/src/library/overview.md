@@ -139,3 +139,5 @@ func main() {
   what streams vs what buffers.
 - [Parallel Compose](parallel-compose.md) — worker pool, fail-fast,
   per-request timeout.
+- [Feature Profiles](feature-profiles.md) — declare the instance's feature
+  set; validation codes and the MCP server entry point.

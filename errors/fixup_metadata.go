@@ -2688,4 +2688,53 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FEATURE_PROFILE_INVALID: {
+		Message: "The feature profile is structurally unusable, so pulse.New refused it before checking any feature name. The `reason` detail names the fault: the profile file is missing or unreadable, its body is not well-formed JSON, it carries a key the profile model does not declare (only `profile`, `written_with`, `features` and `behaviour` exist; `limits` and `return` are reserved and refused), `features` is absent, a feature is listed more than once, or both Options.FeatureProfile and Options.FeatureProfileFile were set.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupRemoveParam,
+				Path:     []string{"FeatureProfileFile"},
+				Hint:     "Set exactly one of Options.FeatureProfile (a Go value) and Options.FeatureProfileFile (a JSON file read through the instance filesystem, relative to its root); setting both is refused rather than silently preferring one.",
+				Examples: []any{"profiles/self-serve.json"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"features"},
+				Hint:     "Give the profile a `features` array — it is required, may be empty, and must not repeat a name (every repeated name is listed under `duplicates`). Remove any key other than `profile`, `written_with`, `features` and `behaviour`.",
+				Examples: []any{`{"profile": "self-serve", "features": []}`},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"FeatureProfileFile"},
+				Hint:   "For a `file_unreadable` reason, check that the path in the `path` detail exists under the instance filesystem root (DataDir, or the root of Options.FS) and is a readable file; for `malformed_json`, validate the body with a JSON linter.",
+			},
+		},
+	},
+	PULSE_FEATURE_PROFILE_UNKNOWN: {
+		Message: "A feature name is not one this build knows, so pulse.New refused it. Every unknown name is listed under the `unknown` detail with a `reason`: `unregistered` (no built-in feature or registered extension operator has that name), `pattern` (wildcards such as `TEST_*` or `capability:*` are never expanded — list each feature), `wrong_kind` (operators are spelled bare, every other kind as `<kind>:<name>`; `did_you_mean` gives the one valid spelling), `core_surface` (inspect, predict, manifest and the other core surfaces are always present and are not features), or `newer_than_running` (the built-in feature arrived in the release named under `since`, after the running `version`). The same refusal covers an extension registration whose DependsOn names an unknown feature; those entries also carry `extension` and `category`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"features"},
+				Hint:     "Replace each entry under `unknown` with an exact feature name: use `did_you_mean` for a `wrong_kind` entry, list the concrete names instead of a pattern, and drop core surfaces, which need no listing. `pulse manifest --json` lists the operator names this build registers.",
+				Examples: []any{"AGG_SUM", "capability:process", "io_format:csv"},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"features"},
+				Hint:   "For a `newer_than_running` entry, remove the feature from the profile or upgrade Pulse to at least the release under `since`. For an unknown extension DependsOn entry, fix the name in the registration or register the extension it names.",
+			},
+		},
+	},
+	PULSE_FEATURE_PROFILE_DEPENDENCY: {
+		Message: "The feature profile enables a feature without a feature it depends on, so pulse.New refused it. A feature's dependencies are an AND of any-of groups — an operator, for example, needs at least one request host (`capability:process`, `capability:compose` or `capability:process_chain`). Every unmet group is listed under the `unmet` detail, naming the enabled `feature` and the `requires_any_of` group; an extension registration's DependsOn entries are single-name groups.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"features"},
+				Hint:     "For each entry under `unmet`, add at least one name from `requires_any_of` to the profile's `features`, or remove the `feature` that needs it.",
+				Examples: []any{"capability:process"},
+			},
+		},
+	},
 }

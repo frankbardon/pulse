@@ -32,6 +32,8 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 
 **Directory precedence.** `Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator` — the programmatic option wins outright and suppresses the env var entirely. Roots are an **ordered precedence list; first root wins**. A same-named template under a later root is **shadowed, not rejected**, and the losers land on the winner's `Summary.Shadows` rather than being discarded (shadowed entries get no summary of their own — a listing whose entries cannot all be fetched would be a trap). Blank root → skipped; missing root → skipped; root that exists but is a **regular file** → error naming the path. **Filesystem faults are `DATA_FILE`**, deliberately outside the `PULSE_TEMPLATE_*` family. Config-dir loading goes through `os`, not afero — same sanctioned exception as `label_loader.go` / `range_loader.go`.
 
+**No sidecar exclusion (relocated from CLAUDE.md "Build / Env").** The label- and range-table directory loaders skip Pulse's own sidecars by suffix (`isPulseSidecarName`); `PULSE_TEMPLATES_DIR` does **not** yet carry that exclusion — its recursive walk and `Summary.Broken` lifecycle make that a separate design call.
+
 **Hot-reload lifecycle — phase split is the contract.** A lookup whose snapshot has aged past the store's 1s rescan interval (package constant, deliberately not an `Option`) re-walks the roots; a file is re-parsed only when size or mtime moved. `ReloadTemplates()` forces the walk now — the deterministic path for a deploy step that writes then renders.
 
 | Phase | Malformed file does | Why |

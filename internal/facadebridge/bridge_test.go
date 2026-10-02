@@ -37,3 +37,53 @@ func TestExtensionsSnapshotHookInstalled(t *testing.T) {
 		t.Fatal("ExtensionsSnapshot(non-Pulse) should return nil")
 	}
 }
+
+func TestCohortScanDisabledHookInstalled(t *testing.T) {
+	if facadebridge.CohortScanDisabled == nil {
+		t.Fatal("root package did not install the CohortScanDisabled hook")
+	}
+	newWith := func(fp *pulse.FeatureProfile) *pulse.Pulse {
+		t.Helper()
+		p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), FeatureProfile: fp})
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		return p
+	}
+	if facadebridge.CohortScanDisabled(newWith(nil)) {
+		t.Error("profile-free Pulse reports the cohort scan disabled")
+	}
+	if facadebridge.CohortScanDisabled(newWith(&pulse.FeatureProfile{Features: []string{}})) {
+		t.Error("profile without behaviour reports the cohort scan disabled")
+	}
+	on := newWith(&pulse.FeatureProfile{Features: []string{}, Behaviour: &pulse.FeatureProfileBehaviour{DisableCohortScan: true}})
+	if !facadebridge.CohortScanDisabled(on) {
+		t.Error("behaviour.disable_cohort_scan not reported")
+	}
+	if facadebridge.CohortScanDisabled("not a pulse") {
+		t.Error("CohortScanDisabled(non-Pulse) should be false")
+	}
+}
+
+func TestFeatureProfileNameHookInstalled(t *testing.T) {
+	if facadebridge.FeatureProfileName == nil {
+		t.Fatal("root package did not install the FeatureProfileName hook")
+	}
+	newWith := func(fp *pulse.FeatureProfile) *pulse.Pulse {
+		t.Helper()
+		p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), FeatureProfile: fp})
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		return p
+	}
+	if name, ok := facadebridge.FeatureProfileName(newWith(nil)); ok || name != "" {
+		t.Errorf("profile-free Pulse = (%q, %v), want (\"\", false)", name, ok)
+	}
+	if name, ok := facadebridge.FeatureProfileName(newWith(&pulse.FeatureProfile{Profile: "self-serve", Features: []string{}})); !ok || name != "self-serve" {
+		t.Errorf("named profile = (%q, %v), want (\"self-serve\", true)", name, ok)
+	}
+	if name, ok := facadebridge.FeatureProfileName("not a pulse"); ok || name != "" {
+		t.Errorf("non-Pulse = (%q, %v), want (\"\", false)", name, ok)
+	}
+}

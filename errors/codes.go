@@ -2305,6 +2305,43 @@ const (
 	// host or names an ambiguous zone. Details carry the rejected name
 	// under DetailTimeZone.
 	PULSE_TIMEZONE_UNKNOWN Code = "PULSE_TIMEZONE_UNKNOWN"
+
+	// PULSE_FEATURE_PROFILE_INVALID indicates a feature profile handed
+	// to pulse.New is structurally unusable: the profile file is
+	// missing or unreadable, its body is not well-formed JSON, it
+	// carries a key the profile model does not declare (including the
+	// reserved "limits" and "return" sections), "features" is absent,
+	// a feature name is listed more than once, or both
+	// Options.FeatureProfile and Options.FeatureProfileFile are set.
+	// Structural faults are the first validation class: a profile that
+	// fails here is never checked for unknown names or dependencies.
+	// Details carry the failure under "reason", the file under "path"
+	// when one was read, and every repeated name under "duplicates".
+	PULSE_FEATURE_PROFILE_INVALID Code = "PULSE_FEATURE_PROFILE_INVALID"
+
+	// PULSE_FEATURE_PROFILE_UNKNOWN indicates a feature name this build
+	// does not know: in a feature profile, or in an extension
+	// registration's DependsOn. A name is unknown when it is
+	// unregistered, a pattern (wildcards are never expanded), spelled
+	// with the wrong kind prefix (operator:AGG_SUM, capability:AGG_SUM),
+	// an always-present core surface, or a built-in whose Since is newer
+	// than the running Pulse version. The second validation class: it
+	// runs only after the structural class passes. Details list EVERY
+	// unknown name under "unknown" (one entry per name with its "name",
+	// "reason" and, where one exists, "did_you_mean" or "since"), the
+	// names alone under "names", and the running version under
+	// "version".
+	PULSE_FEATURE_PROFILE_UNKNOWN Code = "PULSE_FEATURE_PROFILE_UNKNOWN"
+
+	// PULSE_FEATURE_PROFILE_DEPENDENCY indicates a feature profile
+	// enables a feature without one of its prerequisites. A feature's
+	// dependencies are an AND of any-of groups; a group is unmet when
+	// the profile enables none of its names. The third validation class:
+	// it runs only after every name resolved. Details list EVERY unmet
+	// group under "unmet" (each naming the enabled "feature" and the
+	// "requires_any_of" group) and the features with an unmet group
+	// under "features".
+	PULSE_FEATURE_PROFILE_DEPENDENCY Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
 )
 
 // DetailTimeZone is the CodedError.Details key carrying the rejected
@@ -2774,6 +2811,9 @@ var allCodes = []Code{
 	PULSE_SPSS_SIDECAR_IGNORED,
 	PULSE_SPSS_NAME_SANITIZED,
 	PULSE_TIMEZONE_UNKNOWN,
+	PULSE_FEATURE_PROFILE_INVALID,
+	PULSE_FEATURE_PROFILE_UNKNOWN,
+	PULSE_FEATURE_PROFILE_DEPENDENCY,
 }
 
 // codeIndex is a lookup table for fast string→Code parsing.

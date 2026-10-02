@@ -1,6 +1,6 @@
 # Feature Profiles — feasibility
 
-**Status:** proposal · **Target:** v1.0.0 · **Question asked:** can an embedder declare which functionality one Pulse instance offers, with the manifest, skills and documents reacting to that configuration? The default must remain "everything enabled".
+**Status:** decided; U04 landed (amended: the concept is named **feature profile** — `pulse.FeatureProfile`, `PULSE_FEATURE_PROFILE`, `pulse mcp --feature-profile`; see [01](01-design.md) and [U04](../units/U04-profiles-model.md#landed-deviations)) · **Target:** v1.0.0 · **Question asked:** can an embedder declare which functionality one Pulse instance offers, with the manifest, skills and documents reacting to that configuration? The default must remain "everything enabled".
 
 ## Decisions so far
 
@@ -11,7 +11,7 @@
 | 3 | **Disabled means invisible.** A disabled feature looks, from every surface, *as if it was never built*. There is no "disabled" error, no "disabled" list, no hint, no banner. |
 | 4 | **Instance-wide only.** One profile per `*Pulse` instance, fixed at `pulse.New`. No per-request or per-tenant narrowing. |
 | 5 | **Self-description is always present.** Manifest, payload schema, skills, examples, errors lookup, inspect and predict exist in every profile (each rendering the instance's view). |
-| 6 | **The CLI is not profiled.** It is admin-facing and always shows the full surface. Profiles apply to the library (`pulse.New`) and the MCP server (`pulse mcp --profile`). |
+| 6 | **The CLI is not profiled.** It is admin-facing and always shows the full surface. Profiles apply to the library (`pulse.New`) and the MCP server (`pulse mcp --feature-profile`; the `PULSE_FEATURE_PROFILE` env var is read only there, never by `pulse.New`). |
 | 7 | **Nothing hidden ever reaches MCP context.** The ontology (lists, search, intents, `## See` links, examples, recommendations) contains only enabled features, and **direct fetch by exact name honours it too**: a hidden feature's skill or example is "not found", exactly like a name that never existed. Topical skills stay available but are always served rendered for the instance, written for progressive disclosure with fences as a backstop. See 01, P4a. |
 
 ## Verdict: feasible
@@ -36,7 +36,7 @@ Decision 3 is the part that raises cost. A hidden feature can't simply be "flagg
 | **Topical skills** (`overlay-system`, `statistical-testing`, `crosstab-guide`, …) | no | rewrite for progressive disclosure (concepts and criteria, operators reached through the ontology) plus fences for any residual operator mentions (below) | **Medium–High** — the largest single cost |
 | Examples | no — global `examples.Search` | search and direct get both omit any example whose `_meta.operators` names a hidden feature | **Low** |
 | Error codes | no — global list | hide codes owned *only* by hidden features from the list and from `pulse errors lookup` | **Low–Medium** (needs a code → owning-feature map) |
-| CLI | built once in `buildApp()` | **none** — the CLI is admin-facing and not profiled (decision 6); only `pulse mcp` accepts `--profile` | **None** |
+| CLI | built once in `buildApp()` | **none** — the CLI is admin-facing and not profiled (decision 6); only `pulse mcp` accepts `--feature-profile` | **None** |
 | Smart defaults | static table | a default whose target is hidden simply doesn't apply, the same as when no default exists | **Low** |
 | Guided analysis (Recommend, Explain, intents, `NotFor`, glossary) | planned | rendered from the instance's feature set only; no "unavailable here" wording | **Low** if designed in now |
 | Published docs site | static build | documents the default (full) feature set; per-profile reference is **generated** (`pulse docs export`) for the embedder to host | n/a |
@@ -62,7 +62,7 @@ A hidden operator must never execute, and it must never be **silently ignored**.
 Because a profile is a complete declaration, it can't use open-ended patterns: `TEST_*` would silently pick up new tests in a later release, breaking decision 2. The recommendation in 01 is **exact names only**, with tooling that writes the full list for you. Each feature still carries a `Since` version, so `pulse profile diff` can tell an embedder what is new since their profile was written. That is new metadata, but cheap and gate-able.
 
 ### 4. Dependencies
-Some features need others. `OVERLAY_{T,Z}_CELL` read `AGG_WELFORD` components, the `ATTR_REG_*` attributes need a regression, and `TEST_TUKEY_HSD` follows ANOVA. A profile that enables one without the other is incoherent. Because a profile must be complete, the right response is a configuration error **at `pulse.New`**, aimed at the embedder (not visible to the instance's users), naming exactly what is missing. A `pulse profile check` tool reports this ahead of time.
+Some features need others. `OVERLAY_{T,Z}_CELL` read `AGG_WELFORD` components, the `ATTR_REG_*` attributes need a regression, and `TEST_TUKEY_HSD` follows ANOVA (U04 decided this last pairing is advice, not a dependency: its inputs are plain params). A profile that enables one without the other is incoherent. Because a profile must be complete, the right response is a configuration error **at `pulse.New`**, aimed at the embedder (not visible to the instance's users), naming exactly what is missing. A `pulse profile check` tool reports this ahead of time.
 
 ### 5. Goldens
 The default (full) manifest, schema and skill goldens are unchanged, because no config means today's output. A few **profile goldens** cover filtering, alongside the invisibility parity gate.

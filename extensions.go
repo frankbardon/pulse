@@ -161,8 +161,17 @@ type ParamMeta struct {
 type AggregatorRegistration struct {
 	Name        types.AggregationType
 	Description string
-	Factory     extend.AggregatorFactory
-	Streamable  bool
+	// DependsOn names the features this operator needs, each an AND
+	// edge (a single-name group): a feature profile that enables the
+	// operator must enable every named feature too, or pulse.New fails
+	// with PULSE_FEATURE_PROFILE_DEPENDENCY. Every entry must name a
+	// feature this build knows — a built-in feature or another
+	// registered extension operator — whether or not a profile is set;
+	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
+	// Optional; nil adds no dependency. Extensions carry no Since.
+	DependsOn  []string
+	Factory    extend.AggregatorFactory
+	Streamable bool
 	// Mergeable declares that partial states fold via
 	// extend.MergeableAggregator.Merge, admitting the operator to the
 	// parallel reducers and ProcessChain. Requires Streamable.
@@ -230,11 +239,20 @@ const (
 type AttributeRegistration struct {
 	Name        types.AttributeType
 	Description string
-	Factory     extend.AttributeFactory
-	Mode        AttributeMode
-	Accepts     []encoding.FieldType
-	Emits       AttributeEmitType
-	Params      []ParamMeta
+	// DependsOn names the features this operator needs, each an AND
+	// edge (a single-name group): a feature profile that enables the
+	// operator must enable every named feature too, or pulse.New fails
+	// with PULSE_FEATURE_PROFILE_DEPENDENCY. Every entry must name a
+	// feature this build knows — a built-in feature or another
+	// registered extension operator — whether or not a profile is set;
+	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
+	// Optional; nil adds no dependency. Extensions carry no Since.
+	DependsOn []string
+	Factory   extend.AttributeFactory
+	Mode      AttributeMode
+	Accepts   []encoding.FieldType
+	Emits     AttributeEmitType
+	Params    []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
@@ -248,9 +266,18 @@ type AttributeRegistration struct {
 type FiltererRegistration struct {
 	Name        types.FiltererType
 	Description string
-	Factory     extend.FiltererFactory
-	Accepts     []encoding.FieldType
-	Params      []ParamMeta
+	// DependsOn names the features this operator needs, each an AND
+	// edge (a single-name group): a feature profile that enables the
+	// operator must enable every named feature too, or pulse.New fails
+	// with PULSE_FEATURE_PROFILE_DEPENDENCY. Every entry must name a
+	// feature this build knows — a built-in feature or another
+	// registered extension operator — whether or not a profile is set;
+	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
+	// Optional; nil adds no dependency. Extensions carry no Since.
+	DependsOn []string
+	Factory   extend.FiltererFactory
+	Accepts   []encoding.FieldType
+	Params    []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Filterers don't carry a Params
 	// block today; the callback receives nil raw bytes and should
@@ -290,8 +317,17 @@ type FiltererRegistration struct {
 type GrouperRegistration struct {
 	Name        types.GroupType
 	Description string
-	Factory     extend.GrouperFactory
-	Streamable  bool
+	// DependsOn names the features this operator needs, each an AND
+	// edge (a single-name group): a feature profile that enables the
+	// operator must enable every named feature too, or pulse.New fails
+	// with PULSE_FEATURE_PROFILE_DEPENDENCY. Every entry must name a
+	// feature this build knows — a built-in feature or another
+	// registered extension operator — whether or not a profile is set;
+	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
+	// Optional; nil adds no dependency. Extensions carry no Since.
+	DependsOn  []string
+	Factory    extend.GrouperFactory
+	Streamable bool
 	// FansOut declares that a single record can land in MORE THAN ONE
 	// bucket of this grouper — the embedder-registered sibling of
 	// types.GroupType.FansOut(), which knows built-in constants only.
@@ -350,9 +386,18 @@ type GrouperRegistration struct {
 type WindowRegistration struct {
 	Name        types.WindowType
 	Description string
-	Factory     extend.WindowFactory
-	Accepts     []encoding.FieldType
-	Params      []ParamMeta
+	// DependsOn names the features this operator needs, each an AND
+	// edge (a single-name group): a feature profile that enables the
+	// operator must enable every named feature too, or pulse.New fails
+	// with PULSE_FEATURE_PROFILE_DEPENDENCY. Every entry must name a
+	// feature this build knows — a built-in feature or another
+	// registered extension operator — whether or not a profile is set;
+	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
+	// Optional; nil adds no dependency. Extensions carry no Since.
+	DependsOn []string
+	Factory   extend.WindowFactory
+	Accepts   []encoding.FieldType
+	Params    []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
@@ -366,10 +411,19 @@ type WindowRegistration struct {
 type FeatureRegistration struct {
 	Name        types.FeatureType
 	Description string
-	Factory     extend.FeatureFactory
-	Streamable  bool
-	Accepts     []encoding.FieldType
-	Params      []ParamMeta
+	// DependsOn names the features this operator needs, each an AND
+	// edge (a single-name group): a feature profile that enables the
+	// operator must enable every named feature too, or pulse.New fails
+	// with PULSE_FEATURE_PROFILE_DEPENDENCY. Every entry must name a
+	// feature this build knows — a built-in feature or another
+	// registered extension operator — whether or not a profile is set;
+	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
+	// Optional; nil adds no dependency. Extensions carry no Since.
+	DependsOn  []string
+	Factory    extend.FeatureFactory
+	Streamable bool
+	Accepts    []encoding.FieldType
+	Params     []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
@@ -396,6 +450,15 @@ const (
 type TestRegistration struct {
 	Name        types.TestType
 	Description string
+	// DependsOn names the features this operator needs, each an AND
+	// edge (a single-name group): a feature profile that enables the
+	// operator must enable every named feature too, or pulse.New fails
+	// with PULSE_FEATURE_PROFILE_DEPENDENCY. Every entry must name a
+	// feature this build knows — a built-in feature or another
+	// registered extension operator — whether or not a profile is set;
+	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
+	// Optional; nil adds no dependency. Extensions carry no Since.
+	DependsOn   []string
 	Tier        TestTier
 	RowFactory  extend.RowTestFactory
 	PostFactory extend.PostTestFactory

@@ -56,15 +56,15 @@ Theme documents: see the [roadmap index](README.md).
 ## 2. Feature profiles — foundation
 
 ### FP1 — Feature registry
-- [ ] **#10** Stable feature names and kinds (`capability`, `operator`, `io_format`, `mcp_extra`) across all registries · [U04](units/U04-profiles-model.md)
-- [ ] **#11** `Since` version on every registration, plus `TestFeaturesHaveSince` · [U04](units/U04-profiles-model.md)
-- [ ] **#12** Dependency graph in `descriptor/dependencies.go`, plus `TestProfileDependenciesComplete` · [U04](units/U04-profiles-model.md)
-- [ ] **#13** Always-present core defined: manifest, payload schema, skills, examples, errors lookup, inspect, predict · [U04](units/U04-profiles-model.md)
+- [x] **#10** Stable feature names and kinds (`capability`, `operator`, `io_format`, `mcp_extra`) across all registries — internal table `internal/descriptor/features.go`; operators bare, others `<kind>:<name>`; synth distributions are not features · [U04](units/U04-profiles-model.md)
+- [x] **#11** `Since` version on every feature (in the internal table, not on registrations; extensions carry none), plus `TestFeaturesHaveSince` · [U04](units/U04-profiles-model.md)
+- [x] **#12** Dependency graph (in `internal/descriptor/features.go`), plus `TestProfileDependenciesComplete` · [U04](units/U04-profiles-model.md)
+- [x] **#13** Always-present core defined: manifest, payload schema, skills, examples, errors lookup, inspect, predict (plus open, count records, cohort artifacts) · [U04](units/U04-profiles-model.md)
 
 ### FP2 — Profile model
-- [ ] **#14** Profile file format: an exact-name allowlist, `written_with`, optional `behaviour` · [U04](units/U04-profiles-model.md)
-- [ ] **#15** `pulse.New` validation and the config codes (`PULSE_PROFILE_FEATURE_UNKNOWN`, `PULSE_PROFILE_DEPENDENCY`), plus `TestProfileRejectsPatterns` · [U04](units/U04-profiles-model.md)
-- [ ] **#16** `Options.Profile`, `Options.ProfileFile`, the `PULSE_PROFILE` env var, and `pulse mcp --profile` (the CLI is otherwise unprofiled) · [U04](units/U04-profiles-model.md)
+- [x] **#14** Feature profile file format: an exact-name allowlist, `written_with`, optional `behaviour`; `limits` / `return` refused until U19 / U17 · [U04](units/U04-profiles-model.md)
+- [x] **#15** `pulse.New` validation and the config codes (`PULSE_FEATURE_PROFILE_INVALID`, `PULSE_FEATURE_PROFILE_UNKNOWN`, `PULSE_FEATURE_PROFILE_DEPENDENCY`), plus `TestProfileRejectsPatterns` · [U04](units/U04-profiles-model.md)
+- [x] **#16** `Options.FeatureProfile`, `Options.FeatureProfileFile`, the `PULSE_FEATURE_PROFILE` env var (read only by `pulse mcp` / `mcpserve.NewPulse`), and `pulse mcp --feature-profile` (the CLI is otherwise unprofiled) · [U04](units/U04-profiles-model.md)
 
 ### FP3 — Instance snapshot & request path
 - [ ] **#17** `InstanceSnapshot` (merges the extensions snapshot with the resolved feature set) · [U05](units/U05-profiles-enforcement.md)
@@ -90,10 +90,10 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#31** `TestProfileInvisibilityParity` · [U06](units/U06-profiles-mcp-tooling.md)
 
 ### FP7 — Embedder tooling & export
-- [ ] **#32** `pulse profile init`, `check`, `diff` and `show` · [U06](units/U06-profiles-mcp-tooling.md)
-- [ ] **#33** Example profile files in `examples/profiles/` · [U06](units/U06-profiles-mcp-tooling.md)
+- [ ] **#32** Feature-profile tooling `init`, `check`, `diff` and `show` (leaf naming open: `pulse profile` is taken by synth data profiling) · [U06](units/U06-profiles-mcp-tooling.md)
+- [ ] **#33** Example feature profile files in `examples/profiles/` · [U06](units/U06-profiles-mcp-tooling.md)
 - [ ] **#34** `pulse docs export` / `p.ExportReference` (shares the G3 generator) · [U21](units/U21-guidance-generated-docs.md)
-- [ ] **#35** Embedder docs at `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md` · [U06](units/U06-profiles-mcp-tooling.md)
+- [ ] **#35** Embedder docs at `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md` (both started in U04; U06 completes them for enforcement and tooling) · [U06](units/U06-profiles-mcp-tooling.md)
 
 ---
 

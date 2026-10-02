@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/frankbardon/pulse/mcpserve"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -48,4 +49,26 @@ func flagNames(cmd *cli.Command) []string {
 		out = append(out, f.Names()...)
 	}
 	return out
+}
+
+// TestMCPStartupLine_ReportsTheEffectiveSettings pins the stderr notice to
+// mcpserve.Describe's effective values: a profile that turns the cohort
+// scan off must read "cohort-scan: false", and a loaded profile is named.
+func TestMCPStartupLine_ReportsTheEffectiveSettings(t *testing.T) {
+	cases := []struct {
+		info mcpserve.ServeInfo
+		want string
+	}{
+		{mcpserve.ServeInfo{CohortScan: true},
+			"pulse mcp: serving over stdio (data dir: /d, bind-on-open: true, cohort-scan: true)"},
+		{mcpserve.ServeInfo{CohortScan: false, FeatureProfileLoaded: true, FeatureProfile: "self-serve"},
+			"pulse mcp: serving over stdio (data dir: /d, bind-on-open: true, cohort-scan: false, feature-profile: self-serve)"},
+		{mcpserve.ServeInfo{CohortScan: true, FeatureProfileLoaded: true},
+			"pulse mcp: serving over stdio (data dir: /d, bind-on-open: true, cohort-scan: true, feature-profile: (unnamed))"},
+	}
+	for _, tc := range cases {
+		if got := mcpStartupLine("/d", true, tc.info); got != tc.want {
+			t.Errorf("mcpStartupLine(%+v)\n got  %q\n want %q", tc.info, got, tc.want)
+		}
+	}
 }

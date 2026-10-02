@@ -12,6 +12,7 @@ pulse: type AggregatorRegistration struct
 pulse: type AggregatorRegistration field Accepts []pulse/encoding.FieldType
 pulse: type AggregatorRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponentsFunc
+pulse: type AggregatorRegistration field DependsOn []string
 pulse: type AggregatorRegistration field Description string
 pulse: type AggregatorRegistration field Factory pulse/extend.AggregatorFactory
 pulse: type AggregatorRegistration field FieldInputs pulse.FieldInputsFunc
@@ -30,6 +31,7 @@ pulse: const AttributeModeRowLocal pulse.AttributeMode = "row_local"
 pulse: const AttributeModeTwoPass pulse.AttributeMode = "two_pass"
 pulse: type AttributeRegistration struct
 pulse: type AttributeRegistration field Accepts []pulse/encoding.FieldType
+pulse: type AttributeRegistration field DependsOn []string
 pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
 pulse: type AttributeRegistration field Factory pulse/extend.AttributeFactory
@@ -241,8 +243,19 @@ pulse: type FacetValueCount = pulse/types.FacetValueCount
 pulse: type FacetValueCount underlying struct
 pulse: type FacetValueCount field Count int64 "json:\"count\""
 pulse: type FacetValueCount field Value string "json:\"value\""
+pulse: type FeatureProfile struct
+pulse: type FeatureProfile field Behaviour *pulse.FeatureProfileBehaviour "json:\"behaviour,omitempty\""
+pulse: type FeatureProfile field Features []string "json:\"features\""
+pulse: type FeatureProfile field Profile string "json:\"profile,omitempty\""
+pulse: type FeatureProfile field WrittenWith string "json:\"written_with,omitempty\""
+pulse: type FeatureProfileBehaviour struct
+pulse: type FeatureProfileBehaviour field DisableCohortScan bool "json:\"disable_cohort_scan,omitempty\""
+pulse: type FeatureProfileBehaviour field DisableComponents bool "json:\"disable_components,omitempty\""
+pulse: type FeatureProfileBehaviour field DisableDefaults bool "json:\"disable_defaults,omitempty\""
+pulse: type FeatureProfileBehaviour field DisableProjection bool "json:\"disable_projection,omitempty\""
 pulse: type FeatureRegistration struct
 pulse: type FeatureRegistration field Accepts []pulse/encoding.FieldType
+pulse: type FeatureRegistration field DependsOn []string
 pulse: type FeatureRegistration field Description string
 pulse: type FeatureRegistration field Factory pulse/extend.FeatureFactory
 pulse: type FeatureRegistration field FieldInputs pulse.FieldInputsFunc
@@ -267,6 +280,7 @@ pulse: type FiltererRegistration struct
 pulse: type FiltererRegistration field Accepts []pulse/encoding.FieldType
 pulse: type FiltererRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type FiltererRegistration field ComponentsFunc pulse.FiltererComponentsFunc
+pulse: type FiltererRegistration field DependsOn []string
 pulse: type FiltererRegistration field Description string
 pulse: type FiltererRegistration field Factory pulse/extend.FiltererFactory
 pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
@@ -294,6 +308,7 @@ pulse: type GrouperRegistration struct
 pulse: type GrouperRegistration field Accepts []pulse/encoding.FieldType
 pulse: type GrouperRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type GrouperRegistration field ComponentsFunc pulse.GrouperComponentsFunc
+pulse: type GrouperRegistration field DependsOn []string
 pulse: type GrouperRegistration field Description string
 pulse: type GrouperRegistration field Factory pulse/extend.GrouperFactory
 pulse: type GrouperRegistration field FansOut bool
@@ -434,6 +449,8 @@ pulse: type Options field DisableProjection bool
 pulse: type Options field EchoRequest bool
 pulse: type Options field Extensions pulse.Extensions
 pulse: type Options field FS github.com/spf13/afero.Fs
+pulse: type Options field FeatureProfile *pulse.FeatureProfile
+pulse: type Options field FeatureProfileFile string
 pulse: type Options field ImportSourceFS github.com/spf13/afero.Fs
 pulse: type Options field ImportSourceJailRoot string
 pulse: type Options field ImportTTL time.Duration
@@ -451,6 +468,7 @@ pulse: type ParamMeta field Description string "json:\"description,omitempty\""
 pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
+pulse: func ParseFeatureProfile(data []byte) (*pulse.FeatureProfile, error)
 pulse: type Profile = pulse/synth.Profile
 pulse: type Profile underlying struct
 pulse: type Profile field Conditional *pulse/internal/synth.ConditionalProfile "json:\"conditional,omitempty\""
@@ -787,6 +805,7 @@ pulse: type TemplateVariable field Type pulse/internal/template.VarType "json:\"
 pulse: type TemplateVariable field Values []string "json:\"values,omitempty\""
 pulse: type TestRegistration struct
 pulse: type TestRegistration field Accepts []pulse/encoding.FieldType
+pulse: type TestRegistration field DependsOn []string
 pulse: type TestRegistration field Description string
 pulse: type TestRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type TestRegistration field Name pulse/types.TestType
@@ -828,6 +847,7 @@ pulse: type WidenReport field StrideBefore int
 pulse: type WidenReport field To pulse/encoding.FieldType
 pulse: type WindowRegistration struct
 pulse: type WindowRegistration field Accepts []pulse/encoding.FieldType
+pulse: type WindowRegistration field DependsOn []string
 pulse: type WindowRegistration field Description string
 pulse: type WindowRegistration field Factory pulse/extend.WindowFactory
 pulse: type WindowRegistration field FieldInputs pulse.FieldInputsFunc
@@ -1546,6 +1566,9 @@ pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTE
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
+pulse/errors: const PULSE_FEATURE_PROFILE_DEPENDENCY pulse/errors.Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
+pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEATURE_PROFILE_INVALID"
+pulse/errors: const PULSE_FEATURE_PROFILE_UNKNOWN pulse/errors.Code = "PULSE_FEATURE_PROFILE_UNKNOWN"
 pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
@@ -2183,11 +2206,18 @@ pulse/mcp/gosdk: const SchemaResourceURI untyped string = "pulse://schema"
 pulse/mcp/gosdk: const SkillURIScheme untyped string = "pulse-skill://"
 pulse/mcp/gosdk: const SkillURITemplate untyped string = "pulse-skill://{+name}"
 pulse/mcpserve: package mcpserve
+pulse/mcpserve: func Describe(p *pulse.Pulse, opts pulse/mcpserve.Options) pulse/mcpserve.ServeInfo
+pulse/mcpserve: func NewPulse(popts pulse.Options, opts pulse/mcpserve.Options) (*pulse.Pulse, error)
 pulse/mcpserve: type Options struct
 pulse/mcpserve: type Options field BindOnOpen bool
 pulse/mcpserve: type Options field DisableCohortScan bool
+pulse/mcpserve: type Options field FeatureProfileFile string
 pulse/mcpserve: type Options field Version string
 pulse/mcpserve: func Serve(ctx context.Context, p *pulse.Pulse, opts pulse/mcpserve.Options, in io.Reader, out io.Writer) error
+pulse/mcpserve: type ServeInfo struct
+pulse/mcpserve: type ServeInfo field CohortScan bool
+pulse/mcpserve: type ServeInfo field FeatureProfile string
+pulse/mcpserve: type ServeInfo field FeatureProfileLoaded bool
 pulse/mcpserve: func ServeStdio(p *pulse.Pulse, opts pulse/mcpserve.Options) error
 pulse/synth: package synth
 pulse/synth: type CategoricalNumericCategoryFidelity = pulse/internal/synth.CategoricalNumericCategoryFidelity
@@ -3514,4 +3544,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: cdb484e5affea8265ff011983e0ac9cef25963ed2a2e408344d89c7147e30648
+// golden-hash: 37f00f3875e100c2f464895016196082fabe05df125fd5a76234dd0fcb344049

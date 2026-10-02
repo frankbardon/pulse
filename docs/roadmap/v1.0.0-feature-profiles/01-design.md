@@ -1,5 +1,7 @@
 # 01 — Feature Profiles: design & phasing
 
+> **Amended at U04 (landed).** The concept is a **feature profile** — the bare "profile" belongs to synth data profiling (`Pulse.Profile`, `pulse profile create`). Landed names: `pulse.FeatureProfile`, `Options.FeatureProfile` / `FeatureProfileFile`, `pulse.ParseFeatureProfile`, `PULSE_FEATURE_PROFILE` (read only by `pulse mcp` / `mcpserve.NewPulse`, never `pulse.New`), `pulse mcp --feature-profile`, and the codes `PULSE_FEATURE_PROFILE_INVALID` / `_UNKNOWN` / `_DEPENDENCY`. The feature table, `Since` and the dependency graph live in the internal `internal/descriptor/features.go`. Synth distributions are not features. `limits` and `return` are refused until U19 / U17. This document is amended in place below; the contract of record is `.claude/reference/feature-profiles.md`, and the full deviation list is in [U04](../units/U04-profiles-model.md#landed-deviations).
+
 ## Core rules
 
 1. **No profile = the default feature set = everything**, including features added in future releases. Byte-identical to today.
@@ -17,16 +19,16 @@ Every feature has a **stable name**, a **kind** and a **`Since` version**. All t
 
 | Kind | Name examples | Owns |
 |---|---|---|
-| `capability` | `process`, `compose`, `process_chain`, `facet`, `stream`, `watch`, `joins`, `crosstab`, `lookup`, `templates`, `synth`, `import`, `export`, `shard_write`, `index_build`, `dedup`, `widen`, `recommend`, `explain` | facade methods, CLI leaves, MCP tools, request slots |
-| `operator` | `AGG_SUM`, `TEST_ANOVA_F`, `OVERLAY_CORRESPONDENCE`, `MAT_PCA`, `REG_GLM`, extension names | registry entries, enum values, atomic skills, examples, fenced prose |
+| `capability` | `process`, `compose`, `process_chain`, `facet`, `sample`, `stream`, `watch`, `filter_to_file`, `joins`, `crosstab`, `lookup`, `index`, `shard`, `templates`, `synth`, `import`, `export`, `dedup`, `widen`, `labels`, `range_tables` (later: `recommend`, `explain`) | facade methods, CLI leaves, MCP tools, request slots |
+| `operator` (spelled bare; every other kind is `<kind>:<name>`) | `AGG_SUM`, `TEST_ANOVA_F`, `OVERLAY_CORRESPONDENCE`, `MAT_PCA`, `REG_GLM`, extension names. Synth distributions are NOT features: `capability:synth` gates them all | registry entries, enum values, atomic skills, examples, fenced prose |
 | `io_format` | `csv`, `parquet`, `spss`, … | import/export adapters, CLI subcommands |
 | `mcp_extra` | `cohort_resources` (the `pulse://` enumeration), each MCP prompt | MCP-only surfaces with no facade method |
 
-**Always-present core.** Self-description is not optional, because an instance must be able to describe itself. So these are not listable features and are present in every profile: the manifest, payload schema, skills list/get, examples search/get, errors lookup, inspect and predict. They all *render the instance's view*, so they reveal nothing hidden.
+**Always-present core.** Self-description is not optional, because an instance must be able to describe itself. So these are not listable features and are present in every profile: the manifest, payload schema, skills list/get, examples search/get, errors lookup, inspect and predict (U04 adds open, count records and cohort artifacts). Listing one is `PULSE_FEATURE_PROFILE_UNKNOWN`. They all *render the instance's view*, so they reveal nothing hidden.
 
 **Not features.** Field types (a cohort's schema is data, and refusing a type would make valid files unreadable), and behaviour switches (`DisableDefaults`, `DisableComponents`, `DisableProjection`, `DisableCohortScan`). The switches keep their own defaults and may also be set in the profile file for convenience (P3).
 
-**`Since` metadata.** Each registration carries the Pulse release that introduced it (`Since: "1.0.0"`). For everything that exists at the profiles release, `Since` is `"1.0.0"`. A gate (`TestFeaturesHaveSince`) requires the field, and the Update Demand gains the row "a new feature → its `Since` version".
+**`Since` metadata.** Each feature carries the Pulse release that introduced it (`Since: "1.0.0"`) — in the internal feature table, not on registrations; extension operators carry none. For everything that exists at the profiles release, `Since` is `"1.0.0"`. A gate (`TestFeaturesHaveSince`) requires the field, and the Update Demand gains the row "a new feature → its `Since` version".
 
 ---
 
@@ -44,9 +46,9 @@ Every feature has a **stable name**, a **kind** and a **`Since` version**. All t
     "OVERLAY_SHARE_OF_ROW", "OVERLAY_INDEX_VS_MARGIN", "OVERLAY_STD_RESIDUAL",
     "io_format:csv", "io_format:spss"
   ],
-  "behaviour": { "disable_projection": false },  // optional; omitted = engine defaults
-  "limits":    { "max_groups": 1000000 },        // optional; omitted keys = high defaults (embedder operations 01)
-  "return":    { "preset": "standard" }          // optional instance default response shape (response shaping)
+  "behaviour": { "disable_projection": true }   // optional; each switch ORs into Options (on only, never off)
+  // "limits" (U19, embedder operations 01) and "return" (U17, response shaping) are REFUSED as
+  // unknown keys until those units define them
 }
 ```
 
@@ -58,12 +60,15 @@ Every feature has a **stable name**, a **kind** and a **`Since` version**. All t
 
 | Problem | Result |
 |---|---|
-| Unknown feature name, or a name with `Since > ` the running Pulse version | `PULSE_PROFILE_FEATURE_UNKNOWN`. This is a typo guard, and catches a profile written for a newer Pulse |
-| A pattern instead of an exact name | `PULSE_PROFILE_FEATURE_UNKNOWN` (patterns are not feature names) |
-| An enabled feature whose dependency is missing | `PULSE_PROFILE_DEPENDENCY`, naming both. The dependency graph is declared in `descriptor/dependencies.go`, and `TestProfileDependenciesComplete` checks it against the registry |
-| An operator enabled without the capability that hosts it (e.g. an overlay kind without `crosstab`, `facet`, `compose` or windowed `process`) | `PULSE_PROFILE_DEPENDENCY` |
+| Unreadable file, malformed JSON, unknown key, missing `features`, a repeated name, both Options set | `PULSE_FEATURE_PROFILE_INVALID` (added at U04), with a `reason` |
+| Unknown feature name, or a name with `Since > ` the running Pulse version | `PULSE_FEATURE_PROFILE_UNKNOWN`. This is a typo guard, and catches a profile written for a newer Pulse |
+| A pattern instead of an exact name | `PULSE_FEATURE_PROFILE_UNKNOWN` (patterns are not feature names) |
+| An enabled feature whose dependency is missing | `PULSE_FEATURE_PROFILE_DEPENDENCY`, naming both. The dependency graph is declared in `internal/descriptor/features.go`, and `TestProfileDependenciesComplete` checks it against the engine's registries and overlay handler maps |
+| An operator enabled without the capability that hosts it (e.g. an overlay kind without a host whose handler map runs it: `crosstab`, `compose`, `process_chain` or `facet`) | `PULSE_FEATURE_PROFILE_DEPENDENCY` |
 
-**Removed features.** If a later Pulse release removes or renames a feature, a profile naming it fails with `PULSE_PROFILE_FEATURE_UNKNOWN` until it is edited. This is explicit, and matches the existing rule that a typo'd table must not silently become a table that isn't there.
+The classes run INVALID → UNKNOWN → DEPENDENCY, stop at the first failing class, and report every instance in it.
+
+**Removed features.** If a later Pulse release removes or renames a feature, a profile naming it fails with `PULSE_FEATURE_PROFILE_UNKNOWN` until it is edited. This is explicit, and matches the existing rule that a typo'd table must not silently become a table that isn't there.
 
 ---
 
@@ -71,10 +76,10 @@ Every feature has a **stable name**, a **kind** and a **`Since` version**. All t
 
 | Source | Form | Notes |
 |---|---|---|
-| `pulse.Options.Profile` | Go struct | highest precedence (the existing "Options always overrides" rule) |
-| `pulse.Options.ProfileFile` | path to the JSON above | read through the instance's `afero.Fs` |
-| `PULSE_PROFILE` | path to a profile file | lowest precedence; read by `pulse.New` and therefore by `pulse mcp`; triggers the Update Demand env-var row |
-| `pulse mcp --profile <file>` | flag on the MCP leaf only | the CLI itself is **not profiled** (decision 6): every other leaf always shows and runs the full surface |
+| `pulse.Options.FeatureProfile` | Go struct (`*pulse.FeatureProfile`) | set at most one of this and `FeatureProfileFile`; both is `PULSE_FEATURE_PROFILE_INVALID` |
+| `pulse.Options.FeatureProfileFile` | path to the JSON above | read through the instance's `afero.Fs` |
+| `PULSE_FEATURE_PROFILE` | host OS path to a profile file | read ONLY by `mcpserve.NewPulse` (and so `pulse mcp`), lowest precedence there; **never by `pulse.New`**, because every CLI leaf calls it and the CLI is not profiled. Not mentioned in any runtime skill |
+| `pulse mcp --feature-profile <file>` | flag on the MCP leaf only; host OS path | beats the env var; the CLI itself is **not profiled** (decision 6): every other leaf always shows and runs the full surface |
 
 Pulse ships **no built-in presets** as live profiles. Under decision 2, a preset that Pulse updated in a later release would grow an embedder's feature set without their consent. Instead, Pulse ships **example profile files** (in `examples/profiles/`). Each is an exact-name list as of the release it shipped in, and Pulse never edits a published example in place. Embedders copy one and own it from then on.
 
@@ -101,7 +106,7 @@ The rule for every row is that **output equals what an imaginary Pulse build con
   - Only enabled tools, prompts and resources are registered.
   - Tool input schemas carry the instance's enums.
   - The `pulse-bootstrap` prompt text is rendered from the instance's view, and the prompt does not mention profiles.
-- **CLI.** Not profiled (decision 6). The CLI is an admin tool and always shows the full surface. The one exception is `pulse mcp --profile`, which configures the MCP server's instance.
+- **CLI.** Not profiled (decision 6). The CLI is an admin tool and always shows the full surface. The one exception is `pulse mcp --feature-profile`, which configures the MCP server's instance.
 - **Smart defaults.** A default whose target operator is hidden doesn't apply. The request behaves exactly as it would for a field type with no default rule.
 - **Guided analysis.**
   - Recommend, Explain, `NotFor` alternatives, follow-ups, intents (an intent with no enabled operator disappears), question guides, decision trees and the glossary are all rendered from the instance's view.
@@ -157,10 +162,10 @@ There is a one-time rewrite of about 25 topical skills, done in FP5. During the 
 
 | Command | Purpose |
 |---|---|
-| `pulse profile init [--from <example>]` | writes a profile listing every feature in the running Pulse by exact name, grouped and commented by category; the embedder deletes the lines they don't want |
-| `pulse profile check <file>` | runs the `pulse.New` validation offline: unknown names, dependency gaps |
-| `pulse profile diff <file>` | lists features in the running Pulse that the profile does not include, highlighting those with `Since` newer than `written_with`. This is the upgrade review step. It reports **to the embedder** only, never through an instance's runtime surfaces |
-| `pulse profile show <file>` | the profile's features with each one's category, `Since` and dependencies |
+| `init [--from <example>]` (leaf naming open — `pulse profile` is synth's) | writes a profile listing every feature in the running Pulse by exact name, grouped and commented by category; the embedder deletes the lines they don't want |
+| `check <file>` | runs the `pulse.New` validation offline: unknown names, dependency gaps |
+| `diff <file>` | lists features in the running Pulse that the profile does not include, highlighting those with `Since` newer than `written_with`. This is the upgrade review step. It reports **to the embedder** only, never through an instance's runtime surfaces |
+| `show <file>` | the profile's features with each one's category, `Since` and dependencies |
 
 These operate on profile *files* and run outside any profiled instance. They are the only place where "features you don't have" are listed, which keeps decision 3 intact.
 
@@ -190,18 +195,18 @@ The profile mechanism lands **first**. Every surface the vector-matrix and guide
 | Epic | Stories |
 |---|---|
 | **FP1 — Feature registry** | feature names and kinds across all registries; `Since` on every registration; dependency graph + gate; always-present core definition |
-| **FP2 — Profile model** | profile file format (exact names), `pulse.New` validation and config codes, `Options.Profile` / `ProfileFile` / `PULSE_PROFILE` / `--profile` |
+| **FP2 — Profile model** | profile file format (exact names), `pulse.New` validation and config codes, `Options.FeatureProfile` / `FeatureProfileFile` / `PULSE_FEATURE_PROFILE` / `--feature-profile` |
 | **FP3 — Instance snapshot & request path** | `InstanceSnapshot`; name resolution at the validation choke point; strict refusal of hidden request slots; `feature_set_digest` |
 | **FP4 — Self-description** | instance-scoped manifest, payload schema, predict, errors list; profile goldens; `TestProfileDefaultIsFull` |
 | **FP5 — Skills & ontology** | ontology graph and pruning; discovery surfaces on the pruned graph; progressive-disclosure rewrite of topical skills (paired with guided-analysis G2); fence syntax; `TestSkillsCoverFeatureFences` (report-only until the rewrite completes) |
-| **FP6 — MCP** | instance-scoped tool, prompt and resource registration; filtered tool schemas; `pulse mcp --profile`; `TestProfileInvisibilityParity` |
-| **FP7 — Embedder tooling & export** | `pulse profile init / check / diff / show`; example profile files; `pulse docs export` (shares the guided-analysis generator) |
+| **FP6 — MCP** | instance-scoped tool, prompt and resource registration; filtered tool schemas; `pulse mcp --feature-profile` filtering; `TestProfileInvisibilityParity` |
+| **FP7 — Embedder tooling & export** | feature-profile `init / check / diff / show`; example profile files; `pulse docs export` (shares the guided-analysis generator) |
 
 ## Update Demand impact
 
-- `Options.Profile` / `ProfileFile` and the new facade additions (`PayloadSchema()`, `ExportReference`) touch the CLAUDE.md design-principles facade list.
-- `PULSE_PROFILE` → CLAUDE.md "Build / Env" + `skills/session-bootstrap.md`.
-- CLI leaves `profile {init,check,diff,show}` and `docs export` → `docs/src/cli/flags.md`.
+- `Options.FeatureProfile` / `FeatureProfileFile` and the new facade additions (`PayloadSchema()`, `ExportReference`) touch the CLAUDE.md design-principles facade list.
+- `PULSE_FEATURE_PROFILE` → CLAUDE.md "Build / Env" only — **not** `skills/session-bootstrap.md` (see the runtime-skill bullet below).
+- The feature-profile tooling leaves and `docs export` → `docs/src/cli/flags.md`.
 - Config error codes → `errors/fixup_metadata.go`.
 - The manifest's `feature_set_digest` → manifest golden + CLAUDE.md "Output Format Contract" (additive; `format_version` stays `"1.1"`).
 - New Update Demand rows:
@@ -214,6 +219,6 @@ The profile mechanism lands **first**. Every surface the vector-matrix and guide
 
 1. ~~**Exact names only.**~~ **Decided:** profiles list exact feature names only; `pulse profile init` writes the full list. Pinned patterns are documented above as the rejected alternative.
 2. ~~**Always-present core.**~~ **Decided:** as proposed; `inspect` stays always present.
-3. ~~**CLI with a profile.**~~ **Decided:** the CLI is not profiled; only `pulse mcp --profile` and the library honour profiles.
+3. ~~**CLI with a profile.**~~ **Decided:** the CLI is not profiled; only `pulse mcp --feature-profile` and the library honour profiles.
 4. ~~**Topical skills.**~~ **Decided:** every MCP-reachable path walks the pruned ontology; topical skills are rewritten for progressive disclosure with fences as a backstop and always served rendered (P4a).
 5. ~~**Direct-get exposure.**~~ **Decided:** fetch by exact name honours the profile; a hidden feature's skill or example is "not found", identical to a nonexistent name.

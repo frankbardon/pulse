@@ -82,3 +82,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(response-shaping-
 ## Human inputs & decisions
 
 - None.
+
+## Notes
+
+- **Feature-profile `return` section.** The design (feature-profiles 01, P2) lets a feature profile carry an instance default `return`. U04's strict decode refuses `return` as an unknown key, so adding it here means a new `pulse.FeatureProfile` field, its precedence against `Options.DefaultReturn`, and `.claude/reference/feature-profiles.md` (load first).

@@ -42,6 +42,7 @@
 - [Deterministic FilterToFile](library/filter-to-file.md)
 - [Point Lookup & Index Management](library/point-lookup.md)
 - [Request Templating](library/request-templating.md)
+- [Feature Profiles](library/feature-profiles.md)
 
 # .pulse File Format
 

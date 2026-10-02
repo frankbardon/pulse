@@ -431,6 +431,28 @@ type Options struct {
 	// entirely; existing behaviour is unchanged.
 	AutoLabels []LabelBinding
 
+	// FeatureProfile declares the features this instance offers, as a
+	// Go value. pulse.New validates it structurally and stores a copy on
+	// the instance; the feature list is not applied yet, but its
+	// Behaviour switches take effect (OR semantics: a profile switch set
+	// true turns the matching Options switch on, and Options cannot turn
+	// it back off). Nil means no profile — behaviour is unchanged.
+	//
+	// Mutually exclusive with FeatureProfileFile: setting both fails
+	// New with PULSE_FEATURE_PROFILE_INVALID. pulse.New never reads a
+	// profile from the environment.
+	FeatureProfile *FeatureProfile
+
+	// FeatureProfileFile names a JSON feature-profile file read through
+	// the instance filesystem (Options.FS, or DataDir's OS-backed
+	// filesystem — so a relative path resolves under the data root)
+	// after extensions are probed and the filesystem is resolved. The
+	// body is decoded strictly; a missing or unreadable file, malformed
+	// JSON, an unknown key, an absent "features" array or a repeated
+	// feature fails New with PULSE_FEATURE_PROFILE_INVALID. Empty means
+	// no file. Mutually exclusive with FeatureProfile.
+	FeatureProfileFile string
+
 	// SetInferenceMinPct configures the delimited-cell heuristic used
 	// when an importer must classify a column as set_* vs categorical.
 	// Threshold is the minimum percentage of non-null sampled cells
@@ -463,6 +485,12 @@ type Pulse struct {
 	// Options.DefaultTimeZone, validated at New (temporal.UTC when empty).
 	zones       *temporal.Cache
 	defaultZone *temporal.Zone
+
+	// featureProfile is the validated feature profile from
+	// Options.FeatureProfile or Options.FeatureProfileFile, nil when
+	// none was given. Stored, not yet applied beyond its behaviour
+	// switches (folded into the engine at New).
+	featureProfile *FeatureProfile
 }
 
 // New creates a new Pulse instance with the given options.
@@ -483,6 +511,9 @@ func New(opts Options) (*Pulse, error) {
 		return nil, err
 	}
 	if err := probeExtensions(opts.Extensions); err != nil {
+		return nil, err
+	}
+	if err := validateExtensionDependsOn(newFeatureUniverse(opts.Extensions, Version())); err != nil {
 		return nil, err
 	}
 	if err := validateAutoLabels(opts.AutoLabels, opts.Extensions.LabelTables); err != nil {
@@ -520,6 +551,15 @@ func New(opts Options) (*Pulse, error) {
 		}
 	}
 
+	// After extension probing and filesystem resolution: the file is
+	// read through the instance Fs, and later validation classes need
+	// the registered extension names.
+	featureProfile, err := resolveFeatureProfile(opts, fsCfg.Fs())
+	if err != nil {
+		return nil, err
+	}
+	applyFeatureProfileBehaviour(&opts, featureProfile)
+
 	if opts.ShardWorkers < 0 {
 		return nil, fmt.Errorf("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
 	}
@@ -553,12 +593,13 @@ func New(opts Options) (*Pulse, error) {
 	}
 
 	return &Pulse{
-		svc:         svc,
-		fsys:        fsCfg.Fs(),
-		imports:     importsMgr,
-		templates:   templates,
-		zones:       zones,
-		defaultZone: defaultZone,
+		svc:            svc,
+		fsys:           fsCfg.Fs(),
+		imports:        importsMgr,
+		templates:      templates,
+		zones:          zones,
+		defaultZone:    defaultZone,
+		featureProfile: featureProfile,
 	}, nil
 }
 

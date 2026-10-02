@@ -15,7 +15,7 @@ stdio streams, and shuts it down on session close.
 ## Synopsis
 
 ```
-pulse mcp [--data-dir PATH] [--bind-on-open] [--no-cohort-scan]
+pulse mcp [--data-dir PATH] [--feature-profile FILE] [--bind-on-open] [--no-cohort-scan]
 ```
 
 The command reads stdin, writes MCP responses on stdout, and writes a
@@ -28,6 +28,7 @@ one-line startup notice (and any subsequent diagnostics) on stderr.
 | `--data-dir`     | string | from `PULSE_DATA_DIR` env var | Cohort base directory |
 | `--bind-on-open` | bool   | true | Register session-scoped JSON-schema-bound tool variants on successful `pulse_inspect` |
 | `--no-cohort-scan` | bool | false | Skip the startup walk that enumerates `.pulse` files as `pulse://` resources (env: `PULSE_MCP_NO_COHORT_SCAN`) |
+| `--feature-profile` | string | from `PULSE_FEATURE_PROFILE` env var | Feature profile JSON file — an OS path, not resolved under the data dir. An invalid profile fails startup |
 
 `--data-dir` is **required** in one of its two forms (env var or
 flag). The MCP server fails to start otherwise:
@@ -35,6 +36,33 @@ flag). The MCP server fails to start otherwise:
 ```
 data directory required: set PULSE_DATA_DIR or pass --data-dir
 ```
+
+## --feature-profile
+
+Loads a feature profile into the served instance. The value is a host
+OS path — absolute or relative to the process working directory, never
+resolved under `--data-dir` — read and strictly parsed before
+`pulse.New`. The flag wins over `PULSE_FEATURE_PROFILE`; the env var is
+read by this leaf only, so every other `pulse` command stays
+unprofiled. Any invalid profile (unreadable file, malformed JSON, an
+unknown key or feature, an unmet dependency) aborts startup with a
+`PULSE_FEATURE_PROFILE_*` error. A profile whose `behaviour` sets
+`disable_cohort_scan` skips the startup scan as if `--no-cohort-scan`
+were passed.
+
+The stderr startup notice reports the EFFECTIVE settings, so a profile
+that turned the scan off reads `cohort-scan: false` even without the
+flag, and a loaded profile is named by its `profile` label
+(`(unnamed)` when it has none):
+
+```
+pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohort-scan: false, feature-profile: self-serve)
+```
+
+Embedders get the same effective view from
+`mcpserve.Describe(p, opts)`, which returns a `mcpserve.ServeInfo`
+(`CohortScan`, `FeatureProfileLoaded`, `FeatureProfile`). The library
+contract is [Feature Profiles](../library/feature-profiles.md).
 
 ## --bind-on-open
 
@@ -137,7 +165,7 @@ serving, an MCP client controls the lifecycle.
 
 ```bash
 PULSE_DATA_DIR=/tmp/pulse-data ./bin/pulse mcp
-# Stderr: pulse mcp: serving over stdio (data dir: /tmp/pulse-data, bind-on-open: true)
+# Stderr: pulse mcp: serving over stdio (data dir: /tmp/pulse-data, bind-on-open: true, cohort-scan: true)
 ```
 
 ### Disable schema binding

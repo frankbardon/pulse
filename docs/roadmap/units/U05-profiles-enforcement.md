@@ -20,7 +20,7 @@ branch: profiles-enforcement
 
 ## Summary
 
-Apply the profile: an `InstanceSnapshot` drives name resolution at the single validation choke point, so hidden names behave exactly like never-registered ones. The manifest, payload schema, predict and errors list become instance-scoped. Adds `feature_set_digest` and profile goldens.
+Apply the feature profile (U04 naming: `pulse.FeatureProfile`, stored on the instance by `pulse.New`): an `InstanceSnapshot` drives name resolution at the single validation choke point, so hidden names behave exactly like never-registered ones. The manifest, payload schema, predict and errors list become instance-scoped. Adds `feature_set_digest` and profile goldens.
 
 ## References
 
@@ -93,3 +93,14 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(profiles-enforcem
 ## Notes
 
 - `TestProfileInvisibilityParity` is finalized in U06 once MCP is covered. Start its harness here.
+
+## Inherited from U04
+
+U04 landed the vocabulary this unit enforces; its contract is `.claude/reference/feature-profiles.md`.
+
+- **Inputs.** The feature table and dependency groups are internal (`internal/descriptor/features.go`: `Features()`, `LookupFeature`, `IsCoreSurface`, `MCPToolBindings`); the validated profile is the unexported `Pulse.featureProfile`. There is no public accessor yet — deciding one (or none) is this unit's call.
+- **Extension operators are features.** An extension omitted from a profile becomes hidden the moment the list is applied; the embedder docs (`docs/src/library/feature-profiles.md`) must say so in the same PR.
+- **Core surfaces** (never hidden): open, inspect, predict, count records, manifest, payload schema, skills, examples, errors lookup, cohort artifacts.
+- **Not features:** synth distributions (gated as a whole by `capability:synth`), field types, named tables, expr functions. `TEST_X` is one feature covering both tiers; one `io_format` name gates import and export.
+- **Errors list.** Codes owned only by hidden features need the code → owning-feature map; the three `PULSE_FEATURE_PROFILE_*` codes are embedder-facing config errors and stay listed.
+- **`behaviour` switches already apply** (ORed into `Options`); enforcement must not double-apply them.

@@ -48,8 +48,23 @@ type Options struct {
 	// readable through the pulse:// template either way — only the
 	// resources/list enumeration is withheld. Leave it false (the zero value,
 	// the pre-knob behaviour) unless walking the root at startup is itself the
-	// cost you are avoiding.
+	// cost you are avoiding. A feature profile on the served *pulse.Pulse
+	// whose behaviour sets disable_cohort_scan ORs into this field.
 	DisableCohortScan bool
+
+	// FeatureProfileFile is a host OS path (absolute, or relative to the
+	// process working directory) to a feature profile JSON file. It is
+	// consumed by NewPulse, which reads it with the OS filesystem — never
+	// the instance's afero Fs or DataDir — parses it with
+	// pulse.ParseFeatureProfile and hands the value to pulse.New through
+	// pulse.Options.FeatureProfile. Empty falls back to the
+	// PULSE_FEATURE_PROFILE environment variable, which NewPulse ignores
+	// when the pulse.Options it is given already carry a profile.
+	//
+	// Serve and ServeStdio ignore it: a profile is applied when the
+	// instance is constructed, so serve an instance built by NewPulse
+	// (or by pulse.New with a profile) to get one.
+	FeatureProfileFile string
 }
 
 // newServer builds a bare go-sdk server and mounts the full Pulse surface onto

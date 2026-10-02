@@ -16,4 +16,18 @@ func init() {
 		}
 		return p.svc.ExtensionsSnapshot()
 	}
+	facadebridge.CohortScanDisabled = func(v any) bool {
+		p, ok := v.(*Pulse)
+		if !ok || p == nil || p.featureProfile == nil || p.featureProfile.Behaviour == nil {
+			return false
+		}
+		return p.featureProfile.Behaviour.DisableCohortScan
+	}
+	facadebridge.FeatureProfileName = func(v any) (string, bool) {
+		p, ok := v.(*Pulse)
+		if !ok || p == nil || p.featureProfile == nil {
+			return "", false
+		}
+		return p.featureProfile.Profile, true
+	}
 }
