@@ -130,7 +130,6 @@ func TestPredictWindow_OrderByNonOrderable(t *testing.T) {
 		name  string
 		field string
 	}{
-		{"categorical", "region"},
 		{"packed_bool", "flag"},
 	}
 	for _, tc := range cases {
@@ -145,6 +144,21 @@ func TestPredictWindow_OrderByNonOrderable(t *testing.T) {
 				t.Fatalf("expected non-orderable error for %s, got %+v", tc.field, env.Errors)
 			}
 		})
+	}
+}
+
+// TestPredictWindow_OrderByCategoricalAccepted: a categorical order_by
+// orders by dictionary label at runtime, so predict accepts it.
+func TestPredictWindow_OrderByCategoricalAccepted(t *testing.T) {
+	schema := windowTestSchema(t)
+	data := buildTestPulseFile(t, schema)
+	req := &types.Request{
+		Windows: []*types.Window{
+			{Type: types.WIN_RANK, OrderBy: []types.OrderKey{{Field: "region"}}},
+		},
+	}
+	if env := predictFromBytes(data, req, nil); envHasErrorContaining(env, "is not orderable") {
+		t.Fatalf("categorical order_by refused: %+v", env.Errors)
 	}
 }
 

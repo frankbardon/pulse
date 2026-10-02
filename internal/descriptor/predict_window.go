@@ -55,14 +55,20 @@ var windowFieldRequired = map[types.WindowType]bool{
 	types.WIN_DELTA:       true,
 }
 
-// orderableFieldTypes lists encoding field types that can serve as ORDER BY keys.
-// Categorical types and bit-packed boolean types are excluded.
+// isOrderableType lists encoding field types that can serve as window
+// ORDER BY keys. A categorical column orders by its dictionary LABEL —
+// the window comparator (internal/processing/window compareCell, shared
+// with Request.Sort) compares the decoded string byte-wise, nulls last —
+// never by dictionary index, so the order is stable across imports and
+// shards (TestWindowOrderBy_CategoricalOrdersByLabel). Bit-packed
+// boolean types are excluded.
 func isOrderableType(ft encoding.FieldType) bool {
 	switch ft {
 	case encoding.FieldTypeU4,
 		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
 		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeDate:
+		encoding.FieldTypeDate,
+		encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32:
 		return true
 	}
 	return false

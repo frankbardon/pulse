@@ -35,7 +35,7 @@ Entry shape:
 | `field` | conditional | Required for value-bearing ops; forbidden for `WIN_ROW_NUMBER` / `WIN_RANK` / `WIN_DENSE_RANK`. |
 | `label` | no | Output column name; default `<TYPE>_<field>`. |
 | `partition_by` | no | Field names. Empty → single global partition. |
-| `order_by` | yes (≥1) | `{field, desc}`. Field must be numeric or `date` — categorical / bool keys are rejected at predict. |
+| `order_by` | yes (≥1) | `{field, desc}`. Numeric, `date` or categorical — a categorical orders by LABEL byte-wise (never dictionary index), nulls last, like `sort`. Bool keys are rejected at predict. |
 | `frame` | conditional | Required for `RUNNING_*` / `MOVING_AVG` / `EWMA`. Forbidden for `LAG` / `LEAD` / `ROW_NUMBER` / `RANK` / `DENSE_RANK` / `PCT_CHANGE` / `DELTA`. Mode always `"rows"` in v1. |
 | `params` | per op | Operator-specific overrides (`offset`, `alpha`, `periods`, `default`, ...). |
 

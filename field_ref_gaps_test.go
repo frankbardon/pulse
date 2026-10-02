@@ -310,3 +310,69 @@ func TestFieldRefs_ExtensionFieldInputsJudged(t *testing.T) {
 		t.Fatalf("predict over a panicking hook = %v %+v", err, env)
 	}
 }
+
+// TestWindowOrderBy_CategoricalOrdersByLabel: a window order_by on a
+// categorical column orders by the dictionary LABEL (byte-wise, nulls
+// last — the Request.Sort comparator), never by the dictionary index,
+// which differs across imports and shards. That is well defined, so
+// predict accepts it as the runtime does. The cohort's dictionary is
+// in encounter order c, a, b; the row numbers follow a, b, c.
+func TestWindowOrderBy_CategoricalOrdersByLabel(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	if err := afero.WriteFile(fs, "o.csv", []byte("cat,n\nc,1\na,2\nb,3\nc,4\na,5\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := zonePulse(t, fs, "")
+	ctx := context.Background()
+	res, err := p.ImportFile(ctx, pulse.ImportSpec{SourcePath: "o.csv"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := p.Inspect(ctx, res.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := ins.Fields[0].Dictionary; d == nil || fmt.Sprint(d.Values) != "[c a b]" {
+		t.Fatalf("dictionary = %+v, want encounter order [c a b] — the test would prove nothing", d)
+	}
+	rowNumber := []*types.Window{{Type: types.WIN_ROW_NUMBER, Label: "rn", OrderBy: []types.OrderKey{{Field: "cat"}}}}
+	cases := map[string]struct {
+		req  func() *types.Request
+		want map[string][]float64 // label -> row numbers in output order
+	}{
+		"grouped output": {func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: res.Path},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "s"}},
+				Windows:      rowNumber}
+		}, map[string][]float64{"a": {1}, "b": {2}, "c": {3}}},
+		"record rows": {func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: res.Path}, Windows: rowNumber}
+		}, map[string][]float64{"a": {1, 2}, "b": {3}, "c": {4, 5}}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			resp, err := p.Process(ctx, c.req())
+			if err != nil {
+				t.Fatalf("runtime: %v", err)
+			}
+			b, _ := json.Marshal(resp.Data)
+			var rows []map[string]any
+			if err := json.Unmarshal(b, &rows); err != nil {
+				t.Fatal(err)
+			}
+			got := map[string][]float64{}
+			for _, r := range rows {
+				got[r["cat"].(string)] = append(got[r["cat"].(string)], r["rn"].(float64))
+			}
+			for label, want := range c.want {
+				if fmt.Sprint(got[label]) != fmt.Sprint(want) {
+					t.Fatalf("row numbers = %v, want %v (label order)", got, c.want)
+				}
+			}
+			if env := predictEnvelope(t, p, fs, res.Path, c.req()); len(env.Errors) != 0 {
+				t.Fatalf("predict refused what the runtime orders by label: %+v", env.Errors)
+			}
+		})
+	}
+}
