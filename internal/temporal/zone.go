@@ -31,6 +31,11 @@ type Zone struct {
 	loc  *time.Location
 	utc  bool
 
+	// zeroFixed is true when the zone's offset is zero at every instant
+	// (no transitions inside the table window and zero on both sides of
+	// it) — "Etc/UTC", "Etc/GMT", "Etc/Zulu", "Etc/UCT". See IsUTC.
+	zeroFixed bool
+
 	// starts[i] is the first instant (epoch seconds) at which offs[i]
 	// (seconds east of UTC) is in effect; span i runs to starts[i+1],
 	// and the last span to windowEnd. starts[0] == windowStart.
@@ -70,6 +75,8 @@ func LoadZone(name string) (*Zone, error) {
 	}
 	z := &Zone{name: name, loc: loc}
 	z.buildTable()
+	z.zeroFixed = len(z.offs) == 1 && z.offs[0] == 0 &&
+		offsetAt(loc, windowStart-1) == 0 && offsetAt(loc, windowEnd) == 0
 	return z, nil
 }
 
@@ -168,6 +175,14 @@ func firstChange(loc *time.Location, lo, hi int64) int64 {
 
 // Name returns the zone name as given to LoadZone.
 func (z *Zone) Name() string { return z.name }
+
+// IsUTC reports whether the zone is UTC-equivalent: the UTC sentinel, or
+// a named zone whose offset is zero at every instant ("Etc/UTC",
+// "Etc/GMT", "Etc/Zulu", "Etc/UCT"). Local-day arithmetic in such a zone
+// is identical to UTC's. A zone that merely sits at offset zero today
+// (e.g. "Africa/Abidjan", which had a local-mean-time offset before
+// 1912, or "Europe/London" in winter) is NOT UTC-equivalent.
+func (z *Zone) IsUTC() bool { return z.utc || z.zeroFixed }
 
 // Location returns the underlying *time.Location.
 func (z *Zone) Location() *time.Location { return z.loc }

@@ -40,6 +40,9 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	}
 
 	s.applyDefaults(req, cohort.Schema())
+	if err := s.resolveZones(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
 
 	// Validate / inject label bindings exactly as Process does so a
 	// labelled crosstab matches a labelled plain Process request.

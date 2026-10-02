@@ -94,6 +94,9 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 		}
 
 		s.applyDefaults(stage, synthSchema)
+		if err := s.resolveZones(stage, synthSchema); err != nil {
+			return nil, err
+		}
 		if !processing.CanChainRequestWithExtensions(stage, synthSchema, s.extensions) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
 				"chain stage is not mergeable",

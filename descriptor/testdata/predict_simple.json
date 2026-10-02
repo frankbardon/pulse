@@ -54,9 +54,10 @@
     "filterers": [],
     "overlays_applied": [],
     "overlays_schema_divergence": [],
-    "overlay_cost": {}
+    "overlay_cost": {},
+    "time_zones": []
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: cad507be43056879d880dcd994797d42d5440bc2c9e9241864dd3f88dde48bd7
+// golden-hash: 75691ac854ee9016031dd3d991d041d14ec3becc8802310516ab9ce2e5ee5701

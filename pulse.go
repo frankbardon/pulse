@@ -539,6 +539,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
 	svc.SetEchoRequest(opts.EchoRequest)
 	svc.SetDisableCrosstabFusion(opts.DisableCrosstabFusion)
+	svc.SetTimeZones(opts.DefaultTimeZone, zones)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:                opts.ImportsDir,
@@ -1015,7 +1016,11 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		data = shardBytes
 	}
 
-	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
+	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
+		Extensions:      p.svc.ExtensionsSnapshot(),
+		DefaultTimeZone: p.svc.DefaultTimeZone(),
+		ZoneLoader:      p.svc.ZoneLoader(),
+	})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
@@ -1075,9 +1080,11 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		return nil, fmt.Errorf("pulse: predict requires a request")
 	}
 	return descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
-		Strict:      p.svc.Strict(),
-		EchoRequest: p.svc.EchoRequest(),
-		Extensions:  p.svc.ExtensionsSnapshot(),
+		Strict:          p.svc.Strict(),
+		EchoRequest:     p.svc.EchoRequest(),
+		Extensions:      p.svc.ExtensionsSnapshot(),
+		DefaultTimeZone: p.svc.DefaultTimeZone(),
+		ZoneLoader:      p.svc.ZoneLoader(),
 	}), nil
 }
 

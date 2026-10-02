@@ -12,6 +12,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -77,6 +78,11 @@ type Service struct {
 	// hash once per distinct stat rather than once per point lookup.
 	// Zero value is usable — the map is lazily created under the mutex.
 	fingerprints cohortFingerprintCache
+
+	// defaultZone is pulse.Options.DefaultTimeZone ("" = UTC) and zones
+	// the per-instance zone cache; both feed resolveZones.
+	defaultZone string
+	zones       *temporal.Cache
 }
 
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
@@ -517,6 +523,9 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 	// omitted, based on each named field's schema type. Caller can opt
 	// out via SetDisableDefaults / pulse.Options{DisableDefaults: true}.
 	s.applyDefaults(req, cohort.Schema())
+	if err := s.resolveZones(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
 
 	// Inject configured default label bindings (schema-filtered) before
 	// validation so registered tables render display strings without the

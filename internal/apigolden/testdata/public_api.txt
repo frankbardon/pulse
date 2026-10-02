@@ -1144,6 +1144,7 @@ pulse/descriptor: type PredictResult field Shards []pulse/descriptor.ShardInfo "
 pulse/descriptor: type PredictResult field Streamable bool "json:\"streamable\""
 pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
 pulse/descriptor: type PredictResult field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
+pulse/descriptor: type PredictResult field TimeZones []pulse/descriptor.ResolvedZone "json:\"time_zones\""
 pulse/descriptor: type PredictResult field Valid bool "json:\"valid\""
 pulse/descriptor: type PredictSchemaInfo struct
 pulse/descriptor: type PredictSchemaInfo field FieldCount int "json:\"field_count\""
@@ -1174,6 +1175,12 @@ pulse/descriptor: type RegressionModifier struct
 pulse/descriptor: type RegressionModifier field Description string "json:\"description\""
 pulse/descriptor: type RegressionModifier field EnumValues []string "json:\"enum_values\""
 pulse/descriptor: type RegressionModifier field Name string "json:\"name\""
+pulse/descriptor: type ResolvedZone struct
+pulse/descriptor: type ResolvedZone field FieldType string "json:\"field_type,omitempty\""
+pulse/descriptor: type ResolvedZone field Operator string "json:\"operator\""
+pulse/descriptor: type ResolvedZone field Slot string "json:\"slot\""
+pulse/descriptor: type ResolvedZone field Source string "json:\"source\""
+pulse/descriptor: type ResolvedZone field TZ *string "json:\"tz\""
 pulse/descriptor: type ShardInfo struct
 pulse/descriptor: type ShardInfo field Filename string "json:\"filename\""
 pulse/descriptor: type ShardInfo field RecordCount int64 "json:\"record_count\""
@@ -1199,6 +1206,10 @@ pulse/descriptor: type TestMeta field Requires []string "json:\"requires,omitemp
 pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
+pulse/descriptor: const ZoneSourceDefault untyped string = "default"
+pulse/descriptor: const ZoneSourceOptions untyped string = "options"
+pulse/descriptor: const ZoneSourceRequest untyped string = "request"
+pulse/descriptor: const ZoneSourceSlot untyped string = "slot"
 pulse/encoding: package encoding
 pulse/encoding: func BitmapIsNull(bitmap []byte, i int) bool
 pulse/encoding: func BitmapSetNull(bitmap []byte, i int)
@@ -3493,4 +3504,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c5b1818b2b917a3dc9ae73f72c6969301f4794eedf2fb833759daa677a08e568
+// golden-hash: 36bbfac29b983172ca6c6fe5e50f79372477a8ca27c11cd22cc111aa73fbf639

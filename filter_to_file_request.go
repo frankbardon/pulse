@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -179,6 +180,14 @@ func (r *FilterToFileRequest) canonicalExpression() (string, error) {
 func filtererToExpression(f *types.Filterer) (string, error) {
 	if f == nil {
 		return "", errors.New("filter_to_file: nil filterer")
+	}
+	if f.TimeZone != "" {
+		// None of the translatable filterers is zone-capable, so a `tz`
+		// here would be silently dropped — refuse it like the request
+		// resolver refuses `tz` on a non-zone-capable operator.
+		return "", perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
+			fmt.Sprintf("filter_to_file: operator %s does not accept `tz`", f.Type),
+			map[string]any{"operator": string(f.Type), perr.DetailTimeZone: f.TimeZone})
 	}
 	switch f.Type {
 	case types.FILTER_EXPRESSION:

@@ -330,3 +330,31 @@ func TestZoneOffset_LeapYearEnd(t *testing.T) {
 		t.Fatalf("table ends at %s, want a 2099 transition", time.Unix(last, 0).UTC())
 	}
 }
+
+// TestZone_IsUTC pins the UTC-equivalence rule the U03 non-UTC refusal
+// keys on: the sentinel and every fixed-zero-offset Etc alias are UTC;
+// a zone that only sits at offset zero for part of history (or part of
+// the year) is not.
+func TestZone_IsUTC(t *testing.T) {
+	cases := map[string]bool{
+		"UTC":              true,
+		"Etc/UTC":          true,
+		"Etc/GMT":          true,
+		"Etc/Zulu":         true,
+		"Etc/UCT":          true,
+		"Etc/GMT-0":        true,
+		"Etc/GMT-5":        false,
+		"Africa/Abidjan":   false,
+		"Europe/London":    false,
+		"America/New_York": false,
+	}
+	for name, want := range cases {
+		z, err := LoadZone(name)
+		if err != nil {
+			t.Fatalf("LoadZone(%q): %v", name, err)
+		}
+		if got := z.IsUTC(); got != want {
+			t.Errorf("LoadZone(%q).IsUTC() = %v, want %v", name, got, want)
+		}
+	}
+}

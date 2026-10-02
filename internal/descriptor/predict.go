@@ -116,6 +116,16 @@ type PredictOptions struct {
 	// the raw input request — the envelope field is the new uniform
 	// surface across all envelope-producing endpoints. Off by default.
 	EchoRequest bool
+
+	// DefaultTimeZone is pulse.Options.DefaultTimeZone — the zone a
+	// zone-capable slot inherits when neither its own `tz` nor the
+	// request's `time_zone` names one. Empty means UTC.
+	DefaultTimeZone string
+
+	// ZoneLoader resolves zone names (nil: temporal.LoadZone). The
+	// facade passes its per-instance cache so predict and the runtime
+	// resolve through the same loader.
+	ZoneLoader ZoneLoader
 }
 
 // Predict validates a request against a .pulse file without executing it.
@@ -151,6 +161,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
 		OverlaysSchemaDivergence: []descriptor.SlotPair{},
 		OverlayCost:              map[string]float64{},
+		TimeZones:                []descriptor.ResolvedZone{},
 	}
 	env := descriptor.NewEnvelope(result)
 
@@ -193,6 +204,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// execute. PredictResult.Request remains the raw input (back-compat).
 	if opts.EchoRequest {
 		env.Request = resolved
+	}
+
+	// Zone resolution — the same single pass the runtime runs before
+	// executing (ResolveZones). A refusal is a predict error carrying
+	// the runtime's own code and details.
+	if zones, zerr := ResolveZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader); zerr != nil {
+		addCodedError(env, zerr)
+	} else {
+		result.TimeZones = zones
 	}
 
 	// Validate pre-filter feature operators and compute the post-feature
@@ -434,6 +454,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 			OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []descriptor.SlotPair{},
 			OverlayCost:              map[string]float64{},
+			TimeZones:                []descriptor.ResolvedZone{},
 		}
 		env := descriptor.NewEnvelope(result)
 		env.AddError(string(errors.PULSE_ARCHIVE_CORRUPT), "invalid pulse shard archive: "+err.Error(), nil)
@@ -454,6 +475,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 			OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []descriptor.SlotPair{},
 			OverlayCost:              map[string]float64{},
+			TimeZones:                []descriptor.ResolvedZone{},
 		}
 		env := descriptor.NewEnvelope(result)
 		env.AddError(string(errors.PULSE_SHARD_MISSING),
@@ -482,6 +504,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 			OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []descriptor.SlotPair{},
 			OverlayCost:              map[string]float64{},
+			TimeZones:                []descriptor.ResolvedZone{},
 		}
 		env := descriptor.NewEnvelope(result)
 		env.AddError(string(errors.ENCODING_INVALID),

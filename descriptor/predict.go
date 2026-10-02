@@ -150,6 +150,57 @@ type PredictResult struct {
 	// OverlayAppliedDescriptor below. Empty when req.Overlays is empty;
 	// never nil in JSON output.
 	OverlayCost map[string]float64 `json:"overlay_cost"`
+
+	// TimeZones lists the resolved zone of every zone-capable slot
+	// (GROUP_DATE, GROUP_DATE_RANGES, FILTER_DATE_RANGES, ATTR_DATE_PART,
+	// FEAT_DATE_FEATURES — crosstab axes included) in request order:
+	// filterers, features, attributes, groups, crosstab rows, crosstab
+	// columns. Resolution is slot `tz` → Request.TimeZone →
+	// Options.DefaultTimeZone → UTC, computed by the same function the
+	// runtime validates with. Empty when no zone-capable slot is present;
+	// never nil in JSON output.
+	TimeZones []ResolvedZone `json:"time_zones"`
+}
+
+// Zone-resolution sources reported on ResolvedZone.Source.
+const (
+	// ZoneSourceSlot: the slot's own `tz`.
+	ZoneSourceSlot = "slot"
+	// ZoneSourceRequest: the request root's `time_zone`.
+	ZoneSourceRequest = "request"
+	// ZoneSourceOptions: pulse.Options.DefaultTimeZone.
+	ZoneSourceOptions = "options"
+	// ZoneSourceDefault: nothing named a zone; UTC.
+	ZoneSourceDefault = "default"
+)
+
+// ResolvedZone is the resolved time zone of one zone-capable request
+// slot.
+type ResolvedZone struct {
+	// Slot addresses the slot by its JSON path inside the request, e.g.
+	// "groups[0]", "filterers[1]", "attributes[2]", "features[0]",
+	// "crosstab.rows[0]", "crosstab.columns[1]".
+	Slot string `json:"slot"`
+
+	// Operator is the slot's operator type (post smart-defaults).
+	Operator string `json:"operator"`
+
+	// FieldType is the schema type of the slot's field ("datetime",
+	// "date", ...), or empty when the field is not in the cohort schema
+	// (a derived column).
+	FieldType string `json:"field_type,omitempty"`
+
+	// TZ is the zone name that applies to the slot, spelled as the
+	// caller (or Options.DefaultTimeZone) spelled it; "UTC" when nothing
+	// named one. Null when the field is not `datetime` and the zone was
+	// inherited: a calendar date carries no instant, so an inherited
+	// zone is not applied to it.
+	TZ *string `json:"tz"`
+
+	// Source names where TZ came from: "slot", "request", "options" or
+	// "default". On a null TZ it names the level the skipped zone was
+	// inherited from.
+	Source string `json:"source"`
 }
 
 // AggregationPredict is the per-slot predict surface for one entry of
