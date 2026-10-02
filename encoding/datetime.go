@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // CanonicalDateTimeLayout is the single text form FormatDateTime emits
@@ -100,7 +101,9 @@ func FormatDateTime(raw uint64) string {
 // epoch SECONDS, a `date` cell holds whole epoch DAYS. Every conversion
 // between them goes through DateTimeToDay rather than open-coding this
 // constant at the call site.
-const SecondsPerDay = 86400
+//
+// It forwards to internal/temporal, the single home of epoch-day math.
+const SecondsPerDay = temporal.SecondsPerDay
 
 // DateTimeToDay truncates an on-wire `datetime` value (epoch seconds,
 // naive UTC) to the epoch-day integer a `date` value carries. This is
@@ -114,16 +117,14 @@ const SecondsPerDay = 86400
 // integer division truncates toward zero, which would map every
 // pre-1970 instant inside the first day before the epoch onto day 0
 // (1970-01-01) instead of day -1 (1969-12-31). The floor correction
-// below keeps the calendar day honest across the sign boundary.
+// keeps the calendar day honest across the sign boundary.
 //
 // The int64 parameter is deliberate: ParseDateTime widens a negative
 // second count into uint64 two's-complement for storage, so callers
 // converting a stored value re-narrow with int64(raw) first — exactly
 // the reinterpretation FormatDateTime performs.
+//
+// The implementation lives in internal/temporal; this is a forwarder.
 func DateTimeToDay(sec int64) int64 {
-	day := sec / SecondsPerDay
-	if sec < 0 && sec%SecondsPerDay != 0 {
-		day--
-	}
-	return day
+	return temporal.DateTimeToDay(sec)
 }

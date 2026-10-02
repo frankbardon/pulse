@@ -24,6 +24,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/internal/template"
+	"github.com/frankbardon/pulse/internal/temporal"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
@@ -307,6 +308,15 @@ type Options struct {
 	// segments within a single file or shard payload).
 	DecodeWorkers int
 
+	// DefaultTimeZone is the engine-wide IANA zone ("UTC" or an
+	// Area/Location name such as "Europe/Berlin") that zone-capable
+	// request slots inherit when neither the slot's `tz` nor the
+	// request's `time_zone` names one. Empty means UTC. New() validates
+	// the name and refuses an unknown one with PULSE_TIMEZONE_UNKNOWN; a
+	// valid non-UTC zone is accepted here (whether a request may resolve
+	// onto it is decided per request).
+	DefaultTimeZone string
+
 	// Strict promotes request-validation warnings into hard errors at
 	// runtime. Today this covers the numeric-aggregation-on-categorical
 	// check (PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL); future runtime
@@ -447,6 +457,12 @@ type Pulse struct {
 	// directories are configured — a nil *internal/template.Store is usable, so
 	// call sites need no nil check.
 	templates *template.Store
+
+	// zones memoises zone loads for this instance; every request-time
+	// zone resolution goes through zone(). defaultZone is
+	// Options.DefaultTimeZone, validated at New (temporal.UTC when empty).
+	zones       *temporal.Cache
+	defaultZone *temporal.Zone
 }
 
 // New creates a new Pulse instance with the given options.
@@ -471,6 +487,15 @@ func New(opts Options) (*Pulse, error) {
 	}
 	if err := validateAutoLabels(opts.AutoLabels, opts.Extensions.LabelTables); err != nil {
 		return nil, err
+	}
+
+	zones := &temporal.Cache{}
+	defaultZone := temporal.UTC
+	if opts.DefaultTimeZone != "" {
+		defaultZone, err = zones.Load(opts.DefaultTimeZone)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var fsCfg *fs.Config
@@ -514,6 +539,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
 	svc.SetEchoRequest(opts.EchoRequest)
 	svc.SetDisableCrosstabFusion(opts.DisableCrosstabFusion)
+	svc.SetTimeZones(opts.DefaultTimeZone, zones)
 
 	importsMgr, err := imports.New(fsCfg.Fs(), imports.Options{
 		ImportsDir:                opts.ImportsDir,
@@ -527,11 +553,21 @@ func New(opts Options) (*Pulse, error) {
 	}
 
 	return &Pulse{
-		svc:       svc,
-		fsys:      fsCfg.Fs(),
-		imports:   importsMgr,
-		templates: templates,
+		svc:         svc,
+		fsys:        fsCfg.Fs(),
+		imports:     importsMgr,
+		templates:   templates,
+		zones:       zones,
+		defaultZone: defaultZone,
 	}, nil
+}
+
+// zone resolves a zone name through this instance's cache. It returns a
+// PULSE_TIMEZONE_UNKNOWN *errors.CodedError for an unknown name and the
+// temporal.UTC sentinel for "UTC". Callers resolve the empty name to
+// p.defaultZone themselves — zone("") is an unknown-zone error.
+func (p *Pulse) zone(name string) (*temporal.Zone, error) {
+	return p.zones.Load(name)
 }
 
 // validateAutoLabels checks each default binding's shape and that its
@@ -980,7 +1016,13 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		data = shardBytes
 	}
 
-	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{Extensions: p.svc.ExtensionsSnapshot()})
+	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
+		Extensions:      p.svc.ExtensionsSnapshot(),
+		DefaultTimeZone: p.svc.DefaultTimeZone(),
+		ZoneLoader:      p.svc.ZoneLoader(),
+		DisableDefaults: p.svc.DefaultsDisabled(),
+		SchemaLoader:    p.predictSchemaLoader(ctx),
+	})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
 		result, ok := env.Data.(*descriptor.PredictResult)
@@ -1040,10 +1082,28 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		return nil, fmt.Errorf("pulse: predict requires a request")
 	}
 	return descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
-		Strict:      p.svc.Strict(),
-		EchoRequest: p.svc.EchoRequest(),
-		Extensions:  p.svc.ExtensionsSnapshot(),
+		Strict:          p.svc.Strict(),
+		EchoRequest:     p.svc.EchoRequest(),
+		Extensions:      p.svc.ExtensionsSnapshot(),
+		DefaultTimeZone: p.svc.DefaultTimeZone(),
+		ZoneLoader:      p.svc.ZoneLoader(),
+		DisableDefaults: p.svc.DefaultsDisabled(),
+		SchemaLoader:    p.predictSchemaLoader(ctx),
 	}), nil
+}
+
+// predictSchemaLoader reads a cohort's header + schema through the
+// runtime's own opener (anchors and shard archives included), so
+// predict validates a join against the joined schema the runtime
+// builds. Only the header and schema of a single-file cohort are read.
+func (p *Pulse) predictSchemaLoader(ctx context.Context) func(string) (*encoding.Schema, error) {
+	return func(path string) (*encoding.Schema, error) {
+		c, err := p.svc.Open(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		return c.Schema(), nil
+	}
 }
 
 // Sample returns up to n rows from the cohort as maps of field name to value.

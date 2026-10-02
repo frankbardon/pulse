@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -20,39 +21,14 @@ import (
 //
 // Returns PULSE_JOIN_FIELD_COLLISION when a non-prefixed right
 // field shares a name with a left field. Callers can set spec.As
-// to disambiguate.
+// to disambiguate. The rule itself lives in
+// internal/encoding.JoinedSchema, which predict calls too.
 func JoinedSchema(left, right *encoding.Schema, spec *types.JoinSpec) (*encoding.Schema, error) {
-	if left == nil || right == nil {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"joined schema requires non-nil left and right schemas")
+	as := ""
+	if spec != nil {
+		as = spec.As
 	}
-	fields := make([]encoding.Field, 0, len(left.Fields)+len(right.Fields))
-	seen := make(map[string]struct{}, len(left.Fields)+len(right.Fields))
-	for _, f := range left.Fields {
-		// Copy without the byte-offset / Dictionary reuse beyond the
-		// in-memory record use. The joined records own their own
-		// values map; categorical-dict lookups still work because
-		// every Field references the original schema's Dictionary
-		// via pointer (left side's view).
-		seen[f.Name] = struct{}{}
-		fields = append(fields, f)
-	}
-	for _, f := range right.Fields {
-		name := f.Name
-		if spec.As != "" {
-			name = spec.As + f.Name
-		}
-		if _, dup := seen[name]; dup {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_FIELD_COLLISION,
-				"joined schema field name collides between left and right",
-				map[string]any{"field": name, "as": spec.As})
-		}
-		seen[name] = struct{}{}
-		copied := f
-		copied.Name = name
-		fields = append(fields, copied)
-	}
-	return &encoding.Schema{Fields: fields}, nil
+	return encx.JoinedSchema(left, right, as)
 }
 
 // HashJoinIterator wraps a left-side iterator and yields joined
@@ -89,53 +65,10 @@ func NewHashJoinIterator(left RecordIterator, right []*Record, leftSchema, right
 	if spec == nil {
 		return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "join iterator requires a JoinSpec")
 	}
-	if len(spec.On) == 0 {
-		return nil, nil, errors.NewCodedError(errors.PULSE_JOIN_KEYS_EMPTY,
-			"join spec requires at least one OnPair")
-	}
-	kind := spec.Kind
-	if kind == "" {
-		kind = "inner"
-	}
-	if kind != "inner" {
-		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED,
-			"only inner join is implemented in v1",
-			map[string]any{"kind": kind})
-	}
-	for _, pair := range spec.On {
-		if pair.LeftField == "" || pair.RightField == "" {
-			return nil, nil, errors.NewCodedError(errors.PULSE_JOIN_KEYS_EMPTY,
-				"OnPair requires both LeftField and RightField")
-		}
-		if leftSchema.Field(pair.LeftField) == nil {
-			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_FIELD_UNKNOWN,
-				"OnPair.LeftField not found in left schema",
-				map[string]any{"field": pair.LeftField})
-		}
-		if rightSchema.Field(pair.RightField) == nil {
-			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_FIELD_UNKNOWN,
-				"OnPair.RightField not found in right schema",
-				map[string]any{"field": pair.RightField})
-		}
-		lf := leftSchema.Field(pair.LeftField)
-		rf := rightSchema.Field(pair.RightField)
-		if !typesCompatibleForJoin(lf.Type, rf.Type) {
-			details := map[string]any{
-				"left_field":  pair.LeftField,
-				"left_type":   lf.Type.String(),
-				"right_field": pair.RightField,
-				"right_type":  rf.Type.String(),
-			}
-			msg := "join key types are not compatible"
-			if lf.Type.IsSet() || rf.Type.IsSet() {
-				// Same rung on both sides still lands here, so say why
-				// rather than leave "not compatible" reading as a typo.
-				msg = joinKeySetRejection
-				details["reason"] = "set_key"
-			}
-			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_JOIN_TYPE_MISMATCH, msg, details)
-		}
+	// Kind and OnPairs: the one join-key rule predict and the
+	// validators call too (internal/encoding.JoinKeysRefusals).
+	if err := encx.JoinKeysRefusal(leftSchema, rightSchema, spec); err != nil {
+		return nil, nil, err
 	}
 
 	joinedSchema, err := JoinedSchema(leftSchema, rightSchema, spec)
@@ -223,23 +156,6 @@ func (h *HashJoinIterator) Reset() {
 	h.leftRec = nil
 }
 
-// joinKeySetRejection is the shared explanation for refusing a set
-// column as a join key. It is the join twin of
-// IndexKeyRejectionMessage: a multi-select bitmask has no single
-// unambiguous equality value — the empty selection, a single member
-// and every multi-member combination are all legal, distinct states —
-// so "does this row's set contain X" is a membership predicate
-// (FILTER_SET_*), never a key.
-//
-// The equality that WOULD have been used is worse than merely
-// ambiguous: joinKeyOf stringifies Record.values, which for a set
-// column holds the LOSSY float64 echo of the mask — the low 64 bits
-// for set_u128 / set_u256, and a value that has already lost mantissa
-// bits above 2^53 for set_u64. Two different selections collapse onto
-// one key and rows join that share no answer at all, with no error
-// and no warning.
-const joinKeySetRejection = "a set_* column cannot be a join key: a multi-select bitmask has no single unambiguous equality value (empty selection, single-member and multi-member masks are all distinct legal states), and its numeric echo is lossy — use a FILTER_SET_* membership predicate instead"
-
 // joinKeyOf produces the composite hash key for one record. Returns
 // ok=false when any key field is null — inner join drops these rows.
 // The build flag is informational; semantics are identical for both
@@ -252,12 +168,13 @@ const joinKeySetRejection = "a set_* column cannot be a join key: a multi-select
 // value in Record.values is only the Float64(scale) echo, so two
 // decimals whose difference falls below float64's mantissa spacing
 // would share a key and join as equal. Nothing is lost by
-// special-casing it — typesCompatibleForJoin admits decimal128 only
-// against decimal128 (it is not in joinNumericFamily), so a decimal
+// special-casing it — internal/encoding.JoinKeyTypesCompatible admits
+// decimal128 only against decimal128, so a decimal
 // key is never normalised against another family's float formatting.
 //
-// Set columns never reach here: typesCompatibleForJoin rejects them
-// at NewHashJoinIterator. See joinKeySetRejection.
+// Set columns never reach here: the join-key rule
+// (internal/encoding.JoinKeysRefusals) rejects them at
+// NewHashJoinIterator. See internal/encoding.JoinKeySetRejection.
 func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build bool) (string, bool) {
 	var parts []string
 	for _, pair := range spec.On {
@@ -307,44 +224,6 @@ func joinRenameRight(spec *types.JoinSpec, name string) string {
 		return name
 	}
 	return spec.As + name
-}
-
-// typesCompatibleForJoin reports whether two schema types can be
-// compared as equi-join keys after normalisation. The conservative
-// v1 rule: identical types match; categorical types of any width
-// match each other (dict strings normalise to text); numeric types
-// of the same broad family (unsigned int family vs float family) all
-// match within their family. Decimal128 keys reject across the type
-// boundary (precision differences matter).
-func typesCompatibleForJoin(a, b encoding.FieldType) bool {
-	// A set column is never a join key, not even against an identical
-	// rung. See joinKeySetRejection for why. The check keys off
-	// FieldType.IsSet() rather than an enumeration so a newly
-	// registered rung inherits the rejection without an edit here.
-	if a.IsSet() || b.IsSet() {
-		return false
-	}
-	if a == b {
-		return true
-	}
-	if a.IsCategorical() && b.IsCategorical() {
-		return true
-	}
-	if joinNumericFamily(a) && joinNumericFamily(b) {
-		return true
-	}
-	return false
-}
-
-func joinNumericFamily(t encoding.FieldType) bool {
-	switch t {
-	case encoding.FieldTypeU4,
-		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeDate:
-		return true
-	}
-	return false
 }
 
 // FormatJoinKindError surfaces a unified "unsupported kind" message

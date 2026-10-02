@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // DateFormats enumerates the date literal layouts ParseDate accepts, in
@@ -24,9 +25,10 @@ var DateFormats = []string{
 
 // ParseDate parses raw against DateFormats (first match wins) and
 // returns the on-wire representation the .pulse `date` field type
-// carries: whole days since the Unix epoch, narrowed to uint32 — exactly
+// carries: whole days since the Unix epoch as a two's-complement int32
+// word (a pre-1970 day is negative; read it back with DateDays) — exactly
 // the conversion internal/io/import.go's row importer performs when converting a
-// date column cell (`t.Unix() / 86400`). This function is the single
+// date column cell (`temporal.TimeToDay`). This function is the single
 // source of truth both the importer (internal/io/import.go's convertValue) and
 // the point-lookup key resolver (processing.ResolveLookupKeyBytes) call,
 // so a date literal parsed at import time and the same literal parsed at
@@ -39,8 +41,7 @@ func ParseDate(raw string) (uint32, error) {
 	for _, layout := range DateFormats {
 		t, err := time.Parse(layout, raw)
 		if err == nil {
-			days := t.Unix() / 86400
-			return uint32(days), nil
+			return uint32(temporal.TimeToDay(t)), nil
 		}
 	}
 	return 0, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,

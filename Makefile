@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke cover fmt vet lint bench docs docs-serve docs-clean
+.PHONY: build clean dist test smoke cover fmt vet lint bench tzdata docs docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -72,6 +72,17 @@ lint: vet
 # in-repo wall-clock assertion, kept out of CI on purpose).
 bench:
 	$(GO) test -bench=. -benchmem -run='^$$' -count=1 . ./internal/service/... ./encoding/... ./internal/processing/...
+
+# tzdata refreshes Pulse's embedded tz database from the active Go
+# toolchain's $GOROOT/lib/time/zoneinfo.zip and prints the IANA release
+# (the DATA= line of the toolchain's lib/time/update.bash) and the new
+# SHA-256. Record both in internal/temporal/tzdata.go (TZDataVersion,
+# tzdataSHA256) — TestTZDataVersion_MatchesEmbeddedZip fails until you
+# do. Recipe: docs/src/internals/refreshing-tzdata.md.
+tzdata:
+	cp "$$($(GO) env GOROOT)/lib/time/zoneinfo.zip" internal/temporal/zoneinfo.zip
+	@echo "TZDataVersion = $$(sed -n 's/^DATA=//p' "$$($(GO) env GOROOT)/lib/time/update.bash")"
+	@echo "tzdataSHA256  = $$(shasum -a 256 internal/temporal/zoneinfo.zip | cut -d' ' -f1)"
 
 docs:
 	mdbook build docs

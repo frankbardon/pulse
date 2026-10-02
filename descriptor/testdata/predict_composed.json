@@ -136,7 +136,8 @@
     "filterers": [],
     "overlays_applied": [],
     "overlays_schema_divergence": [],
-    "overlay_cost": {}
+    "overlay_cost": {},
+    "time_zones": []
   },
   "errors": [],
   "warnings": [
@@ -150,4 +151,4 @@
     }
   ]
 }
-// golden-hash: 5b9ef685501191f2908b3da395245174329291f1d130e384a0270f3ff53d0962
+// golden-hash: d6a1627080e824c08edef4634896352a6f0c67de3f918eb1bc392677493d69f4

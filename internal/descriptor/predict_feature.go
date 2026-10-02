@@ -130,11 +130,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 			}
 			return
 		}
-		env.AddError(
-			string(errors.SERVICE_VALIDATION),
-			"feature references unknown field: "+feat.Field,
-			map[string]any{"field": feat.Field, "feature": string(feat.Type)},
-		)
+		// Unknown: the field-reference rule's refusal (FieldRefRefusals).
 		return
 	}
 
@@ -161,7 +157,7 @@ func validateFeatureSpec(env *descriptor.Envelope, feat *types.Feature, schema *
 	case types.FEAT_BUCKETIZE:
 		validateBucketizeParams(env, feat)
 	case types.FEAT_POLY:
-		if !isNumericFieldType(f.Type) {
+		if !featureAcceptsType(feat.Type, f.Type) {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"feature FEAT_POLY requires a numeric field",
@@ -221,14 +217,8 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 		)
 	}
 	if p.Stratify != "" {
-		f := schema.Field(p.Stratify)
-		if f == nil {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"feature FEAT_TRAIN_TEST_SPLIT: stratify references unknown field "+p.Stratify,
-				map[string]any{"field": p.Stratify, "feature": string(feat.Type)},
-			)
-		} else if !f.Type.IsCategorical() {
+		// An unknown name is FieldRefRefusals' refusal.
+		if f := schema.Field(p.Stratify); f != nil && !f.Type.IsCategorical() {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"feature FEAT_TRAIN_TEST_SPLIT: stratify field must be categorical",
@@ -350,14 +340,8 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 			map[string]any{"feature": string(feat.Type)},
 		)
 	}
-	f := schema.Field(p.Target)
-	if f == nil {
-		env.AddError(
-			string(errors.SERVICE_VALIDATION),
-			"feature FEAT_TARGET_ENCODE: target references unknown field "+p.Target,
-			map[string]any{"field": p.Target, "feature": string(feat.Type)},
-		)
-	} else if f.Type.IsCategorical() {
+	// An unknown name is FieldRefRefusals' refusal.
+	if f := schema.Field(p.Target); f != nil && f.Type.IsCategorical() {
 		env.AddError(
 			string(errors.SERVICE_VALIDATION),
 			"feature FEAT_TARGET_ENCODE: target field must be numeric, got categorical",
@@ -448,4 +432,26 @@ func singleLabel(feat *types.Feature, prefix string) string {
 		return feat.Label
 	}
 	return prefix + feat.Field
+}
+
+// featureAcceptsType reports whether the feature's capability
+// declaration (featureCapabilities AcceptsTypes — the manifest's
+// accepts_types) lists ft, so predict refuses exactly the types the
+// manifest says the operator does not take. FEAT_POLY used the strict
+// FieldType.IsNumeric here and refused u4 and date, which the runtime
+// expands correctly and the skill documents.
+func featureAcceptsType(op types.FeatureType, ft encoding.FieldType) bool {
+	name := ft.String()
+	for _, c := range featureCapabilities() {
+		if c.Name != string(op) {
+			continue
+		}
+		for _, t := range c.AcceptsTypes {
+			if t == name {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -114,7 +115,14 @@ func (p *Pulse) FilterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	_ = p.fsys.Remove(tempPath)
 
 	start := time.Now()
-	rows, err := p.svc.FilterToFile(ctx, req.SourcePath, tempPath, expr)
+	var rows int64
+	if len(req.Filterers) > 0 {
+		// The structured predicate is judged by the shared field rule
+		// before its translated expression compiles.
+		rows, err = p.svc.FilterToFileFilterers(ctx, req.SourcePath, tempPath, req.Filterers, expr)
+	} else {
+		rows, err = p.svc.FilterToFile(ctx, req.SourcePath, tempPath, expr)
+	}
 	if err != nil {
 		_ = p.fsys.Remove(tempPath)
 		return nil, err
@@ -179,6 +187,14 @@ func (r *FilterToFileRequest) canonicalExpression() (string, error) {
 func filtererToExpression(f *types.Filterer) (string, error) {
 	if f == nil {
 		return "", errors.New("filter_to_file: nil filterer")
+	}
+	if f.TimeZone != "" {
+		// None of the translatable filterers is zone-capable, so a `tz`
+		// here would be silently dropped — refuse it like the request
+		// resolver refuses `tz` on a non-zone-capable operator.
+		return "", perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
+			fmt.Sprintf("filter_to_file: operator %s does not accept `tz`", f.Type),
+			map[string]any{"operator": string(f.Type), perr.DetailTimeZone: f.TimeZone})
 	}
 	switch f.Type {
 	case types.FILTER_EXPRESSION:

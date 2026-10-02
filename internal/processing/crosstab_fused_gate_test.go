@@ -584,3 +584,19 @@ func TestCanFuseCrosstab_DistinctSumCell(t *testing.T) {
 		t.Fatalf("AGG_DISTINCT_SUM cell declined fusion: %q — check Mergeable() and MarginReducibility() in types/streamability.go", reason)
 	}
 }
+
+// TestCanFuseCrosstab_JoinsForceBuffered: a crosstab carrying a
+// JoinSpec is declined (it runs buffered over the joined stream) rather
+// than admitted into a fused walk that would fail AssertCanFuse with
+// PROCESSING_INTERNAL.
+func TestCanFuseCrosstab_JoinsForceBuffered(t *testing.T) {
+	req := happyPathCrosstabRequest()
+	req.Joins = []*types.JoinSpec{{Right: "right.pulse", On: []types.OnPair{{LeftField: "score", RightField: "score"}}}}
+	ok, reason := CanFuseCrosstab(req, crosstabFusedGateSchema(), nil)
+	if ok {
+		t.Fatalf("expected ineligible with a JoinSpec present")
+	}
+	if !strings.Contains(reason, "joins force buffered") {
+		t.Fatalf("unexpected reason %q", reason)
+	}
+}

@@ -21,7 +21,7 @@ The one import source whose schema Pulse does **not** infer, and the one produci
 
 `.sav` declares every column ⇒ `internal/io/spss` implements `io.SchemaAwareReader`, `internal/io/infer.go`'s sample-and-vote pass skipped for `pulse import spss` / `pulse import auto` / `pulse_import` / `pulse convert` alike. Hence:
 
-- Inference-steering slots inert: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters`, `ColumnTypeOverrides`.
+- Inference-steering slots inert: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters`. `ColumnTypeOverrides` is refused (`PULSE_IMPORT_OVERRIDE_INVALID`) — re-type via an explicit `ImportJob.Schema`.
 - **No null promotion** — declared nullability is a contract; an unexpected null is `PULSE_IMPORT_ROW_ERROR`, never a silent widening. `promoted_fields` always empty.
 - Explicit `ImportJob.Schema` still wins.
 
@@ -31,7 +31,7 @@ The one import source whose schema Pulse does **not** infer, and the one produci
 | numeric with value labels | `categorical_u8/u16/u32` | width from distinct count; past `u32` → `PULSE_SPSS_CATEGORICAL_OVERFLOW` (hard; dropping values is worse) |
 | string (A*) | `categorical_*` | near-unique → `PULSE_SPSS_CARDINALITY_HIGH` (free-text signature), still imports |
 | very long string (>255 bytes) | one `categorical_*` | record `7/14` segments it; Pulse rejoins RAW bytes, decodes once |
-| DATE/ADATE/EDATE/SDATE/JDATE | `date`, else `datetime` + `PULSE_SPSS_DATE_WIDENED` | widens on a time-of-day or pre-1970 value — `date` is unsigned epoch **days** |
+| DATE/ADATE/EDATE/SDATE/JDATE | `date`, else `datetime` + `PULSE_SPSS_DATE_WIDENED` | widens only on a time-of-day value; pre-1970 stays `date` (signed epoch **days**) |
 | DATETIME/TIME/DTIME | `datetime` (epoch **seconds**) | fractional-second / non-finite / out-of-int64 demotes to `f64` raw SPSS seconds + `PULSE_SPSS_TEMPORAL_PRECISION` |
 | system-missing (sysmis) | null (bitmap bit) | the one missing state with a format sentinel |
 | numeric user-missing | null + `<var>_missing` sibling | *Missing values* |

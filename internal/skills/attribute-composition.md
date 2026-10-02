@@ -22,7 +22,7 @@ Entry shape: `{type, field?, label, params?, expression?}`. `type` is the ATTR c
 
 ## Composition rules
 
-1. **Labels must be unique** across the slot. Collision → `PROCESSING_CONFIG`.
+1. **Labels must be unique** — never a schema field, feature output or earlier label. Shadowing → `SERVICE_VALIDATION`, runtime and predict.
 2. **No in-slot chaining.** `ATTR_FORMULA` cannot reference another attribute's label. To stage a derived value into another formula, use Compose / ProcessChain.
 3. **Two-pass attributes** (`ATTR_ZSCORE`, `ATTR_TSCORE`, `ATTR_NORMALIZED`, `ATTR_PERCENTILE`, `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_REG_LEVERAGE`) need a pre-pass over filter-passing rows to compute aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients) before pass 2 emits per-row output. The orchestrator handles this transparently — no full-dataset buffering.
 4. **Row-local attributes** (`ATTR_FORMULA`, `ATTR_DATE_PART`, `ATTR_SET_POPCOUNT`, `ATTR_SET_HAS`) stream — one pass, no state.
@@ -70,7 +70,7 @@ Two-pass ATTRs stream via the two-pass orchestrator (`iter.Reset()`). Buffer-for
 
 ## Components
 
-Attributes emit scalars; they do not produce `Response.Components`. The Components family covers aggregations, groupers, filterers, crosstab, and run — not per-row derived columns. To audit attribute output, read it from `Response.Data` or wrap the attribute in an aggregation.
+Attributes emit scalars, not `Response.Components` (which covers aggregations, groupers, filterers, crosstab, run). To audit attribute output, read `Response.Data` or wrap the attribute in an aggregation.
 
 ## Gotchas
 

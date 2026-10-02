@@ -68,6 +68,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/iocore"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // recordData is the DetailSPSSRecord value for a fault in the data section.
@@ -468,8 +469,9 @@ func formatNumericValue(v float64) string {
 // the epoch day this mapping intended.
 //
 // The mapping only assigns kindDate to a column whose every value is a
-// whole, finite, midnight-aligned second count at or after the Unix
-// epoch, so the conversion here cannot lose anything. The guard is
+// whole, finite, midnight-aligned second count (before or after the Unix
+// epoch — the `date` word is signed), so the conversion here cannot lose
+// anything. The guard is
 // nonetheless real rather than an assertion: a plan built by hand, or a
 // future caller setting kinds itself, must fall back to the lossless raw
 // rendering rather than emit a fabricated calendar date.
@@ -479,7 +481,7 @@ func (p *dataPlan) formatDate(seg []byte) string {
 		return ""
 	}
 	sec, ok := spssSecondsExact(math.Float64frombits(bits))
-	if !ok || sec < 0 {
+	if !ok || !temporal.IsWholeDay(sec) {
 		return p.formatNumeric(seg)
 	}
 	return time.Unix(sec, 0).UTC().Format(dateLayout)

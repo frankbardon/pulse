@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -95,6 +96,24 @@ func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *descriptor.
 // no-execute ban holds (TestPredictNoExecutionImports). A nil snap is
 // exactly ValidateChain.
 func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest, snap *ExtensionsSnapshot) *descriptor.Envelope {
+	return ValidateChainWithOptions(fileData, req, &PredictOptions{Extensions: snap})
+}
+
+// ValidateChainWithOptions is ValidateChain with the predict options in
+// reach: opts.Extensions is the chain-gate snapshot, and
+// opts.DefaultTimeZone / ZoneLoader / DisableDefaults / SchemaLoader
+// drive the per-stage zone resolution — the runtime's order: defaults,
+// zones, the chain gate, then the field-reference rule
+// (FieldRefRefusals), each zone and field refusal tagged details.stage
+// (a joined stage 0: gate, the join-count rule, the join-key rule,
+// zones, then field references against the joined schema). The gate,
+// the field checks and stage-schema propagation run on the defaulted
+// stage, as the runtime does. A nil opts is ValidateChain.
+func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
+	if opts == nil {
+		opts = &PredictOptions{}
+	}
+	snap := opts.Extensions
 	result := &ChainValidationResult{Valid: true, Request: req}
 	env := descriptor.NewEnvelope(result)
 
@@ -138,13 +157,69 @@ func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest
 				map[string]any{"stage_index": i})
 			continue
 		}
-		if !chainGateOK(stage.Request, snap, env, i, stage.Name) {
+		// The runtime applies smart defaults to every stage against
+		// its input schema (the cohort's for stage 0, even when it
+		// joins) BEFORE the chain gate, so the gate, the field checks
+		// and the next stage's synthesised schema (whose aggregator
+		// labels embed the Type) all see the defaulted stage. The
+		// echoed Request stays as written.
+		// Only stage 0 may join (the runtime refuses a later stage's
+		// Joins before its defaults, zones and gate).
+		if jerr := mergegate.StageJoinRefusal(stage.Request, i, stage.Name); jerr != nil {
+			addCodedError(env, jerr)
+		}
+		staged := chainStageDefaulted(stage.Request, current, opts)
+		// A joined stage 0 resolves zones inside Process — after the
+		// gate and the join-count rule; every other stage resolves
+		// before the gate.
+		joined := i == 0 && len(stage.Request.Joins) > 0
+		// fieldsReached: the runtime gets as far as the field-reference
+		// rule (no earlier located refusal on this stage).
+		fieldsReached := true
+		if !joined {
+			if _, zerr := resolveRequestZones(stage.Request, current, opts); zerr != nil {
+				addCodedError(env, RefusalAt(zerr, "stage", i))
+				fieldsReached = false
+			}
+		}
+		gerr := mergegate.ChainRefusal(staged, current, snap.mergeFacts(), i, stage.Name)
+		if gerr != nil {
+			addCodedError(env, gerr)
+		}
+		gateOK := gerr == nil
+		// The schema the stage's field references are judged against:
+		// its input schema, or for a joined stage 0 the joined schema
+		// (nil — no judgement — when the right side is unreadable).
+		fieldSchema, fieldReq := current, staged
+		if joined {
+			fieldSchema = nil
+			if jerr := JoinCountRefusal(stage.Request); jerr != nil {
+				addCodedError(env, RefusalAt(jerr, "stage", i))
+				fieldsReached = false
+			} else if js, keyRefusals := validatorRequestSchema(stage.Request, current, opts); len(keyRefusals) > 0 {
+				for _, ce := range keyRefusals {
+					addCodedError(env, RefusalAt(ce, "stage", i))
+				}
+				fieldsReached = false
+			} else if _, zerr := resolveRequestZones(stage.Request, js, opts); zerr != nil {
+				addCodedError(env, RefusalAt(zerr, "stage", i))
+				fieldsReached = false
+			} else if js != nil {
+				// Process re-applies defaults against the joined schema.
+				fieldSchema, fieldReq = js, chainStageDefaulted(staged, js, opts)
+			}
+		}
+		if !gateOK {
 			continue
 		}
-		validateChainStageFields(stage.Request, current, env, i, stage.Name)
-		next := chainPredictedOutputFields(stage.Request)
+		if fieldsReached {
+			for _, ce := range FieldRefRefusals(fieldReq, fieldSchema, extensionsFromOpts(opts)) {
+				addCodedError(env, RefusalAt(ce, "stage", i))
+			}
+		}
+		next := chainPredictedOutputFields(staged)
 		result.StageSchemas = append(result.StageSchemas, next)
-		current = synthChainSchema(stage.Request)
+		current = synthChainSchema(staged)
 	}
 
 	// Whole-chain overlay walk. Runs after the per-stage gate so
@@ -164,106 +239,17 @@ func ValidateChainFromBytes(data []byte, req *types.ChainRequest) *descriptor.En
 	return ValidateChain(bytes.NewReader(data), req)
 }
 
-// chainGateOK checks that a stage's operator set fits the v1 chain
-// gate. Adds errors directly into the envelope and returns true iff
-// the stage passed; downstream field validation can run only on a
-// gate-passing stage.
-func chainGateOK(req *types.Request, snap *ExtensionsSnapshot, env *descriptor.Envelope, idx int, name string) bool {
-	details := map[string]any{"stage_index": idx, "stage_name": name}
-	if len(req.Aggregations) == 0 {
-		env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-			"chain stage requires at least one aggregator", details)
-		return false
+// chainStageDefaulted is the stage the runtime gates and executes: a
+// clone with the shared smart-defaults pass (ResolveDefaults — the
+// one the runtime's applyDefaults calls) run against the stage's input
+// schema, unless opts.DisableDefaults. The caller's request is never
+// mutated.
+func chainStageDefaulted(req *types.Request, in *encoding.Schema, opts *PredictOptions) *types.Request {
+	clone := cloneRequestForDefaults(req)
+	if !opts.DisableDefaults && in != nil {
+		ResolveDefaults(clone, in)
 	}
-	if len(req.Windows) > 0 || len(req.Features) > 0 ||
-		len(req.Regressions) > 0 || len(req.Tests) > 0 ||
-		len(req.PostTests) > 0 {
-		env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-			"chain gate excludes windows, features, tests, post-tests, and regressions",
-			details)
-		return false
-	}
-	for _, attr := range req.Attributes {
-		if attr == nil {
-			continue
-		}
-		switch {
-		case attr.Type == types.ATTR_FORMULA, attr.Type == types.ATTR_DATE_PART:
-			// row-local
-		case snap.attributeRowLocal(string(attr.Type)):
-			// row_local extension attribute
-		default:
-			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-				"chain gate excludes two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
-				details)
-			return false
-		}
-	}
-	for _, g := range req.Groups {
-		if g != nil && !g.Type.Mergeable() && !snap.mergeable(snap.groupers(), string(g.Type)) {
-			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-				"chain gate requires mergeable grouper (GROUP_CATEGORY or GROUP_RANGE)",
-				details)
-			return false
-		}
-	}
-	for _, agg := range req.Aggregations {
-		if agg == nil {
-			continue
-		}
-		if !agg.Type.Mergeable() && !snap.mergeable(snap.aggregators(), string(agg.Type)) {
-			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-				"chain gate requires mergeable aggregators",
-				details)
-			return false
-		}
-		if agg.Type == types.AGG_FREQUENCY || agg.Type == types.AGG_MODE {
-			env.AddError(string(errors.PULSE_CHAIN_NOT_MERGEABLE),
-				"chain gate excludes AGG_FREQUENCY and AGG_MODE (non-scalar emit)",
-				details)
-			return false
-		}
-	}
-	return true
-}
-
-// validateChainStageFields confirms that every field reference in a
-// stage resolves against the current input schema. Adds errors for
-// unknown fields. Mirrors the validation surface in Predict but
-// scoped to chain-relevant slots.
-func validateChainStageFields(req *types.Request, in *encoding.Schema, env *descriptor.Envelope, idx int, name string) {
-	check := func(field string) {
-		if field == "" || in.Field(field) != nil {
-			return
-		}
-		env.AddError(string(errors.SERVICE_VALIDATION),
-			"chain stage references unknown field",
-			map[string]any{"stage_index": idx, "stage_name": name, "field": field})
-	}
-	for _, f := range req.Filterers {
-		if f == nil {
-			continue
-		}
-		check(f.Field)
-	}
-	for _, agg := range req.Aggregations {
-		if agg == nil {
-			continue
-		}
-		check(agg.Field)
-	}
-	for _, g := range req.Groups {
-		if g == nil {
-			continue
-		}
-		check(g.Field)
-	}
-	for _, attr := range req.Attributes {
-		if attr == nil {
-			continue
-		}
-		check(attr.Field)
-	}
+	return clone
 }
 
 // chainPredictedOutputFields names the output columns a chain stage

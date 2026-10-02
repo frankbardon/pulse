@@ -7,11 +7,11 @@ import (
 	"io"
 	"math"
 	"sort"
-	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/spf13/afero"
 )
 
@@ -1787,7 +1787,7 @@ func dayOfWeek(daysSinceEpoch int64) int {
 }
 
 func daysToISO(days int64) string {
-	t := time.Unix(days*86400, 0).UTC()
+	t := temporal.DayToTime(days)
 	return t.Format("2006-01-02")
 }
 

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -18,28 +20,77 @@ import (
 // shards on the join leg. See skills/join-design.md for the v1
 // scope envelope.
 func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*types.Response, error) {
-	if len(req.Joins) > 1 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_TOO_MANY,
-			"v1 supports exactly one JoinSpec per Request",
-			map[string]any{"count": len(req.Joins)})
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req)
+	if err != nil {
+		return nil, err
 	}
-	spec := req.Joins[0]
-	if spec == nil {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
+	defer leftIter.Close()
+
+	// Strip Joins from the spec passed to the processor so the
+	// processor's standard pipeline runs against the joined records
+	// without re-triggering join logic.
+	clone := *req
+	clone.Joins = nil
+	clone.Cohort = nil
+
+	s.applyDefaults(&clone, joinedSchema)
+	if err := s.resolveZones(&clone, joinedSchema); err != nil {
+		return nil, err
 	}
-	if len(spec.On) == 0 {
-		return nil, errors.NewCodedError(errors.PULSE_JOIN_KEYS_EMPTY,
-			"JoinSpec.On is empty; at least one OnPair is required")
+	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
+		return nil, err
 	}
 
+	proc := processing.NewProcessorWithExtensions(joinedSchema, s.extensions)
+	proc.SetDisableComponents(s.effectiveDisableComponents(req))
+	resp, err := proc.Process(ctx, &clone, join)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Metadata != nil {
+		resp.Metadata.CohortFile = leftPath
+	}
+	// Inject configured default label bindings against the joined output
+	// schema before rendering. Defaults whose field was renamed by a
+	// JoinSpec.As prefix simply do not match and are skipped.
+	s.applyAutoLabels(&req.Labels, joinedSchema, collectOutputLabels(req), nil)
+	if err := s.buildAndApplyLabels(req, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// openJoinStream builds the joined row stream for a Request carrying
+// exactly one JoinSpec: the right side is opened and fully decoded into
+// a slice of Records, hashed by the join-key tuple, and the left side
+// is wrapped in a HashJoinIterator. It is shared by processWithJoin and
+// the crosstab arm (processCrosstabWithJoin) so both read the identical
+// joined stream. The returned left scan iterator is the one the join
+// wraps: the caller owns it (Close, and Err after draining) whenever
+// err is nil.
+//
+// Process applied descx.JoinCountRefusal before either caller runs.
+func (s *Service) openJoinStream(ctx context.Context, req *types.Request) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
+	spec := req.Joins[0]
+	if spec == nil {
+		return nil, nil, "", nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
+	}
 	leftPath := resolveCohortPath(req.Cohort)
 	leftCohort, err := s.Open(ctx, leftPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, "", nil, err
 	}
 	rightCohort, err := s.Open(ctx, spec.Right)
 	if err != nil {
-		return nil, err
+		return nil, nil, "", nil, err
+	}
+	// Kind and OnPairs, before the right side is decoded: the one
+	// join-key rule predict and the validators call
+	// (internal/encoding.JoinKeysRefusals). A located refusal, like the
+	// join-count rule: Compose adds details.request, a chain
+	// details.stage.
+	if err := encx.JoinKeysRefusal(leftCohort.Schema(), rightCohort.Schema(), spec); err != nil {
+		return nil, nil, "", nil, markLocated(err)
 	}
 
 	// Materialise the right side as a slice. v1 does not spill; the
@@ -65,41 +116,14 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 		rightRecords = append(rightRecords, processing.NewRecordWithWide(src.Schema(), values, nulls, wide))
 	}
 	if rightIter.Err() != nil {
-		return nil, rightIter.Err()
+		return nil, nil, "", nil, rightIter.Err()
 	}
 
 	leftIter := s.newScanIter(leftCohort, leftPath)
-	defer leftIter.Close()
-
 	join, joinedSchema, err := processing.NewHashJoinIterator(leftIter, rightRecords, leftCohort.Schema(), rightCohort.Schema(), spec)
 	if err != nil {
-		return nil, err
+		_ = leftIter.Close()
+		return nil, nil, "", nil, err
 	}
-
-	// Strip Joins from the spec passed to the processor so the
-	// processor's standard pipeline runs against the joined records
-	// without re-triggering join logic.
-	clone := *req
-	clone.Joins = nil
-	clone.Cohort = nil
-
-	s.applyDefaults(&clone, joinedSchema)
-
-	proc := processing.NewProcessorWithExtensions(joinedSchema, s.extensions)
-	proc.SetDisableComponents(s.effectiveDisableComponents(req))
-	resp, err := proc.Process(ctx, &clone, join)
-	if err != nil {
-		return nil, err
-	}
-	if resp.Metadata != nil {
-		resp.Metadata.CohortFile = leftPath
-	}
-	// Inject configured default label bindings against the joined output
-	// schema before rendering. Defaults whose field was renamed by a
-	// JoinSpec.As prefix simply do not match and are skipped.
-	s.applyAutoLabels(&req.Labels, joinedSchema, collectOutputLabels(req), nil)
-	if err := s.buildAndApplyLabels(req, resp); err != nil {
-		return nil, err
-	}
-	return resp, nil
+	return join, joinedSchema, leftPath, leftIter, nil
 }

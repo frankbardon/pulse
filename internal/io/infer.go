@@ -126,6 +126,9 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 	if len(columns) == 0 {
 		return nil, errors.NewCodedError(errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS, "no columns in header")
 	}
+	if err := checkOverrideColumns(columns, opts.ColumnTypeOverrides); err != nil {
+		return nil, err
+	}
 
 	numCols := len(columns)
 	samples := make([][]string, numCols)
@@ -158,8 +161,24 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 
 	byteOffset := 0
 	for i, colName := range columns {
-		ft, nullable, delim, colWarnings, err := inferColumnTypeWithOpts(colName, samples[i],
-			minPct, opts.ColumnTypeOverrides[colName])
+		// Presence, never the value, decides whether a column is forced:
+		// FieldTypeU8 is the iota zero of FieldType, so a zero-value test
+		// would read an override to u8 as "no override" and let inference
+		// narrow the column (to u4 for 1..4) — the E4-S13 defect.
+		var (
+			ft               encoding.FieldType
+			nullable         bool
+			delim            string
+			colWarnings      []InferenceWarning
+			precision, scale uint8
+		)
+		if override, forced := opts.ColumnTypeOverrides[colName]; forced {
+			var ov forcedColumn
+			ov, colWarnings, err = applyTypeOverride(colName, samples[i], override)
+			ft, nullable, delim, precision, scale = ov.Type, ov.Nullable, ov.Delim, ov.Precision, ov.Scale
+		} else {
+			ft, nullable, delim, colWarnings, err = inferColumnTypeWithOpts(colName, samples[i], minPct)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -174,6 +193,8 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 			Nullable:     nullable,
 			ByteOffset:   byteOffset,
 			CsvColumnIdx: i,
+			Precision:    precision,
+			Scale:        scale,
 		}
 		if ft.IsBitPacked() {
 			byteOffset++
@@ -199,20 +220,14 @@ func ErrStopIteration() error {
 	return errStopIteration
 }
 
-// inferColumnTypeWithOpts is the parameterised inference entry. It
-// honours the column-type override (when non-zero), respects the set
-// inference threshold for delimited-cell detection, and returns the
-// chosen delimiter alongside the field type so importers can pack
-// per-row masks consistently. Delegates to inferColumnType for the
-// no-override / default-threshold path so the legacy entry stays a
-// straight pass-through.
+// inferColumnTypeWithOpts is the parameterised inference entry for a
+// column with NO override (a forced column goes through
+// applyTypeOverride instead). It respects the set inference threshold
+// for delimited-cell detection and returns the chosen delimiter
+// alongside the field type so importers can pack per-row masks
+// consistently.
 func inferColumnTypeWithOpts(colName string, values []string, minPct int,
-	override encoding.FieldType,
 ) (encoding.FieldType, bool, string, []InferenceWarning, error) {
-	if override != 0 {
-		ft, nullable, delim, warnings := applyTypeOverride(colName, values, override)
-		return ft, nullable, delim, warnings, nil
-	}
 	if len(values) == 0 {
 		return encoding.FieldTypeF64, false, "", nil, nil
 	}
@@ -309,41 +324,6 @@ func inferColumnTypeWithOpts(colName string, values []string, minPct int,
 		})
 	}
 	return catType, hasNulls, "", warnings, nil
-}
-
-// applyTypeOverride bypasses inference for a column. Nullability is
-// still derived from the sampled values (null tokens flip the flag).
-// For set fields the delimiter probes the same priority list and falls
-// back to DefaultSetDelimiter when no probe fires.
-func applyTypeOverride(colName string, values []string, override encoding.FieldType,
-) (encoding.FieldType, bool, string, []InferenceWarning) {
-	hasNulls := false
-	nonNullValues := make([]string, 0, len(values))
-	for _, v := range values {
-		trimmed := strings.TrimSpace(v)
-		if trimmed == "" ||
-			strings.EqualFold(trimmed, "null") ||
-			strings.EqualFold(trimmed, "na") ||
-			strings.EqualFold(trimmed, "n/a") {
-			hasNulls = true
-		} else {
-			nonNullValues = append(nonNullValues, trimmed)
-		}
-	}
-	if override.IsSet() {
-		delim := pickSetDelimiter(nonNullValues)
-		if delim == "" {
-			delim = DefaultSetDelimiter
-		}
-		return override, hasNulls, delim, []InferenceWarning{{
-			Column:  colName,
-			Message: fmt.Sprintf("column %q forced to %s via column_type_overrides", colName, override),
-		}}
-	}
-	return override, hasNulls, "", []InferenceWarning{{
-		Column:  colName,
-		Message: fmt.Sprintf("column %q forced to %s via column_type_overrides", colName, override),
-	}}
 }
 
 // pickSetDelimiter scans the priority list and returns the first

@@ -42,6 +42,7 @@ The joined schema is `left_fields + right_fields` (with `as` prefix on right). A
 - **Inner only.** `PULSE_JOIN_KIND_NOT_IMPLEMENTED` for `"left"` / `"outer"` / `"anti"`. Outer-join correctness depends on the null-bitmap path being fully wired through every right-side field.
 - **No spill.** Right materialises fully in RAM. Memory cost `O(right_records × per_record_state)`. Future iteration adds `PULSE_JOIN_SPILL_DIR` + `PULSE_JOIN_MAX_MEMORY_BYTES` + a partition-then-build-per-partition algorithm.
 - **No smarter-side detection.** Build is always `right`. Follow-up swaps when `count(right) > count(left)` via `pulse.CountRecords`.
+- **Crosstab honours the join.** `Request.Crosstab` crosstabs the JOINED rows — axes / cell may name `as`-prefixed fields, unmatched left rows reach no cell or margin — always buffered (the fused walk declines joins).
 - **No shard-parallel join.** When the left cohort is a shard archive, the per-shard parallel reducer does not engage on joined requests today.
 
 ## OnPair key type compatibility
@@ -58,11 +59,9 @@ Rejects:
 - `decimal128` ↔ any other type — precision/scale matter for hash bucketing.
 - `categorical_*` ↔ a non-categorical numeric type.
 
-`decimal128` keys compare on their **exact 128-bit mantissa bytes**, not the `Float64(scale)` echo — otherwise two decimals closer than float64's spacing share a key. Safe to special-case: `decimal128` is admitted only against `decimal128`.
-
 Mismatches surface `PULSE_JOIN_TYPE_MISMATCH` with the offending field names + types in `details`; a set-key rejection adds `details.reason = "set_key"` and its own sentence, since "not compatible" reads as a typo when both sides carry the same rung. Fix by re-importing one side with a matching type.
 
-**Known limit:** a `u64` key above 2^53 rides that same `float64` echo, so two ids rounding to one float join as equal. Unfixed — it needs the whole unsigned-int/float/date family renormalised together.
+`decimal128` keys compare on their exact mantissa; a `u64` key above 2^53 is a known float-echo limit — both in `.claude/reference/execution-modes.md` (Pushdown hash join).
 
 ## Field collisions and `As` prefix
 
@@ -70,13 +69,13 @@ The joined schema unions left + right field names. Two fields with the same name
 
 ## Validation surface
 
-`internal/descriptor.ValidateJoin(left, right io.ReadSeeker, req)` is the no-execute predict equivalent. Reads both files' header + schema, validates every `OnPair`, emits the inferred joined field list at `result.joined_fields`. Error codes mirror runtime: `PULSE_JOIN_KIND_NOT_IMPLEMENTED`, `PULSE_JOIN_FIELD_UNKNOWN`, `PULSE_JOIN_TYPE_MISMATCH`, `PULSE_JOIN_KEYS_EMPTY`, `PULSE_JOIN_FIELD_COLLISION`, `PULSE_JOIN_TOO_MANY`. Descriptor manifest exposes `Manifest.Join` (`JoinCapability`) with the v1 kind allowlist, the spill envelope (zero today), and the limitations list.
+`internal/descriptor.ValidateJoin(left, right io.ReadSeeker, req)` is the no-execute predict equivalent. Reads both files' header + schema, validates every `OnPair`, emits the inferred joined field list at `result.joined_fields`. Codes, messages and details match runtime: `PULSE_JOIN_KIND_NOT_IMPLEMENTED`, `PULSE_JOIN_FIELD_UNKNOWN`, `PULSE_JOIN_TYPE_MISMATCH`, `PULSE_JOIN_KEYS_EMPTY` (one key rule, `JoinKeysRefusals`), `PULSE_JOIN_FIELD_COLLISION`, `PULSE_JOIN_TOO_MANY` (`JoinCountRefusal`); both rules are shared with runtime `Process` — crosstab included — predict and the Compose / chain validators. `Manifest.Join` (`JoinCapability`) carries the kind allowlist, the spill envelope (zero) and the limitations.
 
 ## Performance notes
 
 - **Inner join + mergeable downstream operators stays mergeable** in principle, but the per-shard parallel reducer does not engage on joined requests in v1. Joined requests run serial until the per-shard wiring lands.
-- **Build cost** is proportional to right-side record count. Tall right cohorts (10M+ rows) can dominate the memory budget — split via shard archives + per-shard joins, or wait for the spill path.
-- **Probe cost** is `O(left_records)` at one hash-lookup per row. Categorical keys go through the dictionary resolver per row; high-cardinality string keys pay hash overhead.
+- **Build cost** scales with right-side record count; tall right cohorts (10M+ rows) can dominate memory — split via shard archives + per-shard joins.
+- **Probe cost** is `O(left_records)`, one hash lookup per row; categorical keys resolve through the dictionary per row.
 
 ## See
 

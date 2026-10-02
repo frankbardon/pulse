@@ -33,9 +33,9 @@ Entry shape:
 |---|---|---|
 | `type` | yes | One of the registered `WIN_*` constants (`pulse_manifest`). |
 | `field` | conditional | Required for value-bearing ops; forbidden for `WIN_ROW_NUMBER` / `WIN_RANK` / `WIN_DENSE_RANK`. |
-| `label` | no | Output column name; default `<TYPE>_<field>`. |
+| `label` | no | Output column; default `<TYPE>_<field>`. Naming an existing output column or earlier window label is `SERVICE_VALIDATION` (shadow). |
 | `partition_by` | no | Field names. Empty → single global partition. |
-| `order_by` | yes (≥1) | `{field, desc}`. Field must be numeric or `date` — categorical / bool keys are rejected at predict. |
+| `order_by` | yes (≥1) | `{field, desc}`. Any type but `set_*` (`PULSE_WINDOW_INVALID`, predict and runtime): numbers / `decimal128` by value, `date` / `datetime` by signed epoch (pre-1970 first), `packed_bool` false first, categorical by LABEL byte-wise. Nulls last in BOTH directions — `desc` reverses non-null values only. |
 | `frame` | conditional | Required for `RUNNING_*` / `MOVING_AVG` / `EWMA`. Forbidden for `LAG` / `LEAD` / `ROW_NUMBER` / `RANK` / `DENSE_RANK` / `PCT_CHANGE` / `DELTA`. Mode always `"rows"` in v1. |
 | `params` | per op | Operator-specific overrides (`offset`, `alpha`, `periods`, `default`, ...). |
 
@@ -44,7 +44,7 @@ Entry shape:
 The three axes every window shares:
 
 - **Partition** — `partition_by` carves the row set into independent slices. The math computes inside one slice and never crosses. Empty → one global slice.
-- **Order** — `order_by` defines the scan direction inside the partition. Stable, nulls-last comparator. Date fields sort numerically (epoch days).
+- **Order** — `order_by` defines the scan direction inside the partition. Stable, nulls-last comparator (under `desc` too; shared with `Request.Sort` and post-test `order_by`). Date / datetime fields sort numerically (signed epoch days / seconds).
 - **Frame** — bounds the rows the operator can read relative to the current row.
 
 Frame (mode `"rows"`): `preceding: null` → UNBOUNDED PRECEDING; `preceding: N` → up to N rows before; `following: null` → UNBOUNDED FOLLOWING; `following: N` → up to N rows after; `preceding: 0, following: 0` → current row only.
@@ -66,13 +66,13 @@ Windows sharing a `(partition_by, order_by)` tuple share the sort — O(n log n)
 
 `WIN_DELTA` and `WIN_PCT_CHANGE` share every slot — same `periods`, no frame, same null rules — and answer different questions. `WIN_DELTA` subtracts, so it reads in the FIELD'S OWN UNITS; `WIN_PCT_CHANGE` divides, so it reads as a ratio of the prior.
 
-For a percentage-valued metric (a 0–100 score, a share), 97.9 against 90.0 is a gap of 7.9 points (`WIN_DELTA`) or 8.8% (`WIN_PCT_CHANGE`) — both render as "the gap" and they are different numbers. Points are honest when the metric already IS a percentage; the ratio when the base moves. A zero prior is a real delta and a null pct-change.
+For a percentage-valued metric, 97.9 vs 90.0 is 7.9 points (`WIN_DELTA`) or 8.8% (`WIN_PCT_CHANGE`) — both read as "the gap". Points are honest when the metric IS a percentage; the ratio when the base moves. A zero prior is a real delta and a null pct-change.
 
 ## Streamability per window
 
 Any non-empty `windows` slate forces the BUFFERED path. Windows require a sort over the row set, incompatible with the single-pass streaming aggregator. Predict marks the request `Streamable=false` whenever `len(windows) > 0`.
 
-The per-op answer today is uniformly "no" — every registered `WIN_*` operator needs scan order, and `WindowType.Streamable()` (`types/streamability.go`) returns `false` unconditionally. The method exists so a future exception stays declarable.
+Every registered `WIN_*` needs scan order; `WindowType.Streamable()` (`types/streamability.go`) returns `false` unconditionally, kept so a future exception stays declarable.
 
 For very large cohorts, pre-partition by `partition_by` or push the math into the import — sort cost dominates.
 
@@ -80,7 +80,7 @@ For very large cohorts, pre-partition by `partition_by` or push the math into th
 
 **Window operators emit row-level values; they do not produce `Response.Components`.** Components covers aggregations, groupers, filterers, crosstab and run — not windowed columns. To audit a windowed column, read it from `Response.Data` or wrap it in an aggregation (`AGG_MEAN` over the windowed label).
 
-The windowed-Process `OVERLAY_*` family (`OVERLAY_INDEX_VS_PRIOR`, `OVERLAY_YOY`, `OVERLAY_DELTA_VS_BASELINE`, …) is the sibling surface for windowed analytics that DOES produce typed payloads — use overlays when you want renderer-visible comparison values keyed to host coordinates; use `WIN_*` when you want the comparison rolled into a per-record column. See `overlay-system`.
+The windowed-Process `OVERLAY_*` family (`OVERLAY_INDEX_VS_PRIOR`, `OVERLAY_YOY`, …) DOES produce typed payloads — use overlays for renderer-visible comparisons keyed to host coordinates, `WIN_*` for a per-record column. See `overlay-system`.
 
 ## Gotchas
 

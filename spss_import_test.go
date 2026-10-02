@@ -95,7 +95,7 @@ func TestSPSS_ImportProducesQueryableCohort(t *testing.T) {
 		Cohort: &types.Cohort{Filename: res.Path},
 		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "SEX"}},
 		Aggregations: []*types.Aggregation{
-			{Type: types.AGG_COUNT, Label: "n"},
+			{Type: types.AGG_COUNT, Field: "ID", Label: "n"},
 		},
 	})
 	if err != nil {

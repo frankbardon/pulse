@@ -70,6 +70,12 @@ type FacetRequest struct {
 	// reference one of FacetRequest.Fields) — when the FacetRequest
 	// declares exactly one Field the slot may be omitted.
 	Overlays []OverlaySpec `json:"overlays,omitempty"`
+
+	// TimeZone is the request-level IANA zone (`"UTC"` or an
+	// `Area/Location` name) inherited by every zone-capable filterer
+	// that sets no `tz` of its own. Empty inherits
+	// pulse.Options.DefaultTimeZone, then UTC.
+	TimeZone string `json:"time_zone,omitempty"`
 }
 
 // FacetResult is the response shape returned by pulse.FacetSchema.

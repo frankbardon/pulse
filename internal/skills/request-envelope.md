@@ -9,32 +9,30 @@ covers: [Request, ComposedRequest, ChainRequest, FacetRequest, SampleRequest, En
 
 # Request envelope
 
-The Pulse wire contract — what goes in, what comes back, what the slot keys are, what the engine fills in for you.
-
 ## Envelope (response side)
 
 Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 
 ```json
-{"format_version": "1.0", "data": {...}, "request": {...}, "errors": [], "warnings": []}
+{"format_version": "1.1", "data": {...}, "request": {...}, "errors": [], "warnings": []}
 ```
 
-- `format_version` — `"1.0"`. Additive `data` fields do NOT bump; renames / removals do.
+- `format_version` — `"1.1"`. Additive `data` fields do NOT bump; renames / removals do.
 - `data` — operation-specific payload.
-- `request` — opt-in normalized-request echo (`EchoRequest: true` / `--echo-request`). Streaming skips.
+- `request` — opt-in echo of the *normalized* request (defaults applied; `EchoRequest: true` / `--echo-request`). Streaming skips.
 - `errors` / `warnings` — always arrays (never null). Each: `{code, message, details}`. Resolve via `pulse_errors_lookup`.
 
 ## Request shapes (per command)
 
 | Command | Wire type | Top-level keys |
 |---|---|---|
-| `pulse_process`, `pulse_predict`, `pulse api process` | `Request` | `cohort, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs` |
+| `pulse_process`, `pulse_predict`, `pulse api process` | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs` |
 | `pulse_compose`, `pulse api compose` | `ComposedRequest` | `requests[]` (each = `Request`) |
 | `pulse_process_chain`, `pulse api process-chain` | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
-| `pulse_facet`, `pulse api facet` | `FacetRequest` | `cohort, fields[], top_k, percentiles, histogram, additive, overlays` |
+| `pulse_facet`, `pulse api facet` | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
 | `pulse_sample`, `pulse api sample` | `SampleRequest` | `cohort, count, offset` |
 
-`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. Tests / joins / crosstab / overlays plug specific stages — see per-skill.
+`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a column, and an aggregation label equal to a group field or another aggregation label.
 
 ## Canonical process Request
 
@@ -52,7 +50,7 @@ Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
 
 ## Slot-key gotchas
 
-Unknown keys are silently dropped on decode — the engine does NOT warn.
+Unknown keys are silently dropped on decode.
 
 | Wrong | Right |
 |---|---|
@@ -83,42 +81,31 @@ Rules: never override explicit `type`; never cross categories; `Nullable` irrele
 
 `pulse_predict` returns `data.streamable: bool` + `data.streamable_reasons: []string`.
 
-- **Streams:** no-group online aggs; grouped when every grouper is `GROUP_CATEGORY`/`RANGE`/`ROUNDED` AND every agg is online; row-local attrs (`ATTR_FORMULA`/`DATE_PART`); two-pass attrs (`ATTR_ZSCORE`/`TSCORE`/`NORMALIZED`) via Welford.
-- **Buffers:** median/percentile/ZScore aggs; `ATTR_PERCENTILE`; `GROUP_QUANTILE`/`DATE`; any windows; decimal aggs; two-pass attrs with features or groups; tier-2 post tests.
+- **Streams:** online aggs, ungrouped or under `GROUP_CATEGORY`/`RANGE`/`ROUNDED`; row-local attrs; two-pass attrs (`ATTR_ZSCORE`/…) via Welford.
+- **Buffers:** median/percentile aggs; `ATTR_PERCENTILE`; `GROUP_QUANTILE`/`DATE`; windows; decimal aggs; two-pass attrs with features/groups; tier-2 post tests.
 
 `streamable_reasons` is authoritative.
 
-## Echo request
+## Response.Components
 
-`--echo-request` / `pulse.Options.EchoRequest: true` populates `envelope.request` with the *normalized* request (defaults applied, slots validated, schema bound). Streaming skips. Use it to confirm defaults or debug silent slot-key drops.
+`Response.Components` is additive `omitempty`: `aggregations[i]` `{n, n_null, operator}`, `groupers[i]` `{total_n, n_null, operator}`, `crosstab`, `filterers[i]` `{n_in, n_out, n_null_input}`, `run`. Per-operator keys: `manifest.components_schemas`; full contract: skill `response-components`.
 
-## Response.Components (v0.20.0, additive)
+## Time zones
 
-`Response.Components *ResponseComponents`, additive `omitempty`. Marshals to no `components` key when unpopulated. `format_version` stays `"1.0"` (additive-only).
+`time_zone` sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request; `SampleRequest`: none). Slot `tz` sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — a slot key, never inside `params`. Names are `UTC` or IANA `Area/Location` (`Europe/Berlin`, `Etc/GMT-5`); `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
-Per-family shape (one entry per matching Request slot, declared order):
+Precedence per slot: `tz` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; `OVERLAY_YOY` is `zone: "following"` (inherits its host grouper); extension operators are never capable.
 
-```
-data.components.aggregations[i]  -> {n, n_null, operator: {<operator-keys>}}
-data.components.groupers[i]      -> {total_n, n_null, operator: {<bucket-layout>}}
-data.components.crosstab         -> {cell_counts[r][c], cell_components[r][c], row/column/grand margins, axis_key_components}
-data.components.filterers[i]     -> {n_in, n_out, n_null_input}
-data.components.run              -> {total_records, filtered_records, null_records, shard_count, partial_cohort_reason}
-```
-
-Universal floor filled by the orchestrator. Per-operator keys ride inside `operator` (cell maps for crosstab). Resolve keys via `manifest.components_schemas.{aggregators,groupers,filterers}[name].keys`.
-
-**First sight:** call `pulse_skills_get` with `name: "response-components"` — canonical consumption reference with full key tables, mergeability axis, streaming behaviour.
+Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `tz` on a `date` field (even `"UTC"`); and — until zone-aware operator math lands — any non-UTC zone reaching a `datetime` (or derived) field. Compose/chain refusals add `details.request`/`stage`. An inherited zone on a `date` field is not applied. UTC (and fixed-zero aliases like `Etc/UTC`) is byte-identical to no zone.
 
 ## Predict-specific data fields
 
-`streamable`, `streamable_reasons`, `defaults_applied`, `suggestions` (when `on_invalid="suggest"`), per-slot `buffered_components` (true for non-mergeable: median, percentile, quantile).
+`streamable`, `streamable_reasons`, `defaults_applied`, `time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
 
 ## Cross-links
 
 - `response-components` — full Components contract + per-operator keys.
 - `session-bootstrap` — MCP session order.
-- `aggregation-design` / `grouper-design` / `attribute-composition` — per-category slot shapes.
-- `compose-requests` — `ComposedRequest` semantics; `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
+- `aggregation-design` / `grouper-design` / `attribute-composition` — slot shapes.
+- `compose-requests`; `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
 - `streaming-and-watching` — stream chunks, request hashing, watch loop.
-- `docs/src/internals/debugging-predict.md` — predict iteration loop.

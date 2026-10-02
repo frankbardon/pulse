@@ -121,7 +121,16 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		result.Valid = false
 		return env
 	}
+	// Zone resolution per slot — the pass Compose runs inside each
+	// slot's Process — against the slot's cohort (or joined) schema
+	// read through opts.SchemaLoader. A refusal carries the slot index
+	// under details.request, as the runtime's does.
+	validateComposeSlots(env, req, opts)
+
 	if len(req.Overlays) == 0 {
+		if len(env.Errors) > 0 {
+			result.Valid = false
+		}
 		// Nothing to validate at the overlay surface; downstream
 		// per-slot validation (the standard Predict on each Request)
 		// runs through a separate entry point.
@@ -727,4 +736,41 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 		TargetLabel:    target,
 		Reason:         reason,
 	})
+}
+
+// validateComposeSlots runs each slot's runtime-entry checks in the
+// runtime's order — the join-count rule (JoinCountRefusal), the
+// join-key rule for a join, zones the way the runtime resolves them
+// (defaults, then ResolveZones), then the field-reference rule
+// (FieldRefRefusals) on the defaulted slot — and records each refusal
+// tagged with its slot index. Without a SchemaLoader (or for a cohort it
+// cannot read) the slot resolves schema-less: the field-independent
+// refusals still apply, the field-dependent ones are left to the
+// runtime.
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions) {
+	for i, slot := range req.Requests {
+		if slot == nil {
+			continue
+		}
+		// The slot's Process refuses a second JoinSpec before it
+		// resolves a zone; Compose locates it like a zone refusal.
+		if jerr := JoinCountRefusal(slot); jerr != nil {
+			addCodedError(env, RefusalAt(jerr, "request", i))
+			continue
+		}
+		schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+		if len(keyRefusals) > 0 {
+			for _, ce := range keyRefusals {
+				addCodedError(env, RefusalAt(ce, "request", i))
+			}
+			continue
+		}
+		if _, err := resolveRequestZones(slot, schema, opts); err != nil {
+			addCodedError(env, RefusalAt(err, "request", i))
+			continue
+		}
+		for _, ce := range FieldRefRefusals(defaultedForValidation(slot, schema, opts), schema, extensionsFromOpts(opts)) {
+			addCodedError(env, RefusalAt(ce, "request", i))
+		}
+	}
 }

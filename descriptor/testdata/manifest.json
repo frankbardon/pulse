@@ -1823,7 +1823,8 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "zone": "capable"
         },
         {
           "name": "ATTR_FORMULA",
@@ -2094,7 +2095,8 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "zone": "capable"
         },
         {
           "name": "FILTER_EXCLUDE",
@@ -2692,7 +2694,8 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "zone": "capable"
         },
         {
           "name": "GROUP_DATE_RANGES",
@@ -2748,7 +2751,8 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "zone": "capable"
         },
         {
           "name": "GROUP_QUANTILE",
@@ -3409,7 +3413,8 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "zone": "capable"
         },
         {
           "name": "FEAT_FREQUENCY_ENCODE",
@@ -3480,6 +3485,7 @@
           ],
           "accepts_types": [
             "date",
+            "decimal128",
             "f32",
             "f64",
             "u16",
@@ -5009,7 +5015,7 @@
         ]
       }
     ],
-    "error_codes_count": 243,
+    "error_codes_count": 246,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5050,6 +5056,7 @@
       "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
+      "PULSE_CHAIN_STAGE_JOIN",
       "PULSE_COHORT_COMPRESSED",
       "PULSE_COMPOSE_LABEL_COLLISION",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
@@ -5100,6 +5107,7 @@
       "PULSE_IMPORT_FORMAT_UNKNOWN",
       "PULSE_IMPORT_HANDLE_EXISTS",
       "PULSE_IMPORT_NULL_PROMOTED",
+      "PULSE_IMPORT_OVERRIDE_INVALID",
       "PULSE_IMPORT_ROW_ERROR",
       "PULSE_IMPORT_SCHEMA_AMBIGUOUS",
       "PULSE_IMPORT_SET_OVERFLOW",
@@ -5256,6 +5264,7 @@
       "PULSE_TEST_TUKEY_REQUIRES_K_GE_3",
       "PULSE_TEST_UNKNOWN_TYPE",
       "PULSE_TEST_VARIANCE_ZERO",
+      "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
@@ -6161,6 +6170,7 @@
           "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
+          "FEAT_POLY",
           "FEAT_TRAIN_TEST_SPLIT"
         ]
       },
@@ -7340,7 +7350,7 @@
       },
       {
         "name": "type-datetime",
-        "description": "Second-granularity instant stored as epoch seconds in an 8-byte unsigned slot, naive UTC."
+        "description": "Second-granularity instant stored as signed epoch seconds (int64, negative = pre-1970), naive UTC."
       },
       {
         "name": "type-decimal128",
@@ -7551,8 +7561,10 @@
         "chain rejects AGG_FREQUENCY and AGG_MODE (non-scalar emit)",
         "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
         "chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
-        "chain rejects decimal128 aggregation targets",
-        "chain rejects extension aggregators (custom MergeOnline surface deferred)"
+        "chain rejects built-in aggregators over decimal128 targets",
+        "chain rejects extension aggregators and groupers not declared Mergeable",
+        "chain rejects non-streamable filterers",
+        "chain rejects Joins on any stage after stage 0 (PULSE_CHAIN_STAGE_JOIN)"
       ],
       "overlay_kinds": [
         "OVERLAY_DELTA_VS_STAGE",
@@ -7607,7 +7619,8 @@
         "v1: build side is always the spec.Right cohort; smaller-side detection arrives in a follow-up.",
         "Per-OnPair type compatibility: identical types match, categorical_* match each other, the unsigned-int + float + date family is interchangeable. decimal128 keys reject cross-type comparisons and compare on their exact 128-bit mantissa, never the float64 echo.",
         "set_* columns cannot be a join key at any rung — PULSE_JOIN_TYPE_MISMATCH with details.reason=\"set_key\", even when both sides carry the identical rung. A multi-select bitmask has no unambiguous equality value; use a FILTER_SET_* membership predicate. Carrying a set column THROUGH a join is unaffected.",
-        "Joined records flow through the standard processor pipeline (filter / attribute / group / aggregator)."
+        "Joined records flow through the standard processor pipeline (filter / attribute / group / aggregator).",
+        "A crosstab (Request.Crosstab) honours its one JoinSpec: rows, columns and cell resolve against the joined schema and every cell / margin / Components count is over joined rows. It always runs the buffered crosstab arm — the fused walk declines a joined request."
       ]
     },
     "crosstab": {
@@ -8322,7 +8335,8 @@
           "YoY"
         ],
         "buffered": true,
-        "description": "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES (grouped Process) host whose grouper is GROUP_DATE: point_value / prior_year_value * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the YoY ratio on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_ZSCORE_VS_ROLLING, and the first consumer of the empty Ref.YoY marker arm of the OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to req.Groups[0].Params[\"frequency\"] (the canonical GROUP_DATE authoring slot). Per-frequency stride: annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week realignment in v1), daily ⇒ exact-date 365-days-prior lookup against the host key index (Feb 29 in a non-leap prior year emits NaN — no exact-key match), hourly ⇒ exact-hour 365×24-hour-prior lookup. The host's first grouper MUST be GROUP_DATE; non-DATE hosts fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at both predict and runtime. Missing frequency Param fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set frequency value fires PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency, supported} Details. First-year ordinals (coarse-frequency arms whose prior-year index lands at \u003c0; fine-frequency arms whose prior-year date does not match an exact host key) emit NaN without warning — \"no comparison available\" is structurally distinct from \"denominator was zero\". Zero prior-year value emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entry. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.YoY MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / RollingMean / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the year-over-year lookup folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_ROLLING_MEAN family. Buffered — the per-frequency prior-period lookup requires the materialised host series (coarse-frequency arms index into an arbitrary prior ordinal; fine-frequency arms walk an exact-key index built from the full host key list). Renderers centre diverging colour ramps on baseline=100."
+        "description": "Per-point year-over-year ratio against the same period one year prior in an ordered SERIES (grouped Process) host whose grouper is GROUP_DATE: point_value / prior_year_value * 100. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the YoY ratio on Summary.Statistic. Member of the windowed-Process overlay family alongside OVERLAY_INDEX_VS_PRIOR / OVERLAY_INDEX_VS_BASELINE / OVERLAY_DELTA_VS_BASELINE / OVERLAY_INDEX_VS_ROLLING_MEAN / OVERLAY_ZSCORE_VS_ROLLING, and the first consumer of the empty Ref.YoY marker arm of the OverlayRef discriminated union. The frequency value (annual | quarterly | monthly | weekly | daily | hourly) lives on OverlaySpec.Params[\"frequency\"] (the YoY's own override) or falls back to req.Groups[0].Params[\"frequency\"] (the canonical GROUP_DATE authoring slot). Per-frequency stride: annual ⇒ i-1, quarterly ⇒ i-4, monthly ⇒ i-12, weekly ⇒ i-52 (calendar-week aligned; no day-of-week realignment in v1), daily ⇒ exact-date 365-days-prior lookup against the host key index (Feb 29 in a non-leap prior year emits NaN — no exact-key match), hourly ⇒ exact-hour 365×24-hour-prior lookup. The host's first grouper MUST be GROUP_DATE; non-DATE hosts fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at both predict and runtime. Missing frequency Param fires PULSE_OVERLAY_YOY_FREQUENCY_MISSING; out-of-set frequency value fires PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY with {frequency, supported} Details. First-year ordinals (coarse-frequency arms whose prior-year index lands at \u003c0; fine-frequency arms whose prior-year date does not match an exact host key) emit NaN without warning — \"no comparison available\" is structurally distinct from \"denominator was zero\". Zero prior-year value emits ONE PULSE_OVERLAY_REF_ZERO warning per layer and surfaces NaN on the affected entry. Absent host points (resolver reports (0, false)) emit a present SeriesEntry whose Summary leaves Statistic unset. Ref.YoY MUST be populated (empty marker is fine); any other ref-family pointer (Margin / Sibling / Prior / BaselineIndex / RollingMean / Population / Stage / Slot) fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Level / Within MUST be zero (windowed kind — the year-over-year lookup folds across the ordered axis without a prefix-bucket denominator); non-zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the INDEX_VS_PRIOR / INDEX_VS_ROLLING_MEAN family. Buffered — the per-frequency prior-period lookup requires the materialised host series (coarse-frequency arms index into an arbitrary prior ordinal; fine-frequency arms walk an exact-key index built from the full host key list). Renderers centre diverging colour ramps on baseline=100.",
+        "zone": "following"
       },
       {
         "kind": "OVERLAY_ZSCORE_VS_MARGIN",
@@ -9759,4 +9773,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8d32bc87379e3c8802d7f1b9ab39077da00f231e86a686a4b01632a774397731
+// golden-hash: 0b76ae5287d5affacec1dcc5dd34155cb7c34433382bcc57483edf5e962e8b63

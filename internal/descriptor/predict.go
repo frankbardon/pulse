@@ -116,6 +116,32 @@ type PredictOptions struct {
 	// the raw input request — the envelope field is the new uniform
 	// surface across all envelope-producing endpoints. Off by default.
 	EchoRequest bool
+
+	// DefaultTimeZone is pulse.Options.DefaultTimeZone — the zone a
+	// zone-capable slot inherits when neither its own `tz` nor the
+	// request's `time_zone` names one. Empty means UTC.
+	DefaultTimeZone string
+
+	// ZoneLoader resolves zone names (nil: temporal.LoadZone). The
+	// facade passes its per-instance cache so predict and the runtime
+	// resolve through the same loader.
+	ZoneLoader ZoneLoader
+
+	// DisableDefaults is pulse.Options.DisableDefaults. When set,
+	// predict validates the request WITHOUT smart defaults — exactly
+	// what the runtime executes — so a slot left with an empty Type is
+	// reported the way the runtime reports it. DefaultsApplied is still
+	// computed: it then lists the defaults that WOULD apply.
+	DisableDefaults bool
+
+	// SchemaLoader reads the header + schema of the cohort at a path
+	// (no record data). The facade passes the runtime's own cohort
+	// opener. Predict uses it for Request.Joins: the request is
+	// validated against the joined schema (internal/encoding.
+	// JoinedSchema, the rule the runtime builds its join over), so a
+	// right-side field is resolved by its real type. Nil leaves a join
+	// unresolved and validation runs against the left schema alone.
+	SchemaLoader func(path string) (*encoding.Schema, error)
 }
 
 // Predict validates a request against a .pulse file without executing it.
@@ -151,6 +177,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
 		OverlaysSchemaDivergence: []descriptor.SlotPair{},
 		OverlayCost:              map[string]float64{},
+		TimeZones:                []descriptor.ResolvedZone{},
 	}
 	env := descriptor.NewEnvelope(result)
 
@@ -177,12 +204,29 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		result.SchemaInfo.Fields = append(result.SchemaInfo.Fields, f.Name)
 	}
 
+	// More than one JoinSpec: the runtime refuses before it opens a
+	// cohort or applies a default, so predict reports it first.
+	if jerr := JoinCountRefusal(req); jerr != nil {
+		addCodedError(env, jerr)
+	}
+
+	// A join executes over the joined schema; validate against it.
+	// SchemaInfo above stays the cohort's own schema.
+	cohortSchema := schema
+	schema = predictJoinedSchema(env, req, schema, opts)
+
 	// Compute defaults on a clone so the echoed Request is untouched. The
 	// rest of validation runs against the resolved clone so a slot that
 	// only got its Type from the default rules table isn't flagged as
-	// missing a Type by downstream validators.
+	// missing a Type by downstream validators. Under DisableDefaults the
+	// runtime executes the request as written, so validation does too;
+	// DefaultsApplied still reports what the rules table would infer.
 	resolved := cloneRequestForDefaults(req)
-	if applied := ResolveDefaults(resolved, schema); len(applied) > 0 {
+	if opts.DisableDefaults {
+		if applied := ResolveDefaults(cloneRequestForDefaults(req), schema); len(applied) > 0 {
+			result.DefaultsApplied = applied
+		}
+	} else if applied := ResolveDefaults(resolved, schema); len(applied) > 0 {
 		result.DefaultsApplied = applied
 	}
 	req = resolved
@@ -194,6 +238,27 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if opts.EchoRequest {
 		env.Request = resolved
 	}
+
+	// Zone resolution — the same single pass the runtime runs before
+	// executing (ResolveZones). A refusal is a predict error carrying
+	// the runtime's own code and details.
+	if zones, zerr := ResolveZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader); zerr != nil {
+		addCodedError(env, zerr)
+	} else {
+		result.TimeZones = zones
+	}
+
+	// Field references — the one rule the runtime refuses with at the
+	// same point (after defaults and zones, against the schema the
+	// request executes over). Every unknown name is reported.
+	for _, ce := range FieldRefRefusals(req, schema, extensionsFromOpts(opts)) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+
+	// A slot still without an operator Type is refused by the runtime's
+	// operator construction; report it with the runtime's code and
+	// message.
+	validateOperatorTypes(env, req)
 
 	// Validate pre-filter feature operators and compute the post-feature
 	// column set so downstream stages can reference derived columns.
@@ -278,8 +343,8 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// "<field>_label" cannot shadow an aggregation/attribute label.
 	ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), projected)
 
-	// Check description quality.
-	validateDescriptionQuality(env, schema, opts)
+	// Check description quality (the cohort's own fields only).
+	validateDescriptionQuality(env, cohortSchema, opts)
 
 	// Compute streamability — per-type Streamable() methods plus schema-aware
 	// gates (decimal fields force buffered). Honours
@@ -434,6 +499,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 			OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []descriptor.SlotPair{},
 			OverlayCost:              map[string]float64{},
+			TimeZones:                []descriptor.ResolvedZone{},
 		}
 		env := descriptor.NewEnvelope(result)
 		env.AddError(string(errors.PULSE_ARCHIVE_CORRUPT), "invalid pulse shard archive: "+err.Error(), nil)
@@ -454,6 +520,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 			OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []descriptor.SlotPair{},
 			OverlayCost:              map[string]float64{},
+			TimeZones:                []descriptor.ResolvedZone{},
 		}
 		env := descriptor.NewEnvelope(result)
 		env.AddError(string(errors.PULSE_SHARD_MISSING),
@@ -482,6 +549,7 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 			OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
 			OverlaysSchemaDivergence: []descriptor.SlotPair{},
 			OverlayCost:              map[string]float64{},
+			TimeZones:                []descriptor.ResolvedZone{},
 		}
 		env := descriptor.NewEnvelope(result)
 		env.AddError(string(errors.ENCODING_INVALID),
@@ -522,10 +590,10 @@ func predictArchive(data []byte, req *types.Request, opts *PredictOptions) *desc
 	return env
 }
 
-// validateRequestFields checks that all referenced fields exist and that
-// numeric aggregations on categorical fields produce warnings. The
-// projected column set augments the schema with feature output names so
-// downstream stages can address derived columns.
+// validateRequestFields reports the schema-typed checks on the request's
+// slots (numeric aggregations on categorical fields, decimal
+// aggregations, regression and attribute shape). Whether a referenced
+// name exists at all is FieldRefRefusals' judgement, not this one's.
 func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, opts *PredictOptions) {
 	// Numeric aggregation on categorical field — single helper, strict
 	// promotion happens here so service.Process can share the helper
@@ -538,22 +606,16 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 		}
 	}
 
-	// Check aggregation fields.
+	// Unknown names are the field-reference rule's refusals
+	// (FieldRefRefusals, reported right after zone resolution); the
+	// checks below judge only fields the schema carries.
+
+	// Decimal field aggregation validity matrix.
 	for _, agg := range req.Aggregations {
 		f := schema.Field(agg.Field)
 		if f == nil {
-			if projected[agg.Field] {
-				continue // derived column from feature stage
-			}
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"aggregation references unknown field: "+agg.Field,
-				map[string]any{"field": agg.Field, "aggregation": string(agg.Type)},
-			)
 			continue
 		}
-
-		// Decimal field aggregation validity matrix.
 		if f.Type.IsDecimal() && decimalAggregationRefused(agg.Type, opts.Extensions) {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL),
@@ -566,40 +628,6 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 				env.Warnings = append(env.Warnings, entry)
 			}
 		}
-
-	}
-
-	// Check filter fields.
-	for _, fil := range req.Filterers {
-		if fil.Field == "" && fil.Type == types.FILTER_EXPRESSION {
-			continue // expression filters don't require a field
-		}
-		if fil.Field != "" {
-			f := schema.Field(fil.Field)
-			if f == nil && !projected[fil.Field] {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					"filter references unknown field: "+fil.Field,
-					map[string]any{"field": fil.Field, "filter": string(fil.Type)},
-				)
-				continue
-			}
-			_ = f
-		}
-	}
-
-	// Check group fields.
-	for _, grp := range req.Groups {
-		f := schema.Field(grp.Field)
-		if f == nil && !projected[grp.Field] {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"group references unknown field: "+grp.Field,
-				map[string]any{"field": grp.Field, "group": string(grp.Type)},
-			)
-			continue
-		}
-		_ = f
 	}
 
 	// Check regression slots. Phase 0 validates structural shape only
@@ -631,12 +659,6 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 					string(attr.Type)+" requires Target",
 					map[string]any{"attribute": string(attr.Type)},
 				)
-			} else if schema.Field(attr.Target) == nil && !projected[attr.Target] {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					string(attr.Type)+" Target references unknown field: "+attr.Target,
-					map[string]any{"field": attr.Target, "attribute": string(attr.Type)},
-				)
 			}
 			if len(attr.Predictors) == 0 {
 				env.AddError(
@@ -645,24 +667,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 					map[string]any{"attribute": string(attr.Type)},
 				)
 			}
-			for _, name := range attr.Predictors {
-				if schema.Field(name) == nil && !projected[name] {
-					env.AddError(
-						string(errors.SERVICE_VALIDATION),
-						string(attr.Type)+" predictor references unknown field: "+name,
-						map[string]any{"field": name, "attribute": string(attr.Type)},
-					)
-				}
-			}
 			continue
-		}
-		f := schema.Field(attr.Field)
-		if f == nil && !projected[attr.Field] {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"attribute references unknown field: "+attr.Field,
-				map[string]any{"field": attr.Field, "attribute": string(attr.Type)},
-			)
 		}
 	}
 }
@@ -1229,4 +1234,74 @@ func overlayDescriptorName(spec *types.OverlaySpec) string {
 		name += "|margin:" + string(spec.Ref.Margin.Axis)
 	}
 	return name
+}
+
+// predictJoinedSchema returns the schema a Request executes over: for a
+// single JoinSpec whose right cohort opts.SchemaLoader can read, the
+// joined schema (internal/encoding.JoinedSchema — the runtime's own
+// rule); otherwise schema unchanged. A right cohort that cannot be read,
+// a join-key refusal (internal/encoding.JoinKeysRefusals) or a
+// joined-field collision is a predict error under its own code, as the
+// runtime refuses each.
+func predictJoinedSchema(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) *encoding.Schema {
+	if req == nil || len(req.Joins) != 1 || req.Joins[0] == nil || opts == nil || opts.SchemaLoader == nil {
+		return schema
+	}
+	spec := req.Joins[0]
+	right, err := opts.SchemaLoader(spec.Right)
+	if err != nil {
+		addCodedError(env, err)
+		return schema
+	}
+	// Kind and OnPairs: the one join-key rule the runtime refuses with
+	// before it decodes the right side. The joined schema below does
+	// not depend on the keys, so validation continues against it.
+	for _, ce := range encx.JoinKeysRefusals(schema, right, spec) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+	joined, err := encx.JoinedSchema(schema, right, spec.As)
+	if err != nil {
+		addCodedError(env, err)
+		return schema
+	}
+	return joined
+}
+
+// validateOperatorTypes reports every top-level slot whose operator
+// Type is still empty once defaults have (or, under DisableDefaults,
+// have not) run. The runtime refuses each one at operator construction
+// with PROCESSING_CONFIG "unknown <family> type: "; predict mirrors
+// code and message, adding the slot path.
+func validateOperatorTypes(env *descriptor.Envelope, req *types.Request) {
+	if req == nil {
+		return
+	}
+	report := func(family, slot string) {
+		env.AddError(string(errors.PROCESSING_CONFIG), "unknown "+family+" type: ", map[string]any{"slot": slot})
+	}
+	for i, a := range req.Aggregations {
+		if a != nil && a.Type == "" {
+			report("aggregation", "aggregations["+strconv.Itoa(i)+"]")
+		}
+	}
+	for i, f := range req.Filterers {
+		if f != nil && f.Type == "" {
+			report("filter", "filterers["+strconv.Itoa(i)+"]")
+		}
+	}
+	for i, f := range req.Features {
+		if f != nil && f.Type == "" {
+			report("feature", "features["+strconv.Itoa(i)+"]")
+		}
+	}
+	for i, a := range req.Attributes {
+		if a != nil && a.Type == "" {
+			report("attribute", "attributes["+strconv.Itoa(i)+"]")
+		}
+	}
+	for i, g := range req.Groups {
+		if g != nil && g.Type == "" {
+			report("group", "groups["+strconv.Itoa(i)+"]")
+		}
+	}
 }

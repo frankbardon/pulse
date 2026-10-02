@@ -282,6 +282,8 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 //	internal/io/parquet/  >= 85%
 //	internal/io/excel/    >= 85%
 //	internal/service/     >= 80%
+//	internal/temporal/    >= 90%
+//	internal/mergegate/   >= 100%
 //	cmd/pulse/   >= 75%
 //
 // Aggregate across core packages >= 80%.
@@ -301,12 +303,14 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 		"internal/io/parquet": 85,
 		"internal/io/excel":   85,
 		"internal/service":    80,
+		"internal/temporal":   90,
+		"internal/mergegate":  100,
 		"cmd/pulse":           75,
 	}
 
 	// Verify the floor map is non-empty (structural sanity check).
-	if len(floors) != 15 {
-		t.Errorf("expected 15 coverage floor entries, got %d", len(floors))
+	if len(floors) != 17 {
+		t.Errorf("expected 17 coverage floor entries, got %d", len(floors))
 	}
 
 	// Verify each package directory exists.

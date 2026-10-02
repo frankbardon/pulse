@@ -145,9 +145,14 @@ type LoadMemberSetResult struct {
 //   - categorical_u{8,16,32}: parse line as string, resolve via
 //     dict.IDFor → BitsetSet. Lines not in the dictionary are counted
 //     in NotInDictionary and dropped — they can never match a record.
-//   - u8/u16/u32/u64, nullable_u4/u8/u16, nullable_bool, packed_bool,
-//     date: parse as uint64 → Uint64Set. ParseUint failures are
-//     counted in Invalid and dropped.
+//   - u8/u16/u32/u64, nullable_u4/u8/u16, nullable_bool, packed_bool:
+//     parse as uint64 → Uint64Set. ParseUint failures are counted in
+//     Invalid and dropped.
+//   - date: parse as a SIGNED int64 epoch-day count (pre-1970 days are
+//     negative) → Uint64Set keyed by its bit pattern. ParseInt failures
+//     are counted in Invalid and dropped.
+//   - datetime: string → StringSet, matched against the signed
+//     epoch-second count's decimal form.
 //   - decimal128 / nullable_decimal128: parse as string → StringSet.
 //     The cohort filter compares the literal text against the
 //     decimal128 wide value's String() form; exact match required.
@@ -186,6 +191,8 @@ func LoadMemberSetFromReader(r io.Reader, schema *encoding.Schema, fieldName str
 		sset = newStringSet(1024)
 	}
 
+	signed := isSignedTemporal(f.Type)
+
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	var (
@@ -216,6 +223,18 @@ func LoadMemberSetFromReader(r io.Reader, schema *encoding.Schema, fieldName str
 			}
 			bitset.Add(id)
 		case uset != nil:
+			if signed {
+				// A date word is two's-complement int32 epoch days: a
+				// pre-1970 member is a negative literal, keyed by its
+				// int64 bit pattern (the predicate keys the same way).
+				v, err := strconv.ParseInt(s, 10, 64)
+				if err != nil {
+					invalid++
+					continue
+				}
+				uset.Add(uint64(v))
+				continue
+			}
 			v, err := strconv.ParseUint(s, 10, 64)
 			if err != nil {
 				invalid++
@@ -289,6 +308,17 @@ func BuildMemberSetPredicate(set MemberSet, schema *encoding.Schema, fieldName s
 	case *Uint64Set:
 		field := fieldName
 		isCategorical := f.Type.IsCategorical()
+		if isSignedTemporal(f.Type) {
+			// Signed epoch value: convert through int64 — a float64 →
+			// uint64 conversion of a negative is architecture-defined.
+			return func(rec *Record) (bool, error) {
+				v, ok := rec.NumericValue(field)
+				if !ok {
+					return false, nil
+				}
+				return s.Contains(uint64(int64(v))), nil
+			}, nil
+		}
 		return func(rec *Record) (bool, error) {
 			v, ok := rec.NumericValue(field)
 			if !ok {
@@ -327,6 +357,15 @@ func BuildMemberSetPredicate(set MemberSet, schema *encoding.Schema, fieldName s
 				return s.Contains(dec.String(scale)), nil
 			}, nil
 		}
+		if isSignedTemporal(f.Type) {
+			return func(rec *Record) (bool, error) {
+				v, ok := rec.NumericValue(field)
+				if !ok {
+					return false, nil
+				}
+				return s.Contains(strconv.FormatInt(int64(v), 10)), nil
+			}, nil
+		}
 		return func(rec *Record) (bool, error) {
 			v, ok := rec.NumericValue(field)
 			if !ok {
@@ -340,4 +379,11 @@ func BuildMemberSetPredicate(set MemberSet, schema *encoding.Schema, fieldName s
 			fmt.Sprintf("unsupported MemberSet impl: %T", set),
 			map[string]any{"kind": "unknown"})
 	}
+}
+
+// isSignedTemporal reports whether ft's decoded value is a SIGNED epoch
+// count — date (int32 days) and datetime (int64 seconds) — so include-set
+// membership must parse and render it through int64, never uint64.
+func isSignedTemporal(ft encoding.FieldType) bool {
+	return ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime
 }

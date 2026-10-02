@@ -8,11 +8,11 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Fixed-width: 4 bytes per record, little-endian. Not bit-packed. Stride contributes 4 bytes to `Schema.RecordByteSize`. On the wire it is a 32-bit value; semantically it is days offset from 1970-01-01.
+Fixed-width: 4 bytes per record, little-endian. Not bit-packed. Stride contributes 4 bytes to `Schema.RecordByteSize`. On the wire it is a two's-complement **signed int32**; semantically it is days offset from 1970-01-01 (read a raw `ReadFieldValue` word with `encoding.DateDays`).
 
 ## Range
 
-Days since the Unix epoch (1970-01-01). Negative offsets address pre-epoch dates; positive offsets address dates after. The 32-bit width supports a range comfortably wider than any real-world need. Sub-day precision is NOT supported — store sub-day timestamps as `u64` microseconds.
+Days since the Unix epoch (1970-01-01). Negative offsets address pre-epoch dates (1969-12-31 is −1, 1900-01-01 is −25567); positive offsets address dates after. Ordering, filters, groupers, min/max, lookup keys and every export adapter honour the sign. The 32-bit width supports a range comfortably wider than any real-world need. Sub-day precision is NOT supported — store sub-day timestamps as `u64` microseconds.
 
 ## Null
 

@@ -180,7 +180,11 @@ func TestRuleCoercion_NumberObeysTheSameRangeRulesAsALiteral(t *testing.T) {
 		{"packed_bool", 1, true},
 		{"packed_bool", 2, false},
 		{"date", 0, true},
-		{"date", -1, false},
+		{"date", -1, true}, // 1969-12-31: the date word is signed int32 days
+		{"date", -25567, true},
+		{"date", 2147483647, true},
+		{"date", 2147483648, false},
+		{"date", -2147483649, false},
 		{"f32", -1e30, true},
 		{"f64", -1e300, true},
 		{"decimal128", -12.5, true},

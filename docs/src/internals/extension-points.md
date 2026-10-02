@@ -281,6 +281,12 @@ through `Row`, `two_pass` takes the streaming `PrePass` → `Finalize` →
 the built-in two-pass attributes (`ATTR_ZSCORE`, …), a `two_pass`
 extension runs buffered when the request also carries a grouper,
 feature, regression or tier-1 test.
+On the streaming drive every attribute runs in declared order, so a
+`two_pass` attribute can read an earlier attribute's label: the engine
+learns which earlier labels it reads from `Field` plus its
+`FieldInputs` hook. Without the hook it assumes the attribute reads
+every earlier attribute — still correct, but each earlier `two_pass`
+attribute then costs an extra scan.
 
 ### Filterer, Grouper, Window, Feature
 
@@ -723,9 +729,11 @@ advisory reads it through
 predict-side chain gate reads it:
 `internal/descriptor.ValidateChainWithExtensions` admits an extension
 aggregator or grouper on its declared `Mergeable` flag and a
-`row_local` extension attribute as row-local — the answers the runtime
-gate `CanChainRequestWithExtensions` gives — while `ValidateChain`
-(the nil-snapshot case) knows built-ins only.
+`row_local` extension attribute as row-local and an extension filterer
+on its `Streamable` flag — the same `internal/mergegate.ChainRefusal`
+call the runtime gate makes over the `ExtensionRegistry`, so the answers
+cannot drift — while `ValidateChain` (the nil-snapshot case) knows
+built-ins only.
 
 `descriptor.OperatorMeta` carries `FansOut bool`
 (`json:"fans_out,omitempty"`) alongside `Streamable`, and
@@ -804,7 +812,9 @@ an operator does — `AGG_DISTINCT_SUM`'s `distinct_by`,
 `AGG_WEIGHTED_MEAN`'s `weight_field`, `AGG_RATIO`'s
 `numerator_field` / `denominator_field`, `FEAT_TRAIN_TEST_SPLIT`'s
 `stratify` and `FEAT_TARGET_ENCODE`'s `target` are the whole set
-today. **Forgetting one fails silently, not loudly:** the field is
+today, and the field-reference rule (`aggParamFieldKeys` in
+`internal/descriptor/field_refs.go`) must gain the same arm so an
+unknown name there is refused rather than read as all-null. **Forgetting one fails silently, not loudly:** the field is
 decoded onto no `Record`, `Record.NumericValue` answers `ok=false` for
 it on every row, and the operator reads that as a missing input rather
 than as a broken request — so the request succeeds and publishes a
@@ -848,9 +858,21 @@ pulse.AggregatorRegistration{
 Return-value semantics:
 
 - `nil` or empty slice: no extra fields beyond the spec's `Field`.
-- Names not present in the schema are silently dropped by
-  the extractor — return-what-you-read; the extractor filters
-  against the live schema.
+- Every returned name is also **validated**: the hook rides the
+  read-only extensions snapshot, and the shared field-reference rule
+  (the one predict, the Compose / chain validators and the runtime all
+  apply before a record is read) judges each declared name against the
+  columns available at the operator's pipeline point — schema fields,
+  earlier feature outputs and attribute labels, or, for a window, the
+  output row columns. A name nothing produces is refused with
+  `SERVICE_VALIDATION`
+  `"<category> <NAME>: FieldInputs references unknown field <f>"`,
+  details `{field, <slot>, field_inputs: true}`, identically on both
+  sides. So return exactly the names the operator reads — never a
+  speculative superset. A hook that panics is treated as undeclared
+  (nothing judged), not as a crash. The projection extractor itself
+  still drops non-schema names, so a declared derived column costs
+  nothing there.
 - Errors are not part of the signature on purpose — `FieldInputs`
   runs on the hot path and should be allocation-free. Anything that
   needs decoding belongs in the factory.
@@ -938,6 +960,13 @@ State these plainly to users rather than discovering them at run time:
   are admitted on `decimal128` and read `DecimalValue`; they stream
   there per their declared `Streamable` flag and merge per `Mergeable`
   (built-ins over decimal stay buffered and serial).
+- **Extensions are never zone-capable.** There is no registration
+  field for time-zone participation, so an extension operator carries
+  no manifest `zone` key and an explicit slot `tz` on it is refused
+  with `PROCESSING_CONFIG` (details `{slot, operator, tz}`), in
+  runtime and predict alike. A request-level `time_zone` simply does
+  not reach it. Only the built-in date-family operators declared in
+  `internal/descriptor/capabilities_zone.go` resolve a zone.
 
 ## Migration recipe — pre-processing → registration
 

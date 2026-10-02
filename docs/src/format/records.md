@@ -47,8 +47,10 @@ From `WriteFieldValue` / `ReadFieldValue` in
 |---|---|
 | `u8` / `categorical_u8` / `set_u8`    | 1 byte, unsigned |
 | `u16` / `categorical_u16` / `set_u16` | 2 bytes, little-endian unsigned |
-| `u32` / `date` / `categorical_u32` / `set_u32` | 4 bytes, little-endian unsigned |
-| `u64` / `datetime` / `set_u64`        | 8 bytes, little-endian unsigned |
+| `u32` / `categorical_u32` / `set_u32` | 4 bytes, little-endian unsigned |
+| `date`                                | 4 bytes, little-endian two's-complement **signed** int32 (epoch days) |
+| `u64` / `set_u64`                     | 8 bytes, little-endian unsigned |
+| `datetime`                            | 8 bytes, little-endian two's-complement **signed** int64 (epoch seconds) |
 | `f32`                                 | 4 bytes, little-endian IEEE 754 |
 | `f64`                                 | 8 bytes, little-endian IEEE 754 |
 | `decimal128`                          | 16 bytes, little-endian two's-complement integer (scaled by `10^scale`). Exceeds the `uint64` API — use the 16-byte accessors |

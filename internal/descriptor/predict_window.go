@@ -55,17 +55,27 @@ var windowFieldRequired = map[types.WindowType]bool{
 	types.WIN_DELTA:       true,
 }
 
-// orderableFieldTypes lists encoding field types that can serve as ORDER BY keys.
-// Categorical types and bit-packed boolean types are excluded.
-func isOrderableType(ft encoding.FieldType) bool {
-	switch ft {
-	case encoding.FieldTypeU4,
-		encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
-		encoding.FieldTypeF32, encoding.FieldTypeF64,
-		encoding.FieldTypeDate:
-		return true
-	}
-	return false
+// IsOrderableType is the ONE window ORDER BY orderability rule, applied
+// on both sides by the shared FieldRefRefusals walk (predict reports it,
+// every runtime execution mode refuses with it). It admits exactly the
+// types the window comparator (internal/processing/window compareCell,
+// shared with Request.Sort) orders by value:
+//
+//   - every unsigned integer and float type, by numeric value;
+//   - date (signed epoch days) and datetime (signed epoch SECONDS) —
+//     pre-1970 values are negative and sort before 1970;
+//   - packed_bool as 0/1, false before true;
+//   - decimal128 by value (Decimal128.Cmp — one column shares one scale);
+//   - categorical_* by dictionary LABEL, byte-wise — never by dictionary
+//     index, so the order is stable across imports and shards
+//     (TestWindowOrderBy_CategoricalOrdersByLabel).
+//
+// set_* is refused: a set cell decodes to a label slice the comparator
+// cannot order, so every row would compare equal
+// (TestWindowOrderBy_OrderabilityPredictMatchesRuntime). Nulls sort last
+// for every admitted type.
+func IsOrderableType(ft encoding.FieldType) bool {
+	return !ft.IsSet()
 }
 
 // isNumericType reports whether the field type carries a meaningful scalar
@@ -87,50 +97,13 @@ func isNumericType(ft encoding.FieldType) bool {
 	return false
 }
 
-// availableOutputColumns returns the set of column names that will be
-// present on response rows after the pipeline runs. Includes:
-//   - every schema field
-//   - every aggregation/attribute output label (or default <TYPE>_<field>)
-//   - every group-by field name
-//   - every window output label
-//
-// Used by validateSort to confirm that Request.Sort references a real column.
-func availableOutputColumns(req *types.Request, schema *encoding.Schema) map[string]bool {
-	out := make(map[string]bool, len(schema.Fields)+len(req.Aggregations)+len(req.Attributes)+len(req.Groups)+len(req.Windows))
-	for i := range schema.Fields {
-		out[schema.Fields[i].Name] = true
-	}
-	for _, agg := range req.Aggregations {
-		label := agg.Label
-		if label == "" {
-			label = string(agg.Type) + "_" + agg.Field
-		}
-		out[label] = true
-	}
-	for _, attr := range req.Attributes {
-		label := attr.Label
-		if label == "" {
-			label = string(attr.Type) + "_" + attr.Field
-		}
-		out[label] = true
-	}
-	for _, grp := range req.Groups {
-		out[grp.Field] = true
-	}
-	for _, w := range req.Windows {
-		out[windowLabel(w)] = true
-	}
-	return out
-}
-
-// validateSort checks that every Request.Sort key references an available
-// output column. Missing-field rejections use SERVICE_VALIDATION (mirrors
-// other validators).
-func validateSort(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema) {
+// validateSort checks that every Request.Sort key names a field.
+// Whether that field is an available output column is FieldRefRefusals'
+// judgement.
+func validateSort(env *descriptor.Envelope, req *types.Request, _ *encoding.Schema) {
 	if len(req.Sort) == 0 {
 		return
 	}
-	available := availableOutputColumns(req, schema)
 	for i, k := range req.Sort {
 		idx := strconv.Itoa(i)
 		if k.Field == "" {
@@ -138,14 +111,6 @@ func validateSort(env *descriptor.Envelope, req *types.Request, schema *encoding
 				string(errors.SERVICE_VALIDATION),
 				"sort["+idx+"]: field is required",
 				map[string]any{"sort_index": i},
-			)
-			continue
-		}
-		if !available[k.Field] {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"sort["+idx+"]: field "+k.Field+" is not produced by the pipeline (no schema field, aggregation, attribute, group, or window output matches)",
-				map[string]any{"sort_index": i, "field": k.Field},
 			)
 		}
 	}
@@ -163,26 +128,9 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 		validTypes[t] = true
 	}
 
-	// Build the set of labels already produced by aggregations / groups / attributes.
-	usedLabels := make(map[string]string)
-	for _, agg := range req.Aggregations {
-		label := agg.Label
-		if label == "" {
-			label = string(agg.Type) + "_" + agg.Field
-		}
-		usedLabels[label] = "aggregation"
-	}
-	for _, attr := range req.Attributes {
-		label := attr.Label
-		if label == "" {
-			label = string(attr.Type) + "_" + attr.Field
-		}
-		usedLabels[label] = "attribute"
-	}
-	for _, grp := range req.Groups {
-		usedLabels[grp.Field] = "group"
-	}
-
+	// Label collisions with an available column (aggregation / group
+	// output, record column, earlier window) are FieldRefRefusals'
+	// shadow refusal on both sides.
 	for i, w := range req.Windows {
 		idx := strconv.Itoa(i)
 
@@ -205,7 +153,7 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 			)
 		}
 
-		// OrderBy fields must exist and be orderable.
+		// OrderBy keys must name a field.
 		for j, ok := range w.OrderBy {
 			if ok.Field == "" {
 				env.AddError(
@@ -213,39 +161,11 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 					"window["+idx+"]: order_by["+strconv.Itoa(j)+"] missing field",
 					map[string]any{"window_index": i, "order_index": j},
 				)
-				continue
 			}
-			f := schema.Field(ok.Field)
-			if f == nil {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"]: order_by field "+ok.Field+" does not exist in schema",
-					map[string]any{"window_index": i, "field": ok.Field},
-				)
-				continue
-			}
-			if !isOrderableType(f.Type) {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"]: order_by field "+ok.Field+" is not orderable (type "+f.Type.String()+")",
-					map[string]any{"window_index": i, "field": ok.Field, "field_type": f.Type.String()},
-				)
-			}
+			// Existence and orderability: FieldRefRefusals.
 		}
 
-		// PartitionBy fields must exist.
-		for _, p := range w.PartitionBy {
-			if p == "" {
-				continue
-			}
-			if schema.Field(p) == nil {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"]: partition_by field "+p+" does not exist in schema",
-					map[string]any{"window_index": i, "field": p},
-				)
-			}
-		}
+		// PartitionBy existence: FieldRefRefusals.
 
 		// Field required for value-bearing operators; missing field is SERVICE_VALIDATION
 		// to share semantics with the existing validators.
@@ -256,19 +176,7 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 					"window["+idx+"] ("+string(w.Type)+"): field is required",
 					map[string]any{"window_index": i, "type": string(w.Type)},
 				)
-			} else if f := schema.Field(w.Field); f == nil {
-				// Aggregation / attribute / group labels project into the
-				// post-aggregate row set windows operate on; only reject
-				// when the name is unknown in both schema and pipeline
-				// outputs.
-				if _, projected := usedLabels[w.Field]; !projected {
-					env.AddError(
-						string(errors.SERVICE_VALIDATION),
-						"window["+idx+"] ("+string(w.Type)+"): field "+w.Field+" does not exist in schema or upstream pipeline output",
-						map[string]any{"window_index": i, "field": w.Field, "type": string(w.Type)},
-					)
-				}
-			} else if windowNumericFieldRequired[w.Type] && !isNumericType(f.Type) {
+			} else if f := schema.Field(w.Field); f != nil && windowNumericFieldRequired[w.Type] && !isNumericType(f.Type) {
 				env.AddError(
 					string(errors.PULSE_WINDOW_INVALID),
 					"window["+idx+"] ("+string(w.Type)+"): field "+w.Field+" must be numeric (got "+f.Type.String()+")",
@@ -328,17 +236,6 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 		// Operator-specific param validation.
 		validateWindowParams(env, i, w)
 
-		// Label collision check (warning-level error per plan: predict warning).
-		label := windowLabel(w)
-		if other, exists := usedLabels[label]; exists {
-			entry := &descriptor.EnvelopeEntry{
-				Code:    string(errors.PULSE_WINDOW_INVALID),
-				Message: "window[" + idx + "] label " + label + " collides with " + other + " label",
-				Details: map[string]any{"window_index": i, "label": label, "collides_with": other},
-			}
-			env.Warnings = append(env.Warnings, entry)
-		}
-		usedLabels[label] = "window"
 	}
 }
 

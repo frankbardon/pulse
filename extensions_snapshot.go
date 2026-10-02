@@ -1,6 +1,8 @@
 package pulse
 
 import (
+	"encoding/json"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -16,6 +18,38 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 		return nil
 	}
 	snap := &descx.ExtensionsSnapshot{}
+	// FieldInputs: the same hooks extensions_runtime.go hands the
+	// projection extractor, keyed identically, so the shared
+	// field-reference rule judges what each extension declares it reads.
+	snap.FieldInputs = map[string]func(json.RawMessage) []string{}
+	addInputs := func(category, name string, fn FieldInputsFunc) {
+		if fn != nil {
+			snap.FieldInputs[category+"|"+name] = fn
+		}
+	}
+	for _, r := range ext.Aggregators {
+		addInputs("aggregator", string(r.Name), r.FieldInputs)
+	}
+	for _, r := range ext.Attributes {
+		addInputs("attribute", string(r.Name), r.FieldInputs)
+	}
+	for _, r := range ext.Filterers {
+		addInputs("filterer", string(r.Name), r.FieldInputs)
+	}
+	for _, r := range ext.Groupers {
+		addInputs("grouper", string(r.Name), r.FieldInputs)
+	}
+	for _, r := range ext.Windows {
+		addInputs("window", string(r.Name), r.FieldInputs)
+	}
+	for _, r := range ext.Features {
+		addInputs("feature", string(r.Name), r.FieldInputs)
+	}
+	for _, r := range ext.Tests {
+		if r.Tier == TestTierRow { // the runtime records row tests' hooks only
+			addInputs("test", string(r.Name), r.FieldInputs)
+		}
+	}
 	// ComponentSchemas projects per-extension ComponentSchema declarations
 	// so manifest + predict can surface extension operators on the same
 	// shape as built-ins. Empty / floor-only registrations stay absent

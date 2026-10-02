@@ -70,7 +70,9 @@ Requires a mergeable + non-recompute cell aggregator AND every axis grouper impl
 
 Embedders force the buffered arm engine-wide with `pulse.Options{DisableCrosstabFusion: true}` — a diagnostic / benchmarking knob; output is identical.
 
-Disqualifiers: non-mergeable / recompute cell (incl. `AGG_WELFORD`, an extension with no declared `MarginReducibility`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 built-in cell, opaque extension (no `FieldInputs`), a non-mergeable or decimal128 `margin_aggregations` entry (an auxiliary rides the same `UpdateRow` walk; its `MarginReducibility` is NOT consulted — it has no cells to reduce from).
+Disqualifiers: a `JoinSpec`, non-mergeable / recompute cell (incl. `AGG_WELFORD`, an extension with no declared `MarginReducibility`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 built-in cell, opaque extension (no `FieldInputs`), a non-mergeable or decimal128 `margin_aggregations` entry (an auxiliary rides the same `UpdateRow` walk; its `MarginReducibility` is NOT consulted — it has no cells to reduce from).
+
+**Joins.** A crosstab with its one `JoinSpec` runs over the JOINED rows (always buffered): axes / cell may name `as`-prefixed right fields, an unmatched left row reaches no cell, margin or Components count, a 1:N match counts once per joined row. `skills/join-design.md`.
 
 Margins still recompute from raw rows, and under a fan-out axis are non-additive on BOTH paths — a 3-label record counts 3× across row margins, once in the grand total.
 

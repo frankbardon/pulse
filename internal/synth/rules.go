@@ -537,8 +537,12 @@ func scalarRange(ft encoding.FieldType) (lo, hi float64, bounded bool) {
 		return 0, math.MaxUint8, true
 	case encoding.FieldTypeU16:
 		return 0, math.MaxUint16, true
-	case encoding.FieldTypeU32, encoding.FieldTypeDate:
+	case encoding.FieldTypeU32:
 		return 0, math.MaxUint32, true
+	case encoding.FieldTypeDate:
+		// The date word is two's-complement int32 epoch days, so a
+		// pre-1970 literal is a legal negative day count.
+		return math.MinInt32, math.MaxInt32, true
 	case encoding.FieldTypeU64:
 		return 0, math.MaxUint64, true
 	}

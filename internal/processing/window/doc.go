@@ -9,8 +9,11 @@
 // tuple, partitions them, and runs each window's WindowComputer to mutate
 // rows with the operator's output column.
 //
-// Validation of window specs (frame matrix, alpha bounds, orderable types)
-// belongs to internal/descriptor/predict_window.go and must run before Apply. Apply
+// Validation of window specs (frame matrix, alpha bounds) belongs to
+// internal/descriptor/predict_window.go; field existence and order_by
+// orderability (IsOrderableType) to the shared
+// internal/descriptor.FieldRefRefusals rule, which every runtime
+// execution mode applies before Apply. Apply
 // trusts that req.Windows has been validated; runtime errors here surface as
 // PROCESSING_RUNTIME / PROCESSING_CONFIG.
 package window

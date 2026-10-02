@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -319,57 +320,15 @@ func mannKendall(x []float64) (float64, float64) {
 }
 
 // compareRows returns negative / 0 / positive for ordering by keys.
-// Operates on the post-aggregate row map, so values may be numeric,
-// string, or absent. Missing keys sort last regardless of direction.
+// Operates on the post-aggregate row map. It is the same comparator
+// window ORDER BY and Request.Sort use (window.CompareKey): values order
+// by type (numbers, decimals, labels), and a null or missing key sorts
+// last regardless of direction. This arm's own comparator used to tie a
+// present-null against everything and could not order a decimal.
 func compareRows(a, b map[string]any, keys []types.OrderKey) int {
 	for _, k := range keys {
-		va, aOk := a[k.Field]
-		vb, bOk := b[k.Field]
-		if !aOk && !bOk {
-			continue
-		}
-		if !aOk {
-			return 1
-		}
-		if !bOk {
-			return -1
-		}
-		c := compareAny(va, vb)
-		if c != 0 {
-			if k.Desc {
-				c = -c
-			}
+		if c := window.CompareKey(a[k.Field], b[k.Field], k.Desc); c != 0 {
 			return c
-		}
-	}
-	return 0
-}
-
-func compareAny(a, b any) int {
-	switch av := a.(type) {
-	case float64:
-		bv := toFloat64(b)
-		switch {
-		case av < bv:
-			return -1
-		case av > bv:
-			return 1
-		default:
-			return 0
-		}
-	case int64:
-		return compareAny(float64(av), b)
-	case int:
-		return compareAny(float64(av), b)
-	case string:
-		bv, _ := b.(string)
-		switch {
-		case av < bv:
-			return -1
-		case av > bv:
-			return 1
-		default:
-			return 0
 		}
 	}
 	return 0

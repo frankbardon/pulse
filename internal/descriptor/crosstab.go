@@ -9,10 +9,9 @@ import (
 
 // validateCrosstab walks a CrosstabSpec against the cohort schema and
 // adds structural errors / streamability reasons / warnings to the
-// envelope. Called from Predict; predict's existing field-reference
-// walk (validateRequestFields) sees req.Crosstab.Rows / Columns / Cell
-// fields lifted up via predictCrosstabProjection so unknown-field
-// errors fire there. This helper handles the crosstab-specific
+// envelope. Called from Predict; unknown axis / cell / margin
+// aggregation fields are the field-reference rule's refusals
+// (FieldRefRefusals). This helper handles the crosstab-specific
 // structural and normalization invariants.
 func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, opts *PredictOptions) {
 	spec := req.Crosstab
@@ -112,39 +111,9 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 		}
 	}
 
-	// Walk axis field references; emit unknown-field errors with the
-	// same surface predict uses for the top-level Group slot. The
-	// projected column set augments the schema with feature outputs
-	// so derived columns are addressable on either axis.
-	projected := map[string]bool{}
-	for _, feat := range req.Features {
-		if feat != nil && feat.Label != "" {
-			projected[feat.Label] = true
-		}
-	}
-	checkField := func(field, role string) {
-		if field == "" {
-			return
-		}
-		if schema.Field(field) != nil || projected[field] {
-			return
-		}
-		env.AddError(string(errors.SERVICE_VALIDATION),
-			"crosstab "+role+" references unknown field: "+field,
-			map[string]any{"field": field, "role": role})
-	}
-	for _, g := range spec.Rows {
-		if g != nil {
-			checkField(g.Field, "row grouper")
-		}
-	}
-	for _, g := range spec.Columns {
-		if g != nil {
-			checkField(g.Field, "column grouper")
-		}
-	}
+	// Axis / cell / margin-aggregation field existence is the
+	// field-reference rule's (FieldRefRefusals).
 	if spec.Cell != nil {
-		checkField(spec.Cell.Field, "cell aggregation")
 		// Numeric aggregation on categorical field — promote per
 		// strict (predict honours opts.Strict here too).
 		if f := schema.Field(spec.Cell.Field); f != nil && f.Type.IsCategorical() && numericAggregations[spec.Cell.Type] {
@@ -186,7 +155,7 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 		}
 	}
 
-	validateCrosstabMarginAggregations(env, spec, schema, checkField, opts)
+	validateCrosstabMarginAggregations(env, spec, schema, opts)
 }
 
 // validateCrosstabMarginAggregations walks the auxiliary margin-only
@@ -195,12 +164,11 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 // processing.validateCrosstabSpec makes — so predict and execution
 // cannot drift on which specs they refuse; only the rendering differs
 // (an envelope entry per fault here, the first fault as a CodedError
-// there). Field references and the numeric-on-categorical advisory ride
-// the same surfaces the Cell slot already uses.
+// there). Field existence is FieldRefRefusals'; the numeric-on-
+// categorical advisory rides the surface the Cell slot already uses.
 func validateCrosstabMarginAggregations(
 	env *descriptor.Envelope, spec *types.CrosstabSpec,
 	schema *encoding.Schema,
-	checkField func(field, role string),
 	opts *PredictOptions,
 ) {
 	if !spec.HasMarginAggregations() {
@@ -215,7 +183,6 @@ func validateCrosstabMarginAggregations(
 		if agg == nil {
 			continue
 		}
-		checkField(agg.Field, "margin aggregation")
 		if f := schema.Field(agg.Field); f != nil && f.Type.IsCategorical() && numericAggregations[agg.Type] {
 			entry := &descriptor.EnvelopeEntry{
 				Code:    string(errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL),

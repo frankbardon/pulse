@@ -6,24 +6,30 @@ stage.
 
 `ProcessChain` (`pulse.ProcessChain`, `pulse_process_chain`,
 `pulse api process-chain`) executes a linear pipeline whose stages all
-pass `internal/processing`'s `CanChainRequest`. The gate enforces that each stage
+pass one shared gate, `internal/mergegate.ChainRefusal`. The gate enforces that each stage
 emits a shape the next stage can consume; v1 admits mergeable scalar-
 emitting operators only.
 
-## 1. Edit the runtime gate
+## 1. Edit the shared gate
 
-Edit `internal/processing/chain.go`. `CanChainRequest` calls `CanMergeRequest`
-first, then layers chain-specific exclusions
-(`aggregatorEmitsScalar`). Add a new exclusion branch when an
-operator is mergeable but its emit shape would break the synthesised
-`f64` / `categorical_u32` schema the next stage expects.
+Edit `internal/mergegate/gate.go`. `ChainRefusal` runs `MergeRefusal`
+(the merge rule `processing.CanMergeRequestWithExtensions` also
+delegates to) first, then the chain-specific exclusions
+(`EmitsScalar`). Add a new exclusion branch when an operator is
+mergeable but its emit shape would break the synthesised `f64` /
+`categorical_u32` schema the next stage expects; return a reason
+string naming the operator.
 
-## 2. Mirror in the predict gate
+## 2. Both sides pick it up
 
-Mirror the rule in `internal/descriptor/chain.go`. `chainGateOK` is the
-predict-side equivalent — keep them in lockstep. A divergence makes
-predict pass requests that runtime later rejects, which surfaces as a
-late `SERVICE_VALIDATION` rather than as a predict-time advisory.
+There is nothing to mirror. The runtime calls it as
+`processing.ChainRefusal` (over the `ExtensionRegistry`) and
+`internal/descriptor/chain.go` calls `mergegate.ChainRefusal` directly
+(over the `ExtensionsSnapshot`), so code, message and details
+`{stage_index, stage_name}` are identical by construction. The package
+imports only `types`, `encoding` and `errors`: a fact only the engine
+holds must reach it through the `mergegate.Extensions` interface, which
+both adapters implement — never by importing `internal/processing`.
 
 ## 3. Update the capability surface
 
@@ -43,10 +49,10 @@ go test ./descriptor/ -run TestGoldensNotHandEdited
 
 ## 4. Tests
 
-Add a failing-gate test in `internal/service/chain_test.go` and a matching
-predict test in `internal/descriptor/chain_test.go`. The two surfaces share
-the gate contract; covering both prevents the predict / runtime
-divergence the rule exists to prevent.
+Add the rule's case to `internal/mergegate/gate_test.go` and a row to
+`TestChainGate_ValidatorMatchesRuntime` (root `chain_gate_parity_test.go`),
+which runs each stage through `ProcessChain` and `ValidateChainWithOptions`
+and requires the same code, message and details.
 
 ## 5. Allowlist skim
 

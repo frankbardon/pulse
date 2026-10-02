@@ -41,7 +41,8 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Rows with null weight OR weight==0 are SKIPPED (do not count toward `n`).
+- Rows with null weight OR weight==0 are SKIPPED (not in `n`).
+- An unknown `weight_field` is refused (`SERVICE_VALIDATION`), predict and runtime alike.
 - `decimal128` rejected.
 - For unweighted mean use `AGG_AVERAGE`.
 

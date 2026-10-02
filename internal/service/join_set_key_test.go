@@ -27,9 +27,9 @@ func joinSetKeyHeaderBytes(t *testing.T, fields []encoding.Field) []byte {
 }
 
 // Predict and runtime must refuse a set_* join key with the SAME code
-// and the SAME sentence. descriptor/ cannot import internal/processing/, so the
-// rejection text is duplicated by hand in internal/descriptor/join.go — this
-// test is what keeps the two copies honest. A caller who runs
+// and the SAME sentence. Both sides now call the one join-key rule
+// (internal/encoding.JoinKeysRefusals); this test keeps a future
+// re-duplication honest. A caller who runs
 // `pulse predict` and then `pulse api process` must not be told two
 // different stories about the same request.
 func TestValidateJoin_SetKeyRejectedMessageMatchesProcessing(t *testing.T) {

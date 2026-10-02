@@ -235,18 +235,18 @@ func TestImportWiden_F32PromotesToF64(t *testing.T) {
 	}
 }
 
-// TestImportWiden_F32DeclaredNeverPromotes: a declared f32 keeps its
-// width — 1e300 stays the row error it has always been.
+// TestImportWiden_F32DeclaredNeverPromotes: a forced f32 keeps its
+// width — 1e300 is never promoted to f64. Since E4-S13 a value a
+// ColumnTypeOverrides column cannot hold refuses the import (naming the
+// row) instead of becoming a skipped row.
 func TestImportWiden_F32DeclaredNeverPromotes(t *testing.T) {
 	cols, rows := f32Fixture()
-	rep, _ := importRaw(t, cols, rows, func(j *ImportJob) {
+	_, _, _, err := runGroupImport(t, newMockReader(cols, rows), nil, func(j *ImportJob) {
 		j.ColumnTypeOverrides = map[string]encoding.FieldType{"x": encoding.FieldTypeF32, "z": encoding.FieldTypeF32}
 	})
-	if fieldByName(rep.Schema, "x").Type != encoding.FieldTypeF32 || fieldByName(rep.Schema, "z").Type != encoding.FieldTypeF32 || len(rep.WidthWarnings) != 0 {
-		t.Fatalf("x = %s z = %s warnings %v, want f32, f32 and none", fieldByName(rep.Schema, "x").Type, fieldByName(rep.Schema, "z").Type, rep.WidthWarnings)
-	}
-	if len(rep.RowErrors) != 1 || rep.RowErrors[0].Row != 600 {
-		t.Errorf("row errors %v, want exactly row 600", rep.RowErrors)
+	d := requireOverrideRefusal(t, err)
+	if d["column"] != "x" || d["type"] != "f32" || d["row"] != 600 {
+		t.Errorf("refusal details %v, want column x, type f32, row 600", d)
 	}
 }
 

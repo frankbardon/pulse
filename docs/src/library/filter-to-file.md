@@ -85,6 +85,12 @@ Filterers: []*types.Filterer{
 Supported types: `FILTER_EXPRESSION` (pass-through), `FILTER_INCLUDE`,
 `FILTER_EXCLUDE`, `FILTER_RANGE`, `FILTER_NULL`.
 
+Each filterer's `Field` is judged by the same field rule `Process` and
+predict use, against the cohort schema (a shard archive's canonical
+schema) and before the translated expression compiles: an unknown or
+empty `Field` is `SERVICE_VALIDATION` `filter references unknown field:
+<f>` with details `{field, filter}`, exactly as `Process` refuses it.
+
 ## Deterministic output naming
 
 When `OutputName` is empty, the basename is computed as:

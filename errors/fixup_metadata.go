@@ -304,11 +304,25 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_WIDTH_PROMOTED: {
-		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema, a column_type_overrides column or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW).",
+		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "No action is required — the cohort holds every row at the promoted width. To make the width explicit, raise --sample-rows so inference sees the wide values, or pin the type with column_type_overrides / an explicit --schema (which then refuses, rather than promotes, any value past it).",
+				Hint:   "No action is required — the cohort holds every row at the promoted width. To make the width explicit, raise --sample-rows so inference sees the wide values, or pin the type with an explicit --schema (a value past it is then a row error) or column_type_overrides (a value past it then refuses the whole import with PULSE_IMPORT_OVERRIDE_INVALID).",
+			},
+		},
+	},
+	PULSE_IMPORT_OVERRIDE_INVALID: {
+		Message: "A column_type_overrides (ImportJob.ColumnTypeOverrides / ImportSpec.ColumnTypeOverrides) entry cannot be honoured, so the import is refused and no cohort is written. Three causes, told apart by details: the override names a column the source header does not carry (`column`, `type`, `columns` — names match the header exactly, case and whitespace included); a present value in an overridden column cannot be represented in the forced type, such as 300 into u8, a non-integer into u16 or a non-date into date (`column`, `type`, `value`, `row` — the 1-based source data row — and `reason`), checked on every row, inside the inference sample and past it; or the job has no inferred schema to override because an explicit Schema was supplied or the source carries an authoritative schema (SPSS) (`reason`). An override is applied exactly or refused — it is never narrowed, widened or ignored, and an out-of-range value never becomes a skipped row.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"ColumnTypeOverrides", "*"},
+				Hint:   "Correct the override's column name to the exact header spelling, or drop the entry. When a value does not fit, choose a type that holds every value (u16 for 300, f64 for a fraction, categorical_* for free text) or remove the override and let inference pick the width.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For an explicit-schema import or an SPSS source, drop ColumnTypeOverrides and declare the column's type in the explicit Schema instead — an authoritative source dictionary is not re-typed by an override.",
 			},
 		},
 	},
@@ -1198,6 +1212,16 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Stages", "*", "Request"},
 				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable, scalar-emitting aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (GROUP_CATEGORY, GROUP_RANGE).",
+			},
+		},
+	},
+	PULSE_CHAIN_STAGE_JOIN: {
+		Message: "Only ProcessChain stage 0 may carry Joins: a later stage reads the previous stage's output rows, not a cohort, so there is no left side to join.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Stages", "*", "Request", "Joins"},
+				Hint:   "Move the JoinSpec onto stage 0 (the details name the offending stage), or run the joined step as a standalone Process call and chain from its output.",
 			},
 		},
 	},
@@ -2357,12 +2381,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SPSS_DATE_WIDENED: {
-		Message: "An SPSS variable carrying a day-resolution print format (DATE, ADATE, EDATE, SDATE or JDATE) was mapped to the Pulse datetime type rather than date, because at least one of its values carries a time of day that day resolution would truncate, or falls before 1970-01-01, which the unsigned epoch-day date representation cannot express. This is a warning: datetime holds every such value exactly and the date-family groupers accept it by documented day truncation.",
+		Message: "An SPSS variable carrying a day-resolution print format (DATE, ADATE, EDATE, SDATE or JDATE) was mapped to the Pulse datetime type rather than date, because at least one of its values carries a time of day that day resolution would truncate. A pre-1970 value alone never widens: date is signed epoch days. This is a warning: datetime holds every such value exactly and the date-family groupers accept it by documented day truncation.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema"},
-				Hint:   "No action is needed — GROUP_DATE and the date-range operators accept a datetime field and truncate it to the day. Supply an explicit ImportJob.Schema only if the column must be a date, accepting that pre-1970 values and times of day will not survive.",
+				Hint:   "No action is needed — GROUP_DATE and the date-range operators accept a datetime field and truncate it to the day. Supply an explicit ImportJob.Schema only if the column must be a date, accepting that times of day will not survive.",
 			},
 		},
 	},
@@ -2644,6 +2668,23 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupSetDefault,
 				Path:   []string{"Labels"},
 				Hint:   "If downstream syntax references the original names, keep the `renames` list: it is the only record of which emitted variable came from which cohort field. A sidecar-driven export never raises this — names that came from a .sav are legal by construction.",
+			},
+		},
+	},
+	PULSE_TIMEZONE_UNKNOWN: {
+		Message: "The time-zone name is not one Pulse accepts. A zone is exactly \"UTC\" or an IANA Area/Location name (it contains a '/') resolved against the tz database embedded in the binary. Empty, \"Local\", abbreviations and legacy names without a '/' (EST, GMT, EST5EDT) and offset strings (+05:00) are refused because they depend on the host or name an ambiguous zone. The rejected name is under `tz` in the details.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"TimeZone"},
+				Hint:     "Use an IANA Area/Location name such as America/New_York or Europe/Berlin (names are case-sensitive), or exactly UTC.",
+				Examples: []any{"America/New_York", "Europe/Berlin", "UTC"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"TimeZone"},
+				Hint:     "For a fixed offset with no daylight-saving rules use Etc/GMT±N — note the POSIX sign is INVERTED: Etc/GMT-5 is UTC+05:00 and Etc/GMT+5 is UTC-05:00.",
+				Examples: []any{"Etc/GMT-5", "Etc/GMT+8"},
 			},
 		},
 	},

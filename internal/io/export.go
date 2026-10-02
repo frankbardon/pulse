@@ -8,11 +8,11 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -582,8 +582,9 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 		return strconv.FormatFloat(f, 'f', -1, 64)
 
 	case encoding.FieldTypeDate:
-		days := int64(uint32(raw))
-		t := time.Unix(days*86400, 0).UTC()
+		// Signed int32 epoch days: a pre-1970 date stays pre-1970.
+		days := int64(encoding.DateDays(raw))
+		t := temporal.DayToTime(days)
 		return t.Format("2006-01-02")
 
 	case encoding.FieldTypeDateTime:

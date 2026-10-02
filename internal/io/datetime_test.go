@@ -82,7 +82,7 @@ func TestInferColumnType_DateTimeVsDate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, _, _, _, err := inferColumnTypeWithOpts("col", tc.values, defaultSetInferenceMinPct, 0)
+			got, _, _, _, err := inferColumnTypeWithOpts("col", tc.values, defaultSetInferenceMinPct)
 			if err != nil {
 				t.Fatalf("inferColumnTypeWithOpts: %v", err)
 			}
@@ -97,7 +97,7 @@ func TestInferColumnType_DateTimeVsDate(t *testing.T) {
 // with datetime literals still classify as datetime and flip nullable.
 func TestInferColumnType_DateTimeNullable(t *testing.T) {
 	values := []string{"2024-03-04T10:11:12Z", "", "2024-03-05T10:11:12Z", "N/A"}
-	got, nullable, _, _, err := inferColumnTypeWithOpts("ts", values, defaultSetInferenceMinPct, 0)
+	got, nullable, _, _, err := inferColumnTypeWithOpts("ts", values, defaultSetInferenceMinPct)
 	if err != nil {
 		t.Fatalf("inferColumnTypeWithOpts: %v", err)
 	}

@@ -33,6 +33,13 @@ import (
 // composite keys for nested axes; the RunCrosstab orchestrator is the
 // only place those keys are materialised today.
 func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*types.Response, error) {
+	// A crosstab carrying its one JoinSpec runs over the joined row
+	// stream. Process applied descx.JoinCountRefusal already, and
+	// CanFuseCrosstab declines any join, so this arm is always buffered.
+	if len(req.Joins) > 0 {
+		return s.processCrosstabWithJoin(ctx, req)
+	}
+
 	path := resolveCohortPath(req.Cohort)
 	cohort, err := s.Open(ctx, path)
 	if err != nil {
@@ -40,6 +47,12 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	}
 
 	s.applyDefaults(req, cohort.Schema())
+	if err := s.resolveZones(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
+	if err := s.checkFieldRefs(req, cohort.Schema()); err != nil {
+		return nil, err
+	}
 
 	// Validate / inject label bindings exactly as Process does so a
 	// labelled crosstab matches a labelled plain Process request.
@@ -128,6 +141,69 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 	}
 
 	if err := s.buildAndApplyLabels(req, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// processCrosstabWithJoin is the crosstab arm for a Request carrying
+// exactly one JoinSpec. It builds the same joined row stream
+// processWithJoin consumes (openJoinStream), materialises it, and runs
+// the buffered RunCrosstab pipeline over the JOINED schema — so an axis
+// or the cell may name a right-side (JoinSpec.As-renamed) field,
+// unmatched left rows never reach a cell, and a 1:N right match counts
+// once per joined row in every cell, margin and Components figure.
+//
+// It is always buffered: the fused walk decodes the left cohort
+// directly and has no join leg, which is why CanFuseCrosstab declines
+// a joined request rather than letting it reach
+// FusedCrosstabState.AssertCanFuse. The parallel segment decode and the
+// crosstab projection are single-cohort optimisations and do not apply
+// to the joined stream.
+func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Request) (*types.Response, error) {
+	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	defer leftIter.Close()
+
+	// Strip Joins so RunCrosstab sees a plain crosstab over the joined
+	// records — the same clone processWithJoin hands its processor.
+	clone := *req
+	clone.Joins = nil
+
+	s.applyDefaults(&clone, joinedSchema)
+	if err := s.resolveZones(&clone, joinedSchema); err != nil {
+		return nil, err
+	}
+	if err := s.checkFieldRefs(&clone, joinedSchema); err != nil {
+		return nil, err
+	}
+	s.applyAutoLabels(&clone.Labels, joinedSchema, collectOutputLabels(&clone), nil)
+	if err := s.validateProcessLabels(&clone, joinedSchema); err != nil {
+		return nil, err
+	}
+
+	var records []*processing.Record
+	for join.Next() {
+		// HashJoinIterator.Record builds a fresh record per call, so the
+		// slice survives the left iterator's buffer reuse.
+		records = append(records, join.Record())
+	}
+	if err := leftIter.Err(); err != nil {
+		return nil, err
+	}
+
+	proc := processing.NewProcessorWithExtensions(joinedSchema, s.extensions)
+	proc.SetDisableComponents(s.effectiveDisableComponents(req))
+	resp, err := proc.RunCrosstab(ctx, &clone, records)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Metadata != nil {
+		resp.Metadata.CohortFile = leftPath
+	}
+	if err := s.buildAndApplyLabels(&clone, resp); err != nil {
 		return nil, err
 	}
 	return resp, nil

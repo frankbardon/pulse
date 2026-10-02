@@ -35,6 +35,10 @@ type Options struct {
     // buffered path, skipping the fused in-decode streaming arm.
     DisableCrosstabFusion bool
 
+    // DefaultTimeZone is the engine-wide IANA zone ("UTC" or an
+    // Area/Location name) a zone-capable slot falls back to. Empty = UTC.
+    DefaultTimeZone string
+
     // ... further fields (concurrency, projection, imports, labels,
     // templates) are documented on the Options type in pulse.go.
 }
@@ -112,6 +116,29 @@ there is no per-request override.
 p, err := pulse.New(pulse.Options{DisableCrosstabFusion: true})
 ```
 
+### `DefaultTimeZone string`
+
+The zone a zone-capable slot falls back to when neither its own `tz`
+nor the request's `time_zone` names one — precedence is slot `tz` →
+`time_zone` → `DefaultTimeZone` → `UTC`. The name must be exactly `UTC`
+or an IANA `Area/Location` zone (`Europe/Berlin`); anything else
+(`EST`, `Local`, `+05:00`) fails `pulse.New` with
+`PULSE_TIMEZONE_UNKNOWN`. Names resolve only from Pulse's own embedded
+copy of the tz database (never `$ZONEINFO` or the host's zoneinfo
+files), so the accepted set and every offset are identical on every
+host, and the lookup is case-sensitive everywhere.
+
+Zone-aware operator arithmetic has not landed yet: a non-UTC default is
+accepted at `pulse.New`, but a request in which it reaches a `datetime`
+field is refused with `PROCESSING_CONFIG` (it is never silently
+ignored). It does not apply to `date` fields at all. Predict reports the
+resolved zone per slot under `time_zones`, with `source: "options"` when
+this field supplied it. There is no env var or CLI flag for it.
+
+```go
+p, err := pulse.New(pulse.Options{DefaultTimeZone: "UTC"})
+```
+
 ## Defaults at a glance
 
 | Field omitted from `Options` | Effective behaviour |
@@ -122,6 +149,7 @@ p, err := pulse.New(pulse.Options{DisableCrosstabFusion: true})
 | Both                          | `FS` wins; `DataDir` is ignored. |
 | `DisableDefaults` omitted     | Defaults enabled. |
 | `DisableCrosstabFusion` omitted | Fusion engages whenever the gate admits the crosstab. |
+| `DefaultTimeZone` omitted     | Zone-capable slots without `tz` / `time_zone` resolve to `UTC`. |
 
 ## Re-using a Pulse instance
 

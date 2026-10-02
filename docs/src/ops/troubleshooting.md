@@ -130,7 +130,9 @@ it. No value changes.
 
 **Fix (optional):** raise `--sample-rows`, or pin the type with
 `column_type_overrides` / `--schema`. A pinned type is a contract: a
-value past it is then a `PULSE_IMPORT_ROW_ERROR`, never a promotion (on
+value past a `--schema` type is then a `PULSE_IMPORT_ROW_ERROR`, and one
+past a `column_type_overrides` type refuses the whole import with
+`PULSE_IMPORT_OVERRIDE_INVALID` — never a promotion (on
 `pulse convert`, a full declared categorical rung is the fatal
 `PULSE_IMPORT_CATEGORICAL_OVERFLOW`). A non-boolean in a `packed_bool`
 column never promotes either: it stays a row error.

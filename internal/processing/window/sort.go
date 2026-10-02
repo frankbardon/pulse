@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -75,17 +76,37 @@ func Sort(rows []map[string]any, keys []types.OrderKey) {
 	}
 	sort.SliceStable(rows, func(a, b int) bool {
 		for _, k := range keys {
-			cmp := compareCell(rows[a][k.Field], rows[b][k.Field])
-			if cmp == 0 {
-				continue
+			if cmp := CompareKey(rows[a][k.Field], rows[b][k.Field], k.Desc); cmp != 0 {
+				return cmp < 0
 			}
-			if k.Desc {
-				return cmp > 0
-			}
-			return cmp < 0
 		}
 		return false
 	})
+}
+
+// CompareKey orders two cells under one sort key: negative when a sorts
+// before b. Desc reverses the order of NON-NULL values only — a null
+// (nil or missing) trails in BOTH directions. Reversing compareCell
+// wholesale instead flipped the null term too, so every Desc key put its
+// nulls FIRST while the contract (window order_by, Request.Sort,
+// post-test order_by) says nulls last regardless of direction. Every
+// ordering arm in the engine routes through here.
+func CompareKey(a, b any, desc bool) int {
+	a, b = sortValue(a), sortValue(b)
+	aNull, bNull := isNullCell(a), isNullCell(b)
+	switch {
+	case aNull && bNull:
+		return 0
+	case aNull:
+		return 1
+	case bNull:
+		return -1
+	}
+	cmp := compareCell(a, b)
+	if desc {
+		return -cmp
+	}
+	return cmp
 }
 
 // sortIndices sorts idx by (partitionBy ASC, orderBy). Stable. Nulls last.
@@ -99,23 +120,30 @@ func sortIndices(rows []map[string]any, idx []int, partitionBy []string, orderBy
 			}
 		}
 		for _, o := range orderBy {
-			cmp := compareCell(ra[o.Field], rb[o.Field])
-			if cmp == 0 {
-				continue
+			if cmp := CompareKey(ra[o.Field], rb[o.Field], o.Desc); cmp != 0 {
+				return cmp < 0
 			}
-			if o.Desc {
-				return cmp > 0
-			}
-			return cmp < 0
 		}
 		return false
 	})
 }
 
-// compareCell returns -1, 0, or +1 comparing two cell values. Null values
-// (nil, missing) sort LAST regardless of direction (caller's Desc flag still
-// determines order of non-null values; nulls always trail).
+// compareCell returns -1, 0, or +1 comparing two cell values in ASCENDING
+// order, nulls (nil, missing) last. It is direction-free: a Desc key goes
+// through CompareKey, which keeps nulls last while reversing the rest.
+//
+// Ordering per decoded value: numbers (every numeric field type, signed
+// date / datetime epoch counts, packed_bool as 0/1) by float64 value;
+// encoding.Decimal128 by Cmp — one column shares one scale, so comparing
+// the unscaled mantissas is comparing the values; strings (categorical
+// labels, bucket keys) byte-wise. Anything else (a set_* label slice)
+// compares equal, which is why the shared orderability rule
+// (internal/descriptor.IsOrderableType) refuses a set order_by key.
+//
+// A cell implementing SortValuer (a decimal aggregate result, a
+// record-row decimal cell) is ordered by its SortValue.
 func compareCell(a, b any) int {
+	a, b = sortValue(a), sortValue(b)
 	aNull := isNullCell(a)
 	bNull := isNullCell(b)
 	switch {
@@ -125,6 +153,17 @@ func compareCell(a, b any) int {
 		return 1 // a comes after b (nulls last)
 	case bNull:
 		return -1
+	}
+
+	if ad, ok := asDecimal(a); ok {
+		if bd, ok := asDecimal(b); ok {
+			return ad.Cmp(bd)
+		}
+	}
+	if as, ok := a.(ScaledDecimal); ok {
+		if bs, ok := b.(ScaledDecimal); ok && as.Scale == bs.Scale {
+			return as.Value.Cmp(bs.Value)
+		}
 	}
 
 	af, aOk := toFloat(a)
@@ -145,6 +184,44 @@ func compareCell(a, b any) int {
 	return strings.Compare(as, bs)
 }
 
+// SortValuer is implemented by a cell value whose order is not its own Go
+// value: compareCell orders it by SortValue() instead. A nil SortValue
+// is a null.
+type SortValuer interface {
+	SortValue() any
+}
+
+// ScaledDecimal is a decimal128 cell carrying its scale, the SortValue
+// of a decimal aggregate result or record-row decimal cell. Two of the
+// same scale order exactly by Decimal128.Cmp; across scales, or against
+// a plain number (an aggregate that fell back to f64), by Float64.
+type ScaledDecimal struct {
+	Value encoding.Decimal128
+	Scale uint8
+}
+
+func sortValue(v any) any {
+	if sv, ok := v.(SortValuer); ok {
+		return sv.SortValue()
+	}
+	return v
+}
+
+// asDecimal unwraps a decimal128 cell (the Record stores it unboxed and
+// AllValues hands it over by value; a pointer is accepted for callers
+// that box it).
+func asDecimal(v any) (encoding.Decimal128, bool) {
+	switch d := v.(type) {
+	case encoding.Decimal128:
+		return d, true
+	case *encoding.Decimal128:
+		if d != nil {
+			return *d, true
+		}
+	}
+	return encoding.Decimal128{}, false
+}
+
 // isNullCell reports whether a cell value is null/missing for sort purposes.
 func isNullCell(v any) bool {
 	return v == nil
@@ -153,6 +230,8 @@ func isNullCell(v any) bool {
 // toFloat coerces a cell value into float64 if numerically convertible.
 func toFloat(v any) (float64, bool) {
 	switch x := v.(type) {
+	case ScaledDecimal:
+		return x.Value.Float64(x.Scale), true
 	case float64:
 		return x, true
 	case float32:

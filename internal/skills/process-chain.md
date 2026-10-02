@@ -25,9 +25,9 @@ covers: [ChainRequest, pulse_process_chain, OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT,
 
 ## Mergeable-only stage gate (v1)
 
-Every stage must pass `CanChainRequestWithExtensions` — the merge gate (an extension aggregator or grouper qualifies iff declared `Mergeable`), then chain-specific exclusions (`aggregatorEmitsScalar`). Failure surfaces `PULSE_CHAIN_NOT_MERGEABLE`. Predict-side: `descriptor.chainGateOK` via `ValidateChainWithExtensions` (reads the snapshot's `Mergeable`; `ValidateChain` is built-ins only). `processChainCapability()` carries the manifest-facing allowlists + `RejectionRules`.
+Every stage must pass `internal/mergegate.ChainRefusal` — ONE rule, called by the runtime (`processing.ChainRefusal`, over the registry) and by `ValidateChain*` (over the snapshot; `ValidateChain` is built-ins only): the merge rule `CanMergeRequest` shares (extension aggregator / grouper iff declared `Mergeable`, streamable filterers, no built-in aggregator over `decimal128`), then scalar emit (no `AGG_FREQUENCY` / `AGG_MODE`). Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`, same both sides. Both gate each stage AFTER smart defaults (unless `DisableDefaults`), so `{"field": "n"}` on a numeric field passes as `AGG_SUM` and the next stage sees `AGG_SUM_n`. Only stage 0 may join: a later stage's `Joins` is `PULSE_CHAIN_STAGE_JOIN` `{count, stage, stage_name}`, raised before that stage's defaults. A zone or join-count refusal carries `details.stage`. `processChainCapability()` carries the manifest-facing allowlists + `RejectionRules`.
 
-The constraint exists because the synthesised inter-stage cohort uses an f64 / categorical_u32 projection — operators whose emit shape can't be folded into it (`AGG_MEDIAN`, `GROUP_QUANTILE`, etc.) break the bridge.
+Why: the inter-stage cohort is an f64 / categorical_u32 projection; an emit that can't fold into it (`AGG_MEDIAN`, `GROUP_QUANTILE`, …) breaks the bridge.
 
 ## Per-stage `Response.Components` (v0.20.0)
 
@@ -63,12 +63,7 @@ Two independent overlay slots:
 
 `Ref` and `Target` accept exactly one of `Index *int` (zero-based pointer) or `Name string` (matches `ChainStage.Name`). Both populated OR both empty rejects with `PULSE_OVERLAY_*` configuration error. `Index` is a pointer so `0` is distinguishable from "no index supplied" — set `Index: &zero` for stage 0.
 
-When `Target` is fully empty (`Index: nil` and `Name: ""`), the resolver defaults to latest stage (`len(Stages) - 1`). `Ref` has no default — every spec MUST name a baseline explicitly.
-
-```jsonc
-{"ref": {"index": 0},    "target": {"index": 2}}      // index form
-{"ref": {"name": "raw"}, "target": {"name": "final"}} // name form
-```
+A fully empty `Target` defaults to the latest stage (`len(Stages) - 1`). `Ref` has no default — every spec MUST name a baseline.
 
 ## Shape-divergence warning
 

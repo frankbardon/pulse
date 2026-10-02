@@ -28,15 +28,16 @@ type Spec struct {
 }
 
 // compiledRange is the resolved form of a Spec: boundaries turned
-// into u32 day-integers (whole days since the Unix epoch, matching the
-// on-wire `date` field type) so a record's decoded day-integer can be
-// compared directly without any time.Time round-trip.
+// into SIGNED day-integers (whole days since the Unix epoch, matching the
+// on-wire two's-complement `date` word) so a record's decoded day-integer
+// can be compared directly without any time.Time round-trip. Signed so a
+// pre-1970 bound orders before a post-1970 one.
 type compiledRange struct {
 	label    string
 	hasStart bool
-	start    uint32
+	start    int64
 	hasEnd   bool
-	end      uint32
+	end      int64
 }
 
 // Set is a validated, ordered collection of labeled date ranges.
@@ -69,10 +70,10 @@ func (s *Set) Labels() []string {
 	return out
 }
 
-// Match returns the label of the range containing day (a u32 day-integer,
-// whole days since the Unix epoch) with inclusive comparison on both
+// Match returns the label of the range containing day (a signed
+// day-integer, whole days since the Unix epoch; negative before 1970) with inclusive comparison on both
 // bounds, and ok=true. When no range contains day it returns "", false.
-func (s *Set) Match(day uint32) (string, bool) {
+func (s *Set) Match(day int64) (string, bool) {
 	if s == nil {
 		return "", false
 	}
@@ -135,7 +136,7 @@ func Compile(specs []Spec) (*Set, error) {
 					map[string]any{"label": spec.Label, "start": *spec.Start})
 			}
 			cr.hasStart = true
-			cr.start = day
+			cr.start = int64(encoding.DateDays(uint64(day)))
 		}
 
 		if !boundOpen(spec.End) {
@@ -146,7 +147,7 @@ func Compile(specs []Spec) (*Set, error) {
 					map[string]any{"label": spec.Label, "end": *spec.End})
 			}
 			cr.hasEnd = true
-			cr.end = day
+			cr.end = int64(encoding.DateDays(uint64(day)))
 		}
 
 		if cr.hasStart && cr.hasEnd && cr.start > cr.end {

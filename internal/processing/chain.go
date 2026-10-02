@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -32,31 +33,61 @@ func CanChainRequest(req *types.Request, schema *encoding.Schema) bool {
 // the same posture as the built-in set aggregators. A nil exts is
 // exactly CanChainRequest.
 func CanChainRequestWithExtensions(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) bool {
-	if !CanMergeRequestWithExtensions(req, schema, exts) {
-		return false
-	}
-	for _, agg := range req.Aggregations {
-		if agg == nil {
-			return false
-		}
-		if !aggregatorEmitsScalar(agg.Type) {
-			return false
-		}
-	}
-	return true
+	return ChainRefusal(req, schema, exts, 0, "") == nil
 }
 
-// aggregatorEmitsScalar reports whether the aggregator's Finalize
-// produces a single float64 cell suitable for inclusion in a
-// downstream record. Excludes the map-emitting (AGG_FREQUENCY) and
-// string-emitting (AGG_MODE) aggregators.
-func aggregatorEmitsScalar(t types.AggregationType) bool {
-	switch t {
-	case types.AGG_FREQUENCY, types.AGG_MODE:
-		return false
+// ChainRefusal is the coded form of CanChainRequestWithExtensions — the
+// error ProcessChain returns for a stage that fails the gate:
+// PULSE_CHAIN_NOT_MERGEABLE "chain stage is not mergeable: <reason>"
+// {stage_index, stage_name}, nil when the stage passes. It is
+// internal/mergegate.ChainRefusal over this registry; the chain
+// validator calls the same function over the ExtensionsSnapshot, so
+// both sides refuse with one code, message and details.
+func ChainRefusal(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, stageIndex int, stageName string) error {
+	return mergegate.ChainRefusal(req, schema, exts.mergeFacts(), stageIndex, stageName)
+}
+
+// mergeFacts adapts the registry to mergegate.Extensions. Nil-safe: a
+// nil registry answers ok=false for every name (built-ins only).
+func (r *ExtensionRegistry) mergeFacts() mergegate.Extensions {
+	return registryMergeFacts{r}
+}
+
+type registryMergeFacts struct{ r *ExtensionRegistry }
+
+func (f registryMergeFacts) Aggregator(name string) (bool, bool) {
+	if !f.r.isExtensionAggregator(types.AggregationType(name)) {
+		return false, false
 	}
-	// Every other mergeable aggregator emits a single float64.
-	return true
+	return f.r.IsMergeable("aggregator", name), true
+}
+
+func (f registryMergeFacts) Grouper(name string) (bool, bool) {
+	if f.r == nil {
+		return false, false
+	}
+	if _, ok := f.r.Groupers[types.GroupType(name)]; !ok {
+		return false, false
+	}
+	return f.r.IsMergeable("grouper", name), true
+}
+
+func (f registryMergeFacts) Filterer(name string) (bool, bool) {
+	if f.r == nil {
+		return false, false
+	}
+	if _, ok := f.r.Filterers[types.FiltererType(name)]; !ok {
+		return false, false
+	}
+	return f.r.IsStreamable("filterer", name), true
+}
+
+func (f registryMergeFacts) Attribute(name string) (bool, bool) {
+	t := types.AttributeType(name)
+	if !f.r.isExtensionAttribute(t) {
+		return false, false
+	}
+	return f.r.IsStreamable("attribute", name) && !f.r.attributeRequiresTwoPass(t), true
 }
 
 // AggregationLabel returns the output column name for an aggregation,

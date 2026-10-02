@@ -14,6 +14,8 @@ Fixed-width: 16 bytes per record, two-complement big-integer mantissa. Not bit-p
 
 Up to 38 significant decimal digits (`MaxDecimalPrecision = 38`). Precision is the digit count; scale is the count after the decimal point and is bounded by `MinDecimalScale = 4` for division results. The first integer that overflows is 10^38 (`decimal128MaxAbs`). Use for money, regulated metrics, accounting balances — anywhere base-10 rounding error is unacceptable.
 
+**Output form:** a decimal STRING at the column scale (`"-123.4567"`) wherever a value reaches a caller — record rows (`Response.Data` of a windowed Process), `pulse_sample`, `pulse_lookup`, decimal aggregates, export. Window `order_by` / `Request.Sort` still order by value.
+
 ## Null
 
 Orthogonal — and uniquely strict. `Nullable: true` participates in the per-record null bitmap, and the bitmap is the **only** null mechanism. All-zero mantissa bits is decimal zero, not null. `IsDecimal()` and `IsNumeric()` are both `true`.

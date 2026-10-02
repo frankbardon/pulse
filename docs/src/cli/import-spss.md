@@ -88,7 +88,7 @@ is **always** `null` for an SPSS import — see
 | numeric with value labels | `categorical_u8` / `u16` / `u32` | Width from the distinct code count; past `u32` → `PULSE_SPSS_CATEGORICAL_OVERFLOW` |
 | string (`A*`) | `categorical_*` | Near-unique columns warn `PULSE_SPSS_CARDINALITY_HIGH` and still import |
 | very long string (wider than 255 bytes) | one `categorical_*` column | Reassembled from the record `7/14` segments — see [Very long strings](#very-long-strings) |
-| `DATE` / `ADATE` / `EDATE` / `SDATE` / `JDATE` | `date`, or `datetime` with `PULSE_SPSS_DATE_WIDENED` | Widens when a value carries a time of day or predates 1970 |
+| `DATE` / `ADATE` / `EDATE` / `SDATE` / `JDATE` | `date`, or `datetime` with `PULSE_SPSS_DATE_WIDENED` | Widens only when a value carries a time of day; pre-1970 dates stay `date` (signed epoch days) |
 | `DATETIME` / `TIME` / `DTIME` | `datetime` (epoch seconds) | A fractional-second / non-finite / out-of-`int64` value demotes the column to `f64` raw SPSS seconds with `PULSE_SPSS_TEMPORAL_PRECISION` |
 | system-missing (sysmis) | null (bitmap bit) | The one missing state the format has a sentinel for |
 | numeric user-missing values | null, plus a generated `<var>_missing` sibling column | See [Missing values](#missing-values) — the analytic column stays arithmetically clean and the reason is kept beside it |
@@ -656,11 +656,14 @@ empty string.
 
 The same inertness applies to the library and managed-import knobs that
 exist only to steer inference — `ImportJob.SampleRows`,
-`SetInferenceMinPct`, `SetDelimiters` and the `force_type` column
-overrides on `pulse import auto`. Forcing a type onto a
-dictionary-carrying column would discard the source's category IDs and
-rebuild them in first-seen order, which is exactly what an authoritative
-schema exists to prevent.
+`SetInferenceMinPct` and `SetDelimiters`. The `force_type` column
+overrides (`ColumnTypeOverrides`) are a type instruction rather than a
+hint, so an SPSS import that carries them is refused with
+`PULSE_IMPORT_OVERRIDE_INVALID` instead of silently ignoring them:
+forcing a type onto a dictionary-carrying column would discard the
+source's category IDs and rebuild them in first-seen order, which is
+exactly what an authoritative schema exists to prevent. Re-type a column
+with an explicit schema.
 
 There is also **no null promotion**. For inferred formats a null found
 past the sample window widens the field to nullable and reports it in

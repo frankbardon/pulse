@@ -227,6 +227,7 @@ pulse: type FacetRequest field IncludeHistogram bool "json:\"include_histogram,o
 pulse: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FacetRequest method (*FacetRequest) Hash() string
 pulse: type FacetResult = pulse/types.FacetResult
 pulse: type FacetResult underlying struct
@@ -425,6 +426,7 @@ pulse: type Options struct
 pulse: type Options field AutoLabels []pulse.LabelBinding
 pulse: type Options field DataDir string
 pulse: type Options field DecodeWorkers int
+pulse: type Options field DefaultTimeZone string
 pulse: type Options field DisableComponents bool
 pulse: type Options field DisableCrosstabFusion bool
 pulse: type Options field DisableDefaults bool
@@ -585,6 +587,7 @@ pulse: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omite
 pulse: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
 pulse: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
+pulse: type Request field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
 pulse: type Request method (*Request) Hash() string
 pulse: type Response = pulse/types.Response
@@ -1081,6 +1084,7 @@ pulse/descriptor: type Operator field Name string "json:\"name\""
 pulse/descriptor: type Operator field Params []pulse/descriptor.Param "json:\"params\""
 pulse/descriptor: type Operator field Streamable bool "json:\"streamable\""
 pulse/descriptor: type Operator field StreamableHint string "json:\"streamable_hint,omitempty\""
+pulse/descriptor: type Operator field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type OperatorMeta struct
 pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omitempty\""
 pulse/descriptor: type OperatorMeta field Description string "json:\"description,omitempty\""
@@ -1115,6 +1119,7 @@ pulse/descriptor: type OverlayCapability field Kind pulse/types.OverlayKind "jso
 pulse/descriptor: type OverlayCapability field RefKinds []string "json:\"ref_kinds\""
 pulse/descriptor: type OverlayCapability field Scopes []pulse/types.OverlayScope "json:\"scopes\""
 pulse/descriptor: type OverlayCapability field Shapes []pulse/types.OverlayShape "json:\"shapes\""
+pulse/descriptor: type OverlayCapability field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type Param struct
 pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
@@ -1139,6 +1144,7 @@ pulse/descriptor: type PredictResult field Shards []pulse/descriptor.ShardInfo "
 pulse/descriptor: type PredictResult field Streamable bool "json:\"streamable\""
 pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
 pulse/descriptor: type PredictResult field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
+pulse/descriptor: type PredictResult field TimeZones []pulse/descriptor.ResolvedZone "json:\"time_zones\""
 pulse/descriptor: type PredictResult field Valid bool "json:\"valid\""
 pulse/descriptor: type PredictSchemaInfo struct
 pulse/descriptor: type PredictSchemaInfo field FieldCount int "json:\"field_count\""
@@ -1169,6 +1175,12 @@ pulse/descriptor: type RegressionModifier struct
 pulse/descriptor: type RegressionModifier field Description string "json:\"description\""
 pulse/descriptor: type RegressionModifier field EnumValues []string "json:\"enum_values\""
 pulse/descriptor: type RegressionModifier field Name string "json:\"name\""
+pulse/descriptor: type ResolvedZone struct
+pulse/descriptor: type ResolvedZone field FieldType string "json:\"field_type,omitempty\""
+pulse/descriptor: type ResolvedZone field Operator string "json:\"operator\""
+pulse/descriptor: type ResolvedZone field Slot string "json:\"slot\""
+pulse/descriptor: type ResolvedZone field Source string "json:\"source\""
+pulse/descriptor: type ResolvedZone field TZ *string "json:\"tz\""
 pulse/descriptor: type ShardInfo struct
 pulse/descriptor: type ShardInfo field Filename string "json:\"filename\""
 pulse/descriptor: type ShardInfo field RecordCount int64 "json:\"record_count\""
@@ -1194,13 +1206,19 @@ pulse/descriptor: type TestMeta field Requires []string "json:\"requires,omitemp
 pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
+pulse/descriptor: const ZoneSourceDefault untyped string = "default"
+pulse/descriptor: const ZoneSourceOptions untyped string = "options"
+pulse/descriptor: const ZoneSourceRequest untyped string = "request"
+pulse/descriptor: const ZoneSourceSlot untyped string = "slot"
 pulse/encoding: package encoding
 pulse/encoding: func BitmapIsNull(bitmap []byte, i int) bool
 pulse/encoding: func BitmapSetNull(bitmap []byte, i int)
 pulse/encoding: const CanonicalDateTimeLayout untyped string = "2006-01-02T15:04:05Z"
 pulse/encoding: func CompressedCohortError() *pulse/errors.CodedError
+pulse/encoding: func DateDays(raw uint64) int32
 pulse/encoding: var DateFormats []string
 pulse/encoding: var DateTimeFormats []string
+pulse/encoding: func DateTimeSeconds(raw uint64) int64
 pulse/encoding: func DateTimeToDay(sec int64) int64
 pulse/encoding: type Decimal128 struct
 pulse/encoding: type Decimal128 method (Decimal128) Add(o pulse/encoding.Decimal128) (pulse/encoding.Decimal128, error)
@@ -1440,6 +1458,7 @@ pulse/errors: const DetailSPSSWidth untyped string = "width"
 pulse/errors: const DetailSynthRule untyped string = "rule_index"
 pulse/errors: const DetailSynthRuleSlot untyped string = "slot"
 pulse/errors: const DetailTemplate untyped string = "template"
+pulse/errors: const DetailTimeZone untyped string = "tz"
 pulse/errors: const DetailVariable untyped string = "variable"
 pulse/errors: func Domain(c pulse/errors.Code) string
 pulse/errors: const ENCODING_INTERNAL pulse/errors.Code = "ENCODING_INTERNAL"
@@ -1490,6 +1509,7 @@ pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_COR
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
+pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAGE_JOIN"
 pulse/errors: const PULSE_COHORT_COMPRESSED pulse/errors.Code = "PULSE_COHORT_COMPRESSED"
 pulse/errors: const PULSE_COMPOSE_LABEL_COLLISION pulse/errors.Code = "PULSE_COMPOSE_LABEL_COLLISION"
 pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
@@ -1540,6 +1560,7 @@ pulse/errors: const PULSE_IMPORT_DESCRIPTION_TOO_LONG pulse/errors.Code = "PULSE
 pulse/errors: const PULSE_IMPORT_FORMAT_UNKNOWN pulse/errors.Code = "PULSE_IMPORT_FORMAT_UNKNOWN"
 pulse/errors: const PULSE_IMPORT_HANDLE_EXISTS pulse/errors.Code = "PULSE_IMPORT_HANDLE_EXISTS"
 pulse/errors: const PULSE_IMPORT_NULL_PROMOTED pulse/errors.Code = "PULSE_IMPORT_NULL_PROMOTED"
+pulse/errors: const PULSE_IMPORT_OVERRIDE_INVALID pulse/errors.Code = "PULSE_IMPORT_OVERRIDE_INVALID"
 pulse/errors: const PULSE_IMPORT_ROW_ERROR pulse/errors.Code = "PULSE_IMPORT_ROW_ERROR"
 pulse/errors: const PULSE_IMPORT_SCHEMA_AMBIGUOUS pulse/errors.Code = "PULSE_IMPORT_SCHEMA_AMBIGUOUS"
 pulse/errors: const PULSE_IMPORT_SET_OVERFLOW pulse/errors.Code = "PULSE_IMPORT_SET_OVERFLOW"
@@ -1696,6 +1717,7 @@ pulse/errors: const PULSE_TEST_TIES_DOMINATE pulse/errors.Code = "PULSE_TEST_TIE
 pulse/errors: const PULSE_TEST_TUKEY_REQUIRES_K_GE_3 pulse/errors.Code = "PULSE_TEST_TUKEY_REQUIRES_K_GE_3"
 pulse/errors: const PULSE_TEST_UNKNOWN_TYPE pulse/errors.Code = "PULSE_TEST_UNKNOWN_TYPE"
 pulse/errors: const PULSE_TEST_VARIANCE_ZERO pulse/errors.Code = "PULSE_TEST_VARIANCE_ZERO"
+pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_UNKNOWN"
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
 pulse/errors: const PULSE_WINDOW_INVALID pulse/errors.Code = "PULSE_WINDOW_INVALID"
 pulse/errors: func ParseCode(s string) (pulse/errors.Code, bool)
@@ -2786,6 +2808,7 @@ pulse/types: type Attribute field Params encoding/json.RawMessage "json:\"params
 pulse/types: type Attribute field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type Attribute field Predictors []string "json:\"predictors,omitempty\""
 pulse/types: type Attribute field Target string "json:\"target,omitempty\""
+pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Attribute field Type pulse/types.AttributeType "json:\"type\""
 pulse/types: type AttributeType string
 pulse/types: type AttributeType method (AttributeType) Streamable() bool
@@ -2962,6 +2985,7 @@ pulse/types: type FacetRequest field IncludeHistogram bool "json:\"include_histo
 pulse/types: type FacetRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse/types: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse/types: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type FacetRequest method (*FacetRequest) Hash() string
 pulse/types: type FacetResult struct
 pulse/types: type FacetResult field Additive map[string]*pulse/types.FacetField "json:\"additive,omitempty\""
@@ -2977,6 +3001,7 @@ pulse/types: type Feature struct
 pulse/types: type Feature field Field string "json:\"field,omitempty\""
 pulse/types: type Feature field Label string "json:\"label,omitempty\""
 pulse/types: type Feature field Params encoding/json.RawMessage "json:\"params,omitempty\""
+pulse/types: type Feature field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Feature field Type pulse/types.FeatureType "json:\"type\""
 pulse/types: type FeatureType string
 pulse/types: type FeatureType method (FeatureType) Streamable() bool
@@ -2991,6 +3016,7 @@ pulse/types: type Filterer struct
 pulse/types: type Filterer field Expression string "json:\"expression,omitempty\""
 pulse/types: type Filterer field Field string "json:\"field,omitempty\""
 pulse/types: type Filterer field Params encoding/json.RawMessage "json:\"params,omitempty\""
+pulse/types: type Filterer field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Filterer field Type pulse/types.FiltererType "json:\"type\""
 pulse/types: type Filterer field Values []string "json:\"values,omitempty\""
 pulse/types: type FiltererComponents struct
@@ -3018,6 +3044,7 @@ pulse/types: type Group field Field string "json:\"field\""
 pulse/types: type Group field Include []string "json:\"include,omitempty\""
 pulse/types: type Group field Interval float64 "json:\"interval,omitempty\""
 pulse/types: type Group field Params encoding/json.RawMessage "json:\"params,omitempty\""
+pulse/types: type Group field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Group field Type pulse/types.GroupType "json:\"type\""
 pulse/types: type GroupType string
 pulse/types: type GroupType method (GroupType) FansOut() bool
@@ -3360,6 +3387,7 @@ pulse/types: type Request field PostTests []*pulse/types.Test "json:\"post_tests
 pulse/types: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
 pulse/types: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse/types: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
+pulse/types: type Request field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
 pulse/types: type Request method (*Request) Hash() string
 pulse/types: func ResolveBuiltinGroupFanOut(t pulse/types.GroupType) (fansOut bool, known bool)
@@ -3480,4 +3508,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 37cfd0fd35e4df9a40f87dcf026fb580a8ec69553f2ce1a46092ec69a59bd32d
+// golden-hash: c984bb5c02378a99530b9d06620bf076d3fc44f1071ac2ed1df13a5e0170ce6a

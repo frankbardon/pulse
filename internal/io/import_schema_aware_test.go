@@ -297,10 +297,6 @@ func TestImportJob_SchemaAwareReader_SteeringSlotsInert(t *testing.T) {
 	// schema there is nothing to steer, so none of them may take effect.
 	job.SampleRows = 1
 	job.SetInferenceMinPct = 99
-	job.ColumnTypeOverrides = map[string]encoding.FieldType{
-		"code": encoding.FieldTypeU64,
-		"tags": encoding.FieldTypeCategoricalU8,
-	}
 	job.SetDelimiters = map[string]string{"tags": ";"}
 
 	report, err := job.Run(context.Background())
@@ -313,10 +309,10 @@ func TestImportJob_SchemaAwareReader_SteeringSlotsInert(t *testing.T) {
 
 	schema, vals, _ := decodeAll(t, fs, "out.pulse")
 	if got := schema.Fields[0].Type; got != encoding.FieldTypeU16 {
-		t.Errorf("code type = %s, want u16 — ColumnTypeOverrides must be inert", got)
+		t.Errorf("code type = %s, want the authoritative u16", got)
 	}
 	if got := schema.Fields[1].Type; got != encoding.FieldTypeSetU8 {
-		t.Errorf("tags type = %s, want set_u8 — ColumnTypeOverrides must be inert", got)
+		t.Errorf("tags type = %s, want the authoritative set_u8", got)
 	}
 	// SetDelimiters said ";", which would leave "red|blue" a single unsplit
 	// token. Inert means DefaultSetDelimiter split it into bits 0 and 1.
@@ -326,6 +322,36 @@ func TestImportJob_SchemaAwareReader_SteeringSlotsInert(t *testing.T) {
 	if got := schema.Fields[1].Dictionary.Values(); len(got) != 3 || got[0] != "red" || got[2] != "green" {
 		t.Errorf("dictionary = %v, want the authoritative [red blue green]", got)
 	}
+}
+
+// TestImportJob_SchemaAwareReader_OverridesRefused: ColumnTypeOverrides
+// is a type instruction, not a steering hint. An authoritative schema
+// cannot honour it, so Run and Predict refuse it with
+// PULSE_IMPORT_OVERRIDE_INVALID instead of silently ignoring it (E4-S13).
+func TestImportJob_SchemaAwareReader_OverridesRefused(t *testing.T) {
+	newSrc := func() *authoritativeReader {
+		return &authoritativeReader{
+			columns: []string{"code"},
+			rows:    [][]string{{"7"}},
+			schema: &encoding.Schema{Fields: []encoding.Field{
+				{Name: "code", Type: encoding.FieldTypeU16, CsvColumnIdx: 0},
+			}},
+		}
+	}
+	fs := afero.NewMemMapFs()
+	job := NewImportJob(newSrc(), "out.pulse")
+	job.FS = fs
+	job.ColumnTypeOverrides = map[string]encoding.FieldType{"code": encoding.FieldTypeU64}
+	_, err := job.Run(context.Background())
+	requireOverrideRefusal(t, err)
+	if ok, _ := afero.Exists(fs, "out.pulse"); ok {
+		t.Error("refused import left out.pulse behind")
+	}
+	pj := NewImportJob(newSrc(), "out.pulse")
+	pj.FS = fs
+	pj.ColumnTypeOverrides = job.ColumnTypeOverrides
+	_, err = pj.Predict(context.Background())
+	requireOverrideRefusal(t, err)
 }
 
 // --- authoritative dictionaries are preserved, not re-derived ---------------

@@ -61,6 +61,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// promotes, and InferredSchema cannot re-enable the tolerance for it.
 	inferredSchema := !authoritative && (schema == nil || j.InferredSchema)
 
+	// An override needs an inferred schema to override (import_override.go).
+	if err := refuseOverridesWithoutInference(j.ColumnTypeOverrides, j.Schema != nil, authoritative); err != nil {
+		return nil, err
+	}
+
 	// Infer schema if not provided.
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
@@ -181,6 +186,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// Per-row conversion (promotion of out-of-sample nulls included) is
 	// shared with the detecting import predict; see rowConverter.
 	conv := newRowConverter(schema, inferredSchema, dicts, setDelimiterFor, widenable)
+	conv.force(j.ColumnTypeOverrides)
 	// bufTypes is the field layout the rows already in recordsBuf were
 	// written with; a promotion re-strides them to the new width.
 	bufTypes := make([]encoding.FieldType, len(schema.Fields))
@@ -219,6 +225,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			bufTypes[step.field] = step.to
 		}
 		if re != nil {
+			// A forced column's value the override cannot hold refuses
+			// the whole import; it is never a skipped row.
+			if isOverrideRefusal(re.Err) {
+				return re.Err
+			}
 			rowErrors = append(rowErrors, *re)
 			return nil // skip row, continue processing
 		}
@@ -434,6 +445,10 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		}
 	}
 	inferredSchema := !authoritative && (schema == nil || j.InferredSchema)
+
+	if err := refuseOverridesWithoutInference(j.ColumnTypeOverrides, j.Schema != nil, authoritative); err != nil {
+		return nil, err
+	}
 
 	var inferredDelims map[string]string
 	if schema == nil {

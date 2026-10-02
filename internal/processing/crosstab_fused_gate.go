@@ -61,6 +61,13 @@ import (
 //   - No req.Features — every FEAT_* operator forces a buffered
 //     pre-filter pass that the fused path skips.
 //
+//   - No req.Joins — the fused walk decodes the left cohort directly
+//     and has no join leg; a joined crosstab runs buffered over the
+//     joined row stream (internal/service processCrosstabWithJoin).
+//     Checked before the axis probe because the schema handed in is
+//     the left cohort's, against which a right-side axis field does
+//     not resolve.
+//
 //   - No two-pass attribute — a built-in one (requiresTwoPass) or an
 //     extension attribute registered with the two_pass mode
 //     (ExtensionRegistry.TwoPassAttributes). The fused walk values
@@ -132,6 +139,11 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 	}
 	if req.Crosstab == nil {
 		return false, "no crosstab spec"
+	}
+
+	// A join is crosstabbed over the joined row stream, buffered.
+	if len(req.Joins) > 0 {
+		return false, "joins force buffered"
 	}
 
 	// Cell aggregator must exist; mergeable + scalar margin reducibility.

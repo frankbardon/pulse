@@ -255,9 +255,11 @@ func overflowRows() ([]string, [][]string) {
 }
 
 // TestImportWiden_DeclaredWidthsNeverPromote: a width the caller fixed
-// is a contract. A ColumnTypeOverrides column, an explicit Schema and an
-// authoritative (SchemaAwareReader) schema all keep categorical_u8, and
-// every value past its 256 entries stays a row error.
+// is a contract. An explicit Schema and an authoritative
+// (SchemaAwareReader) schema keep categorical_u8, and every value past
+// its 256 entries stays a row error. A ColumnTypeOverrides column never
+// promotes either, but the first value past its rung refuses the whole
+// import (E4-S13) rather than skipping rows.
 func TestImportWiden_DeclaredWidthsNeverPromote(t *testing.T) {
 	cols, rows := overflowRows()
 	explicit := func() *encoding.Schema {
@@ -273,11 +275,14 @@ func TestImportWiden_DeclaredWidthsNeverPromote(t *testing.T) {
 		}
 	}
 	t.Run("column_type_overrides", func(t *testing.T) {
-		rep, _ := importRaw(t, cols, rows, func(j *ImportJob) {
+		_, _, _, err := runGroupImport(t, newMockReader(cols, rows), nil, func(j *ImportJob) {
 			j.SampleRows = 50
 			j.ColumnTypeOverrides = map[string]encoding.FieldType{"c": encoding.FieldTypeCategoricalU8}
 		})
-		check(t, rep)
+		d := requireOverrideRefusal(t, err)
+		if d["column"] != "c" || d["value"] != "v296" || d["row"] != 297 {
+			t.Errorf("refusal details %v, want column c, value v296, row 297", d)
+		}
 	})
 	t.Run("explicit schema", func(t *testing.T) {
 		rep, _ := importRaw(t, cols, rows, func(j *ImportJob) { j.Schema = explicit() })

@@ -341,21 +341,25 @@ arrive as tokens joined with `iocore.DefaultSetDelimiter` (`"|"`).
 
 **Precedence.** `ImportJob` carries four slots that exist only to
 steer inference. With an authoritative schema there is nothing to
-steer, so all four are inert:
+steer, so three are inert and the fourth is refused:
 
 | Slot | With an authoritative schema |
 |---|---|
 | `SampleRows` | inert — nothing to sample |
 | `SetInferenceMinPct` | inert — no delimited-cell heuristic runs |
 | `SetDelimiters` | inert — `DefaultSetDelimiter` is the fixed contract |
-| `ColumnTypeOverrides` | inert — see below |
+| `ColumnTypeOverrides` | refused — `PULSE_IMPORT_OVERRIDE_INVALID`, see below |
 
 `ColumnTypeOverrides` is the managed-import `force_type` escape
-hatch, and it loses deliberately. It is already documented as ignored
-whenever a schema is supplied, and a reader-supplied schema is a
-supplied schema; more importantly, forcing a type onto a
+hatch, and it loses deliberately — loudly. An override is applied
+exactly or refused, never ignored, and it is refused whenever a schema is
+supplied, which a reader-supplied schema is: forcing a type onto a
 dictionary-carrying column would discard the source's category IDs /
 mask bit positions and silently rebuild them in first-seen order. A
+text-inference adapter needs no override code of its own — the override
+rule (exact header-name match, every present value checked at the forced
+type on every row, no promotion) lives in `internal/io/import_override.go`
+and runs over whatever `ReadHeader` / `ReadRows` yield. A
 caller who genuinely needs a different type sets `ImportJob.Schema`
 explicitly — an explicit schema wins outright and `PulseSchema` is
 not even called.

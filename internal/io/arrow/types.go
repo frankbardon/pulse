@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/iocore"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // Pulse field metadata key carried as an Arrow Field.Metadata pair so a
@@ -289,7 +290,7 @@ func FormatValue(arr arrow.Array, idx int) string {
 		return a.Value(idx)
 	case *array.Date32:
 		days := int64(a.Value(idx))
-		t := time.Unix(days*86400, 0).UTC()
+		t := temporal.DayToTime(days)
 		return t.Format("2006-01-02")
 	case *array.Date64:
 		ms := int64(a.Value(idx))

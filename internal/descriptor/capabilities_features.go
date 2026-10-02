@@ -70,7 +70,7 @@ func featureCapabilities() []descriptor.Operator {
 			Params: []descriptor.Param{
 				{Name: "degree", Type: "int", Required: true, Description: "Polynomial degree; must be >= 2 and <= 10. Degree 1 (linear) is the original column."},
 			},
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  numericFieldTypes,
 			EmitsType:     "f64",
 			EmitsTypeNote: "columns \"<label>_2\" .. \"<label>_<Degree>\" (default prefix <field>_poly)",
 			Streamable:    true,

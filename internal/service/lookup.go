@@ -262,7 +262,7 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 		}
 
 		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
-		all := rec.AllValues()
+		all := processing.RenderRecordCells(rec)
 		row := make(map[string]any, len(returnCols))
 		for _, name := range returnCols {
 			if v, present := all[name]; present {

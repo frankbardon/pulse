@@ -464,17 +464,17 @@ type RowError = iio.RowError
 // # Precedence over the inference-steering slots
 //
 // ImportJob carries four slots that exist only to steer inference. With
-// an authoritative schema there is no inference to steer, so all four
-// are inert — Run reads none of them:
+// an authoritative schema there is no inference to steer: three are
+// inert — Run reads none of them — and the fourth is refused:
 //
 //   - SampleRows, SetInferenceMinPct — sampling knobs with nothing to
 //     sample.
 //   - SetDelimiters — set_* masks come from the source's own set
 //     definitions, not from splitting delimited cell strings.
 //   - ColumnTypeOverrides — the managed-import force_type escape hatch.
-//     Inert deliberately, on two grounds. It is already documented as
-//     "ignored when Schema is supplied", and a reader-supplied schema is
-//     a supplied schema. More importantly, forcing a type onto a
+//     Unlike the three steering knobs above it is a type INSTRUCTION,
+//     so it is refused, not ignored: Run and Predict fail with
+//     PULSE_IMPORT_OVERRIDE_INVALID. Forcing a type onto a
 //     dictionary-carrying column would discard the source's category
 //     IDs / mask bit positions and silently rebuild them in first-seen
 //     order — a quiet fidelity loss. A caller who genuinely needs a
