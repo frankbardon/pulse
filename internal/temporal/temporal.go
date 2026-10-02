@@ -59,3 +59,21 @@ func YearStart(day int64) time.Time {
 	t := DayToTime(day)
 	return time.Date(t.Year(), time.January, 1, 0, 0, 0, 0, time.UTC)
 }
+
+// DayToUnix returns the epoch seconds of UTC midnight of epoch day day.
+func DayToUnix(day int64) int64 {
+	return day * SecondsPerDay
+}
+
+// DayToUnixFloat is DayToUnix over float64 for callers (SPSS) that carry
+// day counts as doubles. The multiply is exact for every day count a
+// `date` cell can hold.
+func DayToUnixFloat(day float64) float64 {
+	return day * SecondsPerDay
+}
+
+// IsWholeDay reports whether sec (epoch seconds) falls exactly on a UTC
+// midnight boundary, for either sign.
+func IsWholeDay(sec int64) bool {
+	return sec%SecondsPerDay == 0
+}

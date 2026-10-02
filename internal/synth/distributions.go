@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // Distribution kind constants.
@@ -784,10 +785,11 @@ func newUniformDateSampler(f FieldSpec) (sampler, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: uniform_date end must not be before start", f.Name), nil)
 	}
-	const day = int64(86400)
+	// Both instants are UTC midnight (time.Parse of a bare date), so the
+	// toward-past truncation equals the old toward-zero division exactly.
 	return &uniformDateSampler{
-		startDays: startT.Unix() / day,
-		endDays:   endT.Unix() / day,
+		startDays: temporal.TimeToDay(startT),
+		endDays:   temporal.TimeToDay(endT),
 	}, nil
 }
 

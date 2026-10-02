@@ -84,6 +84,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/temporal"
 )
 
 // ---------------------------------------------------------------------------
@@ -363,7 +364,7 @@ func (e *DataEncoder) writeColumn(col *ColumnPlan, c Case) error {
 		// A `date` cell is whole epoch DAYS; SPSS counts SECONDS from its
 		// own epoch. Both halves of the conversion are exact in a double
 		// for every date the format can express.
-		return e.putNumeric(col, c, v.Num*encoding.SecondsPerDay+float64(spssEpochOffsetSeconds))
+		return e.putNumeric(col, c, temporal.DayToUnixFloat(v.Num)+float64(spssEpochOffsetSeconds))
 
 	case EncodeDateTimeSeconds:
 		return e.putNumeric(col, c, v.Num+float64(spssEpochOffsetSeconds))

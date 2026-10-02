@@ -6,10 +6,10 @@ import (
 	"math"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -459,7 +459,7 @@ func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
 	if !ok {
 		return 0, nil
 	}
-	t := time.Unix(int64(v)*86400, 0).UTC()
+	t := temporal.DayToTime(int64(v))
 	year, month, day := t.Date()
 	switch a.part {
 	case "year":

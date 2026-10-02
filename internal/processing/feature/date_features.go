@@ -2,10 +2,10 @@ package feature
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -97,7 +97,7 @@ func (c *dateFeatures) EmitRow(r Record, field string) (map[string]Output, error
 // derived parts (year, month, day, day-of-week, quarter) that
 // FEAT_DATE_FEATURES emits. Shared between Compute and EmitRow.
 func decodeDateParts(v float64) (year, month, day, dow, quarter float64) {
-	t := time.Unix(int64(v)*86400, 0).UTC()
+	t := temporal.DayToTime(int64(v))
 	yy, mm, dd := t.Date()
 	return float64(yy), float64(mm), float64(dd), float64(t.Weekday()), float64((int(mm)-1)/3 + 1)
 }

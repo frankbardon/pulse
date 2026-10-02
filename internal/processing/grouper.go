@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -946,13 +947,13 @@ type dateBucketStat struct {
 }
 
 // dateRangeBoundaries returns ISO-8601 (YYYY-MM-DD) strings for the
-// start and end of the calendar period containing t under the
+// start and end of the calendar period containing epoch day day under the
 // configured granularity. Day collapses to a single date; week
 // returns Monday..Sunday of the ISO week; month / quarter / year
 // return the first day and last day of their span. day_of_week and
 // the fiscal variants do not have a contiguous calendar range, so
 // they return empty strings — Components() emits them verbatim.
-func (g *dateGrouper) dateRangeBoundaries(t time.Time) (string, string) {
+func (g *dateGrouper) dateRangeBoundaries(day int64) (string, string) {
 	if g.fiscalOffset != 0 {
 		// Fiscal-offset year / quarter spans rotate off the calendar
 		// year. The Components contract sticks to calendar ISO-8601
@@ -961,6 +962,7 @@ func (g *dateGrouper) dateRangeBoundaries(t time.Time) (string, string) {
 		// strings rather than guess the wrong calendar boundary.
 		return "", ""
 	}
+	t := temporal.DayToTime(day)
 	switch g.component {
 	case "day":
 		s := t.Format("2006-01-02")
@@ -976,17 +978,16 @@ func (g *dateGrouper) dateRangeBoundaries(t time.Time) (string, string) {
 		sunday := monday.AddDate(0, 0, 6)
 		return monday.Format("2006-01-02"), sunday.Format("2006-01-02")
 	case "month":
-		first := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+		first := temporal.MonthStart(day)
 		last := first.AddDate(0, 1, -1)
 		return first.Format("2006-01-02"), last.Format("2006-01-02")
 	case "quarter":
-		qStartMonth := time.Month(((int(t.Month())-1)/3)*3 + 1)
-		first := time.Date(t.Year(), qStartMonth, 1, 0, 0, 0, 0, time.UTC)
+		first := temporal.QuarterStart(day)
 		last := first.AddDate(0, 3, -1)
 		return first.Format("2006-01-02"), last.Format("2006-01-02")
 	case "year":
-		first := time.Date(t.Year(), time.January, 1, 0, 0, 0, 0, time.UTC)
-		last := time.Date(t.Year(), time.December, 31, 0, 0, 0, 0, time.UTC)
+		first := temporal.YearStart(day)
+		last := first.AddDate(1, 0, -1)
 		return first.Format("2006-01-02"), last.Format("2006-01-02")
 	}
 	// day_of_week and any unknown component — no calendar span.
@@ -1003,8 +1004,7 @@ func (g *dateGrouper) trackDateRow(dayUnix int64, key string) {
 	}
 	stat, exists := g.liveBuckets[key]
 	if !exists {
-		t := time.Unix(dayUnix*encoding.SecondsPerDay, 0).UTC()
-		ps, pe := g.dateRangeBoundaries(t)
+		ps, pe := g.dateRangeBoundaries(dayUnix)
 		stat = dateBucketStat{periodStart: ps, periodEnd: pe}
 	}
 	stat.count++
@@ -1124,7 +1124,7 @@ func (g *dateGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	t := time.Unix(epochDayFromValue(v, g.seconds)*encoding.SecondsPerDay, 0).UTC()
+	t := temporal.DayToTime(epochDayFromValue(v, g.seconds))
 	return g.formatDateKey(t), nil
 }
 
@@ -1217,10 +1217,8 @@ func (g *dateGrouper) Components() (map[string]any, error) {
 
 	var rangeStart, rangeEnd string
 	if g.liveRangeSet {
-		startT := time.Unix(g.rangeMinDay*encoding.SecondsPerDay, 0).UTC()
-		endT := time.Unix(g.rangeMaxDay*encoding.SecondsPerDay, 0).UTC()
-		rs, _ := g.dateRangeBoundaries(startT)
-		_, re := g.dateRangeBoundaries(endT)
+		rs, _ := g.dateRangeBoundaries(g.rangeMinDay)
+		_, re := g.dateRangeBoundaries(g.rangeMaxDay)
 		rangeStart = rs
 		rangeEnd = re
 	}

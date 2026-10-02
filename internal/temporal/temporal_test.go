@@ -132,3 +132,28 @@ func TestCalendarStarts(t *testing.T) {
 		})
 	}
 }
+
+func TestDayToUnix(t *testing.T) {
+	for _, tc := range []struct{ day, want int64 }{{0, 0}, {1, 86400}, {-1, -86400}, {19787, 19787 * 86400}} {
+		if got := DayToUnix(tc.day); got != tc.want {
+			t.Fatalf("DayToUnix(%d) = %d, want %d", tc.day, got, tc.want)
+		}
+		if got := DayToUnixFloat(float64(tc.day)); got != float64(tc.want) {
+			t.Fatalf("DayToUnixFloat(%d) = %v, want %d", tc.day, got, tc.want)
+		}
+		if got := DayToTime(tc.day).Unix(); got != tc.want {
+			t.Fatalf("DayToTime(%d).Unix() = %d, want %d", tc.day, got, tc.want)
+		}
+	}
+}
+
+func TestIsWholeDay(t *testing.T) {
+	for _, tc := range []struct {
+		sec  int64
+		want bool
+	}{{0, true}, {86400, true}, {-86400, true}, {1, false}, {-1, false}, {86399, false}, {-86401, false}} {
+		if got := IsWholeDay(tc.sec); got != tc.want {
+			t.Fatalf("IsWholeDay(%d) = %v, want %v", tc.sec, got, tc.want)
+		}
+	}
+}

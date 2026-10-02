@@ -111,6 +111,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -843,7 +844,7 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 				if sec < 0 {
 					st.preEpoch = true
 				}
-				if sec%encoding.SecondsPerDay != 0 {
+				if !temporal.IsWholeDay(sec) {
 					st.subDay = true
 				}
 
