@@ -59,7 +59,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(resource-limits/E
 ### E2 — Runtime enforcement that teaches tuning
 - S1: runtime checks in grouper, crosstab, join build, compose/chain, matrix (if U16 landed)
 - S2: `PULSE_LIMIT_EXCEEDED` + fixups; memory released on trip
-- S3: profile `limits`, manifest `limits`, `pulse mcp --limit`; docs page
+- S3: feature-profile `limits` (U04's strict decode refuses the key as unknown until this story adds it to `pulse.FeatureProfile` and `.claude/reference/feature-profiles.md`), manifest `limits`, `pulse mcp --limit`; docs page
 
 ## Acceptance criteria
 

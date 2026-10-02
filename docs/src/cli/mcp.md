@@ -61,7 +61,8 @@ pulse mcp: serving over stdio (data dir: /mnt/cohorts, bind-on-open: true, cohor
 
 Embedders get the same effective view from
 `mcpserve.Describe(p, opts)`, which returns a `mcpserve.ServeInfo`
-(`CohortScan`, `FeatureProfileLoaded`, `FeatureProfile`).
+(`CohortScan`, `FeatureProfileLoaded`, `FeatureProfile`). The library
+contract is [Feature Profiles](../library/feature-profiles.md).
 
 ## --bind-on-open
 

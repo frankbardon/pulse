@@ -20,7 +20,7 @@ branch: profiles-mcp-tooling
 
 ## Summary
 
-Instance-scoped MCP registration (tools, prompts, resources) with filtered tool-input enums, the full invisibility parity gate, and the embedder tooling `pulse profile init/check/diff/show` plus example profile files and embedder docs.
+Instance-scoped MCP registration (tools, prompts, resources) with filtered tool-input enums, the full invisibility parity gate, and the embedder tooling (init / check / diff / show) plus example feature profile files and embedder docs.
 
 ## References
 
@@ -32,7 +32,7 @@ Instance-scoped MCP registration (tools, prompts, resources) with filtered tool-
 - [ ] **#29** (2. Feature profiles — foundation › FP6 — MCP) Instance-scoped registration of tools, prompts and resources
 - [ ] **#30** (2. Feature profiles — foundation › FP6 — MCP) Tool input schemas carry the instance's enums only
 - [ ] **#31** (2. Feature profiles — foundation › FP6 — MCP) `TestProfileInvisibilityParity`
-- [ ] **#32** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) `pulse profile init`, `check`, `diff` and `show`
+- [ ] **#32** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Feature-profile tooling `init`, `check`, `diff` and `show` (leaf naming open: `pulse profile` is taken by synth data profiling)
 - [ ] **#33** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Example profile files in `examples/profiles/`
 - [ ] **#35** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Embedder docs at `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md`
 
@@ -42,9 +42,9 @@ Instance-scoped MCP registration (tools, prompts, resources) with filtered tool-
 - `gosdk.Register` / `mcpserve` register only enabled tools, prompts and resources
 - Tool input schemas use instance enums
 - `TestProfileInvisibilityParity` across all instance surfaces
-- `pulse profile init|check|diff|show`
+- feature-profile `init|check|diff|show` leaves (not under `pulse profile`, which is synth's `profile create`)
 - `examples/profiles/*.json`
-- `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md` completed
+- `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md` completed (both started in U04)
 
 **Out of scope**
 - Skills/examples filtering (U10)
@@ -60,17 +60,17 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(profiles-mcp-tool
 - S3: `TestProfileInvisibilityParity`
 
 ### E2 — Embedders can write, check and upgrade profiles
-- S1: `pulse profile init` (full exact-name list, grouped and commented)
+- S1: `init` (full exact-name list, grouped and commented)
 - S2: `check`, `show`, `diff` (highlight features with `Since` newer than `written_with`)
-- S3: example profiles (incl. an agent-oriented one recommending `return: standard`)
+- S3: example profiles (an agent-oriented one may carry `return: standard` only once U17 defines `return`; until then the key is refused as unknown)
 - S4: embedder docs page + reference file
 
 ## Acceptance criteria
 
 - [ ] `tools/list` on a profiled MCP server lists only enabled tools; their input enums contain no hidden names
 - [ ] The parity gate passes for every example profile
-- [ ] `pulse profile init > p.json && pulse profile check p.json` succeeds on a fresh checkout
-- [ ] `pulse profile diff` lists a feature whose `Since` is newer than `written_with`
+- [ ] `init > p.json && check p.json` succeeds on a fresh checkout
+- [ ] `diff` lists a feature whose `Since` is newer than `written_with`
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
@@ -80,9 +80,18 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(profiles-mcp-tool
 
 ## Update Demand companions
 
-- `docs/src/cli/flags.md` rows for `profile init|check|diff|show`
+- `docs/src/cli/flags.md` rows for the tooling leaves
 - CLAUDE.md MCP-layer paragraph (instance-scoped registration)
 
 ## Human inputs & decisions
 
 - None.
+
+## Inherited from U04
+
+- **Already landed:** `pulse mcp --feature-profile` and `PULSE_FEATURE_PROFILE` (read only by `mcpserve.NewPulse`), `mcpserve.Describe`, and `behaviour.disable_cohort_scan` honoured by `gosdk.Register`. The flag validates and stores; this unit makes it filter.
+- **MCP tool → feature bindings** are data in `internal/descriptor/features.go` (`MCPToolBindings`, plus the prompt → `mcp_extra` map), pinned to `toolmeta` by `TestFeaturesHaveSince`. Registration should consume them.
+- **`BindOnInspect` rebinds tools by name** (`internal/mcp/bind.go` `mergeEnumNames`, `buildRequestSchemaWithExtensions`), bypassing a registration-time filter — filter the rebind too.
+- **`toolmeta` descriptions name operators in prose**; filtering enums alone leaves hidden names in tool text.
+- **Prompts, the `pulse://schema` resource and skill resources take no `*Pulse`** (`registerPrompts`, `registerSchemaResource`, `registerSkillResources`); thread the instance in.
+- **Tooling leaf naming** is open: `pulse profile` belongs to synth data profiling.

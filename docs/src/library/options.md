@@ -39,6 +39,11 @@ type Options struct {
     // Area/Location name) a zone-capable slot falls back to. Empty = UTC.
     DefaultTimeZone string
 
+    // FeatureProfile / FeatureProfileFile declare the instance's
+    // feature set (at most one of the two). Nil / empty = no profile.
+    FeatureProfile     *FeatureProfile
+    FeatureProfileFile string
+
     // ... further fields (concurrency, projection, imports, labels,
     // templates) are documented on the Options type in pulse.go.
 }
@@ -139,6 +144,24 @@ this field supplied it. There is no env var or CLI flag for it.
 p, err := pulse.New(pulse.Options{DefaultTimeZone: "UTC"})
 ```
 
+### `FeatureProfile *FeatureProfile` / `FeatureProfileFile string`
+
+Declare the instance's feature set: a Go value, or a JSON file read
+through the instance filesystem (relative to `DataDir` or `FS`). Set at
+most one; both is `PULSE_FEATURE_PROFILE_INVALID`. `pulse.New` validates
+the profile and stores it. Its `behaviour` switches take effect now, ORed
+into the matching `Disable*` fields; the feature list hides nothing yet.
+`pulse.New` never reads the `PULSE_FEATURE_PROFILE` env var — only
+`pulse mcp` / `mcpserve.NewPulse` do. Full contract:
+[Feature Profiles](feature-profiles.md).
+
+```go
+p, err := pulse.New(pulse.Options{
+    DataDir:            "/var/data/pulse",
+    FeatureProfileFile: "profiles/self-serve.json",
+})
+```
+
 ## Defaults at a glance
 
 | Field omitted from `Options` | Effective behaviour |
@@ -150,6 +173,7 @@ p, err := pulse.New(pulse.Options{DefaultTimeZone: "UTC"})
 | `DisableDefaults` omitted     | Defaults enabled. |
 | `DisableCrosstabFusion` omitted | Fusion engages whenever the gate admits the crosstab. |
 | `DefaultTimeZone` omitted     | Zone-capable slots without `tz` / `time_zone` resolve to `UTC`. |
+| `FeatureProfile` / `FeatureProfileFile` omitted | No profile: every feature, byte-identical to a profile-free build. |
 
 ## Re-using a Pulse instance
 

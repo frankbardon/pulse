@@ -779,6 +779,36 @@ at `pulse.New` (`PULSE_EXTENSION_FANOUT_MISMATCH`), both arms trust it
 without reconstructing the grouper — which matters for the runtime
 arm, whose overlay hook has no schema in reach.
 
+## DependsOn (feature-profile dependencies)
+
+Every operator registration (aggregator, attribute, filterer, grouper,
+window, feature, test) accepts an optional `DependsOn []string`: the
+features the operator needs. Each entry is an AND edge — a
+[feature profile](../library/feature-profiles.md) that enables the
+operator must enable every named feature too, or `pulse.New` fails with
+`PULSE_FEATURE_PROFILE_DEPENDENCY`. Every enabled extension operator
+also needs a request host (`capability:process`, `capability:compose`
+or `capability:process_chain`), exactly like a built-in.
+
+```go
+pulse.AggregatorRegistration{
+    Name:      "AGG_ACME_SPREAD",
+    DependsOn: []string{"AGG_WELFORD"}, // reads AGG_WELFORD's components
+    Factory:   newSpread,
+}
+```
+
+Entries use profile spelling: operators bare, everything else
+`<kind>:<name>` (`capability:crosstab`, `io_format:csv`). Each must name
+a feature this build knows — a built-in or another registered extension
+operator — and that is checked at **every** `pulse.New`, with or
+without a profile, so a typo fails at construction with
+`PULSE_FEATURE_PROFILE_UNKNOWN` (each entry carries `extension` and
+`category`). Extension operators carry no `Since` and are listed in a
+profile by their registered name. Synth-distribution registrations have
+no `DependsOn`: distributions are not features (`capability:synth`
+gates them all).
+
 ## FieldInputs hook (buffered-projection introspection)
 
 Every operator registration accepts an optional `FieldInputs`
@@ -1027,6 +1057,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |
 | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key not in `ComponentSchema.Keys`, or re-emitted a floor key |
+| `PULSE_FEATURE_PROFILE_UNKNOWN` | a `DependsOn` entry names no built-in feature or registered extension operator |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |
 

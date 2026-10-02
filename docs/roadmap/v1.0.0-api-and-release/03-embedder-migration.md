@@ -1,6 +1,6 @@
 # 03 — Embedder migration guide
 
-**Status:** decided · U01, U02 and U02b rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
+**Status:** decided · U01, U02, U02b and U04 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
 
 ## Purpose
 
@@ -117,6 +117,22 @@ Landed with the `weighted-variance-z` effort: shipped on `release/v0.39` as `v0.
 | `AGG_WEIGHTED_MEAN` `Components.Operator` carried `sum_weights`, `weighted_mean` | adds `m2_weighted`, `sum_weights_sq`, `weighted_variance`, `n_eff` (Kish effective n); existing keys unchanged | added (wire-additive) | embedders that snapshot these Components should expect the four new keys; ignore-unknown consumers are unaffected. `format_version` stays `"1.1"`, no new error codes | weighted-variance-z |
 | (none) | `n_basis` overlay param, accepted only on `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` | added | none | weighted-variance-z |
 | `n_basis` on `OVERLAY_PAIRWISE_PROP_Z` / `_PROBIT_T` / `_WELCH_T` / `_TWO_MEANS_Z` | predict refuses with `PULSE_OVERLAY_PARAM_MISSING` (`details.param = "n_basis"`); the runtime ignores it | behaviour change (predict only) | the param did not exist before, so no previously valid request changes; drop `n_basis` from non-weighted pairwise kinds | weighted-variance-z |
+
+## Additions from U04 (feature profiles)
+
+Landed with **U04** (`profiles-model`). Everything here is additive except the `pulse.Version()` fix and the extension `DependsOn` check. A profile is validated and stored, but its feature list hides nothing until U05 / U06. Contract: [Feature Profiles](../../src/library/feature-profiles.md).
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| (none) | `pulse.FeatureProfile` (`Profile`, `WrittenWith`, `Features`, `Behaviour`), `pulse.FeatureProfileBehaviour` (`DisableDefaults`, `DisableComponents`, `DisableProjection`, `DisableCohortScan`) | added | adopt when convenient. `Features` must be non-nil (`[]string{}` for an empty profile) | U04 |
+| (none) | `Options.FeatureProfile *FeatureProfile`, `Options.FeatureProfileFile string` (read through the instance Fs) | added | none; at most one may be set. `pulse.New` never reads `PULSE_FEATURE_PROFILE` | U04 |
+| (none) | `pulse.ParseFeatureProfile([]byte) (*FeatureProfile, error)` | added | use it for profile bytes you read yourself; names and dependencies are checked by `pulse.New` | U04 |
+| (none) | error codes `PULSE_FEATURE_PROFILE_INVALID`, `PULSE_FEATURE_PROFILE_UNKNOWN`, `PULSE_FEATURE_PROFILE_DEPENDENCY` | added | none unless you set a profile or `DependsOn` | U04 |
+| (none) | `DependsOn []string` on `AggregatorRegistration`, `AttributeRegistration`, `FiltererRegistration`, `GrouperRegistration`, `WindowRegistration`, `FeatureRegistration`, `TestRegistration` | added | optional. An unknown entry fails EVERY `pulse.New` with `PULSE_FEATURE_PROFILE_UNKNOWN`, profile or not; a positional (unkeyed) registration literal stops compiling — use keyed fields | U04 |
+| (none) | `mcpserve.NewPulse(pulse.Options, mcpserve.Options) (*pulse.Pulse, error)`, `mcpserve.Options.FeatureProfileFile` | added | build a served instance through `NewPulse` to honour `--feature-profile` / `PULSE_FEATURE_PROFILE`; `Serve` / `ServeStdio` ignore `FeatureProfileFile` | U04 |
+| (none) | `mcpserve.Describe(*pulse.Pulse, mcpserve.Options) mcpserve.ServeInfo` (`CohortScan`, `FeatureProfileLoaded`, `FeatureProfile`) | added | use it for a startup log line; it reports the cohort scan after the profile's `disable_cohort_scan` | U04 |
+| `gosdk.Register` with `Config.DisableCohortScan: false` always scanned | a profile on the instance with `behaviour.disable_cohort_scan` skips the scan | behaviour change | none without a profile | U04 |
+| `pulse.Version()` in an embedder binary could report the EMBEDDER's module version (`Main.Version`) | reports Pulse's own module version from build-info `Deps` (honouring a `replace`), else `devel` | behaviour change (fix) | none; a version string you logged from `pulse.Version()` may change in your binary | U04 |
 
 ## Third-party dependency
 
