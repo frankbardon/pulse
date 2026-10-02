@@ -1294,6 +1294,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var aggComponents []types.AggregationComponents
 	var grpComponents []types.GrouperComponents
 
+	recordRows := false
 	if len(req.Groups) > 0 {
 		data, grpComponents, err = p.processGrouped(req, filtered)
 		if err != nil {
@@ -1312,6 +1313,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		// No group, no aggregation, but we have windows. Materialize one row
 		// per filtered record so windows can compute over the full set.
 		data = recordsToRows(filtered)
+		recordRows = true
 	}
 
 	if len(req.Windows) > 0 {
@@ -1344,6 +1346,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	postResults, err := p.runPostTests(req.PostTests, data)
 	if err != nil {
 		return nil, err
+	}
+	if recordRows {
+		finalizeRowCells(data)
 	}
 
 	// Regression fits run after aggregation / windows so engines can
@@ -1462,7 +1467,9 @@ func recordsAsRegressionRecords(records []*Record) []regression.Record {
 
 // recordsToRows materializes Records into the post-aggregate row shape
 // used by the window pipeline stage. Each record contributes one row
-// containing every non-null value (categorical fields resolve to strings).
+// containing every non-null value (categorical fields resolve to strings,
+// decimal128 to a scale-carrying decimalCell that finalizeRowCells
+// renders as its decimal string — see row_cells.go).
 //
 // AllValues returns a cached map owned by the Record; window operators
 // mutate rows in place to write their output column, so we clone here to
@@ -1473,6 +1480,9 @@ func recordsToRows(records []*Record) []map[string]any {
 		src := r.AllValues()
 		clone := make(map[string]any, len(src)+2)
 		for k, v := range src {
+			if _, isDec := v.(encoding.Decimal128); isDec {
+				v = rowCell(r.fieldNamed(k), v)
+			}
 			clone[k] = v
 		}
 		rows[i] = clone

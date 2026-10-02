@@ -17,7 +17,7 @@ Diagnostic / preview tool. After running a request when you want to inspect the 
 
 ## Output
 
-`descriptor.Envelope` wrapping a row slice — each row is a map keyed by field name with values decoded according to the schema. Categorical fields surface display labels by default; null fields appear as `null`. `Response.Components.Run` reports `total_records` and `filtered_records` (always equal under sample). See `response-components`.
+`descriptor.Envelope` wrapping a row slice — each row is a map keyed by field name with values decoded according to the schema. Categorical fields surface display labels by default, `decimal128` a decimal string at the column scale; a null field is omitted from its row. `Response.Components.Run` reports `total_records` and `filtered_records` (always equal under sample). See `response-components`.
 
 ## Gotchas
 

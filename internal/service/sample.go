@@ -200,7 +200,7 @@ func (s *Service) sampleOffsetLimit(ctx context.Context, path string, offset, li
 
 	rows := make([]map[string]any, 0, limit)
 	for iter.Next() && len(rows) < limit {
-		rows = append(rows, iter.Record().AllValues())
+		rows = append(rows, processing.RenderRecordCells(iter.Record()))
 	}
 	if err := iter.Err(); err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "sampling cohort")
