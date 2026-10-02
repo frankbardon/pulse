@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/frankbardon/pulse"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -32,31 +33,38 @@ const promptRoleUser mcpsdk.Role = "user"
 // to steer remote LLM clients away from inferring request shapes from external
 // documentation or source code — and toward the manifest + example library.
 // A prompt whose mcp_extra:prompt_* feature the instance does not offer is
-// not registered.
+// not registered. Every description and body loses the sentences naming a
+// feature the instance hides; the scrub runs once, here, never per call.
 func registerPrompts(s *mcpsdk.Server, p *pulse.Pulse) {
 	inst := instanceOf(p)
+	scrub := descx.NewProseScrub(inst)
 	if promptEnabled(inst, PromptBootstrap) {
+		desc := scrub.Text(DescPromptBootstrap)
 		s.AddPrompt(&mcpsdk.Prompt{
 			Name:        PromptBootstrap,
-			Description: DescPromptBootstrap,
-		}, bootstrapPromptHandler)
+			Description: desc,
+		}, bootstrapPromptHandler(desc, scrub.Text(bootstrapPromptBody)))
 	}
 
 	if !promptEnabled(inst, PromptAuthorRequest) {
 		return
 	}
+	desc := scrub.Text(DescPromptAuthorRequest)
 	s.AddPrompt(&mcpsdk.Prompt{
 		Name:        PromptAuthorRequest,
-		Description: DescPromptAuthorRequest,
+		Description: desc,
 		Arguments: []*mcpsdk.PromptArgument{
 			{
 				Name:        "question",
-				Description: "The analytical question being answered. Used to drive example-library and skill-pack discovery.",
+				Description: scrub.Text(authorRequestQuestionDesc),
 				Required:    true,
 			},
 		},
-	}, authorRequestPromptHandler)
+	}, authorRequestPromptHandler(desc, scrub.Text(authorRequestFlow)))
 }
+
+// authorRequestQuestionDesc describes the author-request prompt argument.
+const authorRequestQuestionDesc = "The analytical question being answered. Used to drive example-library and skill-pack discovery."
 
 // bootstrapPromptBody is the canonical "how to use Pulse" preamble. Hand-
 // authored, kept short so clients with token budgets can inject it at the top
@@ -77,7 +85,7 @@ The operator catalog, request-shape contracts, and runnable examples ship with t
 1. Call ` + "`pulse_manifest`" + ` if you haven't this session.
 2. Call ` + "`pulse_examples_search`" + ` with keywords from the user's question.
 3. If a match is found, ` + "`pulse_examples_get`" + ` and clone the body. Swap field names to match the target cohort.
-4. Call ` + "`pulse_predict`" + ` to validate the assembled request, then ` + "`pulse_process`" + ` to execute it.
+4. Call ` + "`pulse_predict`" + ` to validate the assembled request. Then call ` + "`pulse_process`" + ` to execute it.
 5. On any error code in the response envelope, call ` + "`pulse_errors_lookup`" + ` for the prescribed fix.
 
 # When the example library does not match
@@ -85,36 +93,48 @@ The operator catalog, request-shape contracts, and runnable examples ship with t
 Fall back to ` + "`pulse_skills_get`" + ` for the operator family you need, then assemble the request from the manifest's operator metadata. Still do not infer from external sources — every operator-shape question can be answered locally.
 `
 
-func bootstrapPromptHandler(_ context.Context, _ *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
-	return &mcpsdk.GetPromptResult{
-		Description: DescPromptBootstrap,
-		Messages: []*mcpsdk.PromptMessage{
-			{Role: promptRoleUser, Content: &mcpsdk.TextContent{Text: bootstrapPromptBody}},
-		},
-	}, nil
+// bootstrapPromptHandler serves the (registration-time scrubbed)
+// bootstrap description and body.
+func bootstrapPromptHandler(desc, body string) mcpsdk.PromptHandler {
+	return func(_ context.Context, _ *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+		return &mcpsdk.GetPromptResult{
+			Description: desc,
+			Messages: []*mcpsdk.PromptMessage{
+				{Role: promptRoleUser, Content: &mcpsdk.TextContent{Text: body}},
+			},
+		}, nil
+	}
 }
 
-func authorRequestPromptHandler(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
-	var question string
-	if req != nil && req.Params != nil {
-		question = req.Params.Arguments["question"]
+// authorRequestFlow is the author-request body after the quoted
+// question. It is scrubbed at registration; the caller's question is
+// user content and is never scrubbed.
+const authorRequestFlow = "Follow this discovery flow:\n\n" +
+	"1. Call `pulse_manifest` once (skip if you already have it cached this session).\n" +
+	"2. Call `pulse_examples_search` with the most distinctive keywords from the question. Try several searches if the first returns nothing useful.\n" +
+	"3. If a relevant example exists, `pulse_examples_get` to retrieve the runnable body. Modify field names for the target cohort.\n" +
+	"4. If no example matches, identify the operator family from the manifest and call `pulse_skills_get` on the relevant skill (e.g. `regression-modeling`, `statistical-testing`).\n" +
+	"5. Submit the assembled request to `pulse_predict` to validate. If validation passes, submit it to `pulse_process` to execute. If validation fails with structured suggestions, apply the suggested fixups and retry `pulse_predict`.\n" +
+	"6. On any error code in the response, call `pulse_errors_lookup` for the prescribed fix.\n\n" +
+	"Do not infer request shapes from external documentation or source code — the manifest + example library are authoritative for this deployment."
+
+// authorRequestPromptHandler serves the author-request prompt with the
+// caller's question spliced ahead of the pre-scrubbed flow.
+func authorRequestPromptHandler(desc, flow string) mcpsdk.PromptHandler {
+	return func(_ context.Context, req *mcpsdk.GetPromptRequest) (*mcpsdk.GetPromptResult, error) {
+		var question string
+		if req != nil && req.Params != nil {
+			question = req.Params.Arguments["question"]
+		}
+		body := "Author a Pulse request for this analytical question:\n\n" +
+			"> " + question + "\n\n" + flow
+		return &mcpsdk.GetPromptResult{
+			Description: desc,
+			Messages: []*mcpsdk.PromptMessage{
+				{Role: promptRoleUser, Content: &mcpsdk.TextContent{Text: body}},
+			},
+		}, nil
 	}
-	body := "Author a Pulse request for this analytical question:\n\n" +
-		"> " + question + "\n\n" +
-		"Follow this discovery flow:\n\n" +
-		"1. Call `pulse_manifest` once (skip if you already have it cached this session).\n" +
-		"2. Call `pulse_examples_search` with the most distinctive keywords from the question. Try several searches if the first returns nothing useful.\n" +
-		"3. If a relevant example exists, `pulse_examples_get` to retrieve the runnable body. Modify field names for the target cohort.\n" +
-		"4. If no example matches, identify the operator family from the manifest and call `pulse_skills_get` on the relevant skill (e.g. `regression-modeling`, `statistical-testing`).\n" +
-		"5. Submit the assembled request to `pulse_predict` to validate. If validation passes, submit it to `pulse_process` to execute. If validation fails with structured suggestions, apply the suggested fixups and retry `pulse_predict`.\n" +
-		"6. On any error code in the response, call `pulse_errors_lookup` for the prescribed fix.\n\n" +
-		"Do not infer request shapes from external documentation or source code — the manifest + example library are authoritative for this deployment."
-	return &mcpsdk.GetPromptResult{
-		Description: DescPromptAuthorRequest,
-		Messages: []*mcpsdk.PromptMessage{
-			{Role: promptRoleUser, Content: &mcpsdk.TextContent{Text: body}},
-		},
-	}, nil
 }
 
 // RegisteredPrompts returns the global canonical list of prompt names

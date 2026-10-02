@@ -8,6 +8,8 @@ package gosdk
 // mounted surface byte-identical to an unprofiled Register.
 
 import (
+	"encoding/json"
+
 	"github.com/frankbardon/pulse"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/facadebridge"
@@ -54,4 +56,16 @@ func promptEnabled(inst *descx.InstanceSnapshot, prompt string) bool {
 // one. Today every skill is visible.
 func skillVisible(_ *descx.InstanceSnapshot, _ string) bool {
 	return true
+}
+
+// scrubbedSchema applies the instance's prose scrub to every description
+// in a tool input schema. The schema is Pulse-built JSON, so a decode
+// failure cannot happen; should it, the schema is withheld from scrubbing
+// rather than mounted half-rewritten.
+func scrubbedSchema(scrub descx.ProseScrub, raw json.RawMessage) json.RawMessage {
+	out, err := scrub.SchemaDescriptions(raw)
+	if err != nil {
+		return raw
+	}
+	return out
 }

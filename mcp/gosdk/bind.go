@@ -23,6 +23,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	core "github.com/frankbardon/pulse/internal/mcp"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -72,6 +73,9 @@ func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *enco
 	if err != nil {
 		return err
 	}
+	// Bound descriptions name operators too; the same prose scrub as
+	// registration drops the sentences naming a hidden one.
+	scrub := descx.NewProseScrub(inst)
 	handlers := boundHandlersFor(p, cfg)
 	for _, entry := range []struct {
 		name        string
@@ -96,8 +100,8 @@ func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *enco
 		}
 		s.AddTool(&mcpsdk.Tool{
 			Name:        entry.name,
-			Description: entry.description,
-			InputSchema: raw,
+			Description: scrub.Text(entry.description),
+			InputSchema: scrubbedSchema(scrub, raw),
 		}, entry.handler)
 	}
 	return nil

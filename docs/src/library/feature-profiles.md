@@ -324,6 +324,15 @@ A request naming a hidden slot (say `crosstab` without
 exactly like a misspelt key, and the valid-key list and suggestions
 name only the slots the profile offers.
 
+Prose follows the profile the same way the manifest's does. Tool
+descriptions, every `description` in a tool's input schema (at
+registration and after a re-bind), prompt descriptions and prompt
+bodies drop each sentence that names a hidden operator or a tool the
+profile does not mount; a numbered step dropped from a prompt
+renumbers the rest of its list. A sentence about an enabled operator
+that also names a hidden one goes too. The text a caller supplies to
+`pulse-author-request` is never touched.
+
 Embedders serving MCP themselves use `mcpserve.NewPulse`:
 
 ```go

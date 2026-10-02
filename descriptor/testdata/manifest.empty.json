@@ -159,7 +159,7 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "Fetch one request example from the embedded library by `name`."
+        "description": "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped."
       },
       {
         "name": "pulse_examples_search",
@@ -175,7 +175,7 @@
       },
       {
         "name": "pulse_predict",
-        "description": "Validate a processing request against a cohort schema without executing. Use to verify a hand-authored or programmatically generated request before storage or execution; cheap because it reads only the cohort header + schema."
+        "description": "Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Use to verify a hand-authored or programmatically generated request before storage or execution; cheap because it reads only the cohort header + schema."
       },
       {
         "name": "pulse_skills_get",
@@ -1323,4 +1323,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e96d192e0fac0e7c500016cafda74f191c0568f18b844141b534ba30e155767a
+// golden-hash: d9328fe702cf4bcb6d6cb9c95147faea6af5e8c0da92a3753eace82f3c671dbf
