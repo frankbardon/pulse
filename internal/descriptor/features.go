@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -57,6 +58,13 @@ type Feature struct {
 	// Since is the Pulse release (major.minor.patch) that introduced the
 	// feature.
 	Since string
+	// DependsOn is the feature's dependency expression: the AND of its
+	// groups, each group an any-of set of feature names. A feature is
+	// usable only when, for EVERY group, at least one named feature is
+	// also present. nil means no dependency. Rows never spell this by
+	// hand — withDependencies derives it from the host rules and the
+	// hard-edge table below.
+	DependsOn [][]string
 }
 
 // FeatureName spells a feature of kind k whose bare name is bare: the
@@ -96,6 +104,11 @@ var (
 	featDedup        = FeatureName(FeatureKindCapability, "dedup")
 	featLabels       = FeatureName(FeatureKindCapability, "labels")
 	featRangeTables  = FeatureName(FeatureKindCapability, "range_tables")
+	featCrosstab     = FeatureName(FeatureKindCapability, "crosstab")
+	featJoins        = FeatureName(FeatureKindCapability, "joins")
+	featStream       = FeatureName(FeatureKindCapability, "stream")
+	featWatch        = FeatureName(FeatureKindCapability, "watch")
+	featFilterToFile = FeatureName(FeatureKindCapability, "filter_to_file")
 )
 
 // builtinFeatures is THE feature table. Adding an operator, capability,
@@ -104,7 +117,7 @@ var (
 // any row without a registry entry. Synth distributions, field types,
 // named tables and expr functions are deliberately absent: they are not
 // features (capability:synth gates every distribution).
-var builtinFeatures = []Feature{
+var builtinFeatures = withDependencies([]Feature{
 	// Capabilities.
 	capability("process"),        // Process (+ outputs/sort/labels/time_zone request slots)
 	capability("stream"),         // ProcessStream, ProcessStreamResult
@@ -300,6 +313,182 @@ var builtinFeatures = []Feature{
 	op("OVERLAY_ZSCORE_VS_TOTAL"),
 	op("OVERLAY_Z_CELL"),
 	op("OVERLAY_Z_VS_REF"),
+})
+
+// requestHosts is the any-of group every request-executing feature
+// depends on: an operator or request slot is incoherent without at least
+// one capability that executes a Request.
+var requestHosts = []string{featProcess, featCompose, featProcessChain}
+
+// processOnly lists the capabilities that exist only as a mode of Process
+// (streaming, watching, filter-to-file) and so depend on it alone.
+var processOnly = map[string]bool{
+	featStream:       true,
+	featWatch:        true,
+	featFilterToFile: true,
+}
+
+// requestSlotCapabilities are request slots modelled as capabilities;
+// like operators they need a request-executing host.
+var requestSlotCapabilities = map[string]bool{
+	featJoins:    true,
+	featCrosstab: true,
+}
+
+// overlayHostKinds lists, per host capability, the overlay kinds that
+// host can run. It mirrors the engine's per-host overlay handler maps
+// one for one, and TestProfileDependenciesComplete (internal/processing)
+// asserts equality in both directions:
+//
+//   - capability:crosstab      ← overlayHandlers (the MATRIX host a
+//     crosstab Request produces, under any request-executing host)
+//   - capability:compose       ← composeOverlayHandlers +
+//     composeOverlayMultiLayerHandlers + seriesOverlayHandlers (the
+//     series host is reached only through ApplySeriesOverlays, which the
+//     compose capability gates)
+//   - capability:process_chain ← chainOverlayHandlers
+//   - capability:facet         ← facetOverlayHandlers
+//
+// An overlay kind depends on the any-of set of every host listing it.
+var overlayHostKinds = map[string][]string{
+	featCrosstab: {
+		"OVERLAY_CHISQ_COL",
+		"OVERLAY_CHISQ_MATRIX",
+		"OVERLAY_CHISQ_ROW",
+		"OVERLAY_DELTA_VS_MARGIN",
+		"OVERLAY_FISHER_EXACT_CELL",
+		"OVERLAY_FORMULA",
+		"OVERLAY_INDEX_VS_MARGIN",
+		"OVERLAY_PAIRWISE_PROBIT_T",
+		"OVERLAY_PAIRWISE_PROP_Z",
+		"OVERLAY_PAIRWISE_TWO_MEANS_Z",
+		"OVERLAY_PAIRWISE_WELCH_T",
+		"OVERLAY_SHARE_OF_COL",
+		"OVERLAY_SHARE_OF_ROW",
+		"OVERLAY_SHARE_OF_TOTAL",
+		"OVERLAY_ZSCORE_VS_MARGIN",
+	},
+	featCompose: {
+		// composeOverlayHandlers.
+		"OVERLAY_CHISQ_VS_REF",
+		"OVERLAY_DELTA_VS_REF",
+		"OVERLAY_INDEX_VS_REF",
+		"OVERLAY_PROP_Z_CELL",
+		"OVERLAY_PROP_Z_PANEL",
+		"OVERLAY_RANK",
+		"OVERLAY_T_CELL",
+		"OVERLAY_T_VS_REF",
+		"OVERLAY_Z_CELL",
+		"OVERLAY_Z_VS_REF",
+		// composeOverlayMultiLayerHandlers.
+		"OVERLAY_PANEL_INDEX_VS_REF",
+		// seriesOverlayHandlers.
+		"OVERLAY_DELTA_VS_BASELINE",
+		"OVERLAY_DELTA_VS_PRIOR",
+		"OVERLAY_DELTA_VS_SIBLING",
+		"OVERLAY_INDEX_VS_BASELINE",
+		"OVERLAY_INDEX_VS_PRIOR",
+		"OVERLAY_INDEX_VS_ROLLING_MEAN",
+		"OVERLAY_INDEX_VS_SIBLING",
+		"OVERLAY_INDEX_VS_TOTAL",
+		"OVERLAY_SHARE_OF_TOTAL",
+		"OVERLAY_YOY",
+		"OVERLAY_ZSCORE_VS_ROLLING",
+		"OVERLAY_ZSCORE_VS_TOTAL",
+	},
+	featProcessChain: {
+		"OVERLAY_DELTA_VS_STAGE",
+		"OVERLAY_INDEX_VS_STAGE",
+	},
+	featFacet: {
+		"OVERLAY_CHISQ_VS_POP",
+		"OVERLAY_INDEX_VS_POP",
+		"OVERLAY_KS_VS_POP",
+		"OVERLAY_ZSCORE_VS_POP",
+	},
+}
+
+// hardEdges are the component- and result-reading dependencies: each
+// target is a single-name group ANDed after the host group. They are
+// the edges the engine enforces at run time today:
+//
+//   - The Welford-reading overlays consume the {mean, variance, n} triple
+//     only AGG_WELFORD emits on the host's cell/row components.
+//   - ATTR_REG_* fit an OLS model through the regression engine.
+//   - OVERLAY_YOY refuses any series host whose first grouper is not
+//     GROUP_DATE (it reads the date grouper's frequency).
+//
+// TEST_TUKEY_HSD after TEST_ANOVA_F is deliberately absent: its inputs
+// are plain numeric params, so the pairing is advice, not a dependency.
+var hardEdges = map[string][]string{
+	"OVERLAY_T_CELL":               {"AGG_WELFORD"},
+	"OVERLAY_Z_CELL":               {"AGG_WELFORD"},
+	"OVERLAY_T_VS_REF":             {"AGG_WELFORD"},
+	"OVERLAY_Z_VS_REF":             {"AGG_WELFORD"},
+	"OVERLAY_PAIRWISE_WELCH_T":     {"AGG_WELFORD"},
+	"OVERLAY_PAIRWISE_TWO_MEANS_Z": {"AGG_WELFORD"},
+	"ATTR_REG_FITTED":              {"REG_OLS"},
+	"ATTR_REG_LEVERAGE":            {"REG_OLS"},
+	"ATTR_REG_RESIDUAL":            {"REG_OLS"},
+	"OVERLAY_YOY":                  {"GROUP_DATE"},
+}
+
+// OverlayHostCapabilities returns the host capabilities an overlay kind
+// can run under, sorted. The engine-side gate compares it to handler-map
+// membership; nil means the kind is listed under no host.
+func OverlayHostCapabilities(kind string) []string {
+	var out []string
+	for host, kinds := range overlayHostKinds {
+		for _, k := range kinds {
+			if k == kind {
+				out = append(out, host)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// withDependencies fills every row's DependsOn from the rules:
+//
+//   - non-overlay operators and the request-slot capabilities depend on
+//     any-of the request-executing hosts;
+//   - Process-only modes depend on Process;
+//   - overlay kinds depend on any-of the hosts whose handler map lists
+//     them;
+//   - then each hard edge appends a single-name group.
+func withDependencies(rows []Feature) []Feature {
+	for i := range rows {
+		f := &rows[i]
+		var groups [][]string
+		switch {
+		case f.Kind == FeatureKindOperator && strings.HasPrefix(f.Name, "OVERLAY_"):
+			if hosts := OverlayHostCapabilities(f.Name); len(hosts) > 0 {
+				groups = append(groups, hosts)
+			}
+		case f.Kind == FeatureKindOperator, requestSlotCapabilities[f.Name]:
+			groups = append(groups, append([]string(nil), requestHosts...))
+		case processOnly[f.Name]:
+			groups = append(groups, []string{featProcess})
+		}
+		for _, target := range hardEdges[f.Name] {
+			groups = append(groups, []string{target})
+		}
+		f.DependsOn = groups
+	}
+	return rows
+}
+
+func cloneGroups(groups [][]string) [][]string {
+	if groups == nil {
+		return nil
+	}
+	out := make([][]string, len(groups))
+	for i, g := range groups {
+		out[i] = append([]string(nil), g...)
+	}
+	return out
 }
 
 // Core surfaces are ALWAYS present: they are not features, cannot be
@@ -399,7 +588,18 @@ func buildFeatureIndex() {
 // is a fresh copy; duplicates (a table bug the gate refuses) are kept so
 // the gate can see them.
 func Features() []Feature {
-	return append([]Feature(nil), builtinFeatures...)
+	out := append([]Feature(nil), builtinFeatures...)
+	for i := range out {
+		out[i].DependsOn = cloneGroups(out[i].DependsOn)
+	}
+	return out
+}
+
+// FeatureDependencies returns a copy of the dependency groups (AND of
+// any-of sets) of the built-in feature spelled name.
+func FeatureDependencies(name string) ([][]string, bool) {
+	f, ok := LookupFeature(name)
+	return cloneGroups(f.DependsOn), ok
 }
 
 // FeatureNames returns every built-in feature name in table order.
@@ -415,6 +615,7 @@ func FeatureNames() []string {
 func LookupFeature(name string) (Feature, bool) {
 	featureIndexOnce.Do(buildFeatureIndex)
 	f, ok := featureIndex[name]
+	f.DependsOn = cloneGroups(f.DependsOn)
 	return f, ok
 }
 
