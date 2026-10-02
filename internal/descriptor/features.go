@@ -1,0 +1,486 @@
+package descriptor
+
+import (
+	"strconv"
+	"strings"
+	"sync"
+)
+
+// FeatureKind classifies one row of the feature table. It is the
+// vocabulary feature profiles are written in: a profile lists feature
+// NAMES, and the kind decides how a name is spelled and which surface it
+// gates.
+type FeatureKind string
+
+// The four feature kinds. Operators are spelled bare (their registered
+// SCREAMING_SNAKE name); every other kind is spelled `<kind>:<name>`.
+const (
+	// FeatureKindCapability is an engine capability: a facade method
+	// family, its CLI leaves and MCP tools, or a request slot.
+	FeatureKindCapability FeatureKind = "capability"
+	// FeatureKindOperator is a registered operator — every
+	// types.All*Types() entry (AGG/ATTR/FILTER/GROUP/WIN/FEAT/TEST/REG/
+	// OVERLAY). Extension operators are operators too, but they are not
+	// rows of this table: they carry no Since.
+	FeatureKindOperator FeatureKind = "operator"
+	// FeatureKindIOFormat is one tabular I/O format, gating BOTH its
+	// import and its export direction.
+	FeatureKindIOFormat FeatureKind = "io_format"
+	// FeatureKindMCPExtra is an MCP surface that is neither a tool nor
+	// core: a prompt or the cohort-resource enumeration.
+	FeatureKindMCPExtra FeatureKind = "mcp_extra"
+)
+
+// AllFeatureKinds returns the four kinds in a stable order.
+func AllFeatureKinds() []FeatureKind {
+	return []FeatureKind{
+		FeatureKindCapability,
+		FeatureKindOperator,
+		FeatureKindIOFormat,
+		FeatureKindMCPExtra,
+	}
+}
+
+// BuiltinFeatureSince is the Since every built-in feature carries: the
+// v1.0.0 line is the baseline the feature table starts from.
+const BuiltinFeatureSince = "1.0.0"
+
+// Feature is one row of the internal feature table. It is deliberately
+// NOT a field on any public struct (descriptor.Operator and friends stay
+// untouched), so the manifest and public API goldens do not move.
+type Feature struct {
+	// Name is the one spelling a profile uses: bare for operators,
+	// `<kind>:<name>` for every other kind. There are no aliases.
+	Name string
+	// Kind classifies the row.
+	Kind FeatureKind
+	// Since is the Pulse release (major.minor.patch) that introduced the
+	// feature.
+	Since string
+}
+
+// FeatureName spells a feature of kind k whose bare name is bare: the
+// bare name itself for an operator, `<kind>:<bare>` otherwise.
+func FeatureName(k FeatureKind, bare string) string {
+	if k == FeatureKindOperator {
+		return bare
+	}
+	return string(k) + ":" + bare
+}
+
+func capability(bare string) Feature {
+	return Feature{Name: FeatureName(FeatureKindCapability, bare), Kind: FeatureKindCapability, Since: BuiltinFeatureSince}
+}
+
+func ioFormat(bare string) Feature {
+	return Feature{Name: FeatureName(FeatureKindIOFormat, bare), Kind: FeatureKindIOFormat, Since: BuiltinFeatureSince}
+}
+
+func mcpExtra(bare string) Feature {
+	return Feature{Name: FeatureName(FeatureKindMCPExtra, bare), Kind: FeatureKindMCPExtra, Since: BuiltinFeatureSince}
+}
+
+func op(name string) Feature {
+	return Feature{Name: name, Kind: FeatureKindOperator, Since: BuiltinFeatureSince}
+}
+
+// Capability feature names, referenced by the MCP tool binding table.
+var (
+	featProcess      = FeatureName(FeatureKindCapability, "process")
+	featCompose      = FeatureName(FeatureKindCapability, "compose")
+	featProcessChain = FeatureName(FeatureKindCapability, "process_chain")
+	featFacet        = FeatureName(FeatureKindCapability, "facet")
+	featSample       = FeatureName(FeatureKindCapability, "sample")
+	featLookup       = FeatureName(FeatureKindCapability, "lookup")
+	featImport       = FeatureName(FeatureKindCapability, "import")
+	featDedup        = FeatureName(FeatureKindCapability, "dedup")
+	featLabels       = FeatureName(FeatureKindCapability, "labels")
+	featRangeTables  = FeatureName(FeatureKindCapability, "range_tables")
+)
+
+// builtinFeatures is THE feature table. Adding an operator, capability,
+// I/O format or MCP extra means adding its row here, by hand —
+// TestFeaturesHaveSince fails on any registry entry without a row and on
+// any row without a registry entry. Synth distributions, field types,
+// named tables and expr functions are deliberately absent: they are not
+// features (capability:synth gates every distribution).
+var builtinFeatures = []Feature{
+	// Capabilities.
+	capability("process"),        // Process (+ outputs/sort/labels/time_zone request slots)
+	capability("stream"),         // ProcessStream, ProcessStreamResult
+	capability("watch"),          // Watch*
+	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
+	capability("process_chain"),  // ProcessChain
+	capability("facet"),          // Facet, FacetSchema
+	capability("sample"),         // Sample, SampleWithRequest
+	capability("joins"),          // Request.Joins slot
+	capability("crosstab"),       // Request.Crosstab slot
+	capability("lookup"),         // Lookup
+	capability("index"),          // BuildIndex, VerifyIndex, ListIndexes, DropIndex
+	capability("shard"),          // every shard-archive method
+	capability("import"),         // managed import pool
+	capability("export"),         // Export, Convert, ImportTransfer, ExportTransfer
+	capability("filter_to_file"), // FilterToFile*
+	capability("dedup"),          // Dedup
+	capability("widen"),          // WidenSetField
+	capability("templates"),      // request templates
+	capability("synth"),          // Synth, SynthStream, data-profile capture; gates every synth distribution
+	capability("labels"),         // label tables + resolve
+	capability("range_tables"),   // range tables
+
+	// I/O formats — io.Formats(). One name gates import AND export.
+	ioFormat("csv"),
+	ioFormat("tsv"),
+	ioFormat("ndjson"),
+	ioFormat("jsonarray"),
+	ioFormat("parquet"),
+	ioFormat("arrow"),
+	ioFormat("excel"),
+	ioFormat("spss"),
+
+	// MCP extras — the cohort-resource enumeration plus one row per
+	// registered prompt (see mcpPromptFeatures).
+	mcpExtra("cohort_resources"),
+	mcpExtra("prompt_bootstrap"),
+	mcpExtra("prompt_author_request"),
+
+	// Aggregators — types.AllAggregationTypes().
+	op("AGG_COUNT"),
+	op("AGG_SUM"),
+	op("AGG_AVERAGE"),
+	op("AGG_MIN"),
+	op("AGG_MAX"),
+	op("AGG_STDDEV"),
+	op("AGG_RANGE"),
+	op("AGG_FREQUENCY"),
+	op("AGG_ZSCORE"),
+	op("AGG_MEDIAN"),
+	op("AGG_VARIANCE"),
+	op("AGG_MODE"),
+	op("AGG_SKEWNESS"),
+	op("AGG_KURTOSIS"),
+	op("AGG_DISTINCT_COUNT"),
+	op("AGG_PERCENTILE"),
+	op("AGG_NULL_COUNT"),
+	op("AGG_WEIGHTED_MEAN"),
+	op("AGG_RATIO"),
+	op("AGG_DISTINCT_SUM"),
+	op("AGG_CI_LOWER"),
+	op("AGG_CI_UPPER"),
+	op("AGG_WELFORD"),
+	op("AGG_SET_UNION"),
+	op("AGG_SET_INTERSECTION"),
+	op("AGG_SET_FREQUENCY"),
+	op("AGG_SET_CARDINALITY_SUM"),
+	op("AGG_SET_CARDINALITY_AVG"),
+	op("AGG_SET_DISTINCT_VALUES"),
+	// Attributes — types.AllAttributeTypes().
+	op("ATTR_DATE_PART"),
+	op("ATTR_FORMULA"),
+	op("ATTR_NORMALIZED"),
+	op("ATTR_PERCENTILE"),
+	op("ATTR_REG_FITTED"),
+	op("ATTR_REG_LEVERAGE"),
+	op("ATTR_REG_RESIDUAL"),
+	op("ATTR_SET_HAS"),
+	op("ATTR_SET_POPCOUNT"),
+	op("ATTR_TSCORE"),
+	op("ATTR_ZSCORE"),
+	// Filterers — types.AllFiltererTypes().
+	op("FILTER_DATE_RANGES"),
+	op("FILTER_EXCLUDE"),
+	op("FILTER_EXPRESSION"),
+	op("FILTER_FALSE"),
+	op("FILTER_INCLUDE"),
+	op("FILTER_NULL"),
+	op("FILTER_RANGE"),
+	op("FILTER_SET_CONTAINS_ALL"),
+	op("FILTER_SET_CONTAINS_ANY"),
+	op("FILTER_SET_CONTAINS_NONE"),
+	op("FILTER_SET_EQUALS"),
+	op("FILTER_TRUE"),
+	// Groupers — types.AllGroupTypes().
+	op("GROUP_CATEGORY"),
+	op("GROUP_DATE"),
+	op("GROUP_DATE_RANGES"),
+	op("GROUP_QUANTILE"),
+	op("GROUP_RANGE"),
+	op("GROUP_ROUNDED"),
+	op("GROUP_SET_PER_ELEMENT"),
+	op("GROUP_SET_VALUE"),
+	// Windows — types.AllWindowTypes().
+	op("WIN_DELTA"),
+	op("WIN_DENSE_RANK"),
+	op("WIN_EWMA"),
+	op("WIN_LAG"),
+	op("WIN_LEAD"),
+	op("WIN_MOVING_AVG"),
+	op("WIN_PCT_CHANGE"),
+	op("WIN_RANK"),
+	op("WIN_ROW_NUMBER"),
+	op("WIN_RUNNING_AVG"),
+	op("WIN_RUNNING_SUM"),
+	// Features — types.AllFeatureTypes().
+	op("FEAT_BUCKETIZE"),
+	op("FEAT_DATE_FEATURES"),
+	op("FEAT_FREQUENCY_ENCODE"),
+	op("FEAT_LOG"),
+	op("FEAT_ONE_HOT"),
+	op("FEAT_POLY"),
+	op("FEAT_SQRT"),
+	op("FEAT_TARGET_ENCODE"),
+	op("FEAT_TRAIN_TEST_SPLIT"),
+	// Statistical tests — types.AllTestTypes(). One row per test covers BOTH tiers (row test and post test).
+	op("TEST_ANOVA_F"),
+	op("TEST_ANOVA_RM"),
+	op("TEST_ANOVA_WELCH"),
+	op("TEST_BROWN_FORSYTHE"),
+	op("TEST_CHISQ"),
+	op("TEST_FISHER_EXACT"),
+	op("TEST_KENDALL_TAU"),
+	op("TEST_KRUSKAL_WALLIS"),
+	op("TEST_KS"),
+	op("TEST_MANN_WHITNEY_U"),
+	op("TEST_PAIRED_T"),
+	op("TEST_PEARSON_R"),
+	op("TEST_PROP_Z"),
+	op("TEST_SHAPIRO_WILK"),
+	op("TEST_SPEARMAN_R"),
+	op("TEST_T"),
+	op("TEST_TREND"),
+	op("TEST_TUKEY_HSD"),
+	op("TEST_WELCH"),
+	op("TEST_WILCOXON_SR"),
+	op("TEST_Z_TWO_SAMPLE"),
+	// Regressions — types.AllRegressionTypes().
+	op("REG_BAYES_LINEAR"),
+	op("REG_GLM"),
+	op("REG_OLS"),
+	// Overlay kinds — types.AllOverlayKinds().
+	op("OVERLAY_CHISQ_COL"),
+	op("OVERLAY_CHISQ_MATRIX"),
+	op("OVERLAY_CHISQ_ROW"),
+	op("OVERLAY_CHISQ_VS_POP"),
+	op("OVERLAY_CHISQ_VS_REF"),
+	op("OVERLAY_DELTA_VS_BASELINE"),
+	op("OVERLAY_DELTA_VS_MARGIN"),
+	op("OVERLAY_DELTA_VS_PRIOR"),
+	op("OVERLAY_DELTA_VS_REF"),
+	op("OVERLAY_DELTA_VS_SIBLING"),
+	op("OVERLAY_DELTA_VS_STAGE"),
+	op("OVERLAY_FISHER_EXACT_CELL"),
+	op("OVERLAY_FORMULA"),
+	op("OVERLAY_INDEX_VS_BASELINE"),
+	op("OVERLAY_INDEX_VS_MARGIN"),
+	op("OVERLAY_INDEX_VS_POP"),
+	op("OVERLAY_INDEX_VS_PRIOR"),
+	op("OVERLAY_INDEX_VS_REF"),
+	op("OVERLAY_INDEX_VS_ROLLING_MEAN"),
+	op("OVERLAY_INDEX_VS_SIBLING"),
+	op("OVERLAY_INDEX_VS_STAGE"),
+	op("OVERLAY_INDEX_VS_TOTAL"),
+	op("OVERLAY_KS_VS_POP"),
+	op("OVERLAY_PAIRWISE_PROBIT_T"),
+	op("OVERLAY_PAIRWISE_PROP_Z"),
+	op("OVERLAY_PAIRWISE_TWO_MEANS_Z"),
+	op("OVERLAY_PAIRWISE_WELCH_T"),
+	op("OVERLAY_PANEL_INDEX_VS_REF"),
+	op("OVERLAY_PROP_Z_CELL"),
+	op("OVERLAY_PROP_Z_PANEL"),
+	op("OVERLAY_RANK"),
+	op("OVERLAY_SHARE_OF_COL"),
+	op("OVERLAY_SHARE_OF_ROW"),
+	op("OVERLAY_SHARE_OF_TOTAL"),
+	op("OVERLAY_T_CELL"),
+	op("OVERLAY_T_VS_REF"),
+	op("OVERLAY_YOY"),
+	op("OVERLAY_ZSCORE_VS_MARGIN"),
+	op("OVERLAY_ZSCORE_VS_POP"),
+	op("OVERLAY_ZSCORE_VS_ROLLING"),
+	op("OVERLAY_ZSCORE_VS_TOTAL"),
+	op("OVERLAY_Z_CELL"),
+	op("OVERLAY_Z_VS_REF"),
+}
+
+// Core surfaces are ALWAYS present: they are not features, cannot be
+// hidden, and a profile that lists one is refused as an unknown feature.
+// Kept as data so the profile validator can name them in its refusal.
+var coreSurfaces = []string{
+	CoreOpen,
+	CoreInspect,
+	CorePredict,
+	CoreCountRecords,
+	CoreManifest,
+	CorePayloadSchema,
+	CoreSkills,
+	CoreExamples,
+	CoreErrorsLookup,
+	CoreCohortArtifacts,
+}
+
+// The always-present core surfaces.
+const (
+	CoreOpen            = "open"             // Open
+	CoreInspect         = "inspect"          // Inspect*, pulse_inspect
+	CorePredict         = "predict"          // Predict*, pulse_predict
+	CoreCountRecords    = "count_records"    // CountRecords
+	CoreManifest        = "manifest"         // Manifest, pulse_manifest
+	CorePayloadSchema   = "payload_schema"   // payload JSON Schema, pulse://schema
+	CoreSkills          = "skills"           // skills list/get
+	CoreExamples        = "examples"         // examples search/get
+	CoreErrorsLookup    = "errors_lookup"    // errors lookup
+	CoreCohortArtifacts = "cohort_artifacts" // CohortArtifacts
+)
+
+// MCPToolBinding records which feature (or core surface) owns one MCP
+// tool. Exactly one of Feature and Core is set. Data only today; the
+// MCP registration filter consumes it in a later unit.
+type MCPToolBinding struct {
+	Tool    string
+	Feature string
+	Core    string
+}
+
+// mcpToolBindings binds every registered MCP tool (toolmeta.Names()).
+// String literals, not toolmeta constants, so the table stays pure data;
+// TestFeaturesHaveSince pins it to toolmeta in both directions.
+var mcpToolBindings = []MCPToolBinding{
+	{Tool: "pulse_inspect", Core: CoreInspect},
+	{Tool: "pulse_predict", Core: CorePredict},
+	{Tool: "pulse_manifest", Core: CoreManifest},
+	{Tool: "pulse_skills_list", Core: CoreSkills},
+	{Tool: "pulse_skills_get", Core: CoreSkills},
+	{Tool: "pulse_examples_search", Core: CoreExamples},
+	{Tool: "pulse_examples_get", Core: CoreExamples},
+	{Tool: "pulse_errors_lookup", Core: CoreErrorsLookup},
+	{Tool: "pulse_process", Feature: featProcess},
+	{Tool: "pulse_compose", Feature: featCompose},
+	{Tool: "pulse_process_chain", Feature: featProcessChain},
+	{Tool: "pulse_facet", Feature: featFacet},
+	{Tool: "pulse_facet_schema", Feature: featFacet},
+	{Tool: "pulse_sample", Feature: featSample},
+	{Tool: "pulse_lookup", Feature: featLookup},
+	{Tool: "pulse_import", Feature: featImport},
+	{Tool: "pulse_imports_list", Feature: featImport},
+	{Tool: "pulse_drop", Feature: featImport},
+	{Tool: "pulse_dedup", Feature: featDedup},
+	{Tool: "pulse_label_tables", Feature: featLabels},
+	{Tool: "pulse_label_resolve", Feature: featLabels},
+	{Tool: "pulse_range_tables", Feature: featRangeTables},
+}
+
+// mcpPromptFeatures binds every registered MCP prompt
+// (gosdk.RegisteredPrompts()) to its mcp_extra feature.
+var mcpPromptFeatures = map[string]string{
+	"pulse-bootstrap":      FeatureName(FeatureKindMCPExtra, "prompt_bootstrap"),
+	"pulse-author-request": FeatureName(FeatureKindMCPExtra, "prompt_author_request"),
+}
+
+var (
+	featureIndexOnce sync.Once
+	featureIndex     map[string]Feature
+	coreIndex        map[string]bool
+)
+
+func buildFeatureIndex() {
+	featureIndex = make(map[string]Feature, len(builtinFeatures))
+	for _, f := range builtinFeatures {
+		if _, dup := featureIndex[f.Name]; !dup {
+			featureIndex[f.Name] = f
+		}
+	}
+	coreIndex = make(map[string]bool, len(coreSurfaces))
+	for _, c := range coreSurfaces {
+		coreIndex[c] = true
+	}
+}
+
+// Features returns every built-in feature row in table order. The slice
+// is a fresh copy; duplicates (a table bug the gate refuses) are kept so
+// the gate can see them.
+func Features() []Feature {
+	return append([]Feature(nil), builtinFeatures...)
+}
+
+// FeatureNames returns every built-in feature name in table order.
+func FeatureNames() []string {
+	out := make([]string, len(builtinFeatures))
+	for i, f := range builtinFeatures {
+		out[i] = f.Name
+	}
+	return out
+}
+
+// LookupFeature returns the built-in row spelled exactly name.
+func LookupFeature(name string) (Feature, bool) {
+	featureIndexOnce.Do(buildFeatureIndex)
+	f, ok := featureIndex[name]
+	return f, ok
+}
+
+// FeatureKindOf returns the kind of the built-in feature spelled name.
+func FeatureKindOf(name string) (FeatureKind, bool) {
+	f, ok := LookupFeature(name)
+	return f.Kind, ok
+}
+
+// CoreSurfaces returns the always-present core surface names in a stable
+// order. They are not features.
+func CoreSurfaces() []string {
+	return append([]string(nil), coreSurfaces...)
+}
+
+// IsCoreSurface reports whether name is an always-present core surface.
+func IsCoreSurface(name string) bool {
+	featureIndexOnce.Do(buildFeatureIndex)
+	return coreIndex[name]
+}
+
+// MCPToolBindings returns the MCP tool → feature/core table in a stable
+// order.
+func MCPToolBindings() []MCPToolBinding {
+	return append([]MCPToolBinding(nil), mcpToolBindings...)
+}
+
+// MCPToolBindingOf returns the binding for one MCP tool name.
+func MCPToolBindingOf(tool string) (MCPToolBinding, bool) {
+	for _, b := range mcpToolBindings {
+		if b.Tool == tool {
+			return b, true
+		}
+	}
+	return MCPToolBinding{}, false
+}
+
+// MCPPromptFeatures returns the MCP prompt name → mcp_extra feature map
+// as a fresh copy.
+func MCPPromptFeatures() map[string]string {
+	out := make(map[string]string, len(mcpPromptFeatures))
+	for k, v := range mcpPromptFeatures {
+		out[k] = v
+	}
+	return out
+}
+
+// ParseSince parses a feature Since: exactly `major.minor.patch`, each a
+// non-negative decimal integer with no sign, prefix or suffix. A
+// pre-release or build suffix is refused (ok == false) — a Since names a
+// release line, never a build.
+func ParseSince(s string) (major, minor, patch int, ok bool) {
+	parts := strings.Split(s, ".")
+	if len(parts) != 3 {
+		return 0, 0, 0, false
+	}
+	var out [3]int
+	for i, p := range parts {
+		if p == "" || strings.TrimLeft(p, "0123456789") != "" {
+			return 0, 0, 0, false
+		}
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return 0, 0, 0, false
+		}
+		out[i] = n
+	}
+	return out[0], out[1], out[2], true
+}
