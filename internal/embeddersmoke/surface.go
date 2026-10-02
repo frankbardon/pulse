@@ -154,6 +154,8 @@ var (
 	_ func(*bytes.Reader, *encoding.Schema) (*encoding.RecordLocator, error) = encoding.NewRecordLocator
 	_ func(string) (encoding.FieldType, bool)                                = encoding.ParseFieldType
 	_ func(string) (uint32, error)                                           = encoding.ParseDate
+	_ func(uint64) int32                                                     = encoding.DateDays
+	_ func(uint64) int64                                                     = encoding.DateTimeSeconds
 	_ func([]byte, int) bool                                                 = encoding.BitmapIsNull
 	_ func([]byte, int)                                                      = encoding.BitmapSetNull
 	_ func(*encoding.RecordLocator, uint64) int64                            = (*encoding.RecordLocator).Offset

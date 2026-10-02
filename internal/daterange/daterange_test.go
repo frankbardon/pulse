@@ -38,3 +38,28 @@ func TestCompile_MatchAndValidation(t *testing.T) {
 		}
 	}
 }
+
+// TestCompile_PreEpochBounds pins signed bounds: a pre-1970 start with a
+// post-1970 end is a valid range (not start > end), pre-1970 ranges sort
+// before post-1970 ones, and Match resolves negative days.
+func TestCompile_PreEpochBounds(t *testing.T) {
+	set, err := Compile([]Spec{
+		{Label: "post", Start: str("1970-01-02")},
+		{Label: "span", Start: str("1969-12-01"), End: str("1970-01-01")},
+		{Label: "old", Start: str("1900-01-01"), End: str("1969-11-30")},
+	})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	if got := set.Labels(); len(got) != 3 || got[0] != "old" || got[1] != "span" || got[2] != "post" {
+		t.Fatalf("Labels = %v, want [old span post]", got)
+	}
+	for day, want := range map[int64]string{-25567: "old", -1: "span", 0: "span", 1: "post"} {
+		if label, ok := set.Match(day); !ok || label != want {
+			t.Errorf("Match(%d) = %q, %v; want %q", day, label, ok, want)
+		}
+	}
+	if _, ok := set.Match(-25568); ok {
+		t.Error("Match(1899-12-31) matched; want no range")
+	}
+}

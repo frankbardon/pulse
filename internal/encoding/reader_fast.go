@@ -625,10 +625,16 @@ func decodeFixed(ft encoding.FieldType, buf []byte) float64 {
 		return float64(buf[0])
 	case encoding.FieldTypeU16, encoding.FieldTypeCategoricalU16, encoding.FieldTypeSetU16:
 		return float64(binary.LittleEndian.Uint16(buf))
-	case encoding.FieldTypeU32, encoding.FieldTypeDate, encoding.FieldTypeCategoricalU32, encoding.FieldTypeSetU32:
+	case encoding.FieldTypeU32, encoding.FieldTypeCategoricalU32, encoding.FieldTypeSetU32:
 		return float64(binary.LittleEndian.Uint32(buf))
-	case encoding.FieldTypeU64, encoding.FieldTypeSetU64, encoding.FieldTypeDateTime:
+	case encoding.FieldTypeDate:
+		// Signed int32 epoch days — lockstep with rawToFloat64.
+		return float64(int32(binary.LittleEndian.Uint32(buf)))
+	case encoding.FieldTypeU64, encoding.FieldTypeSetU64:
 		return float64(binary.LittleEndian.Uint64(buf))
+	case encoding.FieldTypeDateTime:
+		// Signed int64 epoch seconds — lockstep with rawToFloat64.
+		return float64(int64(binary.LittleEndian.Uint64(buf)))
 	case encoding.FieldTypeF32:
 		return float64(math.Float32frombits(binary.LittleEndian.Uint32(buf)))
 	case encoding.FieldTypeF64:

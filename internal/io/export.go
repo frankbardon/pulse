@@ -582,7 +582,8 @@ func formatFieldValue(ft encoding.FieldType, raw uint64, dict *encoding.Dictiona
 		return strconv.FormatFloat(f, 'f', -1, 64)
 
 	case encoding.FieldTypeDate:
-		days := int64(uint32(raw))
+		// Signed int32 epoch days: a pre-1970 date stays pre-1970.
+		days := int64(encoding.DateDays(raw))
 		t := temporal.DayToTime(days)
 		return t.Format("2006-01-02")
 

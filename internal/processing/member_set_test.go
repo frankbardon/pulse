@@ -304,3 +304,34 @@ func TestBitsetSet_ContainsOutOfRange(t *testing.T) {
 
 // silence "math" import if all f-math removed during refactor
 var _ = math.Pi
+
+// TestMemberSet_PreEpochTemporal pins include-from membership on the
+// signed temporal words: a negative epoch-day (date) or epoch-second
+// (datetime) member loads, and a decoded negative value matches it.
+func TestMemberSet_PreEpochTemporal(t *testing.T) {
+	for _, ft := range []encoding.FieldType{encoding.FieldTypeDate, encoding.FieldTypeDateTime} {
+		t.Run(ft.String(), func(t *testing.T) {
+			schema := u64Schema("d", ft)
+			res, err := LoadMemberSetFromReader(strings.NewReader("-25567\n-1\n19782\n"), schema, "d")
+			if err != nil {
+				t.Fatalf("LoadMemberSetFromReader: %v", err)
+			}
+			if res.Invalid != 0 {
+				t.Fatalf("Invalid = %d, want 0 — a negative temporal literal is valid", res.Invalid)
+			}
+			fn, err := BuildMemberSetPredicate(res.Set, schema, "d")
+			if err != nil {
+				t.Fatalf("BuildMemberSetPredicate: %v", err)
+			}
+			for v, want := range map[float64]bool{-25567: true, -1: true, 0: false, 19782: true, -2: false} {
+				keep, err := fn(NewRecord(schema, map[string]float64{"d": v}))
+				if err != nil {
+					t.Fatalf("fn: %v", err)
+				}
+				if keep != want {
+					t.Errorf("member(%v) = %v, want %v", v, keep, want)
+				}
+			}
+		})
+	}
+}

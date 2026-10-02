@@ -106,7 +106,8 @@ type CaseValue struct {
 	//   - f32 / f64 — the float, widened exactly.
 	//   - decimal128 — the value scaled by the field's Scale.
 	//   - packed_bool — 0 or 1.
-	//   - date — whole epoch DAYS, read unsigned, matching internal/io/export.go.
+	//   - date — whole epoch DAYS, read SIGNED (the on-wire u32 is two's
+	//     complement int32, encoding.DateDays), matching internal/io/export.go.
 	//   - datetime — whole epoch SECONDS, read SIGNED, so an instant before
 	//     1970 stays before 1970 (the on-wire u64 is two's complement, which
 	//     is exactly what encoding.FormatDateTime reinterprets).
@@ -860,15 +861,17 @@ func readCohortCase(r io.Reader, s *encoding.Schema, c Case) error {
 }
 
 // cohortNumber is the numeric reading of a raw storage value. See
-// [CaseValue.Num] for why date is unsigned and datetime signed.
+// [CaseValue.Num]: date and datetime are both read signed.
 func cohortNumber(ft encoding.FieldType, raw uint64) float64 {
 	switch ft {
 	case encoding.FieldTypeF32:
 		return float64(math.Float32frombits(uint32(raw)))
 	case encoding.FieldTypeF64:
 		return math.Float64frombits(raw)
+	case encoding.FieldTypeDate:
+		return float64(encoding.DateDays(raw))
 	case encoding.FieldTypeDateTime:
-		return float64(int64(raw))
+		return float64(encoding.DateTimeSeconds(raw))
 	default:
 		return float64(raw)
 	}

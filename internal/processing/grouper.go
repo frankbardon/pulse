@@ -1399,7 +1399,7 @@ func (g *dateRangesGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	if label, matched := g.set.Match(uint32(epochDayFromValue(v, g.seconds))); matched {
+	if label, matched := g.set.Match(epochDayFromValue(v, g.seconds)); matched {
 		return label, nil
 	}
 	return g.unmatchedLabel, nil

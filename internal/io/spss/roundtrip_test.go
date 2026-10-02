@@ -58,7 +58,8 @@ package spss
 //
 //  1. Trailing spaces are trimmed on read and re-padded to the retained
 //     declared width on write.
-//  2. A pre-1970 (or sub-day) day-resolution column widens to `datetime`.
+//  2. A pre-1970 day-resolution column stays a native `date` (signed days);
+//     only a sub-day one widens to `datetime`.
 //  3. MOYR / QYR / WKYR stay `f64` raw seconds with the format code retained.
 //  4. A DATETIME carrying fractional seconds routes to `f64` raw seconds.
 //  5. Derived columns exist in the cohort and must not reach the `.sav`.
@@ -877,17 +878,15 @@ func TestRoundTrip_KnownDivergencesAreTheExpectedBehaviour(t *testing.T) {
 	first := cohortSchema(t, c.fs, "first.pulse")
 	second := cohortSchema(t, c.fs, "second.pulse")
 
-	t.Run("pre-1970 day resolution widens to datetime", func(t *testing.T) {
-		// BORN carries 1955-06-02 and 1900-12-31, which an epoch-day
-		// uint32 cannot hold. Both cohorts must agree it is a datetime —
-		// the widening is not a first-pass-only accommodation.
+	t.Run("pre-1970 day resolution stays a native date", func(t *testing.T) {
+		// BORN carries 1955-06-02 and 1900-12-31. The date word is signed
+		// int32 epoch days, so both cohorts keep it a plain date — no
+		// widen on either pass — exactly like the post-1970 sibling.
 		for _, s := range []*encoding.Schema{first, second} {
-			if got := fieldOf(t, s, "born").Type; got != encoding.FieldTypeDateTime {
-				t.Errorf("born = %s, want datetime", got)
+			if got := fieldOf(t, s, "born").Type; got != encoding.FieldTypeDate {
+				t.Errorf("born = %s, want date", got)
 			}
 		}
-		// And the sibling day-resolution column that has no pre-1970 value
-		// stays a plain date, so the widening is per column and not global.
 		if got := fieldOf(t, second, "signed_up").Type; got != encoding.FieldTypeDate {
 			t.Errorf("signed_up = %s, want date", got)
 		}

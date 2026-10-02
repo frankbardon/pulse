@@ -2357,12 +2357,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SPSS_DATE_WIDENED: {
-		Message: "An SPSS variable carrying a day-resolution print format (DATE, ADATE, EDATE, SDATE or JDATE) was mapped to the Pulse datetime type rather than date, because at least one of its values carries a time of day that day resolution would truncate, or falls before 1970-01-01, which the unsigned epoch-day date representation cannot express. This is a warning: datetime holds every such value exactly and the date-family groupers accept it by documented day truncation.",
+		Message: "An SPSS variable carrying a day-resolution print format (DATE, ADATE, EDATE, SDATE or JDATE) was mapped to the Pulse datetime type rather than date, because at least one of its values carries a time of day that day resolution would truncate. A pre-1970 value alone never widens: date is signed epoch days. This is a warning: datetime holds every such value exactly and the date-family groupers accept it by documented day truncation.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema"},
-				Hint:   "No action is needed — GROUP_DATE and the date-range operators accept a datetime field and truncate it to the day. Supply an explicit ImportJob.Schema only if the column must be a date, accepting that pre-1970 values and times of day will not survive.",
+				Hint:   "No action is needed — GROUP_DATE and the date-range operators accept a datetime field and truncate it to the day. Supply an explicit ImportJob.Schema only if the column must be a date, accepting that times of day will not survive.",
 			},
 		},
 	},

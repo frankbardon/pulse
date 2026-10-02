@@ -181,17 +181,61 @@ func TestMapping_PrintFormatDispatch(t *testing.T) {
 	}
 }
 
-// TestMapping_DateWidensRatherThanCorrupt covers the two values an
-// unsigned epoch-day `date` cannot hold. Both widen to datetime, which
-// holds them exactly, and both say so.
+// TestMapping_PreEpochDateStaysNativeDate pins that a pre-1970 DATE
+// column imports as a native `date`: the date word is signed int32 epoch
+// days, so 1955 and 1900 need no widen and raise no warning.
+func TestMapping_PreEpochDateStaysNativeDate(t *testing.T) {
+	cases := []struct {
+		datum float64
+		want  string
+	}{
+		{spssInstant(1955, time.June, 2, 0, 0, 0), "1955-06-02"},
+		{spssInstant(1900, time.January, 1, 0, 0, 0), "1900-01-01"},
+		{spssInstant(1969, time.December, 31, 0, 0, 0), "1969-12-31"},
+	}
+	for _, c := range cases {
+		t.Run(c.want, func(t *testing.T) {
+			spec := spsstest.Spec{
+				Vars: []spsstest.Var{{
+					Name:  "DOB",
+					Print: spsstest.Format{Type: spsstest.FormatDATE, Width: 11},
+				}},
+				Cases: [][]spsstest.Value{{spsstest.Num(c.datum)}},
+			}
+			s, r := schemaOf(t, spec)
+			if got := fieldOf(t, s, "DOB").Type; got != encoding.FieldTypeDate {
+				t.Fatalf("DOB.Type = %s, want date", got)
+			}
+			if w := warningsOf(r, perr.PULSE_SPSS_DATE_WIDENED); len(w) != 0 {
+				t.Fatalf("got %d widening warning(s), want 0: %v", len(w), w)
+			}
+			rows := readAll(t, r)
+			if rows[0][0] != c.want {
+				t.Fatalf("cell = %q, want %q", rows[0][0], c.want)
+			}
+			raw, err := encoding.ParseDate(rows[0][0])
+			if err != nil {
+				t.Fatalf("ParseDate(%q): %v", rows[0][0], err)
+			}
+			wantDays := (int64(c.datum) - spssEpochOffsetSeconds) / (24 * 3600)
+			if got := int64(encoding.DateDays(uint64(raw))); got != wantDays {
+				t.Errorf("day = %d, want %d", got, wantDays)
+			}
+		})
+	}
+}
+
+// TestMapping_DateWidensRatherThanCorrupt covers the one value a
+// day-resolution `date` cannot hold — a time of day. It widens to
+// datetime, which holds it exactly, and says so.
 func TestMapping_DateWidensRatherThanCorrupt(t *testing.T) {
 	cases := []struct {
 		name   string
 		datum  float64
 		reason string
 	}{
-		{"pre-1970 birth date", spssInstant(1955, time.June, 2, 0, 0, 0), "before 1970-01-01"},
 		{"a time of day on a DATE column", spssInstant(2024, time.March, 4, 13, 30, 0), "time of day"},
+		{"a pre-1970 time of day on a DATE column", spssInstant(1955, time.June, 2, 13, 30, 0), "time of day"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -219,9 +263,7 @@ func TestMapping_DateWidensRatherThanCorrupt(t *testing.T) {
 			if got := w[0].Details[perr.DetailSPSSFormat]; got != fmtDATE {
 				t.Errorf("Details[%q] = %v, want %d", perr.DetailSPSSFormat, got, fmtDATE)
 			}
-			// And the instant really does survive. The 1955 case is the
-			// one that matters: encoding.ParseDate would have wrapped it
-			// into a uint32 in the 4.29-billion range.
+			// And the instant really does survive, pre-1970 included.
 			rows := readAll(t, r)
 			back, err := encoding.ParseDateTime(rows[0][0])
 			if err != nil {

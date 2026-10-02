@@ -345,6 +345,13 @@ func rawToFloat64(ft encoding.FieldType, raw uint64) float64 {
 		return float64(math.Float32frombits(uint32(raw)))
 	case encoding.FieldTypeF64:
 		return math.Float64frombits(raw)
+	case encoding.FieldTypeDate:
+		// The date word is two's-complement int32 epoch days: a pre-1970
+		// day must decode negative, never zero-extend to ~4.29e9.
+		return float64(encoding.DateDays(raw))
+	case encoding.FieldTypeDateTime:
+		// The datetime word is two's-complement int64 epoch seconds.
+		return float64(encoding.DateTimeSeconds(raw))
 	default:
 		return float64(raw)
 	}

@@ -432,7 +432,7 @@ func TestMissing_CategoricalGetsNoSibling(t *testing.T) {
 // TestMissing_TemporalUserMissingDoesNotWidenTheColumn is the reason the
 // predicate has to be in force during the SCAN and not only at decode
 // time. A refusal code of 999 on a DATE variable reads as an instant a
-// few minutes after the SPSS epoch — which is pre-1970 — and would widen
+// few minutes after the SPSS epoch — not midnight-aligned — and would widen
 // the whole column to datetime for a value that is not a date at all.
 func TestMissing_TemporalUserMissingDoesNotWidenTheColumn(t *testing.T) {
 	spec := spsstest.Spec{

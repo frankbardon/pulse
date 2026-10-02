@@ -232,7 +232,7 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 		if !ok {
 			return false, nil // null/missing date → drop
 		}
-		_, matched := set.Match(uint32(epochDayFromValue(v, seconds)))
+		_, matched := set.Match(epochDayFromValue(v, seconds))
 		return matched, nil
 	}, nil
 }

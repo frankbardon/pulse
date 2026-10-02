@@ -1792,8 +1792,8 @@ const (
 	// day-resolution print format (DATE / ADATE / EDATE / SDATE / JDATE)
 	// was mapped to `datetime` rather than `date`, because at least one
 	// of its values carries a time of day the day-resolution type would
-	// truncate, or falls before 1970-01-01 — which the unsigned epoch-day
-	// `date` representation cannot express. It is a WARNING: `datetime`
+	// truncate. A pre-1970 value alone never widens — `date` is signed
+	// int32 epoch days. It is a WARNING: `datetime`
 	// holds every such value exactly and the date-family groupers accept
 	// it by documented day truncation, so the widening costs 4 bytes per
 	// record and nothing else. Details carry the variable under

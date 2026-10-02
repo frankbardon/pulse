@@ -25,7 +25,8 @@ var DateFormats = []string{
 
 // ParseDate parses raw against DateFormats (first match wins) and
 // returns the on-wire representation the .pulse `date` field type
-// carries: whole days since the Unix epoch, narrowed to uint32 — exactly
+// carries: whole days since the Unix epoch as a two's-complement int32
+// word (a pre-1970 day is negative; read it back with DateDays) — exactly
 // the conversion internal/io/import.go's row importer performs when converting a
 // date column cell (`temporal.TimeToDay`). This function is the single
 // source of truth both the importer (internal/io/import.go's convertValue) and

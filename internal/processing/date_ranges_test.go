@@ -7,16 +7,16 @@ import (
 	"github.com/frankbardon/pulse/errors"
 )
 
-// day is a test helper turning an ISO date literal into the u32 day-integer
-// the on-wire `date` field type carries, via the same authority the model
-// uses (encoding.ParseDate).
-func day(t *testing.T, iso string) uint32 {
+// day is a test helper turning an ISO date literal into the SIGNED
+// day-integer the on-wire `date` word carries (two's-complement int32),
+// via the same authority the model uses (encoding.ParseDate).
+func day(t *testing.T, iso string) int64 {
 	t.Helper()
 	d, err := encoding.ParseDate(iso)
 	if err != nil {
 		t.Fatalf("ParseDate(%q): %v", iso, err)
 	}
-	return d
+	return int64(encoding.DateDays(uint64(d)))
 }
 
 func ptr(s string) *string { return &s }

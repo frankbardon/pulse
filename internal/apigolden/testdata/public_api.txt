@@ -1215,8 +1215,10 @@ pulse/encoding: func BitmapIsNull(bitmap []byte, i int) bool
 pulse/encoding: func BitmapSetNull(bitmap []byte, i int)
 pulse/encoding: const CanonicalDateTimeLayout untyped string = "2006-01-02T15:04:05Z"
 pulse/encoding: func CompressedCohortError() *pulse/errors.CodedError
+pulse/encoding: func DateDays(raw uint64) int32
 pulse/encoding: var DateFormats []string
 pulse/encoding: var DateTimeFormats []string
+pulse/encoding: func DateTimeSeconds(raw uint64) int64
 pulse/encoding: func DateTimeToDay(sec int64) int64
 pulse/encoding: type Decimal128 struct
 pulse/encoding: type Decimal128 method (Decimal128) Add(o pulse/encoding.Decimal128) (pulse/encoding.Decimal128, error)
@@ -3504,4 +3506,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 36bbfac29b983172ca6c6fe5e50f79372477a8ca27c11cd22cc111aa73fbf639
+// golden-hash: 5603a14a819a59036556d200778783e718fa696cceb426f066decc49c6047165

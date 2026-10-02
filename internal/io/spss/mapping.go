@@ -77,12 +77,12 @@ package spss
 //
 // # Widening and downcasting, both loud
 //
-// `date` is an UNSIGNED epoch-day count, so it cannot express an instant
-// before 1970-01-01 — and SPSS files carry birth dates. It is also day
-// resolution, so a time of day on a DATE-formatted variable would vanish.
-// Rather than write a wrapped or truncated value, a day-resolution column
-// holding either widens to `datetime` (lossless, and the date-family
-// groupers day-truncate it) with PULSE_SPSS_DATE_WIDENED.
+// `date` is a SIGNED (int32) epoch-day count, so a pre-1970 birth date is
+// a native `date`. It is day resolution, though, so a time of day on a
+// DATE-formatted variable would vanish. Rather than write a truncated
+// value, a day-resolution column holding one widens to `datetime`
+// (lossless, and the date-family groupers day-truncate it) with
+// PULSE_SPSS_DATE_WIDENED.
 //
 // Below that, `datetime` is second resolution. A temporal column holding
 // a fractional second, a non-finite double or a second count outside
@@ -678,10 +678,6 @@ type columnStats struct {
 	// subDay records a day-resolution column carrying a time of day.
 	subDay bool
 
-	// preEpoch records a temporal value before 1970-01-01, which the
-	// unsigned epoch-day `date` representation cannot express.
-	preEpoch bool
-
 	// collided records that two distinct source values resolved to one
 	// dictionary key.
 	collided bool
@@ -830,8 +826,8 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 					// REASON, not an instant. It has to be excluded here
 					// and not merely at decode time: a refusal code of
 					// 999 on a DATE column would otherwise read as an
-					// instant three days after the SPSS epoch and widen
-					// the whole column to datetime for being pre-1970.
+					// instant just after the SPSS epoch (1582) and
+					// import as a fabricated calendar date.
 					st.sawNull = true
 					st.observeMissing(value)
 					continue
@@ -841,9 +837,8 @@ func scanCases(plan *dataPlan, kinds []columnKind, data []byte, start, cases int
 					st.inexact = true
 					continue
 				}
-				if sec < 0 {
-					st.preEpoch = true
-				}
+				// A pre-1970 instant needs no widen: the `date` word is
+				// signed int32 epoch days and holds it natively.
 				if !temporal.IsWholeDay(sec) {
 					st.subDay = true
 				}
@@ -906,10 +901,10 @@ func (m *mapping) resolveColumn(at int, v variable, kind columnKind,
 			col.kind = kindNumeric
 			col.fieldType = encoding.FieldTypeF64
 			m.warnPrecision(v)
-		case st.subDay || st.preEpoch:
+		case st.subDay:
 			col.kind = kindDateTime
 			col.fieldType = encoding.FieldTypeDateTime
-			m.warnWidened(v, st)
+			m.warnWidened(v)
 		default:
 			col.fieldType = encoding.FieldTypeDate
 		}
@@ -1299,18 +1294,13 @@ func (m *mapping) warnPrecision(v variable) {
 	m.warnings = append(m.warnings, ce)
 }
 
-// warnWidened reports a day-resolution column widened to datetime.
-func (m *mapping) warnWidened(v variable, st *columnStats) {
-	reason := "carries a time of day that day resolution would truncate"
-	switch {
-	case st.preEpoch && st.subDay:
-		reason = "carries instants before 1970-01-01 and times of day, neither of which the unsigned epoch-day date type holds"
-	case st.preEpoch:
-		reason = "carries instants before 1970-01-01, which the unsigned epoch-day date type cannot express"
-	}
+// warnWidened reports a day-resolution column widened to datetime because
+// it carries a time of day. A pre-1970 value alone never widens: the
+// `date` word is signed epoch days.
+func (m *mapping) warnWidened(v variable) {
 	ce := mapError(errors.PULSE_SPSS_DATE_WIDENED, v,
-		"the day-resolution print format %d %s; the variable maps to datetime instead, which holds every value exactly and day-truncates under GROUP_DATE",
-		v.print.code, reason)
+		"the day-resolution print format %d carries a time of day that day resolution would truncate; the variable maps to datetime instead, which holds every value exactly and day-truncates under GROUP_DATE",
+		v.print.code)
 	ce.Details[errors.DetailSPSSFormat] = v.print.code
 	m.warnings = append(m.warnings, ce)
 }
