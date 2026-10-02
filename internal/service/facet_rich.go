@@ -42,6 +42,10 @@ func (s *Service) FacetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if len(req.Fields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "facet schema requires a non-empty fields list")
 	}
+	// A hidden FacetRequest.Overlays slot is an unknown field.
+	if err := s.slotRefusal(req); err != nil {
+		return nil, err
+	}
 
 	path := resolveCohortPath(req.Cohort)
 	cohort, err := s.Open(ctx, path)

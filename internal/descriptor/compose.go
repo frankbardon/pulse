@@ -121,6 +121,13 @@ func ValidateComposeWithOptions(req *types.ComposedRequest, opts *PredictOptions
 		result.Valid = false
 		return env
 	}
+	// A slot the instance hides is an unknown field, refused before
+	// anything else — the runtime's order.
+	if serr := SlotRefusal(req, opts.instance()); serr != nil {
+		addCodedError(env, serr)
+		result.Valid = false
+		return env
+	}
 	// Zone resolution per slot — the pass Compose runs inside each
 	// slot's Process — against the slot's cohort (or joined) schema
 	// read through opts.SchemaLoader. A refusal carries the slot index

@@ -61,6 +61,11 @@ func (s *Service) ComposeParallel(
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"composed request must contain at least one request")
 	}
+	// Hidden slots are refused before the worker pool starts, exactly
+	// as on the serial path.
+	if err := s.slotRefusal(composed); err != nil {
+		return nil, err
+	}
 
 	// Synthesize Label auto-defaults + collision-check on a clone of the
 	// slot list before the worker pool starts; see applyComposeLabelDefaults

@@ -293,6 +293,14 @@ func (s *Service) InstanceSnapshot() *descx.InstanceSnapshot {
 	return s.instance
 }
 
+// slotRefusal is the request-slot gate (descx.SlotRefusal) against this
+// service's instance: a capability-gated slot the instance hides is
+// refused as PULSE_REQUEST_UNKNOWN_FIELD. Every funnel runs it before
+// any other request check, the point an unknown JSON key is refused.
+func (s *Service) slotRefusal(v any) error {
+	return descx.SlotRefusal(v, s.instance)
+}
+
 // SetExtensionsSnapshot installs an extension projection with NO feature
 // scoping (descx.UnscopedInstanceSnapshot). For callers that wire a
 // service by hand; pulse.New uses SetInstanceSnapshot.
@@ -541,6 +549,13 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Response, error) {
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
+	}
+
+	// A slot the instance hides is an unknown field. It runs before the
+	// join-count rule and the crosstab / joins dispatch below, so a
+	// hidden slot never reaches the code that would execute it.
+	if err := s.slotRefusal(req); err != nil {
+		return nil, markLocated(err)
 	}
 
 	// The v1 join-count rule, shared with predict and the validators.
@@ -934,6 +949,11 @@ func (s *Service) installProjection(iter scanIterator, req *types.Request, schem
 func (s *Service) Compose(ctx context.Context, composed *types.ComposedRequest) (*types.ComposedResponse, error) {
 	if composed == nil || len(composed.Requests) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
+	}
+	// Hidden slots — the composed root's own, then every slot's — are
+	// refused before any slot runs (details.request locates a slot's).
+	if err := s.slotRefusal(composed); err != nil {
+		return nil, err
 	}
 
 	requests, err := applyComposeLabelDefaults(composed)

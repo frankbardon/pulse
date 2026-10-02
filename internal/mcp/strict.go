@@ -2,11 +2,9 @@ package mcp
 
 import (
 	"encoding/json"
-	"reflect"
-	"sort"
-	"strings"
 
 	perr "github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -16,33 +14,10 @@ import (
 var requestSlotKeys = jsonObjectKeys(&types.Request{})
 
 // jsonObjectKeys returns the top-level JSON object keys declared by the
-// struct pointed to by sample, read from each exported field's json
-// tag. Fields tagged "-" or with an empty name are skipped.
+// struct pointed to by sample (descx.JSONObjectKeys — shared with the
+// service-side request-slot gate).
 func jsonObjectKeys(sample any) []string {
-	t := reflect.TypeOf(sample)
-	for t != nil && t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	if t == nil || t.Kind() != reflect.Struct {
-		return nil
-	}
-	keys := make([]string, 0, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-		if !f.IsExported() {
-			continue
-		}
-		tag := f.Tag.Get("json")
-		if tag == "-" {
-			continue
-		}
-		name, _, _ := strings.Cut(tag, ",")
-		if name == "" {
-			name = f.Name
-		}
-		keys = append(keys, name)
-	}
-	return keys
+	return descx.JSONObjectKeys(sample)
 }
 
 // checkUnknownRequestKeys decodes body as a JSON object and verifies
@@ -74,87 +49,11 @@ func checkUnknownRequestKeys(body []byte) *perr.CodedError {
 			unknown = append(unknown, k)
 		}
 	}
-	if len(unknown) == 0 {
-		return nil
-	}
-	sort.Strings(unknown)
-
-	validList := append([]string(nil), requestSlotKeys...)
-	sort.Strings(validList)
-
-	suggestions := make(map[string]any, len(unknown))
-	var parts []string
-	for _, k := range unknown {
-		if near := nearestKey(k, requestSlotKeys); near != "" {
-			suggestions[k] = near
-			parts = append(parts, `"`+k+`" (did you mean "`+near+`"?)`)
-		} else {
-			parts = append(parts, `"`+k+`"`)
-		}
-	}
-
-	msg := "request contains unrecognized top-level key(s): " + strings.Join(parts, ", ") +
-		". Unknown keys are ignored during decode, so the intended operation is silently dropped. Valid request keys: " +
-		strings.Join(validList, ", ") + "."
-
-	return perr.NewCodedErrorWithDetails(perr.PULSE_REQUEST_UNKNOWN_FIELD, msg, map[string]any{
-		"unknown_keys": unknown,
-		"suggestions":  suggestions,
-		"valid_keys":   validList,
-	})
-}
-
-// nearestKey returns the closest candidate to k by Levenshtein distance,
-// or "" when no candidate is close enough. The acceptance threshold is
-// edit distance < 4, further capped at the key length, so short or
-// unrelated keys do not yield a misleading suggestion.
-func nearestKey(k string, candidates []string) string {
-	limit := min(4, len(k)) // accept edit distance up to 3, capped at key length
-	best := ""
-	bestDist := limit
-	for _, c := range candidates {
-		d := levenshtein(k, c)
-		if d < bestDist {
-			bestDist = d
-			best = c
-		}
-	}
-	return best
-}
-
-// levenshtein computes the edit distance between a and b using the
-// standard two-row dynamic-programming table.
-func levenshtein(a, b string) int {
-	if a == b {
-		return 0
-	}
-	ra, rb := []rune(a), []rune(b)
-	if len(ra) == 0 {
-		return len(rb)
-	}
-	if len(rb) == 0 {
-		return len(ra)
-	}
-	prev := make([]int, len(rb)+1)
-	curr := make([]int, len(rb)+1)
-	for j := range prev {
-		prev[j] = j
-	}
-	for i := 1; i <= len(ra); i++ {
-		curr[0] = i
-		for j := 1; j <= len(rb); j++ {
-			cost := 1
-			if ra[i-1] == rb[j-1] {
-				cost = 0
-			}
-			del := prev[j] + 1
-			ins := curr[j-1] + 1
-			sub := prev[j-1] + cost
-			curr[j] = min(del, ins, sub)
-		}
-		prev, curr = curr, prev
-	}
-	return prev[len(rb)]
+	// The shape (message, unknown_keys, suggestions, valid_keys) is
+	// built in one place, shared with the instance-scoped request-slot
+	// gate (descx.SlotRefusal), so an unknown key and a hidden slot
+	// cannot drift apart.
+	return descx.UnknownFieldError(unknown, requestSlotKeys)
 }
 
 // checkUnknownKeysComposed validates each request inside a

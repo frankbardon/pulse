@@ -3,6 +3,7 @@ package descriptor
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -34,7 +35,20 @@ func hiddenPredictSchema(t *testing.T) *encoding.Schema {
 }
 
 func hiddenPredictOpts(hidden string) *PredictOptions {
-	return &PredictOptions{Instance: NewInstanceSnapshot(nil, FeatureSet{Hidden: []string{hidden}})}
+	return &PredictOptions{Instance: hideOnly(hidden)}
+}
+
+// hideOnly is a scoped instance offering every built-in feature except
+// hidden — the profile the hidden-name tests mean, so no request slot
+// is hidden along with the name under test.
+func hideOnly(hidden ...string) *InstanceSnapshot {
+	var enabled []string
+	for _, n := range FeatureNames() {
+		if !slices.Contains(hidden, n) {
+			enabled = append(enabled, n)
+		}
+	}
+	return NewInstanceSnapshot(nil, FeatureSet{Enabled: enabled, Hidden: hidden})
 }
 
 // hiddenNameParity runs build(name) through run with the instance
@@ -257,7 +271,7 @@ func TestPredict_SuggestionsNeverProposeHidden(t *testing.T) {
 		return out
 	}
 	open := proposes(nil)
-	got := proposes(&PredictOptions{Instance: NewInstanceSnapshot(nil, FeatureSet{Hidden: hidden})})
+	got := proposes(&PredictOptions{Instance: hideOnly(hidden...)})
 	for _, h := range hidden {
 		if !open[h] {
 			t.Errorf("vacuous: unscoped predict never proposes %s (proposals %v)", h, open)

@@ -96,6 +96,13 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		result.Valid = false
 		return env
 	}
+	// A slot the instance hides is an unknown field, refused before
+	// anything else — the runtime's order.
+	if serr := SlotRefusal(req, opts.instance()); serr != nil {
+		addCodedError(env, serr)
+		result.Valid = false
+		return env
+	}
 
 	pulseVersion, err := encoding.ReadHeader(fileData)
 	if err != nil {

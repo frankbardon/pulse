@@ -37,6 +37,12 @@ func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*t
 				map[string]any{"stage_index": i})
 		}
 	}
+	// Hidden slots — the chain root's own, then every stage's (stage 0
+	// included, ahead of the chain gate) — are refused before the cohort
+	// opens (details.stage locates a stage's).
+	if err := s.slotRefusal(req); err != nil {
+		return nil, err
+	}
 
 	// Stage 0 runs against the on-disk cohort.
 	stage0 := req.Stages[0].Request

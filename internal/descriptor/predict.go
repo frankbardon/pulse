@@ -204,6 +204,17 @@ func (o *PredictOptions) overlayRoute(kind types.OverlayKind) types.OverlayKind 
 // shape). Any other prefix takes the single-file path, which surfaces
 // the standard ENCODING_INVALID envelope on malformed input.
 func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
+	// A slot the instance hides is an unknown field — refused first, as
+	// Service.Process refuses it before the join-count rule or opening
+	// the cohort. Nothing else is validated: the runtime never gets
+	// further either.
+	if serr := SlotRefusal(req, opts.instance()); serr != nil {
+		result := newPredictResult(req)
+		result.Valid = false
+		env := descriptor.NewEnvelope(result)
+		addCodedError(env, serr)
+		return env
+	}
 	if data, ok := sniffArchive(fileData); ok {
 		return predictArchive(data, req, opts)
 	}
@@ -211,19 +222,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		opts = &PredictOptions{}
 	}
 
-	result := &descriptor.PredictResult{
-		Valid:                    true,
-		Request:                  req,
-		Shards:                   []descriptor.ShardInfo{},
-		DefaultsApplied:          []descriptor.DefaultApplied{},
-		Aggregations:             []descriptor.AggregationPredict{},
-		Groups:                   []descriptor.GroupPredict{},
-		Filterers:                []descriptor.FiltererPredict{},
-		OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
-		OverlaysSchemaDivergence: []descriptor.SlotPair{},
-		OverlayCost:              map[string]float64{},
-		TimeZones:                []descriptor.ResolvedZone{},
-	}
+	result := newPredictResult(req)
 	env := descriptor.NewEnvelope(result)
 
 	// Read header only.
@@ -1355,5 +1354,23 @@ func validateOperatorTypes(env *descriptor.Envelope, req *types.Request) {
 		if g != nil && g.Type == "" {
 			report("group", "groups["+strconv.Itoa(i)+"]")
 		}
+	}
+}
+
+// newPredictResult is the empty, valid PredictResult every predict run
+// starts from (every slice non-nil so the JSON shape is stable).
+func newPredictResult(req *types.Request) *descriptor.PredictResult {
+	return &descriptor.PredictResult{
+		Valid:                    true,
+		Request:                  req,
+		Shards:                   []descriptor.ShardInfo{},
+		DefaultsApplied:          []descriptor.DefaultApplied{},
+		Aggregations:             []descriptor.AggregationPredict{},
+		Groups:                   []descriptor.GroupPredict{},
+		Filterers:                []descriptor.FiltererPredict{},
+		OverlaysApplied:          []descriptor.OverlayAppliedDescriptor{},
+		OverlaysSchemaDivergence: []descriptor.SlotPair{},
+		OverlayCost:              map[string]float64{},
+		TimeZones:                []descriptor.ResolvedZone{},
 	}
 }

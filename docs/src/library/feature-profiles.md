@@ -19,7 +19,12 @@ before profiles existed.
 > regression or overlay kind the profile omits behaves at run time
 > exactly as a name Pulse has never heard of — same result or error, on
 > every entry point and every overlay host, predict included — and
-> smart defaults never pick it. Request slots, the manifest, the payload schema,
+> smart defaults never pick it. A request that sets a slot whose
+> capability the profile omits (`crosstab`, `joins`, or an `overlays`
+> slot with no enabled host and kind) is refused with
+> `PULSE_REQUEST_UNKNOWN_FIELD`, exactly as an unrecognised JSON key,
+> and the error's `valid_keys` list only the slots the instance offers.
+> The manifest, the payload schema,
 > errors and MCP filtering land in later v1.0.0 pre-releases. Writing and validating your profile now means it is
 > ready when they do.
 
