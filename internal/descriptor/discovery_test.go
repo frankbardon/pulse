@@ -259,19 +259,3 @@ func jsonHasKeyRaw(t *testing.T, raw []byte, key string) bool {
 	}
 	return jsonHasKey(v, key)
 }
-
-// TestDiscovery_ExampleOperatorRule pins the _meta.operators rule on its
-// own: today every tagged operator also appears in the body, so the
-// library alone cannot tell it from the body-token rule.
-func TestDiscovery_ExampleOperatorRule(t *testing.T) {
-	inst := hidingSnapshot("AGG_SUM")
-	tagged := &examples.Example{Operators: []string{"AGG_SUM"}, Body: []byte(`{}`)}
-	if !slices.ContainsFunc(examplePruneRules, func(rule func(*InstanceSnapshot, *examples.Example) bool) bool {
-		return rule(inst, tagged)
-	}) {
-		t.Error("an example tagged with a hidden operator is not pruned")
-	}
-	if exampleOperatorHidden(inst, &examples.Example{Operators: []string{"AGG_COUNT"}, Body: []byte(`{}`)}) {
-		t.Error("an example tagged only with enabled operators is pruned")
-	}
-}

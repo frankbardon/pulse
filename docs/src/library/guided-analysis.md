@@ -20,8 +20,8 @@ and a glossary of the statistical terms involved. The metadata is
 
 An **intent** is a kind of question a non-statistician would recognise,
 such as "compare groups", "relationship between measures" or "change
-over time". The taxonomy is closed and is the same on every instance. A
-feature profile never prunes it.
+over time". The taxonomy is closed, and `pulse.Intents()` returns all of
+it on every instance.
 
 ```go
 for _, in := range pulse.Intents() {
@@ -92,6 +92,13 @@ do:
 - `pulse_skills_get` with `name: "glossary"` / `"intents"`
 - the resources `pulse-skill://glossary` and `pulse-skill://intents`
 - the manifest's `skills` list
+
+Both skills are listed on every instance. On an instance with a
+feature profile, the bodies leave out what the instance cannot use: an
+intent that only hidden operators serve, and a glossary term that only
+hidden operators cite. "See also" links to a removed term are dropped
+too. An intent no operator serves, and a term no operator cites, always
+stay.
 
 ## Guidance on your own operators
 

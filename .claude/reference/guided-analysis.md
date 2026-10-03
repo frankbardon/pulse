@@ -28,7 +28,7 @@ Public types live in `descriptor/guidance.go`; the registries and built-in decla
 
 ## Intent taxonomy
 
-`internal/descriptor/intents.go` `intentRegistry`, in declaration order. Fifteen IDs, closed, **not a feature** — a feature profile never prunes the taxonomy (`TestManifestIntents_StaticUnderProfile`).
+`internal/descriptor/intents.go` `intentRegistry`, in declaration order. Fifteen IDs, closed, **not a feature** — the registry (`pulse.Intents()`) and, until E1-S4, the manifest `intents[]` never change under a feature profile (`TestManifestIntents_StaticUnderProfile`). The instance ontology prunes an intent node when ≥1 operator serves it and every server is hidden (an intent no operator serves always stays), and the `intents` virtual skill renders from that graph (`.claude/reference/feature-profiles.md`, Notes for U06).
 
 - Analytic (`Analytic: true`): `describe`, `compare_groups`, `relationship`, `drivers`, `change_over_time`, `composition`, `benchmark`, `distribution_shape`, `segment`, `measure_construct`, `flows`, `data_quality`.
 - Non-analytic — routes to tooling, not operators: `prepare`, `simulate`, `lookup`.
@@ -39,11 +39,11 @@ Every intent declares ≥1 `Shape` with validated kinds (`TestIntentRegistry_Wel
 
 ## Glossary and the jargon rule
 
-A `Jargon: true` term must be LINKED (listed in `Purpose.Glossary`) wherever one of its `Forms` appears in a `Plain` sentence. Matching is case-insensitive, word-boundary, longest match wins (`jargonTermsIn`; `TestJargonTermsIn_LongestMatchWordBoundary`). The glossary is served whole — never profile-pruned.
+A `Jargon: true` term must be LINKED (listed in `Purpose.Glossary`) wherever one of its `Forms` appears in a `Plain` sentence. Matching is case-insensitive, word-boundary, longest match wins (`jargonTermsIn`; `TestJargonTermsIn_LongestMatchWordBoundary`). `pulse.Glossary()` returns the whole registry on every instance; the instance ontology prunes a term only when ≥1 operator cites it (`Purpose.Glossary`) and every citing operator is hidden, and the `glossary` virtual skill renders from that graph, dropping SeeAlso links into pruned terms.
 
 ## Virtual skills
 
-`glossary` and `intents` are skills with no file, rendered as markdown from the registries (`RenderGlossarySkill` / `RenderIntentsSkill`, `internal/descriptor/guidance_skills.go`) and registered through `skills.RegisterVirtual` at init. Kind `reference` (`skills.KindReference`): no atomic family, no `##` set, no budget. They reach every skill surface — `pulse skills list|show`, `pulse_skills_list` / `pulse_skills_get`, the `pulse-skill://glossary` / `pulse-skill://intents` exact resources, manifest `skills[]` — and no feature profile hides them. The stems are reserved (`skills.ReservedVirtualNames`; `TestVirtualSkillStemsNotEmbedded`). Mechanics: `.claude/reference/skill-pack.md` (List source of truth). Facade: `pulse.Glossary()` / `pulse.Intents()` return deep copies in declaration order.
+`glossary` and `intents` are skills with no file, rendered as markdown from the registries (`RenderGlossarySkill` / `RenderIntentsSkill`, `internal/descriptor/guidance_skills.go`) and registered through `skills.RegisterVirtual` at init. Kind `reference` (`skills.KindReference`): no atomic family, no `##` set, no budget. They reach every skill surface — `pulse skills list|show`, `pulse_skills_list` / `pulse_skills_get`, the `pulse-skill://glossary` / `pulse-skill://intents` exact resources, manifest `skills[]` — and no feature profile hides them; on a profiled instance their BODIES render from the pruned ontology (`renderIntentsSkill` / `renderGlossarySkill` with the graph's keep filter, via `Discovery.Skill`), so a pruned intent or term is absent. `TestDiscovery_VirtualSkillsRenderPrunedGraph` and the root `TestGuidanceSkills_NeverPrunedByFeatureProfile` (served sections = surviving nodes) pin it. The stems are reserved (`skills.ReservedVirtualNames`; `TestVirtualSkillStemsNotEmbedded`). Mechanics: `.claude/reference/skill-pack.md` (List source of truth). Facade: `pulse.Glossary()` / `pulse.Intents()` return deep copies in declaration order.
 
 ## Interpretation
 

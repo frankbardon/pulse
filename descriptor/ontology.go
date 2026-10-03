@@ -42,7 +42,8 @@ const (
 	OntologyNodeCapability OntologyNodeKind = "capability"
 	// OntologyNodeMCPTool is an MCP tool (Name = tool name).
 	OntologyNodeMCPTool OntologyNodeKind = "mcp_tool"
-	// OntologyNodeTable is an instance-registered named table.
+	// OntologyNodeTable is an instance-registered named table (Name =
+	// `<label|range|lookup>/<table name>`, e.g. "label/region").
 	OntologyNodeTable OntologyNodeKind = "table"
 )
 

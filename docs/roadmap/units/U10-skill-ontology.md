@@ -89,6 +89,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(skill-ontology/E<
 ## Notes
 
 - Pair the rewrite with Purpose metadata from U08/U09: comparisons move into `NotFor`.
+- E1-S3 implementation decisions: an intent is pruned only when it has ≥1 operator server and every server is hidden (mirrors the glossary-term rule), so the tooling intents no operator serves (`flows`, `lookup`, `measure_construct`) never vanish just because a profile is set — a literal "no enabled operator serves it" would have dropped them on every profiled instance. Table node Name is `<label|range|lookup>/<table name>` (ID `table:label/region`) so a label and a range table of one name stay distinct.
 
 ## Inherited from U05
 
@@ -101,5 +102,5 @@ U06 pulled a minimal per-instance prune forward (`internal/descriptor/discovery.
 - **Topical bodies are served unrendered** even where they name a hidden operator — the single exemption in `TestProfileInvisibilityParity`. This is #27 / #28; remove the exemption when the fences land.
 - **The line-wise atomic-skill scrub can break structure.** Atomic bodies go through `ProseScrub` line by line, so a dropped line can cut a Markdown table row or a code-fence line and leave a malformed block. Fence-aware rendering (#27) should replace it for atomic bodies too.
 - **Manifest `skills[].description` bypasses the scrub.** `internal/descriptor/manifest.go` (`sortedSkills`) copies `s.Description` straight from `skills.List()`, filtering only by `SkillVisible`, instead of routing through `Discovery.renderMetadata`, so a visible skill's description can still name a hidden operator in the manifest while `pulse_skills_list` scrubs it.
-- **Overlay examples with an empty `_meta.operators`** are pruned only by whole-token match on their body / description (`exampleBodyNamesHidden`); tag them, or derive their edges in the ontology graph, so pruning does not depend on prose.
-- **Capability-keyed example pruning** covers only facet, `crosstab`, `joins` and compose roots (`exampleCapabilityHidden`). Every other capability (`stream`, `watch`, `filter_to_file`, `index`, `shard`, `sample`, `labels`, `range_tables`, …) needs an edge in the graph.
+- ~~**Overlay examples with an empty `_meta.operators`** are pruned only by whole-token match on their body / description~~ — done (E1-S2 / E1-S3): overlay kinds are `exemplified_by` edges and the prose-token rules are deleted; examples prune off the graph.
+- ~~**Capability-keyed example pruning** covers only facet, `crosstab`, `joins` and compose roots~~ — done (E1-S2 / E1-S3): `_meta.capabilities` + structural detectors are `requires_capability` edges, and an example goes with any hidden target.

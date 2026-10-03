@@ -18,7 +18,9 @@ import (
 // skills on every MCP skill surface — pulse_skills_list, pulse_skills_get,
 // the exact pulse-skill:// resources and the pulse-skill://{+name}
 // template — on a profile-free instance and under every private fixture
-// profile (a virtual skill is never pruned or rendered).
+// profile. A virtual skill is never pruned; under a profile its body is
+// rendered from the instance's pruned ontology, so the three read paths
+// must agree with each other (and, profile-free, with skills.Get).
 func TestGuidanceSkills_MCPParity(t *testing.T) {
 	cfg := gosdk.Config{Version: "9.9.9", DisableCohortScan: true}
 	for _, profile := range []string{"", "minimal", "survey-crosstab", "empty"} {
@@ -39,6 +41,15 @@ func TestGuidanceSkills_MCPParity(t *testing.T) {
 				want, ok := skills.Get(name)
 				if !ok || !strings.HasPrefix(want, "---\nname: "+name+"\n") {
 					t.Fatalf("skills.Get(%s) = %v, body %.40q", name, ok, want)
+				}
+				if profile != "" {
+					// The instance render: the template read is the
+					// reference the tool and resource reads must match.
+					inst, err := gosdk.ReadSkillViaTemplate(p, gosdk.SkillURIScheme+name)
+					if err != nil || !strings.HasPrefix(inst, "---\nname: "+name+"\n") {
+						t.Fatalf("template read %s: err=%v, body %.40q", name, err, inst)
+					}
+					want = inst
 				}
 				if !slices.Contains(listed, name) {
 					t.Errorf("pulse_skills_list lacks %s", name)

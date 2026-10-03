@@ -64,6 +64,11 @@ import (
 // The REG spec-modifier rule (REG_RESAMPLE / REG_SELECTION hidden only
 // when EVERY regression is hidden) is an any-of the edge model does not
 // express; the pruner keeps it as a rule over the operator node.
+//
+// Instance graphs (ontology_instance.go) add extension operator nodes and
+// TABLE nodes — Name `<label|range|lookup>/<table name>`, ID
+// `table:label/region` — and prune per feature set; the prune rules are
+// documented there.
 
 // OntologyID spells a node ID: `<kind>:<name>`, or name itself for a
 // capability node (a feature spelling is already kind-prefixed).
