@@ -17,7 +17,7 @@ Compose-only multi-reference. Buffered.
 
 `Params` → `PanelOverlayParams`; absent, `{}` and the explicit default stay byte-identical to the pre-params baseline. `n_source` picks each SLOT's n at the tested coordinate ("row" = that slot's own axis, never a pair axis):
 
-- `row_margin_value` (default) — the row-margin VALUE off the payload; keeps the legacy `<= 0` fall back to the cell value.
+- `row_margin_value` (default) — the row-margin VALUE off the payload; a missing or zero margin reads as n = 0 (each pair with that slot ⇒ NaN + `REF_ZERO`), never the cell value.
 - `cell_n_unweighted` — counted `n` from the slot's `Components.Crosstab`, BY KEY. No fallback; unreadable ⇒ skip the cell.
 - `row_margin_value_within` — the SAME payload row margin, optionally summed over a row-key prefix. No fallback.
 - `row_margin_distinct_within` — that leg's DISTINCT-KEY sibling: the row margin out of `RowMarginComponents` as the cell aggregator's distinct-KEY cardinality. A different CARRIER, hence not `row_margin_value_distinct_within`. Use it when one respondent contributes several records and n must be RESPONDENTS. No fallback.
@@ -45,7 +45,7 @@ MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-ma
 ## Gotchas
 
 - Pairs byte-equal `OVERLAY_PROP_Z_CELL` (shared `twoProportionZ`).
-- Degenerate `(pooled ∈ {0,1}, se == 0)` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
+- Degenerate `(n == 0, pooled ∈ {0,1}, se == 0)` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
 - Absent value → nil slice + `REF_ZERO` `ref_missing`; an unreadable counted n adds `n_missing` + `slot_index`.
 - An unemitted distinct MARGIN is not a zero-sized one: the coordinate skips (`n_missing`) rather than testing against 0.
 

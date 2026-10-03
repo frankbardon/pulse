@@ -533,3 +533,46 @@ func TestApplyPropZPanel_AbsentSlotValueEmitsWarning(t *testing.T) {
 		t.Errorf("expected PULSE_OVERLAY_REF_ZERO with ref_missing: true; got %d warnings: %+v", len(warnings), warnings)
 	}
 }
+
+// TestApplyPropZPanel_MissingRowMarginIsNaN pins the OS-11 fix on the
+// panel's default row_margin_value leg. The reference slot's row-0
+// margin is absent (0). The old leg substituted the cell value as n
+// (share = 1) and returned finite p-values for every pair involving the
+// reference. Now those pairs are NaN with PULSE_OVERLAY_REF_ZERO, and the
+// target-vs-target pair (both margins present) is still computed.
+func TestApplyPropZPanel_MissingRowMarginIsNaN(t *testing.T) {
+	ref := makeMatrixWithRowMargins(
+		[3][3]float64{{60, 50, 50}, {50, 50, 50}, {50, 50, 50}},
+		[3]float64{0, 100, 100},
+	)
+	t0 := makeMatrixWithRowMargins(
+		[3][3]float64{{50, 50, 50}, {50, 50, 50}, {50, 50, 50}},
+		[3]float64{100, 100, 100},
+	)
+	t1 := makeMatrixWithRowMargins(
+		[3][3]float64{{60, 50, 50}, {50, 50, 50}, {50, 50, 50}},
+		[3]float64{100, 100, 100},
+	)
+	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
+	layer, warnings, err := applyPropZPanel(&spec, ref, []*types.Response{t0, t1}, 0, []int{1, 2})
+	if err != nil {
+		t.Fatalf("applyPropZPanel: %v", err)
+	}
+	got := pairs(t, layer, 0, 0)
+	if len(got) != 3 {
+		t.Fatalf("len(pairs) = %d, want 3", len(got))
+	}
+	if !math.IsNaN(got[pairIndex(0, 1, 3)]) || !math.IsNaN(got[pairIndex(0, 2, 3)]) {
+		t.Errorf("reference pairs = %v, want NaN (reference row margin missing)", got)
+	}
+	approxEqual(t, "t0 vs t1", got[pairIndex(1, 2, 3)], propZ50v60R, 1e-12)
+	n := 0
+	for _, w := range warnings {
+		if w.Code == string(pulseerrors.PULSE_OVERLAY_REF_ZERO) && w.Details["row_index"] == 0 && w.Details["col_index"] == 0 {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("cell (0,0) REF_ZERO warnings = %d, want 2 (one per NaN pair)", n)
+	}
+}

@@ -272,12 +272,13 @@ func panelRowMarginDistinctLookup(slot *ComposeSlotView) map[string]float64 {
 // coordinate, per the n_source mode.
 //
 // The modes differ in more than where they read. row_margin_value
-// always answers (it is a payload read with a value fallback), so the
-// legacy path can never skip a coordinate it used to emit;
+// always answers (a missing or zero margin answers n = 0, which the
+// prop-Z kernel reports as a NaN pair), so the legacy path can never
+// skip a coordinate it used to emit;
 // cell_n_unweighted and n_within answer ok=false when the figure was
 // not emitted, and the caller skips the coordinate with a warning. See
-// types.PanelNSourceFallsBackToCellValue for why the fallback is not
-// carried forward.
+// types.PanelNSourceFallsBackToCellValue for why no mode borrows the
+// cell value.
 //
 // `slots`, `rowIdxLookups` and `colIdxLookups` are nil for the legacy
 // mode and are only touched by the components arm.
@@ -298,7 +299,6 @@ func panelSampleSize(
 	rowMarginLookups []map[string]float64,
 	withinBaseLookups []map[string]float64,
 	rowSlabLookups []map[string]float64,
-	cellValue float64,
 ) (float64, bool) {
 	switch nSource {
 	case types.PanelNSourceRowMarginValueWithin, types.PanelNSourceRowMarginDistinctWithin:
@@ -345,14 +345,15 @@ func panelSampleSize(
 		return float64(n), true
 
 	case "", types.PanelNSourceRowMarginValue:
+		// A missing or zero margin is answered as n = 0, never the
+		// cell value (U08 E4 review OS-11): the prop-Z kernel then
+		// refuses every pair involving this slot, which surfaces as a
+		// NaN pair with PULSE_OVERLAY_REF_ZERO, while the slot's other
+		// pairs are unaffected. Borrowing the cell value forced the
+		// slot's share to 1 and produced spuriously small p-values.
 		nSize := rowMarginLookups[panelIdx][rowKeyStr]
-		if nSize <= 0 {
-			// Same degenerate fallback OVERLAY_PROP_Z_CELL uses:
-			// fall back to the cell value as the sample size so
-			// the per-pair gate stays observable (the pooled
-			// gate will surface NaN rather than silently
-			// producing a meaningless statistic).
-			nSize = cellValue
+		if nSize < 0 {
+			nSize = 0
 		}
 		return nSize, true
 
@@ -764,7 +765,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				}
 				nSize, nok := panelSampleSize(params.NSource, slots, s,
 					rowIdxLookups, colIdxLookups, rowKeyStr, colKeyStr,
-					rowMarginLookups, withinBaseLookups, rowSlabLookups, v)
+					rowMarginLookups, withinBaseLookups, rowSlabLookups)
 				if !nok {
 					anyMissing = true
 					nMissing = true
@@ -820,7 +821,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 						pairs[idx] = math.NaN()
 						warnings = append(warnings, types.OverlayWarning{
 							Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
-							Message: "overlay " + string(spec.Kind) + " z-statistic undefined for slot pair (pooled ∈ {0, 1} OR zero SE)",
+							Message: "overlay " + string(spec.Kind) + " z-statistic undefined for slot pair (missing or zero n, pooled ∈ {0, 1}, OR zero SE)",
 							Details: map[string]any{
 								"kind":         string(spec.Kind),
 								"reference":    spec.Reference,

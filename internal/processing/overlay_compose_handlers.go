@@ -565,10 +565,9 @@ func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
 // counts; each cell's matching row margin is treated as its sample
 // size (target_n on the target side, ref_n on the reference side).
 //
-// Missing row margins fall back to the cell value as the sample size
-// (a structurally degenerate case where p_target == 1 by
-// construction — useful for debugging, surfaces NaN+warning rather
-// than silently producing a meaningless statistic).
+// A missing or zero row margin on either side yields a NaN cell plus
+// one PULSE_OVERLAY_REF_ZERO warning (`margin_missing: true`); the cell
+// value is never borrowed as the sample size.
 func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
@@ -637,16 +636,34 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 			}
 			nTarget := targetRowMargins[rowKeyStr]
 			nRef := refRowMargins[rowKeyStr]
-			// Fallback when row margins were not surfaced on the host
-			// matrices: use the cell value itself as a degenerate sample
-			// size so the handler is still well-defined. The resulting
-			// p-value will be 1.0 (p_target == 1) but the gate stays
-			// observable.
-			if nTarget <= 0 {
-				nTarget = targetVal
-			}
-			if nRef <= 0 {
-				nRef = refVal
+			// A missing or zero row margin on EITHER side leaves that
+			// side without a sample size: the cell is NaN with one
+			// PULSE_OVERLAY_REF_ZERO warning (U08 E4 review OS-11).
+			// Substituting the cell value as n would force that side's
+			// share to 1 and, when the other side has a real margin,
+			// return a finite and spuriously small p-value with no
+			// warning.
+			if nTarget <= 0 || nRef <= 0 {
+				warnings = append(warnings, types.OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " row margin missing or zero; no sample size for the two-proportion z-test",
+					Details: map[string]any{
+						"kind":           string(spec.Kind),
+						"reference":      spec.Reference,
+						"target_label":   targetLabel,
+						"row_index":      i,
+						"col_index":      j,
+						"row_key":        rowKeyStr,
+						"col_key":        colKeyStr,
+						"target_value":   targetVal,
+						"target_n":       nTarget,
+						"ref_value":      refVal,
+						"ref_n":          nRef,
+						"margin_missing": true,
+					},
+				})
+				cells[i][j] = types.MatrixCell{Value: math.NaN(), Present: true}
+				continue
 			}
 			p, ok := twoProportionZ(targetVal, nTarget, refVal, nRef)
 			if !ok {
