@@ -164,7 +164,8 @@ func (s *shapiroWilkRow) reset() {
 }
 
 // shapiroFranciaStat computes W', z, p for a *sorted* sample. Returns
-// the optional warning string for n-bound or low-variance.
+// the optional warning string for n-bound (outside 5..5000) or
+// low-variance.
 //
 // Blom expected order statistics: m_i = Φ⁻¹((i − 3/8) / (n + 1/4)).
 // a_i = m_i / √Σm_i².
@@ -181,8 +182,12 @@ func (s *shapiroWilkRow) reset() {
 //	p     = Φ(−z)
 func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	n := len(sorted)
-	if n > 5000 {
+	switch {
+	case n > 5000:
 		warn = "n above the 5000-row support bound; treat the p-value as advisory and consider asymptotic alternatives"
+	case n < 5:
+		// Royston's transform below is calibrated for 5 ≤ n ≤ 5000.
+		warn = "n below 5: Royston's Shapiro-Francia p-value is uncalibrated here; treat it as advisory"
 	}
 	// Expected normal order statistics.
 	m := make([]float64, n)

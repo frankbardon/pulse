@@ -23,13 +23,13 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 ## Output
 
-`Statistic` = t; `DF` = n − 1; `PValue` two-sided via Student-t. `Details.mean_diff`, `Details.sd_diff`, `Details.n`. Effect size Cohen's d_z.
+`Statistic` = t; `DF` = n − 1; `PValue` two-sided via Student-t. `Details`: `mean_diff`, `variance` (of d), `n`, `ci_low`, `ci_high`. Effect size Cohen's d_z (unbanded).
 
 ## Gotchas
 
 - Pairing is **per-row**: Field and Field2 must already encode the (post, pre) pair on the same record. If pairing is across rows, build a paired column upstream first.
 - Streamable — Welford runs on d = Field − Field2 in a single pass.
-- Null in either Field or Field2 drops the pair; reported in `Details.n_dropped`.
+- A null in Field or Field2 drops the pair; `n` counts complete pairs.
 - Severe non-normality in d → switch to `TEST_WILCOXON_SR`.
 - Tier-2 variant `TEST_PAIRED_T/paired_two_sided_post` runs over two output columns of the result set.
 

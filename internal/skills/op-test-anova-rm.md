@@ -21,13 +21,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = F = MS_treatment / MS_error; `DF` = (k − 1, (n − 1)(k − 1)); `PValue` via F survival. `Details.ss_between_subjects`, `Details.ss_treatment`, `Details.ss_error`; `effect_size.partial_eta_squared` = SS_treatment / (SS_treatment + SS_error).
+`Statistic` = F = MS_treatment / MS_error; `DF` = k-1 (`Details.df_error` = (n-1)(k-1)); `PValue` via F survival. `Details.ss_between_subjects`, `Details.ss_treatment`, `Details.ss_error`; `effect_size.partial_eta_squared` = SS_treatment / (SS_treatment + SS_error); unbanded.
 
 ## Gotchas
 
 - Buffered — requires the full wide subject × condition table.
-- Each subject must contribute one observation per condition; missing → `PULSE_TEST_RM_UNBALANCED`.
-- Sphericity assumption inflates type-I when violated; Greenhouse-Geisser not yet shipped.
+- Subjects missing a condition are dropped (`Details.dropped_subjects`); < 2 left -> `PULSE_TEST_INSUFFICIENT_N`.
+- Sphericity violations inflate type-I; no Greenhouse-Geisser yet.
 - Non-normal differences: Friedman not yet shipped.
 - Independent groups → `TEST_ANOVA_F`.
 

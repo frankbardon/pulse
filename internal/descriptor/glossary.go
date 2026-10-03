@@ -33,15 +33,15 @@ var glossaryRegistry = []descriptor.Term{
 	// --- Testing and significance ---------------------------------------
 	{
 		ID:      "p-value",
-		Short:   "The probability of seeing a difference at least this large if there were truly no difference.",
-		WhyCare: "Small values (below your alpha) suggest the difference is not just noise. It says nothing about how BIG the difference is.",
+		Short:   "The probability of a result at least this extreme if the test's null hypothesis (no difference, no link, a normal shape...) and its assumptions were all true.",
+		WhyCare: "Small values (below your alpha) mean the data would be surprising if there were no difference, which counts as evidence against 'no difference'. It is not the chance that the difference is real, and it says nothing about how BIG it is.",
 		SeeAlso: []string{"effect-size", "alpha", "multiple-comparisons"},
 		Jargon:  true, Forms: []string{"p-value", "p-values", "p value", "p values"},
 	},
 	{
 		ID:      "alpha",
 		Short:   "The p-value threshold you pick before looking at the data, below which you call a result significant.",
-		WhyCare: "It is the false-alarm rate you accept: how often you would call noise a real effect. Pick it up front; moving it after seeing results defeats its purpose.",
+		WhyCare: "It is the false-alarm rate you accept when there is truly no effect: the share of such tests you would wrongly call significant. Pick it up front; moving it after seeing results defeats its purpose.",
 		SeeAlso: []string{"p-value", "statistical-significance", "multiple-comparisons"},
 		Jargon:  true, Forms: []string{"alpha", "significance level"},
 	},
@@ -55,7 +55,7 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "statistical-significance",
 		Short:   "A result is statistically significant when its p-value falls below your chosen alpha.",
-		WhyCare: "Significant means unlikely to be pure noise, not important. With enough rows a trivially small difference becomes significant; check the effect size too.",
+		WhyCare: "Significant means data this extreme would be unusual if there were truly no effect; it is not the chance the effect is real, and it does not mean important. With enough rows a trivially small difference becomes significant; check the effect size too.",
 		SeeAlso: []string{"p-value", "alpha", "effect-size", "statistical-power"},
 		Jargon:  true, Forms: []string{"statistically significant", "statistical significance"},
 	},
@@ -76,21 +76,21 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "t-statistic",
 		Short:   "The test statistic of a t-test: a difference in means divided by its standard error.",
-		WhyCare: "Bigger in absolute size means the difference is large relative to the noise. Its sign tells you which side is higher.",
+		WhyCare: "Bigger in absolute size means the difference is large relative to its standard error, which shrinks as rows are added, so a big t can come from a tiny difference in a large sample. Its sign tells you which side is higher.",
 		SeeAlso: []string{"test-statistic", "standard-error", "degrees-of-freedom"},
 		Jargon:  true, Forms: []string{"t-statistic", "t statistic"},
 	},
 	{
 		ID:      "f-statistic",
 		Short:   "The test statistic of an ANOVA: how much group means spread apart compared with how much rows spread within groups.",
-		WhyCare: "Values near 1 mean the groups differ about as much as noise would make them; larger values point to a real difference somewhere among the groups.",
+		WhyCare: "Values near 1 mean the groups differ about as much as noise would make them; larger values are stronger evidence against all group means being equal. Read the p-value to judge how large is large, and an effect size for how big the difference is.",
 		SeeAlso: []string{"test-statistic", "variance", "eta-squared", "post-hoc-test"},
 		Jargon:  true, Forms: []string{"f-statistic", "f statistic", "f-ratio"},
 	},
 	{
 		ID:      "chi-square",
 		Short:   "A test statistic that adds up how far observed counts in each cell sit from the counts you would expect if nothing were going on.",
-		WhyCare: "It tells you whether two categorical fields are related, but not how strongly; pair it with Cramer's V or phi for the size.",
+		WhyCare: "It measures the evidence that two categorical fields are related, but not how strongly; pair it with Cramer's V or phi for the size.",
 		SeeAlso: []string{"test-statistic", "independence", "cramers-v", "cross-tabulation"},
 		Jargon:  true, Forms: []string{"chi-square", "chi-squared", "chi square", "chi squared"},
 	},
@@ -152,7 +152,7 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "sphericity",
 		Short:   "In a repeated-measures design, the assumption that the differences between every pair of conditions are about equally variable.",
-		WhyCare: "When it fails, the repeated-measures F-test rejects too often. Pulse applies no correction for it, so read borderline p-values with care.",
+		WhyCare: "When it fails, the repeated-measures F-test rejects too often. Pulse applies no correction for it, so the p-value can come out well below its true value; treat any result short of a very small p with caution.",
 		SeeAlso: []string{"repeated-measures", "f-statistic", "homogeneity-of-variance"},
 		Jargon:  true, Forms: []string{"sphericity"},
 	},
@@ -203,14 +203,14 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "effect-size",
 		Short:   "A number that says how BIG a difference or relationship is, on a scale that does not grow just because you have more rows.",
-		WhyCare: "It answers \"does it matter?\" where the p-value only answers \"is it noise?\". Report both.",
+		WhyCare: "It says how big the difference is, while the p-value says how surprising the data would be if there were no difference. Whether that size matters depends on your context. Report both.",
 		SeeAlso: []string{"p-value", "statistical-significance", "cohens-d", "eta-squared", "cramers-v"},
 		Jargon:  true, Forms: []string{"effect size", "effect sizes"},
 	},
 	{
 		ID:      "cohens-d",
 		Short:   "The difference between two means expressed in standard deviations.",
-		WhyCare: "It makes differences comparable across measures with different units: a gap of half a standard deviation means the same on any scale.",
+		WhyCare: "It makes differences comparable across measures with different units: a gap of half a standard deviation is the same standardized size on any scale, though whether it matters depends on the measure.",
 		SeeAlso: []string{"effect-size", "standard-deviation", "t-statistic"},
 		Jargon:  true, Forms: []string{"cohen's d", "cohens d", "cohens_d"},
 	},
@@ -252,7 +252,7 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "cramers-v",
 		Short:   "The strength of the relationship between two categorical fields, from 0 (unrelated) to 1 (one fully determines the other).",
-		WhyCare: "A chi-square p-value says the fields are related; Cramer's V says how strongly, and it stays comparable across tables of different sizes.",
+		WhyCare: "A chi-square p-value weighs the evidence that the fields are related; Cramer's V says how strongly, and unlike chi-square it does not grow with the number of rows. Compare V only between tables of the same shape.",
 		SeeAlso: []string{"chi-square", "phi", "effect-size", "cross-tabulation"},
 		Jargon:  true, Forms: []string{"cramer's v", "cramers v", "cramers_v"},
 	},
@@ -293,7 +293,7 @@ var glossaryRegistry = []descriptor.Term{
 	},
 	{
 		ID:      "variance",
-		Short:   "The average squared distance of values from their mean: a measure of spread in squared units.",
+		Short:   "Roughly the average squared distance of values from their mean (divided by n - 1 for a sample): a measure of spread in squared units.",
 		WhyCare: "Most tests are built on it, but its squared units are hard to read; the standard deviation is the same idea in the original units.",
 		SeeAlso: []string{"standard-deviation", "covariance"},
 		Jargon:  true, Forms: []string{"variance", "variances"},
@@ -314,14 +314,14 @@ var glossaryRegistry = []descriptor.Term{
 	},
 	{
 		ID:      "confidence-interval",
-		Short:   "A range around an estimate that would capture the true value in a stated share of repeated samples.",
+		Short:   "A range built by a method that, over repeated samples, captures the true value a stated share of the time (such as 95%); any single interval either contains it or not.",
 		WhyCare: "It shows the uncertainty in plain units. A wide interval means you know less than the single estimate suggests.",
 		SeeAlso: []string{"standard-error", "p-value", "sample-size"},
 		Jargon:  true, Forms: []string{"confidence interval", "confidence intervals"},
 	},
 	{
 		ID:      "z-score",
-		Short:   "How many standard deviations a value sits above or below the mean.",
+		Short:   "How many standard deviations a value sits above or below the mean. A z test statistic is the same idea for an estimate: how many standard errors it sits from the null's value.",
 		WhyCare: "It puts values from different scales on one footing and makes unusual values easy to spot.",
 		SeeAlso: []string{"standard-deviation", "outlier", "normal-distribution"},
 		Jargon:  true, Forms: []string{"z-score", "z-scores", "z score", "z scores"},
@@ -362,7 +362,7 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "rank",
 		Short:   "A value's position once all values are sorted: 1 for the smallest, 2 for the next, and so on.",
-		WhyCare: "Working on ranks instead of raw values makes a method immune to extreme values and usable on ordinal ratings.",
+		WhyCare: "Working on ranks instead of raw values makes a method far less sensitive to extreme values and usable on ordinal ratings.",
 		SeeAlso: []string{"non-parametric", "percentile", "rank-biserial"},
 	},
 	{
@@ -402,7 +402,7 @@ var glossaryRegistry = []descriptor.Term{
 	},
 	{
 		ID:      "correlation",
-		Short:   "How closely two measures move together in a straight line, from -1 (opposite) through 0 (unrelated) to 1 (in lockstep).",
+		Short:   "How closely two measures move together in a straight line, from -1 (opposite) through 0 (no straight-line link) to 1 (in lockstep).",
 		WhyCare: "It shows association, not cause. It also misses curved relationships and can be distorted by a few outliers.",
 		SeeAlso: []string{"covariance", "r-squared", "outlier", "independence"},
 		Jargon:  true, Forms: []string{"correlation", "correlations", "correlation coefficient"},
@@ -410,7 +410,7 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "cross-tabulation",
 		Short:   "A table that counts rows for every combination of two categorical fields, one along the rows and one along the columns.",
-		WhyCare: "It is the simplest way to see whether two categories go together; a chi-square test then says whether the pattern is beyond chance.",
+		WhyCare: "It is the simplest way to see whether two categories go together; a chi-square test then says how surprising the pattern would be if the two fields were unrelated.",
 		SeeAlso: []string{"chi-square", "cramers-v"},
 		Jargon:  true, Forms: []string{"cross-tabulation", "contingency table", "contingency tables"},
 	},

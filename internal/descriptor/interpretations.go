@@ -43,7 +43,8 @@ const SharedPValue = "p-value"
 // in p_value, summary.p_value, scalar or cells.value).
 var sharedInterpretations = map[string]descriptor.Interpretation{
 	SharedPValue: {
-		Means: "The chance of seeing a result at least this extreme if there were truly no difference or link. " +
+		Means: "The chance of seeing a result at least this extreme if the test's null hypothesis were true " +
+			"(usually no difference or link; for a shape test, the stated shape) and its assumptions held. " +
 			"Below the chosen alpha (0.05 unless the request sets another) the result is called significant.",
 		Caveats: []string{
 			"Significant is not the same as important: with enough rows a trivial difference is significant, so read the effect size for how big it is.",

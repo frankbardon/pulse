@@ -21,14 +21,14 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed). `Details.contingency` = `[[a, b], [c, d]]`; `Details.odds_ratio`.
+`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed). `Details.contingency` = `[[a, b], [c, d]]` in first-seen order (`row_labels` / `col_labels`); `odds_ratio` = ad/bc, no Haldane fix: zero b or c -> +Inf, zero a or d -> 0.
 
 ## Gotchas
 
-- Strictly 2×2 — k > 2 levels → `PULSE_TEST_FISHER_NOT_2X2`. Use `TEST_CHISQ` for larger tables.
+- Strictly 2×2 — other shapes → `PULSE_TEST_CONTINGENCY_DEGENERATE`. Use `TEST_CHISQ` for larger tables.
 - Canonical small-sample alternative to `TEST_CHISQ` when any expected cell `< 5`.
 - Buffered — needs the full contingency table.
-- Exact two-sided p uses the "sum of less-likely tables" convention (Fisher's original); other tools sometimes use 2× the smaller one-sided tail and disagree slightly.
+- Two-sided p sums every table no more likely than observed; tools doubling one tail disagree slightly.
 - Effect size = odds ratio (not Cramér's V); take log for symmetry around 0.
 
 ## See

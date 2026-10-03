@@ -54,7 +54,7 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "the same subjects are measured twice, such as before and after", Use: "TEST_PAIRED_T"},
-			{When: "the measure is heavily skewed, has extreme values or is only ordered", Use: "TEST_MANN_WHITNEY_U"},
+			{When: "two groups are compared and the measure is heavily skewed, has extreme values or is only ordered", Use: "TEST_MANN_WHITNEY_U"},
 			{When: "there are three or more groups", Use: "TEST_ANOVA_WELCH"},
 			{When: "the outcome is a yes/no rate rather than a numeric measure", Use: "TEST_PROP_Z"},
 		},
@@ -66,8 +66,8 @@ var (
 		},
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
-			"cohens-d", "confidence-interval", "independence", "normal-distribution",
-			"p-value", "t-statistic", "two-tailed",
+			"cohens-d", "confidence-interval", "homogeneity-of-variance", "independence",
+			"normal-distribution", "p-value", "t-statistic", "two-tailed", "variance",
 		},
 	}
 
@@ -129,7 +129,7 @@ var (
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
 			"independence", "normal-distribution", "p-value", "sample-size",
-			"standard-error", "two-tailed", "z-score",
+			"standard-error", "two-tailed", "variance", "z-score",
 		},
 	}
 
@@ -137,7 +137,7 @@ var (
 		Plain:   "Checks whether the average change between two measurements of the same rows, such as before and after, differs from zero.",
 		Intents: []string{IntentCompareGroups, IntentChangeOverTime},
 		Questions: []string{
-			"Did each customer's spend change after the loyalty programme started?",
+			"On average, did customers' spend differ between the period before and after the loyalty programme started?",
 			"Do patients' scores differ between the first and second visit?",
 		},
 		UseCases: map[descriptor.Domain]string{
@@ -211,7 +211,7 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "the measure is heavily skewed or only ordered", Use: "TEST_KRUSKAL_WALLIS"},
 			{When: "the same subjects are measured in every group", Use: "TEST_ANOVA_RM"},
-			{When: "there are only two groups, or you want pairwise follow-ups adjusted for multiple comparisons", Use: "TEST_WELCH"},
+			{When: "there are only two groups, or you want pairwise follow-ups: run TEST_WELCH per pair and adjust the p-values for multiple comparisons yourself (for example Holm)", Use: "TEST_WELCH"},
 			{When: "spreads are similar and you want Tukey's pairwise follow-up", Use: "TEST_ANOVA_F"},
 		},
 		Assumptions: []string{
@@ -223,7 +223,7 @@ var (
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
 			"degrees-of-freedom", "f-statistic", "homogeneity-of-variance", "independence",
-			"normal-distribution", "omega-squared", "p-value", "variance",
+			"multiple-comparisons", "normal-distribution", "omega-squared", "p-value", "variance",
 		},
 	}
 
@@ -271,7 +271,7 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "you only need to know whether any group differs", Use: "TEST_ANOVA_F"},
 			{When: "groups have clearly unequal spread: run pairwise Welch tests and adjust for multiple comparisons", Use: "TEST_WELCH"},
-			{When: "the measure is heavily skewed or only ordered", Use: "TEST_KRUSKAL_WALLIS"},
+			{When: "the measure is heavily skewed or only ordered: run pairwise Mann-Whitney tests and adjust for multiple comparisons", Use: "TEST_MANN_WHITNEY_U"},
 		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",
@@ -291,7 +291,7 @@ var (
 		Intents: []string{IntentCompareGroups, IntentDistributionShape},
 		Questions: []string{
 			"Is delivery time more variable at some warehouses than at others?",
-			"Do the groups vary enough in spread that a standard ANOVA is a poor fit?",
+			"How different is the spread of the measure across groups?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Check whether some segments answer far more variably than others.",
@@ -374,7 +374,7 @@ var (
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
 			"continuity-correction", "independence", "non-parametric", "normal-distribution",
-			"p-value", "paired-data", "rank", "rank-biserial", "ties",
+			"p-value", "paired-data", "rank", "rank-biserial", "ties", "two-tailed",
 		},
 	}
 
@@ -393,7 +393,7 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "the data are roughly normal and you want to compare averages", Use: "TEST_ANOVA_WELCH"},
 			{When: "there are only two groups", Use: "TEST_MANN_WHITNEY_U"},
-			{When: "the same subjects are measured in every group", Use: "TEST_ANOVA_RM"},
+			{When: "the same subjects are measured in every group and the measure is roughly normal (Pulse has no Friedman test for skewed repeated measures; for two conditions use TEST_WILCOXON_SR)", Use: "TEST_ANOVA_RM"},
 		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",
@@ -416,12 +416,12 @@ var (
 		Plain:   "Checks whether two categorical fields are associated by comparing a cross-tabulation with the counts expected if unrelated.",
 		Intents: []string{IntentRelationship, IntentCompareGroups},
 		Questions: []string{
-			"Does preferred channel depend on age band?",
+			"Is preferred channel associated with age band?",
 			"Is the mix of plan types different across regions?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Check whether brand preference varies by region.",
-			descriptor.DomainOps:     "Check whether ticket category depends on the support channel.",
+			descriptor.DomainOps:     "Check whether ticket category is associated with the support channel.",
 			descriptor.DomainScience: "Check whether outcome category depends on treatment arm.",
 		},
 		NotFor: []descriptor.Alternative{
@@ -433,7 +433,7 @@ var (
 		Assumptions: []string{
 			"Each row is counted once and rows are independent of each other.",
 			"It works on raw counts, never on percentages or averages.",
-			"Every expected count should be about 5 or more (Cochran's rule of thumb); below that the p-value is unreliable and Pulse warns.",
+			"Expected counts should mostly be 5 or more (Cochran's rule: none below 1 and no more than a fifth below 5); below that the p-value is unreliable, and Pulse warns when any cell is under 5.",
 			"No continuity correction is applied.",
 		},
 		Level: descriptor.LevelIntermediate,
@@ -448,7 +448,7 @@ var (
 		Intents: []string{IntentRelationship, IntentCompareGroups},
 		Questions: []string{
 			"In a small pilot, did the treated group recover more often than the control group?",
-			"With only a few dozen responses, does opting in depend on the sign-up channel?",
+			"With only a few dozen responses, is opting in associated with the sign-up channel?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Compare a yes/no answer between two small subgroups.",
@@ -462,7 +462,7 @@ var (
 		Assumptions: []string{
 			"Rows are independent of each other, and each row is counted once.",
 			"Strictly 2x2: both fields must have exactly two levels.",
-			"Row and column totals are treated as fixed, which makes the test somewhat conservative.",
+			"Row and column totals are treated as fixed, which makes its p-values tend to run a little large, so it misses real associations somewhat more often than it needs to.",
 			"The two-sided p-value sums every table no more likely than the one observed; other tools sometimes double a one-sided tail and disagree slightly.",
 		},
 		Level: descriptor.LevelIntermediate,
@@ -491,7 +491,7 @@ var (
 		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across the two groups.",
-			"Each group needs enough successes and failures (at least 5 to 10 of each) for the normal approximation.",
+			"Each group needs at least 10 successes and 10 failures for the normal approximation.",
 			"The p-value is two-sided; the confidence interval on the rate difference is the simple Wald interval, which is rough near 0% or 100%.",
 		},
 		Level: descriptor.LevelBasic,
@@ -538,7 +538,7 @@ var (
 	}
 
 	purposeTestSpearmanR = descriptor.Purpose{
-		Plain:   "Measures how consistently two numeric fields move in the same direction, using ranks, so the link need not be a straight line.",
+		Plain:   "Measures how consistently one numeric field rises (or falls) as the other rises, using ranks, so the link need not be a straight line.",
 		Intents: []string{IntentRelationship},
 		Questions: []string{
 			"Do higher-ranked products also tend to sell more, even if not in proportion?",
@@ -592,7 +592,7 @@ var (
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
 			"correlation", "independence", "kendall-tau", "monotonic-trend",
-			"p-value", "rank", "ties",
+			"p-value", "rank", "ties", "two-tailed",
 		},
 	}
 
@@ -617,7 +617,7 @@ var (
 			"It runs on result rows (a post-test) in OrderBy order, such as a grouped or windowed series.",
 			"Successive points are independent; seasonality or autocorrelation makes the p-value too small.",
 			"It detects a monotonic trend, not a straight-line slope and not which periods differ.",
-			"The p-value is a two-sided normal approximation, unreliable below about 8 points.",
+			"The p-value is a two-sided normal approximation; treat it as advisory below about 10 points (Pulse warns below 8).",
 		},
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
@@ -634,11 +634,11 @@ var (
 		Plain:   "Checks whether a numeric field looks normally distributed, overall or within each group.",
 		Intents: []string{IntentDistributionShape},
 		Questions: []string{
-			"Is response time roughly bell-shaped, or should I use a rank-based test?",
-			"Are scores in each group close enough to normal for an ANOVA?",
+			"Is response time roughly bell-shaped, or clearly skewed or heavy-tailed?",
+			"How far do scores in each group depart from a normal shape?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainSurvey:  "Check whether an index score is close to normal before a t-test.",
+			descriptor.DomainSurvey:  "Describe how far an index score departs from a normal shape, alongside a plot of it.",
 			descriptor.DomainOps:     "Check whether processing times are bell-shaped or heavily skewed.",
 			descriptor.DomainScience: "Check the normality assumption per treatment group.",
 		},
@@ -648,7 +648,7 @@ var (
 		},
 		Assumptions: []string{
 			"Rows are independent of each other.",
-			"Needs at least 3 values per group; above 5000 the p-value is advisory.",
+			"Needs at least 3 values per group; the p-value is only calibrated for 5 to 5000 values, so treat it as advisory below 5 or above 5000 (Pulse warns).",
 			"With few rows it has low power and can miss real departures; with very large samples even trivial departures are flagged, so look at the shape too.",
 			"Pulse computes the Shapiro-Francia form, a close approximation to Shapiro-Wilk; with SplitBy the headline is the group that departs most.",
 		},

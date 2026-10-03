@@ -3875,18 +3875,6 @@
             "required": false,
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha."
-          },
-          {
-            "name": "alternative",
-            "type": "enum",
-            "required": false,
-            "default": "two-sided",
-            "description": "One- or two-sided test.",
-            "enum_values": [
-              "greater",
-              "less",
-              "two-sided"
-            ]
           }
         ],
         "requires": [
@@ -4001,7 +3989,7 @@
         "name": "TEST_SHAPIRO_WILK",
         "family": "TEST_SHAPIRO_WILK",
         "tier": 1,
-        "description": "Shapiro-Wilk normality test on Field; runs per-group when SplitBy is set (n ≤ 5000).",
+        "description": "Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set (p-value advisory outside 5..5000).",
         "streamable": false,
         "params": [
           {
@@ -7295,7 +7283,7 @@
       },
       {
         "name": "op-test-shapiro-wilk",
-        "description": "Shapiro-Wilk normality test on Field; runs per-group when SplitBy is set; supports n ≤ 5000."
+        "description": "Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set; p advisory outside 5..5000."
       },
       {
         "name": "op-test-spearman-r",
@@ -10022,4 +10010,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f1214dfd18a0240b4cb2e7c7170992c2ceefaa9ea1052b50fa7412d419c0c2c9
+// golden-hash: e60941c056f0f5ff4a46521fba57056b88fe9268afabba707a8f673fc65b6c52

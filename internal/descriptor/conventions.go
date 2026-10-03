@@ -69,8 +69,10 @@ const (
 )
 
 // cohenLabels names Cohen's three benchmarks plus the region below
-// "small", which Cohen leaves unnamed; Pulse calls it "negligible".
-var cohenLabels = []string{"negligible", "small", "medium", "large"}
+// "small", which Cohen leaves unnamed; Pulse calls it "very small"
+// (matching R effectsize), never "negligible": below Cohen's "small"
+// is not the same as unimportant (U08 statistics review N-10).
+var cohenLabels = []string{"very small", "small", "medium", "large"}
 
 // builtinConventions is the convention registry. Thresholds are Cohen's
 // (1988) benchmarks as tabled in Cohen (1992, Table 1, p. 157); the
@@ -84,12 +86,15 @@ var builtinConventions = map[string]effectConvention{
 		Statistics: []string{"cohens_d", "hedges_g", "glass_delta", "cohens_h"},
 		Thresholds: []float64{0.2, 0.5, 0.8}, Labels: cohenLabels, Abs: true,
 	},
-	// Share of variance: eta squared, partial eta squared, omega squared,
-	// epsilon squared. Cohen's f of .10 / .25 / .40 rendered as
+	// Share of variance between independent groups: eta squared and
+	// omega squared. Cohen's f of .10 / .25 / .40 rendered as
 	// f^2 / (1 + f^2) = .0099 / .0588 / .1379, conventionally rounded.
+	// Not for repeated-measures partial eta squared (subject variance
+	// leaves the denominator) or rank-based epsilon squared: both are
+	// excluded in testdata/conventions.json.
 	ConventionCohenEta2: {
 		ID: ConventionCohenEta2, Citation: "Cohen (1988)",
-		Statistics: []string{"eta_squared", "partial_eta_squared", "omega_squared", "epsilon_squared"},
+		Statistics: []string{"eta_squared", "omega_squared"},
 		Thresholds: []float64{0.01, 0.06, 0.14}, Labels: cohenLabels,
 	},
 	// Product-moment correlation r, on |r|.
@@ -106,10 +111,12 @@ var builtinConventions = map[string]effectConvention{
 		Statistics: []string{"cohens_w", "phi"},
 		Thresholds: []float64{0.1, 0.3, 0.5}, Labels: cohenLabels,
 	},
-	// Odds ratio, via d = ln(OR) * sqrt(3) / pi applied to Cohen's d
-	// benchmarks; symmetric on max(OR, 1/OR).
+	// Odds ratio: Cohen's d benchmarks converted with the logistic
+	// identity d = ln(OR) * sqrt(3) / pi (Chinn 2000), as R effectsize's
+	// cohen1988 rule does; symmetric on max(OR, 1/OR). Not Chen, Cohen &
+	// Chen (2010), whose 1.68 / 3.47 / 6.71 are different benchmarks.
 	ConventionCohenOR: {
-		ID: ConventionCohenOR, Citation: "Cohen (1988), via Chen, Cohen & Chen (2010)",
+		ID: ConventionCohenOR, Citation: "Cohen (1988) d benchmarks converted via d = ln(OR)*sqrt(3)/pi (Chinn 2000)",
 		Statistics: []string{"odds_ratio"},
 		Thresholds: []float64{1.44, 2.48, 4.27}, Labels: cohenLabels, SymmetricLog: true,
 	},

@@ -13,8 +13,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`.
-- `alternative` — enum, default `"two-sided"`. `"two-sided"` / `"less"` / `"greater"`.
+- `alpha` — float, default `0.05`, in `(0, 1)`. Always two-sided; there is no one-sided form.
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 
@@ -24,13 +23,13 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Output
 
-`Statistic` = D (sup |F₁(x) − F₂(x)|); `PValue` via Smirnov asymptotic distribution. `Details` carries per-arm n + the alternative.
+`Statistic` = D (sup |F₁(x) − F₂(x)|); `PValue` two-sided via Smirnov asymptotic distribution. `Details.groups` + per-arm `Details.n`.
 
 ## Gotchas
 
 - Buffered — both ECDFs must materialize and sort before comparison.
 - Sensitive to distribution shape, not just mean; complementary to `TEST_MANN_WHITNEY_U` (location).
-- Small-n approximation drifts; gate with `PULSE_TEST_INSUFFICIENT_N`.
+- Small-n approximation drifts; only n < 2 per group is refused (`PULSE_TEST_INSUFFICIENT_N`).
 - Tier-2 variant `TEST_KS/two_sample_post` runs between two output columns of the result set.
 - Pairs with `OVERLAY_KS_VS_POP` for facet-vs-population distribution drift.
 

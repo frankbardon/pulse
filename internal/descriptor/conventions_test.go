@@ -134,7 +134,7 @@ func TestConventionRegistryMatchesFixture(t *testing.T) {
 				switch d.Kind {
 				case "eta2_from_f": // Cohen (1988): eta^2 = f^2 / (1 + f^2)
 					v = in * in / (1 + in*in)
-				case "or_from_d": // Chen, Cohen & Chen (2010): d = ln(OR) * sqrt(3) / pi
+				case "or_from_d": // Chinn (2000): d = ln(OR) * sqrt(3) / pi
 					v = math.Exp(in * math.Pi / math.Sqrt(3))
 				default:
 					t.Fatalf("%s: unknown derivation kind %q", want.ID, d.Kind)

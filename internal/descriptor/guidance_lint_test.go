@@ -429,7 +429,7 @@ type lintAllow struct {
 var guidanceLintAllowlist = []lintAllow{
 	{
 		Operator: sharedLintPrefix + SharedPValue, Field: "means", Rule: ruleASANoDiff,
-		Why: "States the null hypothesis the p-value is computed under (\"if there were truly no difference\"), not a reading of a result.",
+		Why: "States the null hypothesis the p-value is computed under (\"usually no difference or link\"), not a reading of a result.",
 	},
 	{
 		Operator: sharedLintPrefix + SharedPValue, Field: "caveats[1]", Rule: ruleASANoDiff,

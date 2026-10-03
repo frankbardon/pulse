@@ -67,7 +67,14 @@ var (
 		"+": "the first group in details.groups (alphabetical order) is higher",
 		"-": "the second group in details.groups (alphabetical order) is higher",
 	}
-	pairedSign = map[string]string{
+	// pairedMeanSign signs the paired t family by the MEAN difference;
+	// pairedRankSign signs the Wilcoxon family, whose rank statistic is
+	// a per-pair tendency (U08 statistics review S-11).
+	pairedMeanSign = map[string]string{
+		"+": "Field is larger than Field2 on average",
+		"-": "Field2 is larger than Field on average",
+	}
+	pairedRankSign = map[string]string{
 		"+": "Field tends to be larger than Field2",
 		"-": "Field2 tends to be larger than Field",
 	}
@@ -176,13 +183,13 @@ var (
 			Field: "statistic",
 			Means: "t is the average of the per-row differences (Field - Field2) measured in standard errors of that average. " +
 				"Values far from 0 in either direction are unlikely if the true average difference is zero.",
-			Sign: pairedSign,
+			Sign: pairedMeanSign,
 		},
 		interpPValue,
 		{
 			Field: "details.mean_diff",
 			Means: "The average of Field - Field2 over complete pairs, in the field's own units.",
-			Sign:  pairedSign,
+			Sign:  pairedMeanSign,
 		},
 		{
 			Field:   "details.ci_low",
@@ -196,9 +203,10 @@ var (
 		{
 			Field: "details.effect_size.cohens_d",
 			Means: "d_z: the average difference divided by the standard deviation of the differences (not the d_av of the two fields' own spreads).",
-			Sign:  pairedSign,
+			Sign:  pairedMeanSign,
 			Caveats: []string{
-				"No sourced bands apply to d_z: Cohen's 0.2 / 0.5 / 0.8 were set for gaps between independent groups, and d_z grows as Field and Field2 correlate, so it reads larger than a between-group d for the same shift.",
+				"No sourced bands apply to d_z: Cohen's 0.2 / 0.5 / 0.8 were set for gaps between independent groups. " +
+					"d_z = d / sqrt(2(1 - r)), so it reads larger than a between-group d when Field and Field2 correlate above 0.5 and smaller below it.",
 				"Do not compare d_z directly with a two-group d; report the mean difference alongside it.",
 				cohensDOmitted,
 			},
@@ -209,7 +217,7 @@ var (
 		{
 			Field: "statistic",
 			Means: "F compares how far apart the group averages are with how much rows vary inside each group; " +
-				"larger values mean the groups differ by more than within-group noise would explain.",
+				"larger values are stronger evidence that the groups differ by more than within-group noise; the p-value says whether this F is large enough to be surprising.",
 			Caveats: []string{
 				"F says whether some groups differ, not which ones: run TEST_TUKEY_HSD to find the pairs.",
 				"The classic F assumes equal variances across groups; with unequal spreads and unequal group sizes prefer TEST_ANOVA_WELCH.",
@@ -228,7 +236,7 @@ var (
 			Means: "A less biased estimate of the share of variation group membership accounts for, " +
 				"adjusted for sample size and the number of groups.",
 			Caveats: []string{
-				"The raw estimate goes below zero when F is under 1; Pulse reports 0 instead, which reads as a negligible effect.",
+				"The raw estimate goes below zero when F is under 1; Pulse reports 0 instead: the sample shows no measurable share of variation, which does not show that the true effect is zero, especially with small groups.",
 			},
 		}),
 	}
@@ -237,7 +245,7 @@ var (
 		{
 			Field: "statistic",
 			Means: "Welch's F compares the spread of the group averages with the noise inside groups, weighting each group by its own variance; " +
-				"larger values mean the averages differ by more than that noise would explain.",
+				"larger values are stronger evidence that the averages differ by more than that noise; the p-value says whether this F is large enough to be surprising.",
 			Caveats: []string{
 				"It says whether some groups differ, not which ones.",
 				"The df slot holds the between-groups degrees of freedom; the adjusted within-groups df is in details.df_within and is usually not a whole number.",
@@ -246,9 +254,10 @@ var (
 		interpPValue,
 		bandedBy(ConventionCohenEta2, descriptor.Interpretation{
 			Field: "details.effect_size.omega_squared",
-			Means: "Estimated share of variation group membership accounts for, derived from Welch's F, so it stays comparable with TEST_ANOVA_F's omega squared.",
+			Means: "Estimated share of variation group membership accounts for, from Welch's F plugged into the classic omega-squared formula; " +
+				"it approximates TEST_ANOVA_F's omega squared and matches it exactly only when the variances are equal.",
 			Caveats: []string{
-				"The raw estimate goes below zero when F is under 1; Pulse reports 0 instead, which reads as a negligible effect.",
+				"The raw estimate goes below zero when F is under 1; Pulse reports 0 instead: the sample shows no measurable share of variation, which does not show that the true effect is zero, especially with small groups.",
 			},
 		}),
 	}
@@ -257,20 +266,21 @@ var (
 		{
 			Field: "statistic",
 			Means: "F compares how far apart the condition averages are with the leftover noise once each subject's own level is removed; " +
-				"larger values mean conditions differ by more than that noise would explain.",
+				"larger values are stronger evidence that conditions differ by more than that noise; the p-value says whether this F is large enough to be surprising.",
 			Caveats: []string{
 				"No sphericity correction (such as Greenhouse-Geisser) is applied: with three or more conditions whose differences vary unevenly, the p-value runs too small.",
 				"It says whether some conditions differ, not which ones.",
 			},
 		},
 		interpPValue,
-		bandedBy(ConventionCohenEta2, descriptor.Interpretation{
+		{
 			Field: "details.effect_size.partial_eta_squared",
 			Means: "The share of the within-subject variation, after removing differences between subjects, that the conditions account for, from 0 to 1.",
 			Caveats: []string{
-				"Because between-subject variation is left out of the denominator, partial eta squared reads larger than a between-groups eta squared for the same shift; compare it only with other repeated-measures results.",
+				"There are no sourced bands for repeated-measures partial eta squared, so none are attached: Cohen's 0.01 / 0.06 / 0.14 were set for between-groups designs, " +
+					"and excluding subject variance makes this figure read larger for the same shift; compare it only with other repeated-measures results.",
 			},
-		}),
+		},
 		{
 			Field: "details.dropped_subjects",
 			Means: "How many subjects were left out because they lacked a value for at least one condition; only complete subjects enter the test.",
@@ -310,7 +320,8 @@ var (
 	interpTestBrownForsythe = []descriptor.Interpretation{
 		{
 			Field: "statistic",
-			Means: "F on each row's distance from its group median: larger values mean the groups differ in spread by more than chance variation in those distances would explain.",
+			Means: "F on each row's distance from its group median: larger values are stronger evidence that the groups differ in spread; " +
+				"the p-value says whether this F is large enough to be surprising.",
 			Caveats: []string{
 				"It tests spread only, not averages.",
 			},
@@ -349,7 +360,7 @@ var (
 		},
 		{
 			Field: "details.per_group",
-			Means: "One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (above 5000 rows or a degenerate sample).",
+			Means: "One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (fewer than 5 or more than 5000 rows, or a degenerate sample).",
 		},
 	}
 )
@@ -400,7 +411,7 @@ var (
 		{
 			Field: "details.z",
 			Means: "The normal score the p-value is read from, with a continuity correction of one half.",
-			Sign:  pairedSign,
+			Sign:  pairedRankSign,
 			Caveats: []string{
 				"The p-value always uses this large-sample approximation, even for few pairs where an exact test would be more accurate.",
 			},
@@ -415,7 +426,7 @@ var (
 		{
 			Field: "details.effect_size.rank_biserial",
 			Means: "Matched-pairs rank-biserial correlation, from -1 to +1: the rank mass of positive differences minus that of negative ones, as a share of the total.",
-			Sign:  pairedSign,
+			Sign:  pairedRankSign,
 			Caveats: []string{
 				"There are no sourced bands for rank-biserial r that Pulse could verify, so none are attached.",
 				"Computed over non-zero differences only, matching the test.",
@@ -427,21 +438,22 @@ var (
 		{
 			Field: "statistic",
 			Means: "H measures how far each group's average rank sits from the overall average rank, corrected for ties; " +
-				"larger values mean some groups tend to have higher values than others.",
+				"larger values are stronger evidence that some groups tend to have higher values than others; the p-value says whether this H is large enough to be surprising.",
 			Caveats: []string{
 				"It says whether some groups tend to be higher, not which ones: follow up with pairwise rank tests adjusted for multiple comparisons.",
 				"The p-value reads H against a chi-square distribution with groups minus 1 degrees of freedom, which needs roughly five or more rows per group.",
 			},
 		},
 		interpPValue,
-		bandedBy(ConventionCohenEta2, descriptor.Interpretation{
+		{
 			Field: "details.effect_size.epsilon_squared",
 			Means: "The share of variation in the ranks that group membership accounts for, from 0 to 1.",
 			Caveats: []string{
+				"There are no sourced bands for rank-based epsilon squared, so none are attached; Cohen's eta-squared benchmarks were set for raw-value variance.",
 				"It is computed on ranks, so it describes how well groups order the values, not the share of variation in the raw values.",
 				"Left out when every value is tied.",
 			},
-		}),
+		},
 	}
 )
 
@@ -505,7 +517,7 @@ var (
 				"Values far from 0 in either direction are unlikely if the true rates are equal.",
 			Sign: twoGroupSign,
 			Caveats: []string{
-				"The normal approximation needs enough successes and failures in each group (roughly 10 of each).",
+				"The normal approximation needs at least 10 successes and 10 failures in each group.",
 			},
 		},
 		interpPValue,
@@ -549,7 +561,7 @@ var (
 			Field: "details.ci_low",
 			Means: "Lower end of the confidence interval for r at the 1 - alpha level (95% by default).",
 			Caveats: []string{
-				"With fewer than four pairs, or a perfect r, the interval collapses to r itself.",
+				"With fewer than four pairs, or a perfect r, no interval can be computed and both ends are set to r: this is not a precise estimate. Treat r as highly uncertain and do not report the interval.",
 			},
 		},
 		{
@@ -588,7 +600,7 @@ var (
 	interpTestTrend = []descriptor.Interpretation{
 		{
 			Field: "statistic",
-			Means: "The Mann-Kendall Z score: the trend count S (details.s) in standard errors, with a continuity correction. Values far from 0 point to a steady rise or fall.",
+			Means: "The Mann-Kendall Z score: the trend count S (details.s) in standard errors, with a continuity correction. Values far from 0 point to a consistent tendency to rise or fall (not necessarily at an even rate).",
 			Sign: map[string]string{
 				"+": "the series tends to rise over the OrderBy sequence",
 				"-": "the series tends to fall over the OrderBy sequence",

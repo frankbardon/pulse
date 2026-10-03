@@ -1,6 +1,6 @@
 ---
 name: op-test-shapiro-wilk
-description: Shapiro-Wilk normality test on Field; runs per-group when SplitBy is set; supports n ≤ 5000.
+description: Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set; p advisory outside 5..5000.
 kind: operator
 category: TEST
 operator: TEST_SHAPIRO_WILK
@@ -21,13 +21,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = W (Shapiro-Wilk W, `(0, 1]`); `PValue` (small p ⇒ reject normality). With `SplitBy`: `Details.per_group` carries per-arm W and p; headline `Statistic` / `PValue` track the worst-rejecting group.
+`Statistic` = W' (Shapiro-Francia, approximates Shapiro-Wilk W; `(0, 1]`); `PValue` (small p ⇒ reject normality). With `SplitBy`: `Details.per_group` carries per-arm W and p; headline `Statistic` / `PValue` track the worst-rejecting group.
 
 ## Gotchas
 
 - Buffered — requires the ordered values.
-- Supports `n ≤ 5000`; larger n emits `PULSE_TEST_SHAPIRO_N_BOUND` and skips. Fall back to QQ inspection or `TEST_KS` vs fitted normal.
-- Pre-ANOVA gate: per-group rejection → switch `TEST_ANOVA_F` → `TEST_KRUSKAL_WALLIS`.
+- p calibrated for 5..5000 rows; outside, it still runs and `per_group[].warning` marks p advisory. Check a QQ plot.
+- Not a gate: few rows miss real departures, many flag trivial ones.
 - Tiny groups (`n < 3`) → `PULSE_TEST_INSUFFICIENT_N`.
 - Tier-2 variant `TEST_SHAPIRO_WILK/shapiro_francia_post` runs on a result column.
 

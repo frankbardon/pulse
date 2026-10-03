@@ -23,15 +23,15 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 
 
 ## Output
 
-`Statistic` = F (ANOVA on absolute deviations from per-group medians); `DF` = (k − 1, N − k); `PValue` via F-distribution survival. `Details.per_group` = `{n, median, mean_abs_dev}`.
+`Statistic` = F (ANOVA on absolute deviations from per-group medians); `DF` = k-1 (`df_within` = N-k in Details); `PValue` via F-distribution survival. Flat `Details`: `groups`, `n`, `group_medians`, `abs_dev_means`, `ss_between`, `ss_within`.
 
 ## Gotchas
 
 - Buffered — per-group medians require a sort.
-- Pre-ANOVA gate: rejection means equal-variance assumption fails — switch from `TEST_ANOVA_F` to `TEST_ANOVA_WELCH`.
+- Not a pre-ANOVA gate: a large p is not evidence of equal spread; prefer `TEST_ANOVA_WELCH` outright.
 - More robust than Levene (mean-based) under non-normality — that's the whole point.
 - Tier-2 variant `TEST_BROWN_FORSYTHE/median_post` runs over result columns.
-- Tiny groups (`n_i < 3`) destabilize the median; gate with `PULSE_TEST_INSUFFICIENT_N`.
+- Tiny groups destabilize the median; `n_i < 2` or N ≤ k → `PULSE_TEST_INSUFFICIENT_N`.
 
 ## See
 

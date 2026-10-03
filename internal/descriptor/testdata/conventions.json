@@ -1,5 +1,5 @@
 {
-  "_comment": "Independently transcribed effect-size conventions (U08 E1-S1). Hand-maintained from the cited sources, NOT generated from internal/descriptor/conventions.go: TestConventionRegistryMatchesFixture holds the registry equal to this file, so a band changed in only one place fails. Every threshold was checked against the fetched source on verified_at. labels[0] names the region below Cohen's 'small', which Cohen leaves unnamed (Pulse: 'negligible'; R effectsize: 'very small'). Cohen (1988) itself could not be fetched (access-restricted scan); Cohen (1992) states the Table 1 conventions are those fixed in SPABS (Cohen 1988) and is cited as the primary transcription.",
+  "_comment": "Independently transcribed effect-size conventions (U08 E1-S1). Hand-maintained from the cited sources, NOT generated from internal/descriptor/conventions.go: TestConventionRegistryMatchesFixture holds the registry equal to this file, so a band changed in only one place fails. Every threshold was checked against the fetched source on verified_at. labels[0] names the region below Cohen's 'small', which Cohen leaves unnamed (Pulse and R effectsize: 'very small'; renamed from 'negligible' by the U08 statistics review, N-10). Cohen (1988) itself could not be fetched (access-restricted scan); Cohen (1992) states the Table 1 conventions are those fixed in SPABS (Cohen 1988) and is cited as the primary transcription.",
   "verified_at": "2026-10-02",
   "conventions": [
     {
@@ -7,7 +7,7 @@
       "citation": "Cohen (1988)",
       "statistics": ["cohens_d", "hedges_g", "glass_delta", "cohens_h"],
       "thresholds": [0.2, 0.5, 0.8],
-      "labels": ["negligible", "small", "medium", "large"],
+      "labels": ["very small", "small", "medium", "large"],
       "abs": true,
       "symmetric_log": false,
       "sources": [
@@ -19,9 +19,9 @@
     {
       "id": "cohen1988_eta2",
       "citation": "Cohen (1988)",
-      "statistics": ["eta_squared", "partial_eta_squared", "omega_squared", "epsilon_squared"],
+      "statistics": ["eta_squared", "omega_squared"],
       "thresholds": [0.01, 0.06, 0.14],
-      "labels": ["negligible", "small", "medium", "large"],
+      "labels": ["very small", "small", "medium", "large"],
       "abs": false,
       "symmetric_log": false,
       "derivation": {"kind": "eta2_from_f", "inputs": [0.10, 0.25, 0.40]},
@@ -35,7 +35,7 @@
       "citation": "Cohen (1988)",
       "statistics": ["pearson_r"],
       "thresholds": [0.1, 0.3, 0.5],
-      "labels": ["negligible", "small", "medium", "large"],
+      "labels": ["very small", "small", "medium", "large"],
       "abs": true,
       "symmetric_log": false,
       "sources": [
@@ -48,7 +48,7 @@
       "citation": "Cohen (1988)",
       "statistics": ["cohens_w", "phi"],
       "thresholds": [0.1, 0.3, 0.5],
-      "labels": ["negligible", "small", "medium", "large"],
+      "labels": ["very small", "small", "medium", "large"],
       "abs": false,
       "symmetric_log": false,
       "sources": [
@@ -57,15 +57,16 @@
     },
     {
       "id": "cohen1988_or",
-      "citation": "Cohen (1988), via Chen, Cohen & Chen (2010)",
+      "citation": "Cohen (1988) d benchmarks converted via d = ln(OR)*sqrt(3)/pi (Chinn 2000)",
       "statistics": ["odds_ratio"],
       "thresholds": [1.44, 2.48, 4.27],
-      "labels": ["negligible", "small", "medium", "large"],
+      "labels": ["very small", "small", "medium", "large"],
       "abs": false,
       "symmetric_log": true,
       "derivation": {"kind": "or_from_d", "inputs": [0.2, 0.5, 0.8]},
       "sources": [
-        {"url": "https://easystats.github.io/effectsize/reference/interpret_oddsratio.html", "locator": "effectsize 1.0.3 interpret_oddsratio, Rules: cohen1988 (OR < 1.44 / 1.44 / 2.48 / >= 4.27, via oddsratio_to_d and Cohen's d rules); 'OR of 10 is as extreme as a OR of 0.1 (1/10)'. d = ln(OR) * sqrt(3) / pi at d = .2/.5/.8 gives 1.437/2.477/4.268"}
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_oddsratio.html", "locator": "effectsize 1.0.3 interpret_oddsratio, Rules: cohen1988 (OR < 1.44 / 1.44 / 2.48 / >= 4.27, via oddsratio_to_d and Cohen's d rules); 'OR of 10 is as extreme as a OR of 0.1 (1/10)'. d = ln(OR) * sqrt(3) / pi at d = .2/.5/.8 gives 1.437/2.477/4.268"},
+        {"url": "https://doi.org/10.1002/1097-0258(20001130)19:22%3C3127::AID-SIM784%3E3.0.CO;2-M", "locator": "Chinn (2000) Statistics in Medicine 19(22):3127-3131, 'A simple method for converting an odds ratio to effect size for use in meta-analysis': ln(OR) / 1.81 (= sqrt(3)/pi) converts a log odds ratio to d (formula source, cited not fetched; the thresholds are verified against the effectsize source above). NOT Chen, Cohen & Chen (2010), whose OR benchmarks 1.68/3.47/6.71 (at a 1% base rate) differ"}
       ]
     }
   ],
@@ -79,6 +80,8 @@
     {"operator": "TEST_MANN_WHITNEY_U", "field": "details.effect_size.rank_biserial", "reason": "No primary-source convention for rank-biserial r was verified (effectsize rule set unverified: page fetch failed). Means plus caveat only."},
     {"operator": "TEST_WILCOXON_SR", "field": "details.effect_size.rank_biserial", "reason": "As for TEST_MANN_WHITNEY_U."},
     {"operator": "TEST_SPEARMAN_R", "field": "statistic", "reason": "Cohen's r benchmarks (Cohen 1992 Table 1 row 2) are stated for the product-moment r; no rho-specific primary-source convention was verified. Means plus caveat only."},
-    {"operator": "TEST_PAIRED_T", "field": "details.effect_size.cohens_d", "reason": "Pulse's paired d is d_z (mean difference / SD of differences). Cohen's d benchmarks (Cohen 1992 Table 1 row 1) are for the difference between independent means; d_z = d_av / sqrt(2(1 - r)) grows with the correlation between the paired measures, so the d bands would overstate paired effects. No d_z-specific convention was verified. Means plus caveat only."}
+    {"operator": "TEST_ANOVA_RM", "field": "details.effect_size.partial_eta_squared", "reason": "Cohen's eta-squared benchmarks (from f, Cohen 1992 Table 1 row 7) are for between-groups designs; repeated-measures partial eta squared excludes subject variance from its denominator and reads larger for the same shift. No RM-specific convention was verified. Means plus caveat only (U08 statistics review S-01)."},
+    {"operator": "TEST_KRUSKAL_WALLIS", "field": "details.effect_size.epsilon_squared", "reason": "Cohen's eta-squared benchmarks were set for raw-value variance under normal-theory ANOVA; epsilon squared is computed on ranks, and Tomczak & Tomczak (2014) give its formula, not bands. No rank-specific convention was verified. Means plus caveat only (U08 statistics review S-13)."},
+    {"operator": "TEST_PAIRED_T", "field": "details.effect_size.cohens_d", "reason": "Pulse's paired d is d_z (mean difference / SD of differences). Cohen's d benchmarks (Cohen 1992 Table 1 row 1) are for the difference between independent means; d_z = d / sqrt(2(1 - r)) (Cohen 1988 s. 2.3.5), so d_z exceeds a between-group d when the paired measures correlate above 0.5 and falls below it when they correlate less, so the d bands misread paired effects. No d_z-specific convention was verified. Means plus caveat only."}
   ]
 }

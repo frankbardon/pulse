@@ -26,9 +26,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Gotchas
 
 - Buffered — combined values ranked across all groups under tie correction.
-- Nonparametric alternative to `TEST_ANOVA_F` when normality fails or distributions are heavy-tailed.
-- Global only — Dunn / Conover post-hoc not yet shipped; use repeated `TEST_MANN_WHITNEY_U` with manual Bonferroni.
-- Tiny groups (`n_i < 5`) inflate type-I; gate with `PULSE_TEST_INSUFFICIENT_N`.
+- Nonparametric alternative to `TEST_ANOVA_F` for skewed or heavy-tailed data.
+- Global only — no Dunn / Conover post-hoc; use pairwise `TEST_MANN_WHITNEY_U` + manual Holm/Bonferroni.
+- Groups under ~5 rows: shaky p; only N < 2k is refused (`PULSE_TEST_INSUFFICIENT_N`). ε² unbanded.
 - Tests stochastic equality, not equal medians — differing shapes can reject on shape alone.
 
 ## See
