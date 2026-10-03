@@ -293,7 +293,7 @@ var glossaryRegistry = []descriptor.Term{
 	},
 	{
 		ID:      "variance",
-		Short:   "Roughly the average squared distance of values from their mean: divided by n in the population form (AGG_VARIANCE), n - 1 in the sample form (AGG_WELFORD).",
+		Short:   "Roughly the average squared distance of values from their mean: divided by n in the population form, or by n - 1 in the sample form most tools print.",
 		WhyCare: "A measure of spread in squared units. Most tests are built on the sample form, but its squared units are hard to read; the standard deviation is the same idea in the original units.",
 		SeeAlso: []string{"standard-deviation", "covariance"},
 		Jargon:  true, Forms: []string{"variance", "variances"},
