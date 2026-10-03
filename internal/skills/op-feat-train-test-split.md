@@ -33,7 +33,7 @@ One `u8`-valued `f64` column at `Label` (default `split`), from `internal/proces
 - GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields it in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
 - Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
 - Stratified mode hashes per group with `seed + len(out)*indices[0]+1`, so groups do not collapse to identical shuffles.
-- LEAKAGE-SAFE WIRING: place this BEFORE any `FEAT_TARGET_ENCODE` to suppress `PULSE_FEAT_TARGET_LEAKAGE_RISK`, then `FILTER_INCLUDE` on `split == 0` to scope downstream training-only work.
+- Before `FEAT_TARGET_ENCODE` it silences `PULSE_FEAT_TARGET_LEAKAGE_RISK`; the encoder still averages every row.
 
 ## See
 

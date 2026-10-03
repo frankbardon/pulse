@@ -19,7 +19,7 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.FEAT_LOG),
 			Category:      "feature",
-			Description:   "Per-row natural log of Field; emits one f64 column.",
+			Description:   "Per-row natural log of 1 + Field (log1p); x <= -1 reads null; emits one f64 column.",
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "f64",
 			EmitsTypeNote: "single column \"<label>\" (default LOG_<field>)",

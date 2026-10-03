@@ -3638,7 +3638,11 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare",
+            "segment"
+          ]
         },
         {
           "name": "FEAT_DATE_FEATURES",
@@ -3653,7 +3657,11 @@
           "component_schema": {
             "mergeability": ""
           },
-          "zone": "capable"
+          "zone": "capable",
+          "intents": [
+            "change_over_time",
+            "prepare"
+          ]
         },
         {
           "name": "FEAT_FREQUENCY_ENCODE",
@@ -3670,12 +3678,16 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "composition",
+            "prepare"
+          ]
         },
         {
           "name": "FEAT_LOG",
           "category": "feature",
-          "description": "Per-row natural log of Field; emits one f64 column.",
+          "description": "Per-row natural log of 1 + Field (log1p); x \u003c= -1 reads null; emits one f64 column.",
           "params": null,
           "accepts_types": [
             "date",
@@ -3692,7 +3704,11 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "distribution_shape",
+            "prepare"
+          ]
         },
         {
           "name": "FEAT_ONE_HOT",
@@ -3708,7 +3724,10 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "FEAT_POLY",
@@ -3738,7 +3757,11 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare",
+            "relationship"
+          ]
         },
         {
           "name": "FEAT_SQRT",
@@ -3760,7 +3783,11 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "distribution_shape",
+            "prepare"
+          ]
         },
         {
           "name": "FEAT_TARGET_ENCODE",
@@ -3792,7 +3819,10 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "FEAT_TRAIN_TEST_SPLIT",
@@ -3847,7 +3877,10 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         }
       ]
     },
@@ -10270,4 +10303,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2359c4c9872b031c5d083f0ac6075efd3a8e7ca9c4a90f1d3dbd5d6e67292e08
+// golden-hash: 88a31c65f10770c0a87fc97988634fb30ffebbf903c7085f49ce3cece931ecbd

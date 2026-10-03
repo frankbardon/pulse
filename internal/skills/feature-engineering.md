@@ -43,17 +43,15 @@ Stream-eligible when every `FEAT_*` implements `StreamingComputer` (internal to 
 
 `FEAT_TARGET_ENCODE` replaces a categorical with the MEAN of a numeric target over rows sharing that category. Optional smoothing `s` shrinks rare categories toward the global mean: `encoded = (n * mean_cat + s * mean_global) / (n + s)`.
 
-The trap: target-encoding the WHOLE cohort mixes validation / test signal into training rows. Each encoded value reflects every other row's target — including rows the model will be tested against.
+The trap: each encoded value averages EVERY row's target — test / val rows and the row's own included. The encoder reads no split column and features run pre-filter, so a `split == 0` filter keeps the leaked means.
 
-**Fix.** Place `FEAT_TRAIN_TEST_SPLIT` BEFORE every `FEAT_TARGET_ENCODE` in the same slate. The encoder then computes per-category means within the train partition only; test / val rows receive the train-derived mean.
-
-Predict surfaces `PULSE_FEAT_TARGET_LEAKAGE_RISK` (warning by default, error under `--strict` / `Options.Strict: true`) when a `FEAT_TARGET_ENCODE` has no preceding `FEAT_TRAIN_TEST_SPLIT`. Recovery: reorder OR document the cohort as fully labelled-and-static.
+Predict surfaces `PULSE_FEAT_TARGET_LEAKAGE_RISK` (warning; error under `--strict` / `Options.Strict: true`) when no `FEAT_TRAIN_TEST_SPLIT` precedes the encoder — but a preceding split only SILENCES it, changing no value. Train-only means: a separate request, `AGG_AVERAGE` of the target grouped by the category on `split == 0`, mapped back yourself.
 
 ## Train / test / split semantics
 
 `FEAT_TRAIN_TEST_SPLIT` tags each row in a numeric `split` column. Constants: `feature.SplitTrain=0`, `feature.SplitVal=1`, `feature.SplitTest=2`. Two- or three-element ratio vectors; optional `stratify` field preserves class balance per-partition (per-class deterministic shuffle); `seed` is the shuffle seed (default 0 → deterministic).
 
-Downstream: filter to train-only with `FILTER_INCLUDE` on `split == 0`; group by `split` for per-partition metrics; combine with `FEAT_TARGET_ENCODE` to get the leakage-safe path.
+Downstream: filter to train-only with `FILTER_INCLUDE` on `split == 0`; group by `split` for per-partition metrics. Same seed + same rows in the same order ⇒ same labels.
 
 ## Components
 

@@ -48,9 +48,6 @@ var purposeExemptions = func() []guidanceExemption {
 		// grouper
 		{"GROUP_CATEGORY", "GROUP_DATE", "GROUP_DATE_RANGES", "GROUP_QUANTILE", "GROUP_RANGE",
 			"GROUP_ROUNDED", "GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE"},
-		// feature
-		{"FEAT_BUCKETIZE", "FEAT_DATE_FEATURES", "FEAT_FREQUENCY_ENCODE", "FEAT_LOG", "FEAT_ONE_HOT",
-			"FEAT_POLY", "FEAT_SQRT", "FEAT_TARGET_ENCODE", "FEAT_TRAIN_TEST_SPLIT"},
 		// synth_distribution
 		{"bernoulli", "constant", "discrete", "exponential", "lognormal", "mixture",
 			"monotonic_from", "normal", "pareto", "poisson", "regex", "set_bernoulli", "uniform",
@@ -65,21 +62,10 @@ var purposeExemptions = func() []guidanceExemption {
 
 // interpretationExemptions — expected Interpretation outputs not yet
 // declared (TestInterpretationCoversOutputs). Key: "<operator>:<field>",
-// e.g. "TEST_T:p_value". Every inferential output is read; the entries
-// are the needs-reading descriptive operators' primary results
-// (interpretation_reading.go), closed by the U09 backfill.
-var interpretationExemptions = func() []guidanceExemption {
-	const why = "Needs-reading descriptive built-in awaiting its value Interpretation in the U09 backfill."
-	var out []guidanceExemption
-	for _, key := range []string{
-		// feature
-		"FEAT_FREQUENCY_ENCODE:value", "FEAT_LOG:value", "FEAT_POLY:value.*", "FEAT_SQRT:value",
-		"FEAT_TARGET_ENCODE:value",
-	} {
-		out = append(out, guidanceExemption{Key: key, Why: why, Owner: "U09"})
-	}
-	return out
-}()
+// e.g. "TEST_T:p_value". Empty since the U09 backfill: every
+// inferential output and every needs-reading descriptive operator's
+// primary result (interpretation_reading.go) is read.
+var interpretationExemptions = []guidanceExemption{}
 
 // intentDeclarerExemptions — intents fewer than three built-in Purposes
 // declare (TestPurposeQuestionsResolve). Key: the intent ID.
