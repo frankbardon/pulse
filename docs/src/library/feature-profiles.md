@@ -463,6 +463,27 @@ desc, err := pulse.DescribeFeatureProfile(fp, ext)
 Diff and describe fail only on a missing profile or a `nil` feature list
 (`PULSE_FEATURE_PROFILE_INVALID`).
 
+### From the command line
+
+`pulse features` wraps the same four functions, with no extensions and no
+data directory (the leaves describe the binary). A profile path is a host
+OS path, relative to the working directory.
+
+```sh
+pulse features init > profile.json              # or: init --from minimal
+pulse features check profile.json               # exits non-zero on any failure
+pulse features diff profile.json                # missing (flagged [new]) + unknown
+pulse features show profile.json
+```
+
+Every leaf takes `--json` for the standard envelope: `data` is the
+profile, check report, diff or description; `pulse features check --json`
+also lifts each unverified-extension warning onto the envelope's
+`warnings`, and a fatal error carries its own code in `errors[0]` (the
+report stays in `data`) before the command exits non-zero. `check` is
+always offline (above), so check in-process before shipping a profile that
+lists your extension operators.
+
 ## Related
 
 - [pulse.New & Options](options.md)

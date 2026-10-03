@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,5 +112,24 @@ func TestNonMCPLeavesIgnoreFeatureProfileEnv(t *testing.T) {
 	}
 	if _, err := runApp(t, "cohort", "inspect", "--json", pulsePath); err != nil {
 		t.Errorf("cohort inspect: %v", err)
+	}
+}
+
+// TestFeatures_InitThenCheck is the fresh-checkout acceptance: the
+// profile `pulse features init` prints passes `pulse features check`,
+// with no data directory configured.
+func TestFeatures_InitThenCheck(t *testing.T) {
+	t.Setenv("PULSE_DATA_DIR", "")
+	out, err := runApp(t, "features", "init")
+	if err != nil {
+		t.Fatalf("features init: %v", err)
+	}
+	path := writeProfileFile(t, t.TempDir(), "p.json", out)
+	out, err = runApp(t, "features", "check", path)
+	if err != nil {
+		t.Fatalf("features check of init output: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, ": valid (") {
+		t.Fatalf("features check output = %q", out)
 	}
 }

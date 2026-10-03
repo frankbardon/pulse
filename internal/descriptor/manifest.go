@@ -53,6 +53,10 @@ func commands() []descriptor.Command {
 		{Name: "index drop", Description: "Remove a cohort's sidecar point-lookup index", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "widen", Description: "Widen a set column of a single-file cohort to a wider set rung, rewriting the cohort in place (destructive, non-interactive, atomic)", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 		{Name: "dedup", Description: "Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format 0x02), in place or to a new path (destructive in place, non-interactive, atomic)", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "features init", Description: "Print a feature profile listing every feature this build offers, or seeded from an example feature profile", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "features check", Description: "Validate a feature profile file against this build, exactly as pulse.New would", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "features diff", Description: "List the features this build offers that a feature profile does not list, and the names it does not resolve", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "features show", Description: "Describe every feature a feature profile lists: kind, category, source, since and dependencies", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "version", Description: "Print the Pulse build version (--json adds Go version, commit and envelope format_version)", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 	}
 }

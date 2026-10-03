@@ -87,14 +87,21 @@ func writeErrorEnvelope(w io.Writer, code, message string) error {
 // through verbatim rather than re-wrapping it. errors.As rather than a
 // type assertion, so a code wrapped with %w on the way up still surfaces.
 func writeCodedErrorEnvelope(w io.Writer, fallback string, err error) error {
-	env := descriptor.NewEnvelope(nil)
+	return writeJSON(w, codedErrorEnvelope(nil, fallback, err))
+}
+
+// codedErrorEnvelope builds writeCodedErrorEnvelope's envelope around
+// data, so a leaf that still has a partial report (and its warnings) for
+// a fatal error can carry them beside errors[0] with the same code rule.
+func codedErrorEnvelope(data any, fallback string, err error) *descriptor.Envelope {
+	env := descriptor.NewEnvelope(data)
 	var ce *perrors.CodedError
 	if stderrors.As(err, &ce) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	} else {
 		env.AddError(fallback, err.Error(), nil)
 	}
-	return writeJSON(w, env)
+	return env
 }
 
 func writeText(w io.Writer, format string, args ...any) {

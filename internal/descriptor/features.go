@@ -625,6 +625,11 @@ var commandBindings = []CommandBinding{
 	{Command: "index drop", Feature: featIndex},
 	{Command: "widen", Feature: featWiden},
 	{Command: "dedup", Feature: featDedup},
+	// The feature-profile tooling describes the binary, not an instance.
+	{Command: "features init", Ungated: true},
+	{Command: "features check", Ungated: true},
+	{Command: "features diff", Ungated: true},
+	{Command: "features show", Ungated: true},
 	{Command: "version", Ungated: true},
 	// Manifest.Operations.
 	{Command: "filter_to_file", Feature: featFilterToFile},

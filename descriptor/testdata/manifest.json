@@ -240,6 +240,42 @@
         }
       },
       {
+        "name": "features init",
+        "description": "Print a feature profile listing every feature this build offers, or seeded from an example feature profile",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "features check",
+        "description": "Validate a feature profile file against this build, exactly as pulse.New would",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "features diff",
+        "description": "List the features this build offers that a feature profile does not list, and the names it does not resolve",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "features show",
+        "description": "Describe every feature a feature profile lists: kind, category, source, since and dependencies",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "version",
         "description": "Print the Pulse build version (--json adds Go version, commit and envelope format_version)",
         "annotations": {
@@ -9834,4 +9870,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: abd0ce113f6cd6b0a3031d147f59e4aa885f1a2d98a6bbaaab57a11ca3c2bf0c
+// golden-hash: 88f981aa633185f75479214ef369eeacdc3aba49ab8cc4b8d6dbd11f266cb83d

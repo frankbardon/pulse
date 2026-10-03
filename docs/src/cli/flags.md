@@ -433,6 +433,10 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse export spss` | Export `.pulse` to SPSS `.sav` | [export spss](export-spss.md) |
 | `pulse export transfer` | Compress a cohort or shard archive (any format version) into a zstd transfer artifact, `<input>.zst` by default; `--level` 1..22 (default 3). Transport only — the artifact is never opened as a cohort | [transfer compression](../format/transfer.md) |
 | `pulse export tsv` | Export `.pulse` to TSV | `--help` |
+| `pulse features check` | Validate a feature profile file (host OS path) against this build exactly as `pulse.New` would; offline, so an unregistered extension-like name is a `PULSE_FEATURE_PROFILE_UNKNOWN` warning (`unverified_extension`), and any failure exits non-zero | [feature profiles](../library/feature-profiles.md) |
+| `pulse features diff` | List the features this build offers that a feature profile does not list (flagged new past its `written_with`) and the names it does not resolve | [feature profiles](../library/feature-profiles.md) |
+| `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
+| `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
 | `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--group` parent-group declarations, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
