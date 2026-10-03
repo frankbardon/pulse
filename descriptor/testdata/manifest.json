@@ -3464,12 +3464,12 @@
         {
           "name": "FEAT_DATE_FEATURES",
           "category": "feature",
-          "description": "Expand a date field into year, month, day, day_of_week, and is_weekend columns.",
+          "description": "Expand a date field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns.",
           "params": null,
           "accepts_types": [
             "date"
           ],
-          "emits_type_note": "multiple columns: \u003clabel\u003e_year, \u003clabel\u003e_month, \u003clabel\u003e_day, \u003clabel\u003e_day_of_week, \u003clabel\u003e_is_weekend",
+          "emits_type_note": "multiple columns: \u003clabel\u003e_year, \u003clabel\u003e_month, \u003clabel\u003e_day, \u003clabel\u003e_dow, \u003clabel\u003e_quarter",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -10091,4 +10091,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: af8ce57288fca35d31c6ba2294ade89d8804fb86dfdee80f98077eb56be1a429
+// golden-hash: f93bb1675903e441b28a9a7c2e8c3479f44de8cf6ede43085a6f705ecc059d43

@@ -50,9 +50,9 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.FEAT_DATE_FEATURES),
 			Category:      "feature",
-			Description:   "Expand a date field into year, month, day, day_of_week, and is_weekend columns.",
+			Description:   "Expand a date field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns.",
 			AcceptsTypes:  []string{"date"},
-			EmitsTypeNote: "multiple columns: <label>_year, <label>_month, <label>_day, <label>_day_of_week, <label>_is_weekend",
+			EmitsTypeNote: "multiple columns: <label>_year, <label>_month, <label>_day, <label>_dow, <label>_quarter",
 			Streamable:    true,
 		},
 		{
