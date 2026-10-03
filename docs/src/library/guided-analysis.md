@@ -38,7 +38,9 @@ for example one `outcome` field plus one categorical `group` field for
 
 The manifest carries the intents compactly:
 
-- top-level `intents` is the sorted list of IDs only
+- top-level `intents` is the sorted list of IDs only. On an instance
+  with a feature profile it leaves out an intent that only hidden
+  operators serve; an intent no operator serves always stays
 - each operator, test, regression, distribution and overlay-kind entry
   carries `intents`, the IDs its guidance declares. The key is omitted
   when an entry declares none.
@@ -89,7 +91,8 @@ file behind them, `glossary` and `intents`. They work everywhere skills
 do:
 
 - `pulse skills show glossary` / `pulse skills show intents`
-- `pulse_skills_get` with `name: "glossary"` / `"intents"`
+- `pulse_skills_get` with `name: "glossary"` / `"intents"`, and
+  `p.Skill("glossary")` / `p.Skill("intents")` in Go
 - the resources `pulse-skill://glossary` and `pulse-skill://intents`
 - the manifest's `skills` list
 

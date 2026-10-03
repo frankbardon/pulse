@@ -43,11 +43,11 @@ func TestGuidanceSkills_MCPParity(t *testing.T) {
 					t.Fatalf("skills.Get(%s) = %v, body %.40q", name, ok, want)
 				}
 				if profile != "" {
-					// The instance render: the template read is the
+					// The instance render: the facade's p.Skill is the
 					// reference the tool and resource reads must match.
-					inst, err := gosdk.ReadSkillViaTemplate(p, gosdk.SkillURIScheme+name)
-					if err != nil || !strings.HasPrefix(inst, "---\nname: "+name+"\n") {
-						t.Fatalf("template read %s: err=%v, body %.40q", name, err, inst)
+					inst, ok := p.Skill(name)
+					if !ok || !strings.HasPrefix(inst, "---\nname: "+name+"\n") {
+						t.Fatalf("p.Skill(%s) = %v, body %.40q", name, ok, inst)
 					}
 					want = inst
 				}

@@ -211,3 +211,14 @@ var (
 	_ func() []descriptor.Term   = pulse.Glossary
 	_ func() []descriptor.Intent = pulse.Intents
 )
+
+// Instance discovery: the pruned skill ontology and the skill pack as
+// this instance serves them (what an embedder's discovery UI reads).
+var (
+	_ func(*pulse.Pulse) descriptor.Ontology    = (*pulse.Pulse).Ontology
+	_ func(*pulse.Pulse) []pulse.SkillMetadata  = (*pulse.Pulse).Skills
+	_ func(*pulse.Pulse, string) (string, bool) = (*pulse.Pulse).Skill
+	_                                           = pulse.SkillMetadata{Name: "op-agg-count", Requires: []string{}}
+	_                                           = descriptor.OntologyEdge{Kind: descriptor.OntologyEdgeServesIntent}
+	_                                           = descriptor.OntologyNode{Kind: descriptor.OntologyNodeSkill}
+)
