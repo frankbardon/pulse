@@ -733,10 +733,6 @@
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
-        "name": "label-display",
-        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
-      },
-      {
         "name": "op-agg-count",
         "description": "Count records that pass the active filter, optionally per group."
       },
@@ -1088,4 +1084,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4f0550734f5859b81c600b7cc2c004b7970f52ca679b733a4921bbd591f4284a
+// golden-hash: 0a6d8176995f27d027a05f08b91d398d655b305bfed5ff2e0e9ba076ac2b9296

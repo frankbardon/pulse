@@ -1235,10 +1235,6 @@
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
-        "name": "label-display",
-        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
-      },
-      {
         "name": "op-agg-average",
         "description": "Arithmetic mean of a numeric field across the input set."
       },
@@ -1913,4 +1909,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 057569255b893fef4bf4b9a765ceb44419d15f48b0ce73d5b78e269828a76f80
+// golden-hash: 88dfe2bff7a72a47270a3dca6fb56b06b2c1a637106e1ea05b5863f97b35eda1

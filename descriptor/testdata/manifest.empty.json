@@ -367,10 +367,6 @@
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
-        "name": "label-display",
-        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
-      },
-      {
         "name": "overlay-system",
         "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics."
       },
@@ -571,4 +567,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5b0b02f41d53bd03eeb3f10a80c2e9dcbe79f4df33f3cd2134da3d0c52f39009
+// golden-hash: dd213f521ea20e5866213ac78c954bc83f9f4443dbc6fd9e941dc3744d0b3aa7
