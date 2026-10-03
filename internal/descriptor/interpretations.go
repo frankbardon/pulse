@@ -15,9 +15,22 @@ import (
 // path checked by ValidateInterpretations against what the operator
 // emits (BuiltinOutputResolver). Like Purpose prose, Interpretation
 // prose is served on demand and never inlined into a default payload.
-var builtinInterpretations = map[string][]descriptor.Interpretation{
-	"TEST_ANOVA_F":   interpTestAnovaF,
-	"TEST_PEARSON_R": interpTestPearsonR,
+var builtinInterpretations = mergeInterpretations(statTestInterpretations)
+
+// mergeInterpretations joins the per-category Interpretation maps
+// (statTestInterpretations in interpretations_stattests.go, …),
+// panicking when two maps declare the same operator.
+func mergeInterpretations(maps ...map[string][]descriptor.Interpretation) map[string][]descriptor.Interpretation {
+	out := map[string][]descriptor.Interpretation{}
+	for _, m := range maps {
+		for name, ins := range m {
+			if _, dup := out[name]; dup {
+				panic("descriptor: Interpretations for " + name + " declared by two category maps")
+			}
+			out[name] = ins
+		}
+	}
+	return out
 }
 
 // SharedPValue is the shared rule-set key every p-value Interpretation
@@ -109,66 +122,3 @@ func EffectSizeKeysByTest() map[string][]string {
 }
 
 func bandBound(v float64) *float64 { return &v }
-
-// The exemplar Interpretations. Every other inferential built-in is
-// listed by the TestInterpretationCoversOutputs coverage report until
-// it declares its own.
-var (
-	interpTestAnovaF = []descriptor.Interpretation{
-		{
-			Field: "statistic",
-			Means: "F compares how far apart the group averages are with how much rows vary inside each group; " +
-				"larger values mean the groups differ by more than within-group noise would explain.",
-			Caveats: []string{
-				"F says whether some groups differ, not which ones: run TEST_TUKEY_HSD to find the pairs.",
-			},
-		},
-		{Field: "p_value", Shared: SharedPValue},
-		{
-			Field: "details.effect_size.eta_squared",
-			Means: "The share of all variation in the measure that group membership accounts for in this sample, from 0 to 1.",
-			Bands: conventionBands(ConventionCohenEta2), Convention: conventionCitation(ConventionCohenEta2),
-			Caveats: []string{
-				"Eta squared overstates the effect in small samples; prefer omega squared when reporting.",
-			},
-		},
-		{
-			Field: "details.effect_size.omega_squared",
-			Means: "A less biased estimate of the share of variation group membership accounts for, " +
-				"adjusted for sample size and the number of groups.",
-			Bands: conventionBands(ConventionCohenEta2), Convention: conventionCitation(ConventionCohenEta2),
-			Caveats: []string{
-				"Omega squared can come out slightly below zero when the groups barely differ; read that as a negligible effect.",
-			},
-		},
-	}
-
-	interpTestPearsonR = []descriptor.Interpretation{
-		{
-			Field: "statistic",
-			Means: "r measures how closely the two fields follow a straight line together, from -1 to +1; 0 means no straight-line link.",
-			Bands: conventionBands(ConventionCohenR),
-			Abs:   conventionOf(ConventionCohenR).Abs, Convention: conventionCitation(ConventionCohenR),
-			Sign: map[string]string{
-				"+": "the two fields tend to rise together",
-				"-": "one field tends to fall as the other rises",
-			},
-			Caveats: []string{
-				"Correlation is not causation: a third factor may drive both fields.",
-				"An r near zero rules out only a straight-line link; a curved relationship can still be strong.",
-			},
-		},
-		{Field: "p_value", Shared: SharedPValue},
-		{
-			Field: "details.ci_low",
-			Means: "Lower end of the confidence interval for r at the 1 - alpha level (95% by default).",
-			Caveats: []string{
-				"With fewer than four pairs, or a perfect r, the interval collapses to r itself.",
-			},
-		},
-		{
-			Field: "details.ci_high",
-			Means: "Upper end of the confidence interval for r at the 1 - alpha level (95% by default).",
-		},
-	}
-)

@@ -76,10 +76,12 @@ var cohenLabels = []string{"negligible", "small", "medium", "large"}
 // (1988) benchmarks as tabled in Cohen (1992, Table 1, p. 157); the
 // sources per entry live in testdata/conventions.json.
 var builtinConventions = map[string]effectConvention{
-	// Standardised mean difference d (also g, Glass's delta).
+	// Standardised mean difference d (also g, Glass's delta), and
+	// Cohen's h for two proportions, whose benchmarks are the same
+	// .20 / .50 / .80 (Cohen 1992, Table 1 row 5).
 	ConventionCohenD: {
 		ID: ConventionCohenD, Citation: "Cohen (1988)",
-		Statistics: []string{"cohens_d", "hedges_g", "glass_delta"},
+		Statistics: []string{"cohens_d", "hedges_g", "glass_delta", "cohens_h"},
 		Thresholds: []float64{0.2, 0.5, 0.8}, Labels: cohenLabels, Abs: true,
 	},
 	// Share of variance: eta squared, partial eta squared, omega squared,

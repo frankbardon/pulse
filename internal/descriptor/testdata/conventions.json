@@ -5,14 +5,15 @@
     {
       "id": "cohen1988_d",
       "citation": "Cohen (1988)",
-      "statistics": ["cohens_d", "hedges_g", "glass_delta"],
+      "statistics": ["cohens_d", "hedges_g", "glass_delta", "cohens_h"],
       "thresholds": [0.2, 0.5, 0.8],
       "labels": ["negligible", "small", "medium", "large"],
       "abs": true,
       "symmetric_log": false,
       "sources": [
         {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Psychological Bulletin 112(1), Table 1 row 1 (d), p. 157; p. 157 note: ES indexes for tests 1-5 are absolute values"},
-        {"url": "https://easystats.github.io/effectsize/reference/interpret_cohens_d.html", "locator": "effectsize 1.0.3 interpret_cohens_d, Rules: cohen1988"}
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_cohens_d.html", "locator": "effectsize 1.0.3 interpret_cohens_d, Rules: cohen1988"},
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Table 1 row 5 (h, difference between independent proportions PA vs PB, h = phi_A - phi_B with phi = 2 arcsin sqrt(P)), small/medium/large = .20/.50/.80, p. 157; absolute value per the p. 157 note"}
       ]
     },
     {
@@ -69,12 +70,15 @@
     }
   ],
   "statistic_bindings": {
+    "TEST_FISHER_EXACT": "odds_ratio",
     "TEST_PEARSON_R": "pearson_r"
   },
   "excluded": [
     {"operator": "TEST_CHISQ", "field": "details.effect_size.cramers_v", "reason": "Cohen's benchmarks for V are df-scaled ((.1/.3/.5)/sqrt(df*), Cohen 1992 Example 6 p. 158); a fixed band set would be wrong on any table larger than 2x2. Means plus a caveat stating the rule, no bands."},
     {"operator": "TEST_KENDALL_TAU", "field": "statistic", "reason": "Kendall's tau is not on Pearson r's scale (tau is typically smaller for the same dependence); no tau-specific published convention was verified. Means plus caveat only."},
     {"operator": "TEST_MANN_WHITNEY_U", "field": "details.effect_size.rank_biserial", "reason": "No primary-source convention for rank-biserial r was verified (effectsize rule set unverified: page fetch failed). Means plus caveat only."},
-    {"operator": "TEST_WILCOXON_SR", "field": "details.effect_size.rank_biserial", "reason": "As for TEST_MANN_WHITNEY_U."}
+    {"operator": "TEST_WILCOXON_SR", "field": "details.effect_size.rank_biserial", "reason": "As for TEST_MANN_WHITNEY_U."},
+    {"operator": "TEST_SPEARMAN_R", "field": "statistic", "reason": "Cohen's r benchmarks (Cohen 1992 Table 1 row 2) are stated for the product-moment r; no rho-specific primary-source convention was verified. Means plus caveat only."},
+    {"operator": "TEST_PAIRED_T", "field": "details.effect_size.cohens_d", "reason": "Pulse's paired d is d_z (mean difference / SD of differences). Cohen's d benchmarks (Cohen 1992 Table 1 row 1) are for the difference between independent means; d_z = d_av / sqrt(2(1 - r)) grows with the correlation between the paired measures, so the d bands would overstate paired effects. No d_z-specific convention was verified. Means plus caveat only."}
   ]
 }

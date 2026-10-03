@@ -144,8 +144,9 @@ func (f *fisherExactRow) Finalize() (*types.TestResult, error) {
 	if sum > 1 {
 		sum = 1
 	}
-	// Odds ratio (informational; uses a 0.5 continuity correction when
-	// any cell is zero so the value stays defined).
+	// Sample odds ratio (a·d)/(b·c), informational. No continuity
+	// correction: a zero b or c cell yields +Inf, otherwise a zero a or
+	// d cell yields 0.
 	var oddsRatio float64
 	switch {
 	case b == 0 || c == 0:

@@ -57,8 +57,22 @@ type testProbeFixture struct {
 // descx.DeclaredInterpretationFields: add a deferred declaration and it
 // must land here; drop one and its probe must go.
 var interpretationProbes = map[string][]string{
-	"TEST_ANOVA_F":   {"details.effect_size.eta_squared", "details.effect_size.omega_squared"},
-	"TEST_PEARSON_R": {"details.ci_high", "details.ci_low"},
+	"TEST_ANOVA_F":        {"details.effect_size.eta_squared", "details.effect_size.omega_squared"},
+	"TEST_ANOVA_RM":       {"details.dropped_subjects", "details.effect_size.partial_eta_squared"},
+	"TEST_ANOVA_WELCH":    {"details.effect_size.omega_squared"},
+	"TEST_CHISQ":          {"details.effect_size.cramers_v", "details.effect_size.phi", "details.expected_min"},
+	"TEST_KRUSKAL_WALLIS": {"details.effect_size.epsilon_squared"},
+	"TEST_MANN_WHITNEY_U": {"details.effect_size.rank_biserial", "details.z"},
+	"TEST_PAIRED_T":       {"details.ci_high", "details.ci_low", "details.effect_size.cohens_d", "details.mean_diff"},
+	"TEST_PEARSON_R":      {"details.ci_high", "details.ci_low"},
+	"TEST_PROP_Z":         {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_h"},
+	"TEST_SHAPIRO_WILK":   {"details.per_group"},
+	"TEST_T":              {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_TREND":          {"details.s", "details.tau"},
+	"TEST_TUKEY_HSD":      {"details.comparisons"},
+	"TEST_WELCH":          {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
+	"TEST_WILCOXON_SR":    {"details.effect_size.rank_biserial", "details.z", "details.zero_diffs"},
+	"TEST_Z_TWO_SAMPLE":   {"details.ci_high", "details.ci_low", "details.diff", "details.effect_size.cohens_d"},
 }
 
 // runRegisteredRow constructs typ's row test from the registry and feeds
