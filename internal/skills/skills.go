@@ -29,6 +29,11 @@ type Metadata struct {
 	Covers []string `json:"covers,omitempty"`
 	// ExamplesTags lists the runnable-example tags referenced by a "## See" section in an atomic skill.
 	ExamplesTags []string `json:"examples_tags,omitempty"`
+	// Requires lists the features (feature-profile spelling: operators
+	// bare, others `<kind>:<name>`) a topical skill needs; a feature
+	// profile hiding ANY of them prunes the skill. Each name must be a
+	// built-in feature (gated in internal/descriptor).
+	Requires []string `json:"requires,omitempty"`
 }
 
 // List walks the embedded content for *.md files, parses their YAML
@@ -102,7 +107,7 @@ func Names() []string {
 // ParseFrontmatter extracts YAML frontmatter fields from markdown content.
 // It returns key-value pairs from the --- delimited header.
 //
-// List-valued fields (applies_to, covers, examples_tags) are stored under
+// List-valued fields (applies_to, covers, examples_tags, requires) are stored under
 // their key as the raw post-colon string — callers that need a parsed slice
 // should use parseList or go through Metadata via parseMetadata.
 func ParseFrontmatter(md string) map[string]string {
@@ -144,6 +149,7 @@ func parseMetadata(md string) (Metadata, bool) {
 		Operator:     fm["operator"],
 		Covers:       parseList(fm["covers"]),
 		ExamplesTags: parseList(fm["examples_tags"]),
+		Requires:     parseList(fm["requires"]),
 	}, true
 }
 

@@ -1193,6 +1193,34 @@ pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeabl
 pulse/descriptor: func NewEnvelope(data any) *pulse/descriptor.Envelope
 pulse/descriptor: func NewEnvelopeWithRequest(data any, request any) *pulse/descriptor.Envelope
 pulse/descriptor: const None pulse/types.ComponentsMergeability = "none"
+pulse/descriptor: type Ontology struct
+pulse/descriptor: type Ontology field Edges []pulse/descriptor.OntologyEdge "json:\"edges\""
+pulse/descriptor: type Ontology field Nodes []pulse/descriptor.OntologyNode "json:\"nodes\""
+pulse/descriptor: type OntologyEdge struct
+pulse/descriptor: type OntologyEdge field From string "json:\"from\""
+pulse/descriptor: type OntologyEdge field Kind pulse/descriptor.OntologyEdgeKind "json:\"kind\""
+pulse/descriptor: type OntologyEdge field To string "json:\"to\""
+pulse/descriptor: const OntologyEdgeDocumentedBy pulse/descriptor.OntologyEdgeKind = "documented_by"
+pulse/descriptor: const OntologyEdgeExemplifiedBy pulse/descriptor.OntologyEdgeKind = "exemplified_by"
+pulse/descriptor: type OntologyEdgeKind string
+pulse/descriptor: const OntologyEdgeNotFor pulse/descriptor.OntologyEdgeKind = "not_for"
+pulse/descriptor: const OntologyEdgeRequiresCapability pulse/descriptor.OntologyEdgeKind = "requires_capability"
+pulse/descriptor: const OntologyEdgeRoutesTo pulse/descriptor.OntologyEdgeKind = "routes_to"
+pulse/descriptor: const OntologyEdgeServesIntent pulse/descriptor.OntologyEdgeKind = "serves_intent"
+pulse/descriptor: const OntologyEdgeUsesTerm pulse/descriptor.OntologyEdgeKind = "uses_term"
+pulse/descriptor: type OntologyNode struct
+pulse/descriptor: type OntologyNode field ID string "json:\"id\""
+pulse/descriptor: type OntologyNode field Kind pulse/descriptor.OntologyNodeKind "json:\"kind\""
+pulse/descriptor: type OntologyNode field Name string "json:\"name\""
+pulse/descriptor: const OntologyNodeCapability pulse/descriptor.OntologyNodeKind = "capability"
+pulse/descriptor: const OntologyNodeExample pulse/descriptor.OntologyNodeKind = "example"
+pulse/descriptor: const OntologyNodeGlossaryTerm pulse/descriptor.OntologyNodeKind = "glossary_term"
+pulse/descriptor: const OntologyNodeIntent pulse/descriptor.OntologyNodeKind = "intent"
+pulse/descriptor: type OntologyNodeKind string
+pulse/descriptor: const OntologyNodeMCPTool pulse/descriptor.OntologyNodeKind = "mcp_tool"
+pulse/descriptor: const OntologyNodeOperator pulse/descriptor.OntologyNodeKind = "operator"
+pulse/descriptor: const OntologyNodeSkill pulse/descriptor.OntologyNodeKind = "skill"
+pulse/descriptor: const OntologyNodeTable pulse/descriptor.OntologyNodeKind = "table"
 pulse/descriptor: type Operator struct
 pulse/descriptor: type Operator field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type Operator field Category string "json:\"category\""
@@ -3677,4 +3705,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: cf63ee68edf9c47bf0be41e6625d2f848562ccbadfc777d9966e6bdf20f84cc0
+// golden-hash: 5acc0af1a0cf4926784d69650a9e9e30bc5db95177cf0d11985c2d438727fb32

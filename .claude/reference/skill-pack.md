@@ -41,10 +41,17 @@ kind: design
 type: guide
 applies_to: process, compose, predict
 covers: [AGG, FILTER, aggregations, filterers]
+requires: [capability:crosstab]   # optional (U10)
 ---
 ```
 
+**`requires:` (topical, optional).** The features a topical skill cannot be read without, in feature-profile spelling (operators bare, every other kind `<kind>:<name>` — `capability:crosstab`, `TEST_WELCH`, `io_format:spss`); both list forms parse into `skills.Metadata.Requires`. Semantics are AND: a feature profile hiding ANY listed feature prunes the skill; a skill with no `requires:` is never pruned for its own sake. Each entry becomes a `requires_capability` edge in the skill ontology, and an entry that is not a built-in feature is an unresolved reference that fails `TestOntology_BaseHasNoProblems` (`internal/descriptor`). List only what the skill is ABOUT — a passing mention of an operator belongs in a feature fence, not here.
+
 `applies_to` entries must be valid CLI leaves (`process`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`) — or `mcp` on `tool-*` skills.
+
+## Skill ontology (U10)
+
+The pack, the examples, the operators (Purpose), the intent taxonomy, the glossary, the feature table and the MCP tool bindings join into one typed graph: public data types `descriptor.Ontology` / `OntologyNode` / `OntologyEdge` (closed, additive-only kind constants, no prose), built once per process by `BaseOntology()` in `internal/descriptor/ontology.go` — whose doc comment is the authoritative edge-source table. Node IDs are `<kind>:<name>` (`skill:op-agg-count`, `operator:AGG_COUNT`, `intent:describe`, `example:<_meta.name>`, `glossary_term:<id>`, `mcp_tool:pulse_facet`), except a capability node — every non-operator feature — whose ID and Name are its feature spelling verbatim (`capability:crosstab`, `io_format:csv`). Virtual skills are `skill` nodes. Skill-side edge sources: `operator:` frontmatter (→ `documented_by`), the `tool-<kebab>` stem (→ `documented_by` from `mcp_tool:pulse_<snake>`), an ATOMIC skill's `## See` section — each backticked skill stem is a `routes_to` edge and each `` `pulse_examples_search tags=[a, b]` `` links every example carrying all the tags (`exemplified_by`); other spans are prose and topical See sections emit nothing — and topical `requires:` (→ `requires_capability`).
 
 ## Required body sections (atomic skills)
 
