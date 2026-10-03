@@ -560,9 +560,26 @@
       "range_tables": []
     },
     "overlays": [],
-    "components_schemas": {}
+    "components_schemas": {},
+    "intents": [
+      "benchmark",
+      "change_over_time",
+      "compare_groups",
+      "composition",
+      "data_quality",
+      "describe",
+      "distribution_shape",
+      "drivers",
+      "flows",
+      "lookup",
+      "measure_construct",
+      "prepare",
+      "relationship",
+      "segment",
+      "simulate"
+    ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: d8ba2a6c178dbb2a01079e20587c963dca7ef66274bdc894e5b37efb46f54b4b
+// golden-hash: ff399074e690950ac99810c6981b15ff642502fd8b88dfcc898bb9c5db4d0edd

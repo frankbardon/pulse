@@ -160,6 +160,8 @@ var manifestScrubSkip = map[string]bool{
 	"ErrorCodesCount":   true,
 	"ErrorDomains":      true,
 	"ErrorCodes":        true,
+	// The intent taxonomy is static and names no operator.
+	"Intents": true,
 }
 
 // scrubManifest returns a deep copy of m in which no string outside the

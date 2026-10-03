@@ -216,4 +216,11 @@ type Manifest struct {
 	// block to plan ResponseComponents.Components[] consumption without
 	// iterating Components.* per category.
 	ComponentsSchemas ComponentsSchemasBlock `json:"components_schemas"`
+
+	// Intents lists the intent-taxonomy IDs, sorted — the closed set of
+	// question kinds every entry's intents list draws from. IDs only:
+	// the full Intent records (labels, phrasings, data shapes) are
+	// fetched on demand. Static: the same list under every feature
+	// profile.
+	Intents []string `json:"intents"`
 }

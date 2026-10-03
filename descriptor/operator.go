@@ -92,6 +92,11 @@ type Operator struct {
 	// explicit `tz` on its slot is refused. Extension operators are
 	// never zone-capable.
 	Zone string `json:"zone,omitempty"`
+
+	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
+	// operator answers, sorted. Omitted when the operator declares no
+	// purpose.
+	Intents []string `json:"intents,omitempty"`
 }
 
 // Param describes a single parameter accepted by an operator, test, or
@@ -166,6 +171,11 @@ type TestMeta struct {
 	// test to run (e.g. "Field", "Field2", "SplitBy", "Rows", "Cols").
 	// Drives request authoring directly.
 	Requires []string `json:"requires,omitempty"`
+
+	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the test
+	// family answers, sorted. Tier-2 entries carry their Family's.
+	// Omitted when the family declares no purpose.
+	Intents []string `json:"intents,omitempty"`
 }
 
 // DistributionMeta describes a synth distribution entry. One entry per
@@ -184,6 +194,10 @@ type DistributionMeta struct {
 
 	// Params lists the distribution-specific parameters.
 	Params []Param `json:"params"`
+
+	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
+	// distribution serves, sorted. Omitted when it declares no purpose.
+	Intents []string `json:"intents,omitempty"`
 }
 
 // MCPTool describes a single registered MCP tool. One entry per

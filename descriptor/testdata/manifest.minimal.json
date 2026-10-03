@@ -1057,9 +1057,26 @@
           "mergeability": "mergeable"
         }
       }
-    }
+    },
+    "intents": [
+      "benchmark",
+      "change_over_time",
+      "compare_groups",
+      "composition",
+      "data_quality",
+      "describe",
+      "distribution_shape",
+      "drivers",
+      "flows",
+      "lookup",
+      "measure_construct",
+      "prepare",
+      "relationship",
+      "segment",
+      "simulate"
+    ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: c96b1c9a71f23c3c2fb52504f50016707f940310b2e8fba3afb24e3cff89dbdc
+// golden-hash: 0fcaa9c022b5a1a1470b20bf45478672e0cab8b04171978a46e38c2852e5d2db
