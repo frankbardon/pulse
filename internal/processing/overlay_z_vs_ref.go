@@ -34,7 +34,7 @@ import (
 //
 //	se      = sqrt(var_target/n_target + var_ref/n_ref)
 //	z       = (target_mean - ref_mean) / se
-//	p_value = 2 * (1 - Φ(|z|))
+//	p_value = 2 * Φ(-|z|)
 //
 // Missing reference rows emit `PULSE_OVERLAY_REF_ZERO` with a
 // `ref_missing=true` Detail flag; the affected entry's Statistic is

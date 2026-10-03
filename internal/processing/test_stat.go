@@ -66,6 +66,22 @@ func standardNormalCDF(z float64) float64 {
 	return 0.5 * math.Erfc(-z/math.Sqrt2)
 }
 
+// normalTwoSidedP returns the two-sided standard normal p-value
+// 2·Φ(−|z|) = erfc(|z|/√2). Every normal-approximation test routes its
+// two-sided p through here: the complement form 2·(1 − Φ(|z|)) cancels
+// to exactly 0 once |z| exceeds ~8.3, while erfc keeps full relative
+// precision down to p ≈ 1e-308 (|z| ≈ 37.5). NaN in, NaN out.
+func normalTwoSidedP(z float64) float64 {
+	return math.Erfc(math.Abs(z) / math.Sqrt2)
+}
+
+// normalUpperTailP returns the one-sided upper-tail p-value
+// P(Z ≥ z) = Φ(−z), tail-accurate for large positive z where 1 − Φ(z)
+// cancels to 0.
+func normalUpperTailP(z float64) float64 {
+	return standardNormalCDF(-z)
+}
+
 // regularizedGammaQ returns Q(a, x) = 1 - P(a, x), the regularized
 // upper incomplete gamma function. Routes between the series expansion
 // (x < a+1) and the continued fraction (otherwise) for fastest

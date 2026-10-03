@@ -683,7 +683,7 @@ func pairwiseTwoMeansZKernel(in pwInputs) (float64, string, bool) {
 		return 0, "ORBIT_STATS_SKIP_SE_ZERO", false
 	}
 	z := (in.m1 - in.m2) / se
-	pv := 2 * standardNormalCDF(-math.Abs(z))
+	pv := normalTwoSidedP(z)
 	return pv, "", true
 }
 
@@ -711,7 +711,7 @@ func pairwiseWeightedTwoMeansZKernel(nBasis string) pwKernel {
 		}
 		se := math.Sqrt(a + b)
 		z := (in.w1.mean - in.w2.mean) / se
-		pv := 2 * standardNormalCDF(-math.Abs(z))
+		pv := normalTwoSidedP(z)
 		if math.IsNaN(pv) {
 			return 0, "ORBIT_STATS_SKIP_PVALUE_NAN", false
 		}

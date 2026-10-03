@@ -414,7 +414,12 @@ func TestOverlayPairwise_NWithinDistinctDepthGuard(t *testing.T) {
 // p-value moved 6.737437274750846e-10 → 6.737435054304797e-10 when
 // standardNormalCDF switched from ½(1+erf) to ½·erfc, which no longer
 // cancels in the lower tail (checked against R's pnorm).
-const pairwiseBaselineLayerJSON = `[{"name":"pz","kind":"OVERLAY_PAIRWISE_PROP_Z","scope":"row","ref":{},"payload":{"shape":"matrix","matrix":{"row_header":{"fields":["pair_a","pair_b"],"types":["PAIR","PAIR"]},"column_header":{"fields":["aud"],"types":["GROUP_CATEGORY"]},"row_keys":[["A","B"],["A","C"],["B","C"]],"column_keys":[["x"],["y"]],"cells":[[{"value":0.0038924171227785465,"present":true},{"value":1,"present":true}],[{"value":6.737435054304797e-10,"present":true},{"value":1,"present":true}],[{"value":0.00040695201744500586,"present":true},{"value":1,"present":true}]],"grand_total":{"present":false},"cell_label":"p_value","normalize_applied":""}},"summary":{"count":6}}]`
+//
+// Re-pinned for E2-S3 (guidance-backfill-inferential): twoProportionZ
+// moved from 2·(1 − Φ(|z|)) to the tail-accurate erfc(|z|/√2), so the
+// A–C × x p-value moved 6.737435054304797e-10 → 6.737436018932718e-10
+// (R 2*pnorm(-|z|) = 6.7374360189326970e-10).
+const pairwiseBaselineLayerJSON = `[{"name":"pz","kind":"OVERLAY_PAIRWISE_PROP_Z","scope":"row","ref":{},"payload":{"shape":"matrix","matrix":{"row_header":{"fields":["pair_a","pair_b"],"types":["PAIR","PAIR"]},"column_header":{"fields":["aud"],"types":["GROUP_CATEGORY"]},"row_keys":[["A","B"],["A","C"],["B","C"]],"column_keys":[["x"],["y"]],"cells":[[{"value":0.003892417122778627,"present":true},{"value":1,"present":true}],[{"value":6.737436018932718e-10,"present":true},{"value":1,"present":true}],[{"value":0.0004069520174449609,"present":true},{"value":1,"present":true}]],"grand_total":{"present":false},"cell_label":"p_value","normalize_applied":""}},"summary":{"count":6}}]`
 
 func TestOverlayPairwise_DistinctModeInertWhenUnset(t *testing.T) {
 	host := pairwisePropHost()

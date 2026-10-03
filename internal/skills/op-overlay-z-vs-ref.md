@@ -25,7 +25,7 @@ SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_Z_TWO_SAMPLE` on the same inputs — shares `standardNormalCDF` with it and `OVERLAY_Z_CELL`.
+- **Byte-equal** to `TEST_Z_TWO_SAMPLE` on the same inputs — shares `normalTwoSidedP` with it and `OVERLAY_Z_CELL`.
 - Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
 - Unlike the streamable SERIES arm of `OVERLAY_INDEX_VS_REF` / `OVERLAY_DELTA_VS_REF`: inferential, buffered.
 

@@ -104,7 +104,7 @@ func (p *pairedTRow) Finalize() (*types.TestResult, error) {
 	tcrit := statdist.StudentTInverseTwoSided(p.alpha, df)
 	ciLow := b.mean - tcrit*se
 	ciHigh := b.mean + tcrit*se
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(p.spec),
 		Type:       types.TEST_PAIRED_T,
 		Variant:    "paired_two_sided",
@@ -119,12 +119,11 @@ func (p *pairedTRow) Finalize() (*types.TestResult, error) {
 			"variance":  variance,
 			"ci_low":    ciLow,
 			"ci_high":   ciHigh,
-			"effect_size": map[string]any{
-				// Cohen's d for paired samples: mean_diff / sd_diff.
-				"cohens_d": b.mean / sd,
-			},
 		},
-	}, nil
+	}
+	// Cohen's d for paired samples: mean_diff / sd_diff.
+	setEffectSize(res.Details, "cohens_d", cohensDOneSample(b.mean, 0, sd))
+	return res, nil
 }
 
 func (p *pairedTRow) reset() {

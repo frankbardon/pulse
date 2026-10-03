@@ -277,9 +277,10 @@ func TestApplyDeltaVsRef_ZeroRefNoNaN(t *testing.T) {
 	approxEqual(t, "cell (0,1)", cellAt(t, layer, 0, 1), 9.0, 1e-9)
 }
 
-// TestApplyPropZCell_KnownAnswer pins a hand-computed two-proportion
-// p-value for a known (success, n) pair. Cell (0,0): 50/100 target vs
-// 60/100 ref — should produce a p-value ≈ 0.157 (z ≈ -1.4142).
+// TestApplyPropZCell_KnownAnswer pins the two-proportion p-value for a
+// known (success, n) pair against R. Cell (0,0): 50/100 target vs
+// 60/100 ref ⇒ z = −1.4213, p = prop.test(c(50, 60), c(100, 100),
+// correct=FALSE)$p.value = 0.15521848968468363.
 func TestApplyPropZCell_KnownAnswer(t *testing.T) {
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
@@ -307,9 +308,9 @@ func TestApplyPropZCell_KnownAnswer(t *testing.T) {
 	// se = sqrt(0.55 * 0.45 * (1/100 + 1/100)) = sqrt(0.2475 * 0.02)
 	//    = sqrt(0.00495) ≈ 0.070356
 	// z = (0.5 - 0.6) / 0.070356 ≈ -1.4213
-	// p_value = 2 * (1 - Φ(1.4213)) ≈ 0.1552
+	// p_value = 2 * Φ(-1.4213) = 0.15521848968468363 (R)
 	got := cellAt(t, layer, 0, 0)
-	approxEqual(t, "p-value (0,0)", got, 0.1552, 0.005)
+	approxEqual(t, "p-value (0,0)", got, propZ50v60R, 1e-12)
 	// Cell (0,1): 50/100 target vs 50/100 ref ⇒ p-value = 1.0 (z = 0).
 	approxEqual(t, "p-value (0,1)", cellAt(t, layer, 0, 1), 1.0, 1e-6)
 }

@@ -50,20 +50,36 @@ func pairs(t *testing.T, layer types.OverlayLayer, i, j int) []float64 {
 	return v
 }
 
+// R references for the pooled two-proportion z-test at n = 100 per side:
+// prop.test(c(50, 60), c(100, 100), correct=FALSE)$p.value and
+// prop.test(c(60, 40), c(100, 100), correct=FALSE)$p.value (R 4.6.1).
+const (
+	propZ50v60R = 0.15521848968468363
+	propZ60v40R = 0.0046777349810472766
+)
+
 // TestApplyPropZPanel_PairwiseSig_3Targets pins the per-cell pairwise
-// p-values for a 4-slot panel (reference + 3 targets) against hand-
-// computed expected p-values. Each slot carries an identical 3×3
-// matrix of cell values so the pairwise math is predictable across
-// every (i, j) pair.
+// p-values for a 4-slot panel (reference + 3 targets) against R. Each
+// slot carries an identical 3×3 matrix of cell values so the pairwise
+// math is predictable across every (i, j) pair.
 //
 // Cell (0,0): reference = 50/100; targets = 50/100, 60/100, 40/100.
+// Expected values are R's prop.test(c(a, b), c(100, 100),
+// correct=FALSE)$p.value — the pooled two-proportion z-test, identical
+// to 2*pnorm(-|z|):
 //
 //	pair (ref, t0)  : 50/100 vs 50/100 ⇒ p = 1.0 (z = 0)
-//	pair (ref, t1)  : 50/100 vs 60/100 ⇒ p ≈ 0.157
-//	pair (ref, t2)  : 50/100 vs 40/100 ⇒ p ≈ 0.157
-//	pair (t0, t1)   : 50/100 vs 60/100 ⇒ p ≈ 0.157
-//	pair (t0, t2)   : 50/100 vs 40/100 ⇒ p ≈ 0.157
-//	pair (t1, t2)   : 60/100 vs 40/100 ⇒ p ≈ 0.0046
+//	pair (ref, t1)  : 50/100 vs 60/100 ⇒ p = 0.15521848968468363 (z = 1.4213)
+//	pair (ref, t2)  : 50/100 vs 40/100 ⇒ p = 0.15521848968468363
+//	pair (t0, t1)   : 50/100 vs 60/100 ⇒ p = 0.15521848968468363
+//	pair (t0, t2)   : 50/100 vs 40/100 ⇒ p = 0.15521848968468363
+//	pair (t1, t2)   : 60/100 vs 40/100 ⇒ p = 0.0046777349810472766 (z = 2.8284)
+//
+// E2-S3 (guidance-backfill-inferential): the hand value used to be
+// p ≈ 0.1573 at a 0.005 tolerance. That figure was wrong — it is
+// 2·(1 − Φ(1.4142)), i.e. z taken as 0.1/√(0.5·0.5·0.02) (the SE at
+// p = 0.5, not the pooled 0.55) — and the tolerance hid it. The code
+// was always the pooled formula (unpooled would give 0.1531).
 //
 // Pair index ordering (M = 4 slots; 6 pairs):
 //
@@ -116,11 +132,11 @@ func TestApplyPropZPanel_PairwiseSig_3Targets(t *testing.T) {
 	// 2 = t1, 3 = t2. Pair (0,1) is ref vs t0 = 50/100 vs 50/100 ⇒ p =
 	// 1.0; pair (2,3) is t1 vs t2 = 60/100 vs 40/100 ⇒ p ≈ 0.0046.
 	approxEqual(t, "pair (0,1) ref-vs-t0", got[pairIndex(0, 1, 4)], 1.0, 1e-9)
-	approxEqual(t, "pair (0,2) ref-vs-t1", got[pairIndex(0, 2, 4)], 0.1573, 0.005)
-	approxEqual(t, "pair (0,3) ref-vs-t2", got[pairIndex(0, 3, 4)], 0.1573, 0.005)
-	approxEqual(t, "pair (1,2) t0-vs-t1", got[pairIndex(1, 2, 4)], 0.1573, 0.005)
-	approxEqual(t, "pair (1,3) t0-vs-t2", got[pairIndex(1, 3, 4)], 0.1573, 0.005)
-	approxEqual(t, "pair (2,3) t1-vs-t2", got[pairIndex(2, 3, 4)], 0.0046, 0.001)
+	approxEqual(t, "pair (0,2) ref-vs-t1", got[pairIndex(0, 2, 4)], propZ50v60R, 1e-12)
+	approxEqual(t, "pair (0,3) ref-vs-t2", got[pairIndex(0, 3, 4)], propZ50v60R, 1e-12)
+	approxEqual(t, "pair (1,2) t0-vs-t1", got[pairIndex(1, 2, 4)], propZ50v60R, 1e-12)
+	approxEqual(t, "pair (1,3) t0-vs-t2", got[pairIndex(1, 3, 4)], propZ50v60R, 1e-12)
+	approxEqual(t, "pair (2,3) t1-vs-t2", got[pairIndex(2, 3, 4)], propZ60v40R, 1e-12)
 
 	// Layer kind echoes the spec.
 	if layer.Kind != types.OverlayKindPropZPanel {
@@ -407,11 +423,10 @@ func TestApplyPropZPanel_SingleTarget_DegenerateCase(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("len(pairs) = %d, want 1 (2-slot panel)", len(got))
 	}
-	// pair (0, 1) = reference vs target = 50/100 vs 60/100 ⇒ p ≈
-	// 0.157 (same value the OVERLAY_PROP_Z_CELL known-answer test
-	// pins for the same (success, n) pair, modulo the broader
-	// tolerance).
-	approxEqual(t, "single pair p-value", got[0], 0.1573, 0.005)
+	// pair (0, 1) = reference vs target = 50/100 vs 60/100 ⇒ R
+	// prop.test(correct=FALSE) p = 0.15521848968468363 (the same value
+	// the OVERLAY_PROP_Z_CELL known-answer test pins for this pair).
+	approxEqual(t, "single pair p-value", got[0], propZ50v60R, 1e-12)
 }
 
 // TestApplyPropZPanel_PairIndexInverse pins the pair-index helper

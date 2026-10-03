@@ -245,12 +245,6 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
 	ciLow := diff - tcrit*se
 	ciHigh := diff + tcrit*se
-	// Cohen's d via pooled standard deviation.
-	pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / (na + nb - 2))
-	var cohensD float64
-	if pooled > 0 {
-		cohensD = diff / pooled
-	}
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       tt.spec.Type, // honor TEST_T vs TEST_WELCH alias
@@ -268,10 +262,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 			"diff":     diff,
 			"ci_low":   ciLow,
 			"ci_high":  ciHigh,
-			"effect_size": map[string]any{
-				"cohens_d": cohensD,
-			},
 		},
 	}
+	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
 	return res, nil
 }

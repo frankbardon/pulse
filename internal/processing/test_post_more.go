@@ -79,7 +79,7 @@ func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	df := float64(b.n - 1)
 	pvalue := statdist.StudentTTwoSidedP(tstat, df)
 	tcrit := statdist.StudentTInverseTwoSided(p.alpha, df)
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(p.spec),
 		Type:       types.TEST_PAIRED_T,
 		Variant:    "paired_two_sided_post",
@@ -94,11 +94,11 @@ func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			"variance":  variance,
 			"ci_low":    b.mean - tcrit*se,
 			"ci_high":   b.mean + tcrit*se,
-			"effect_size": map[string]any{
-				"cohens_d": b.mean / sd,
-			},
 		},
-	}, nil
+	}
+	// Cohen's d for paired samples: mean_diff / sd_diff.
+	setEffectSize(res.Details, "cohens_d", cohensDOneSample(b.mean, 0, sd))
+	return res, nil
 }
 
 // spearmanRPost: rank-based correlation between two result columns.
@@ -307,7 +307,7 @@ func (k *kendallTauPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			corrected += 1
 		}
 		z = corrected / math.Sqrt(varS)
-		p = 2 * (1 - standardNormalCDF(math.Abs(z)))
+		p = normalTwoSidedP(z)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(k.spec),
@@ -422,7 +422,7 @@ func (w *wilcoxonSRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			}
 		}
 		z = diff / math.Sqrt(varW)
-		p = 2 * (1 - standardNormalCDF(math.Abs(z)))
+		p = normalTwoSidedP(z)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(w.spec),

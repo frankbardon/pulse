@@ -224,6 +224,50 @@ func TestTTest_OneSample_CohensD(t *testing.T) {
 	}
 }
 
+// TestTwoSample_CohensD pins the pooled-SD two-sample Cohen's d emitted
+// by TEST_T / TEST_WELCH (two-sample arm) and TEST_Z_TWO_SAMPLE against
+// R 4.6.1 effectsize 1.0.3:
+//
+//	effectsize::cohens_d(c(10,12,14,16,18), c(11,13,19,22,25),
+//	                     pooled_sd = TRUE)$Cohens_d = -0.84327404271156781
+//
+// Groups sort alphabetically, so "control" is the first (minuend) group,
+// matching R's x/y order.
+func TestTwoSample_CohensD(t *testing.T) {
+	const want = -0.84327404271156781
+	for _, typ := range []types.TestType{types.TEST_T, types.TEST_WELCH, types.TEST_Z_TWO_SAMPLE} {
+		t.Run(string(typ), func(t *testing.T) {
+			schema := twoSampleFixtureSchema()
+			spec := &types.Test{Type: typ, Field: "revenue", SplitBy: "treatment", Alpha: 0.05}
+			factory := rowTestRegistry[typ]
+			rt, err := factory(spec, schema)
+			if err != nil {
+				t.Fatalf("factory: %v", err)
+			}
+			feed := func(group string, vs ...float64) {
+				for _, v := range vs {
+					if err := rt.UpdateRow(newTestRecord(t, schema, map[string]float64{"revenue": v}, "treatment", group)); err != nil {
+						t.Fatalf("UpdateRow: %v", err)
+					}
+				}
+			}
+			feed("control", 10, 12, 14, 16, 18)
+			feed("variant", 11, 13, 19, 22, 25)
+			res, err := rt.Finalize()
+			if err != nil {
+				t.Fatalf("Finalize: %v", err)
+			}
+			got, ok := effectSizes(t, res)["cohens_d"].(float64)
+			if !ok {
+				t.Fatalf("effect_size.cohens_d missing")
+			}
+			if rel := math.Abs(got-want) / math.Abs(want); rel > 1e-12 {
+				t.Errorf("cohens_d = %.17g, want %.17g (R effectsize), rel err %.3g", got, want, rel)
+			}
+		})
+	}
+}
+
 // TestEffectSize_DegenerateInputsOmitKey pins the NaN-safe contract:
 // an undefined effect size is OMITTED (never NaN / ±Inf on the wire),
 // and the effect_size map is not created when nothing lands in it.
@@ -243,6 +287,10 @@ func TestEffectSize_DegenerateInputsOmitKey(t *testing.T) {
 		{"cohens_d_zero_sd", cohensDOneSample(3, 1, 0)},
 		{"cohens_d_nan_sd", cohensDOneSample(3, 1, math.NaN())},
 		{"cohens_d_inf_sd", cohensDOneSample(3, 1, math.Inf(1))},
+		{"cohens_d_two_sample_zero_pooled_sd", cohensDTwoSample(2, 5, 0, 5, 0)},
+		{"cohens_d_two_sample_no_dof", cohensDTwoSample(2, 1, 4, 1, 4)},
+		{"cohens_d_two_sample_nan_variance", cohensDTwoSample(2, 5, math.NaN(), 5, 1)},
+		{"cohens_d_two_sample_inf_variance", cohensDTwoSample(2, 5, math.Inf(1), 5, 1)},
 		{"raw_inf", math.Inf(-1)},
 	}
 	for _, tc := range cases {

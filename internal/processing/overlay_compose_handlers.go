@@ -531,10 +531,10 @@ func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 //	pooled   = (sa + sb) / (na + nb)
 //	se       = sqrt(pooled * (1 - pooled) * (1/na + 1/nb))
 //	z        = (pa - pb) / se
-//	p_value  = 2 * (1 - Φ(|z|))
+//	p_value  = 2 * Φ(-|z|)
 //
 // Returns (NaN, false) when na/nb <= 0, pooled ∈ {0, 1}, or se == 0.
-// Reuses standardNormalCDF for the p-value calc so the overlay and
+// Reuses normalTwoSidedP (tail-accurate erfc form) so the overlay and
 // TEST_PROP_Z produce identical p-values for the same (success, n)
 // pair.
 func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
@@ -552,7 +552,7 @@ func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
 	pa := sa / na
 	pb := sb / nb
 	z := (pa - pb) / se
-	p := 2 * (1 - standardNormalCDF(math.Abs(z)))
+	p := normalTwoSidedP(z)
 	if math.IsNaN(p) || math.IsInf(p, 0) {
 		return math.NaN(), false
 	}

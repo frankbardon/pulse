@@ -149,7 +149,7 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	}
 	sePool := math.Sqrt(pooled * (1 - pooled) * (1/na + 1/nb))
 	z := (pa - pb) / sePool
-	pvalue := 2 * (1 - standardNormalCDF(math.Abs(z)))
+	pvalue := normalTwoSidedP(z)
 	// Wald (unpooled) standard error for the CI on the rate diff.
 	seUnpool := math.Sqrt(pa*(1-pa)/na + pb*(1-pb)/nb)
 	// Two-sided normal critical value at alpha/2 via the inverse erf.
