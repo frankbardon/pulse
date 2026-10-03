@@ -24,7 +24,7 @@ Public types live in `descriptor/guidance.go`; the registries and built-in decla
 
 **Purpose limits** (`internal/descriptor/purpose_validate.go`): `Plain` non-empty and ≤ `PurposePlainMax` (140) characters; ≥1 intent; ≥ `PurposeQuestionsMin` (2) non-empty `Questions`; ≥1 `NotFor`; ≥1 `UseCases` entry keyed by a known `Domain` with a non-empty value; `Level` one of the three. Each broken rule is a `PurposeRule` (`plain`, `intents`, `questions`, `not_for`, `use_cases`, `level`, `alternative`, `intent_unknown`, `glossary_unknown`, `jargon_unlinked`).
 
-**Glossary limits** (`internal/descriptor/glossary.go`): unique kebab-case IDs; `Short` ≤200 runes and `WhyCare` ≤300; every `SeeAlso` resolves; every `Jargon` term has ≥1 `Form`; no `Form` claimed by two terms. The set started as a ~60-term starter; `TestGlossary_Size` holds it to a loose 55..150 (`glossaryMinTerms` / `glossaryMaxTerms`, never an exact count) so backfills can add the terms their prose links. It includes a term for every emitted effect-size key (`TestGlossary_EffectSizeKeysHaveTerms`, key in kebab case — `cramers_v` → `cramers-v`). `TestGlossary_OrphanReport` logs — never fails — every term no built-in Purpose links; flipping it to binding is U09's call.
+**Glossary limits** (`internal/descriptor/glossary.go`): unique kebab-case IDs; `Short` ≤200 runes and `WhyCare` ≤300; every `SeeAlso` resolves; every `Jargon` term has ≥1 `Form`; no `Form` claimed by two terms. The set started as a ~60-term starter; `TestGlossary_Size` holds it to a loose 55..150 (`glossaryMinTerms` / `glossaryMaxTerms`, never an exact count) so backfills can add the terms their prose links. It includes a term for every emitted effect-size key (`TestGlossary_EffectSizeKeysHaveTerms`, key in kebab case — `cramers_v` → `cramers-v`). `TestGlossary_OrphanReport` is binding: every term is linked by some built-in Purpose or carries an owner-tagged exemption (Gates).
 
 ## Intent taxonomy
 
@@ -95,14 +95,26 @@ A new key joins `testEffectSizeKeys`, the glossary `effectSizeKeys` list, a glos
 
 ## Gates
 
-**Two tiers over ONE validator per type.** VALIDITY is binding; COVERAGE is report-only (`t.Log` of the full missing list grouped by category — never fails until U09 flips it).
+**Two tiers over ONE validator per type, BOTH binding.** VALIDITY fails on any broken rule. COVERAGE fails on any gap that is neither covered nor listed in the exemption ledger (U09 flipped it from report-only); each gate still `t.Log`s its full gap list.
 
-- `TestSkillsCoverAllPurposes` (CLAUDE.md-listed) — validity limits over `builtinPurposes`; no Purpose key names an unregistered surface; coverage log of every built-in lacking a Purpose (10 categories incl. post-tests, overlay kinds, distributions).
+- `TestSkillsCoverAllPurposes` (CLAUDE.md-listed) — validity limits over `builtinPurposes`; no Purpose key names an unregistered surface; coverage: every built-in (10 categories incl. post-tests, overlay kinds, distributions) declares a Purpose.
 - `TestPurposeAlternativesResolve` — every `NotFor.Use` resolves (bare → a registered built-in via `PurposeSurfaces`, `<kind>:<name>` → a `features.go` row) and is not the operator itself.
-- `TestPurposeQuestionsResolve` — intent IDs exist; coverage log of intents with <3 declaring operators or no `_meta.intents`-tagged example.
+- `TestPurposeQuestionsResolve` — intent IDs exist; coverage: every intent is declared by ≥3 built-in Purposes AND tagged by ≥1 example's `_meta.intents` (two gap kinds, two tables).
 - `TestGlossaryTermsResolve` — glossary well-formedness + the `purpose` subtest (glossary links + jargon rule).
-- `TestInterpretationCoversOutputs` — Interpretation validity; coverage log of every test family, regression and `Inferential` overlay kind lacking `statistic` / `p_value` / its declared effect sizes.
-- `TestGuidanceProseLint` — the binding prose lint (Interpretation section above); `TestGlossary_Size` (loose 55..150) and the report-only `TestGlossary_OrphanReport`.
+- `TestInterpretationCoversOutputs` — Interpretation validity; coverage: every test family, regression and `Inferential` overlay kind reads `statistic` / `p_value` / its declared effect sizes (or the per-shape slot).
+- `TestGuidanceProseLint` — the binding prose lint (Interpretation section above); `TestGlossary_Size` (loose 55..150); `TestGlossary_OrphanReport` — coverage: every glossary term is linked by some built-in Purpose.
+
+**Exemption ledger** — `internal/descriptor/guidance_exemptions_test.go`, the ONE place a coverage gap may be excused (test-only data; production code never reads the roadmap). Modelled on `guidanceLintAllowlist`, each entry is `{Key, Why, Owner}`: `Why` is mandatory, `Owner` is the roadmap unit that will close the gap (`ownerPermanent` for a gap closed by design). `applyExemptions` fails an entry that is unjustified, ownerless, owned by a malformed or unknown unit, listed twice, or STALE — the gap is now covered (delete the entry with the change that closes it), or the owner's `docs/roadmap/units/<U>-*.md` frontmatter says `status: done` (a permanent entry never goes stale on status). The status reader is injected (`unitStatusReader`; `roadmapUnitStatusIn(dir)` over a fixture directory in tests).
+
+| Table | Gate | Key | Seeded owners (U09 start) |
+|---|---|---|---|
+| `purposeExemptions` | `TestSkillsCoverAllPurposes` | operator / family / kind name | every descriptive built-in lacking a Purpose → U09 |
+| `interpretationExemptions` | `TestInterpretationCoversOutputs` | `<operator>:<field>` | empty |
+| `intentDeclarerExemptions` | `TestPurposeQuestionsResolve` | intent ID | `lookup` permanent; `flows` → U28; `measure_construct` → U24; `data_quality`, `prepare`, `segment`, `simulate` → U09 |
+| `intentExampleExemptions` | `TestPurposeQuestionsResolve` | intent ID | `lookup` permanent; `flows` → U28; `measure_construct` → U24; the other twelve → U09 |
+| `glossaryOrphanExemptions` | `TestGlossary_OrphanReport` | term ID | eigenvalue / loading / principal-component / reliability → U24; centroid / distance → U25; similarity → U27; raking / stochastic-matrix / steady-state → U28; six descriptive terms → U09 |
+
+`lookup` is the only permanent key: a non-analytic intent served by `pulse_lookup`, never an operator, so no unit will close it. `TestGuidanceExemptions_Ledger` pins that set — a new permanent exemption is a deliberate edit of that test. `TestGuidanceExemptions_Apply` / `_RoadmapStatusReader` / `_GatesBite` falsify every ledger rule and prove each coverage gate fails on an unexempted gap against the real ledger.
 - `TestExamples_IntentsFromTaxonomy` — optional example `_meta.intents` values are intent IDs (binding).
 - The runtime probes above; `TestVirtualSkillStemsNotEmbedded`; `TestGuidanceSkills_*` (surface parity).
 
@@ -146,7 +158,7 @@ All eight root `*Registration` structs take an optional `Purpose *descriptor.Pur
 
 ## Out of scope (owned later)
 
-- U09 — descriptive operators; flips the coverage tier to binding and `TestGlossary_OrphanReport` from report-only to failing.
+- U09 — descriptive operators; closes its own entries in the exemption ledger (the coverage tier is already binding).
 - U10 — profile-aware skill rendering.
 - U21 — rendering guidance into skills and docs (and syncing atomic skills that drifted from the registries).
 - U22 — recommend / explain (first consumer of intent shapes).

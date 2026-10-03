@@ -118,15 +118,15 @@ func TestGlossary_Size(t *testing.T) {
 	}
 }
 
-// TestGlossary_OrphanReport logs every glossary term no built-in
-// Purpose links through its Glossary list (Interpretations carry no
-// glossary links). Report-only: terms written ahead of the operators
-// that will cite them are orphans by design until those Purposes land.
-// It never fails.
+// TestGlossary_OrphanReport (binding): every glossary term is linked by
+// some built-in Purpose's Glossary list (Interpretations carry no
+// glossary links), unless glossaryOrphanExemptions lists it — terms
+// written ahead of the operators that will cite them carry the unit that
+// ships those operators as owner.
 func TestGlossary_OrphanReport(t *testing.T) {
-	for _, id := range glossaryOrphans(BuiltinPurposes()) {
-		t.Logf("glossary term %q is linked by no built-in Purpose", id)
-	}
+	orphans := glossaryOrphans(BuiltinPurposes())
+	t.Logf("glossary orphans (%d): %s", len(orphans), strings.Join(orphans, ", "))
+	assertExempted(t, "glossary-orphan", orphans, glossaryOrphanExemptions, roadmapUnitStatus())
 }
 
 // glossaryOrphans returns the sorted glossary IDs no purpose links.

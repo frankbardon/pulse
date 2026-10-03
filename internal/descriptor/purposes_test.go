@@ -122,8 +122,9 @@ func assertPurposeRuleFamily(t *testing.T, family ...PurposeRule) {
 // (binding): every declared built-in Purpose meets the limits — Plain
 // at most 140 characters, at least one intent, two Questions, one
 // NotFor, one UseCase, and a Level — and every registry key names a
-// registered built-in. Coverage (report-only): every registered
-// built-in lacking a Purpose is logged, grouped by category.
+// registered built-in. Coverage (binding): every registered built-in
+// declares a Purpose or holds a purposeExemptions entry; the full
+// missing list is logged, grouped by category.
 func TestSkillsCoverAllPurposes(t *testing.T) {
 	assertPurposeRuleFamily(t,
 		PurposeRulePlain, PurposeRuleIntents, PurposeRuleQuestions,
@@ -151,6 +152,35 @@ func TestSkillsCoverAllPurposes(t *testing.T) {
 		}
 	}
 	t.Logf("Purpose coverage: %d of %d built-ins declare one; %d lack a Purpose:%s", declared, total, missing, report.String())
+	assertExempted(t, "purpose", purposeCoverageGaps(builtinPurposes), purposeExemptions, roadmapUnitStatus())
+}
+
+// purposeCoverageGaps returns every registered built-in reg declares no
+// Purpose for.
+func purposeCoverageGaps(reg map[string]descriptor.Purpose) []string {
+	var out []string
+	for _, s := range PurposeSurfaces() {
+		for _, n := range s.Names {
+			if _, ok := reg[n]; !ok {
+				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
+// assertExempted fails on every gap the ledger does not exempt and on
+// every ledger problem (unjustified, ownerless, unknown or done owner,
+// duplicate, stale).
+func assertExempted(t *testing.T, table string, gaps []string, ledger []guidanceExemption, status unitStatusReader) {
+	t.Helper()
+	remaining, problems := applyExemptions(table, gaps, ledger, status)
+	for _, p := range problems {
+		t.Error(p)
+	}
+	for _, g := range remaining {
+		t.Errorf("%s coverage gap %s is neither covered nor exempted (guidance_exemptions_test.go)", table, g)
+	}
 }
 
 // TestPurposeRegistry_OrphanKeysDetected: a Purpose keyed by a name no
@@ -186,35 +216,48 @@ func TestPurposeAlternativesResolve(t *testing.T) {
 }
 
 // TestPurposeQuestionsResolve. Validity (binding): every intent a
-// Purpose declares is in the taxonomy, once. Coverage (report-only):
-// intents fewer than three built-ins declare, and intents no example's
-// _meta.intents tags, are logged.
+// Purpose declares is in the taxonomy, once. Coverage (binding): every
+// intent is declared by at least intentMinDeclarers built-ins AND tagged
+// by at least one example's _meta.intents, unless intentDeclarerExemptions
+// / intentExampleExemptions lists the gap.
 func TestPurposeQuestionsResolve(t *testing.T) {
 	assertPurposeRuleFamily(t, PurposeRuleIntentUnknown)
 
+	thin, untagged := intentCoverageGaps(builtinPurposes, examples.Intents())
+	t.Logf("Intent coverage: %d intents declared by fewer than %d operators: %s", len(thin), intentMinDeclarers, strings.Join(thin, ", "))
+	t.Logf("Intent coverage: %d intents with no tagged example: %s", len(untagged), strings.Join(untagged, ", "))
+	status := roadmapUnitStatus()
+	assertExempted(t, "intent-declarers", thin, intentDeclarerExemptions, status)
+	assertExempted(t, "intent-example", untagged, intentExampleExemptions, status)
+}
+
+// intentMinDeclarers is how many built-in Purposes must declare an intent.
+const intentMinDeclarers = 3
+
+// intentCoverageGaps returns the intent IDs fewer than intentMinDeclarers
+// purposes declare (thin) and those no example tags (untagged).
+func intentCoverageGaps(purposes map[string]descriptor.Purpose, exampleIntents map[string][]string) (thin, untagged []string) {
 	declaredBy := map[string]int{}
-	for _, p := range builtinPurposes {
+	for _, p := range purposes {
 		for _, id := range p.Intents {
 			declaredBy[id]++
 		}
 	}
 	tagged := map[string]bool{}
-	for _, ids := range examples.Intents() {
+	for _, ids := range exampleIntents {
 		for _, id := range ids {
 			tagged[id] = true
 		}
 	}
-	var thin, untagged []string
 	for _, id := range IntentIDs() {
-		if declaredBy[id] < 3 {
-			thin = append(thin, id+"("+strconv.Itoa(declaredBy[id])+")")
+		if declaredBy[id] < intentMinDeclarers {
+			thin = append(thin, id)
 		}
 		if !tagged[id] {
 			untagged = append(untagged, id)
 		}
 	}
-	t.Logf("Intent coverage: %d intents declared by fewer than 3 operators: %s", len(thin), strings.Join(thin, ", "))
-	t.Logf("Intent coverage: %d intents with no tagged example: %s", len(untagged), strings.Join(untagged, ", "))
+	return thin, untagged
 }
 
 // testPurposeGlossaryLinks is the Purpose half of TestGlossaryTermsResolve
