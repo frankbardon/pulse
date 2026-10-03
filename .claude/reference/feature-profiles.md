@@ -180,7 +180,7 @@ Served-body assertions that cannot bind until the U10 body rewrites land run REP
 
 - `atomicBodiesNamePrunedFail` (`TestSkillsCoverProfileGet`) — a served ATOMIC body names a pruned skill stem or example. **Binding since E2-S1**: `## See` renders by edge, and the few body mentions outside `## See` are fenced.
 - `atomicBodiesNameHiddenFail` (`TestProfileInvisibilityParity`, root) — a served ATOMIC body names a hidden operator or tool. **Binding since E2-S3**: every atomic cross-mention was rewritten generically, moved to the operator's `Purpose.NotFor`, or fenced (`TestSkillsCoverFeatureFences` reports zero atomic violations).
-- `topicalBodiesNameHiddenFail` (`TestSkillsCoverProfileGet`) — a served TOPICAL (`kind: design`) body names a pruned skill or example or a hidden operator or tool (topical bodies render by fence, and the pack is not fenced yet). Flipped in E4-S3, which deletes `invisibilityExemptSkill` in the same change.
+- `topicalBodiesNameHiddenFail` (`TestSkillsCoverProfileGet`) — a served TOPICAL (`kind: design`) body names a pruned skill or example or a hidden operator or tool (topical bodies render by fence, and the pack is not fenced yet). Flipped in E4-S3, which deletes `invisibilityExemptSkill` in the same change. The report is EMPTY since E4-S2: every topical leak was fenced, and a topical body's frontmatter `covers:` list — served with the body, unable to hold a fence — renders through the same `keepVisibleTokens` as the listed metadata (`Discovery.renderCovers`, `TestDiscovery_RendersFrontmatterCovers`).
 
 Example names that are one word (`logistic`) double as taxonomy tags, so only compound (`-` / `_`) example names count as a body mention.
 

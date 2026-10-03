@@ -72,7 +72,7 @@ func (d *Discovery) renderBody(name, raw string) string {
 		return raw
 	}
 	if _, topical := d.topical[name]; topical {
-		return out
+		return d.renderCovers(out)
 	}
 	return renderSeeSection(out, func(span string) bool {
 		if tags, ok := seeTags(span); ok {
@@ -206,4 +206,48 @@ func splitSeeItems(s string) (items, seps []string) {
 		}
 	}
 	return append(items, s[start:]), seps
+}
+
+// renderCovers re-renders the frontmatter `covers:` list of a served
+// body through keepVisibleTokens, so the frontmatter a body is served
+// with names exactly what the listed metadata does — a list can hold no
+// fence, and only topical skills carry one. A list naming nothing hidden
+// leaves the body byte-identical.
+func (d *Discovery) renderCovers(body string) string {
+	if !strings.HasPrefix(body, "---\n") {
+		return body
+	}
+	end := strings.Index(body[4:], "\n---")
+	if end < 0 {
+		return body
+	}
+	fm := body[4 : 4+end]
+	lines := strings.Split(fm, "\n")
+	changed := false
+	for i, line := range lines {
+		rest, ok := strings.CutPrefix(line, "covers:")
+		if !ok {
+			continue
+		}
+		rest = strings.TrimSpace(rest)
+		if !strings.HasPrefix(rest, "[") || !strings.HasSuffix(rest, "]") {
+			continue
+		}
+		var items []string
+		for _, it := range strings.Split(rest[1:len(rest)-1], ",") {
+			if it = strings.TrimSpace(it); it != "" {
+				items = append(items, it)
+			}
+		}
+		kept := d.keepVisibleTokens(items)
+		if len(kept) == len(items) {
+			continue
+		}
+		lines[i] = "covers: [" + strings.Join(kept, ", ") + "]"
+		changed = true
+	}
+	if !changed {
+		return body
+	}
+	return "---\n" + strings.Join(lines, "\n") + body[4+end:]
 }

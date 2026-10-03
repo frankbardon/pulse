@@ -247,3 +247,43 @@ func TestOntology_TopicalFenceEdges(t *testing.T) {
 		t.Error("a fenced name pruned the topical skill")
 	}
 }
+
+// TestDiscovery_RendersFrontmatterCovers: a topical body is served with
+// its frontmatter, so its `covers:` list renders exactly as the listed
+// metadata does (keepVisibleTokens) — a hidden operator never survives
+// in the served frontmatter — and a body naming nothing hidden is
+// byte-identical.
+func TestDiscovery_RendersFrontmatterCovers(t *testing.T) {
+	raw, ok := skills.Raw("regression-modeling")
+	if !ok || !strings.Contains(raw, "REG_GLM") || !strings.Contains(raw, "FEAT_POLY") {
+		t.Fatal("premise: regression-modeling covers REG_GLM and FEAT_POLY")
+	}
+	d := hidingSnapshot("REG_GLM", "FEAT_POLY").Discovery()
+	body, ok := d.Skill("regression-modeling")
+	if !ok {
+		t.Fatal("regression-modeling not visible")
+	}
+	fm, _, _ := strings.Cut(strings.TrimPrefix(body, "---\n"), "\n---")
+	var covers string
+	for _, line := range strings.Split(fm, "\n") {
+		if strings.HasPrefix(line, "covers:") {
+			covers = line
+		}
+	}
+	want := "covers: [" + strings.Join(d.keepVisibleTokens(skillMeta(t, "regression-modeling").Covers), ", ") + "]"
+	if covers != want {
+		t.Errorf("served covers = %q, want %q", covers, want)
+	}
+	for _, tok := range []string{"REG_GLM", "FEAT_POLY"} {
+		if strings.Contains(covers, tok) {
+			t.Errorf("served covers names hidden %s", tok)
+		}
+	}
+	if !strings.Contains(covers, "REG_OLS") {
+		t.Errorf("served covers lost the visible REG_OLS: %q", covers)
+	}
+	full, _ := skills.Get("regression-modeling")
+	if got, _ := hidingSnapshot("TEST_WELCH").Discovery().Skill("regression-modeling"); got != full {
+		t.Error("a body whose covers name nothing hidden was rewritten")
+	}
+}

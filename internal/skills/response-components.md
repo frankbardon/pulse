@@ -42,11 +42,11 @@ An aggregator's `n` counts NON-NULL inputs; a grouper's `total_n` counts every p
 
 ## Crosstab block
 
-Mirrors the matrix coordinate-for-coordinate (cells, row / column margins, grand total, axis keys); `CellComponents[r][c]` is `nil` for an empty cell. Indexing: `crosstab-guide`.
+Mirrors the matrix coordinate-for-coordinate (cells, row / column margins, grand total, axis keys); `CellComponents[r][c]` is `nil` for an empty cell.<!-- feature: capability:crosstab --> Indexing: `crosstab-guide`.<!-- /feature -->
 
 **`CellCounts[r][c]` is a RECORD count; the floor's `n` counts NON-NULL observations — `CellCounts[r][c] == n + n_null`.** Never read `CellCounts` as the aggregator's sample size. Same split on every margin counterpart.
 
-Auxiliary margin-only figures land BESIDE the margin components, and a record reaches an auxiliary margin only if it reached a CELL: `crosstab-margin-aggregations`.
+Auxiliary margin-only figures land BESIDE the margin components, and a record reaches an auxiliary margin only if it reached a CELL<!-- feature: capability:crosstab -->: `crosstab-margin-aggregations`<!-- /feature -->.
 
 ## Opting out
 
@@ -54,7 +54,7 @@ Auxiliary margin-only figures land BESIDE the margin components, and a record re
 |---|---|
 | `pulse.Options.DisableComponents bool` | engine default for every request the instance runs |
 | `types.Request.DisableComponents *bool` | per request — `nil` inherits, `true` forces off, `false` forces ON even on an engine shipping them off |
-| `--no-components` | CLI, on `pulse api process` / `process-chain` / `compose`; request JSON `"disable_components"` wins over it |
+| `--no-components` | CLI, on `pulse api process`<!-- feature: capability:process_chain --> / `process-chain`<!-- /feature --><!-- feature: capability:compose --> / `compose`<!-- /feature -->; request JSON `"disable_components"` wins over it |
 
 `effective = req.DisableComponents != nil ? *req.DisableComponents : opts.DisableComponents`.
 
@@ -98,4 +98,4 @@ An extension operator declares a `ComponentSchema` and supplies the keys it emit
 
 ## See
 
-`aggregation-design` (per-aggregator keys) · `grouper-design` (grouper floor) · `crosstab-guide` (crosstab indexing) · `crosstab-margin-aggregations` (auxiliary margin figures) · `streaming-and-watching` (per-chunk components) · `overlay-system` (overlays that read cell components).
+`aggregation-design` (per-aggregator keys) · `grouper-design` (grouper floor)<!-- feature: capability:crosstab --> · `crosstab-guide` (crosstab indexing)<!-- /feature --><!-- feature: capability:crosstab --> · `crosstab-margin-aggregations` (auxiliary margin figures)<!-- /feature --> · `streaming-and-watching` (per-chunk components) · `overlay-system` (overlays that read cell components).

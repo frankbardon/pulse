@@ -32,7 +32,7 @@ Each grouper's `Purpose.NotFor` names the sibling to use when the choice is wron
 
 With N entries (N ≥ 2), the engine forms the cartesian **key product**: each row receives a composite key `(g0, ..., gN-1)`. Empty `groups` collapses to one global bucket.
 
-Plain `groups` emit one flat row per composite key under `Response.Data` — the canonical cross-tab mechanism. Reach for `Request.Crosstab` only when margins or normalisation matter (`crosstab-guide`).
+Plain `groups` emit one flat row per composite key under `Response.Data` — the canonical cross-tab mechanism. Reach for `Request.Crosstab` only when margins or normalisation matter<!-- feature: capability:crosstab --> (`crosstab-guide`)<!-- /feature -->.
 
 ## Smart defaults
 
@@ -69,7 +69,7 @@ Other groupers ignore `include` — filter the source field with a value filter 
 
 ## Fused crosstab eligibility
 
-A crosstab builds its grid in one decode pass (much lower peak memory) when every axis grouper keys records one at a time. Every built-in grouper does, EXCEPT the equal-count (quantile) grouper, which needs a finalize-time sorted view — the only grouper that forces a buffered crosstab. Fan-out groupers fuse at any axis position, on either or both axes; axis keys are the product of each position's key set. Overlays never prevent fusing (`crosstab-guide`, `overlay-system`).
+A crosstab builds its grid in one decode pass (much lower peak memory) when every axis grouper keys records one at a time. Every built-in grouper does, EXCEPT the equal-count (quantile) grouper, which needs a finalize-time sorted view — the only grouper that forces a buffered crosstab. Fan-out groupers fuse at any axis position, on either or both axes; axis keys are the product of each position's key set. Overlays never prevent fusing (<!-- feature: capability:crosstab -->`crosstab-guide`, <!-- /feature -->`overlay-system`).
 
 Embedder groupers opt in by implementing `extend.StreamingGrouper` or `extend.MultiKeyStreamingGrouper` and returning `extend.ErrGrouperKeyNull` on nulls; implementing neither stays correct and runs buffered.
 
@@ -89,4 +89,4 @@ Components mergeability is read off the manifest: `mergeable` groupers fold acro
 ## See
 
 - Recipes: `pulse_examples_search tags=["cohort-analysis"|"cross-tabulation"|"distribution-shape"|"survey"]`.
-- `crosstab-guide` (Crosstab shape, margins, normalisation), `aggregation-design` (what folds inside the bucket), `request-envelope` (slot keys, smart defaults), `response-components` (grouper floor), `streaming-and-watching` (streamability).
+- <!-- feature: capability:crosstab -->`crosstab-guide` (Crosstab shape, margins, normalisation), <!-- /feature -->`aggregation-design` (what folds inside the bucket), `request-envelope` (slot keys, smart defaults), `response-components` (grouper floor), `streaming-and-watching` (streamability).

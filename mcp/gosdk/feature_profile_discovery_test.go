@@ -153,9 +153,11 @@ func TestRegister_DiscoveryHonoursFeatureProfile(t *testing.T) {
 	if want := readResourceRaw(c, gosdk.SkillURIScheme+bogusSkill); got != want {
 		t.Errorf("pulse-skill:// read hidden != nonexistent:\n hidden: %s\n bogus:  %s", got, want)
 	}
-	// Topical bodies are served whole (unrendered) on a profiled instance.
-	if a, b := callRaw(t, c, "pulse_skills_get", map[string]any{"name": "response-components"}), callRaw(t, full, "pulse_skills_get", map[string]any{"name": "response-components"}); a != b {
-		t.Errorf("topical skill body changed under a feature profile")
+	// A fence-free topical body is served byte-identically on a profiled
+	// instance (topical bodies render by fence only; response-components
+	// carries capability fences since E4-S2, so it no longer qualifies).
+	if a, b := callRaw(t, c, "pulse_skills_get", map[string]any{"name": "cohort-null-states"}), callRaw(t, full, "pulse_skills_get", map[string]any{"name": "cohort-null-states"}); a != b {
+		t.Errorf("fence-free topical skill body changed under a feature profile")
 	}
 
 	// Examples.

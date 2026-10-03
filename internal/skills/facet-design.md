@@ -80,4 +80,4 @@ Mixing streamable + buffered kinds forces the orchestrator buffered; descriptive
 
 ## See
 
-`overlay-system` (overlay framework) · `aggregation-design` (percentile semantics) · `statistical-testing` (row-level χ² / KS) · `label-display` (labels on `FacetField` values).
+`overlay-system` (overlay framework) · `aggregation-design` (percentile semantics) · `statistical-testing` (row-level χ² / KS)<!-- feature: capability:labels --> · `label-display` (labels on `FacetField` values)<!-- /feature -->.

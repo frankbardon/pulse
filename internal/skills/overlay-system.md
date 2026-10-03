@@ -52,12 +52,12 @@ Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 Which request carries the spec decides the host, and the host decides which kinds are legal:
 
-- **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise. Pairwise sample-size sources: `pairwise-n-sources`.
+- **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise.<!-- feature: capability:crosstab --> Pairwise sample-size sources: `pairwise-n-sources`.<!-- /feature -->
 - **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year).
-- **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays` (`facet-design`).
-- **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` (`process-chain`).
+- **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
+- **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
 - **FORMULA** — an expression over earlier layers, referenced by `name`.
-- **COMPOSE** — the Compose post-slot fold compares slots (`reference` vs `targets`) after every slot ran; slots must align on label, keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]`, buffered only (`compose-requests`).
+- **COMPOSE** — the Compose post-slot fold compares slots (`reference` vs `targets`) after every slot ran; slots must align on label, keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]`, buffered only<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
@@ -65,7 +65,7 @@ Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — o
 
 ## Streamability
 
-Manifest `overlays[].buffered`. Descriptive SERIES kinds stream; inferential kinds buffer. MATRIX kinds fold after the matrix is finished, so an overlay never decides whether a crosstab fuses — the cell aggregator does (`crosstab-guide`). Mixing streamable and buffered kinds on one request prices it as buffered.
+Manifest `overlays[].buffered`. Descriptive SERIES kinds stream; inferential kinds buffer. MATRIX kinds fold after the matrix is finished, so an overlay never decides whether a crosstab fuses — the cell aggregator does<!-- feature: capability:crosstab --> (`crosstab-guide`)<!-- /feature -->. Mixing streamable and buffered kinds on one request prices it as buffered.
 
 ## Parity overlays — Welford migration
 
@@ -73,4 +73,4 @@ The cell t / z kinds and their Compose vs-ref twins read `{n, mean, variance}` f
 
 ## See
 
-- `response-components`, `crosstab-guide`, `facet-design`, `pairwise-n-sources`, `compose-requests`, `process-chain`.
+- `response-components`<!-- feature: capability:crosstab -->, `crosstab-guide`<!-- /feature --><!-- feature: capability:facet -->, `facet-design`<!-- /feature --><!-- feature: capability:crosstab -->, `pairwise-n-sources`<!-- /feature --><!-- feature: capability:compose -->, `compose-requests`<!-- /feature --><!-- feature: capability:process_chain -->, `process-chain`<!-- /feature -->.

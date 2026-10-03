@@ -68,7 +68,7 @@ Records fold straight into per-cell / per-margin state in one decode pass — me
 
 Overlays never prevent fusing. A fan-out axis makes margins non-additive on BOTH paths — a 3-option record counts 3× across row margins, once in the grand total.
 
-**Joins.** A joined crosstab runs buffered over the JOINED rows: axes / cell may name `as`-prefixed right fields; an unmatched left row is counted nowhere; a 1:N match counts once per joined row (`join-design`).
+**Joins.** A joined crosstab runs buffered over the JOINED rows: axes / cell may name `as`-prefixed right fields; an unmatched left row is counted nowhere; a 1:N match counts once per joined row<!-- feature: capability:joins --> (`join-design`)<!-- /feature -->.
 
 ## Components — `Response.Components.Crosstab`
 

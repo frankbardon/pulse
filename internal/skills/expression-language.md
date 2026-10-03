@@ -11,7 +11,7 @@ covers: [expression, expr-lang, formula, set-helpers, lookup, ExprFunctions]
 
 Two operators evaluate an `expr-lang/expr` (v1.17.x) string once per row: the formula attribute (the result becomes a new column) and the expression filter (a truthy result keeps the row). Both compile through one environment, so everything below holds for both; only null handling differs. Per-operator params live in their atomic `op-*` skills.
 
-This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode (`request-templating`); an expression runs over row fields at execution time. There is no interop.
+This is NOT request templating: `$var` / `{{}}` / `$when` are substituted into the request before decode<!-- feature: capability:templates --> (`request-templating`)<!-- /feature -->; an expression runs over row fields at execution time. There is no interop.
 
 ## Field binding
 
@@ -68,5 +68,7 @@ A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's
 
 - `attribute-composition` — where the formula attribute sits among attributes.
 - `aggregation-design` — filter chaining and per-stage counters.
+<!-- feature: capability:templates -->
 - `request-templating` — the request-authoring parameters this language is not.
+<!-- /feature -->
 - `docs/src/internals/extension-points.md` — `ExprFunctions` + `LookupTables`.

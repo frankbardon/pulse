@@ -119,4 +119,4 @@ A buffered overlay downgrades a streamable Process to buffered — price it as b
 
 ## See
 
-`response-components` (shape, mergeability classes) · `overlay-system` (overlay streamability) · `compose-requests` (per-slot Components) · `process-chain` (per-stage Components).
+`response-components` (shape, mergeability classes) · `overlay-system` (overlay streamability)<!-- feature: capability:compose --> · `compose-requests` (per-slot Components)<!-- /feature --><!-- feature: capability:process_chain --> · `process-chain` (per-stage Components)<!-- /feature -->.

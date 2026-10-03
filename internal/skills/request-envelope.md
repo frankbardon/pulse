@@ -27,10 +27,18 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 | Operation (CLI) | Wire type | Top-level keys |
 |---|---|---|
 | process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs` |
+<!-- feature: capability:compose -->
 | compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`) |
+<!-- /feature -->
+<!-- feature: capability:process_chain -->
 | process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
+<!-- /feature -->
+<!-- feature: capability:facet -->
 | facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
+<!-- /feature -->
+<!-- feature: capability:sample -->
 | sample (`pulse api sample`) | `SampleRequest` | `cohort, count, offset` |
+<!-- /feature -->
 
 Each operation's MCP tool is listed in `pulse_manifest` `mcp_tools`; one the instance does not offer is absent.
 
@@ -110,4 +118,4 @@ Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `t
 
 ## Cross-links
 
-`response-components` (the `Response.Components` block) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes) · `compose-requests` · `facet-design` · `streaming-and-watching` (stream chunks, request hashing).
+`response-components` (the `Response.Components` block) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes)<!-- feature: capability:compose --> · `compose-requests`<!-- /feature --><!-- feature: capability:facet --> · `facet-design`<!-- /feature --> · `streaming-and-watching` (stream chunks, request hashing).
