@@ -42,6 +42,8 @@ const (
 	filterDropMissing = "A row whose field is missing is dropped."
 	filterKeepMissing = "A row whose field is missing is kept, since it does not hold a listed value."
 	filterLabelsKnown = "Each listed value must be one of the field's known labels; an unknown label is an error, not an empty match."
+	filterValuesTyped = "On a category field each listed value must be a known label, and an unknown label is an error. " +
+		"On a number or date field the values are read as numbers, and one that no row holds simply matches nothing."
 )
 
 // --- Keeping or dropping listed values ------------------------------------
@@ -67,7 +69,7 @@ var (
 			filterBeforeAll,
 			filterChainAnd,
 			filterDropMissing,
-			filterLabelsKnown,
+			filterValuesTyped,
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value"},
@@ -93,7 +95,7 @@ var (
 			filterBeforeAll,
 			filterChainAnd,
 			filterKeepMissing,
-			filterLabelsKnown,
+			filterValuesTyped,
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value"},
@@ -185,7 +187,7 @@ var (
 		Plain:   "Keeps either the rows where a field is missing or the rows where it is present, to find gaps or set them aside.",
 		Intents: []string{IntentDataQuality, IntentPrepare},
 		Questions: []string{
-			"How many respondents skipped the income question?",
+			"Who skipped the income question, so their other answers can be compared with those who answered?",
 			"What are the averages over only the rows that have a value?",
 		},
 		UseCases: map[descriptor.Domain]string{
@@ -228,7 +230,8 @@ var (
 		},
 		Assumptions: []string{
 			filterBeforeAll,
-			"By default the field must be a yes/no field; a truthy option treats any non-zero, non-empty value as yes.",
+			"By default the field must be a yes/no field; a truthy option treats any non-zero number and any non-empty text as yes. " +
+				"On a category field it tests the label text, so a label such as \"No\" counts as yes; filter a Yes/No category with FILTER_INCLUDE on the yes label instead.",
 			filterDropMissing,
 		},
 		Level:    descriptor.LevelBasic,
@@ -252,7 +255,8 @@ var (
 		},
 		Assumptions: []string{
 			filterBeforeAll,
-			"By default the field must be a yes/no field; a truthy option treats 0, an empty text and a missing value as no.",
+			"By default the field must be a yes/no field; a truthy option treats 0, an empty text and a missing value as no. " +
+				"On a category field it tests the label text, so a label such as \"No\" is not no; use FILTER_INCLUDE on the no label instead.",
 			"A missing value is dropped by default but kept under the truthy option, where it counts as no.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -265,7 +269,7 @@ var (
 var (
 	purposeFilterSetContainsAny = descriptor.Purpose{
 		Plain:   "Keeps the rows whose multi-select answer includes at least one of the listed options, such as anyone who uses brand A or B.",
-		Intents: []string{IntentPrepare, IntentComposition},
+		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"What do people who use either of our two apps think of the service?",
 			"Which customers paid by any card at least once?",
@@ -291,7 +295,7 @@ var (
 
 	purposeFilterSetContainsAll = descriptor.Purpose{
 		Plain:   "Keeps the rows whose multi-select answer includes every listed option, other options allowed, such as people who use both A and B.",
-		Intents: []string{IntentPrepare, IntentComposition},
+		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"How do people who use both our app and our website rate us?",
 			"Which tickets carry both the urgent and the billing tags?",
@@ -316,7 +320,7 @@ var (
 
 	purposeFilterSetContainsNone = descriptor.Purpose{
 		Plain:   "Keeps the rows whose multi-select answer includes none of the listed options, such as people who use neither A nor B.",
-		Intents: []string{IntentPrepare, IntentComposition},
+		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"What do people who use none of the competitor apps think?",
 			"Which orders had no discount code applied?",
@@ -340,7 +344,7 @@ var (
 
 	purposeFilterSetEquals = descriptor.Purpose{
 		Plain:   "Keeps the rows whose multi-select answer is exactly the listed options, no more and no fewer, such as people who use only A.",
-		Intents: []string{IntentPrepare, IntentComposition},
+		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"How many customers use our app and nothing else?",
 			"Which respondents picked exactly these two reasons?",

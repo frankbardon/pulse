@@ -2637,7 +2637,6 @@
             "mergeability": "mergeable"
           },
           "intents": [
-            "composition",
             "prepare"
           ]
         },
@@ -2677,7 +2676,6 @@
             "mergeability": "mergeable"
           },
           "intents": [
-            "composition",
             "prepare"
           ]
         },
@@ -2717,7 +2715,6 @@
             "mergeability": "mergeable"
           },
           "intents": [
-            "composition",
             "prepare"
           ]
         },
@@ -2757,7 +2754,6 @@
             "mergeability": "mergeable"
           },
           "intents": [
-            "composition",
             "prepare"
           ]
         },
@@ -10430,4 +10426,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c23078cb2ae2a2bf807438746c06a592e66e68a56f6f03d673030da67726e35c
+// golden-hash: ea7e1d3fec4ee983f8bb67f6a755458a82f172f8b5baa6cdd98f1bbba3c5eabd

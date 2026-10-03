@@ -73,7 +73,9 @@ var (
 			{When: "the field is a coded scale with a few fixed levels", Use: synth.DistDiscrete},
 		},
 		Assumptions: []string{
-			"The low bound can be drawn and the high bound never is, so min 0 and max 1 gives values from 0 up to just under 1.",
+			"Before rounding, the low bound can be drawn and the high bound never is, so min 0 and max 1 gives values from 0 up to just under 1.",
+			"On a u8 to u64 field the draws are rounded, so the high bound can appear and the two end values come out about half as often as the rest; " +
+				"for equally likely whole numbers use discrete with equal weights.",
 			synthIntCast,
 			synthOnItsOwn,
 			synthSeeded,
@@ -236,7 +238,8 @@ var (
 		},
 		Assumptions: []string{
 			"xm is the smallest value drawn; alpha sets the tail, and a smaller alpha means a heavier tail. Both must be above 0.",
-			"With alpha at or below 1 the mean is infinite, and at or below 2 the variance is, so averages over the generated rows never settle.",
+			"With alpha at or below 1 the mean is infinite and averages over the generated rows never settle. " +
+				"Between 1 and 2 the mean exists but the variance is infinite, so averages settle only slowly and jump when a huge value lands.",
 			synthNoClamp,
 			synthIntCast,
 			synthSeeded,

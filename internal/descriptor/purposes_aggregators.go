@@ -68,7 +68,7 @@ var (
 			{When: "you also need the spread around the average", Use: "AGG_WELFORD"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped: the average is over rows that have a value.",
+			"Missing values are skipped: the average is over rows that have a value. A group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"mean", "median", "outlier", "skew"},
@@ -215,7 +215,7 @@ var (
 			{When: "you want the distance between smallest and largest", Use: "AGG_RANGE"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped.",
+			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
 			"It rests on one row, so a single bad record sets it.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -240,7 +240,7 @@ var (
 			{When: "you want the distance between smallest and largest", Use: "AGG_RANGE"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped.",
+			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
 			"It rests on one row, so a single bad record sets it.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -264,7 +264,7 @@ var (
 			{When: "you want the spread of the middle of the data, ignoring extremes", Use: "AGG_PERCENTILE"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped.",
+			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
 			"It rests on the two most extreme rows, so one outlier can stretch it a lot.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -289,7 +289,7 @@ var (
 			{When: "the field holds categories rather than numbers", Use: "AGG_MODE"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped.",
+			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
 			"With an even number of values it is the halfway point between the two middle values.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -314,7 +314,7 @@ var (
 			{When: "the field is a multi-select", Use: "AGG_SET_FREQUENCY"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped.",
+			"Missing values are skipped; a group where no row has a value reads 0, not empty, so check n in the components before reporting it.",
 			"When several values share the top count, the smallest wins (for categories, the first in the dictionary); tie_count in the components shows it happened.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -423,7 +423,7 @@ var (
 		Intents: []string{IntentDescribe},
 		Questions: []string{
 			"How many different combinations of channels do customers use?",
-			"Do respondents mostly pick the same few sets of brands?",
+			"How many different combinations of brands were picked (an empty answer counts as one)?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey: "Variety of answer patterns to a select-all-that-apply question.",
@@ -432,9 +432,11 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "you want the count of each single option", Use: "AGG_SET_FREQUENCY"},
 			{When: "you want every option chosen by anyone", Use: "AGG_SET_UNION"},
+			{When: "you want how common each combination is: a count alone cannot show whether one dominates", Use: "GROUP_SET_VALUE"},
 		},
 		Assumptions: []string{
 			"Each combination is one value: choosing A and B differs from choosing A alone.",
+			"An empty selection counts as one combination; null rows are skipped.",
 		},
 		Level: descriptor.LevelBasic,
 	}
@@ -731,7 +733,7 @@ var (
 			descriptor.DomainScience: "Events per person-year of follow-up per arm.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "you want the average of each row's own ratio", Use: "ATTR_FORMULA"},
+			{When: "you want the average of each row's own ratio: compute it per row (guarding a 0 denominator), then average it", Use: "ATTR_FORMULA"},
 			{When: "you want an average where some rows count more than others", Use: "AGG_WEIGHTED_MEAN"},
 		},
 		Assumptions: []string{
@@ -759,8 +761,9 @@ var (
 			{When: "you want one total divided by another", Use: "AGG_RATIO"},
 		},
 		Assumptions: []string{
-			"Rows missing the value or the weight, or with weight 0, are left out of the average.",
-			"Negative weights are not refused.",
+			"Rows missing the value or the weight, or with weight 0, are left out of the average; when no row is left (or the weights add up to 0) " +
+				"it reads 0, not empty, so check sum_weights in the components.",
+			"Negative weights are not refused and can make the result unstable.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"weighting", "mean", "effective-sample-size"},

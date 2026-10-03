@@ -16,7 +16,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `min` | float | `0.0` | Lower bound (inclusive). |
-| `max` | float | `1.0` | Upper bound (exclusive). Must be `> min`. |
+| `max` | float | `1.0` | Upper bound (exclusive before rounding; on `u8`–`u64` fields rounding can produce it, and both ends come out half as often). Must be `> min`. |
 
 ## Inputs
 

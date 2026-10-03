@@ -85,7 +85,8 @@ var (
 			{When: "you want the logarithm of a field", Use: "FEAT_LOG"},
 		},
 		Assumptions: []string{
-			"A missing field enters the expression as nil: guard it (x ?? 0) or the request fails rather than invent a number.",
+			"A missing field enters the expression as nil, and an operator that cannot take nil fails the request. A guard such as x ?? 0 turns each missing value " +
+				"into a real 0, which pulls averages down, so prefer dropping those rows with FILTER_NULL or pick a fallback that means something.",
 			"True / false results become 1 / 0.",
 			"It cannot read another attribute's column from the same request.",
 		},
@@ -101,7 +102,7 @@ var (
 			"Which tickets carry the 'urgent' tag?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainSurvey: "Flag for one option of a multiple-choice question, to average as a share.",
+			descriptor.DomainSurvey: "Flag for one option of a multiple-choice question, to average as a share among those who answered: drop missing answers with FILTER_NULL first, since they read 0.",
 			descriptor.DomainOps:    "Flag for orders tagged with a given promotion.",
 		},
 		NotFor: []descriptor.Alternative{
@@ -227,17 +228,20 @@ var (
 			"Where does each row's value sit between the lowest and highest seen?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainSurvey:  "Rescale items scored 1-5 and 0-10 to one range before a composite.",
+			descriptor.DomainSurvey:  "Rescale items to 0-1 by their observed lowest and highest answers, before comparing their spread.",
 			descriptor.DomainOps:     "Scale each site's load between its observed minimum and maximum.",
 			descriptor.DomainHarness: "Bound an input to 0..1 before handing it to a scoring model.",
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "the field has extreme values that would squeeze the rest of the range", Use: "ATTR_PERCENTILE"},
 			{When: "you want distance from the mean in standard deviations", Use: "ATTR_ZSCORE"},
+			{When: "you want a composite on the scales' fixed endpoints (1-5, 0-10), such as (x - 1) / 4", Use: "ATTR_FORMULA"},
 		},
 		Assumptions: []string{
 			attrOverFilteredRows,
-			"A missing value reads 0, the same as the minimum, as does every row when all values are equal.",
+			"It uses the OBSERVED lowest and highest values, not a scale's endpoints: if nobody answered 1 on a 1-5 item, 2 maps to 0, " +
+				"so the same raw score lands at different positions across items, filtered subsets or waves.",
+			"A missing value reads 0, the same as the minimum, as does every row when all values are equal; in a composite that pulls the score down.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"outlier", "missing-value"},

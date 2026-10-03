@@ -118,6 +118,7 @@ var (
 		},
 		Assumptions: []string{
 			winOnResultRows,
+			"Row 1 goes to the first row in order_by order: the smallest value, or the largest when the key is desc, so set desc for a top-N.",
 			"Rows with equal order_by values still get different numbers, in an arbitrary but repeatable order.",
 			winNullsLast,
 		},
@@ -267,7 +268,7 @@ var (
 	}
 
 	purposeWinEWMA = descriptor.Purpose{
-		Plain:   "Adds a smoothed series in which each new value counts for a fixed share and older values fade away step by step.",
+		Plain:   "Adds a smoothed series: each new value counts for a fixed share w, the previous smoothed level for 1 - w, so older values fade.",
 		Intents: []string{IntentChangeOverTime},
 		Questions: []string{
 			"What is the underlying level of daily demand once day-to-day noise is damped?",
@@ -286,11 +287,11 @@ var (
 			winOnResultRows,
 			winPerPartition,
 			winRowsNotTime,
-			"The share is set directly (params.alpha, above 0 and at most 1); it seeds from the partition's first value present.",
+			"The share w is set directly (params.alpha, above 0 and at most 1); it seeds from the partition's first value present.",
 			"A missing value reads null and the smoothing carries over it.",
 		},
 		Level:    descriptor.LevelIntermediate,
-		Glossary: []string{"rolling-mean", "mean", "missing-value"},
+		Glossary: []string{"mean", "missing-value"},
 	}
 )
 
@@ -329,7 +330,7 @@ var (
 		Intents: []string{IntentBenchmark},
 		Questions: []string{
 			"Which price tier is each product in, counting equal prices as one tier?",
-			"How many distinct scores sit above each respondent's score?",
+			"With scores ordered desc, how many distinct scores sit above each respondent's (the dense rank minus 1)?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Position of each rating level from the top, with equal ratings sharing one position.",

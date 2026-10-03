@@ -145,9 +145,10 @@ var (
 			featBeforeFilters,
 			"Columns come from the field's dictionary, so a category with no rows still gets an all-zero column.",
 			"A missing category reads 0 in every column; there is no separate unknown column.",
+			"In a model with an intercept, leave one category's column out as the reference: all of them together are perfectly collinear and the fit is refused.",
 		},
 		Level:    descriptor.LevelBasic,
-		Glossary: []string{"missing-value"},
+		Glossary: []string{"missing-value", "multicollinearity"},
 	}
 
 	purposeFeatFrequencyEncode = descriptor.Purpose{
@@ -236,7 +237,7 @@ var (
 		Intents: []string{IntentPrepare, IntentSegment},
 		Questions: []string{
 			"Which income band is each customer in?",
-			"Which tenth of the spend range does each order fall in?",
+			"Which spend decile (tenth of orders ranked by spend) does each order fall in?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Age bands for each respondent, from fixed cut points.",
@@ -276,6 +277,8 @@ var (
 			featBeforeFilters,
 			"Each share is the ratio times the record count, rounded; with stratify it is applied within each category.",
 			"The same seed on the same records in the same order gives the same labels; adding or reordering records reshuffles them.",
+			"The split does not isolate other features: frequency encoding, target encoding and equal-count bucketing in the same request still learn from test rows, " +
+				"so build those from the train rows in a separate request.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"overfitting"},
