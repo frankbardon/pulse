@@ -264,7 +264,7 @@ Not every field type can serve as a lookup key — `set_*` is rejected
 (a multi-select bitmask has no single unambiguous equality value; use
 `FILTER_SET` via `Process` instead). See the full allow/reject table
 in [`pulse api lookup`](../cli/api-lookup.md#keyable-type-policy) or
-`skills/cohort-schema-design.md`.
+`skills/cohort-sidecar-index.md`.
 
 ## When to use this vs `Process` + `FILTER_INCLUDE`
 

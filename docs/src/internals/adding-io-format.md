@@ -768,7 +768,9 @@ output.
 
 Add or update a skill that points users at the new format. Cohort-
 schema considerations (field-type round-trip, dictionary behaviour,
-null markers) belong in `skills/cohort-schema-design.md`.
+null markers) belong in `skills/cohort-schema-design.md` and its
+focused children (`skills/cohort-null-states.md` for null / empty
+markers, `skills/cohort-width-overflow.md` for width promotion).
 
 `skills/tool-import.md` carries the `format` enum the MCP tool accepts
 and must list the new identifier.

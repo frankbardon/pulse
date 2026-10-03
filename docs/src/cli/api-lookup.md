@@ -17,7 +17,7 @@ operation against a cohort (execute-and-return), not a corpus-
 management verb the way `pulse index {build,list,verify,drop}` is.
 
 > **LLM agents using MCP:** see the `pulse_lookup` MCP tool and the
-> `tool-lookup` / `cohort-schema-design` skills.
+> `tool-lookup` / `cohort-sidecar-index` skills.
 
 ## Synopsis
 
@@ -116,5 +116,5 @@ pulse api lookup --input sales.pulse \
 - [`pulse index`](index.md) — build / list / verify / drop the sidecar index this command reads
 - [`pulse api process`](api-process.md) — full scan with `FILTER_*` for non-exact-key or `set_*` membership queries
 - [.pulse File Format → Header Layout](../format/header.md) — the cohort layout the sidecar sits alongside, unchanged
-- `skills/cohort-schema-design.md` — sidecar index byte format (v3) + keyable-type policy
+- `skills/cohort-sidecar-index.md` — sidecar index byte format (v3) + keyable-type policy
 - `skills/tool-lookup.md` — MCP surface (`pulse_lookup`)

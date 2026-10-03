@@ -18,6 +18,13 @@ The one import source whose schema Pulse does **not** infer, and the one produci
 2. **Categorical columns hold codes** — `"1"` / `"2"`, not `Male` / `Female`.
 3. **Never point `PULSE_LABEL_TABLES_DIR` at a cohort directory** — it parses every `.json` beneath it.
 
+## SPSS import — what it changes about a `.pulse` schema
+
+1. **The schema is not inferred.** An SPSS dictionary DECLARES every column, so `internal/io/spss` implements `io.SchemaAwareReader` and `internal/io/infer.go`'s sample-and-vote pass is skipped: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters` are inert, `ColumnTypeOverrides` is refused (`PULSE_IMPORT_OVERRIDE_INVALID`), and there is **no null promotion** — declared nullability is a contract, so an unexpected null is `PULSE_IMPORT_ROW_ERROR`. An explicit `ImportJob.Schema` still wins.
+2. **The cohort can be wider than the source.** Two derived kinds: a `<var>_missing` `categorical_*` sibling per numeric variable declaring user-missing values (the null bitmap is one bit and cannot say *why*), and one `set_*` column per multiple-dichotomy response set, emitted **beside** its constituents. `--spss-missing=null` suppresses the siblings; the `set_*` column has no opt-out.
+
+**Writable.** An import also writes `cohort.pulse.spss.json`, the JSON metadata sidecar holding what the `.pulse` header cannot: value labels, measure levels, missing-value specs, response-set definitions, and which columns were derived. `pulse export spss` reproduces that dictionary and folds the derived columns away at every rung (the fold is keyed on the recorded kind, so a 206-constituent `set_u256` drops and rebuilds its constituents exactly as a `set_u8` does); a cohort that never came from SPSS exports on a synthesised one (`PULSE_SPSS_SIDECAR_ABSENT`, a warning), a **stale** sidecar is an error, and `--include` / `--labels` are refused rather than ignored because the writer encodes from raw storage. `pulse convert x.sav out.sav` builds no cohort on disk, so it carries the source's declared schema AND its sidecar into the writer's in-memory intermediate (`pio.ConvertSource`) — without them the rebuilt cohort is re-inferred from rendered text, which loses a `set_*` rung down to the options actually ticked and made every multiple-dichotomy convert refuse with `PULSE_SPSS_NAME_COLLISION`.
+
 ## Which skill answers what
 
 | Question | Skill |

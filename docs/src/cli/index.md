@@ -192,5 +192,5 @@ pulse index drop --input sales.pulse --key region,date
 ## Related
 
 - [`pulse api lookup`](api-lookup.md) — read path that consumes the index this group manages
-- `skills/cohort-schema-design.md` — sidecar index byte format (v3) + keyable-type policy
+- `skills/cohort-sidecar-index.md` — sidecar index byte format (v3) + keyable-type policy
 - [`pulse shard`](../internals/managing-shard-archives.md) — the subcommand-group shape this mirrors

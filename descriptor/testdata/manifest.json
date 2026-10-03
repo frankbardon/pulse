@@ -7009,8 +7009,28 @@
         "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
       },
       {
+        "name": "cohort-null-states",
+        "description": "How a .pulse cohort stores absence — the per-record null bitmap, no in-band sentinels, out-of-sample null promotion on inferred imports, and the null / empty / selected states of set and categorical cells across every import and export format."
+      },
+      {
+        "name": "cohort-parent-groups",
+        "description": "Parent groups in format 0x02 cohorts — storing a repeated parent block once, when a group pays for itself, declaring one at import with a key check, suggesting and gating groups, converting an existing cohort with dedup, and opt-in global-constant elision."
+      },
+      {
         "name": "cohort-schema-design",
-        "description": "Field-type selection for .pulse cohorts — 20 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the 20-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+      },
+      {
+        "name": "cohort-sharding",
+        "description": "Shard archives in depth — strict structural cohesion, dictionary union-merge, set-rung auto-widen on create and add, grouped shards, the anchor syntax, union-wide memory for materializing operations, single-writer concurrency, and transport-only compression for moving a cohort."
+      },
+      {
+        "name": "cohort-sidecar-index",
+        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints."
+      },
+      {
+        "name": "cohort-width-overflow",
+        "description": "What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it."
       },
       {
         "name": "compose-requests",
@@ -10641,4 +10661,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b5182a23a649f8e8b084b9bc2d59c1738cda5c51980af7f9f8a0accb44e394d4
+// golden-hash: 3504459a0d5d7a7b9a9d5edb10753e08d9e35cad835e6507c9dbdd6ff0997069
