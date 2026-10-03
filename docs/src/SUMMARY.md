@@ -43,6 +43,7 @@
 - [Point Lookup & Index Management](library/point-lookup.md)
 - [Request Templating](library/request-templating.md)
 - [Feature Profiles](library/feature-profiles.md)
+- [Guided-Analysis Vocabulary](library/guided-analysis.md)
 
 # .pulse File Format
 

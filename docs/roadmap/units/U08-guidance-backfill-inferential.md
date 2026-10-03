@@ -77,6 +77,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-backfill
 
 - **Statistics reviewer** (decided: maintainer sources one) reviews and signs off
 
+## Inherited from U07
+
+- **The theme's band list overstated existing effect sizes.** [guided-analysis 01](../v1.0.0-guided-analysis/01-purpose-metadata.md) lists bands for Cohen's d, η², Cramér's V, r, odds ratio, Cronbach's α and KMO; before U07 only `cohens_d` and `eta_squared` were emitted. U07 added, under `details.effect_size`: `cramers_v` + `phi` (2×2) on `TEST_CHISQ`, `cohens_h` on `TEST_PROP_Z`, one-sample `cohens_d` on `TEST_T`, `omega_squared` on `TEST_ANOVA_F` and `TEST_ANOVA_WELCH`, `partial_eta_squared` on `TEST_ANOVA_RM`, `epsilon_squared` on `TEST_KRUSKAL_WALLIS`, `rank_biserial` on `TEST_MANN_WHITNEY_U` and `TEST_WILCOXON_SR` (post-test twins identical). `r` is `TEST_PEARSON_R`'s statistic; `TEST_FISHER` emits `details.odds_ratio` (outside `effect_size`); Cronbach's α and KMO do not exist yet. The declared set is `EffectSizeKeysByTest()`.
+- **Review the exemplars.** The statistical phrasing of the three U07 exemplar Purposes (`AGG_AVERAGE`, `TEST_ANOVA_F`, `TEST_PEARSON_R`), the two exemplar Interpretations, the glossary and the shared p-value rules shipped before the reviewer existed — include them in the reviewer pass.
+- **Starting coverage:** 40 of 42 inferential built-ins lack an Interpretation; 160 of 163 built-ins lack a Purpose; no example is tagged with `_meta.intents`. The report-only logs of `TestSkillsCoverAllPurposes` and `TestInterpretationCoversOutputs` print the lists.
+- **Overlay Interpretations on `summary.parameters.*`** each need an `overlayInterpretationProbes` fixture (`internal/service/interpretation_runtime_test.go`). Contract: `.claude/reference/guided-analysis.md`.
+
 ## Notes
 
 - Parallelises well by category. The `pulse-docs-skills` agent can draft, and the human reviews.

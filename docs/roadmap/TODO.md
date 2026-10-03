@@ -100,13 +100,13 @@ Theme documents: see the [roadmap index](README.md).
 ## 3. Guided analysis — metadata core
 
 ### G1 — Metadata core
-- [ ] **#36** Intent taxonomy (`descriptor/intents.go`), projected to manifest `intents[]` · [U07](units/U07-guidance-metadata.md)
-- [ ] **#37** `Purpose` type: plain line, intents, questions, use cases, NotFor, assumptions, level, glossary links · [U07](units/U07-guidance-metadata.md)
-- [ ] **#38** `Interpretation` type: per-output meaning, labelled bands, conventions, caveats; shared p-value rules · [U07](units/U07-guidance-metadata.md)
-- [ ] **#39** Glossary registry (about 60 terms) and the `pulse-skill://glossary` resource · [U07](units/U07-guidance-metadata.md)
-- [ ] **#40** Extension `Purpose` hook · [U07](units/U07-guidance-metadata.md)
-- [ ] **#41** Gates, starting report-only: `TestSkillsCoverAllPurposes`, `TestPurposeAlternativesResolve`, `TestPurposeQuestionsResolve`, `TestGlossaryTermsResolve`, `TestInterpretationCoversOutputs` · [U07](units/U07-guidance-metadata.md)
-- [ ] **#42** `TestManifestGuidanceBudget`: no guidance prose in default payloads; manifest growth stays under about 4 KB · [U07](units/U07-guidance-metadata.md)
+- [x] **#36** Intent taxonomy (`descriptor/intents.go`), projected to manifest `intents[]` · [U07](units/U07-guidance-metadata.md)
+- [x] **#37** `Purpose` type: plain line, intents, questions, use cases, NotFor, assumptions, level, glossary links · [U07](units/U07-guidance-metadata.md)
+- [x] **#38** `Interpretation` type: per-output meaning, labelled bands, conventions, caveats; shared p-value rules · [U07](units/U07-guidance-metadata.md)
+- [x] **#39** Glossary registry (about 60 terms) and the `pulse-skill://glossary` resource · [U07](units/U07-guidance-metadata.md)
+- [x] **#40** Extension `Purpose` hook · [U07](units/U07-guidance-metadata.md)
+- [x] **#41** Gates, starting report-only: `TestSkillsCoverAllPurposes`, `TestPurposeAlternativesResolve`, `TestPurposeQuestionsResolve`, `TestGlossaryTermsResolve`, `TestInterpretationCoversOutputs` · [U07](units/U07-guidance-metadata.md)
+- [x] **#42** `TestManifestGuidanceBudget`: no guidance prose in default payloads; manifest growth stays under about 4 KB · [U07](units/U07-guidance-metadata.md)
 
 ### G2 — Back-fill (statistics reviewer signs off before the gates flip)
 - [ ] **#43** Tests (`TEST_*`) · [U08](units/U08-guidance-backfill-inferential.md)
