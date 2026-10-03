@@ -713,10 +713,6 @@
         "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
       },
       {
-        "name": "facet-design",
-        "description": "FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics."
-      },
-      {
         "name": "feature-engineering",
         "description": "Feature slot semantics — choosing a transform, pre-filter ordering (features run before filters), per-row vs global-pass cost, target-leakage trap, train/test split. Topical design; per-feature detail lives in atomic op-feat-* skills."
       },
@@ -1096,4 +1092,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 894f60e6a95d062188cf62a11342a4a7fc8a78813d79699d5b06654dc99d0458
+// golden-hash: 53b8f4d6917c99b1ca57c797fdc63bfc69309f83fdb465daecbd223400a94a4b
