@@ -1,6 +1,6 @@
 ---
 name: op-agg-mode
-description: Most-frequent value of the field (ties broken by first-seen order).
+description: Most-frequent value of the field (ties broken by the smallest value).
 kind: operator
 category: AGG
 operator: AGG_MODE
@@ -21,7 +21,7 @@ None.
 
 ## Output
 
-`string` — echoes the dictionary value or stringified scalar. Per-group when wired under a grouper.
+Scalar `float64` — the modal value (categorical: its dictionary index). Per-group under a grouper.
 
 ## Components
 
@@ -39,10 +39,10 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- First-seen tie-break — order-sensitive when ties present (`tie_count > 0` flags it).
+- Ties go to the SMALLEST value (or index), not the first seen; `tie_count > 1` flags a tie.
 - High-cardinality fields blow memory; pre-filter or use `AGG_DISTINCT_COUNT`.
 - Per-value counts: `GROUP_CATEGORY` + `AGG_COUNT`.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no modal scalar. Use `AGG_SET_DISTINCT_VALUES` or `AGG_SET_FREQUENCY`.
+- `set_*` → `PROCESSING_CONFIG` (no modal scalar); use `AGG_SET_DISTINCT_VALUES` / `AGG_SET_FREQUENCY`.
 
 ## See
 

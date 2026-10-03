@@ -13,7 +13,7 @@ import "github.com/frankbardon/pulse/descriptor"
 // Interpretation in interpretations_descriptive.go. Each Purpose states
 // the operator as Pulse implements it (see the
 // internal/skills/op-agg-*.md atomic skills): nulls are skipped unless the
-// operator counts them, AGG_MODE breaks ties by first-seen value, and
+// operator counts them, AGG_MODE breaks ties by the smallest value, and
 // AGG_DISTINCT_SUM keeps the first value seen per key.
 var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_AVERAGE":             purposeAggAverage,
@@ -315,7 +315,7 @@ var (
 		},
 		Assumptions: []string{
 			"Missing values are skipped.",
-			"When several values share the top count, the first one seen wins; tie_count in the components shows it happened.",
+			"When several values share the top count, the smallest wins (for categories, the first in the dictionary); tie_count in the components shows it happened.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"median"},

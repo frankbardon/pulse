@@ -947,7 +947,7 @@
         {
           "name": "AGG_MODE",
           "category": "aggregator",
-          "description": "Most-frequent value of the field (ties broken by first-seen order).",
+          "description": "Most-frequent value of the field (ties broken by the smallest value).",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -965,7 +965,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "string (echoes the dictionary value or stringified scalar)",
+          "emits_type_note": "scalar float64 (the modal value; for a categorical field, its dictionary index)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -982,7 +982,7 @@
               {
                 "name": "value",
                 "type": "any",
-                "description": "Most-frequent value observed (first-seen tie-break)."
+                "description": "Most-frequent value observed (smallest-value tie-break)."
               },
               {
                 "name": "count",
@@ -6903,7 +6903,7 @@
       },
       {
         "name": "op-agg-mode",
-        "description": "Most-frequent value of the field (ties broken by first-seen order)."
+        "description": "Most-frequent value of the field (ties broken by the smallest value)."
       },
       {
         "name": "op-agg-null-count",
@@ -9231,7 +9231,7 @@
             {
               "name": "value",
               "type": "any",
-              "description": "Most-frequent value observed (first-seen tie-break)."
+              "description": "Most-frequent value observed (smallest-value tie-break)."
             },
             {
               "name": "count",
@@ -10303,4 +10303,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4affc87a4b32bcd91d475a17b12f606b7fbdc19e7ed138dbc9150c889c4ea2ef
+// golden-hash: 57c528e05aa338e7183173e481bd81fd1c3ec7bb188dda94c475f20c146cb32f
