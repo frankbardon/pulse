@@ -7054,7 +7054,7 @@
       },
       {
         "name": "join-design",
-        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validate-join predict surface."
+        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validating a join before running it."
       },
       {
         "name": "label-display",
@@ -10537,4 +10537,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 95a5227d8c8a87b532a7685aaf609ead79813164a1d36e01f1dc9ed75f5872ff
+// golden-hash: f229e587e50f5c4fd2e11ce0976288e53cb0d23caf939ff08d4120c056bdbfa9

@@ -733,10 +733,6 @@
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
-        "name": "join-design",
-        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validate-join predict surface."
-      },
-      {
         "name": "label-display",
         "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
       },
@@ -1092,4 +1088,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 53b8f4d6917c99b1ca57c797fdc63bfc69309f83fdb465daecbd223400a94a4b
+// golden-hash: 4f0550734f5859b81c600b7cc2c004b7970f52ca679b733a4921bbd591f4284a
