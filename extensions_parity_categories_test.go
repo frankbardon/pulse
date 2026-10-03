@@ -30,6 +30,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -714,9 +715,10 @@ func windowParitySuite() paritySuite {
 // Tests: TEST_PARITY_T (row tier: one-sample and Welch two-sample) and
 // TEST_PARITY_PAIRED_T (post tier), extend reimplementations of TEST_T
 // and the tier-2 TEST_PAIRED_T. The Student-t tail and its inverse
-// replay the engine's algorithm step for step (Stirling-corrected
-// log-space prefactor, Numerical Recipes continued fraction, bracketed
-// Newton on log p), so results agree bit-for-bit.
+// come from internal/statdist — the one implementation the engine
+// itself calls — so results agree bit-for-bit. (An embedder ships its
+// own distribution code; what this suite proves is the extension
+// plumbing, not a second copy of the numerics.)
 // ---------------------------------------------------------------------
 
 const (
@@ -741,169 +743,6 @@ func (b *parityWelford) variance() float64 {
 		return 0
 	}
 	return b.m2 / float64(b.n-1)
-}
-
-func parityStudentP(t, df float64) float64 {
-	if df <= 0 || math.IsNaN(t) || math.IsNaN(df) {
-		return math.NaN()
-	}
-	if math.IsInf(t, 0) {
-		return 0
-	}
-	if t == 0 {
-		return 1
-	}
-	x, y, lx, ly := parityTBetaArgs(t, df)
-	return parityRegIncBetaLog(df/2.0, 0.5, x, y, lx, ly)
-}
-
-// The helpers below keep the engine's function boundaries one for one:
-// Go may fuse a*b+c into an FMA differently once a constant operand is
-// folded in, so mirroring the call shape is what keeps the two
-// implementations bit-identical on arm64.
-
-func parityTBetaArgs(t, df float64) (x, y, lx, ly float64) {
-	at := math.Abs(t)
-	if at > math.Sqrt(df) {
-		r := (df / at) / at
-		lr := math.Log(df) - 2*math.Log(at)
-		l1 := math.Log1p(r)
-		return r / (1 + r), 1 / (1 + r), lr - l1, -l1
-	}
-	r := (at / df) * at
-	lr := 2*math.Log(at) - math.Log(df)
-	l1 := math.Log1p(r)
-	return 1 / (1 + r), r / (1 + r), -l1, lr - l1
-}
-
-func parityRegIncBetaLog(a, b, x, y, lx, ly float64) float64 {
-	if math.IsInf(lx, -1) {
-		return 0
-	}
-	if math.IsInf(ly, -1) {
-		return 1
-	}
-	bt := math.Exp(a*lx + b*ly - parityLogBeta(a, b))
-	if x < (a+1)/(a+b+2) {
-		return bt * parityBetaCF(a, b, x) / a
-	}
-	return 1 - bt*parityBetaCF(b, a, y)/b
-}
-
-// parityLogBeta mirrors the engine's Stirling-corrected logBeta.
-func parityLogBeta(a, b float64) float64 {
-	p, q := math.Min(a, b), math.Max(a, b)
-	const lnSqrt2Pi = 0.918938533204672741780329736406 // log(sqrt(2π))
-	switch {
-	case p >= 10:
-		corr := parityLgammaCorrection(p) + parityLgammaCorrection(q) - parityLgammaCorrection(p+q)
-		return -0.5*math.Log(q) + lnSqrt2Pi + corr +
-			(p-0.5)*math.Log(p/(p+q)) + q*math.Log1p(-p/(p+q))
-	case q >= 10:
-		corr := parityLgammaCorrection(q) - parityLgammaCorrection(p+q)
-		lgp, _ := math.Lgamma(p)
-		return lgp + corr + p - p*math.Log(p+q) + (q-0.5)*math.Log1p(-p/(p+q))
-	default:
-		lgp, _ := math.Lgamma(p)
-		lgq, _ := math.Lgamma(q)
-		lgpq, _ := math.Lgamma(p + q)
-		return lgp + lgq - lgpq
-	}
-}
-
-func parityLgammaCorrection(x float64) float64 {
-	coef := [...]float64{
-		1.0 / 12, -1.0 / 360, 1.0 / 1260, -1.0 / 1680,
-		1.0 / 1188, -691.0 / 360360, 1.0 / 156, -3617.0 / 122400,
-	}
-	inv := 1 / x
-	inv2 := inv * inv
-	sum := 0.0
-	for i := len(coef) - 1; i >= 0; i-- {
-		sum = sum*inv2 + coef[i]
-	}
-	return sum * inv
-}
-
-func parityBetaCF(a, b, x float64) float64 {
-	const eps, tiny = 1e-16, 1e-300
-	clamp := func(v float64) float64 {
-		if math.Abs(v) < tiny {
-			return tiny
-		}
-		return v
-	}
-	qab, qap, qam := a+b, a+1, a-1
-	c, d := 1.0, 1/clamp(1-qab*x/qap)
-	h := d
-	for m := 1; m <= 20000; m++ {
-		mf, m2 := float64(m), float64(2*m)
-		aa := mf * (b - mf) * x / ((qam + m2) * (a + m2))
-		d = 1 / clamp(1+aa*d)
-		c = clamp(1 + aa/c)
-		h *= d * c
-		aa = -(a + mf) * (qab + mf) * x / ((a + m2) * (qap + m2))
-		d = 1 / clamp(1+aa*d)
-		c = clamp(1 + aa/c)
-		del := d * c
-		h *= del
-		if math.Abs(del-1) <= eps {
-			break
-		}
-	}
-	return h
-}
-
-// parityStudentInv mirrors the engine's bracketed Newton on
-// log P(|T| ≥ t) (studentTInverseTwoSided + newtonBracketed).
-func parityStudentInv(alpha, df float64) float64 {
-	if df <= 0 || math.IsNaN(alpha) || math.IsNaN(df) || alpha <= 0 || alpha >= 1 {
-		return math.NaN()
-	}
-	logAlpha := math.Log(alpha)
-	g := func(t float64) float64 { return math.Log(parityStudentP(t, df)) - logAlpha }
-	logCoef := -parityLogBeta(df/2, 0.5) - 0.5*math.Log(df)
-	dg := func(t, p float64) float64 {
-		logPdf := logCoef - ((df+1)/2)*math.Log1p((t/df)*t)
-		return -2 * math.Exp(logPdf) / p
-	}
-	lo, hi := 0.0, 1.0
-	for g(hi) > 0 {
-		lo = hi
-		hi *= 4
-		if math.IsInf(hi, 0) {
-			return math.Inf(1)
-		}
-	}
-	return parityNewtonBracketed(lo, hi, func(t float64) (float64, float64) {
-		p := parityStudentP(t, df)
-		return math.Log(p) - logAlpha, dg(t, p)
-	})
-}
-
-func parityNewtonBracketed(lo, hi float64, fd func(float64) (float64, float64)) float64 {
-	const epsilon = 0x1p-52
-	x := 0.5 * (lo + hi)
-	for range 200 {
-		f, d := fd(x)
-		if f == 0 {
-			return x
-		}
-		if f > 0 {
-			lo = x
-		} else {
-			hi = x
-		}
-		next := x - f/d
-		if math.IsNaN(next) || next <= lo || next >= hi {
-			next = 0.5 * (lo + hi)
-		}
-		if math.Abs(next-x) <= 4*epsilon*math.Abs(next) || hi-lo <= 4*epsilon*math.Abs(hi) {
-			return next
-		}
-		x = next
-	}
-	return x
 }
 
 func parityAlpha(spec *types.Test) float64 {
@@ -953,8 +792,8 @@ func (tt *parityTTest) Finalize() (*types.TestResult, error) {
 		sd := math.Sqrt(variance)
 		se := sd / math.Sqrt(float64(b.n))
 		res.Variant, res.Statistic, res.DF = "one_sample", (b.mean-tt.mu)/se, float64(b.n-1)
-		res.PValue = parityStudentP(res.Statistic, res.DF)
-		tcrit := parityStudentInv(alpha, res.DF)
+		res.PValue = statdist.StudentTTwoSidedP(res.Statistic, res.DF)
+		tcrit := statdist.StudentTInverseTwoSided(alpha, res.DF)
 		res.Details = map[string]any{"mu": tt.mu, "n": b.n, "mean": b.mean, "variance": variance,
 			"ci_low": b.mean - tcrit*se, "ci_high": b.mean + tcrit*se,
 			"effect_size": map[string]any{"cohens_d": (b.mean - tt.mu) / sd}}
@@ -969,8 +808,8 @@ func (tt *parityTTest) Finalize() (*types.TestResult, error) {
 		num := va/na + vb/nb
 		den := (va*va)/(na*na*(na-1)) + (vb*vb)/(nb*nb*(nb-1))
 		res.Variant, res.Statistic, res.DF = "welch_two_sample", diff/se, (num*num)/den
-		res.PValue = parityStudentP(res.Statistic, res.DF)
-		tcrit := parityStudentInv(alpha, res.DF)
+		res.PValue = statdist.StudentTTwoSidedP(res.Statistic, res.DF)
+		tcrit := statdist.StudentTInverseTwoSided(alpha, res.DF)
 		pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / (na + nb - 2))
 		var d float64
 		if pooled > 0 {
@@ -1002,8 +841,8 @@ func (p parityPairedT) Run(rows []map[string]any) (*types.TestResult, error) {
 	sd := math.Sqrt(variance)
 	se := sd / math.Sqrt(float64(b.n))
 	t, df := b.mean/se, float64(b.n-1)
-	pv := parityStudentP(t, df)
-	tcrit := parityStudentInv(alpha, df)
+	pv := statdist.StudentTTwoSidedP(t, df)
+	tcrit := statdist.StudentTInverseTwoSided(alpha, df)
 	return &types.TestResult{
 		Label: p.spec.Label, Type: p.spec.Type, Variant: "paired_two_sided_post",
 		Statistic: t, DF: df, PValue: pv, Alpha: alpha, RejectNull: pv < alpha,

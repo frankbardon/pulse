@@ -39,6 +39,7 @@ internal/skills/           embedded skill pack (//go:embed *.md)
 internal/examples/         embedded runnable requests
 internal/fs/               afero config (fs.Default, fs.NewMemMap)
 internal/imports/          managed-imports manager (TTL, sidecars)
+internal/statdist/         Student-t family + regularized incomplete beta shared by processing and regression (leaf: stdlib + gonum only; TestStatdistImportBoundary)
 internal/daterange/        compiled {label,start,end} model for the date-range operators
 internal/mergegate/        the one pure merge + chain-stage gate (types/encoding/errors only); engine and chain validator both call it
 internal/spsssidecar/      SPSS sidecar path helpers used by root sidecar_*.go

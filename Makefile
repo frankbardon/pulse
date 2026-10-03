@@ -91,7 +91,7 @@ tzdata:
 # (`Rscript -e 'install.packages("jsonlite")'`). Manual target: CI never
 # runs R, the goldens are committed. Consumed by
 # internal/processing/reference_oracle_test.go and
-# internal/processing/regression/reference_oracle_test.go.
+# internal/statdist/reference_oracle_test.go.
 REFERENCE_DIR=internal/processing/testdata/reference
 reference:
 	Rscript scripts/reference/gen_reference.R $(REFERENCE_DIR)

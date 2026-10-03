@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,7 +26,7 @@ import (
 //
 // Then r = C / √(M2_x · M2_y); the t-statistic
 // t = r · √((n−2) / (1−r²)) with df = n−2 drives the two-sided
-// p-value through studentTTwoSidedP. Confidence interval bounds use
+// p-value through statdist.StudentTTwoSidedP. Confidence interval bounds use
 // Fisher's z-transform with SE = 1/√(n−3).
 type pearsonRRow struct {
 	spec   *types.Test
@@ -216,7 +217,7 @@ func finalizePearsonR(spec *types.Test, variant string, n int64, meanX, meanY, m
 		pvalue = 0
 	default:
 		t = r * math.Sqrt(df/(1-r*r))
-		pvalue = studentTTwoSidedP(t, df)
+		pvalue = statdist.StudentTTwoSidedP(t, df)
 	}
 	var ciLow, ciHigh float64
 	if n >= 4 && math.Abs(r) < 1 {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -99,8 +100,8 @@ func (p *pairedTRow) Finalize() (*types.TestResult, error) {
 	se := sd / math.Sqrt(float64(b.n))
 	tstat := b.mean / se
 	df := float64(b.n - 1)
-	pvalue := studentTTwoSidedP(tstat, df)
-	tcrit := studentTInverseTwoSided(p.alpha, df)
+	pvalue := statdist.StudentTTwoSidedP(tstat, df)
+	tcrit := statdist.StudentTInverseTwoSided(p.alpha, df)
 	ciLow := b.mean - tcrit*se
 	ciHigh := b.mean + tcrit*se
 	return &types.TestResult{

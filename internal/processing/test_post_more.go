@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -76,8 +77,8 @@ func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	se := sd / math.Sqrt(float64(b.n))
 	tstat := b.mean / se
 	df := float64(b.n - 1)
-	pvalue := studentTTwoSidedP(tstat, df)
-	tcrit := studentTInverseTwoSided(p.alpha, df)
+	pvalue := statdist.StudentTTwoSidedP(tstat, df)
+	tcrit := statdist.StudentTInverseTwoSided(p.alpha, df)
 	return &types.TestResult{
 		Label:      testLabel(p.spec),
 		Type:       types.TEST_PAIRED_T,
@@ -179,7 +180,7 @@ func (s *spearmanRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		p = 0
 	default:
 		t = rho * math.Sqrt(df/(1-rho*rho))
-		p = studentTTwoSidedP(t, df)
+		p = statdist.StudentTTwoSidedP(t, df)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(s.spec),

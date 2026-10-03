@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/frankbardon/pulse/internal/statdist"
 )
 
 // Reference oracle for the shared distribution primitives.
@@ -112,33 +114,9 @@ func (c *oracleCheck) done(cases int) {
 	c.t.Logf("%s: %d cases, worst relative error %.3g (%s)", c.name, cases, c.worst, c.worstCase)
 }
 
-func TestReferenceOracle_StudentTTwoSidedP(t *testing.T) {
-	doc := loadReference[struct {
-		T         float64 `json:"t"`
-		DF        float64 `json:"df"`
-		PTwoSided float64 `json:"p_two_sided"`
-	}](t, "student_t_p")
-	c := newOracleCheck(t, "studentTTwoSidedP", oracleRelTol, oracleProbAbsFloor)
-	for _, k := range doc.Cases {
-		c.check(studentTTwoSidedP(k.T, k.DF), k.PTwoSided, "t=%g, df=%g", k.T, k.DF)
-		// Symmetric in t.
-		c.check(studentTTwoSidedP(-k.T, k.DF), k.PTwoSided, "t=%g, df=%g", -k.T, k.DF)
-	}
-	c.done(len(doc.Cases))
-}
-
-func TestReferenceOracle_StudentTInverseTwoSided(t *testing.T) {
-	doc := loadReference[struct {
-		Alpha float64 `json:"alpha"`
-		DF    float64 `json:"df"`
-		Q     float64 `json:"q"`
-	}](t, "student_t_inverse_two_sided")
-	c := newOracleCheck(t, "studentTInverseTwoSided", oracleRelTol, oracleQuantileAbsFloor)
-	for _, k := range doc.Cases {
-		c.check(studentTInverseTwoSided(k.Alpha, k.DF), k.Q, "alpha=%g, df=%g", k.Alpha, k.DF)
-	}
-	c.done(len(doc.Cases))
-}
+// The Student-t oracle (two-sided p, CDF, quantile, two-sided critical
+// value) lives with the shared implementation in
+// internal/statdist/reference_oracle_test.go, reading these goldens.
 
 func TestReferenceOracle_ChiSquareSurvival(t *testing.T) {
 	doc := loadReference[struct {
@@ -324,7 +302,7 @@ func TestStudentizedRange_TwoSampleIsStudentT(t *testing.T) {
 			continue
 		}
 		n++
-		want := studentTTwoSidedP(k.Q/math.Sqrt2, k.DF)
+		want := statdist.StudentTTwoSidedP(k.Q/math.Sqrt2, k.DF)
 		if got := studentizedRangeSurvival(k.Q, 2, k.DF); math.Abs(got-want) > oracleRelTol*want {
 			t.Errorf("studentizedRangeSurvival(q=%g, 2, df=%g) = %.17g, want P(|T|>q/√2) = %.17g", k.Q, k.DF, got, want)
 		}

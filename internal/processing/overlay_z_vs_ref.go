@@ -14,7 +14,7 @@ import (
 // `standardNormalCDF` finaliser, same default-variance /
 // default-sample-size policy. Mirrors the SERIES arm of
 // `applyTVsRef` (overlay_compose_handlers_series.go) — only the
-// finaliser swaps from `studentTTwoSidedP` to `standardNormalCDF`.
+// finaliser swaps from `statdist.StudentTTwoSidedP` to `standardNormalCDF`.
 //
 // Components-source: when a target row OR a reference row carries a
 // `map[string]any{"mean", "variance", "n", ...}` value column — the

@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -42,7 +43,7 @@ import (
 //   - MUST NOT import internal/service/ or descriptor/.
 //   - No fmt.Sprintf in any JSON-bearing path.
 //   - Statistical primitives reuse the existing helpers
-//     (`chiSquareSurvival`, `studentTTwoSidedP`, `standardNormalCDF`)
+//     (`chiSquareSurvival`, `statdist.StudentTTwoSidedP`, `standardNormalCDF`)
 //     so per-cell p-values match the per-Request inferential overlay
 //     family + the TEST_* row test surface byte-equal.
 //
@@ -720,11 +721,11 @@ func matrixRowMarginLookup(mx *types.MatrixPayload) map[string]float64 {
 //	se      = sqrt(va/na + vb/nb)
 //	t       = (meanA - meanB) / se
 //	df      = (va/na + vb/nb)² / ((va/na)²/(na-1) + (vb/nb)²/(nb-1))
-//	p_value = studentTTwoSidedP(t, df)
+//	p_value = statdist.StudentTTwoSidedP(t, df)
 //
 // Returns (NaN, false) when sample sizes are below 2, when se == 0,
 // or when the computation produces a non-finite result. Reuses
-// studentTTwoSidedP so the overlay and TEST_T produce identical
+// statdist.StudentTTwoSidedP so the overlay and TEST_T produce identical
 // p-values for the same (mean, variance, n) triple.
 func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 	if nA < 2 || nB < 2 {
@@ -744,7 +745,7 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 		return math.NaN(), false
 	}
 	df := (num * num) / den
-	p := studentTTwoSidedP(t, df)
+	p := statdist.StudentTTwoSidedP(t, df)
 	if math.IsNaN(p) || math.IsInf(p, 0) {
 		return math.NaN(), false
 	}

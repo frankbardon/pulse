@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,7 +30,7 @@ import (
 //     k>2 splitter — direct them to TEST_ANOVA_F).
 //
 // Confidence interval bounds use the inverse t quantile at alpha
-// (studentTInverseTwoSided: bracketed Newton on log studentTTwoSidedP).
+// (statdist.StudentTInverseTwoSided: bracketed Newton on log statdist.StudentTTwoSidedP).
 type tTestRow struct {
 	spec   *types.Test
 	schema *encoding.Schema
@@ -170,8 +171,8 @@ func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 	se := sd / math.Sqrt(float64(b.n))
 	tstat := (b.mean - tt.mu) / se
 	df := float64(b.n - 1)
-	p := studentTTwoSidedP(tstat, df)
-	tcrit := studentTInverseTwoSided(tt.alpha, df)
+	p := statdist.StudentTTwoSidedP(tstat, df)
+	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
 	ciLow := b.mean - tcrit*se
 	ciHigh := b.mean + tcrit*se
 	res := &types.TestResult{
@@ -240,8 +241,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	num := va/na + vb/nb
 	den := (va*va)/(na*na*(na-1)) + (vb*vb)/(nb*nb*(nb-1))
 	df := (num * num) / den
-	p := studentTTwoSidedP(tstat, df)
-	tcrit := studentTInverseTwoSided(tt.alpha, df)
+	p := statdist.StudentTTwoSidedP(tstat, df)
+	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
 	ciLow := diff - tcrit*se
 	ciHigh := diff + tcrit*se
 	// Cohen's d via pooled standard deviation.

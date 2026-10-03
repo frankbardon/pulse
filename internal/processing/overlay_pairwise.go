@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -627,7 +628,7 @@ func pairwiseProbitTKernel(in pwInputs) (float64, string, bool) {
 	if math.IsNaN(t) || math.IsInf(t, 0) {
 		return 0, "ORBIT_STATS_SKIP_T_INVALID", false
 	}
-	pv := studentTTwoSidedP(t, dof)
+	pv := statdist.StudentTTwoSidedP(t, dof)
 	if math.IsNaN(pv) {
 		return 0, "ORBIT_STATS_SKIP_PVALUE_NAN", false
 	}
@@ -659,7 +660,7 @@ func pairwiseWelchTKernel(in pwInputs) (float64, string, bool) {
 	if dof <= 0 || math.IsNaN(dof) || math.IsInf(dof, 0) {
 		return 0, "ORBIT_STATS_SKIP_DOF_INVALID", false
 	}
-	pv := studentTTwoSidedP(t, dof)
+	pv := statdist.StudentTTwoSidedP(t, dof)
 	if math.IsNaN(pv) {
 		return 0, "ORBIT_STATS_SKIP_PVALUE_NAN", false
 	}

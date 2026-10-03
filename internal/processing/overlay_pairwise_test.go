@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -166,12 +167,12 @@ func TestOverlayPairwise_WelchT_Welford(t *testing.T) {
 		t.Fatalf("welch pair cell absent")
 	}
 	// Closed-form Welch: a=4/50, b=9/60; se=sqrt(a+b); t=(10-12)/se;
-	// df via Satterthwaite; p = studentTTwoSidedP(t, df).
+	// df via Satterthwaite; p = statdist.StudentTTwoSidedP(t, df).
 	a, b := 4.0/50, 9.0/60
 	se := math.Sqrt(a + b)
 	tStat := (10.0 - 12.0) / se
 	df := (a + b) * (a + b) / ((a*a)/49 + (b*b)/59)
-	want := studentTTwoSidedP(tStat, df)
+	want := statdist.StudentTTwoSidedP(tStat, df)
 	gv, _ := cell.Value.(float64)
 	if math.Abs(gv-want) > 1e-12 {
 		t.Fatalf("welch p = %v, want %v", gv, want)
