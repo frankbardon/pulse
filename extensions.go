@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"encoding/json"
+	iofs "io/fs"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -112,6 +113,23 @@ type Extensions struct {
 	// are read-only after pulse.New. Operator→table resolution is
 	// wired separately; this slot only registers the tables.
 	RangeTables map[string]RangeTable
+
+	// Skills is an optional fs.FS of embedder skill files, served to
+	// agents exactly like the built-in pack (p.Skills / p.Skill,
+	// pulse_skills_list / pulse_skills_get, pulse-skill:// resources, the
+	// manifest skills list, p.Ontology). Only top-level .md files, in
+	// two shapes: an atomic op-<category>-<kebab>.md (kind: operator)
+	// documenting ONE operator registered here — its stem is op- plus
+	// the operator name lowercased with _ → - — and a topical
+	// ext-<kebab>.md (kind: design, optional requires:). Every file is
+	// validated HARD at pulse.New (frontmatter, name = stem, the
+	// family's required ## sections, body budget, feature fences and
+	// their coverage, ## See stems): a failure is
+	// PULSE_EXTENSION_SKILL_INVALID, a stem a built-in skill or another
+	// file already takes PULSE_EXTENSION_SKILL_COLLISION. A feature
+	// profile hiding the operator hides its skill — it then reads as
+	// nonexistent everywhere. Read once at pulse.New; nil adds none.
+	Skills iofs.FS
 }
 
 // ParamMeta describes one operator-specific parameter for manifest

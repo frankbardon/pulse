@@ -57,6 +57,14 @@ type Discovery struct {
 	// graph is the instance's pruned ontology; nil on the pass-through
 	// view (the virtual skills then render whole).
 	graph *OntologyGraph
+	// ext is every embedder skill whose node survived the prune
+	// (Extensions.Skills; extension_skills.go), keyed by name; a pruned
+	// one sits in hiddenSkills like a pruned built-in.
+	ext map[string]ExtensionSkill
+	// passBuiltins: the instance hides nothing (a Discovery built only
+	// to serve embedder skills), so built-in skills pass through to
+	// skills.List / skills.Get byte-identically.
+	passBuiltins bool
 }
 
 // fullDiscovery is the pass-through view every unscoped instance shares.
@@ -94,6 +102,23 @@ func buildDiscovery(inst *InstanceSnapshot, g *OntologyGraph) *Discovery {
 	for _, sum := range examples.Search("", nil, "") {
 		if !g.Has(OntologyID(descriptor.OntologyNodeExample, sum.Name)) {
 			d.hiddenExamples[sum.Name] = struct{}{}
+		}
+	}
+	d.passBuiltins = !inst.Scoped() || len(inst.hidden) == 0
+	if ext := inst.Extensions(); ext != nil {
+		for _, s := range ext.Skills {
+			name := s.Metadata.Name
+			if !g.Has(OntologyID(descriptor.OntologyNodeSkill, name)) {
+				d.hiddenSkills[name] = struct{}{}
+				continue
+			}
+			if d.ext == nil {
+				d.ext = map[string]ExtensionSkill{}
+			}
+			d.ext[name] = s
+			if s.Metadata.Kind == "design" {
+				d.topical[name] = struct{}{}
+			}
 		}
 	}
 	return d
@@ -142,16 +167,24 @@ func (d *Discovery) ExampleVisible(name string) bool {
 // prose-scrubbed and every applies_to / covers / examples_tags entry
 // naming a hidden token dropped (topical metadata included; bodies
 // render by feature fence in Skill).
+//
+// Visible embedder skills (Extensions.Skills) are merged in by name.
 func (d *Discovery) Skills() []skills.Metadata {
 	all := skills.List()
-	if len(d.hiddenSkills) == 0 && !d.scrub.Active() {
+	if len(d.hiddenSkills) == 0 && !d.scrub.Active() && len(d.ext) == 0 {
 		return all
 	}
-	out := make([]skills.Metadata, 0, len(all))
+	out := make([]skills.Metadata, 0, len(all)+len(d.ext))
 	for _, md := range all {
 		if d.SkillVisible(md.Name) {
 			out = append(out, d.renderMetadata(md))
 		}
+	}
+	if len(d.ext) > 0 {
+		for _, s := range d.ext {
+			out = append(out, d.renderMetadata(s.Metadata))
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	}
 	return out
 }
@@ -208,7 +241,10 @@ func (d *Discovery) Skill(name string) (string, bool) {
 	if !d.SkillVisible(name) {
 		return "", false
 	}
-	if d.graph == nil {
+	if s, ok := d.ext[name]; ok {
+		return d.renderBody(name, s.Raw), true
+	}
+	if d.graph == nil || d.passBuiltins {
 		return skills.Get(name)
 	}
 	switch name {

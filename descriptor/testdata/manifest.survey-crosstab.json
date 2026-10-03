@@ -680,7 +680,7 @@
     "post_tests": [],
     "regressions": [],
     "synth_distributions": [],
-    "error_codes_count": 145,
+    "error_codes_count": 147,
     "error_domains": [
       "CLI",
       "DATA",
@@ -745,6 +745,8 @@
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
+      "PULSE_EXTENSION_SKILL_COLLISION",
+      "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
@@ -1424,7 +1426,7 @@
       },
       {
         "name": "tool-skills-list",
-        "description": "List the embedded skill pack — domain guides and atomic operator/type/tool refs."
+        "description": "List the skill pack — domain guides and atomic operator/type/tool refs, deployment-added skills included."
       },
       {
         "name": "type-categorical-u16",
@@ -1941,4 +1943,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 13dd503c47c254bc48c49e879db2baaabadc9744e26df010dbe4bb0f2bcbc131
+// golden-hash: 594127eb20a4d4f2ac72793674251dfba8da59eff6e531593384eab8127e2809

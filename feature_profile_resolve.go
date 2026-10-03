@@ -34,6 +34,9 @@ type featureUniverse struct {
 	// unverified marks names an offline CheckFeatureProfile accepted as
 	// extension operators without a registration (withUnverified).
 	unverified map[string]bool
+	// skills are the validated Extensions.Skills files
+	// (validateExtensionUniverse); pulse.New hands them to the snapshot.
+	skills []descx.ExtensionSkill
 }
 
 func newFeatureUniverse(ext Extensions, version string) featureUniverse {

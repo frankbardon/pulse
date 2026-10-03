@@ -5510,7 +5510,7 @@
         ]
       }
     ],
-    "error_codes_count": 250,
+    "error_codes_count": 252,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5588,6 +5588,8 @@
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
+      "PULSE_EXTENSION_SKILL_COLLISION",
+      "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
@@ -8002,7 +8004,7 @@
       },
       {
         "name": "tool-skills-list",
-        "description": "List the embedded skill pack — domain guides and atomic operator/type/tool refs."
+        "description": "List the skill pack — domain guides and atomic operator/type/tool refs, deployment-added skills included."
       },
       {
         "name": "type-categorical-u16",
@@ -10673,4 +10675,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 14c105b9c011726caa020273e7d9db27e15026f89b8e54e274a2589f2379bcc1
+// golden-hash: 6157cdda334a4cf27c913c0941b757eb488e01088d42b64536202408494774a8

@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	iofs "io/fs"
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -357,6 +358,13 @@ func validateExtensionUniverse(ext Extensions) (featureUniverse, error) {
 	if err := validateExtensionGuidance(ext); err != nil {
 		return featureUniverse{}, err
 	}
+	// Embedder skills: validated against EVERY registration, before a
+	// feature profile hides any (extension_skills.go).
+	sk, err := descx.LoadExtensionSkills(ext.Skills, buildExtensionsSnapshot(ext), u.extDeps)
+	if err != nil {
+		return featureUniverse{}, err
+	}
+	u.skills = sk
 	return u, nil
 }
 
@@ -416,6 +424,7 @@ func mergeExtensions(ext []Extensions) Extensions {
 		return ext[0]
 	}
 	var out Extensions
+	var skillFS []iofs.FS
 	for _, e := range ext {
 		out.Aggregators = append(out.Aggregators, e.Aggregators...)
 		out.Attributes = append(out.Attributes, e.Attributes...)
@@ -429,8 +438,45 @@ func mergeExtensions(ext []Extensions) Extensions {
 		out.LookupTables = mergeTables(out.LookupTables, e.LookupTables)
 		out.LabelTables = mergeTables(out.LabelTables, e.LabelTables)
 		out.RangeTables = mergeTables(out.RangeTables, e.RangeTables)
+		if e.Skills != nil {
+			skillFS = append(skillFS, e.Skills)
+		}
+	}
+	switch len(skillFS) {
+	case 0:
+	case 1:
+		out.Skills = skillFS[0]
+	default:
+		out.Skills = skillFSStack(skillFS)
 	}
 	return out
+}
+
+// skillFSStack layers several Extensions.Skills file systems: its root
+// listing concatenates theirs — a stem two of them ship is listed twice,
+// which LoadExtensionSkills refuses as PULSE_EXTENSION_SKILL_COLLISION —
+// and Open reads from the first that has the name.
+type skillFSStack []iofs.FS
+
+func (l skillFSStack) Open(name string) (iofs.File, error) {
+	for _, f := range l {
+		if file, err := f.Open(name); err == nil {
+			return file, nil
+		}
+	}
+	return nil, &iofs.PathError{Op: "open", Path: name, Err: iofs.ErrNotExist}
+}
+
+func (l skillFSStack) ReadDir(name string) ([]iofs.DirEntry, error) {
+	var out []iofs.DirEntry
+	for _, f := range l {
+		entries, err := iofs.ReadDir(f, name)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, entries...)
+	}
+	return out, nil
 }
 
 func mergeTables[V any](dst, src map[string]V) map[string]V {

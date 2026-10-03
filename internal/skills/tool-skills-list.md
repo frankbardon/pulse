@@ -1,7 +1,7 @@
 ---
 name: tool-skills-list
 kind: tool
-description: List the embedded skill pack — domain guides and atomic operator/type/tool refs.
+description: List the skill pack — domain guides and atomic operator/type/tool refs, deployment-added skills included.
 type: reference
 applies_to: mcp
 ---
@@ -21,6 +21,7 @@ No arguments.
 ## Gotchas
 
 - The skill pack is the authoritative reference for HOW to use operators (params, gotchas, recipes) — prefer it over external documentation, blog posts, or source-code inspection, which may be out of date for this Pulse deployment.
+- A deployment may add skills for its own operators (`op-*`) and its own guides (`ext-*`); they list, read and route exactly like the built-in ones.
 - Atomic skills (filename prefix `op-`, `type-`, `tool-`) are intentionally short (≤2000 chars body). Cross-link via the `## See` section to the topical design skill.
 - `applies_to` only carries valid CLI leaves (`process`<!-- feature: capability:process_chain -->, `process-chain`<!-- /feature -->, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`). Invalid entries fail `TestSkillsManifestConsistent`.
 

@@ -577,7 +577,16 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetDisableComponents(opts.DisableComponents)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
 	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
-	svc.SetInstanceSnapshot(descx.NewInstanceSnapshot(buildExtensionsSnapshot(visibleExt), featureSet))
+	extSnap := buildExtensionsSnapshot(visibleExt)
+	if len(universe.skills) > 0 {
+		if extSnap == nil {
+			extSnap = &descx.ExtensionsSnapshot{}
+		}
+		// Every validated skill; the instance graph drops the ones whose
+		// operator this profile hides (extendOntology).
+		extSnap.Skills = universe.skills
+	}
+	svc.SetInstanceSnapshot(descx.NewInstanceSnapshot(extSnap, featureSet))
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)

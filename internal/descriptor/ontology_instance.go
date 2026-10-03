@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/frankbardon/pulse/internal/skills"
 )
 
 // Instance ontology — the base graph extended with the instance's
@@ -94,7 +96,7 @@ func extensionsAddNodes(ext *ExtensionsSnapshot) bool {
 			return true
 		}
 	}
-	return len(ext.LookupTables)+len(ext.LabelTables)+len(ext.RangeTables) > 0
+	return len(ext.LookupTables)+len(ext.LabelTables)+len(ext.RangeTables)+len(ext.Skills) > 0
 }
 
 // extendOntology returns a new graph: base plus ext's operator and table
@@ -135,7 +137,71 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 	for _, t := range ext.LookupTables {
 		b.node(descriptor.OntologyNodeTable, tableNodeName(tableKindLookup, t.Name))
 	}
+	b.addExtensionSkills(ext.Skills)
 	return b.finish()
+}
+
+// addExtensionSkills adds the embedder skills whose subject the graph
+// carries — an atomic skill's operator node, every topical `requires:`
+// target — with the edges a built-in skill of the same shape gets
+// (documented_by, requires_capability, atomic `## See` routes_to /
+// exemplified_by, topical fence routes_to). A skill whose subject is
+// absent documents a hidden extension operator (dropped from the
+// snapshot before the graph is built): it is no node, so it reads as
+// nonexistent. Fence names that resolve to nothing (a hidden extension
+// operator) emit no edge and no problem — the skill was validated
+// against every registration at pulse.New.
+func (b *ontologyBuilder) addExtensionSkills(in []ExtensionSkill) {
+	if len(in) == 0 {
+		return
+	}
+	src := ontologySources{}
+	bodies := map[string]string{}
+	for _, s := range in {
+		md := s.Metadata
+		if md.Operator != "" && !b.has(OntologyID(descriptor.OntologyNodeOperator, md.Operator)) {
+			continue
+		}
+		kept := true
+		for _, req := range md.Requires {
+			if !b.has(FenceFeatureID(req)) {
+				kept = false
+				break
+			}
+		}
+		if !kept {
+			continue
+		}
+		b.node(descriptor.OntologyNodeSkill, md.Name)
+		src.skills = append(src.skills, md)
+		bodies[md.Name] = s.Raw
+	}
+	if len(src.skills) == 0 {
+		return
+	}
+	src.skillBody = func(name string) (string, bool) { body, ok := bodies[name]; return body, ok }
+	for _, sum := range examples.Search("", nil, "") {
+		src.examples = append(src.examples, ontologyExample{Name: sum.Name, Tags: sum.Tags})
+	}
+	b.addSkillEdges(src)
+	b.addSeeEdges(src)
+	for _, md := range src.skills {
+		if md.Kind != "design" {
+			continue
+		}
+		fences, err := skills.ParseFences(bodies[md.Name])
+		if err != nil {
+			continue
+		}
+		from := OntologyID(descriptor.OntologyNodeSkill, md.Name)
+		for _, f := range fences {
+			for _, n := range f.Names {
+				if to := FenceFeatureID(n); b.has(to) {
+					b.edge(from, to, descriptor.OntologyEdgeRoutesTo, "topical fence")
+				}
+			}
+		}
+	}
 }
 
 // pruneOntology returns g without the nodes inst hides (rules in the

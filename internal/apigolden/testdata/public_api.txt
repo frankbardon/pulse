@@ -193,6 +193,7 @@ pulse: type Extensions field Groupers []pulse.GrouperRegistration
 pulse: type Extensions field LabelTables map[string]pulse.LabelTable
 pulse: type Extensions field LookupTables map[string]pulse.LookupTable
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
+pulse: type Extensions field Skills io/fs.FS
 pulse: type Extensions field SynthDistributions []pulse.DistributionRegistration
 pulse: type Extensions field Tests []pulse.TestRegistration
 pulse: type Extensions field Windows []pulse.WindowRegistration
@@ -1740,6 +1741,8 @@ pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTE
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_EXTENSION_PURPOSE_INVALID"
+pulse/errors: const PULSE_EXTENSION_SKILL_COLLISION pulse/errors.Code = "PULSE_EXTENSION_SKILL_COLLISION"
+pulse/errors: const PULSE_EXTENSION_SKILL_INVALID pulse/errors.Code = "PULSE_EXTENSION_SKILL_INVALID"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
 pulse/errors: const PULSE_FEATURE_PROFILE_DEPENDENCY pulse/errors.Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
 pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEATURE_PROFILE_INVALID"
@@ -3720,4 +3723,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 28093f9be35bf7c96f03cb6802dbc75fe3439e96e32f31b447330c428eb1c866
+// golden-hash: 55ae34b23858530e8bb4a644d5e8fd67a29c448274baa81febdacebea466d131

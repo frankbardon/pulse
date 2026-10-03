@@ -401,18 +401,17 @@ var (
 // names no hidden operator or tool. Survivors are copies — the cached
 // sortedSkills slice is never written. With nothing pruned and nothing
 // to scrub it is sortedSkills itself.
+// Visible embedder skills (Extensions.Skills) are listed like
+// built-ins, in name order (Discovery.Skills).
 func visibleSkills(d *Discovery) []descriptor.SkillMeta {
 	all := sortedSkills()
-	if len(d.hiddenSkills) == 0 && !d.scrub.Active() {
+	if len(d.hiddenSkills) == 0 && !d.scrub.Active() && len(d.ext) == 0 {
 		return all
 	}
-	out := make([]descriptor.SkillMeta, 0, len(all))
-	for _, s := range all {
-		if !d.SkillVisible(s.Name) {
-			continue
-		}
-		r := d.renderMetadata(skills.Metadata{Name: s.Name, Description: s.Description})
-		out = append(out, descriptor.SkillMeta{Name: s.Name, Description: r.Description})
+	listed := d.Skills()
+	out := make([]descriptor.SkillMeta, len(listed))
+	for i, md := range listed {
+		out[i] = descriptor.SkillMeta{Name: md.Name, Description: md.Description}
 	}
 	return out
 }

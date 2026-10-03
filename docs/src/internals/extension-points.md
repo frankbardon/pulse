@@ -94,6 +94,8 @@ ext := pulse.Extensions{
 
     ExprFunctions: []pulse.ExprFunction{...},
     LookupTables:  map[string]pulse.LookupTable{...},
+
+    Skills: skillsFS, // fs.FS of embedder skill files — see "Embedder skills"
 }
 
 p, err := pulse.New(pulse.Options{
@@ -1090,6 +1092,74 @@ Benefits: the manifest advertises `adjustments`, the schema-bound MCP
 tool surfaces it, predict can typecheck the expression, and the
 lookup runs without pre-processing every request.
 
+## Embedder skills (`Extensions.Skills`)
+
+Agents learn HOW to use an operator from the skill pack
+(`pulse_skills_list` / `pulse_skills_get`). `Extensions.Skills` lets an
+embedder document its own operators the same way: an `fs.FS` of
+top-level `.md` files, read once at `pulse.New` and then served through
+`p.Skills()` / `p.Skill(name)`, `pulse_skills_list` /
+`pulse_skills_get`, the `pulse-skill://` resources, the manifest
+`skills` list and `p.Ontology()` exactly like the shipped pack.
+
+```go
+//go:embed skills/*.md
+var skillFiles embed.FS
+
+sub, _ := fs.Sub(skillFiles, "skills")
+ext := pulse.Extensions{
+    Aggregators: []pulse.AggregatorRegistration{{Name: "AGG_ACME_TRIM", ...}},
+    Skills:      sub,
+}
+```
+
+### Shapes
+
+| Stem | Frontmatter | Documents |
+|---|---|---|
+| `op-<category>-<kebab>.md` | `kind: operator`, `category:` = the operator's prefix (`AGG`, `ATTR`, `FILTER`, `GROUP`, `WIN`, `FEAT`, `TEST`, `SYNTH`), `operator:` = the registered name | ONE extension operator registered in the same `Extensions`; the stem is `op-` plus the name lowercased with `_` → `-` (`AGG_ACME_TRIM` → `op-agg-acme-trim`) |
+| `ext-<kebab>.md` | `kind: design`, no `operator:` / `category:`, optional `requires:` | a topic — how your operators fit a workflow |
+
+The frontmatter keys and the required `##` sections are the built-in
+pack's (`.claude/reference/skill-pack.md` in the repo): an atomic skill
+carries `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See`
+(plus `## Components` for `AGG` / `GROUP` / `FILTER`). Only an `ext-*`
+skill may carry `requires:` — an atomic skill already follows its
+operator.
+
+### Validation at `pulse.New`
+
+Every file is validated HARD — against every registration, before a
+feature profile hides any, so validity never depends on the profile.
+The first failure is `PULSE_EXTENSION_SKILL_INVALID` (details carry
+`skill` and `reason`) or `PULSE_EXTENSION_SKILL_COLLISION`:
+
+| `reason` | Rule |
+|---|---|
+| `layout` | the root reads; every entry is a regular top-level `.md` file |
+| `builtin` / `duplicate` (COLLISION) | the stem is not a built-in (or virtual `glossary` / `intents`) skill and is shipped once across every merged `Extensions` value — embedders never override or shadow the shipped pack |
+| `stem` | `op-<category>-<kebab>` naming its operator, or `ext-<kebab>` |
+| `frontmatter` / `name` / `description` | a `---` block; `name` equals the stem; a description |
+| `kind` / `operator` / `category` / `requires` | atomic: `kind: operator`, a registered extension operator, its prefix as `category`; topical: `kind: design`; each `requires:` entry a feature (`capability:crosstab`) or registered operator |
+| `sections` | the family's required `##` headings |
+| `budget` | body (frontmatter and fence markers stripped) ≤ 1200 bytes for `op-*`, ≤ 6000 for `ext-*` — hard, unlike the built-in atomic budget |
+| `fence` | every `<!-- feature: … -->` fence closes and names a feature or registered operator |
+| `fence_coverage` | every operator, `<kind>:<name>` feature or feature-owned `pulse_*` tool the body names — your own other operators included — sits in a fence naming it, unless the skill goes whenever it is hidden (its own operator and that operator's `DependsOn`, transitively; a topical skill's `requires:`). The description may name none |
+| `see` | every backticked stem in `## See` is a skill the instance carries (built-in, virtual or yours) |
+
+### Served and pruned like built-ins
+
+Each skill is a `skill:<stem>` node of the instance ontology with the
+edges a built-in of its shape gets (`operator documented_by skill`,
+`## See` → `routes_to`, `requires:` → `requires_capability`, topical
+fence names → `routes_to`). A feature profile that hides your operator
+hides its atomic skill, and an `ext-*` skill whose `requires:` names a
+hidden feature: either then reads exactly like a name that never
+existed on every surface. A visible skill's fences render against the
+instance (a span naming a hidden feature is cut), so mention a feature
+the profile may hide only inside a fence. Registering skills never
+changes a built-in skill's listing or body.
+
 ## Error codes raised by this surface
 
 Fetch the Message + Fixup template for any of these via
@@ -1110,6 +1180,8 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |
 | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key not in `ComponentSchema.Keys`, or re-emitted a floor key |
+| `PULSE_EXTENSION_SKILL_INVALID` | an `Extensions.Skills` file breaks a rule in "Embedder skills" — `details.reason` names which |
+| `PULSE_EXTENSION_SKILL_COLLISION` | an `Extensions.Skills` stem is a built-in skill or is shipped twice |
 | `PULSE_FEATURE_PROFILE_UNKNOWN` | a `DependsOn` entry names no built-in feature or registered extension operator |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |

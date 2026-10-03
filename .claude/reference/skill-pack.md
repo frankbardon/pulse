@@ -90,6 +90,10 @@ go test ./internal/descriptor/ -run TestSkillsCoverFeatureFences -v
 - **Frontmatter `description`:** cannot hold a fence, so every unguarded name there is a violation; other frontmatter keys (`operator:`, `covers:`) are not scanned.
 - **Binding (since E4-S3):** every violation fails, as does a malformed fence or an unknown fence name; the table is logged either way.
 
+## Embedder skills (U10)
+
+`pulse.Options.Extensions.Skills` (an `fs.FS`) adds an embedder's own skills to the instance: atomic `op-<category>-<kebab>.md` for ONE registered extension operator and topical `ext-<kebab>.md` (`kind: design`; no built-in stem starts with `ext-`). They go through THIS file's rules — the same frontmatter, the "Required body sections" table and the "Token budget" table (one source: `internal/skills/families.go`, which `TestAtomicSkillHasRequiredSections` / `TestSkillTokenBudget` also read), "Feature fences" and "Fence coverage" (extension operator names join the scan list; an atomic skill is guarded by its operator and that operator's `DependsOn`) — but every rule is HARD at `pulse.New`, budgets included (`op-*` ≤1200, `ext-*` ≤6000), and a `## See` stem must resolve. A stem colliding with a built-in or virtual skill is refused: embedders never shadow the shipped pack. They are skill nodes of the instance ontology, pruned with their operator / `requires:`, and served by every discovery surface like built-ins. Rule table and error reasons: `docs/src/internals/extension-points.md` (Embedder skills); wiring: `.claude/reference/architecture.md` (Extension surface).
+
 ## Required body sections (atomic skills)
 
 | Family | Required `##` sections |
