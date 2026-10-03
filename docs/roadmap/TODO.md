@@ -115,9 +115,9 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#42** `TestManifestGuidanceBudget`: no guidance prose in default payloads; manifest growth stays under about 4 KB · [U07](units/U07-guidance-metadata.md)
 
 ### G2 — Back-fill (statistics reviewer signs off before the gates flip)
-- [ ] **#43** Tests (`TEST_*`) · [U08](units/U08-guidance-backfill-inferential.md)
-- [ ] **#44** Overlays (`OVERLAY_*`) · [U08](units/U08-guidance-backfill-inferential.md)
-- [ ] **#45** Regressions (`REG_*`) · [U08](units/U08-guidance-backfill-inferential.md)
+- [x] **#43** Tests (`TEST_*`) · [U08](units/U08-guidance-backfill-inferential.md)
+- [x] **#44** Overlays (`OVERLAY_*`) · [U08](units/U08-guidance-backfill-inferential.md)
+- [x] **#45** Regressions (`REG_*`) · [U08](units/U08-guidance-backfill-inferential.md)
 - [ ] **#46** Aggregators (`AGG_*`) · [U09](units/U09-guidance-backfill-descriptive.md)
 - [ ] **#47** Attributes, filterers, groupers, windows and features · [U09](units/U09-guidance-backfill-descriptive.md)
 - [ ] **#48** Synth distributions · [U09](units/U09-guidance-backfill-descriptive.md)
@@ -146,6 +146,12 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#63** Additive `p_adjusted` / `significant_adjusted` / `multiplicity` outputs · [U13](units/U13-multiplicity.md)
 - [ ] **#64** Advisory + Explain hooks; glossary terms · [U13](units/U13-multiplicity.md)
 - [ ] **#65** Reference-value, identity and family-boundary gates; `multiple-comparisons.md` skill · [U13](units/U13-multiplicity.md)
+
+### Reference oracles (found in U08; [review record](reviews/U08-statistics-review.md))
+- [ ] **#202** Per-output R oracle for every `TEST_*` family at tight relative tolerance: Shapiro–Wilk (Shapiro–Francia W′ + p), Brown–Forsythe, Tukey q / `p_adj`, KS p, Kendall τ-b with ties, Mann–Kendall (`TEST_TREND`) p, Pearson CI, and every family's p-value (row and post twins) · [U36](units/U36-reference-oracles.md)
+- [ ] **#203** `REG_OLS` (incl. ridge / lasso / elastic net) and `REG_GLM` (binomial, poisson, gamma) coefficients, SEs and p-values, and the `REG_BAYES_LINEAR` posterior, pinned to an external reference · [U36](units/U36-reference-oracles.md)
+- [ ] **#204** De-circularised overlay oracles: `OVERLAY_CHISQ_VS_POP`, `OVERLAY_CHISQ_VS_REF`, `OVERLAY_KS_VS_POP` and `OVERLAY_PAIRWISE_PROBIT_T` checked against an independent R computation · [U36](units/U36-reference-oracles.md)
+- [ ] **#205** Runtime bugs found in U08: infinite `TEST_FISHER_EXACT` OR and Pearson / Spearman `details.t` break `--json`; `TEST_BROWN_FORSYTHE` F = 0, p = 0 at zero within-group spread; Winitzki inverse-erf CI critical z ~4.7e-4 too small; Shapiro–Francia p uncalibrated for n < 5 · [U36](units/U36-reference-oracles.md)
 
 ---
 
@@ -316,6 +322,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#168** `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md)) · [U33](units/U33-v1-release.md)
 - [ ] **#169** Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library · [U33](units/U33-v1-release.md)
 - [ ] **#170** `v1.0.0` tagged · [U33](units/U33-v1-release.md)
+- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items, signs off the inferential guidance, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
 
 ---
 

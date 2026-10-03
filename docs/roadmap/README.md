@@ -6,7 +6,7 @@ This directory sits outside the mdBook source (`docs/src/`) on purpose: planned 
 
 ## v1.0.0
 
-Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Work is planned as 37 Flow units in [`units/`](units/README.md); each TODO item links to its unit.
+Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Work is planned as 38 Flow units in [`units/`](units/README.md); each TODO item links to its unit.
 
 | Theme | Index |
 |---|---|

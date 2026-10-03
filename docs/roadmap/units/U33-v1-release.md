@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206]
 branch: v1-release
 ---
 
@@ -33,6 +33,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#168** (12. Release v1.0.0) `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md))
 - [ ] **#169** (12. Release v1.0.0) Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
+- [ ] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items, signs off the inferential guidance, and owns the statistical-review CODEOWNERS entries
 - [ ] **#171** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values
 - [ ] **#173** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups
 - [ ] **#174** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator has `Purpose`, `Interpretation` (if inferential), `Since`, dependency edges and an atomic skill
@@ -46,6 +47,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 
 **In scope**
 - STABILITY.md
+- Human statistics sign-off of the U08 review record (#206) — release-blocking
 - rc tag + downstream validation
 - Cross-cutting verification (TODO §13)
 - v1.0.0 tag
@@ -63,6 +65,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 
 ### E2 — Verified and released
 - S1: cross-cutting sweep (§13 items)
+- S1b: statistics sign-off (#206) — reviewer works the U08 review record's open items, records the sign-off in the record, lands CODEOWNERS
 - S2: `v1.0.0-rc.1`; downstream library validation
 - S3: `v1.0.0`
 
@@ -71,6 +74,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 - [ ] Every TODO item is ticked, or explicitly moved to post-1.0 in the theme docs
 - [ ] The rc builds through the release pipeline, and the downstream library passes its own tests against it
 - [ ] The API-compat check is active against `v1.0.0`
+- [ ] A named statistics reviewer's sign-off is recorded in `docs/roadmap/reviews/U08-statistics-review.md`, every open item there resolved or deferred with a reason, and `.github/CODEOWNERS` routes the guidance registries to the reviewer
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
@@ -86,6 +90,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 ## Human inputs & decisions
 
 - Maintainer runs the downstream validation and tags the release
+- **Statistics reviewer** (maintainer sources one) signs off U08's inferential guidance (#206); no `rc` is tagged before it
 
 ## Notes
 
@@ -96,3 +101,14 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 - **Pre-1970 `datetime` index rebuild** (U03, PR #301). This is the release-note line under Update Demand companions. The fix changed how such a key is encoded, so an older index on one keys on a rounded float echo.
 - **Review `mcpserve.Describe` / `ServeInfo` before the freeze** (U04, PR #304). They exist only to get the profile name into `pulse mcp`'s startup line without a `*Pulse` accessor (`mcpserve/describe.go`). U05 then added `p.FeatureProfile()`. Keep them, or remove them in favour of the accessor, before `STABILITY.md` freezes `mcpserve`.
 - **After the `v1.0.0` tag: relax `TestFeaturesHaveSince`.** It requires every built-in `Since` to equal `BuiltinFeatureSince` (`"1.0.0"`, `internal/descriptor/features.go`). The first feature added after the tag must relax the check to "parseable and ≤ the next release". Contract: `.claude/reference/feature-profiles.md`. This is post-release work, recorded here so it is not lost.
+
+## Inherited from U08
+
+U08 shipped Purpose + Interpretation for every `TEST_*`, `OVERLAY_*` and `REG_*` without a human reviewer. Its review was automated: binding deterministic gates (convention registry, prose lint, R oracle) plus a two-pass advisory LLM panel whose findings were all triaged and applied. The record is [`reviews/U08-statistics-review.md`](../reviews/U08-statistics-review.md). Sign-off (#206) starts there:
+
+- **Panel independence.** Two passes of one model family; treat "no finding" as weak evidence. Prioritise what the gates cannot check: `NotFor` routing and assumption completeness.
+- **Convention choices.** `very small` as the label below Cohen's small; the Chinn (2000) odds-ratio conversion; Cohen 1992 f² → R² for `REG_OLS` `r2`; rank-biserial, d_z, RM partial η², rank ε², Cramér's V, ρ and τ left unbanded.
+- **Decisions the record leaves open.** `OVERLAY_PAIRWISE_PROBIT_T` is anti-conservative by design (keep inferential-flagged, warn, or hide behind a feature profile); `OVERLAY_CHISQ_VS_POP` compares only the listed categories (consider a full-dictionary comparison when `DiscreteTopK` does not truncate); the Shiffler (1988) citation for the ZSCORE_VS_TOTAL bound was not fetched; penalised-OLS p-values are plug-in approximations.
+- **`OVERLAY_INDEX_VS_MARGIN` declared scopes.** The skill lists `row` / `column` scopes and a SERIES output; the capability declares only `cell` / MATRIX. Not verified against the scope gate in U08 — resolve which is right before sign-off.
+- **Numeric correctness is U36's**, not the reviewer's: the runtime bugs the record lists (infinite Fisher OR / correlation `t`, Brown–Forsythe at zero spread, the inverse-erf CI, Shapiro n < 5) and the per-output oracles land in [U36](U36-reference-oracles.md) before this unit.
+- **CODEOWNERS.** Point the reviewer's entries at the landed registries: `internal/descriptor/{purposes,purposes_*,interpretations,interpretations_*,conventions,glossary,intents}.go`, `internal/descriptor/testdata/conventions.json`, the effect-size code in `internal/processing/test_*.go`, `internal/statdist/` and `scripts/reference/`. `.github/CODEOWNERS` carries only the default `*` owner today.

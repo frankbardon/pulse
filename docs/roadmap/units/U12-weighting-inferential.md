@@ -79,4 +79,4 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(weighting-inferen
 
 ## Human inputs & decisions
 
-- Reviewer glance at the `n_eff` semantics (same reviewer as U08)
+- Reviewer glance at the `n_eff` semantics (the statistics reviewer who signs off U08's guidance at [U33](U33-v1-release.md), #206)
