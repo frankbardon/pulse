@@ -303,10 +303,12 @@ func (h mcpHiddenNames) leaks(text string) []string {
 // invisibilityExemptSkill is the explicit allowlist of rendered
 // surfaces that MAY name a hidden feature: a topical (kind: design)
 // skill body. Topical bodies are served whole and unrendered on a
-// profiled instance — the deliberate U05/U06 exemption until U10 fences
-// or renders them (.claude/reference/feature-profiles.md, "Notes for
-// U05 / U06", skill / example prune). Their NAMES are still listed and
-// their reads still pass through the prune; only the body is exempt.
+// profiled instance — the deliberate exemption until U10 renders them;
+// E4-S3 deletes this function together with flipping
+// TestSkillsCoverProfileGet's topical switch
+// (.claude/reference/feature-profiles.md, "Served-body exemptions").
+// Their NAMES are still listed and their reads still pass through the
+// prune; only the body is exempt.
 // Nothing else is exempt.
 func invisibilityExemptSkill(name string) bool {
 	for _, m := range skills.List() {

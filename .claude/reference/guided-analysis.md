@@ -28,7 +28,7 @@ Public types live in `descriptor/guidance.go`; the registries and built-in decla
 
 ## Intent taxonomy
 
-`internal/descriptor/intents.go` `intentRegistry`, in declaration order. Fifteen IDs, closed, **not a feature** — the registry (`pulse.Intents()`) never changes under a feature profile. The instance ontology prunes an intent node when ≥1 operator serves it and every server is hidden (an intent no operator serves — `flows`, `lookup`, `measure_construct` — always stays); the manifest `intents[]` lists only the surviving intent nodes (`TestManifestIntents_PrunedUnderProfile`), and the `intents` virtual skill renders from that graph (`.claude/reference/feature-profiles.md`, Notes for U06).
+`internal/descriptor/intents.go` `intentRegistry`, in declaration order. Fifteen IDs, closed, **not a feature** — the registry (`pulse.Intents()`) never changes under a feature profile. The instance ontology prunes an intent node when ≥1 operator serves it and every server is hidden (an intent no operator serves — `flows`, `lookup`, `measure_construct` — always stays); the manifest `intents[]` lists only the surviving intent nodes (`TestManifestIntents_PrunedUnderProfile`), and the `intents` virtual skill renders from that graph (`.claude/reference/feature-profiles.md`, Discovery prune (ontology)).
 
 - Analytic (`Analytic: true`): `describe`, `compare_groups`, `relationship`, `drivers`, `change_over_time`, `composition`, `benchmark`, `distribution_shape`, `segment`, `measure_construct`, `flows`, `data_quality`.
 - Non-analytic — routes to tooling, not operators: `prepare`, `simulate`, `lookup`.
