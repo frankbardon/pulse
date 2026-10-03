@@ -28,8 +28,8 @@ import (
 //     PULSE_TEST_SPLIT_GROUPS_LT_2 (caller asked for two-sample on a
 //     k>2 splitter — direct them to TEST_ANOVA_F).
 //
-// Confidence interval bounds use the inverse t quantile at alpha; the
-// implementation searches studentTTwoSidedP via bisection.
+// Confidence interval bounds use the inverse t quantile at alpha
+// (studentTInverseTwoSided: bracketed Newton on log studentTTwoSidedP).
 type tTestRow struct {
 	spec   *types.Test
 	schema *encoding.Schema

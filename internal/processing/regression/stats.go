@@ -35,7 +35,9 @@ func pValueForCoefficient(coef, se float64, df int) float64 {
 
 // studentTTwoSidedP returns P(|T| ≥ |t|) for T ~ t(df). Uses the
 // regularized incomplete beta identity I_x(df/2, 1/2) with
-// x = df / (df + t²). Same derivation as internal/processing/test_stat.go.
+// x = df / (df + t²), forming x and y = t² / (df + t²) independently.
+// Same derivation as internal/processing/test_stat.go; both copies are
+// checked against R to a relative 1e-10 (reference_oracle_test.go).
 func studentTTwoSidedP(t, df float64) float64 {
 	if df <= 0 || math.IsNaN(t) || math.IsNaN(df) {
 		return math.NaN()
@@ -46,27 +48,84 @@ func studentTTwoSidedP(t, df float64) float64 {
 	if t == 0 {
 		return 1
 	}
-	x := df / (df + t*t)
-	return regularizedIncompleteBeta(x, df/2.0, 0.5)
+	x, y, lx, ly := studentTBetaArgs(t, df)
+	return regularizedIncompleteBetaLog(df/2.0, 0.5, x, y, lx, ly)
 }
 
-// regularizedIncompleteBeta returns I_x(a, b) via the Numerical Recipes
-// continued-fraction expansion. Mirrors internal/processing/test_stat.go.
-func regularizedIncompleteBeta(x, a, b float64) float64 {
-	if x <= 0 {
+// studentTBetaArgs returns x = df/(df+t²), y = t²/(df+t²) and their
+// logs, without forming either as one minus the other and without
+// overflowing t². The logs stay finite even when x underflows (|t| past
+// ~1e154), which keeps the far tail of qt-style inversions reachable.
+func studentTBetaArgs(t, df float64) (x, y, lx, ly float64) {
+	at := math.Abs(t)
+	if at > math.Sqrt(df) {
+		r := (df / at) / at // df / t², may underflow
+		lr := math.Log(df) - 2*math.Log(at)
+		l1 := math.Log1p(r)
+		return r / (1 + r), 1 / (1 + r), lr - l1, -l1
+	}
+	r := (at / df) * at // t² / df, may underflow
+	lr := 2*math.Log(at) - math.Log(df)
+	l1 := math.Log1p(r)
+	return 1 / (1 + r), r / (1 + r), -l1, lr - l1
+}
+
+// regularizedIncompleteBetaLog returns I_x(a, b) given x, y = 1 - x
+// (formed independently) and their logs lx, ly, so x (or y) may have
+// underflowed to 0 while the tail it implies is still representable.
+// Numerical Recipes continued fraction with a Stirling-corrected
+// log-space prefactor; mirrors internal/processing/test_stat.go.
+func regularizedIncompleteBetaLog(a, b, x, y, lx, ly float64) float64 {
+	if math.IsInf(lx, -1) {
 		return 0
 	}
-	if x >= 1 {
+	if math.IsInf(ly, -1) {
 		return 1
 	}
-	lga, _ := math.Lgamma(a)
-	lgb, _ := math.Lgamma(b)
-	lgab, _ := math.Lgamma(a + b)
-	bt := math.Exp(lgab - lga - lgb + a*math.Log(x) + b*math.Log(1-x))
+	bt := math.Exp(a*lx + b*ly - logBeta(a, b))
 	if x < (a+1)/(a+b+2) {
 		return bt * betacf(a, b, x) / a
 	}
-	return 1 - bt*betacf(b, a, 1-x)/b
+	return 1 - bt*betacf(b, a, y)/b
+}
+
+// logBeta returns log B(a, b) for a, b > 0 without lgamma cancellation
+// at large arguments (R's lbeta() algorithm). Mirrors
+// internal/processing/test_stat.go.
+func logBeta(a, b float64) float64 {
+	p, q := math.Min(a, b), math.Max(a, b)
+	const lnSqrt2Pi = 0.918938533204672741780329736406 // log(sqrt(2π))
+	switch {
+	case p >= 10:
+		corr := lgammaCorrection(p) + lgammaCorrection(q) - lgammaCorrection(p+q)
+		return -0.5*math.Log(q) + lnSqrt2Pi + corr +
+			(p-0.5)*math.Log(p/(p+q)) + q*math.Log1p(-p/(p+q))
+	case q >= 10:
+		corr := lgammaCorrection(q) - lgammaCorrection(p+q)
+		lgp, _ := math.Lgamma(p)
+		return lgp + corr + p - p*math.Log(p+q) + (q-0.5)*math.Log1p(-p/(p+q))
+	default:
+		lgp, _ := math.Lgamma(p)
+		lgq, _ := math.Lgamma(q)
+		lgpq, _ := math.Lgamma(p + q)
+		return lgp + lgq - lgpq
+	}
+}
+
+// lgammaCorrection returns the Stirling remainder
+// lgamma(x) − ((x − ½)·log x − x + log √(2π)) for x ≥ 10.
+func lgammaCorrection(x float64) float64 {
+	coef := [...]float64{
+		1.0 / 12, -1.0 / 360, 1.0 / 1260, -1.0 / 1680,
+		1.0 / 1188, -691.0 / 360360, 1.0 / 156, -3617.0 / 122400,
+	}
+	inv := 1 / x
+	inv2 := inv * inv
+	sum := 0.0
+	for i := len(coef) - 1; i >= 0; i-- {
+		sum = sum*inv2 + coef[i]
+	}
+	return sum * inv
 }
 
 // waldZTwoSidedP returns the two-sided Wald-z p-value 2·(1 − Φ(|β/SE|))
@@ -105,20 +164,12 @@ func waldZTwoSidedP(coef, se float64) float64 {
 // P(T ≤ t*) = p when T ~ t(df). Used by REG_BAYES_LINEAR to construct
 // credible intervals: t_q = studentTQuantile(1 − (1−level)/2, 2·a_n).
 //
-// Implementation: a normal-distribution seed (Beasley-Springer-Moro for
-// the standard normal inverse CDF) followed by 6–8 Newton-Raphson
-// iterations on the Student-t CDF. The Newton step is
-//
-//	t_{k+1} = t_k − (CDF(t_k) − p) / PDF(t_k)
-//
-// where the PDF is the standard Student-t density. Convergence is
-// quadratic and the seed is already within ~1% of the answer for any
-// df ≥ 1 and any p in (0.01, 0.99), so the iteration count is small.
-//
-// Tolerance: ~1e-9 on the quantile for df ≥ 1 and p ∈ (1e-6, 1−1e-6).
-// Credible intervals are not pixel-sensitive; this is overkill on
-// purpose so the test for the IC width is dominated by the SE estimate,
-// not by quantile rounding.
+// Implementation: by symmetry t* = ∓ the two-sided critical value at
+// alpha = 2·min(p, 1−p) (1−p is exact for p ≥ ½), found by a bracketed
+// Newton iteration on log P(|T| ≥ t) with bisection fallback. The root
+// is as accurate as the tail probability itself — relative 1e-10 or
+// better against R's qt() for p down to 1e-300 and df ∈ [1, 1e5]
+// (reference_oracle_test.go).
 //
 // Degenerate inputs:
 //   - df ≤ 0 → returns NaN
@@ -138,39 +189,55 @@ func studentTQuantile(p, df float64) float64 {
 	if p == 0.5 {
 		return 0
 	}
+	if p < 0.5 {
+		return -studentTCriticalTwoSided(2*p, df)
+	}
+	return studentTCriticalTwoSided(2*(1-p), df)
+}
 
-	// Seed with the standard normal inverse CDF. For large df the
-	// Student-t is nearly normal; for small df the seed is still close
-	// enough that 6–8 Newton iterations reach the tolerance.
-	t := normalInverseCDF(p)
-
-	// Newton-Raphson on the Student-t CDF.
-	// CDF(t) = 1 - 0.5 · I_x(df/2, 1/2),  x = df / (df + t²),   t > 0
-	// CDF(t) =     0.5 · I_x(df/2, 1/2),                         t < 0
-	// PDF(t) = Γ((df+1)/2) / (Γ(df/2) · √(πdf)) · (1 + t²/df)^(-(df+1)/2)
-	logGammaHalfDfPlus1, _ := math.Lgamma((df + 1) / 2)
-	logGammaHalfDf, _ := math.Lgamma(df / 2)
-	logCoef := logGammaHalfDfPlus1 - logGammaHalfDf - 0.5*math.Log(math.Pi*df)
-
-	const (
-		maxIters = 32
-		tol      = 1e-12
-	)
-	for i := 0; i < maxIters; i++ {
-		cdf := studentTCDF(t, df)
-		// Density at t.
-		logPdf := logCoef - ((df+1)/2)*math.Log1p(t*t/df)
-		pdf := math.Exp(logPdf)
-		if pdf == 0 {
+// studentTCriticalTwoSided returns q > 0 with P(|T| ≥ q) = alpha.
+func studentTCriticalTwoSided(alpha, df float64) float64 {
+	logAlpha := math.Log(alpha)
+	logCoef := -logBeta(df/2, 0.5) - 0.5*math.Log(df)
+	fd := func(t float64) (float64, float64) {
+		p := studentTTwoSidedP(t, df)
+		logPdf := logCoef - ((df+1)/2)*math.Log1p((t/df)*t)
+		return math.Log(p) - logAlpha, -2 * math.Exp(logPdf) / p
+	}
+	lo, hi := 0.0, 1.0
+	for {
+		g, _ := fd(hi)
+		if g <= 0 {
 			break
 		}
-		step := (cdf - p) / pdf
-		t -= step
-		if math.Abs(step) < tol*(1+math.Abs(t)) {
-			break
+		lo = hi
+		hi *= 4
+		if math.IsInf(hi, 0) {
+			return math.Inf(1)
 		}
 	}
-	return t
+	const eps = 0x1p-52
+	x := 0.5 * (lo + hi)
+	for range 200 {
+		f, d := fd(x)
+		if f == 0 {
+			return x
+		}
+		if f > 0 {
+			lo = x
+		} else {
+			hi = x
+		}
+		next := x - f/d
+		if math.IsNaN(next) || next <= lo || next >= hi {
+			next = 0.5 * (lo + hi)
+		}
+		if math.Abs(next-x) <= 4*eps*math.Abs(next) || hi-lo <= 4*eps*math.Abs(hi) {
+			return next
+		}
+		x = next
+	}
+	return x
 }
 
 // studentTCDF returns P(T ≤ t) for T ~ t(df). Built on the regularized
@@ -189,81 +256,22 @@ func studentTCDF(t, df float64) float64 {
 	if t == 0 {
 		return 0.5
 	}
-	x := df / (df + t*t)
+	x, y, lx, ly := studentTBetaArgs(t, df)
 	// I_x(df/2, 1/2) is the two-sided tail mass; halve it for one tail.
-	tail := 0.5 * regularizedIncompleteBeta(x, df/2.0, 0.5)
+	tail := 0.5 * regularizedIncompleteBetaLog(df/2.0, 0.5, x, y, lx, ly)
 	if t > 0 {
 		return 1 - tail
 	}
 	return tail
 }
 
-// normalInverseCDF returns the standard-normal inverse CDF Φ⁻¹(p) via
-// the Beasley-Springer-Moro rational approximation (Moro 1995). Accuracy
-// is ~1e-7 absolute over p ∈ (1e-10, 1−1e-10); good enough as a Newton
-// seed for studentTQuantile.
-func normalInverseCDF(p float64) float64 {
-	if math.IsNaN(p) {
-		return math.NaN()
-	}
-	if p <= 0 {
-		return math.Inf(-1)
-	}
-	if p >= 1 {
-		return math.Inf(1)
-	}
-	// Moro's coefficients.
-	a := [4]float64{
-		2.50662823884,
-		-18.61500062529,
-		41.39119773534,
-		-25.44106049637,
-	}
-	b := [4]float64{
-		-8.47351093090,
-		23.08336743743,
-		-21.06224101826,
-		3.13082909833,
-	}
-	c := [9]float64{
-		0.3374754822726147,
-		0.9761690190917186,
-		0.1607979714918209,
-		0.0276438810333863,
-		0.0038405729373609,
-		0.0003951896511919,
-		0.0000321767881768,
-		0.0000002888167364,
-		0.0000003960315187,
-	}
-
-	u := p - 0.5
-	if math.Abs(u) < 0.42 {
-		// Central region — rational approximation in u.
-		r := u * u
-		num := ((a[3]*r+a[2])*r+a[1])*r + a[0]
-		den := (((b[3]*r+b[2])*r+b[1])*r+b[0])*r + 1.0
-		return u * num / den
-	}
-	// Tails — Chebyshev-style series in log(-log(min(p,1−p))).
-	r := p
-	if u > 0 {
-		r = 1 - p
-	}
-	r = math.Log(-math.Log(r))
-	x := c[0] + r*(c[1]+r*(c[2]+r*(c[3]+r*(c[4]+r*(c[5]+r*(c[6]+r*(c[7]+r*c[8])))))))
-	if u < 0 {
-		x = -x
-	}
-	return x
-}
-
 // betacf evaluates the Lentz continued fraction for the incomplete
-// beta integrand. Identical to the processing-package implementation.
+// beta integrand. Identical to the processing-package implementation;
+// the iteration count grows like O(√max(a, b)).
 func betacf(a, b, x float64) float64 {
 	const (
-		maxIter = 200
-		eps     = 3e-15
+		maxIter = 20000
+		eps     = 1e-16
 		tiny    = 1e-300
 	)
 	qab := a + b
@@ -301,7 +309,7 @@ func betacf(a, b, x float64) float64 {
 		d = 1 / d
 		del := d * c
 		h *= del
-		if math.Abs(del-1) < eps {
+		if math.Abs(del-1) <= eps {
 			return h
 		}
 	}

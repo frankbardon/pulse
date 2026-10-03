@@ -764,10 +764,38 @@ func clipUnit(x, lo, hi float64) float64 {
 	return x
 }
 
-// standardNormalPPF returns Φ⁻¹(p) via the Beasley-Springer-Moro rational
-// approximation (~1e-9 across the support). ±Inf at p∈{0,1};
-// the probit kernel clips p before calling.
+// standardNormalPPF returns Φ⁻¹(p): Acklam's rational approximation
+// (~1e-9 relative) polished by one Halley step against the erfc-based
+// Φ, which brings it to full double precision across the support
+// (p down to ~1e-300; checked against R's qnorm by
+// reference_oracle_test.go). The upper half is solved as −Φ⁻¹(1 − p),
+// 1 − p being exact there. ±Inf at p∈{0,1}; the probit kernel clips p
+// before calling.
 func standardNormalPPF(p float64) float64 {
+	switch {
+	case math.IsNaN(p):
+		return math.NaN()
+	case p <= 0:
+		return math.Inf(-1)
+	case p >= 1:
+		return math.Inf(1)
+	case p > 0.5:
+		return -standardNormalPPF(1 - p)
+	}
+	x := acklamNormalPPF(p)
+	// Halley step on Φ(x) − p, with Φ(x) = ½ erfc(−x/√2) accurate to a
+	// relative few ulp in this (lower) half.
+	e := 0.5*math.Erfc(-x/math.Sqrt2) - p
+	u := e * math.Sqrt(2*math.Pi) * math.Exp(0.5*x*x)
+	if !math.IsInf(u, 0) && !math.IsNaN(u) {
+		x -= u / (1 + 0.5*x*u)
+	}
+	return x
+}
+
+// acklamNormalPPF is Acklam's rational approximation to Φ⁻¹(p) (~1e-9
+// relative), the seed for standardNormalPPF.
+func acklamNormalPPF(p float64) float64 {
 	a := [...]float64{
 		-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
 		1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00,

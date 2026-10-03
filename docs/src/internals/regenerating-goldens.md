@@ -107,3 +107,24 @@ nothing noticing. Regenerate with the command above or
 (`*.pulse` is gitignored). The two JSON envelopes beside them are pinned
 to live CLI output by `TestShardingSnapshots_MatchCLIOutput`
 (`go test ./internal/cli/ -run TestShardingSnapshots -update`).
+
+## R reference goldens are an external oracle, not a snapshot
+
+`internal/processing/testdata/reference/*.json` hold R's values for the
+shared distribution primitives (Student t, chi-square, F, normal CDF and
+quantile, the limiting Kolmogorov survival, the studentized range). They
+are written by `scripts/reference/gen_reference.R` and carry the R and
+package versions that produced them; `make reference` runs the script
+(needs `Rscript` plus the `jsonlite` package) and appends the
+`// golden-hash:` footer that the processing package's
+`TestGoldensNotHandEdited` checks. CI never runs R.
+
+The `TestReferenceOracle_*` tests in `internal/processing` and
+`internal/processing/regression` hold every primitive to a relative
+`1e-10` of those values. **A failure there means the Go primitive is
+wrong, not that the golden is stale:** fix the primitive, never
+regenerate to match it. Regenerate only to change the grid (edit the
+script, run `make reference`, commit script and goldens together). The
+studentized-range and Student-t quantile references are refined in R
+beyond the stock `ptukey()` / `qtukey()` / `qt()` because those are less
+accurate than the oracle needs; the script's header explains why.
