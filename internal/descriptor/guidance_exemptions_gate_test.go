@@ -4,6 +4,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -175,14 +176,7 @@ func TestGuidanceExemptions_GatesBite(t *testing.T) {
 // simulate's example exemption are permanent and justified, and nothing else is — a new permanent
 // exemption is a deliberate edit of this test.
 func TestGuidanceExemptions_Ledger(t *testing.T) {
-	tables := map[string][]guidanceExemption{
-		"purpose":          purposeExemptions,
-		"interpretation":   interpretationExemptions,
-		"intent-declarers": intentDeclarerExemptions,
-		"intent-example":   intentExampleExemptions,
-		"example-intent":   exampleIntentExemptions,
-		"glossary-orphan":  glossaryOrphanExemptions,
-	}
+	tables := exemptionTables()
 	permanent := map[string]bool{}
 	for table, ledger := range tables {
 		for _, e := range ledger {
@@ -210,4 +204,64 @@ func TestExampleIntentExemptions_StaleWhenTagged(t *testing.T) {
 	if !hasProblem(probs, "tests", "stale") {
 		t.Errorf("tagged tests directory: want a stale entry, got %v", probs)
 	}
+}
+
+// TestGuidanceExemptions_NoU09Owner: the U09 backfill closed every gap it
+// owned, so no ledger table holds a U09 entry — an orphan the backfill
+// could not cover honestly is re-owned to the later unit that will.
+func TestGuidanceExemptions_NoU09Owner(t *testing.T) {
+	if got := entriesOwnedBy("U09", exemptionTables()); len(got) != 0 {
+		t.Errorf("ledger entries still owned by U09: %v; close the gap or re-own it to a later unit with a justification", got)
+	}
+	injected := map[string][]guidanceExemption{
+		"purpose":         {{Key: "AGG_X", Owner: "U24", Why: "later unit"}},
+		"glossary-orphan": {{Key: "term-a", Owner: "U09", Why: "fixture"}, {Key: "term-b", Owner: " U09 ", Why: "fixture"}},
+		"intent-example":  {{Key: "intent-c", Owner: "U09", Why: "fixture"}},
+	}
+	want := []string{"glossary-orphan/term-a", "glossary-orphan/term-b", "intent-example/intent-c"}
+	if got := entriesOwnedBy("U09", injected); !slices.Equal(got, want) {
+		t.Errorf("injected ledger: U09 entries = %v, want %v", got, want)
+	}
+}
+
+// TestGuidanceExemptions_TablesComplete: every ledger table declared in
+// guidance_exemptions_test.go is listed in exemptionTables, so the
+// ledger-wide assertions (permanent set, no U09 owner) see all of them.
+func TestGuidanceExemptions_TablesComplete(t *testing.T) {
+	src, err := os.ReadFile("guidance_exemptions_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared, listed := ledgerTableNames(string(src))
+	if len(declared) == 0 {
+		t.Fatal("found no ledger table declarations; the scan pattern is stale")
+	}
+	if !slices.Equal(declared, listed) {
+		t.Errorf("declared ledger tables %v, exemptionTables() lists %v", declared, listed)
+	}
+	if len(exemptionTables()) != len(listed) {
+		t.Errorf("exemptionTables() has %d tables, its body names %v", len(exemptionTables()), listed)
+	}
+}
+
+var (
+	ledgerDeclRe = regexp.MustCompile(`(?m)^var (\w+Exemptions) = \[\]guidanceExemption\{`)
+	ledgerUseRe  = regexp.MustCompile(`:\s+(\w+Exemptions),`)
+)
+
+// ledgerTableNames returns the sorted ledger variables src declares and
+// the sorted ones the exemptionTables body names.
+func ledgerTableNames(src string) (declared, listed []string) {
+	for _, m := range ledgerDeclRe.FindAllStringSubmatch(src, -1) {
+		declared = append(declared, m[1])
+	}
+	if _, body, ok := strings.Cut(src, "func exemptionTables()"); ok {
+		body, _, _ = strings.Cut(body, "\n}\n")
+		for _, m := range ledgerUseRe.FindAllStringSubmatch(body, -1) {
+			listed = append(listed, m[1])
+		}
+	}
+	slices.Sort(declared)
+	slices.Sort(listed)
+	return declared, listed
 }

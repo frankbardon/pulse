@@ -73,12 +73,8 @@ var exampleIntentExemptions = []guidanceExemption{}
 // glossaryOrphanExemptions — glossary terms no built-in Purpose links
 // (TestGlossary_OrphanReport). Key: the term ID.
 var glossaryOrphanExemptions = []guidanceExemption{
-	// Descriptive terms a U09 Purpose may link (or the term is dropped).
-	{Key: "covariance", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
-	{Key: "pairwise-deletion", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
-	{Key: "statistical-significance", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
-	{Key: "test-statistic", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
-	// Matrix operators (reliability, PCA).
+	// Matrix operators (correlation matrix, reliability, PCA).
+	{Key: "pairwise-deletion", Owner: "U24", Why: "Every built-in correlation (TEST_PEARSON_R / _SPEARMAN_R / _KENDALL_TAU) takes exactly two fields and skips a row missing either, so pairwise and listwise deletion coincide; the choice first exists for the multi-field MAT_CORRELATION matrix U24 ships."},
 	{Key: "factor", Owner: "U24", Why: "Defined as a latent factor (factor analysis), not a categorical grouping field, so GROUP_CATEGORY does not link it; the factor-analysis operator U24 ships does."},
 	{Key: "eigenvalue", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
 	{Key: "loading", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
@@ -93,6 +89,35 @@ var glossaryOrphanExemptions = []guidanceExemption{
 	{Key: "raking", Owner: "U28", Why: "Written ahead of the raking overlay U28 ships."},
 	{Key: "stochastic-matrix", Owner: "U28", Why: "Written ahead of the flow overlays U28 ships."},
 	{Key: "steady-state", Owner: "U28", Why: "Written ahead of the flow overlays U28 ships."},
+}
+
+// exemptionTables is every ledger table above, keyed by its gate's
+// table name. TestGuidanceExemptions_TablesComplete fails when a new
+// `var ...Exemptions = []guidanceExemption` lands without a row here.
+func exemptionTables() map[string][]guidanceExemption {
+	return map[string][]guidanceExemption{
+		"purpose":          purposeExemptions,
+		"interpretation":   interpretationExemptions,
+		"intent-declarers": intentDeclarerExemptions,
+		"intent-example":   intentExampleExemptions,
+		"example-intent":   exampleIntentExemptions,
+		"glossary-orphan":  glossaryOrphanExemptions,
+	}
+}
+
+// entriesOwnedBy returns "<table>/<key>" for every entry owned by unit,
+// sorted.
+func entriesOwnedBy(unit string, tables map[string][]guidanceExemption) []string {
+	var out []string
+	for table, ledger := range tables {
+		for _, e := range ledger {
+			if strings.TrimSpace(e.Owner) == unit {
+				out = append(out, table+"/"+e.Key)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ---- applying a table ------------------------------------------------

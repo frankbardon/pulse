@@ -345,7 +345,7 @@ var (
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
 			"continuity-correction", "independence", "median", "non-parametric",
-			"p-value", "rank", "rank-biserial", "ties", "two-tailed",
+			"p-value", "rank", "rank-biserial", "test-statistic", "ties", "two-tailed",
 		},
 	}
 
@@ -374,7 +374,7 @@ var (
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
 			"continuity-correction", "independence", "non-parametric", "normal-distribution",
-			"p-value", "paired-data", "rank", "rank-biserial", "ties", "two-tailed",
+			"p-value", "paired-data", "rank", "rank-biserial", "test-statistic", "ties", "two-tailed",
 		},
 	}
 
@@ -529,11 +529,12 @@ var (
 			"Pairs of values are independent of each other.",
 			"A few extreme values can dominate the result.",
 			"The p-value assumes both fields are roughly normal; with small samples that matters most.",
+			"r is the covariance of the two fields (reported in details.covariance) divided by both standard deviations, which makes it unit-free.",
 		},
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
-			"confidence-interval", "correlation", "independence", "normal-distribution",
-			"outlier", "p-value", "r-squared",
+			"confidence-interval", "correlation", "covariance", "independence", "normal-distribution",
+			"outlier", "p-value", "r-squared", "standard-deviation",
 		},
 	}
 
@@ -622,7 +623,7 @@ var (
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
 			"independence", "kendall-tau", "monotonic-trend", "non-parametric",
-			"p-value", "two-tailed",
+			"p-value", "test-statistic", "two-tailed",
 		},
 	}
 )
@@ -656,6 +657,7 @@ var (
 		Glossary: []string{
 			"goodness-of-fit", "independence", "kurtosis", "normal-distribution",
 			"null-hypothesis", "p-value", "skew", "statistical-power",
+			"statistical-significance", "test-statistic",
 		},
 	}
 
@@ -685,7 +687,7 @@ var (
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
 			"goodness-of-fit", "independence", "non-parametric", "p-value",
-			"statistical-power", "ties", "two-tailed",
+			"statistical-power", "statistical-significance", "test-statistic", "ties", "two-tailed",
 		},
 	}
 )
