@@ -77,6 +77,7 @@ func TestApplyPropZPanel_DefaultNSourceByteIdentical(t *testing.T) {
 		{"n_source empty string", map[string]any{"n_source": ""}},
 		{"n_source row_margin_value", map[string]any{"n_source": types.PanelNSourceRowMarginValue}},
 	} {
+		free := panelParamsFreeLayerJSON(t)
 		t.Run(tc.name, func(t *testing.T) {
 			ref, targets := panelBaselineSlots()
 			spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
@@ -92,9 +93,10 @@ func TestApplyPropZPanel_DefaultNSourceByteIdentical(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal layer: %v", err)
 			}
-			if string(got) != panelBaselineLayerJSON {
-				t.Fatalf("panel layer JSON drifted from the pre-params baseline:\n got %s\nwant %s",
-					got, panelBaselineLayerJSON)
+			assertPanelBaselineBytes(t, got, "panel layer JSON drifted from the pre-params baseline")
+			if string(got) != string(free) {
+				t.Fatalf("params %v is distinguishable from a params-free spec on this arch:\n got %s\nwant %s",
+					tc.params, got, free)
 			}
 		})
 	}
