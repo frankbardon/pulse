@@ -133,15 +133,17 @@ func TestGuidanceExemptions_GatesBite(t *testing.T) {
 		wantRemaining(t, "interpretation", interpretationCoverageGaps(reg), interpretationExemptions, "TEST_T:p_value")
 	})
 	t.Run("interpretation value path", func(t *testing.T) {
-		ledger := slices.DeleteFunc(slices.Clone(interpretationExemptions), func(e guidanceExemption) bool {
-			return e.Key == "AGG_SKEWNESS:value"
-		})
-		wantRemaining(t, "interpretation", interpretationCoverageGaps(builtinInterpretations), ledger, "AGG_SKEWNESS:value")
-
-		// Reading the result closes the gap, so its entry goes stale.
+		// An unread needs-reading result is a gap the real ledger does
+		// not excuse.
 		reg := maps.Clone(builtinInterpretations)
-		reg["AGG_SKEWNESS"] = []descriptor.Interpretation{{Field: "value", Means: "m"}}
-		if _, probs := applyExemptions("interpretation", interpretationCoverageGaps(reg), interpretationExemptions, live); !hasProblem(probs, "AGG_SKEWNESS:value", "stale") {
+		delete(reg, "AGG_SKEWNESS")
+		wantRemaining(t, "interpretation", interpretationCoverageGaps(reg), interpretationExemptions, "AGG_SKEWNESS:value")
+
+		// Reading the result closes the gap, so an entry for it goes stale
+		// (owner permanent, so only the closed gap can make it stale).
+		ledger := append(slices.Clone(interpretationExemptions),
+			guidanceExemption{Key: "AGG_SKEWNESS:value", Why: "w", Owner: ownerPermanent})
+		if _, probs := applyExemptions("interpretation", interpretationCoverageGaps(builtinInterpretations), ledger, live); !hasProblem(probs, "AGG_SKEWNESS:value", "stale") {
 			t.Errorf("closed AGG_SKEWNESS value gap: want a stale entry, got %v", probs)
 		}
 	})

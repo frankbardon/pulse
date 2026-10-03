@@ -416,7 +416,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.AGG_SKEWNESS),
 			Category:      "aggregator",
-			Description:   "Bias-corrected skewness via online moments.",
+			Description:   "Population skewness g1 (m3 / m2^1.5, dividing by n) via online moments.",
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
@@ -424,13 +424,13 @@ func aggregatorCapabilities() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running mean of non-null field values."},
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Bias-corrected skewness derived from m2, m3, and n."},
+				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n <= 1 or the variance is zero."},
 			),
 		},
 		{
 			Name:          string(types.AGG_KURTOSIS),
 			Category:      "aggregator",
-			Description:   "Bias-corrected excess kurtosis via online moments.",
+			Description:   "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.",
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
@@ -439,7 +439,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m4", Type: "float64", Description: "Fourth-moment accumulator (sum of fourth-power deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Bias-corrected excess kurtosis derived from m2, m4, and n."},
+				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n <= 1 or the variance is zero."},
 			),
 		},
 		{

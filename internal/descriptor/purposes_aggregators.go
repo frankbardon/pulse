@@ -5,32 +5,46 @@ import "github.com/frankbardon/pulse/descriptor"
 // aggregatorPurposes is the Purpose registry for the AGG_* operators.
 // builtinPurposes assembles it with the other category maps.
 //
-// The entries here are the self-reading aggregators (interpretation_reading.go):
-// their result is a count, a total, an extreme or a list of labels that
-// reads as itself, so each carries a Purpose and no Interpretation. Each
-// Purpose states the operator as Pulse implements it (see the
+// The self-reading aggregators (interpretation_reading.go) return a count,
+// a total, an extreme or a list of labels that reads as itself, so each
+// carries a Purpose and no Interpretation. The needs-reading ones (spread,
+// shape, intervals, percentiles, ratios, weighted means — the "Spread,
+// shape and intervals" block below) also carry a `value` / `value.*`
+// Interpretation in interpretations_descriptive.go. Each Purpose states
+// the operator as Pulse implements it (see the
 // internal/skills/op-agg-*.md atomic skills): nulls are skipped unless the
 // operator counts them, AGG_MODE breaks ties by first-seen value, and
 // AGG_DISTINCT_SUM keeps the first value seen per key.
 var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_AVERAGE":             purposeAggAverage,
+	"AGG_CI_LOWER":            purposeAggCILower,
+	"AGG_CI_UPPER":            purposeAggCIUpper,
 	"AGG_COUNT":               purposeAggCount,
 	"AGG_DISTINCT_COUNT":      purposeAggDistinctCount,
 	"AGG_DISTINCT_SUM":        purposeAggDistinctSum,
 	"AGG_FREQUENCY":           purposeAggFrequency,
+	"AGG_KURTOSIS":            purposeAggKurtosis,
 	"AGG_MAX":                 purposeAggMax,
 	"AGG_MEDIAN":              purposeAggMedian,
 	"AGG_MIN":                 purposeAggMin,
 	"AGG_MODE":                purposeAggMode,
 	"AGG_NULL_COUNT":          purposeAggNullCount,
+	"AGG_PERCENTILE":          purposeAggPercentile,
 	"AGG_RANGE":               purposeAggRange,
+	"AGG_RATIO":               purposeAggRatio,
 	"AGG_SET_CARDINALITY_AVG": purposeAggSetCardinalityAvg,
 	"AGG_SET_CARDINALITY_SUM": purposeAggSetCardinalitySum,
 	"AGG_SET_DISTINCT_VALUES": purposeAggSetDistinctValues,
 	"AGG_SET_FREQUENCY":       purposeAggSetFrequency,
 	"AGG_SET_INTERSECTION":    purposeAggSetIntersection,
 	"AGG_SET_UNION":           purposeAggSetUnion,
+	"AGG_SKEWNESS":            purposeAggSkewness,
+	"AGG_STDDEV":              purposeAggStdDev,
 	"AGG_SUM":                 purposeAggSum,
+	"AGG_VARIANCE":            purposeAggVariance,
+	"AGG_WEIGHTED_MEAN":       purposeAggWeightedMean,
+	"AGG_WELFORD":             purposeAggWelford,
+	"AGG_ZSCORE":              purposeAggZScore,
 }
 
 // --- Totals and counts -----------------------------------------------
@@ -460,5 +474,288 @@ var (
 			"Null rows are skipped, but one row with an empty selection empties the result.",
 		},
 		Level: descriptor.LevelBasic,
+	}
+)
+
+// --- Spread, shape and intervals (needs reading) ----------------------
+//
+// Estimator facts are stated as the code computes them
+// (internal/processing/aggregator.go, aggregator_online.go,
+// aggregator_cohort.go, aggregator_welford.go): AGG_STDDEV / AGG_VARIANCE
+// divide by n, AGG_WELFORD and the CI bounds by n - 1; AGG_SKEWNESS is the
+// population moment coefficient g1 and AGG_KURTOSIS the population excess
+// kurtosis g2, both 0 for n <= 1 or zero variance; the CI bounds use the
+// normal critical value, not Student's t; AGG_ZSCORE's value is the mean
+// z-score, 0 by construction.
+
+var (
+	purposeAggStdDev = descriptor.Purpose{
+		Plain:   "Typical distance of a numeric field's values from their average, in the field's own units, over all rows or per group.",
+		Intents: []string{IntentDescribe, IntentDistributionShape},
+		Questions: []string{
+			"How much do delivery times vary around the average in each region?",
+			"Which product line has the most consistent order values?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "How widely satisfaction scores spread within each segment.",
+			descriptor.DomainOps:     "Day-to-day variability of order volume per store.",
+			descriptor.DomainScience: "Spread of a measurement within each treatment arm.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how precisely the average itself is known", Use: "AGG_CI_LOWER"},
+			{When: "you want the sample form (dividing by n - 1) together with the mean and n", Use: "AGG_WELFORD"},
+			{When: "the field has extreme values and you want a spread they cannot drag", Use: "AGG_PERCENTILE"},
+		},
+		Assumptions: []string{
+			"Missing values are skipped.",
+			"Population form: the squared distances are averaged over n, not n - 1.",
+		},
+		Level:    descriptor.LevelBasic,
+		Glossary: []string{"standard-deviation", "variance", "mean", "outlier"},
+	}
+
+	purposeAggVariance = descriptor.Purpose{
+		Plain:   "Spread of a numeric field as the average squared distance from its mean, in squared units, over all rows or per group.",
+		Intents: []string{IntentDescribe, IntentDistributionShape},
+		Questions: []string{
+			"How much does the order value vary within each channel, as an input to further maths?",
+			"Which sites show the most variable readings?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Variability of daily demand per product, for a safety-stock formula.",
+			descriptor.DomainScience: "Within-arm variance of a measurement, to plan the next study's size.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want the spread in the field's own units, which is easier to read", Use: "AGG_STDDEV"},
+			{When: "you want the sample variance (dividing by n - 1) with the mean and n", Use: "AGG_WELFORD"},
+		},
+		Assumptions: []string{
+			"Missing values are skipped.",
+			"Population form: the squared distances are averaged over n, not n - 1.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"variance", "standard-deviation", "mean"},
+	}
+
+	purposeAggWelford = descriptor.Purpose{
+		Plain:   "Mean, sample variance and row count of a numeric field in one result: what a comparison of group means needs.",
+		Intents: []string{IntentDescribe, IntentCompareGroups},
+		Questions: []string{
+			"What are the mean, variance and size of each cell, so cells can be tested against each other?",
+			"How do the average and spread of scores compare across segments?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Per-cell mean score, variance and base feeding a t-test overlay on a crosstab.",
+			descriptor.DomainScience: "Per-arm summary statistics for a two-sample comparison.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want only the average", Use: "AGG_AVERAGE"},
+			{When: "you want the population spread (dividing by n) on its own", Use: "AGG_STDDEV"},
+			{When: "you want the comparison itself on raw rows", Use: "TEST_WELCH"},
+		},
+		Assumptions: []string{
+			"Missing values are skipped; only plain integer and float fields are accepted.",
+			"The variance divides by n - 1 and is 0 when fewer than two rows have a value.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"mean", "variance", "sample-size", "t-statistic"},
+	}
+
+	purposeAggSkewness = descriptor.Purpose{
+		Plain:   "How lopsided a numeric field is: positive when a long tail runs to high values, negative when it runs to low ones.",
+		Intents: []string{IntentDistributionShape},
+		Questions: []string{
+			"Are incomes in each region bunched low with a few very high ones?",
+			"Is the delivery-time distribution symmetric or dragged out by slow orders?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Whether a rating scale piles up at one end per segment.",
+			descriptor.DomainOps:     "Whether order values have a long tail of large orders.",
+			descriptor.DomainScience: "Checking a measurement's shape before choosing a test.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want to know whether the tails are heavy rather than lopsided", Use: "AGG_KURTOSIS"},
+			{When: "you want a test of whether the field follows a normal shape", Use: "TEST_SHAPIRO_WILK"},
+			{When: "you want the typical value of a skewed field", Use: "AGG_MEDIAN"},
+		},
+		Assumptions: []string{
+			"Missing values are skipped.",
+			"Population moment coefficient g1 (dividing by n): at small n it runs smaller in size than the adjusted G1 most packages print.",
+			"It is 0 when n is 0 or 1 or every value is the same.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"skew", "outlier", "median", "normal-distribution"},
+	}
+
+	purposeAggKurtosis = descriptor.Purpose{
+		Plain:   "How heavy a numeric field's tails are next to a normal distribution: positive when extreme values are more common.",
+		Intents: []string{IntentDistributionShape},
+		Questions: []string{
+			"Do transaction amounts have more extreme values than a bell curve would give?",
+			"Are response times prone to rare, very long waits?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Spotting fields where rare extreme values dominate risk.",
+			descriptor.DomainScience: "Checking a measurement's tails before trusting a mean-based test.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want to know whether the field is lopsided", Use: "AGG_SKEWNESS"},
+			{When: "you want a test of whether the field follows a normal shape", Use: "TEST_SHAPIRO_WILK"},
+		},
+		Assumptions: []string{
+			"Missing values are skipped.",
+			"Population excess kurtosis g2 (dividing by n, minus 3): a normal shape scores 0, and at small n it differs from the adjusted G2 most packages print.",
+			"It is 0 when n is 0 or 1 or every value is the same.",
+		},
+		Level:    descriptor.LevelAdvanced,
+		Glossary: []string{"kurtosis", "normal-distribution", "outlier"},
+	}
+
+	purposeAggZScore = descriptor.Purpose{
+		Plain:   "Population mean and standard deviation of a numeric field, for standardizing it; the value itself is always 0.",
+		Intents: []string{IntentDistributionShape, IntentBenchmark},
+		Questions: []string{
+			"What centre and scale standardize this field in each group?",
+			"How many standard deviations does the latest row sit from its group's average?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "How unusual the most recent reading is against its group.",
+			descriptor.DomainScience: "Group centre and scale for standardizing a measurement by hand.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want a z-score on every row", Use: "ATTR_ZSCORE"},
+			{When: "you want each group's value against all groups", Use: "OVERLAY_ZSCORE_VS_TOTAL"},
+			{When: "you want only the spread", Use: "AGG_STDDEV"},
+		},
+		Assumptions: []string{
+			"Missing values are skipped; the spread is the population form (dividing by n).",
+			"Not streamable: the whole group is read before the result is ready.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"z-score", "mean", "standard-deviation"},
+	}
+
+	purposeAggCILower = descriptor.Purpose{
+		Plain:   "Lower end of a confidence interval for the mean of a numeric field, showing how precisely the average is pinned down.",
+		Intents: []string{IntentDescribe, IntentCompareGroups},
+		Questions: []string{
+			"How precisely do we know the average satisfaction in each segment?",
+			"What is the lowest average order value the data are consistent with at 95% confidence?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Error bars on a mean score per segment.",
+			descriptor.DomainOps:     "Range for average handling time per team.",
+			descriptor.DomainScience: "Interval for a mean measurement per arm.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want the upper end of the same interval", Use: "AGG_CI_UPPER"},
+			{When: "you want to test whether two group means differ", Use: "TEST_WELCH"},
+			{When: "you want the range individual rows fall in, not the mean", Use: "AGG_PERCENTILE"},
+		},
+		Assumptions: []string{
+			"Rows are independent draws, unweighted.",
+			"Normal critical value (1.96 at 95%), not Student's t, so small groups get an interval that is too narrow.",
+			"Empty (NaN) when fewer than two rows have a value.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"confidence-interval", "mean", "standard-error", "sample-size", "independence"},
+	}
+
+	purposeAggCIUpper = descriptor.Purpose{
+		Plain:   "Upper end of a confidence interval for the mean of a numeric field, showing how precisely the average is pinned down.",
+		Intents: []string{IntentDescribe, IntentCompareGroups},
+		Questions: []string{
+			"What is the highest average wait time the data are consistent with at 95% confidence?",
+			"How wide is the uncertainty around each region's mean score?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Error bars on a mean score per segment.",
+			descriptor.DomainOps:     "Worst plausible average delivery time per carrier.",
+			descriptor.DomainScience: "Interval for a mean measurement per arm.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want the lower end of the same interval", Use: "AGG_CI_LOWER"},
+			{When: "you want to test whether two group means differ", Use: "TEST_WELCH"},
+		},
+		Assumptions: []string{
+			"Rows are independent draws, unweighted.",
+			"Normal critical value (1.96 at 95%), not Student's t, so small groups get an interval that is too narrow.",
+			"Empty (NaN) when fewer than two rows have a value.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"confidence-interval", "mean", "standard-error", "sample-size", "independence"},
+	}
+
+	purposeAggPercentile = descriptor.Purpose{
+		Plain:   "Value of a numeric field below which a chosen share of rows fall, such as the 90th percentile of delivery time.",
+		Intents: []string{IntentDescribe, IntentDistributionShape},
+		Questions: []string{
+			"How long do the slowest 10% of deliveries take in each region?",
+			"What income marks the top quarter of respondents?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Quartiles of household income per segment.",
+			descriptor.DomainOps:     "95th-percentile response time per service.",
+			descriptor.DomainScience: "Reference range (2.5th to 97.5th percentile) of a measurement.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want the 50th percentile", Use: "AGG_MEDIAN"},
+			{When: "you want each row's own percentile position", Use: "ATTR_PERCENTILE"},
+			{When: "you want rows split into equal-sized bands", Use: "GROUP_QUANTILE"},
+		},
+		Assumptions: []string{
+			"Missing values are skipped.",
+			"Linear interpolation between the two nearest sorted values, so the result may be a value no row holds.",
+		},
+		Level:    descriptor.LevelBasic,
+		Glossary: []string{"percentile", "median", "outlier"},
+	}
+
+	purposeAggRatio = descriptor.Purpose{
+		Plain:   "Total of one field divided by the total of another, over all rows or per group, such as revenue per order.",
+		Intents: []string{IntentDescribe, IntentComposition},
+		Questions: []string{
+			"What is revenue per visit in each channel?",
+			"What share of budgeted hours were actually worked per team?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Completes per invitation sent, per wave.",
+			descriptor.DomainOps:     "Revenue per order, or cost per unit, by region.",
+			descriptor.DomainScience: "Events per person-year of follow-up per arm.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want the average of each row's own ratio", Use: "ATTR_FORMULA"},
+			{When: "you want an average where some rows count more than others", Use: "AGG_WEIGHTED_MEAN"},
+		},
+		Assumptions: []string{
+			"A row missing either field is left out of both totals.",
+			"Empty (NaN) when the denominator total is 0.",
+		},
+		Level:    descriptor.LevelBasic,
+		Glossary: []string{"mean"},
+	}
+
+	purposeAggWeightedMean = descriptor.Purpose{
+		Plain:   "Average of a numeric field where each row counts in proportion to a weight field, such as a survey weight.",
+		Intents: []string{IntentDescribe},
+		Questions: []string{
+			"What is the weighted average satisfaction per region?",
+			"What is the average price per unit when each order counts by its quantity?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Population-weighted mean score per segment.",
+			descriptor.DomainOps:     "Volume-weighted average price per product.",
+			descriptor.DomainScience: "Precision-weighted mean of repeated measurements.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "every row should count equally", Use: "AGG_AVERAGE"},
+			{When: "you want one total divided by another", Use: "AGG_RATIO"},
+		},
+		Assumptions: []string{
+			"Rows missing the value or the weight, or with weight 0, are left out of the average.",
+			"Negative weights are not refused.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"weighting", "mean", "effective-sample-size"},
 	}
 )

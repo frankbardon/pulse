@@ -1428,3 +1428,60 @@ func TestAggregator_DistinctSum_Classification(t *testing.T) {
 		t.Error("AGG_DISTINCT_SUM.Mergeable() = false, want true (per-key maps union)")
 	}
 }
+
+// TestAggregator_ShapeEstimators_Population pins WHICH estimator
+// AGG_SKEWNESS and AGG_KURTOSIS compute, on both execution paths: the
+// population moment coefficient g1 = m3 / m2^1.5 and the population
+// excess kurtosis g2 = m4 / m2^2 - 3, every moment dividing by n — NOT
+// the small-sample-adjusted G1 / G2 that Excel SKEW / KURT and SPSS
+// print. The guidance (Purpose, value Interpretation, atomic skill and
+// manifest description) states this estimator by name. Reference values
+// for [1, 2, 3, 10] computed by hand: mean 4, m2 = 12.5, m3 = 45,
+// m4 = 348.5.
+func TestAggregator_ShapeEstimators_Population(t *testing.T) {
+	vals := []float64{1, 2, 3, 10}
+	const (
+		g1 = 45 / 44.19417382415922 // m3 / m2^1.5, 12.5^1.5 = 44.194...
+		g2 = 348.5/156.25 - 3       // m4 / m2^2 - 3
+		G1 = 1.763632614803888      // adjusted: g1 * sqrt(n(n-1)) / (n-2)
+		G2 = 3.228                  // adjusted: ((n+1)g2 + 6)(n-1) / ((n-2)(n-3))
+	)
+	for _, tc := range []struct {
+		typ            types.AggregationType
+		want, adjusted float64
+	}{
+		{types.AGG_SKEWNESS, g1, G1},
+		{types.AGG_KURTOSIS, g2, G2},
+	} {
+		t.Run(string(tc.typ), func(t *testing.T) {
+			schema := numericSchema()
+			records := makeRecords(schema, "score", vals)
+
+			buffered, err := makeAggregator(t, tc.typ, "score", schema).Aggregate(records, "score")
+			if err != nil {
+				t.Fatalf("Aggregate: %v", err)
+			}
+			online, ok := makeAggregator(t, tc.typ, "score", schema).(OnlineAggregator)
+			if !ok {
+				t.Fatalf("%s does not implement OnlineAggregator", tc.typ)
+			}
+			for _, r := range records {
+				if err := online.UpdateRow(r, "score"); err != nil {
+					t.Fatalf("UpdateRow: %v", err)
+				}
+			}
+			streamed, err := online.Finalize()
+			if err != nil {
+				t.Fatalf("Finalize: %v", err)
+			}
+			for path, got := range map[string]float64{"buffered": buffered, "streaming": streamed} {
+				if !floatClose(got, tc.want, 1e-9) {
+					t.Errorf("%s %s = %v, want population estimator %v", path, tc.typ, got, tc.want)
+				}
+				if floatClose(got, tc.adjusted, 1e-3) {
+					t.Errorf("%s %s = %v matches the small-sample-adjusted estimator; guidance says population", path, tc.typ, got)
+				}
+			}
+		})
+	}
+}

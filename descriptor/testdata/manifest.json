@@ -442,7 +442,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "compare_groups",
+            "describe"
+          ]
         },
         {
           "name": "AGG_CI_UPPER",
@@ -517,7 +521,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "compare_groups",
+            "describe"
+          ]
         },
         {
           "name": "AGG_COUNT",
@@ -731,7 +739,7 @@
         {
           "name": "AGG_KURTOSIS",
           "category": "aggregator",
-          "description": "Bias-corrected excess kurtosis via online moments.",
+          "description": "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.",
           "params": null,
           "accepts_types": [
             "date",
@@ -782,11 +790,14 @@
               {
                 "name": "kurtosis",
                 "type": "float64",
-                "description": "Bias-corrected excess kurtosis derived from m2, m4, and n."
+                "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n \u003c= 1 or the variance is zero."
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "distribution_shape"
+          ]
         },
         {
           "name": "AGG_MAX",
@@ -1114,7 +1125,11 @@
               }
             ],
             "mergeability": "none"
-          }
+          },
+          "intents": [
+            "describe",
+            "distribution_shape"
+          ]
         },
         {
           "name": "AGG_RANGE",
@@ -1239,7 +1254,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition",
+            "describe"
+          ]
         },
         {
           "name": "AGG_SET_CARDINALITY_AVG",
@@ -1524,7 +1543,7 @@
         {
           "name": "AGG_SKEWNESS",
           "category": "aggregator",
-          "description": "Bias-corrected skewness via online moments.",
+          "description": "Population skewness g1 (m3 / m2^1.5, dividing by n) via online moments.",
           "params": null,
           "accepts_types": [
             "date",
@@ -1570,11 +1589,14 @@
               {
                 "name": "skewness",
                 "type": "float64",
-                "description": "Bias-corrected skewness derived from m2, m3, and n."
+                "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n \u003c= 1 or the variance is zero."
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "distribution_shape"
+          ]
         },
         {
           "name": "AGG_STDDEV",
@@ -1630,7 +1652,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe",
+            "distribution_shape"
+          ]
         },
         {
           "name": "AGG_SUM",
@@ -1726,7 +1752,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe",
+            "distribution_shape"
+          ]
         },
         {
           "name": "AGG_WEIGHTED_MEAN",
@@ -1803,7 +1833,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_WELFORD",
@@ -1854,7 +1887,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "compare_groups",
+            "describe"
+          ]
         },
         {
           "name": "AGG_ZSCORE",
@@ -1910,7 +1947,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "benchmark",
+            "distribution_shape"
+          ]
         }
       ],
       "attributes": [
@@ -6734,7 +6775,7 @@
       },
       {
         "name": "op-agg-kurtosis",
-        "description": "Bias-corrected excess kurtosis via online moments."
+        "description": "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments."
       },
       {
         "name": "op-agg-max",
@@ -6794,7 +6835,7 @@
       },
       {
         "name": "op-agg-skewness",
-        "description": "Bias-corrected skewness via online moments."
+        "description": "Population skewness g1 (m3 / m2^1.5, dividing by n) via online moments."
       },
       {
         "name": "op-agg-stddev",
@@ -8988,7 +9029,7 @@
             {
               "name": "kurtosis",
               "type": "float64",
-              "description": "Bias-corrected excess kurtosis derived from m2, m4, and n."
+              "description": "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n \u003c= 1 or the variance is zero."
             }
           ],
           "mergeability": "mergeable"
@@ -9408,7 +9449,7 @@
             {
               "name": "skewness",
               "type": "float64",
-              "description": "Bias-corrected skewness derived from m2, m3, and n."
+              "description": "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n \u003c= 1 or the variance is zero."
             }
           ],
           "mergeability": "mergeable"
@@ -10150,4 +10191,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 92a997ab3a6d0bc58ed8f727b38bdc35227d24d0711d87aee197891e80357079
+// golden-hash: b1523c735e592ecde0fd72f5361aee71b3051a2417c5e17fdbd3705087e3dbe0

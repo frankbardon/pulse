@@ -21,7 +21,7 @@ None.
 
 ## Output
 
-Scalar `float64` — `(target - pop_mean) / pop_stddev`. Per-group when wired under a grouper.
+Scalar `float64` — the MEAN of the group's row z-scores, `0` by construction. The usable figures are the components; `zscore` there is the LAST row's `(target_value - pop_mean) / pop_stddev`. Per-group when wired under a grouper.
 
 ## Components
 
@@ -40,7 +40,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Buffered path only; use `ATTR_ZSCORE` for per-row z-scores instead.
-- Zero stddev → NaN.
+- Zero stddev or empty group → `0` (not NaN).
 - `decimal128` rejected.
 
 ## See

@@ -41,10 +41,6 @@ var purposeExemptions = func() []guidanceExemption {
 	const why = "Descriptive built-in awaiting its Purpose in the U09 backfill."
 	var out []guidanceExemption
 	for _, names := range [][]string{
-		// aggregator
-		{"AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_KURTOSIS", "AGG_PERCENTILE", "AGG_RATIO",
-			"AGG_SKEWNESS", "AGG_STDDEV", "AGG_VARIANCE", "AGG_WEIGHTED_MEAN", "AGG_WELFORD",
-			"AGG_ZSCORE"},
 		// attribute
 		{"ATTR_DATE_PART", "ATTR_FORMULA", "ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_REG_FITTED",
 			"ATTR_REG_LEVERAGE", "ATTR_REG_RESIDUAL", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
@@ -83,10 +79,6 @@ var interpretationExemptions = func() []guidanceExemption {
 	const why = "Needs-reading descriptive built-in awaiting its value Interpretation in the U09 backfill."
 	var out []guidanceExemption
 	for _, key := range []string{
-		// aggregator
-		"AGG_CI_LOWER:value", "AGG_CI_UPPER:value", "AGG_KURTOSIS:value", "AGG_PERCENTILE:value",
-		"AGG_RATIO:value", "AGG_SKEWNESS:value", "AGG_STDDEV:value", "AGG_VARIANCE:value",
-		"AGG_WEIGHTED_MEAN:value", "AGG_WELFORD:value.*", "AGG_ZSCORE:value",
 		// attribute
 		"ATTR_NORMALIZED:value", "ATTR_PERCENTILE:value", "ATTR_REG_FITTED:value",
 		"ATTR_REG_LEVERAGE:value", "ATTR_REG_RESIDUAL:value", "ATTR_TSCORE:value", "ATTR_ZSCORE:value",

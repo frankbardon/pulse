@@ -361,7 +361,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "compare_groups",
+            "describe"
+          ]
         }
       ],
       "attributes": [],
@@ -1894,4 +1898,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a62afd12ce747ba41758403708847718d3d62ff79274c2d95d1de0563625e994
+// golden-hash: 387a77e45f11b5a55e458b72e740c501a2d94eae6a662bdb01378793cdb08d50
