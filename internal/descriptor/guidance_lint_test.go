@@ -214,6 +214,17 @@ var pValueFieldsByOperator = map[string][]string{
 	"OVERLAY_T_VS_REF":     {"summary.statistic"},
 	"OVERLAY_Z_VS_REF":     {"summary.statistic"},
 	"OVERLAY_CHISQ_VS_REF": {"scalar"},
+	// MATRIX-payload kinds whose cell value is the p-value.
+	"OVERLAY_FISHER_EXACT_CELL":             {"cells.value"},
+	"OVERLAY_PAIRWISE_PROBIT_T":             {"cells.value"},
+	"OVERLAY_PAIRWISE_PROP_Z":               {"cells.value"},
+	"OVERLAY_PAIRWISE_TWO_MEANS_Z":          {"cells.value"},
+	"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z": {"cells.value"},
+	"OVERLAY_PAIRWISE_WELCH_T":              {"cells.value"},
+	"OVERLAY_PROP_Z_CELL":                   {"cells.value"},
+	"OVERLAY_PROP_Z_PANEL":                  {"cells.value"},
+	"OVERLAY_T_CELL":                        {"cells.value"},
+	"OVERLAY_Z_CELL":                        {"cells.value"},
 }
 
 func isPValueField(op, field string) bool {
