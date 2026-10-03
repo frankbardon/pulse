@@ -349,3 +349,39 @@ func exampleIntentProblems(byExample map[string][]string) []string {
 	}
 	return out
 }
+
+// TestBuiltinPurposes_AssembledFromCategoryMaps: builtinPurposes is
+// exactly the union of the per-category maps, every stat-test entry is
+// keyed by a TEST_* family, and a name declared by two category maps
+// panics instead of silently shadowing one declaration.
+func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
+	cats := []map[string]descriptor.Purpose{aggregatorPurposes, statTestPurposes}
+	total := 0
+	for _, m := range cats {
+		total += len(m)
+		for name := range m {
+			if _, ok := builtinPurposes[name]; !ok {
+				t.Errorf("category entry %s missing from builtinPurposes", name)
+			}
+		}
+	}
+	if total != len(builtinPurposes) {
+		t.Errorf("builtinPurposes has %d entries, category maps hold %d", len(builtinPurposes), total)
+	}
+	for name := range statTestPurposes {
+		if !strings.HasPrefix(name, "TEST_") {
+			t.Errorf("statTestPurposes holds non-test key %s", name)
+		}
+	}
+
+	merged := mergePurposes(map[string]descriptor.Purpose{"A": {Plain: "a"}}, map[string]descriptor.Purpose{"B": {Plain: "b"}})
+	if len(merged) != 2 || merged["A"].Plain != "a" || merged["B"].Plain != "b" {
+		t.Errorf("mergePurposes = %v", merged)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("mergePurposes accepted a name declared by two category maps")
+		}
+	}()
+	mergePurposes(map[string]descriptor.Purpose{"A": {}}, map[string]descriptor.Purpose{"A": {}})
+}

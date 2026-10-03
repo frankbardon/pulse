@@ -588,6 +588,10 @@
         "requires": [
           "Rows",
           "Cols"
+        ],
+        "intents": [
+          "compare_groups",
+          "relationship"
         ]
       },
       {
@@ -614,6 +618,10 @@
         ],
         "requires": [
           "Field"
+        ],
+        "intents": [
+          "benchmark",
+          "compare_groups"
         ]
       },
       {
@@ -634,6 +642,9 @@
         "requires": [
           "Field",
           "SplitBy"
+        ],
+        "intents": [
+          "compare_groups"
         ]
       }
     ],
@@ -1863,4 +1874,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9399e7711a5a9ddbe8bbd7990acda38500920b9c77945a7a31c2013c15356888
+// golden-hash: 191fd84c4de9d152de03563b6b51511f9b0e8f5a2dc6a00b41e04f97081bc30c
