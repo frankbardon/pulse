@@ -16,8 +16,8 @@ import (
 //   - It passes the existing mergeable gate (CanMergeRequest), i.e. its
 //     online state can be merged across partitions of the input.
 //   - Every aggregator emits a single scalar value per output row
-//     (FREQUENCY emits a map; MODE emits a string — both are excluded
-//     from chain output until a richer downstream-schema synth lands).
+//     (mergegate.EmitsScalar: AGG_MODE is excluded; AGG_FREQUENCY's
+//     modal count is one float64 and is admitted).
 //
 // The chain executor calls this before each stage. A failing stage
 // surfaces PULSE_CHAIN_NOT_MERGEABLE with the stage index in details.

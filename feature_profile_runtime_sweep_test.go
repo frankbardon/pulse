@@ -35,8 +35,10 @@ func sweepCohortRequest(cohort string) *types.Request {
 }
 
 // runtimeSweepCases covers every runtime remedy clause
-// (internal/processing/refusal_prose.go, the regression remedies and
-// the chain gate's non-scalar note).
+// (internal/processing/refusal_prose.go and the regression remedies).
+// The chain gate's non-scalar note names only AGG_MODE, the operator
+// the refused request itself wrote, so it recommends nothing else and
+// has no case here (internal/mergegate pins its hiding).
 func runtimeSweepCases() []runtimeSweepCase {
 	count := &types.Aggregation{Type: types.AGG_COUNT, Field: "age", Label: "n"}
 	set := func(mut func(r *types.Request)) *types.Request {
@@ -131,19 +133,6 @@ func runtimeSweepCases() []runtimeSweepCase {
 				r.Crosstab.Cell = &types.Aggregation{Type: types.AGG_FREQUENCY, Field: "segment", Label: "freq_segment"}
 				return r
 			}())},
-		{"chain non-scalar stage",
-			[]string{"capability:process", "capability:process_chain", "GROUP_CATEGORY", "AGG_COUNT", "AGG_FREQUENCY"},
-			[]string{"AGG_MODE"},
-			func(p *Pulse) ([]byte, any) {
-				req := &ChainRequest{Cohort: &types.Cohort{Filename: parityCohort}, Stages: []*types.ChainStage{
-					{Name: "base", Request: &types.Request{
-						Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-						Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "region", Label: "f"}},
-					}},
-				}}
-				resp, err := p.ProcessChain(context.Background(), req)
-				return parityOutcome(resp, err), req
-			}},
 	}
 }
 

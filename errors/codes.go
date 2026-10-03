@@ -759,7 +759,7 @@ const (
 	// processing.CanMergeRequest delegates to)
 	// whose aggregators emit a single scalar per output row. Stages
 	// using windows, features, tier-1/tier-2 tests, regressions,
-	// two-pass attributes, AGG_FREQUENCY, AGG_MODE, or non-mergeable
+	// two-pass attributes, AGG_MODE, or non-mergeable
 	// groupers / aggregators are rejected. The error details carry
 	// the offending stage index and name so callers can fall back to
 	// per-stage Process calls.

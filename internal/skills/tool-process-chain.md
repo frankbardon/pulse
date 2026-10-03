@@ -20,7 +20,7 @@ Source-rooted linear chain — collapses N round-trips into one open + N stage v
 
 ## Gotchas
 
-- MERGEABLE-ONLY at v1. Permitted: `AGG_COUNT`/`SUM`/`AVERAGE`/`MIN`/`MAX`/`RANGE`/`VARIANCE`/`STDDEV`/`DISTINCT_COUNT`/`NULL_COUNT`, `GROUP_CATEGORY`/`GROUP_RANGE`, row-local attributes (`ATTR_FORMULA`, `ATTR_DATE_PART`). Windows, features, statistical tests, regressions, two-pass attributes, `AGG_FREQUENCY`/`AGG_MODE`, and non-mergeable aggregators/groupers → `PULSE_CHAIN_NOT_MERGEABLE`. Fall back to `pulse_compose` / per-stage `pulse_process`.
+- MERGEABLE-ONLY at v1. Permitted: `AGG_COUNT`/`SUM`/`AVERAGE`/`MIN`/`MAX`/`RANGE`/`VARIANCE`/`STDDEV`/`DISTINCT_COUNT`/`NULL_COUNT`/`FREQUENCY`, `GROUP_CATEGORY`/`GROUP_RANGE`, row-local attributes (`ATTR_FORMULA`, `ATTR_DATE_PART`). Windows, features, statistical tests, regressions, two-pass attributes, `AGG_MODE`, and non-mergeable aggregators/groupers → `PULSE_CHAIN_NOT_MERGEABLE`. Fall back to `pulse_compose` / per-stage `pulse_process`.
 - Synthesized schema between stages: grouper keys → `categorical_u32` columns; aggregator outputs → `f64`.
 
 ## See

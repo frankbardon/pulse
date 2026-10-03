@@ -525,22 +525,25 @@ func TestValidateChain_HiddenDefaultNotInferred(t *testing.T) {
 }
 
 // TestValidateChain_NonScalarNoteNamesOnlyOffered: the chain
-// validator's non-scalar refusal names AGG_MODE as excluded only when
-// the instance offers it (the snapshot adapter's Hidden).
+// validator admits AGG_FREQUENCY (a scalar modal count) and refuses
+// AGG_MODE with the "(AGG_MODE is excluded)" note, which names
+// AGG_MODE only because the instance offers it (the snapshot adapter's
+// Hidden) and never names AGG_FREQUENCY.
 func TestValidateChain_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
-	req := &types.ChainRequest{Stages: []*types.ChainStage{{Name: "a", Request: &types.Request{
-		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
-		Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "grade", Label: "f"}},
-	}}}}
-	msg := func(opts *PredictOptions) string {
-		return hiddenEnvJSON(t, ValidateChainWithOptions(bytes.NewReader(data), req, opts))
+	chain := func(agg types.AggregationType) *types.ChainRequest {
+		return &types.ChainRequest{Cohort: &types.Cohort{Filename: "c.pulse"}, Stages: []*types.ChainStage{{Name: "a", Request: &types.Request{
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grade"}},
+			Aggregations: []*types.Aggregation{{Type: agg, Field: "grade", Label: "f"}},
+		}}}}
 	}
-	if got := msg(nil); !strings.Contains(got, "(AGG_FREQUENCY and AGG_MODE are excluded)") {
-		t.Fatalf("vacuous: unscoped refusal lacks the historical note: %s", got)
+	for _, opts := range []*PredictOptions{nil, {Instance: hideOnly(string(types.AGG_MODE))}} {
+		if env := ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_FREQUENCY), opts); len(env.Errors) != 0 {
+			t.Fatalf("validator refused AGG_FREQUENCY: %s", hiddenEnvJSON(t, env))
+		}
 	}
-	got := msg(&PredictOptions{Instance: hideOnly(string(types.AGG_MODE))})
-	if strings.Contains(got, "AGG_MODE") || !strings.Contains(got, "(AGG_FREQUENCY is excluded)") {
-		t.Errorf("scoped refusal = %s", got)
+	got := hiddenEnvJSON(t, ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_MODE), nil))
+	if !strings.Contains(got, "(AGG_MODE is excluded)") || strings.Contains(got, "AGG_FREQUENCY") {
+		t.Fatalf("unscoped AGG_MODE refusal = %s", got)
 	}
 }

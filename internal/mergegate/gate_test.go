@@ -95,6 +95,12 @@ func TestChainRefusal(t *testing.T) {
 	if err := ChainRefusal(ok, decSchema(), nil, 0, "s0"); err != nil {
 		t.Fatalf("refused a mergeable stage: %v", err)
 	}
+	// AGG_FREQUENCY emits the modal count (one float64) and merges
+	// exactly, so a chain stage may use it.
+	freq := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "n"}}}
+	if err := ChainRefusal(freq, nil, nil, 1, "s1"); err != nil {
+		t.Fatalf("refused AGG_FREQUENCY: %v", err)
+	}
 	for _, tc := range []struct {
 		name   string
 		req    *types.Request
@@ -138,7 +144,7 @@ func TestStageJoinRefusal(t *testing.T) {
 
 func TestEmitsScalar(t *testing.T) {
 	for _, a := range types.AllAggregationTypes() {
-		want := a != types.AGG_FREQUENCY && a != types.AGG_MODE
+		want := a != types.AGG_MODE
 		if EmitsScalar(a) != want {
 			t.Errorf("EmitsScalar(%s) = %v", a, !want)
 		}
@@ -187,7 +193,8 @@ func (h hidingExt) Hidden(n string) bool { return h.hidden[n] }
 
 // TestChainRefusal_NonScalarNoteNamesOnlyOffered: the chain refusal's
 // excluded-aggregator parenthetical names only aggregators the adapter
-// does not hide; an adapter without Hidden keeps the historical text.
+// does not hide; an adapter without Hidden names every one. It never
+// names AGG_FREQUENCY, which the gate admits.
 func TestChainRefusal_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 	req := func(t types.AggregationType) *types.Request {
 		return &types.Request{Aggregations: []*types.Aggregation{{Type: t, Field: "x"}}}
@@ -198,9 +205,8 @@ func TestChainRefusal_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 		agg  types.AggregationType
 		want string
 	}{
-		{"unscoped", None{}, types.AGG_FREQUENCY, "chain stage is not mergeable: aggregator AGG_FREQUENCY emits a non-scalar value (AGG_FREQUENCY and AGG_MODE are excluded)"},
-		{"nothing hidden", hidingExt{}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_FREQUENCY and AGG_MODE are excluded)"},
-		{"mode hidden", hidingExt{hidden: map[string]bool{"AGG_MODE": true}}, types.AGG_FREQUENCY, "chain stage is not mergeable: aggregator AGG_FREQUENCY emits a non-scalar value (AGG_FREQUENCY is excluded)"},
+		{"unscoped", None{}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
+		{"nothing hidden", hidingExt{}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
 		{"frequency hidden", hidingExt{hidden: map[string]bool{"AGG_FREQUENCY": true}}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
 	}
 	for _, tc := range cases {
@@ -213,8 +219,7 @@ func TestChainRefusal_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 			t.Errorf("%s: %q, want %q", tc.name, ce.Message, tc.want)
 		}
 	}
-	both := hidingExt{hidden: map[string]bool{"AGG_FREQUENCY": true, "AGG_MODE": true}}
-	if got := nonScalarNote(both); got != "" {
-		t.Errorf("both hidden: %q, want empty", got)
+	if got := nonScalarNote(hidingExt{hidden: map[string]bool{"AGG_MODE": true}}); got != "" {
+		t.Errorf("mode hidden: %q, want empty", got)
 	}
 }

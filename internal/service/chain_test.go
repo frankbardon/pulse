@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
 )
 
 // TestProcessChain_TwoStageByteEqualToManual validates that a
@@ -189,42 +191,78 @@ func TestProcessChain_NonMergeableMiddleStageReturnsError(t *testing.T) {
 	}
 }
 
-// TestProcessChain_FrequencyAggregatorRejected validates that
-// AGG_FREQUENCY — mergeable but emits a map — fails the chain gate.
-func TestProcessChain_FrequencyAggregatorRejected(t *testing.T) {
-	schema := testSchema()
-	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
-	svc := New(cfg)
+// TestProcessChain_FrequencyAggregatorAccepted validates that
+// AGG_FREQUENCY — one float64 per row (the modal count) whose partials
+// merge exactly — passes the chain gate, and that its chained result
+// equals a plain Process over the same rows. The cohort is a 3-shard
+// archive run on the per-shard parallel reducer (MergeOnline across
+// shards) and on the serial shard path; the reference is the same rows
+// as one single-file cohort. Per-shard modes differ from the global
+// mode, so a wrong merge changes the numbers.
+func TestProcessChain_FrequencyAggregatorAccepted(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "grp", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
+		{Name: "v", Type: encoding.FieldTypeU8, ByteOffset: 1, CsvColumnIdx: 1},
+	}}
+	// grp 1: v=7 holds 4 of 7 rows, never more than 2 in one shard.
+	// grp 2: v=1 holds 3 of 5 rows; shard b alone would say v=2.
+	shards := []struct {
+		Name    string
+		Records [][]uint64
+	}{
+		{"a.pulse", [][]uint64{{1, 5}, {1, 5}, {1, 7}, {2, 1}}},
+		{"b.pulse", [][]uint64{{1, 7}, {1, 5}, {2, 2}, {2, 2}}},
+		{"c.pulse", [][]uint64{{1, 7}, {1, 7}, {2, 1}, {2, 1}}},
+	}
+	var flat [][]uint64
+	for _, sh := range shards {
+		flat = append(flat, sh.Records...)
+	}
+	cfg := setupTestFS(t, "flat.pulse", schema, flat)
+	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", buildShardArchive(t, schema, shards), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	ctx := context.Background()
-
-	chain := &types.ChainRequest{
-		Cohort: &types.Cohort{Filename: "test.pulse"},
-		Stages: []*types.ChainStage{
-			{
-				Name: "freq",
-				Request: &types.Request{
-					Aggregations: []*types.Aggregation{
-						{Type: types.AGG_FREQUENCY, Field: "id", Label: "freq_id"},
-					},
-				},
-			},
-			{
-				Name: "noop",
-				Request: &types.Request{
-					Aggregations: []*types.Aggregation{
-						{Type: types.AGG_COUNT, Field: "freq_id", Label: "n"},
-					},
-				},
-			},
-		},
+	stage0 := func(file string) *types.Request {
+		return &types.Request{
+			Cohort:       &types.Cohort{Filename: file},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grp"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "v", Label: "freq"}},
+			Sort:         []types.OrderKey{{Field: "grp"}},
+		}
+	}
+	serial, err := New(cfg).Process(ctx, stage0("flat.pulse"))
+	if err != nil {
+		t.Fatalf("serial Process: %v", err)
+	}
+	wantFreq := map[string]float64{"1": 4, "2": 3}
+	for _, row := range serial.Data {
+		if k := fmt.Sprint(row["grp"]); row["freq"] != wantFreq[k] {
+			t.Fatalf("serial grp %s: freq = %v, want %v", k, row["freq"], wantFreq[k])
+		}
 	}
 
-	_, err := svc.ProcessChain(ctx, chain)
-	if err == nil {
-		t.Fatalf("expected PULSE_CHAIN_NOT_MERGEABLE for AGG_FREQUENCY chain stage")
-	}
-	if !errors.HasCode(err, errors.PULSE_CHAIN_NOT_MERGEABLE) {
-		t.Fatalf("expected PULSE_CHAIN_NOT_MERGEABLE, got %v", err)
+	for _, workers := range []int{3, 1} {
+		svc := New(cfg)
+		svc.SetShardWorkers(workers)
+		resp, err := svc.ProcessChain(ctx, &types.ChainRequest{
+			Cohort: &types.Cohort{Filename: "arch.pulse"},
+			Stages: []*types.ChainStage{
+				{Name: "freq", Request: stage0("")},
+				{Name: "total", Request: &types.Request{
+					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "freq", Label: "total"}},
+				}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("workers=%d: ProcessChain: %v", workers, err)
+		}
+		if !reflect.DeepEqual(resp.Stages[0].Data, serial.Data) {
+			t.Errorf("workers=%d: chain stage 0 = %v, serial Process = %v", workers, resp.Stages[0].Data, serial.Data)
+		}
+		if got := resp.Final.Data[0]["total"]; got != 7.0 {
+			t.Errorf("workers=%d: stage 1 total = %v, want 7 (4 + 3)", workers, got)
+		}
 	}
 }
 

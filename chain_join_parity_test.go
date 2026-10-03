@@ -53,12 +53,13 @@ func TestChainDefaults_ValidatorMatchesRuntime(t *testing.T) {
 			},
 		}
 	}
-	// cat (categorical) → AGG_FREQUENCY: non-scalar, refused by the gate.
+	// d (date) → GROUP_DATE: not mergeable, refused by the gate.
 	nonMergeable := func() *types.ChainRequest {
 		return &types.ChainRequest{
 			Cohort: &types.Cohort{Filename: cohort},
 			Stages: []*types.ChainStage{{Name: "s0", Request: &types.Request{
-				Aggregations: []*types.Aggregation{{Field: "cat"}},
+				Aggregations: []*types.Aggregation{{Field: "n"}},
+				Groups:       []*types.Group{{Field: "d"}},
 			}}},
 		}
 	}
