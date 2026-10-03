@@ -419,6 +419,13 @@ type OverlayCapability struct {
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the kind
 	// answers, sorted. Omitted when the kind declares no purpose.
 	Intents []string `json:"intents,omitempty"`
+
+	// Inferential is true for a hypothesis-test kind — its numbers are
+	// test statistics and p-values, read with the shared p-value rules
+	// and subject to multiple-comparison caveats — and omitted for a
+	// descriptive kind (shares, indices, deltas, z-scores). Declared per
+	// kind, never inferred from the name.
+	Inferential bool `json:"inferential,omitempty"`
 }
 
 // RegressionMeta describes a registered REG_* operator in the manifest.

@@ -36,12 +36,9 @@ type ProseString struct {
 // guidance type the registry holds, so TestGuidanceProseSourcesComplete
 // can prove every guidance type is swept.
 //
-// E4 HOOK: the Interpretation registry plugs in by appending one entry
-// here (typ descriptor.Interpretation, values keyed "interpretation:
-// <operator>.<field>") plus one for the shared rule texts (e.g. the
-// shared p-value reading), and deleting Interpretation from
-// pendingProseTypes in guidance_prose_test.go. The reflective walker
-// already extracts every Interpretation prose field.
+// The Interpretation registry feeds two sources: per-operator entries
+// keyed "interpretation:<operator>.<field>" and the shared rule sets
+// keyed "interpretation-shared:<key>".
 type proseSource struct {
 	typ    reflect.Type
 	values func() map[string]any
@@ -52,6 +49,23 @@ var proseSources = []proseSource{
 		out := map[string]any{}
 		for k, p := range BuiltinPurposes() {
 			out["purpose:"+k] = p
+		}
+		return out
+	}},
+	{reflect.TypeOf(descriptor.Interpretation{}), func() map[string]any {
+		out := map[string]any{}
+		for name, ins := range BuiltinInterpretations() {
+			for _, in := range ins {
+				out["interpretation:"+name+"."+in.Field] = in
+			}
+		}
+		return out
+	}},
+	{reflect.TypeOf(descriptor.Interpretation{}), func() map[string]any {
+		out := map[string]any{}
+		for _, k := range SharedInterpretationKeys() {
+			in, _ := SharedInterpretation(k)
+			out["interpretation-shared:"+k] = in
 		}
 		return out
 	}},

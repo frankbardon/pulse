@@ -25,7 +25,7 @@ Additive, read-only decorations. Specs ride `Request.Overlays`, layers `Response
 
 ## Three payload shapes
 
-`Payload.Shape` ∈ `scalar|series|matrix`. Scalar — `Payload.Scalar` + optional `OverlaySummary{Statistic,PValue,Parameters}`. Series — `Payload.Series.Entries[i].{Key,Value,Summary}` aligned to host keys. Matrix — `Payload.Matrix.Cells[r][c]` mirrors host cells. `Baseline` is the centerpoint (100 index, 0 delta/z), absent for inferential kinds.
+`Payload.Shape` ∈ `scalar|series|matrix`. Scalar — `Payload.Scalar` + optional `OverlaySummary{Statistic,PValue,Parameters}`. Series — `Payload.Series.Entries[i].{Key,Value,Summary}` aligned to host keys. Matrix — `Payload.Matrix.Cells[r][c]` mirrors host cells. `Baseline` is the centerpoint (100 index, 0 delta/z), absent for inferential kinds (manifest `overlays[].inferential: true`).
 
 ## Catalog
 

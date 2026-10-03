@@ -1229,6 +1229,7 @@ pulse/descriptor: type OverlayCapability struct
 pulse/descriptor: type OverlayCapability field Buffered bool "json:\"buffered\""
 pulse/descriptor: type OverlayCapability field Description string "json:\"description\""
 pulse/descriptor: type OverlayCapability field Fields []string "json:\"fields,omitempty\""
+pulse/descriptor: type OverlayCapability field Inferential bool "json:\"inferential,omitempty\""
 pulse/descriptor: type OverlayCapability field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type OverlayCapability field Kind pulse/types.OverlayKind "json:\"kind\""
 pulse/descriptor: type OverlayCapability field RefKinds []string "json:\"ref_kinds\""
@@ -3665,4 +3666,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 1754139ea850f31b7f4e2be5461a2909fa0993974c3cc705e3bd6f770e64f7cf
+// golden-hash: 2c6d438475f09d99b58c60cefc4f8a1224a2f08542569495d8391adb3b813a2c

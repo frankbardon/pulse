@@ -21,7 +21,9 @@ const manifestGuidanceBudget = 4096
 // manifestGuidanceBytes returns the bytes of the compact manifest JSON
 // attributable to guidance: every object key "intents" at any depth
 // (the top-level taxonomy plus each entry's intents, so a new entry type
-// is counted with no change here), and every skills[] entry naming a
+// is counted with no change here), every overlay "inferential" flag
+// (the Interpretation half's only manifest projection), and every
+// skills[] entry naming a
 // reserved virtual skill. Each item is counted with its separating
 // comma.
 func manifestGuidanceBytes(t *testing.T, raw []byte) int {
@@ -49,8 +51,8 @@ func manifestGuidanceBytes(t *testing.T, raw []byte) int {
 		switch x := v.(type) {
 		case map[string]any:
 			for k, child := range x {
-				if k == "intents" {
-					total += len(`"intents":`) + size(child) + 1
+				if k == "intents" || k == "inferential" {
+					total += len(`"`+k+`":`) + size(child) + 1
 					continue
 				}
 				if top && k == "skills" {
@@ -86,8 +88,8 @@ func marshalManifest(t *testing.T, m *descriptor.Manifest) []byte {
 // TestManifestGuidanceBudget is the binding guidance-bloat gate on the
 // default (full-registry, profile-free) manifest: guidance-attributable
 // bytes stay within manifestGuidanceBudget, and no declared guidance
-// prose (GuidanceProse — every purpose, glossary term and intent, plus
-// every interpretation once that registry exists) appears in it.
+// prose (GuidanceProse — every purpose, glossary term, intent and
+// interpretation, including the shared rule sets) appears in it.
 // Instance manifests are subsets of this one, so the full manifest
 // bounds them. The Response / PredictResult half lives in the root
 // package (it must execute).
@@ -124,6 +126,9 @@ func TestManifestGuidanceBudget_Falsifiers(t *testing.T) {
 			break
 		}
 	}
+	interp := BuiltinInterpretations()["TEST_ANOVA_F"][0].Means
+	shared, _ := SharedInterpretation(SharedPValue)
+	sharedCaveat := shared.Caveats[0]
 	cases := []struct {
 		name   string
 		mutate func(m *descriptor.Manifest)
@@ -138,6 +143,12 @@ func TestManifestGuidanceBudget_Falsifiers(t *testing.T) {
 		}},
 		{name: "intent phrasing inlined in test description", leak: label, mutate: func(m *descriptor.Manifest) {
 			m.Tests[0].Description = label
+		}},
+		{name: "interpretation means inlined in test description", leak: interp, mutate: func(m *descriptor.Manifest) {
+			m.Tests[0].Description += " " + interp
+		}},
+		{name: "shared p-value caveat inlined in overlay description", leak: sharedCaveat, mutate: func(m *descriptor.Manifest) {
+			m.Overlays[0].Description = sharedCaveat
 		}},
 		{name: "5 KB of intents", over: true, mutate: func(m *descriptor.Manifest) {
 			pad := strings.Repeat("x", 100)
@@ -158,6 +169,7 @@ func TestManifestGuidanceBudget_Falsifiers(t *testing.T) {
 			m.Skills = slices.Clone(m.Skills)
 			m.Tests = slices.Clone(m.Tests)
 			m.Intents = slices.Clone(m.Intents)
+			m.Overlays = slices.Clone(m.Overlays)
 			tc.mutate(m)
 			raw := marshalManifest(t, m)
 			if tc.over {
@@ -180,11 +192,9 @@ func TestManifestGuidanceBudget_Falsifiers(t *testing.T) {
 }
 
 // pendingProseTypes are guidance types whose registry does not exist
-// yet. E4-S1 deletes Interpretation here when it appends the
-// interpretation registry to proseSources.
-var pendingProseTypes = map[reflect.Type]string{
-	reflect.TypeOf(descriptor.Interpretation{}): "E4-S1 adds the Interpretation registry",
-}
+// yet; a new guidance type lists itself here until its registry appends
+// a source to proseSources.
+var pendingProseTypes = map[reflect.Type]string{}
 
 // TestGuidanceProseSourcesComplete proves GuidanceProse sweeps every
 // guidance type that carries prose: each has a proseSource, or is
@@ -221,6 +231,18 @@ func TestGuidanceProseSourcesComplete(t *testing.T) {
 	for name, p := range BuiltinPurposes() {
 		if !all[p.Plain] {
 			t.Errorf("purpose %s Plain not swept by GuidanceProse", name)
+		}
+	}
+	for name, ins := range BuiltinInterpretations() {
+		for _, in := range ins {
+			if in.Means != "" && !all[in.Means] {
+				t.Errorf("interpretation %s.%s Means not swept by GuidanceProse", name, in.Field)
+			}
+		}
+	}
+	for _, k := range SharedInterpretationKeys() {
+		if in, _ := SharedInterpretation(k); !all[in.Means] {
+			t.Errorf("shared interpretation %s Means not swept by GuidanceProse", k)
 		}
 	}
 }
