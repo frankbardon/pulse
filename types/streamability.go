@@ -156,18 +156,12 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		// every distinct-count crosstab onto the buffered path).
 		return MarginIndependent
 	case AGG_COUNT, AGG_SUM, AGG_NULL_COUNT,
-		AGG_MODE_COUNT,
 		// One value's row count: the margin is the sum of the cells'.
 		AGG_FREQUENCY,
 		// Set unions, popcount sums, and per-element frequency
 		// histograms all reduce by addition across cells.
 		AGG_SET_UNION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_DISTINCT_VALUES:
-		// FREQUENCY is summable per category: each cell's per-value
-		// counts merge by key union (same logic the per-shard reducer
-		// uses); classified as summable for that reason. The reshape
-		// pass treats it as recompute today because the long-form
-		// emitter writes a map, not a scalar.
 		return MarginSummable
 	case AGG_AVERAGE, AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_SET_CARDINALITY_AVG:
@@ -175,6 +169,10 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 	case AGG_MIN, AGG_MAX, AGG_RANGE,
 		AGG_STDDEV, AGG_VARIANCE,
 		AGG_MEDIAN, AGG_PERCENTILE, AGG_MODE,
+		// The modal count of a margin's rows is neither the sum nor the
+		// max of its cells' modal counts (the margin's mode may be a
+		// value no single cell favours) — recompute, as AGG_MODE.
+		AGG_MODE_COUNT,
 		AGG_ZSCORE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_CI_LOWER, AGG_CI_UPPER,
 		// Welford emits a running (mean, sample-variance, n) triple.

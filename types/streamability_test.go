@@ -71,7 +71,6 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		AGG_COUNT:      MarginSummable,
 		AGG_SUM:        MarginSummable,
 		AGG_NULL_COUNT: MarginSummable,
-		AGG_MODE_COUNT: MarginSummable,
 		AGG_FREQUENCY:  MarginSummable,
 
 		AGG_AVERAGE:       MarginMeanReducible,
@@ -92,6 +91,7 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		AGG_MEDIAN:     MarginRecompute,
 		AGG_PERCENTILE: MarginRecompute,
 		AGG_MODE:       MarginRecompute,
+		AGG_MODE_COUNT: MarginRecompute,
 		AGG_ZSCORE:     MarginRecompute,
 		AGG_SKEWNESS:   MarginRecompute,
 		AGG_KURTOSIS:   MarginRecompute,
@@ -461,5 +461,20 @@ func TestStreamability_FeaturesKnown(t *testing.T) {
 	}
 	if len(expected) != len(AllFeatureTypes()) {
 		t.Fatalf("feature streamability table size mismatch: %d entries, %d types", len(expected), len(AllFeatureTypes()))
+	}
+}
+
+// TestMarginReducibility_ModeCountRecomputesFrequencySums pins the two
+// count-shaped aggregators that are easy to confuse. AGG_MODE_COUNT's
+// margin is the modal count of the margin's own rows, which no function
+// of the cells' modal counts yields, so it recomputes like AGG_MODE;
+// AGG_FREQUENCY counts rows equal to one value, so its margin is the sum
+// of the cells'.
+func TestMarginReducibility_ModeCountRecomputesFrequencySums(t *testing.T) {
+	if got := AGG_MODE_COUNT.MarginReducibility(); got != MarginRecompute || got != AGG_MODE.MarginReducibility() {
+		t.Errorf("AGG_MODE_COUNT = %q, want %q (the AGG_MODE class)", got, MarginRecompute)
+	}
+	if got := AGG_FREQUENCY.MarginReducibility(); got != MarginSummable {
+		t.Errorf("AGG_FREQUENCY = %q, want %q", got, MarginSummable)
 	}
 }

@@ -21,7 +21,7 @@ None.
 
 ## Output
 
-Scalar `float64` — the modal count (rows holding the most common value), NOT a per-value map. Per group under a grouper; under `GROUP_CATEGORY` on the same field it equals each group's row count (the categorical smart default).
+Scalar `float64` — the modal count, NOT a per-value map. Per group under a grouper; under `GROUP_CATEGORY` on the same field it equals each group's row count.
 
 ## Components
 
@@ -30,18 +30,18 @@ Universal floor `{n, n_null}` plus operator-specific:
 | Key | Type | Notes |
 |---|---|---|
 | `distinct_count` | int | Number of distinct values |
-| `mode_value` | any | Modal value (smallest wins a tie, as `AGG_MODE`) |
+| `mode_value` | any | Modal value (smallest wins a tie) |
 | `mode_count` | int | Row count of the modal value (= scalar) |
 
 - Mergeability: `Partial` — per-value count map merged exactly; ProcessChain admits it
-- Streaming: per-chunk count maps merged bin-by-bin
+- Streaming: count maps merged at flush
 
 ## Gotchas
 
-- Smart default for categorical_* and packed_bool fields.
-- Per-value tallies: `GROUP_CATEGORY` + `AGG_COUNT`, or `FacetSchema`. One chosen value: `AGG_FREQUENCY`. The value itself: `AGG_MODE`.
-- Memory grows with distinct values.
-- `set_*` rejected with `PROCESSING_CONFIG`; use `AGG_SET_FREQUENCY`.
+- Smart default for categorical_* and packed_bool. Memory grows with distinct values.
+- Per-value tallies: `GROUP_CATEGORY` + `AGG_COUNT`. One value: `AGG_FREQUENCY`. The value itself: `AGG_MODE`.
+- Crosstab margin = modal count of the margin's own rows, never a sum of cells (class `recompute`: runs buffered).
+- `set_*` → `PROCESSING_CONFIG`; use `AGG_SET_FREQUENCY`.
 
 ## See
 

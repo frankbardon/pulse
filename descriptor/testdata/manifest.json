@@ -8167,7 +8167,6 @@
       "summable_aggregators": [
         "AGG_COUNT",
         "AGG_FREQUENCY",
-        "AGG_MODE_COUNT",
         "AGG_NULL_COUNT",
         "AGG_SET_CARDINALITY_SUM",
         "AGG_SET_DISTINCT_VALUES",
@@ -8193,6 +8192,7 @@
         "AGG_MEDIAN",
         "AGG_MIN",
         "AGG_MODE",
+        "AGG_MODE_COUNT",
         "AGG_PERCENTILE",
         "AGG_RANGE",
         "AGG_SET_INTERSECTION",
@@ -10529,4 +10529,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2bcbe7bb3c8d036feed0a97ad34aa02ca5b79a91c0336d139b1f614b47ed9bda
+// golden-hash: b3f74fe75a450e3faeb035e251ac343e2f318c051bf20e22c0d0d70ce8dabf85
