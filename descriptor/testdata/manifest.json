@@ -7021,6 +7021,10 @@
         "description": "Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics."
       },
       {
+        "name": "crosstab-margin-aggregations",
+        "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
+      },
+      {
         "name": "expression-language",
         "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
       },
@@ -10533,4 +10537,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: afc8099f36947e4bc57acc7998a8fd8a39807830210d354280124f3b7b22ff2b
+// golden-hash: c8cbcd4e793fcd0a6da0949955a2a15d8158f4ceff7f2eea38711b8572156311
