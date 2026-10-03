@@ -82,16 +82,23 @@ func List() []Metadata {
 	return out
 }
 
-// Get returns the markdown content for the named skill — an embedded
-// file, or a registered virtual skill's rendered body.
-// The name should not include the .md extension.
+// Get returns the FULL-INSTANCE render of the named skill — an embedded
+// file with every feature fence kept and every fence marker stripped
+// (RenderFences with keep == nil; fence.go), or a registered virtual
+// skill's rendered body. Raw serves the embedded bytes verbatim. A body
+// whose fences do not parse is returned raw — unreachable for the
+// embedded pack, which TestSkillFences_EmbeddedPackParses keeps well
+// formed. The name should not include the .md extension.
 // Returns the content and true if found, or empty string and false otherwise.
 func Get(name string) (string, bool) {
-	data, err := fs.ReadFile(content, name+".md")
-	if err != nil {
-		return virtualBody(name)
+	raw, ok := Raw(name)
+	if !ok {
+		return "", false
 	}
-	return string(data), true
+	if out, err := RenderFences(raw, nil); err == nil {
+		return out, true
+	}
+	return raw, true
 }
 
 // Names returns the sorted list of skill names.

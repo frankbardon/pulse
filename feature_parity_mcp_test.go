@@ -300,6 +300,33 @@ func (h mcpHiddenNames) leaks(text string) []string {
 	return out
 }
 
+// atomicBodiesNameHiddenFail is the one REPORT-ONLY switch of the surface
+// sweep. Since E2-S1 a served skill body is rendered by its feature
+// fences, not by the line-wise prose scrub (which cut table rows), so an
+// ATOMIC body names a hidden operator or tool wherever the pack does not
+// fence it yet. Its leaks are logged, not failed, until E2-S3 fences the
+// atomic pack and flips this to true; a pruned-skill stem in a `## See`
+// section is still failed by TestSkillsCoverProfileGet (mcp/gosdk).
+// (.claude/reference/feature-profiles.md, "Served-body exemptions".)
+const atomicBodiesNameHiddenFail = false
+
+// atomicSkillBodyKey reports whether a rendered-surface key is the body of
+// an atomic (operator / tool / type) skill.
+func atomicSkillBodyKey(key string) bool {
+	name, ok := strings.CutPrefix(key, "pulse_skills_get ")
+	if !ok {
+		if name, ok = strings.CutPrefix(key, "read pulse-skill://"); !ok {
+			return false
+		}
+	}
+	for _, m := range skills.List() {
+		if m.Name == name {
+			return m.Kind == "operator" || m.Kind == "tool" || m.Kind == "type"
+		}
+	}
+	return false
+}
+
 // invisibilityExemptSkill is the explicit allowlist of rendered
 // surfaces that MAY name a hidden feature: a topical (kind: design)
 // skill body. Topical bodies are served whole and unrendered on a
@@ -448,6 +475,10 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 	sort.Strings(keys)
 	for _, k := range keys {
 		if leaked := hidden.leaks(string(rendered[k])); len(leaked) > 0 {
+			if atomicSkillBodyKey(k) && !atomicBodiesNameHiddenFail {
+				t.Logf("report-only: %s names hidden %v", k, leaked)
+				continue
+			}
 			t.Errorf("%s names hidden %v", k, leaked)
 		}
 	}

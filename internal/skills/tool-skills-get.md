@@ -12,7 +12,7 @@ After `pulse_skills_list` (or directly when you know the skill name) to pull the
 
 ## Input
 
-- `name` (string, required): skill name without `.md` extension (e.g. `aggregation-design`, `op-agg-welford`, `type-categorical-u32`, `tool-process`).
+- `name` (string, required): skill name without `.md` extension (e.g. `aggregation-design`, `type-categorical-u32`<!-- feature: AGG_WELFORD -->, `op-agg-welford`<!-- /feature --><!-- feature: capability:process -->, `tool-process`<!-- /feature -->).
 
 ## Output
 

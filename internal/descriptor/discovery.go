@@ -32,10 +32,14 @@ import (
 // hidden, is absent). Rendering on top of visibility:
 //
 //   - every surviving skill's listed metadata (description, applies_to,
-//     covers, examples_tags) and every surviving ATOMIC body is rendered
-//     through the instance's ProseScrub, so they name no hidden operator
-//     or tool;
-//   - a TOPICAL (kind: design) body is served unrendered.
+//     covers, examples_tags) is rendered through the instance's
+//     ProseScrub, so it names no hidden operator or tool (a frontmatter
+//     description cannot hold a feature fence);
+//   - every surviving embedded BODY — atomic and topical — is rendered
+//     by its feature fences against the pruned graph, and an atomic body's
+//     `## See` section by edge (skill_render.go). Fence markers are
+//     always stripped. Prose outside a fence is served as written: a body
+//     names a hidden feature only where it is not fenced yet.
 //
 // A Discovery with nothing hidden (no feature profile, or a profile that
 // hides nothing) passes every call straight through to the embedded
@@ -43,11 +47,12 @@ import (
 type Discovery struct {
 	hiddenSkills   map[string]struct{}
 	hiddenExamples map[string]struct{}
-	// topical is every kind: design skill — the bodies served unrendered.
+	// topical is every kind: design skill — the bodies whose `## See`
+	// section is not rendered by edge (it emits no edges).
 	topical map[string]struct{}
 	// scrub is the instance's prose scrub (the manifest's token set and
-	// sentence drop). It renders the visible skills' metadata and atomic
-	// bodies so no listing or read names a hidden operator or tool.
+	// sentence drop). It renders the visible skills' listed metadata so no
+	// listing names a hidden operator or tool; bodies render by fence.
 	scrub ProseScrub
 	// graph is the instance's pruned ontology; nil on the pass-through
 	// view (the virtual skills then render whole).
@@ -192,32 +197,34 @@ func (d *Discovery) keepNode(kind descriptor.OntologyNodeKind) func(id string) b
 }
 
 // Skill returns the markdown body of a visible skill; a pruned name
-// answers exactly as a nonexistent one ("", false). An atomic (operator,
-// tool, type) body is prose-scrubbed — a sentence naming a hidden
-// operator or tool, a cross-reference to a sibling the instance hides,
-// is dropped line by line (ProseScrub.Text). Topical bodies are served
-// unrendered (see the Discovery doc). The virtual intents / glossary
-// bodies render from the pruned graph.
+// answers exactly as a nonexistent one ("", false). An embedded body is
+// rendered for the instance (renderBody, skill_render.go): its feature
+// fences against the pruned graph and, atomic only, its `## See` section
+// by edge — so a table row, list item or code block survives whole or
+// goes whole. The virtual intents / glossary bodies render from the
+// pruned graph. The pass-through view serves skills.Get (the full
+// render: every fence kept, markers stripped).
 func (d *Discovery) Skill(name string) (string, bool) {
 	if !d.SkillVisible(name) {
 		return "", false
 	}
-	body, ok := skills.Get(name)
+	if d.graph == nil {
+		return skills.Get(name)
+	}
+	switch name {
+	case skills.VirtualIntents:
+		return renderIntentsSkill(d.keepNode(descriptor.OntologyNodeIntent)), true
+	case skills.VirtualGlossary:
+		return renderGlossarySkill(d.keepNode(descriptor.OntologyNodeGlossaryTerm)), true
+	}
+	raw, ok := skills.Raw(name)
 	if !ok {
 		return "", false
 	}
-	if _, topical := d.topical[name]; topical {
-		return body, true
+	if skills.IsVirtual(name) {
+		return raw, true
 	}
-	if d.graph != nil {
-		switch name {
-		case skills.VirtualIntents:
-			return renderIntentsSkill(d.keepNode(descriptor.OntologyNodeIntent)), true
-		case skills.VirtualGlossary:
-			return renderGlossarySkill(d.keepNode(descriptor.OntologyNodeGlossaryTerm)), true
-		}
-	}
-	return d.scrub.Text(body), true
+	return d.renderBody(name, raw), true
 }
 
 // ExamplesSearch is examples.Search minus the pruned examples; ranking and

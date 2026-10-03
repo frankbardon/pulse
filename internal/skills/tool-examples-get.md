@@ -12,7 +12,7 @@ After `pulse_examples_search` identifies a matching template. Returns the full r
 
 ## Input
 
-- `name` (string, required): example name from the `_meta.name` field (e.g. `t_test_one_sample`, `ols_simple`).
+- `name` (string, required): example name from the `_meta.name` field<!-- feature: AGG_AVERAGE, AGG_COUNT, TEST_T --> (e.g. `t_test_one_sample`)<!-- /feature -->.
 
 ## Output
 

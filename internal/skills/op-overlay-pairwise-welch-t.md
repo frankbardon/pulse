@@ -23,7 +23,7 @@ MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Component
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values (layout as `op-overlay-pairwise-prop-z`). Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))` (Welch–Satterthwaite), two-sided via the `studentTTwoSidedP` helper backing `TEST_T` / `TEST_WELCH`.
+MATRIX — pair × opposite-axis grid of two-sided p-values<!-- feature: OVERLAY_PAIRWISE_PROP_Z --> (layout as `op-overlay-pairwise-prop-z`)<!-- /feature -->. Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))` (Welch–Satterthwaite), two-sided via the `studentTTwoSidedP` helper backing `TEST_T` / `TEST_WELCH`.
 
 ## Gotchas
 

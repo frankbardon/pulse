@@ -29,15 +29,15 @@ const (
 // them fail.
 //
 //   - atomicBodiesNamePrunedFail: a served atomic body names a pruned
-//     skill stem or example (today a "## See" line keeps a hidden
-//     sibling's stem — only operator / tool tokens are scrubbed). E2-S1
-//     renders "## See" by edge and flips it.
+//     skill stem or example. Binding since E2-S1: "## See" renders by
+//     edge and the body mentions outside it are feature-fenced.
 //   - topicalBodiesNameHiddenFail: a served topical (kind: design) body
 //     names a pruned skill or example or a hidden operator or tool
-//     (topical bodies are served unrendered). E4-S3 flips it and deletes
-//     invisibilityExemptSkill (feature_parity_mcp_test.go) with it.
+//     (topical bodies render by fence; the pack is not fenced yet).
+//     E4-S3 flips it and deletes invisibilityExemptSkill
+//     (feature_parity_mcp_test.go) with it.
 const (
-	atomicBodiesNamePrunedFail  = false
+	atomicBodiesNamePrunedFail  = true
 	topicalBodiesNameHiddenFail = false
 )
 
@@ -156,8 +156,8 @@ func skillNamesOf(mds []pulse.SkillMetadata) []string {
 //     pulse_skills_get, pulse_examples_get, a pulse-skill:// read and the
 //     resource-template reader;
 //   - no served body names a pruned skill or example, and no served
-//     topical body a hidden operator or tool — report-only until the
-//     switches above flip (atomic: E2-S1; topical: E4-S3).
+//     topical body a hidden operator or tool — the topical half
+//     report-only until its switch above flips (E4-S3).
 //
 // Every shipped profile must prune at least one skill, and the set as a
 // whole at least one example, or the gate is vacuous.

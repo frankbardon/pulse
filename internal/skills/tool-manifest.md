@@ -21,7 +21,7 @@ No arguments. (CLI: `pulse manifest --json` accepts `--slim` for the same payloa
 ## Gotchas
 
 - MCP path always serves the slim payload (no prose) to keep bootstrap context lean. Fetch per-operator prose via `pulse_skills_get` and per-error prose via `pulse_errors_lookup` on demand.
-- Operator names in `components.aggregators[]` / `components.groupers[]` are the manifest catalog, NOT the request slot keys — request bodies use `"aggregations"` / `"groups"` (see `tool-process` Gotchas).
+- Operator names in `components.aggregators[]` / `components.groupers[]` are the manifest catalog, NOT the request slot keys — request bodies use `"aggregations"` / `"groups"`<!-- feature: capability:process --> (see `tool-process` Gotchas)<!-- /feature -->.
 - Per-operator `ComponentSchema` declarations live under `components_schemas.{aggregators,groupers,filterers}`.
 
 ## See

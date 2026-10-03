@@ -54,6 +54,8 @@ import (
 //   - atomic `## See` `tags=[…]`      → skill exemplified_by every example
 //     carrying ALL the tags (what pulse_examples_search returns)
 //   - topical `requires:` frontmatter → skill requires_capability feature
+//   - topical feature-fence name      → skill routes_to operator|capability
+//     (skill_render.go; never prunes the skill — only `requires:` does)
 //   - virtual skills                  → intent documented_by skill:intents,
 //     glossary_term documented_by skill:glossary
 //
@@ -188,7 +190,7 @@ type ontologySources struct {
 func builtinOntologySources() ontologySources {
 	src := ontologySources{
 		skills:    skills.List(),
-		skillBody: skills.Get,
+		skillBody: skills.Raw,
 		features:  Features(),
 		tools:     MCPToolBindings(),
 		purposes:  builtinPurposes,
@@ -282,6 +284,7 @@ func buildOntology(src ontologySources) *OntologyGraph {
 	b.addDependencyEdges(src)
 	b.addExampleEdges(src)
 	b.addSeeEdges(src)
+	b.addFenceEdges(src)
 	return b.finish()
 }
 
@@ -430,6 +433,36 @@ func (b *ontologyBuilder) addSeeEdges(src ontologySources) {
 			}
 			if to := OntologyID(descriptor.OntologyNodeSkill, span); b.has(to) {
 				b.edge(from, to, descriptor.OntologyEdgeRoutesTo, "see stem")
+			}
+		}
+	}
+}
+
+// addFenceEdges: each name a TOPICAL body fences is a routes_to edge
+// from the skill to the feature's node (the topical prose that mentions
+// a feature routes to it). A malformed fence or an unknown name is a
+// problem (TestOntology_BaseHasNoProblems).
+func (b *ontologyBuilder) addFenceEdges(src ontologySources) {
+	if src.skillBody == nil {
+		return
+	}
+	for _, md := range src.skills {
+		if md.Kind != "design" {
+			continue
+		}
+		body, ok := src.skillBody(md.Name)
+		if !ok {
+			continue
+		}
+		fences, err := skills.ParseFences(body)
+		if err != nil {
+			b.problems = append(b.problems, "skill "+md.Name+": "+err.Error())
+			continue
+		}
+		from := OntologyID(descriptor.OntologyNodeSkill, md.Name)
+		for _, f := range fences {
+			for _, n := range f.Names {
+				b.edge(from, b.featureNode(n, "skill "+md.Name+" fence"), descriptor.OntologyEdgeRoutesTo, "topical fence")
 			}
 		}
 	}
