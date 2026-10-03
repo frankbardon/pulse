@@ -45,7 +45,7 @@ Stream-eligible when every `FEAT_*` implements `StreamingComputer` (internal to 
 
 The trap: each encoded value averages EVERY row's target — test / val rows and the row's own included. The encoder reads no split column and features run pre-filter, so a `split == 0` filter keeps the leaked means.
 
-Predict surfaces `PULSE_FEAT_TARGET_LEAKAGE_RISK` (warning; error under `--strict` / `Options.Strict: true`) when no `FEAT_TRAIN_TEST_SPLIT` precedes the encoder — but a preceding split only SILENCES it, changing no value. Train-only means: a separate request, `AGG_AVERAGE` of the target grouped by the category on `split == 0`, mapped back yourself.
+Predict surfaces `PULSE_FEAT_TARGET_LEAKAGE_RISK` (warning; error under `--strict` / `Options.Strict: true`) on EVERY encoder — a preceding `FEAT_TRAIN_TEST_SPLIT` changes no value, so it does not silence it. Train-only means: a separate request, `AGG_AVERAGE` of the target grouped by the category on `split == 0`, mapped back yourself.
 
 ## Train / test / split semantics
 

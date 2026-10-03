@@ -115,7 +115,7 @@ var (
 				"(n * category average + s * overall average) / (n + s), so a category with few records sits nearer the overall average.",
 			Caveats: []string{
 				"Target leakage: every average includes the record's own outcome and the outcomes of validation and test records, because the encoder " +
-					"reads no split column. Placing FEAT_TRAIN_TEST_SPLIT first silences the leakage warning but does not change a single value, " +
+					"reads no split column. Placing FEAT_TRAIN_TEST_SPLIT first does not change a single value, " +
 					"and filtering to split 0 afterwards keeps the leaked figures.",
 				"A model trained on this column will look better than it is: with no smoothing, a category seen once encodes exactly its own outcome. " +
 					"To encode from the training rows only, compute each category's AGG_AVERAGE of the outcome on split 0 in a separate request " +

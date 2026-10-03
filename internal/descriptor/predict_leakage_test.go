@@ -68,7 +68,11 @@ func TestPredict_TargetEncode_WithoutSplit_StrictUpgradesToError(t *testing.T) {
 	}
 }
 
-func TestPredict_TargetEncode_AfterSplit_NoWarning(t *testing.T) {
+// A preceding split does not protect: the encoder reads no split column
+// and features run before filters, so every encoded value still averages
+// the validation/test records' outcomes and the record's own. The warning
+// must therefore fire with or without a split ahead of the encoder.
+func TestPredict_TargetEncode_AfterSplit_StillWarns(t *testing.T) {
 	schema := makeLeakageSchema(t)
 	data := buildTestPulseFile(t, schema)
 
@@ -86,8 +90,12 @@ func TestPredict_TargetEncode_AfterSplit_NoWarning(t *testing.T) {
 		},
 	}
 	env := predictFromBytes(data, req, nil)
-	if hasCode(env.Warnings, errors.PULSE_FEAT_TARGET_LEAKAGE_RISK) {
-		t.Errorf("did not expect PULSE_FEAT_TARGET_LEAKAGE_RISK when split precedes target encode, warnings: %v", env.Warnings)
+	if !hasCode(env.Warnings, errors.PULSE_FEAT_TARGET_LEAKAGE_RISK) {
+		t.Errorf("expected PULSE_FEAT_TARGET_LEAKAGE_RISK even when a split precedes target encode, warnings: %v", env.Warnings)
+	}
+	strict := predictFromBytes(data, req, &PredictOptions{Strict: true})
+	if !hasCode(strict.Errors, errors.PULSE_FEAT_TARGET_LEAKAGE_RISK) {
+		t.Errorf("expected PULSE_FEAT_TARGET_LEAKAGE_RISK error in strict mode even after a split, errors: %v", strict.Errors)
 	}
 }
 

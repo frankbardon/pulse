@@ -195,7 +195,7 @@ var (
 		Assumptions: []string{
 			featBeforeFilters,
 			featWholeCohort,
-			"It reads no split column: placing FEAT_TRAIN_TEST_SPLIT first silences the leakage warning, but test rows and each row's own outcome still feed every average.",
+			"It reads no split column: placing FEAT_TRAIN_TEST_SPLIT first changes nothing, and test rows and each row's own outcome still feed every average.",
 			"Smoothing s gives (n * category average + s * overall average) / (n + s); 0 means no pull.",
 		},
 		Level:    descriptor.LevelAdvanced,

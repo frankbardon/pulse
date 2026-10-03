@@ -93,7 +93,8 @@ func TestReading_FrequencyDenominatorExcludesNulls(t *testing.T) {
 // before it, every row — train or test — gets the average over ALL rows of
 // its category, its own outcome included. A category whose outcomes are
 // all null reads the overall average. This is the leakage the guidance
-// warns about; ordering the split first only silences predict's warning.
+// warns about; ordering the split first changes no value, so predict
+// warns on every FEAT_TARGET_ENCODE whether or not a split precedes it.
 func TestReading_TargetEncodeIgnoresSplitAndIncludesOwnRow(t *testing.T) {
 	var recs []Record
 	targets := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}

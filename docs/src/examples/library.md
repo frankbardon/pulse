@@ -98,7 +98,7 @@ The taxonomy spans four dimensions:
 | Statistical method | `hypothesis-test`, `t-test`, `parametric`, `nonparametric`, `paired`, `one-sample`, `two-sample`, `k-sample`, `repeated-measures`, `post-hoc`, `normality-test`, `homogeneity-test`, `exact-test` |
 | Regression / modeling | `regression`, `ecological`, `ols`, `glm`, `logistic`, `bayesian`, `regularization`, `ridge`, `lasso`, `elasticnet`, `polynomial`, `resampling`, `jackknife`, `selection`, `stepwise` |
 | Pipeline machinery | `tier-1-test`, `tier-2-test`, `composed`, `pre-filter`, `feature-pipeline`, `window-operator`, `streaming-friendly`, `buffered-pipeline` |
-| Risk / edge | `leakage-safe`, `leakage-risk`, `small-sample` |
+| Risk / edge | `leakage-risk`, `small-sample` |
 | Cohort shape | `sharded`, `anchor` |
 | Result decoration | `overlay`, `byte-equal-test`, `compose`, `crosstab`, `welch`, `welford-triple`, `z` |
 

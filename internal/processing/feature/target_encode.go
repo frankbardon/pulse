@@ -31,10 +31,11 @@ type targetEncodeParams struct {
 // computes per-category sums and counts; pass two writes the per-row mean.
 //
 // LEAKAGE WARNING: this operator computes statistics on every row in the
-// stream. If applied before FEAT_TRAIN_TEST_SPLIT, target information from
-// validation/test rows leaks into the training feature. The skill flags
-// this loudly; the warning gate (PULSE_FEAT_TARGET_LEAKAGE_RISK) lands in a
-// follow-up commit and runs at orchestration time.
+// stream and reads no split column, so every encoded value includes the
+// row's own target and the validation/test rows' targets — even when
+// FEAT_TRAIN_TEST_SPLIT runs first (features run before filters). Predict
+// flags every FEAT_TARGET_ENCODE with PULSE_FEAT_TARGET_LEAKAGE_RISK
+// (internal/descriptor/predict_feature.go); a split does not silence it.
 // targetStat tallies sum and count for one category during PrePass.
 // Promoted to a package-level type so per-record streaming state has a
 // stable place to live alongside Compute's local-only equivalent.

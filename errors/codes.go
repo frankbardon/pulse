@@ -276,12 +276,13 @@ const (
 	// non-orderable order key, label collision, or unsupported window type.
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
 
-	// PULSE_FEAT_TARGET_LEAKAGE_RISK indicates that FEAT_TARGET_ENCODE was
-	// requested without a prior FEAT_TRAIN_TEST_SPLIT in the same Features
-	// list. The encoded values include rows that should belong to the
-	// validation/test partitions, leaking target information into the
-	// training feature. Mitigation: place a FEAT_TRAIN_TEST_SPLIT operator
-	// before any FEAT_TARGET_ENCODE.
+	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE. The
+	// encoder reads no split column and features run before filters, so
+	// each encoded value averages every record's outcome — the record's
+	// own and the validation/test records' included — whether or not a
+	// FEAT_TRAIN_TEST_SPLIT precedes it. Mitigation: compute train-only
+	// category averages (AGG_AVERAGE on split 0) in a separate request and
+	// map them back, or accept the in-sample encoding for descriptive use.
 	PULSE_FEAT_TARGET_LEAKAGE_RISK Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 
 	// PULSE_DECIMAL_OVERFLOW indicates a decimal arithmetic or aggregation

@@ -546,12 +546,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
-		Message: "FEAT_TARGET_ENCODE was requested without a prior train/test split feature; encoded values include rows that should be held out.",
+		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Features"},
-				Hint:   "Insert a FEAT_TRAIN_TEST_SPLIT operator before every FEAT_TARGET_ENCODE in the features list.",
+				Hint:   "To encode from the training rows only, drop FEAT_TARGET_ENCODE and compute each category's AGG_AVERAGE of the outcome on split 0 in a separate request, then map those averages onto the records with a join or lookup table; for descriptive use, keep the in-sample encoding knowing it is not a held-out estimate.",
 			},
 		},
 	},

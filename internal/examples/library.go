@@ -346,8 +346,8 @@ var CanonicalTags = []string{
 	"tier-1-test", "tier-2-test", "composed", "pre-filter", "feature-pipeline",
 	"window-operator", "streaming-friendly", "buffered-pipeline",
 
-	// Risk / edge (3)
-	"leakage-safe", "leakage-risk", "small-sample",
+	// Risk / edge (2)
+	"leakage-risk", "small-sample",
 
 	// Discovery / facet (1)
 	"facet",

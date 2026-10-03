@@ -6,7 +6,7 @@ category: FEAT
 operator: FEAT_TARGET_ENCODE
 type: reference
 applies_to: process, compose, predict
-examples_tags: [feature-engineering, feature-pipeline, leakage-risk, leakage-safe, pre-filter]
+examples_tags: [feature-engineering, feature-pipeline, leakage-risk, pre-filter]
 ---
 
 Feature operators emit derived columns; no `Response.Components`.
@@ -32,12 +32,12 @@ One `f64` column at `Label` (default `TARGET_<field>`): the (smoothed) mean of `
 
 ## Gotchas
 
-- **TARGET LEAKAGE TRAP — `PULSE_FEAT_TARGET_LEAKAGE_RISK`.** Means use EVERY row's target (test rows, own row). Predict warns (errors under `--strict`) without a preceding `FEAT_TRAIN_TEST_SPLIT`, but the encoder reads NO split column: the split only silences it, and a `split == 0` filter keeps leaked means (pre-filter). See `feature-engineering`.
+- **TARGET LEAKAGE — `PULSE_FEAT_TARGET_LEAKAGE_RISK`** on every use (errors under `--strict`). Means use EVERY row's target (test rows, own row): no split column is read, so a prior split or `split == 0` filter changes nothing. See `feature-engineering`.
 - Missing `target`, non-numeric `target`, or `smoothing < 0` → `PROCESSING_CONFIG`.
-- GLOBAL-PASS: PrePass tallies per-category (sum, count) + global (sum, count), Finalize freezes `globalMean`, EmitRow is O(1). Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
+- GLOBAL-PASS: PrePass tallies per-category + global (sum, count); Finalize freezes `globalMean`. Streamable via `iter.Reset()` (file-backed: second I/O).
 - Zero non-null targets → every row null. Category with all targets null → `globalMean`.
 
 ## See
 
-- `pulse_examples_search tags=[leakage-safe]`, `tags=[leakage-risk]`
+- `pulse_examples_search tags=[leakage-risk]`
 - Skills: `feature-engineering` (target-leakage trap), `op-feat-train-test-split`, `op-feat-frequency-encode`
