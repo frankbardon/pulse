@@ -1,6 +1,6 @@
 ---
 name: op-agg-frequency
-description: Per-distinct-value count of the field; returned as map[string]int64.
+description: Modal count — how many rows hold the field's most common value; one float64 per output row.
 kind: operator
 category: AGG
 operator: AGG_FREQUENCY
@@ -17,11 +17,11 @@ None.
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128) |
+| `Field` | any type EXCEPT `set_*` |
 
 ## Output
 
-`map[string]int64` — keyed by stringified value. Per-group when wired under a grouper.
+Scalar `float64` — the modal count (rows holding the most common value), NOT a per-value map. Per group under a grouper; under `GROUP_CATEGORY` on the same field it equals each group's row count (the categorical smart default).
 
 ## Components
 
@@ -30,18 +30,18 @@ Universal floor `{n, n_null}` plus operator-specific:
 | Key | Type | Notes |
 |---|---|---|
 | `distinct_count` | int | Number of distinct values |
-| `mode_value` | any | Most-frequent value (first-seen tie-break) |
-| `mode_count` | int | Row count of the modal value |
+| `mode_value` | any | Modal value (smallest wins a tie, as `AGG_MODE`) |
+| `mode_count` | int | Row count of the modal value (= scalar) |
 
-- Mergeability: `Partial` — map allocation, orchestrator may stage at flush
-- Streaming: per-chunk maps merged bin-by-bin
+- Mergeability: `Partial` — per-value count map merged exactly; ProcessChain admits it
+- Streaming: per-chunk count maps merged bin-by-bin
 
 ## Gotchas
 
 - Smart default for categorical_* and packed_bool fields.
-- High-cardinality fields blow memory — pair with `FILTER_INCLUDE` first or use `AGG_DISTINCT_COUNT`.
-- `mode_value` returned in Components; for the mode alone use `AGG_MODE`.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask is not a quantity at any rung. Use `AGG_SET_FREQUENCY` for per-member counts.
+- Per-value tallies: `GROUP_CATEGORY` + `AGG_COUNT`, or `FacetSchema`. The value itself: `AGG_MODE`.
+- Memory grows with distinct values.
+- `set_*` rejected with `PROCESSING_CONFIG`; use `AGG_SET_FREQUENCY`.
 
 ## See
 

@@ -89,7 +89,7 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "you want the rows where the field is empty", Use: "AGG_NULL_COUNT"},
 			{When: "you want how many different values appear, not how many rows", Use: "AGG_DISTINCT_COUNT"},
-			{When: "you want a count for every value of the field", Use: "AGG_FREQUENCY"},
+			{When: "you want a count for every value of the field: group by it, then count", Use: "GROUP_CATEGORY"},
 		},
 		Assumptions: []string{
 			"Rows with a missing value in the field are not counted.",
@@ -183,7 +183,7 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want how many rows there are, not how many different values", Use: "AGG_COUNT"},
-			{When: "you want how many rows hold each value", Use: "AGG_FREQUENCY"},
+			{When: "you want how many rows hold each value: group by the field, then count", Use: "GROUP_CATEGORY"},
 			{When: "the field is a multi-select and each combination is the unit", Use: "AGG_SET_DISTINCT_VALUES"},
 		},
 		Assumptions: []string{
@@ -309,7 +309,7 @@ var (
 			descriptor.DomainScience: "Most common category of outcome per group.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "you want the count of every value, not only the top one", Use: "AGG_FREQUENCY"},
+			{When: "you want the count of every value, not only the top one: group by the field, then count", Use: "GROUP_CATEGORY"},
 			{When: "the field is numeric and you want its middle value", Use: "AGG_MEDIAN"},
 			{When: "the field is a multi-select", Use: "AGG_SET_FREQUENCY"},
 		},
@@ -322,27 +322,32 @@ var (
 	}
 
 	purposeAggFrequency = descriptor.Purpose{
-		Plain:   "Count of rows for each value of a field, over all rows or per group.",
-		Intents: []string{IntentComposition, IntentDescribe},
+		Plain:   "How many rows share a field's most common value, over all rows or per group.",
+		Intents: []string{IntentDescribe, IntentComposition},
 		Questions: []string{
-			"How many respondents gave each answer?",
-			"How are orders split across payment methods?",
+			"How many respondents gave the most common answer?",
+			"How many orders used the most popular payment method?",
+			"Grouped by the same field, how many rows fall in each category?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainSurvey:  "Answer counts for a single-choice question, per segment.",
-			descriptor.DomainOps:     "Orders per status per day.",
-			descriptor.DomainScience: "Count of each outcome category per treatment arm.",
+			descriptor.DomainSurvey:  "Size of the largest answer group per question and segment.",
+			descriptor.DomainOps:     "Orders carrying the most common status per day.",
+			descriptor.DomainScience: "Size of the most common outcome category per treatment arm.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "you want only the most common value", Use: "AGG_MODE"},
+			{When: "you want a count for every value of the field: group by it, then count rows", Use: "GROUP_CATEGORY"},
+			{When: "you want per-value counts for several fields in one call", Use: "capability:facet"},
+			{When: "you want which value is most common, not how many rows hold it", Use: "AGG_MODE"},
 			{When: "you want how many different values there are", Use: "AGG_DISTINCT_COUNT"},
 			{When: "the field is a multi-select", Use: "AGG_SET_FREQUENCY"},
 		},
 		Assumptions: []string{
-			"Missing values are skipped, so the counts add up to the rows that have a value.",
+			"Missing values are skipped, so only rows that have a value are counted.",
+			"Grouped by the same field, each group holds one value, so the result is that group's row count.",
+			"When several values tie for most common the count is the same; the components name the smallest tied value as mode_value.",
 		},
 		Level:    descriptor.LevelBasic,
-		Glossary: []string{"cross-tabulation", "missing-value"},
+		Glossary: []string{"missing-value"},
 	}
 )
 
@@ -361,7 +366,7 @@ var (
 			descriptor.DomainOps:    "Customers per enabled feature.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "the field holds one value per row", Use: "AGG_FREQUENCY"},
+			{When: "the field holds one value per row: group by it, then count", Use: "GROUP_CATEGORY"},
 			{When: "you want how many different combinations were chosen", Use: "AGG_SET_DISTINCT_VALUES"},
 		},
 		Assumptions: []string{

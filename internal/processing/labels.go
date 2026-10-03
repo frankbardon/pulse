@@ -10,8 +10,8 @@ import (
 // LabelResolver translates raw categorical values to display labels
 // per a request's LabelBinding slice. It is constructed once per
 // Request via BuildLabelResolver and consumed at every output site
-// (Sample rows, FacetField counts, AGG_FREQUENCY result keys,
-// grouped result keys, Export cells).
+// (Sample rows, FacetField counts, grouped result keys, Export
+// cells).
 //
 // Resolver methods are not safe for concurrent use. Each Request
 // owns its own resolver; shard-parallel reducers either build one

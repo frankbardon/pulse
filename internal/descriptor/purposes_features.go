@@ -139,7 +139,7 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "the field has hundreds of categories and one column each is too many", Use: "FEAT_FREQUENCY_ENCODE"},
-			{When: "you want how many rows fall in each category", Use: "AGG_FREQUENCY"},
+			{When: "you want how many rows fall in each category: group by the field, then count", Use: "GROUP_CATEGORY"},
 		},
 		Assumptions: []string{
 			featBeforeFilters,
@@ -163,7 +163,7 @@ var (
 			descriptor.DomainScience: "How common each species label is in the sample.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "you want the count table itself, one row per category", Use: "AGG_FREQUENCY"},
+			{When: "you want the count table itself, one row per category: group by the field, then count", Use: "GROUP_CATEGORY"},
 			{When: "the field has few categories and each should be its own column", Use: "FEAT_ONE_HOT"},
 		},
 		Assumptions: []string{

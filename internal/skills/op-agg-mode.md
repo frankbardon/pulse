@@ -41,7 +41,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - First-seen tie-break — order-sensitive when ties present (`tie_count > 0` flags it).
 - High-cardinality fields blow memory; pre-filter or use `AGG_DISTINCT_COUNT`.
-- For the full histogram use `AGG_FREQUENCY`.
+- Per-value counts: `GROUP_CATEGORY` + `AGG_COUNT`.
 - `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no modal scalar. Use `AGG_SET_DISTINCT_VALUES` or `AGG_SET_FREQUENCY`.
 
 ## See

@@ -212,7 +212,7 @@
         {
           "name": "AGG_FREQUENCY",
           "category": "aggregator",
-          "description": "Per-distinct-value count of the field (returned as map in Details).",
+          "description": "Modal count: how many rows hold the field's most common value. Under GROUP_CATEGORY on the same field it is each group's row count.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -230,7 +230,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "map[string]int64",
+          "emits_type_note": "scalar float64",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -252,7 +252,7 @@
               {
                 "name": "mode_value",
                 "type": "any",
-                "description": "Most-frequent value (ties broken by first-seen order)."
+                "description": ""
               },
               {
                 "name": "mode_count",
@@ -1230,7 +1230,7 @@
       },
       {
         "name": "op-agg-frequency",
-        "description": "Per-distinct-value count of the field; returned as map[string]int64."
+        "description": "Modal count — how many rows hold the field's most common value; one float64 per output row."
       },
       {
         "name": "op-agg-sum",
@@ -1701,7 +1701,7 @@
             {
               "name": "mode_value",
               "type": "any",
-              "description": "Most-frequent value (ties broken by first-seen order)."
+              "description": ""
             },
             {
               "name": "mode_count",
@@ -1898,4 +1898,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 387a77e45f11b5a55e458b72e740c501a2d94eae6a662bdb01378793cdb08d50
+// golden-hash: acce17f2187b96074a20822d56f111532a64e8ef186612896cd1621c9dd4403a
