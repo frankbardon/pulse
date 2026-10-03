@@ -376,6 +376,11 @@ thing:
 pulse mcp: serving over stdio (data dir: /var/data/pulse, bind-on-open: true, cohort-scan: false, feature-profile: survey-self-serve)
 ```
 
+`gosdk.RegisteredTools()` and `gosdk.RegisteredPrompts()` are global:
+they list every canonical tool and prompt whatever the instance hides.
+To learn what a profiled server offers, ask the server (`tools/list`,
+`prompts/list`) or read `p.Manifest(ctx)`.
+
 ## Example profiles
 
 Pulse publishes example profiles to copy, in the repository's

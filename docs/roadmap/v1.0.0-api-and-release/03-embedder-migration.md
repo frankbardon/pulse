@@ -1,6 +1,6 @@
 # 03 — Embedder migration guide
 
-**Status:** decided · U01, U02, U02b, U04 and U05 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
+**Status:** decided · U01, U02, U02b, U04, U05 and U06 rows landed · **Target:** v1.0.0 · **Applies:** as U01, U02, U02b and U02c land
 
 ## Purpose
 
@@ -166,7 +166,22 @@ Landed with **U05** (`profiles-enforcement`). Contract: [Feature Profiles](../..
 | MCP `pulse://schema` resource served the full-registry `BuildPayloadSchema()` on every server | serves the mounted instance's `p.PayloadSchema()`: a profiled server lists only enabled names and carries its digest in the root `$comment`; a profile-free server without extensions is byte-identical | behaviour change | none without a profile or extensions | U05 |
 | MCP `PULSE_REQUEST_UNKNOWN_FIELD` inside a compose request / chain stage carried `details.request_index` / `details.stage_index` (+ `details.stage_name`) | `details.request` / `details.stage` (index only), the keys the library's located refusals use | breaking (MCP wire) | read `request` / `stage`; look the stage name up by index | U05 |
 
-U05 leaves for later units: MCP registration and tool enums and prompts (U06); manifest `skills` and the examples catalog (U10).
+## Additions from U06 (feature-profile MCP scope and tooling)
+
+Landed with **U06** (`profiles-mcp-tooling`). Contract: [Feature Profiles](../../src/library/feature-profiles.md). Nothing changes for an instance without a profile except the MCP prose rewording noted below.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| a profiled MCP server registered every tool, prompt and resource | it mounts only enabled ones: a feature-bound tool iff its feature is listed, a prompt iff its `mcp_extra:prompt_*` feature is, cohort resources iff `mcp_extra:cohort_resources`. Calling a hidden tool, prompt or resource fails exactly like a nonexistent one; the core discovery tools always mount | behaviour change | list the features the served instance should offer | U06 |
+| `gosdk.RegisteredTools()` / `RegisteredPrompts()` | unchanged and still GLOBAL: they never reflect a profile | none | ask the server (`tools/list`) or `p.Manifest` for an instance's surface | U06 |
+| tool input schemas (after `BindOnInspect`) listed every operator, test and overlay kind and every request slot | only enabled names; an enum with none left is omitted; hidden slots (even empty) are refused as `PULSE_REQUEST_UNKNOWN_FIELD` | behaviour change | none beyond the profile list | U06 |
+| tool / prompt descriptions named hidden operators | a sentence that names a hidden operator or unmounted tool is dropped; a sentence mixing enabled and hidden names goes whole. Without a profile some tool prose was reworded (abbreviated operator lists spelled out), so the manifest goldens moved | behaviour change | do not match tool prose | U06 |
+| `pulse_skills_*`, `pulse_examples_*`, `pulse-skill://`, manifest `skills` and examples counts listed every skill and example | a profiled instance omits atomic skills and examples whose surface is hidden, and asking for one by name fails like a nonexistent name. Topical (`kind: design`) bodies are served as written (U10). The CLI `pulse skills` / `pulse examples` stay unprofiled | behaviour change | none | U06 |
+| (none) | `pulse.InitFeatureProfile(from, ext...)`, `CheckFeatureProfile(fp, FeatureProfileCheckOptions)`, `DiffFeatureProfile(fp, ext...)`, `DescribeFeatureProfile(fp, ext...)` and the result types `FeatureProfileCheck`, `FeatureProfileCheckOptions`, `FeatureProfileDiff`, `FeatureProfileMissing`, `FeatureProfileUnknownName`, `FeatureProfileDescription`, `FeatureDescription` | added | adopt when convenient; pass `Extensions` (or `Offline`) so extension operator names resolve | U06 |
+| (none) | `pulse.ExampleFeatureProfiles() []string`, `pulse.ExampleFeatureProfile(name) (*FeatureProfile, error)` over the frozen `examples/profiles/*.json` (`minimal`, `survey-crosstab`, `read-only-analyst`); an unknown name is `PULSE_FEATURE_PROFILE_INVALID` reason `unknown_example` | added | seed a profile from an example | U06 |
+| (none) | CLI `pulse features {init,check,diff,show}`; every leaf exits non-zero on failure even under `--json`. The CLI `check` is always offline, so an unresolved extension-like name is a warning there | added | check in-process with extensions before shipping a profile that lists extension operators | U06 |
+
+U06 leaves for later units: skills and examples that name hidden operators beyond the minimal prune, topical skill fencing (U10).
 
 ## Third-party dependency
 
