@@ -722,7 +722,7 @@
       },
       {
         "name": "feature-engineering",
-        "description": "Feature slot semantics — pre-filter ordering (FEAT runs before FILTER), target-leakage trap, train/test split. Topical design; per-FEAT detail lives in atomic op-feat-* skills."
+        "description": "Feature slot semantics — choosing a transform, pre-filter ordering (features run before filters), per-row vs global-pass cost, target-leakage trap, train/test split. Topical design; per-feature detail lives in atomic op-feat-* skills."
       },
       {
         "name": "financial-cohorts",
@@ -938,7 +938,7 @@
       },
       {
         "name": "window-design",
-        "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
+        "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
     "examples_count": 1,
@@ -1100,4 +1100,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d6993f33708f64b0033b1bd0ec7e64585ef64b92bad9814847cd94bd773b0f24
+// golden-hash: d1ef563f006ad3b3f4a963b3e6c5816f1fb00f092882b40fdd3ba39e88578e93

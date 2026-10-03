@@ -51,26 +51,28 @@ Examples: `(10,4) + (10,4) → (11,4)`. `(10,4) * (10,4) → (20,8)`. `(10,4) / 
 
 ## Mixed-type arithmetic
 
-No implicit cast between `decimal128` and `f64`. Mixing in `FILTER_EXPRESSION` / `ATTR_FORMULA` raises a type error. Downcast via an explicit attribute.
+No implicit cast between `decimal128` and `f64`. Mixing them in a filter expression or a formula raises a type error (`expression-language`). Downcast via an explicit attribute.
 
 ## Divide-by-zero
 
-Decimal divide-by-zero raises `PULSE_DECIMAL_DIVIDE_BY_ZERO`. No NaN, no infinity. Guard divisors with a `FILTER_RANGE` if the data contains zeros.
+Decimal divide-by-zero raises `PULSE_DECIMAL_DIVIDE_BY_ZERO`. No NaN, no infinity. Guard divisors with a range filter if the data contains zeros.
 
 ## Aggregations on decimal fields
 
-| Aggregator | Result |
+An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict refuses the rest with `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`. Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
+
+| Kind | Result |
 |---|---|
-| `AGG_SUM` | decimal128 (overflow → error) |
-| `AGG_AVERAGE` | decimal128; f64 fallback + `PULSE_PRECISION_LOSS` warning on overflow |
-| `AGG_MIN` / `AGG_MAX` | decimal128 |
-| `AGG_VARIANCE` | decimal128 at `2 * mean_scale` (f64 fallback) |
-| `AGG_STDDEV` | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback) |
-| `AGG_COUNT` / `AGG_DISTINCT_COUNT` | int |
+| sum | decimal128 (overflow → error) |
+| min / max | decimal128 |
+| mean | decimal128; f64 fallback + `PULSE_PRECISION_LOSS` warning on overflow |
+| variance | decimal128 at `2 * mean_scale` (f64 fallback) |
+| standard deviation | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback) |
+| counts (rows, distinct values) | int |
 
-**v1 not supported** on decimal: `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_MODE`, `AGG_MODE_COUNT`, `AGG_RANGE`. Predict raises `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`. Registered extension aggregators are exempt (exact values via `DecimalValue`).
+**v1 not supported** on decimal: order statistics (median, percentiles), standardised and shape moments (z-score, skewness, kurtosis), modes, range.
 
-## Precision-loss path on AGG_AVERAGE
+## Precision-loss path on the mean
 
 Default path accumulates `decimal128` sum and divides by count. If running sum would overflow `decimal128(38)` mid-aggregation: re-run with `f64` accumulators, emit `PULSE_PRECISION_LOSS` **warning** (not an error). For audited workloads, split or coarsen so the warning never fires.
 
@@ -80,11 +82,11 @@ Default path accumulates `decimal128` sum and divides by count. If running sum w
 
 ## Filtering
 
-Standard comparison filterers (`FILTER_RANGE`, `FILTER_INCLUDE`, `FILTER_EXCLUDE`, `FILTER_EXPRESSION`) work natively on decimal128 fields. No dedicated filter type.
+The standard comparison filterers — range, include / exclude, expression — work natively on decimal128 fields. No dedicated filter type.
 
 ## Feature operators
 
-`FEAT_LOG`, `FEAT_SQRT`, `FEAT_BUCKETIZE` consume decimal128 by reading the f64 approximation alongside the typed mantissa; output column is **f64** (no native decimal `log` / `sqrt`). Feature outputs are NOT auditor-defensible — for decimal precision downstream, aggregate on the original column. Categorical-only (`FEAT_ONE_HOT`, `FEAT_FREQUENCY_ENCODE`, `FEAT_TARGET_ENCODE`) and date-only (`FEAT_DATE_FEATURES`) reject decimal fields; predict raises `SERVICE_VALIDATION`.
+Feature transforms are float math: none emits a decimal column, and categorical- or date-only transforms never take a decimal source. Which accept one is the manifest `accepts_types` of each feature (predict refuses the rest with `SERVICE_VALIDATION`). Feature outputs are NOT auditor-defensible — for decimal precision downstream, aggregate on the original column.
 
 ## Importer accepts / rejects
 
@@ -92,17 +94,18 @@ CSV / TSV / NDJSON / JSON-array importers parse decimal strings strictly. Accept
 
 ## Request shape skeleton
 
+<!-- feature: AGG_SUM, AGG_AVERAGE -->
 ```
 {
-  "filterers":    [{"type": "FILTER_INCLUDE", "field": "account_id", "values": [...]}],
   "aggregations": [
     {"type": "AGG_SUM",     "field": "amount_usd"},
     {"type": "AGG_AVERAGE", "field": "amount_usd"}
   ]
 }
 ```
+<!-- /feature -->
 
-`AGG_SUM` stays in `decimal128(p, s)`. `AGG_AVERAGE` preserves precision by default; large cohorts may fall back to f64 with a `PULSE_PRECISION_LOSS` warning.
+The sum stays in `decimal128(p, s)`. The mean preserves precision by default; large cohorts may fall back to f64 with a `PULSE_PRECISION_LOSS` warning.
 
 ## v1 deferred
 
