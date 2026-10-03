@@ -387,10 +387,6 @@
         "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request."
       },
       {
-        "name": "request-templating",
-        "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
-      },
-      {
         "name": "response-components",
         "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
       },
@@ -567,4 +563,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: dd213f521ea20e5866213ac78c954bc83f9f4443dbc6fd9e941dc3744d0b3aa7
+// golden-hash: 6d57aad99a7e995560d06b5cb0c74f95c8d4386300e70c86c5b64ea54204141a
