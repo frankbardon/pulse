@@ -402,6 +402,67 @@ feature names as of the release in its `written_with`, so upgrading Pulse
 never grows the feature set of a profile copied from one. A changed
 example ships under a new name. Copy one and own the copy.
 
+## Writing, checking and upgrading profiles
+
+Four root functions work on a profile without building a `*pulse.Pulse`,
+so a CI job can keep a profile honest. Each optional `ext` argument is the
+same `pulse.Extensions` value you hand to `pulse.New`. Every result type
+is JSON-tagged, with list fields that are never `null`.
+
+```go
+// Every feature this build offers (plus your extension operators), in
+// canonical order, stamped with the running release.
+fp, err := pulse.InitFeatureProfile("", ext)
+// Or start from a published example.
+fp, err = pulse.InitFeatureProfile("survey-crosstab")
+
+// Exactly the validation pulse.New runs: INVALID, then UNKNOWN, then
+// DEPENDENCY, stopping at the first failing class.
+report, err := pulse.CheckFeatureProfile(fp, pulse.FeatureProfileCheckOptions{Extensions: ext})
+
+// What this build offers that the profile does not list, and what the
+// profile lists that this build does not know.
+diff, err := pulse.DiffFeatureProfile(fp, ext)
+
+// Kind, category, Since and dependency groups of every listed feature.
+desc, err := pulse.DescribeFeatureProfile(fp, ext)
+```
+
+- **`InitFeatureProfile(from, ext...)`** lists every built-in feature
+  the running build has reached plus the given extension operators, by
+  exact name, ordered by kind, then operator category, then table
+  position (the order the examples use). A non-empty `from` seeds the
+  profile from that example instead (label, features, behaviour; no
+  extension names are added). `written_with` is the running release
+  core: `1.0.0-alpha.2` stamps `1.0.0`; a development build with no
+  release core stamps the newest release its feature table knows. The
+  result always passes `CheckFeatureProfile` with the same extensions.
+- **`CheckFeatureProfile(fp, opts)`** returns a report and the coded
+  error `pulse.New` would return for the same profile and extensions
+  (`nil` when valid). With `opts.Offline` — for checking without your
+  extensions in hand — a name that is not registered but follows the
+  extension naming policy (`AGG_ACME_THING`: an operator category other
+  than `SYNTH`, a namespace other than `BUILTIN` / `STANDARD` / `CORE` /
+  `PULSE`) becomes a warning, "unverified extension name, check
+  in-process", coded `PULSE_FEATURE_PROFILE_UNKNOWN` with
+  `details.reason` `unverified_extension`, instead of an error. It still
+  needs a request host. Every other unknown name stays an error. Run the
+  check in-process, with your extensions, before shipping.
+- **`DiffFeatureProfile(fp, ext...)`** reports `missing` — features the
+  running build offers that the profile omits, each flagged `new` when
+  its `Since` is later than the profile's `written_with` — and `unknown`
+  — names the build does not resolve, with the same reasons
+  `PULSE_FEATURE_PROFILE_UNKNOWN` uses. Unknown names are reported, not
+  fatal. A missing or unparseable `written_with` flags nothing `new`.
+- **`DescribeFeatureProfile(fp, ext...)`** describes every listed name:
+  `kind`, `category` (operators only), `source` (`builtin`, `extension`
+  or `unknown`), `since` (built-ins) and `depends_on`, an AND of any-of
+  groups. A name the build does not resolve carries an `unknown`
+  explanation instead of failing.
+
+Diff and describe fail only on a missing profile or a `nil` feature list
+(`PULSE_FEATURE_PROFILE_INVALID`).
+
 ## Related
 
 - [pulse.New & Options](options.md)

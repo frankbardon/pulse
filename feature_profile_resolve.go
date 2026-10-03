@@ -31,6 +31,9 @@ type featureUniverse struct {
 	version   string
 	extDeps   map[string][]string // extension operator name -> DependsOn
 	extOrigin map[string]string   // extension operator name -> category
+	// unverified marks names an offline CheckFeatureProfile accepted as
+	// extension operators without a registration (withUnverified).
+	unverified map[string]bool
 }
 
 func newFeatureUniverse(ext Extensions, version string) featureUniverse {

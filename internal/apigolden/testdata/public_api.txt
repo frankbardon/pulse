@@ -71,6 +71,7 @@ pulse: type ChangeKind method (ChangeKind) String() string
 pulse: const ChangeModified pulse.ChangeKind = 1
 pulse: const ChangeRemoved pulse.ChangeKind = 2
 pulse: const ChangeRenamed pulse.ChangeKind = 3
+pulse: func CheckFeatureProfile(fp *pulse.FeatureProfile, opts pulse.FeatureProfileCheckOptions) (*pulse.FeatureProfileCheck, error)
 pulse: type CohesionWarning = pulse/internal/encoding.CohesionWarning
 pulse: type CohesionWarning underlying struct
 pulse: type CohesionWarning field Code string
@@ -136,6 +137,8 @@ pulse: type DedupResult field DedupReport.Target string "json:\"target\""
 pulse: type DedupResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type DedupResult field SidecarWarnings []*pulse/errors.CodedError "json:\"sidecar_warnings,omitempty\""
 pulse: type DedupResult method (*DedupResult) Warnings() []*pulse/errors.CodedError
+pulse: func DescribeFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDescription, error)
+pulse: func DiffFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDiff, error)
 pulse: type DistributionRegistration struct
 pulse: type DistributionRegistration field Description string
 pulse: type DistributionRegistration field Factory any
@@ -245,6 +248,14 @@ pulse: type FacetValueCount = pulse/types.FacetValueCount
 pulse: type FacetValueCount underlying struct
 pulse: type FacetValueCount field Count int64 "json:\"count\""
 pulse: type FacetValueCount field Value string "json:\"value\""
+pulse: type FeatureDescription struct
+pulse: type FeatureDescription field Category string "json:\"category,omitempty\""
+pulse: type FeatureDescription field DependsOn [][]string "json:\"depends_on\""
+pulse: type FeatureDescription field Kind string "json:\"kind\""
+pulse: type FeatureDescription field Name string "json:\"name\""
+pulse: type FeatureDescription field Since string "json:\"since,omitempty\""
+pulse: type FeatureDescription field Source string "json:\"source\""
+pulse: type FeatureDescription field Unknown *pulse.FeatureProfileUnknownName "json:\"unknown,omitempty\""
 pulse: type FeatureProfile struct
 pulse: type FeatureProfile field Behaviour *pulse.FeatureProfileBehaviour "json:\"behaviour,omitempty\""
 pulse: type FeatureProfile field Features []string "json:\"features\""
@@ -255,6 +266,39 @@ pulse: type FeatureProfileBehaviour field DisableCohortScan bool "json:\"disable
 pulse: type FeatureProfileBehaviour field DisableComponents bool "json:\"disable_components,omitempty\""
 pulse: type FeatureProfileBehaviour field DisableDefaults bool "json:\"disable_defaults,omitempty\""
 pulse: type FeatureProfileBehaviour field DisableProjection bool "json:\"disable_projection,omitempty\""
+pulse: type FeatureProfileCheck struct
+pulse: type FeatureProfileCheck field Features int "json:\"features\""
+pulse: type FeatureProfileCheck field Profile string "json:\"profile,omitempty\""
+pulse: type FeatureProfileCheck field Unverified []string "json:\"unverified\""
+pulse: type FeatureProfileCheck field Valid bool "json:\"valid\""
+pulse: type FeatureProfileCheck field Version string "json:\"version\""
+pulse: type FeatureProfileCheck field Warnings []*pulse/descriptor.EnvelopeEntry "json:\"warnings\""
+pulse: type FeatureProfileCheck field WrittenWith string "json:\"written_with,omitempty\""
+pulse: type FeatureProfileCheckOptions struct
+pulse: type FeatureProfileCheckOptions field Extensions pulse.Extensions
+pulse: type FeatureProfileCheckOptions field Offline bool
+pulse: type FeatureProfileDescription struct
+pulse: type FeatureProfileDescription field Features []pulse.FeatureDescription "json:\"features\""
+pulse: type FeatureProfileDescription field Profile string "json:\"profile,omitempty\""
+pulse: type FeatureProfileDescription field Version string "json:\"version\""
+pulse: type FeatureProfileDescription field WrittenWith string "json:\"written_with,omitempty\""
+pulse: type FeatureProfileDiff struct
+pulse: type FeatureProfileDiff field Missing []pulse.FeatureProfileMissing "json:\"missing\""
+pulse: type FeatureProfileDiff field Profile string "json:\"profile,omitempty\""
+pulse: type FeatureProfileDiff field Unknown []pulse.FeatureProfileUnknownName "json:\"unknown\""
+pulse: type FeatureProfileDiff field Version string "json:\"version\""
+pulse: type FeatureProfileDiff field WrittenWith string "json:\"written_with,omitempty\""
+pulse: type FeatureProfileMissing struct
+pulse: type FeatureProfileMissing field Category string "json:\"category,omitempty\""
+pulse: type FeatureProfileMissing field Kind string "json:\"kind\""
+pulse: type FeatureProfileMissing field Name string "json:\"name\""
+pulse: type FeatureProfileMissing field New bool "json:\"new\""
+pulse: type FeatureProfileMissing field Since string "json:\"since,omitempty\""
+pulse: type FeatureProfileUnknownName struct
+pulse: type FeatureProfileUnknownName field DidYouMean string "json:\"did_you_mean,omitempty\""
+pulse: type FeatureProfileUnknownName field Name string "json:\"name\""
+pulse: type FeatureProfileUnknownName field Reason string "json:\"reason\""
+pulse: type FeatureProfileUnknownName field Since string "json:\"since,omitempty\""
 pulse: type FeatureRegistration struct
 pulse: type FeatureRegistration field Accepts []pulse/encoding.FieldType
 pulse: type FeatureRegistration field DependsOn []string
@@ -379,6 +423,7 @@ pulse: type IndexInfo field DistinctKeys int
 pulse: type IndexInfo field IndexPath string
 pulse: type IndexInfo field IndexedRecords int
 pulse: type IndexInfo field Keys []string
+pulse: func InitFeatureProfile(from string, ext ...pulse.Extensions) (*pulse.FeatureProfile, error)
 pulse: type LabelBinding = pulse/types.LabelBinding
 pulse: type LabelBinding underlying struct
 pulse: type LabelBinding field Field string "json:\"field\""
@@ -3550,4 +3595,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: f1a352c6e532709f2e3d14a1d083bf3a4b057b697b940a24b0ad5fe1a8247942
+// golden-hash: b0ec0302e278e666bbbc43ee49fd656831b294a708202a4d0e00bef13557cde9

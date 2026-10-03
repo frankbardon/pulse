@@ -191,3 +191,16 @@ var (
 	_ func() []string                                                                   = pulse.ExampleFeatureProfiles
 	_ func(string) (*pulse.FeatureProfile, error)                                       = pulse.ExampleFeatureProfile
 )
+
+// Feature-profile tooling: init / check / diff / describe without a
+// *pulse.Pulse, for CI.
+var (
+	_ func(string, ...pulse.Extensions) (*pulse.FeatureProfile, error)                                  = pulse.InitFeatureProfile
+	_ func(*pulse.FeatureProfile, pulse.FeatureProfileCheckOptions) (*pulse.FeatureProfileCheck, error) = pulse.CheckFeatureProfile
+	_ func(*pulse.FeatureProfile, ...pulse.Extensions) (*pulse.FeatureProfileDiff, error)               = pulse.DiffFeatureProfile
+	_ func(*pulse.FeatureProfile, ...pulse.Extensions) (*pulse.FeatureProfileDescription, error)        = pulse.DescribeFeatureProfile
+	_                                                                                                   = pulse.FeatureProfileCheckOptions{Extensions: pulse.Extensions{}, Offline: true}
+	_                                                                                                   = pulse.FeatureProfileCheck{Unverified: []string{}, Warnings: []*descriptor.EnvelopeEntry{}}
+	_                                                                                                   = pulse.FeatureProfileDiff{Missing: []pulse.FeatureProfileMissing{{New: true}}, Unknown: []pulse.FeatureProfileUnknownName{{DidYouMean: "capability:process"}}}
+	_                                                                                                   = pulse.FeatureProfileDescription{Features: []pulse.FeatureDescription{{DependsOn: [][]string{}, Unknown: &pulse.FeatureProfileUnknownName{}}}}
+)

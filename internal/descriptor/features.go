@@ -834,3 +834,28 @@ func ReachedFeatureNames(running string) []string {
 	}
 	return out
 }
+
+// ProfileWrittenWith returns the `written_with` stamp a generated feature
+// profile carries when produced by the running build version: the
+// release core (`major.minor.patch`, leading "v" and any pre-release or
+// build suffix cut), the same reduction SinceReached applies. A running
+// version with no usable core (`devel`, a bare SHA, a 0.0.0
+// pseudo-version) is stamped with the newest Since in the feature table
+// — the newest release line the build knows — so the stamp is always a
+// release a later `Since` can be compared against.
+func ProfileWrittenWith(running string) string {
+	if major, minor, patch, newest := runningVersionCore(running); !newest {
+		return strconv.Itoa(major) + "." + strconv.Itoa(minor) + "." + strconv.Itoa(patch)
+	}
+	best, bMaj, bMin, bPatch := BuiltinFeatureSince, -1, -1, -1
+	for _, f := range builtinFeatures {
+		maj, minor, patch, ok := ParseSince(f.Since)
+		if !ok {
+			continue
+		}
+		if maj > bMaj || (maj == bMaj && (minor > bMin || (minor == bMin && patch > bPatch))) {
+			best, bMaj, bMin, bPatch = f.Since, maj, minor, patch
+		}
+	}
+	return best
+}
