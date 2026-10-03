@@ -34,9 +34,14 @@ import (
 //     unrendered, even where it names a hidden operator — the exemption is
 //     deliberate until the skill ontology can fence or render topical
 //     bodies per instance;
+//   - every surviving skill's listed metadata (description, applies_to,
+//     covers, examples_tags) and every surviving ATOMIC body is rendered
+//     through the instance's ProseScrub, so they name no hidden operator
+//     or tool;
 //   - an example is dropped when any `_meta.operators` entry is hidden,
-//     when its request body names a hidden feature as a whole token (an
-//     overlay kind is not always tagged in `_meta.operators`), or when it
+//     when its request body or its description names a hidden feature as
+//     a whole token (an overlay kind is not always tagged in
+//     `_meta.operators`), or when it
 //     needs a hidden capability (a facet request; a `crosstab` / `joins`
 //     slot anywhere in the body; a compose root).
 //
@@ -50,6 +55,12 @@ import (
 type Discovery struct {
 	hiddenSkills   map[string]struct{}
 	hiddenExamples map[string]struct{}
+	// topical is every kind: design skill — the bodies served unrendered.
+	topical map[string]struct{}
+	// scrub is the instance's prose scrub (the manifest's token set and
+	// sentence drop). It renders the visible skills' metadata and atomic
+	// bodies so no listing or read names a hidden operator or tool.
+	scrub ProseScrub
 }
 
 // fullDiscovery is the pass-through view every unscoped instance shares.
@@ -66,6 +77,7 @@ var skillPruneRules = []func(inst *InstanceSnapshot, md skills.Metadata) bool{
 var examplePruneRules = []func(inst *InstanceSnapshot, ex *examples.Example) bool{
 	exampleOperatorHidden,
 	exampleBodyNamesHidden,
+	exampleDescriptionNamesHidden,
 	exampleCapabilityHidden,
 }
 
@@ -84,8 +96,13 @@ func buildDiscovery(inst *InstanceSnapshot) *Discovery {
 	d := &Discovery{
 		hiddenSkills:   map[string]struct{}{},
 		hiddenExamples: map[string]struct{}{},
+		topical:        map[string]struct{}{},
+		scrub:          NewProseScrub(inst),
 	}
 	for _, md := range skills.List() {
+		if md.Kind == "design" {
+			d.topical[md.Name] = struct{}{}
+		}
 		for _, rule := range skillPruneRules {
 			if rule(inst, md) {
 				d.hiddenSkills[md.Name] = struct{}{}
@@ -167,6 +184,18 @@ func exampleBodyNamesHidden(inst *InstanceSnapshot, ex *examples.Example) bool {
 	return false
 }
 
+// exampleDescriptionNamesHidden: the description an example is listed
+// and served with names a hidden feature as a whole token — the example
+// teaches (or contrasts with) a surface the instance does not offer.
+func exampleDescriptionNamesHidden(inst *InstanceSnapshot, ex *examples.Example) bool {
+	for _, tok := range strings.FieldsFunc(ex.Description, notTokenRune) {
+		if inst.Hidden(tok) {
+			return true
+		}
+	}
+	return false
+}
+
 func notTokenRune(r rune) bool {
 	return r != '_' && (r < '0' || r > '9') && (r < 'A' || r > 'Z') && (r < 'a' || r > 'z')
 }
@@ -226,29 +255,77 @@ func (d *Discovery) ExampleVisible(name string) bool {
 	return !hidden
 }
 
-// Skills is skills.List() minus the pruned skills, in the same order.
+// Skills is skills.List() minus the pruned skills, in the same order,
+// each survivor's metadata rendered for the instance: the description
+// prose-scrubbed and every applies_to / covers / examples_tags entry
+// naming a hidden token dropped (topical metadata included — only a
+// topical BODY is exempt).
 func (d *Discovery) Skills() []skills.Metadata {
 	all := skills.List()
-	if len(d.hiddenSkills) == 0 {
+	if len(d.hiddenSkills) == 0 && !d.scrub.Active() {
 		return all
 	}
 	out := make([]skills.Metadata, 0, len(all))
 	for _, md := range all {
 		if d.SkillVisible(md.Name) {
-			out = append(out, md)
+			out = append(out, d.renderMetadata(md))
+		}
+	}
+	return out
+}
+
+// renderMetadata scrubs one skill's listed metadata (a copy).
+func (d *Discovery) renderMetadata(md skills.Metadata) skills.Metadata {
+	if !d.scrub.Active() {
+		return md
+	}
+	md.Description = d.scrub.Text(md.Description)
+	md.AppliesTo = d.keepVisibleTokens(md.AppliesTo)
+	md.Covers = d.keepVisibleTokens(md.Covers)
+	md.ExamplesTags = d.keepVisibleTokens(md.ExamplesTags)
+	return md
+}
+
+// keepVisibleTokens returns in without the entries that name a hidden
+// token; in itself when none does (nil stays nil).
+func (d *Discovery) keepVisibleTokens(in []string) []string {
+	drop := false
+	for _, s := range in {
+		if mentionsHidden(s, d.scrub.hidden) {
+			drop = true
+			break
+		}
+	}
+	if !drop {
+		return in
+	}
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if !mentionsHidden(s, d.scrub.hidden) {
+			out = append(out, s)
 		}
 	}
 	return out
 }
 
 // Skill returns the markdown body of a visible skill; a pruned name
-// answers exactly as a nonexistent one ("", false). Topical bodies are
-// served unrendered (see the Discovery doc).
+// answers exactly as a nonexistent one ("", false). An atomic (operator,
+// tool, type) body is prose-scrubbed — a sentence naming a hidden
+// operator or tool, a cross-reference to a sibling the instance hides,
+// is dropped line by line (ProseScrub.Text). Topical bodies are served
+// unrendered (see the Discovery doc).
 func (d *Discovery) Skill(name string) (string, bool) {
 	if !d.SkillVisible(name) {
 		return "", false
 	}
-	return skills.Get(name)
+	body, ok := skills.Get(name)
+	if !ok {
+		return "", false
+	}
+	if _, topical := d.topical[name]; topical {
+		return body, true
+	}
+	return d.scrub.Text(body), true
 }
 
 // ExamplesSearch is examples.Search minus the pruned examples; ranking and

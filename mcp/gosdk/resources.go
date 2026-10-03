@@ -9,7 +9,6 @@ import (
 
 	"github.com/frankbardon/pulse"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
-	"github.com/frankbardon/pulse/internal/skills"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
 )
@@ -79,14 +78,11 @@ func registerSchemaResource(s *mcpsdk.Server, p *pulse.Pulse) {
 // registerSkillResources registers each embedded skill the instance exposes as
 // an exact-match static resource plus a scheme-level template. Both paths
 // funnel into skillReader, which derives the skill name from the requested
-// URI. skillVisible is the one instance-scoping seam for both.
+// URI. skillDiscovery is the one instance-scoping seam for both.
 func registerSkillResources(s *mcpsdk.Server, p *pulse.Pulse) {
 	inst := instanceOf(p)
 	skillReader := skillReaderFor(inst)
-	for _, meta := range skills.List() {
-		if !skillVisible(inst, meta.Name) {
-			continue
-		}
+	for _, meta := range skillDiscovery(inst).Skills() {
 		s.AddResource(&mcpsdk.Resource{
 			URI:         SkillURIScheme + meta.Name,
 			Name:        meta.Name,
@@ -161,8 +157,8 @@ func scanPulseFiles(fsys afero.Fs) []string {
 func skillReaderFor(inst *descx.InstanceSnapshot) mcpsdk.ResourceHandler {
 	return func(_ context.Context, req *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
 		name := strings.TrimPrefix(req.Params.URI, SkillURIScheme)
-		body, ok := skills.Get(name)
-		if !ok || !skillVisible(inst, name) {
+		body, ok := skillDiscovery(inst).Skill(name)
+		if !ok {
 			return nil, fmt.Errorf("skill %q not found", name)
 		}
 		return textResource(req.Params.URI, "text/markdown", body), nil

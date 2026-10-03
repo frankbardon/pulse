@@ -3,6 +3,7 @@ package descriptor
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/buildinfo"
@@ -86,7 +87,8 @@ func TestDiscovery_PrunesAtomicSkills(t *testing.T) {
 		// a REG spec modifier goes only with every regression.
 		{hide: regressionNames(), gone: []string{"op-reg-mod-resample", "op-reg-mod-selection"}},
 	} {
-		d := hidingSnapshot(tc.hide...).Discovery()
+		inst := hidingSnapshot(tc.hide...)
+		d := inst.Discovery()
 		listed := skillNames(d.Skills())
 		for _, g := range tc.gone {
 			if slices.Contains(listed, g) || d.SkillVisible(g) {
@@ -99,10 +101,77 @@ func TestDiscovery_PrunesAtomicSkills(t *testing.T) {
 		for _, v := range tc.visible {
 			body, ok := d.Skill(v)
 			want, _ := skills.Get(v)
+			if md := skillMeta(t, v); md.Kind != "design" {
+				want = NewProseScrub(inst).Text(want)
+			}
 			if !slices.Contains(listed, v) || !ok || body != want {
-				t.Errorf("hide %v: %s should be listed and served whole", tc.hide, v)
+				t.Errorf("hide %v: %s should be listed and served (atomic: rendered; topical: whole)", tc.hide, v)
 			}
 		}
+	}
+}
+
+func skillMeta(t *testing.T, name string) skills.Metadata {
+	t.Helper()
+	for _, md := range skills.List() {
+		if md.Name == name {
+			return md
+		}
+	}
+	t.Fatalf("no skill %s", name)
+	return skills.Metadata{}
+}
+
+// TestDiscovery_RendersAtomicBodies pins that a visible ATOMIC skill's
+// body drops the sentences naming a hidden operator or tool (here the
+// resample modifier's references to a hidden REG_GLM) while a TOPICAL
+// body is served whole — the explicit exemption.
+func TestDiscovery_RendersAtomicBodies(t *testing.T) {
+	d := hidingSnapshot("REG_GLM", featLookup).Discovery()
+	raw, _ := skills.Get("op-reg-mod-resample")
+	if !mentionsHidden(raw, map[string]struct{}{"REG_GLM": {}}) {
+		t.Fatal("premise: op-reg-mod-resample names REG_GLM")
+	}
+	body, ok := d.Skill("op-reg-mod-resample")
+	if !ok || mentionsHidden(body, map[string]struct{}{"REG_GLM": {}}) {
+		t.Errorf("atomic body still names hidden REG_GLM (ok=%v)", ok)
+	}
+	if !strings.Contains(body, "REG_OLS") {
+		t.Error("atomic body lost the enabled REG_OLS prose")
+	}
+	topical, _ := skills.Get("regression-modeling")
+	if got, _ := d.Skill("regression-modeling"); got != topical {
+		t.Error("topical body was rendered; it must be served whole")
+	}
+}
+
+// TestDiscovery_RendersSkillMetadata pins that a visible skill's listed
+// metadata — topical included — names no hidden token: the description
+// is prose-scrubbed and hidden covers / applies_to entries are dropped.
+func TestDiscovery_RendersSkillMetadata(t *testing.T) {
+	inst := hidingSnapshot("REG_GLM", "FEAT_POLY")
+	hidden := map[string]struct{}{"REG_GLM": {}, "FEAT_POLY": {}}
+	for _, md := range inst.Discovery().Skills() {
+		if mentionsHidden(md.Description, hidden) {
+			t.Errorf("%s description names a hidden operator: %s", md.Name, md.Description)
+		}
+		for _, list := range [][]string{md.AppliesTo, md.Covers, md.ExamplesTags} {
+			for _, e := range list {
+				if mentionsHidden(e, hidden) {
+					t.Errorf("%s lists hidden %s", md.Name, e)
+				}
+			}
+		}
+		if md.Name == "regression-modeling" && !slices.Contains(md.Covers, "REG_OLS") {
+			t.Errorf("regression-modeling covers lost the enabled REG_OLS: %v", md.Covers)
+		}
+	}
+	if !slices.Contains(skillMeta(t, "regression-modeling").Covers, "REG_GLM") {
+		t.Fatal("premise: regression-modeling covers REG_GLM")
+	}
+	// The embedded pack itself is untouched (Skills renders copies).
+	if !slices.Contains(skillMeta(t, "regression-modeling").Covers, "FEAT_POLY") {
+		t.Error("rendering mutated the embedded metadata")
 	}
 }
 
@@ -123,6 +192,9 @@ func TestDiscovery_PrunesExamples(t *testing.T) {
 		{hide: []string{"AGG_SUM"}, gone: firstExampleUsing(t, "AGG_SUM")},
 		// only the body names the overlay kind (_meta.operators is empty).
 		{hide: []string{"OVERLAY_INDEX_VS_POP"}, gone: "facet-index-vs-pop"},
+		// only the description names the overlay kind (the body and
+		// _meta.operators do not).
+		{hide: []string{"OVERLAY_ZSCORE_VS_POP"}, gone: "facet-chisq-vs-pop"},
 		// a facet request needs capability:facet.
 		{hide: []string{featFacet}, gone: "facet_simple_one_field"},
 		// a crosstab slot needs capability:crosstab.
