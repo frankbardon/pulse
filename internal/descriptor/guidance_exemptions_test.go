@@ -37,21 +37,8 @@ type guidanceExemption struct {
 // purposeExemptions — built-ins without a Purpose (TestSkillsCoverAllPurposes).
 // Key: the operator name / TEST_* family / REG_* / OVERLAY_* kind / synth
 // distribution kind, exactly as PurposeSurfaces lists it.
-var purposeExemptions = func() []guidanceExemption {
-	const why = "Descriptive built-in awaiting its Purpose in the U09 backfill."
-	var out []guidanceExemption
-	for _, names := range [][]string{
-		// synth_distribution
-		{"bernoulli", "constant", "discrete", "exponential", "lognormal", "mixture",
-			"monotonic_from", "normal", "pareto", "poisson", "regex", "set_bernoulli", "uniform",
-			"uniform_date", "weighted_categorical"},
-	} {
-		for _, n := range names {
-			out = append(out, guidanceExemption{Key: n, Why: why, Owner: "U09"})
-		}
-	}
-	return out
-}()
+// Empty since the U09 backfill: every built-in declares its Purpose.
+var purposeExemptions = []guidanceExemption{}
 
 // interpretationExemptions — expected Interpretation outputs not yet
 // declared (TestInterpretationCoversOutputs). Key: "<operator>:<field>",
@@ -66,7 +53,6 @@ var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
 	{Key: IntentFlows, Owner: "U28", Why: "Flow analysis needs the matrix overlays (stochastic matrices, steady states) U28 ships."},
 	{Key: IntentMeasureConstruct, Owner: "U24", Why: "Construct measurement needs the reliability / PCA operators U24 ships."},
-	{Key: IntentSimulate, Owner: "U09", Why: "Declaring operators (synth distributions) gain Purposes in the U09 backfill."},
 }
 
 // intentExampleExemptions — intents no example's _meta.intents tags

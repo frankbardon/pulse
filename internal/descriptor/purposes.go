@@ -13,13 +13,13 @@ import (
 // kind. It is assembled from one map per category, each in its own file
 // (aggregatorPurposes in purposes_aggregators.go, attributePurposes in purposes_attributes.go, filtererPurposes in purposes_filterers.go, grouperPurposes in purposes_groupers.go, windowPurposes in purposes_window.go, featurePurposes in purposes_features.go, statTestPurposes in purposes_stattests.go,
 // overlayPurposes in purposes_overlays.go, regressionPurposes in
-// purposes_regressions.go);
+// purposes_regressions.go, synthPurposes in purposes_synth.go);
 // an undeclared name simply carries no intents.
 //
 // purposeLookup is the seam the manifest builder reads through, so a
 // test can inject purposes without touching the registry.
 var (
-	builtinPurposes = mergePurposes(aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes)
+	builtinPurposes = mergePurposes(aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, synthPurposes)
 	purposeLookup   = func(name string) (descriptor.Purpose, bool) {
 		p, ok := builtinPurposes[name]
 		return p, ok

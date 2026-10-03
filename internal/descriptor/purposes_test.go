@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -399,7 +400,7 @@ func exampleIntentProblems(byExample map[string][]string) []string {
 // keyed by a TEST_* family, and a name declared by two category maps
 // panics instead of silently shadowing one declaration.
 func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
-	cats := []map[string]descriptor.Purpose{aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes}
+	cats := []map[string]descriptor.Purpose{aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, synthPurposes}
 	total := 0
 	for _, m := range cats {
 		total += len(m)
@@ -426,6 +427,15 @@ func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
 	for name := range regressionPurposes {
 		if !strings.HasPrefix(name, "REG_") {
 			t.Errorf("regressionPurposes holds non-regression key %s", name)
+		}
+	}
+	dists := map[string]bool{}
+	for _, d := range synth.AllDistributions() {
+		dists[d] = true
+	}
+	for name := range synthPurposes {
+		if !dists[name] {
+			t.Errorf("synthPurposes holds non-distribution key %s", name)
 		}
 	}
 

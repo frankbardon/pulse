@@ -5099,6 +5099,9 @@
             "default": 0.5,
             "description": "Probability of 1 in [0, 1]."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5114,6 +5117,9 @@
             "required": true,
             "description": "Value to emit on every row (interpreted by field type)."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5135,6 +5141,9 @@
             "required": false,
             "description": "Optional non-negative weight list matching values length; uniform when absent."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5151,6 +5160,9 @@
             "default": 1,
             "description": "Rate parameter (\u003e 0); mean is 1/lambda."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5174,6 +5186,9 @@
             "default": 1,
             "description": "Log-space standard deviation (\u003e 0)."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5201,6 +5216,9 @@
             "required": false,
             "description": "Optional per-component mixing weight; length must match means. Uniform when absent."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5224,6 +5242,9 @@
             "default": 1,
             "description": "Increment per row (non-zero)."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5259,6 +5280,9 @@
             "required": false,
             "description": "Optional upper clamp."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5282,6 +5306,9 @@
             "default": 1.5,
             "description": "Shape (\u003e 0); larger alpha = lighter tail."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5298,6 +5325,9 @@
             "default": 1,
             "description": "Rate parameter (\u003e 0); equal to the mean."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5313,6 +5343,9 @@
             "required": true,
             "description": "Regex source string (Perl/RE2 syntax)."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5335,6 +5368,9 @@
             "default": 0.5,
             "description": "Per-option P(bit set); length must match options. Defaults to 0.5 per option when absent."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5358,6 +5394,9 @@
             "default": 1,
             "description": "Upper bound (exclusive)."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5379,6 +5418,9 @@
             "required": true,
             "description": "ISO-8601 calendar date (YYYY-MM-DD); must exceed start."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       },
       {
@@ -5400,6 +5442,9 @@
             "required": false,
             "description": "Optional weight list matching values length; uniform when absent."
           }
+        ],
+        "intents": [
+          "simulate"
         ]
       }
     ],
@@ -10378,4 +10423,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: da3e566e7ad2dc6c4aaa5a37252f89fd86048a152b0e2ea4df63328b946df929
+// golden-hash: 5b9a26bf752b49158ea2c63f07befd6acc8c11a93e3eac07365777eda7708f79
