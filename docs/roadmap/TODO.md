@@ -118,10 +118,10 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#43** Tests (`TEST_*`) · [U08](units/U08-guidance-backfill-inferential.md)
 - [x] **#44** Overlays (`OVERLAY_*`) · [U08](units/U08-guidance-backfill-inferential.md)
 - [x] **#45** Regressions (`REG_*`) · [U08](units/U08-guidance-backfill-inferential.md)
-- [ ] **#46** Aggregators (`AGG_*`) · [U09](units/U09-guidance-backfill-descriptive.md)
-- [ ] **#47** Attributes, filterers, groupers, windows and features · [U09](units/U09-guidance-backfill-descriptive.md)
-- [ ] **#48** Synth distributions · [U09](units/U09-guidance-backfill-descriptive.md)
-- [ ] **#49** Gates flipped from report-only to failing · [U09](units/U09-guidance-backfill-descriptive.md)
+- [x] **#46** Aggregators (`AGG_*`) · [U09](units/U09-guidance-backfill-descriptive.md)
+- [x] **#47** Attributes, filterers, groupers, windows and features · [U09](units/U09-guidance-backfill-descriptive.md)
+- [x] **#48** Synth distributions · [U09](units/U09-guidance-backfill-descriptive.md)
+- [x] **#49** Gates flipped from report-only to failing · [U09](units/U09-guidance-backfill-descriptive.md)
 
 ---
 

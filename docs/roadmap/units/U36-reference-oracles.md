@@ -7,7 +7,7 @@ size: M
 status: not-started
 depends_on: [U08]
 soft_depends_on: []
-blocks: [U09]
+blocks: []
 todo_items: [202, 203, 204, 205]
 branch: reference-oracles
 ---
@@ -16,7 +16,7 @@ branch: reference-oracles
 
 **Outcome:** Every inferential output is pinned to an external reference, and none answers with a wrong or unencodable number.
 
-**Track:** Statistical integrity · **Size:** M · **Depends on:** [U08](U08-guidance-backfill-inferential.md) · **Unblocks:** [U09](U09-guidance-backfill-descriptive.md)
+**Track:** Statistical integrity · **Size:** M · **Depends on:** [U08](U08-guidance-backfill-inferential.md) · **Unblocks:** none (U09 holds it as a soft dependency)
 
 ## Summary
 

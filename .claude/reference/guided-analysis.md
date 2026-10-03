@@ -101,7 +101,7 @@ A new key joins `testEffectSizeKeys`, the glossary `effectSizeKeys` list, a glos
 
 ## Gates
 
-**Two tiers over ONE validator per type, BOTH binding.** VALIDITY fails on any broken rule. COVERAGE fails on any gap that is neither covered nor listed in the exemption ledger (U09 flipped it from report-only); each gate still `t.Log`s its full gap list.
+**Two tiers over ONE validator per type, BOTH binding.** VALIDITY fails on any broken rule. COVERAGE fails on any gap that is neither covered nor listed in the exemption ledger (no coverage gate is report-only any more); each gate still `t.Log`s its full gap list.
 
 - `TestSkillsCoverAllPurposes` (CLAUDE.md-listed) — validity limits over `builtinPurposes`; no Purpose key names an unregistered surface; coverage: every built-in (10 categories incl. post-tests, overlay kinds, distributions) declares a Purpose.
 - `TestPurposeAlternativesResolve` — every `NotFor.Use` resolves (bare → a registered built-in via `PurposeSurfaces`, `<kind>:<name>` → a `features.go` row) and is not the operator itself.
@@ -112,7 +112,7 @@ A new key joins `testEffectSizeKeys`, the glossary `effectSizeKeys` list, a glos
 
 **Exemption ledger** — `internal/descriptor/guidance_exemptions_test.go`, the ONE place a coverage gap may be excused (test-only data; production code never reads the roadmap). Modelled on `guidanceLintAllowlist`, each entry is `{Key, Why, Owner}`: `Why` is mandatory, `Owner` is the roadmap unit that will close the gap (`ownerPermanent` for a gap closed by design). `applyExemptions` fails an entry that is unjustified, ownerless, owned by a malformed or unknown unit, listed twice, or STALE — the gap is now covered (delete the entry with the change that closes it), or the owner's `docs/roadmap/units/<U>-*.md` frontmatter says `status: done` (a permanent entry never goes stale on status). The status reader is injected (`unitStatusReader`; `roadmapUnitStatusIn(dir)` over a fixture directory in tests).
 
-| Table | Gate | Key | Owners after U09 (no entry is U09-owned) |
+| Table | Gate | Key | Owners (none is U09-owned) |
 |---|---|---|---|
 | `purposeExemptions` | `TestSkillsCoverAllPurposes` | operator / family / kind name | (empty: every built-in declares a Purpose) |
 | `interpretationExemptions` | `TestInterpretationCoversOutputs` | `<operator>:<field>` | (empty: every inferential output and needs-reading primary result is read) |
@@ -167,7 +167,8 @@ All eight root `*Registration` structs take an optional `Purpose *descriptor.Pur
 
 ## Out of scope (owned later)
 
-- U09 — descriptive operators; closes its own entries in the exemption ledger (the coverage tier is already binding).
+- U24 / U25 / U27 / U28 — the ledger's remaining owners: the `measure_construct` and `flows` intents plus the glossary terms their operators will link (Gates, exemption ledger). Each closes its own entries; a covered gap or an owner marked `status: done` makes the entry fail as stale.
+- U36 also owns the runtime defects U09 documented rather than fixed (split-aware `FEAT_TARGET_ENCODE`, `AGG_ZSCORE`'s always-zero value, normal-z `AGG_CI_*`, tied `ATTR_PERCENTILE`, attributes writing 0 for missing inputs) — the Interpretations and skills describe today's behaviour.
 - U10 — profile-aware skill rendering.
 - U21 — rendering guidance into skills and docs (and syncing atomic skills that drifted from the registries).
 - U22 — recommend / explain (first consumer of intent shapes).
