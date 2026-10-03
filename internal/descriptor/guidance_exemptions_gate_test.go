@@ -132,6 +132,19 @@ func TestGuidanceExemptions_GatesBite(t *testing.T) {
 		})
 		wantRemaining(t, "interpretation", interpretationCoverageGaps(reg), interpretationExemptions, "TEST_T:p_value")
 	})
+	t.Run("interpretation value path", func(t *testing.T) {
+		ledger := slices.DeleteFunc(slices.Clone(interpretationExemptions), func(e guidanceExemption) bool {
+			return e.Key == "AGG_SKEWNESS:value"
+		})
+		wantRemaining(t, "interpretation", interpretationCoverageGaps(builtinInterpretations), ledger, "AGG_SKEWNESS:value")
+
+		// Reading the result closes the gap, so its entry goes stale.
+		reg := maps.Clone(builtinInterpretations)
+		reg["AGG_SKEWNESS"] = []descriptor.Interpretation{{Field: "value", Means: "m"}}
+		if _, probs := applyExemptions("interpretation", interpretationCoverageGaps(reg), interpretationExemptions, live); !hasProblem(probs, "AGG_SKEWNESS:value", "stale") {
+			t.Errorf("closed AGG_SKEWNESS value gap: want a stale entry, got %v", probs)
+		}
+	})
 	t.Run("intent declarers", func(t *testing.T) {
 		reg := map[string]descriptor.Purpose{"X": {Intents: []string{IntentDescribe}}}
 		thin, _ := intentCoverageGaps(reg, nil)

@@ -79,8 +79,31 @@ var purposeExemptions = func() []guidanceExemption {
 
 // interpretationExemptions — expected Interpretation outputs not yet
 // declared (TestInterpretationCoversOutputs). Key: "<operator>:<field>",
-// e.g. "TEST_T:p_value". Empty today: every inferential output is read.
-var interpretationExemptions = []guidanceExemption{}
+// e.g. "TEST_T:p_value". Every inferential output is read; the entries
+// are the needs-reading descriptive operators' primary results
+// (interpretation_reading.go), closed by the U09 backfill.
+var interpretationExemptions = func() []guidanceExemption {
+	const why = "Needs-reading descriptive built-in awaiting its value Interpretation in the U09 backfill."
+	var out []guidanceExemption
+	for _, key := range []string{
+		// aggregator
+		"AGG_CI_LOWER:value", "AGG_CI_UPPER:value", "AGG_KURTOSIS:value", "AGG_PERCENTILE:value",
+		"AGG_RATIO:value", "AGG_SKEWNESS:value", "AGG_STDDEV:value", "AGG_VARIANCE:value",
+		"AGG_WEIGHTED_MEAN:value", "AGG_WELFORD:value.*", "AGG_ZSCORE:value",
+		// attribute
+		"ATTR_NORMALIZED:value", "ATTR_PERCENTILE:value", "ATTR_REG_FITTED:value",
+		"ATTR_REG_LEVERAGE:value", "ATTR_REG_RESIDUAL:value", "ATTR_TSCORE:value", "ATTR_ZSCORE:value",
+		// window
+		"WIN_DELTA:value", "WIN_DENSE_RANK:value", "WIN_EWMA:value", "WIN_MOVING_AVG:value",
+		"WIN_PCT_CHANGE:value", "WIN_RANK:value", "WIN_RUNNING_AVG:value",
+		// feature
+		"FEAT_FREQUENCY_ENCODE:value", "FEAT_LOG:value", "FEAT_POLY:value.*", "FEAT_SQRT:value",
+		"FEAT_TARGET_ENCODE:value",
+	} {
+		out = append(out, guidanceExemption{Key: key, Why: why, Owner: "U09"})
+	}
+	return out
+}()
 
 // intentDeclarerExemptions — intents fewer than three built-in Purposes
 // declare (TestPurposeQuestionsResolve). Key: the intent ID.

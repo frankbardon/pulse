@@ -3,8 +3,11 @@ package descriptor
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"slices"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -12,21 +15,58 @@ import (
 	"github.com/frankbardon/pulse/internal/skills"
 )
 
-// manifestGuidanceBudget caps the bytes of the compact default manifest
-// attributable to guidance (PRD FR-20): every "intents" key + value and
-// the two virtual-skill skills[] entries. Guidance prose itself is
-// served on demand, never inlined.
-const manifestGuidanceBudget = 4096
+// The manifest guidance budget is TWO binding caps, not one total
+// (PRD FR-20; decision recorded in .claude/reference/guided-analysis.md,
+// Gates). The budget exists to ban prose from the default manifest, not
+// to ration identifiers: a single total scales with registry size, so
+// every backfill or new operator family (U09, U24, U25, U27, U28) would
+// re-trip it while still carrying only intent IDs.
+//
+// manifestGuidancePerEntryCap bounds one entry's "intents" key + value
+// (+ comma). Sized to admit an ID-only intents array and nothing more:
+// the longest today is 50 bytes (two IDs); 64 admits two of the longest
+// intent IDs ("distribution_shape" + "change_over_time" = 54 bytes) or
+// three short ones, while a single prose-length phrase (>= 16 runes)
+// beside even one ID overflows the headroom fast.
+const manifestGuidancePerEntryCap = 64
 
-// manifestGuidanceBytes returns the bytes of the compact manifest JSON
-// attributable to guidance: every object key "intents" at any depth
-// (the top-level taxonomy plus each entry's intents, so a new entry type
-// is counted with no change here), every overlay "inferential" flag
-// (the Interpretation half's only manifest projection), and every
-// skills[] entry naming a
-// reserved virtual skill. Each item is counted with its separating
+// manifestGuidanceFixedCap bounds the guidance that does not scale with
+// the operator registry: the top-level intents[] taxonomy (closed), the
+// overlay "inferential" flags and the two virtual-skill skills[]
+// entries. 930 bytes today (214 + 342 + 374); 1280 leaves room for ~18
+// more inferential overlay kinds before a deliberate re-size.
+const manifestGuidanceFixedCap = 1280
+
+// guidanceEntryBytes is one manifest entry's "intents" cost.
+type guidanceEntryBytes struct {
+	Path  string // JSON path of the entry (with its name when it has one)
+	Bytes int
+}
+
+// manifestGuidance is the guidance-attributable bytes of a compact
+// manifest, split into the per-entry and fixed parts the caps bind.
+type manifestGuidance struct {
+	Fixed   int
+	Entries []guidanceEntryBytes
+}
+
+// Total is every guidance-attributable byte.
+func (g manifestGuidance) Total() int {
+	n := g.Fixed
+	for _, e := range g.Entries {
+		n += e.Bytes
+	}
+	return n
+}
+
+// manifestGuidanceBytes measures the compact manifest JSON: every
+// non-top-level object key "intents" is one per-entry item (so a new
+// entry type is counted with no change here); the top-level intents[]
+// taxonomy, every overlay "inferential" flag (the Interpretation half's
+// only manifest projection) and every skills[] entry naming a reserved
+// virtual skill are fixed. Each item is counted with its separating
 // comma.
-func manifestGuidanceBytes(t *testing.T, raw []byte) int {
+func manifestGuidanceBytes(t *testing.T, raw []byte) manifestGuidance {
 	t.Helper()
 	var root any
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -45,35 +85,57 @@ func manifestGuidanceBytes(t *testing.T, raw []byte) int {
 	for _, n := range skills.ReservedVirtualNames() {
 		virtual[n] = true
 	}
-	total := 0
-	var walk func(v any, top bool)
-	walk = func(v any, top bool) {
+	var out manifestGuidance
+	var walk func(v any, path string, top bool)
+	walk = func(v any, path string, top bool) {
 		switch x := v.(type) {
 		case map[string]any:
 			for k, child := range x {
-				if k == "intents" || k == "inferential" {
-					total += len(`"`+k+`":`) + size(child) + 1
-					continue
-				}
-				if top && k == "skills" {
+				switch {
+				case k == "intents" && !top:
+					p := path
+					if name, ok := x["name"].(string); ok {
+						p += "(" + name + ")"
+					} else if kind, ok := x["kind"].(string); ok {
+						p += "(" + kind + ")"
+					}
+					out.Entries = append(out.Entries, guidanceEntryBytes{Path: p, Bytes: len(`"intents":`) + size(child) + 1})
+				case k == "intents" || k == "inferential":
+					out.Fixed += len(`"`+k+`":`) + size(child) + 1
+				case top && k == "skills":
 					entries, _ := child.([]any)
 					for _, e := range entries {
 						if m, ok := e.(map[string]any); ok && virtual[m["name"].(string)] {
-							total += size(e) + 1
+							out.Fixed += size(e) + 1
 						}
 					}
-					continue
+				default:
+					walk(child, path+"."+k, false)
 				}
-				walk(child, false)
 			}
 		case []any:
-			for _, e := range x {
-				walk(e, false)
+			for i, e := range x {
+				walk(e, path+"["+strconv.Itoa(i)+"]", false)
 			}
 		}
 	}
-	walk(root, true)
-	return total
+	walk(root, "", true)
+	sort.Slice(out.Entries, func(i, j int) bool { return out.Entries[i].Path < out.Entries[j].Path })
+	return out
+}
+
+// guidanceBudgetProblems reports every cap the measurement breaks.
+func guidanceBudgetProblems(g manifestGuidance) []string {
+	var out []string
+	if g.Fixed > manifestGuidanceFixedCap {
+		out = append(out, fmt.Sprintf("fixed guidance bytes (intents[] taxonomy, inferential flags, virtual skills) = %d, cap %d", g.Fixed, manifestGuidanceFixedCap))
+	}
+	for _, e := range g.Entries {
+		if e.Bytes > manifestGuidancePerEntryCap {
+			out = append(out, fmt.Sprintf("entry %s spends %d guidance bytes, per-entry cap %d: an entry carries intent IDs only", e.Path, e.Bytes, manifestGuidancePerEntryCap))
+		}
+	}
+	return out
 }
 
 func marshalManifest(t *testing.T, m *descriptor.Manifest) []byte {
@@ -87,7 +149,8 @@ func marshalManifest(t *testing.T, m *descriptor.Manifest) []byte {
 
 // TestManifestGuidanceBudget is the binding guidance-bloat gate on the
 // default (full-registry, profile-free) manifest: guidance-attributable
-// bytes stay within manifestGuidanceBudget, and no declared guidance
+// bytes stay within both caps — manifestGuidancePerEntryCap on every
+// entry's intents, manifestGuidanceFixedCap on the rest — and no declared guidance
 // prose (GuidanceProse — every purpose, glossary term, intent and
 // interpretation, including the shared rule sets) appears in it.
 // Instance manifests are subsets of this one, so the full manifest
@@ -96,12 +159,17 @@ func marshalManifest(t *testing.T, m *descriptor.Manifest) []byte {
 func TestManifestGuidanceBudget(t *testing.T) {
 	raw := marshalManifest(t, BuildManifest())
 	got := manifestGuidanceBytes(t, raw)
-	t.Logf("guidance bytes in default manifest: %d / %d (manifest %d bytes)", got, manifestGuidanceBudget, len(raw))
-	if got > manifestGuidanceBudget {
-		t.Errorf("guidance-attributable manifest bytes = %d, budget %d: guidance must stay on-demand (pulse.Glossary / pulse.Intents / virtual skills), not ride the manifest", got, manifestGuidanceBudget)
+	longest := 0
+	for _, e := range got.Entries {
+		longest = max(longest, e.Bytes)
 	}
-	if got == 0 {
-		t.Error("measured 0 guidance bytes: the measurement no longer sees the intents taxonomy — fix manifestGuidanceBytes")
+	t.Logf("guidance bytes in default manifest: fixed %d / %d; %d entries, longest %d / %d per entry; total %d (manifest %d bytes)",
+		got.Fixed, manifestGuidanceFixedCap, len(got.Entries), longest, manifestGuidancePerEntryCap, got.Total(), len(raw))
+	for _, p := range guidanceBudgetProblems(got) {
+		t.Errorf("%s — guidance must stay on-demand (pulse.Glossary / pulse.Intents / virtual skills), not ride the manifest", p)
+	}
+	if got.Fixed == 0 || len(got.Entries) == 0 {
+		t.Error("measured no fixed or no per-entry guidance bytes: the measurement no longer sees the intents taxonomy or the entry intents — fix manifestGuidanceBytes")
 	}
 	for _, leak := range LeakedGuidanceProse(raw) {
 		t.Errorf("default manifest carries guidance prose from %s: %q — serve it on demand instead", leak.Source, leak.Text)
@@ -109,8 +177,8 @@ func TestManifestGuidanceBudget(t *testing.T) {
 }
 
 // TestManifestGuidanceBudget_Falsifiers proves the gate's checks bite:
-// injected prose is reported, and an inflated intents list blows the
-// budget.
+// injected prose is reported, an inflated taxonomy breaks the fixed cap
+// and a prose-carrying entry intents list breaks the per-entry cap.
 func TestManifestGuidanceBudget_Falsifiers(t *testing.T) {
 	plain := BuiltinPurposes()["AGG_AVERAGE"].Plain
 	var short, label string
@@ -150,11 +218,11 @@ func TestManifestGuidanceBudget_Falsifiers(t *testing.T) {
 		{name: "shared p-value caveat inlined in overlay description", leak: sharedCaveat, mutate: func(m *descriptor.Manifest) {
 			m.Overlays[0].Description = sharedCaveat
 		}},
-		{name: "5 KB of intents", over: true, mutate: func(m *descriptor.Manifest) {
-			pad := strings.Repeat("x", 100)
-			for i := 0; i < 50; i++ {
-				m.Intents = append(m.Intents, pad)
-			}
+		{name: "inflated intents taxonomy", over: true, mutate: func(m *descriptor.Manifest) {
+			m.Intents = append(m.Intents, strings.Repeat("x", manifestGuidanceFixedCap))
+		}},
+		{name: "prose in one entry's intents", over: true, mutate: func(m *descriptor.Manifest) {
+			m.Components.Aggregators[0].Intents = append(m.Components.Aggregators[0].Intents, "summarise the typical value of a numeric field")
 		}},
 	}
 	for _, tc := range cases {
@@ -173,8 +241,8 @@ func TestManifestGuidanceBudget_Falsifiers(t *testing.T) {
 			tc.mutate(m)
 			raw := marshalManifest(t, m)
 			if tc.over {
-				if got := manifestGuidanceBytes(t, raw); got <= manifestGuidanceBudget {
-					t.Errorf("inflated manifest measured %d guidance bytes, want > %d", got, manifestGuidanceBudget)
+				if probs := guidanceBudgetProblems(manifestGuidanceBytes(t, raw)); len(probs) != 1 {
+					t.Errorf("inflated manifest: want exactly one cap broken, got %v", probs)
 				}
 				return
 			}

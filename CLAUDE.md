@@ -230,7 +230,7 @@ A **feature profile** (never bare "profile" — synth owns it) is an instance's 
 
 ## Guided analysis
 
-Declared, never executed: a closed intent taxonomy (manifest `intents[]` = IDs only, plus per-entry `intents`), per-operator `Purpose`, per-output `Interpretation` (bands always name a `Convention`), a glossary (virtual `glossary` / `intents` skills, `pulse.Glossary()` / `pulse.Intents()`), and `details.effect_size.*` keys (omitted when undefined). **Prose is pulled, never pushed** — `TestManifestGuidanceBudget` bans it from default payloads and caps guidance at 4096 manifest bytes. Coverage gates bind; gaps need owner-tagged exemptions. **Contract: `.claude/reference/guided-analysis.md`.**
+Declared, never executed: a closed intent taxonomy (manifest `intents[]` = IDs only, plus per-entry `intents`), per-operator `Purpose`, per-output `Interpretation` (bands always name a `Convention`), a glossary (virtual `glossary` / `intents` skills, `pulse.Glossary()` / `pulse.Intents()`), and `details.effect_size.*` keys (omitted when undefined). **Prose is pulled, never pushed** — `TestManifestGuidanceBudget` bans it from default payloads and caps guidance per manifest entry. Coverage gates bind; gaps need owner-tagged exemptions. **Contract: `.claude/reference/guided-analysis.md`.**
 
 ## Request templating
 
