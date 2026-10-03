@@ -31,7 +31,7 @@ Defaults: `shape: matrix`, `normalize: none`. Result `Response.Crosstab.Matrix` 
 
 ## Margins recompute from raw rows
 
-Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. `AGG_DISTINCT_COUNT` / `AGG_DISTINCT_SUM` margins are the **union**, never the sum of cells — a respondent in two rows counts once. Manifest: `crosstab.{summable,mean_reducible,independent,recompute}_aggregators`; `independent` means the operator keeps its own margin accumulator, so it fuses.
+Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. `AGG_DISTINCT_COUNT` / `AGG_DISTINCT_SUM` margins are the **union**, never the sum of cells — a respondent in two rows counts once. Manifest: `crosstab.{summable,mean_reducible,independent,recompute}_aggregators`; `independent` (incl. `AGG_MODE_COUNT`, whose margin is the modal count of the margin's own rows) means the operator keeps its own margin accumulator, so it fuses.
 
 ## Auxiliary margin-only aggregations
 
@@ -70,7 +70,7 @@ Requires a mergeable + non-recompute cell aggregator AND every axis grouper impl
 
 Embedders force the buffered arm engine-wide with `pulse.Options{DisableCrosstabFusion: true}` — a diagnostic / benchmarking knob; output is identical.
 
-Disqualifiers: a `JoinSpec`, non-mergeable / recompute cell (incl. `AGG_WELFORD`, `AGG_MODE` / `AGG_MODE_COUNT`, an extension with no declared `MarginReducibility`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 built-in cell, opaque extension (no `FieldInputs`), a non-mergeable or decimal128 `margin_aggregations` entry (an auxiliary rides the same `UpdateRow` walk; its `MarginReducibility` is NOT consulted — it has no cells to reduce from).
+Disqualifiers: a `JoinSpec`, non-mergeable / recompute cell (incl. `AGG_WELFORD`, `AGG_MODE`, an extension with no declared `MarginReducibility`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 built-in cell, opaque extension (no `FieldInputs`), a non-mergeable or decimal128 `margin_aggregations` entry (an auxiliary rides the same `UpdateRow` walk; its `MarginReducibility` is NOT consulted — it has no cells to reduce from).
 
 **Joins.** A crosstab with its one `JoinSpec` runs over the JOINED rows (always buffered): axes / cell may name `as`-prefixed right fields, an unmatched left row reaches no cell, margin or Components count, a 1:N match counts once per joined row. `skills/join-design.md`.
 

@@ -40,7 +40,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Smart default for categorical_* and packed_bool. Memory grows with distinct values.
 - Per-value tallies: `GROUP_CATEGORY` + `AGG_COUNT`. One value: `AGG_FREQUENCY`. The value itself: `AGG_MODE`.
-- Crosstab margin = modal count of the margin's own rows, never a sum of cells (class `recompute`: runs buffered).
+- Crosstab margin = modal count of the margin's own rows, never a sum of cells (class `independent`: fuses).
 - `set_*` → `PROCESSING_CONFIG`; use `AGG_SET_FREQUENCY`.
 
 ## See

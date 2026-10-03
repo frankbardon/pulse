@@ -1560,9 +1560,10 @@
       "mean_reducible_aggregators": [
         "AGG_AVERAGE"
       ],
-      "independent_aggregators": [],
+      "independent_aggregators": [
+        "AGG_MODE_COUNT"
+      ],
       "recompute_aggregators": [
-        "AGG_MODE_COUNT",
         "AGG_WELFORD"
       ],
       "streaming_exceptions": [
@@ -1912,4 +1913,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 35b1d65850836da5d84ea12f3fc343f6cb1148be12eedfdb73d14bca2d1d5b6d
+// golden-hash: 5d4eb6d3c57030a6f0b5845afebda383a09151d6afa9313cb95a6bd8232bf520

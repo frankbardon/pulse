@@ -126,7 +126,8 @@ func (t AggregationType) Mergeable() bool {
 //     Both crosstab paths already feed every record into independent
 //     row / column / grand accumulators, so the true margin falls out of
 //     one pass (AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM — set-valued state
-//     whose union across cells is NOT their sum).
+//     whose union across cells is NOT their sum — and AGG_MODE_COUNT,
+//     whose margin mode need not be any cell's).
 //   - MarginRecompute — margin cannot be derived from cells and must be
 //     recomputed over the raw rows (every order- or distribution-
 //     dependent aggregator: AGG_MEDIAN, AGG_PERCENTILE, AGG_STDDEV,
@@ -144,7 +145,14 @@ func (t AggregationType) Mergeable() bool {
 // drives the manifest capability block and future fast-path work.
 func (t AggregationType) MarginReducibility() MarginReducibility {
 	switch t {
-	case AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM:
+	case AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM,
+		// The modal count of a margin's rows is neither the sum nor the
+		// max of its cells' modal counts (the margin's mode may be a
+		// value no single cell favours). Like the distinct counters, its
+		// per-value count map is fed record by record into independent
+		// row / column / grand accumulators on both crosstab paths, so
+		// the true margin falls out of one pass and the cell fuses.
+		AGG_MODE_COUNT:
 		// Set-valued state. Summing per-cell distinct counts double-
 		// counts every key present in more than one cell, so the margin
 		// is emphatically NOT a sum of cells — but it is not a re-scan
@@ -169,10 +177,6 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 	case AGG_MIN, AGG_MAX, AGG_RANGE,
 		AGG_STDDEV, AGG_VARIANCE,
 		AGG_MEDIAN, AGG_PERCENTILE, AGG_MODE,
-		// The modal count of a margin's rows is neither the sum nor the
-		// max of its cells' modal counts (the margin's mode may be a
-		// value no single cell favours) — recompute, as AGG_MODE.
-		AGG_MODE_COUNT,
 		AGG_ZSCORE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_CI_LOWER, AGG_CI_UPPER,
 		// Welford emits a running (mean, sample-variance, n) triple.

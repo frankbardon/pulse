@@ -8182,7 +8182,8 @@
       ],
       "independent_aggregators": [
         "AGG_DISTINCT_COUNT",
-        "AGG_DISTINCT_SUM"
+        "AGG_DISTINCT_SUM",
+        "AGG_MODE_COUNT"
       ],
       "recompute_aggregators": [
         "AGG_CI_LOWER",
@@ -8192,7 +8193,6 @@
         "AGG_MEDIAN",
         "AGG_MIN",
         "AGG_MODE",
-        "AGG_MODE_COUNT",
         "AGG_PERCENTILE",
         "AGG_RANGE",
         "AGG_SET_INTERSECTION",
@@ -10529,4 +10529,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b3f74fe75a450e3faeb035e251ac343e2f318c051bf20e22c0d0d70ce8dabf85
+// golden-hash: d203b999b6cec2566611a2a997180262d6e273b4d4b2bd0102be5f9b60f57c70
