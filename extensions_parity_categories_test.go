@@ -867,7 +867,8 @@ func (tt *parityTTest) Finalize() (*types.TestResult, error) {
 		res.PValue = parityStudentP(res.Statistic, res.DF)
 		tcrit := parityStudentInv(alpha, res.DF)
 		res.Details = map[string]any{"mu": tt.mu, "n": b.n, "mean": b.mean, "variance": variance,
-			"ci_low": b.mean - tcrit*se, "ci_high": b.mean + tcrit*se}
+			"ci_low": b.mean - tcrit*se, "ci_high": b.mean + tcrit*se,
+			"effect_size": map[string]any{"cohens_d": (b.mean - tt.mu) / sd}}
 	} else {
 		keys := append([]string(nil), tt.order...)
 		sort.Strings(keys)

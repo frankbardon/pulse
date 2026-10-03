@@ -23,13 +23,13 @@ Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Fi
 
 ## Output
 
-`Statistic` = χ²; `DF` = `(rows−1)(cols−1)`; `PValue` via χ² survival. `Details.contingency` carries the observed table; `Details.expected` the expected counts; effect size Cramér's V.
+`Statistic` = χ² (no Yates); `DF` = `(rows−1)(cols−1)`; `PValue` via χ² survival. `Details`: `contingency`, `row_labels`/`col_labels`, `row_totals`/`col_totals`, `n`, `expected_min`. `effect_size.cramers_v` = √(χ²/(n·(min(r,c)−1))); `effect_size.phi` = √(χ²/n), 2×2 only.
 
 ## Gotchas
 
 - Any expected cell `< 5` emits `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` — switch to `TEST_FISHER_EXACT` (2×2 only).
 - Streamable — builds the contingency table during the row scan.
-- Sparse high-cardinality axes blow memory; pair with `FILTER_INCLUDE` on Rows / Cols.
+- Sparse high-cardinality axes blow memory; `FILTER_INCLUDE` them.
 - Pairs with `Response.Crosstab`; `OVERLAY_CHISQ_VS_POP` is the FACET-host equivalent.
 
 ## See

@@ -192,6 +192,7 @@ func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 			"ci_high":  ciHigh,
 		},
 	}
+	setEffectSize(res.Details, "cohens_d", cohensDOneSample(b.mean, tt.mu, sd))
 	return res, nil
 }
 
