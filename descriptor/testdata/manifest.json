@@ -5842,7 +5842,7 @@
       },
       {
         "name": "pulse_process_chain",
-        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT and AGG_MODE_COUNT. The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. AGG_MODE is rejected as non-scalar. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
+        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
       },
       {
         "name": "pulse_range_tables",
@@ -8067,9 +8067,10 @@
         "AGG_COUNT",
         "AGG_DISTINCT_COUNT",
         "AGG_FREQUENCY",
-        "AGG_MODE_COUNT",
         "AGG_MAX",
         "AGG_MIN",
+        "AGG_MODE",
+        "AGG_MODE_COUNT",
         "AGG_NULL_COUNT",
         "AGG_RANGE",
         "AGG_STDDEV",
@@ -8087,7 +8088,6 @@
       "rejection_rules": [
         "chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
         "chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
-        "chain rejects AGG_MODE (non-scalar emit)",
         "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
         "chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
         "chain rejects built-in aggregators over decimal128 targets",
@@ -10529,4 +10529,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b28f091e40124fea48b33b2ea572484f05376c12963f3533a52a1a5915599075
+// golden-hash: 2bcbe7bb3c8d036feed0a97ad34aa02ca5b79a91c0336d139b1f614b47ed9bda

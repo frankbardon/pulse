@@ -1215,12 +1215,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CHAIN_NOT_MERGEABLE: {
-		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, the mode aggregator, or a non-mergeable grouper/aggregator).",
+		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper/aggregator).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Stages", "*", "Request"},
-				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable, scalar-emitting aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (GROUP_CATEGORY, GROUP_RANGE).",
+				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY, MODE, MODE_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (GROUP_CATEGORY, GROUP_RANGE).",
 			},
 		},
 	},

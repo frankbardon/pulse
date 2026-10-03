@@ -524,12 +524,11 @@ func TestValidateChain_HiddenDefaultNotInferred(t *testing.T) {
 	}
 }
 
-// TestValidateChain_NonScalarNoteNamesOnlyOffered: the chain
-// validator admits AGG_MODE_COUNT (a scalar modal count) and refuses
-// AGG_MODE with the "(AGG_MODE is excluded)" note, which names
-// AGG_MODE only because the instance offers it (the snapshot adapter's
-// Hidden) and never names AGG_MODE_COUNT.
-func TestValidateChain_NonScalarNoteNamesOnlyOffered(t *testing.T) {
+// TestValidateChain_AdmitsModeAggregators: the chain validator admits
+// AGG_MODE (the modal value) and AGG_MODE_COUNT (the modal count) —
+// both emit one float64 per row and merge exactly — and still refuses
+// AGG_MODE on an instance that hides it, never naming AGG_MODE_COUNT.
+func TestValidateChain_AdmitsModeAggregators(t *testing.T) {
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	chain := func(agg types.AggregationType) *types.ChainRequest {
 		return &types.ChainRequest{Cohort: &types.Cohort{Filename: "c.pulse"}, Stages: []*types.ChainStage{{Name: "a", Request: &types.Request{
@@ -537,13 +536,17 @@ func TestValidateChain_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 			Aggregations: []*types.Aggregation{{Type: agg, Field: "grade", Label: "f"}},
 		}}}}
 	}
-	for _, opts := range []*PredictOptions{nil, {Instance: hideOnly(string(types.AGG_MODE))}} {
-		if env := ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_MODE_COUNT), opts); len(env.Errors) != 0 {
-			t.Fatalf("validator refused AGG_MODE_COUNT: %s", hiddenEnvJSON(t, env))
+	for _, agg := range []types.AggregationType{types.AGG_MODE, types.AGG_MODE_COUNT} {
+		if env := ValidateChainWithOptions(bytes.NewReader(data), chain(agg), nil); len(env.Errors) != 0 {
+			t.Fatalf("validator refused %s: %s", agg, hiddenEnvJSON(t, env))
 		}
 	}
-	got := hiddenEnvJSON(t, ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_MODE), nil))
-	if !strings.Contains(got, "(AGG_MODE is excluded)") || strings.Contains(got, "AGG_MODE_COUNT") {
-		t.Fatalf("unscoped AGG_MODE refusal = %s", got)
+	scoped := &PredictOptions{Instance: hideOnly(string(types.AGG_MODE))}
+	if env := ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_MODE_COUNT), scoped); len(env.Errors) != 0 {
+		t.Fatalf("validator refused AGG_MODE_COUNT with AGG_MODE hidden: %s", hiddenEnvJSON(t, env))
+	}
+	env := ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_MODE), scoped)
+	if got := hiddenEnvJSON(t, env); len(env.Errors) == 0 || strings.Contains(got, "AGG_MODE_COUNT") {
+		t.Fatalf("hidden AGG_MODE refusal = %s", got)
 	}
 }

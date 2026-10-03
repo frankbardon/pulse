@@ -11,13 +11,12 @@ import (
 
 // CanChainRequest reports whether a request is eligible to participate
 // in a ProcessChain stage — CanChainRequestWithExtensions with a nil
-// registry (built-in operators only). A request qualifies iff:
-//
-//   - It passes the existing mergeable gate (CanMergeRequest), i.e. its
-//     online state can be merged across partitions of the input.
-//   - Every aggregator emits a single scalar value per output row
-//     (mergegate.EmitsScalar: AGG_MODE is excluded; AGG_MODE_COUNT's
-//     modal count is one float64 and is admitted).
+// registry (built-in operators only). A request qualifies iff it
+// passes the mergeable gate (CanMergeRequest), i.e. its online state
+// can be merged across partitions of the input. Every mergeable built-in aggregator emits one float64 per output row,
+// so no further scalar check is needed: AGG_MODE's modal value (on a
+// categorical field the dictionary index, not the label), AGG_MODE_COUNT's
+// modal count and AGG_FREQUENCY's value count are all admitted.
 //
 // The chain executor calls this before each stage. A failing stage
 // surfaces PULSE_CHAIN_NOT_MERGEABLE with the stage index in details.
@@ -57,10 +56,6 @@ func (r *ExtensionRegistry) mergeFacts() mergegate.Extensions {
 }
 
 type registryMergeFacts struct{ r *ExtensionRegistry }
-
-// Hidden reports a built-in the instance does not offer, for the
-// gate's refusal prose (mergegate's optional hider).
-func (f registryMergeFacts) Hidden(name string) bool { return f.r.isHidden(name) }
 
 func (f registryMergeFacts) Aggregator(name string) (bool, bool) {
 	if f.r.isHidden(name) {

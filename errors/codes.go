@@ -757,11 +757,9 @@ const (
 	// PULSE_CHAIN_NOT_MERGEABLE indicates a stage inside a
 	// ProcessChain request fails the chain gate. The gate accepts
 	// mergeable requests (internal/mergegate.MergeRefusal, the rule
-	// processing.CanMergeRequest delegates to)
-	// whose aggregators emit a single scalar per output row. Stages
-	// using windows, features, tier-1/tier-2 tests, regressions,
-	// two-pass attributes, AGG_MODE, or non-mergeable
-	// groupers / aggregators are rejected. The error details carry
+	// processing.CanMergeRequest delegates to). Stages using windows,
+	// features, tier-1/tier-2 tests, regressions, two-pass attributes,
+	// or non-mergeable groupers / aggregators are rejected. The error details carry
 	// the offending stage index and name so callers can fall back to
 	// per-stage Process calls.
 	PULSE_CHAIN_NOT_MERGEABLE Code = "PULSE_CHAIN_NOT_MERGEABLE"

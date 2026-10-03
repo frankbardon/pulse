@@ -36,9 +36,8 @@ func sweepCohortRequest(cohort string) *types.Request {
 
 // runtimeSweepCases covers every runtime remedy clause
 // (internal/processing/refusal_prose.go and the regression remedies).
-// The chain gate's non-scalar note names only AGG_MODE, the operator
-// the refused request itself wrote, so it recommends nothing else and
-// has no case here (internal/mergegate pins its hiding).
+// The chain gate's refusals name only the operator the refused request
+// itself wrote, so they recommend nothing else and have no case here.
 func runtimeSweepCases() []runtimeSweepCase {
 	count := &types.Aggregation{Type: types.AGG_COUNT, Field: "age", Label: "n"}
 	set := func(mut func(r *types.Request)) *types.Request {

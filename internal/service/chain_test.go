@@ -266,6 +266,87 @@ func TestProcessChain_ModeCountAggregatorAccepted(t *testing.T) {
 	}
 }
 
+// TestProcessChain_ModeAggregatorAccepted validates that AGG_MODE —
+// one float64 per row (the modal value, smallest among ties) whose
+// per-value count partials merge exactly — passes the chain gate, and
+// that its chained result equals a plain Process over the same rows.
+// The cohort is a 3-shard archive run on the per-shard parallel reducer
+// (MergeOnline across shards) and on the serial shard path; the
+// reference is the same rows as one single-file cohort. grp 1 ties 4
+// and 9 at three rows each with the tie spread across shards: shard a
+// alone says 9 (the first value seen), shard b says 4, so a first-seen
+// or per-shard-mode merge returns 9 where the smallest-tie mode is 4.
+func TestProcessChain_ModeAggregatorAccepted(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "grp", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
+		{Name: "v", Type: encoding.FieldTypeU8, ByteOffset: 1, CsvColumnIdx: 1},
+	}}
+	// grp 1: 9 and 4 tie at 3 rows (5 has 2) — mode 4.
+	// grp 2: v=3 holds 3 of 5 rows; shard b alone would say v=1, and a
+	// merge that overwrites counts instead of adding them ties 1 and 3.
+	shards := []struct {
+		Name    string
+		Records [][]uint64
+	}{
+		{"a.pulse", [][]uint64{{1, 9}, {1, 9}, {1, 5}, {2, 3}}},
+		{"b.pulse", [][]uint64{{1, 4}, {1, 4}, {1, 5}, {2, 1}, {2, 1}}},
+		{"c.pulse", [][]uint64{{1, 4}, {1, 9}, {2, 3}, {2, 3}}},
+	}
+	var flat [][]uint64
+	for _, sh := range shards {
+		flat = append(flat, sh.Records...)
+	}
+	cfg := setupTestFS(t, "flat.pulse", schema, flat)
+	if err := afero.WriteFile(cfg.Fs(), "arch.pulse", buildShardArchive(t, schema, shards), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	stage0 := func(file string) *types.Request {
+		return &types.Request{
+			Cohort:       &types.Cohort{Filename: file},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grp"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_MODE, Field: "v", Label: "mode"}},
+			Sort:         []types.OrderKey{{Field: "grp"}},
+		}
+	}
+	serial, err := New(cfg).Process(ctx, stage0("flat.pulse"))
+	if err != nil {
+		t.Fatalf("serial Process: %v", err)
+	}
+	wantMode := map[string]float64{"1": 4, "2": 3}
+	if len(serial.Data) != len(wantMode) {
+		t.Fatalf("serial rows = %v", serial.Data)
+	}
+	for _, row := range serial.Data {
+		if k := fmt.Sprint(row["grp"]); row["mode"] != wantMode[k] {
+			t.Fatalf("serial grp %s: mode = %v, want %v", k, row["mode"], wantMode[k])
+		}
+	}
+
+	for _, workers := range []int{3, 1} {
+		svc := New(cfg)
+		svc.SetShardWorkers(workers)
+		resp, err := svc.ProcessChain(ctx, &types.ChainRequest{
+			Cohort: &types.Cohort{Filename: "arch.pulse"},
+			Stages: []*types.ChainStage{
+				{Name: "mode", Request: stage0("")},
+				{Name: "total", Request: &types.Request{
+					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "mode", Label: "total"}},
+				}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("workers=%d: ProcessChain: %v", workers, err)
+		}
+		if !reflect.DeepEqual(resp.Stages[0].Data, serial.Data) {
+			t.Errorf("workers=%d: chain stage 0 = %v, serial Process = %v", workers, resp.Stages[0].Data, serial.Data)
+		}
+		if got := resp.Final.Data[0]["total"]; got != 7.0 {
+			t.Errorf("workers=%d: stage 1 total = %v, want 7 (4 + 3)", workers, got)
+		}
+	}
+}
+
 // TestProcessChain_EmptyStagesError validates the empty-chain guard.
 func TestProcessChain_EmptyStagesError(t *testing.T) {
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
