@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	perrors "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/profilefile"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -193,23 +193,15 @@ func featuresShowCommand() *cli.Command {
 	}
 }
 
-// featuresReadProfile reads the FILE argument as a host OS path and
-// strictly decodes it with pulse.ParseFeatureProfile. An unreadable file
-// is PULSE_FEATURE_PROFILE_INVALID reason file_unreadable, as for
-// `pulse mcp --feature-profile`.
+// featuresReadProfile reads the FILE argument as a host OS path through
+// the same reader as `pulse mcp --feature-profile` (profilefile.ReadOS).
 func featuresReadProfile(cmd *cli.Command) (*pulse.FeatureProfile, error) {
 	path := cmd.Args().First()
 	if path == "" {
 		return nil, perrors.NewCodedError(perrors.CLI_INPUT,
 			fmt.Sprintf("usage: pulse features %s FILE (a feature profile JSON file)", cmd.Name))
 	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, perrors.NewCodedErrorWithDetails(perrors.PULSE_FEATURE_PROFILE_INVALID,
-			fmt.Sprintf("feature profile: cannot read %q: %v", path, err),
-			map[string]any{"reason": "file_unreadable", "path": path})
-	}
-	return pulse.ParseFeatureProfile(raw)
+	return profilefile.ReadOS(path)
 }
 
 // featuresFail reports a fatal error and returns it, so the process

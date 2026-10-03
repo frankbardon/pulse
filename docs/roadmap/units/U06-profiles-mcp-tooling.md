@@ -124,4 +124,4 @@ Contract of record is `.claude/reference/feature-profiles.md` ("Notes for U06", 
 - Manifest `skills[].description` is not routed through `Discovery.renderMetadata`.
 - Overlay examples with an empty `_meta.operators` match only by body token.
 - Capability-keyed pruning past facet / crosstab / joins / compose.
-- Housekeeping: `internal/cli/features.go` duplicates the host-path profile-file reader in `mcpserve`.
+- Housekeeping (done): the host-path profile-file reader is one function, `internal/profilefile.ReadOS`, shared by `mcpserve.NewPulse` and `pulse features`.

@@ -1,13 +1,12 @@
 package mcpserve
 
 import (
-	stderrors "errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/profilefile"
 )
 
 // envFeatureProfile names the environment variable NewPulse falls back
@@ -47,39 +46,11 @@ func NewPulse(popts pulse.Options, opts Options) (*pulse.Pulse, error) {
 	}
 
 	if path != "" {
-		fp, err := readFeatureProfileOS(path)
+		fp, err := profilefile.ReadOS(path)
 		if err != nil {
 			return nil, err
 		}
 		popts.FeatureProfile = fp
 	}
 	return pulse.New(popts)
-}
-
-// readFeatureProfileOS reads a profile from a host OS path. This is the
-// one deliberate read outside the instance afero Fs: the path names
-// server configuration, not a cohort.
-func readFeatureProfileOS(path string) (*pulse.FeatureProfile, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_FEATURE_PROFILE_INVALID,
-			fmt.Sprintf("feature profile: cannot read %q: %v", path, err),
-			map[string]any{"reason": "file_unreadable", "path": path})
-	}
-	fp, err := pulse.ParseFeatureProfile(raw)
-	if err != nil {
-		var ce *errors.CodedError
-		if stderrors.As(err, &ce) {
-			details := make(map[string]any, len(ce.Details)+1)
-			for k, v := range ce.Details {
-				details[k] = v
-			}
-			details["path"] = path
-			return nil, errors.NewCodedErrorWithDetails(ce.Code,
-				fmt.Sprintf("feature profile: %q: %s", path, strings.TrimPrefix(ce.Message, "feature profile: ")),
-				details)
-		}
-		return nil, err
-	}
-	return fp, nil
 }
