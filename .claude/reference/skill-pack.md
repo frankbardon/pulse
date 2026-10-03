@@ -71,7 +71,24 @@ Inline: compare with<!-- feature: TEST_WELCH --> `TEST_WELCH`<!-- /feature -->.
 - **Errors** (`*skills.FenceError`, 1-based `Line`): nesting (any opener inside an open fence), a closer with no opener, a block never closed, an inline opener not closed on its line, an empty name. `TestSkillFences_EmbeddedPackParses` keeps the pack well formed. Markers are recognised everywhere, code blocks included.
 - **Rendering.** Markers are ALWAYS stripped from a served body: `skills.Get` (CLI `pulse skills show`, the pass-through instance) is the FULL render (every fence kept); `skills.Raw` is the embedded file verbatim (renderers and the ontology builder read it). A profiled instance renders each visible body against its PRUNED graph (`Discovery.Skill`): fences first, then — atomic bodies only — `## See` by edge: an item naming a pruned skill stem, or a `pulse_examples_search tags=[…]` ref no visible example answers, is cut with its `, ` / `; ` / ` / ` separator (an item keeps its `(annotation)`; a shared ` — description` tail stays), and a line left naming nothing is dropped. `## See` stems therefore need no fences. A fence-free body renders byte-identically.
 - **Graph.** Each name a TOPICAL body fences is a `skill routes_to <feature>` edge; it never prunes the skill (only `requires:` does). Atomic fences emit no edge.
-- **Frontmatter `description` cannot hold a fence** — it is rendered by the metadata `ProseScrub`, so keep descriptions free of other features' names.
+- **Frontmatter `description` cannot hold a fence** — it is rendered by the metadata `ProseScrub`, so keep descriptions free of other features' names ("Fence coverage" below).
+
+## Fence coverage (U10)
+
+Fences are the BACKSTOP, not the design. A served skill should teach the DECISION (which question, which shape of data, which trade-off), route to an intent (`pulse_skills_get intents`) rather than enumerate operators, and leave operator-vs-operator comparisons to each operator's `Purpose.NotFor` (`.claude/reference/guided-analysis.md`) — the manifest already prunes those per instance. Only a name that must stay in prose is fenced.
+
+`TestSkillsCoverFeatureFences` (`internal/descriptor/skill_fence_coverage_test.go`) scans every embedded skill (virtual skills excluded) and prints a per-file table sorted by violation count, with per-family totals:
+
+```sh
+go test ./internal/descriptor/ -run TestSkillsCoverFeatureFences -v
+```
+
+- **Scan list:** every operator feature (bare constant), every non-operator feature in its `<kind>:<name>` spelling (`capability:crosstab`, `io_format:spss`), and every MCP tool a FEATURE owns (`pulse_facet` → `capability:facet`; `features.go` `mcpToolBindings`). Core tools (`pulse_manifest`, `pulse_skills_get`, …) are never hidden and are not scanned. A bare word sharing a capability's name (`crosstab`, `process`, `import`) is prose, not a feature name, and is not scanned — only the kind-prefixed spelling is.
+- **Whole tokens:** a run of `[A-Za-z0-9_]` optionally joined by one colon to another run — `pulse_process_chain` never counts as `pulse_process`, `AGG_SUM_X` never as `AGG_SUM`. A colon token that is no feature (`operator:AGG_SUM`, an ontology ID) is split and each half looked up. Code blocks and JSON examples are scanned like prose.
+- **Fenced** means the mention disappears when the body is rendered with that ONE feature hidden — it sits in a fence whose name list includes it (a tool needs its owning feature). A fence naming a different feature does not count.
+- **Guard exemption:** a name the skill is pruned with needs no fence — an atomic skill's own `operator:` (plus `capability:synth` for a synth distribution), the feature owning a tool skill's tool, a topical skill's `requires:` targets. Read from the base ontology exactly as the prune reads it.
+- **Frontmatter `description`:** cannot hold a fence, so every unguarded name there is a violation; other frontmatter keys (`operator:`, `covers:`) are not scanned.
+- **Modes:** REPORT-ONLY while the const `fenceCoverageFail` is false (logs the table, passes); E4-S3 flips it and every violation fails. A malformed fence or an unknown fence name fails in BOTH modes.
 
 ## Required body sections (atomic skills)
 
