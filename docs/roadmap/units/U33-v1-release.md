@@ -33,7 +33,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#168** (12. Release v1.0.0) `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md))
 - [ ] **#169** (12. Release v1.0.0) Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
-- [ ] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items, signs off the inferential guidance, and owns the statistical-review CODEOWNERS entries
+- [ ] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section), signs off the U08 inferential AND the U09 descriptive guidance, and owns the statistical-review CODEOWNERS entries
 - [ ] **#171** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values
 - [ ] **#173** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups
 - [ ] **#174** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator has `Purpose`, `Interpretation` (if inferential), `Since`, dependency edges and an atomic skill
@@ -47,7 +47,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 
 **In scope**
 - STABILITY.md
-- Human statistics sign-off of the U08 review record (#206) — release-blocking
+- Human statistics sign-off of the U08 review record, covering U08 inferential and U09 descriptive guidance (#206) — release-blocking
 - rc tag + downstream validation
 - Cross-cutting verification (TODO §13)
 - v1.0.0 tag
@@ -65,7 +65,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 
 ### E2 — Verified and released
 - S1: cross-cutting sweep (§13 items)
-- S1b: statistics sign-off (#206) — reviewer works the U08 review record's open items, records the sign-off in the record, lands CODEOWNERS
+- S1b: statistics sign-off (#206) — reviewer works the U08 review record's open items (U08 and U09 sections), records the sign-off in the record, lands CODEOWNERS
 - S2: `v1.0.0-rc.1`; downstream library validation
 - S3: `v1.0.0`
 
@@ -74,7 +74,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 - [ ] Every TODO item is ticked, or explicitly moved to post-1.0 in the theme docs
 - [ ] The rc builds through the release pipeline, and the downstream library passes its own tests against it
 - [ ] The API-compat check is active against `v1.0.0`
-- [ ] A named statistics reviewer's sign-off is recorded in `docs/roadmap/reviews/U08-statistics-review.md`, every open item there resolved or deferred with a reason, and `.github/CODEOWNERS` routes the guidance registries to the reviewer
+- [ ] A named statistics reviewer's sign-off is recorded in `docs/roadmap/reviews/U08-statistics-review.md`, every open item there (U08 and U09 sections) resolved or deferred with a reason, and `.github/CODEOWNERS` routes the guidance registries to the reviewer
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
@@ -90,7 +90,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 ## Human inputs & decisions
 
 - Maintainer runs the downstream validation and tags the release
-- **Statistics reviewer** (maintainer sources one) signs off U08's inferential guidance (#206); no `rc` is tagged before it
+- **Statistics reviewer** (maintainer sources one) signs off U08's inferential and U09's descriptive guidance (#206); no `rc` is tagged before it
 
 ## Notes
 
@@ -112,3 +112,11 @@ U08 shipped Purpose + Interpretation for every `TEST_*`, `OVERLAY_*` and `REG_*`
 - **`OVERLAY_INDEX_VS_MARGIN` declared scopes.** The skill lists `row` / `column` scopes and a SERIES output; the capability declares only `cell` / MATRIX. Not verified against the scope gate in U08 — resolve which is right before sign-off.
 - **Numeric correctness is U36's**, not the reviewer's: the runtime bugs the record lists (infinite Fisher OR / correlation `t`, Brown–Forsythe at zero spread, the inverse-erf CI, Shapiro n < 5) and the per-output oracles land in [U36](U36-reference-oracles.md) before this unit.
 - **CODEOWNERS.** Point the reviewer's entries at the landed registries: `internal/descriptor/{purposes,purposes_*,interpretations,interpretations_*,conventions,glossary,intents}.go`, `internal/descriptor/testdata/conventions.json`, the effect-size code in `internal/processing/test_*.go`, `internal/statdist/` and `scripts/reference/`. `.github/CODEOWNERS` carries only the default `*` owner today.
+
+## Inherited from U09
+
+U09 gave every descriptive built-in (aggregators, attributes, windows, features, filters, groupers, synth distributions) a Purpose, and every needs-reading one a `value` / `value.*` Interpretation. Its review used the same pattern as U08: binding gates plus an advisory LLM panel (scope A in two passes, scope B in one combined pass). The maintainer accepted all 64 findings and applied them. The record is the **U09 section of the same file**, [`reviews/U08-statistics-review.md`](../reviews/U08-statistics-review.md). #206 signs off both units there:
+
+- **Open items.** Work the "Open items for the U33 human reviewer (U09)" list. Most are runtime behaviours the guidance now describes honestly and that are logged for [U36](U36-reference-oracles.md): truthy filters on category labels, 0 for empty groups, text-order group rows, `AGG_ZSCORE`'s shape, normal-not-t CI bounds, the unstable `ATTR_PERCENTILE` tie order, 0 / 50 for missing attribute inputs, the split-blind target encoder, synth `u4` wraparound, and numeric groupers accepting category fields.
+- **Unbanded shape readings.** Skewness, kurtosis and the descriptive z / T scores carry no bands (fixture `excluded`). Confirm that is right.
+- **CODEOWNERS** covers the descriptive registries too (`purposes_*.go` and `interpretations_*.go` already match the globs above).
