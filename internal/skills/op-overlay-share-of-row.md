@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Family: explicit-margin (`Ref.Margin`). Structural twin of `OVERLAY_SHARE_OF_COL` / `OVERLAY_SHARE_OF_TOTAL`. Compatible with any cell aggregator.
+MATRIX crosstab (`Response.Crosstab.Matrix`). Family: explicit-margin (`Ref.Margin`). Structural twin of the column and grand-total shares. Compatible with any cell aggregator.
 
 ## Output
 
@@ -25,7 +25,7 @@ MATRIX — `Cells[r][c].Value = cell / row_margin` (raw ratio, no ×100). Cells 
 
 ## Gotchas
 
-- Distinct from `OVERLAY_INDEX_VS_MARGIN` (×100). Kind names kept distinct — author doesn't confuse `share` with `index/100`.
+- A share, not an index (×100): the kind names are kept distinct so `share` is never read as `index/100`.
 - `row_margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected row.
 - Absent host cells stay absent on the overlay.
 - Scope MUST be `cell`. Empty `Ref.Margin` or non-row Axis → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.

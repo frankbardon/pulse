@@ -176,17 +176,49 @@ func TestManifestIntents_TopLevel(t *testing.T) {
 	}
 }
 
-// TestManifestIntents_StaticUnderProfile: a scoped instance — even one
-// enabling nothing — carries the same static taxonomy.
-func TestManifestIntents_StaticUnderProfile(t *testing.T) {
+// TestManifestIntents_PrunedUnderProfile: the top-level intents[] is
+// read off the instance ontology. A profile that hides nothing (an empty
+// Hidden list) keeps the whole taxonomy; hiding every operator that
+// serves an intent drops it (synth → simulate); an intent no operator
+// serves (lookup, flows, measure_construct) always stays; and the
+// manifest list equals the ontology's surviving intent nodes.
+func TestManifestIntents_PrunedUnderProfile(t *testing.T) {
 	for name, set := range map[string]FeatureSet{
 		"empty":   {},
 		"one-agg": {Enabled: []string{"AGG_SUM"}},
 	} {
 		got := BuildManifestForInstance(NewInstanceSnapshot(nil, set)).Intents
 		if !slices.Equal(got, IntentIDs()) {
-			t.Errorf("%s: instance manifest intents = %v, want %v", name, got, IntentIDs())
+			t.Errorf("%s: nothing hidden, instance manifest intents = %v, want %v", name, got, IntentIDs())
 		}
+	}
+
+	var enabled, hidden []string
+	for _, n := range ReachedFeatureNames(buildinfo.Version()) {
+		if n == featSynth {
+			hidden = append(hidden, n)
+		} else {
+			enabled = append(enabled, n)
+		}
+	}
+	inst := NewInstanceSnapshot(nil, FeatureSet{Enabled: enabled, Hidden: hidden})
+	got := BuildManifestForInstance(inst).Intents
+	if slices.Contains(got, IntentSimulate) {
+		t.Errorf("synth hidden: manifest intents still list %q: %v", IntentSimulate, got)
+	}
+	for _, keep := range []string{IntentLookup, IntentFlows, IntentMeasureConstruct, IntentDescribe} {
+		if !slices.Contains(got, keep) {
+			t.Errorf("synth hidden: manifest intents dropped %q: %v", keep, got)
+		}
+	}
+	var want []string
+	for _, id := range IntentIDs() {
+		if inst.Ontology().Has(OntologyID(descriptor.OntologyNodeIntent, id)) {
+			want = append(want, id)
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("manifest intents = %v, ontology intent nodes = %v", got, want)
 	}
 }
 
@@ -295,11 +327,16 @@ func TestManifestIntents_EntriesAndHidePath(t *testing.T) {
 		t.Fatal(err)
 	}
 	js := string(b)
-	for _, gone := range []string{`"` + IntentCompareGroups + `"`, `"` + IntentDrivers + `"`, `"` + IntentComposition + `"`, `"` + IntentSimulate + `"`} {
-		// Each appears once in the top-level taxonomy; any further
-		// occurrence is a hidden entry's leaked intents.
-		if c := strings.Count(js, gone); c != 1 {
-			t.Errorf("scoped manifest mentions %s %d times, want 1 (top-level only)", gone, c)
+	for _, gone := range []string{IntentCompareGroups, IntentDrivers, IntentComposition, IntentSimulate} {
+		// Each appears at most once, in the top-level list (the
+		// ontology prunes an intent every server of which is hidden);
+		// any further occurrence is a hidden entry's leaked intents.
+		want := 0
+		if slices.Contains(scoped.Intents, gone) {
+			want = 1
+		}
+		if c := strings.Count(js, `"`+gone+`"`); c != want {
+			t.Errorf("scoped manifest mentions %q %d times, want %d (top-level only)", gone, c, want)
 		}
 	}
 	if findOp(scoped.Components.Aggregators, agg) != nil {
@@ -308,7 +345,7 @@ func TestManifestIntents_EntriesAndHidePath(t *testing.T) {
 	if op := findOp(scoped.Components.Aggregators, aggKeep); op == nil || !slices.Equal(op.Intents, []string{IntentDataQuality, IntentDescribe}) {
 		t.Errorf("visible %s lost its intents under the profile: %v", aggKeep, op)
 	}
-	if !slices.Equal(scoped.Intents, IntentIDs()) {
-		t.Errorf("scoped top-level intents = %v", scoped.Intents)
+	if slices.Contains(scoped.Intents, IntentSimulate) {
+		t.Errorf("synth hidden, yet top-level intents keep %q: %v", IntentSimulate, scoped.Intents)
 	}
 }

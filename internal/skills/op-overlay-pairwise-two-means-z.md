@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise, welford-triple]
 ---
 
-Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope pairs row indices per column, `column` pairs column indices per row. Normal-CDF sibling of `OVERLAY_PAIRWISE_WELCH_T` — same standard error, no Satterthwaite df. Overlays decorate the host; no `Response.Components` (this family READS them).
+Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope pairs row indices per column, `column` pairs column indices per row. Normal-CDF sibling of the pairwise Welch t — same standard error, no Satterthwaite df. Overlays decorate the host; no `Response.Components` (this family READS them).
 
 ## Params
 
@@ -23,13 +23,13 @@ MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Component
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values (layout as `op-overlay-pairwise-prop-z`). Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `z = (m_i - m_j) / se`, `p = 2 * Φ(-|z|)` via the `normalTwoSidedP` helper backing `TEST_Z_TWO_SAMPLE`.
+MATRIX — pair × opposite-axis grid of two-sided p-values <!-- feature: OVERLAY_PAIRWISE_PROP_Z --> (layout as `op-overlay-pairwise-prop-z`)<!-- /feature -->. Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `z = (m_i - m_j) / se`, `p = 2 * Φ(-|z|)` via the `normalTwoSidedP` helper the two-sample z-test uses.
 
 ## Gotchas
 
 - Either leg with `n <= 1` skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
-- Use `OVERLAY_PAIRWISE_WELCH_T` when small-sample df correction matters; this kind assumes the normal approximation.
-- Weighted cells: `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` (`op-overlay-pairwise-weighted-two-means-z`). `n_basis` here is inert; predict refuses it.
+- Assumes the normal approximation: no small-sample df correction.
+- `n_basis` here is inert; predict refuses it.
 - RAW p-values only — direction / thresholds are the embedder's job.
 - Buffered (inferential) — and so is the HOST: the `AGG_WELFORD` cell is non-mergeable, so `CanFuseCrosstab` rejects on the cell-aggregator arm. Expected (`TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`).
 

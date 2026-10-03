@@ -25,10 +25,10 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
-- Streamable — same per-group Welford as `TEST_ANOVA_F`; only the statistic + denominator change.
-- Use when `TEST_BROWN_FORSYTHE` rejects equal-variance.
+- Streamable — same per-group Welford as classic one-way ANOVA; only the statistic + denominator change.
+- Use when group spreads may differ.
 - Tier-2 `welch_one_way_post` reads per-group `{mean, variance, n}`; same keys.
-- Post-hoc: Tukey HSD assumes equal variance; for unequal fall back to pairwise `TEST_WELCH` + Bonferroni.
+- Post-hoc: Tukey HSD assumes equal variance<!-- feature: TEST_WELCH -->; for unequal fall back to pairwise `TEST_WELCH` + Bonferroni<!-- /feature -->.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 
 ## See

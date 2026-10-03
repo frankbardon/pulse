@@ -8,7 +8,7 @@ applies_to: compose, process, mcp
 
 ## When to use
 
-Multiple distinct `types.Request` payloads against the same or different cohorts. Ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates). Any multi-question authoring loop where individual `pulse_process` calls would be N round-trips.
+Multiple distinct `types.Request` payloads against the same or different cohorts. Ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates). Any multi-question authoring loop where one call per question would be N round-trips.
 
 ## Input
 
@@ -25,7 +25,7 @@ Multiple distinct `types.Request` payloads against the same or different cohorts
 ## Gotchas
 
 - Compose-overlay multi-slot probes use byte-equal schema match by default. Enable `OverlaySpec.Options.DictPrefixFast` when slots share dictionary-prefix-equal categoricals.
-- Panel overlays (`OVERLAY_PROP_Z_PANEL`, `OVERLAY_PANEL_INDEX_VS_REF`) cap Targets at `MaxPanelTargets` (default 16); overflow → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
+- Panel overlays cap Targets at `MaxPanelTargets` (default 16); overflow → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 - Per-slot errors surface in the slot's envelope; Compose returns the array even when one slot fails (unless `FailFast: true`).
 
 ## See

@@ -78,7 +78,7 @@ func buildCategoricalPairSampler(p CategoricalPairSpec) *categoricalPairSampler 
 // weightedSamplerFromCounts builds a deterministic weightedCategoricalSampler
 // from a value -> count map. Map iteration order in Go is randomized, and
 // this feeds the seeded RNG stream (see the Determinism contract in
-// skills/synthetic-data.md: same spec + same seed must produce a
+// skills/synth-determinism.md: same spec + same seed must produce a
 // byte-identical .pulse file) — so keys are sorted before the cumulative
 // weight table is built. Returns nil when counts is empty or every weight
 // is non-positive.
@@ -456,7 +456,7 @@ func setOptionMap(row map[string]any, field string) map[string]bool {
 // sampler is simpler to reason about and keeps every accumulation in
 // SetCategoricalPairSpec.Cells' own deterministic slice order, never a
 // map range, so the same spec + seed still produces byte-identical
-// output (see skills/synthetic-data.md's Determinism contract).
+// output (see skills/synth-determinism.md).
 type setCategoricalPairSampler struct {
 	set, option, categorical string
 	// perCategory maps an observed categorical value to P(selected).

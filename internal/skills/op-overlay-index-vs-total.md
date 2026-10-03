@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — grouped Process host. First streamable SERIES-host overlay with a streaming finalize hook. Sibling to `OVERLAY_SHARE_OF_TOTAL` (SERIES arm) — same accumulator, different scale.
+SERIES — grouped Process host. First streamable SERIES-host overlay with a streaming finalize hook. Sibling to the grand-total share (SERIES arm) — same accumulator, different scale.
 
 ## Output
 
@@ -29,7 +29,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `index =
 - Absent host group → `SeriesEntry` with unset `Statistic` and does NOT contribute to grand total.
 - Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Streamable — one `float64` grand-total accumulator carried alongside per-group accumulators inside the streaming Process fold. Post-host finalize is the divide step.
-- AGG_SUM semantics — counts post-filter rows, not pre-filter row count.
+- Sum semantics — counts post-filter rows, not pre-filter row count.
 
 ## See
 

@@ -27,7 +27,6 @@ One `int64` per row written to `Label` (default `WIN_RANK`). Ties (rows equal on
 
 ## Gotchas
 
-- Use `WIN_DENSE_RANK` if you want `(1, 2, 2, 3, 4)` — no gaps.
 - `order_by` defines BOTH scan order AND tie key — same field choice changes the answer.
 - Multiple `order_by` keys: tie only when ALL keys equal.
 - Result rows are NOT reordered — use `Request.Sort` for response order.

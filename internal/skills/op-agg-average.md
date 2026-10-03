@@ -37,8 +37,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Null inputs skipped — mean is over `n` non-null, not the cohort.
-- For weighted mean use `AGG_WEIGHTED_MEAN`.
-- For streaming central tendency under high-precision needs use `AGG_WELFORD` (returns rich triple).
 
 ## See
 

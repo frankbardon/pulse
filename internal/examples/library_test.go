@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io/fs"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -77,11 +76,6 @@ func TestExamples_TagsFromTaxonomy(t *testing.T) {
 	}
 }
 
-// operatorRe captures `"type": "PREFIX_..."` in a JSON request body.
-// Kept in sync with the regex used by cmd/annotate-examples so the test
-// would also fail if either side drifts.
-var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|REG)_[A-Z0-9_]+)"`)
-
 // TestExamples_OperatorsMatchBody verifies the declared operators
 // equal the operators that can be auto-derived by scanning the request
 // body. Drift between the two surfaces is a sign that an example was
@@ -89,29 +83,13 @@ var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN
 func TestExamples_OperatorsMatchBody(t *testing.T) {
 	idx := loadIndex()
 	for name, ex := range idx.byName {
-		got := derive(ex.Body)
+		got := DeriveOperators(ex.Body)
 		want := append([]string(nil), ex.Operators...)
 		sort.Strings(want)
 		if !equalStrings(got, want) {
 			t.Errorf("%s: declared operators %v ≠ derived %v", name, want, got)
 		}
 	}
-}
-
-// derive auto-discovers operator names from a raw body the same way
-// the annotation tool does.
-func derive(body []byte) []string {
-	matches := operatorRe.FindAllStringSubmatch(string(body), -1)
-	seen := make(map[string]struct{}, len(matches))
-	for _, m := range matches {
-		seen[m[1]] = struct{}{}
-	}
-	out := make([]string, 0, len(seen))
-	for op := range seen {
-		out = append(out, op)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func equalStrings(a, b []string) bool {
@@ -147,7 +125,7 @@ func TestExamples_CategoryMatchesDirectory(t *testing.T) {
 			t.Errorf("%s: missing _meta", p)
 			return nil
 		}
-		var m meta
+		var m Meta
 		if err := json.Unmarshal(rawMeta, &m); err != nil {
 			t.Errorf("%s: parse _meta: %v", p, err)
 			return nil
@@ -363,7 +341,7 @@ func names(hits []ExampleSummary) []string {
 // TestExamples_MetaIntentsParsed: the optional _meta.intents key decodes
 // into meta.Intents, and Intents() surfaces a tagged shipped example.
 func TestExamples_MetaIntentsParsed(t *testing.T) {
-	var m meta
+	var m Meta
 	if err := json.Unmarshal([]byte(`{"name":"x","intents":["describe","compare_groups"]}`), &m); err != nil {
 		t.Fatal(err)
 	}
@@ -372,5 +350,63 @@ func TestExamples_MetaIntentsParsed(t *testing.T) {
 	}
 	if got := Intents()["decimal_sum"]; !equalStrings(got, []string{"describe"}) {
 		t.Errorf("Intents()[decimal_sum] = %v, want [describe]", got)
+	}
+}
+
+// TestExamples_MetaCapabilitiesParsed: the optional _meta.capabilities
+// key decodes into meta.Capabilities, and Capabilities() surfaces the
+// facet-host examples that declare it (their bodies name no operator).
+func TestExamples_MetaCapabilitiesParsed(t *testing.T) {
+	var m Meta
+	if err := json.Unmarshal([]byte(`{"name":"x","capabilities":["capability:stream"]}`), &m); err != nil {
+		t.Fatal(err)
+	}
+	if !equalStrings(m.Capabilities, []string{"capability:stream"}) {
+		t.Errorf("meta.Capabilities = %v", m.Capabilities)
+	}
+	caps := Capabilities()
+	for _, n := range []string{"facet_simple_one_field", "facet-index-vs-pop"} {
+		if got := caps[n]; !equalStrings(got, []string{"capability:facet"}) {
+			t.Errorf("Capabilities()[%s] = %v, want [capability:facet]", n, got)
+		}
+	}
+	if _, ok := caps["decimal_sum"]; ok {
+		t.Error("Capabilities() lists an example without the key")
+	}
+}
+
+// TestParse: the shared file parser strips _meta from the body, refuses
+// a missing _meta block, and refuses an unknown _meta key only in strict
+// mode (embedder examples).
+func TestParse(t *testing.T) {
+	ex, m, err := Parse([]byte(`{"_meta":{"name":"x","category":"c"},"b":1,"a":2}`), true)
+	if err != nil || m.Name != "x" || ex.Category != "c" || string(ex.Body) != `{"a":2,"b":1}` {
+		t.Fatalf("Parse = %v %+v %v", ex, m, err)
+	}
+	if _, _, err := Parse([]byte(`{"a":1}`), false); err != ErrNoMeta {
+		t.Errorf("no _meta: err = %v, want ErrNoMeta", err)
+	}
+	odd := []byte(`{"_meta":{"name":"x","owner":"me"}}`)
+	if _, _, err := Parse(odd, false); err != nil {
+		t.Errorf("lenient: %v", err)
+	}
+	if _, _, err := Parse(odd, true); err == nil {
+		t.Error("strict: unknown _meta key accepted")
+	}
+}
+
+// TestSearchIn_MatchesSearch: Search is SearchIn over the embedded
+// library, so a merged library ranks by the same rules.
+func TestSearchIn_MatchesSearch(t *testing.T) {
+	for _, q := range []string{"", "Welch", "AGG_SUM"} {
+		a, b := Search(q, nil, ""), SearchIn(All(), q, nil, "")
+		if len(a) != len(b) {
+			t.Fatalf("%q: %d vs %d", q, len(a), len(b))
+		}
+		for i := range a {
+			if a[i].Name != b[i].Name {
+				t.Errorf("%q: [%d] %s vs %s", q, i, a[i].Name, b[i].Name)
+			}
+		}
 	}
 }

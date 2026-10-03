@@ -283,7 +283,7 @@ clamped to B's own observed `[min, max]` exactly as B's unconditional
 
 Every `set_*` field is profiled marginally as N independent Bernoulli
 sub-fields, one per dictionary option (bit position) — see
-`skills/synthetic-data.md` ("Set (multi-select) field profiling").
+`skills/synth-set-fields.md` ("Set (multi-select) field profiling").
 `--conditional` extends the pair-reconstruction sections above to any
 pair involving a `set_*` field by running the SAME machinery once PER
 OPTION rather than once per field:
@@ -1584,7 +1584,7 @@ The profile JSON is always written to `--output`. With `--json`, the
 envelope is also written to stdout (typically piped or `jq`-d).
 
 Profile schema lives in `internal/synth/profile.go` and is documented in
-`skills/synthetic-data.md`.
+`skills/synth-profile-capture.md`.
 
 ### Reproducibility — across machines, not just across runs
 
@@ -1815,7 +1815,9 @@ pulse cohort inspect sales.synth.pulse
   consumer of profile JSON
 - [`pulse synth from-schema`](synth-from-schema.md) — the alternative
   spec-driven path
-- `skills/synthetic-data.md` — full profile and spec grammar
-- `skills/synth-models.md` — `--fit-models` capture, selection and shrinkage
+- `skills/synthetic-data.md` — spec grammar and the index of focused `synth-*` skills
+- `skills/synth-profile-capture.md` — every capture section and the per-field reconstruction
+- `skills/synth-marginals.md` — boolean and small-integer reconstruction
+- `skills/synth-models.md` — `--fit-models` capture; `skills/synth-model-selection.md` — selection and shrinkage
 - [Synth calibration figures and design rationale](synth-calibration.md)
 - [Library: pulse.Profile](../library/overview.md)

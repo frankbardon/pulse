@@ -26,9 +26,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Gotchas
 
 - Streamable — per-group Welford feeds both SS terms.
-- Rejects globally, not per pair — follow with tier-2 `TEST_TUKEY_HSD` via `ms_within` / `df_within`.
-- Unequal spread: use `TEST_ANOVA_WELCH`; a large `TEST_BROWN_FORSYTHE` p is not equal spread.
-- Normality: `TEST_SHAPIRO_WILK` describes shape, not a gate; skew -> `TEST_KRUSKAL_WALLIS`. Repeated measures → `TEST_ANOVA_RM` (needs `SubjectField`).
+- Rejects globally, not per pair<!-- feature: TEST_TUKEY_HSD --> — follow with tier-2 `TEST_TUKEY_HSD` via `ms_within` / `df_within`<!-- /feature -->.
+- Assumes equal spread; a large p from a spread test is not evidence of it.
+- Normality: a normality test describes shape; it is not a gate.
 - Tier-2 `one_way_from_summary` reads group summaries; same keys.
 
 ## See

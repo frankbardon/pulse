@@ -909,7 +909,7 @@ stderr summary marks `!` and lists first, so it does not need finding.
   independently. Reconstruction uses a conditional-Gaussian
   construction (`internal/synth/copula.go`) that exactly targets the captured
   Pearson `rho` for jointly-normal fields — see
-  `skills/synthetic-data.md` for the technique and its trade-offs.
+  `skills/synth-correlations.md` for the technique and its trade-offs.
   A small-integer or boolean participant reconstructs as a staircase
   (`discrete` / `bernoulli`), which holds its own per-level shares
   exactly and attenuates the realised correlation: measured on two real
@@ -980,6 +980,7 @@ stderr summary marks `!` and lists first, so it does not need finding.
 
 - [`pulse profile create`](profile-create.md)
 - [`pulse synth from-schema`](synth-from-schema.md)
-- `skills/synthetic-data.md` — the spec / profile grammar
-- `skills/synth-models.md` — `--fit-models`, residual correlations, and the two structure-recovery fidelity sections
+- `skills/synthetic-data.md` — the spec grammar and the index of focused `synth-*` skills
+- `skills/synth-fidelity-report.md` — the tagged top-up contract and the fidelity sections
+- `skills/synth-models.md` — `--fit-models` entry skill; `skills/synth-residual-correlations.md`, `skills/synth-model-recovery.md` and `skills/synth-residual-recovery.md` carry residual correlations and the two structure-recovery fidelity sections
 - [Synth calibration figures and design rationale](synth-calibration.md)

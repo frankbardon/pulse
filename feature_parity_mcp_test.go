@@ -28,7 +28,6 @@ import (
 	"testing"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
-	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -300,23 +299,6 @@ func (h mcpHiddenNames) leaks(text string) []string {
 	return out
 }
 
-// invisibilityExemptSkill is the explicit allowlist of rendered
-// surfaces that MAY name a hidden feature: a topical (kind: design)
-// skill body. Topical bodies are served whole and unrendered on a
-// profiled instance — the deliberate U05/U06 exemption until U10 fences
-// or renders them (.claude/reference/feature-profiles.md, "Notes for
-// U05 / U06", skill / example prune). Their NAMES are still listed and
-// their reads still pass through the prune; only the body is exempt.
-// Nothing else is exempt.
-func invisibilityExemptSkill(name string) bool {
-	for _, m := range skills.List() {
-		if m.Name == name {
-			return m.Kind == "design"
-		}
-	}
-	return false
-}
-
 // toolPayload decodes the text content of a successful tool result.
 func toolPayload(t *testing.T, outcome []byte, into any) {
 	t.Helper()
@@ -409,9 +391,6 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 	rendered["read pulse://schema"] = sess.ReadResource("pulse://schema")
 	rendered["read pulse://"+h.cohort] = sess.ReadResource("pulse://" + h.cohort)
 	for _, uri := range uris {
-		if name, ok := strings.CutPrefix(uri, "pulse-skill://"); ok && invisibilityExemptSkill(name) {
-			continue
-		}
 		rendered["read "+uri] = sess.ReadResource(uri)
 	}
 
@@ -420,9 +399,6 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 	exampleNames := listedExamples(t, sess)
 	rendered["pulse_skills_list"] = sess.CallTool("pulse_skills_list", map[string]any{})
 	for _, s := range skillNames {
-		if invisibilityExemptSkill(s) {
-			continue
-		}
 		rendered["pulse_skills_get "+s] = sess.CallTool("pulse_skills_get", map[string]any{"name": s})
 	}
 	rendered["pulse_examples_search"] = sess.CallTool("pulse_examples_search", map[string]any{})

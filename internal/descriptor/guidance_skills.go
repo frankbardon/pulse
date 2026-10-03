@@ -13,8 +13,13 @@ import (
 // rendered from their registries here and registered with the skill
 // pack so every skill surface (pulse skills list/show, pulse_skills_list
 // / pulse_skills_get, pulse-skill:// resources, the manifest's skills
-// list) carries them with no per-consumer wiring. Neither registry is a
-// feature, so a feature profile never prunes or scrubs them.
+// list) carries them with no per-consumer wiring. Neither skill is ever
+// pruned, but on a feature-profiled instance Discovery.Skill renders
+// each body from the instance's pruned ontology: an intent no enabled
+// operator serves and a glossary term every operator user of which is
+// hidden are absent, and a See also link into a pruned term is dropped
+// (ontology_instance.go). The registry-wide renders below are the
+// unpruned bodies.
 
 const (
 	glossarySkillDescription = "Plain-language glossary of the statistical terms Pulse guidance uses. Use when a result, purpose or skill names a term you need explained."
@@ -47,8 +52,18 @@ func skillFrontmatter(b *strings.Builder, name, description string) {
 // RenderGlossarySkill renders the glossary skill's markdown: every term
 // sorted by ID, with its definition, why it matters, the spellings that
 // count as the term, and related terms. Deterministic.
-func RenderGlossarySkill() string {
-	terms := Glossary()
+func RenderGlossarySkill() string { return renderGlossarySkill(nil) }
+
+// renderGlossarySkill renders the glossary skill over the terms keep
+// admits (nil keeps every term); a See also entry naming a dropped term
+// is dropped too.
+func renderGlossarySkill(keep func(id string) bool) string {
+	var terms []descriptor.Term
+	for _, t := range Glossary() {
+		if keep == nil || keep(t.ID) {
+			terms = append(terms, t)
+		}
+	}
 	sort.Slice(terms, func(i, j int) bool { return terms[i].ID < terms[j].ID })
 	var b strings.Builder
 	skillFrontmatter(&b, skills.VirtualGlossary, glossarySkillDescription)
@@ -71,9 +86,18 @@ func RenderGlossarySkill() string {
 			b.WriteString(strings.Join(t.Forms, ", "))
 			b.WriteString("\n")
 		}
-		if len(t.SeeAlso) > 0 {
+		see := t.SeeAlso
+		if keep != nil {
+			see = nil
+			for _, id := range t.SeeAlso {
+				if keep(id) {
+					see = append(see, id)
+				}
+			}
+		}
+		if len(see) > 0 {
 			b.WriteString("\nSee also: ")
-			b.WriteString(strings.Join(t.SeeAlso, ", "))
+			b.WriteString(strings.Join(see, ", "))
 			b.WriteString("\n")
 		}
 	}
@@ -84,8 +108,18 @@ func RenderGlossarySkill() string {
 // analytic intents, then those that route to tooling, each group sorted
 // by ID, with the intent's phrasings and alternative data shapes.
 // Deterministic.
-func RenderIntentsSkill() string {
-	all := Intents()
+func RenderIntentsSkill() string { return renderIntentsSkill(nil) }
+
+// renderIntentsSkill renders the intents skill over the intents keep
+// admits (nil keeps every intent). A section left empty keeps its
+// heading.
+func renderIntentsSkill(keep func(id string) bool) string {
+	var all []descriptor.Intent
+	for _, in := range Intents() {
+		if keep == nil || keep(in.ID) {
+			all = append(all, in)
+		}
+	}
 	sort.SliceStable(all, func(i, j int) bool { return all[i].ID < all[j].ID })
 	var b strings.Builder
 	skillFrontmatter(&b, skills.VirtualIntents, intentsSkillDescription)

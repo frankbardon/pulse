@@ -1002,6 +1002,42 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_SKILL_INVALID: {
+		Message: "A skill file in Extensions.Skills fails validation; details name the skill and the reason (layout, stem, frontmatter, name, kind, operator, category, requires, sections, budget, fence, fence_coverage, see).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Ship only top-level .md files: op-<category>-<kebab>.md documenting a registered extension operator (stem = op- + the operator name lowercased, _ to -; kind: operator; category: and operator: matching it) or ext-<kebab>.md (kind: design). Keep frontmatter name equal to the stem, carry the family's required ## sections, stay within the budget (op-* 1200 bytes, ext-* 6000 bytes of body), close every <!-- feature: … --> fence and name only features or registered operators in it, fence every other operator, <kind>:<name> feature or feature-owned pulse_* tool the body names, and point ## See only at skills the instance carries.",
+			},
+		},
+	},
+	PULSE_EXTENSION_SKILL_COLLISION: {
+		Message: "An Extensions.Skills stem is already taken by a built-in skill or by another embedder skill file.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Rename the file: embedder skills never override or shadow the built-in pack (pulse_skills_list lists every taken stem), and each stem may be shipped once across every merged Extensions value. Topical embedder skills use the ext-<kebab> prefix, which no built-in carries.",
+			},
+		},
+	},
+	PULSE_EXTENSION_EXAMPLE_INVALID: {
+		Message: "An example file in Extensions.Examples fails validation; details name the example and the reason (layout, meta, name, category, description, tags, intents, operators, capabilities, body, operators_body, edge_coverage).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Ship only top-level .json files, each a request body plus a _meta block with only the keys name, category, description, tags, operators, intents, capabilities: name and category lowercase (letters, digits, - or _), a description, tags from the canonical example taxonomy, intents from the intent taxonomy (pulse.Intents), operators registered on the instance (built-in or yours) and exactly the body's \"type\" values, capabilities only as non-operator feature names (capability:stream). The body must decode strictly as its request root (requests → compose, stages → process chain, fields → facet, otherwise process), and every operator named elsewhere in the body or description must be reachable by an edge (list it in a type or overlays[].kind, or drop the mention).",
+			},
+		},
+	},
+	PULSE_EXTENSION_EXAMPLE_COLLISION: {
+		Message: "An Extensions.Examples name is already taken by a built-in example or by another embedder example file.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Rename _meta.name: embedder examples never override or shadow the built-in library (pulse_examples_search lists every taken name), and each name may be shipped once across every merged Extensions value. Prefixing names with your namespace (acme-…) avoids both.",
+			},
+		},
+	},
 	PULSE_EXTENSION_MERGEABLE_MISMATCH: {
 		Message: "An aggregator or grouper registration declared Mergeable=true but cannot merge: it is not Streamable, its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
 		Fixups: []Fixup{

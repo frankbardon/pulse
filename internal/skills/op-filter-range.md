@@ -31,10 +31,9 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 
 ## Gotchas
 
-- Inclusive bounds on both ends. Open intervals require `FILTER_EXPRESSION`.
+- Inclusive bounds on both ends. <!-- feature: FILTER_EXPRESSION -->Open intervals require `FILTER_EXPRESSION`.<!-- /feature -->
 - Null rows fail the predicate (dropped).
 - `date` interpreted as the numeric day-since-epoch — pass numeric strings, not formatted dates.
-- For non-numeric fields use `FILTER_INCLUDE` / `FILTER_EXPRESSION`.
 
 ## See
 

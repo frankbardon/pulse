@@ -57,6 +57,8 @@ var (
 			{When: "two groups are compared and the measure is heavily skewed, has extreme values or is only ordered", Use: "TEST_MANN_WHITNEY_U"},
 			{When: "there are three or more groups", Use: "TEST_ANOVA_WELCH"},
 			{When: "the outcome is a yes/no rate rather than a numeric measure", Use: "TEST_PROP_Z"},
+			{When: "the request is always a two-group comparison and should say so by name", Use: "TEST_WELCH"},
+			{When: "both groups are large and reporting conventions call for a z-test", Use: "TEST_Z_TWO_SAMPLE"},
 		},
 		Assumptions: []string{
 			"Rows are independent of each other, within and across groups.",

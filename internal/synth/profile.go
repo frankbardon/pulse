@@ -724,7 +724,7 @@ type CorrelationStat struct {
 // with no shared identity" (which would drop the fact that every option
 // rides one bounded, shared dictionary — the same per-option addressing
 // E5-S2's joint/conditional capture reuses). Full rationale:
-// skills/synthetic-data.md ("Set (multi-select) field profiling").
+// skills/synth-set-fields.md ("Set (multi-select) field profiling").
 //
 // This section is marginal-only: joint/conditional structure between
 // options, or between a set_* field and another field, is E5-S2's job.

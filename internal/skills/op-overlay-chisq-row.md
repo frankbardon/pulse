@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Family: implicit-margin χ² (no `Ref`). Compatible with any crosstab regardless of cell aggregator; row-axis twin of `OVERLAY_CHISQ_COL`.
+MATRIX crosstab (`Response.Crosstab.Matrix`). Family: implicit-margin χ² (no `Ref`). Compatible with any crosstab regardless of cell aggregator; row-axis twin of the column χ².
 
 ## Output
 
@@ -25,7 +25,7 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per row ke
 
 ## Gotchas
 
-- Reuses `chiSquareSurvival` — byte-equal p-values to `TEST_CHISQ` / `OVERLAY_CHISQ_MATRIX` / `OVERLAY_CHISQ_COL` on the same contingency.
+- Reuses `chiSquareSurvival` — byte-equal p-values to every χ² test and overlay on the same contingency.
 - Any `expected < 5` in a row emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending row.
 - Absent host cell treated as observed count of 0.
 - Scope MUST be `row`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.

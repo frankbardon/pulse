@@ -126,7 +126,7 @@ func TestRegister_DiscoveryHonoursFeatureProfile(t *testing.T) {
 	// Skills: hidden operator skill, hidden tool skill; kept type,
 	// topical and core-tool skills.
 	listed := skillsListed(t, c)
-	for _, gone := range []string{"op-reg-glm", "op-agg-average", "op-overlay-yoy", "op-synth-normal", "tool-lookup", "tool-compose"} {
+	for _, gone := range []string{"op-reg-glm", "op-agg-average", "op-overlay-yoy", "op-synth-normal", "tool-lookup", "tool-compose", "crosstab-guide"} {
 		if slices.Contains(listed, gone) {
 			t.Errorf("pulse_skills_list lists hidden skill %s", gone)
 		}
@@ -134,7 +134,7 @@ func TestRegister_DiscoveryHonoursFeatureProfile(t *testing.T) {
 			t.Fatalf("profile-free pulse_skills_list lacks %s (test premise)", gone)
 		}
 	}
-	for _, kept := range []string{"op-agg-sum", "type-u8", "crosstab-guide", "tool-inspect", "tool-process"} {
+	for _, kept := range []string{"op-agg-sum", "type-u8", "response-components", "tool-inspect", "tool-process"} {
 		if !slices.Contains(listed, kept) {
 			t.Errorf("pulse_skills_list dropped visible skill %s", kept)
 		}
@@ -153,9 +153,11 @@ func TestRegister_DiscoveryHonoursFeatureProfile(t *testing.T) {
 	if want := readResourceRaw(c, gosdk.SkillURIScheme+bogusSkill); got != want {
 		t.Errorf("pulse-skill:// read hidden != nonexistent:\n hidden: %s\n bogus:  %s", got, want)
 	}
-	// Topical bodies are served whole (unrendered) on a profiled instance.
-	if a, b := callRaw(t, c, "pulse_skills_get", map[string]any{"name": "crosstab-guide"}), callRaw(t, full, "pulse_skills_get", map[string]any{"name": "crosstab-guide"}); a != b {
-		t.Errorf("topical skill body changed under a feature profile")
+	// A fence-free topical body is served byte-identically on a profiled
+	// instance (topical bodies render by fence only; response-components
+	// carries capability fences since E4-S2, so it no longer qualifies).
+	if a, b := callRaw(t, c, "pulse_skills_get", map[string]any{"name": "cohort-null-states"}), callRaw(t, full, "pulse_skills_get", map[string]any{"name": "cohort-null-states"}); a != b {
+		t.Errorf("fence-free topical skill body changed under a feature profile")
 	}
 
 	// Examples.

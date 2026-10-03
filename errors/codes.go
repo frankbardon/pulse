@@ -580,6 +580,52 @@ const (
 	// every violation. Wired into extensions_guidance.go at pulse.New.
 	PULSE_EXTENSION_PURPOSE_INVALID Code = "PULSE_EXTENSION_PURPOSE_INVALID"
 
+	// PULSE_EXTENSION_SKILL_INVALID indicates a skill file in
+	// Extensions.Skills fails validation at pulse.New: the fs.FS cannot
+	// be read or holds a non-`.md` entry or a directory, a stem is
+	// neither `op-<category>-<kebab>` nor `ext-<kebab>`, the frontmatter
+	// is missing or its `name` differs from the stem, an atomic skill's
+	// `operator:` names no registered extension operator (or its stem or
+	// `category:` disagree with it), a `requires:` entry names no
+	// feature, a required `##` section is missing, the body is over its
+	// family budget (hard for embedder skills), a feature fence is
+	// malformed or names no feature, a feature name is left unfenced,
+	// or a `## See` stem resolves to no skill. Details carry "skill",
+	// "reason" and the reason's specifics. Wired into
+	// internal/descriptor/extension_skills.go.
+	PULSE_EXTENSION_SKILL_INVALID Code = "PULSE_EXTENSION_SKILL_INVALID"
+
+	// PULSE_EXTENSION_SKILL_COLLISION indicates an Extensions.Skills
+	// stem that is already taken: by a built-in (embedded or virtual)
+	// skill — embedders never override or shadow the shipped pack — or
+	// by another embedder file with the same stem (several Extensions
+	// values merged). Details carry "skill" and "reason" ("builtin" or
+	// "duplicate").
+	PULSE_EXTENSION_SKILL_COLLISION Code = "PULSE_EXTENSION_SKILL_COLLISION"
+
+	// PULSE_EXTENSION_EXAMPLE_INVALID indicates an example file in
+	// Extensions.Examples fails validation at pulse.New: the fs.FS cannot
+	// be read or holds a non-`.json` entry or a directory, a file is not
+	// a JSON object with a `_meta` block (or `_meta` carries an unknown
+	// key), `_meta.name` / `category` / `description` is missing or
+	// malformed, a tag is not canonical, an intent is not in the
+	// taxonomy, an operator is not registered on the instance, a
+	// capability is not a non-operator feature, the body does not parse
+	// strictly for its request root, `_meta.operators` differs from the
+	// body's `type` values, or an operator the body or description names
+	// is joined to the example by no ontology edge. Details carry
+	// "example", "reason" and the reason's specifics. Wired into
+	// internal/descriptor/extension_examples.go.
+	PULSE_EXTENSION_EXAMPLE_INVALID Code = "PULSE_EXTENSION_EXAMPLE_INVALID"
+
+	// PULSE_EXTENSION_EXAMPLE_COLLISION indicates an Extensions.Examples
+	// `_meta.name` that is already taken: by a built-in example —
+	// embedders never override or shadow the shipped library — or by
+	// another embedder file (in one fs.FS or across merged Extensions
+	// values). Details carry "example" and "reason" ("builtin" or
+	// "duplicate").
+	PULSE_EXTENSION_EXAMPLE_COLLISION Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
+
 	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator or
 	// grouper registration declared Mergeable=true but cannot honour it:
 	// the registration is not also Streamable (merge folds ONLINE state,
@@ -2678,6 +2724,10 @@ var allCodes = []Code{
 	PULSE_EXTENSION_STREAMABLE_MISMATCH,
 	PULSE_EXTENSION_FANOUT_MISMATCH,
 	PULSE_EXTENSION_PURPOSE_INVALID,
+	PULSE_EXTENSION_SKILL_INVALID,
+	PULSE_EXTENSION_SKILL_COLLISION,
+	PULSE_EXTENSION_EXAMPLE_INVALID,
+	PULSE_EXTENSION_EXAMPLE_COLLISION,
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,

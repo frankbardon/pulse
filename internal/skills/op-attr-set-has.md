@@ -32,7 +32,7 @@ One `packed_bool` per record — `1` if the named label's bit is set, `0` otherw
 
 - Row-local one-pass — streams cleanly.
 - Unknown `label` (not in the field's dictionary) → `PROCESSING_CONFIG`.
-- Frequently fanned out — one slot per label of interest — to build per-label binary cohorts. Multi-label tests are cheaper via `FILTER_SET_*` or a single `ATTR_FORMULA` using `has_any` / `has_all`.
+- Frequently fanned out — one slot per label of interest — to build per-label binary cohorts. Multi-label tests are cheaper as one set filter<!-- feature: ATTR_FORMULA --> or one `ATTR_FORMULA` using `has_any` / `has_all`<!-- /feature -->.
 - Coerces to `f64` (1.0 / 0.0) when read by downstream numeric ops.
 
 ## See

@@ -13,7 +13,7 @@ examples_tags: [cross-tabulation, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `value` | string | (required) | Matched as `FILTER_INCLUDE` matches: category label, else a number (`date` days, `datetime` seconds, `packed_bool` `1`/`0`) |
+| `value` | string | (required) | Matched like an include filter: category label, else a number (`date` days, `datetime` seconds, `packed_bool` `1`/`0`) |
 
 ## Inputs
 
@@ -23,7 +23,7 @@ examples_tags: [cross-tabulation, streaming-friendly]
 
 ## Output
 
-Scalar `float64` — rows equal to `value`, per group. = `FILTER_INCLUDE` + `AGG_COUNT`.
+Scalar `float64` — rows equal to `value`, per group.
 
 ## Components
 
@@ -38,10 +38,10 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Missing `value` → `PROCESSING_CONFIG` (runtime and predict). Modal count: `AGG_MODE_COUNT`.
+- Missing `value` → `PROCESSING_CONFIG` (runtime and predict).
 - A value no row holds counts 0, not an error — check spelling.
 - Nulls: not counted, not in `share`'s base.
-- `set_*` rejected with `PROCESSING_CONFIG`; use `AGG_SET_FREQUENCY`.
+- `set_*` rejected with `PROCESSING_CONFIG`.
 
 ## See
 

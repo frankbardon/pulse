@@ -17,7 +17,7 @@ Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decora
 
 ## Host shape
 
-CHAIN — `ProcessChain` with reference + target stage's host result shape (scalar / series / matrix). Subtractive twin of `OVERLAY_INDEX_VS_STAGE`.
+CHAIN — `ProcessChain` with reference + target stage's host result shape (scalar / series / matrix). Subtractive twin of the stage index.
 
 ## Output
 
@@ -25,7 +25,7 @@ Shape inherited from target stage. Per-coordinate `delta = target_val - ref_val`
 
 ## Gotchas
 
-- No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO`. Distinct from `OVERLAY_INDEX_VS_STAGE`.
+- No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO`. Distinct from the ratio twin.
 - Target shape ≠ ref shape → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` + NaN across coordinates.
 - Unknown stage → `PULSE_OVERLAY_REF_UNKNOWN` (`PULSE_OVERLAY_TARGET_UNKNOWN` when it lands).
 - Buffered (whole-chain barrier runs after every stage finalises by construction).

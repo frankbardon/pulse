@@ -42,7 +42,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Empty mask is a valid "no selection" — distinct from null.
 - Union mask only honors bits seen in non-null rows.
-- For per-bit row counts use `AGG_SET_FREQUENCY`.
 
 ## See
 

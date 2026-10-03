@@ -41,7 +41,7 @@ import (
 // correlator — see fieldMoments) mixture; poisson (no quantile at all
 // for a discrete lattice under this construction) and bernoulli
 // (degenerate quantile under a continuous copula draw) are deliberately
-// out of scope. See skills/synthetic-data.md (Pairwise correlations).
+// out of scope. See skills/synth-correlations.md (Pairwise correlations).
 //
 // Why a parametric quantile-function construction and not a rank-based
 // empirical copula: a schema-mode spec (`synth from-schema`,
@@ -509,7 +509,7 @@ func factorCorrelations(subject, participant string, names []string, idx map[str
 // z is consumed in COMPONENT ORDER, one rng.NormFloat64() per
 // participant, and both callers fix that order at construction time
 // from the Spec rather than from a map — the determinism contract rests
-// on it. See skills/synthetic-data.md (Determinism).
+// on it. See skills/synth-determinism.md.
 func correlatedNormals(rng *mrand.Rand, chol [][]float64, z, u []float64) {
 	for i := range z {
 		z[i] = rng.NormFloat64()

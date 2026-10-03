@@ -8,6 +8,9 @@
     ],
     "name": "facet_numeric_with_histogram",
     "operators": [],
+    "capabilities": [
+      "capability:facet"
+    ],
     "tags": [
       "facet",
       "distribution-shape"

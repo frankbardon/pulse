@@ -89,6 +89,20 @@ type ExtensionsSnapshot struct {
 	// Interpretation entries, keyed by registered test name, already
 	// structure-checked at pulse.New. Never serialised.
 	Interpretations map[string][]descriptor.Interpretation `json:"-"`
+
+	// Skills carries every embedder skill (Extensions.Skills), already
+	// validated at pulse.New against EVERY registration
+	// (LoadExtensionSkills). The instance graph keeps the ones whose
+	// operator / requires survive the profile (extendOntology).
+	// Never serialised.
+	Skills []ExtensionSkill `json:"-"`
+
+	// Examples carries every embedder example (Extensions.Examples),
+	// already validated at pulse.New against EVERY registration
+	// (LoadExtensionExamples). The instance graph keeps the ones whose
+	// extension operators survive the profile (extendOntology), then
+	// prunes them like built-ins. Never serialised.
+	Examples []ExtensionExample `json:"-"`
 }
 
 // PurposeOf returns the Purpose the extension operator name declares.

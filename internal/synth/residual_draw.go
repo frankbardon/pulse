@@ -69,7 +69,7 @@ import (
 // did. So the per-row RNG sequence is a function of the Spec alone, and
 // "same spec + same seed produces a byte-identical .pulse file" survives
 // a stage in which fields now share randomness. See
-// skills/synthetic-data.md (Determinism).
+// skills/synth-determinism.md.
 
 // residualCorrelator holds the Cholesky factor of the residual
 // correlation matrix over the modelled fields that participate, plus the

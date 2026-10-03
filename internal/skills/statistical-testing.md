@@ -9,9 +9,17 @@ covers: [TEST, tier-1, tier-2, tests, post_tests, ANOVA, Tukey, assumption-gates
 
 # Statistical testing
 
-Pulse runs hypothesis tests through two independent slots. Per-TEST math lives in atomic `op-test-*` skills; this file covers pairing.
+Pulse runs hypothesis tests through two independent slots. This file teaches choosing and chaining; per-test detail lives in atomic `op-test-<name>` skills.
 
 Tests do not emit `Response.Components`. Results ride `Response.Tests` / `Response.PostTests`.
+
+## Finding the right test
+
+Start from the question, not a test name:
+
+1. `pulse_skills_get intents` — pick the question kind: `compare_groups` (do averages / rates / mixes differ), `relationship` (do two fields move together), `distribution_shape` (is it normal, do two shapes differ), `change_over_time` (is an ordered series trending), `benchmark` (one group against a fixed target).
+2. In `pulse_manifest`, keep the `tests[]` entries whose `intents` carry that ID. Each entry also states its `tier` and `streamable`.
+3. Read the chosen `op-test-<name>` skill; each test's guidance names its alternatives, so narrow by data shape (below), not by catalogue.
 
 ## Two tiers, one shape
 
@@ -26,54 +34,67 @@ Both share `Test` shape (`{type, field, field2?, split_by?, params?}`) and `Test
 
 Tier 1 — raw distribution questions (A/B revenue, churn × region independence, column normality). Tier 2 — per-group summaries / windowed columns (do per-region averages differ, trend on `moving_avg`, correlate two per-group aggregates).
 
-Ecological caveat: `TEST_PEARSON_R` raw-row vs per-group aggregate disagree under Simpson's paradox. `Variant` (`pearson` vs `pearson_post`) disambiguates.
+Ecological caveat: raw-row and per-group-aggregate correlations can disagree (Simpson's paradox); the `Variant` (`pearson` vs `pearson_post`) says which you got.
 
-## Pairing rules
+## Decision criteria
 
-**ANOVA alone vs ANOVA + Tukey.** `TEST_ANOVA_F` rejects the global null but tells you nothing about *which pairs* differ. For pairwise localization, follow with `TEST_TUKEY_HSD` (tier-2 only) — Tukey-Kramer studentized-range p, family-wise α controlled. Workflow: tier-1 `TEST_ANOVA_F`, read `ms_within` / `df_within`, second request with `TEST_TUKEY_HSD` passing those as `params`. ANOVA alone is correct for a yes/no global question.
+Four questions narrow a comparison:
 
-**Pre-ANOVA gates.** Before `TEST_ANOVA_F`: (1) per-group normality via `TEST_SHAPIRO_WILK` w/ `split_by` (n ≤ 5000 per group; larger → `PULSE_TEST_SHAPIRO_N_BOUND`); (2) equal variance via `TEST_BROWN_FORSYTHE` (median-based, robust under non-normality).
+| Question | Pushes toward |
+|---|---|
+| How many groups? | two → a two-sample test; three or more → an ANOVA-family test |
+| Same subjects measured more than once? | yes → a paired / repeated-measures test |
+| Roughly normal, or skewed / ranked / extreme? | normal → mean-based tests; otherwise rank-based tests |
+| Similar spread across groups? | no → the Welch forms (heteroscedasticity-robust) |
 
-If Brown-Forsythe rejects → `TEST_ANOVA_WELCH` (heteroscedasticity-robust; same Welford state, Welch-Satterthwaite df). Normality fails badly → `TEST_KRUSKAL_WALLIS`. Repeated measures (one observation per subject per condition) → `TEST_ANOVA_RM`.
+Outcome type routes first: a numeric measure → mean or rank tests; a yes/no rate → the two-proportion z or a contingency test; two categorical fields → the χ² test (2×2 with any expected cell < 5 → Fisher's exact, `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`); two numeric fields → a correlation (linear, monotonic or concordance — Kendall's cost grows with n²).
 
-**Two-sample.** `TEST_T` / `TEST_WELCH` assume approximate normality; `TEST_WELCH` relaxes equal-variance. `TEST_Z_TWO_SAMPLE` only when n is large per group AND survey conventions demand normal-CDF p (small-n divergence from `TEST_WELCH` non-trivial). Normality suspect → `TEST_MANN_WHITNEY_U` (independent), `TEST_WILCOXON_SR` (paired). Paired parametric → `TEST_PAIRED_T`.
+## Assumption gates before an ANOVA
 
-**Contingency.** `TEST_CHISQ` on `rows × cols`. Fall back to `TEST_FISHER_EXACT` when any expected cell < 5 (`PULSE_TEST_EXPECTED_COUNT_TOO_LOW`) — Fisher restricted to 2×2. Two-proportion shortcut: `TEST_PROP_Z`.
+Before trusting a one-way ANOVA:
 
-**Correlation.** `TEST_PEARSON_R` linear (parametric). `TEST_SPEARMAN_R` monotonic (rank-based, robust to outliers). `TEST_KENDALL_TAU` concordance (small-sample preferred; O(n²) cost). All three on both tiers.
+1. Per-group normality — the Shapiro-Wilk test with `split_by` (n ≤ 5000 per group; larger → `PULSE_TEST_SHAPIRO_N_BOUND`).
+2. Equal spread — the Brown-Forsythe test (median-based, robust under non-normality).
 
-**Distribution / trend.** `TEST_KS` two-sample CDF (both tiers; buffered). `TEST_TREND` Mann-Kendall on ordered series (tier 2 only — needs `order_by`).
+A failed spread gate moves you to Welch's ANOVA (same Welford state, Welch-Satterthwaite df); badly failed normality moves you to the rank-based Kruskal-Wallis. Gates are evidence, not proof: at small n they miss real departures, at huge n they flag trivial ones.
+
+## ANOVA alone vs ANOVA + post-hoc
+
+The F test rejects the global null but says nothing about *which pairs* differ. ANOVA alone is correct for a yes/no global question. For pairwise localization chain two requests:
+
+1. Tier-1 one-way ANOVA; read `ms_within` / `df_within` from its `Details`.
+2. Tier-2 Tukey HSD with those two values as `params` — Tukey-Kramer studentized-range p, family-wise α controlled.
+
+After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tests and adjust the p-values yourself (for example Holm).
 
 ## P-value conventions
 
 - `alpha` defaults to 0.05; range `(0, 1)`; out-of-range → `PULSE_TEST_INVALID_ALPHA`.
-- Two-sided by default. Symmetric distributions emit two-sided p; one-sided needs caller-side post-processing on the statistic.
-- REG_* inference uses Wald-z, not Student-t — `TEST_*` never mixes the two.
+- Two-sided by default; one-sided needs caller-side post-processing on the statistic.
+- Regression inference uses Wald-z, not Student-t — the `TEST_*` families never mix the two.
 - Multi-group headline tracks worst group; per-group detail in `Details.per_group`.
 
 ## Streamability
 
-Tier-1 streaming reuses online state from aggregators on the same fields — `TEST_T`, `TEST_WELCH`, `TEST_Z_TWO_SAMPLE`, `TEST_CHISQ`, `TEST_ANOVA_F`, `TEST_ANOVA_WELCH`, `TEST_PEARSON_R`, `TEST_PAIRED_T`, `TEST_PROP_Z`. Forced-buffered tier-1: `TEST_KS`, `TEST_MANN_WHITNEY_U`, `TEST_WILCOXON_SR`, `TEST_KRUSKAL_WALLIS`, `TEST_SPEARMAN_R`, `TEST_KENDALL_TAU`, `TEST_BROWN_FORSYTHE`, `TEST_FISHER_EXACT`, `TEST_SHAPIRO_WILK`, `TEST_ANOVA_RM`. Declared in `types/streamability.go`; surfaces via `pulse_predict`.
-
-Tier 2 always buffered. `TEST_TUKEY_HSD` and `TEST_TREND` are tier-2 only.
+A tier-1 test streams when it can run on online state (mean / variance / n, or contingency counts); rank-, sort- and permutation-based tests are forced buffered. Read the per-test answer from the manifest `tests[].streamable` (declared in `types/streamability.go`) or `pulse_predict` — never from memory. Tier 2 is always buffered, and some families exist on tier 2 only (the manifest lists one entry per tier).
 
 ## Composition with aggregators
 
-Cheapest pattern — declare `AGG_WELFORD` on the same `(field, split_by)` and the tier-1 t-test reads its running `(mean, variance, n)` for free. `Response.Components.Aggregations[i].Operator` mean / variance triples are byte-equal to the standalone `TEST_WELCH` numerators on the same inputs; same goes for `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` on crosstab cells. See `aggregation-design`.
+Cheapest pattern — declare the Welford aggregator on the same `(field, split_by)`; a mean-based tier-1 test reads its running `(mean, variance, n)` free. `Response.Components.Aggregations[i].Operator` mean / variance triples are byte-equal to the standalone Welch numerators on the same inputs; the same holds for the crosstab cell t / z overlays. See `aggregation-design`.
 
 ## Gotchas
 
 - Tier-2 `field` names match the aggregator's projected column (`AGG_<TYPE>_<field>`); aliases not honored in output schema today.
-- Tier-2 `TEST_ANOVA_WELCH` needs `params.n_col` + `params.variance_col` upstream.
-- Tier-2 `TEST_TUKEY_HSD` requires `params.ms_within` + `params.df_within` from a preceding tier-1 ANOVA.
-- Tiny groups → unstable p; gate with `AGG_COUNT` and the `PULSE_TEST_INSUFFICIENT_N` floor.
+- Tier-2 Welch's ANOVA needs `params.n_col` + `params.variance_col` upstream.
+- Tier-2 Tukey HSD requires `params.ms_within` + `params.df_within` from a preceding tier-1 ANOVA.
+- Tiny groups → unstable p; gate with a row count and the `PULSE_TEST_INSUFFICIENT_N` floor.
 - `PULSE_TEST_VARIANCE_ZERO`: constant field within a split group breaks correlation and t-tests.
 
 ## See
 
 - Recipes: `pulse_examples_search tags=["ab-test"]`, `tags=["anova"]`, `tags=["correlation"]`, `tags=["nonparametric"]` plus atomic `op-test-<name>`.
 - `aggregation-design` — Welford-triple reuse + `MetaAggregator` contract.
-- `regression-modeling` — Wald-z vs Student-t inference inside REG_*.
+- `regression-modeling` — Wald-z vs Student-t inference inside regressions.
 - `overlay-system` — crosstab cell-level stat overlays.
 - `request-envelope` — slot keys, streamability rules.
 - `pulse_errors_lookup` — `PULSE_TEST_*` recovery steps.

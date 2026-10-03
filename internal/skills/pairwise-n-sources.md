@@ -1,17 +1,28 @@
 ---
 name: pairwise-n-sources
-description: The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and the direct-caller bypass.
+description: The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
 type: guide
 kind: design
 applies_to: process, compose, predict
 covers: [OVERLAY, PairwiseOverlayParams, n_source, p_source]
+requires: [capability:crosstab]
 ---
 
 # Pairwise sample-size sources
 
-Every `OVERLAY_PAIRWISE_*` kind decodes one shared `OverlaySpec.Params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`, `n_basis`. Per-kind math stays in the atomics.
+Every `OVERLAY_PAIRWISE_*` kind decodes one shared `params` blob (`types.PairwiseOverlayParams`): `pair_along_dim`, `n_source`, `n_within_depth`, `p_source`, `n_basis`. This skill is the vocabulary; per-kind math and param acceptance live in each kind's atomic skill (manifest `overlays[]` entries serving `compare_groups`).
 
-Every mode reads `Response.Components.Crosstab`; a components-disabled host fires `PULSE_OVERLAY_COMPONENTS_REQUIRED` first. An unreadable leg SKIPS the pair (aggregated `PULSE_OVERLAY_REF_ZERO`), never a zero n.
+Every mode reads `Response.Components.Crosstab`, so a components-disabled host is refused first (`PULSE_OVERLAY_COMPONENTS_REQUIRED`). An unreadable leg SKIPS the pair (aggregated `PULSE_OVERLAY_REF_ZERO`), never a zero n.
+
+## Choosing n
+
+The question is: **what does one observation mean here?**
+
+- One record per respondent, unweighted → the default, `cell_n_unweighted`.
+- Weighted data → `cell_weight_sum` (needs a cell aggregator that emits `sum_weights`).
+- The pair compares slices of a wider population (the share of a region WITHIN an issuer) → `n_within`, holding the first `n_within_depth`+1 dims fixed.
+- Several records per respondent and n must be respondents → a DISTINCT mode (below).
+- Margin bases → `row_margin_n` / `column_margin_n`, or their distinct twins.
 
 ## The nine n_source modes
 
@@ -21,56 +32,42 @@ Every mode reads `Response.Components.Crosstab`; a components-disabled host fire
 | `cell_value_weighted` | the cell VALUE, truncated |
 | `cell_weight_sum` | `CellComponents[r][c]["sum_weights"]` |
 | `row_margin_n` / `column_margin_n` | `RowMarginCounts[r]` / `ColumnMarginCounts[c]` |
-| `n_within` | the SLAB: sum `CellCounts` across the pair axis, first `n_within_depth`+1 dims held fixed |
+| `n_within` | the SLAB: `CellCounts` summed across the pair axis, first `n_within_depth`+1 dims held fixed |
 | `n_within_distinct` | that slab, in distinct KEYS |
 | `row_margin_distinct` / `column_margin_distinct` | `RowMarginComponents[r]` / `ColumnMarginComponents[c]`, in distinct KEYS |
 
-`OVERLAY_PAIRWISE_WELCH_T` and `OVERLAY_PAIRWISE_TWO_MEANS_Z` REFUSE both selectors — every `n_source` and `p_source`, not just the distinct ones. n and both moments come from the Welford triple, so either would be a silent no-op: `PULSE_OVERLAY_PARAM_MISSING` at predict. Predict ONLY: an inert param cannot make a wrong number, so a runtime twin would only break a working `Process`. (A DISTINCT mode is still refused at runtime, under that SAME code.) `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` refuses both selectors too, at predict AND runtime (a new kind breaks no caller), and REQUIRES `n_basis` (`weights` | `kish`); `n_basis` on any other kind is inert, refused at predict only (same code). `n_within_depth` applies to `n_within` / `n_within_distinct` only (`types.PairwiseNSourceUsesWithinDepth`); margin modes ignore it and `>=` the pair-axis dim count is refused.
+`n_within_depth` applies to the two within modes only (margin modes ignore it); a depth `>=` the pair-axis dim count is refused. The moment-based kinds (two-means z, Welch t, weighted two-means z) read n and both moments off their cell aggregator, so they REFUSE `n_source` and `p_source` outright — a selector there would be a silent no-op; the weighted kind instead REQUIRES `n_basis` (`weights` | `kish`). Refusals are `PULSE_OVERLAY_PARAM_MISSING`.
 
 ## Distinct keys versus records
 
-Use a distinct mode when one respondent contributes several records and n must be respondents, not rows. They split on one property: `n_within_distinct` SUMS per-cell cardinalities (`types.PairwiseNSourceSumsDistinctCells`); margin modes read ONE accumulated figure.
+Use a distinct mode when one respondent contributes several records. `n_within_distinct` SUMS per-cell cardinalities; the margin modes read ONE accumulated figure.
 
-## Admission
-
-Distinct modes are admitted on the cell aggregator's IDENTITY, UP FRONT, not per pair, with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator and the admitted set: `AGG_DISTINCT_SUM` (figure on `distinct_count`) and `AGG_DISTINCT_COUNT` (on `cardinality`).
-
-Everything else is refused, including `AGG_MODE_COUNT` and `AGG_MODE`, which BOTH emit a component spelled `distinct_count` — theirs counts distinct VALUES of the measure field (answer codes), not keys. A key-presence probe would read the answer-code count and call it a sample size, so identity is an exact component-key-set match against each aggregator's `ComponentSchema`.
+**Admission** is decided on the cell aggregator's IDENTITY, up front, not per pair — an exact component-key-set match against its `ComponentSchema`. Two are admitted: the sum-of-distinct aggregator (figure on `distinct_count`) and the distinct count (on `cardinality`). Everything else is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, naming the observed aggregator and the admitted set — including the modal aggregators, which ALSO emit a key spelled `distinct_count` but count distinct VALUES of the measure (answer codes), not respondents. A key-presence probe would read an answer-code count as a sample size; that is why identity, not presence, is the test.
 
 ## Null rules
 
-The n leg counts exactly what the CELL counted, and the two admitted aggregators differ: `AGG_DISTINCT_SUM` registers a key only when the KEY and the VALUE are both non-null; `AGG_DISTINCT_COUNT` counts distinct NON-NULL values.
+The n leg counts exactly what the CELL counted, so the two admitted aggregators differ: sum-of-distinct registers a key only when the key AND the value are non-null; distinct count counts distinct non-null values.
 
-A slab cell no record reached contributes zero: a true zero, not an unreadable leg. A nil or absent MARGIN entry inverts that: components off, or the margin display flag off, means the leg was never emitted, so the pair skips.
+A slab cell no record reached contributes zero — a true zero, not an unreadable leg. A nil or absent MARGIN entry is the opposite: components off, or that margin's display flag off, means the leg was never emitted, so the pair skips.
 
 ## The slab partition rule
 
-Summing per-cell distinct cardinalities equals the slab's true count only when its cells PARTITION the key set. The slab sums across every dim after the fixed prefix, so a fan-out grouper (`GROUP_SET_PER_ELEMENT`) at a summed-across depth lands one key in two cells and n comes out too big. Refused with `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`.
+Summing per-cell distinct cardinalities equals the slab's true count only when its cells PARTITION the key set. A fan-out grouper (one row in several buckets, e.g. per-element grouping of a `set_*` field) at a depth the slab sums across puts one key in two cells: n too big, every p-value too small, silently. So it is refused: `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, at predict and again at runtime (`pulse.Process` does not run predict).
 
-Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_depth` sits inside the FIXED prefix, multiplying slabs not cells, so each slab still partitions its own keys — the shape the mode exists for; and one on the OPPOSITE axis at any depth, which the slab never sums across. Fix a refusal by raising `n_within_depth` past the offending dim, or switch to `n_within`: record counts ARE additive.
-
-The two MARGIN distinct modes are exact by construction and deliberately NOT gated: a margin accumulates over the raw records that reached the margin key, once each, so there is no per-cell summing to double-count through. Extension groupers are covered too (`GrouperRegistration.FansOut`).
-
-The Compose-host panel raises the SAME code on its own host (`types.CheckPanelSlabPartition`). BOTH its within-prefix modes are gated (`types.PanelNSourceUsesWithinDepth` — there is deliberately no narrower panel `SumsDistinct` predicate), `axis` is always `row`, and Details add `panel_index`/`slot_index`/`slot_label`. It gates its margin leg where this family's `n_within` is ungated, because a panel margin is whatever that slot's cell aggregator emitted — no additivity to claim. See `op-overlay-prop-z-panel`.
-
-## Why it is enforced rather than documented
-
-The failure is silent and liberal: n too large, every p-value too small, nothing in the response says so. So it is a refusal with TWO arms, `descriptor.validateOverlayPairwise` and `processing.applyOverlaysToResponse`, because `pulse.Process` does not run predict. Both call `types.CheckPairwiseSlabPartition`, so message and Details cannot drift.
-
-## Direct-caller bypass
-
-`processing.ApplyOverlaysWithExtensions` is EXPORTED. A caller hand-building a `CrosstabHostView` bypasses BOTH gates: predict never ran, and the runtime twin lives at the response hook that caller skipped, keyed off a pair-axis grouper type the materialised host does not carry. Admission survives but classifies from the host's component key SHAPE, so `AGG_MODE_COUNT` under a distinct-bearing shape has its ANSWER-CODE count read as a sample size. Accepted: the exported entry is for embedders who own their host; drive the fold through `pulse.Process` for both gates.
+Two shapes are deliberately ACCEPTED: a fan-out grouper at depth `<= n_within_depth` (inside the FIXED prefix, it multiplies slabs, not cells — the shape the mode exists for), and one on the OPPOSITE axis, which the slab never sums across. Fix a refusal by raising `n_within_depth` past the offending dim, or switch to `n_within` — record counts ARE additive. The margin distinct modes are exact by construction (a margin accumulates each record once) and not gated. Extension groupers declare fan-out, so are gated alike.
 
 ## p_source
 
 Proportion-input kinds only. `cell_value_pct` (default) divides the cell value by 100; `cell_value` takes it as already 0..1. A mismatch fails silently: `cell_value` over a real 0..100 percentage puts every proportion out of range and the layer returns empty.
 
-## The panel shares the vocabulary, not the spellings
+## Compose-host panel
 
-The Compose-host `op-overlay-prop-z-panel` reads the same DISTINCT-KEY quantity through the same admission rule above, but NO within-prefix mode name is shared. Its legs: `row_margin_value` (a payload VALUE, not `row_margin_n`), `row_margin_value_within` (that slot's ROW margins summed over a row-key prefix — ALL columns, not `CellCounts` over a pair-axis slab at one fixed opposite index) and `row_margin_distinct_within` (the same slab, read from `RowMarginComponents` as distinct KEYS — a different CARRIER, hence not `..._value_distinct_...`). `row_margin_n`, `n_within` and `n_within_distinct` are all UNKNOWN there and refused, because each would differ from the panel's leg by roughly the column count.
-
-What IS shared: the admitted set (`AGG_DISTINCT_SUM` at `distinct_count`, `AGG_DISTINCT_COUNT` at `cardinality`), exact-identity matching, and the null rules. What the panel ADDS: every slot is judged, and one unadmitted slot — or two slots naming DIFFERENT admitted aggregators — refuses the WHOLE spec. The crosstab arm has one host, so one cell aggregator; a panel pairs across slots and two legs must never be counted in different units.
+The multi-slot panel overlay reads the same distinct-KEY quantity under the same admission rule and null rules, but under its OWN mode spellings — none of `row_margin_n`, `n_within`, `n_within_distinct` is accepted there — and it refuses the whole spec when two slots name different admitted aggregators<!-- feature: OVERLAY_PROP_Z_PANEL --> (`op-overlay-prop-z-panel`)<!-- /feature -->.
 
 ## See
 
-`overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-overlay-prop-z-panel`, `op-agg-distinct-sum`, `op-agg-distinct-count`, `op-group-set-per-element`; example `internal/examples/overlays/42_crosstab_pairwise_distinct_n.json`.
+`crosstab-guide` (cell aggregators, margins, display flags) · `response-components` · `overlay-system`<!-- feature: OVERLAY_PAIRWISE_PROP_Z --> · `op-overlay-pairwise-prop-z`<!-- /feature --><!-- feature: AGG_DISTINCT_SUM --> · `op-agg-distinct-sum`<!-- /feature --><!-- feature: AGG_DISTINCT_COUNT --> · `op-agg-distinct-count`<!-- /feature --><!-- feature: GROUP_SET_PER_ELEMENT --> · `op-group-set-per-element`<!-- /feature -->.
+
+<!-- feature: OVERLAY_PAIRWISE_PROP_Z, AGG_DISTINCT_SUM, GROUP_CATEGORY, GROUP_RANGE, GROUP_SET_PER_ELEMENT -->
+Runnable distinct-n slab over a fan-out axis: `pulse_examples_get crosstab-pairwise-distinct-n`.
+<!-- /feature -->

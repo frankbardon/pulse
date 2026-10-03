@@ -20,7 +20,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Inputs
 
-`Field` — numeric output column (typically `WIN_MOVING_AVG` or a grouped aggregate). `OrderBy` — numeric or `date`, defining order.
+`Field` — numeric output column (typically a smoothed window column or a grouped aggregate). `OrderBy` — numeric or `date`, defining order.
 
 ## Output
 
@@ -28,10 +28,10 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
-- Meaningful only over an ordered upstream series (`WIN_MOVING_AVG` over a date grouper is canonical); reads result rows, not raw cohort.
+- Meaningful only over an ordered upstream series (a moving average over a date grouper is canonical); reads result rows, not raw cohort.
 - Empty `OrderBy` → `PULSE_TEST_MISSING_ORDER_BY`. Buffered.
 - n < 3 -> `PULSE_TEST_INSUFFICIENT_N`; n < 8 warns (advisory; ~10+ advised).
-- Seasonality-sensitive — pre-deseasonalize via `WIN_EWMA` or month grouping.
+- Seasonality-sensitive — pre-deseasonalize (a smoothing window or month grouping).
 
 ## See
 

@@ -14,13 +14,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, family-wise, in `(0, 1)`.
-- `ms_within` / `df_within` — float, both required. Within-group mean square + df from a preceding `TEST_ANOVA_F`.
+- `ms_within` / `df_within` — float, both required. Within-group mean square + df from a preceding one-way ANOVA.
 
 `Field` + `SplitBy` both required. **Tier-2 only** — list in `Request.PostTests`.
 
 ## Inputs
 
-`Field` — per-group mean column from `AGG_AVERAGE` / `AGG_WELFORD`. `SplitBy` — the grouper column the upstream ANOVA partitioned by.
+`Field` — per-group mean column (an average aggregate). `SplitBy` — the grouper column the upstream ANOVA partitioned by.
 
 ## Output
 
@@ -29,7 +29,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Gotchas
 
 - Runs against materialized per-group result rows. Buffered (`Streamable=false`).
-- Consumes tier-1 `TEST_ANOVA_F` outputs: run as a follow-up Request, or compose inside a ProcessChain that exposes them.
+- Consumes tier-1 one-way ANOVA outputs: run as a follow-up Request, or compose inside a ProcessChain that exposes them.
 - Assumes equal variances (as ANOVA); Games-Howell for unequal is not yet shipped.
 - Headline tracks the worst pair — inspect `Details.pairs` for the full matrix.
 

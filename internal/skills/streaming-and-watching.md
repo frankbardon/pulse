@@ -39,15 +39,15 @@ type StreamChunk[T any] struct {
 
 Variants: `ProcessStreamResult` wraps `ProcessStream`; `SynthStream` wraps `synth.SynthBytes`.
 
-### Per-chunk + terminal `Components` (v0.20.0)
+### Per-chunk + terminal `Components`
 
-Projection respects per-operator `ComponentsMergeability` from `descriptor.Manifest.ComponentsSchemas`:
+What a chunk's `Components` holds depends on each operator's `mergeability` class — read it from `manifest.components_schemas`, never from the operator's name; predict flags every `none` slot `buffered_components: true` before you run.
 
-- **Mergeable** (`AGG_SUM/COUNT/AVERAGE`, Welford-family, `AGG_MIN/MAX/RANGE`, `AGG_RATIO`, `AGG_FREQUENCY`, `AGG_CI_LOWER/UPPER`, set-family, every grouper except `GROUP_QUANTILE`) — `Operator` map carries running state on every chunk. Mid-stream render safe; terminal authoritative.
-- **Partial** (`AGG_MODE_COUNT`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY`) — folds like mergeable, non-trivial allocation; consumer merges via the same union semantics the orchestrator uses.
-- **Non-mergeable** (`AGG_MEDIAN`, `AGG_PERCENTILE`, `GROUP_QUANTILE`) — non-terminal chunks omit per-operator keys (`Operator` nil); floor preserved (`n`, `n_null` aggregator-side; `field`, `label`, `total_n`, `n_null` grouper-side). MUST NOT merge non-terminal chunks.
+- **`mergeable`** — `operator` carries running state on every chunk. Rendering mid-stream is safe; the terminal chunk is authoritative.
+- **`partial`** — folds like mergeable but the state grows (maps / sets); a consumer may union chunk partials the way the engine does, or just wait for the terminal chunk.
+- **`none`** — the operator needs the whole sorted input (medians, percentiles, quantile bands): non-terminal chunks carry the floor only (`n`, `n_null`; grouper `field`, `label`, `total_n`, `n_null`) with `operator` nil. MUST NOT merge non-terminal chunks.
 
-Identity: terminal chunk's `Components` is `DeepEqual` to the buffered `Process` call's `Response.Components`. See `response-components`.
+Identity: the terminal chunk's `Components` is `DeepEqual` to the buffered `Process` result's. With components disabled every chunk carries `nil`.
 
 ```go
 res, _ := p.ProcessStreamResult(ctx, req)
@@ -63,7 +63,7 @@ for chunk := range res.Chunks {
 
 ### Two-pass attributes
 
-Streaming two-pass (`ATTR_ZSCORE`, `ATTR_REG_*`, extensions) keep declared order and read earlier labels as buffered does; each dependent layer adds a scan.
+Attributes that need a whole-cohort statistic first (a z-score, a regression fit, a declared two-pass extension) stream in two passes: they keep declared order and read earlier labels as buffered does; each dependent layer adds a scan.
 
 ## `Watch` / `WatchDir`
 
@@ -94,7 +94,7 @@ res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
 
 Guarantees: deterministic name `{source-hash[:16]}_{predicate-hash[:16]}.pulse` when `OutputName` empty; atomic write via `OutputDir/.<name>.partial` + rename; dedup by pre-existence (re-reads hash + row count, returns `Reused: true`).
 
-Predicates: `Expression` (`FILTER_EXPRESSION` pass-through) or structured `Filterers` (translated, AND-combined). Exactly one set — both empty/both set rejects so the predicate hash is unambiguous.
+Predicates: `Expression` (an expression-filter string, `expression-language`) or structured `Filterers` (translated, AND-combined). Exactly one set — both empty/both set rejects so the predicate hash is unambiguous.
 
 ## Manifest `CommandAnnotations`
 
@@ -119,7 +119,4 @@ A buffered overlay downgrades a streamable Process to buffered — price it as b
 
 ## See
 
-- `response-components` — `ResponseComponents` shape + per-operator mergeability + universal floor.
-- `overlay-system` — `OverlayStreamability` table + mixed-mode downgrade.
-- `compose-requests` — per-slot Components.
-- `process-chain` — per-stage Components.
+`response-components` (shape, mergeability classes) · `overlay-system` (overlay streamability)<!-- feature: capability:compose --> · `compose-requests` (per-slot Components)<!-- /feature --><!-- feature: capability:process_chain --> · `process-chain` (per-stage Components)<!-- /feature -->.

@@ -9,19 +9,30 @@ covers: [GROUP, Crosstab, groups]
 
 # Grouper design
 
-`groups` partitions records BEFORE aggregation; each `aggregations` entry folds inside the bucket. Per-GROUP detail lives in atomic `op-group-*` skills.
+`groups` partitions records BEFORE aggregation; each `aggregations` entry folds inside the bucket. Per-grouper detail lives in the atomic `op-group-*` skills.
 
 ## Slot identity
 
-`groups` is `[]types.Group`; entry `{type, field, label?, interval?, params?, include?}`. The grouper computes a bucket key per post-filter row; aggregators fold inside. Output rows carry the key as `<field>` (or `label`).
+`groups` entry: `{type, field, label?, interval?, params?, include?}`. One bucket key per post-filter row; output rows carry it as `<field>` (or `label`).
 
 Pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. Grouping runs AFTER attributes, so derived columns are addressable as `field`.
+
+## Choosing a grouper
+
+Read the intent first (`pulse_skills_get intents`): `compare_groups`, `composition`, `change_over_time`, `segment` or `distribution_shape`. Manifest `components.groupers[]` carries each grouper's `intents`, `accepts_types` and `params` — filter on the field's type, then decide:
+
+- **One bucket per distinct value** of a categorical, boolean or low-cardinality field? → the category grouper.
+- **A number in bands?** Fixed-width bands with a `"low-high"` key, or bands keyed by their rounded-down floor — or EQUAL-COUNT bands (by rank, so equal values may straddle two)? Equal-count bands buffer the whole input.
+- **Calendar periods** (day, ISO week, month, quarter, fiscal year, weekday)? → the date grouper. **Custom named periods** (campaign windows, irregular fiscal quarters)? → the date-ranges grouper.
+- **A multi-select field?** One bucket per OPTION (a record lands in every option it chose — fan-out) or one bucket per exact COMBINATION?
+
+Each grouper's `Purpose.NotFor` names the sibling to use when the choice is wrong.
 
 ## Composition (key product)
 
 With N entries (N ≥ 2), the engine forms the cartesian **key product**: each row receives a composite key `(g0, ..., gN-1)`. Empty `groups` collapses to one global bucket.
 
-`Request.Crosstab` projects groupers onto a row × column matrix in `Response.Crosstab`; plain `Request.Groups` emits one flat row per composite key under `Response.Data`. Multi-grouper composition is the canonical cross-tab mechanism — reach for `Crosstab` only when margins + normalisation matter (`crosstab-guide`).
+Plain `groups` emit one flat row per composite key under `Response.Data` — the canonical cross-tab mechanism. Reach for `Request.Crosstab` only when margins or normalisation matter<!-- feature: capability:crosstab --> (`crosstab-guide`)<!-- /feature -->.
 
 ## Smart defaults
 
@@ -29,54 +40,53 @@ When an entry names `field` but omits `type`, the engine infers from the schema 
 
 | Field type | Default grouper |
 |---|---|
+<!-- feature: GROUP_RANGE -->
 | numeric (`u4`/`u*`, `f32`/`f64`, `decimal128`) | `GROUP_RANGE` (Interval=10) |
+<!-- /feature -->
+<!-- feature: GROUP_CATEGORY -->
 | `categorical_*`, `packed_bool` | `GROUP_CATEGORY` |
-| `date` | `GROUP_DATE` (`component=day`) |
+<!-- /feature -->
+<!-- feature: GROUP_DATE -->
+| `date`, `datetime` | `GROUP_DATE` (`component=day`) |
+<!-- /feature -->
+<!-- feature: GROUP_SET_PER_ELEMENT -->
 | `set_*` | `GROUP_SET_PER_ELEMENT` |
+<!-- /feature -->
 
-Defaults never cross categories. Predict reports filled slots at `data.defaults_applied`. Disable via `Options.DisableDefaults` / `--no-defaults`. Full table: `request-envelope`.
+Never overrides an explicit `type`; predict reports filled slots at `data.defaults_applied`; disable via `--no-defaults`. Full table: `request-envelope`.
 
 ## `Group.Include` — inclusion list
 
-`Group.Include []string` restricts a grouper to an allow-list of bucket keys. A row whose key (for `GROUP_SET_PER_ELEMENT`, each fan-out key) is not listed is skipped — identical to the null-skip path. Empty / nil → "no filter".
+`Group.Include []string` restricts a grouper to an allow-list of bucket keys. A row whose key (for a fan-out grouper, each fan-out key) is not listed is skipped — identical to the null-skip path. Empty / nil → "no filter". Supported by:
 
-Supported by `GROUP_CATEGORY` (label string), `GROUP_SET_VALUE` (pipe-joined composite key), `GROUP_SET_PER_ELEMENT` (each fan-out label). Others ignore `Include` — use `FILTER_INCLUDE` on the source field. Streamability preserved: O(1) membership inside `KeyFor` / `KeysForRow`.
+- <!-- feature: GROUP_CATEGORY -->`GROUP_CATEGORY` — the label string.<!-- /feature -->
+- <!-- feature: GROUP_SET_VALUE -->`GROUP_SET_VALUE` — the pipe-joined composite key.<!-- /feature -->
+- <!-- feature: GROUP_SET_PER_ELEMENT -->`GROUP_SET_PER_ELEMENT` — each fan-out label.<!-- /feature -->
 
-**Order-significant.** A non-empty `Include` also fixes emission order: buckets appear in listed order (plain grouped `Data` + `Components.buckets`, and each crosstab axis independently — an axis without `include` keeps alpha/dict order). Empty / nil preserves the prior alphabetical (or `GROUP_SET_PER_ELEMENT` dict-index) order — byte-identical. Zero-record include values are still dropped. Buffered + fused agree.
+Other groupers ignore `include` — filter the source field with a value filter instead. Streamability is preserved (O(1) membership per record).
 
-## Fused crosstab eligibility (`processing.CanFuseCrosstab`)
+**Order-significant.** A non-empty `include` also fixes emission order: buckets appear in listed order (plain grouped `Data` + the grouper's `buckets` component, and each crosstab axis independently). Empty / nil keeps alphabetical (or dictionary-index) order. Zero-record include values are still dropped.
 
-The fused path computes a row × column matrix in-decode (~30–47% faster; peak heap 8.8–20.8× lower than buffered across 25k→400k rows — quote peak heap, never `B/op`). Gate: `processing.CanFuseCrosstab(req, schema, ext)`. Activates when the cell aggregator is mergeable + non-recompute AND every row/column grouper implements EITHER per-record keying interface.
+## Fused crosstab eligibility
 
-- `StreamableGrouper.KeyFor` (one bucket per record): `GROUP_CATEGORY`, `GROUP_RANGE`, `GROUP_ROUNDED`, `GROUP_DATE`, `GROUP_SET_VALUE`.
-- `MultiKeyStreamingGrouper.KeysForRow` (N buckets per record, `GroupType.FansOut()` true): `GROUP_SET_PER_ELEMENT` — fusable at ANY axis position, on either or both axes, several per axis. Axis keys are the cartesian product of each position's key set; each accumulator updates once per distinct key at its own depth.
-- Neither: `GROUP_QUANTILE` (needs a finalize-time sorted view) — the only grouper that forces buffered.
+A crosstab builds its grid in one decode pass (much lower peak memory) when every axis grouper keys records one at a time. Every built-in grouper does, EXCEPT the equal-count (quantile) grouper, which needs a finalize-time sorted view — the only grouper that forces a buffered crosstab. Fan-out groupers fuse at any axis position, on either or both axes; axis keys are the product of each position's key set. Overlays never prevent fusing (<!-- feature: capability:crosstab -->`crosstab-guide`, <!-- /feature -->`overlay-system`).
 
-`Request.Overlays` does NOT force buffered — the fused exit folds layers through the same hook the buffered exit uses (`crosstab-guide`, `overlay-system`).
+Embedder groupers opt in by implementing `extend.StreamingGrouper` or `extend.MultiKeyStreamingGrouper` and returning `extend.ErrGrouperKeyNull` on nulls; implementing neither stays correct and runs buffered.
 
-Embedder groupers opt in by implementing either interface and returning `ErrGrouperKeyNull` on nulls. Implementing neither stays correct — falls back to buffered RunCrosstab.
+## Components
 
-## Components contract (v0.20.0)
+Every `Response.Components.Groupers[i]` carries the **universal floor** `total_n` (post-filter records partitioned) + `n_null` (records that took the null / skip path) — ALL post-filter records, unlike the aggregator's non-null `n`. Operator-specific keys ride `operator`; per-grouper lists are in `manifest.components_schemas.groupers` and each atomic skill.
 
-Every `Response.Components.Groupers[i]` carries the **universal floor** `total_n` (post-filter records partitioned across all buckets) + `n_null` (records that took the null/skip path). It differs from the aggregator pair `{n, n_null}` — groupers partition ALL post-filter records, not just non-null inputs.
-
-Operator-specific keys ride in `Operator map[string]any`; authoritative per-operator lists on `ComponentSchema` (`internal/descriptor/capabilities_groupers.go`, mirrored at `manifest.components_schemas.groupers[<op>].keys`) and in the atomic `op-group-*` skills.
-
-Mergeability:
-
-- **`Mergeable`** — `GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_RANGE`, `GROUP_ROUNDED`, `GROUP_SET_VALUE`, `GROUP_SET_PER_ELEMENT`. Components fold across streaming chunks via `ComponentsDelta`.
-- **`None`** — `GROUP_QUANTILE` (`BufferedComponents=true`). Cutpoints need the sorted full input; components emit only on terminal buffered flush.
-
-Full Components contract (typed shells, streaming chunk behaviour): `response-components`.
+Components mergeability is read off the manifest: `mergeable` groupers fold across streaming chunks; a `none` grouper (equal-count bands) emits its keys only at the terminal flush (`buffered_components: true` in predict). Shape: `response-components`.
 
 ## Gotchas
 
-- `GROUP_SET_PER_ELEMENT`: `sum(buckets[].count) > total_n` is correct; on a crosstab axis its margins are non-additive (a 3-label row counts 3× across row margins, once in the grand total) on BOTH paths.
-- Empty-mask `set_*`: `GROUP_SET_VALUE` buckets under the empty key; `GROUP_SET_PER_ELEMENT` skips. Neither increments `n_null`.
-- `GROUP_DATE` with `day_of_week` emits weekday names that lex-sort, not Sun→Sat — sort explicitly.
-- Range / rounded / quantile reject categorical fields at construction; `GROUP_QUANTILE` forces buffered execution.
+- Fan-out: `sum(buckets[].count) > total_n` is correct; on a crosstab axis its margins are non-additive (a 3-option row counts 3× across row margins, once in the grand total).
+- Empty-mask `set_*`: the combination grouper buckets it under the empty key; the per-option grouper skips it. Neither increments `n_null`.
+- Weekday components emit names that lex-sort, not Sun→Sat — sort explicitly.
+- Band groupers reject categorical fields at construction.
 
 ## See
 
-- Recipes: `pulse_examples_search tags=["cohort-analysis"|"cross-tabulation"|"distribution-shape"|"survey"]` plus atomic `op-group-<name>`.
-- `crosstab-guide` (Crosstab shape, margins, normalisation), `aggregation-design` (what folds inside the bucket), `request-envelope` (slot keys, smart defaults), `response-components` (typed `GrouperComponents`), `streaming-and-watching` (streamability).
+- Recipes: `pulse_examples_search tags=["cohort-analysis"|"cross-tabulation"|"distribution-shape"|"survey"]`.
+- <!-- feature: capability:crosstab -->`crosstab-guide` (Crosstab shape, margins, normalisation), <!-- /feature -->`aggregation-design` (what folds inside the bucket), `request-envelope` (slot keys, smart defaults), `response-components` (grouper floor), `streaming-and-watching` (streamability).

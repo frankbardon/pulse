@@ -8,7 +8,7 @@ applies_to: facet, mcp
 
 ## When to use
 
-Diagnostic / discovery tool for the unique-value set of a single column — e.g. before authoring a `FILTER_INCLUDE` to know which categorical labels exist. For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive-contribution counts, use `pulse_facet_schema` instead.
+Diagnostic / discovery tool for the unique-value set of a single column — e.g. before authoring a value filter to know which categorical labels exist. For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive-contribution counts, use `pulse_facet_schema` instead.
 
 ## Input
 

@@ -25,7 +25,7 @@ String key per row (`2024-Q1`, `FY2025-Q1`). Smart default for `date` and `datet
 
 ## Components
 
-Floor `{total_n, n_null}` + `granularity` (component used), `range_start` / `range_end` (ISO), `n_buckets` (int), `buckets` (`[]bucket` of `{key, period_start, period_end, count}`). `Mergeable`; `Streamable=false` (to stream: `GROUP_CATEGORY` over `ATTR_DATE_PART`).
+Floor `{total_n, n_null}` + `granularity` (component used), `range_start` / `range_end` (ISO), `n_buckets` (int), `buckets` (`[]bucket` of `{key, period_start, period_end, count}`). `Mergeable`; `Streamable=false`<!-- feature: GROUP_CATEGORY, ATTR_DATE_PART --> (to stream: `GROUP_CATEGORY` over `ATTR_DATE_PART`)<!-- /feature -->.
 
 ## Gotchas
 

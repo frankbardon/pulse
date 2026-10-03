@@ -28,7 +28,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 
 ## Gotchas
 
 - Buffered — per-group medians require a sort.
-- Not a pre-ANOVA gate: a large p is not evidence of equal spread; prefer `TEST_ANOVA_WELCH` outright.
+- Not a pre-ANOVA gate: a large p is not evidence of equal spread.
 - More robust than Levene (mean-based) under non-normality — that's the whole point.
 - Tier-2 variant `TEST_BROWN_FORSYTHE/median_post` runs over result columns.
 - Tiny groups destabilize the median; `n_i < 2` or N ≤ k → `PULSE_TEST_INSUFFICIENT_N`.

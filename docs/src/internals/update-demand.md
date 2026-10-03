@@ -34,7 +34,7 @@ Any change to Pulse code, configuration, file format, or public surface MUST upd
 | A new error code | Description row in `internal/descriptor/capabilities_errors.go` (`errorMetaTable`) | `TestManifestErrorCodesComplete` |
 | An error code's fixup template | Entry in `errors/fixup_metadata.go` (`codeMetadata`) — surfaced per-code via `pulse_errors_lookup` / `pulse errors lookup CODE` | `TestCodesHaveFixups` |
 | A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
-| The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/session-bootstrap.md` ("Smart defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
+| The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/request-envelope.md` ("Smart defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
 
 **The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
 

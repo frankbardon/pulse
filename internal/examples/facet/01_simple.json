@@ -8,6 +8,9 @@
     ],
     "name": "facet_simple_one_field",
     "operators": [],
+    "capabilities": [
+      "capability:facet"
+    ],
     "tags": [
       "facet",
       "cardinality-analysis"

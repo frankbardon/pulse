@@ -5,95 +5,79 @@ type: guide
 kind: design
 applies_to: process, compose, predict
 covers: [Crosstab, CrosstabComponents]
+requires: [capability:crosstab]
 ---
 
 # Crosstab
 
-`Request.Crosstab` pivots one cell aggregation across rows × columns. Not an `AGG_*` — margins / normalize are cross-cell. Mutually exclusive with top-level `groups`+`aggregations` (`PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS`).
+`Request.Crosstab` pivots ONE cell aggregation across rows × columns; margins and normalize are cross-cell. Mutually exclusive with top-level `groups` + `aggregations` (`PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS`).
 
 ```jsonc
 {"crosstab": {
-  "rows":    [{"type":"GROUP_CATEGORY","field":"region"}],
-  "columns": [{"type":"GROUP_CATEGORY","field":"segment"}],
-  "cell":    {"type":"AGG_COUNT","field":"id","label":"n"}
+  "rows":    [{"type": "<grouper>", "field": "region"}],
+  "columns": [{"type": "<grouper>", "field": "segment"}],
+  "cell":    {"type": "<aggregator>", "field": "id", "label": "n"}
 }}
 ```
 
 Defaults: `shape: matrix`, `normalize: none`. Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins, `GrandTotal`.
 
+## Choosing a crosstab
+
+- Need margins (row / column / grand totals) or shares (row %, column %)? → crosstab.
+- Only one figure per key combination, no totals? → plain `groups` + `aggregations` (several groupers form a key product; `grouper-design`).
+- Several figures per cell? → one crosstab per figure (Compose them). A second figure only on the MARGINS (e.g. an unweighted base) rides `margin_aggregations` — a record reaches it only if it reached a CELL (`crosstab-margin-aggregations`).
+- Comparing cells statistically (share index, cell z, χ², pairwise column tests)? → a crosstab plus overlays (`overlay-system`).
+
 ## Axes, cell
 
-`rows`, `columns` are each `[]Group` — any grouper, either axis. Multiple per axis = nested headers, sorted composite-key order. Empty axes / missing cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_EMPTY_COLUMNS` / `_MISSING_CELL`.
+`rows`, `columns` are each a list of groupers — any grouper, either axis. Several per axis = nested headers in composite-key order. Empty axes / missing cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_EMPTY_COLUMNS` / `_MISSING_CELL`.
 
-**Include ordering is per axis.** Each axis honors its own `Group.Include` order independently — non-empty `include` emits keys in listed order (per key position on a nested axis), else alphabetical. Buffered + fused agree; zero-record include values drop.
+**Include ordering is per axis.** Each axis honors its own grouper `include` order independently — a non-empty list emits keys in listed order (per key position on a nested axis), else alphabetical. Zero-record include values drop.
 
-`cell` is one `Aggregation` — any `AGG_*`. Scalar cells (`MatrixCell.Value: float64`) are common. Rich variants: `AGG_SET_FREQUENCY` (`map[string]int`), set union/intersection (`[]string`), `AGG_WELFORD` (`{n,mean,variance,m2}` via `CellComponents`). Rich + non-`none` normalize ⇒ `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED`; use `AGG_SET_CARDINALITY_SUM` / `_AVG` instead.
+`cell` is one aggregation. Most cells are scalars (`MatrixCell.Value: float64`). Map- or list-valued cells (manifest `crosstab.map_valued_cell_aggregators` and the set unions / intersections) refuse a non-`none` normalize with `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` — normalize a scalar aggregator instead.
 
 ## Margins recompute from raw rows
 
-Load-bearing: row / column / grand margins aggregate **raw rows for that margin**, NOT cell values. Mean / median / stddev / percentile margins are correct under this rule; cell-sum agreement holds only for true sums. `AGG_DISTINCT_COUNT` / `AGG_DISTINCT_SUM` margins are the **union**, never the sum of cells — a respondent in two rows counts once. Manifest: `crosstab.{summable,mean_reducible,independent,recompute}_aggregators`; `independent` (incl. `AGG_MODE_COUNT`, whose margin is the modal count of the margin's own rows) means the operator keeps its own margin accumulator, so it fuses.
+Load-bearing: row / column / grand margins aggregate the **raw rows of that margin**, NOT the cell values. So mean / median / stddev / percentile margins are correct, and cell-sum agreement holds only for true sums. Distinct-count style margins are the **union** — a respondent in two rows counts once in the column margin.
 
-## Auxiliary margin-only aggregations
-
-`margin_aggregations` (optional, additive) carries extra `Aggregation`s evaluated into the row / column / grand margin accumulators **only, never into a cell**. `cell` is a single aggregation, so this is how a second figure — canonically an unweighted respondent base beside a weighted metric — rides one request instead of a whole second scan.
-
-Effective label = `label`, else `TYPE_field`; unique across the slot **and** distinct from the cell's, because margin components are keyed by label. Rejections: `PULSE_CROSSTAB_MARGIN_AGG_INVALID` (null entry / no type), `PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL`; an auxiliary naming an unknown operator is refused on both arms. Declared on a section that DISPLAYS no margin ⇒ `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` **warning** — the figures have nowhere to land, the request still runs. A normalize direction does **not** satisfy it: the margin normalize requires is a denominator and an auxiliary is never one, so both arms accumulate it in that shape and emit none of it. Allocation is per declared auxiliary per REQUESTED margin slot (`NeedsRowMargin` and friends — display OR normalize); EMISSION rides the display flag alone. An undeclared slot costs nothing.
-
-**ADMISSION CONTRACT.** An auxiliary observes the **same record admission as the cell aggregator** — a record contributes only if it contributed to a cell. Deliberately unlike the cell's own margins, which see every filter-passing record with a non-null axis key; it is what makes an auxiliary base reconcilable against the cells beside it. No knob. So a null cell field, and an axis key an `Include` excluded, are both absent from every auxiliary slot while the cell's own margins still count them.
-
-**Both paths implement it and must agree** — dispatch picks fused or buffered on request SHAPE and nothing in `Response` reports which ran, so an auxiliary on one arm only moves a sample-size figure for reasons a caller cannot see. Fused folds each admitted record into a live accumulator during the walk. Buffered narrows each margin slot's routed bucket to the admitted set and aggregates once, where `admitted = resolved on the OTHER axis AND cell field non-null`, resolved from the two axis partitions ONCE and deliberately NOT from the `(rkey, ckey)` cell buckets — those count a record once per (row, column) pair, multiplying a row auxiliary by the fan factor under `GROUP_SET_PER_ELEMENT`. A slot admitting no record carries no figure on either arm, never a fabricated `0`.
-
-Figures land on `Response.Components.Crosstab` as `row_margin_aggregations[r]` / `column_margin_aggregations[c]` / `grand_total_aggregations`, keyed by effective label, indexed in `RowKeys` / `ColumnKeys` order, each entry `{value, present, components}` (`components` = floor over admitted records + the operator's own keys, so `AGG_DISTINCT_SUM` surfaces `distinct_count` per slot). BESIDE `row_margin_components` — the CELL aggregator's own margin, a different admission — never inside it. Shape, `present` semantics and the display gate: `response-components`.
-
-Manifest: `crosstab.supports_margin_aggregations` + `crosstab.margin_aggregation_rules`.
+The manifest classifies every cell aggregator: `crosstab.summable_aggregators`, `mean_reducible_aggregators`, `independent_aggregators` (keeps its own margin accumulator) and `recompute_aggregators` (needs a raw-row rescan, so it never fuses).
 
 ## Normalize
 
-`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize implies the matching margin even when `margins.*` is false.
+`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize implies the matching margin even when `margins.*` is false (computed, not displayed).
 
 - `normalize_level: L` — same-axis rollup; cells sharing the first `L+1` groupers sum to 1. Rejections: `_OUT_OF_RANGE`, `_WITHOUT_NESTED_AXIS`, `_INCOMPATIBLE` (with `total`).
 - `normalize_within: W` — fixes a prefix of the **opposite** axis in the denominator; composes with `normalize_level`. Canonical: `rows=[brand]`, `columns=[wave,response]`, `normalize=row`, `normalize_within=0` — each cell is brand's wave-share to that response. Rejections: `_WITHIN_OUT_OF_RANGE`, `_WITHIN_WITHOUT_AXIS`, `_WITHIN_INCOMPATIBLE`.
 
 ## Shape
 
-`matrix` (default) — `Response.Crosstab.Matrix`: headers, key tuples, dense `Cells`, margins, `NormalizeApplied`. `long` — one row per cell on `Response.Data`, margin rows tagged `_margin: "row"|"column"|"grand"|"<axis>_at_<depth>"`. Lossless round-trip.
+`matrix` (default) — `Response.Crosstab.Matrix` incl. `NormalizeApplied`. `long` — one row per cell on `Response.Data`, margin rows tagged `_margin: "row"|"column"|"grand"|"<axis>_at_<depth>"`. Lossless round-trip.
 
 ## Streamability
 
-Buffered when `shape: matrix`, any `margins`, non-`none` `normalize`, or nested axes. The one streamable shape (long, no margins, `none`) still routes through the orchestrator in v1. `pulse predict --json` reports `StreamableReasons`.
+Crosstab output is buffered (`pulse predict` reports `streamable_reasons`); what varies is how the grid is BUILT.
 
 ### Fused mergeable path
 
-Requires a mergeable + non-recompute cell aggregator AND every axis grouper implementing a per-record keying interface — `StreamableGrouper.KeyFor`, or `MultiKeyStreamingGrouper.KeysForRow` (`GROUP_SET_PER_ELEMENT` fan-out, admitted at ANY position, on either or both axes). Records fold into per-cell / per-margin online state in one decode pass: memory `O(records) → O(cells + margins)`, ~30–47% faster, peak heap 8.8–20.8× lower across 25k→400k rows.
+Records fold straight into per-cell / per-margin state in one decode pass — memory `O(cells + margins)`, not `O(records)`. Chosen automatically; output is identical either way. It applies when:
 
-`Request.Overlays` does NOT disqualify — `RunCrosstabFused` folds layers after `Finalize()` through the same `applyOverlaysToResponse` hook the buffered exit uses, so cells, components, layers and warnings are byte-identical across paths.
+- the cell aggregator is in `crosstab.summable_aggregators`, `mean_reducible_aggregators` or `independent_aggregators` — never `recompute_aggregators` — and every `margin_aggregations` entry is mergeable;
+- every axis grouper keys one record at a time — every grouper except the rank-based quantile one, including fan-out multi-select groupers at any axis position;
+- nothing needs whole-cohort context: no join, no tests, features, formula attributes or expression filters, no decimal cell field.
 
-Embedders force the buffered arm engine-wide with `pulse.Options{DisableCrosstabFusion: true}` — a diagnostic / benchmarking knob; output is identical.
+Overlays never prevent fusing. A fan-out axis makes margins non-additive on BOTH paths — a 3-option record counts 3× across row margins, once in the grand total.
 
-Disqualifiers: a `JoinSpec`, non-mergeable / recompute cell (incl. `AGG_WELFORD`, `AGG_MODE`, an extension with no declared `MarginReducibility`), `GROUP_QUANTILE`, tests / features / `ATTR_FORMULA` / `FILTER_EXPRESSION`, decimal128 built-in cell, opaque extension (no `FieldInputs`), a non-mergeable or decimal128 `margin_aggregations` entry (an auxiliary rides the same `UpdateRow` walk; its `MarginReducibility` is NOT consulted — it has no cells to reduce from).
-
-**Joins.** A crosstab with its one `JoinSpec` runs over the JOINED rows (always buffered): axes / cell may name `as`-prefixed right fields, an unmatched left row reaches no cell, margin or Components count, a 1:N match counts once per joined row. `skills/join-design.md`.
-
-Margins still recompute from raw rows, and under a fan-out axis are non-additive on BOTH paths — a 3-label record counts 3× across row margins, once in the grand total.
+**Joins.** A joined crosstab runs buffered over the JOINED rows: axes / cell may name `as`-prefixed right fields; an unmatched left row is counted nowhere; a 1:N match counts once per joined row<!-- feature: capability:joins --> (`join-design`)<!-- /feature -->.
 
 ## Components — `Response.Components.Crosstab`
 
-Mirrors `MatrixPayload`:
-
-- `CellComponents[r][c]` ↔ `Matrix.Cells[r][c]` — `Operator`-map per the cell aggregator's `ComponentSchema`. `CellCounts[r][c]` is the RECORD count routed to that cell, i.e. floor `n + n_null`.
-- `RowKeyComponents[r]` / `ColumnKeyComponents[c]` ↔ `Matrix.RowKeys[r]` / `Matrix.ColumnKeys[c]`.
-- `RowMarginCounts[r]` / `*Components[r]` ↔ `Matrix.RowMargins[r]` (column symmetric); `GrandTotalCount` / `*Components` ↔ `Matrix.GrandTotal`.
-
-Universal cell floor `{n, n_null}` (`int`) sits on the cell aggregator's declared keys; the builder injects it, so operators must not declare `n` / `n_null`. Empty cells ⇒ `CellComponents[r][c] == nil` (null-check first). Margin slots populate iff the matching `Matrix.*` slot is present.
-
-Multi-grouper axis: `*KeyComponents[i]` carries `{axes:[{field, bucket}]}` in declaration order; a single-grouper axis carries the grouper map directly.
-
-`AGG_WELFORD` cells emit `{n, mean, variance, m2}` into `CellComponents[r][c]` via `MetaAggregator` — load-bearing for the parity overlays (`OVERLAY_T_CELL` / `_Z_CELL` / `_T_VS_REF` / `_Z_VS_REF`). `AGG_WELFORD` is non-mergeable ⇒ always buffered.
+Mirrors the matrix coordinate-for-coordinate: `CellComponents[r][c]` ↔ `Cells[r][c]` (cell aggregator keys + floor `{n, n_null}`; `nil` for an empty cell), `RowKeyComponents` / `ColumnKeyComponents` ↔ the key tuples (a nested axis carries `{axes: [{field, bucket}]}`), `RowMarginCounts` / `RowMarginComponents` ↔ `RowMargins` (column symmetric), `GrandTotalCount` / `GrandTotalComponents` ↔ `GrandTotal` — populated iff the matching matrix slot is. `CellCounts[r][c]` is a RECORD count (`n + n_null`), not the sample size. Shared shape: `response-components`.
 
 ## Tests + overlays compose
 
-Tier-1 `tests` / tier-2 `post_tests` ride raw rows; the crosstab-conflict guard fires only for top-level groups+aggregations. Crosstab is also the v1 overlay host — share triad, margin comparison, inferential, Compose vs-ref, intra-matrix pairwise. Specs ride `Request.Overlays`, layers `Response.Overlays[i]`. An overlay-carrying crosstab FUSES unless the cell-aggregator arm pushes it back to buffered.
+Row-level `tests` / `post_tests` run on raw rows beside a crosstab. Crosstab is the MATRIX overlay host (share, margin compare, inferential, pairwise): specs ride `Request.Overlays`, layers `Response.Overlays[i]`; the cell t / z overlays read `{n, mean, variance}` from `CellComponents` (`overlay-system`).
 
 ## See
 
-- `response-components`, `overlay-system`, `grouper-design` (fused eligibility), `aggregation-design` (margin reducibility), `statistical-testing`.
+- `crosstab-margin-aggregations`, `response-components`, `overlay-system`, `grouper-design`, `aggregation-design` (margin reducibility), `statistical-testing`.

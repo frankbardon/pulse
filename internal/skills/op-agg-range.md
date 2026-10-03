@@ -37,9 +37,8 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Outlier-sensitive — one extreme blows the spread. Prefer IQR-style work via `AGG_PERCENTILE`.
+- Outlier-sensitive — one extreme blows the spread.
 - All-null cohort → NaN.
-- For separate min and max use `AGG_MIN` / `AGG_MAX` directly.
 
 ## See
 

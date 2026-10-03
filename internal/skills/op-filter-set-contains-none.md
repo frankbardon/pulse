@@ -31,7 +31,7 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 
 ## Gotchas
 
-- Null rows PASS (consistent with `FILTER_EXCLUDE`). Pair with `FILTER_NULL` if you need null exclusion too.
+- Null rows PASS (like an exclude filter); add a null filter if you need them out too.
 - Unknown label in `Values` → `PROCESSING_CONFIG`.
 - Label whose dictionary bit position exceeds the set's width → `PROCESSING_CONFIG`.
 - Useful as a NOT-of-features survey filter ("respondents who picked neither X nor Y").

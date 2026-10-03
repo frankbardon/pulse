@@ -40,7 +40,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - "Typical selections per respondent" — survey-friendly summary.
 - Empty masks count toward `n` (lowering the average); pre-filter if you want only non-empty rows.
-- For the total instead of average use `AGG_SET_CARDINALITY_SUM`.
 
 ## See
 

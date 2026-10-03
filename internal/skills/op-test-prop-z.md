@@ -28,9 +28,10 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - `success` must match a dictionary value; otherwise `PULSE_TEST_INVALID_SUCCESS`.
 - Streamable — per-group counts feed both numerator and pooled denominator in one pass.
-- Small expected counts → switch to `TEST_FISHER_EXACT` (still 2×2).
-- k > 2 `SplitBy` groups → `TEST_CHISQ` on the implicit `(SplitBy × Field)` contingency.
+- More than two `SplitBy` groups is a `(SplitBy × Field)` contingency-table question, not this test.
+<!-- feature: OVERLAY_PROP_Z_CELL -->
 - Pairs with `OVERLAY_PROP_Z_CELL` for crosstab cell-level proportion tests.
+<!-- /feature -->
 
 ## See
 

@@ -8,6 +8,9 @@
     ],
     "name": "facet-zscore-vs-pop",
     "operators": [],
+    "capabilities": [
+      "capability:facet"
+    ],
     "tags": [
       "cohort-analysis",
       "facet",

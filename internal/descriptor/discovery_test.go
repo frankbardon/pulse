@@ -3,7 +3,6 @@ package descriptor
 import (
 	"encoding/json"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/buildinfo"
@@ -100,12 +99,9 @@ func TestDiscovery_PrunesAtomicSkills(t *testing.T) {
 		}
 		for _, v := range tc.visible {
 			body, ok := d.Skill(v)
-			want, _ := skills.Get(v)
-			if md := skillMeta(t, v); md.Kind != "design" {
-				want = NewProseScrub(inst).Text(want)
-			}
-			if !slices.Contains(listed, v) || !ok || body != want {
-				t.Errorf("hide %v: %s should be listed and served (atomic: rendered; topical: whole)", tc.hide, v)
+			raw, _ := skills.Raw(v)
+			if !slices.Contains(listed, v) || !ok || body != d.renderBody(v, raw) {
+				t.Errorf("hide %v: %s should be listed and served rendered", tc.hide, v)
 			}
 		}
 	}
@@ -120,29 +116,6 @@ func skillMeta(t *testing.T, name string) skills.Metadata {
 	}
 	t.Fatalf("no skill %s", name)
 	return skills.Metadata{}
-}
-
-// TestDiscovery_RendersAtomicBodies pins that a visible ATOMIC skill's
-// body drops the sentences naming a hidden operator or tool (here the
-// resample modifier's references to a hidden REG_GLM) while a TOPICAL
-// body is served whole — the explicit exemption.
-func TestDiscovery_RendersAtomicBodies(t *testing.T) {
-	d := hidingSnapshot("REG_GLM", featLookup).Discovery()
-	raw, _ := skills.Get("op-reg-mod-resample")
-	if !mentionsHidden(raw, map[string]struct{}{"REG_GLM": {}}) {
-		t.Fatal("premise: op-reg-mod-resample names REG_GLM")
-	}
-	body, ok := d.Skill("op-reg-mod-resample")
-	if !ok || mentionsHidden(body, map[string]struct{}{"REG_GLM": {}}) {
-		t.Errorf("atomic body still names hidden REG_GLM (ok=%v)", ok)
-	}
-	if !strings.Contains(body, "REG_OLS") {
-		t.Error("atomic body lost the enabled REG_OLS prose")
-	}
-	topical, _ := skills.Get("regression-modeling")
-	if got, _ := d.Skill("regression-modeling"); got != topical {
-		t.Error("topical body was rendered; it must be served whole")
-	}
 }
 
 // TestDiscovery_RendersSkillMetadata pins that a visible skill's listed
@@ -258,20 +231,4 @@ func jsonHasKeyRaw(t *testing.T, raw []byte, key string) bool {
 		t.Fatalf("decode example body: %v", err)
 	}
 	return jsonHasKey(v, key)
-}
-
-// TestDiscovery_ExampleOperatorRule pins the _meta.operators rule on its
-// own: today every tagged operator also appears in the body, so the
-// library alone cannot tell it from the body-token rule.
-func TestDiscovery_ExampleOperatorRule(t *testing.T) {
-	inst := hidingSnapshot("AGG_SUM")
-	tagged := &examples.Example{Operators: []string{"AGG_SUM"}, Body: []byte(`{}`)}
-	if !slices.ContainsFunc(examplePruneRules, func(rule func(*InstanceSnapshot, *examples.Example) bool) bool {
-		return rule(inst, tagged)
-	}) {
-		t.Error("an example tagged with a hidden operator is not pruned")
-	}
-	if exampleOperatorHidden(inst, &examples.Example{Operators: []string{"AGG_COUNT"}, Body: []byte(`{}`)}) {
-		t.Error("an example tagged only with enabled operators is pruned")
-	}
 }

@@ -27,9 +27,8 @@ One `int64` per row written to `Label` (default `WIN_DENSE_RANK`). Ties share a 
 
 ## Gotchas
 
-- Use `WIN_RANK` if you want gaps after ties — `(1, 2, 2, 4, 5)`.
 - Tie comparison uses every `order_by` key; tie only when ALL keys equal.
-- `WIN_DENSE_RANK` does NOT distinguish row count from rank count — pair with `WIN_ROW_NUMBER` if you need both.
+- `WIN_DENSE_RANK` does NOT distinguish row count from rank count.
 - Result rows are NOT reordered — use `Request.Sort` for response order.
 - Forces buffered execution (`Streamable=false`).
 

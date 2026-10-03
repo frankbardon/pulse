@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — ordered grouped Process host (e.g. `GROUP_DATE`). Subtractive twin of `OVERLAY_INDEX_VS_BASELINE`.
+SERIES — ordered grouped Process host (e.g. a date grouper). Subtractive twin of the baseline index.
 
 ## Output
 
@@ -26,7 +26,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `delta =
 ## Gotchas
 
 - Out-of-range `Position` → `PULSE_OVERLAY_REF_UNKNOWN` (predict + runtime via `ResolveBaselineIndex`).
-- Zero baseline → no warning (subtraction defined for every finite value; delta becomes raw host value). Distinct from `OVERLAY_INDEX_VS_BASELINE` which raises `PULSE_OVERLAY_REF_ZERO`.
+- Zero baseline → no warning (subtraction defined for every finite value; delta becomes raw host value). The ratio twin raises `PULSE_OVERLAY_REF_ZERO` instead.
 - Absent host point → `SeriesEntry` with unset `Statistic` (canonical absent-slot shape).
 - Buffered — `host.ValueAt(Position)` read post-finalize via `ApplyOverlaysSeries`.
 

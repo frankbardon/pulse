@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES ordered grouped Process host. Shares the per-group ring buffer + Welford trio with `OVERLAY_INDEX_VS_ROLLING_MEAN`, reading `mean` + `M2`.
+SERIES ordered grouped Process host. Shares the per-group ring buffer + Welford trio with the rolling-mean index, reading `mean` + `M2`.
 
 ## Output
 
@@ -25,7 +25,7 @@ SERIES — one `SeriesEntry` per host group key carrying `z = (point - rolling_m
 
 ## Gotchas
 
-- **SAMPLE SD**: the window IS a sample of the wider series → unbiased variance. Contrast `OVERLAY_ZSCORE_VS_TOTAL` (population SD, ÷N).
+- **SAMPLE SD**: the window IS a sample of the wider series → unbiased variance. Contrast the total z-score (population SD, ÷N).
 - Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window <= 0` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
 - `count < 2` → NaN, no warning (Welford needs ≥2). Zero rolling SD → NaN + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Absent host point → NaN, and the ring does NOT advance.

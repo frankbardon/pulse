@@ -5,28 +5,40 @@ type: guide
 kind: design
 applies_to: compose, predict
 covers: [ComposedRequest, pulse_compose, OverlayLayer]
+requires: [capability:compose]
 ---
 
 # Compose requests
 
-`ComposedRequest` bundles N independent `Request` objects into one round-trip. Use it when several analyses share a cohort — Pulse loads + decodes the cohort once and dispatches every slot against the same record set.
+`ComposedRequest` bundles N independent `Request` objects into one round-trip (`pulse_compose`, `pulse api compose`, `pulse.Compose`). Each slot is a complete `Request` — its own cohort, filters, groups and aggregations — and runs exactly as it would alone.
+
+## When to compose
+
+- **Several independent questions in one call** — a summary, a breakdown and a crosstab of the same survey; or the same request over several cohorts.
+- **Comparing slots** — a Compose-host overlay reads two or more finished slots and decorates the comparison (reference vs target, or a multi-slot panel).
+
+Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a chain<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->. Every slot opens and decodes its own cohort: composing saves round-trips, not decode work.
 
 ```jsonc
 {
   "requests": [
-    {"cohort": {"filename": "students.pulse"},
-     "aggregations": [{"type": "AGG_COUNT", "field": "score"}],
-     "filterers":    [{"type": "FILTER_INCLUDE", "field": "grade", "values": ["A"]}]},
-    {"cohort": {"filename": "students.pulse"},
-     "aggregations": [{"type": "AGG_AVERAGE", "field": "score"}],
-     "groups":       [{"type": "GROUP_CATEGORY", "field": "department"}]}
+    {"label": "a_grades",
+     "cohort": {"filename": "students.pulse"},
+     "aggregations": [{"type": "<aggregator>", "field": "score"}],
+     "filterers":    [{"type": "<value filter>", "field": "grade", "values": ["A"]}]},
+    {"label": "by_dept",
+     "cohort": {"filename": "students.pulse"},
+     "aggregations": [{"field": "score"}],
+     "groups":       [{"field": "department"}]}
   ]
 }
 ```
 
+`<…>` = any operator the manifest lists for that slot. Slot 2 leans on smart defaults: a field with no `type` gets the default for its schema type (`request-envelope`).
+
 ## Order-preserving slot dispatch
 
-Slots execute in declared order; the response is a `ComposedResponse` object `{Responses, Overlays}` where `Responses[i]` matches `Requests[i]` (since the v0.21.0 facade lift — predecessors returned a raw `[]*Response` slice). Each slot carries its own `Response` shell — per-slot `Metadata`, `Aggregations`, `Crosstab`, `Components`, etc. Filter state in slot `i` does not affect slot `j`.
+The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in. Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. Filter state in slot `i` never affects slot `j`.
 
 ```jsonc
 {
@@ -34,47 +46,38 @@ Slots execute in declared order; the response is a `ComposedResponse` object `{R
     {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 50}},
     {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 1000}}
   ],
-  "overlays": [ /* per-Compose-spec OverlayLayer; omitted when no Compose overlays */ ]
+  "overlays": [ /* one OverlayLayer per Compose overlay spec; key omitted when there are none */ ]
 }
 ```
 
-## Shared cohort optimisation
-
-When every slot's `cohort.filename` resolves to the same path, the orchestrator decodes the file once and shares record buffers across slots. Mixed cohorts fall through to per-slot independent decode.
-
 ## Slot labels
 
-Each `Request` carries an optional `label` (`"label,omitempty"`). The engine auto-fills empty labels with `request_<index+1>` (1-based) against a clone — your `*Request` pointer is never mutated. Labels are the resolution key for Compose-only overlay `Reference` / `Target` lookups.
+Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Labels are how a Compose overlay names its `Reference` / `Target` slots, so set them explicitly whenever an overlay refers to a slot.
 
-Two slots resolving to the same final label (caller duplicates OR caller-vs-auto collision) reject with `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Set explicit labels when an overlay references the slot by name; omit otherwise and accept the default. The slot is additive — omitting it keeps wire bytes and `CanonicalHash` output byte-identical to pre-label callers.
+Two slots resolving to the same final label (duplicates, or a caller label colliding with an auto label) ⇒ `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Omitting labels keeps wire bytes and `CanonicalHash` identical to label-free callers.
 
 ## Parallel execution
 
-`ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (CLI: `pulse api compose --parallel N --fail-fast --timeout 30s`) gates a bounded worker pool. `MaxWorkers <= 1` forces serial. `FailFast: true` cancels in-flight slots on the first error; default mode runs every slot and collects per-slot errors. Determinism: response order matches request order regardless of completion order.
+`pulse.ComposeParallel` with `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` runs slots on a bounded pool (`MaxWorkers` 0 ⇒ GOMAXPROCS; 1 ⇒ serial). CLI: `pulse api compose --parallel N` (default 1 = serial, 0 = GOMAXPROCS) and `--no-fail-fast`. `FailFast` cancels in-flight siblings on the first error; without it every slot runs and failures fold into one `SERVICE_INTERNAL {failed_indices, first_error}`. Response order always matches request order.
 
-**Located refusals.** A slot's zone refusal or `PULSE_JOIN_TOO_MANY` (more than one `JoinSpec`) keeps its own code and gains `details.request` (0-based slot) — serial and `FailFast` alike; `ValidateComposeWithOptions` reports the same entry. `FailFast: false` folds slot failures into one `SERVICE_INTERNAL {failed_indices, first_error}`.
+**Located refusals.** A slot's own refusal (an unsupported zone, more than one join) keeps its code and gains `details.request` — the 0-based slot index — serial and parallel alike.
 
 ## Post-slot Compose-overlay fold
 
-`ComposedRequest.Overlays []OverlaySpec` runs AFTER every slot finalises. The fold reads each slot's already-emitted `Response.Crosstab` / `Response.Data` / `Response.Components` (read-only) and writes a sibling `Response.Overlays[i]` entry. **The fold never mutates per-slot `Components` or the per-slot payload** — overlays are an additive decoration keyed to host coordinates (see `skills/overlay-system.md`).
+`ComposedRequest.Overlays` runs AFTER every slot finalises. The fold reads each slot's finished `crosstab` / `data` / `components` (read-only) and writes one sibling `overlays[i]` layer per spec. **It never mutates a slot's payload or `components`** — overlays are additive decorations keyed to host coordinates (`overlay-system`).
 
-Compose-only kinds (`OVERLAY_PROP_Z_PANEL`, `OVERLAY_PANEL_INDEX_VS_REF`, etc.) resolve `Reference.SlotLabel` / `Target.SlotLabel` against the auto-or-explicit labels above. Schema-divergence (per-axis grouper-kind tuple mismatch) is the most common reject; the no-execute companion `internal/descriptor.ValidateCompose(req)` walks every overlay against per-slot request shapes (MATRIX / SERIES / SCALAR) and populates `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` with `(ReferenceLabel, TargetLabel, Reason)` for every offender. Run it before paying for `pulse_compose`.
+Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` against the labels above; find them among the manifest `overlays[]` entries serving `compare_groups` or `benchmark` and read their atomic skills. The usual refusal is schema divergence — the reference and target slots group or crosstab on different axes; keep the compared slots' shapes identical and vary only the filter or cohort. Per-layer diagnostics land on `overlays[i].warnings`.
 
-### Optional fast-path knob
+Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by byte-equal dictionary PREFIX — only when you have verified prefix-equal dictionaries) and `MaxPanelTargets` (default 16; caps a multi-slot panel's targets, overflow ⇒ `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`).
 
-`OverlaySpec.Options.DictPrefixFast bool` — multi-slot schema-match via byte-equal dictionary prefix probe. Requires embedder to verify prefix-equal dicts. Default `false`. `MaxPanelTargets int` caps `OVERLAY_PROP_Z_PANEL` / `OVERLAY_PANEL_INDEX_VS_REF` Targets; overflow → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP` (default 16).
+## Per-slot Components contract
 
-## Per-slot Components contract (v0.20.0)
-
-Every slot's `Response.Components` is emitted independently — the universal floor (`{n, n_null}` on aggregators, `{total_n, n_null}` on groupers, `{n_in, n_out, n_null_input}` on filterers) plus per-operator `Operator` map ride the per-slot response. The Compose-overlay fold runs AFTER per-slot Components emission and treats them as read-only inputs; overlays never rewrite the per-slot `Components` block. Consumers can render a per-slot Components view immediately and a Compose-overlay decoration layer on top.
+Every slot's `components` is emitted independently — the universal floor (`{n, n_null}` per aggregator, `{total_n, n_null}` per grouper, `{n_in, n_out, n_null_input}` per filterer) plus each operator's own keys. The overlay fold runs AFTER that emission and treats it as read-only input, so a client can render per-slot components immediately and the overlay layer on top. `--no-components` / `DisableComponents` suppresses them on every slot (`response-components`).
 
 ## Validate before executing
 
-`pulse_predict` has no batch mode in v1 — loop per slot to catch field typos, missing categorical dicts, or aggregator-type mismatches before paying for `pulse_compose`. For `ComposedRequest.Overlays` use `internal/descriptor.ValidateCompose` (no-execute, walks every spec against per-slot shapes).
+`pulse_predict` takes one `Request`: loop it over the slots to catch field typos, missing dictionaries and type mismatches before paying for `pulse_compose`. Compose overlay specs are checked when the fold runs, after the slots — so a mislabelled overlay costs the full batch; check every `SlotLabel` against the labels you set.
 
 ## See
 
-- `response-components` — per-slot Components shape + universal floor + per-operator keys.
-- `overlay-system` — Compose-only overlay catalog and resolution rules.
-- `streaming-and-watching` — `Request.Hash()` for per-slot cache keys; `StreamResult` is Process-only (not Compose).
-- `process-chain` — sequential pipeline alternative when slots depend on each other.
+`response-components` (per-slot components shape) · `overlay-system` (overlay hosts and resolution) · `streaming-and-watching` (`Request.Hash()` per-slot cache keys; `--stream` emits per-row events and skips the overlay fold)<!-- feature: capability:process_chain --> · `process-chain` (when slots depend on each other)<!-- /feature -->.

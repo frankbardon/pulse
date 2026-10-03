@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -62,9 +63,15 @@ func snapshot(t *testing.T, v any) string {
 
 // TestGuidanceSkills_NeverPrunedByFeatureProfile: under every private
 // fixture profile the glossary and intents skills stay listed (manifest
-// and discovery) and their bodies are served unchanged. No prune rule
-// matches a reference-kind skill; this pins that a new rule keeps it so.
+// and discovery) and served. Their bodies render from the instance's
+// pruned ontology: every section heading served is one the registry
+// render carries, and a registry heading is missing exactly when its
+// intent / glossary-term node was pruned from the instance graph.
 func TestGuidanceSkills_NeverPrunedByFeatureProfile(t *testing.T) {
+	kinds := map[string]descriptor.OntologyNodeKind{
+		skills.VirtualIntents:  descriptor.OntologyNodeIntent,
+		skills.VirtualGlossary: descriptor.OntologyNodeGlossaryTerm,
+	}
 	for _, name := range featureSetFixtures {
 		t.Run(name, func(t *testing.T) {
 			p := newFixturePulse(t, name, Options{})
@@ -72,7 +79,8 @@ func TestGuidanceSkills_NeverPrunedByFeatureProfile(t *testing.T) {
 			for _, s := range p.Manifest(context.Background()).Skills {
 				manifest = append(manifest, s.Name)
 			}
-			d := p.svc.InstanceSnapshot().Discovery()
+			inst := p.svc.InstanceSnapshot()
+			d := inst.Discovery()
 			var listed []string
 			for _, md := range d.Skills() {
 				listed = append(listed, md.Name)
@@ -84,11 +92,40 @@ func TestGuidanceSkills_NeverPrunedByFeatureProfile(t *testing.T) {
 				if !slices.Contains(listed, v) {
 					t.Errorf("discovery skills lacks %s", v)
 				}
-				want, _ := skills.Get(v)
-				if got, ok := d.Skill(v); !ok || got != want {
-					t.Errorf("discovery body of %s pruned or rendered (ok=%v)", v, ok)
+				got, ok := d.Skill(v)
+				if !ok {
+					t.Errorf("discovery does not serve %s", v)
+					continue
+				}
+				full, _ := skills.Get(v)
+				served := sectionIDs(got)
+				for _, id := range served {
+					if !slices.Contains(sectionIDs(full), id) {
+						t.Errorf("%s serves section %q the registry render lacks", v, id)
+					}
+				}
+				for _, id := range sectionIDs(full) {
+					kept := inst.Ontology().Has(descx.OntologyID(kinds[v], id))
+					if on := slices.Contains(served, id); kept != on {
+						t.Errorf("%s section %q: served=%v, node kept=%v", v, id, on, kept)
+					}
 				}
 			}
 		})
 	}
+}
+
+// sectionIDs returns the IDs of a virtual skill's term / intent
+// sections (`## <id>` in glossary, `### <id>` in intents).
+func sectionIDs(body string) []string {
+	var out []string
+	for _, line := range strings.Split(body, "\n") {
+		switch {
+		case strings.HasPrefix(line, "### "):
+			out = append(out, strings.TrimPrefix(line, "### "))
+		case strings.HasPrefix(line, "## ") && !strings.Contains(line, " intents"):
+			out = append(out, strings.TrimPrefix(line, "## "))
+		}
+	}
+	return out
 }

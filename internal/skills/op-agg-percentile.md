@@ -45,7 +45,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Buffered full-input path; cohort-sized memory peak.
 - Out-of-range `percentile` rejected.
-- For p50 prefer `AGG_MEDIAN` (semantically identical).
 
 ## See
 

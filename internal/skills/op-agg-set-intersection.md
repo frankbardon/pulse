@@ -40,7 +40,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - AND across all rows ≠ AND across cells; do NOT pool margins.
 - One row with all-zero bits → empty intersection for the group.
-- For union semantics use `AGG_SET_UNION`.
 
 ## See
 

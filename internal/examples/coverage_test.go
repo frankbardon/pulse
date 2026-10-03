@@ -85,7 +85,7 @@ func collectExampleCoverage(t *testing.T) (declared map[string]struct{}, kinds m
 			t.Fatalf("%s: parse top-level: %v", p, err)
 		}
 		if rawMeta, ok := raw["_meta"]; ok {
-			var m meta
+			var m Meta
 			if err := json.Unmarshal(rawMeta, &m); err != nil {
 				t.Fatalf("%s: parse _meta: %v", p, err)
 			}

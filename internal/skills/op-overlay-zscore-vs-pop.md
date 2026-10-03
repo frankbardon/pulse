@@ -17,7 +17,7 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 ## Host shape
 
-FACET — `FacetResult`, discrete or numeric arm. Streamable sibling to `OVERLAY_INDEX_VS_POP`: the two streamable FACET kinds, one Facet pass.
+FACET — `FacetResult`, discrete or numeric arm. Streamable sibling to the population index: the two streamable FACET kinds, one Facet pass.
 
 ## Output
 

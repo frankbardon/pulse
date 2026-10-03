@@ -680,7 +680,7 @@
     "post_tests": [],
     "regressions": [],
     "synth_distributions": [],
-    "error_codes_count": 145,
+    "error_codes_count": 149,
     "error_domains": [
       "CLI",
       "DATA",
@@ -735,6 +735,8 @@
       "PULSE_DEDUP_LOW_RATIO",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
+      "PULSE_EXTENSION_EXAMPLE_COLLISION",
+      "PULSE_EXTENSION_EXAMPLE_INVALID",
       "PULSE_EXTENSION_FACTORY_PANIC",
       "PULSE_EXTENSION_FANOUT_MISMATCH",
       "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH",
@@ -745,6 +747,8 @@
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
+      "PULSE_EXTENSION_SKILL_COLLISION",
+      "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
@@ -1188,19 +1192,43 @@
       },
       {
         "name": "attribute-composition",
-        "description": "ATTR_* composition rules — slot ordering, two-pass attributes, ATTR_FORMULA expression environment, ATTR vs FEAT distinction. Topical design; per-ATTR detail lives in atomic op-attr-* skills."
+        "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
+      },
+      {
+        "name": "cohort-null-states",
+        "description": "How a .pulse cohort stores absence — the per-record null bitmap, no in-band sentinels, out-of-sample null promotion on inferred imports, and the null / empty / selected states of set and categorical cells across every import and export format."
+      },
+      {
+        "name": "cohort-parent-groups",
+        "description": "Parent groups in format 0x02 cohorts — storing a repeated parent block once, when a group pays for itself, declaring one at import with a key check, suggesting and gating groups, converting an existing cohort with dedup, and opt-in global-constant elision."
       },
       {
         "name": "cohort-schema-design",
-        "description": "Field-type selection for .pulse cohorts — 20 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the 20-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
-        "name": "compose-requests",
-        "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
+        "name": "cohort-sharding",
+        "description": "Shard archives in depth — strict structural cohesion, dictionary union-merge, set-rung auto-widen on create and add, grouped shards, the anchor syntax, union-wide memory for materializing operations, single-writer concurrency, and transport-only compression for moving a cohort."
+      },
+      {
+        "name": "cohort-sidecar-index",
+        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints."
+      },
+      {
+        "name": "cohort-width-overflow",
+        "description": "What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it."
       },
       {
         "name": "crosstab-guide",
         "description": "Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics."
+      },
+      {
+        "name": "crosstab-margin-aggregations",
+        "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
+      },
+      {
+        "name": "expression-language",
+        "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
       },
       {
         "name": "facet-design",
@@ -1208,7 +1236,7 @@
       },
       {
         "name": "feature-engineering",
-        "description": "Feature slot semantics — pre-filter ordering (FEAT runs before FILTER), target-leakage trap, train/test split. Topical design; per-FEAT detail lives in atomic op-feat-* skills."
+        "description": "Feature slot semantics — choosing a transform, pre-filter ordering (features run before filters), per-row vs global-pass cost, target-leakage trap, train/test split. Topical design; per-feature detail lives in atomic op-feat-* skills."
       },
       {
         "name": "financial-cohorts",
@@ -1225,14 +1253,6 @@
       {
         "name": "intents",
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
-      },
-      {
-        "name": "join-design",
-        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validate-join predict surface."
-      },
-      {
-        "name": "label-display",
-        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
         "name": "op-agg-average",
@@ -1300,23 +1320,15 @@
       },
       {
         "name": "pairwise-n-sources",
-        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and the direct-caller bypass."
-      },
-      {
-        "name": "process-chain",
-        "description": "ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning."
+        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
       },
       {
         "name": "regression-modeling",
-        "description": "REG_* operator + modifier composition (`Resample`, `Selection`), `FEAT_POLY` upstream composition, how 13 textbook regression names map to 3 operators + 2 modifiers. Topical design; per-REG detail in atomic op-reg-* skills."
+        "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
       {
         "name": "request-envelope",
-        "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability, and the v0.20.0 Response.Components additive field. Use when authoring or adapting any Pulse Request."
-      },
-      {
-        "name": "request-templating",
-        "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
+        "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request."
       },
       {
         "name": "response-components",
@@ -1327,8 +1339,44 @@
         "description": "Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session."
       },
       {
+        "name": "session-format-flags",
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, and the four .sav write knobs with their refusal defaults."
+      },
+      {
+        "name": "session-skill-routing",
+        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
+      },
+      {
         "name": "spss-cohorts",
-        "description": "SPSS .sav / .zsav import and .sav writing — the schema-authoritative dictionary, derived columns (\u003cvar\u003e_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, the dictionary + data-section writer, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, when a cohort has more columns than its source file had variables, or when emitting a .sav."
+        "description": "Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived columns, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav."
+      },
+      {
+        "name": "spss-export",
+        "description": "Writing .sav — the dictionary + data-section writer, bytecode compression, the four write flags, why the writer takes the whole cohort rather than rendered rows, how a .sav-to-.sav convert carries the source through, and asking export predict first."
+      },
+      {
+        "name": "spss-export-fidelity",
+        "description": "How far the .sav round-trip claim is proven — what CI gates, what was checked only locally against independent readers, what nothing corroborates — and the write-side charset rules (source charset kept, no replacement characters, no silent truncation, encode-measure-segment)."
+      },
+      {
+        "name": "spss-export-values",
+        "description": "What a .sav export writes for each value — the variable-name policy and --sanitize-names, set_* masks at every width, the missing state each null takes, original codes versus dictionary positions, byte order, and labels that live only on user-missing codes."
+      },
+      {
+        "name": "spss-import-schema",
+        "description": "How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a column unexpectedly or refuses a file."
+      },
+      {
+        "name": "spss-metadata-sidecar",
+        "description": "The cohort.pulse.spss.json sidecar an SPSS import writes — what it records that the .pulse format cannot, the code-label-dictionary-ID triple labels come from, its fingerprint, and the absent / stale / invalid / ignored read verdicts."
+      },
+      {
+        "name": "spss-missing-values",
+        "description": "How SPSS user-missing and system-missing values land in a cohort — the numeric \u003cvar\u003e_missing sibling versus the flagged categorical code, why the two arms deliberately differ, --spss-missing, and filtering on the code rather than the label."
+      },
+      {
+        "name": "spss-response-sets",
+        "description": "SPSS multiple-response sets and the columns an import synthesises — the derived set_* mask beside a multiple-dichotomy set's constituents, why multiple-category sets derive nothing, and the closed derived registry the export folds by. Read this when a cohort has more columns than its .sav had variables."
       },
       {
         "name": "statistical-testing",
@@ -1337,18 +1385,6 @@
       {
         "name": "streaming-and-watching",
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
-      },
-      {
-        "name": "synth-models",
-        "description": "Synth `--fit-models` — per-numeric linear model capture, predictor selection, thin-level shrinkage, the composed latent draw, correlated residuals, and the fidelity recovery sections that score whether the captured structure survived generation. Split out of the synthetic-data topical."
-      },
-      {
-        "name": "synth-structural-rules",
-        "description": "Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical."
-      },
-      {
-        "name": "synthetic-data",
-        "description": "`pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules."
       },
       {
         "name": "tool-errors-lookup",
@@ -1392,7 +1428,7 @@
       },
       {
         "name": "tool-skills-list",
-        "description": "List the embedded skill pack — domain guides and atomic operator/type/tool refs."
+        "description": "List the skill pack — domain guides and atomic operator/type/tool refs, deployment-added skills included."
       },
       {
         "name": "type-categorical-u16",
@@ -1476,7 +1512,7 @@
       },
       {
         "name": "window-design",
-        "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
+        "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
     "examples_count": 25,
@@ -1899,18 +1935,14 @@
       "composition",
       "data_quality",
       "describe",
-      "distribution_shape",
-      "drivers",
       "flows",
       "lookup",
       "measure_construct",
       "prepare",
-      "relationship",
-      "segment",
-      "simulate"
+      "relationship"
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5d4eb6d3c57030a6f0b5845afebda383a09151d6afa9313cb95a6bd8232bf520
+// golden-hash: ee2789a18dc0161331abfd25e4537d70db723dc091a771c4edf63ec02230e7ea

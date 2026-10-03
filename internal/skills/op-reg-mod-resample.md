@@ -1,6 +1,6 @@
 ---
 name: op-reg-mod-resample
-description: Spec-level resampling modifier (jackknife / bootstrap) that composes with REG_OLS or REG_GLM; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
+description: Spec-level resampling modifier (jackknife / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
 kind: operator
 category: REG
 operator: REG_RESAMPLE
@@ -13,7 +13,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. T
 
 ## Params
 
-Top-level `resample` on `RegressionSpec` plus two bootstrap knobs. A **wrapper, not a fit**: the host `REG_OLS` / `REG_GLM` runs once per replicate (jackknife = `n` refits; bootstrap = `bootstrap_iters`) and β samples are aggregated.
+Top-level `resample` on `RegressionSpec` plus two bootstrap knobs. A **wrapper, not a fit**: the host fit runs once per replicate (jackknife = `n` refits; bootstrap = `bootstrap_iters`) and β samples are aggregated.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
@@ -27,9 +27,15 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 
 | Host | Accepted? |
 |---|---|
+<!-- feature: REG_OLS -->
 | `REG_OLS` (any penalty) | yes |
+<!-- /feature -->
+<!-- feature: REG_GLM -->
 | `REG_GLM` | yes |
+<!-- /feature -->
+<!-- feature: REG_BAYES_LINEAR -->
 | `REG_BAYES_LINEAR` | rejected — credible intervals already convey uncertainty |
+<!-- /feature -->
 
 ## Output
 

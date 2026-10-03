@@ -23,6 +23,7 @@ import (
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/service"
+	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/internal/template"
 	"github.com/frankbardon/pulse/internal/temporal"
 	pio "github.com/frankbardon/pulse/io"
@@ -164,6 +165,9 @@ type (
 	// ExampleSummary is the lightweight projection returned by
 	// ExamplesSearch.
 	ExampleSummary = examples.ExampleSummary
+	// SkillMetadata is one skill-pack entry as Skills lists it — name,
+	// description, kind and the frontmatter cross-references.
+	SkillMetadata = skills.Metadata
 
 	// ErrorMetadata is the depth-on-demand projection returned by
 	// ErrorLookup, ErrorsByDomain, and ErrorsSearch. Carries the code,
@@ -573,7 +577,18 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetDisableComponents(opts.DisableComponents)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
 	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
-	svc.SetInstanceSnapshot(descx.NewInstanceSnapshot(buildExtensionsSnapshot(visibleExt), featureSet))
+	extSnap := buildExtensionsSnapshot(visibleExt)
+	if len(universe.skills)+len(universe.examples) > 0 {
+		if extSnap == nil {
+			extSnap = &descx.ExtensionsSnapshot{}
+		}
+		// Every validated skill and example; the instance graph drops the
+		// ones whose extension operator this profile hides
+		// (extendOntology) and prunes the rest like built-ins.
+		extSnap.Skills = universe.skills
+		extSnap.Examples = universe.examples
+	}
+	svc.SetInstanceSnapshot(descx.NewInstanceSnapshot(extSnap, featureSet))
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
 	svc.SetStrict(opts.Strict)
@@ -1572,6 +1587,8 @@ func (p *Pulse) WidenSetField(ctx context.Context, path, field, targetType strin
 // ANDed; category is an exact match. Always returns a non-nil slice
 // (possibly empty) for safe JSON marshaling. Under a feature profile an
 // example that uses an operator the instance hides is not returned.
+// Embedder examples (Extensions.Examples) are searched with the
+// built-ins, ranked by the same rules.
 func (p *Pulse) ExamplesSearch(query string, tags []string, category string) []ExampleSummary {
 	return p.svc.InstanceSnapshot().Discovery().ExamplesSearch(query, tags, category)
 }
@@ -1580,7 +1597,8 @@ func (p *Pulse) ExamplesSearch(query string, tags []string, category string) []E
 // returned Body is the request JSON with the _meta block stripped so
 // it can be handed directly to Process / Predict. Under a feature
 // profile an example that uses a hidden operator answers (nil, false),
-// exactly as a name that does not exist.
+// exactly as a name that does not exist. Embedder examples
+// (Extensions.Examples) are served the same way.
 func (p *Pulse) ExampleGet(name string) (*Example, bool) {
 	return p.svc.InstanceSnapshot().Discovery().Example(name)
 }

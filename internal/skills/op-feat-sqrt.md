@@ -29,7 +29,7 @@ One `f64` column written to `Label` (default `SQRT_<field>`). Formula `sqrt(x)`.
 
 - Negative inputs (`x < 0`) emit `null` — sqrt of negative is undefined for real-valued features. No error.
 - Null inputs propagate to null outputs.
-- Gentler skew compression than `FEAT_LOG` — prefer for moderate-skew counts; pair with `op-feat-log` when comparing transforms.
+- Gentler skew compression than a log — prefer it for moderate-skew counts.
 - Streamable per-row.
 
 ## See

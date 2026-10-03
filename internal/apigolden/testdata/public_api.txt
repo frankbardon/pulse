@@ -186,6 +186,7 @@ pulse: type ExprFunction field Signature string
 pulse: type Extensions struct
 pulse: type Extensions field Aggregators []pulse.AggregatorRegistration
 pulse: type Extensions field Attributes []pulse.AttributeRegistration
+pulse: type Extensions field Examples io/fs.FS
 pulse: type Extensions field ExprFunctions []pulse.ExprFunction
 pulse: type Extensions field Features []pulse.FeatureRegistration
 pulse: type Extensions field Filterers []pulse.FiltererRegistration
@@ -193,6 +194,7 @@ pulse: type Extensions field Groupers []pulse.GrouperRegistration
 pulse: type Extensions field LabelTables map[string]pulse.LabelTable
 pulse: type Extensions field LookupTables map[string]pulse.LookupTable
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
+pulse: type Extensions field Skills io/fs.FS
 pulse: type Extensions field SynthDistributions []pulse.DistributionRegistration
 pulse: type Extensions field Tests []pulse.TestRegistration
 pulse: type Extensions field Windows []pulse.WindowRegistration
@@ -597,6 +599,7 @@ pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath st
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
 pulse: type Pulse method (*Pulse) Lookup(ctx context.Context, req *pulse.LookupRequest) (*pulse.LookupResult, error)
 pulse: type Pulse method (*Pulse) Manifest(_ context.Context) *pulse/descriptor.Manifest
+pulse: type Pulse method (*Pulse) Ontology() pulse/descriptor.Ontology
 pulse: type Pulse method (*Pulse) Open(ctx context.Context, path string) (*pulse.Cohort, error)
 pulse: type Pulse method (*Pulse) PayloadSchema() ([]byte, error)
 pulse: type Pulse method (*Pulse) Predict(ctx context.Context, req *pulse.Request) (*pulse/descriptor.PredictResult, error)
@@ -616,6 +619,8 @@ pulse: type Pulse method (*Pulse) ResolveImport(ctx context.Context, handle stri
 pulse: type Pulse method (*Pulse) ResolveLabel(table string, query string, limit int) ([]pulse.LabelMatch, error)
 pulse: type Pulse method (*Pulse) Sample(ctx context.Context, path string, n int) ([]pulse.Record, error)
 pulse: type Pulse method (*Pulse) SampleWithRequest(ctx context.Context, req *pulse.SampleRequest) (*pulse.SampleResult, error)
+pulse: type Pulse method (*Pulse) Skill(name string) (string, bool)
+pulse: type Pulse method (*Pulse) Skills() []pulse.SkillMetadata
 pulse: type Pulse method (*Pulse) SweepImports(ctx context.Context) ([]string, error)
 pulse: type Pulse method (*Pulse) Synth(_ context.Context, spec *pulse.SynthSpec, output string, opts pulse.SynthOptions) (*pulse.SynthResult, error)
 pulse: type Pulse method (*Pulse) SynthStream(ctx context.Context, spec *pulse.SynthSpec, opts pulse.SynthOptions) (pulse.StreamResult[pulse.Row], error)
@@ -752,6 +757,18 @@ pulse: type SidecarIndexKeySpec field Name string
 pulse: type SidecarIndexKeySpec field Type pulse/encoding.FieldType
 pulse: const SidecarKindPointLookupIndex untyped string = "point_lookup_index"
 pulse: const SidecarKindSPSSMetadata untyped string = "spss_metadata"
+pulse: type SkillMetadata = pulse/internal/skills.Metadata
+pulse: type SkillMetadata underlying struct
+pulse: type SkillMetadata field AppliesTo []string "json:\"applies_to\""
+pulse: type SkillMetadata field Category string "json:\"category,omitempty\""
+pulse: type SkillMetadata field Covers []string "json:\"covers,omitempty\""
+pulse: type SkillMetadata field Description string "json:\"description\""
+pulse: type SkillMetadata field ExamplesTags []string "json:\"examples_tags,omitempty\""
+pulse: type SkillMetadata field Kind string "json:\"kind,omitempty\""
+pulse: type SkillMetadata field Name string "json:\"name\""
+pulse: type SkillMetadata field Operator string "json:\"operator,omitempty\""
+pulse: type SkillMetadata field Requires []string "json:\"requires,omitempty\""
+pulse: type SkillMetadata field Type string "json:\"type\""
 pulse: type StaleSidecar struct
 pulse: type StaleSidecar field Keys []string "json:\"keys,omitempty\""
 pulse: type StaleSidecar field Kind string "json:\"kind\""
@@ -1193,6 +1210,34 @@ pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeabl
 pulse/descriptor: func NewEnvelope(data any) *pulse/descriptor.Envelope
 pulse/descriptor: func NewEnvelopeWithRequest(data any, request any) *pulse/descriptor.Envelope
 pulse/descriptor: const None pulse/types.ComponentsMergeability = "none"
+pulse/descriptor: type Ontology struct
+pulse/descriptor: type Ontology field Edges []pulse/descriptor.OntologyEdge "json:\"edges\""
+pulse/descriptor: type Ontology field Nodes []pulse/descriptor.OntologyNode "json:\"nodes\""
+pulse/descriptor: type OntologyEdge struct
+pulse/descriptor: type OntologyEdge field From string "json:\"from\""
+pulse/descriptor: type OntologyEdge field Kind pulse/descriptor.OntologyEdgeKind "json:\"kind\""
+pulse/descriptor: type OntologyEdge field To string "json:\"to\""
+pulse/descriptor: const OntologyEdgeDocumentedBy pulse/descriptor.OntologyEdgeKind = "documented_by"
+pulse/descriptor: const OntologyEdgeExemplifiedBy pulse/descriptor.OntologyEdgeKind = "exemplified_by"
+pulse/descriptor: type OntologyEdgeKind string
+pulse/descriptor: const OntologyEdgeNotFor pulse/descriptor.OntologyEdgeKind = "not_for"
+pulse/descriptor: const OntologyEdgeRequiresCapability pulse/descriptor.OntologyEdgeKind = "requires_capability"
+pulse/descriptor: const OntologyEdgeRoutesTo pulse/descriptor.OntologyEdgeKind = "routes_to"
+pulse/descriptor: const OntologyEdgeServesIntent pulse/descriptor.OntologyEdgeKind = "serves_intent"
+pulse/descriptor: const OntologyEdgeUsesTerm pulse/descriptor.OntologyEdgeKind = "uses_term"
+pulse/descriptor: type OntologyNode struct
+pulse/descriptor: type OntologyNode field ID string "json:\"id\""
+pulse/descriptor: type OntologyNode field Kind pulse/descriptor.OntologyNodeKind "json:\"kind\""
+pulse/descriptor: type OntologyNode field Name string "json:\"name\""
+pulse/descriptor: const OntologyNodeCapability pulse/descriptor.OntologyNodeKind = "capability"
+pulse/descriptor: const OntologyNodeExample pulse/descriptor.OntologyNodeKind = "example"
+pulse/descriptor: const OntologyNodeGlossaryTerm pulse/descriptor.OntologyNodeKind = "glossary_term"
+pulse/descriptor: const OntologyNodeIntent pulse/descriptor.OntologyNodeKind = "intent"
+pulse/descriptor: type OntologyNodeKind string
+pulse/descriptor: const OntologyNodeMCPTool pulse/descriptor.OntologyNodeKind = "mcp_tool"
+pulse/descriptor: const OntologyNodeOperator pulse/descriptor.OntologyNodeKind = "operator"
+pulse/descriptor: const OntologyNodeSkill pulse/descriptor.OntologyNodeKind = "skill"
+pulse/descriptor: const OntologyNodeTable pulse/descriptor.OntologyNodeKind = "table"
 pulse/descriptor: type Operator struct
 pulse/descriptor: type Operator field AcceptsTypes []string "json:\"accepts_types\""
 pulse/descriptor: type Operator field Category string "json:\"category\""
@@ -1687,6 +1732,8 @@ pulse/errors: const PULSE_EXPORT_FIELD_UNKNOWN pulse/errors.Code = "PULSE_EXPORT
 pulse/errors: const PULSE_EXPORT_ROW_ERROR pulse/errors.Code = "PULSE_EXPORT_ROW_ERROR"
 pulse/errors: const PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_DUPLICATE pulse/errors.Code = "PULSE_EXTENSION_DUPLICATE"
+pulse/errors: const PULSE_EXTENSION_EXAMPLE_COLLISION pulse/errors.Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
+pulse/errors: const PULSE_EXTENSION_EXAMPLE_INVALID pulse/errors.Code = "PULSE_EXTENSION_EXAMPLE_INVALID"
 pulse/errors: const PULSE_EXTENSION_FACTORY_PANIC pulse/errors.Code = "PULSE_EXTENSION_FACTORY_PANIC"
 pulse/errors: const PULSE_EXTENSION_FANOUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH"
@@ -1697,6 +1744,8 @@ pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTE
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_EXTENSION_PURPOSE_INVALID"
+pulse/errors: const PULSE_EXTENSION_SKILL_COLLISION pulse/errors.Code = "PULSE_EXTENSION_SKILL_COLLISION"
+pulse/errors: const PULSE_EXTENSION_SKILL_INVALID pulse/errors.Code = "PULSE_EXTENSION_SKILL_INVALID"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
 pulse/errors: const PULSE_FEATURE_PROFILE_DEPENDENCY pulse/errors.Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
 pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEATURE_PROFILE_INVALID"
@@ -3677,4 +3726,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: cf63ee68edf9c47bf0be41e6625d2f848562ccbadfc777d9966e6bdf20f84cc0
+// golden-hash: 736f7668104527f5d9d39bef6959991701fe3d112a07134f67ed7869fc5c96f2

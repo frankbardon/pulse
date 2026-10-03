@@ -14,119 +14,28 @@ import (
 )
 
 func TestAtomicSkillHasRequiredSections(t *testing.T) {
-	type fileCase struct {
-		stem     string
-		required []string
-	}
-	var cases []fileCase
-
 	for _, stem := range embeddedMarkdownNames(t) {
-		switch {
-		case strings.HasPrefix(stem, "type-"):
-			cases = append(cases, fileCase{
-				stem: stem,
-				required: []string{
-					"## Bytes",
-					"## Range",
-					"## Null",
-					"## Dictionary",
-					"## See",
-				},
-			})
-		case strings.HasPrefix(stem, "tool-"):
-			cases = append(cases, fileCase{
-				stem: stem,
-				required: []string{
-					"## When to use",
-					"## Input",
-					"## Output",
-					"## Gotchas",
-					"## See",
-				},
-			})
-		case strings.HasPrefix(stem, "op-overlay-"):
-			cases = append(cases, fileCase{
-				stem: stem,
-				required: []string{
-					"## Params",
-					"## Host shape",
-					"## Output",
-					"## Gotchas",
-					"## See",
-				},
-			})
-		case strings.HasPrefix(stem, "op-"):
-			raw, ok := Get(stem)
-			if !ok {
-				t.Errorf("op-* skill %q embedded but Get returned false", stem)
-				continue
-			}
-			fm := ParseFrontmatter(raw)
-			required := []string{
-				"## Params",
-				"## Inputs",
-				"## Output",
-				"## Gotchas",
-				"## See",
-			}
-			// AGG / GROUP / FILTER carry per-operator Components state.
-			// Branch on frontmatter `category` (load-bearing); fall back
-			// to operator-prefix sniff when the key is missing.
-			cat := strings.ToUpper(strings.TrimSpace(fm["category"]))
-			if cat == "" {
-				switch {
-				case strings.HasPrefix(stem, "op-agg-"):
-					cat = "AGG"
-				case strings.HasPrefix(stem, "op-group-"):
-					cat = "GROUP"
-				case strings.HasPrefix(stem, "op-filter-"):
-					cat = "FILTER"
-				}
-			}
-			if cat == "AGG" || cat == "GROUP" || cat == "FILTER" {
-				required = append(required, "## Components")
-			}
-			cases = append(cases, fileCase{stem: stem, required: required})
-		}
-	}
-
-	for _, c := range cases {
-		raw, ok := Get(c.stem)
+		raw, ok := Get(stem)
 		if !ok {
-			t.Errorf("%s: not loadable via Get", c.stem)
+			t.Errorf("%s: not loadable via Get", stem)
 			continue
 		}
-		for _, header := range c.required {
-			if !containsHeading(raw, header) {
-				t.Errorf("%s: missing required section %q", c.stem, header)
+		for _, header := range RequiredSections(stem, ParseFrontmatter(raw)["category"]) {
+			if !HasHeading(raw, header) {
+				t.Errorf("%s: missing required section %q", stem, header)
 			}
 		}
 	}
 }
 
-// containsHeading reports whether md contains the literal `## Foo` heading
-// on a line by itself (with optional trailing whitespace). The check is
-// strict: substring matches inside paragraphs do NOT count, only top-level
-// heading lines.
-func containsHeading(md, heading string) bool {
-	target := strings.TrimSpace(heading)
-	for _, line := range strings.Split(md, "\n") {
-		if strings.TrimRight(line, " \t") == target {
-			return true
-		}
-	}
-	return false
-}
-
+// TestSkillTokenBudget holds each skill body (frontmatter stripped,
+// feature-fence markers stripped) to its family budget. The topical
+// (kind: design) budget is HARD: any byte over fails — a long topic
+// splits into focused skills (.claude/reference/skill-pack.md). The
+// atomic budgets (op-* / tool-* / type-*) are still SOFT: an overrun is
+// logged and fails only past the transitional cap.
 func TestSkillTokenBudget(t *testing.T) {
-	const (
-		opBudget     = 1200
-		toolBudget   = 2000
-		typeBudget   = 2000
-		designBudget = 6000
-
-		hardFailOverPercent = 1000
-	)
+	const hardFailOverPercent = 1000
 
 	for _, stem := range embeddedMarkdownNames(t) {
 		raw, ok := Get(stem)
@@ -134,31 +43,24 @@ func TestSkillTokenBudget(t *testing.T) {
 			t.Errorf("%s: not loadable via Get", stem)
 			continue
 		}
-		body := stripFrontmatter(raw)
-		bodyLen := len(body)
-
-		var budget int
-		switch {
-		case strings.HasPrefix(stem, "op-"):
-			budget = opBudget
-		case strings.HasPrefix(stem, "tool-"):
-			budget = toolBudget
-		case strings.HasPrefix(stem, "type-"):
-			budget = typeBudget
-		default:
-			fm := ParseFrontmatter(raw)
-			if strings.TrimSpace(fm["kind"]) == "design" {
-				budget = designBudget
-			} else {
-				continue // not budget-covered
-			}
+		bodyLen := len(StripFrontmatter(raw))
+		kind := strings.TrimSpace(ParseFrontmatter(raw)["kind"])
+		budget, covered := BodyBudget(stem, kind)
+		if !covered {
+			continue // not budget-covered
 		}
+		hard := kind == "design"
 
 		if bodyLen <= budget {
 			continue
 		}
 		overBytes := bodyLen - budget
 		overPct := (overBytes * 100) / budget
+		if hard {
+			t.Errorf("%s: design body %d > hard budget %d (over by %d bytes) — split the topic into focused skills",
+				stem, bodyLen, budget, overBytes)
+			continue
+		}
 		if overPct > hardFailOverPercent {
 			t.Errorf("%s: body %d > budget %d (over by %d bytes / %d%%) — exceeds transitional cap %d%%",
 				stem, bodyLen, budget, overBytes, overPct, hardFailOverPercent)
@@ -167,25 +69,6 @@ func TestSkillTokenBudget(t *testing.T) {
 		t.Logf("%s: body %d > budget %d (over by %d bytes / %d%%)",
 			stem, bodyLen, budget, overBytes, overPct)
 	}
-}
-
-// stripFrontmatter removes the leading `---\n...\n---\n` block from md and
-// returns the remainder. When md does not begin with frontmatter the entire
-// input is returned unchanged. Matches the parsing convention used by
-// ParseFrontmatter so body-length math stays consistent across the test
-// surface.
-func stripFrontmatter(md string) string {
-	if !strings.HasPrefix(md, "---\n") {
-		return md
-	}
-	end := strings.Index(md[4:], "\n---")
-	if end < 0 {
-		return md
-	}
-	// Skip past closing `\n---` (4 bytes) plus any trailing newline.
-	rest := md[4+end+4:]
-	rest = strings.TrimPrefix(rest, "\n")
-	return rest
 }
 
 // TestOperatorHasAtomicSkill enforces the convention that every registered

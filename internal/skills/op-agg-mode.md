@@ -41,8 +41,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Ties go to the SMALLEST value (or index), not the first seen; `tie_count > 1` flags a tie.
 - High cardinality costs memory; pre-filter.
-- Per-value counts: `GROUP_CATEGORY` + `AGG_COUNT`; one chosen value's count: `AGG_FREQUENCY`.
-- `set_*` → `PROCESSING_CONFIG` (no modal scalar); use `AGG_SET_DISTINCT_VALUES` / `AGG_SET_FREQUENCY`.
+- `set_*` → `PROCESSING_CONFIG` (no modal scalar).
 
 ## See
 

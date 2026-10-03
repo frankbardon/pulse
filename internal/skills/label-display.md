@@ -5,6 +5,7 @@ type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict
 covers: [LabelBinding, pulse_label_tables, pulse_label_resolve]
+requires: [capability:labels]
 ---
 
 # Label display
@@ -13,7 +14,7 @@ Pulse stores categorical fields as dictionary indices resolving to compact strin
 
 ## When to use
 
-Use a binding when the cohort stores an identifier (ISO code, SKU, ICD code, enum) and the user wants a readable name; OR the mapping is runtime-controlled (external store, evolves independently, varies per audience). Skip when the label is intrinsic and stable (import a second categorical column), the translation is computed (`ATTR_FORMULA`), or the mapping is analytic semantics used by filters/sort (denormalise at import).
+Use a binding when the cohort stores an identifier (ISO code, SKU, ICD code, enum) and the user wants a readable name; OR the mapping is runtime-controlled (external store, evolves independently, varies per audience). Skip when the label is intrinsic and stable (import a second categorical column), the translation is computed (a formula attribute — `expression-language`), or the mapping is analytic semantics used by filters/sort (denormalise at import).
 
 ## Two-step setup
 
@@ -32,7 +33,7 @@ LabelTables: map[string]pulse.LabelTable{
 
 `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename minus `.json` = table name). Flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
 
-**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata) and `*.meta.json` (managed import) by suffix before reading, so pointing the variable at a directory that also holds cohorts is safe; a skipped sidecar registers no table. Every OTHER `*.json` under the root is parsed as a label table, and one that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically. A dedicated directory is still cleaner.
+**Pulse's own sidecars are skipped; anything else that fails to parse is fatal.** The loader excludes `*.spss.json` (SPSS metadata), `*.meta.json` (managed import) and `*.indexes.json` (lookup-index catalog) by suffix before reading, so pointing the variable at a directory that also holds cohorts is safe; a skipped sidecar registers no table. Every OTHER `*.json` under the root is parsed as a label table, and one that fails hard-fails `pulse.New` naming the path — a typo must not become a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically. A dedicated directory is still cleaner.
 
 ### 2. Attach a binding
 
@@ -52,10 +53,16 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 
 | Surface | Replace | Augment |
 |---|---|---|
+<!-- feature: capability:sample -->
 | `Sample` (`SampleWithRequest`) | row value → label | row + `<field>_label` |
+<!-- /feature -->
+<!-- feature: capability:facet -->
 | `Facet` (`FacetSchema`) | `FacetValueCount.Value` → label | sibling `FacetField` |
+<!-- /feature -->
 | `Process` group keys | group key → label | sibling column in each output row |
+<!-- feature: capability:export -->
 | `Export` / `Convert` | column value → label | extra column inserted after source |
+<!-- /feature -->
 
 **Display-only.** Filters, formula attributes, sort keys, and group keys still see raw values. Labels NEVER gate which records pass through the pipeline.
 
@@ -65,7 +72,7 @@ When a source value isn't in the table the resolver falls back to the raw resolv
 
 ## Validation surface
 
-`internal/descriptor.ValidateLabels` runs on every label-bound request before any record bytes are read:
+Every label-bound request is validated before any record bytes are read — `pulse_predict` reports the same codes:
 
 | Code | Meaning |
 |---|---|
@@ -79,7 +86,7 @@ When a source value isn't in the table the resolver falls back to the raw resolv
 
 ## MCP discovery — `pulse_label_tables` + `pulse_label_resolve`
 
-LLM clients discover label tables via two MCP tools. `pulse_label_tables` lists registered tables, row counts, and enumerability (reverse-searchable). `pulse_label_resolve` reverse-resolves a user-supplied display name (typo-tolerant; case/punct normalised) to the raw key a filter or grouper needs. Args: `table`, `query`, optional `limit` (default 10). Returns `{key, value, score}` with score in `[0,1]`: `1.0` exact, `≥0.9` prefix/near-typo, lower for fuzzy. Use the top hit when score ≥ 0.9 and clearly ahead; otherwise surface candidates and ask.
+Labels are output-only, so the INPUT direction needs a lookup. `pulse_label_tables` lists registered tables, row counts and whether each is enumerable (reverse-searchable). `pulse_label_resolve` turns a user's display name (typo-tolerant) into the raw key a filter or grouper needs, ranked `{key, value, score}` in `[0,1]`. Use the top hit when it scores ≥ 0.9 and is clearly ahead; otherwise show the candidates and ask.
 
 ## What labels do NOT do
 
@@ -91,6 +98,10 @@ LLM clients discover label tables via two MCP tools. `pulse_label_tables` lists 
 ## See
 
 - `docs/src/internals/extension-points.md` — registering `LabelTables` on `Options.Extensions`.
+<!-- feature: capability:facet -->
 - `skills/facet-design.md` — surfacing labels on `FacetField` values.
+<!-- /feature -->
 - `skills/tool-label-tables.md` / `skills/tool-label-resolve.md` — `pulse_label_tables` / `pulse_label_resolve` schemas.
+<!-- feature: io_format:spss -->
 - `skills/spss-cohorts.md` — why an SPSS cohort stores codes, and where its labels live.
+<!-- /feature -->

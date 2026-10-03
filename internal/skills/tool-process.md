@@ -8,7 +8,7 @@ applies_to: process, compose, predict, mcp
 
 ## When to use
 
-After you have a validated `types.Request` body sourced from `pulse_examples_get` (or hand-authored and run through `pulse_predict`). Single-question workflows. For multi-question batches use `pulse_compose`; for stage-chained workflows use `pulse_process_chain`.
+After you have a validated `types.Request` body sourced from `pulse_examples_get` (or hand-authored and run through `pulse_predict`). Single-question workflows.<!-- feature: capability:compose --> For multi-question batches use `pulse_compose`.<!-- /feature --><!-- feature: capability:process_chain --> For stage-chained workflows use `pulse_process_chain`.<!-- /feature -->
 
 ## Input
 

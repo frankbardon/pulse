@@ -213,7 +213,7 @@ type ResidualCorrelationProfile struct {
 // sorted order, so the emitted section does not depend on the order the
 // fitter happened to keep its models in. Every accumulation is over
 // slices; no float is ever folded in Go map order (see
-// skills/synthetic-data.md, Determinism).
+// skills/synth-determinism.md).
 //
 // Returns nil when fewer than two fields can participate — a submatrix
 // over one field is the scalar 1 and carries nothing.

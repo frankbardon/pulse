@@ -86,8 +86,8 @@ read on the residual scale; both endpoints must carry a `models` entry
 or the spec is refused. Omitting either key is the zero state — every
 residual is drawn independently, exactly as before they existed. The
 construction and the latent-scale caveat for non-`normal` targets are in
-`skills/synth-models.md`; the determinism rules in
-`skills/synthetic-data.md`.
+`skills/synth-model-draw.md`; the determinism rules in
+`skills/synth-determinism.md`.
 
 Minimal example — a categorical-categorical pair (`region` → `tier`)
 alongside a categorical-numeric pair (`region` → `revenue`):
@@ -121,8 +121,8 @@ alongside a categorical-numeric pair (`region` → `revenue`):
 
 Full cell/category shapes: `internal/synth/spec.go`
 (`CategoricalPairCellSpec`, `CategoricalNumericCategorySpec`, and the
-`Set*PairSpec` family) and `skills/synthetic-data.md` ("Categorical
-joint structure (generation)"). A field named by two or more of these
+`Set*PairSpec` family) and `skills/synth-profile-capture.md` ("Categorical
+joint structure (generation)"); claim arbitration is `skills/synth-conflicts.md`. A field named by two or more of these
 relationships — or by both a relationship and that field's own
 `--fit-shape`-captured distribution when the spec came from
 `SpecFromProfile` — is a **conflict**, not an error: one relationship
@@ -519,8 +519,9 @@ integer column from. Its quantile function is a staircase, so a `discrete`
 field used as a model target or a correlation participant carries
 latent-scale effects: ordering holds, magnitude in scale points does not.
 
-The full catalog (with parameters) is in `skills/synthetic-data.md`
-and `pulse --json | jq '.data.distributions'`.
+The full catalog is listed in `skills/synthetic-data.md` (Distribution
+registry), with parameters per kind in the atomic `skills/op-synth-<kind>.md`
+skills, and `pulse manifest --json | jq '.data.synth_distributions'`.
 
 ## Determinism
 
@@ -603,7 +604,8 @@ pulse synth from-schema --spec sales.spec.json --output sales.pulse --json
 - [`pulse synth from-profile`](synth-from-profile.md) — generate from
   a captured profile of an existing cohort
 - [`pulse profile create`](profile-create.md) — capture the profile
-- `skills/synthetic-data.md` — full spec grammar and distribution table
+- `skills/synthetic-data.md` — spec grammar, distribution table, and the index of focused `synth-*` skills
+- `skills/synth-correlations.md` / `skills/synth-conflicts.md` — `correlations` and claim arbitration
 - [Synth calibration figures and design rationale](synth-calibration.md)
-- `skills/synth-structural-rules.md` — `rules[]` and `constraints[]`
+- `skills/synth-structural-rules.md` — `rules[]` and `constraints[]` entry skill; the focused `skills/synth-rule-*.md` skills carry expressions, null handling, validation and claims
 - [Library: pulse.Synth](../library/overview.md)

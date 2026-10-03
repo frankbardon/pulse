@@ -8,11 +8,15 @@ package embeddersmoke
 
 import (
 	"context"
+	stderrors "errors"
 	"strconv"
+	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
 )
@@ -359,4 +363,114 @@ func TestExtendGroupersAndFiltererThroughProcess(t *testing.T) {
 	check("FILTER_SMOKE_MIN", run("GROUP_SMOKE_REGION",
 		&types.Filterer{Type: "FILTER_SMOKE_MIN", Field: "amount", Values: []string{"10"}}),
 		map[string]float64{"north": 10, "south": 20})
+}
+
+// smokeSkill documents AGG_SMOKE_SUM: an atomic embedder skill shipped
+// through Extensions.Skills (an fs.FS of top-level .md files).
+const smokeSkill = `---
+name: op-agg-smoke-sum
+description: A sum authored against the public extend package.
+kind: operator
+category: AGG
+operator: AGG_SMOKE_SUM
+type: reference
+applies_to: process
+---
+
+# AGG_SMOKE_SUM
+
+## Params
+None.
+
+## Inputs
+A numeric field.
+
+## Output
+A float64.
+
+## Components
+The universal floor only.
+
+## Gotchas
+None.
+
+## See
+` + "`aggregation-design`" + `
+`
+
+// TestExtensionSkillsThroughFacade: an embedder registers a skill for
+// its own operator with public spellings alone; the facade lists and
+// serves it, and a stem the shipped pack owns is refused with the
+// public code.
+func TestExtensionSkillsThroughFacade(t *testing.T) {
+	reg := pulse.AggregatorRegistration{Name: "AGG_SMOKE_SUM", Description: "Sum.", Factory: newSmokeSum(nil)}
+	p, _ := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{reg},
+		Skills:      fstest.MapFS{"op-agg-smoke-sum.md": {Data: []byte(smokeSkill)}},
+	}})
+	body, ok := p.Skill("op-agg-smoke-sum")
+	if !ok || !strings.Contains(body, "## Components") {
+		t.Fatalf("Skill(op-agg-smoke-sum) = %v", ok)
+	}
+	listed := false
+	for _, md := range p.Skills() {
+		listed = listed || md.Name == "op-agg-smoke-sum"
+	}
+	if !listed {
+		t.Error("embedder skill not listed")
+	}
+
+	_, err := pulse.New(pulse.Options{Extensions: pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{reg},
+		Skills:      fstest.MapFS{"op-agg-count.md": {Data: []byte(smokeSkill)}},
+	}})
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_EXTENSION_SKILL_COLLISION {
+		t.Fatalf("built-in stem: err = %v, want PULSE_EXTENSION_SKILL_COLLISION", err)
+	}
+	_ = errors.PULSE_EXTENSION_SKILL_INVALID
+}
+
+// smokeExample is a valid embedder example for AGG_SMOKE_SUM, shipped
+// through Extensions.Examples (an fs.FS of top-level .json files).
+const smokeExample = `{
+  "_meta": {
+    "name": "smoke-sum-revenue",
+    "category": "smoke",
+    "description": "Sums revenue over the whole cohort.",
+    "tags": ["financial"],
+    "intents": ["describe"],
+    "operators": ["AGG_SMOKE_SUM"]
+  },
+  "cohort": {"filename": "sales.pulse"},
+  "aggregations": [{"type": "AGG_SMOKE_SUM", "field": "revenue"}]
+}`
+
+// TestExtensionExamplesThroughFacade: an embedder registers an example
+// for its own operator with public spellings alone; the facade searches
+// and serves it, and a name the shipped library owns is refused with
+// the public code.
+func TestExtensionExamplesThroughFacade(t *testing.T) {
+	reg := pulse.AggregatorRegistration{Name: "AGG_SMOKE_SUM", Description: "Sum.", Factory: newSmokeSum(nil)}
+	p, _ := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{reg},
+		Examples:    fstest.MapFS{"sum.json": {Data: []byte(smokeExample)}},
+	}})
+	ex, ok := p.ExampleGet("smoke-sum-revenue")
+	if !ok || !strings.Contains(string(ex.Body), "AGG_SMOKE_SUM") || strings.Contains(string(ex.Body), "_meta") {
+		t.Fatalf("ExampleGet(smoke-sum-revenue) = %v", ok)
+	}
+	if hits := p.ExamplesSearch("", nil, "smoke"); len(hits) != 1 {
+		t.Errorf("category search = %d hits, want 1", len(hits))
+	}
+
+	_, err := pulse.New(pulse.Options{Extensions: pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{reg},
+		Examples:    fstest.MapFS{"sum.json": {Data: []byte(strings.Replace(smokeExample, "smoke-sum-revenue", "facet_simple_one_field", 1))}},
+	}})
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_EXTENSION_EXAMPLE_COLLISION {
+		t.Fatalf("built-in name: err = %v, want PULSE_EXTENSION_EXAMPLE_COLLISION", err)
+	}
+	_ = errors.PULSE_EXTENSION_EXAMPLE_INVALID
 }

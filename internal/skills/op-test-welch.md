@@ -27,11 +27,12 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Gotchas
 
+<!-- feature: TEST_T -->
 - Identical math to `TEST_T` with `SplitBy`; this alias documents intent.
-- Welch denominator never assumes equal variance — preferred when `TEST_BROWN_FORSYTHE` rejects homogeneity.
-- Welford triple is byte-equal to `AGG_WELFORD` on the same inputs — reuse via `OVERLAY_T_CELL` on crosstabs.
+<!-- /feature -->
+- Welch denominator never assumes equal variance — the safe default when spreads may differ.
+- The Welford triple is byte-equal to the Welford aggregate's on the same inputs<!-- feature: OVERLAY_T_CELL --> — reuse via `OVERLAY_T_CELL` on crosstabs<!-- /feature -->.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
-- Asymmetric distributions / suspected non-normality → switch to `TEST_MANN_WHITNEY_U`.
 
 ## See
 

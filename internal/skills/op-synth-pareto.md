@@ -28,7 +28,7 @@ Per-row `float64` sample from a Pareto Type-I distribution. Drawn via inverse CD
 
 - `alpha <= 1` → no finite mean. `alpha <= 2` → no finite variance. Document the choice if downstream tests assume moments.
 - `xm <= 0 || alpha <= 0` → `SERVICE_VALIDATION` at spec parse.
-- Tail dominates the buffered moments — `AGG_AVERAGE` over Pareto cohorts converges slowly; prefer `AGG_MEDIAN` for centre estimates.
+- Tail dominates the buffered moments — the mean over Pareto cohorts converges slowly; prefer the median for centre estimates.
 - Common synthetic-wealth pattern: `xm = 10_000`, `alpha = 1.16` reproduces an 80/20 Pareto split.
 - No clamp param — use `constraints` to bound the tail when needed (e.g. `wealth < 1e9`).
 

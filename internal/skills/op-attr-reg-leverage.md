@@ -33,7 +33,6 @@ One `float64` per record in `[0, 1]` — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · 
 
 - **Unpenalized OLS only** — any non-empty `Penalty` raises `PROCESSING_CONFIG`. Penalized leverage / GLM leverage deferred.
 - High leverage flags outliers in PREDICTOR space (vs residuals, which flag the response). Common rule of thumb: hᵢᵢ > 2(p+1)/n.
-- Pair with `ATTR_REG_RESIDUAL` via Compose for Cook-style influence work.
 - Two-pass — pre-pass fits OLS, pass 2 emits per row.
 
 ## See

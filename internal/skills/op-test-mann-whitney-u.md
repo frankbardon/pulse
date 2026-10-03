@@ -26,10 +26,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Gotchas
 
 - Buffered — combined values mid-ranked under tie correction.
-- Robust alternative to `TEST_T` / `TEST_WELCH` when normality fails.
-- Tests stochastic equality, not mean difference — divergence from `TEST_WELCH` is signal, not a bug.
+- Robust alternative to a t-test when normality fails.
+- Tests stochastic equality, not mean difference — disagreeing with a t-test is signal, not a bug.
 - Asymptotic only (no exact p); n < 2 per group is `PULSE_TEST_INSUFFICIENT_N`.
-- Paired data → `TEST_WILCOXON_SR`; k-group extension → `TEST_KRUSKAL_WALLIS`.
 
 ## See
 

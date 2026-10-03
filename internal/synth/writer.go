@@ -130,7 +130,7 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 			// randomized per process; if bit IDs were assigned by
 			// first-encounter order while encoding that map,
 			// "same spec + same seed -> byte-identical output" (the
-			// Determinism contract, skills/synthetic-data.md) would
+			// Determinism contract, skills/synth-determinism.md) would
 			// break. Pre-registering in a fixed, spec-declared order
 			// means writeFieldValueForField only ever needs an ID
 			// LOOKUP against an already-complete dictionary, so the

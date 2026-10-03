@@ -1,6 +1,6 @@
 ---
 name: op-reg-bayes-linear
-description: Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as REG_OLS.
+description: Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as an OLS fit.
 kind: operator
 category: REG
 operator: REG_BAYES_LINEAR
@@ -29,7 +29,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as `REG_OLS`; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as OLS; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
 
 ## Gotchas
 

@@ -32,7 +32,7 @@ One `float64` per row written to `Label` (default `WIN_LEAD_<field>`). When `i +
 
 ## Gotchas
 
-- Mirror of `WIN_LAG` — same partition / order / frame rules, opposite scan direction.
+- Mirror of a lag — same partition / order / frame rules, opposite scan direction.
 - `order_by` required, `frame` forbidden.
 - Result rows are NOT reordered by `order_by` — use `Request.Sort` for response order.
 - Forces buffered execution (`Streamable=false`).

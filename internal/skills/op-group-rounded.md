@@ -40,7 +40,9 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 
 ## Gotchas
 
+<!-- feature: GROUP_RANGE -->
 - Same partition as `GROUP_RANGE` at equal width; only the key differs (`"10"` vs `"10-20"`).
+<!-- /feature -->
 - Rejects categorical/decimal128 at construction.
 - `Group.Include` not honoured — filter source field instead.
 

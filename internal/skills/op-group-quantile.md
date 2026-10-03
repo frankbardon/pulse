@@ -37,7 +37,7 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 | `buckets` | []bucket | `{key, low, high, count}` |
 
 - Mergeability: `None` — `BufferedComponents=true`; needs sorted full input
-- Streaming: `Streamable=false` — terminal-only. Use `GROUP_RANGE`/`GROUP_ROUNDED` for streaming.
+- Streaming: `Streamable=false` — terminal-only.
 
 ## Gotchas
 

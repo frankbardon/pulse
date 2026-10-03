@@ -5510,7 +5510,7 @@
         ]
       }
     ],
-    "error_codes_count": 250,
+    "error_codes_count": 254,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5578,6 +5578,8 @@
       "PULSE_EXPORT_ROW_ERROR",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
+      "PULSE_EXTENSION_EXAMPLE_COLLISION",
+      "PULSE_EXTENSION_EXAMPLE_INVALID",
       "PULSE_EXTENSION_FACTORY_PANIC",
       "PULSE_EXTENSION_FANOUT_MISMATCH",
       "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH",
@@ -5588,6 +5590,8 @@
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
+      "PULSE_EXTENSION_SKILL_COLLISION",
+      "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
@@ -7006,11 +7010,31 @@
       },
       {
         "name": "attribute-composition",
-        "description": "ATTR_* composition rules — slot ordering, two-pass attributes, ATTR_FORMULA expression environment, ATTR vs FEAT distinction. Topical design; per-ATTR detail lives in atomic op-attr-* skills."
+        "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
+      },
+      {
+        "name": "cohort-null-states",
+        "description": "How a .pulse cohort stores absence — the per-record null bitmap, no in-band sentinels, out-of-sample null promotion on inferred imports, and the null / empty / selected states of set and categorical cells across every import and export format."
+      },
+      {
+        "name": "cohort-parent-groups",
+        "description": "Parent groups in format 0x02 cohorts — storing a repeated parent block once, when a group pays for itself, declaring one at import with a key check, suggesting and gating groups, converting an existing cohort with dedup, and opt-in global-constant elision."
       },
       {
         "name": "cohort-schema-design",
-        "description": "Field-type selection for .pulse cohorts — 20 types, nullability via per-record bitmap, shard archive anchor syntax, description-length cap. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the 20-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+      },
+      {
+        "name": "cohort-sharding",
+        "description": "Shard archives in depth — strict structural cohesion, dictionary union-merge, set-rung auto-widen on create and add, grouped shards, the anchor syntax, union-wide memory for materializing operations, single-writer concurrency, and transport-only compression for moving a cohort."
+      },
+      {
+        "name": "cohort-sidecar-index",
+        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints."
+      },
+      {
+        "name": "cohort-width-overflow",
+        "description": "What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it."
       },
       {
         "name": "compose-requests",
@@ -7021,12 +7045,20 @@
         "description": "Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics."
       },
       {
+        "name": "crosstab-margin-aggregations",
+        "description": "Auxiliary margin-only figures on a crosstab — a second base beside the cell metric in one scan, the cell-admission rule, present semantics and the display-flag gate"
+      },
+      {
+        "name": "expression-language",
+        "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
+      },
+      {
         "name": "facet-design",
         "description": "FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics."
       },
       {
         "name": "feature-engineering",
-        "description": "Feature slot semantics — pre-filter ordering (FEAT runs before FILTER), target-leakage trap, train/test split. Topical design; per-FEAT detail lives in atomic op-feat-* skills."
+        "description": "Feature slot semantics — choosing a transform, pre-filter ordering (features run before filters), per-row vs global-pass cost, target-leakage trap, train/test split. Topical design; per-feature detail lives in atomic op-feat-* skills."
       },
       {
         "name": "financial-cohorts",
@@ -7046,7 +7078,7 @@
       },
       {
         "name": "join-design",
-        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validate-join predict surface."
+        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validating a join before running it."
       },
       {
         "name": "label-display",
@@ -7106,7 +7138,7 @@
       },
       {
         "name": "op-agg-null-count",
-        "description": "Count records where the field is null. Inverse of AGG_COUNT."
+        "description": "Count records where the field is null. The inverse of a non-null count."
       },
       {
         "name": "op-agg-percentile",
@@ -7238,7 +7270,7 @@
       },
       {
         "name": "op-feat-poly",
-        "description": "Per-row polynomial expansion x^2..x^Degree of a numeric field; pair with REG_OLS for polynomial regression."
+        "description": "Per-row polynomial expansion x^2..x^Degree of a numeric field — the basis for a polynomial regression."
       },
       {
         "name": "op-feat-sqrt",
@@ -7510,7 +7542,7 @@
       },
       {
         "name": "op-reg-bayes-linear",
-        "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as REG_OLS."
+        "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as an OLS fit."
       },
       {
         "name": "op-reg-glm",
@@ -7518,11 +7550,11 @@
       },
       {
         "name": "op-reg-mod-resample",
-        "description": "Spec-level resampling modifier (jackknife / bootstrap) that composes with REG_OLS or REG_GLM; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
+        "description": "Spec-level resampling modifier (jackknife / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-mod-selection",
-        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with REG_OLS or REG_GLM; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
+        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-ols",
@@ -7670,11 +7702,11 @@
       },
       {
         "name": "op-test-z-two-sample",
-        "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ."
+        "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ."
       },
       {
         "name": "op-win-delta",
-        "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of WIN_PCT_CHANGE."
+        "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of a percent change."
       },
       {
         "name": "op-win-dense-rank",
@@ -7722,7 +7754,7 @@
       },
       {
         "name": "pairwise-n-sources",
-        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and the direct-caller bypass."
+        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
       },
       {
         "name": "process-chain",
@@ -7730,11 +7762,11 @@
       },
       {
         "name": "regression-modeling",
-        "description": "REG_* operator + modifier composition (`Resample`, `Selection`), `FEAT_POLY` upstream composition, how 13 textbook regression names map to 3 operators + 2 modifiers. Topical design; per-REG detail in atomic op-reg-* skills."
+        "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
       {
         "name": "request-envelope",
-        "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability, and the v0.20.0 Response.Components additive field. Use when authoring or adapting any Pulse Request."
+        "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request."
       },
       {
         "name": "request-templating",
@@ -7749,8 +7781,48 @@
         "description": "Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session."
       },
       {
+        "name": "session-format-flags",
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, and the four .sav write knobs with their refusal defaults."
+      },
+      {
+        "name": "session-skill-routing",
+        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
+      },
+      {
+        "name": "session-synth-flags",
+        "description": "The profile-capture and synth-generation CLI flags an agent must know — the five additive profile create sections, emitting the generating spec, supplying and suggesting structural rules — and why a model coefficient is a latent-scale quantity."
+      },
+      {
         "name": "spss-cohorts",
-        "description": "SPSS .sav / .zsav import and .sav writing — the schema-authoritative dictionary, derived columns (\u003cvar\u003e_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, the dictionary + data-section writer, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, when a cohort has more columns than its source file had variables, or when emitting a .sav."
+        "description": "Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived columns, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav."
+      },
+      {
+        "name": "spss-export",
+        "description": "Writing .sav — the dictionary + data-section writer, bytecode compression, the four write flags, why the writer takes the whole cohort rather than rendered rows, how a .sav-to-.sav convert carries the source through, and asking export predict first."
+      },
+      {
+        "name": "spss-export-fidelity",
+        "description": "How far the .sav round-trip claim is proven — what CI gates, what was checked only locally against independent readers, what nothing corroborates — and the write-side charset rules (source charset kept, no replacement characters, no silent truncation, encode-measure-segment)."
+      },
+      {
+        "name": "spss-export-values",
+        "description": "What a .sav export writes for each value — the variable-name policy and --sanitize-names, set_* masks at every width, the missing state each null takes, original codes versus dictionary positions, byte order, and labels that live only on user-missing codes."
+      },
+      {
+        "name": "spss-import-schema",
+        "description": "How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a column unexpectedly or refuses a file."
+      },
+      {
+        "name": "spss-metadata-sidecar",
+        "description": "The cohort.pulse.spss.json sidecar an SPSS import writes — what it records that the .pulse format cannot, the code-label-dictionary-ID triple labels come from, its fingerprint, and the absent / stale / invalid / ignored read verdicts."
+      },
+      {
+        "name": "spss-missing-values",
+        "description": "How SPSS user-missing and system-missing values land in a cohort — the numeric \u003cvar\u003e_missing sibling versus the flagged categorical code, why the two arms deliberately differ, --spss-missing, and filtering on the code rather than the label."
+      },
+      {
+        "name": "spss-response-sets",
+        "description": "SPSS multiple-response sets and the columns an import synthesises — the derived set_* mask beside a multiple-dichotomy set's constituents, why multiple-category sets derive nothing, and the closed derived registry the export folds by. Read this when a cohort has more columns than its .sav had variables."
       },
       {
         "name": "statistical-testing",
@@ -7761,16 +7833,92 @@
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
       },
       {
+        "name": "synth-conflicts",
+        "description": "Synth conditional relationship conflicts — the shared claim space, the fixed priority order `resolveConflicts` applies once per spec, how rule / model / shape pre-claims compose, and where the dropped-relationship warnings surface."
+      },
+      {
+        "name": "synth-correlations",
+        "description": "Synth spec `correlations` — the Gaussian-copula construction, which marginals and field types may participate, how rank and Pearson correlation survive, and how unmeasured matrix entries are completed and reported."
+      },
+      {
+        "name": "synth-determinism",
+        "description": "The synth determinism contract — byte-identical `.pulse` output per spec and seed, byte-identical profile documents per input and seed, and the two non-RNG threats to capture (map iteration order, float fusion)."
+      },
+      {
+        "name": "synth-fidelity-report",
+        "description": "The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — marginals, pairs, set fields — scored only over relationships generation actually applied."
+      },
+      {
+        "name": "synth-marginals",
+        "description": "Why a profiled `packed_bool` reconstructs as `bernoulli` and a small integer as `discrete` rather than a clamped normal — the three writers each arm covers, probit and ordered-probit model draws, and what that does to recovery and correlation."
+      },
+      {
+        "name": "synth-model-draw",
+        "description": "How synth generates a modelled numeric — the composed latent draw, firing terms and the \"other\" catch-all, the single clamp, draw ordering, and why a coefficient is latent-scale and non-linear in value space."
+      },
+      {
+        "name": "synth-model-recovery",
+        "description": "The synth fidelity report's `models` section — refitting each applied model on the generated rows, comparing on the latent scale (or a calibrated probit score for step targets), flagging bands, and how to read a flag on a quantized target."
+      },
+      {
+        "name": "synth-model-selection",
+        "description": "How synth `--fit-models` chooses predictors — the top-K collapse, the variance-explained floor, marginal scoring and refit-on-rank-deficiency, main effects only, zero-predictor models — and how thin levels are shrunk by ridge rather than dropped."
+      },
+      {
         "name": "synth-models",
-        "description": "Synth `--fit-models` — per-numeric linear model capture, predictor selection, thin-level shrinkage, the composed latent draw, correlated residuals, and the fidelity recovery sections that score whether the captured structure survived generation. Split out of the synthetic-data topical."
+        "description": "Entry point for synth `--fit-models` — per-numeric linear model capture and its wire shape, the latent-scale reading of a coefficient, what a model retires, and which focused skill covers selection, the draw, residual correlations and recovery."
+      },
+      {
+        "name": "synth-profile-capture",
+        "description": "What `pulse profile create` captures per field and per pair (conditional pairs, thin-pair warning, run-continuation, shape fitting), how `SpecFromProfile` reconstructs each field, and how categorical joint structure is generated."
+      },
+      {
+        "name": "synth-residual-correlations",
+        "description": "Synth `--residual-correlations` — capturing the correlation among fitted model residuals (full submatrix, measured vs unmeasured), the correlated residual draw that lets a numeric be both conditioned and correlated, and its zero-predictor boundary."
+      },
+      {
+        "name": "synth-residual-recovery",
+        "description": "The synth fidelity report's `model_residual_correlations` section — captured vs recovered residual correlation per applied pair, why it is not `pairwise`, its bounded worst-first listing, and why step-target endpoints stay unmeasured."
+      },
+      {
+        "name": "synth-rule-claims",
+        "description": "Which synth rules pre-claim a field ahead of its linear model, conditional pairs and residual correlations, the four exclusions that are silent if got backwards, and why the fidelity report is the reason."
+      },
+      {
+        "name": "synth-rule-detectors",
+        "description": "The `--suggest-rules` detector rules that are silent if got backwards — rounded gates, co-missingness, near and always-null blocks, the narrow dependency search and discovered band edges — and why emitted candidate order is applied order."
+      },
+      {
+        "name": "synth-rule-expressions",
+        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
+      },
+      {
+        "name": "synth-rule-nulls",
+        "description": "Synth rule null handling — `null_together` as one null decision per question block (first field wins), and `owns_nulls` making a gate the field's only source of absence, with the divergence warnings each emits."
+      },
+      {
+        "name": "synth-rule-validation",
+        "description": "Synth rule validation and diagnostics — the eight eager `PULSE_SYNTH_RULE_*` refusals, the non-nullable-target refusal, and the never-fired warning with its three cause arms."
+      },
+      {
+        "name": "synth-rules-from-profile",
+        "description": "Reaching synth rules from the profile path — `--rules` (replace semantics, load-time validation) and `--emit-spec` (the spec that generated) — and `profile create --suggest-rules`: proposed candidates, inert evidence, fixed thresholds and the three detectors."
+      },
+      {
+        "name": "synth-set-fields",
+        "description": "How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair, read safely on the wide rungs, and generated deterministically with a pre-registered dictionary."
+      },
+      {
+        "name": "synth-shape-fit",
+        "description": "Synth `--fit-shape` — the two-component mixture capture and its keep rule, and how a shape-fitted numeric still accepts model conditioning through its mixture quantile, with a fixed-count bisection for determinism."
       },
       {
         "name": "synth-structural-rules",
-        "description": "Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical."
+        "description": "Entry point for synth spec `rules[]` and `constraints[]` — the five rule slots, declaration order and last-write-wins, why the rule pass runs last, and which focused skill covers expressions, null handling, validation, claims and profile-derived rules."
       },
       {
         "name": "synthetic-data",
-        "description": "`pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules."
+        "description": "Entry point for synthetic data — `pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), the spec shape, the distribution registry, the determinism rule, and which focused synth skill answers each question."
       },
       {
         "name": "tool-compose",
@@ -7858,7 +8006,7 @@
       },
       {
         "name": "tool-skills-list",
-        "description": "List the embedded skill pack — domain guides and atomic operator/type/tool refs."
+        "description": "List the skill pack — domain guides and atomic operator/type/tool refs, deployment-added skills included."
       },
       {
         "name": "type-categorical-u16",
@@ -7942,7 +8090,7 @@
       },
       {
         "name": "window-design",
-        "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
+        "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
     "examples_count": 170,
@@ -10529,4 +10677,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d203b999b6cec2566611a2a997180262d6e273b4d4b2bd0102be5f9b60f57c70
+// golden-hash: 1c6f12c65cebf45c07f7f22d0c0c2e3b206945cfea5622d7288e71f1c5d7632c

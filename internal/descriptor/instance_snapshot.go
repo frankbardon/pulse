@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // FeatureSetDigestPrefix versions the feature_set_digest algorithm. A
@@ -89,10 +88,11 @@ type InstanceSnapshot struct {
 	behaviour FeatureBehaviour
 	digest    string
 
-	// discovery is the instance's skill / example prune, built on first
-	// use (see Discovery).
-	discoveryOnce sync.Once
-	discovery     *Discovery
+	// ontology is the instance graph (base + extension nodes, pruned to
+	// the feature set) and discovery the skill / example view walking
+	// it — both built eagerly by the constructors (ontology_instance.go).
+	ontology  *OntologyGraph
+	discovery *Discovery
 }
 
 // NewInstanceSnapshot builds the scoped snapshot pulse.New installs.
@@ -109,7 +109,7 @@ func NewInstanceSnapshot(ext *ExtensionsSnapshot, set FeatureSet) *InstanceSnaps
 			hidden[n] = struct{}{}
 		}
 	}
-	return &InstanceSnapshot{
+	s := &InstanceSnapshot{
 		ext:       ext,
 		scoped:    true,
 		enabled:   enabled,
@@ -118,6 +118,28 @@ func NewInstanceSnapshot(ext *ExtensionsSnapshot, set FeatureSet) *InstanceSnaps
 		behaviour: set.Behaviour,
 		digest:    FeatureSetDigest(names, set.Behaviour),
 	}
+	s.buildOntology()
+	return s
+}
+
+// buildOntology installs the instance graph and the discovery view
+// walking it. Called once, by the constructors.
+func (s *InstanceSnapshot) buildOntology() {
+	s.ontology = instanceOntology(s.ext, s)
+	s.discovery = fullDiscovery
+	if s.Scoped() && len(s.hidden) > 0 || s.ext != nil && len(s.ext.Skills)+len(s.ext.Examples) > 0 {
+		s.discovery = buildDiscovery(s, s.ontology)
+	}
+}
+
+// Ontology returns the instance's pruned ontology graph (read-only; the
+// base graph itself when the instance neither extends nor hides
+// anything). A nil snapshot answers the base graph.
+func (s *InstanceSnapshot) Ontology() *OntologyGraph {
+	if s == nil || s.ontology == nil {
+		return BaseOntology()
+	}
+	return s.ontology
 }
 
 // UnscopedInstanceSnapshot wraps an extension projection with no feature
@@ -128,7 +150,9 @@ func UnscopedInstanceSnapshot(ext *ExtensionsSnapshot) *InstanceSnapshot {
 	if ext == nil {
 		return nil
 	}
-	return &InstanceSnapshot{ext: ext}
+	s := &InstanceSnapshot{ext: ext}
+	s.buildOntology()
+	return s
 }
 
 // Extensions returns the extension projection, or nil when the instance

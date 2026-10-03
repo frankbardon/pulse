@@ -34,7 +34,7 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 - Empty `Values` resolves to query=0 — only rows whose set is exactly empty pass. An empty mask is a valid "no selection" set value, distinct from null.
 - Unknown label in `Values` → `PROCESSING_CONFIG`.
 - Label whose dictionary bit position exceeds the set's width → `PROCESSING_CONFIG`.
-- Null rows DROP. Use with `GROUP_SET_VALUE` to isolate one atomic combination.
+- Null rows DROP.
 
 ## See
 

@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 
-One host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's `OVERLAY_PROP_Z_PANEL`. Overlays decorate the host; no `Response.Components` (this family READS them).
+One host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's proportion-z panel. Overlays decorate the host; no `Response.Components` (this family READS them).
 
 ## Params
 
@@ -25,12 +25,12 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 
 ## Gotchas
 
-- Reuses `twoProportionZ` — byte-for-byte equal to `OVERLAY_PROP_Z_CELL` / `TEST_PROP_Z` on the same (success, n).
+- Reuses `twoProportionZ` — byte-for-byte equal to every two-proportion z test and overlay on the same (success, n).
 - RAW p-values only — direction, thresholds and min-n flags are the embedder's job.
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.
 - **`p_source` mismatch fails silently and totally.** `cell_value` over a real 0..100 percentage drives pooled p outside `[0,1]`, so EVERY pair skips and the layer returns empty.
-- **The three distinct-KEY n modes are admitted only on an `AGG_DISTINCT_SUM` or `AGG_DISTINCT_COUNT` cell** — `AGG_MODE_COUNT` / `AGG_MODE` spell a `distinct_count` too, but theirs counts answer codes. `n_within_distinct` additionally refuses a fan-out grouper at a summed-across depth (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, predict AND runtime); the margin modes are exact by construction and never gated. Null rules and the direct-caller bypass: `pairwise-n-sources`.
-- Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (`AGG_WEIGHTED_MEAN`, including over a `GROUP_SET_PER_ELEMENT` axis).
+- **The three distinct-KEY n modes are admitted only on a distinct-key cell aggregator** (sum-of-distinct or distinct count) — the modal aggregators spell a `distinct_count` too, but theirs counts answer codes. `n_within_distinct` additionally refuses a fan-out grouper at a summed-across depth (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, predict AND runtime); the margin modes are exact by construction and never gated. Null rules and the direct-caller bypass: `pairwise-n-sources`.
+- Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (a weighted mean included, even over a per-element set axis).
 
 ## See
 

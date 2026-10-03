@@ -12,10 +12,13 @@
 package examples
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -67,6 +70,23 @@ func Intents() map[string][]string {
 	return out
 }
 
+// Capabilities returns every example's optional _meta.capabilities, keyed
+// by example name; an example without the key is absent. Values are
+// feature-profile spellings of non-operator features
+// (`capability:stream`), validated by internal/descriptor
+// (TestExamples_CapabilitiesFromFeatures), which this package cannot
+// import. The key exists for capabilities a request body carries no
+// structural signal for; internal/descriptor's ontology builder turns
+// each value into an `example requires_capability <feature>` edge.
+func Capabilities() map[string][]string {
+	idx := loadIndex()
+	out := make(map[string][]string, len(idx.capabilities))
+	for n, caps := range idx.capabilities {
+		out[n] = append([]string(nil), caps...)
+	}
+	return out
+}
+
 // Count returns the number of embedded examples.
 func Count() int { return len(loadIndex().byName) }
 
@@ -91,8 +111,9 @@ type Example struct {
 	Body        json.RawMessage `json:"body"`
 }
 
-// meta mirrors the _meta block embedded in every example JSON.
-type meta struct {
+// Meta mirrors the _meta block every example JSON carries — built-in
+// and embedder (pulse.Extensions.Examples) alike.
+type Meta struct {
 	Name        string   `json:"name"`
 	Category    string   `json:"category"`
 	Tags        []string `json:"tags"`
@@ -102,6 +123,10 @@ type meta struct {
 	// (validated by internal/descriptor's TestExamples_IntentsFromTaxonomy,
 	// since this package cannot import the taxonomy).
 	Intents []string `json:"intents,omitempty"`
+	// Capabilities is optional; every value must be a non-operator
+	// feature name (validated by internal/descriptor's
+	// TestExamples_CapabilitiesFromFeatures).
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // indexed is the package-private in-memory index built on first access.
@@ -110,7 +135,9 @@ type indexed struct {
 	byCategory map[string][]string // category -> example names
 	byTag      map[string][]string // tag -> example names
 	intents    map[string][]string // example name -> _meta.intents
-	all        []string            // every name, alphabetical
+	// capabilities: example name -> _meta.capabilities
+	capabilities map[string][]string
+	all          []string // every name, alphabetical
 }
 
 var (
@@ -123,10 +150,11 @@ var (
 func loadIndex() *indexed {
 	indexOnce.Do(func() {
 		idx := &indexed{
-			byName:     make(map[string]*Example),
-			byCategory: make(map[string][]string),
-			byTag:      make(map[string][]string),
-			intents:    make(map[string][]string),
+			byName:       make(map[string]*Example),
+			byCategory:   make(map[string][]string),
+			byTag:        make(map[string][]string),
+			intents:      make(map[string][]string),
+			capabilities: make(map[string][]string),
 		}
 		err := fs.WalkDir(content, ".", func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -139,17 +167,9 @@ func loadIndex() *indexed {
 			if readErr != nil {
 				return readErr
 			}
-			var raw map[string]json.RawMessage
-			if err := json.Unmarshal(data, &raw); err != nil {
+			ex, m, err := Parse(data, false)
+			if err != nil {
 				return fmt.Errorf("examples: %s: %w", p, err)
-			}
-			rawMeta, ok := raw["_meta"]
-			if !ok {
-				return fmt.Errorf("examples: %s: missing _meta block", p)
-			}
-			var m meta
-			if err := json.Unmarshal(rawMeta, &m); err != nil {
-				return fmt.Errorf("examples: %s: parsing _meta: %w", p, err)
 			}
 			if m.Name == "" {
 				return fmt.Errorf("examples: %s: _meta.name is empty", p)
@@ -157,22 +177,12 @@ func loadIndex() *indexed {
 			if _, dup := idx.byName[m.Name]; dup {
 				return fmt.Errorf("examples: duplicate _meta.name %q in %s", m.Name, p)
 			}
-			delete(raw, "_meta")
-			body, err := marshalDeterministic(raw)
-			if err != nil {
-				return fmt.Errorf("examples: %s: re-marshal body: %w", p, err)
-			}
-			ex := &Example{
-				Name:        m.Name,
-				Category:    m.Category,
-				Tags:        append([]string(nil), m.Tags...),
-				Operators:   append([]string(nil), m.Operators...),
-				Description: m.Description,
-				Body:        body,
-			}
 			idx.byName[m.Name] = ex
 			if len(m.Intents) > 0 {
 				idx.intents[m.Name] = append([]string(nil), m.Intents...)
+			}
+			if len(m.Capabilities) > 0 {
+				idx.capabilities[m.Name] = append([]string(nil), m.Capabilities...)
 			}
 			idx.byCategory[m.Category] = append(idx.byCategory[m.Category], m.Name)
 			for _, t := range m.Tags {
@@ -200,6 +210,67 @@ func loadIndex() *indexed {
 	return indexVal
 }
 
+// ErrNoMeta is Parse's error for a JSON object without a _meta block.
+var ErrNoMeta = errors.New("missing _meta block")
+
+// Parse reads one example file: a JSON object carrying a _meta block
+// plus the request body. It returns the Example — Body is the object
+// minus _meta, re-marshaled deterministically — and the parsed Meta.
+// strict refuses an unknown _meta key (embedder examples); the embedded
+// library parses leniently. Parse does not validate Meta's values.
+func Parse(data []byte, strict bool) (*Example, Meta, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, Meta{}, fmt.Errorf("not a JSON object: %w", err)
+	}
+	rawMeta, ok := raw["_meta"]
+	if !ok {
+		return nil, Meta{}, ErrNoMeta
+	}
+	var m Meta
+	dec := json.NewDecoder(bytes.NewReader(rawMeta))
+	if strict {
+		dec.DisallowUnknownFields()
+	}
+	if err := dec.Decode(&m); err != nil {
+		return nil, Meta{}, fmt.Errorf("parsing _meta: %w", err)
+	}
+	delete(raw, "_meta")
+	body, err := marshalDeterministic(raw)
+	if err != nil {
+		return nil, Meta{}, fmt.Errorf("re-marshal body: %w", err)
+	}
+	return &Example{
+		Name:        m.Name,
+		Category:    m.Category,
+		Tags:        append([]string(nil), m.Tags...),
+		Operators:   append([]string(nil), m.Operators...),
+		Description: m.Description,
+		Body:        body,
+	}, m, nil
+}
+
+// operatorRe captures `"type": "PREFIX_..."` in a JSON request body.
+// Kept in sync with the regex used by cmd/annotate-examples.
+var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|REG)_[A-Z0-9_]+)"`)
+
+// DeriveOperators returns the sorted, distinct operator names a body
+// carries as a `"type"` value — what `_meta.operators` must equal
+// (TestExamples_OperatorsMatchBody; embedder examples at pulse.New).
+func DeriveOperators(body []byte) []string {
+	matches := operatorRe.FindAllStringSubmatch(string(body), -1)
+	seen := make(map[string]struct{}, len(matches))
+	for _, m := range matches {
+		seen[m[1]] = struct{}{}
+	}
+	out := make([]string, 0, len(seen))
+	for op := range seen {
+		out = append(out, op)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // marshalDeterministic re-marshals a raw map preserving lexical key order
 // so the embedded body remains diff-stable. encoding/json marshals map
 // keys alphabetically, which is the determinism we want.
@@ -223,6 +294,17 @@ func Get(name string) (*Example, bool) {
 	return &out, true
 }
 
+// All returns a copy of every embedded example, sorted by name.
+func All() []*Example {
+	idx := loadIndex()
+	out := make([]*Example, 0, len(idx.all))
+	for _, n := range idx.all {
+		ex, _ := Get(n)
+		out = append(out, ex)
+	}
+	return out
+}
+
 // Search returns summaries matching all three filters. An empty filter
 // is treated as "no constraint" for that dimension.
 //
@@ -235,6 +317,17 @@ func Get(name string) (*Example, bool) {
 // Returns a non-nil empty slice when nothing matches.
 func Search(query string, tags []string, category string) []ExampleSummary {
 	idx := loadIndex()
+	lib := make([]*Example, 0, len(idx.all))
+	for _, n := range idx.all {
+		lib = append(lib, idx.byName[n])
+	}
+	return SearchIn(lib, query, tags, category)
+}
+
+// SearchIn is Search over lib, which must be sorted by name (the
+// no-query order and the score tie-break). An instance serving embedder
+// examples searches the merged library through it.
+func SearchIn(lib []*Example, query string, tags []string, category string) []ExampleSummary {
 	q := strings.ToLower(strings.TrimSpace(query))
 
 	type scored struct {
@@ -243,8 +336,7 @@ func Search(query string, tags []string, category string) []ExampleSummary {
 	}
 	var hits []scored
 
-	for _, name := range idx.all {
-		ex := idx.byName[name]
+	for _, ex := range lib {
 		if category != "" && ex.Category != category {
 			continue
 		}

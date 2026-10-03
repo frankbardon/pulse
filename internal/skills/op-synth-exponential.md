@@ -32,7 +32,7 @@ Per-row `float64` sample from `Exp(lambda)`, computed as `rng.ExpFloat64() / lam
 - `lambda <= 0` → `SERVICE_VALIDATION` at spec parse.
 - Memoryless property: hazard rate is constant. Pair with `monotonic_from` for inter-arrival timestamps (cumulative sum captured downstream via a window operator).
 - No clamp param — bound via `constraints` (e.g. `delay_s < 86400`) if a runaway tail breaks the host field's cast.
-- Common pattern: `exponential` lifetimes / wait-times feeding into `FEAT_LOG` for distribution-shape work.
+- Common pattern: `exponential` lifetimes / wait-times, log-transformed for distribution-shape work.
 
 ## See
 

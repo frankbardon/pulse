@@ -9,59 +9,68 @@ covers: [OVERLAY, OverlaySpec, OverlayLayer]
 
 # Overlays
 
-Additive, read-only decorations. Specs ride `Request.Overlays`, layers `Response.Overlays[i]` in slot order. Overlays NEVER mutate the base — siblings keyed to host coordinates. Use for derived projections (share, index, delta, z, χ², p); base aggregations stay `AGG_*`.
+Additive, read-only decorations on a result that is already computed. Specs ride `Request.Overlays`; each produces one layer in `Response.Overlays[i]`, in spec order. Overlays NEVER mutate the base payload — they are siblings keyed to host coordinates, so the base numbers are byte-identical with or without them.
+
+Use an overlay for a figure DERIVED from the result — a share, an index against a reference, a delta, a z-score, a significance test between cells. Base figures stay aggregations.
 
 ```jsonc
-{"overlays":[{"kind":"OVERLAY_SHARE_OF_ROW","scope":"cell","ref":{"margin":{"axis":"row"}}}]}
+{"overlays": [{"kind": "<overlay kind>", "scope": "cell", "ref": {"margin": {"axis": "row"}}}]}
 ```
+
+## Choosing an overlay
+
+1. Name the question, then read the matching intent (`pulse_skills_get intents`): `composition` (shares), `benchmark` (index / delta against a reference), `compare_groups` (cell and pairwise tests), `change_over_time` (prior period, rolling, baseline).
+2. Filter manifest `overlays[]` on that intent, then on the HOST you have — each entry lists `shapes`, `scopes`, `ref_kinds`, `buffered` and `inferential`.
+3. Read the chosen kind's atomic skill for its math, params and warnings. The authoritative catalog is `overlays[]` itself; never hardcode a count.
 
 ## OverlaySpec composition
 
-`Kind`, `Scope`, `Ref`, optional `Name`/`Level`/`Within`/`Params`; Compose-only `Reference`/`Targets`. Predict and runtime reject misshape under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`): a fault raises its real `PULSE_OVERLAY_*` as `errors[0].code`, never `PROCESSING_INTERNAL` with a `details.code` echo, so `pulse errors lookup` resolves it — `PROCESSING_INTERNAL` covers caller-side invariant breaks (nil spec/host). `Scope` ∈ `cell|row|column|group|matrix|total`. `Ref` is a discriminated union over six families, exactly one populated. `Level`/`Within` mirror normalize.
+`kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within` (same-axis rollup, opposite-axis prefix).
+
+Predict and runtime refuse a misshapen spec under the SAME code (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …). A fault always carries its real `PULSE_OVERLAY_*` code as `errors[0].code`, so `pulse_errors_lookup` resolves it; `PROCESSING_INTERNAL` means a caller-side invariant break (nil spec / host), never a user error.
 
 ## Six reference families
 
-`Margin{Axis}` (share + margin index/delta/z), `Sibling{Field,Value}` (SERIES), `BaselineIndex{Position}` (windowed), `Population{Cohort}` + `Prior`/`RollingMean`/`YoY` (FACET + self-compare), `Stage{Index|Name}` (chain), `Reference`+`Targets` (Compose). Implicit-margin kinds (χ², Fisher) leave `Ref` empty.
+`ref` is a discriminated union — exactly one family populated:
+
+| Family | Compares against | Host |
+|---|---|---|
+| `margin{axis}` | the row / column / grand margin | crosstab |
+| `sibling{field, value}` | another group's value | grouped Process |
+| `baseline_index{position}`, `prior`, `rolling_mean`, `yoy` | an earlier point in the same series | grouped Process |
+| `population{cohort}` | a reference cohort | facet |
+| `stage{index or name}` | an earlier chain stage | process chain |
+| `reference` + `targets` (spec top level) | another Compose slot | compose |
+
+Implicit-margin kinds (the χ² and Fisher cell tests) leave `ref` empty.
 
 ## Three payload shapes
 
-`Payload.Shape` ∈ `scalar|series|matrix`. Scalar — `Payload.Scalar` + optional `OverlaySummary{Statistic,PValue,Parameters}`. Series — `Payload.Series.Entries[i].{Key,Value,Summary}` aligned to host keys. Matrix — `Payload.Matrix.Cells[r][c]` mirrors host cells. `Baseline` is the centerpoint (100 index, 0 delta/z), absent for inferential kinds (manifest `overlays[].inferential: true`).
-
-## Catalog
-
-Authoritative list + count: `types.AllOverlayKinds()` / `pulse_manifest.overlays`; never hardcode; per-kind math in atomics. Families (drop `OVERLAY_`):
-
-Share (`SHARE_OF_ROW`/`_COL`/`_TOTAL`); margin compare (`INDEX_`/`DELTA_`/`ZSCORE_VS_MARGIN`, `*_VS_TOTAL`, `RANK`); matrix inferential (`CHISQ_*`, `FISHER_EXACT_CELL`, `PROP_Z_CELL`, `{T,Z}_CELL`); intra-matrix pairwise (`PAIRWISE_PROP_Z`/`_PROBIT_T`/`_WELCH_T`/`_TWO_MEANS_Z`/`_WEIGHTED_TWO_MEANS_Z`, shared `n_source`/`p_source`/`n_basis` vocabulary: `pairwise-n-sources`). **Both pairwise surfaces — the MATRIX family and the Compose-host `PROP_Z_PANEL` — now share ONE distinct-key n vocabulary**: the same admitted cell aggregators (`AGG_DISTINCT_SUM` at `distinct_count`, `AGG_DISTINCT_COUNT` at `cardinality`), the same exact-identity admission, the same null rules, the same `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`. **Where they differ is the SPELLINGS, and that is deliberate**: after the panel's rename the two hosts share NO within-prefix mode name at all. `n_within` / `n_within_distinct` are the MATRIX family's (a PAIR-axis slab at one fixed opposite index); `row_margin_value_within` / `row_margin_distinct_within` are the panel's (a slot's ROW margins, all columns). They differ by roughly the column count, silently, so each is an UNKNOWN mode on the other host. The panel also refuses a panel whose slots name DIFFERENT admitted aggregators — one host has one cell aggregator, a panel has N+1; SERIES self-compare (baseline / sibling / prior / `YOY` / rolling); FACET population (`*_VS_POP`); Compose vs-ref + panel (`*_VS_REF`, `PROP_Z_PANEL`, `PANEL_INDEX_VS_REF`); chain (`*_VS_STAGE`); `FORMULA`.
+`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary{statistic, p_value, parameters}`. Series — `payload.series.entries[i].{key, value, summary}`, aligned to host keys. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z) and is absent for inferential kinds (manifest `inferential: true`).
 
 ## Host-arm wiring
 
-- **MATRIX (Crosstab)** — `applyOverlaysToResponse` (`internal/processing/crosstab.go`), from BOTH the buffered and fused exits. The distinct-key slab partition refusal sits here, twinned with predict's. A direct `processing.ApplyOverlaysWithExtensions` caller bypasses BOTH — accepted; that entry is for embedders who own their host (`pairwise-n-sources`).
-- **SERIES (windowed Process)** — `internal/processing/overlay_series.go` per-group fold.
-- **FACET** — `service.applyFacetOverlays` at the buffered exit; `Ref.Population` recursion builds the comparison FacetResult.
-- **CHAIN** — `service.applyChainOverlays` post-stage; per-stage `Stages[i].Overlays` untouched, whole-chain on `ChainResponse.Overlays`. Divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`.
-- **FORMULA** — expr-lang over earlier layers; refs resolve by `Name`.
-- **COMPOSE** — post-slot fold (`internal/service/compose_overlay.go`) gates slot-label, key alignment, schema and dict drift; `DictPrefixFast` ⇒ prefix probe. Handlers may ALSO read a slot's `Components.Crosstab` via `processing.ComposeHostView`/`ComposeSlotView` — opt-in, four-valued `State()` (slot-absent / disabled / non-crosstab / present) so a misconfiguration is not reported as absent data. Only `OVERLAY_PROP_Z_PANEL` reads it today (`n_source: cell_n_unweighted`, `row_margin_distinct_within`). The panel's slab-partition and distinct-key gates are twinned in `internal/descriptor.ValidateCompose`; its cell-aggregator ADMISSION is runtime-only, like the MATRIX arm's.
+Which request carries the spec decides the host, and the host decides which kinds are legal:
+
+- **MATRIX** — a crosstab (`Request.Crosstab` + `Request.Overlays`): share, margin compare, cell tests, intra-matrix pairwise.<!-- feature: capability:crosstab --> Pairwise sample-size sources: `pairwise-n-sources`.<!-- /feature -->
+- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year).
+- **FACET** — `FacetRequest.Overlays` (NOT `Request.Overlays`): population comparisons, layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
+- **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
+- **FORMULA** — an expression over earlier layers, referenced by `name`.
+- **COMPOSE** — the Compose post-slot fold compares slots (`reference` vs `targets`) after every slot ran; slots must align on label, keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]`, buffered only<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-Additive `[]OverlayWarning` slot (`omitempty`); empty/nil elides the key, so overlay-free responses stay byte-identical (`Test*_OverlayFreeByteIdentical`). Each entry carries `Code`, `Message`, `Details map[string]any`; canonical `PULSE_OVERLAY_REF_ZERO` + siblings.
-
-Routing is dispatcher-stamped, service-distributed: the chain / Compose dispatchers (`internal/processing/overlay_*_dispatch.go`) stamp `Details["overlay_index"] = i`; `service.applyChainOverlays` / `applyComposeOverlays` route each to `out.Overlays[idx].Warnings` (none ⇒ `nil`; missing key ⇒ layer 0). The Compose-host barrier rides the same slot on `ComposedResponse.Overlays[i]`.
+Additive `warnings: [{code, message, details}]` on each layer, `omitempty` — overlay-free responses stay byte-identical. Canonical: `PULSE_OVERLAY_REF_ZERO` (a reference value of zero, so the ratio is undefined), `PULSE_OVERLAY_EXPECTED_LOW` (χ² expected count below 5). A warning lands on the layer that raised it; on Compose and chain hosts it rides `Overlays[i].Warnings` of the matching layer. Warnings never fail the request — read them before reporting a figure.
 
 ## Streamability
 
-`types.OverlayStreamability` — one row per kind. Descriptive SERIES stream, inferential (χ²/KS/Fisher/parity/Welch) buffer. Every MATRIX-host kind is `false`: the crosstab fold runs AFTER the matrix is finalised, not in-pass.
-
-That flag does NOT pick the crosstab's execution path. **`Request.Overlays` no longer forces buffered** — `CanFuseCrosstab` ignores the slot; `RunCrosstabFused` folds at its exit through the same hook. The only reason such a crosstab buffers is the CELL AGGREGATOR: `AGG_WELFORD` is non-mergeable, so the two kinds reading its triple stay buffered. `OVERLAY_PAIRWISE_PROP_Z` and `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` over a mergeable `AGG_WEIGHTED_MEAN` cell fuse.
+Manifest `overlays[].buffered`. Descriptive SERIES kinds stream; inferential kinds buffer. MATRIX kinds fold after the matrix is finished, so an overlay never decides whether a crosstab fuses — the cell aggregator does<!-- feature: capability:crosstab --> (`crosstab-guide`)<!-- /feature -->. Mixing streamable and buffered kinds on one request prices it as buffered.
 
 ## Parity overlays — Welford migration
 
-The four parity kinds (`OVERLAY_{T,Z}_CELL`, `OVERLAY_{T,Z}_VS_REF`) read `{n, mean, variance}` from `CellComponents[r][c]` (`AGG_WELFORD`), falling back to `Params` when absent. The legacy `WelfordTriple` smuggle through `MatrixCell.Value` is **removed in v0.20.0**; that slot carries the mean. P-values byte-equal `TEST_WELCH`.
-
-## Adding a new kind
-
-Declare the constant + `AllOverlayKinds()`; add the `overlay_streamability.go` row; handler in `internal/processing/overlay_*.go`; register in host dispatch; predict validator (`internal/descriptor/overlay_*.go`); raise faults under the kind's own code; ship its atomic.
+The cell t / z kinds and their Compose vs-ref twins read `{n, mean, variance}` from `Response.Components.Crosstab.CellComponents[r][c]`, so the cell aggregator must emit that triple; with no triple at the coordinate they fall back to `params` (`variance_*`, `sample_size_*`). The cell's own `MatrixCell.Value` is the scalar mean. P-values equal the matching row-level two-sample tests on the same inputs.
 
 ## See
 
-- `response-components`, `crosstab-guide` (MATRIX host), `facet-design`, `pairwise-n-sources`, `docs/src/internals/extension-points.md`.
+- `response-components`<!-- feature: capability:crosstab -->, `crosstab-guide`<!-- /feature --><!-- feature: capability:facet -->, `facet-design`<!-- /feature --><!-- feature: capability:crosstab -->, `pairwise-n-sources`<!-- /feature --><!-- feature: capability:compose -->, `compose-requests`<!-- /feature --><!-- feature: capability:process_chain -->, `process-chain`<!-- /feature -->.
