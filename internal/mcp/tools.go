@@ -7,6 +7,8 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/facadebridge"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
@@ -48,11 +50,13 @@ type ToolDescriptor struct {
 
 // decodeFunc unmarshals raw arguments into the typed In, applying any
 // tool-specific strict validation (unknown-field rejection) before decode.
-type decodeFunc[In any] func(raw json.RawMessage) (In, error)
+// inst is the calling instance's snapshot (nil: unscoped), so a request
+// slot the instance hides is refused as an unknown key.
+type decodeFunc[In any] func(raw json.RawMessage, inst *descx.InstanceSnapshot) (In, error)
 
 // lenientDecode unmarshals raw into In, ignoring unknown fields (the standard
 // encoding/json behaviour). Used by tools without a strict-decode contract.
-func lenientDecode[In any](raw json.RawMessage) (In, error) {
+func lenientDecode[In any](raw json.RawMessage, _ *descx.InstanceSnapshot) (In, error) {
 	var in In
 	if len(raw) == 0 {
 		return in, nil
@@ -65,11 +69,11 @@ func lenientDecode[In any](raw json.RawMessage) (In, error) {
 
 // strictRequestDecode rejects unknown top-level keys on a types.Request before
 // decoding, turning a silently-dropped slot into PULSE_REQUEST_UNKNOWN_FIELD.
-func strictRequestDecode(raw json.RawMessage) (types.Request, error) {
-	if ce := checkUnknownRequestKeys(raw); ce != nil {
+func strictRequestDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (types.Request, error) {
+	if ce := checkUnknownRequestKeys(raw, inst); ce != nil {
 		return types.Request{}, ce
 	}
-	return lenientDecode[types.Request](raw)
+	return lenientDecode[types.Request](raw, inst)
 }
 
 // strictImportDecode decodes pulse_import's input, holding each `groups`
@@ -79,21 +83,21 @@ func strictRequestDecode(raw json.RawMessage) (types.Request, error) {
 // "members": [...]}` would decode as a KEYLESS tuple group, which skips
 // the member-constancy check and writes a differently-encoded cohort
 // without a word. An unknown key there is PULSE_GROUP_DECLARATION_INVALID.
-func strictImportDecode(raw json.RawMessage) (ImportIn, error) {
+func strictImportDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (ImportIn, error) {
 	if err := checkGroupsShape(raw, "pulse_import"); err != nil {
 		return ImportIn{}, err
 	}
-	return lenientDecode[ImportIn](raw)
+	return lenientDecode[ImportIn](raw, inst)
 }
 
 // strictDedupDecode is strictImportDecode's twin for pulse_dedup: the
 // same `groups` slot, held to the same exact {key, members} shape for
 // the same reason.
-func strictDedupDecode(raw json.RawMessage) (DedupIn, error) {
+func strictDedupDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (DedupIn, error) {
 	if err := checkGroupsShape(raw, "pulse_dedup"); err != nil {
 		return DedupIn{}, err
 	}
-	return lenientDecode[DedupIn](raw)
+	return lenientDecode[DedupIn](raw, inst)
 }
 
 // checkGroupsShape rejects an unknown key inside any `groups` entry of
@@ -120,27 +124,27 @@ func checkGroupsShape(raw json.RawMessage, tool string) error {
 
 // strictComposedDecode applies the per-request strict check across a
 // ComposedRequest's Requests slot.
-func strictComposedDecode(raw json.RawMessage) (types.ComposedRequest, error) {
-	if ce := checkUnknownKeysComposed(raw); ce != nil {
+func strictComposedDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (types.ComposedRequest, error) {
+	if ce := checkUnknownKeysComposed(raw, inst); ce != nil {
 		return types.ComposedRequest{}, ce
 	}
-	return lenientDecode[types.ComposedRequest](raw)
+	return lenientDecode[types.ComposedRequest](raw, inst)
 }
 
 // strictChainDecode applies the per-stage strict check across a ChainRequest's
 // Stages slot.
-func strictChainDecode(raw json.RawMessage) (types.ChainRequest, error) {
-	if ce := checkUnknownKeysChain(raw); ce != nil {
+func strictChainDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (types.ChainRequest, error) {
+	if ce := checkUnknownKeysChain(raw, inst); ce != nil {
 		return types.ChainRequest{}, ce
 	}
-	return lenientDecode[types.ChainRequest](raw)
+	return lenientDecode[types.ChainRequest](raw, inst)
 }
 
 // makeInvoke composes a decode function with a typed handler into the
 // type-erased InvokeFunc. Errors (decode or handler) are returned verbatim.
 func makeInvoke[In, Out any](decode decodeFunc[In], h func(context.Context, *pulse.Pulse, In) (Out, error)) InvokeFunc {
 	return func(ctx context.Context, p *pulse.Pulse, raw json.RawMessage) (any, error) {
-		in, err := decode(raw)
+		in, err := decode(raw, instanceOf(p))
 		if err != nil {
 			return nil, err
 		}
@@ -150,6 +154,15 @@ func makeInvoke[In, Out any](decode decodeFunc[In], h func(context.Context, *pul
 		}
 		return out, nil
 	}
+}
+
+// instanceOf returns p's instance snapshot via the root facade's bridge
+// hook, or nil (unscoped) when p is nil or the hook is not installed.
+func instanceOf(p *pulse.Pulse) *descx.InstanceSnapshot {
+	if p == nil || facadebridge.InstanceSnapshot == nil {
+		return nil
+	}
+	return facadebridge.InstanceSnapshot(p)
 }
 
 // invokers maps each tool name to its type-erased Invoke. cfg is threaded in

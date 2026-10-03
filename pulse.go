@@ -508,14 +508,8 @@ func New(opts Options) (*Pulse, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := validateExtensions(opts.Extensions); err != nil {
-		return nil, err
-	}
-	if err := probeExtensions(opts.Extensions); err != nil {
-		return nil, err
-	}
-	universe := newFeatureUniverse(opts.Extensions, Version())
-	if err := validateExtensionDependsOn(universe); err != nil {
+	universe, err := validateExtensionUniverse(opts.Extensions)
+	if err != nil {
 		return nil, err
 	}
 	if err := validateAutoLabels(opts.AutoLabels, opts.Extensions.LabelTables); err != nil {
@@ -1576,16 +1570,19 @@ func (p *Pulse) WidenSetField(ctx context.Context, path, field, targetType strin
 // "no constraint" for that dimension. Query is case-insensitive
 // substring search across name, description, and operators; tags is
 // ANDed; category is an exact match. Always returns a non-nil slice
-// (possibly empty) for safe JSON marshaling.
+// (possibly empty) for safe JSON marshaling. Under a feature profile an
+// example that uses an operator the instance hides is not returned.
 func (p *Pulse) ExamplesSearch(query string, tags []string, category string) []ExampleSummary {
-	return examples.Search(query, tags, category)
+	return p.svc.InstanceSnapshot().Discovery().ExamplesSearch(query, tags, category)
 }
 
 // ExampleGet returns the example whose _meta.name matches name. The
 // returned Body is the request JSON with the _meta block stripped so
-// it can be handed directly to Process / Predict.
+// it can be handed directly to Process / Predict. Under a feature
+// profile an example that uses a hidden operator answers (nil, false),
+// exactly as a name that does not exist.
 func (p *Pulse) ExampleGet(name string) (*Example, bool) {
-	return examples.Get(name)
+	return p.svc.InstanceSnapshot().Discovery().Example(name)
 }
 
 // ErrorLookup returns the metadata projection for a single error code.

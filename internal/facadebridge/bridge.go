@@ -18,3 +18,12 @@ var ExtensionsSnapshot func(p any) *descx.ExtensionsSnapshot
 // it into its own Config.DisableCohortScan. Anything other than a
 // *pulse.Pulse returns false. Installed by the root package's init.
 var CohortScanDisabled func(p any) bool
+
+// InstanceSnapshot returns the no-execute instance view (resolved
+// feature set + extension projection) a *pulse.Pulse was built with.
+// The MCP adapter consults it to register only the tools, prompts and
+// resources the instance offers. A profile-free Pulse returns an
+// unscoped snapshot (every name enabled); anything other than a
+// *pulse.Pulse returns nil, which is also unscoped. Installed by the
+// root package's init.
+var InstanceSnapshot func(p any) *descx.InstanceSnapshot

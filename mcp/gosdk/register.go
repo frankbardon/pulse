@@ -16,6 +16,10 @@
 //	}
 //	// caller owns serving: srv.Run(ctx, &mcpsdk.StdioTransport{}) — gosdk never serves.
 //
+// A *pulse.Pulse built with a feature profile mounts only what that
+// profile offers: hidden tools, prompts and the cohort enumeration are
+// never registered.
+//
 // Register MOUNTS onto the server it is given; it never constructs or returns a
 // finished server and never calls Serve/Run. There is no convenience "give me a
 // ready server" constructor — server lifecycle (creation, transport, serving)
@@ -78,9 +82,13 @@ func (c Config) coreConfig() core.Config {
 	return core.Config{Version: version}
 }
 
-// Register mounts the full Pulse MCP surface onto the caller-supplied server:
+// Register mounts the Pulse MCP surface onto the caller-supplied server:
 // every built-in tool, the resource schemes + static schema resource, both
 // prompts, and (when cfg.BindOnInspect) the schema-bind-on-inspect behaviour.
+// A feature profile on p scopes the mount: a tool, prompt or cohort
+// enumeration whose feature the instance does not offer is never
+// registered, so it is indistinguishable from one that does not exist.
+// Without a feature profile the full surface is mounted.
 // It returns an error only if a sub-registration fails; today every step is
 // total, so a nil server or nil Pulse is the only failure mode.
 //
@@ -100,10 +108,16 @@ func Register(server *mcpsdk.Server, p *pulse.Pulse, cfg Config) error {
 	if facadebridge.CohortScanDisabled != nil && facadebridge.CohortScanDisabled(p) {
 		cfg.DisableCohortScan = true
 	}
+	// A feature profile that omits mcp_extra:cohort_resources withholds
+	// the pulse:// enumeration through the same switch; the template
+	// stays registered, so cohorts remain readable by URI.
+	if !instanceOf(p).Enabled(cohortResourcesFeature) {
+		cfg.DisableCohortScan = true
+	}
 
 	registerTools(server, p, cfg)
 	registerResources(server, p, cfg)
-	registerPrompts(server)
+	registerPrompts(server, p)
 
 	return nil
 }

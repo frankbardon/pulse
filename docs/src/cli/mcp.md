@@ -46,9 +46,11 @@ resolved under `--data-dir` — read and strictly parsed before
 read by this leaf only, so every other `pulse` command stays
 unprofiled. Any invalid profile (unreadable file, malformed JSON, an
 unknown key or feature, an unmet dependency) aborts startup with a
-`PULSE_FEATURE_PROFILE_*` error. A profile whose `behaviour` sets
-`disable_cohort_scan` skips the startup scan as if `--no-cohort-scan`
-were passed.
+`PULSE_FEATURE_PROFILE_*` error. The server then registers only the
+tools and prompts the profile offers; a hidden tool fails like a
+nonexistent one. A profile whose `behaviour` sets
+`disable_cohort_scan`, or that omits `mcp_extra:cohort_resources`,
+skips the startup scan as if `--no-cohort-scan` were passed.
 
 The stderr startup notice reports the EFFECTIVE settings, so a profile
 that turned the scan off reads `cohort-scan: false` even without the

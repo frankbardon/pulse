@@ -669,8 +669,11 @@ func TestRegister_FeatureProfileDisablesCohortScan(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fs := &countingFs{Fs: afero.NewMemMapFs()}
 			writeTestCohort(t, fs, "demo.pulse")
+			// mcp_extra:cohort_resources is enabled so only the behaviour
+			// switch decides; omitting the feature hides the scan on its
+			// own (TestRegister_FeatureProfileScopesCohortEnumeration).
 			p, err := pulse.New(pulse.Options{FS: fs, FeatureProfile: &pulse.FeatureProfile{
-				Features:  []string{},
+				Features:  []string{"mcp_extra:cohort_resources"},
 				Behaviour: tc.behaviour,
 			}})
 			if err != nil {

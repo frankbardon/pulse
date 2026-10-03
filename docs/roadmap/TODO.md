@@ -85,15 +85,15 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#28** `TestSkillsCoverProfileGet`: every hidden skill or example is indistinguishable from a nonexistent name · [U10](units/U10-skill-ontology.md)
 
 ### FP6 — MCP
-- [ ] **#29** Instance-scoped registration of tools, prompts and resources · [U06](units/U06-profiles-mcp-tooling.md)
-- [ ] **#30** Tool input schemas carry the instance's enums only · [U06](units/U06-profiles-mcp-tooling.md)
-- [ ] **#31** `TestProfileInvisibilityParity` · [U06](units/U06-profiles-mcp-tooling.md)
+- [x] **#29** Instance-scoped registration of tools, prompts and resources · [U06](units/U06-profiles-mcp-tooling.md)
+- [x] **#30** Tool input schemas carry the instance's enums only · [U06](units/U06-profiles-mcp-tooling.md)
+- [x] **#31** `TestProfileInvisibilityParity` · [U06](units/U06-profiles-mcp-tooling.md)
 
 ### FP7 — Embedder tooling & export
-- [ ] **#32** Feature-profile tooling `init`, `check`, `diff` and `show` (leaf naming open: `pulse profile` is taken by synth data profiling) · [U06](units/U06-profiles-mcp-tooling.md)
-- [ ] **#33** Example feature profile files in `examples/profiles/` · [U06](units/U06-profiles-mcp-tooling.md)
+- [x] **#32** Feature-profile tooling `init`, `check`, `diff` and `show` (leaf naming open: `pulse profile` is taken by synth data profiling) · [U06](units/U06-profiles-mcp-tooling.md)
+- [x] **#33** Example feature profile files in `examples/profiles/` · [U06](units/U06-profiles-mcp-tooling.md)
 - [ ] **#34** `pulse docs export` / `p.ExportReference` (shares the G3 generator) · [U21](units/U21-guidance-generated-docs.md)
-- [ ] **#35** Embedder docs at `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md` (both started in U04; U06 completes them for enforcement and tooling) · [U06](units/U06-profiles-mcp-tooling.md)
+- [x] **#35** Embedder docs at `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md` (both started in U04; U06 completes them for enforcement and tooling) · [U06](units/U06-profiles-mcp-tooling.md)
 
 ---
 

@@ -2689,7 +2689,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEATURE_PROFILE_INVALID: {
-		Message: "The feature profile is structurally unusable, so pulse.New refused it before checking any feature name. The `reason` detail names the fault: the profile file is missing or unreadable, its body is not well-formed JSON, it carries a key the profile model does not declare (only `profile`, `written_with`, `features` and `behaviour` exist; `limits` and `return` are reserved and refused), `features` is absent, a feature is listed more than once, or both Options.FeatureProfile and Options.FeatureProfileFile were set.",
+		Message: "The feature profile is structurally unusable, so pulse.New refused it before checking any feature name. The `reason` detail names the fault: the profile file is missing or unreadable, its body is not well-formed JSON, it carries a key the profile model does not declare (only `profile`, `written_with`, `features` and `behaviour` exist; `limits` and `return` are reserved and refused), `features` is absent, a feature is listed more than once, both Options.FeatureProfile and Options.FeatureProfileFile were set, or pulse.ExampleFeatureProfile was given a name that is not a published example (`unknown_example`; the published names are under `examples`).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupRemoveParam,

@@ -123,17 +123,25 @@ func resolveFeatureProfile(opts Options, fsys afero.Fs) (*FeatureProfile, error)
 		return nil, nil
 	}
 
-	if err := validateFeatureProfileShape(fp, opts.FeatureProfileFile); err != nil {
-		return nil, err
-	}
 	u := newFeatureUniverse(opts.Extensions, Version())
-	if err := validateFeatureProfileNames(fp, u, opts.FeatureProfileFile); err != nil {
-		return nil, err
-	}
-	if err := validateFeatureProfileDependencies(fp, u, opts.FeatureProfileFile); err != nil {
+	if err := validateFeatureProfile(fp, u, opts.FeatureProfileFile); err != nil {
 		return nil, err
 	}
 	return fp, nil
+}
+
+// validateFeatureProfile runs the three validation classes in order —
+// structural (INVALID), name resolution (UNKNOWN), dependencies
+// (DEPENDENCY) — and stops at the first failing class. It is the one
+// path shared by pulse.New and CheckFeatureProfile.
+func validateFeatureProfile(fp *FeatureProfile, u featureUniverse, path string) error {
+	if err := validateFeatureProfileShape(fp, path); err != nil {
+		return err
+	}
+	if err := validateFeatureProfileNames(fp, u, path); err != nil {
+		return err
+	}
+	return validateFeatureProfileDependencies(fp, u, path)
 }
 
 // loadFeatureProfileFile reads and strictly decodes a profile file

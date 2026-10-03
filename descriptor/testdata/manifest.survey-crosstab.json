@@ -69,6 +69,42 @@
         }
       },
       {
+        "name": "features init",
+        "description": "Print a feature profile listing every feature this build offers, or seeded from an example feature profile",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "features check",
+        "description": "Validate a feature profile file against this build, exactly as pulse.New would",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "features diff",
+        "description": "List the features this build offers that a feature profile does not list, and the names it does not resolve",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
+        "name": "features show",
+        "description": "Describe every feature a feature profile lists: kind, category, source, since and dependencies",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "version",
         "description": "Print the Pulse build version (--json adds Go version, commit and envelope format_version)",
         "annotations": {
@@ -763,7 +799,7 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped — hand it straight to pulse_process or pulse_predict."
+        "description": "Fetch one request example from the embedded library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process."
       },
       {
         "name": "pulse_examples_search",
@@ -771,7 +807,7 @@
       },
       {
         "name": "pulse_facet",
-        "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use when you need the unique-value set of one column (e.g., before authoring a FILTER_INCLUDE). For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
+        "description": "Return distinct values for a field in a cohort. Diagnostic / discovery tool — use when you need the unique-value set of one column. For example, run it before authoring a FILTER_INCLUDE. For multi-field summaries with counts, null tallies, numeric stats, percentiles, histograms, or additive contribution counts, prefer pulse_facet_schema."
       },
       {
         "name": "pulse_facet_schema",
@@ -787,7 +823,7 @@
       },
       {
         "name": "pulse_predict",
-        "description": "Validate a processing request against a cohort schema without executing. Returns the same diagnostics pulse_process would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Use to verify a hand-authored or programmatically generated request before storage or execution; cheap because it reads only the cohort header + schema."
+        "description": "Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL, etc.) plus the normalized request, streamability flag, and the defaults the engine applied. Use to verify a hand-authored or programmatically generated request before storage or execution; cheap because it reads only the cohort header + schema."
       },
       {
         "name": "pulse_process",
@@ -1151,244 +1187,28 @@
         "description": "Arithmetic mean of a numeric field across the input set."
       },
       {
-        "name": "op-agg-ci-lower",
-        "description": "Lower bound of the confidence interval for the mean."
-      },
-      {
-        "name": "op-agg-ci-upper",
-        "description": "Upper bound of the confidence interval for the mean."
-      },
-      {
         "name": "op-agg-count",
         "description": "Count records that pass the active filter, optionally per group."
-      },
-      {
-        "name": "op-agg-distinct-count",
-        "description": "Count distinct non-null values across the input set."
-      },
-      {
-        "name": "op-agg-distinct-sum",
-        "description": "Sum a value field once per distinct key."
       },
       {
         "name": "op-agg-frequency",
         "description": "Per-distinct-value count of the field; returned as map[string]int64."
       },
       {
-        "name": "op-agg-kurtosis",
-        "description": "Bias-corrected excess kurtosis via online moments."
-      },
-      {
-        "name": "op-agg-max",
-        "description": "Largest non-null value of the field."
-      },
-      {
-        "name": "op-agg-median",
-        "description": "50th percentile of the field; requires sorting the full value set."
-      },
-      {
-        "name": "op-agg-min",
-        "description": "Smallest non-null value of the field."
-      },
-      {
-        "name": "op-agg-mode",
-        "description": "Most-frequent value of the field (ties broken by first-seen order)."
-      },
-      {
-        "name": "op-agg-null-count",
-        "description": "Count records where the field is null. Inverse of AGG_COUNT."
-      },
-      {
-        "name": "op-agg-percentile",
-        "description": "Configurable percentile of the field; requires sorting the full value set."
-      },
-      {
-        "name": "op-agg-range",
-        "description": "Spread (max minus min) of the field across the input set."
-      },
-      {
-        "name": "op-agg-ratio",
-        "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is ignored."
-      },
-      {
-        "name": "op-agg-set-cardinality-avg",
-        "description": "Average popcount per contributing row — typical number of selections."
-      },
-      {
-        "name": "op-agg-set-cardinality-sum",
-        "description": "Sum of popcounts across contributing rows — total label selections seen."
-      },
-      {
-        "name": "op-agg-set-distinct-values",
-        "description": "Count of distinct exact mask values seen; each combination is atomic."
-      },
-      {
-        "name": "op-agg-set-frequency",
-        "description": "Per-bit row count — how many rows had each set label selected."
-      },
-      {
-        "name": "op-agg-set-intersection",
-        "description": "Bitwise-AND a set field across rows; returns labels for every bit set in every contributing row."
-      },
-      {
-        "name": "op-agg-set-union",
-        "description": "Bitwise-OR a set field across rows; returns labels for every bit set in any contributing row."
-      },
-      {
-        "name": "op-agg-skewness",
-        "description": "Bias-corrected skewness via online moments."
-      },
-      {
-        "name": "op-agg-stddev",
-        "description": "Population standard deviation via Welford's online algorithm."
-      },
-      {
         "name": "op-agg-sum",
         "description": "Sum the numeric values of a field across the input set."
-      },
-      {
-        "name": "op-agg-variance",
-        "description": "Population variance via Welford's online algorithm."
-      },
-      {
-        "name": "op-agg-weighted-mean",
-        "description": "Weighted arithmetic mean — sum(field * weight) / sum(weight)."
       },
       {
         "name": "op-agg-welford",
         "description": "Streaming Welford-Pébaÿ moment triple — running mean, sample variance (n-1), and observed count."
       },
       {
-        "name": "op-agg-zscore",
-        "description": "Standardized z-score aggregate — mean-centered, stddev-scaled summary."
-      },
-      {
-        "name": "op-attr-date-part",
-        "description": "Extract a calendar component (year, month, day, year_month, ...) from a date field."
-      },
-      {
-        "name": "op-attr-formula",
-        "description": "Per-row expression evaluation against the record's fields via expr-lang."
-      },
-      {
-        "name": "op-attr-normalized",
-        "description": "Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1]."
-      },
-      {
-        "name": "op-attr-percentile",
-        "description": "Per-row percentile rank column against the post-filter value set; requires sorting."
-      },
-      {
-        "name": "op-attr-reg-fitted",
-        "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass."
-      },
-      {
-        "name": "op-attr-reg-leverage",
-        "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic."
-      },
-      {
-        "name": "op-attr-reg-residual",
-        "description": "Per-row residual yᵢ − ŷᵢ from an OLS refit during the attribute prepass."
-      },
-      {
-        "name": "op-attr-set-has",
-        "description": "Per-row 0/1 — whether the configured label's bit is set on a set field."
-      },
-      {
-        "name": "op-attr-set-popcount",
-        "description": "Per-row popcount of a set field — number of selected labels."
-      },
-      {
-        "name": "op-attr-tscore",
-        "description": "Per-row T-score column — z-score rescaled to mean 50, stddev 10."
-      },
-      {
-        "name": "op-attr-zscore",
-        "description": "Per-row standardized z-score column — (value − mean) / stddev via two-pass Welford."
-      },
-      {
-        "name": "op-feat-bucketize",
-        "description": "Bin a numeric column into ordered buckets — explicit boundaries or N equal-population quantiles."
-      },
-      {
-        "name": "op-feat-date-features",
-        "description": "Expand a date field into year / month / day / day-of-week / quarter columns."
-      },
-      {
-        "name": "op-feat-frequency-encode",
-        "description": "Replace each categorical value with its observed relative frequency in the cohort."
-      },
-      {
-        "name": "op-feat-log",
-        "description": "Per-row log1p(x) of a numeric field; emits one f64 column. Standard skew-tamer."
-      },
-      {
-        "name": "op-feat-one-hot",
-        "description": "One-hot encode a categorical field as one f64 column per dictionary entry."
-      },
-      {
-        "name": "op-feat-poly",
-        "description": "Per-row polynomial expansion x^2..x^Degree of a numeric field; pair with REG_OLS for polynomial regression."
-      },
-      {
-        "name": "op-feat-sqrt",
-        "description": "Per-row sqrt(x) of a numeric field; emits one f64 column."
-      },
-      {
-        "name": "op-feat-target-encode",
-        "description": "Replace each categorical value with the smoothed mean of a numeric Target field for that category. Leakage trap — see Gotchas."
-      },
-      {
-        "name": "op-feat-train-test-split",
-        "description": "Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows."
-      },
-      {
-        "name": "op-filter-date-ranges",
-        "description": "Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges."
-      },
-      {
-        "name": "op-filter-exclude",
-        "description": "Drop records whose field value appears in the supplied Values list."
-      },
-      {
-        "name": "op-filter-expression",
-        "description": "Keep records for which an expr-lang expression evaluates truthy against record fields."
-      },
-      {
-        "name": "op-filter-false",
-        "description": "Keep records where Field is logically false. Strict packed_bool by default; opt into JS falsiness."
-      },
-      {
         "name": "op-filter-include",
         "description": "Keep records whose field value appears in the supplied Values list."
       },
       {
-        "name": "op-filter-null",
-        "description": "Keep or drop records based on null state of a field."
-      },
-      {
         "name": "op-filter-range",
         "description": "Keep records whose numeric field value falls within [low, high] inclusive."
-      },
-      {
-        "name": "op-filter-set-contains-all",
-        "description": "Keep records whose set field has every bit in the supplied label mask set."
-      },
-      {
-        "name": "op-filter-set-contains-any",
-        "description": "Keep records whose set field shares at least one bit with the supplied label mask."
-      },
-      {
-        "name": "op-filter-set-contains-none",
-        "description": "Keep records whose set field shares no bits with the supplied label mask."
-      },
-      {
-        "name": "op-filter-set-equals",
-        "description": "Keep records whose set field mask exactly equals the supplied label mask."
-      },
-      {
-        "name": "op-filter-true",
-        "description": "Keep records where Field is logically true. Strict packed_bool by default; opt into JS truthiness."
       },
       {
         "name": "op-group-category",
@@ -1399,412 +1219,28 @@
         "description": "Partition date/datetime records by calendar component; optional fiscal_offset shifts year/quarter to a fiscal calendar."
       },
       {
-        "name": "op-group-date-ranges",
-        "description": "Bucket date records by inline labeled date ranges; the range label becomes the bucket key."
-      },
-      {
-        "name": "op-group-quantile",
-        "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100)."
-      },
-      {
-        "name": "op-group-range",
-        "description": "Partition numeric records into half-open ranges [a, b); Interval controls bucket width."
-      },
-      {
-        "name": "op-group-rounded",
-        "description": "Round each numeric value to the nearest multiple of Interval and group by the rounded scalar."
-      },
-      {
-        "name": "op-group-set-per-element",
-        "description": "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount."
-      },
-      {
-        "name": "op-group-set-value",
-        "description": "Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with \"|\"."
-      },
-      {
-        "name": "op-overlay-chisq-col",
-        "description": "Per-column χ² goodness-of-fit test across the host crosstab's contingency table."
-      },
-      {
-        "name": "op-overlay-chisq-matrix",
-        "description": "Whole-matrix χ² independence test across the host crosstab's row × column contingency table."
-      },
-      {
-        "name": "op-overlay-chisq-row",
-        "description": "Per-row χ² goodness-of-fit test across the host crosstab's contingency table."
-      },
-      {
-        "name": "op-overlay-chisq-vs-pop",
-        "description": "χ² goodness-of-fit comparing host Facet subset distribution against the resolved population distribution."
-      },
-      {
-        "name": "op-overlay-chisq-vs-ref",
-        "description": "Compose-host whole-matrix χ² comparing target slot's matrix against the reference slot's matrix (rescaled to target N)."
-      },
-      {
-        "name": "op-overlay-delta-vs-baseline",
-        "description": "Per-point additive delta against a fixed positional baseline of an ordered SERIES host."
-      },
-      {
-        "name": "op-overlay-delta-vs-margin",
-        "description": "Per-cell additive delta against the matching axis margin (cell − margin)."
-      },
-      {
-        "name": "op-overlay-delta-vs-prior",
-        "description": "Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host."
-      },
-      {
-        "name": "op-overlay-delta-vs-ref",
-        "description": "Compose-host additive delta of target slot value against the matching reference slot value (matrix or series)."
-      },
-      {
-        "name": "op-overlay-delta-vs-sibling",
-        "description": "Per-group additive delta against a sibling group named by (Field, Value) on the SERIES host."
-      },
-      {
-        "name": "op-overlay-delta-vs-stage",
-        "description": "Whole-chain additive delta of target stage's result against the reference stage's result."
-      },
-      {
-        "name": "op-overlay-fisher-exact-cell",
-        "description": "Per-cell Fisher's exact two-sided p-value over a 2×2 contingency formed from each host crosstab cell + its margins."
-      },
-      {
-        "name": "op-overlay-formula",
-        "description": "Expression-driven projection computed via expr-lang against a per-host-shape variable namespace."
-      },
-      {
-        "name": "op-overlay-index-vs-baseline",
-        "description": "Per-point ratio index against a fixed positional baseline of an ordered SERIES host (×100)."
-      },
-      {
         "name": "op-overlay-index-vs-margin",
         "description": "Per-cell index against the matching axis margin (100 × cell / margin)."
-      },
-      {
-        "name": "op-overlay-index-vs-pop",
-        "description": "Per-value population-comparison index for a Facet host (subset_freq / pop_freq × 100)."
-      },
-      {
-        "name": "op-overlay-index-vs-prior",
-        "description": "Per-point streamable windowed index against the immediately preceding point of an ordered SERIES host (×100)."
-      },
-      {
-        "name": "op-overlay-index-vs-ref",
-        "description": "Compose-host ratio index of target slot value against the matching reference slot value (matrix or series)."
-      },
-      {
-        "name": "op-overlay-index-vs-rolling-mean",
-        "description": "Per-point windowed index against the arithmetic mean of the W preceding points of an ordered SERIES host."
-      },
-      {
-        "name": "op-overlay-index-vs-sibling",
-        "description": "Per-group ratio index against a sibling group named by (Field, Value) on the SERIES host (×100)."
-      },
-      {
-        "name": "op-overlay-index-vs-stage",
-        "description": "Whole-chain ratio index of target stage's result against the reference stage's result (×100)."
-      },
-      {
-        "name": "op-overlay-index-vs-total",
-        "description": "Per-group streamable ratio index against the SERIES host's grand total (×100)."
-      },
-      {
-        "name": "op-overlay-ks-vs-pop",
-        "description": "Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population."
-      },
-      {
-        "name": "op-overlay-pairwise-probit-t",
-        "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail)."
-      },
-      {
-        "name": "op-overlay-pairwise-prop-z",
-        "description": "Intra-matrix axis-pairwise pooled-SE two-proportion z-test (row-vs-row or col-vs-col within one crosstab)."
-      },
-      {
-        "name": "op-overlay-pairwise-two-means-z",
-        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df)."
-      },
-      {
-        "name": "op-overlay-pairwise-weighted-two-means-z",
-        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells under a required n_basis (weights | kish)."
       },
       {
         "name": "op-overlay-pairwise-welch-t",
         "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells."
       },
       {
-        "name": "op-overlay-panel-index-vs-ref",
-        "description": "Compose-host multi-reference index — indexes every target slot against a shared reference; emits one layer per target."
-      },
-      {
-        "name": "op-overlay-prop-z-cell",
-        "description": "Compose-host per-cell two-proportion z-test against the reference slot's matching cell."
-      },
-      {
-        "name": "op-overlay-prop-z-panel",
-        "description": "Compose-host multi-reference per-cell pairwise two-proportion z-test across N+1 slots."
-      },
-      {
-        "name": "op-overlay-rank",
-        "description": "Compose-host per-cell rank of each target cell within a configurable population (row / column / matrix)."
-      },
-      {
-        "name": "op-overlay-share-of-col",
-        "description": "Per-cell share-of-column ratio (cell / col_margin) — raw share, sums to 1.0 per column."
-      },
-      {
         "name": "op-overlay-share-of-row",
         "description": "Per-cell share-of-row ratio (cell / row_margin) — raw share, sums to 1.0 per row."
-      },
-      {
-        "name": "op-overlay-share-of-total",
-        "description": "Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0."
-      },
-      {
-        "name": "op-overlay-t-cell",
-        "description": "Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents."
-      },
-      {
-        "name": "op-overlay-t-vs-ref",
-        "description": "Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents."
-      },
-      {
-        "name": "op-overlay-yoy",
-        "description": "Per-point year-over-year ratio against the same period one year prior; requires GROUP_DATE host."
-      },
-      {
-        "name": "op-overlay-z-cell",
-        "description": "Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; parity overlay reading from CellComponents."
-      },
-      {
-        "name": "op-overlay-z-vs-ref",
-        "description": "Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); parity overlay reading from CellComponents."
-      },
-      {
-        "name": "op-overlay-zscore-vs-margin",
-        "description": "Per-cell standardized-margin z-score — (cell − margin) / sd where sd is the population SD within the same margin slice."
-      },
-      {
-        "name": "op-overlay-zscore-vs-pop",
-        "description": "Per-value population-comparison z-score for a Facet host — (subset_freq − pop_freq) / sd_pop."
-      },
-      {
-        "name": "op-overlay-zscore-vs-rolling",
-        "description": "Per-point windowed z-score against the rolling-window mean + SAMPLE SD of the W preceding points."
-      },
-      {
-        "name": "op-overlay-zscore-vs-total",
-        "description": "Per-group streamable z-score against the SERIES host's grand-total distribution (population SD)."
-      },
-      {
-        "name": "op-reg-bayes-linear",
-        "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as REG_OLS."
-      },
-      {
-        "name": "op-reg-glm",
-        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-specific link functions. Always buffered."
-      },
-      {
-        "name": "op-reg-mod-resample",
-        "description": "Spec-level resampling modifier (jackknife / bootstrap) that composes with REG_OLS or REG_GLM; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
-      },
-      {
-        "name": "op-reg-mod-selection",
-        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with REG_OLS or REG_GLM; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
-      },
-      {
-        "name": "op-reg-ols",
-        "description": "Ordinary least squares with optional l1/l2/elasticnet penalty; covers simple, multiple, ridge, lasso, and elastic-net regression over streaming sufficient statistics."
-      },
-      {
-        "name": "op-synth-bernoulli",
-        "description": "Bernoulli samples emitting 0 or 1 with probability p; pairs with packed_bool or unsigned int fields."
-      },
-      {
-        "name": "op-synth-constant",
-        "description": "Emit a constant value on every row; useful for unit testing, sentinel columns, and placeholder fields."
-      },
-      {
-        "name": "op-synth-discrete",
-        "description": "Exact per-level histogram for an integer column; what a profile reconstructs every u4/u8/u16/u32/u64 field from."
-      },
-      {
-        "name": "op-synth-exponential",
-        "description": "Exponential samples with rate parameter lambda; mean is 1/lambda."
-      },
-      {
-        "name": "op-synth-lognormal",
-        "description": "Log-normal samples parameterised by log-space mu and sigma; output strictly positive."
-      },
-      {
-        "name": "op-synth-mixture",
-        "description": "Mixture-of-normals samples — per-row component draw by weight, then a Gaussian from that component; reproduces bimodal/multimodal shapes."
-      },
-      {
-        "name": "op-synth-monotonic-from",
-        "description": "Strictly increasing or decreasing integer counter; deterministic per row, ignores RNG. Synthetic primary keys."
-      },
-      {
-        "name": "op-synth-normal",
-        "description": "Gaussian samples with optional [min, max] clamp; default mean=0, std=1."
-      },
-      {
-        "name": "op-synth-pareto",
-        "description": "Heavy-tailed Pareto samples; xm is the scale (minimum), alpha the shape (tail weight)."
-      },
-      {
-        "name": "op-synth-poisson",
-        "description": "Poisson-distributed non-negative integer counts with mean lambda; Knuth multiplicative below 30, normal-approximation above."
-      },
-      {
-        "name": "op-synth-regex",
-        "description": "String samples generated from a Perl/RE2 regex pattern; walks regexp/syntax AST with bounded repetition."
-      },
-      {
-        "name": "op-synth-set-bernoulli",
-        "description": "Multi-select set_* bitmask generation — independent per-option Bernoulli draws, or a joint-structure resample when a paired field is declared."
-      },
-      {
-        "name": "op-synth-uniform",
-        "description": "Uniform real-valued samples in [min, max); default [0, 1)."
-      },
-      {
-        "name": "op-synth-uniform-date",
-        "description": "Uniform calendar-date samples in [start, end] inclusive; days-since-epoch internally."
-      },
-      {
-        "name": "op-synth-weighted-categorical",
-        "description": "Discrete categorical draws from a values list with optional weights; uniform when weights absent."
-      },
-      {
-        "name": "op-test-anova-f",
-        "description": "One-way ANOVA F-test comparing the means of a numeric Field across k groups defined by SplitBy."
-      },
-      {
-        "name": "op-test-anova-rm",
-        "description": "Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition."
-      },
-      {
-        "name": "op-test-anova-welch",
-        "description": "Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction; streamable per-group Welford."
-      },
-      {
-        "name": "op-test-brown-forsythe",
-        "description": "Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians."
       },
       {
         "name": "op-test-chisq",
         "description": "Chi-square independence test on a 2D Rows × Cols contingency table."
       },
       {
-        "name": "op-test-fisher-exact",
-        "description": "Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative."
-      },
-      {
-        "name": "op-test-kendall-tau",
-        "description": "Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction."
-      },
-      {
-        "name": "op-test-kruskal-wallis",
-        "description": "Nonparametric k-group location test; ANOVA-like rank sums under tie correction."
-      },
-      {
-        "name": "op-test-ks",
-        "description": "Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy."
-      },
-      {
-        "name": "op-test-mann-whitney-u",
-        "description": "Nonparametric two-sample location test; buffered tie-corrected rank sum (Mann-Whitney U)."
-      },
-      {
-        "name": "op-test-paired-t",
-        "description": "Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d."
-      },
-      {
-        "name": "op-test-pearson-r",
-        "description": "Parametric Pearson correlation test between two numeric fields; streamable via online cross-product."
-      },
-      {
-        "name": "op-test-prop-z",
-        "description": "Two-proportion z-test on the success rate of Field across two SplitBy groups; streamable via success / total counts."
-      },
-      {
-        "name": "op-test-shapiro-wilk",
-        "description": "Shapiro-Wilk normality test on Field; runs per-group when SplitBy is set; supports n ≤ 5000."
-      },
-      {
-        "name": "op-test-spearman-r",
-        "description": "Rank-based correlation between Field and Field2 (monotonic association); buffered mid-ranks then Pearson."
-      },
-      {
         "name": "op-test-t",
         "description": "One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant."
       },
       {
-        "name": "op-test-trend",
-        "description": "Mann-Kendall trend test over an ordered numeric series; tier-2 over windowed result rows."
-      },
-      {
-        "name": "op-test-tukey-hsd",
-        "description": "Tier-2 post-hoc pairwise comparison of group means using Tukey's Honestly Significant Difference (Tukey-Kramer)."
-      },
-      {
         "name": "op-test-welch",
         "description": "Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition."
-      },
-      {
-        "name": "op-test-wilcoxon-sr",
-        "description": "Wilcoxon signed-rank test on per-row difference d = Field − Field2; buffered tie-corrected sign-rank."
-      },
-      {
-        "name": "op-test-z-two-sample",
-        "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ."
-      },
-      {
-        "name": "op-win-delta",
-        "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of WIN_PCT_CHANGE."
-      },
-      {
-        "name": "op-win-dense-rank",
-        "description": "Dense rank with no gaps after ties (1, 2, 2, 3, ...) within the ordered partition."
-      },
-      {
-        "name": "op-win-ewma",
-        "description": "Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}."
-      },
-      {
-        "name": "op-win-lag",
-        "description": "Per-row value of Field from N rows earlier in the ordered partition."
-      },
-      {
-        "name": "op-win-lead",
-        "description": "Per-row value of Field from N rows later in the ordered partition."
-      },
-      {
-        "name": "op-win-moving-avg",
-        "description": "Moving average of Field over a bounded Frame; both ends must be set."
-      },
-      {
-        "name": "op-win-pct-change",
-        "description": "Percent change relative to the row `periods` positions earlier in the ordered partition."
-      },
-      {
-        "name": "op-win-rank",
-        "description": "Sparse rank with gaps after ties (1, 2, 2, 4, ...) within the ordered partition."
-      },
-      {
-        "name": "op-win-row-number",
-        "description": "1-based row index within the ordered partition; never ties."
-      },
-      {
-        "name": "op-win-running-avg",
-        "description": "Running average of Field over the configured Frame within the ordered partition."
-      },
-      {
-        "name": "op-win-running-sum",
-        "description": "Running total of Field over the configured Frame within the ordered partition."
       },
       {
         "name": "overlay-system",
@@ -1863,18 +1299,6 @@
         "description": "`pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), multi-predictor models, correlations, determinism via seed. Topical design; per-distribution detail in atomic op-synth-* skills, `rules[]` / `constraints[]` in synth-structural-rules."
       },
       {
-        "name": "tool-compose",
-        "description": "Execute a batch of processing requests in one round-trip."
-      },
-      {
-        "name": "tool-dedup",
-        "description": "Deduplicate an existing cohort's repeated parent blocks into parent groups (format 0x02), or suggest groups read-only."
-      },
-      {
-        "name": "tool-drop",
-        "description": "Remove a managed-import handle — delete its .pulse file and sidecar."
-      },
-      {
         "name": "tool-errors-lookup",
         "description": "Look up Pulse error code metadata — message and fixup hints."
       },
@@ -1895,28 +1319,8 @@
         "description": "Multi-field rich facet — counts, nulls, percentiles, histograms, additive contributions."
       },
       {
-        "name": "tool-import",
-        "description": "Import a tabular source file (or pass through .pulse) into a managed handle."
-      },
-      {
-        "name": "tool-imports-list",
-        "description": "Enumerate every managed-import handle with sidecar metadata."
-      },
-      {
         "name": "tool-inspect",
         "description": "Read header + schema of a .pulse file without touching record data."
-      },
-      {
-        "name": "tool-label-resolve",
-        "description": "Reverse-resolve a human-readable name (typo-tolerant) to raw categorical key(s)."
-      },
-      {
-        "name": "tool-label-tables",
-        "description": "List registered label tables — ID→display-name dictionaries for categorical fields."
-      },
-      {
-        "name": "tool-lookup",
-        "description": "Resolve a point lookup against a cohort's prebuilt sidecar index."
       },
       {
         "name": "tool-manifest",
@@ -1929,18 +1333,6 @@
       {
         "name": "tool-process",
         "description": "Execute one pre-built processing request against a cohort."
-      },
-      {
-        "name": "tool-process-chain",
-        "description": "Linear chain of stages; stage N+1 consumes stage N's output rows."
-      },
-      {
-        "name": "tool-range-tables",
-        "description": "List registered range tables — named, reusable sets of labeled date ranges."
-      },
-      {
-        "name": "tool-sample",
-        "description": "Return up to N rows from a cohort for eyeball / preview."
       },
       {
         "name": "tool-skills-get",
@@ -2035,86 +1427,40 @@
         "description": "Window slot semantics — partition / order / frame, what WIN_* operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 169,
+    "examples_count": 25,
     "example_categories": [
       "aggregations",
-      "attributes",
       "crosstab",
       "facet",
-      "features",
       "filterers",
       "groupers",
       "overlays",
-      "regression",
-      "tests",
-      "windows"
+      "tests"
     ],
     "example_tags": [
       "anchor",
-      "bayesian",
-      "before-after",
       "buffered-pipeline",
-      "byte-equal-test",
       "cardinality-analysis",
       "cohort-analysis",
       "comparison",
-      "compose",
-      "composed",
-      "correlation-analysis",
       "cross-tabulation",
-      "crosstab",
       "data-quality",
       "distribution-shape",
-      "ecological",
-      "elasticnet",
-      "exact-test",
       "experiment-analysis",
       "facet",
-      "feature-engineering",
-      "feature-pipeline",
       "financial",
-      "glm",
-      "homogeneity-test",
       "hypothesis-test",
-      "jackknife",
-      "k-sample",
-      "lasso",
-      "leakage-risk",
-      "leakage-safe",
-      "logistic",
-      "nonparametric",
-      "normality-test",
-      "ols",
       "one-sample",
-      "outlier-detection",
       "overlay",
-      "paired",
       "parametric",
-      "polynomial",
-      "post-hoc",
-      "pre-filter",
       "proportion-analysis",
-      "regression",
-      "regularization",
-      "repeated-measures",
-      "resampling",
-      "ridge",
-      "selection",
       "sharded",
-      "small-sample",
-      "stepwise",
       "streaming-friendly",
       "t-test",
       "tier-1-test",
-      "tier-2-test",
       "time-series",
-      "top-n",
-      "trend-detection",
       "two-sample",
-      "welch",
-      "welford-triple",
-      "window-operator",
-      "z"
+      "welford-triple"
     ],
     "extensions": {
       "aggregators": [],
@@ -2487,4 +1833,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 826195b927839126f648bd722735af86a68faed63fefe38aec51cfe5a53199a9
+// golden-hash: 6f45f7f6e3788c05f2cede1f189eb371f636635ae7ff546dd9db6831771a8861

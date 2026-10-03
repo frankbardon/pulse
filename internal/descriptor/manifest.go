@@ -7,7 +7,6 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/buildinfo"
-	"github.com/frankbardon/pulse/internal/examples"
 	"github.com/frankbardon/pulse/internal/skills"
 )
 
@@ -54,6 +53,10 @@ func commands() []descriptor.Command {
 		{Name: "index drop", Description: "Remove a cohort's sidecar point-lookup index", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "widen", Description: "Widen a set column of a single-file cohort to a wider set rung, rewriting the cohort in place (destructive, non-interactive, atomic)", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
 		{Name: "dedup", Description: "Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format 0x02), in place or to a new path (destructive in place, non-interactive, atomic)", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: true}},
+		{Name: "features init", Description: "Print a feature profile listing every feature this build offers, or seeded from an example feature profile", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "features check", Description: "Validate a feature profile file against this build, exactly as pulse.New would", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "features diff", Description: "List the features this build offers that a feature profile does not list, and the names it does not resolve", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "features show", Description: "Describe every feature a feature profile lists: kind, category, source, since and dependencies", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "version", Description: "Print the Pulse build version (--json adds Go version, commit and envelope format_version)", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 	}
 }
@@ -287,6 +290,8 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	wins := filterOps(windowCapabilities(), on)
 	feats := filterOps(featureCapabilities(), on)
 	errCodes := errorCodeNamesFor(on)
+	disc := inst.Discovery()
+	exCount, exCats, exTags := disc.ExampleStats()
 
 	m := &descriptor.Manifest{
 		FormatVersion:    "1.0",
@@ -311,10 +316,10 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		ErrorCodes:         errCodes,
 		MCPTools:           filterMCPTools(mcpToolCapabilities(), on),
 		CohortTypes:        cohortFieldTypesFrom(aggs, attrs, filts, grps, wins, feats),
-		Skills:             sortedSkills(),
-		ExamplesCount:      examples.Count(),
-		ExampleCategories:  examples.AllCategories(),
-		ExampleTags:        examples.AllTags(),
+		Skills:             visibleSkills(disc),
+		ExamplesCount:      exCount,
+		ExampleCategories:  exCats,
+		ExampleTags:        exTags,
 		Extensions:         extensionsManifestFromSnapshot(snap),
 		Overlays:           filterOverlays(OverlayCapabilities(), on),
 		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap),
@@ -388,6 +393,22 @@ var (
 	sortedSkillsOnce sync.Once
 	sortedSkillsVal  []descriptor.SkillMeta
 )
+
+// visibleSkills is sortedSkills minus the instance's pruned skills
+// (Discovery); with nothing pruned it is sortedSkills itself.
+func visibleSkills(d *Discovery) []descriptor.SkillMeta {
+	all := sortedSkills()
+	if len(d.hiddenSkills) == 0 {
+		return all
+	}
+	out := make([]descriptor.SkillMeta, 0, len(all))
+	for _, s := range all {
+		if d.SkillVisible(s.Name) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
 
 func sortedSkills() []descriptor.SkillMeta {
 	sortedSkillsOnce.Do(func() {

@@ -100,8 +100,8 @@ The rule for every row is that **output equals what an imaginary Pulse build con
   - **Facade methods are not gated:** a profile hides names and slots, not Go methods; the embedder owns their calls.
   - Hidden request slots (e.g. `crosstab` when the capability is hidden) are refused exactly as an unknown JSON field is today under strict decode.
 - **Payload schema.** `p.PayloadSchema()` is instance-scoped, and `pulse schema` and `pulse://schema` serve it. The schema `$id` follows `format_version`, and `feature_set_digest` is always present in `$comment`.
-- **Skills and examples:** discovery shrinks, direct reads stay (P4a). Not scoped by U05; the manifest `skills` list and examples counts wait for U10.
-- **Example profiles.** U05's fixtures (`minimal`, `survey-crosstab`, `empty`) are private under `descriptor/testdata/profiles/`; U06 publishes the public examples.
+- **Skills and examples:** discovery shrinks, direct reads stay (P4a). Not scoped by U05. **Landed (U06) — deviation:** a minimal per-instance prune (`inst.Discovery()`) ships ahead of U10, and a pruned skill or example read BY NAME reads exactly like a nonexistent one (not "direct reads stay"); the manifest `skills` list and examples counts follow it. Topical (`kind: design`) bodies are exempt until U10 fences and renders them; the CLI `pulse skills` / `pulse examples` stay unprofiled.
+- **Example profiles.** U05's fixtures (`minimal`, `survey-crosstab`, `empty`) are private under `descriptor/testdata/profiles/`. **Landed (U06):** `examples/profiles/{minimal,survey-crosstab,read-only-analyst}.json` are published, frozen (a change ships under a new name) and served by `pulse.ExampleFeatureProfiles()` / `ExampleFeatureProfile(name)`.
 
 - **Errors.** Codes owned only by hidden features are absent from the errors list and `pulse errors lookup`. Codes shared with enabled features remain. Landed (U05): the owner table is internal (`internal/descriptor/error_owners.go`), not a field on the public `errors` metadata, so the feature model stays internal.
 - **MCP.**
@@ -170,6 +170,8 @@ There is a one-time rewrite of about 25 topical skills, done in FP5. During the 
 | `show <file>` | the profile's features with each one's category, `Since` and dependencies |
 
 These operate on profile *files* and run outside any profiled instance. They are the only place where "features you don't have" are listed, which keeps decision 3 intact.
+
+**Landed (U06):** the leaves are `pulse features {init,check,diff,show}` over root library functions (`InitFeatureProfile`, `CheckFeatureProfile`, `DiffFeatureProfile`, `DescribeFeatureProfile`). Deviations: `init` writes strict JSON in canonical order (JSON has no comments, so nothing is "commented"); the CLI `check` is always offline because the CLI registers no extensions, so an unresolved extension-like name is a warning, and embedders check in-process with `FeatureProfileCheckOptions{Extensions: ...}` before shipping; every leaf exits non-zero on failure even under `--json`.
 
 ---
 

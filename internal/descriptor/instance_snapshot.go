@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // FeatureSetDigestPrefix versions the feature_set_digest algorithm. A
@@ -87,6 +88,11 @@ type InstanceSnapshot struct {
 	names     []string
 	behaviour FeatureBehaviour
 	digest    string
+
+	// discovery is the instance's skill / example prune, built on first
+	// use (see Discovery).
+	discoveryOnce sync.Once
+	discovery     *Discovery
 }
 
 // NewInstanceSnapshot builds the scoped snapshot pulse.New installs.

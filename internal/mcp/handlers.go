@@ -9,7 +9,6 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/imports"
-	"github.com/frankbardon/pulse/internal/skills"
 )
 
 // This file holds the SDK-free typed tool handlers: one exported
@@ -169,17 +168,19 @@ func HandleManifest(ctx context.Context, p *pulse.Pulse, _ ManifestIn) (Manifest
 	return *slim, nil
 }
 
-// HandleSkillsList runs pulse_skills_list: the embedded skill-pack index.
-func HandleSkillsList(_ context.Context, _ *pulse.Pulse, _ SkillsListIn) (SkillsListOut, error) {
-	return SkillsListOut{Skills: skills.List()}, nil
+// HandleSkillsList runs pulse_skills_list: the embedded skill-pack index
+// as the instance sees it (its Discovery prune).
+func HandleSkillsList(_ context.Context, p *pulse.Pulse, _ SkillsListIn) (SkillsListOut, error) {
+	return SkillsListOut{Skills: instanceOf(p).Discovery().Skills()}, nil
 }
 
 // HandleSkillsGet runs pulse_skills_get: the markdown body of one skill.
-func HandleSkillsGet(_ context.Context, _ *pulse.Pulse, in SkillsGetIn) (SkillsGetOut, error) {
+// A skill the instance prunes is "not found" exactly as a nonexistent one.
+func HandleSkillsGet(_ context.Context, p *pulse.Pulse, in SkillsGetIn) (SkillsGetOut, error) {
 	if in.Name == "" {
 		return SkillsGetOut{}, errMissingArg("name")
 	}
-	body, ok := skills.Get(in.Name)
+	body, ok := instanceOf(p).Discovery().Skill(in.Name)
 	if !ok {
 		return SkillsGetOut{}, errors.New("skill " + strconvQuote(in.Name) + " not found")
 	}

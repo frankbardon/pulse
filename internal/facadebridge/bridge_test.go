@@ -64,3 +64,29 @@ func TestCohortScanDisabledHookInstalled(t *testing.T) {
 		t.Error("CohortScanDisabled(non-Pulse) should be false")
 	}
 }
+
+func TestInstanceSnapshotHookInstalled(t *testing.T) {
+	if facadebridge.InstanceSnapshot == nil {
+		t.Fatal("root package did not install the InstanceSnapshot hook")
+	}
+	bare, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if inst := facadebridge.InstanceSnapshot(bare); !inst.Enabled("capability:compose") || !inst.Enabled("mcp_extra:cohort_resources") {
+		t.Error("profile-free Pulse snapshot does not enable every feature")
+	}
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), FeatureProfile: &pulse.FeatureProfile{
+		Features: []string{"capability:process", "AGG_COUNT"},
+	}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	inst := facadebridge.InstanceSnapshot(p)
+	if !inst.Enabled("capability:process") || inst.Enabled("capability:compose") {
+		t.Error("profiled snapshot does not reflect the profile")
+	}
+	if facadebridge.InstanceSnapshot("not a pulse") != nil {
+		t.Error("InstanceSnapshot(non-Pulse) should return nil")
+	}
+}

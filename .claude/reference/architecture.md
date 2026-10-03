@@ -42,6 +42,7 @@ internal/imports/          managed-imports manager (TTL, sidecars)
 internal/daterange/        compiled {label,start,end} model for the date-range operators
 internal/mergegate/        the one pure merge + chain-stage gate (types/encoding/errors only); engine and chain validator both call it
 internal/spsssidecar/      SPSS sidecar path helpers used by root sidecar_*.go
+internal/profilefile/      ReadOS: the one host-OS-path feature-profile reader (mcpserve.NewPulse + `pulse features`); imports the root, never imported by it
 internal/facadebridge/     init-installed hooks from the root to mcp/gosdk + mcpserve (replaces Service()): ExtensionsSnapshot, CohortScanDisabled
 internal/processing/       operator engine: operators, crosstab, joins, registry, ExtensionRegistry
 internal/processing/{feature,window}/     FEAT_* pre-filter engineers, WIN_* operators
@@ -50,6 +51,7 @@ internal/buildinfo/        VERSION injected by ldflags, else Pulse's own module 
 internal/apigolden/        TestPublicAPIGolden + testdata/public_api.txt
 internal/embeddersmoke/    nested module (own go.mod) compiled by `make smoke` in CI
 internal/shardfixtures/, internal/spsstest/, internal/tools/pkgsplit/   test + tooling support
+examples/profiles/         published example feature profiles (frozen; root //go:embed, pulse.ExampleFeatureProfile); root feature_profile_tooling.go = Init/Check/Diff/DescribeFeatureProfile
 docs/                      mdBook source (docs/book/ is generated)
 ```
 
@@ -83,7 +85,7 @@ CLI commands map 1:1 to manifest commands — the list is in CLAUDE.md "Architec
 
 Embedders author operators against the public `extend` package and register them through `pulse.Options.Extensions` (root `extensions*.go`). `extend` is a leaf: it imports only `encoding`, `types` and `errors` (`TestExtendImportBoundary`, `TestExtendImportBoundary_NoTransitiveEngine`), and no public root signature names an `internal/processing` type (`TestRootSurfaceNamesNoProcessing`). At `pulse.New`, `extensions_adapt.go` lifts each `extend` operator onto the engine interfaces, forwarding every optional sibling explicitly (a streamable operator that also carries `ComponentsFunc` still streams). Engine-only capabilities — `MetaWindow`, `ExtensionAware`, `KeyFor`, the merge hooks — are deliberately absent from `extend` (`TestExtendOmitsEngineOnlyCapabilities`).
 
-- **Snapshot.** `pulse.New` builds the read-only `internal/descriptor.ExtensionsSnapshot` and passes it into `PredictOptions.Extensions` and `mcp.BindWithExtensions` (`mcp/gosdk` reaches it via `internal/facadebridge`), keeping `internal/descriptor/` free of `internal/service/` and `internal/processing/`. It carries `OperatorMeta.FansOut` (manifest `fans_out`, grouper-only); runtime twin is the engine's extension-registry fan-out map. Both feed `types.CheckPairwiseSlabPartitionWith`, which owns the ONE order: built-in first, then the extension side, and a name known to NEITHER passes (it cannot execute, so it can produce no wrong number).
+- **Snapshot.** `pulse.New` builds the read-only `internal/descriptor.ExtensionsSnapshot` and passes it into `PredictOptions.Extensions` and, inside the instance snapshot, `mcp.BindForInstance` (`mcp/gosdk` reaches it via `internal/facadebridge.InstanceSnapshot`), keeping `internal/descriptor/` free of `internal/service/` and `internal/processing/`. It carries `OperatorMeta.FansOut` (manifest `fans_out`, grouper-only); runtime twin is the engine's extension-registry fan-out map. Both feed `types.CheckPairwiseSlabPartitionWith`, which owns the ONE order: built-in first, then the extension side, and a name known to NEITHER passes (it cannot execute, so it can produce no wrong number).
 - **Lazy table resolution.** A grouper factory's `(grp, schema)` signature cannot reach the registry, so a named `table:` resolves through the engine-internal `ExtensionAware` `SetExtensions` hook, threaded by `ApplyGrouperExtensions` through every construction site. Inline sources resolve eagerly.
 - **Streamability follows the declaration.** Extension aggregators, groupers, attributes and row tests route on the DECLARED `Streamable` flag (runtime, predict and the snapshot agree: `TestExtensions_StreamabilityFollowsDeclaration`); `Streamable:false` runs buffered even when the value is online-capable. A grouper declaring `Streamable:true` without a keying sibling is `PULSE_EXTENSION_STREAMABLE_MISMATCH`. Feature streamability is decided by the returned value and is not probed. A built-in ZSCORE + `GROUP_CATEGORY` request predicts `Streamable=false`, matching runtime.
 - **Components emission.** `ComponentsFunc` is probe-validated; an operator's own `Components()` method still emits when none is registered, for every emitting category (intentional deviation, NOT probe-validated).

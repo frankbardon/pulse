@@ -31,8 +31,9 @@ before profiles existed.
 >
 > Library methods are **not** gated: `p.Process`, `p.Compose`, `p.Facet`,
 > `p.Lookup`, `p.Import` and the rest stay callable on every instance. A
-> profile hides names and slots, not methods. MCP registration and the
-> served skills and examples follow in later v1.0.0 pre-releases.
+> profile hides names and slots, not methods. The MCP server registers
+> only the tools, prompts, cohort listing, skills and examples the
+> profile offers (see below).
 
 The name is "feature profile" because "profile" already means synthetic
 data profiling (`Pulse.Profile`, `pulse profile create`).
@@ -207,7 +208,7 @@ code up with `pulse errors lookup CODE`.
 
 | Code | When | Read |
 |---|---|---|
-| `PULSE_FEATURE_PROFILE_INVALID` | The profile cannot be used as written | `details.reason`: `both_options_set`, `file_unreadable`, `malformed_json`, `unknown_key`, `missing_features`, `duplicate_feature` (the names are under `duplicates`). `details.path` names the file when one was read |
+| `PULSE_FEATURE_PROFILE_INVALID` | The profile cannot be used as written | `details.reason`: `both_options_set`, `file_unreadable`, `malformed_json`, `unknown_key`, `missing_features`, `duplicate_feature` (the names are under `duplicates`), `unknown_example` (from `pulse.ExampleFeatureProfile`). `details.path` names the file when one was read |
 | `PULSE_FEATURE_PROFILE_UNKNOWN` | A name does not resolve | `details.unknown[]`, each with `name` and `reason`: `unregistered`, `pattern`, `wrong_kind` (see `did_you_mean`), `core_surface`, `newer_than_running` (see `since`; the running build is under `details.version`). An unknown extension `DependsOn` entry also carries `extension` and `category` |
 | `PULSE_FEATURE_PROFILE_DEPENDENCY` | An enabled feature is missing what it needs | `details.unmet[]`, each with `feature` and `requires_any_of`. Add one name from the group, or remove the feature |
 
@@ -245,8 +246,9 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   `ProcessChain`, `Join`, `Crosstab`, `Export` and `Import` are now
   pointers (nil when hidden), so code that read them as values must
   check for nil. Prose that names a hidden feature is dropped from
-  descriptions and hints. The manifest's `skills` and examples counts
-  are not scoped yet. `extensions.label_tables` is empty (`[]`) when
+  descriptions and hints. The manifest's `skills` list and examples
+  count, categories and tags cover only the skills and examples the
+  instance serves (see the MCP section). `extensions.label_tables` is empty (`[]`) when
   `capability:labels` is off and `extensions.range_tables` when
   `capability:range_tables` is off, exactly as on an instance that
   registered no tables, and requests resolve them the same way: a label
@@ -300,6 +302,51 @@ the working directory, and never resolved under `--data-dir`. An invalid
 profile fails startup. Every other `pulse` command ignores the variable,
 because the CLI is an admin tool and is not profiled.
 
+The server mounts only what the profile offers. A tool tied to a
+feature (`pulse_process` to `capability:process`, `pulse_facet` to
+`capability:facet`, and so on) is registered only when that feature is
+listed; the discovery tools (`pulse_inspect`, `pulse_predict`,
+`pulse_manifest`, the skills, examples and errors lookups) are always
+there. Calling a tool the profile hides fails exactly like calling one
+that does not exist. Each prompt needs its own `mcp_extra:prompt_*`
+feature. Without `mcp_extra:cohort_resources` the server skips the
+startup walk and does not list cohorts under `resources/list`, as if
+`--no-cohort-scan` were set; every cohort stays readable by its
+`pulse://` URI.
+
+Tool input schemas follow the profile too. With `BindOnInspect` on,
+the schemas re-bound after an inspect list only the operators, tests
+and overlay kinds the profile enables (an operator family with none
+enabled carries no list at all), offer the `labels` slot only with
+`capability:labels`, and leave out any request slot the profile hides.
+A request naming a hidden slot (say `crosstab` without
+`capability:crosstab`) is refused as `PULSE_REQUEST_UNKNOWN_FIELD`,
+exactly like a misspelt key, and the valid-key list and suggestions
+name only the slots the profile offers.
+
+Prose follows the profile the same way the manifest's does. Tool
+descriptions, every `description` in a tool's input schema (at
+registration and after a re-bind), prompt descriptions and prompt
+bodies drop each sentence that names a hidden operator or a tool the
+profile does not mount; a numbered step dropped from a prompt
+renumbers the rest of its list. A sentence about an enabled operator
+that also names a hidden one goes too. The text a caller supplies to
+`pulse-author-request` is never touched.
+
+Skills and examples follow the profile as well. The reference skill for
+a hidden operator, overlay kind, regression or synth distribution, and
+for a tool the server does not mount, is left out of
+`pulse_skills_list`, `pulse_skills_get`, the `pulse-skill://` resources
+and the manifest's `skills` list. Field-type skills and the design
+guides stay, and a design guide is served as written even where it
+mentions an operator the profile hides. An example is left out of
+`pulse_examples_search`, `pulse_examples_get`, `p.ExamplesSearch`,
+`p.ExampleGet` and the manifest's examples count, categories and tags
+when it uses a hidden operator or overlay kind, or needs a hidden
+`facet`, `crosstab`, `joins` or `compose` capability. Asking for a
+hidden skill or example by name fails exactly like asking for one that
+does not exist.
+
 Embedders serving MCP themselves use `mcpserve.NewPulse`:
 
 ```go
@@ -320,13 +367,127 @@ Setting the field and a `pulse.Options` profile together is
 `FeatureProfileFile`: a profile is applied when the instance is built.
 
 `mcpserve.Describe(p, opts)` returns the effective serving settings: the
-cohort-scan setting after the profile's `disable_cohort_scan`, and the
+cohort-scan setting after the profile's `disable_cohort_scan` and
+`mcp_extra:cohort_resources`, and the
 loaded profile's label. The `pulse mcp` startup line prints the same
 thing:
 
 ```
 pulse mcp: serving over stdio (data dir: /var/data/pulse, bind-on-open: true, cohort-scan: false, feature-profile: survey-self-serve)
 ```
+
+`gosdk.RegisteredTools()` and `gosdk.RegisteredPrompts()` are global:
+they list every canonical tool and prompt whatever the instance hides.
+To learn what a profiled server offers, ask the server (`tools/list`,
+`prompts/list`) or read `p.Manifest(ctx)`.
+
+## Example profiles
+
+Pulse publishes example profiles to copy, in the repository's
+`examples/profiles/` directory and embedded in the library:
+
+| Name | Offers |
+|---|---|
+| `minimal` | `capability:process` plus core aggregators and the default groupers |
+| `survey-crosstab` | Process, Compose, crosstab, facet and labels, with survey tests and the crosstab, compose and facet overlays they feed, closed over their dependencies |
+| `read-only-analyst` | Every analytic capability and operator; nothing that writes data (`import`, `export`, `filter_to_file`, `dedup`, `widen`, `shard`, `index`, `synth`) and no I/O formats |
+
+```go
+names := pulse.ExampleFeatureProfiles()        // sorted: minimal, read-only-analyst, survey-crosstab
+fp, err := pulse.ExampleFeatureProfile("minimal") // a fresh *pulse.FeatureProfile you own
+p, err := pulse.New(pulse.Options{FeatureProfile: fp})
+```
+
+Each example passes `pulse.New` validation. An unknown name fails with
+`PULSE_FEATURE_PROFILE_INVALID`, `details.reason` `unknown_example`, and
+the available names under `details.examples`.
+
+**Published examples are never edited in place.** Each lists exact
+feature names as of the release in its `written_with`, so upgrading Pulse
+never grows the feature set of a profile copied from one. A changed
+example ships under a new name. Copy one and own the copy.
+
+## Writing, checking and upgrading profiles
+
+Four root functions work on a profile without building a `*pulse.Pulse`,
+so a CI job can keep a profile honest. Each optional `ext` argument is the
+same `pulse.Extensions` value you hand to `pulse.New`. Every result type
+is JSON-tagged, with list fields that are never `null`.
+
+```go
+// Every feature this build offers (plus your extension operators), in
+// canonical order, stamped with the running release.
+fp, err := pulse.InitFeatureProfile("", ext)
+// Or start from a published example.
+fp, err = pulse.InitFeatureProfile("survey-crosstab")
+
+// Exactly the validation pulse.New runs: INVALID, then UNKNOWN, then
+// DEPENDENCY, stopping at the first failing class.
+report, err := pulse.CheckFeatureProfile(fp, pulse.FeatureProfileCheckOptions{Extensions: ext})
+
+// What this build offers that the profile does not list, and what the
+// profile lists that this build does not know.
+diff, err := pulse.DiffFeatureProfile(fp, ext)
+
+// Kind, category, Since and dependency groups of every listed feature.
+desc, err := pulse.DescribeFeatureProfile(fp, ext)
+```
+
+- **`InitFeatureProfile(from, ext...)`** lists every built-in feature
+  the running build has reached plus the given extension operators, by
+  exact name, ordered by kind, then operator category, then table
+  position (the order the examples use). A non-empty `from` seeds the
+  profile from that example instead (label, features, behaviour; no
+  extension names are added). `written_with` is the running release
+  core: `1.0.0-alpha.2` stamps `1.0.0`; a development build with no
+  release core stamps the newest release its feature table knows. The
+  result always passes `CheckFeatureProfile` with the same extensions.
+- **`CheckFeatureProfile(fp, opts)`** returns a report and the coded
+  error `pulse.New` would return for the same profile and extensions
+  (`nil` when valid). With `opts.Offline` — for checking without your
+  extensions in hand — a name that is not registered but follows the
+  extension naming policy (`AGG_ACME_THING`: an operator category other
+  than `SYNTH`, a namespace other than `BUILTIN` / `STANDARD` / `CORE` /
+  `PULSE`) becomes a warning, "unverified extension name, check
+  in-process", coded `PULSE_FEATURE_PROFILE_UNKNOWN` with
+  `details.reason` `unverified_extension`, instead of an error. It still
+  needs a request host. Every other unknown name stays an error. Run the
+  check in-process, with your extensions, before shipping.
+- **`DiffFeatureProfile(fp, ext...)`** reports `missing` — features the
+  running build offers that the profile omits, each flagged `new` when
+  its `Since` is later than the profile's `written_with` — and `unknown`
+  — names the build does not resolve, with the same reasons
+  `PULSE_FEATURE_PROFILE_UNKNOWN` uses. Unknown names are reported, not
+  fatal. A missing or unparseable `written_with` flags nothing `new`.
+- **`DescribeFeatureProfile(fp, ext...)`** describes every listed name:
+  `kind`, `category` (operators only), `source` (`builtin`, `extension`
+  or `unknown`), `since` (built-ins) and `depends_on`, an AND of any-of
+  groups. A name the build does not resolve carries an `unknown`
+  explanation instead of failing.
+
+Diff and describe fail only on a missing profile or a `nil` feature list
+(`PULSE_FEATURE_PROFILE_INVALID`).
+
+### From the command line
+
+`pulse features` wraps the same four functions, with no extensions and no
+data directory (the leaves describe the binary). A profile path is a host
+OS path, relative to the working directory.
+
+```sh
+pulse features init > profile.json              # or: init --from minimal
+pulse features check profile.json               # exits non-zero on any failure
+pulse features diff profile.json                # missing (flagged [new]) + unknown
+pulse features show profile.json
+```
+
+Every leaf takes `--json` for the standard envelope: `data` is the
+profile, check report, diff or description; `pulse features check --json`
+also lifts each unverified-extension warning onto the envelope's
+`warnings`, and a fatal error carries its own code in `errors[0]` (the
+report stays in `data`) before the command exits non-zero. `check` is
+always offline (above), so check in-process before shipping a profile that
+lists your extension operators.
 
 ## Related
 

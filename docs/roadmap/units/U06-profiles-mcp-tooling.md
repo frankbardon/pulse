@@ -4,7 +4,7 @@ slug: profiles-mcp-tooling
 title: "MCP servers expose only the profile, and embedders have tools to write and check profiles"
 track: Feature profiles
 size: M
-status: not-started
+status: done
 depends_on: [U05]
 soft_depends_on: []
 blocks: [U32]
@@ -29,12 +29,12 @@ Instance-scoped MCP registration (tools, prompts, resources) with filtered tool-
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#29** (2. Feature profiles — foundation › FP6 — MCP) Instance-scoped registration of tools, prompts and resources
-- [ ] **#30** (2. Feature profiles — foundation › FP6 — MCP) Tool input schemas carry the instance's enums only
-- [ ] **#31** (2. Feature profiles — foundation › FP6 — MCP) `TestProfileInvisibilityParity`
-- [ ] **#32** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Feature-profile tooling `init`, `check`, `diff` and `show` (leaf naming open: `pulse profile` is taken by synth data profiling)
-- [ ] **#33** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Example profile files in `examples/profiles/`
-- [ ] **#35** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Embedder docs at `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md`
+- [x] **#29** (2. Feature profiles — foundation › FP6 — MCP) Instance-scoped registration of tools, prompts and resources
+- [x] **#30** (2. Feature profiles — foundation › FP6 — MCP) Tool input schemas carry the instance's enums only
+- [x] **#31** (2. Feature profiles — foundation › FP6 — MCP) `TestProfileInvisibilityParity`
+- [x] **#32** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Feature-profile tooling `init`, `check`, `diff` and `show` (leaf naming open: `pulse profile` is taken by synth data profiling)
+- [x] **#33** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Example profile files in `examples/profiles/`
+- [x] **#35** (2. Feature profiles — foundation › FP7 — Embedder tooling & export) Embedder docs at `docs/src/library/feature-profiles.md`; `.claude/reference/feature-profiles.md`
 
 ## Scope
 
@@ -54,24 +54,22 @@ Instance-scoped MCP registration (tools, prompts, resources) with filtered tool-
 
 Each epic is a vertical slice. Commit with `feat|fix|perf|test(profiles-mcp-tooling/E<n>-S<m>): …`; close each epic with `milestone(profiles-mcp-tooling/E<n>): vertical slice complete — <epic title>`.
 
-### E1 — MCP exposes only the profile
-- S1: instance-scoped tool/prompt/resource registration
-- S2: filtered enums in reflected tool input schemas
-- S3: `TestProfileInvisibilityParity`
-
-### E2 — Embedders can write, check and upgrade profiles
-- S1: `init` (full exact-name list, grouped and commented)
-- S2: `check`, `show`, `diff` (highlight features with `Since` newer than `written_with`)
-- S3: example profiles (an agent-oriented one may carry `return: standard` only once U17 defines `return`; until then the key is refused as unknown)
-- S4: embedder docs page + reference file
+### E1 — Profiled MCP server exposes only the profile
+- Instance-scoped tool / prompt / resource registration, scoped bound schemas, strict decode and prose, skill / example discovery prune
+### E2 — Public example profiles + MCP invisibility parity
+- `examples/profiles/*.json`, `ExampleFeatureProfiles()` / `ExampleFeatureProfile(name)`, `TestProfileInvisibilityParity`
+### E3 — Embedders can write, check and upgrade profiles
+- `InitFeatureProfile`, `CheckFeatureProfile`, `DiffFeatureProfile`, `DescribeFeatureProfile`; `pulse features {init,check,diff,show}`
+### E4 — Docs and roadmap close-out
+- Embedder docs, contract reference, roadmap bookkeeping
 
 ## Acceptance criteria
 
-- [ ] `tools/list` on a profiled MCP server lists only enabled tools; their input enums contain no hidden names
-- [ ] The parity gate passes for every example profile
-- [ ] `init > p.json && check p.json` succeeds on a fresh checkout
-- [ ] `diff` lists a feature whose `Since` is newer than `written_with`
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] `tools/list` on a profiled MCP server lists only enabled tools; their input enums contain no hidden names
+- [x] The parity gate passes for every example profile
+- [x] `init > p.json && check p.json` succeeds on a fresh checkout
+- [x] `diff` lists a feature whose `Since` is newer than `written_with`
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -107,3 +105,23 @@ Landed in U05 after all (no longer this unit's): the `pulse://schema` resource s
 - **`SeriesOverlayRequest.Overlays`** is method-level and ungated (methods are ungated by design; revisit only if a served surface exposes it).
 - **Label-table enum in `BindOnInspect`** (`labelTableNames`, `internal/mcp/bind.go`) lists every label table even when `capability:labels` is hidden; the manifest already lists none (U05 decision: a hidden capability's named tables are listed as if none were registered).
 - **Public example profiles** (`examples/profiles/*.json`): U05's `minimal`, `survey-crosstab` and `empty` fixtures are private under `descriptor/testdata/profiles/`.
+
+## Landed deviations
+
+Contract of record is `.claude/reference/feature-profiles.md` ("Notes for U06", "Example profiles", "Tooling (U06)"); embedder prose is `docs/src/library/feature-profiles.md`.
+
+- **Instance-scoped MCP.** `gosdk.Register` mounts tools by `MCPToolBindings` (core-bound always; feature-bound iff enabled), prompts by `mcp_extra:prompt_*`, and skips the cohort scan without `mcp_extra:cohort_resources`. A hidden tool, prompt or resource reads byte-identically to a never-registered one. `RegisteredTools()` / `RegisteredPrompts()` stay global.
+- **Scoped schemas and strict decode.** `BindOnInspect` binds through `BindForInstance`: enums keep only enabled names, an enum filtered to nothing is omitted, hidden slot keys are refused as unknown (even when empty).
+- **Prose scrub.** Tool, prompt and schema descriptions go through the manifest's whole-token sentence scrub (`descx.ProseScrub`); a sentence mixing enabled and hidden names is dropped whole. Profile-free wording was reworded where it abbreviated operator lists (manifest goldens moved by those rewords only).
+- **Skills and examples pulled forward from U10 (minimal).** A per-instance prune (`inst.Discovery()`) hides atomic skills and examples whose surface is hidden, and a pruned name reads like a nonexistent one (the design said direct reads stay). Topical bodies are exempt until U10; `pulse skills` / `pulse examples` stay unprofiled.
+- **Tooling.** Leaves live under `pulse features` (not `pulse profile`); `init` writes strict JSON (no comments); CLI `check` is offline-only (extension-like unresolved names warn); every leaf exits non-zero on failure under `--json`. `written_with` is stamped from the running release.
+- **Parity gate.** `TestProfileInvisibilityParity` runs the operator harness through MCP and sweeps every rendered surface; its single exemption is a topical skill body.
+
+## Handed to U10
+
+- Topical skill body fencing / rendering (`TestSkillsCoverProfileGet`).
+- The line-wise atomic-skill scrub can break a table or code fence it cuts into.
+- Manifest `skills[].description` is not routed through `Discovery.renderMetadata`.
+- Overlay examples with an empty `_meta.operators` match only by body token.
+- Capability-keyed pruning past facet / crosstab / joins / compose.
+- Housekeeping (done): the host-path profile-file reader is one function, `internal/profilefile.ReadOS`, shared by `mcpserve.NewPulse` and `pulse features`.

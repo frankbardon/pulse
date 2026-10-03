@@ -2,7 +2,7 @@ package gosdk
 
 // bind.go is the SDK half of schema-bind-on-inspect: the per-session server
 // mutation that consumes the SDK-free per-tool schemas produced by the core
-// (mcp.BindWithExtensions). The pure field-classification + schema-building
+// (mcp.BindForInstance). The pure field-classification + schema-building
 // logic lives in the core package; this file only re-registers tools on a live
 // go-sdk Server.
 //
@@ -23,7 +23,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/facadebridge"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	core "github.com/frankbardon/pulse/internal/mcp"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -66,10 +66,16 @@ func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *enco
 	if s == nil || schema == nil {
 		return nil
 	}
-	schemas, err := core.BindWithExtensions(schema, facadebridge.ExtensionsSnapshot(p))
+	// The bound enums, labels table enum and request slots are scoped to
+	// the instance: a hidden name is advertised as never registered.
+	inst := instanceOf(p)
+	schemas, err := core.BindForInstance(schema, inst)
 	if err != nil {
 		return err
 	}
+	// Bound descriptions name operators too; the same prose scrub as
+	// registration drops the sentences naming a hidden one.
+	scrub := descx.NewProseScrub(inst)
 	handlers := boundHandlersFor(p, cfg)
 	for _, entry := range []struct {
 		name        string
@@ -88,10 +94,14 @@ func bindSessionTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config, schema *enco
 		if !ok || entry.handler == nil {
 			continue
 		}
+		// A rebind must never resurrect a tool the instance hides.
+		if !toolEnabled(inst, entry.name) {
+			continue
+		}
 		s.AddTool(&mcpsdk.Tool{
 			Name:        entry.name,
-			Description: entry.description,
-			InputSchema: raw,
+			Description: scrub.Text(entry.description),
+			InputSchema: scrubbedSchema(scrub, raw),
 		}, entry.handler)
 	}
 	return nil

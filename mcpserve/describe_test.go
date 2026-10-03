@@ -32,9 +32,11 @@ func TestDescribe_FoldsTheFeatureProfile(t *testing.T) {
 			mcpserve.ServeInfo{CohortScan: true}},
 		{"no profile, option off", build(nil), mcpserve.Options{DisableCohortScan: true},
 			mcpserve.ServeInfo{CohortScan: false}},
-		{"unnamed profile leaves scan on", build(&pulse.FeatureProfile{Features: []string{}}), mcpserve.Options{},
+		{"unnamed profile with cohort_resources leaves scan on", build(&pulse.FeatureProfile{Features: []string{"mcp_extra:cohort_resources"}}), mcpserve.Options{},
 			mcpserve.ServeInfo{CohortScan: true, FeatureProfileLoaded: true}},
-		{"profile turns scan off", build(&pulse.FeatureProfile{Profile: "self-serve", Features: []string{}, Behaviour: scanOff}), mcpserve.Options{},
+		{"profile omitting cohort_resources turns scan off", build(&pulse.FeatureProfile{Features: []string{}}), mcpserve.Options{},
+			mcpserve.ServeInfo{CohortScan: false, FeatureProfileLoaded: true}},
+		{"profile turns scan off", build(&pulse.FeatureProfile{Profile: "self-serve", Features: []string{"mcp_extra:cohort_resources"}, Behaviour: scanOff}), mcpserve.Options{},
 			mcpserve.ServeInfo{CohortScan: false, FeatureProfileLoaded: true, FeatureProfile: "self-serve"}},
 	}
 	for _, tc := range cases {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	core "github.com/frankbardon/pulse/internal/mcp"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -18,9 +19,11 @@ var (
 	errNilPulse  = errors.New("gosdk: Register requires a non-nil *pulse.Pulse")
 )
 
-// RegisteredTools returns the canonical list of MCP tool names this adapter
-// mounts. Order is stable for deterministic documentation scans. Mirrors
-// internal/mcp/toolmeta.Names().
+// RegisteredTools returns the global canonical list of MCP tool names this
+// adapter can mount. It describes the build, not an instance: a feature
+// profile on the *pulse.Pulse passed to Register mounts only the subset it
+// offers, and this list does not shrink. Order is stable for deterministic
+// documentation scans. Mirrors internal/mcp/toolmeta.Names().
 func RegisteredTools() []string {
 	return toolmeta.Names()
 }
@@ -36,13 +39,22 @@ func RegisteredTools() []string {
 // The generic AddTool[In,Out] reflection path is deliberately avoided; it
 // panics on the recursive request types (Crosstab / overlay nesting). The
 // low-level Server.AddTool path accepts the json.RawMessage schema directly.
+//
+// A tool whose binding is a feature the instance does not offer is skipped,
+// and the description plus every input-schema description of a mounted
+// tool loses the sentences naming a hidden feature (scrubbed once, here).
 func registerTools(s *mcpsdk.Server, p *pulse.Pulse, cfg Config) {
+	inst := instanceOf(p)
+	scrub := descx.NewProseScrub(inst)
 	for _, d := range core.Tools(cfg.coreConfig()) {
+		if !toolEnabled(inst, d.Name) {
+			continue
+		}
 		s.AddTool(
 			&mcpsdk.Tool{
 				Name:        d.Name,
-				Description: d.Description,
-				InputSchema: d.InputSchema,
+				Description: scrub.Text(d.Description),
+				InputSchema: scrubbedSchema(scrub, d.InputSchema),
 			},
 			coreHandler(s, p, cfg, d),
 		)

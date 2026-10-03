@@ -307,7 +307,7 @@ func TestMCPSchemaBinding_IncludesCustomOverlayKind(t *testing.T) {
 	}
 
 	// Core enum builder must merge the custom kind onto the Request facade.
-	merged := overlayKindEnumForFacade(overlayFacadeRequest, snap)
+	merged := overlayKindEnumForFacade(overlayFacadeRequest, descx.UnscopedInstanceSnapshot(snap))
 	if !slices.Contains(merged, "OVERLAY_ACME_HEAT") {
 		t.Fatalf("overlayKindEnumForFacade(Request) dropped custom OVERLAY_ACME_HEAT: %v", merged)
 	}
@@ -405,7 +405,7 @@ func TestMCPSchemaBinding_DedupAndSort(t *testing.T) {
 			{Name: "AGG_ACME_A"},
 		},
 	}
-	merged := mergeEnumNames(builtin, snap, "aggregator")
+	merged := mergeEnumNames(builtin, descx.UnscopedInstanceSnapshot(snap), "aggregator")
 	want := []string{"AGG_ACME_A", "AGG_ACME_Z", "AGG_COUNT", "AGG_SUM"}
 	if !slices.Equal(merged, want) {
 		t.Errorf("merged enum = %v, want %v", merged, want)
