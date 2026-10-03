@@ -412,7 +412,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_RANGE",
@@ -451,7 +454,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "data_quality",
+            "prepare"
+          ]
         }
       ],
       "groupers": [
@@ -502,7 +509,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "compare_groups",
+            "composition"
+          ]
         },
         {
           "name": "GROUP_DATE",
@@ -578,7 +589,10 @@
             ],
             "mergeability": "mergeable"
           },
-          "zone": "capable"
+          "zone": "capable",
+          "intents": [
+            "change_over_time"
+          ]
         }
       ],
       "windows": [],
@@ -1898,4 +1912,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: acce17f2187b96074a20822d56f111532a64e8ef186612896cd1621c9dd4403a
+// golden-hash: 5a19575bdd71ab77e9cfba3649873facb1208ef7916f72919a8c5f3ab8348a43

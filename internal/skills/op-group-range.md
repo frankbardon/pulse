@@ -23,7 +23,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Output
 
-String label per row (e.g. `"[10, 20)"`). Smart default (Interval=10) for numeric.
+String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Smart default (Interval=10) for numeric.
 
 ## Components
 

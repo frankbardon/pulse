@@ -41,13 +41,6 @@ var purposeExemptions = func() []guidanceExemption {
 	const why = "Descriptive built-in awaiting its Purpose in the U09 backfill."
 	var out []guidanceExemption
 	for _, names := range [][]string{
-		// filterer
-		{"FILTER_DATE_RANGES", "FILTER_EXCLUDE", "FILTER_EXPRESSION", "FILTER_FALSE",
-			"FILTER_INCLUDE", "FILTER_NULL", "FILTER_RANGE", "FILTER_SET_CONTAINS_ALL",
-			"FILTER_SET_CONTAINS_ANY", "FILTER_SET_CONTAINS_NONE", "FILTER_SET_EQUALS", "FILTER_TRUE"},
-		// grouper
-		{"GROUP_CATEGORY", "GROUP_DATE", "GROUP_DATE_RANGES", "GROUP_QUANTILE", "GROUP_RANGE",
-			"GROUP_ROUNDED", "GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE"},
 		// synth_distribution
 		{"bernoulli", "constant", "discrete", "exponential", "lognormal", "mixture",
 			"monotonic_from", "normal", "pareto", "poisson", "regex", "set_bernoulli", "uniform",
@@ -73,7 +66,6 @@ var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
 	{Key: IntentFlows, Owner: "U28", Why: "Flow analysis needs the matrix overlays (stochastic matrices, steady states) U28 ships."},
 	{Key: IntentMeasureConstruct, Owner: "U24", Why: "Construct measurement needs the reliability / PCA operators U24 ships."},
-	{Key: IntentSegment, Owner: "U09", Why: "Declaring operators (groupers) gain Purposes in the U09 backfill."},
 	{Key: IntentSimulate, Owner: "U09", Why: "Declaring operators (synth distributions) gain Purposes in the U09 backfill."},
 }
 
@@ -102,11 +94,11 @@ var intentExampleExemptions = []guidanceExemption{
 var glossaryOrphanExemptions = []guidanceExemption{
 	// Descriptive terms a U09 Purpose may link (or the term is dropped).
 	{Key: "covariance", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
-	{Key: "factor", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
 	{Key: "pairwise-deletion", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
 	{Key: "statistical-significance", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
 	{Key: "test-statistic", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
 	// Matrix operators (reliability, PCA).
+	{Key: "factor", Owner: "U24", Why: "Defined as a latent factor (factor analysis), not a categorical grouping field, so GROUP_CATEGORY does not link it; the factor-analysis operator U24 ships does."},
 	{Key: "eigenvalue", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
 	{Key: "loading", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},
 	{Key: "principal-component", Owner: "U24", Why: "Written ahead of the PCA operator U24 ships."},

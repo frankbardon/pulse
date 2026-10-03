@@ -165,7 +165,7 @@ func grouperCapabilities() []descriptor.Operator {
 				},
 			},
 			AcceptsTypes:  numericFieldTypesNoDecimal,
-			EmitsTypeNote: "string bucket label per row (e.g. \"[10, 20)\")",
+			EmitsTypeNote: "string bucket label per row, \"low-high\" (e.g. \"10-20\" holds [10, 20))",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "interval", Type: "float64", Description: "Bucket width on the value axis (Group.Interval)."},
@@ -181,7 +181,7 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.GROUP_ROUNDED),
 			Category:    "grouper",
-			Description: "Round each numeric value to the nearest multiple of Interval and group by the rounded scalar.",
+			Description: "Round each numeric value DOWN to a multiple of Interval (floor, not nearest) and group by that scalar.",
 			Params: []descriptor.Param{
 				{
 					Name:        "interval",

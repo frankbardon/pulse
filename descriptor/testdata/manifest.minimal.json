@@ -252,7 +252,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "compare_groups",
+            "composition"
+          ]
         },
         {
           "name": "GROUP_RANGE",
@@ -276,7 +280,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "string bucket label per row (e.g. \"[10, 20)\")",
+          "emits_type_note": "string bucket label per row, \"low-high\" (e.g. \"10-20\" holds [10, 20))",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -332,7 +336,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "distribution_shape",
+            "segment"
+          ]
         }
       ],
       "windows": [],
@@ -1095,4 +1103,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d9a2729f72514eb1b962f4f6bac1d0dafc757a55ed5b9e2ac6edcf83341a00eb
+// golden-hash: ff233419e8aa1285651b3334893c751ced68fb7a9d94d295d48b710f54345f65

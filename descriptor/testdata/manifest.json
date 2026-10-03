@@ -2296,7 +2296,11 @@
             ],
             "mergeability": "mergeable"
           },
-          "zone": "capable"
+          "zone": "capable",
+          "intents": [
+            "change_over_time",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_EXCLUDE",
@@ -2340,7 +2344,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "data_quality",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_EXPRESSION",
@@ -2390,7 +2398,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "data_quality",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_FALSE",
@@ -2440,7 +2452,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_INCLUDE",
@@ -2484,7 +2499,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_NULL",
@@ -2534,7 +2552,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "data_quality",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_RANGE",
@@ -2573,7 +2595,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "data_quality",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_SET_CONTAINS_ALL",
@@ -2609,7 +2635,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_SET_CONTAINS_ANY",
@@ -2645,7 +2675,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_SET_CONTAINS_NONE",
@@ -2681,7 +2715,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_SET_EQUALS",
@@ -2717,7 +2755,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition",
+            "prepare"
+          ]
         },
         {
           "name": "FILTER_TRUE",
@@ -2767,7 +2809,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         }
       ],
       "groupers": [
@@ -2818,7 +2863,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "compare_groups",
+            "composition"
+          ]
         },
         {
           "name": "GROUP_DATE",
@@ -2895,7 +2944,10 @@
             ],
             "mergeability": "mergeable"
           },
-          "zone": "capable"
+          "zone": "capable",
+          "intents": [
+            "change_over_time"
+          ]
         },
         {
           "name": "GROUP_DATE_RANGES",
@@ -2952,7 +3004,11 @@
             ],
             "mergeability": "mergeable"
           },
-          "zone": "capable"
+          "zone": "capable",
+          "intents": [
+            "change_over_time",
+            "compare_groups"
+          ]
         },
         {
           "name": "GROUP_QUANTILE",
@@ -3014,7 +3070,11 @@
               }
             ],
             "mergeability": "none"
-          }
+          },
+          "intents": [
+            "distribution_shape",
+            "segment"
+          ]
         },
         {
           "name": "GROUP_RANGE",
@@ -3038,7 +3098,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "string bucket label per row (e.g. \"[10, 20)\")",
+          "emits_type_note": "string bucket label per row, \"low-high\" (e.g. \"10-20\" holds [10, 20))",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -3094,12 +3154,16 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "distribution_shape",
+            "segment"
+          ]
         },
         {
           "name": "GROUP_ROUNDED",
           "category": "grouper",
-          "description": "Round each numeric value to the nearest multiple of Interval and group by the rounded scalar.",
+          "description": "Round each numeric value DOWN to a multiple of Interval (floor, not nearest) and group by that scalar.",
           "params": [
             {
               "name": "interval",
@@ -3149,7 +3213,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "distribution_shape",
+            "segment"
+          ]
         },
         {
           "name": "GROUP_SET_PER_ELEMENT",
@@ -3190,7 +3258,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "compare_groups",
+            "composition"
+          ]
         },
         {
           "name": "GROUP_SET_VALUE",
@@ -3231,7 +3303,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition"
+          ]
         }
       ],
       "windows": [
@@ -7123,7 +7198,7 @@
       },
       {
         "name": "op-group-rounded",
-        "description": "Round each numeric value to the nearest multiple of Interval and group by the rounded scalar."
+        "description": "Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar."
       },
       {
         "name": "op-group-set-per-element",
@@ -10303,4 +10378,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 57c528e05aa338e7183173e481bd81fd1c3ec7bb188dda94c475f20c146cb32f
+// golden-hash: da3e566e7ad2dc6c4aaa5a37252f89fd86048a152b0e2ea4df63328b946df929
