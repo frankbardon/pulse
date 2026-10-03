@@ -1984,7 +1984,11 @@
           "component_schema": {
             "mergeability": ""
           },
-          "zone": "capable"
+          "zone": "capable",
+          "intents": [
+            "change_over_time",
+            "prepare"
+          ]
         },
         {
           "name": "ATTR_FORMULA",
@@ -2018,7 +2022,10 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "ATTR_NORMALIZED",
@@ -2040,7 +2047,10 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "ATTR_PERCENTILE",
@@ -2058,12 +2068,16 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record in (0, 100]",
+          "emits_type_note": "one float per record in (0, 100]; 0 when the value is null",
           "streamable": false,
           "streamable_hint": "Use ATTR_NORMALIZED for a streaming-friendly rank proxy.",
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark",
+            "distribution_shape"
+          ]
         },
         {
           "name": "ATTR_REG_FITTED",
@@ -2085,7 +2099,11 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark",
+            "relationship"
+          ]
         },
         {
           "name": "ATTR_REG_LEVERAGE",
@@ -2108,7 +2126,10 @@
           "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "data_quality"
+          ]
         },
         {
           "name": "ATTR_REG_RESIDUAL",
@@ -2130,7 +2151,11 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark",
+            "data_quality"
+          ]
         },
         {
           "name": "ATTR_SET_HAS",
@@ -2157,7 +2182,10 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "ATTR_SET_POPCOUNT",
@@ -2177,7 +2205,11 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "describe",
+            "prepare"
+          ]
         },
         {
           "name": "ATTR_TSCORE",
@@ -2199,7 +2231,11 @@
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark",
+            "prepare"
+          ]
         },
         {
           "name": "ATTR_ZSCORE",
@@ -2217,11 +2253,15 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record (NaN when stddev=0)",
+          "emits_type_note": "one float per record (0 when stddev=0 or the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark",
+            "prepare"
+          ]
         }
       ],
       "filterers": [
@@ -10191,4 +10231,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b1523c735e592ecde0fd72f5361aee71b3051a2417c5e17fdbd3705087e3dbe0
+// golden-hash: 7fa9d920db59130a0bb8f2566778b2c8c88e258cb9eea18d920cf48b3b1e7c12

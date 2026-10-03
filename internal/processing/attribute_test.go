@@ -3,6 +3,7 @@ package processing
 import (
 	"encoding/json"
 	"math"
+	"sort"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -487,3 +488,94 @@ func TestAttribute_DatePart_NilParamsErrors(t *testing.T) {
 
 // Suppress unused import warning
 var _ = math.Abs
+
+// TestAttribute_NullAndDegenerateInputs pins what the per-row attributes
+// emit for a missing input and for a constant field. The guidance (the
+// ATTR_* Purposes and value Interpretations in internal/descriptor), the
+// atomic skills and the manifest notes state these values: an attribute
+// never emits null or NaN here. A missing input reads 0 (50 for the
+// T-score, the T-score of the mean), and a field with no spread reads
+// 0 / 50 / 0 for ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED. A missing
+// set reads 0 for both set attributes.
+func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
+	schema := numericSchema()
+	cases := []struct {
+		typ       types.AttributeType
+		nullWant  float64
+		constWant float64
+	}{
+		{types.ATTR_ZSCORE, 0, 0},
+		{types.ATTR_TSCORE, 50, 50},
+		{types.ATTR_NORMALIZED, 0, 0},
+		{types.ATTR_PERCENTILE, 0, -1}, // constant case pinned by the ties test
+	}
+	for _, c := range cases {
+		t.Run(string(c.typ), func(t *testing.T) {
+			attr := makeAttribute(t, c.typ, "score", schema, "")
+			recs := makeRecordsWithNulls(schema, "score", []float64{10, 20, 0, 40}, []int{2})
+			got, err := attr.Compute(recs, "score")
+			if err != nil {
+				t.Fatalf("Compute: %v", err)
+			}
+			if got[2] != c.nullWant {
+				t.Errorf("null row = %v, want %v", got[2], c.nullWant)
+			}
+			if c.constWant < 0 {
+				return
+			}
+			attr = makeAttribute(t, c.typ, "score", schema, "")
+			got, err = attr.Compute(makeRecords(schema, "score", []float64{5, 5, 5}), "score")
+			if err != nil {
+				t.Fatalf("Compute: %v", err)
+			}
+			for i, v := range got {
+				if v != c.constWant || math.IsNaN(v) {
+					t.Errorf("constant field row %d = %v, want %v", i, v, c.constWant)
+				}
+			}
+		})
+	}
+
+	setSchema := makeSetTestSchema(t)
+	missing := NewRecordWithWide(setSchema, map[string]float64{}, map[string]bool{"tags": true}, nil)
+	pop, err := newSetPopcountAttribute(&types.Attribute{Type: types.ATTR_SET_POPCOUNT, Field: "tags"}, setSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	has, err := newSetHasAttribute(&types.Attribute{Type: types.ATTR_SET_HAS, Field: "tags", Params: []byte(`{"label":"AMEX"}`)}, setSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, a := range map[string]AttributeComputer{"ATTR_SET_POPCOUNT": pop, "ATTR_SET_HAS": has} {
+		got, err := a.Compute([]*Record{missing}, "tags")
+		if err != nil {
+			t.Fatalf("%s Compute: %v", name, err)
+		}
+		if got[0] != 0 {
+			t.Errorf("%s null set row = %v, want 0", name, got[0])
+		}
+	}
+}
+
+// TestAttribute_Percentile_TiesTakeDistinctRanks pins ATTR_PERCENTILE's
+// definition as the guidance states it: rank / n * 100 over the rows with
+// a value, the smallest reading 100 / n and the largest 100, and tied
+// values NOT sharing a percentile — each tied row takes its own rank.
+// When ties are made to share a rank, update the ATTR_PERCENTILE
+// Interpretation and op-attr-percentile.md with this test.
+func TestAttribute_Percentile_TiesTakeDistinctRanks(t *testing.T) {
+	schema := numericSchema()
+	attr := makeAttribute(t, types.ATTR_PERCENTILE, "score", schema, "")
+	got, err := attr.Compute(makeRecords(schema, "score", []float64{5, 5, 5, 5}), "score")
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	sorted := append([]float64(nil), got...)
+	sort.Float64s(sorted)
+	want := []float64{25, 50, 75, 100}
+	for i := range want {
+		if !floatClose(sorted[i], want[i], 1e-9) {
+			t.Fatalf("tied percentiles = %v, want the distinct set %v", got, want)
+		}
+	}
+}

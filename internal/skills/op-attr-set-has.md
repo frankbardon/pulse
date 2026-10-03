@@ -26,7 +26,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Output
 
-One `packed_bool` per record — `1` if the named label's bit is set, `0` otherwise. Null source → null output.
+One `packed_bool` per record — `1` if the named label's bit is set, `0` otherwise. Null source → `0` (not null).
 
 ## Gotchas
 

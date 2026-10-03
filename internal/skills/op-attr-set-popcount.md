@@ -24,7 +24,7 @@ None.
 
 ## Output
 
-One integer per record, 0..set width **inclusive** — 0..256 at `set_u256`, hence `emits_type` `u16`, not `u8`. Empty mask → `0` (valid, distinct from null). Null source → null output.
+One integer per record, 0..set width **inclusive** — 0..256 at `set_u256`, hence `emits_type` `u16`, not `u8`. Empty mask → `0` (valid, distinct from null). Null source → `0` (not null).
 
 ## Gotchas
 

@@ -41,10 +41,6 @@ var purposeExemptions = func() []guidanceExemption {
 	const why = "Descriptive built-in awaiting its Purpose in the U09 backfill."
 	var out []guidanceExemption
 	for _, names := range [][]string{
-		// attribute
-		{"ATTR_DATE_PART", "ATTR_FORMULA", "ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_REG_FITTED",
-			"ATTR_REG_LEVERAGE", "ATTR_REG_RESIDUAL", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
-			"ATTR_TSCORE", "ATTR_ZSCORE"},
 		// filterer
 		{"FILTER_DATE_RANGES", "FILTER_EXCLUDE", "FILTER_EXPRESSION", "FILTER_FALSE",
 			"FILTER_INCLUDE", "FILTER_NULL", "FILTER_RANGE", "FILTER_SET_CONTAINS_ALL",
@@ -79,9 +75,6 @@ var interpretationExemptions = func() []guidanceExemption {
 	const why = "Needs-reading descriptive built-in awaiting its value Interpretation in the U09 backfill."
 	var out []guidanceExemption
 	for _, key := range []string{
-		// attribute
-		"ATTR_NORMALIZED:value", "ATTR_PERCENTILE:value", "ATTR_REG_FITTED:value",
-		"ATTR_REG_LEVERAGE:value", "ATTR_REG_RESIDUAL:value", "ATTR_TSCORE:value", "ATTR_ZSCORE:value",
 		// window
 		"WIN_DELTA:value", "WIN_DENSE_RANK:value", "WIN_EWMA:value", "WIN_MOVING_AVG:value",
 		"WIN_PCT_CHANGE:value", "WIN_RANK:value", "WIN_RUNNING_AVG:value",
@@ -100,7 +93,6 @@ var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
 	{Key: IntentFlows, Owner: "U28", Why: "Flow analysis needs the matrix overlays (stochastic matrices, steady states) U28 ships."},
 	{Key: IntentMeasureConstruct, Owner: "U24", Why: "Construct measurement needs the reliability / PCA operators U24 ships."},
-	{Key: IntentPrepare, Owner: "U09", Why: "Declaring operators (features, attributes, filters) gain Purposes in the U09 backfill."},
 	{Key: IntentSegment, Owner: "U09", Why: "Declaring operators (groupers) gain Purposes in the U09 backfill."},
 	{Key: IntentSimulate, Owner: "U09", Why: "Declaring operators (synth distributions) gain Purposes in the U09 backfill."},
 }

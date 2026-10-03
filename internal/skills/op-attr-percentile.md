@@ -24,12 +24,12 @@ None.
 
 ## Output
 
-One `float64` per record in `(0, 100]` — the row's percentile within the filter-passing value set. Null source → null output.
+One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-passing value set (smallest = `100/n`). Null source → `0` (not null).
 
 ## Gotchas
 
 - **NOT streamable** — pre-pass sorts the full filter-passing field; cohort-sized memory peak. Predict surfaces this under `streamable_reasons`.
-- Tie handling: ranks share a percentile (no fractional split).
+- Ties do NOT share a percentile: each tied row gets its own rank, in arbitrary order. Use `WIN_RANK` for shared ranks.
 - For streaming-friendly relative position use `ATTR_NORMALIZED` (min-max) as a proxy.
 - `decimal128` rejected.
 - Under shard archives the sort runs per-shard along the `Mergeable` path; pass 2 emits global ranks once shards merge.

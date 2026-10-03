@@ -17,7 +17,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row standardized z-score: (value − mean) / stddev computed via Welford two-pass streaming.",
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record (NaN when stddev=0)",
+			EmitsTypeNote: "one float per record (0 when stddev=0 or the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -53,7 +53,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:    "Per-row percentile rank against the post-filter value set; requires sorting.",
 			AcceptsTypes:   numericFieldTypesNoDecimal,
 			EmitsType:      "f64",
-			EmitsTypeNote:  "one float per record in (0, 100]",
+			EmitsTypeNote:  "one float per record in (0, 100]; 0 when the value is null",
 			Streamable:     false,
 			StreamableHint: "Use ATTR_NORMALIZED for a streaming-friendly rank proxy.",
 		},

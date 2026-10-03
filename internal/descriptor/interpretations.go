@@ -15,13 +15,14 @@ import (
 // path checked by ValidateInterpretations against what the operator
 // emits (BuiltinOutputResolver). Like Purpose prose, Interpretation
 // prose is served on demand and never inlined into a default payload.
-var builtinInterpretations = mergeInterpretations(statTestInterpretations, overlayInterpretations, regressionInterpretations, descriptiveInterpretations)
+var builtinInterpretations = mergeInterpretations(statTestInterpretations, overlayInterpretations, regressionInterpretations, descriptiveInterpretations, attributeInterpretations)
 
 // mergeInterpretations joins the per-category Interpretation maps
 // (statTestInterpretations in interpretations_stattests.go,
 // overlayInterpretations in interpretations_overlays.go,
 // regressionInterpretations in interpretations_regressions.go,
-// descriptiveInterpretations in interpretations_descriptive.go),
+// descriptiveInterpretations in interpretations_descriptive.go,
+// attributeInterpretations in interpretations_attributes.go),
 // panicking when two maps declare the same operator.
 func mergeInterpretations(maps ...map[string][]descriptor.Interpretation) map[string][]descriptor.Interpretation {
 	out := map[string][]descriptor.Interpretation{}
