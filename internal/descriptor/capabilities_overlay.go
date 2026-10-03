@@ -226,8 +226,12 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"(siblings: OVERLAY_INDEX_VS_POP, OVERLAY_ZSCORE_VS_POP) and the first inferential FACET-host kind. Pairs " +
 				"with the MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ² family — the " +
 				"viz developer renders the SCALAR statistic as a goodness-of-fit badge near the facet header. " +
-				"Math: subset_N = sum(host counts); expected[v] = pop_freq[v] * subset_N (population frequencies scaled to " +
-				"subset N); chisq = Σ (observed - expected)² / expected; df = len(observed) - 1; p_value = " +
+				"Math: the compared categories C are the subset's listed values that the population also shows; subset_N = " +
+				"Σ observed over C; share[v] = pop_count[v] / Σ pop_count over C (population shares renormalised over the " +
+				"compared categories, so population nulls and values truncated out of a DiscreteTopK listing never shrink " +
+				"the expected counts); expected[v] = share[v] * subset_N; chisq = Σ (observed - expected)² / expected; df = " +
+				"|C| - 1 — R's chisq.test(x, p, rescale.p = TRUE) over C. A subset value the population lacks is left out " +
+				"of the statistic, subset_N and df, with one PULSE_OVERLAY_REF_ZERO warning per value; p_value = " +
 				"chiSquareSurvival(chisq, df) — the same χ² survival helper backing TEST_CHISQ and the MATRIX-host CHISQ " +
 				"family, so the overlay surface produces identical p-values for the same contingency. Discrete arm only " +
 				"(χ² goodness-of-fit requires categorical buckets — numeric hosts fire " +

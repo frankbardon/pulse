@@ -21,13 +21,13 @@ FACET — discrete arm only; numeric host → `PULSE_OVERLAY_REF_INCOMPATIBLE_WI
 
 ## Output
 
-SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Parameters["df"]}`, `df = len(observed) - 1`. `Baseline` unset.
+SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Parameters["df"]}`, `df` = compared categories − 1. `Baseline` unset.
 
 ## Gotchas
 
-- `expected[v] = pop_freq(v) × subset_N`. Reuses `chiSquareSurvival` — byte-equal to `TEST_CHISQ`.
+- Pop shares renormalise over the compared categories (pop nulls / top-K tail ignored): R `chisq.test(x, p, rescale.p=TRUE)`. A subset value the pop lacks is dropped from χ², N, `df` + one `PULSE_OVERLAY_REF_ZERO`. Byte-equal survival to `TEST_CHISQ`.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer, carrying the low-expected category count.
-- Empty host distribution, `subset_N == 0`, or all `pop_freq == 0` → NaN statistic + `PULSE_OVERLAY_REF_ZERO`. Single category (`df = 0`) → NaN p-value.
+- Empty host distribution, empty population, or no compared category → NaN statistic + `PULSE_OVERLAY_REF_ZERO`. Single category (`df = 0`) → NaN p-value.
 - Buffered (inferential — FacetSchema post-finalize hook; byte-identical streaming vs buffered).
 
 ## See
