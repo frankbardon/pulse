@@ -709,10 +709,6 @@
         "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
       },
       {
-        "name": "crosstab-guide",
-        "description": "Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics."
-      },
-      {
         "name": "expression-language",
         "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
       },
@@ -1100,4 +1096,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d1ef563f006ad3b3f4a963b3e6c5816f1fb00f092882b40fdd3ba39e88578e93
+// golden-hash: 9bc0b4bc7ac97f2a893a2b0aa8942b1cb08f0f1dd4fe2473e431ca0db4dc69da

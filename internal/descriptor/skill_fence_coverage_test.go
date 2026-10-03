@@ -290,7 +290,9 @@ func TestFenceCoverage_Guards(t *testing.T) {
 		{"op-overlay-yoy", []string{"GROUP_DATE", "OVERLAY_YOY", "capability:compose"}},
 		{"op-overlay-delta-vs-stage", []string{"OVERLAY_DELTA_VS_STAGE", "capability:process_chain"}},
 		{"op-attr-reg-fitted", []string{"ATTR_REG_FITTED", "REG_OLS"}},
-		{"crosstab-guide", nil},
+		{"response-components", nil},
+		// A topical skill is guarded by its requires: targets only.
+		{"crosstab-guide", []string{"capability:crosstab"}},
 	}
 	for _, tc := range cases {
 		got := slices.Sorted(maps.Keys(skillGuards(tc.skill)))
