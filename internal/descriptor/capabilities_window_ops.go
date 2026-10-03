@@ -88,7 +88,7 @@ func windowCapabilities() []descriptor.Operator {
 			Description:   "Moving average of Field over the configured Frame; Frame width must be bounded.",
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per row (NaN when frame is empty)",
+			EmitsTypeNote: "one float per row (null when every value in the frame is missing)",
 			Streamable:    false,
 		},
 		{
@@ -106,7 +106,7 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.WIN_PCT_CHANGE),
 			Category:    "window",
-			Description: "Percent change relative to the row Periods positions earlier in the ordered partition.",
+			Description: "Fractional change, (current − previous) / previous, against the row Periods positions earlier in the ordered partition: 0.05 is a 5% rise, never multiplied by 100.",
 			Params: []descriptor.Param{
 				{Name: "periods", Type: "int", Required: false, Default: 1, Description: "Lookback offset (≥ 1) for the comparison row."},
 			},

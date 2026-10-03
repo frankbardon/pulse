@@ -48,9 +48,6 @@ var purposeExemptions = func() []guidanceExemption {
 		// grouper
 		{"GROUP_CATEGORY", "GROUP_DATE", "GROUP_DATE_RANGES", "GROUP_QUANTILE", "GROUP_RANGE",
 			"GROUP_ROUNDED", "GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE"},
-		// window
-		{"WIN_DELTA", "WIN_DENSE_RANK", "WIN_EWMA", "WIN_LAG", "WIN_LEAD", "WIN_MOVING_AVG",
-			"WIN_PCT_CHANGE", "WIN_RANK", "WIN_ROW_NUMBER", "WIN_RUNNING_AVG", "WIN_RUNNING_SUM"},
 		// feature
 		{"FEAT_BUCKETIZE", "FEAT_DATE_FEATURES", "FEAT_FREQUENCY_ENCODE", "FEAT_LOG", "FEAT_ONE_HOT",
 			"FEAT_POLY", "FEAT_SQRT", "FEAT_TARGET_ENCODE", "FEAT_TRAIN_TEST_SPLIT"},
@@ -75,9 +72,6 @@ var interpretationExemptions = func() []guidanceExemption {
 	const why = "Needs-reading descriptive built-in awaiting its value Interpretation in the U09 backfill."
 	var out []guidanceExemption
 	for _, key := range []string{
-		// window
-		"WIN_DELTA:value", "WIN_DENSE_RANK:value", "WIN_EWMA:value", "WIN_MOVING_AVG:value",
-		"WIN_PCT_CHANGE:value", "WIN_RANK:value", "WIN_RUNNING_AVG:value",
 		// feature
 		"FEAT_FREQUENCY_ENCODE:value", "FEAT_LOG:value", "FEAT_POLY:value.*", "FEAT_SQRT:value",
 		"FEAT_TARGET_ENCODE:value",

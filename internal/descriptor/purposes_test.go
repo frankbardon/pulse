@@ -399,7 +399,7 @@ func exampleIntentProblems(byExample map[string][]string) []string {
 // keyed by a TEST_* family, and a name declared by two category maps
 // panics instead of silently shadowing one declaration.
 func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
-	cats := []map[string]descriptor.Purpose{aggregatorPurposes, attributePurposes, statTestPurposes, overlayPurposes, regressionPurposes}
+	cats := []map[string]descriptor.Purpose{aggregatorPurposes, attributePurposes, windowPurposes, statTestPurposes, overlayPurposes, regressionPurposes}
 	total := 0
 	for _, m := range cats {
 		total += len(m)

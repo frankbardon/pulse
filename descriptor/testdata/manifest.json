@@ -3263,7 +3263,11 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark",
+            "change_over_time"
+          ]
         },
         {
           "name": "WIN_DENSE_RANK",
@@ -3297,7 +3301,10 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark"
+          ]
         },
         {
           "name": "WIN_EWMA",
@@ -3326,7 +3333,10 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "change_over_time"
+          ]
         },
         {
           "name": "WIN_LAG",
@@ -3362,7 +3372,11 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "change_over_time",
+            "prepare"
+          ]
         },
         {
           "name": "WIN_LEAD",
@@ -3398,7 +3412,11 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "change_over_time",
+            "prepare"
+          ]
         },
         {
           "name": "WIN_MOVING_AVG",
@@ -3416,16 +3434,19 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per row (NaN when frame is empty)",
+          "emits_type_note": "one float per row (null when every value in the frame is missing)",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "change_over_time"
+          ]
         },
         {
           "name": "WIN_PCT_CHANGE",
           "category": "window",
-          "description": "Percent change relative to the row Periods positions earlier in the ordered partition.",
+          "description": "Fractional change, (current − previous) / previous, against the row Periods positions earlier in the ordered partition: 0.05 is a 5% rise, never multiplied by 100.",
           "params": [
             {
               "name": "periods",
@@ -3450,7 +3471,11 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark",
+            "change_over_time"
+          ]
         },
         {
           "name": "WIN_RANK",
@@ -3484,7 +3509,10 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "benchmark"
+          ]
         },
         {
           "name": "WIN_ROW_NUMBER",
@@ -3518,7 +3546,10 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "prepare"
+          ]
         },
         {
           "name": "WIN_RUNNING_AVG",
@@ -3540,7 +3571,11 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "change_over_time",
+            "describe"
+          ]
         },
         {
           "name": "WIN_RUNNING_SUM",
@@ -3562,7 +3597,11 @@
           "streamable": false,
           "component_schema": {
             "mergeability": ""
-          }
+          },
+          "intents": [
+            "change_over_time",
+            "describe"
+          ]
         }
       ],
       "features": [
@@ -7427,7 +7466,7 @@
       },
       {
         "name": "op-win-pct-change",
-        "description": "Percent change relative to the row `periods` positions earlier in the ordered partition."
+        "description": "Fractional change (0.05 = 5%) against the row `periods` positions earlier in the ordered partition."
       },
       {
         "name": "op-win-rank",
@@ -10231,4 +10270,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7fa9d920db59130a0bb8f2566778b2c8c88e258cb9eea18d920cf48b3b1e7c12
+// golden-hash: 2359c4c9872b031c5d083f0ac6075efd3a8e7ca9c4a90f1d3dbd5d6e67292e08

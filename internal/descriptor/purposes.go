@@ -11,7 +11,7 @@ import (
 // GROUP_*, WIN_*, FEAT_*), the TEST_* family (one purpose covers both
 // tiers), the REG_* type, the OVERLAY_* kind or the synth distribution
 // kind. It is assembled from one map per category, each in its own file
-// (aggregatorPurposes in purposes_aggregators.go, attributePurposes in purposes_attributes.go, statTestPurposes in purposes_stattests.go,
+// (aggregatorPurposes in purposes_aggregators.go, attributePurposes in purposes_attributes.go, windowPurposes in purposes_window.go, statTestPurposes in purposes_stattests.go,
 // overlayPurposes in purposes_overlays.go, regressionPurposes in
 // purposes_regressions.go);
 // an undeclared name simply carries no intents.
@@ -19,7 +19,7 @@ import (
 // purposeLookup is the seam the manifest builder reads through, so a
 // test can inject purposes without touching the registry.
 var (
-	builtinPurposes = mergePurposes(aggregatorPurposes, attributePurposes, statTestPurposes, overlayPurposes, regressionPurposes)
+	builtinPurposes = mergePurposes(aggregatorPurposes, attributePurposes, windowPurposes, statTestPurposes, overlayPurposes, regressionPurposes)
 	purposeLookup   = func(name string) (descriptor.Purpose, bool) {
 		p, ok := builtinPurposes[name]
 		return p, ok
