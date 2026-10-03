@@ -106,7 +106,8 @@ var (
 				"Near the start and end of each partition the frame runs off the edge and the mean covers fewer rows, " +
 					"so the first values are noisier and not comparable with the rest.",
 				"A trailing frame (following 0) lags behind turns in the series by about half its width; " +
-					"a centred frame (following above 0) does not lag but uses later rows, so it cannot be computed until they exist.",
+					"a centred frame (preceding equal to following) does not lag, and an uneven one lags by half the difference, " +
+					"but any frame with following above 0 uses later rows, so it cannot be computed until they exist.",
 				"Missing values are skipped, so the mean is over the values present, not the frame width; a frame with no value reads null.",
 				winGroupRowsCaveat,
 				winRowsNotTimeCaveat,

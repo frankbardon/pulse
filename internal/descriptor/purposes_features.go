@@ -51,7 +51,7 @@ var (
 		Intents: []string{IntentPrepare, IntentDistributionShape},
 		Questions: []string{
 			"Can I tame the long tail of customer spend before fitting a model on it?",
-			"How does income look on a scale where doubling counts the same everywhere?",
+			"How does income look on a log-like scale, where for large values doubling counts about the same everywhere?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Log of reported household income before using it as a predictor.",
@@ -185,7 +185,7 @@ var (
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Average satisfaction of each respondent's employer, as a predictor.",
 			descriptor.DomainOps:     "Average delivery delay of each carrier route, on every shipment.",
-			descriptor.DomainScience: "Average response of each batch, as a covariate for later work.",
+			descriptor.DomainScience: "Average response of each batch from earlier or held-out runs, as a covariate (an average that includes a row's own response leaks it).",
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want to report each category's average outcome", Use: "AGG_AVERAGE"},

@@ -43,15 +43,16 @@ var (
 		{
 			Field: "value",
 			Means: "The natural log of 1 + the value: ln(1 + x). 0 reads 0, e - 1 (about 1.72) reads 1, 9 reads about 2.3 and 99 about 4.6; " +
-				"each step of about 0.69 is a doubling of 1 + x, so equal steps are equal ratios, not equal amounts.",
+				"each step of about 0.69 is a doubling of 1 + x, so equal steps are equal ratios of 1 + x, not equal amounts.",
 			Sign: map[string]string{
 				"+": "the original value is above 0",
 				"-": "the original value is between -1 and 0",
 			},
 			Caveats: []string{
 				"A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the column.",
-				"The + 1 shift keeps 0 usable but bends the scale for small values: on a field mostly between 0 and 1 the result is close to the value itself, " +
-					"so the squeeze only bites on large values.",
+				"The + 1 shift keeps 0 usable, but equal steps are equal ratios of 1 + x, not of x, and the shape depends on the units: " +
+					"on values much smaller than 1 the result is close to the value itself, on values much larger than 1 it is close to ln(x), " +
+					"so rescaling the field (dollars vs thousands) changes the shape of the result.",
 				featNewScaleCaveat,
 				"A missing input gives a missing output.",
 			},
@@ -119,7 +120,8 @@ var (
 					"and filtering to split 0 afterwards keeps the leaked figures.",
 				"A model trained on this column will look better than it is: with no smoothing, a category seen once encodes exactly its own outcome. " +
 					"To encode from the training rows only, compute each category's AGG_AVERAGE of the outcome on split 0 in a separate request " +
-					"and map those averages onto the records yourself.",
+					"and map those averages onto the validation and test records yourself. For the training records, leave each record's own outcome out " +
+					"(out-of-fold or leave-one-out averages) and smooth, since a split-0 average still contains it.",
 				featWholeCohortCaveat,
 				"Only records with both a category and an outcome count; a category whose outcomes are all missing reads the overall average, " +
 					"and a record missing the category reads missing.",

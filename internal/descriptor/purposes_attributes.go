@@ -176,12 +176,12 @@ var (
 			"Which respondents score more than one standard deviation above average?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainSurvey:  "Report standardized scale scores without negative numbers.",
-			descriptor.DomainScience: "Express assessment scores on the conventional mean-50, SD-10 scale.",
+			descriptor.DomainSurvey:  "Report standardized scale scores on a 50-centred scale, where negative values are rare.",
+			descriptor.DomainScience: "Express assessment scores on a mean-50, SD-10 scale relative to the rows analysed (not to a published norm group).",
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want plain standard-deviation units centred on 0", Use: "ATTR_ZSCORE"},
-			{When: "you want the share of rows at or below each row", Use: "ATTR_PERCENTILE"},
+			{When: "you want each row's percentile rank (the share at or below it when values are untied)", Use: "ATTR_PERCENTILE"},
 		},
 		Assumptions: []string{
 			attrOverFilteredRows,
@@ -193,7 +193,7 @@ var (
 	}
 
 	purposeAttrPercentile = descriptor.Purpose{
-		Plain:   "Adds to every row the percentile of its value: roughly the share of rows with a value at or below it.",
+		Plain:   "Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied.",
 		Intents: []string{IntentBenchmark, IntentDistributionShape},
 		Questions: []string{
 			"Where does each store's revenue rank among all stores, as a percentage?",
@@ -211,7 +211,8 @@ var (
 		},
 		Assumptions: []string{
 			attrOverFilteredRows,
-			"Tied values do not share a percentile: each tied row takes its own rank.",
+			"Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read tens of points apart.",
+			"Rows tied at a cut-off are split across it arbitrarily and can change between runs; cut on the value (AGG_PERCENTILE, then a filter) for a reproducible top tenth.",
 			"Not streamable: every value is sorted before the first row is ready.",
 		},
 		Level:    descriptor.LevelBasic,
@@ -304,10 +305,10 @@ var (
 		Intents: []string{IntentDataQuality},
 		Questions: []string{
 			"Which rows have predictor values so far from the rest that they could steer the model?",
-			"Is one extreme customer driving the fitted line?",
+			"Which customers have predictor values extreme enough that they could pull the fitted line (read their residuals to see whether they do)?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainOps:     "Find the few very large accounts that dominate a revenue model.",
+			descriptor.DomainOps:     "Find the few very large accounts that could dominate a revenue model; read their residuals before concluding they do.",
 			descriptor.DomainScience: "Screen subjects with extreme dose or weight before trusting a fit.",
 		},
 		NotFor: []descriptor.Alternative{

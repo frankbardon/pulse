@@ -44,7 +44,8 @@ const (
 	attrRegSameRows = "The model is fitted and read on the same rows, so it matches them more closely than it will match new rows (overfitting), " +
 		"most of all with many predictors and few rows."
 	attrRegPenalty = "With a penalty (l1, l2, elasticnet) the coefficients are deliberately shrunk toward 0, so fitted values sit closer to the target's mean " +
-		"and residuals are larger than an unpenalized fit's; use no penalty for diagnostics."
+		"and the residuals are larger overall (their sum of squares rises) than an unpenalized fit's, though a single row's can go either way; " +
+		"use no penalty for diagnostics."
 )
 
 // --- Standardised scores --------------------------------------------------
@@ -95,7 +96,8 @@ var (
 		{
 			Field: "value",
 			Means: "The row's position among the sorted values, as a percentage: rank / n * 100, where the smallest value has rank 1 and n counts the rows with a value. " +
-				"The largest value reads 100 and the smallest 100 / n, so it is about the share of rows at or below this one.",
+				"The largest value reads 100 and the smallest 100 / n, so for a value no other row shares it is the share of rows at or below this one; " +
+				"tied values break that (see below).",
 			Caveats: []string{
 				"Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read different percentiles, " +
 					"far apart on a field with few distinct values (a 1-5 rating); use WIN_RANK when ties must share a rank.",
@@ -151,7 +153,8 @@ var (
 			Caveats: []string{
 				"A residual is what this model leaves unexplained, not a measurement error and not the effect of any one thing left out: " +
 					"another set of predictors gives other residuals.",
-				"It is in the target's units, so there are no sourced cut-offs for a large one; compare it with the model's typical miss (REG_OLS residual_std_err) instead.",
+				"It is in the target's units, so there are no sourced cut-offs for a large one; compare it with the model's typical miss (REG_OLS residual_std_err) " +
+					"times sqrt(1 - leverage) from ATTR_REG_LEVERAGE, since a high-leverage row's residual varies less, for a row-fair comparison.",
 				"A row with high leverage (ATTR_REG_LEVERAGE) pulls the line toward itself, so its residual can be small even when the row is unusual.",
 				"Patterns across rows (a curve, or spread that grows with the predicted value) point to a missing term or heteroscedasticity, not to rows that are wrong.",
 				attrRegAssociation,
@@ -165,7 +168,8 @@ var (
 		{
 			Field: "value",
 			Means: "How far the row's predictor values sit from the other rows' (from the predictors' means, scaled by their spread and correlation), " +
-				"and so how hard the row can pull the fitted line toward itself: the hat-matrix diagonal 1/n + (x - mean)' M^-1 (x - mean). " +
+				"and so how hard the row can pull the fitted line toward itself: the hat-matrix diagonal 1/n + (x - mean)' M^-1 (x - mean), " +
+				"where M is the predictors' centred sum-of-squares-and-cross-products matrix. " +
 				"Over the n rows in the fit it runs from 1/n to 1 and averages p / n, where p counts the coefficients including the intercept.",
 			Caveats: []string{
 				"A common rule of thumb flags leverage above 2p / n, twice the average (Hoaglin & Welsch 1978); it is a screening threshold, " +

@@ -529,7 +529,8 @@ var (
 			"Pairs of values are independent of each other.",
 			"A few extreme values can dominate the result.",
 			"The p-value assumes both fields are roughly normal; with small samples that matters most.",
-			"r is the covariance of the two fields (reported in details.covariance) divided by both standard deviations, which makes it unit-free.",
+			"r is the covariance of the two fields (details.covariance, dividing by n - 1) divided by both sample standard deviations " +
+				"(the square roots of details.variance_x and variance_y, also n - 1), which makes it unit-free; AGG_STDDEV divides by n, so it does not reproduce r.",
 		},
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{
