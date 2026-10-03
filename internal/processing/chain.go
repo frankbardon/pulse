@@ -16,7 +16,7 @@ import (
 //   - It passes the existing mergeable gate (CanMergeRequest), i.e. its
 //     online state can be merged across partitions of the input.
 //   - Every aggregator emits a single scalar value per output row
-//     (mergegate.EmitsScalar: AGG_MODE is excluded; AGG_FREQUENCY's
+//     (mergegate.EmitsScalar: AGG_MODE is excluded; AGG_MODE_COUNT's
 //     modal count is one float64 and is admitted).
 //
 // The chain executor calls this before each stage. A failing stage

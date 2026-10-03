@@ -34,7 +34,7 @@ Without `groups`, one aggregation produces ONE scalar per Request. With `groups`
 
 ## Smart defaults
 
-When an `aggregations` entry names `field` but omits `type`, the engine infers from schema type: numeric → `AGG_SUM`, categorical / packed-bool → `AGG_FREQUENCY`, `set_*` → `AGG_SET_FREQUENCY`, `date` → never defaulted. `filterers` are never defaulted.
+When an `aggregations` entry names `field` but omits `type`, the engine infers from schema type: numeric → `AGG_SUM`, categorical / packed-bool → `AGG_MODE_COUNT`, `set_*` → `AGG_SET_FREQUENCY`, `date` → never defaulted. `filterers` are never defaulted.
 
 Predict reports filled slots under `data.defaults_applied`. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`. Full table: `request-envelope`.
 
@@ -54,14 +54,14 @@ Operator-specific keys ride inside `Operator map[string]any`. Authoritative key 
 Every aggregator declares one mergeability classification:
 
 - **`Mergeable`** — folds across chunks via the same `MergeOnline` path as the scalar. Streaming chunks carry `ComponentsDelta`. Welford family, sums / counts / extrema, CI bounds, weighted-mean, ratio, mergeable set-* ops.
-- **`Partial`** — map / set merges staged at terminal flush. `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY`.
+- **`Partial`** — map / set merges staged at terminal flush. `AGG_MODE_COUNT`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY`.
 - **`None`** — non-mergeable; components emit only on terminal buffered flush. `AGG_MEDIAN`, `AGG_PERCENTILE`. Predict surfaces `BufferedComponents=true`.
 
 Three examples of the same floor surfacing different `Operator` payloads:
 
 - `AGG_SUM` (mergeable) — `Operator = {sum}`. Floor + one running scalar.
 - `AGG_WELFORD` (mergeable) — `Operator = {mean, m2, variance, stddev}`. Floor + Welford-Pébaÿ triple; `(mean, variance, n)` byte-equal to `TEST_WELCH`.
-- `AGG_FREQUENCY` (partial) — `Operator = {distinct_count, mode_value, mode_count}`. Floor + map-merge results at terminal flush.
+- `AGG_MODE_COUNT` (partial) — `Operator = {distinct_count, mode_value, mode_count}`. Floor + map-merge results at terminal flush.
 
 `Response.Components.Filterers[i]` carries a uniform `{n_in, n_out, n_null_input}` floor across every filterer; no per-operator slot today.
 
@@ -73,7 +73,7 @@ Each aggregator declares accepted schema types. Numeric-only ops on a categorica
 
 ## Gotchas
 
-- Defaults never cross categories — categorical `field` with `type` omitted gets `AGG_FREQUENCY`, not `AGG_SUM`.
+- Defaults never cross categories — categorical `field` with `type` omitted gets `AGG_MODE_COUNT`, not `AGG_SUM`.
 - Filterers chain in declared order; reordering changes per-stage counters but not the final row set.
 - Filterers can't see attribute output (`filterers` runs before `attributes`). To filter a derived column, use `FILTER_EXPRESSION` on source fields, or stage via Compose / ProcessChain.
 - Forced-buffered ops (`AGG_MEDIAN`, `AGG_PERCENTILE`, decimal paths) materialize the union of shards on a shard archive — memory scales with shard count.

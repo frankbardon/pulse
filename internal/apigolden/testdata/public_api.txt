@@ -2901,12 +2901,12 @@ pulse/types: const AGG_CI_UPPER pulse/types.AggregationType = "AGG_CI_UPPER"
 pulse/types: const AGG_COUNT pulse/types.AggregationType = "AGG_COUNT"
 pulse/types: const AGG_DISTINCT_COUNT pulse/types.AggregationType = "AGG_DISTINCT_COUNT"
 pulse/types: const AGG_DISTINCT_SUM pulse/types.AggregationType = "AGG_DISTINCT_SUM"
-pulse/types: const AGG_FREQUENCY pulse/types.AggregationType = "AGG_FREQUENCY"
 pulse/types: const AGG_KURTOSIS pulse/types.AggregationType = "AGG_KURTOSIS"
 pulse/types: const AGG_MAX pulse/types.AggregationType = "AGG_MAX"
 pulse/types: const AGG_MEDIAN pulse/types.AggregationType = "AGG_MEDIAN"
 pulse/types: const AGG_MIN pulse/types.AggregationType = "AGG_MIN"
 pulse/types: const AGG_MODE pulse/types.AggregationType = "AGG_MODE"
+pulse/types: const AGG_MODE_COUNT pulse/types.AggregationType = "AGG_MODE_COUNT"
 pulse/types: const AGG_NULL_COUNT pulse/types.AggregationType = "AGG_NULL_COUNT"
 pulse/types: const AGG_PERCENTILE pulse/types.AggregationType = "AGG_PERCENTILE"
 pulse/types: const AGG_RANGE pulse/types.AggregationType = "AGG_RANGE"
@@ -3676,4 +3676,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9443821cbe1835bc4f782abf222302d909c2acc7ced360ce158080f56ef7a1d4
+// golden-hash: 4dd44f9186c2fbe8ddc699db8f65834e9ab4538cd3c422da472e3571c8b2eed5

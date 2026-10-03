@@ -21,7 +21,7 @@ const (
 	AGG_MAX            AggregationType = "AGG_MAX"
 	AGG_STDDEV         AggregationType = "AGG_STDDEV"
 	AGG_RANGE          AggregationType = "AGG_RANGE"
-	AGG_FREQUENCY      AggregationType = "AGG_FREQUENCY"
+	AGG_MODE_COUNT     AggregationType = "AGG_MODE_COUNT"
 	AGG_ZSCORE         AggregationType = "AGG_ZSCORE"
 	AGG_MEDIAN         AggregationType = "AGG_MEDIAN"
 	AGG_VARIANCE       AggregationType = "AGG_VARIANCE"
@@ -130,7 +130,7 @@ const (
 func AllAggregationTypes() []AggregationType {
 	return []AggregationType{
 		AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX,
-		AGG_STDDEV, AGG_RANGE, AGG_FREQUENCY, AGG_ZSCORE,
+		AGG_STDDEV, AGG_RANGE, AGG_MODE_COUNT, AGG_ZSCORE,
 		AGG_MEDIAN, AGG_VARIANCE, AGG_MODE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_DISTINCT_COUNT, AGG_PERCENTILE,
 		AGG_NULL_COUNT,

@@ -171,7 +171,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("AGG_MAX"),
 	op("AGG_STDDEV"),
 	op("AGG_RANGE"),
-	op("AGG_FREQUENCY"),
+	op("AGG_MODE_COUNT"),
 	op("AGG_ZSCORE"),
 	op("AGG_MEDIAN"),
 	op("AGG_VARIANCE"),

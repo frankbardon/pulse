@@ -131,7 +131,7 @@ var acceptanceTemplates = map[string]string{
 	"AGG_MAX":                 `{"aggregations":[{"type":"AGG_MAX","field":"$F"}]}`,
 	"AGG_STDDEV":              `{"aggregations":[{"type":"AGG_STDDEV","field":"$F"}]}`,
 	"AGG_RANGE":               `{"aggregations":[{"type":"AGG_RANGE","field":"$F"}]}`,
-	"AGG_FREQUENCY":           `{"aggregations":[{"type":"AGG_FREQUENCY","field":"$F"}]}`,
+	"AGG_MODE_COUNT":          `{"aggregations":[{"type":"AGG_MODE_COUNT","field":"$F"}]}`,
 	"AGG_ZSCORE":              `{"aggregations":[{"type":"AGG_ZSCORE","field":"$F"}]}`,
 	"AGG_MEDIAN":              `{"aggregations":[{"type":"AGG_MEDIAN","field":"$F"}]}`,
 	"AGG_VARIANCE":            `{"aggregations":[{"type":"AGG_VARIANCE","field":"$F"}]}`,
@@ -331,12 +331,12 @@ func knownTypeDivergence(op string, ft encoding.FieldType) string {
 	}
 	switch {
 	// Predict looser.
-	case ft.IsDecimal() && in("AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_DISTINCT_SUM", "AGG_FREQUENCY", "AGG_KURTOSIS",
+	case ft.IsDecimal() && in("AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_DISTINCT_SUM", "AGG_MODE_COUNT", "AGG_KURTOSIS",
 		"AGG_MEDIAN", "AGG_MODE", "AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SKEWNESS",
 		"AGG_WEIGHTED_MEAN", "AGG_WELFORD", "AGG_ZSCORE", "AGG_SET_UNION", "AGG_SET_INTERSECTION",
 		"AGG_SET_FREQUENCY", "AGG_SET_CARDINALITY_SUM", "AGG_SET_CARDINALITY_AVG", "AGG_SET_DISTINCT_VALUES"):
 		return "predict only WARNS PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL (an error under Strict); the runtime refuses decimal128 regardless"
-	case set && in("AGG_DISTINCT_COUNT", "AGG_FREQUENCY", "AGG_MODE", "AGG_WELFORD", "ATTR_NORMALIZED", "ATTR_PERCENTILE",
+	case set && in("AGG_DISTINCT_COUNT", "AGG_MODE_COUNT", "AGG_MODE", "AGG_WELFORD", "ATTR_NORMALIZED", "ATTR_PERCENTILE",
 		"ATTR_TSCORE", "ATTR_ZSCORE", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "GROUP_CATEGORY",
 		"GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_INCLUDE", "FILTER_EXCLUDE", "FILTER_RANGE"):
 		return "the runtime constructor refuses a set_* column (no numeric value); predict has no set check"

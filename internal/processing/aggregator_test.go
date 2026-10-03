@@ -405,7 +405,7 @@ func TestAggregator_ZScore_Empty(t *testing.T) {
 
 func TestAggregator_Frequency_Basic(t *testing.T) {
 	schema := numericSchema()
-	agg := makeAggregator(t, types.AGG_FREQUENCY, "score", schema)
+	agg := makeAggregator(t, types.AGG_MODE_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{1, 2, 1, 3, 1})
 
 	result, err := agg.Aggregate(records, "score")
@@ -420,7 +420,7 @@ func TestAggregator_Frequency_Basic(t *testing.T) {
 
 func TestAggregator_Frequency_Empty(t *testing.T) {
 	schema := numericSchema()
-	agg := makeAggregator(t, types.AGG_FREQUENCY, "score", schema)
+	agg := makeAggregator(t, types.AGG_MODE_COUNT, "score", schema)
 	records := makeRecords(schema, "score", []float64{})
 
 	result, err := agg.Aggregate(records, "score")

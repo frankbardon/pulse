@@ -225,7 +225,7 @@ func onlineAggCases() []types.AggregationType {
 		types.AGG_SKEWNESS,
 		types.AGG_KURTOSIS,
 		types.AGG_DISTINCT_COUNT,
-		types.AGG_FREQUENCY,
+		types.AGG_MODE_COUNT,
 		types.AGG_MODE,
 	}
 }
@@ -305,7 +305,7 @@ func TestProcessor_StreamingMatchesBuffered_NullsAndCombinations(t *testing.T) {
 			{Type: types.AGG_MAX, Field: "score", Label: "hi"},
 			{Type: types.AGG_RANGE, Field: "score", Label: "range"},
 			{Type: types.AGG_DISTINCT_COUNT, Field: "score", Label: "distinct"},
-			{Type: types.AGG_FREQUENCY, Field: "score", Label: "freq"},
+			{Type: types.AGG_MODE_COUNT, Field: "score", Label: "freq"},
 			{Type: types.AGG_MODE, Field: "score", Label: "mode"},
 			{Type: types.AGG_SKEWNESS, Field: "score", Label: "skew"},
 			{Type: types.AGG_KURTOSIS, Field: "score", Label: "kurt"},

@@ -395,14 +395,14 @@ func (a *rangeAggregator) aggregateValues(vals []float64) (float64, error) {
 	return maxV - minV, nil
 }
 
-// frequencyAggregator's scalar return is the modal count; Components()
+// modeCountAggregator's scalar return is the modal count; Components()
 // adds the per-value cardinality plus the modal value (smallest-value
 // tie-break, matching AGG_MODE's deterministic ordering). frozenDistinct
 // / frozenModeValue / frozenModeCount mirror the post-Aggregate /
 // post-Finalize state so Components() works on both buffered and
 // streaming code paths — the streaming Finalize step nils out `counts`
 // after computing, so the frozen mirrors are the source of truth.
-type frequencyAggregator struct {
+type modeCountAggregator struct {
 	counts          map[float64]int
 	frozenDistinct  int
 	frozenModeValue float64
@@ -410,19 +410,19 @@ type frequencyAggregator struct {
 	frozenFinalized bool
 }
 
-func newFrequencyAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
+func newModeCountAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
 	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
 		return nil, err
 	}
-	return &frequencyAggregator{}, nil
+	return &modeCountAggregator{}, nil
 }
 
-func (a *frequencyAggregator) Aggregate(records []*Record, field string) (float64, error) {
+func (a *modeCountAggregator) Aggregate(records []*Record, field string) (float64, error) {
 	vals := collectValues(records, field)
 	return a.aggregateValues(vals)
 }
 
-func (a *frequencyAggregator) aggregateValues(vals []float64) (float64, error) {
+func (a *modeCountAggregator) aggregateValues(vals []float64) (float64, error) {
 	a.frozenFinalized = true
 	if len(vals) == 0 {
 		a.frozenDistinct = 0
@@ -441,7 +441,7 @@ func (a *frequencyAggregator) aggregateValues(vals []float64) (float64, error) {
 		}
 	}
 	// Mode value: smallest among ties — matches modeAggregator's
-	// deterministic ordering so AGG_MODE and AGG_FREQUENCY agree on
+	// deterministic ordering so AGG_MODE and AGG_MODE_COUNT agree on
 	// the winner over the same input set.
 	var modeValue float64
 	first := true
@@ -1151,7 +1151,7 @@ func (a *zscoreAggregator) Components() (map[string]any, error) {
 }
 
 // The three map-state aggregators — AGG_DISTINCT_COUNT, AGG_MODE,
-// AGG_FREQUENCY — maintain a per-value count map (or set) for their
+// AGG_MODE_COUNT — maintain a per-value count map (or set) for their
 // primary computation; Components() surfaces summary stats over that
 // map. Each emits from the frozen mirror fields stamped by either the
 // buffered path (aggregateValues) or the streaming path (Finalize),
@@ -1209,13 +1209,13 @@ func (a *modeAggregator) Components() (map[string]any, error) {
 // Components returns {distinct_count, mode_value, mode_count} — the
 // cardinality of the per-value count map plus the modal value
 // (smallest-value tie-break, matching AGG_MODE) and the modal count.
-// mode_count duplicates the scalar return of AGG_FREQUENCY — it is
+// mode_count duplicates the scalar return of AGG_MODE_COUNT — it is
 // the per-operator definition of the modal cardinality. Reads
 // frozen* mirrors so the streaming path's Finalize-reset does not
 // erase the values before Components() runs. Empty input returns
 // (nil, nil) so the orchestrator's universal floor (n=0) is the
 // source of truth.
-func (a *frequencyAggregator) Components() (map[string]any, error) {
+func (a *modeCountAggregator) Components() (map[string]any, error) {
 	if !a.frozenFinalized || a.frozenModeCount == 0 {
 		return nil, nil
 	}
@@ -1292,7 +1292,7 @@ var (
 	// Map-state compile-time locks.
 	_ MetaAggregator = (*distinctCountAggregator)(nil)
 	_ MetaAggregator = (*modeAggregator)(nil)
-	_ MetaAggregator = (*frequencyAggregator)(nil)
+	_ MetaAggregator = (*modeCountAggregator)(nil)
 
 	// Order-stat compile-time locks.
 	_ MetaAggregator = (*medianAggregator)(nil)

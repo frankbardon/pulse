@@ -22,7 +22,7 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_COUNT":               purposeAggCount,
 	"AGG_DISTINCT_COUNT":      purposeAggDistinctCount,
 	"AGG_DISTINCT_SUM":        purposeAggDistinctSum,
-	"AGG_FREQUENCY":           purposeAggFrequency,
+	"AGG_MODE_COUNT":          purposeAggModeCount,
 	"AGG_KURTOSIS":            purposeAggKurtosis,
 	"AGG_MAX":                 purposeAggMax,
 	"AGG_MEDIAN":              purposeAggMedian,
@@ -321,7 +321,7 @@ var (
 		Glossary: []string{"median"},
 	}
 
-	purposeAggFrequency = descriptor.Purpose{
+	purposeAggModeCount = descriptor.Purpose{
 		Plain:   "How many rows share a field's most common value, over all rows or per group.",
 		Intents: []string{IntentDescribe, IntentComposition},
 		Questions: []string{

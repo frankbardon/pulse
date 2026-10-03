@@ -126,7 +126,7 @@ func TestGroupCategory_StillAcceptsNumericField(t *testing.T) {
 }
 
 func TestNumericAggregators_RefuseSetField(t *testing.T) {
-	aggs := []types.AggregationType{types.AGG_FREQUENCY, types.AGG_MODE, types.AGG_DISTINCT_COUNT}
+	aggs := []types.AggregationType{types.AGG_MODE_COUNT, types.AGG_MODE, types.AGG_DISTINCT_COUNT}
 	for _, rung := range setRungs {
 		t.Run(rung.ft.String(), func(t *testing.T) {
 			schema := echoGuardSchema(t, rung.ft, rung.members)
@@ -144,7 +144,7 @@ func TestNumericAggregators_RefuseSetField(t *testing.T) {
 
 func TestNumericAggregators_StillAcceptNumericField(t *testing.T) {
 	schema := echoGuardSchema(t, encoding.FieldTypeSetU256, 206)
-	for _, at := range []types.AggregationType{types.AGG_FREQUENCY, types.AGG_MODE, types.AGG_DISTINCT_COUNT} {
+	for _, at := range []types.AggregationType{types.AGG_MODE_COUNT, types.AGG_MODE, types.AGG_DISTINCT_COUNT} {
 		if _, err := aggregatorRegistry[at](&types.Aggregation{Type: at, Field: "age"}, schema); err != nil {
 			t.Errorf("%s on a u8 field: %v", at, err)
 		}

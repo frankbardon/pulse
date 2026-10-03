@@ -173,7 +173,7 @@ var numericEchoOperators = []string{
 	string(types.FILTER_INCLUDE),
 	string(types.FILTER_EXCLUDE),
 	string(types.GROUP_CATEGORY),
-	string(types.AGG_FREQUENCY),
+	string(types.AGG_MODE_COUNT),
 	string(types.AGG_MODE),
 	string(types.AGG_DISTINCT_COUNT),
 }

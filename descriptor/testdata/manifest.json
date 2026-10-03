@@ -3,7 +3,7 @@
   "data": {
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
-    "feature_set_digest": "fs1:cf7578132cff82b04c1cfa53d07af731671c9e14df5611ece665b58ea4df505c",
+    "feature_set_digest": "fs1:71613ede7942fb9cf3382422f77d2c00e01f0eb55a250c410408789ae9a2da1c",
     "commands": [
       {
         "name": "process",
@@ -679,64 +679,6 @@
           ]
         },
         {
-          "name": "AGG_FREQUENCY",
-          "category": "aggregator",
-          "description": "Modal count: how many rows hold the field's most common value. Under GROUP_CATEGORY on the same field it is each group's row count.",
-          "params": null,
-          "accepts_types": [
-            "categorical_u16",
-            "categorical_u32",
-            "categorical_u8",
-            "date",
-            "datetime",
-            "decimal128",
-            "f32",
-            "f64",
-            "packed_bool",
-            "u16",
-            "u32",
-            "u4",
-            "u64",
-            "u8"
-          ],
-          "emits_type_note": "scalar float64",
-          "streamable": true,
-          "component_schema": {
-            "keys": [
-              {
-                "name": "n",
-                "type": "int",
-                "description": "Number of records aggregated (non-null inputs)."
-              },
-              {
-                "name": "n_null",
-                "type": "int",
-                "description": "Number of null inputs encountered."
-              },
-              {
-                "name": "distinct_count",
-                "type": "int",
-                "description": "Number of distinct values observed."
-              },
-              {
-                "name": "mode_value",
-                "type": "any",
-                "description": "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."
-              },
-              {
-                "name": "mode_count",
-                "type": "int",
-                "description": "Row count of the modal value."
-              }
-            ],
-            "mergeability": "partial"
-          },
-          "intents": [
-            "composition",
-            "describe"
-          ]
-        },
-        {
           "name": "AGG_KURTOSIS",
           "category": "aggregator",
           "description": "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.",
@@ -1003,6 +945,64 @@
             "mergeability": "partial"
           },
           "intents": [
+            "describe"
+          ]
+        },
+        {
+          "name": "AGG_MODE_COUNT",
+          "category": "aggregator",
+          "description": "Modal count: how many rows hold the field's most common value. Under GROUP_CATEGORY on the same field it is each group's row count.",
+          "params": null,
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "date",
+            "datetime",
+            "decimal128",
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "distinct_count",
+                "type": "int",
+                "description": "Number of distinct values observed."
+              },
+              {
+                "name": "mode_value",
+                "type": "any",
+                "description": "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."
+              },
+              {
+                "name": "mode_count",
+                "type": "int",
+                "description": "Row count of the modal value."
+              }
+            ],
+            "mergeability": "partial"
+          },
+          "intents": [
+            "composition",
             "describe"
           ]
         },
@@ -5783,7 +5783,7 @@
       },
       {
         "name": "pulse_process_chain",
-        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT and AGG_FREQUENCY. The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. AGG_MODE is rejected as non-scalar. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
+        "description": "Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT and AGG_MODE_COUNT. The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. AGG_MODE is rejected as non-scalar. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field."
       },
       {
         "name": "pulse_range_tables",
@@ -5814,12 +5814,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -5889,12 +5889,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -5964,12 +5964,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -6039,12 +6039,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -6114,12 +6114,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -6189,12 +6189,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -6264,12 +6264,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -6338,12 +6338,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -6417,12 +6417,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -6464,8 +6464,8 @@
         "compatible_aggregators": [
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_RATIO"
         ],
@@ -6502,8 +6502,8 @@
         "compatible_aggregators": [
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_RATIO"
         ],
@@ -6540,8 +6540,8 @@
         "compatible_aggregators": [
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_RATIO"
         ],
@@ -6579,10 +6579,10 @@
           "AGG_AVERAGE",
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
           "AGG_MAX",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_RATIO",
           "AGG_STDDEV",
@@ -6797,12 +6797,12 @@
           "AGG_COUNT",
           "AGG_DISTINCT_COUNT",
           "AGG_DISTINCT_SUM",
-          "AGG_FREQUENCY",
           "AGG_KURTOSIS",
           "AGG_MAX",
           "AGG_MEDIAN",
           "AGG_MIN",
           "AGG_MODE",
+          "AGG_MODE_COUNT",
           "AGG_NULL_COUNT",
           "AGG_PERCENTILE",
           "AGG_RANGE",
@@ -7005,10 +7005,6 @@
         "description": "Sum a value field once per distinct key."
       },
       {
-        "name": "op-agg-frequency",
-        "description": "Modal count — how many rows hold the field's most common value; one float64 per output row."
-      },
-      {
         "name": "op-agg-kurtosis",
         "description": "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments."
       },
@@ -7027,6 +7023,10 @@
       {
         "name": "op-agg-mode",
         "description": "Most-frequent value of the field (ties broken by the smallest value)."
+      },
+      {
+        "name": "op-agg-mode-count",
+        "description": "Modal count — how many rows hold the field's most common value; one float64 per output row."
       },
       {
         "name": "op-agg-null-count",
@@ -7990,7 +7990,7 @@
         "AGG_AVERAGE",
         "AGG_COUNT",
         "AGG_DISTINCT_COUNT",
-        "AGG_FREQUENCY",
+        "AGG_MODE_COUNT",
         "AGG_MAX",
         "AGG_MIN",
         "AGG_NULL_COUNT",
@@ -8089,7 +8089,7 @@
       ],
       "summable_aggregators": [
         "AGG_COUNT",
-        "AGG_FREQUENCY",
+        "AGG_MODE_COUNT",
         "AGG_NULL_COUNT",
         "AGG_SET_CARDINALITY_SUM",
         "AGG_SET_DISTINCT_VALUES",
@@ -8681,7 +8681,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail on df = n_i + n_j - 2; reuses the Student-t survival helper backing TEST_T). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "description": "Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail on df = n_i + n_j - 2; reuses the Student-t survival helper backing TEST_T). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
         "intents": [
           "compare_groups"
         ],
@@ -8698,7 +8698,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise pooled-SE two-proportion z-test (reuses the twoProportionZ helper backing OVERLAY_PROP_Z_CELL / TEST_PROP_Z, so p-values match byte-for-byte). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "description": "Intra-matrix axis-pairwise pooled-SE two-proportion z-test (reuses the twoProportionZ helper backing OVERLAY_PROP_Z_CELL / TEST_PROP_Z, so p-values match byte-for-byte). ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
         "intents": [
           "compare_groups"
         ],
@@ -8715,7 +8715,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WELFORD cells (normal-CDF tail, no df adjustment; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
         "intents": [
           "compare_groups"
         ],
@@ -8732,7 +8732,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. A non-weighted-mean host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "description": "Intra-matrix axis-pairwise two-means z-test on AGG_WEIGHTED_MEAN cells (normal-CDF tail; reads the weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq} from CellComponents, never the universal-floor n). params.n_basis is REQUIRED, no default: weights (var = m2/(Σw−1), n = Σw) or kish (var = m2/(Σw−Σw²/Σw), n = n_eff = (Σw)²/Σw²). A leg whose convention is undefined (weights: Σw ≤ 1; kish: all weight on one row) or a zero-SE pair skips under one aggregated PULSE_OVERLAY_REF_ZERO warning. A non-weighted-mean host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (at predict when the cell names another built-in aggregator, at runtime off the cell components). n_source and p_source are NOT accepted (PULSE_OVERLAY_PARAM_MISSING, predict and runtime); neither is a missing or unknown n_basis. The cell aggregator is mergeable, so the crosstab stays on the fused path. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
         "intents": [
           "compare_groups"
         ],
@@ -8749,7 +8749,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. ROW scope pairs row indices for each column; COLUMN scope pairs column indices for each row — the per-Request counterpart to the Compose-host OVERLAY_PROP_Z_PANEL (pairs across the host's own axis indices, not across slots). MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). Params (optional unless the kind says otherwise): pair_along_dim restricts pairs to same-bucket comparisons; n_source selects the sample-size leg — cell_n_unweighted (default), cell_value_weighted, cell_weight_sum, row_margin_n, column_margin_n, n_within, plus the DISTINCT-KEY modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell aggregator's distinct-key cardinality instead of a record count and are admitted only on an AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any other kind with PULSE_OVERLAY_PARAM_MISSING. n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
         "intents": [
           "compare_groups"
         ],
@@ -8798,7 +8798,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "COMPOSE-host MULTI-REFERENCE per-cell pairwise two-proportion z-test across the reference slot plus every target slot. CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's Value is the flattened upper-triangular slice of pairwise two-sided p-values across the panel's N + 1 slots (reference at index 0; Targets[i] at index i + 1). Slot ordering: {reference, targets[0], targets[1], ..., targets[N-1]}. Output shape — row-major upper triangle, NO diagonal: [(0,1), (0,2), ..., (0,M-1), (1,2), ..., (M-2,M-1)] for M = N + 1 slots. Slice length is M*(M-1)/2. The diagonal is implicit (every diagonal entry is 1.0) and the lower triangular is implicit (p[j,i] == p[i,j] — symmetric matrix). Math per pair: reuses the same pooled-SE two-proportion z-test formula and standardNormalCDF helper backing OVERLAY_PROP_Z_CELL and TEST_PROP_Z, so every pairwise p-value matches its corresponding single-pair output byte-for-byte. Cap enforcement: ComposeOverlaySpec.Options.MaxPanelTargets defaults to 16 — len(spec.Targets) \u003e cap fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {observed, cap} Details. Per the interview risk paragraph \"Multi-reference combinatorics\", bumping the default 16 requires an interview update; Options.MaxPanelTargets is the per-request override surface. Degenerate inputs (pooled ∈ {0, 1}, missing row margin) produce NaN at the affected pair position with one PULSE_OVERLAY_REF_ZERO warning per (cell, pair) tuple. Cells where any slot is absent surface an empty per-cell vector with one PULSE_OVERLAY_REF_ZERO warning carrying ref_missing: true. Params: the slot decodes into types.PanelOverlayParams — absent params and {} are identical to the pre-params baseline, unknown keys are tolerated, and a blob that does not decode fires PULSE_OVERLAY_PARAM_MISSING at descriptor.ValidateCompose (ComposedRequest.Overlays is the only slot this kind executes from). n_source selects where each SLOT's sample-size leg is read, once per slot at the tested coordinate, before any pairing — \"row\" therefore names each slot's own axis, never a pair axis. Three modes: row_margin_value (the default; empty means this) reads the slot's row-margin VALUE off the MatrixPayload by row key, and a missing or zero margin reads as n = 0 so each pair involving that slot is NaN with PULSE_OVERLAY_REF_ZERO (the cell value is never borrowed as n); cell_n_unweighted reads the COUNTED universal-floor \"n\" out of Response.Components.Crosstab.CellComponents[r][c] on every slot, resolved BY KEY (slots share a key SET, not an ORDER), with NO cell-value fallback — an unreadable leg skips the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index; row_margin_value_within reads the SAME payload row margin as the default but scoped to a ROW-KEY PREFIX, and carries no fallback either; row_margin_distinct_within is that leg's DISTINCT-KEY sibling, reading the slot's row margin out of Response.Components.Crosstab.RowMarginComponents as the cell aggregator's distinct-KEY cardinality rather than off the payload — a different CARRIER, which is why it is not spelled row_margin_value_distinct_within, and the mode to use when one respondent contributes several records and n must be respondents rather than rows. It is admitted UP FRONT on every slot's CELL aggregator IDENTITY, by exact component-key-set match: AGG_DISTINCT_SUM (figure on distinct_count) and AGG_DISTINCT_COUNT (on cardinality) only. AGG_FREQUENCY and AGG_MODE also emit a key literally spelled distinct_count, but theirs counts distinct VALUES of the measure field — answer codes, not respondents — so a key-presence probe would read an answer-code count as a sample size; anything else fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE naming the observed aggregator, the admitted set and the offending panel_index / slot_index / slot_label. TWO refusals are WHOLESALE rather than per slot: one unadmitted slot refuses the whole spec, and slots that are each admitted but name DIFFERENT aggregators refuse too, because AGG_DISTINCT_SUM counts keys that summed while AGG_DISTINCT_COUNT counts distinct non-null values — not the same unit, and the two legs of a pair must never be counted in different units. Dropping a slot instead would change M and with it the length and pair ordering of every cell's output vector. Admission is RUNTIME only: it classifies from materialised components, which a no-execute validator cannot see. Its null rules are the MATRIX arm's verbatim — a margin that was never emitted SKIPS the coordinate with n_missing rather than reading as a zero-sized sample. It is spelled row_margin_value_within, NOT n_within: n_within belongs to the OVERLAY_PAIRWISE_* family, where it sums CellCounts over a PAIR-axis slab at ONE fixed opposite index, while this leg sums a slot's ROW margins across ALL columns — the two differ by roughly the column count and n_within is refused here like any other unknown mode. n_within_distinct is likewise the OVERLAY_PAIRWISE_* family's spelling and is NOT accepted here: that one sums per-CELL distinct cardinalities over a PAIR-axis slab at ONE fixed opposite index, while row_margin_distinct_within reads a slot's ROW margins across ALL columns. n_within_depth (*int) is read by the within-prefix modes alone (row_margin_value_within and row_margin_distinct_within, types.PanelNSourcesUsingWithinDepth()) — the pointer is load-bearing because depth 0 is a meaningful value: omitted means the EXACT per-slot row margin with no summing, while d sums that slot's row margins over every row agreeing on the first d+1 dim positions (axisKeyPrefixEqual, the same value-stringifying comparison the MATRIX arm's RowSlabN uses). A negative depth, or a depth set alongside a mode that does not read it, fires PULSE_OVERLAY_PARAM_MISSING on BOTH arms — an inert param the caller believes is applied is a silent no-op. A depth past a slot's row-axis dim count fires the same code at RUNTIME only, naming that slot: slots may declare DIFFERENT row-axis depths, and one out-of-range slot refuses the WHOLE spec rather than dropping out, because dropping it would change M and with it the length and pair ordering of every cell's output vector. An explicit depth makes the leg a SUM ACROSS ROWS, so the summed-across row-axis dims must PARTITION the key set: a fan-out grouper on ANY slot's row axis at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED on BOTH arms for EITHER within-prefix mode (the gate keys off types.PanelNSourceUsesWithinDepth, not a narrower distinct-only predicate), naming the offender by panel_index, slot_index and slot_label, and one offending slot refuses the whole spec. A fan-out INSIDE the fixed prefix is accepted (it multiplies slabs, not cells), and an OMITTED depth is never gated because it sums nothing. Unlike the axis-pairing family, whose plain n_within is ungated because record counts are additive, the panel gates its margin leg too: a panel row margin is whatever that slot's cell aggregator emitted, so the host cannot claim additivity for it. The components requirement is MODE-SCOPED: only a counted mode gates, so the legacy default never starts refusing. A slot with components disabled, or whose response is not a crosstab, fires PULSE_OVERLAY_COMPONENTS_REQUIRED; an unresolved slot keeps the structural PULSE_OVERLAY_SLOT_NOT_CROSSTAB. row_margin_n is the OVERLAY_PAIRWISE_* family's mode name and is NOT accepted here, not even as an alias: that family reads CrosstabComponents.RowMarginCounts (a record COUNT) while this host reads a payload margin VALUE that a percentage normalization makes no count at all, so it is refused as an unknown mode. Any unknown n_source fires PULSE_OVERLAY_PARAM_MISSING naming the value and the valid set (types.PanelNSources()), on the predict arm AND the runtime twin, because pulse.Compose does not run predict. MaxPanelTargets is an Options knob, never a param, and its cap refusal fires before both params checks. Inherently buffered — inferential overlays stay buffered as a family per PRD §2 Non-Goals.",
+        "description": "COMPOSE-host MULTI-REFERENCE per-cell pairwise two-proportion z-test across the reference slot plus every target slot. CELL scope over a MATRIX (crosstab) host with MATRIX payload — each cell's Value is the flattened upper-triangular slice of pairwise two-sided p-values across the panel's N + 1 slots (reference at index 0; Targets[i] at index i + 1). Slot ordering: {reference, targets[0], targets[1], ..., targets[N-1]}. Output shape — row-major upper triangle, NO diagonal: [(0,1), (0,2), ..., (0,M-1), (1,2), ..., (M-2,M-1)] for M = N + 1 slots. Slice length is M*(M-1)/2. The diagonal is implicit (every diagonal entry is 1.0) and the lower triangular is implicit (p[j,i] == p[i,j] — symmetric matrix). Math per pair: reuses the same pooled-SE two-proportion z-test formula and standardNormalCDF helper backing OVERLAY_PROP_Z_CELL and TEST_PROP_Z, so every pairwise p-value matches its corresponding single-pair output byte-for-byte. Cap enforcement: ComposeOverlaySpec.Options.MaxPanelTargets defaults to 16 — len(spec.Targets) \u003e cap fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {observed, cap} Details. Per the interview risk paragraph \"Multi-reference combinatorics\", bumping the default 16 requires an interview update; Options.MaxPanelTargets is the per-request override surface. Degenerate inputs (pooled ∈ {0, 1}, missing row margin) produce NaN at the affected pair position with one PULSE_OVERLAY_REF_ZERO warning per (cell, pair) tuple. Cells where any slot is absent surface an empty per-cell vector with one PULSE_OVERLAY_REF_ZERO warning carrying ref_missing: true. Params: the slot decodes into types.PanelOverlayParams — absent params and {} are identical to the pre-params baseline, unknown keys are tolerated, and a blob that does not decode fires PULSE_OVERLAY_PARAM_MISSING at descriptor.ValidateCompose (ComposedRequest.Overlays is the only slot this kind executes from). n_source selects where each SLOT's sample-size leg is read, once per slot at the tested coordinate, before any pairing — \"row\" therefore names each slot's own axis, never a pair axis. Three modes: row_margin_value (the default; empty means this) reads the slot's row-margin VALUE off the MatrixPayload by row key, and a missing or zero margin reads as n = 0 so each pair involving that slot is NaN with PULSE_OVERLAY_REF_ZERO (the cell value is never borrowed as n); cell_n_unweighted reads the COUNTED universal-floor \"n\" out of Response.Components.Crosstab.CellComponents[r][c] on every slot, resolved BY KEY (slots share a key SET, not an ORDER), with NO cell-value fallback — an unreadable leg skips the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index; row_margin_value_within reads the SAME payload row margin as the default but scoped to a ROW-KEY PREFIX, and carries no fallback either; row_margin_distinct_within is that leg's DISTINCT-KEY sibling, reading the slot's row margin out of Response.Components.Crosstab.RowMarginComponents as the cell aggregator's distinct-KEY cardinality rather than off the payload — a different CARRIER, which is why it is not spelled row_margin_value_distinct_within, and the mode to use when one respondent contributes several records and n must be respondents rather than rows. It is admitted UP FRONT on every slot's CELL aggregator IDENTITY, by exact component-key-set match: AGG_DISTINCT_SUM (figure on distinct_count) and AGG_DISTINCT_COUNT (on cardinality) only. AGG_MODE_COUNT and AGG_MODE also emit a key literally spelled distinct_count, but theirs counts distinct VALUES of the measure field — answer codes, not respondents — so a key-presence probe would read an answer-code count as a sample size; anything else fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE naming the observed aggregator, the admitted set and the offending panel_index / slot_index / slot_label. TWO refusals are WHOLESALE rather than per slot: one unadmitted slot refuses the whole spec, and slots that are each admitted but name DIFFERENT aggregators refuse too, because AGG_DISTINCT_SUM counts keys that summed while AGG_DISTINCT_COUNT counts distinct non-null values — not the same unit, and the two legs of a pair must never be counted in different units. Dropping a slot instead would change M and with it the length and pair ordering of every cell's output vector. Admission is RUNTIME only: it classifies from materialised components, which a no-execute validator cannot see. Its null rules are the MATRIX arm's verbatim — a margin that was never emitted SKIPS the coordinate with n_missing rather than reading as a zero-sized sample. It is spelled row_margin_value_within, NOT n_within: n_within belongs to the OVERLAY_PAIRWISE_* family, where it sums CellCounts over a PAIR-axis slab at ONE fixed opposite index, while this leg sums a slot's ROW margins across ALL columns — the two differ by roughly the column count and n_within is refused here like any other unknown mode. n_within_distinct is likewise the OVERLAY_PAIRWISE_* family's spelling and is NOT accepted here: that one sums per-CELL distinct cardinalities over a PAIR-axis slab at ONE fixed opposite index, while row_margin_distinct_within reads a slot's ROW margins across ALL columns. n_within_depth (*int) is read by the within-prefix modes alone (row_margin_value_within and row_margin_distinct_within, types.PanelNSourcesUsingWithinDepth()) — the pointer is load-bearing because depth 0 is a meaningful value: omitted means the EXACT per-slot row margin with no summing, while d sums that slot's row margins over every row agreeing on the first d+1 dim positions (axisKeyPrefixEqual, the same value-stringifying comparison the MATRIX arm's RowSlabN uses). A negative depth, or a depth set alongside a mode that does not read it, fires PULSE_OVERLAY_PARAM_MISSING on BOTH arms — an inert param the caller believes is applied is a silent no-op. A depth past a slot's row-axis dim count fires the same code at RUNTIME only, naming that slot: slots may declare DIFFERENT row-axis depths, and one out-of-range slot refuses the WHOLE spec rather than dropping out, because dropping it would change M and with it the length and pair ordering of every cell's output vector. An explicit depth makes the leg a SUM ACROSS ROWS, so the summed-across row-axis dims must PARTITION the key set: a fan-out grouper on ANY slot's row axis at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED on BOTH arms for EITHER within-prefix mode (the gate keys off types.PanelNSourceUsesWithinDepth, not a narrower distinct-only predicate), naming the offender by panel_index, slot_index and slot_label, and one offending slot refuses the whole spec. A fan-out INSIDE the fixed prefix is accepted (it multiplies slabs, not cells), and an OMITTED depth is never gated because it sums nothing. Unlike the axis-pairing family, whose plain n_within is ungated because record counts are additive, the panel gates its margin leg too: a panel row margin is whatever that slot's cell aggregator emitted, so the host cannot claim additivity for it. The components requirement is MODE-SCOPED: only a counted mode gates, so the legacy default never starts refusing. A slot with components disabled, or whose response is not a crosstab, fires PULSE_OVERLAY_COMPONENTS_REQUIRED; an unresolved slot keeps the structural PULSE_OVERLAY_SLOT_NOT_CROSSTAB. row_margin_n is the OVERLAY_PAIRWISE_* family's mode name and is NOT accepted here, not even as an alias: that family reads CrosstabComponents.RowMarginCounts (a record COUNT) while this host reads a payload margin VALUE that a percentage normalization makes no count at all, so it is refused as an unknown mode. Any unknown n_source fires PULSE_OVERLAY_PARAM_MISSING naming the value and the valid set (types.PanelNSources()), on the predict arm AND the runtime twin, because pulse.Compose does not run predict. MaxPanelTargets is an Options knob, never a param, and its cap refusal fires before both params checks. Inherently buffered — inferential overlays stay buffered as a family per PRD §2 Non-Goals.",
         "intents": [
           "compare_groups"
         ],
@@ -9199,36 +9199,6 @@
           ],
           "mergeability": "partial"
         },
-        "AGG_FREQUENCY": {
-          "keys": [
-            {
-              "name": "n",
-              "type": "int",
-              "description": "Number of records aggregated (non-null inputs)."
-            },
-            {
-              "name": "n_null",
-              "type": "int",
-              "description": "Number of null inputs encountered."
-            },
-            {
-              "name": "distinct_count",
-              "type": "int",
-              "description": "Number of distinct values observed."
-            },
-            {
-              "name": "mode_value",
-              "type": "any",
-              "description": "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."
-            },
-            {
-              "name": "mode_count",
-              "type": "int",
-              "description": "Row count of the modal value."
-            }
-          ],
-          "mergeability": "partial"
-        },
         "AGG_KURTOSIS": {
           "keys": [
             {
@@ -9370,6 +9340,36 @@
               "name": "tie_count",
               "type": "int",
               "description": "Number of values tied with the mode at the same maximum count."
+            }
+          ],
+          "mergeability": "partial"
+        },
+        "AGG_MODE_COUNT": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "distinct_count",
+              "type": "int",
+              "description": "Number of distinct values observed."
+            },
+            {
+              "name": "mode_value",
+              "type": "any",
+              "description": "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."
+            },
+            {
+              "name": "mode_count",
+              "type": "int",
+              "description": "Row count of the modal value."
             }
           ],
           "mergeability": "partial"
@@ -10426,4 +10426,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ea7e1d3fec4ee983f8bb67f6a755458a82f172f8b5baa6cdd98f1bbba3c5eabd
+// golden-hash: d6b22fa387098e306d823b054bd6f3a999e258fb44738ec36ec1871c3ce65a9b

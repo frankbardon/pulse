@@ -90,7 +90,7 @@ const (
 	// distinct-key cardinality instead of its record count. Admitted only
 	// on an AGG_DISTINCT_SUM cell (read at "distinct_count") or an
 	// AGG_DISTINCT_COUNT cell (read at "cardinality"); every other cell
-	// aggregator is refused, because AGG_FREQUENCY and AGG_MODE spell a
+	// aggregator is refused, because AGG_MODE_COUNT and AGG_MODE spell a
 	// DISTINCT-VALUE figure with the same "distinct_count" key and reading
 	// it as a sample size is silently wrong.
 	PairwiseNSourceNWithinDistinct = "n_within_distinct"

@@ -39,11 +39,11 @@
           "1",
           "Type"
         ],
-        "reason": "Use AGG_MODE, AGG_FREQUENCY, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
+        "reason": "Use AGG_MODE, AGG_MODE_COUNT, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
         "current": "AGG_SUM",
         "proposed": [
           "AGG_DISTINCT_COUNT",
-          "AGG_FREQUENCY",
+          "AGG_MODE_COUNT",
           "AGG_MODE"
         ],
         "confidence": 0.6
@@ -151,4 +151,4 @@
     }
   ]
 }
-// golden-hash: d6a1627080e824c08edef4634896352a6f0c67de3f918eb1bc392677493d69f4
+// golden-hash: 6f2220a6b105fc958f99949009993b794c1ab8573f7adeafed79645dc0039676

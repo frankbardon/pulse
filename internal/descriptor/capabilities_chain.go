@@ -16,7 +16,7 @@ func processChainCapability() descriptor.ProcessChainCapability {
 		MaxStages: 0,
 		MergeableAggregators: []string{
 			"AGG_AVERAGE", "AGG_COUNT", "AGG_DISTINCT_COUNT",
-			"AGG_FREQUENCY", "AGG_MAX", "AGG_MIN", "AGG_NULL_COUNT",
+			"AGG_MODE_COUNT", "AGG_MAX", "AGG_MIN", "AGG_NULL_COUNT",
 			"AGG_RANGE", "AGG_STDDEV", "AGG_SUM",
 			"AGG_VARIANCE",
 		},

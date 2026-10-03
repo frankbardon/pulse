@@ -22,7 +22,7 @@
     "AGG_MAX",
     "AGG_STDDEV",
     "AGG_RANGE",
-    "AGG_FREQUENCY",
+    "AGG_MODE_COUNT",
     "AGG_ZSCORE",
     "AGG_MEDIAN",
     "AGG_VARIANCE",

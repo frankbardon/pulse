@@ -1852,7 +1852,7 @@ const (
 	// PULSE_SPSS_MEASURE_LEVEL_MISMATCH indicates an SPSS variable whose
 	// record 7/11 measurement level is `scale` carries value labels and
 	// was therefore mapped to a Pulse categorical field, whose smart
-	// defaults are AGG_FREQUENCY / GROUP_CATEGORY rather than the
+	// defaults are AGG_MODE_COUNT / GROUP_CATEGORY rather than the
 	// AGG_SUM / GROUP_RANGE the declared level implies. It is a WARNING:
 	// the mapping is lossless — every code and label is preserved — but
 	// the analytic defaults will not be the ones the source file's author

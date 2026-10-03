@@ -284,7 +284,7 @@ func (a *setIntersectionAggregator) Components() (map[string]any, error) {
 // Per-bit count: how many rows had bit i set. Rich value = map from
 // resolved label to row count, omitting labels with zero count.
 // Scalar fallback = max-bin count (highest single-label frequency),
-// mirroring AGG_FREQUENCY's float64 contract.
+// mirroring AGG_MODE_COUNT's float64 contract.
 
 type setFrequencyAggregator struct {
 	dict   *encoding.Dictionary

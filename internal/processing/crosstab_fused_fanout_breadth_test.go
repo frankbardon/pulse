@@ -256,8 +256,8 @@ func TestFusedCrosstab_FanOutCellAggregatorBreadth(t *testing.T) {
 			cell: &types.Aggregation{Type: types.AGG_DISTINCT_COUNT, Field: "value", Label: "distinct"},
 		},
 		{
-			name: "AGG_FREQUENCY",
-			cell: &types.Aggregation{Type: types.AGG_FREQUENCY, Field: "region", Label: "freq"},
+			name: "AGG_MODE_COUNT",
+			cell: &types.Aggregation{Type: types.AGG_MODE_COUNT, Field: "region", Label: "freq"},
 		},
 		{
 			name: "AGG_WEIGHTED_MEAN",

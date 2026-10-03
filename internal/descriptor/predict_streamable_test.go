@@ -500,9 +500,9 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 				wantStream: true,
 			},
 			{
-				name:       "AGG_FREQUENCY partial, no buffered flag",
-				req:        &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "score"}}},
-				wantSlot:   types.AGG_FREQUENCY,
+				name:       "AGG_MODE_COUNT partial, no buffered flag",
+				req:        &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MODE_COUNT, Field: "score"}}},
+				wantSlot:   types.AGG_MODE_COUNT,
 				wantBuf:    false,
 				wantMerge:  descriptor.Partial,
 				wantStream: true,

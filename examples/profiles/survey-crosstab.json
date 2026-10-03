@@ -11,7 +11,7 @@
     "AGG_SUM",
     "AGG_AVERAGE",
     "AGG_STDDEV",
-    "AGG_FREQUENCY",
+    "AGG_MODE_COUNT",
     "AGG_MEDIAN",
     "AGG_NULL_COUNT",
     "AGG_WEIGHTED_MEAN",

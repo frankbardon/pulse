@@ -525,10 +525,10 @@ func TestValidateChain_HiddenDefaultNotInferred(t *testing.T) {
 }
 
 // TestValidateChain_NonScalarNoteNamesOnlyOffered: the chain
-// validator admits AGG_FREQUENCY (a scalar modal count) and refuses
+// validator admits AGG_MODE_COUNT (a scalar modal count) and refuses
 // AGG_MODE with the "(AGG_MODE is excluded)" note, which names
 // AGG_MODE only because the instance offers it (the snapshot adapter's
-// Hidden) and never names AGG_FREQUENCY.
+// Hidden) and never names AGG_MODE_COUNT.
 func TestValidateChain_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 	data := buildTestPulseFile(t, hiddenPredictSchema(t))
 	chain := func(agg types.AggregationType) *types.ChainRequest {
@@ -538,12 +538,12 @@ func TestValidateChain_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 		}}}}
 	}
 	for _, opts := range []*PredictOptions{nil, {Instance: hideOnly(string(types.AGG_MODE))}} {
-		if env := ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_FREQUENCY), opts); len(env.Errors) != 0 {
-			t.Fatalf("validator refused AGG_FREQUENCY: %s", hiddenEnvJSON(t, env))
+		if env := ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_MODE_COUNT), opts); len(env.Errors) != 0 {
+			t.Fatalf("validator refused AGG_MODE_COUNT: %s", hiddenEnvJSON(t, env))
 		}
 	}
 	got := hiddenEnvJSON(t, ValidateChainWithOptions(bytes.NewReader(data), chain(types.AGG_MODE), nil))
-	if !strings.Contains(got, "(AGG_MODE is excluded)") || strings.Contains(got, "AGG_FREQUENCY") {
+	if !strings.Contains(got, "(AGG_MODE is excluded)") || strings.Contains(got, "AGG_MODE_COUNT") {
 		t.Fatalf("unscoped AGG_MODE refusal = %s", got)
 	}
 }

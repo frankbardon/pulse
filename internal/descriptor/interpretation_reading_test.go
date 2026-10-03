@@ -22,7 +22,7 @@ func TestValueOutputPath(t *testing.T) {
 		{"ATTR_ZSCORE", "value", FieldStatic},
 		{"WIN_RANK", "value", FieldStatic},
 		{"FEAT_LOG", "value", FieldStatic},
-		{"AGG_FREQUENCY", "value", FieldStatic},
+		{"AGG_MODE_COUNT", "value", FieldStatic},
 		{"AGG_SET_UNION", "value", FieldStatic},
 		// multi-column
 		{"AGG_WELFORD", "value.*", FieldStatic},
@@ -80,7 +80,7 @@ func TestValueOutputPath(t *testing.T) {
 
 // TestMultiColumnOutputs pins the multi-column set: exactly these
 // value-path operators read as `value.*`, each with the provenance of
-// its shape. AGG_FREQUENCY is single-column at run time (no Rich
+// its shape. AGG_MODE_COUNT is single-column at run time (no Rich
 // payload) and AGG_SET_UNION / _INTERSECTION emit one label list.
 func TestMultiColumnOutputs(t *testing.T) {
 	want := []string{"AGG_SET_FREQUENCY", "AGG_WELFORD", "FEAT_DATE_FEATURES", "FEAT_ONE_HOT", "FEAT_POLY"}

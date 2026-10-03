@@ -409,7 +409,7 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		types.AGG_MAX:            num(),
 		types.AGG_STDDEV:         num(),
 		types.AGG_RANGE:          num(),
-		types.AGG_FREQUENCY:      num(),
+		types.AGG_MODE_COUNT:     num(),
 		types.AGG_ZSCORE:         num(),
 		types.AGG_MEDIAN:         num(),
 		types.AGG_VARIANCE:       num(),

@@ -68,7 +68,7 @@ Decimal divide-by-zero raises `PULSE_DECIMAL_DIVIDE_BY_ZERO`. No NaN, no infinit
 | `AGG_STDDEV` | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback) |
 | `AGG_COUNT` / `AGG_DISTINCT_COUNT` | int |
 
-**v1 not supported** on decimal: `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_MODE`, `AGG_FREQUENCY`, `AGG_RANGE`. Predict raises `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`. Registered extension aggregators are exempt (exact values via `DecimalValue`).
+**v1 not supported** on decimal: `AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`, `AGG_SKEWNESS`, `AGG_KURTOSIS`, `AGG_MODE`, `AGG_MODE_COUNT`, `AGG_RANGE`. Predict raises `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`. Registered extension aggregators are exempt (exact values via `DecimalValue`).
 
 ## Precision-loss path on AGG_AVERAGE
 

@@ -70,7 +70,7 @@ func TestChainGate_ValidatorMatchesRuntime(t *testing.T) {
 		{"no aggregator", chain(&types.Request{Groups: region}), "no aggregator", 0},
 		{"non-mergeable aggregator", chain(&types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "qty"}}}), "aggregator AGG_MEDIAN is not mergeable", 0},
 		{"non-scalar on a later stage", chain(ok0, &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MODE, Field: "region"}}, Groups: region}), "non-scalar", 1},
-		{"frequency on a later stage", chain(ok0, &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "region"}}, Groups: region}), "", 0},
+		{"frequency on a later stage", chain(ok0, &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MODE_COUNT, Field: "region"}}, Groups: region}), "", 0},
 		{"two-pass attribute", chain(&types.Request{Aggregations: sum("qty"), Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "qty", Label: "z"}}}), "attribute ATTR_ZSCORE is not row-local", 0},
 		{"non-mergeable grouper", chain(&types.Request{Aggregations: sum("qty"), Groups: []*types.Group{{Type: types.GROUP_QUANTILE, Field: "qty"}}}), "grouper GROUP_QUANTILE is not mergeable", 0},
 		{"windows", chain(&types.Request{Aggregations: sum("qty"), Windows: []*types.Window{{Type: types.WIN_LAG, Field: "qty"}}}), "windows, features", 0},

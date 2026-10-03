@@ -85,9 +85,9 @@ before running the request. Predict reports the inferred slot under
 | Field type | Default aggregation | Default grouper |
 |---|---|---|
 | `u4`, `u8`..`u64`, `f32`, `f64`, `decimal128` | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
-| `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `categorical_u8`/`u16`/`u32` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 | `date` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
-| `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 
 The `Nullable` flag on a field never changes its default operator — it
 only controls per-record null-bitmap participation.
@@ -142,7 +142,7 @@ pulse api predict --request req.json --json | \
 
 | Code | What to do |
 |---|---|
-| `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | Use `AGG_COUNT` / `AGG_FREQUENCY` instead of `AGG_SUM` / `AGG_AVG` on categoricals |
+| `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | Use `AGG_COUNT` / `AGG_MODE_COUNT` instead of `AGG_SUM` / `AGG_AVG` on categoricals |
 | `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`     | Decimal-typed field; switch to a decimal-aware aggregator |
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
 | `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | Every `FEAT_TARGET_ENCODE` averages all rows' targets (a prior split does not help); compute train-only means in a separate request |

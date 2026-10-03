@@ -113,7 +113,7 @@ func pairwiseDescription(test string) string {
 		"modes n_within_distinct, row_margin_distinct and column_margin_distinct, which read the cell " +
 		"aggregator's distinct-key cardinality instead of a record count and are admitted only on an " +
 		"AGG_DISTINCT_SUM (distinct_count) or AGG_DISTINCT_COUNT (cardinality) cell, every other cell " +
-		"aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_FREQUENCY " +
+		"aggregator being refused up front with PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE because AGG_MODE_COUNT " +
 		"and AGG_MODE spell a distinct-VALUE figure with the same distinct_count key; n_within_depth pins the " +
 		"within-group denominator for n_within / n_within_distinct; p_source picks percentage vs proportion " +
 		"cell values; n_basis is read only by OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z, and predict refuses it on any " +
@@ -1116,7 +1116,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"row_margin_value_distinct_within, and the mode to use when one respondent contributes several records and n " +
 				"must be respondents rather than rows. It is admitted UP FRONT on every slot's CELL aggregator IDENTITY, by " +
 				"exact component-key-set match: AGG_DISTINCT_SUM (figure on distinct_count) and AGG_DISTINCT_COUNT (on " +
-				"cardinality) only. AGG_FREQUENCY and AGG_MODE also emit a key literally spelled distinct_count, but theirs " +
+				"cardinality) only. AGG_MODE_COUNT and AGG_MODE also emit a key literally spelled distinct_count, but theirs " +
 				"counts distinct VALUES of the measure field — answer codes, not respondents — so a key-presence probe would " +
 				"read an answer-code count as a sample size; anything else fires " +
 				"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE naming the observed aggregator, the admitted set and the offending " +

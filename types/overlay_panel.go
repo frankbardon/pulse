@@ -184,7 +184,7 @@ const (
 	// ADMISSION. The figure exists only for a cell aggregator that
 	// counts distinct KEYS, and only two do: AGG_DISTINCT_SUM (on
 	// component key `distinct_count`) and AGG_DISTINCT_COUNT (on
-	// `cardinality`). AGG_FREQUENCY and AGG_MODE also emit a key
+	// `cardinality`). AGG_MODE_COUNT and AGG_MODE also emit a key
 	// literally spelled `distinct_count`, but theirs counts distinct
 	// VALUES of the measure field — answer codes, not respondents —
 	// so admission is by EXACT aggregator-identity signature, never by

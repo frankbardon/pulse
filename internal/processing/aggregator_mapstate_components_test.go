@@ -107,7 +107,7 @@ func TestMetaAggregator_MapStateOps_Components(t *testing.T) {
 			}},
 		},
 
-		// -------- AGG_FREQUENCY --------
+		// -------- AGG_MODE_COUNT --------
 		//
 		// Empty: no modal value — return (nil, nil) so the universal
 		// floor's n=0 is the sole component channel. mode_value uses
@@ -115,13 +115,13 @@ func TestMetaAggregator_MapStateOps_Components(t *testing.T) {
 		// aggregators agree on the winner over the same input set.
 		{
 			name:    "FREQUENCY_empty",
-			aggType: types.AGG_FREQUENCY,
+			aggType: types.AGG_MODE_COUNT,
 			records: makeRecs([]float64{}),
 			want:    expectation{n: 0, nNull: 0, operator: nil},
 		},
 		{
 			name:    "FREQUENCY_singleDistinct",
-			aggType: types.AGG_FREQUENCY,
+			aggType: types.AGG_MODE_COUNT,
 			records: makeRecs([]float64{9, 9, 9, 9}),
 			want: expectation{n: 4, nNull: 0, operator: map[string]any{
 				"distinct_count": 1,
@@ -131,7 +131,7 @@ func TestMetaAggregator_MapStateOps_Components(t *testing.T) {
 		},
 		{
 			name:    "FREQUENCY_tieMode",
-			aggType: types.AGG_FREQUENCY,
+			aggType: types.AGG_MODE_COUNT,
 			records: makeRecs([]float64{1, 1, 2, 2, 3}),
 			want: expectation{n: 5, nNull: 0, operator: map[string]any{
 				"distinct_count": 3,
@@ -141,7 +141,7 @@ func TestMetaAggregator_MapStateOps_Components(t *testing.T) {
 		},
 		{
 			name:    "FREQUENCY_fullUnique",
-			aggType: types.AGG_FREQUENCY,
+			aggType: types.AGG_MODE_COUNT,
 			records: makeRecs([]float64{10, 20, 30, 40, 50}),
 			want: expectation{n: 5, nNull: 0, operator: map[string]any{
 				"distinct_count": 5,
@@ -204,7 +204,7 @@ func TestMetaAggregator_MapStateOps_StreamingEmits(t *testing.T) {
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_DISTINCT_COUNT, Field: "score", Label: "card"},
 			{Type: types.AGG_MODE, Field: "score", Label: "mode"},
-			{Type: types.AGG_FREQUENCY, Field: "score", Label: "freq"},
+			{Type: types.AGG_MODE_COUNT, Field: "score", Label: "freq"},
 		},
 	}
 	proc := NewProcessor(schema)
@@ -228,7 +228,7 @@ func TestMetaAggregator_MapStateOps_StreamingEmits(t *testing.T) {
 		// AGG_MODE — 10 and 20 tie at count=2; 10 wins on smallest-
 		// value tie-break. tie_count = 2 (10 and 20).
 		{"value": 10.0, "count": 2, "distinct_count": 3, "tie_count": 2},
-		// AGG_FREQUENCY — same map; mode_value matches AGG_MODE's
+		// AGG_MODE_COUNT — same map; mode_value matches AGG_MODE's
 		// winner; mode_count = 2; distinct_count = 3.
 		{"distinct_count": 3, "mode_value": 10.0, "mode_count": 2},
 	}

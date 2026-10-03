@@ -181,7 +181,7 @@ func runPairwiseOverlay(spec *types.OverlaySpec, host *CrosstabHostView, kernel 
 	}
 
 	// Distinct-key n admission — refused UP FRONT, on the cell
-	// aggregator's IDENTITY, never per pair. AGG_FREQUENCY and AGG_MODE
+	// aggregator's IDENTITY, never per pair. AGG_MODE_COUNT and AGG_MODE
 	// both emit a component literally spelled "distinct_count" that
 	// counts distinct VALUES OF THE MEASURE FIELD; only
 	// AGG_DISTINCT_SUM's means distinct KEYS, and AGG_DISTINCT_COUNT

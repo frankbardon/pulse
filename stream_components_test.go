@@ -266,13 +266,13 @@ func TestChunkComponents_NilBufferedPassesThrough(t *testing.T) {
 
 // TestAggMergeabilityVector_AlignsWithCapabilityTable pins the lookup
 // helper against the descriptor capability table. AGG_SUM is
-// Mergeable, AGG_FREQUENCY is Partial, AGG_MEDIAN is None — the
+// Mergeable, AGG_MODE_COUNT is Partial, AGG_MEDIAN is None — the
 // vector must reflect those three classes in slot order.
 func TestAggMergeabilityVector_AlignsWithCapabilityTable(t *testing.T) {
 	req := &Request{
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "x"},
-			{Type: types.AGG_FREQUENCY, Field: "y"},
+			{Type: types.AGG_MODE_COUNT, Field: "y"},
 			{Type: types.AGG_MEDIAN, Field: "z"},
 		},
 	}

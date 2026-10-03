@@ -30,7 +30,7 @@ An explicit depth SUMS across rows, so they must partition the key set. A fan-ou
 
 ## Admission (distinct mode)
 
-`row_margin_distinct_within` is admitted UP FRONT, per slot, on the cell aggregator's EXACT identity signature — `AGG_DISTINCT_SUM` (`distinct_count`) and `AGG_DISTINCT_COUNT` (`cardinality`) only. `AGG_FREQUENCY` / `AGG_MODE` also emit a key spelled `distinct_count`, but theirs counts distinct answer CODES, so presence is never the test. Anything else ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator + admitted set + `panel_index`/`slot_index`/`slot_label`. RUNTIME only — predict cannot see materialised components.
+`row_margin_distinct_within` is admitted UP FRONT, per slot, on the cell aggregator's EXACT identity signature — `AGG_DISTINCT_SUM` (`distinct_count`) and `AGG_DISTINCT_COUNT` (`cardinality`) only. `AGG_MODE_COUNT` / `AGG_MODE` also emit a key spelled `distinct_count`, but theirs counts distinct answer CODES, so presence is never the test. Anything else ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator + admitted set + `panel_index`/`slot_index`/`slot_label`. RUNTIME only — predict cannot see materialised components.
 
 Two WHOLESALE refusals, never a per-slot drop (dropping changes `M`): one unadmitted slot, AND slots that are each admitted but name DIFFERENT aggregators — keys-that-summed vs distinct non-null values are not the same UNIT, and a pair's two legs must never be counted in different units.
 

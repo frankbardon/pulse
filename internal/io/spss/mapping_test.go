@@ -900,11 +900,11 @@ func TestMapping_MeasureLevelHints(t *testing.T) {
 		group types.GroupType
 		ft    encoding.FieldType
 	}{
-		{"NOM", types.AGG_FREQUENCY, types.GROUP_CATEGORY, encoding.FieldTypeF64},
-		{"ORD", types.AGG_FREQUENCY, types.GROUP_CATEGORY, encoding.FieldTypeF64},
+		{"NOM", types.AGG_MODE_COUNT, types.GROUP_CATEGORY, encoding.FieldTypeF64},
+		{"ORD", types.AGG_MODE_COUNT, types.GROUP_CATEGORY, encoding.FieldTypeF64},
 		{"SCA", types.AGG_SUM, types.GROUP_RANGE, encoding.FieldTypeF64},
 		{"UNSET", types.AGG_SUM, types.GROUP_RANGE, encoding.FieldTypeF64},
-		{"UNSETCAT", types.AGG_FREQUENCY, types.GROUP_CATEGORY, encoding.FieldTypeCategoricalU8},
+		{"UNSETCAT", types.AGG_MODE_COUNT, types.GROUP_CATEGORY, encoding.FieldTypeCategoricalU8},
 	}
 	for _, c := range cases {
 		col := columnOf(t, r, c.name)

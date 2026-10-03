@@ -95,11 +95,11 @@ func TestChainRefusal(t *testing.T) {
 	if err := ChainRefusal(ok, decSchema(), nil, 0, "s0"); err != nil {
 		t.Fatalf("refused a mergeable stage: %v", err)
 	}
-	// AGG_FREQUENCY emits the modal count (one float64) and merges
+	// AGG_MODE_COUNT emits the modal count (one float64) and merges
 	// exactly, so a chain stage may use it.
-	freq := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "n"}}}
+	freq := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MODE_COUNT, Field: "n"}}}
 	if err := ChainRefusal(freq, nil, nil, 1, "s1"); err != nil {
-		t.Fatalf("refused AGG_FREQUENCY: %v", err)
+		t.Fatalf("refused AGG_MODE_COUNT: %v", err)
 	}
 	for _, tc := range []struct {
 		name   string
@@ -194,7 +194,7 @@ func (h hidingExt) Hidden(n string) bool { return h.hidden[n] }
 // TestChainRefusal_NonScalarNoteNamesOnlyOffered: the chain refusal's
 // excluded-aggregator parenthetical names only aggregators the adapter
 // does not hide; an adapter without Hidden names every one. It never
-// names AGG_FREQUENCY, which the gate admits.
+// names AGG_MODE_COUNT, which the gate admits.
 func TestChainRefusal_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 	req := func(t types.AggregationType) *types.Request {
 		return &types.Request{Aggregations: []*types.Aggregation{{Type: t, Field: "x"}}}
@@ -207,7 +207,7 @@ func TestChainRefusal_NonScalarNoteNamesOnlyOffered(t *testing.T) {
 	}{
 		{"unscoped", None{}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
 		{"nothing hidden", hidingExt{}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
-		{"frequency hidden", hidingExt{hidden: map[string]bool{"AGG_FREQUENCY": true}}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
+		{"frequency hidden", hidingExt{hidden: map[string]bool{"AGG_MODE_COUNT": true}}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
 	}
 	for _, tc := range cases {
 		err := ChainRefusal(req(tc.agg), nil, tc.ext, 1, "s")

@@ -343,7 +343,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 			),
 		},
 		{
-			Name:          string(types.AGG_FREQUENCY),
+			Name:          string(types.AGG_MODE_COUNT),
 			Category:      "aggregator",
 			Description:   "Modal count: how many rows hold the field's most common value. Under GROUP_CATEGORY on the same field it is each group's row count.",
 			AcceptsTypes:  nonSetFieldTypes,

@@ -92,7 +92,7 @@ package spss
 // # Measure level
 //
 // Record 7/11's measurement level feeds the smart-default HINTS
-// (nominal/ordinal → AGG_FREQUENCY + GROUP_CATEGORY, scale → AGG_SUM +
+// (nominal/ordinal → AGG_MODE_COUNT + GROUP_CATEGORY, scale → AGG_SUM +
 // GROUP_RANGE) recorded on each column for the sidecar. It deliberately
 // does not select a field type: it is optional metadata that plenty of
 // files omit, and letting it steer typing would make two otherwise
@@ -944,7 +944,7 @@ func (m *mapping) resolveColumn(at int, v variable, kind columnKind,
 		}
 		m.warn(errors.PULSE_SPSS_MEASURE_LEVEL_MISMATCH, v,
 			"the variable declares measurement level scale but %s, so it maps to %s; its Pulse smart defaults will be %s / %s rather than the AGG_SUM / GROUP_RANGE the declared level implies",
-			what, col.fieldType, types.AGG_FREQUENCY, types.GROUP_CATEGORY)
+			what, col.fieldType, types.AGG_MODE_COUNT, types.GROUP_CATEGORY)
 	}
 	return col, nil
 }
@@ -1112,13 +1112,13 @@ func addCategory(col *columnMapping, index map[string]int,
 func defaultHints(ft encoding.FieldType, m measureLevel) (types.AggregationType, types.GroupType) {
 	switch m {
 	case measureNominal, measureOrdinal:
-		return types.AGG_FREQUENCY, types.GROUP_CATEGORY
+		return types.AGG_MODE_COUNT, types.GROUP_CATEGORY
 	case measureScale:
 		return types.AGG_SUM, types.GROUP_RANGE
 	}
 	switch {
 	case ft.IsCategorical():
-		return types.AGG_FREQUENCY, types.GROUP_CATEGORY
+		return types.AGG_MODE_COUNT, types.GROUP_CATEGORY
 	case ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime:
 		return "", types.GROUP_DATE
 	default:

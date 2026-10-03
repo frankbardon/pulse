@@ -37,9 +37,9 @@ var defaultRules = map[encoding.FieldType]defaultRule{
 	encoding.FieldTypeDecimal128: {Agg: types.AGG_SUM, Group: types.GROUP_RANGE, FamilyTag: "numeric default"},
 
 	// Categorical fields: FREQUENCY tallies values, CATEGORY partitions by them.
-	encoding.FieldTypeCategoricalU8:  {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "categorical default"},
-	encoding.FieldTypeCategoricalU16: {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "categorical default"},
-	encoding.FieldTypeCategoricalU32: {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "categorical default"},
+	encoding.FieldTypeCategoricalU8:  {Agg: types.AGG_MODE_COUNT, Group: types.GROUP_CATEGORY, FamilyTag: "categorical default"},
+	encoding.FieldTypeCategoricalU16: {Agg: types.AGG_MODE_COUNT, Group: types.GROUP_CATEGORY, FamilyTag: "categorical default"},
+	encoding.FieldTypeCategoricalU32: {Agg: types.AGG_MODE_COUNT, Group: types.GROUP_CATEGORY, FamilyTag: "categorical default"},
 
 	// Date: no aggregation default (must be explicit); GROUP_DATE (day bucket).
 	encoding.FieldTypeDate: {Agg: "", Group: types.GROUP_DATE, FamilyTag: "date default"},
@@ -51,7 +51,7 @@ var defaultRules = map[encoding.FieldType]defaultRule{
 	encoding.FieldTypeDateTime: {Agg: "", Group: types.GROUP_DATE, FamilyTag: "datetime default"},
 
 	// Booleans (single-bit): treated as categorical for defaulting.
-	encoding.FieldTypePackedBool: {Agg: types.AGG_FREQUENCY, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
+	encoding.FieldTypePackedBool: {Agg: types.AGG_MODE_COUNT, Group: types.GROUP_CATEGORY, FamilyTag: "boolean default"},
 
 	// Set bitmasks: survey-friendly defaults — per-bit row counts plus
 	// per-element fan-out so the typical question "respondents per

@@ -172,7 +172,7 @@ func appendTypoSuggestions(out []descriptor.Suggestion, req *types.Request, sche
 // appendOperatorTypeSuggestions proposes alternative operators when the
 // supplied operator is incompatible with the field's schema type:
 //
-//   - Numeric aggregation on a categorical field → AGG_MODE, AGG_FREQUENCY,
+//   - Numeric aggregation on a categorical field → AGG_MODE, AGG_MODE_COUNT,
 //     AGG_DISTINCT_COUNT (alphabetical order; confidence 0.6 multi-candidate).
 //   - Aggregation on a decimal field that is not on the decimal-supported
 //     list → the supported aggregations for that field type
@@ -194,7 +194,7 @@ func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Reque
 		case f.Type.IsCategorical() && numericAggregations[route]:
 			proposed := visibleOperators(inst,
 				types.AGG_DISTINCT_COUNT,
-				types.AGG_FREQUENCY,
+				types.AGG_MODE_COUNT,
 				types.AGG_MODE,
 			)
 			out = append(out, descriptor.Suggestion{

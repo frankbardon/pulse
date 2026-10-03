@@ -78,7 +78,7 @@ func TestShardArchiveProcessParallel(t *testing.T) {
 		{"min", &types.Aggregation{Type: types.AGG_MIN, Field: "score", Label: "v"}, 10, false},
 		{"max", &types.Aggregation{Type: types.AGG_MAX, Field: "score", Label: "v"}, 160, false},
 		{"null_count", &types.Aggregation{Type: types.AGG_NULL_COUNT, Field: "score", Label: "v"}, 0, false},
-		{"frequency", &types.Aggregation{Type: types.AGG_FREQUENCY, Field: "score", Label: "v"}, 1, false},
+		{"frequency", &types.Aggregation{Type: types.AGG_MODE_COUNT, Field: "score", Label: "v"}, 1, false},
 		{"average", &types.Aggregation{Type: types.AGG_AVERAGE, Field: "score", Label: "v"}, 85, true},
 	}
 

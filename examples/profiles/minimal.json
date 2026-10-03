@@ -8,7 +8,7 @@
     "AGG_AVERAGE",
     "AGG_MIN",
     "AGG_MAX",
-    "AGG_FREQUENCY",
+    "AGG_MODE_COUNT",
     "GROUP_CATEGORY",
     "GROUP_DATE",
     "GROUP_RANGE"

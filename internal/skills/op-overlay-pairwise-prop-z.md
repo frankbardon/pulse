@@ -29,7 +29,7 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 - RAW p-values only — direction, thresholds and min-n flags are the embedder's job.
 - Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.
 - **`p_source` mismatch fails silently and totally.** `cell_value` over a real 0..100 percentage drives pooled p outside `[0,1]`, so EVERY pair skips and the layer returns empty.
-- **The three distinct-KEY n modes are admitted only on an `AGG_DISTINCT_SUM` or `AGG_DISTINCT_COUNT` cell** — `AGG_FREQUENCY` / `AGG_MODE` spell a `distinct_count` too, but theirs counts answer codes. `n_within_distinct` additionally refuses a fan-out grouper at a summed-across depth (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, predict AND runtime); the margin modes are exact by construction and never gated. Null rules and the direct-caller bypass: `pairwise-n-sources`.
+- **The three distinct-KEY n modes are admitted only on an `AGG_DISTINCT_SUM` or `AGG_DISTINCT_COUNT` cell** — `AGG_MODE_COUNT` / `AGG_MODE` spell a `distinct_count` too, but theirs counts answer codes. `n_within_distinct` additionally refuses a fan-out grouper at a summed-across depth (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, predict AND runtime); the margin modes are exact by construction and never gated. Null rules and the direct-caller bypass: `pairwise-n-sources`.
 - Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (`AGG_WEIGHTED_MEAN`, including over a `GROUP_SET_PER_ELEMENT` axis).
 
 ## See

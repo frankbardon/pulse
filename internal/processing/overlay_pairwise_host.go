@@ -329,7 +329,7 @@ func componentToFloat(v any) (float64, bool) {
 //	AGG_DISTINCT_SUM   -> "distinct_count" (distinct keys that summed)
 //	AGG_DISTINCT_COUNT -> "cardinality"    (distinct non-null values)
 //
-// AGG_FREQUENCY and AGG_MODE also emit a key literally spelled
+// AGG_MODE_COUNT and AGG_MODE also emit a key literally spelled
 // "distinct_count", but theirs counts distinct VALUES OF THE MEASURE
 // FIELD — the number of answer codes, not respondents. Reading it as a
 // sample size is the silent wrong number this mode exists to remove, so
@@ -365,7 +365,7 @@ func PairwiseDistinctNAdmitted() []types.AggregationType {
 //
 //	AGG_DISTINCT_COUNT {cardinality}
 //	AGG_DISTINCT_SUM   {sum, distinct_count}
-//	AGG_FREQUENCY      {distinct_count, mode_value, mode_count}
+//	AGG_MODE_COUNT      {distinct_count, mode_value, mode_count}
 //	AGG_MODE           {value, count, distinct_count, tie_count}
 //
 // The restatement exists because the capability table is descriptor's
@@ -390,7 +390,7 @@ var cellAggregatorIdentitySignatures = []struct {
 }{
 	{types.AGG_DISTINCT_COUNT, []string{"cardinality"}},
 	{types.AGG_DISTINCT_SUM, []string{"sum", "distinct_count"}},
-	{types.AGG_FREQUENCY, []string{"distinct_count", "mode_value", "mode_count"}},
+	{types.AGG_MODE_COUNT, []string{"distinct_count", "mode_value", "mode_count"}},
 	{types.AGG_MODE, []string{"distinct_count", "value", "count", "tie_count"}},
 }
 

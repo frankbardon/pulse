@@ -91,10 +91,10 @@ When a request slot names a field but omits `Type`, engine infers from schema ty
 | Field type | Default aggregation | Default grouper |
 |---|---|---|
 | numeric (u4/u8/u16/u32/u64, f32/f64, decimal128) | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
-| categorical_* | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| categorical_* | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 | `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
 | `datetime` | (explicit only) | `GROUP_DATE` (`"day"`) |
-| `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 
 `Field.Nullable` orthogonal — never changes inferred operator. Defaults apply only when `Field` set and `Type` empty; never override explicit `Type`; never cross categories; never default tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
 

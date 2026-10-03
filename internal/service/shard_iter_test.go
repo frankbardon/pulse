@@ -208,7 +208,7 @@ func TestShardArchiveProcessSums(t *testing.T) {
 	}
 }
 
-// TestShardArchiveProcess_Frequency confirms AGG_FREQUENCY accumulates
+// TestShardArchiveProcess_Frequency confirms AGG_MODE_COUNT accumulates
 // dict-string counts across shards identically to the concatenated
 // cohort.
 func TestShardArchiveProcess_Frequency(t *testing.T) {
@@ -244,7 +244,7 @@ func TestShardArchiveProcess_Frequency(t *testing.T) {
 		return &types.Request{
 			Cohort: &types.Cohort{Filename: filename},
 			Aggregations: []*types.Aggregation{
-				{Type: types.AGG_FREQUENCY, Field: "color", Label: "freq"},
+				{Type: types.AGG_MODE_COUNT, Field: "color", Label: "freq"},
 			},
 		}
 	}
@@ -256,16 +256,16 @@ func TestShardArchiveProcess_Frequency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Process concat: %v", err)
 	}
-	// AGG_FREQUENCY returns the count of the most-frequent value.
+	// AGG_MODE_COUNT returns the count of the most-frequent value.
 	// Across 6 rows (red=3, green=2, blue=1) the answer is 3 — and
 	// must equal the concatenated single-file result byte-equal.
 	a, _ := respA.Data[0]["freq"].(float64)
 	b, _ := respB.Data[0]["freq"].(float64)
 	if a != b {
-		t.Errorf("AGG_FREQUENCY: archive=%v concat=%v", a, b)
+		t.Errorf("AGG_MODE_COUNT: archive=%v concat=%v", a, b)
 	}
 	if a != 3 {
-		t.Errorf("AGG_FREQUENCY = %v, want 3", a)
+		t.Errorf("AGG_MODE_COUNT = %v, want 3", a)
 	}
 }
 

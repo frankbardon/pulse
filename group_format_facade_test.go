@@ -96,7 +96,7 @@ func TestGroupedCohort_FacadeParity(t *testing.T) {
 		formatProbe{"ProcessMembers", func(p *Pulse, _ afero.Fs) (any, error) { return p.Process(ctx, memberReq()) }},
 		formatProbe{"ProcessMembersNoProjection", func(p *Pulse, _ afero.Fs) (any, error) {
 			r := memberReq()
-			r.Aggregations = append(r.Aggregations, &types.Aggregation{Type: types.AGG_FREQUENCY, Field: "parent_code"})
+			r.Aggregations = append(r.Aggregations, &types.Aggregation{Type: types.AGG_MODE_COUNT, Field: "parent_code"})
 			return p.Process(ctx, r)
 		}},
 		formatProbe{"ExportSPSS", func(p *Pulse, _ afero.Fs) (any, error) {

@@ -8,13 +8,13 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// AGG_FREQUENCY's contract: ONE float64 per output row — the modal
+// AGG_MODE_COUNT's contract: ONE float64 per output row — the modal
 // count (rows holding the most common value) — never a per-value map.
 // Components add distinct_count, mode_value (smallest value wins a
 // tie, as AGG_MODE) and mode_count. These tests pin the scalar, the
 // tie-break, buffered == streaming, the exact MergeOnline fold, and
 // the categorical smart-default pairing (GROUP_CATEGORY on X +
-// AGG_FREQUENCY on X yields each group's row count).
+// AGG_MODE_COUNT on X yields each group's row count).
 
 // brand codes in categoricalSchema(): Apple=0, Samsung=1, Google=2.
 func frequencyRecords(codes []float64) []*Record {
@@ -24,7 +24,7 @@ func frequencyRecords(codes []float64) []*Record {
 func frequencyRequest(groups ...*types.Group) *types.Request {
 	return &types.Request{
 		Groups:       groups,
-		Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "brand", Label: "freq"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_MODE_COUNT, Field: "brand", Label: "freq"}},
 	}
 }
 
@@ -79,7 +79,7 @@ func TestAggFrequency_ScalarIsModalCount_BufferedEqualsStreaming(t *testing.T) {
 }
 
 // TestAggFrequency_GroupedBySameFieldIsRowCount: the categorical smart
-// default pairs GROUP_CATEGORY and AGG_FREQUENCY on one field; each
+// default pairs GROUP_CATEGORY and AGG_MODE_COUNT on one field; each
 // group then holds a single value, so the modal count is the group's
 // row count.
 func TestAggFrequency_GroupedBySameFieldIsRowCount(t *testing.T) {
@@ -114,7 +114,7 @@ func TestAggFrequency_MergeOnlineEqualsSerial(t *testing.T) {
 	right := frequencyRecords([]float64{1, 1, 2, 2})
 	all := append(append([]*Record{}, left...), right...)
 
-	serial := makeAggregator(t, types.AGG_FREQUENCY, "brand", schema)
+	serial := makeAggregator(t, types.AGG_MODE_COUNT, "brand", schema)
 	wantScalar, err := serial.Aggregate(all, "brand")
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestAggFrequency_MergeOnlineEqualsSerial(t *testing.T) {
 	wantOp, _ := serial.(MetaAggregator).Components()
 
 	partial := func(recs []*Record) MergeableAggregator {
-		a := makeAggregator(t, types.AGG_FREQUENCY, "brand", schema).(MergeableAggregator)
+		a := makeAggregator(t, types.AGG_MODE_COUNT, "brand", schema).(MergeableAggregator)
 		for _, r := range recs {
 			if err := a.UpdateRow(r, "brand"); err != nil {
 				t.Fatal(err)

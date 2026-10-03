@@ -511,8 +511,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceOperator,
 				Path:     []string{"Aggregations", "*", "Type"},
-				Hint:     "Use AGG_MODE, AGG_FREQUENCY, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
-				Examples: []any{"AGG_MODE", "AGG_FREQUENCY", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
+				Hint:     "Use AGG_MODE, AGG_MODE_COUNT, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
+				Examples: []any{"AGG_MODE", "AGG_MODE_COUNT", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
 			},
 			{
 				Action: FixupReplaceField,
@@ -2585,7 +2585,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Groupers"},
-				Hint:   "Work from the constituents, which are all present. Each is an ordinary column, so GROUP_CATEGORY / AGG_FREQUENCY per constituent gives the same per-option counts a GROUP_SET_PER_ELEMENT fan-out over the derived column would have, one request slot per option instead of one.",
+				Hint:   "Work from the constituents, which are all present. Each is an ordinary column, so GROUP_CATEGORY / AGG_MODE_COUNT per constituent gives the same per-option counts a GROUP_SET_PER_ELEMENT fan-out over the derived column would have, one request slot per option instead of one.",
 			},
 			{
 				Action: FixupReplaceField,

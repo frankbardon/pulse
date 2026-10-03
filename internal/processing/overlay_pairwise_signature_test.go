@@ -123,7 +123,7 @@ func TestPairwiseCellAggregatorIdentity_ExactKeySetOnly(t *testing.T) {
 		{
 			// Refusing a superset must not accidentally promote a
 			// never-admitted aggregator either.
-			name:    "a superset of the AGG_FREQUENCY keys is unidentified",
+			name:    "a superset of the AGG_MODE_COUNT keys is unidentified",
 			cell:    map[string]any{"n": 4, "distinct_count": 9, "mode_value": "a", "mode_count": 3, "extra": 1},
 			wantOK:  false,
 			wantAgg: "",
@@ -144,9 +144,9 @@ func TestPairwiseCellAggregatorIdentity_ExactKeySetOnly(t *testing.T) {
 			admitted: true,
 		},
 		{
-			name:    "AGG_FREQUENCY still classifies as itself and is never admitted",
+			name:    "AGG_MODE_COUNT still classifies as itself and is never admitted",
 			cell:    map[string]any{"n": 4, "n_null": 0, "distinct_count": 9, "mode_value": "a", "mode_count": 3},
-			wantAgg: types.AGG_FREQUENCY,
+			wantAgg: types.AGG_MODE_COUNT,
 			wantOK:  true,
 		},
 	}

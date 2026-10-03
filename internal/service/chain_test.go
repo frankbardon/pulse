@@ -191,15 +191,15 @@ func TestProcessChain_NonMergeableMiddleStageReturnsError(t *testing.T) {
 	}
 }
 
-// TestProcessChain_FrequencyAggregatorAccepted validates that
-// AGG_FREQUENCY — one float64 per row (the modal count) whose partials
+// TestProcessChain_ModeCountAggregatorAccepted validates that
+// AGG_MODE_COUNT — one float64 per row (the modal count) whose partials
 // merge exactly — passes the chain gate, and that its chained result
 // equals a plain Process over the same rows. The cohort is a 3-shard
 // archive run on the per-shard parallel reducer (MergeOnline across
 // shards) and on the serial shard path; the reference is the same rows
 // as one single-file cohort. Per-shard modes differ from the global
 // mode, so a wrong merge changes the numbers.
-func TestProcessChain_FrequencyAggregatorAccepted(t *testing.T) {
+func TestProcessChain_ModeCountAggregatorAccepted(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "grp", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
 		{Name: "v", Type: encoding.FieldTypeU8, ByteOffset: 1, CsvColumnIdx: 1},
@@ -227,7 +227,7 @@ func TestProcessChain_FrequencyAggregatorAccepted(t *testing.T) {
 		return &types.Request{
 			Cohort:       &types.Cohort{Filename: file},
 			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "grp"}},
-			Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "v", Label: "freq"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_MODE_COUNT, Field: "v", Label: "freq"}},
 			Sort:         []types.OrderKey{{Field: "grp"}},
 		}
 	}

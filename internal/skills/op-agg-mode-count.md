@@ -1,9 +1,9 @@
 ---
-name: op-agg-frequency
+name: op-agg-mode-count
 description: Modal count — how many rows hold the field's most common value; one float64 per output row.
 kind: operator
 category: AGG
-operator: AGG_FREQUENCY
+operator: AGG_MODE_COUNT
 type: reference
 applies_to: process, compose, predict
 examples_tags: [cross-tabulation, cardinality-analysis]
