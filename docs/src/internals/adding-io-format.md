@@ -782,11 +782,11 @@ and error tables, a real failure transcript) and register it in
 `docs/src/SUMMARY.md`. Nothing gates this; it is missed unless written
 deliberately.
 
-`skills/session-bootstrap.md` only needs touching if the format adds a
-**CLI flag** (as `--sheet` did for Excel, and as the four `.sav` write
-knobs did for SPSS). Registering a new `pulse import <fmt>` subcommand
-alone does not: that file is the MCP session-order guide and carries no
-format list.
+`skills/session-format-flags.md` (a child of `skills/session-bootstrap.md`)
+only needs touching if the format adds a **CLI flag** (as `--sheet` did
+for Excel, and as the four `.sav` write knobs did for SPSS). Registering
+a new `pulse import <fmt>` subcommand alone does not: that file carries
+per-format flags, not a format list.
 
 A new leaf **does** need a row in the command index in
 `docs/src/cli/flags.md`. `TestSkillsCoverAllCliLeaves`

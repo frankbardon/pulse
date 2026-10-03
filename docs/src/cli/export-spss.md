@@ -577,4 +577,4 @@ it; there is no partial or degraded path.
 - [`pulse manifest`](manifest.md) — `import.formats[]` declares `spss` with `export: true`; `export.formats[]` declares its `warn_and_skip` overlay support
 - [Adding an I/O Format](../internals/adding-io-format.md) — the `CohortWriter` / `CohortValidator` / `TargetWarningEmitter` contracts this adapter implements
 - `skills/spss-cohorts.md` — the agent-facing SPSS surface, read and write
-- `skills/session-bootstrap.md` — the four write flags in the CLI flag map
+- `skills/session-format-flags.md` — the four write flags in the CLI flag map

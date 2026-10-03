@@ -1335,6 +1335,14 @@
         "description": "Canonical MCP session order — manifest once, then examples → predict → process → errors_lookup. Skill-name derivation from operator names. Use first on every new MCP session."
       },
       {
+        "name": "session-format-flags",
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, and the four .sav write knobs with their refusal defaults."
+      },
+      {
+        "name": "session-skill-routing",
+        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
+      },
+      {
         "name": "spss-cohorts",
         "description": "Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived columns, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav."
       },
@@ -1933,4 +1941,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 303e1c6df1c78e923364eaf48005755e8b1de1999b2624b0478fcf9747c01f52
+// golden-hash: 13dd503c47c254bc48c49e879db2baaabadc9744e26df010dbe4bb0f2bcbc131
