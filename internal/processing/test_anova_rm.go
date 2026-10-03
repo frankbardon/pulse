@@ -220,6 +220,7 @@ func (a *anovaRMRow) Finalize() (*types.TestResult, error) {
 			"df_error":            dfError,
 		},
 	}
+	setEffectSize(res.Details, "partial_eta_squared", partialEtaSquared(ssCond, ssError))
 	if dropped > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %d subject(s) had missing conditions and were dropped",
 			errors.PULSE_TEST_SUBJECT_MISSING, dropped))

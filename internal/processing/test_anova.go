@@ -135,7 +135,7 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 	if stats.SSB+stats.SSW > 0 {
 		eta2 = stats.SSB / (stats.SSB + stats.SSW)
 	}
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(a.spec),
 		Type:       types.TEST_ANOVA_F,
 		Variant:    "one_way",
@@ -157,7 +157,9 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 				"eta_squared": eta2,
 			},
 		},
-	}, nil
+	}
+	setEffectSize(res.Details, "omega_squared", omegaSquared(stats.SSB, stats.SSW, dfBetween, msWithin))
+	return res, nil
 }
 
 func (a *anovaRow) reset() {

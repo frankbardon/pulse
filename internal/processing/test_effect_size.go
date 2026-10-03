@@ -67,3 +67,57 @@ func cohensDOneSample(mean, mu, sd float64) float64 {
 	}
 	return (mean - mu) / sd
 }
+
+// omegaSquared returns ω² for a one-way between-subjects ANOVA (Hays
+// 1963; Olejnik & Algina 2003, Table 1):
+//
+//	ω² = (SS_between − df_between · MS_within) / (SS_total + MS_within)
+//
+// with SS_total = SS_between + SS_within. The unbiased estimate goes
+// negative when F < 1; Pulse CLAMPS it at 0 (a negative ω² estimates
+// "no effect", and a bounded [0, 1] measure is what readers compare).
+// NaN when undefined (a non-positive or non-finite denominator).
+func omegaSquared(ssBetween, ssWithin, dfBetween, msWithin float64) float64 {
+	den := ssBetween + ssWithin + msWithin
+	if !(den > 0) || math.IsInf(den, 0) {
+		return math.NaN()
+	}
+	return max(0, (ssBetween-dfBetween*msWithin)/den)
+}
+
+// welchOmegaSquared returns the Welch-adjusted ω² estimate from the
+// Welch F* statistic: the ω²-from-F identity (Lakens 2013, Frontiers
+// in Psychology 4:863, ω² = (F − 1) / (F + (df_error + 1)/df_effect))
+// rearranged with N = df_effect + df_error + 1 and evaluated at F*:
+//
+//	est. ω² = df_between · (F* − 1) / (df_between · (F* − 1) + N)
+//
+// With the classic F in place of F* this is algebraically identical to
+// omegaSquared, so the two ANOVA arms report comparable numbers. Clamped
+// at 0 like omegaSquared (F* < 1 yields a negative estimate). NaN when
+// undefined (non-finite F*, N ≤ 0, or a non-positive denominator).
+func welchOmegaSquared(fStar, dfBetween, n float64) float64 {
+	if math.IsNaN(fStar) || math.IsInf(fStar, 0) || !(n > 0) {
+		return math.NaN()
+	}
+	num := dfBetween * (fStar - 1)
+	den := num + n
+	if !(den > 0) {
+		return math.NaN()
+	}
+	return max(0, num/den)
+}
+
+// partialEtaSquared returns partial η² = SS_effect / (SS_effect +
+// SS_error) (Cohen 1973; Richardson 2011). For the one-way
+// repeated-measures ANOVA the effect is the treatment (condition) and
+// the error is the subject × condition residual, so between-subject
+// variance is excluded from the denominator. NaN when undefined (a
+// non-positive or non-finite denominator).
+func partialEtaSquared(ssEffect, ssError float64) float64 {
+	den := ssEffect + ssError
+	if !(den > 0) || math.IsInf(den, 0) {
+		return math.NaN()
+	}
+	return ssEffect / den
+}

@@ -21,13 +21,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = F (Welch-weighted); `DF` numerator = k − 1; `Details.df_denominator` = Welch-Satterthwaite df; `PValue` via F-distribution survival. `Details.per_group` = `{n, mean, variance, weight}`; effect size ω².
+`Statistic` = Welch F*; `DF` = k−1; `PValue` via F survival. `Details`: `groups`, `n`, `group_means`, `group_variances`, `weights`, `weighted_mean`, `df_between`, `df_within` (Welch df). `effect_size.omega_squared` = df_b(F*−1)/(df_b(F*−1)+N) clamped ≥ 0 (Lakens 2013).
 
 ## Gotchas
 
 - Streamable — same per-group Welford as `TEST_ANOVA_F`; only the statistic + denominator change.
 - Use when `TEST_BROWN_FORSYTHE` rejects equal-variance.
-- Tier-2 variant `TEST_ANOVA_WELCH/welch_one_way_post` consumes upstream per-group `{mean, variance, n}`.
+- Tier-2 `welch_one_way_post` reads per-group `{mean, variance, n}`; same keys.
 - Post-hoc: Tukey HSD assumes equal variance; for unequal fall back to pairwise `TEST_WELCH` + Bonferroni.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 

@@ -21,7 +21,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = F = MS_treatment / MS_error; `DF` = (k − 1, (n − 1)(k − 1)); `PValue` via F-distribution survival. `Details.ss_between_subjects`, `Details.ss_treatment`, `Details.ss_error`; effect size partial η².
+`Statistic` = F = MS_treatment / MS_error; `DF` = (k − 1, (n − 1)(k − 1)); `PValue` via F survival. `Details.ss_between_subjects`, `Details.ss_treatment`, `Details.ss_error`; `effect_size.partial_eta_squared` = SS_treatment / (SS_treatment + SS_error).
 
 ## Gotchas
 
