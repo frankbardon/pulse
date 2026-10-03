@@ -66,6 +66,7 @@ const (
 	ConventionCohenR    = "cohen1988_r"
 	ConventionCohenW    = "cohen1988_w"
 	ConventionCohenOR   = "cohen1988_or"
+	ConventionCohenR2   = "cohen1988_r2"
 )
 
 // cohenLabels names Cohen's three benchmarks plus the region below
@@ -119,6 +120,17 @@ var builtinConventions = map[string]effectConvention{
 		ID: ConventionCohenOR, Citation: "Cohen (1988) d benchmarks converted via d = ln(OR)*sqrt(3)/pi (Chinn 2000)",
 		Statistics: []string{"odds_ratio"},
 		Thresholds: []float64{1.44, 2.48, 4.27}, Labels: cohenLabels, SymmetricLog: true,
+	},
+	// R squared of a least-squares multiple regression: Cohen's f^2 of
+	// .02 / .15 / .35 (Cohen 1992, Table 1 row 8, where f^2 = R^2 /
+	// (1 - R^2)) rendered as R^2 = f^2 / (1 + f^2) = .0196 / .1304 /
+	// .2593, conventionally rounded (R effectsize interpret_r2, rule
+	// cohen1988). Not for adjusted R^2, a Bayesian posterior-mean R^2 or
+	// a GLM pseudo-R^2: all three are excluded in testdata/conventions.json.
+	ConventionCohenR2: {
+		ID: ConventionCohenR2, Citation: "Cohen (1988) f-squared benchmarks converted via R2 = f2/(1+f2)",
+		Statistics: []string{"r_squared"},
+		Thresholds: []float64{0.02, 0.13, 0.26}, Labels: cohenLabels,
 	},
 }
 

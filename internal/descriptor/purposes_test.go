@@ -356,7 +356,7 @@ func exampleIntentProblems(byExample map[string][]string) []string {
 // keyed by a TEST_* family, and a name declared by two category maps
 // panics instead of silently shadowing one declaration.
 func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
-	cats := []map[string]descriptor.Purpose{aggregatorPurposes, statTestPurposes, overlayPurposes}
+	cats := []map[string]descriptor.Purpose{aggregatorPurposes, statTestPurposes, overlayPurposes, regressionPurposes}
 	total := 0
 	for _, m := range cats {
 		total += len(m)
@@ -378,6 +378,11 @@ func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
 	for name := range overlayPurposes {
 		if !strings.HasPrefix(name, "OVERLAY_") {
 			t.Errorf("overlayPurposes holds non-overlay key %s", name)
+		}
+	}
+	for name := range regressionPurposes {
+		if !strings.HasPrefix(name, "REG_") {
+			t.Errorf("regressionPurposes holds non-regression key %s", name)
 		}
 	}
 

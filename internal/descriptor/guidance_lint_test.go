@@ -260,6 +260,12 @@ var noBandsRationale = regexp.MustCompile(`(?i)\bno\s+(?:sourced|published|agree
 // (CORR-CAUSAL).
 var correlationScope = lintScope{names: []string{"TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU"}}
 
+// regressionScope: the REG_* types, whose coefficients.* reading must
+// carry the causation caveat (CORR-CAUSAL) and whose Purpose must name
+// independence (ASSUME-INDEP): a coefficient is an association holding
+// the other predictors fixed, never on its own a causal effect.
+var regressionScope = lintScope{prefixes: []string{"REG_"}}
+
 var causationCaveat = regexp.MustCompile(`(?i)\bcaus(?:e|es|ed|ation|al|ally)\b`)
 
 // testScope / pairedTestScope drive ASSUME-INDEP: every TEST_* Purpose
@@ -371,17 +377,18 @@ func lintGuidance(reg lintRegistry) []lintViolation {
 					out = append(out, lintViolation{op, in.Field, ruleESConv, in.Convention})
 				}
 			}
-			if in.Field == "statistic" && correlationScope.covers(op) {
+			if (in.Field == "statistic" && correlationScope.covers(op)) ||
+				(in.Field == "coefficients.*" && regressionScope.covers(op)) {
 				ok := false
 				for _, c := range in.Caveats {
 					ok = ok || causationCaveat.MatchString(c)
 				}
 				if !ok {
-					out = append(out, lintViolation{op, "statistic.caveats", ruleCorrCausal, ""})
+					out = append(out, lintViolation{op, in.Field + ".caveats", ruleCorrCausal, ""})
 				}
 			}
 		}
-		if hasPurpose && testScope.covers(op) {
+		if hasPurpose && (testScope.covers(op) || regressionScope.covers(op)) {
 			joined := strings.Join(p.Assumptions, " ")
 			if !independenceRe.MatchString(joined) &&
 				(!pairedTestScope.covers(op) || !pairingRe.MatchString(joined)) {
@@ -571,6 +578,12 @@ func TestGuidanceProseLint_RegistryRules(t *testing.T) {
 		{"corr-causal", ruleCorrCausal, "TEST_SPEARMAN_R",
 			lintRegistry{interps: map[string][]descriptor.Interpretation{"TEST_SPEARMAN_R": {{Field: "statistic", Means: "m"}}}},
 			lintRegistry{interps: map[string][]descriptor.Interpretation{"TEST_SPEARMAN_R": {{Field: "statistic", Means: "m", Caveats: []string{"Correlation is not causation."}}}}}},
+		{"corr-causal regression", ruleCorrCausal, "REG_OLS",
+			lintRegistry{interps: map[string][]descriptor.Interpretation{"REG_OLS": {{Field: "coefficients.*", Means: "m"}}}},
+			lintRegistry{interps: map[string][]descriptor.Interpretation{"REG_OLS": {{Field: "coefficients.*", Means: "m", Caveats: []string{"Association, not causation."}}}}}},
+		{"assume-indep regression", ruleAssumeIndep, "REG_GLM",
+			lintRegistry{purposes: map[string]descriptor.Purpose{"REG_GLM": {Assumptions: []string{"The family matches the outcome."}}}},
+			lintRegistry{purposes: map[string]descriptor.Purpose{"REG_GLM": {Assumptions: []string{"Rows are independent."}}}}},
 		{"assume-indep", ruleAssumeIndep, "TEST_T",
 			lintRegistry{purposes: map[string]descriptor.Purpose{"TEST_T": {Assumptions: []string{"Roughly normal."}}}},
 			lintRegistry{purposes: map[string]descriptor.Purpose{"TEST_T": {Assumptions: []string{"Rows are independent."}}}}},
