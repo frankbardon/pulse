@@ -28,7 +28,7 @@ Per-row `float64` sample `exp(mu + sigma * Z)` where `Z ~ N(0, 1)`. Cast to decl
 
 ## Gotchas
 
-- Right tail is heavy; small `sigma` increases dispersion exponentially. Use `pareto` for true power-law tails.
+- Right tail is heavy; larger `sigma` increases dispersion exponentially. Use `pareto` for true power-law tails.
 - `sigma <= 0` → `SERVICE_VALIDATION` at spec parse.
 - No built-in clamp — pair with a `constraint` (`amount < 1_000_000`) to bound outliers.
 - Common synthetic-money pattern: `lognormal` over `f64`, then cast to `decimal128` with a constraint enforcing the precision floor.

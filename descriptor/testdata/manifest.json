@@ -5332,7 +5332,7 @@
       },
       {
         "name": "regex",
-        "description": "String samples generated from a Perl regex pattern; bounded repetition counts must be finite.",
+        "description": "String samples generated from a Perl regex pattern; open-ended repeats (*, +, {m,}) are capped at max_repeat.",
         "applies_to": [
           "categorical"
         ],
@@ -5342,6 +5342,13 @@
             "type": "string",
             "required": true,
             "description": "Regex source string (Perl/RE2 syntax)."
+          },
+          {
+            "name": "max_repeat",
+            "type": "int",
+            "required": false,
+            "default": 8,
+            "description": "Most copies * or + emits; {m,n} emits at most m+max_repeat. Floored at 1."
           }
         ],
         "intents": [
@@ -5416,7 +5423,7 @@
             "name": "end",
             "type": "string",
             "required": true,
-            "description": "ISO-8601 calendar date (YYYY-MM-DD); must exceed start."
+            "description": "ISO-8601 calendar date (YYYY-MM-DD); inclusive, may equal start but not precede it."
           }
         ],
         "intents": [
@@ -10423,4 +10430,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5b9a26bf752b49158ea2c63f07befd6acc8c11a93e3eac07365777eda7708f79
+// golden-hash: 3607a51eedbabddbd4296474643da2d88c1cbf2e19fadde287de75d3aae06b6a

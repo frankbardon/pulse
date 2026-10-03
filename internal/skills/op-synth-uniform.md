@@ -24,7 +24,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 |---|---|
 | field `type:` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date` (interpreted as days-since-epoch). |
 
-For integer fields, fractional samples cast via truncation at write time.
+For `u8`–`u64` fields each sample rounds to the nearest integer at write time (`floor(v+0.5)`).
 
 ## Output
 
@@ -33,7 +33,7 @@ Per-row `float64` sample `min + U * (max - min)` where `U ~ Uniform[0, 1)`. Half
 ## Gotchas
 
 - `max <= min` → `SERVICE_VALIDATION` at spec parse.
-- Half-open interval matters for integer casts — `max=10` over `u8` yields max-observed `9`.
+- Half-open, but integer fields ROUND — `max=10` over `u8` can store `10` (any draw ≥ 9.5).
 - For calendar dates use `uniform_date` — it parses ISO-8601 strings and is inclusive both ends.
 - Default `[0, 1)` is the lingua franca for noise injection / jitter columns.
 
