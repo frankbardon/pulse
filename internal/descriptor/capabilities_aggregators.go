@@ -208,6 +208,19 @@ var setFieldTypes = []string{
 // GROUP_SET_* / ATTR_SET_* families instead.
 var nonSetFieldTypes = nonSetSubset(allCohortFieldTypes)
 
+// nonSetNonDecimalFieldTypes is nonSetFieldTypes without decimal128,
+// for a value-matching aggregator with no decimal implementation
+// (AGG_FREQUENCY).
+var nonSetNonDecimalFieldTypes = func() []string {
+	out := make([]string, 0, len(nonSetFieldTypes))
+	for _, n := range nonSetFieldTypes {
+		if n != "decimal128" {
+			out = append(out, n)
+		}
+	}
+	return out
+}()
+
 // nonSetSubset returns names with every "set_" prefixed entry removed,
 // preserving order. Derived from allCohortFieldTypes rather than
 // written out so a newly registered rung cannot land in one list and
@@ -353,6 +366,29 @@ func aggregatorCapabilities() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "distinct_count", Type: "int", Description: "Number of distinct values observed."},
 				descriptor.ComponentKey{Name: "mode_value", Type: "any", Description: "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."},
 				descriptor.ComponentKey{Name: "mode_count", Type: "int", Description: "Row count of the modal value."},
+			),
+		},
+		{
+			Name:        string(types.AGG_FREQUENCY),
+			Category:    "aggregator",
+			Description: "Number of non-null rows whose field equals params.value (0 when none does). The count of the most common value is AGG_MODE_COUNT.",
+			Params: []descriptor.Param{
+				{
+					Name:        "value",
+					Type:        "string",
+					Required:    true,
+					Description: "Value to count, matched as FILTER_INCLUDE matches one: a category label, otherwise a number (date in epoch days, datetime in epoch seconds, packed_bool 1 or 0). A JSON number is accepted.",
+				},
+			},
+			// No set_* (a mask is not a value) and no decimal128: the
+			// runtime has no decimal implementation and predict warns
+			// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL on the pairing.
+			AcceptsTypes:  nonSetNonDecimalFieldTypes,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+			ComponentSchema: aggSchema(descriptor.Mergeable,
+				descriptor.ComponentKey{Name: "match_count", Type: "int", Description: "Non-null rows equal to params.value (= the scalar)."},
+				descriptor.ComponentKey{Name: "share", Type: "float64", Description: "match_count / n; omitted when n is 0."},
 			),
 		},
 		{

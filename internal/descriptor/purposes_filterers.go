@@ -64,6 +64,7 @@ var (
 			{When: "you want to drop the listed values and keep everything else", Use: "FILTER_EXCLUDE"},
 			{When: "the field is numeric and you want everything between two limits", Use: "FILTER_RANGE"},
 			{When: "the field is a multi-select answer", Use: "FILTER_SET_CONTAINS_ANY"},
+			{When: "you only want how many rows hold one value, not the rows themselves", Use: "AGG_FREQUENCY"},
 		},
 		Assumptions: []string{
 			filterBeforeAll,

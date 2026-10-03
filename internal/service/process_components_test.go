@@ -991,6 +991,13 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 			field:      "score",
 			params:     json.RawMessage(`{"percentile":75}`),
 		},
+		types.AGG_FREQUENCY: {
+			svc:        scoreSvc,
+			schema:     scoreSchema,
+			cohortName: "scores.pulse",
+			field:      "score",
+			params:     json.RawMessage(`{"value":"10"}`),
+		},
 		types.AGG_WELFORD:  scoreFix(),
 		types.AGG_CI_LOWER: scoreFix(),
 		types.AGG_CI_UPPER: scoreFix(),

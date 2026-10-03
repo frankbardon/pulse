@@ -180,6 +180,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("AGG_KURTOSIS"),
 	op("AGG_DISTINCT_COUNT"),
 	op("AGG_PERCENTILE"),
+	op("AGG_FREQUENCY"),
 	op("AGG_NULL_COUNT"),
 	op("AGG_WEIGHTED_MEAN"),
 	op("AGG_RATIO"),

@@ -16,6 +16,7 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_VARIANCE:       true,
 		AGG_RANGE:          true,
 		AGG_MODE_COUNT:     true,
+		AGG_FREQUENCY:      true,
 		AGG_MODE:           true,
 		AGG_SKEWNESS:       true,
 		AGG_KURTOSIS:       true,
@@ -71,6 +72,7 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		AGG_SUM:        MarginSummable,
 		AGG_NULL_COUNT: MarginSummable,
 		AGG_MODE_COUNT: MarginSummable,
+		AGG_FREQUENCY:  MarginSummable,
 
 		AGG_AVERAGE:       MarginMeanReducible,
 		AGG_WEIGHTED_MEAN: MarginMeanReducible,

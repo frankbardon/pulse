@@ -201,6 +201,10 @@ var dependencyScanAllowlist = map[[2]string]string{
 	// admitted set is any-of, never one required name.
 	{"OVERLAY_PROP_Z_PANEL", "AGG_DISTINCT_COUNT"}: "named in an error message of an optional n_source mode only",
 	{"OVERLAY_PROP_Z_PANEL", "AGG_DISTINCT_SUM"}:   "named in an error message of an optional n_source mode only",
+	// AGG_FREQUENCY's missing-value refusal points at the modal count
+	// through remedyFrequencyModeCount, which drops the clause when the
+	// instance hides AGG_MODE_COUNT; the counter never reads it.
+	{"AGG_FREQUENCY", "AGG_MODE_COUNT"}: "named in a hidden-aware refusal remedy only",
 }
 
 // typesOperatorConstants maps every types constant identifier of an

@@ -39,7 +39,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Smart default for categorical_* and packed_bool fields.
-- Per-value tallies: `GROUP_CATEGORY` + `AGG_COUNT`, or `FacetSchema`. The value itself: `AGG_MODE`.
+- Per-value tallies: `GROUP_CATEGORY` + `AGG_COUNT`, or `FacetSchema`. One chosen value: `AGG_FREQUENCY`. The value itself: `AGG_MODE`.
 - Memory grows with distinct values.
 - `set_*` rejected with `PROCESSING_CONFIG`; use `AGG_SET_FREQUENCY`.
 

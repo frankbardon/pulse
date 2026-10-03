@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -313,11 +314,13 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 	data := buildTestPulseFile(t, schema)
 
 	for _, aggType := range types.AllAggregationTypes() {
-		req := &types.Request{
-			Aggregations: []*types.Aggregation{
-				{Type: aggType, Field: "val", Label: "result"},
-			},
+		agg := &types.Aggregation{Type: aggType, Field: "val", Label: "result"}
+		if aggType == types.AGG_FREQUENCY {
+			// Its required params.value is refused when absent
+			// (TestPredict_AggFrequencyMissingValue).
+			agg.Params = json.RawMessage(`{"value":"1"}`)
 		}
+		req := &types.Request{Aggregations: []*types.Aggregation{agg}}
 		env := predictFromBytes(data, req, nil)
 		if len(env.Errors) != 0 {
 			t.Errorf("aggregation %s produced errors: %v", aggType, env.Errors)

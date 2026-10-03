@@ -429,6 +429,7 @@ func TestRegistryStreamabilityMatchesTypes(t *testing.T) {
 		types.AGG_WEIGHTED_MEAN: `{"weight_field":"w"}`,
 		types.AGG_RATIO:         `{"numerator_field":"num","denominator_field":"den"}`,
 		types.AGG_DISTINCT_SUM:  `{"distinct_by":"k"}`,
+		types.AGG_FREQUENCY:     `{"value":"1"}`,
 	}
 	for _, aggType := range types.AllAggregationTypes() {
 		factory, ok := aggregatorRegistry[aggType]

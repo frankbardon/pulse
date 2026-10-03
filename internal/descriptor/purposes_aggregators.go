@@ -23,6 +23,7 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_DISTINCT_COUNT":      purposeAggDistinctCount,
 	"AGG_DISTINCT_SUM":        purposeAggDistinctSum,
 	"AGG_MODE_COUNT":          purposeAggModeCount,
+	"AGG_FREQUENCY":           purposeAggFrequency,
 	"AGG_KURTOSIS":            purposeAggKurtosis,
 	"AGG_MAX":                 purposeAggMax,
 	"AGG_MEDIAN":              purposeAggMedian,
@@ -90,6 +91,7 @@ var (
 			{When: "you want the rows where the field is empty", Use: "AGG_NULL_COUNT"},
 			{When: "you want how many different values appear, not how many rows", Use: "AGG_DISTINCT_COUNT"},
 			{When: "you want a count for every value of the field: group by it, then count", Use: "GROUP_CATEGORY"},
+			{When: "you want how many rows hold one particular value, such as the Yes answers", Use: "AGG_FREQUENCY"},
 		},
 		Assumptions: []string{
 			"Rows with a missing value in the field are not counted.",
@@ -296,6 +298,32 @@ var (
 		Glossary: []string{"median", "mean", "outlier", "percentile", "skew"},
 	}
 
+	purposeAggFrequency = descriptor.Purpose{
+		Plain:   "How many rows hold one chosen value of a field, such as the Yes answers, over all rows or per group.",
+		Intents: []string{IntentDescribe, IntentComposition},
+		Questions: []string{
+			"How many respondents answered Yes in each region?",
+			"How many orders were returned each day?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Number of Yes answers to a question per segment.",
+			descriptor.DomainOps:     "Orders with the Returned status per store per day.",
+			descriptor.DomainScience: "Positive results per treatment arm.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want how many rows share the field's most common value, whatever it is", Use: "AGG_MODE_COUNT"},
+			{When: "you want a count for every value of the field: group by it, then count rows", Use: "GROUP_CATEGORY"},
+			{When: "you want rows holding any of several values: keep them, then count rows", Use: "FILTER_INCLUDE"},
+			{When: "the field is a multi-select", Use: "AGG_SET_FREQUENCY"},
+		},
+		Assumptions: []string{
+			"Missing values are skipped: they are neither counted nor part of the base the share in the components divides by.",
+			"The value is matched as a row filter matches it: a category label, otherwise a number; a value no row holds counts 0, so check its spelling.",
+			"The result equals keeping only that value with a row filter, then counting rows.",
+		},
+		Level:    descriptor.LevelBasic,
+		Glossary: []string{"missing-value"},
+	}
 	purposeAggMode = descriptor.Purpose{
 		Plain:   "Most common value of a field, over all rows or per group.",
 		Intents: []string{IntentDescribe},
@@ -311,6 +339,7 @@ var (
 		NotFor: []descriptor.Alternative{
 			{When: "you want the count of every value, not only the top one: group by the field, then count", Use: "GROUP_CATEGORY"},
 			{When: "the field is numeric and you want its middle value", Use: "AGG_MEDIAN"},
+			{When: "you want how many rows hold one particular value, such as the Yes answers", Use: "AGG_FREQUENCY"},
 			{When: "the field is a multi-select", Use: "AGG_SET_FREQUENCY"},
 		},
 		Assumptions: []string{
@@ -338,6 +367,7 @@ var (
 			{When: "you want a count for every value of the field: group by it, then count rows", Use: "GROUP_CATEGORY"},
 			{When: "you want per-value counts for several fields in one call", Use: "capability:facet"},
 			{When: "you want which value is most common, not how many rows hold it", Use: "AGG_MODE"},
+			{When: "you want how many rows hold one particular value, such as the Yes answers", Use: "AGG_FREQUENCY"},
 			{When: "you want how many different values there are", Use: "AGG_DISTINCT_COUNT"},
 			{When: "the field is a multi-select", Use: "AGG_SET_FREQUENCY"},
 		},

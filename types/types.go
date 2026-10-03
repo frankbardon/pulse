@@ -31,6 +31,14 @@ const (
 	AGG_DISTINCT_COUNT AggregationType = "AGG_DISTINCT_COUNT"
 	AGG_PERCENTILE     AggregationType = "AGG_PERCENTILE"
 
+	// AGG_FREQUENCY counts the non-null rows whose field equals one
+	// chosen value. Params: `value` (string or number, required),
+	// matched as FILTER_INCLUDE matches a value (a categorical label,
+	// otherwise a number). Returns the count as a scalar; a value no row
+	// holds counts 0. The modal count is AGG_MODE_COUNT. Streamable +
+	// mergeable (two integer counters).
+	AGG_FREQUENCY AggregationType = "AGG_FREQUENCY"
+
 	// AGG_NULL_COUNT counts records where the field is null. Inverse of
 	// AGG_COUNT, which counts records where the field is non-null. Stays
 	// streamable (O(1) state per row, no buffering).
@@ -133,6 +141,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_STDDEV, AGG_RANGE, AGG_MODE_COUNT, AGG_ZSCORE,
 		AGG_MEDIAN, AGG_VARIANCE, AGG_MODE, AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_DISTINCT_COUNT, AGG_PERCENTILE,
+		AGG_FREQUENCY,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_DISTINCT_SUM,

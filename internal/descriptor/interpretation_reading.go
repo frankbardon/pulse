@@ -86,7 +86,7 @@ var needsReadingOperators = []string{
 var selfReadingOperators = []string{
 	// aggregator
 	string(types.AGG_AVERAGE), string(types.AGG_COUNT), string(types.AGG_DISTINCT_COUNT),
-	string(types.AGG_DISTINCT_SUM), string(types.AGG_MODE_COUNT), string(types.AGG_MAX),
+	string(types.AGG_DISTINCT_SUM), string(types.AGG_FREQUENCY), string(types.AGG_MODE_COUNT), string(types.AGG_MAX),
 	string(types.AGG_MEDIAN), string(types.AGG_MIN), string(types.AGG_MODE),
 	string(types.AGG_NULL_COUNT), string(types.AGG_RANGE), string(types.AGG_SET_CARDINALITY_AVG),
 	string(types.AGG_SET_CARDINALITY_SUM), string(types.AGG_SET_DISTINCT_VALUES),

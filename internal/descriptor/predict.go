@@ -303,6 +303,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// operator construction; report it with the runtime's code and
 	// message.
 	validateOperatorTypes(env, req)
+	validateAggregationParams(env, req, opts.instance())
 
 	// Validate pre-filter feature operators and compute the post-feature
 	// column set so downstream stages can reference derived columns.

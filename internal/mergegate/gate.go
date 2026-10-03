@@ -168,7 +168,8 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 // single float64 cell a downstream chain stage can read: every
 // mergeable aggregator except those in nonScalarAggregators.
 // AGG_MODE_COUNT is admitted — it emits the modal count, one float64
-// per row, and its per-value count partials merge exactly.
+// per row, and its per-value count partials merge exactly — and so is
+// AGG_FREQUENCY, whose one value's row count is two summed counters.
 func EmitsScalar(t types.AggregationType) bool {
 	for _, n := range nonScalarAggregators {
 		if t == n {

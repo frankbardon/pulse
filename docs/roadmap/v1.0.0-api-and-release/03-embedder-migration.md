@@ -187,7 +187,8 @@ U06 leaves for later units: skills and examples that name hidden operators beyon
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
-| `types.AGG_FREQUENCY` / `"AGG_FREQUENCY"` — the modal count (rows holding the field's most common value) | `types.AGG_MODE_COUNT` / `"AGG_MODE_COUNT"`, behaviour, components (`distinct_count`, `mode_value`, `mode_count`) and smart-default role unchanged; no alias | breaking (rename) | replace the spelling in requests, templates and feature profiles; a profile still listing `AGG_FREQUENCY` fails `pulse.New` with `PULSE_FEATURE_PROFILE_UNKNOWN` | U09 |
+| `types.AGG_FREQUENCY` / `"AGG_FREQUENCY"` — the modal count (rows holding the field's most common value) | `types.AGG_MODE_COUNT` / `"AGG_MODE_COUNT"`, behaviour, components (`distinct_count`, `mode_value`, `mode_count`) and smart-default role unchanged; no alias | breaking (rename) | replace the spelling in requests, templates and feature profiles wherever the modal count is meant | U09 |
+| the `AGG_FREQUENCY` name | reused for a NEW operator: the count of non-null rows equal to a required `params.value` (matched as `FILTER_INCLUDE` matches one value; components `match_count`, `share`; streamable, mergeable, ProcessChain-admitted, never a smart default). An old request naming it no longer fails as unknown: without `params.value` it is refused (`PROCESSING_CONFIG`, at predict and at run time) with a message pointing at `AGG_MODE_COUNT`; a feature profile listing it now enables the value count, not the modal count | breaking (semantics) | rename modal-count uses to `AGG_MODE_COUNT` (in profiles too, or the instance loses the modal count); add `params.value` where one value's count is meant | U09 |
 
 ## Third-party dependency
 

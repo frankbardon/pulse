@@ -58,6 +58,7 @@ func (t AggregationType) Streamable() bool {
 		AGG_MODE_COUNT, AGG_MODE,
 		AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM,
+		AGG_FREQUENCY,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
@@ -94,6 +95,7 @@ func (t AggregationType) Mergeable() bool {
 		AGG_RANGE, AGG_VARIANCE, AGG_STDDEV,
 		AGG_MODE_COUNT, AGG_MODE, AGG_DISTINCT_COUNT,
 		AGG_DISTINCT_SUM,
+		AGG_FREQUENCY,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
@@ -155,6 +157,8 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		return MarginIndependent
 	case AGG_COUNT, AGG_SUM, AGG_NULL_COUNT,
 		AGG_MODE_COUNT,
+		// One value's row count: the margin is the sum of the cells'.
+		AGG_FREQUENCY,
 		// Set unions, popcount sums, and per-element frequency
 		// histograms all reduce by addition across cells.
 		AGG_SET_UNION, AGG_SET_FREQUENCY,
