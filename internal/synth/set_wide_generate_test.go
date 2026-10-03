@@ -202,7 +202,7 @@ func TestSynth_SetBernoulli_WideRungMarginalFrequencies(t *testing.T) {
 }
 
 // TestSynth_SetBernoulli_WideRungDeterministic extends the determinism
-// contract (skills/synthetic-data.md) to the wide rungs: identical
+// contract (skills/synth-determinism.md) to the wide rungs: identical
 // (spec, seed) must produce byte-identical output, including the 16-
 // and 32-byte payloads whose word order is the normative wire contract.
 func TestSynth_SetBernoulli_WideRungDeterministic(t *testing.T) {

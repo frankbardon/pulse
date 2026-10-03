@@ -129,7 +129,7 @@ func TestSynth_SetBernoulli_GeneratesValidMasksAndMarginalFrequencies(t *testing
 }
 
 // TestSynth_SetBernoulli_DeterministicByteIdentical locks in the
-// Determinism contract (skills/synthetic-data.md) for the set_bernoulli
+// Determinism contract (skills/synth-determinism.md) for the set_bernoulli
 // sampler specifically: its row value is a map[string]bool, and Go map
 // iteration order is randomized per process, so this guards against a
 // regression that accidentally makes bit assignment depend on that

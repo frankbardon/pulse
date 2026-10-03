@@ -24,13 +24,16 @@ exposes the new distribution to LLM clients.
 `TestManifestDistributionsComplete` enforces a capability row per
 registered distribution kind.
 
-## 3. Update the synthetic-data skill
+## 3. Write the atomic skill and list it
 
-Add an entry under "Supported distributions" in
-`skills/synthetic-data.md` covering the parameter shape, the
+Create `skills/op-synth-<kebab>.md` covering the parameter shape, the
 distribution's family (continuous, discrete, heavy-tailed,
-categorical-like), and any sampling caveats.
-`TestSkillsCoverAllSynthDistributions` enforces presence by name.
+categorical-like), and any sampling caveats;
+`TestSkillsCoverAllSynthDistributions` enforces the file exists at that stem.
+Add the kind's name to the "Distribution registry" list in
+`skills/synthetic-data.md`, and — if it changes reconstruction, correlation
+or model participation — the focused `skills/synth-*.md` skill that owns that
+topic (`synth-marginals`, `synth-correlations`, `synth-models`).
 
 ## 4. Update CLAUDE.md
 

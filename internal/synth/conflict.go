@@ -376,7 +376,7 @@ func resolveConflicts(s *Spec) conflictResolution {
 // that must restrict their comparison to relationships generation
 // actually used: fidelity-checking a pair generation dropped would
 // score a "delta" for a relationship that was never modeled, which is
-// misleading rather than merely wasteful (see skills/synthetic-data.md,
+// misleading rather than merely wasteful (see skills/synth-fidelity-report.md,
 // Fidelity report).
 func ResolveConflicts(s *Spec) (
 	catPairs []CategoricalPairSpec,

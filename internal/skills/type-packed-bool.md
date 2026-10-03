@@ -29,5 +29,5 @@ Absent. `packed_bool` carries no inline dictionary block.<!-- feature: GROUP_CAT
 ## See
 
 - Skill: `cohort-schema-design` (Field-type matrix, Bit-packed runs, Smart defaults).
-- Skills: `op-synth-bernoulli`, `synthetic-data` (Boolean marginals).
+- Skills: `op-synth-bernoulli`, `synth-marginals` (Boolean marginals).
 - Cross-link: `type-u4` for small ordinals using the same packed-byte cursor.

@@ -32,4 +32,4 @@ One declared level per row at its own share. Marginal exact — no threshold, no
 
 ## See
 
-- Skills: `synthetic-data`, `op-synth-bernoulli`, `op-synth-weighted-categorical`, `type-u4`
+- Skills: `synth-marginals`, `op-synth-bernoulli`, `op-synth-weighted-categorical`, `type-u4`

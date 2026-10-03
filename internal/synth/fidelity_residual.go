@@ -266,7 +266,7 @@ func buildModelResidualFidelity(spec *Spec, drawers []*modelDrawer, residualsOf 
 	// spec alone. Float addition is not associative and Go randomizes
 	// map iteration; a mean that moves in its last bits between two runs
 	// over identical inputs is exactly the defect E2-S4 fixed at capture
-	// (see skills/synthetic-data.md, Determinism).
+	// (see skills/synth-determinism.md).
 	for _, c := range spec.ResidualCorrelations {
 		if !participates[c.A] || !participates[c.B] {
 			continue

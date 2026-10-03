@@ -121,7 +121,7 @@ type modelDrawer struct {
 	// same determinism rule buildSchema's dictionary pre-registration
 	// comment and weightedSamplerFromCounts's key sort already follow
 	// (same spec + same seed must produce a byte-identical .pulse file;
-	// see skills/synthetic-data.md, Determinism).
+	// see skills/synth-determinism.md).
 	order int
 
 	intercept  float64
