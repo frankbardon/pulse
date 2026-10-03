@@ -22,7 +22,7 @@ Contract surface for that machinery. Calibration figures and closed design quest
 | Correlating modelled fields' residuals (`--residual-correlations`) | `synth-residual-correlations` |
 | Did captured coefficients survive? (`models` fidelity section) | `synth-model-recovery` |
 | Did residual correlations survive? (`model_residual_correlations`) | `synth-residual-recovery` |
-| Claim order; a rule that retires a model | `synth-conflicts` · `synth-structural-rules` |
+| Claim order; a rule that retires a model | `synth-conflicts` · `synth-rule-claims` |
 
 ## Capture (`--fit-models`)
 

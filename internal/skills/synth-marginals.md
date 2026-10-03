@@ -36,7 +36,7 @@ Consequences: `p` of exactly 0 or 1 has zero variance, so a model on it is DROPP
 
 Three writers: its own sampler draws the staircase; a conditional pair locates the cell's captured moments ON that staircase — `value = Q(Φ((cellMean−fieldMean)/fieldStd + (cellStd/fieldStd)·z))`, the SAME construction the model stage uses; a model draws through the staircase `Q`, an **ordered probit** (predictors shift the latent, the histogram holds exactly, direction and ordering carry, scale-point magnitude does not).
 
-Consequences: no POINT latent inverse, so `latentFor` refuses it as it refuses `bernoulli` and recovery runs on the probit score. Value-scale correlation on a `discrete` participant attenuates (`synth-correlations`). And the **pre-rounding gotcha DISAPPEARS** for these fields — the row value already IS the stored integer, so `{"set_expr": {"nps": "round(nps)"}}` is a no-op. That advice stays live only for `f32`/`f64`, an integer column over the cap, and a hand-authored continuous distribution on an integer field (`synth-structural-rules`).
+Consequences: no POINT latent inverse, so `latentFor` refuses it as it refuses `bernoulli` and recovery runs on the probit score. Value-scale correlation on a `discrete` participant attenuates (`synth-correlations`). And the **pre-rounding gotcha DISAPPEARS** for these fields — the row value already IS the stored integer, so `{"set_expr": {"nps": "round(nps)"}}` is a no-op. That advice stays live only for `f32`/`f64`, an integer column over the cap, and a hand-authored continuous distribution on an integer field (`synth-rule-expressions`).
 
 ## See
 

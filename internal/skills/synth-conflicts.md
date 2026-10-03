@@ -22,7 +22,7 @@ structural-rule pre-claim → linear-model pre-claim → shape-fit pre-claim
   → correlations
 ```
 
-A `Spec.Rules` entry that DETERMINES a field claims it first, because the rule pass runs last in `drawRow` and wins outright; which rule shapes qualify (and the four exclusions, each silent if got backwards) is in `synth-structural-rules`.
+A `Spec.Rules` entry that DETERMINES a field claims it first, because the rule pass runs last in `drawRow` and wins outright; which rule shapes qualify (and the four exclusions, each silent if got backwards) is in `synth-rule-claims`.
 
 First claim wins; every later relationship naming that target is dropped and REPORTED, one warning each (`conditional relationship conflict: … is already claimed by …`), rather than resolving to "whichever stage runs last". `Spec.Correlations` is one joint claimant across all participants (single Cholesky draw) — losing one participant excludes only that field and `buildCorrelator` rebuilds from the survivors.
 
@@ -38,4 +38,4 @@ The arbitration is also why the fidelity report scores only relationships genera
 
 ## See
 
-- `synth-correlations` · `synth-models` · `synth-set-fields` · `synth-structural-rules`.
+- `synth-correlations` · `synth-models` · `synth-set-fields` · `synth-rule-claims`.

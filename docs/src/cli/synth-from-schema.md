@@ -607,5 +607,5 @@ pulse synth from-schema --spec sales.spec.json --output sales.pulse --json
 - `skills/synthetic-data.md` — spec grammar, distribution table, and the index of focused `synth-*` skills
 - `skills/synth-correlations.md` / `skills/synth-conflicts.md` — `correlations` and claim arbitration
 - [Synth calibration figures and design rationale](synth-calibration.md)
-- `skills/synth-structural-rules.md` — `rules[]` and `constraints[]`
+- `skills/synth-structural-rules.md` — `rules[]` and `constraints[]` entry skill; the focused `skills/synth-rule-*.md` skills carry expressions, null handling, validation and claims
 - [Library: pulse.Synth](../library/overview.md)

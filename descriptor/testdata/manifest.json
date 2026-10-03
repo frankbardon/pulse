@@ -7817,6 +7817,30 @@
         "description": "The synth fidelity report's `model_residual_correlations` section — captured vs recovered residual correlation per applied pair, why it is not `pairwise`, its bounded worst-first listing, and why step-target endpoints stay unmeasured."
       },
       {
+        "name": "synth-rule-claims",
+        "description": "Which synth rules pre-claim a field ahead of its linear model, conditional pairs and residual correlations, the four exclusions that are silent if got backwards, and why the fidelity report is the reason."
+      },
+      {
+        "name": "synth-rule-detectors",
+        "description": "The `--suggest-rules` detector rules that are silent if got backwards — rounded gates, co-missingness, near and always-null blocks, the narrow dependency search and discovered band edges — and why emitted candidate order is applied order."
+      },
+      {
+        "name": "synth-rule-expressions",
+        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
+      },
+      {
+        "name": "synth-rule-nulls",
+        "description": "Synth rule null handling — `null_together` as one null decision per question block (first field wins), and `owns_nulls` making a gate the field's only source of absence, with the divergence warnings each emits."
+      },
+      {
+        "name": "synth-rule-validation",
+        "description": "Synth rule validation and diagnostics — the eight eager `PULSE_SYNTH_RULE_*` refusals, the non-nullable-target refusal, and the never-fired warning with its three cause arms."
+      },
+      {
+        "name": "synth-rules-from-profile",
+        "description": "Reaching synth rules from the profile path — `--rules` (replace semantics, load-time validation) and `--emit-spec` (the spec that generated) — and `profile create --suggest-rules`: proposed candidates, inert evidence, fixed thresholds and the three detectors."
+      },
+      {
         "name": "synth-set-fields",
         "description": "How `set_*` (multi-select) fields are profiled per option, captured jointly per option pair, read safely on the wide rungs, and generated deterministically with a pre-registered dictionary."
       },
@@ -7826,7 +7850,7 @@
       },
       {
         "name": "synth-structural-rules",
-        "description": "Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical."
+        "description": "Entry point for synth spec `rules[]` and `constraints[]` — the five rule slots, declaration order and last-write-wins, why the rule pass runs last, and which focused skill covers expressions, null handling, validation, claims and profile-derived rules."
       },
       {
         "name": "synthetic-data",
@@ -10589,4 +10613,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8f8d5fb1a3e618e7bfd282363986b17857acc66b2d18d9359604c5954d9634f5
+// golden-hash: a688e5b05896b3153a699b9b2a3a4584264d3786d593c41a0e3601949fe11740

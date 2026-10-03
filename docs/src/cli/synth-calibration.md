@@ -412,4 +412,4 @@ original did not have.
 - [`synth from-profile`](synth-from-profile.md) — generation, `--rules`, `--emit-spec`, the fidelity report.
 - [`synth from-schema`](synth-from-schema.md) — the hand-authored spec grammar.
 - `skills/synthetic-data.md` — the contract statements an agent must not guess.
-- `skills/synth-structural-rules.md` — the `rules[]` / `constraints[]` contract.
+- `skills/synth-structural-rules.md` — the `rules[]` / `constraints[]` contract (entry skill; focused `synth-rule-*` / `synth-rules-from-profile` children).

@@ -395,10 +395,6 @@
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
       },
       {
-        "name": "synth-structural-rules",
-        "description": "Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical."
-      },
-      {
         "name": "tool-errors-lookup",
         "description": "Look up Pulse error code metadata — message and fixup hints."
       },
@@ -543,4 +539,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3645e23d49cf8d68afa1fc5412e9c7e6d5668c5a236d7266323f284e8f409855
+// golden-hash: 8f4873391ace396a0030c00e00fb9244e3ed2037a7f418aec9db0c94f91fa8ea
