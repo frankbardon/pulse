@@ -46,7 +46,7 @@ var (
 			"How much of the variation in satisfaction do these attribute ratings account for together?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainSurvey:  "Relate overall satisfaction to several attribute ratings at once (key-driver analysis).",
+			descriptor.DomainSurvey:  "Relate overall satisfaction to several attribute ratings at once (often called key-driver analysis, though it shows which ratings go with satisfaction, not which ones drive it).",
 			descriptor.DomainOps:     "Model ticket handling time from queue length and agent tenure.",
 			descriptor.DomainScience: "Estimate how a measured response changes with dose while adjusting for body weight.",
 		},
@@ -142,7 +142,8 @@ var (
 			regIndependentRows,
 			"The outcome changes linearly with each predictor, with normal residuals of constant spread (the model's likelihood).",
 			"The prior is conjugate Normal-Inverse-Gamma: each coefficient is normal around prior_mu (zeros by default, intercept first) " +
-				"with one shared precision for every coefficient, intercept included, and the residual variance is inverse-gamma.",
+				"with one shared precision for every coefficient, intercept included, measured relative to the residual variance: each coefficient's prior " +
+				"standard deviation is σ / sqrt(prior_precision), so the prior's strength changes with the noise level. The residual variance is inverse-gamma.",
 			"The default prior is weak (precision 0.001), so with enough rows the coefficients sit close to REG_OLS. " +
 				"Its pull depends on each predictor's units: a coefficient that is large because its predictor's units are small " +
 				"is pulled harder toward prior_mu.",

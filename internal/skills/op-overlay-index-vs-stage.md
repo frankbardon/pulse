@@ -13,7 +13,7 @@ Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decora
 
 ## Params
 
-`Scope` must be `chain`; `Level` / `Within` must be zero. `Ref.Stage` required — `{Index: N}` or `{Name: "stage-id"}`. `Target.Stage` — `{Index}` or `{Name}`, default the latest stage.
+`Scope` required, echoed verbatim — the capability declares `total` (there is no `chain` scope). `ChainOverlaySpec` has no `Level` / `Within`. `Ref` (a `StageRef`) required — `{Index: N}` or `{Name: "stage-id"}`. `Target` — `{Index}` or `{Name}`, default the latest stage.
 
 ## Host shape
 

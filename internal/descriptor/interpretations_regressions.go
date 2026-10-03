@@ -51,8 +51,8 @@ var (
 var interpRegOLS = []descriptor.Interpretation{
 	{
 		Field: "coefficients.*",
-		Means: "The change in the outcome's expected value for a one-unit increase in this predictor, holding the other " +
-			"predictors fixed, in outcome units per predictor unit.",
+		Means: "The difference in the outcome's expected value between rows one unit apart on this predictor, holding the other " +
+			"predictors fixed, in outcome units per predictor unit (an association, not the effect of changing it).",
 		Sign: regLinearSign,
 		Caveats: []string{
 			regCoefCausal,
@@ -72,7 +72,14 @@ var interpRegOLS = []descriptor.Interpretation{
 			"For l1 and elasticnet fits it is a plug-in approximation over the kept predictors (Pulse warns); request resample for an empirical one.",
 		},
 	},
-	{Field: "p_values.*", Shared: SharedPValue},
+	{
+		Field:  "p_values.*",
+		Shared: SharedPValue,
+		Caveats: []string{
+			"The request's alpha param is the penalty strength for l1 / l2 / elasticnet fits, not a significance level; Pulse applies no significance threshold to these p-values.",
+			"On a penalized fit (l1, l2, elasticnet) the coefficients are shrunk on purpose, so these p-values do not have the usual reading; l1 and elasticnet ones are approximate.",
+		},
+	},
 	bandedBy(ConventionCohenR2, descriptor.Interpretation{
 		Field: "r2",
 		Means: "R-squared: the share of the outcome's variation around its mean that the fitted model accounts for in these rows, from 0 to 1.",
@@ -133,7 +140,13 @@ var interpRegGLM = []descriptor.Interpretation{
 			"Gamma data rarely have dispersion 1, so gamma standard errors are unreliable.",
 		},
 	},
-	{Field: "p_values.*", Shared: SharedPValue},
+	{
+		Field:  "p_values.*",
+		Shared: SharedPValue,
+		Caveats: []string{
+			"Wald z at dispersion fixed to 1: with overdispersed counts the Poisson p-values come out too small, and gamma p-values are unreliable.",
+		},
+	},
 	{
 		Field: "deviance",
 		Means: "How far the fitted predictions sit from the observed outcomes, as twice the log-likelihood gap to a model " +
@@ -170,7 +183,7 @@ var interpRegGLM = []descriptor.Interpretation{
 var interpRegBayesLinear = []descriptor.Interpretation{
 	{
 		Field: "coefficients.*",
-		Means: "Posterior mean of the coefficient: the expected change in the outcome for a one-unit increase in this predictor, " +
+		Means: "Posterior mean of the coefficient: the expected difference in the outcome between rows one unit apart on this predictor, " +
 			"holding the other predictors fixed, after combining the data with the prior.",
 		Sign: regLinearSign,
 		Caveats: []string{
@@ -195,7 +208,9 @@ var interpRegBayesLinear = []descriptor.Interpretation{
 		Caveats: []string{
 			"It is a probability statement about the coefficient conditional on the prior and the model, not a statement about repeated samples; " +
 				"if either is wrong, so is the probability.",
-			"With the default weak prior it is numerically close to the OLS confidence interval; with an informative prior it also reflects that prior.",
+			"With the default weak prior and many rows per predictor it is close to the OLS confidence interval. With few rows it is narrower, " +
+				"because the default variance prior divides by about n rather than n - p - 1 (about 19% narrower at 20 rows and 5 predictors). " +
+				"With an informative prior it also reflects that prior.",
 			"An interval that excludes 0 is not a significance test; report the interval itself.",
 		},
 	},
@@ -215,7 +230,11 @@ var interpRegBayesLinear = []descriptor.Interpretation{
 	},
 	{
 		Field: "residual_std_err",
-		Means: regRSE + " Here it is a posterior estimate of the residual standard deviation, combining the data with the prior on the variance.",
+		Means: regRSE + " Here it is sqrt(b_n / a_n) from the posterior on the variance, combining the data with the prior on it.",
+		Caveats: []string{
+			"Under the default prior that is about sqrt(RSS / n), so it runs below REG_OLS's value (which divides by n - p - 1), most visibly " +
+				"with few rows per predictor; do not read the gap as a better fit.",
+		},
 	},
 	regNObs,
 }

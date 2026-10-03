@@ -517,7 +517,7 @@ var glossaryRegistry = []descriptor.Term{
 	},
 	{
 		ID:      "adjusted-r-squared",
-		Short:   "R-squared corrected for the number of predictors, so adding a predictor that helps no more than chance would does not raise it.",
+		Short:   "R-squared corrected for the number of predictors: it rises only when an added predictor's t value exceeds 1 in size, which a useless predictor still does about one time in three.",
 		WhyCare: "Use it to compare models with different numbers of predictors on the same rows. It can fall below zero when the predictors fit worse than chance would predict.",
 		SeeAlso: []string{"r-squared", "overfitting"},
 		Jargon:  true, Forms: []string{"adjusted r-squared", "adjusted r squared", "adjusted r²", "adj_r2"},

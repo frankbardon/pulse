@@ -40,7 +40,9 @@ import (
 //	β_j ~ t_{2·a_n} ( μ_n[j], (b_n / a_n) · (Λ_n⁻¹)[j,j] )
 //
 // from which the std errors and credible intervals are taken. The
-// posterior-mean estimate of σ is √(b_n / a_n).
+// residual-scale estimate reported is √(b_n / a_n) — neither the
+// posterior mean of σ nor of σ² (that is b_n / (a_n − 1)); under the
+// default prior it is about √(RSS / n).
 type bayesLinearEngine struct {
 	spec   *types.RegressionSpec
 	schema *encoding.Schema

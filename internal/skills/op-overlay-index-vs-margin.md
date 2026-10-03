@@ -13,7 +13,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` (enum, required) — `cell`, `row`, or `column`. `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` must be `0`.
+`Scope` (enum, required) — `cell`, `row`, or `column`. `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` optional (default `0`): nested-axis prefix truncation of the margin denominator, each in `[0, axis depth)` else `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
 
 ## Host shape
 

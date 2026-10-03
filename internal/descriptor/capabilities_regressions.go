@@ -99,7 +99,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			AcceptsTypes:   numericTypes,
 			EmitsTypeNote:  "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals.",
 			Streamable:     types.REG_BAYES_LINEAR.Streamable(),
-			StreamableHint: commonModifierHint,
+			StreamableHint: "Streamable; Resample and Selection are refused (PROCESSING_CONFIG), so nothing forces the buffered path.",
 			Params: []descriptor.Param{
 				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name."},
 				{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names (numeric only in v1)."},
@@ -109,13 +109,11 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "prior_shape", Type: "float", Required: false, Description: "Inverse-gamma shape parameter for residual variance."},
 				{Name: "prior_rate", Type: "float", Required: false, Description: "Inverse-gamma rate parameter for residual variance."},
 				{Name: "credible_level", Type: "float", Required: false, Default: 0.95, Description: "Posterior credible-interval mass."},
-				{Name: "resample", Type: "enum", Required: false, EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Orthogonal resampling layer."},
-				{Name: "bootstrap_iters", Type: "int", Required: false, Description: "Replicate count when resample == bootstrap."},
-				{Name: "rng_seed", Type: "int", Required: false, Description: "Seed for the bootstrap RNG."},
-				{Name: "selection", Type: "enum", Required: false, EnumValues: []string{"", "backward", "forward", "stepwise"}, Description: "Subset-selection wrapper."},
-				{Name: "criterion", Type: "enum", Required: false, EnumValues: []string{"aic", "bic"}, Description: "Information criterion driving selection."},
 			},
-			Modifiers: []descriptor.RegressionModifier{resampleModifier, selectionModifier},
+			// No resample / selection modifiers: validateBayesLinearSpec
+			// refuses both with PROCESSING_CONFIG (the posterior already
+			// carries the uncertainty), so advertising them would invite
+			// a request that can only fail.
 		},
 	}
 }

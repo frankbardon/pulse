@@ -4454,7 +4454,7 @@
         ],
         "emits_type_note": "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals.",
         "streamable": true,
-        "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path.",
+        "streamable_hint": "Streamable; Resample and Selection are refused (PROCESSING_CONFIG), so nothing forces the buffered path.",
         "params": [
           {
             "name": "target",
@@ -4509,70 +4509,6 @@
             "required": false,
             "default": 0.95,
             "description": "Posterior credible-interval mass."
-          },
-          {
-            "name": "resample",
-            "type": "enum",
-            "required": false,
-            "description": "Orthogonal resampling layer.",
-            "enum_values": [
-              "",
-              "bootstrap",
-              "jackknife"
-            ]
-          },
-          {
-            "name": "bootstrap_iters",
-            "type": "int",
-            "required": false,
-            "description": "Replicate count when resample == bootstrap."
-          },
-          {
-            "name": "rng_seed",
-            "type": "int",
-            "required": false,
-            "description": "Seed for the bootstrap RNG."
-          },
-          {
-            "name": "selection",
-            "type": "enum",
-            "required": false,
-            "description": "Subset-selection wrapper.",
-            "enum_values": [
-              "",
-              "backward",
-              "forward",
-              "stepwise"
-            ]
-          },
-          {
-            "name": "criterion",
-            "type": "enum",
-            "required": false,
-            "description": "Information criterion driving selection.",
-            "enum_values": [
-              "aic",
-              "bic"
-            ]
-          }
-        ],
-        "modifiers": [
-          {
-            "name": "resample",
-            "description": "Orthogonal resampling layer; non-empty forces the buffered path.",
-            "enum_values": [
-              "bootstrap",
-              "jackknife"
-            ]
-          },
-          {
-            "name": "selection",
-            "description": "Automated subset-selection wrapper; non-empty forces the buffered path. Requires criterion when set.",
-            "enum_values": [
-              "backward",
-              "forward",
-              "stepwise"
-            ]
           }
         ],
         "intents": [
@@ -10155,4 +10091,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 58883a502e9fd14ff24ed71980176f5bb967ed13d492b7d10e023907b3894fc1
+// golden-hash: af8ce57288fca35d31c6ba2294ade89d8804fb86dfdee80f98077eb56be1a429

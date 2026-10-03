@@ -29,7 +29,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `Deviance`, `NullDeviance`, `PseudoR2` (McFadden); `Family`, `Link` echoed; `ConvergedIters` = IRLS steps. Always buffered — IRLS needs multiple passes.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` echoed; `ConvergedIters` = IRLS steps. Always buffered — IRLS needs multiple passes.
 
 ## Gotchas
 

@@ -107,6 +107,7 @@ var (
 			Means: "Degrees of freedom of the chi-square reference curve: (rows - 1) x (columns - 1) of the host crosstab.",
 			Caveats: []string{
 				"It reflects the table's shape, not its number of rows of data.",
+				"A row or column whose total is 0 adds nothing to the statistic but still counts in df, which makes the p-value too large; drop empty rows and columns from the host first.",
 			},
 		},
 	}
@@ -163,7 +164,8 @@ var (
 		{
 			Field: "scalar",
 			Means: "The chi-square statistic, also in summary.statistic: the subset's category counts against the counts the population's shares " +
-				"predict at the subset's size. 0 means the subset's mix matches the population's; read summary.p_value rather than the raw value.",
+				"predict at the subset's size, with the shares rescaled over the categories both sides show (population nulls and categories cut " +
+				"from a top-K listing are left out). 0 means the subset's mix matches the population's; read summary.p_value rather than the raw value.",
 			Caveats: []string{
 				"It grows with the subset's size, so a very big subset gives a big value for a slight shift in mix; OVERLAY_INDEX_VS_POP shows which categories moved and by how much.",
 			},
@@ -182,9 +184,10 @@ var (
 		},
 		{
 			Field: "summary.parameters.df",
-			Means: "Degrees of freedom: the number of categories in the subset's facet values, minus 1.",
+			Means: "Degrees of freedom: the number of compared categories (the subset's facet values that the population also shows), minus 1.",
 			Caveats: []string{
 				"A population category that is missing from the subset's facet values is left out of both the statistic and df, which understates a departure made of absent categories.",
+				"A subset category the population never shows is impossible under the population's mix, so it cannot be tested: it is left out of the statistic, the subset's total and df, and Pulse warns (PULSE_OVERLAY_REF_ZERO) once per such category. Read those warnings as departures in their own right.",
 			},
 		},
 	}
@@ -211,6 +214,8 @@ var (
 				"0 means the two tables have the same mix; read the p-value rather than the raw value.",
 			Caveats: []string{
 				overlayChiSqScale,
+				"Cells the reference never shows (reference count 0) are left out of the statistic and df, even when the target has counts there; those counts still set the scale. " +
+					"A shift into new cells is not detected, so check them directly (OVERLAY_DELTA_VS_REF).",
 			},
 		},
 		{
@@ -232,7 +237,7 @@ var (
 			Shared: SharedPValue,
 			Caveats: []string{
 				"Each cell holds the two-sided exact p-value of its own 2x2 table: this row versus the rest, by this column versus the rest.",
-				"It does not say which way the cell departs: compare the cell's count with what its row and column totals predict.",
+				"It does not say which way or how far the cell departs: compare the cell's count with what its row and column totals predict (or an OVERLAY_INDEX_VS_MARGIN layer) for direction and size.",
 				overlayCellMultiComp,
 			},
 		},
@@ -244,6 +249,7 @@ var (
 			Shared: SharedPValue,
 			Caveats: []string{
 				"Each cell holds the two-sided p-value comparing the target's share (cell / row total) with the reference's share in the same cell.",
+				"A cell whose row total is missing or zero on either side is NaN, with a warning (PULSE_OVERLAY_REF_ZERO): it gets no test.",
 				"The normal approximation needs roughly 10 successes and 10 failures on each side; with fewer the p-value is unreliable.",
 				overlayCellMultiComp,
 				overlayNoEffectSize,
@@ -261,6 +267,8 @@ var (
 				"The number of tests is cells times pairs, so it grows fast: with many cells and pairs some small p-values turn up by luck. " +
 					"Pulse reports them raw, so correct for multiple comparisons yourself.",
 				"The normal approximation needs roughly 10 successes and 10 failures per side.",
+				"A pair involving a slot whose row margin is missing or zero is NaN, with a warning: it gets no test.",
+				"The layer does not report an effect size: compare the slots' cell shares (cell / row total) for how big each gap is.",
 			},
 		},
 	}
@@ -414,7 +422,7 @@ var (
 			Field: "summary.parameters.n_pop",
 			Means: "The number of rows behind the population's numeric summary; the other count the p-value uses.",
 			Caveats: []string{
-				"When the subset is part of the population these rows include the subset's, so the two samples overlap and the p-value is only approximate.",
+				"When the subset is part of the population these rows include the subset's, so the two samples overlap: D shrinks and this count overstates the comparison sample, and the p-value comes out too large (conservative).",
 			},
 		},
 	}
@@ -445,7 +453,7 @@ var (
 			Sign: zScoreSign,
 			Caveats: []string{
 				overlayZScoreNoBands,
-				"With N groups no value can sit further than sqrt(N - 1) from 0 (Shiffler 1988), so with 5 groups nothing passes 2; compare values within a layer, not against a fixed cut-off.",
+				"With N groups no value can sit further than sqrt(N - 1) from 0 (Shiffler's 1988 bound, (N - 1)/sqrt(N), restated for the divide-by-N spread Pulse uses), so with 5 groups nothing passes 2; compare values within a layer, not against a fixed cut-off.",
 				"The spread is between groups, not between rows within a group.",
 			},
 		},
@@ -454,12 +462,13 @@ var (
 	interpOverlayZScoreVsRolling = []descriptor.Interpretation{
 		{
 			Field: "summary.statistic",
-			Means: "In each series entry: how far the point sits from the mean of the W points before it, in sample standard deviations of those W points. " +
+			Means: "In each series entry: how far the point sits from the mean of up to W points before it, in sample standard deviations of those points. " +
 				"0 means the point equals its recent average.",
 			Sign: zScoreSign,
 			Caveats: []string{
 				overlayZScoreNoBands,
 				"A short window gives a jumpy spread, and a trend or seasonal pattern makes many points look unusual; points stay empty (NaN) until the window holds 2 values.",
+				"Until W prior points exist the window is partial (from 2 points up), so the first values rest on a very unstable spread; treat them with caution.",
 			},
 		},
 	}

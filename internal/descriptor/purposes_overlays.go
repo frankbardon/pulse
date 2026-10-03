@@ -69,7 +69,9 @@ const (
 	overlayRawPValues = "Pulse reports raw p-values: with many cells or pairs some small values turn up by luck alone, " +
 		"so adjust for multiple comparisons yourself (for example Holm or Bonferroni)."
 	overlayWelfordInputs = "Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test " +
-		"falls back to placeholder params (variance 1, n 2), and its p-values then describe those placeholders, not your data."
+		"uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / " +
+		"sample_size_ref, default variance 1 and n 2). Those p-values describe the values you supplied, not each cell's own " +
+		"spread, and they change with the measure's units."
 	overlayDescriptiveZ = "It describes rather than tests: there is no p-value behind it, and a value of 2 or 3 is not a " +
 		"probability statement about the data."
 )
@@ -128,7 +130,7 @@ var (
 		},
 		Assumptions: []string{
 			overlayCountsOnly,
-			"The null hypothesis is that the row's mix matches the overall column mix. That overall mix includes the row itself, so a large row pulls it toward itself and the p-value is approximate.",
+			"The null hypothesis is that the row's mix matches the overall column mix. That overall mix includes the row itself, so a large row pulls it toward itself: the statistic is smaller than a row-versus-rest test's by the factor (N - row total) / N, and the p-value is too large (conservative), most of all for big rows.",
 			"Each row is a separate test, so with many rows some small p-values turn up by luck; adjust for multiple comparisons yourself.",
 			"Every expected count should be about 5 or more; a warning flags rows where some are lower.",
 		},
@@ -158,7 +160,7 @@ var (
 		},
 		Assumptions: []string{
 			overlayCountsOnly,
-			"The null hypothesis is that the column's mix matches the overall row mix. That overall mix includes the column itself, so a large column pulls it toward itself and the p-value is approximate.",
+			"The null hypothesis is that the column's mix matches the overall row mix. That overall mix includes the column itself, so a large column pulls it toward itself: the statistic is smaller than a column-versus-rest test's by the factor (N - column total) / N, and the p-value is too large (conservative), most of all for big columns.",
 			"Each column is a separate test, so with many columns some small p-values turn up by luck; adjust for multiple comparisons yourself.",
 			"Every expected count should be about 5 or more; a warning flags columns where some are lower.",
 		},
@@ -189,7 +191,8 @@ var (
 		Assumptions: []string{
 			"The subset's figures are counts of independent rows.",
 			"The null hypothesis is that the subset's mix matches the population's. The population mix is treated as known and fixed; when the subset is a large part of the population the two overlap and the p-value is only approximate.",
-			"With a very large subset even tiny differences in mix give small p-values; read the index values for size.",
+			"Only categories both sides show are compared, and the population's shares are rescaled over them, so population nulls and categories cut from a top-K listing do not distort the expected counts.",
+			"With a very large subset even tiny differences in mix give small p-values; read an OVERLAY_INDEX_VS_POP layer on the same facet for how big each category's shift is.",
 			"Every expected count should be about 5 or more; a warning flags layers where some are lower.",
 		},
 		Level: descriptor.LevelIntermediate,
@@ -284,7 +287,7 @@ var (
 			{When: "you want the size of the change rather than a p-value", Use: "OVERLAY_DELTA_VS_REF"},
 		},
 		Assumptions: []string{
-			"Cell values must be counts and each row margin is that row's sample size: the share tested is cell / row margin.",
+			"Cell values must be counts and each row margin is that row's sample size: the share tested is cell / row margin. A cell whose row margin is missing or zero on either side gets no test (NaN, with a warning).",
 			"Target and reference are separate, independent samples; rows that appear in both make the p-value wrong.",
 			"The null hypothesis is that the two shares are equal. The normal approximation needs roughly 10 successes and 10 failures on each side; the p-value is two-sided.",
 			"Every cell is a separate test, so with many cells some small p-values turn up by luck; " +
@@ -315,7 +318,7 @@ var (
 			{When: "the groups are rows or columns of one crosstab", Use: "OVERLAY_PAIRWISE_PROP_Z"},
 		},
 		Assumptions: []string{
-			"Cell values must be counts; by default each slot's row margin is its sample size (n_source picks another).",
+			"Cell values must be counts; by default each slot's row margin is its sample size (n_source picks another). A pair involving a slot whose row margin is missing or zero gets no test (NaN, with a warning).",
 			"The slots are separate, independent samples; rows that appear in more than one slot make the p-values wrong.",
 			"The null hypothesis for each pair is that the two shares are equal; each p-value is two-sided and needs roughly 10 successes and 10 failures per side.",
 			"Each cell gets one test per pair of slots, so the count grows fast. " + overlayRawPValues,
@@ -373,8 +376,8 @@ var (
 			{When: "the cells are averages of a numeric measure", Use: "OVERLAY_PAIRWISE_WELCH_T"},
 		},
 		Assumptions: []string{
-			"It treats each probit value as having spread 1/sqrt(n), a simplification that differs from the textbook two-proportion test; use it to match a tool that applies it.",
-			"Shares of exactly 0 or 1 are clipped just inside that range before the transform.",
+			"It treats each probit value as having spread 1/sqrt(n). The true spread is at least about 1.25/sqrt(n) and larger near 0% or 100%, so its p-values come out too small at every share. Use it only to reproduce a tool that applies it, never as evidence on its own.",
+			"Shares of exactly 0 or 1 are clipped to 1e-10 from the edge, which maps them to about ±6.4 on the probit scale. Any pair involving a 0% or 100% share then gets a huge t and a near-zero p-value whatever the n; treat those pairs as unreadable.",
 			"The two groups in each pair are independent samples. The null hypothesis is equal probit values; each p-value is two-sided, from a t distribution with n_i + n_j - 2 degrees of freedom.",
 			overlayRawPValues,
 		},
@@ -558,7 +561,7 @@ var (
 			{When: "you want the size of the change rather than a p-value", Use: "OVERLAY_DELTA_VS_REF"},
 		},
 		Assumptions: []string{
-			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test falls back to placeholder params (variance 1, n 2), and its p-values then describe those placeholders, not your data.",
+			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
 			"Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.",
 			"The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.",
 			"Each group is a separate test, so with many groups some small p-values turn up by luck; adjust for multiple comparisons yourself.",
@@ -588,7 +591,7 @@ var (
 			{When: "you want the size of the change rather than a p-value", Use: "OVERLAY_DELTA_VS_REF"},
 		},
 		Assumptions: []string{
-			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test falls back to placeholder params (variance 1, n 2), and its p-values then describe those placeholders, not your data.",
+			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, default variance 1 and n 2); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
 			"Target and reference are separate, independent samples. It reads p from the normal curve, so with small groups the p-values come out too small.",
 			"The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.",
 			"Each group is a separate test, so with many groups some small p-values turn up by luck; adjust for multiple comparisons yourself.",
@@ -618,8 +621,8 @@ var (
 			{When: "you want to see where the shapes differ rather than one test", Use: "OVERLAY_INDEX_VS_POP"},
 		},
 		Assumptions: []string{
-			"The curves are rebuilt from histograms or percentiles, not raw values: request matching histograms (or percentiles) on both arms. Coarse bins understate the gap and make the test conservative.",
-			"It treats subset and population as two independent samples; when the subset is part of the population they overlap and the p-value is only approximate.",
+			"The curves are rebuilt from histograms or percentiles, not raw values: request matching histograms (or percentiles) on both arms. With matching histograms, coarse bins understate the gap and make the test conservative. When Pulse falls back to percentiles it interpolates between them, so D can come out too large or too small and the p-value has no guaranteed direction; prefer matching histograms.",
+			"It treats subset and population as two independent samples. When the subset is part of the population they overlap: D shrinks by the subset's share of the population, so the p-value is too large (conservative), badly so when the subset is a big part of the population. Compare against the rest of the population instead when you can.",
 			"It compares two observed distributions; it is not a test against a named distribution with parameters estimated from the data, which would need the Lilliefors correction.",
 			"With few rows it has low power; with very large groups even trivial differences in shape give small p-values.",
 			"The null hypothesis is that both share one distribution; the p-value is a two-sided large-sample approximation.",
@@ -1096,10 +1099,10 @@ var (
 	}
 
 	purposeOverlayZScoreVsPop = descriptor.Purpose{
-		Plain:   "Places each facet category's share (or histogram bin) on a z-score scale against a comparison population: which values stand out?",
+		Plain:   "Puts each category's share gap with a comparison population on a z-score scale; for numeric bins it says nothing about the subset.",
 		Intents: []string{IntentBenchmark},
 		Questions: []string{
-			"Which answers does this segment pick far more or less often than everyone else?",
+			"Which answers does this segment pick more or less often than the comparison population, relative to how much answer shares vary?",
 			"Which categories stand out in this region compared with the whole business?",
 		},
 		UseCases: map[descriptor.Domain]string{
@@ -1115,7 +1118,7 @@ var (
 		Assumptions: []string{
 			overlayDescriptiveZ,
 			"For categories it divides each share gap by the spread of the population's shares across categories, not by a standard error, so it does not shrink as the subset grows.",
-			"For a numeric field it standardizes each histogram bin's centre against the population mean and standard deviation, which describes where the bins sit rather than how the subset differs.",
+			"For a numeric field it standardizes each histogram bin's centre against the population mean and standard deviation: the subset's counts never enter it, so the values are the same for any subset. Use OVERLAY_KS_VS_POP to compare a numeric subset.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"baseline", "standard-deviation", "standard-error", "z-score"},
