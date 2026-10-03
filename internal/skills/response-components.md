@@ -82,8 +82,8 @@ Sorted deterministically at serialization. `Keys` is the operator-specific set i
 
 | Constant | Wire | Semantics | Canonical operators |
 |---|---|---|---|
-| `Mergeable` | `"mergeable"` | folds via the scalar's own associative/commutative path; constant-space `MergeOnline`; safe per chunk | `AGG_SUM`, `AGG_COUNT`, `AGG_WELFORD`, `AGG_WEIGHTED_MEAN`, `AGG_RATIO`, `AGG_SET_UNION`, `AGG_SET_CARDINALITY_SUM` |
-| `Partial` | `"partial"` | associative but not constant-space (map / set unions); orchestrator may stage the merge at terminal flush | `AGG_FREQUENCY`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY` |
+| `Mergeable` | `"mergeable"` | folds via the scalar's own associative/commutative path; constant-space `MergeOnline`; safe per chunk | `AGG_SUM`, `AGG_COUNT`, `AGG_WELFORD`, `AGG_WEIGHTED_MEAN`, `AGG_RATIO`, `AGG_FREQUENCY`, `AGG_SET_UNION`, `AGG_SET_CARDINALITY_SUM` |
+| `Partial` | `"partial"` | associative but not constant-space (map / set unions); orchestrator may stage the merge at terminal flush | `AGG_MODE_COUNT`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`, `AGG_SET_FREQUENCY` |
 | `None` | `"none"` | not computable from a per-chunk partial — needs a sorted (or equivalent) view of the full input | `AGG_MEDIAN`, `AGG_PERCENTILE`, `GROUP_QUANTILE` |
 
 Predict surfaces per-slot `BufferedComponents` = `(Mergeability == None)`; check it once when planning a streaming request.

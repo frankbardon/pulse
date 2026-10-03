@@ -2,6 +2,9 @@
   "_meta": {
     "category": "crosstab",
     "description": "Nested row axis: rows are the (region, segment) tuple, columns are conversion outcome. Row tuples carry two components; ColumnKeys carries one. Demonstrates multi-grouper composite-key axis materialization.",
+    "intents": [
+      "composition"
+    ],
     "name": "crosstab_nested_region_segment_by_converted",
     "operators": [
       "AGG_COUNT",

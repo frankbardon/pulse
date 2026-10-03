@@ -236,6 +236,7 @@ func refusalRemedies() []remedy {
 		remedyTukeyFromAnova,
 		remedyPairwiseNLeg,
 		remedyDistinctNAdmitted,
+		remedyFrequencyModeCount,
 	}
 	for _, r := range regression.Remedies() {
 		out = append(out, r)

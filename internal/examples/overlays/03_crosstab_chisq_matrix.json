@@ -2,6 +2,10 @@
   "_meta": {
     "category": "overlays",
     "description": "Crosstab count of region x segment decorated with an OVERLAY_CHISQ_MATRIX matrix-scope overlay computing the whole-table chi-square independence statistic, df, and two-sided p-value from the host margins (implicit-margin contract; no ref pointer).",
+    "intents": [
+      "relationship",
+      "composition"
+    ],
     "name": "crosstab-chisq-matrix",
     "operators": [
       "AGG_COUNT",

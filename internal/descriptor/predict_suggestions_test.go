@@ -113,7 +113,7 @@ func TestPredict_Suggestions_NumericAggOnCategorical(t *testing.T) {
 	if s == nil {
 		t.Fatalf("expected operator-type suggestion; got %+v", ss)
 	}
-	want := []string{"AGG_DISTINCT_COUNT", "AGG_FREQUENCY", "AGG_MODE"}
+	want := []string{"AGG_DISTINCT_COUNT", "AGG_MODE_COUNT", "AGG_MODE"}
 	if len(s.Proposed) != len(want) {
 		t.Fatalf("Proposed count = %d, want %d", len(s.Proposed), len(want))
 	}

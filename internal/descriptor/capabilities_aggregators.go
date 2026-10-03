@@ -208,6 +208,19 @@ var setFieldTypes = []string{
 // GROUP_SET_* / ATTR_SET_* families instead.
 var nonSetFieldTypes = nonSetSubset(allCohortFieldTypes)
 
+// nonSetNonDecimalFieldTypes is nonSetFieldTypes without decimal128,
+// for a value-matching aggregator with no decimal implementation
+// (AGG_FREQUENCY).
+var nonSetNonDecimalFieldTypes = func() []string {
+	out := make([]string, 0, len(nonSetFieldTypes))
+	for _, n := range nonSetFieldTypes {
+		if n != "decimal128" {
+			out = append(out, n)
+		}
+	}
+	return out
+}()
+
 // nonSetSubset returns names with every "set_" prefixed entry removed,
 // preserving order. Derived from allCohortFieldTypes rather than
 // written out so a newly registered rung cannot land in one list and
@@ -343,16 +356,39 @@ func aggregatorCapabilities() []descriptor.Operator {
 			),
 		},
 		{
-			Name:          string(types.AGG_FREQUENCY),
+			Name:          string(types.AGG_MODE_COUNT),
 			Category:      "aggregator",
-			Description:   "Per-distinct-value count of the field (returned as map in Details).",
+			Description:   "Modal count: how many rows hold the field's most common value. Under GROUP_CATEGORY on the same field it is each group's row count.",
 			AcceptsTypes:  nonSetFieldTypes,
-			EmitsTypeNote: "map[string]int64",
+			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
 				descriptor.ComponentKey{Name: "distinct_count", Type: "int", Description: "Number of distinct values observed."},
-				descriptor.ComponentKey{Name: "mode_value", Type: "any", Description: "Most-frequent value (ties broken by first-seen order)."},
+				descriptor.ComponentKey{Name: "mode_value", Type: "any", Description: "Most-frequent value (ties broken by the smallest value, matching AGG_MODE)."},
 				descriptor.ComponentKey{Name: "mode_count", Type: "int", Description: "Row count of the modal value."},
+			),
+		},
+		{
+			Name:        string(types.AGG_FREQUENCY),
+			Category:    "aggregator",
+			Description: "Number of non-null rows whose field equals params.value (0 when none does). The count of the most common value is AGG_MODE_COUNT.",
+			Params: []descriptor.Param{
+				{
+					Name:        "value",
+					Type:        "string",
+					Required:    true,
+					Description: "Value to count, matched as FILTER_INCLUDE matches one: a category label, otherwise a number (date in epoch days, datetime in epoch seconds, packed_bool 1 or 0). A JSON number is accepted.",
+				},
+			},
+			// No set_* (a mask is not a value) and no decimal128: the
+			// runtime has no decimal implementation and predict warns
+			// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL on the pairing.
+			AcceptsTypes:  nonSetNonDecimalFieldTypes,
+			EmitsTypeNote: "scalar float64",
+			Streamable:    true,
+			ComponentSchema: aggSchema(descriptor.Mergeable,
+				descriptor.ComponentKey{Name: "match_count", Type: "int", Description: "Non-null rows equal to params.value (= the scalar)."},
+				descriptor.ComponentKey{Name: "share", Type: "float64", Description: "match_count / n; omitted when n is 0."},
 			),
 		},
 		{
@@ -402,12 +438,12 @@ func aggregatorCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.AGG_MODE),
 			Category:      "aggregator",
-			Description:   "Most-frequent value of the field (ties broken by first-seen order).",
+			Description:   "Most-frequent value of the field (ties broken by the smallest value).",
 			AcceptsTypes:  nonSetFieldTypes,
-			EmitsTypeNote: "string (echoes the dictionary value or stringified scalar)",
+			EmitsTypeNote: "scalar float64 (the modal value; for a categorical field, its dictionary index)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
-				descriptor.ComponentKey{Name: "value", Type: "any", Description: "Most-frequent value observed (first-seen tie-break)."},
+				descriptor.ComponentKey{Name: "value", Type: "any", Description: "Most-frequent value observed (smallest-value tie-break)."},
 				descriptor.ComponentKey{Name: "count", Type: "int", Description: "Row count of the modal value."},
 				descriptor.ComponentKey{Name: "distinct_count", Type: "int", Description: "Number of distinct values observed."},
 				descriptor.ComponentKey{Name: "tie_count", Type: "int", Description: "Number of values tied with the mode at the same maximum count."},
@@ -416,7 +452,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.AGG_SKEWNESS),
 			Category:      "aggregator",
-			Description:   "Bias-corrected skewness via online moments.",
+			Description:   "Population skewness g1 (m3 / m2^1.5, dividing by n) via online moments.",
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
@@ -424,13 +460,13 @@ func aggregatorCapabilities() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running mean of non-null field values."},
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Bias-corrected skewness derived from m2, m3, and n."},
+				descriptor.ComponentKey{Name: "skewness", Type: "float64", Description: "Population skewness g1 = m3 / (n * sd^3) from m2, m3 and n (not the small-sample-adjusted G1); 0 when n <= 1 or the variance is zero."},
 			),
 		},
 		{
 			Name:          string(types.AGG_KURTOSIS),
 			Category:      "aggregator",
-			Description:   "Bias-corrected excess kurtosis via online moments.",
+			Description:   "Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.",
 			AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
 			EmitsTypeNote: "scalar float64",
 			Streamable:    true,
@@ -439,7 +475,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "m2", Type: "float64", Description: "Second-moment accumulator (sum of squared deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m3", Type: "float64", Description: "Third-moment accumulator (sum of cubed deviations from the running mean)."},
 				descriptor.ComponentKey{Name: "m4", Type: "float64", Description: "Fourth-moment accumulator (sum of fourth-power deviations from the running mean)."},
-				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Bias-corrected excess kurtosis derived from m2, m4, and n."},
+				descriptor.ComponentKey{Name: "kurtosis", Type: "float64", Description: "Population excess kurtosis g2 = m4 / (n * variance^2) - 3 from m2, m4 and n (not the small-sample-adjusted G2); 0 when n <= 1 or the variance is zero."},
 			),
 		},
 		{

@@ -21,13 +21,13 @@ Field `type:` — `date` (32-bit days-since-epoch).
 
 ## Output
 
-Per-row `float64` days-since-epoch; the writer casts to `uint32` for the on-wire `date` cell. Draws `off = rng.Int64N(span + 1)` over `span = endDays - startDays`, so both endpoints are reachable.
+Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `date` word. Draws `off = rng.Int64N(span + 1)` over `span = endDays - startDays`, so both endpoints are reachable.
 
 ## Gotchas
 
 - Both bounds inclusive — `uniform_date(2024-01-01, 2024-12-31)` can emit either.
 - Unparseable dates → `SERVICE_VALIDATION` ("invalid start date" / "invalid end date"). `end == start` is legal (every draw on that day); only `end < start` → `SERVICE_VALIDATION` ("end must not be before start").
-- Epoch is 1970-01-01; pre-epoch dates are negative days, which `date` cannot store — keep `start >= 1970-01-01`.
+- Epoch is 1970-01-01; pre-epoch dates are legal — `date` stores signed `int32` days, so they are negative.
 - For sub-day granularity model the timestamp as `u64` seconds-since-epoch via `uniform`.
 
 ## See

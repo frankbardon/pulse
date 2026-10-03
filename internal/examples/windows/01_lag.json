@@ -2,6 +2,9 @@
   "_meta": {
     "category": "windows",
     "description": "Look back one row in the ordered partition to surface the previous transaction amount.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "win_lag",
     "operators": [
       "FILTER_RANGE",

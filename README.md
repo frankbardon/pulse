@@ -90,7 +90,7 @@ pulse api process --request request.json --json
 
 ### Smart defaults
 
-If you name a field but omit `type`, Pulse fills in a sensible operator from the schema type — `AGG_SUM` for numerics, `AGG_FREQUENCY` for categoricals, `GROUP_RANGE` (interval 10) for numerics, `GROUP_CATEGORY` for categoricals, `GROUP_DATE` ("day") for dates. Disable with `--no-defaults` or `pulse.Options{DisableDefaults: true}`. The full rule table lives in `internal/descriptor/defaults.go`.
+If you name a field but omit `type`, Pulse fills in a sensible operator from the schema type — `AGG_SUM` for numerics, `AGG_MODE_COUNT` for categoricals, `GROUP_RANGE` (interval 10) for numerics, `GROUP_CATEGORY` for categoricals, `GROUP_DATE` ("day") for dates. Disable with `--no-defaults` or `pulse.Options{DisableDefaults: true}`. The full rule table lives in `internal/descriptor/defaults.go`.
 
 ### Validate before executing
 

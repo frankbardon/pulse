@@ -1,6 +1,6 @@
 ---
 name: op-win-pct-change
-description: Percent change relative to the row `periods` positions earlier in the ordered partition.
+description: Fractional change (0.05 = 5%) against the row `periods` positions earlier in the ordered partition.
 kind: operator
 category: WIN
 operator: WIN_PCT_CHANGE
@@ -27,12 +27,12 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Output
 
-One `float64` per row written to `Label` (default `WIN_PCT_CHANGE_<field>`). Formula `(cur - prev) / prev` where `prev` is `periods` positions back. Rows `i < periods` within the partition emit `null`.
+One `float64` per row written to `Label` (default `WIN_PCT_CHANGE_<field>`). `(cur - prev) / prev`, `prev` being `periods` rows back: a FRACTION (0.05 = 5%), never ×100. Rows `i < periods` within the partition emit `null`.
 
 ## Gotchas
 
 - `periods <= 0` REJECTED at predict (`PULSE_WINDOW_INVALID`).
-- `prev == 0` emits `null` (no panic, no `+Inf`).
+- `prev == 0` emits `null` (no `+Inf`); a negative `prev` flips the sign.
 - Either side null emits `null`.
 - Result rows are NOT reordered — use `Request.Sort`.
 - Forces buffered execution (`Streamable=false`).

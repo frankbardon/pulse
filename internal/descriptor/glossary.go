@@ -55,7 +55,7 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "statistical-significance",
 		Short:   "A result is statistically significant when its p-value falls below your chosen alpha.",
-		WhyCare: "Significant means data this extreme would be unusual if there were truly no effect; it is not the chance the effect is real, and it does not mean important. With enough rows a trivially small difference becomes significant; check the effect size too.",
+		WhyCare: "Significant means data this extreme would be unusual if there were truly no effect; it is not the chance the effect is real, nor that it is important. With enough rows a tiny difference becomes significant; check the effect size (for a shape test, the statistic itself).",
 		SeeAlso: []string{"p-value", "alpha", "effect-size", "statistical-power"},
 		Jargon:  true, Forms: []string{"statistically significant", "statistical significance"},
 	},
@@ -69,7 +69,7 @@ var glossaryRegistry = []descriptor.Term{
 	{
 		ID:      "test-statistic",
 		Short:   "The single number a test computes from your data to measure how far it sits from the null hypothesis.",
-		WhyCare: "It is the raw ingredient of the p-value. Its scale differs from test to test, so compare p-values or effect sizes rather than statistics across tests.",
+		WhyCare: "It is the raw ingredient of the p-value. Its scale differs from test to test, so compare effect sizes, not statistics or p-values, across tests; a p-value also depends on the sample size.",
 		SeeAlso: []string{"p-value", "t-statistic", "f-statistic", "chi-square"},
 		Jargon:  true, Forms: []string{"test statistic", "test statistics"},
 	},
@@ -293,8 +293,8 @@ var glossaryRegistry = []descriptor.Term{
 	},
 	{
 		ID:      "variance",
-		Short:   "Roughly the average squared distance of values from their mean (divided by n - 1 for a sample): a measure of spread in squared units.",
-		WhyCare: "Most tests are built on it, but its squared units are hard to read; the standard deviation is the same idea in the original units.",
+		Short:   "Roughly the average squared distance of values from their mean: divided by n in the population form, or by n - 1 in the sample form most tools print.",
+		WhyCare: "A measure of spread in squared units. Most tests are built on the sample form, but its squared units are hard to read; the standard deviation is the same idea in the original units.",
 		SeeAlso: []string{"standard-deviation", "covariance"},
 		Jargon:  true, Forms: []string{"variance", "variances"},
 	},
@@ -328,7 +328,7 @@ var glossaryRegistry = []descriptor.Term{
 	},
 	{
 		ID:      "percentile",
-		Short:   "The value below which a given share of rows fall; the 90th percentile is higher than 90% of values.",
+		Short:   "The value at or below which about a given share of rows fall (about 90% sit at or below the 90th); a percentile rank is the reverse, a row's position as a percentage.",
 		WhyCare: "Percentiles describe a spread without assuming any shape, and are the honest way to report things like \"most users wait less than X\".",
 		SeeAlso: []string{"median", "outlier", "rank"},
 	},

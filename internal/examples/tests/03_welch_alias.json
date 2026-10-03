@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Two-sample Welch t-test invoked through the TEST_WELCH alias to make the unequal-variance assumption explicit.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "welch_alias_two_sample",
     "operators": [
       "TEST_WELCH"

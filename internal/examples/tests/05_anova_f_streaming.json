@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "One-way streaming ANOVA on revenue across regions to detect planted between-region differences.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "anova_f_streaming",
     "operators": [
       "TEST_ANOVA_F"

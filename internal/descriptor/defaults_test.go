@@ -33,15 +33,15 @@ func TestDefaults_Applied(t *testing.T) {
 		{encoding.FieldTypeF64, types.AGG_SUM, types.GROUP_RANGE},
 		{encoding.FieldTypeU4, types.AGG_SUM, types.GROUP_RANGE},
 		{encoding.FieldTypeDecimal128, types.AGG_SUM, types.GROUP_RANGE},
-		{encoding.FieldTypeCategoricalU8, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
-		{encoding.FieldTypeCategoricalU16, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
-		{encoding.FieldTypeCategoricalU32, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
+		{encoding.FieldTypeCategoricalU8, types.AGG_MODE_COUNT, types.GROUP_CATEGORY},
+		{encoding.FieldTypeCategoricalU16, types.AGG_MODE_COUNT, types.GROUP_CATEGORY},
+		{encoding.FieldTypeCategoricalU32, types.AGG_MODE_COUNT, types.GROUP_CATEGORY},
 		// Date: no aggregation default, GROUP_DATE for grouper.
 		{encoding.FieldTypeDate, "", types.GROUP_DATE},
 		// Datetime mirrors date: no aggregation default, GROUP_DATE for
 		// the grouper (which day-truncates the epoch-seconds value).
 		{encoding.FieldTypeDateTime, "", types.GROUP_DATE},
-		{encoding.FieldTypePackedBool, types.AGG_FREQUENCY, types.GROUP_CATEGORY},
+		{encoding.FieldTypePackedBool, types.AGG_MODE_COUNT, types.GROUP_CATEGORY},
 	}
 
 	// Verify coverage matches the FieldType enum exactly: every known
@@ -419,7 +419,7 @@ func hasGroupApplied(entries []descriptor.DefaultApplied) bool {
 // reported — while a target the instance offers still defaults.
 func TestDefaults_HiddenTargetGetsNoDefault(t *testing.T) {
 	inst := NewInstanceSnapshot(nil, FeatureSet{
-		Enabled: []string{"capability:process", "GROUP_CATEGORY", "AGG_FREQUENCY"},
+		Enabled: []string{"capability:process", "GROUP_CATEGORY", "AGG_MODE_COUNT"},
 		Hidden:  []string{"AGG_SUM", "GROUP_RANGE"},
 	})
 	num := schemaForType("x", encoding.FieldTypeF64)

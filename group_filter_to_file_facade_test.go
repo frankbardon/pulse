@@ -38,7 +38,7 @@ func filterToFileProbes(ctx context.Context, path string) []formatProbe {
 			Aggregations: append([]*types.Aggregation{
 				{Type: types.AGG_SUM, Field: "amount"},
 				{Type: types.AGG_COUNT, Field: "id"},
-				{Type: types.AGG_FREQUENCY, Field: "region"},
+				{Type: types.AGG_MODE_COUNT, Field: "region"},
 			}, extra...),
 		}
 	}

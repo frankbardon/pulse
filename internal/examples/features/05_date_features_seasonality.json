@@ -2,6 +2,10 @@
   "_meta": {
     "category": "features",
     "description": "Decompose order_date into calendar features and group by quarter to surface seasonality.",
+    "intents": [
+      "change_over_time",
+      "prepare"
+    ],
     "name": "feat_date_features_seasonality",
     "operators": [
       "AGG_AVERAGE",

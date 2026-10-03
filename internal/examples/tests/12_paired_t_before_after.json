@@ -2,6 +2,10 @@
   "_meta": {
     "category": "tests",
     "description": "Paired t-test on the per-unit revenue lift (revenue vs revenue_before) to detect the average treatment effect.",
+    "intents": [
+      "change_over_time",
+      "compare_groups"
+    ],
     "name": "paired_t_before_after",
     "operators": [
       "TEST_PAIRED_T"

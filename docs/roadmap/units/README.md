@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08 and before U09. Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -46,7 +46,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U06 | [profiles-mcp-tooling](U06-profiles-mcp-tooling.md): MCP servers expose only the profile, and embedders have tools to write and check profiles | Feature profiles | M | U05 | 29, 30, 31, 32, 33, 35 |
 | U07 | [guidance-metadata](U07-guidance-metadata.md): Pulse can describe what each operator is for, in plain language, without bloating payloads | Guided analysis | L | U02, U02b | 36, 37, 38, 39, 40, 41, 42 |
 | U08 | [guidance-backfill-inferential](U08-guidance-backfill-inferential.md): Every test, overlay and regression explains what it is for and how to read it | Guided analysis | L | U07 | 43, 44, 45 |
-| U09 | [guidance-backfill-descriptive](U09-guidance-backfill-descriptive.md): Every operator carries guidance, and the guidance gates are binding | Guided analysis | L | U08, U36 | 46, 47, 48, 49 |
+| U09 | [guidance-backfill-descriptive](U09-guidance-backfill-descriptive.md): Every operator carries guidance, and the guidance gates are binding | Guided analysis | L | U08 (U36 soft) | 46, 47, 48, 49 |
 | U10 | [skill-ontology](U10-skill-ontology.md): Agents only ever see skills and examples for features the instance has | Feature profiles | L | U05, U09 | 24, 25, 26, 27, 28 |
 | U11 | [weighting-descriptive](U11-weighting-descriptive.md): Weighted counts, percentages and crosstabs are correct by default when a weight is set | Statistical integrity | L | U04 | 50, 51, 52, 53, 54, 57, 58 |
 | U12 | [weighting-inferential](U12-weighting-inferential.md): Significance tests and models are correct on weighted survey data | Statistical integrity | M | U11 | 55, 56, 59 |
@@ -180,14 +180,14 @@ graph TD
   U02c -.-> U35
   U35 --> U32
   U08 --> U36
-  U36 --> U09
+  U36 -.-> U09
 ```
 
 ## Human inputs that gate units
 
 - **U02 public-surface:** none blocking — the downstream catalog is delivered (#1) and the classification decided (#2); whether U02 or U02b moves `processing` is the implementer's call
 - **U08 guidance-backfill-inferential:** done without a human reviewer — an automated review (deterministic gates + an advisory LLM panel) is recorded in [`reviews/U08-statistics-review.md`](../reviews/U08-statistics-review.md); human sign-off moved to U33
-- **U09 guidance-backfill-descriptive:** Statistics reviewer sign-off before the flip
+- **U09 guidance-backfill-descriptive:** done without a human reviewer — an automated review is the U09 section of [`reviews/U08-statistics-review.md`](../reviews/U08-statistics-review.md); human sign-off moved to U33 (#206)
 - **U12 weighting-inferential:** Reviewer glance at the `n_eff` semantics (the U33 statistics reviewer)
 - **U24 matrix-operators:** Statistics reviewer for Purpose/Interpretation of the new operators
 - **U25 multivariate-tests-segmentation:** Statistics reviewer

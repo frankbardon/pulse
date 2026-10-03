@@ -13,6 +13,7 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_MAX:            newMaxAggregator,
 	types.AGG_STDDEV:         newStdDevAggregator,
 	types.AGG_RANGE:          newRangeAggregator,
+	types.AGG_MODE_COUNT:     newModeCountAggregator,
 	types.AGG_FREQUENCY:      newFrequencyAggregator,
 	types.AGG_ZSCORE:         newZScoreAggregator,
 	types.AGG_MEDIAN:         newMedianAggregator,

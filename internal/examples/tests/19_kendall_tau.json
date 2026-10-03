@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Kendall tau-b between revenue and its pre-treatment baseline as a concordance-based alternative to Spearman rho.",
+    "intents": [
+      "relationship"
+    ],
     "name": "kendall_tau",
     "operators": [
       "AGG_COUNT",

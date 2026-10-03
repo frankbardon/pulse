@@ -2,6 +2,10 @@
   "_meta": {
     "category": "groupers",
     "description": "Bucket age into decades via floor(age/10)*10 and report count and average income per decade.",
+    "intents": [
+      "segment",
+      "compare_groups"
+    ],
     "name": "group_rounded_decade",
     "operators": [
       "AGG_AVERAGE",

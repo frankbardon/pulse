@@ -6,7 +6,7 @@ category: FEAT
 operator: FEAT_TRAIN_TEST_SPLIT
 type: reference
 applies_to: process, compose, predict
-examples_tags: [feature-engineering, feature-pipeline, leakage-safe, pre-filter]
+examples_tags: [feature-engineering, feature-pipeline, pre-filter]
 ---
 
 Feature operators emit derived columns; no `Response.Components`.
@@ -32,10 +32,10 @@ One `u8`-valued `f64` column at `Label` (default `split`), from `internal/proces
 - `ratios` length outside `[2, 3]`, any negative ratio, a sum off `1.0` by more than `1e-6`, or a non-categorical `stratify` → `PROCESSING_CONFIG`.
 - GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields it in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
 - Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
-- Stratified mode hashes per group with `seed + len(out)*indices[0]+1`, so groups do not collapse to identical shuffles.
-- LEAKAGE-SAFE WIRING: place this BEFORE any `FEAT_TARGET_ENCODE` to suppress `PULSE_FEAT_TARGET_LEAKAGE_RISK`, then `FILTER_INCLUDE` on `split == 0` to scope downstream training-only work.
+- Stratified mode seeds each group distinctly, so groups never share one shuffle.
+- Does NOT protect `FEAT_TARGET_ENCODE`: it reads no split column, so `PULSE_FEAT_TARGET_LEAKAGE_RISK` still fires.
 
 ## See
 
-- `pulse_examples_search tags=[leakage-safe]`, `tags=[feature-engineering]`
+- `pulse_examples_search tags=[feature-engineering]`
 - Skills: `feature-engineering` (train / test / split semantics), `op-feat-target-encode`, `op-filter-include`

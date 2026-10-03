@@ -511,8 +511,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceOperator,
 				Path:     []string{"Aggregations", "*", "Type"},
-				Hint:     "Use AGG_MODE, AGG_FREQUENCY, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
-				Examples: []any{"AGG_MODE", "AGG_FREQUENCY", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
+				Hint:     "Use AGG_MODE, AGG_MODE_COUNT, AGG_DISTINCT_COUNT, or AGG_COUNT for categorical fields.",
+				Examples: []any{"AGG_MODE", "AGG_MODE_COUNT", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
 			},
 			{
 				Action: FixupReplaceField,
@@ -546,12 +546,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
-		Message: "FEAT_TARGET_ENCODE was requested without a prior train/test split feature; encoded values include rows that should be held out.",
+		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Features"},
-				Hint:   "Insert a FEAT_TRAIN_TEST_SPLIT operator before every FEAT_TARGET_ENCODE in the features list.",
+				Hint:   "To encode from the training rows only, drop FEAT_TARGET_ENCODE and compute each category's AGG_AVERAGE of the outcome on split 0 in a separate request, then map those averages onto the records with a join or lookup table; for descriptive use, keep the in-sample encoding knowing it is not a held-out estimate.",
 			},
 		},
 	},
@@ -1215,12 +1215,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CHAIN_NOT_MERGEABLE: {
-		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, frequency and mode aggregators, or a non-mergeable grouper/aggregator).",
+		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper/aggregator).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Stages", "*", "Request"},
-				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable, scalar-emitting aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (GROUP_CATEGORY, GROUP_RANGE).",
+				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY, MODE, MODE_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (GROUP_CATEGORY, GROUP_RANGE).",
 			},
 		},
 	},
@@ -2585,7 +2585,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Groupers"},
-				Hint:   "Work from the constituents, which are all present. Each is an ordinary column, so GROUP_CATEGORY / AGG_FREQUENCY per constituent gives the same per-option counts a GROUP_SET_PER_ELEMENT fan-out over the derived column would have, one request slot per option instead of one.",
+				Hint:   "Work from the constituents, which are all present. Each is an ordinary column, so GROUP_CATEGORY / AGG_MODE_COUNT per constituent gives the same per-option counts a GROUP_SET_PER_ELEMENT fan-out over the derived column would have, one request slot per option instead of one.",
 			},
 			{
 				Action: FixupReplaceField,

@@ -24,12 +24,12 @@ None.
 
 ## Output
 
-One `float64` per record in `[0, 1]`. Null source → null output.
+One `float64` per record in `[0, 1]`. Null source → `0` (not null).
 
 ## Gotchas
 
 - Two-pass: pre-pass tracks min/max across filter-passing rows; pass 2 emits per row.
-- Constant field (`max == min`) → `NaN` per row.
+- Constant field (`max == min`) → `0` per row.
 - Outlier-sensitive — one extreme value compresses the rest of the range. For robust scaling prefer `ATTR_PERCENTILE` (rank-based) or `ATTR_ZSCORE` (centered).
 - `decimal128` rejected.
 - Frequently used as a feature input for downstream `ATTR_FORMULA` or external ML — but no in-slot chaining; stage via Compose / ProcessChain.

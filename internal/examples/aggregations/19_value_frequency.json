@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Per city, how many customers live in the north region (AGG_FREQUENCY with params.value, a scalar count of rows equal to one value; its components add match_count and share of the city's non-null rows) beside every customer counted (AGG_COUNT). The same count as FILTER_INCLUDE on north + AGG_COUNT, without dropping the other rows. The count of the most common region is AGG_MODE_COUNT instead.",
+    "intents": [
+      "composition",
+      "describe"
+    ],
+    "name": "value_frequency",
+    "operators": [
+      "AGG_FREQUENCY",
+      "AGG_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "cross-tabulation",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_FREQUENCY",
+      "field": "region",
+      "label": "north_customers",
+      "params": {
+        "value": "north"
+      }
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "region",
+      "label": "customers"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "city"
+    }
+  ],
+  "sort": [
+    {
+      "field": "city"
+    }
+  ]
+}

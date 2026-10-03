@@ -52,8 +52,8 @@ errors.
 | `05_date_features_seasonality.json` | `FEAT_DATE_FEATURES` | Calendar decomposition + group-by-quarter |
 | `06_frequency_encode.json` | `FEAT_FREQUENCY_ENCODE` | Replace high-cardinality categorical with frequency |
 | `07_train_test_split.json` | `FEAT_TRAIN_TEST_SPLIT` | Stratified 70/15/15 partition by category |
-| `08_target_encode_safe.json` | `FEAT_TARGET_ENCODE` (safe) | Split-then-encode order, smoothing=5 |
-| `09_target_encode_leaky.json` | `FEAT_TARGET_ENCODE` (unsafe) | Triggers `PULSE_FEAT_TARGET_LEAKAGE_RISK` |
+| `08_target_encode_safe.json` | `FEAT_TARGET_ENCODE` | Split-then-encode order, smoothing=5 — still in-sample, still warns |
+| `09_target_encode_leaky.json` | `FEAT_TARGET_ENCODE` | Triggers `PULSE_FEAT_TARGET_LEAKAGE_RISK` |
 | `10_full_ml_pipeline.json` | All eight | Compose the full preprocessing graph |
 
 ## Required fields per example
@@ -84,8 +84,12 @@ bin/pulse api predict --request internal/examples/features/09_target_encode_leak
 # error: PULSE_FEAT_TARGET_LEAKAGE_RISK
 ```
 
-Reorder so `FEAT_TRAIN_TEST_SPLIT` precedes `FEAT_TARGET_ENCODE`
-(see `08_target_encode_safe.json`) and the gate goes silent.
+The warning fires on every `FEAT_TARGET_ENCODE`, including after a
+`FEAT_TRAIN_TEST_SPLIT` (see `08_target_encode_safe.json`): the encoder
+reads no split column, so every mean includes validation/test rows and the
+row's own target. For train-only means, compute `AGG_AVERAGE` of the
+target grouped by the category on `split == 0` in a separate request and
+map them back.
 
 ## Default output column names
 

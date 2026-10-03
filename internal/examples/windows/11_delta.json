@@ -2,6 +2,9 @@
   "_meta": {
     "category": "windows",
     "description": "Point difference versus the row one period earlier in the date-ordered partition — the same comparison as 10_pct_change, in the field's own units instead of as a ratio.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "win_delta",
     "operators": [
       "WIN_DELTA"

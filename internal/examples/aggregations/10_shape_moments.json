@@ -2,6 +2,10 @@
   "_meta": {
     "category": "aggregations",
     "description": "Higher-order distribution-shape moments on customers.pulse income: AGG_STDDEV (spread), AGG_SKEWNESS (asymmetry; m3 / (n * sd^3)), AGG_KURTOSIS (tail-weight; m4 / (n * sd^4) - 3 excess form). Together they form the canonical four-moment shape summary alongside the mean.",
+    "intents": [
+      "distribution_shape",
+      "describe"
+    ],
     "name": "shape_moments",
     "operators": [
       "AGG_AVERAGE",

@@ -2,6 +2,10 @@
   "_meta": {
     "category": "crosstab",
     "description": "Continuous-variable crosstab: revenue_before binned via GROUP_RANGE on the row axis, treatment on the column axis, count cells. Demonstrates that binning groupers work on either axis with zero new operator code.",
+    "intents": [
+      "composition",
+      "distribution_shape"
+    ],
     "name": "crosstab_revenue_bin_by_treatment",
     "operators": [
       "AGG_COUNT",

@@ -20,7 +20,7 @@ Orthogonal. `Nullable: true` participates in the per-record null bitmap (indepen
 
 ## Dictionary
 
-Absent. `packed_bool` carries no inline dictionary block. The default grouper is `GROUP_CATEGORY` (two buckets); the default aggregator is `AGG_FREQUENCY`.
+Absent. `packed_bool` carries no inline dictionary block. The default grouper is `GROUP_CATEGORY` (two buckets); the default aggregator is `AGG_MODE_COUNT`.
 
 ## Synth
 

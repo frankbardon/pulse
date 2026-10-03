@@ -1,6 +1,6 @@
 ---
 name: op-agg-kurtosis
-description: Bias-corrected excess kurtosis via online moments.
+description: Population excess kurtosis g2 (m4 / m2^2 - 3, dividing by n) via online moments.
 kind: operator
 category: AGG
 operator: AGG_KURTOSIS
@@ -21,7 +21,7 @@ None.
 
 ## Output
 
-Scalar `float64` — bias-corrected excess kurtosis. Per-group when wired under a grouper.
+Scalar `float64` — population excess kurtosis g2 = `m4 / m2^2 − 3` (moments divide by `n`), NOT the adjusted G2 of Excel `KURT` / SPSS. Per-group when wired under a grouper.
 
 ## Components
 
@@ -40,7 +40,8 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Requires `n >= 4` for bias correction; below → NaN.
+- `n <= 1` or zero variance → `0` (not NaN): check `n` before reading a 0.
+- Small-n bias vs adjusted G2 is large on small groups; g2 ≥ −2 always.
 - Excess kurtosis (normal = 0), NOT raw kurtosis (normal = 3).
 - `decimal128` rejected.
 

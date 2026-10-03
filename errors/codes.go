@@ -276,12 +276,13 @@ const (
 	// non-orderable order key, label collision, or unsupported window type.
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
 
-	// PULSE_FEAT_TARGET_LEAKAGE_RISK indicates that FEAT_TARGET_ENCODE was
-	// requested without a prior FEAT_TRAIN_TEST_SPLIT in the same Features
-	// list. The encoded values include rows that should belong to the
-	// validation/test partitions, leaking target information into the
-	// training feature. Mitigation: place a FEAT_TRAIN_TEST_SPLIT operator
-	// before any FEAT_TARGET_ENCODE.
+	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE. The
+	// encoder reads no split column and features run before filters, so
+	// each encoded value averages every record's outcome — the record's
+	// own and the validation/test records' included — whether or not a
+	// FEAT_TRAIN_TEST_SPLIT precedes it. Mitigation: compute train-only
+	// category averages (AGG_AVERAGE on split 0) in a separate request and
+	// map them back, or accept the in-sample encoding for descriptive use.
 	PULSE_FEAT_TARGET_LEAKAGE_RISK Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 
 	// PULSE_DECIMAL_OVERFLOW indicates a decimal arithmetic or aggregation
@@ -756,11 +757,9 @@ const (
 	// PULSE_CHAIN_NOT_MERGEABLE indicates a stage inside a
 	// ProcessChain request fails the chain gate. The gate accepts
 	// mergeable requests (internal/mergegate.MergeRefusal, the rule
-	// processing.CanMergeRequest delegates to)
-	// whose aggregators emit a single scalar per output row. Stages
-	// using windows, features, tier-1/tier-2 tests, regressions,
-	// two-pass attributes, AGG_FREQUENCY, AGG_MODE, or non-mergeable
-	// groupers / aggregators are rejected. The error details carry
+	// processing.CanMergeRequest delegates to). Stages using windows,
+	// features, tier-1/tier-2 tests, regressions, two-pass attributes,
+	// or non-mergeable groupers / aggregators are rejected. The error details carry
 	// the offending stage index and name so callers can fall back to
 	// per-stage Process calls.
 	PULSE_CHAIN_NOT_MERGEABLE Code = "PULSE_CHAIN_NOT_MERGEABLE"
@@ -1851,7 +1850,7 @@ const (
 	// PULSE_SPSS_MEASURE_LEVEL_MISMATCH indicates an SPSS variable whose
 	// record 7/11 measurement level is `scale` carries value labels and
 	// was therefore mapped to a Pulse categorical field, whose smart
-	// defaults are AGG_FREQUENCY / GROUP_CATEGORY rather than the
+	// defaults are AGG_MODE_COUNT / GROUP_CATEGORY rather than the
 	// AGG_SUM / GROUP_RANGE the declared level implies. It is a WARNING:
 	// the mapping is lossless — every code and label is preserved — but
 	// the analytic defaults will not be the ones the source file's author

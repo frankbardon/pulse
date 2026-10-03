@@ -2,6 +2,9 @@
   "_meta": {
     "category": "filterers",
     "description": "Drop driver and artist rows, then count the remaining occupations.",
+    "intents": [
+      "composition"
+    ],
     "name": "filter_exclude_occupations",
     "operators": [
       "AGG_COUNT",

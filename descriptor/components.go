@@ -35,7 +35,7 @@ const (
 	// Partial forwards types.ComponentsPartial. The components map
 	// merges across chunks but at non-trivial allocation cost — map /
 	// set unions where the fold is associative but not constant-
-	// space (AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+	// space (AGG_MODE_COUNT, AGG_MODE, AGG_DISTINCT_COUNT,
 	// AGG_SET_FREQUENCY). The orchestrator may stage the merge at
 	// terminal flush.
 	Partial = types.ComponentsPartial

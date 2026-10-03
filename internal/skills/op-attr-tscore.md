@@ -24,12 +24,12 @@ None.
 
 ## Output
 
-One `float64` per record — `50 + 10 * zscore`. Null source → null output.
+One `float64` per record — `50 + 10 * zscore`. Null source → `50` (not null).
 
 ## Gotchas
 
 - Two-pass: shares the Welford pre-pass with `ATTR_ZSCORE`. Reading-friendly scale for survey / education contexts (mean 50, sd 10, no negatives in the typical range).
-- Zero stddev → `NaN`.
+- Zero stddev → `50` per row.
 - `decimal128` rejected.
 - Not a percentile — same shape as the underlying distribution. For rank-style scoring use `ATTR_PERCENTILE` or `ATTR_NORMALIZED`.
 - `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise. Use `ATTR_SET_POPCOUNT` for set size or `ATTR_SET_HAS` for membership.

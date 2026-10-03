@@ -2,6 +2,10 @@
   "_meta": {
     "category": "filterers",
     "description": "Numeric range filter keeping rows whose age falls between 25 and 55 inclusive, then summarize the kept cohort.",
+    "intents": [
+      "segment",
+      "describe"
+    ],
     "name": "filter_range_age",
     "operators": [
       "AGG_AVERAGE",

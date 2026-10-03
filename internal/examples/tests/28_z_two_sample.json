@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Two-sample z-test on revenue split by treatment arm via TEST_Z_TWO_SAMPLE — the large-sample asymptotic sibling of TEST_T / TEST_WELCH. Reuses the standardNormalCDF helper backing the OVERLAY_Z_CELL / OVERLAY_Z_VS_REF parity overlays so the row-test surface and the overlay surface emit identical p-values for the same (mean, variance, n) inputs. Paired with TEST_WELCH so the example surfaces the parametric distinction (Student's t vs standard normal) on the same fixture.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "z_two_sample_revenue",
     "operators": [
       "AGG_AVERAGE",

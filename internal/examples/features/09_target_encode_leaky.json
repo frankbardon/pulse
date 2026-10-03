@@ -1,7 +1,10 @@
 {
   "_meta": {
     "category": "features",
-    "description": "Intentional leakage example: target-encode without a preceding train/test split so PULSE_FEAT_TARGET_LEAKAGE_RISK fires.",
+    "description": "Intentional leakage example: target-encode with no split at all; PULSE_FEAT_TARGET_LEAKAGE_RISK fires, as it does on every FEAT_TARGET_ENCODE.",
+    "intents": [
+      "prepare"
+    ],
     "name": "feat_target_encode_leaky",
     "operators": [
       "AGG_AVERAGE",

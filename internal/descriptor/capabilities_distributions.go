@@ -116,15 +116,16 @@ func distributionCapabilities() []descriptor.DistributionMeta {
 			AppliesTo:   []string{"date"},
 			Params: []descriptor.Param{
 				{Name: "start", Type: "string", Required: true, Description: "ISO-8601 calendar date (YYYY-MM-DD)."},
-				{Name: "end", Type: "string", Required: true, Description: "ISO-8601 calendar date (YYYY-MM-DD); must exceed start."},
+				{Name: "end", Type: "string", Required: true, Description: "ISO-8601 calendar date (YYYY-MM-DD); inclusive, may equal start but not precede it."},
 			},
 		},
 		{
 			Name:        synth.DistRegex,
-			Description: "String samples generated from a Perl regex pattern; bounded repetition counts must be finite.",
+			Description: "String samples generated from a Perl regex pattern; open-ended repeats (*, +, {m,}) are capped at max_repeat.",
 			AppliesTo:   []string{"categorical"},
 			Params: []descriptor.Param{
 				{Name: "pattern", Type: "string", Required: true, Description: "Regex source string (Perl/RE2 syntax)."},
+				{Name: "max_repeat", Type: "int", Required: false, Default: 8, Description: "Most copies * or + emits; {m,n} emits at most m+max_repeat. Floored at 1."},
 			},
 		},
 		{

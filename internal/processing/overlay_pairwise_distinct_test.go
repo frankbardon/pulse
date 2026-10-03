@@ -55,7 +55,7 @@ func pairwiseDistinctHost() *CrosstabHostView {
 
 // TestPairwiseCellAggregatorIdentity pins the discriminating key sets
 // restated in internal/processing/ from internal/descriptor/capabilities_aggregators.go.
-// AGG_FREQUENCY and AGG_MODE must classify as THEMSELVES and never be
+// AGG_MODE_COUNT and AGG_MODE must classify as THEMSELVES and never be
 // admitted, even though both carry a key spelled "distinct_count".
 func TestPairwiseCellAggregatorIdentity(t *testing.T) {
 	cases := []struct {
@@ -85,7 +85,7 @@ func TestPairwiseCellAggregatorIdentity(t *testing.T) {
 		{
 			name:     "frequency",
 			cell:     map[string]any{"n": 4, "distinct_count": 9, "mode_value": "a", "mode_count": 3},
-			wantAgg:  types.AGG_FREQUENCY,
+			wantAgg:  types.AGG_MODE_COUNT,
 			wantOK:   true,
 			admitted: false,
 		},
@@ -249,7 +249,7 @@ func TestPairwiseColumnSlabDistinctN(t *testing.T) {
 }
 
 // TestOverlayPairwise_NWithinDistinctRefusesFrequencyCells is the
-// load-bearing admission test: an AGG_FREQUENCY cell host carries a key
+// load-bearing admission test: an AGG_MODE_COUNT cell host carries a key
 // SPELLED distinct_count whose meaning is distinct VALUES of the measure
 // field. A key-presence gate would read it as a sample size. The refusal
 // must be up front, coded, and must NAME both the observed aggregator
@@ -281,14 +281,14 @@ func TestOverlayPairwise_NWithinDistinctRefusesFrequencyCells(t *testing.T) {
 	}}
 	layers, _, err := applyOverlays(specs, host)
 	if err == nil {
-		t.Fatalf("expected refusal on an AGG_FREQUENCY cell host, got %d layer(s)", len(layers))
+		t.Fatalf("expected refusal on an AGG_MODE_COUNT cell host, got %d layer(s)", len(layers))
 	}
 	if !pairwiseErrHasCode(err, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 		t.Fatalf("error %v does not carry PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", err)
 	}
 	msg := err.Error()
 	for _, want := range []string{
-		string(types.AGG_FREQUENCY),
+		string(types.AGG_MODE_COUNT),
 		string(types.AGG_DISTINCT_SUM),
 		string(types.AGG_DISTINCT_COUNT),
 	} {
@@ -298,8 +298,8 @@ func TestOverlayPairwise_NWithinDistinctRefusesFrequencyCells(t *testing.T) {
 	}
 
 	coded := pairwiseCodedError(t, err)
-	if got, _ := coded.Details["observed_cell_aggregator"].(string); got != string(types.AGG_FREQUENCY) {
-		t.Fatalf("details observed_cell_aggregator = %q, want %q", got, types.AGG_FREQUENCY)
+	if got, _ := coded.Details["observed_cell_aggregator"].(string); got != string(types.AGG_MODE_COUNT) {
+		t.Fatalf("details observed_cell_aggregator = %q, want %q", got, types.AGG_MODE_COUNT)
 	}
 	adm, _ := coded.Details["admitted_cell_aggregators"].([]string)
 	if len(adm) != 2 || adm[0] != string(types.AGG_DISTINCT_SUM) || adm[1] != string(types.AGG_DISTINCT_COUNT) {

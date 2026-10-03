@@ -2,6 +2,10 @@
   "_meta": {
     "category": "crosstab",
     "description": "Segment × converted count crosstab with total normalization. Whole table sums to 1; each cell is the joint probability P(segment=s, converted=c).",
+    "intents": [
+      "composition",
+      "relationship"
+    ],
     "name": "crosstab_total_normalize_joint",
     "operators": [
       "AGG_COUNT",

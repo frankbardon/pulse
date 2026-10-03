@@ -2,6 +2,9 @@
   "_meta": {
     "category": "aggregations",
     "description": "Exercise every narrow numeric type (u8 through f64 plus u4 and packed_bool) in one request via per-column SUM and AVERAGE.",
+    "intents": [
+      "describe"
+    ],
     "name": "all_narrow_types",
     "operators": [
       "AGG_AVERAGE",

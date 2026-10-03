@@ -35,8 +35,9 @@ func sweepCohortRequest(cohort string) *types.Request {
 }
 
 // runtimeSweepCases covers every runtime remedy clause
-// (internal/processing/refusal_prose.go, the regression remedies and
-// the chain gate's non-scalar note).
+// (internal/processing/refusal_prose.go and the regression remedies).
+// The chain gate's refusals name only the operator the refused request
+// itself wrote, so they recommend nothing else and have no case here.
 func runtimeSweepCases() []runtimeSweepCase {
 	count := &types.Aggregation{Type: types.AGG_COUNT, Field: "age", Label: "n"}
 	set := func(mut func(r *types.Request)) *types.Request {
@@ -73,10 +74,10 @@ func runtimeSweepCases() []runtimeSweepCase {
 	base := []string{"capability:process", "AGG_COUNT"}
 	with := func(names ...string) []string { return append(append([]string(nil), base...), names...) }
 	return []runtimeSweepCase{
-		{"aggregator on a set field", []string{"capability:process", "AGG_FREQUENCY"},
+		{"aggregator on a set field", []string{"capability:process", "AGG_MODE_COUNT"},
 			[]string{"AGG_SET_FREQUENCY", "AGG_COUNT"},
 			sweepProcess(set(func(r *types.Request) {
-				r.Aggregations = []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "brand"}}
+				r.Aggregations = []*types.Aggregation{{Type: types.AGG_MODE_COUNT, Field: "brand"}}
 			}))},
 		{"attribute on a set field", []string{"capability:process", "AGG_SUM", "ATTR_ZSCORE"},
 			[]string{"ATTR_SET_POPCOUNT"},
@@ -124,26 +125,13 @@ func runtimeSweepCases() []runtimeSweepCase {
 					Params: json.RawMessage(`{"n_source":"` + types.PairwiseNSourceNWithinDistinct + `","n_within_depth":0}`)}}
 			}))},
 		{"pairwise distinct-key admission",
-			[]string{"capability:process", "capability:crosstab", "GROUP_CATEGORY", "GROUP_SET_PER_ELEMENT", "AGG_FREQUENCY", "OVERLAY_PAIRWISE_PROP_Z"},
+			[]string{"capability:process", "capability:crosstab", "GROUP_CATEGORY", "GROUP_SET_PER_ELEMENT", "AGG_MODE_COUNT", "OVERLAY_PAIRWISE_PROP_Z"},
 			[]string{"AGG_DISTINCT_SUM", "AGG_DISTINCT_COUNT"},
 			sweepProcess(func() *types.Request {
 				r := pwDistinctRequest(types.PairwiseNSourceNWithinDistinct)
-				r.Crosstab.Cell = &types.Aggregation{Type: types.AGG_FREQUENCY, Field: "segment", Label: "freq_segment"}
+				r.Crosstab.Cell = &types.Aggregation{Type: types.AGG_MODE_COUNT, Field: "segment", Label: "freq_segment"}
 				return r
 			}())},
-		{"chain non-scalar stage",
-			[]string{"capability:process", "capability:process_chain", "GROUP_CATEGORY", "AGG_COUNT", "AGG_FREQUENCY"},
-			[]string{"AGG_MODE"},
-			func(p *Pulse) ([]byte, any) {
-				req := &ChainRequest{Cohort: &types.Cohort{Filename: parityCohort}, Stages: []*types.ChainStage{
-					{Name: "base", Request: &types.Request{
-						Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-						Aggregations: []*types.Aggregation{{Type: types.AGG_FREQUENCY, Field: "region", Label: "f"}},
-					}},
-				}}
-				resp, err := p.ProcessChain(context.Background(), req)
-				return parityOutcome(resp, err), req
-			}},
 	}
 }
 

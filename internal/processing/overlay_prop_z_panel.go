@@ -585,7 +585,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 
 	// Distinct-key n admission — refused UP FRONT, on each slot's CELL
 	// aggregator IDENTITY, never per coordinate. The MATRIX arm's rule
-	// verbatim (internal/processing/overlay_pairwise.go): AGG_FREQUENCY and
+	// verbatim (internal/processing/overlay_pairwise.go): AGG_MODE_COUNT and
 	// AGG_MODE both emit a component literally spelled
 	// "distinct_count" that counts distinct VALUES OF THE MEASURE
 	// FIELD — answer codes, not respondents — so a key-PRESENCE probe

@@ -422,7 +422,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":   enumStringField(aggTypes, "Aggregator. Operators differ in accepted field-type classes. AGG_SUM, AGG_AVERAGE, AGG_STDDEV, AGG_MIN and AGG_MAX need numeric fields. AGG_COUNT, AGG_FREQUENCY, AGG_MODE and AGG_DISTINCT_COUNT accept any. See pulse_manifest for the full Accepts table."),
+						"type":   enumStringField(aggTypes, "Aggregator. Operators differ in accepted field-type classes. AGG_SUM, AGG_AVERAGE, AGG_STDDEV, AGG_MIN and AGG_MAX need numeric fields. AGG_COUNT, AGG_MODE_COUNT, AGG_MODE and AGG_DISTINCT_COUNT accept any. See pulse_manifest for the full Accepts table."),
 						"field":  enumStringField(c.AllFields, "Field to aggregate. Categorical and decimal fields are valid for some operators only — see Type description and the manifest's Operator.AcceptsTypes."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},

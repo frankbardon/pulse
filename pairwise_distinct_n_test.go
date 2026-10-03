@@ -332,7 +332,7 @@ func pwPooledPropZ(p1 float64, n1 int, p2 float64, n2 int) float64 {
 }
 
 // TestPairwiseNWithinDistinct_MemmapRefusesFrequencyCell is the
-// admission refusal on a REAL cohort: same shape, AGG_FREQUENCY cell.
+// admission refusal on a REAL cohort: same shape, AGG_MODE_COUNT cell.
 // Its "distinct_count" component counts distinct answer VALUES, and a
 // key-presence gate would happily report it as a respondent base.
 func TestPairwiseNWithinDistinct_MemmapRefusesFrequencyCell(t *testing.T) {
@@ -345,17 +345,17 @@ func TestPairwiseNWithinDistinct_MemmapRefusesFrequencyCell(t *testing.T) {
 	}
 	req := pwDistinctRequest(types.PairwiseNSourceNWithinDistinct)
 	req.Crosstab.Cell = &types.Aggregation{
-		Type:  types.AGG_FREQUENCY,
+		Type:  types.AGG_MODE_COUNT,
 		Field: "segment",
 		Label: "freq_segment",
 	}
 	_, err = p.Process(context.Background(), req)
 	if err == nil {
-		t.Fatal("expected an AGG_FREQUENCY cell host to be refused")
+		t.Fatal("expected an AGG_MODE_COUNT cell host to be refused")
 	}
 	msg := err.Error()
 	for _, want := range []string{
-		string(types.AGG_FREQUENCY),
+		string(types.AGG_MODE_COUNT),
 		string(types.AGG_DISTINCT_SUM),
 		string(types.AGG_DISTINCT_COUNT),
 	} {

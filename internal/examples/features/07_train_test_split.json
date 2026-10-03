@@ -2,6 +2,9 @@
   "_meta": {
     "category": "features",
     "description": "Apply a stratified 70/15/15 train/val/test split and verify partition sizes via group counts.",
+    "intents": [
+      "prepare"
+    ],
     "name": "feat_train_test_split_stratified",
     "operators": [
       "AGG_COUNT",
@@ -11,7 +14,6 @@
     "tags": [
       "feature-engineering",
       "feature-pipeline",
-      "leakage-safe",
       "pre-filter"
     ]
   },

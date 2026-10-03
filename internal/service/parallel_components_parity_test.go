@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
@@ -112,6 +113,10 @@ func componentsParityRequest(path string) *types.Request {
 			// NumericValue instead of FieldPresent, this slot reads
 			// every row as null and n collapses to 0.
 			{Type: types.AGG_COUNT, Field: "picks", Label: "picks_n"},
+			// One value's count: its match and non-null counters fold
+			// across partials, so match_count and share must equal
+			// the serial run's (id is unique: exactly one row is 4).
+			{Type: types.AGG_FREQUENCY, Field: "id", Label: "id_low", Params: json.RawMessage(`{"value":4}`)},
 		},
 	}
 }
@@ -121,7 +126,7 @@ func componentsParityRequest(path string) *types.Request {
 // emit nothing would pass and mean nothing.
 func assertAggregationComponentsUseful(t *testing.T, entries []types.AggregationComponents) {
 	t.Helper()
-	if len(entries) != 6 {
+	if len(entries) != 7 {
 		t.Fatalf("expected one AggregationComponents entry per aggregator slot, got %d: %+v",
 			len(entries), entries)
 	}
@@ -144,6 +149,9 @@ func assertAggregationComponentsUseful(t *testing.T, entries []types.Aggregation
 	if entries[5].N == 0 || entries[5].NNull != 0 {
 		t.Errorf("slot 5 (picks_n): n=%d n_null=%d — a set column has no numeric value but every row has presence; the floor must use FieldPresent",
 			entries[5].N, entries[5].NNull)
+	}
+	if mc, _ := entries[6].Operator["match_count"].(int); mc != 1 {
+		t.Errorf("slot 6 (id_low): match_count = %v, want 1", entries[6].Operator["match_count"])
 	}
 }
 

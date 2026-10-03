@@ -144,7 +144,7 @@ func TestAggregationEnumValues(t *testing.T) {
 		types.AGG_MAX,
 		types.AGG_STDDEV,
 		types.AGG_RANGE,
-		types.AGG_FREQUENCY,
+		types.AGG_MODE_COUNT,
 		types.AGG_ZSCORE,
 	}
 
@@ -229,7 +229,7 @@ func TestNoOrbitPrefix(t *testing.T) {
 		string(types.AGG_COUNT), string(types.AGG_SUM),
 		string(types.AGG_AVERAGE), string(types.AGG_MIN),
 		string(types.AGG_MAX), string(types.AGG_STDDEV),
-		string(types.AGG_RANGE), string(types.AGG_FREQUENCY),
+		string(types.AGG_RANGE), string(types.AGG_MODE_COUNT),
 		string(types.AGG_ZSCORE),
 		string(types.GROUP_CATEGORY), string(types.GROUP_ROUNDED),
 		string(types.ATTR_ZSCORE), string(types.ATTR_TSCORE),

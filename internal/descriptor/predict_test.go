@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -200,7 +201,7 @@ func TestCategoricalAggregationIssues_DirectAPI(t *testing.T) {
 	t.Run("count on categorical is silent", func(t *testing.T) {
 		req := &types.Request{Aggregations: []*types.Aggregation{
 			{Type: types.AGG_COUNT, Field: "color"},
-			{Type: types.AGG_FREQUENCY, Field: "color"},
+			{Type: types.AGG_MODE_COUNT, Field: "color"},
 			{Type: types.AGG_MODE, Field: "color"},
 			{Type: types.AGG_DISTINCT_COUNT, Field: "color"},
 			{Type: types.AGG_NULL_COUNT, Field: "color"},
@@ -290,7 +291,7 @@ func TestPredict_CountOnCategorical_NoWarning(t *testing.T) {
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_COUNT, Field: "grade", Label: "count_grade"},
-			{Type: types.AGG_FREQUENCY, Field: "grade", Label: "freq_grade"},
+			{Type: types.AGG_MODE_COUNT, Field: "grade", Label: "freq_grade"},
 		},
 	}
 
@@ -313,11 +314,13 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 	data := buildTestPulseFile(t, schema)
 
 	for _, aggType := range types.AllAggregationTypes() {
-		req := &types.Request{
-			Aggregations: []*types.Aggregation{
-				{Type: aggType, Field: "val", Label: "result"},
-			},
+		agg := &types.Aggregation{Type: aggType, Field: "val", Label: "result"}
+		if aggType == types.AGG_FREQUENCY {
+			// Its required params.value is refused when absent
+			// (TestPredict_AggFrequencyMissingValue).
+			agg.Params = json.RawMessage(`{"value":"1"}`)
 		}
+		req := &types.Request{Aggregations: []*types.Aggregation{agg}}
 		env := predictFromBytes(data, req, nil)
 		if len(env.Errors) != 0 {
 			t.Errorf("aggregation %s produced errors: %v", aggType, env.Errors)

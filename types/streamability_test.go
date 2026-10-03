@@ -15,6 +15,7 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_STDDEV:         true,
 		AGG_VARIANCE:       true,
 		AGG_RANGE:          true,
+		AGG_MODE_COUNT:     true,
 		AGG_FREQUENCY:      true,
 		AGG_MODE:           true,
 		AGG_SKEWNESS:       true,
@@ -81,6 +82,7 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		// independently. See the MarginIndependent doc comment.
 		AGG_DISTINCT_COUNT: MarginIndependent,
 		AGG_DISTINCT_SUM:   MarginIndependent,
+		AGG_MODE_COUNT:     MarginIndependent,
 
 		AGG_MIN:        MarginRecompute,
 		AGG_MAX:        MarginRecompute,
@@ -459,5 +461,21 @@ func TestStreamability_FeaturesKnown(t *testing.T) {
 	}
 	if len(expected) != len(AllFeatureTypes()) {
 		t.Fatalf("feature streamability table size mismatch: %d entries, %d types", len(expected), len(AllFeatureTypes()))
+	}
+}
+
+// TestMarginReducibility_ModeCountIndependentFrequencySums pins the two
+// count-shaped aggregators that are easy to confuse. AGG_MODE_COUNT's
+// margin is the modal count of the margin's own rows, which no function
+// of the cells' modal counts yields; its own margin accumulators supply
+// it in one pass, so it is MarginIndependent (fusable) like the
+// distinct counters. AGG_FREQUENCY counts rows equal to one value, so
+// its margin is the sum of the cells'.
+func TestMarginReducibility_ModeCountIndependentFrequencySums(t *testing.T) {
+	if got := AGG_MODE_COUNT.MarginReducibility(); got != MarginIndependent {
+		t.Errorf("AGG_MODE_COUNT = %q, want %q", got, MarginIndependent)
+	}
+	if got := AGG_FREQUENCY.MarginReducibility(); got != MarginSummable {
+		t.Errorf("AGG_FREQUENCY = %q, want %q", got, MarginSummable)
 	}
 }

@@ -2,6 +2,10 @@
   "_meta": {
     "category": "overlays",
     "description": "Distinct-KEY pairwise sample sizes over a fan-out row axis. The row axis is two levels deep: GROUP_SET_PER_ELEMENT on the multi-select issuers field at depth 0 (one respondent fans into one bucket per card issuer held) and GROUP_CATEGORY on region at depth 1; columns are age bands. The cell is AGG_DISTINCT_SUM keyed by respondent_id, so every cell publishes a distinct_count of respondents beside its sum, and normalize=column with normalize_within=0 turns the displayed value into each region's share of its issuer's total - which is why p_source=cell_value reads it as an already-0..1 proportion. OVERLAY_PAIRWISE_PROP_Z then pairs rows with pair_along_dim=1, comparing two regions inside ONE issuer bucket, and takes n from n_source=n_within_distinct with n_within_depth=0: the denominator is the slab of rows sharing the first row dim (the issuer), counted in distinct respondents rather than records. That is the shape the mode exists for - the fan-out grouper sits INSIDE the fixed prefix, so it multiplies slabs rather than cells and each slab still partitions the respondent set. Move the fan-out dim past n_within_depth and the identical request is refused with PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, because summing per-cell distinct counts across a fan-out dim counts one respondent twice and inflates n silently. Admission is on cell-aggregator identity: only AGG_DISTINCT_SUM (distinct_count) and AGG_DISTINCT_COUNT (cardinality) qualify.",
+    "intents": [
+      "compare_groups",
+      "composition"
+    ],
     "name": "crosstab-pairwise-distinct-n",
     "operators": [
       "AGG_DISTINCT_SUM",

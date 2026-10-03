@@ -2,6 +2,10 @@
   "_meta": {
     "category": "features",
     "description": "Discretize income into ten equal-frequency buckets and count rows per decile.",
+    "intents": [
+      "distribution_shape",
+      "prepare"
+    ],
     "name": "feat_bucketize_quantile",
     "operators": [
       "AGG_AVERAGE",

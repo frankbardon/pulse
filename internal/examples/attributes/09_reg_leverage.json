@@ -2,6 +2,10 @@
   "_meta": {
     "category": "attributes",
     "description": "Per-row hat-matrix leverage h_ii on customers.pulse with target=income and predictors=[age] via ATTR_REG_LEVERAGE. Leverage measures each row's structural influence on the OLS fit independently of the residual; sum(h_ii) = p + 1 (the predictor count plus the intercept). High-leverage rows (h_ii close to 1) are candidates for the influence-investigation column in a model-quality dashboard. Penalty is rejected by the leverage builder — the hat matrix is only defined for unpenalised OLS.",
+    "intents": [
+      "drivers",
+      "data_quality"
+    ],
     "name": "attr_reg_leverage",
     "operators": [
       "AGG_AVERAGE",

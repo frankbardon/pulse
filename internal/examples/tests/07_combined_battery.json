@@ -2,6 +2,10 @@
   "_meta": {
     "category": "tests",
     "description": "Standard A/B-test battery: Welch t on revenue, ANOVA across regions, and chi-square on segment-by-conversion in one Process call.",
+    "intents": [
+      "compare_groups",
+      "relationship"
+    ],
     "name": "combined_test_battery",
     "operators": [
       "AGG_AVERAGE",

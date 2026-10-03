@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Chi-square independence tests on segment-by-conversion and region-by-conversion two-way tables.",
+    "intents": [
+      "relationship"
+    ],
     "name": "chi_square_independence",
     "operators": [
       "TEST_CHISQ"

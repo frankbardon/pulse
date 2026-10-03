@@ -2,6 +2,9 @@
   "_meta": {
     "category": "groupers",
     "description": "Bucket orders by ISO month using GROUP_DATE and aggregate count and revenue per bucket.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "group_date_month",
     "operators": [
       "AGG_COUNT",

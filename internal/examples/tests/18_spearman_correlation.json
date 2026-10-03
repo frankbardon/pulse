@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Spearman rho between revenue and its pre-treatment baseline, robust to non-linear monotone relationships.",
+    "intents": [
+      "relationship"
+    ],
     "name": "spearman_correlation",
     "operators": [
       "AGG_COUNT",

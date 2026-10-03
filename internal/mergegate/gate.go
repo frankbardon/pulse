@@ -142,66 +142,21 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 }
 
 // ChainRefusal is the v1 ProcessChain stage gate: nil when req passes
-// MergeRefusal and every aggregator emits one scalar per output row
-// (AGG_FREQUENCY emits a map and AGG_MODE a string — both excluded),
-// else a PULSE_CHAIN_NOT_MERGEABLE "chain stage is not mergeable:
-// <reason>" with details {stage_index, stage_name}.
+// MergeRefusal, else a PULSE_CHAIN_NOT_MERGEABLE "chain stage is not
+// mergeable: <reason>" with details {stage_index, stage_name}. Every
+// mergeable built-in aggregator emits one float64 per output row the
+// next stage's f64 column reads — AGG_MODE's modal value (on a
+// categorical field, the dictionary index, not the label),
+// AGG_MODE_COUNT's modal count and AGG_FREQUENCY's value count
+// included — so mergeability is the whole rule.
 func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, stageIndex int, stageName string) error {
 	reason := MergeRefusal(req, schema, ext)
-	if reason == "" {
-		for _, agg := range req.Aggregations {
-			if !EmitsScalar(agg.Type) {
-				reason = fmt.Sprintf("aggregator %s emits a non-scalar value", agg.Type) + nonScalarNote(ext)
-				break
-			}
-		}
-	}
 	if reason == "" {
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
 		"chain stage is not mergeable: "+reason,
 		map[string]any{"stage_index": stageIndex, "stage_name": stageName})
-}
-
-// EmitsScalar reports whether aggregator t's Finalize produces a
-// single float64 cell a downstream chain stage can read: every
-// mergeable aggregator except the map-emitting AGG_FREQUENCY and the
-// string-emitting AGG_MODE.
-func EmitsScalar(t types.AggregationType) bool {
-	switch t {
-	case types.AGG_FREQUENCY, types.AGG_MODE:
-		return false
-	}
-	return true
-}
-
-// hider is the optional half of Extensions an instance-scoped adapter
-// implements: Hidden reports a built-in name the instance does not
-// offer, so refusal prose can leave it out.
-type hider interface {
-	Hidden(name string) bool
-}
-
-// nonScalarNote is the chain refusal's parenthetical naming the
-// non-scalar aggregators — only those the instance offers (the
-// refusal never names a hidden operator). With every one offered it is
-// the historical " (AGG_FREQUENCY and AGG_MODE are excluded)".
-func nonScalarNote(ext Extensions) string {
-	h, _ := ext.(hider)
-	var named []string
-	for _, t := range []types.AggregationType{types.AGG_FREQUENCY, types.AGG_MODE} {
-		if h == nil || !h.Hidden(string(t)) {
-			named = append(named, string(t))
-		}
-	}
-	switch len(named) {
-	case 0:
-		return ""
-	case 1:
-		return " (" + named[0] + " is excluded)"
-	}
-	return " (" + named[0] + " and " + named[1] + " are excluded)"
 }
 
 // StageJoinRefusal is the ProcessChain rule that only stage 0 may

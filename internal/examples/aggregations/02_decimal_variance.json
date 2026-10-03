@@ -2,6 +2,10 @@
   "_meta": {
     "category": "aggregations",
     "description": "Population variance and standard deviation computed entirely in decimal128 arithmetic, falling back to f64 only on intermediate overflow.",
+    "intents": [
+      "describe",
+      "distribution_shape"
+    ],
     "name": "decimal_variance",
     "operators": [
       "AGG_STDDEV",

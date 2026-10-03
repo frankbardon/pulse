@@ -2,6 +2,10 @@
   "_meta": {
     "category": "features",
     "description": "Square-root variance-stabilising transform on the skewed transactions.pulse amount column via FEAT_SQRT. Sibling shape to FEAT_LOG (01_log_transform.json) but uses sqrt instead of natural log — appropriate when the distribution carries zero values (log(0) is undefined; sqrt(0) is 0). Summarises the transformed distribution via AGG_AVERAGE + AGG_STDDEV so the shape change is visible as scalars.",
+    "intents": [
+      "prepare",
+      "distribution_shape"
+    ],
     "name": "feat_sqrt_transform",
     "operators": [
       "AGG_AVERAGE",

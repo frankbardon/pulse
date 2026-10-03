@@ -6,7 +6,7 @@
 {
   "weight": { "field": "wt", "kind": "frequency" },   // request-level default for every weight-aware slot
   "aggregations": [
-    { "type": "AGG_FREQUENCY", "field": "region" },                  // weighted by "wt"
+    { "type": "AGG_MODE_COUNT", "field": "region" },                  // weighted by "wt"
     { "type": "AGG_COUNT", "label": "unweighted_n", "weight": null }  // explicit opt-out per slot
   ]
 }
@@ -33,7 +33,7 @@
 
 | Family | Weighted semantics | Notes |
 |---|---|---|
-| `AGG_COUNT`, `AGG_FREQUENCY`, `AGG_SUM`, `AGG_AVERAGE`, `AGG_VARIANCE` / `STDDEV` / `WELFORD`, `AGG_PERCENTILE` / `MEDIAN`, `AGG_RATIO` | standard weighted estimators; weighted percentiles use the weighted-CDF definition (documented, deterministic tie rule) | `AGG_WEIGHTED_MEAN` becomes an alias of weighted `AGG_AVERAGE`, kept for compatibility |
+| `AGG_COUNT`, `AGG_MODE_COUNT`, `AGG_SUM`, `AGG_AVERAGE`, `AGG_VARIANCE` / `STDDEV` / `WELFORD`, `AGG_PERCENTILE` / `MEDIAN`, `AGG_RATIO` | standard weighted estimators; weighted percentiles use the weighted-CDF definition (documented, deterministic tie rule) | `AGG_WEIGHTED_MEAN` becomes an alias of weighted `AGG_AVERAGE`, kept for compatibility |
 | `AGG_SET_*` | weighted member frequencies | |
 | `AGG_DISTINCT_*`, `AGG_MIN` / `MAX` / `RANGE` / `MODE` | distinct counts and extremes are not weightable; refused with `PROCESSING_CONFIG` when a weight is explicitly set; the request-level default skips them silently, which is documented | |
 | Crosstab cells and margins | weighted cells; margins recomputed from weighted raw rows (same rule as today) | the unweighted base rides `margin_aggregations` with `weight: null` |

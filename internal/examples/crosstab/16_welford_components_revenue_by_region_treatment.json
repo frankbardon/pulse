@@ -2,6 +2,10 @@
   "_meta": {
     "category": "crosstab",
     "description": "AGG_WELFORD cell aggregator on revenue grouped by region x treatment with row/column/grand margins. Every cell value carries the streaming Welford-Pebay triple {Mean, Variance, N}; the full operator projection {n, n_null, mean, m2, variance, stddev} rides under Response.Components.Crosstab.CellComponents[r][c] in matching (r, c) coordinates. RowKeyComponents / ColumnKeyComponents carry the GROUP_CATEGORY per-axis components, MarginRowComponents / MarginColumnComponents carry the per-axis recompute-from-raw triples, and GrandTotalComponents carries the all-records triple. Canonical example of crosstab Components indexing — see skills/response-components.md and skills/crosstab-guide.md.",
+    "intents": [
+      "describe",
+      "compare_groups"
+    ],
     "name": "crosstab_welford_components_revenue_by_region_treatment",
     "operators": [
       "AGG_WELFORD",

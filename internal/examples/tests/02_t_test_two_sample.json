@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Two-sample Welch t-test on revenue split by treatment arm, detecting the planted variant lift.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "t_test_two_sample",
     "operators": [
       "AGG_AVERAGE",

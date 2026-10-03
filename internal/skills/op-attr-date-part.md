@@ -21,7 +21,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Output
 
-One `float64` per record carrying an encoded integer: `year` = YYYY, `month` = 1..12, `day` = 1..31, `year_month` = YYYYMM, `year_month_day` = YYYYMMDD, `month_day` = MMDD. Null source → null output.
+One `float64` per record carrying an encoded integer: `year` = YYYY, `month` = 1..12, `day` = 1..31, `year_month` = YYYYMM, `year_month_day` = YYYYMMDD, `month_day` = MMDD. Null source → `0` (not null).
 
 ## Gotchas
 

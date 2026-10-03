@@ -70,10 +70,10 @@ When a slot names `field` but omits `type`, the engine infers from schema type. 
 | Field type | Default agg | Default grouper |
 |---|---|---|
 | numeric (`u4`, `u8`..`u64`, `f32`/`f64`, `decimal128`) | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
-| `categorical_u8`/`u16`/`u32` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `categorical_u8`/`u16`/`u32` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 | `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
 | `datetime` | (explicit only) | `GROUP_DATE` (`"day"`), truncated |
-| `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 
 Rules: never override explicit `type`; never cross categories; `Nullable` irrelevant; tests / filterers / attrs / features / windows never defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
 

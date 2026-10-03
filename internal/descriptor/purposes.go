@@ -11,15 +11,15 @@ import (
 // GROUP_*, WIN_*, FEAT_*), the TEST_* family (one purpose covers both
 // tiers), the REG_* type, the OVERLAY_* kind or the synth distribution
 // kind. It is assembled from one map per category, each in its own file
-// (aggregatorPurposes below, statTestPurposes in purposes_stattests.go,
+// (aggregatorPurposes in purposes_aggregators.go, attributePurposes in purposes_attributes.go, filtererPurposes in purposes_filterers.go, grouperPurposes in purposes_groupers.go, windowPurposes in purposes_window.go, featurePurposes in purposes_features.go, statTestPurposes in purposes_stattests.go,
 // overlayPurposes in purposes_overlays.go, regressionPurposes in
-// purposes_regressions.go);
+// purposes_regressions.go, synthPurposes in purposes_synth.go);
 // an undeclared name simply carries no intents.
 //
 // purposeLookup is the seam the manifest builder reads through, so a
 // test can inject purposes without touching the registry.
 var (
-	builtinPurposes = mergePurposes(aggregatorPurposes, statTestPurposes, overlayPurposes, regressionPurposes)
+	builtinPurposes = mergePurposes(aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, synthPurposes)
 	purposeLookup   = func(name string) (descriptor.Purpose, bool) {
 		p, ok := builtinPurposes[name]
 		return p, ok
@@ -101,36 +101,3 @@ func mergePurposes(maps ...map[string]descriptor.Purpose) map[string]descriptor.
 	}
 	return out
 }
-
-// aggregatorPurposes is the Purpose registry for the AGG_* operators.
-// Every other built-in is listed by the TestSkillsCoverAllPurposes
-// coverage report until it declares one.
-var aggregatorPurposes = map[string]descriptor.Purpose{
-	"AGG_AVERAGE": purposeAggAverage,
-}
-
-var (
-	purposeAggAverage = descriptor.Purpose{
-		Plain:   "Average of a numeric field, over all rows or per group.",
-		Intents: []string{IntentDescribe},
-		Questions: []string{
-			"What is the average order value?",
-			"What is the typical rating in each region?",
-		},
-		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainSurvey:  "Mean satisfaction score per segment.",
-			descriptor.DomainOps:     "Average order value by sales channel.",
-			descriptor.DomainScience: "Mean measurement per treatment arm.",
-		},
-		NotFor: []descriptor.Alternative{
-			{When: "the field is skewed or has extreme values and you want the typical row", Use: "AGG_MEDIAN"},
-			{When: "rows carry weights", Use: "AGG_WEIGHTED_MEAN"},
-			{When: "you also need the spread around the average", Use: "AGG_WELFORD"},
-		},
-		Assumptions: []string{
-			"Missing values are skipped: the average is over rows that have a value.",
-		},
-		Level:    descriptor.LevelBasic,
-		Glossary: []string{"mean", "median", "outlier", "skew"},
-	}
-)

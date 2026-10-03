@@ -2,6 +2,9 @@
   "_meta": {
     "category": "crosstab",
     "description": "Mean revenue per (region, treatment) cell paired with TEST_MANN_WHITNEY_U comparing revenue between treatment arms. Nonparametric alternative to TEST_T: use when revenue is heavy-tailed / lognormal and the t-test's normality assumption is suspect.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "crosstab_means_with_mann_whitney_robust",
     "operators": [
       "AGG_AVERAGE",

@@ -2,6 +2,9 @@
   "_meta": {
     "category": "windows",
     "description": "Cumulative revenue ordered by date using an unbounded-preceding to current-row frame.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "win_running_sum",
     "operators": [
       "WIN_RUNNING_SUM"

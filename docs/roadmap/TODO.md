@@ -118,10 +118,10 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#43** Tests (`TEST_*`) · [U08](units/U08-guidance-backfill-inferential.md)
 - [x] **#44** Overlays (`OVERLAY_*`) · [U08](units/U08-guidance-backfill-inferential.md)
 - [x] **#45** Regressions (`REG_*`) · [U08](units/U08-guidance-backfill-inferential.md)
-- [ ] **#46** Aggregators (`AGG_*`) · [U09](units/U09-guidance-backfill-descriptive.md)
-- [ ] **#47** Attributes, filterers, groupers, windows and features · [U09](units/U09-guidance-backfill-descriptive.md)
-- [ ] **#48** Synth distributions · [U09](units/U09-guidance-backfill-descriptive.md)
-- [ ] **#49** Gates flipped from report-only to failing · [U09](units/U09-guidance-backfill-descriptive.md)
+- [x] **#46** Aggregators (`AGG_*`) · [U09](units/U09-guidance-backfill-descriptive.md)
+- [x] **#47** Attributes, filterers, groupers, windows and features · [U09](units/U09-guidance-backfill-descriptive.md)
+- [x] **#48** Synth distributions · [U09](units/U09-guidance-backfill-descriptive.md)
+- [x] **#49** Gates flipped from report-only to failing · [U09](units/U09-guidance-backfill-descriptive.md)
 
 ---
 
@@ -322,7 +322,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#168** `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](v1.0.0-api-and-release/02-stability-policy.md)) · [U33](units/U33-v1-release.md)
 - [ ] **#169** Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library · [U33](units/U33-v1-release.md)
 - [ ] **#170** `v1.0.0` tagged · [U33](units/U33-v1-release.md)
-- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items, signs off the inferential guidance, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
+- [ ] **#206** Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section), signs off the U08 inferential AND the U09 descriptive guidance, and owns the statistical-review CODEOWNERS entries · [U33](units/U33-v1-release.md)
 
 ---
 

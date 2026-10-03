@@ -10,6 +10,9 @@ what was checked, how, what was found and fixed, and what is still open.
   effect-size convention registry, and the effect-size formula table in
   `.claude/reference/guided-analysis.md` checked against the code.
 - **E4 scope (appended below):** overlays (`OVERLAY_*`) and regressions (`REG_*`).
+- **U09 scope (appended at the end):** the descriptive guidance of roadmap
+  [U09](../units/U09-guidance-backfill-descriptive.md): every descriptive
+  Purpose and needs-reading Interpretation. The U33 sign-off covers both units.
 
 ## Method
 
@@ -429,3 +432,294 @@ Everything listed under the E3 open items above still stands. E4 adds:
 - **Penalised OLS p-values.** l1 and elasticnet p-values are plug-in
   approximations over the kept predictors. The guidance says so, but there is
   no reference to sign off against.
+
+## U09 — descriptive guidance review
+
+Roadmap [U09](../units/U09-guidance-backfill-descriptive.md) gave every
+descriptive built-in (aggregators, attributes, windows, features, filters,
+groupers, synth distributions) a Purpose, and every needs-reading one a
+`value` / `value.*` Interpretation. This section records the statistical review
+of that guidance, run as story E6-S2. It follows the E3 / E4 pattern and feeds
+the same U33 sign-off.
+
+### Method (U09)
+
+The deterministic layers are the same as E3 / E4 and cover the new guidance
+too: the convention registry (no descriptive reading carries bands; the
+unbanded scale-free outputs such as `AGG_SKEWNESS`, `AGG_KURTOSIS`,
+`AGG_ZSCORE` and the `ATTR_*` z / T scores sit under the fixture's `excluded`
+with reasons), the prose lint (`TestGuidanceProseLint`), the Purpose limits and
+jargon rule, the reading-list gate (`TestDescriptiveReadingLists`) and the now
+binding coverage gates. The value paths are static, so there is no runtime
+probe; the per-category `reading_semantics*_test.go` files pin the behaviour
+the readings describe.
+
+- **Model:** Claude Opus 5.5, run read-only on 2026-10-03.
+- **Scope A (two passes):** the statistically loaded guidance: every
+  needs-reading Interpretation, the Purposes of `AGG_CI_*`, `AGG_SKEWNESS`,
+  `AGG_KURTOSIS`, `AGG_STDDEV`, `AGG_VARIANCE`, `AGG_PERCENTILE`, `ATTR_REG_*`,
+  `ATTR_ZSCORE`, `ATTR_TSCORE`, `ATTR_PERCENTILE` and `FEAT_TARGET_ENCODE`, the
+  `TEST_*` spans edited in E6-S1 (`437eb100`) and the glossary terms they link.
+  Pass 1 is the statistician adversary (AS-NN), pass 2 the novice-reader
+  adversary (AN-NN), run independently.
+- **Scope B (one combined pass):** every other descriptive Purpose (the
+  self-reading operators and all 15 synth distributions) plus intent honesty,
+  with both adversary briefs in one pass (B-NN).
+- **Finding rules:** as E3 / E4. Every finding quotes the exact span and gives
+  file:line, and cites a lint rule ID or a named source. The source list adds
+  Hyndman & Fan (1996), Joanes & Gill (1998), Hoaglin & Welsch (1978) and
+  Micci-Barreca (2001). All 64 quotes were substring-checked against the files
+  at `437eb100`; none was discarded.
+- **Triage:** the maintainer accepted all 64 findings (AS-01..AS-23,
+  AN-01..AN-15, B-01..B-26), with the rule that the docs must match the code
+  and no operator behaviour changes. Ten groups overlap (AS-01/AN-04,
+  AS-02/AN-03, AS-03/AN-05, AS-05/AN-07/B-04, AS-10/AN-09, AS-12/AN-12,
+  AS-15/AN-13/B-16, AS-18/AN-14, AS-22/AN-15, AS-23/AN-06), which leaves 52
+  distinct fixes, each applied once. Runtime issues the findings exposed are
+  logged for U36 below and not fixed here.
+
+#### U09 pass 1 prompt (statistician)
+
+```text
+You are an adversarial statistician reviewing the guidance metadata of a statistics engine (Pulse) — this time its DESCRIPTIVE operators (aggregators, attributes, windows, features, filters, groupers, synth distributions). Your job is to find statements that are statistically WRONG or incomplete: incorrect descriptions of what the operator computes (population vs sample, estimator choice, null/tie/degenerate handling), wrong or missing assumptions, wrong effect-size conventions or formulas, wrong reading of a statistic or p-value, NotFor routing that sends a user to an inappropriate alternative test, claims that disagree with what the code actually computes. Assume the author shares common misconceptions (e.g. "a 95% CI means 95% of rows fall inside", "skewness of 0 means normal", "|z|>1.96 means significant for a row", "percentile rank equals the share below", "target encoding is leakage-safe after a split", bands applied to unbanded statistics) and hunt for them.
+```
+
+#### U09 pass 2 prompt (novice reader)
+
+```text
+You are an adversarial novice-reader reviewer of the guidance metadata of a statistics engine (Pulse) — this time its DESCRIPTIVE operators (aggregators, attributes, windows, features, filters, groupers, synth distributions). Read every string as an analyst with no statistics training would, and find text that would MISLEAD them: phrasing that invites "significant = important", "not significant = no effect", causal readings of correlations, overconfident language, jargon used without being linked in the Purpose's Glossary list or defined, ambiguous referents, and plain-language summaries that oversimplify into something false. You are not judging statistical correctness in depth — a separate statistician pass does that — but anything a novice would act on wrongly is in scope.
+```
+
+Scope B ran both briefs together in one pass.
+
+#### U09 rules block (appended to every pass)
+
+```text
+Lint rule IDs already enforced by TestGuidanceProseLint (internal/descriptor/guidance_lint_test.go) — read that file for the IDs (ASA-*, MULTI-COMP, NORM-POWER, ASSUME-INDEP, ES-CONV, CORR-CAUSAL, ...). Named sources you may cite: ASA Statement on p-values (Wasserstein & Lazar 2016), APA JARS-Quant (Appelbaum et al. 2018), SAMPL (Lang & Altman), Cohen (1988/1992), a standard textbook by name, Hyndman & Fan (1996) for quantiles, Joanes & Gill (1998) for skewness/kurtosis estimators, Hoaglin & Welsch (1978) for leverage, Micci-Barreca (2001) for target encoding, or the Pulse implementation file:line.
+
+FINDING RULES (non-negotiable):
+- Every finding MUST quote the exact offending span verbatim (it will be substring-checked against the file; a non-matching quote is discarded) and give file:line.
+- Every finding MUST cite either a lint rule ID or a named source (above). Findings without both are discarded.
+- Judge one criterion at a time; do not pad with style nits. No finding for wording you merely prefer.
+- Severity: high (statistically wrong / would mislead a decision), medium (imprecise, missing caveat that matters), low (clarity).
+- Propose a concrete replacement text for each finding.
+- Do NOT edit any repository file. Read-only.
+
+OUTPUT: write a markdown file at the path given below containing one table:
+| id | severity | operator/field | file:line | quoted span | rule/source | problem | proposed fix |
+ids are <PASS>-NN. Then return ONLY: the file path and the finding count by severity.
+```
+
+#### U09 scope A prompt
+
+```text
+SCOPE A — statistically loaded descriptive guidance (U09). Read these files; the CODE is the ground truth for what each operator computes.
+- internal/descriptor/interpretations_descriptive.go — needs-reading AGGREGATOR Interpretations (AGG_SKEWNESS, AGG_KURTOSIS, AGG_ZSCORE, AGG_CI_LOWER/UPPER, AGG_STDDEV, AGG_VARIANCE, AGG_WELFORD, AGG_PERCENTILE, AGG_RATIO, AGG_WEIGHTED_MEAN)
+- internal/descriptor/interpretations_attributes.go — ATTR_ZSCORE, ATTR_TSCORE, ATTR_PERCENTILE, ATTR_NORMALIZED, ATTR_REG_FITTED/RESIDUAL/LEVERAGE
+- internal/descriptor/interpretations_window.go — WIN_PCT_CHANGE, WIN_EWMA, WIN_MOVING_AVG, WIN_RUNNING_AVG, WIN_RANK, WIN_DENSE_RANK, WIN_DELTA
+- internal/descriptor/interpretations_features.go — FEAT_LOG, FEAT_SQRT, FEAT_POLY, FEAT_TARGET_ENCODE, FEAT_FREQUENCY_ENCODE
+- Purposes of the statistically loaded operators: AGG_CI_LOWER, AGG_CI_UPPER, AGG_SKEWNESS, AGG_KURTOSIS, AGG_STDDEV, AGG_VARIANCE, AGG_PERCENTILE (internal/descriptor/purposes_aggregators.go); ATTR_REG_* , ATTR_ZSCORE, ATTR_TSCORE, ATTR_PERCENTILE (purposes_attributes.go); FEAT_TARGET_ENCODE (purposes_features.go)
+- TEST_* Purposes edited in commit 437eb100 (run `git show 437eb100 -- internal/descriptor/purposes_stattests.go` to see exactly which spans changed — TEST_PEARSON_R's new Assumption, Glossary links on MANN_WHITNEY_U, WILCOXON_SR, TREND, SHAPIRO_WILK, KS). Review only the changed spans + whether the linked glossary terms fit.
+- internal/descriptor/glossary.go — the terms these strings link
+- internal/descriptor/conventions.go + internal/descriptor/testdata/conventions.json — the convention registry and `excluded` list (no new bands may be added; flag any band applied wrongly or any excluded reason that is false)
+- .claude/reference/guided-analysis.md — the `value` / `value.*` path rule and the needs-reading rule
+- Implementation (read-only, to verify claims): internal/processing/aggregator*.go, internal/processing/attribute*.go, internal/processing/window/, internal/processing/feature/, internal/processing/test_*.go
+```
+
+#### U09 scope B prompt
+
+```text
+SCOPE B — the self-reading descriptive Purposes (U09). Read these files; the CODE is the ground truth.
+- internal/descriptor/purposes_aggregators.go — all AGG_* Purposes EXCEPT those listed in scope A (AGG_CI_*, SKEWNESS, KURTOSIS, STDDEV, VARIANCE, PERCENTILE)
+- internal/descriptor/purposes_attributes.go — ATTR_DATE_PART, ATTR_FORMULA, ATTR_SET_HAS, ATTR_SET_POPCOUNT, ATTR_NORMALIZED
+- internal/descriptor/purposes_window.go — all WIN_*
+- internal/descriptor/purposes_features.go — all FEAT_* except FEAT_TARGET_ENCODE
+- internal/descriptor/purposes_filterers.go, purposes_groupers.go — all FILTER_* / GROUP_*
+- internal/descriptor/purposes_synth.go — all 15 synth distributions
+- internal/descriptor/intents.go — the intent taxonomy (check each Purpose's intents are honest for what the operator does)
+- internal/descriptor/glossary.go — linked terms
+- Implementation (read-only): internal/processing/ (aggregator*, attribute*, filter*, group*, window/, feature/), internal/synth/
+Things to check per Purpose: Plain says what the operator really computes (verify in code); Questions are ones it actually answers; NotFor routes to an appropriate alternative; Assumptions/UseCases are true; intents are honest; no novice-misleading phrasing.
+```
+
+### Findings (U09)
+
+Spans are quoted as they read at `437eb100`, before the fix. Severity count:
+1 high, 42 medium, 21 low.
+
+| id | pass | severity | operator / field | verdict | fix commit |
+|---|---|---|---|---|---|
+| AS-01 | A1 statistician | medium | AGG_KURTOSIS / value Sign "-" | accepted (overlaps AN-04) | `c63e96df` |
+| AS-02 | A1 statistician | medium | AGG_SKEWNESS / value Sign | accepted (overlaps AN-03) | `c63e96df` |
+| AS-03 | A1 statistician | medium | AGG_CI_LOWER / AGG_CI_UPPER caveat (descCINormal) | accepted (overlaps AN-05) | `c63e96df` |
+| AS-04 | A1 statistician | medium | AGG_VARIANCE / value caveat (also purpose UseCase purposes_aggregators.go:531) | accepted | `c63e96df` |
+| AS-05 | A1 statistician | medium | AGG_ZSCORE / Purpose Question + Ops UseCase (line 627) | accepted (overlaps AN-07, B-04) | `c63e96df` |
+| AS-06 | A1 statistician | low | AGG_STDDEV / Purpose Question | accepted | `c63e96df` |
+| AS-07 | A1 statistician | medium | ATTR_PERCENTILE / Purpose Plain | accepted | `e3c7b841` |
+| AS-08 | A1 statistician | medium | ATTR_PERCENTILE / value Means | accepted | `e3c7b841` |
+| AS-09 | A1 statistician | low | ATTR_PERCENTILE / Purpose Question | accepted | `e3c7b841` |
+| AS-10 | A1 statistician | medium | ATTR_REG_LEVERAGE / Purpose Question (+ Ops UseCase line 310) | accepted (overlaps AN-09) | `e3c7b841` |
+| AS-11 | A1 statistician | low | ATTR_REG_RESIDUAL / value caveat | accepted | `e3c7b841` |
+| AS-12 | A1 statistician | low | ATTR_REG_* / attrRegPenalty | accepted (overlaps AN-12) | `e3c7b841` |
+| AS-13 | A1 statistician | low | ATTR_TSCORE / Purpose Science UseCase | accepted | `e3c7b841` |
+| AS-14 | A1 statistician | low | WIN_MOVING_AVG / value caveat | accepted | `e3c7b841` |
+| AS-15 | A1 statistician | medium | FEAT_LOG / value caveat | accepted (overlaps AN-13, B-16) | `e3c7b841` |
+| AS-16 | A1 statistician | medium | FEAT_TARGET_ENCODE / value caveat (remedy) | accepted | `e3c7b841` |
+| AS-17 | A1 statistician | medium | FEAT_TARGET_ENCODE / Purpose Science UseCase | accepted | `e3c7b841` |
+| AS-18 | A1 statistician | medium | TEST_PEARSON_R / Assumption (new in 437eb100) | accepted (overlaps AN-14) | `e3c7b841` |
+| AS-19 | A1 statistician | medium | glossary test-statistic / WhyCare (newly linked from MANN_WHITNEY_U, WILCOXON_SR, TREND, SHAPIRO_WILK, KS) | accepted | `e3c7b841` |
+| AS-20 | A1 statistician | low | glossary statistical-significance / WhyCare (newly linked from SHAPIRO_WILK, KS) | accepted | `e3c7b841` |
+| AS-21 | A1 statistician | low | glossary variance / Short (linked from AGG_VARIANCE, AGG_STDDEV) | accepted | `e3c7b841`, `218441a9` |
+| AS-22 | A1 statistician | medium | glossary percentile / Short (linked from AGG_PERCENTILE and ATTR_PERCENTILE) | accepted (overlaps AN-15) | `e3c7b841` |
+| AS-23 | A1 statistician | medium | AGG_WEIGHTED_MEAN / value caveat (n_eff) | accepted (overlaps AN-06) | `c63e96df` |
+| AN-01 | A2 novice | medium | AGG_SKEWNESS / value.means | accepted | `c63e96df` |
+| AN-02 | A2 novice | medium | AGG_KURTOSIS / value.means | accepted | `c63e96df` |
+| AN-03 | A2 novice | medium | AGG_SKEWNESS / value.sign | accepted (overlaps AS-02) | `c63e96df` |
+| AN-04 | A2 novice | medium | AGG_KURTOSIS / value.sign "-" | accepted (overlaps AS-01) | `c63e96df` |
+| AN-05 | A2 novice | medium | AGG_CI_LOWER / AGG_CI_UPPER / caveats (descCINormal) | accepted (overlaps AS-03) | `c63e96df` |
+| AN-06 | A2 novice | medium | AGG_WEIGHTED_MEAN / value.caveats[1] | accepted (overlaps AS-23) | `c63e96df` |
+| AN-07 | A2 novice | medium | AGG_ZSCORE / questions[1] | accepted (overlaps AS-05, B-04) | `c63e96df` |
+| AN-08 | A2 novice | medium | AGG_CI_UPPER / use_cases.ops | accepted | `c63e96df` |
+| AN-09 | A2 novice | medium | ATTR_REG_LEVERAGE / questions[1] | accepted (overlaps AS-10) | `e3c7b841` |
+| AN-10 | A2 novice | low | ATTR_REG_LEVERAGE / value.means | accepted | `e3c7b841` |
+| AN-11 | A2 novice | low | ATTR_TSCORE / use_cases.survey | accepted | `e3c7b841` |
+| AN-12 | A2 novice | low | ATTR_REG_FITTED / ATTR_REG_RESIDUAL / caveat (attrRegPenalty) | accepted (overlaps AS-12) | `e3c7b841` |
+| AN-13 | A2 novice | low | FEAT_LOG / value.caveats[1] | accepted (overlaps AS-15, B-16) | `e3c7b841` |
+| AN-14 | A2 novice | low | TEST_PEARSON_R / assumptions[3] (437eb100) | accepted (overlaps AS-18) | `e3c7b841` |
+| AN-15 | A2 novice | low | glossary percentile / Short | accepted (overlaps AS-22) | `e3c7b841` |
+| B-01 | B combined | medium | AGG_AVERAGE / Assumptions | accepted | `82f78ba2` |
+| B-02 | B combined | medium | AGG_MIN (also AGG_MAX, AGG_RANGE, AGG_MEDIAN, AGG_MODE) / Assumptions | accepted | `82f78ba2` |
+| B-03 | B combined | medium | AGG_WEIGHTED_MEAN / Assumptions | accepted | `82f78ba2` |
+| B-04 | B combined | medium | AGG_ZSCORE / Questions | accepted (overlaps AS-05, AN-07) | `c63e96df` |
+| B-05 | B combined | medium | AGG_ZSCORE / Intents | accepted | `c63e96df` |
+| B-06 | B combined | medium | AGG_SET_DISTINCT_VALUES / Questions | accepted | `82f78ba2` |
+| B-07 | B combined | low | AGG_RATIO / NotFor | accepted | `82f78ba2` |
+| B-08 | B combined | medium | ATTR_FORMULA / Assumptions | accepted | `82f78ba2` |
+| B-09 | B combined | medium | ATTR_SET_HAS / UseCases | accepted | `82f78ba2` |
+| B-10 | B combined | medium | ATTR_NORMALIZED / UseCases | accepted | `82f78ba2` |
+| B-11 | B combined | medium | WIN_ROW_NUMBER / Questions + Assumptions | accepted | `82f78ba2` |
+| B-12 | B combined | low | WIN_DENSE_RANK / Questions | accepted | `82f78ba2` |
+| B-13 | B combined | low | WIN_EWMA / Glossary | accepted | `82f78ba2` |
+| B-14 | B combined | medium | FEAT_TRAIN_TEST_SPLIT / Plain + Assumptions | accepted | `82f78ba2` |
+| B-15 | B combined | medium | FEAT_ONE_HOT / Questions + Assumptions | accepted | `82f78ba2` |
+| B-16 | B combined | low | FEAT_LOG / Questions | accepted (overlaps AS-15, AN-13) | `e3c7b841` |
+| B-17 | B combined | low | FEAT_BUCKETIZE / Questions | accepted | `82f78ba2` |
+| B-18 | B combined | high | FILTER_TRUE / Assumptions | accepted | `82f78ba2` |
+| B-19 | B combined | medium | FILTER_FALSE / Assumptions | accepted | `82f78ba2` |
+| B-20 | B combined | medium | FILTER_NULL / Questions | accepted | `82f78ba2` |
+| B-21 | B combined | low | FILTER_INCLUDE / FILTER_EXCLUDE (filterLabelsKnown) | accepted | `82f78ba2` |
+| B-22 | B combined | low | FILTER_SET_CONTAINS_ANY (and _ALL, _NONE, _EQUALS) / Intents | accepted | `82f78ba2` |
+| B-23 | B combined | medium | GROUP_RANGE / UseCases | accepted | `82f78ba2` |
+| B-24 | B combined | medium | GROUP_QUANTILE / Questions + Assumptions | accepted | `82f78ba2` |
+| B-25 | B combined | medium | uniform (synth) / Assumptions | accepted | `82f78ba2` |
+| B-26 | B combined | medium | pareto (synth) / Assumptions | accepted | `82f78ba2` |
+
+### Notes on how fixes were applied (U09)
+
+- Each proposed fix was checked against the code before it was applied, and
+  reworded where needed to fit the Purpose limits (`Plain` ≤ 140 characters),
+  the glossary limits (`Short` ≤ 200, `WhyCare` ≤ 300) and the prose lint.
+  AS-07's Plain and AS-20's WhyCare are shortened for that reason.
+- AN-01 / AN-02: the skewness and kurtosis Means now write the formula over n,
+  `(m3/n) / (m2/n)^1.5` and `(m4/n) / (m2/n)^2 - 3`, because the `m2` / `m3` /
+  `m4` components are sums of powered deviations (`aggregator.go`
+  `Components`).
+- AS-02 / AN-03: the sign readings drop the mean-versus-median clause. A
+  separate caveat says the sign does not fix that order and routes the
+  question to `AGG_MEDIAN` beside `AGG_AVERAGE`.
+- AS-05 / AN-07 / B-04: B-04 put the self-inclusion bound at (n − 1)/sqrt(n),
+  which holds for the n − 1 standard deviation. `AGG_ZSCORE` uses the
+  population SD, so the text uses AS-05's sqrt(n − 1). The first question
+  ("what centre and scale") is kept. The second says "last row in row order,
+  that row included", and the Purpose and Interpretation route a reading
+  against the past to `OVERLAY_ZSCORE_VS_ROLLING`.
+- B-05 / B-22: `AGG_ZSCORE` moves from distribution_shape + benchmark to
+  describe + prepare, and the four set filters drop composition. Intent
+  coverage was rechecked: benchmark, composition and distribution_shape each
+  keep at least 3 declarers (`TestPurposeQuestionsResolve`, binding). The
+  manifest golden was regenerated for both.
+- AS-04: a UseCase names a use of the operator itself, so the science UseCase
+  becomes a population use (a fully measured batch), not a pointer elsewhere.
+  Pooling and study-size planning go to `AGG_WELFORD` through the caveat and
+  the NotFor.
+- AS-11: the panel's "divided by sqrt(1 − leverage)" is written as comparing
+  the residual with `residual_std_err` × sqrt(1 − leverage), the residual's
+  own spread (the internally studentized form).
+- AS-18 / AN-14: the assumption also names `details.variance_x` /
+  `variance_y`, both n − 1 (`test_pearson.go`), as the matching spreads.
+- AS-21: the first wording named `AGG_VARIANCE` / `AGG_WELFORD` in the
+  glossary. The virtual glossary skill is served through instance discovery,
+  which drops sentences naming operators a feature profile hides, so the body
+  stopped matching `skills.Get` (`TestGuidanceSkills_NeverPrunedByFeatureProfile`).
+  Follow-up `218441a9` names the population (n) and sample (n − 1) forms only;
+  the operator guidance says which operator computes which.
+- B-13: the `WIN_EWMA` Plain calls the share "w", not "alpha", because "alpha"
+  is a jargon form of the significance-level glossary term.
+- B-21: `FILTER_INCLUDE` / `FILTER_EXCLUDE` get their own shared sentence
+  (`filterValuesTyped`). The set filters keep `filterLabelsKnown`, because a
+  set field always carries a dictionary.
+- B-25 also fixes the `op-synth-uniform` skill's `max` row ("exclusive"), the
+  one atomic-skill contradiction this pass found.
+- No band and no `excluded` reason changed, so `testdata/conventions.json` is
+  untouched.
+
+## U09 skill and capability contradictions fixed
+
+Reading the code while writing the U09 guidance contradicted these docs. Each
+was fixed to match the code, docs only unless noted.
+
+| surface | contradiction | fix commit |
+|---|---|---|
+| `FEAT_DATE_FEATURES` capability | Promised `<label>_day_of_week` / `_is_weekend`; it writes `<label>_dow` and `<label>_quarter` | `1da721c9` |
+| `AGG_FREQUENCY` capability, skill, Purpose, example, `label-display` | Described a per-value map and a first-seen tie-break; it returns one float64 (the modal count) and keeps the smallest tied value | `adde0834` |
+| ProcessChain gate (engine) | Refused `AGG_FREQUENCY` as map-emitting; it emits a mergeable scalar, so the chain now admits it | `7cc68a25` |
+| `AGG_MODE` capability and skill | `EmitsTypeNote` said "string" and ties went to the first seen; it is float64 (a dictionary index on a category field) and the smallest value wins | `c85f7e05` |
+| `AGG_SKEWNESS` / `AGG_KURTOSIS` capability and skills; `op-agg-zscore` | "Bias-corrected", NaN below n = 3 / 4; the code computes population g1 / excess g2 and returns 0 for n ≤ 1 or zero variance. The z-score skill claimed NaN on zero spread | `a666149e` |
+| Attribute skills and capability notes | Missing input and constant fields documented as null / NaN; they read 0 (50 for `ATTR_TSCORE`). `ATTR_PERCENTILE` ties take distinct ranks, not a shared percentile | `a56a2f8b` |
+| Window capability notes and `op-win-pct-change` | `WIN_MOVING_AVG` NaN on an empty frame (it is null); `WIN_PCT_CHANGE` a "percent" (it is a fraction) | `af507d6b` |
+| `FEAT_LOG` capability; `feature-engineering`, `op-feat-target-encode`, `op-feat-train-test-split` skills | "Natural log of Field" (it is log1p); a preceding split was said to make target encoding train-only | `7e681766` |
+| `PULSE_FEAT_TARGET_LEAKAGE_RISK` predict warning + fixup, examples 07 / 08 / 10 | The warning went silent after a split and the fixup prescribed one; the encoder ignores the split. The warning now always fires and the `leakage-safe` tag is gone | `46c96c04` |
+| `op-group-rounded`, `op-group-range`, grouper capability | `GROUP_ROUNDED` said nearest multiple (it floors); `GROUP_RANGE` keys said `[10, 20)` (they read `10-20`) | `dff0e32e` |
+| Synth skills and capability (regex, uniform_date, constant, uniform, lognormal) | Finite-only regex repeats, `end` must exceed `start`, a non-existent error code, integer truncation, sigma direction, no pre-1970 dates | `339af52f` |
+| `op-synth-uniform` `max` row | "Exclusive"; on u8–u64 rounding can produce it | `82f78ba2` |
+
+## Open items for the U33 human reviewer (U09)
+
+The E3 / E4 open items above still stand. U09 adds the following. The guidance
+now describes each runtime behaviour honestly; the behaviour itself is logged
+for U36 (reference oracles and runtime fixes) and is not changed here.
+
+- **`FILTER_TRUE` / `FILTER_FALSE` truthy mode tests category label text**
+  (B-18 / B-19). A label such as "No" is non-empty text, so it counts as yes.
+  The guidance routes Yes/No categories to `FILTER_INCLUDE`; decide whether
+  truthy mode should refuse category fields.
+- **Empty groups read 0, not empty** (B-01 / B-02 / B-03) for `AGG_AVERAGE`,
+  `AGG_MIN`, `AGG_MAX`, `AGG_RANGE`, `AGG_MEDIAN`, `AGG_MODE` and
+  `AGG_WEIGHTED_MEAN`, while `AGG_RATIO` and the CI bounds return NaN. Decide
+  whether these should return null / NaN.
+- **Grouped rows come back in text order of their keys** (B-23 / B-24):
+  `GROUP_RANGE` puts `100-150` before `50-100`, and `GROUP_QUANTILE` reads
+  `D1, D10, D2, …`. Empty bands are left out. Consider numeric-aware ordering.
+- **`AGG_ZSCORE`'s value is always 0, and its components score the last row in
+  scan order** against a mean and SD that include that row (AS-05 / AN-07 /
+  B-04). Decide whether the operator should be kept, renamed or reshaped.
+- **`AGG_CI_LOWER` / `AGG_CI_UPPER` use the normal critical value, not
+  Student's t** (AS-03 / AN-05), so small groups get intervals that are too
+  narrow. A switch to t would change results.
+- **`ATTR_PERCENTILE` breaks ties in an unstable order** (`sort.Slice`), so
+  tied rows can read different percentiles from run to run (AS-07 / AS-09).
+- **Attributes write 0 (50 for `ATTR_TSCORE`) for a missing input** instead of
+  null, so a missing row looks like an average or minimum one.
+- **`FEAT_TARGET_ENCODE` ignores `FEAT_TRAIN_TEST_SPLIT`** and includes each
+  row's own outcome (AS-16 / AS-17). There is no split-aware, out-of-fold or
+  leave-one-out encoder; the guidance describes the manual workaround.
+- **Synth `u4` fields wrap around** on out-of-range draws, where u8–u64
+  saturate.
+- **`GROUP_QUANTILE`, `GROUP_RANGE` and `GROUP_ROUNDED` accept category
+  fields** and bin their dictionary indices.
+- **Skewness and kurtosis stay unbanded.** No graded convention met the fixture
+  bar (the 0.5 / 1 skewness rule of thumb is secondary-sourced only). Confirm
+  that leaving them unbanded is right.
+- **No external oracle for the descriptive estimators.** Population g1 / g2,
+  type-7 percentiles, Kish n_eff and the hat-matrix leverage are pinned by
+  in-repo tests, not by R. This is owned by U36.

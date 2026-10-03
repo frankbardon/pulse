@@ -19,7 +19,7 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.FEAT_LOG),
 			Category:      "feature",
-			Description:   "Per-row natural log of Field; emits one f64 column.",
+			Description:   "Per-row natural log of 1 + Field (log1p); x <= -1 reads null; emits one f64 column.",
 			AcceptsTypes:  numericFieldTypesNoDecimal,
 			EmitsType:     "f64",
 			EmitsTypeNote: "single column \"<label>\" (default LOG_<field>)",
@@ -50,9 +50,9 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.FEAT_DATE_FEATURES),
 			Category:      "feature",
-			Description:   "Expand a date field into year, month, day, day_of_week, and is_weekend columns.",
+			Description:   "Expand a date field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns.",
 			AcceptsTypes:  []string{"date"},
-			EmitsTypeNote: "multiple columns: <label>_year, <label>_month, <label>_day, <label>_day_of_week, <label>_is_weekend",
+			EmitsTypeNote: "multiple columns: <label>_year, <label>_month, <label>_day, <label>_dow, <label>_quarter",
 			Streamable:    true,
 		},
 		{

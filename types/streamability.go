@@ -27,7 +27,7 @@ const (
 	// ComponentsPartial signals that the components map merges across
 	// chunks but at non-trivial allocation cost — map / set unions
 	// where the fold is associative but not constant-space.
-	// AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+	// AGG_MODE_COUNT, AGG_MODE, AGG_DISTINCT_COUNT,
 	// AGG_DISTINCT_SUM, and AGG_SET_FREQUENCY are partial. The orchestrator may stage the
 	// merge at terminal flush.
 	ComponentsPartial ComponentsMergeability = "partial"
@@ -55,9 +55,10 @@ func (t AggregationType) Streamable() bool {
 	switch t {
 	case AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX,
 		AGG_STDDEV, AGG_VARIANCE, AGG_RANGE,
-		AGG_FREQUENCY, AGG_MODE,
+		AGG_MODE_COUNT, AGG_MODE,
 		AGG_SKEWNESS, AGG_KURTOSIS,
 		AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM,
+		AGG_FREQUENCY,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
@@ -92,8 +93,9 @@ func (t AggregationType) Mergeable() bool {
 	switch t {
 	case AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX,
 		AGG_RANGE, AGG_VARIANCE, AGG_STDDEV,
-		AGG_FREQUENCY, AGG_MODE, AGG_DISTINCT_COUNT,
+		AGG_MODE_COUNT, AGG_MODE, AGG_DISTINCT_COUNT,
 		AGG_DISTINCT_SUM,
+		AGG_FREQUENCY,
 		AGG_NULL_COUNT,
 		AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_CI_LOWER, AGG_CI_UPPER,
@@ -124,7 +126,8 @@ func (t AggregationType) Mergeable() bool {
 //     Both crosstab paths already feed every record into independent
 //     row / column / grand accumulators, so the true margin falls out of
 //     one pass (AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM — set-valued state
-//     whose union across cells is NOT their sum).
+//     whose union across cells is NOT their sum — and AGG_MODE_COUNT,
+//     whose margin mode need not be any cell's).
 //   - MarginRecompute — margin cannot be derived from cells and must be
 //     recomputed over the raw rows (every order- or distribution-
 //     dependent aggregator: AGG_MEDIAN, AGG_PERCENTILE, AGG_STDDEV,
@@ -142,7 +145,14 @@ func (t AggregationType) Mergeable() bool {
 // drives the manifest capability block and future fast-path work.
 func (t AggregationType) MarginReducibility() MarginReducibility {
 	switch t {
-	case AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM:
+	case AGG_DISTINCT_COUNT, AGG_DISTINCT_SUM,
+		// The modal count of a margin's rows is neither the sum nor the
+		// max of its cells' modal counts (the margin's mode may be a
+		// value no single cell favours). Like the distinct counters, its
+		// per-value count map is fed record by record into independent
+		// row / column / grand accumulators on both crosstab paths, so
+		// the true margin falls out of one pass and the cell fuses.
+		AGG_MODE_COUNT:
 		// Set-valued state. Summing per-cell distinct counts double-
 		// counts every key present in more than one cell, so the margin
 		// is emphatically NOT a sum of cells — but it is not a re-scan
@@ -154,16 +164,12 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		// every distinct-count crosstab onto the buffered path).
 		return MarginIndependent
 	case AGG_COUNT, AGG_SUM, AGG_NULL_COUNT,
+		// One value's row count: the margin is the sum of the cells'.
 		AGG_FREQUENCY,
 		// Set unions, popcount sums, and per-element frequency
 		// histograms all reduce by addition across cells.
 		AGG_SET_UNION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_DISTINCT_VALUES:
-		// FREQUENCY is summable per category: each cell's per-value
-		// counts merge by key union (same logic the per-shard reducer
-		// uses); classified as summable for that reason. The reshape
-		// pass treats it as recompute today because the long-form
-		// emitter writes a map, not a scalar.
 		return MarginSummable
 	case AGG_AVERAGE, AGG_WEIGHTED_MEAN, AGG_RATIO,
 		AGG_SET_CARDINALITY_AVG:

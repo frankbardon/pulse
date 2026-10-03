@@ -2,6 +2,10 @@
   "_meta": {
     "category": "crosstab",
     "description": "Count crosstab (segment × converted) paired with a TEST_CHISQ independence test on the same fields. The crosstab visualizes the contingency table; the test reports a p-value for the null hypothesis that segment and conversion are independent.",
+    "intents": [
+      "relationship",
+      "composition"
+    ],
     "name": "crosstab_with_chi_square_inference",
     "operators": [
       "AGG_COUNT",

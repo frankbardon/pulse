@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Welch ANOVA on revenue across regions to handle heteroscedasticity without inflating type-I error.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "welch_anova_unequal_var",
     "operators": [
       "AGG_AVERAGE",

@@ -1,27 +1,29 @@
 ---
 name: op-agg-frequency
-description: Per-distinct-value count of the field; returned as map[string]int64.
+description: Value count — how many non-null rows hold one chosen value (params.value); one float64 per output row.
 kind: operator
 category: AGG
 operator: AGG_FREQUENCY
 type: reference
 applies_to: process, compose, predict
-examples_tags: [cross-tabulation, cardinality-analysis]
+examples_tags: [cross-tabulation, streaming-friendly]
 ---
 
 ## Params
 
-None.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `value` | string | (required) | Matched as `FILTER_INCLUDE` matches: category label, else a number (`date` days, `datetime` seconds, `packed_bool` `1`/`0`) |
 
 ## Inputs
 
 | Param | Accepted field types |
 |---|---|
-| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128) |
+| `Field` | any type EXCEPT `set_*` |
 
 ## Output
 
-`map[string]int64` — keyed by stringified value. Per-group when wired under a grouper.
+Scalar `float64` — rows equal to `value`, per group. = `FILTER_INCLUDE` + `AGG_COUNT`.
 
 ## Components
 
@@ -29,19 +31,17 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 | Key | Type | Notes |
 |---|---|---|
-| `distinct_count` | int | Number of distinct values |
-| `mode_value` | any | Most-frequent value (first-seen tie-break) |
-| `mode_count` | int | Row count of the modal value |
+| `match_count` | int | Rows equal to `value` (= scalar) |
+| `share` | float64 | `match_count / n`; omitted when `n` is 0 |
 
-- Mergeability: `Partial` — map allocation, orchestrator may stage at flush
-- Streaming: per-chunk maps merged bin-by-bin
+- Mergeability: `Mergeable` (counters sum); ProcessChain admits it
 
 ## Gotchas
 
-- Smart default for categorical_* and packed_bool fields.
-- High-cardinality fields blow memory — pair with `FILTER_INCLUDE` first or use `AGG_DISTINCT_COUNT`.
-- `mode_value` returned in Components; for the mode alone use `AGG_MODE`.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask is not a quantity at any rung. Use `AGG_SET_FREQUENCY` for per-member counts.
+- Missing `value` → `PROCESSING_CONFIG` (runtime and predict). Modal count: `AGG_MODE_COUNT`.
+- A value no row holds counts 0, not an error — check spelling.
+- Nulls: not counted, not in `share`'s base.
+- `set_*` rejected with `PROCESSING_CONFIG`; use `AGG_SET_FREQUENCY`.
 
 ## See
 

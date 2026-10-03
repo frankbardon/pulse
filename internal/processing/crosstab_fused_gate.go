@@ -161,7 +161,7 @@ func CanFuseCrosstab(req *types.Request, schema *encoding.Schema, ext *Extension
 	switch ext.AggregatorMarginReducibility(cell.Type) {
 	case types.MarginSummable, types.MarginMeanReducible, types.MarginIndependent:
 		// fused-eligible. MarginIndependent operators (AGG_DISTINCT_COUNT,
-		// AGG_DISTINCT_SUM) are admitted because the fused walk already
+		// AGG_DISTINCT_SUM, AGG_MODE_COUNT) are admitted because the fused walk already
 		// routes every record into independent margin accumulators — the
 		// margin is exact after one pass, so there is nothing to re-scan.
 	default:

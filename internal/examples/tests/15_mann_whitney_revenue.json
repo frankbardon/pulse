@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Mann-Whitney U on revenue by treatment as a nonparametric counterpart to the two-sample t-test.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "mann_whitney_revenue",
     "operators": [
       "AGG_COUNT",

@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "ANOVA robustness battery: equal-variance F, Welch's F, and Brown-Forsythe on the same revenue-by-region split.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "anova_robustness_battery",
     "operators": [
       "AGG_AVERAGE",

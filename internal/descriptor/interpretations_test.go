@@ -32,9 +32,15 @@ var inferentialOverlayKinds = []types.OverlayKind{
 // one inferential built-in: tests explain statistic + p_value plus every
 // effect size they emit; regressions their coefficients and p-values
 // (credible intervals for the Bayesian fit); inferential overlays the
-// slot carrying their number per declared shape.
+// slot carrying their number per declared shape; needs-reading
+// descriptive operators their primary result (`value` / `value.*`).
 func expectedInterpretationFields(cat, name string) []string {
 	switch cat {
+	case "aggregator", "attribute", "window", "feature":
+		if slices.Contains(needsReadingOperators, name) {
+			return []string{valueField(name)}
+		}
+		return nil
 	case "test":
 		out := []string{"p_value", "statistic"}
 		for _, k := range testEffectSizeKeys[name] {
@@ -74,10 +80,11 @@ func expectedInterpretationFields(cat, name string) []string {
 // a well-formed path naming something the operator emits, Means or a
 // known Shared rule set, Bands only with a Convention and ordered
 // without overlap, Sign keys "+" / "-" — and every registry key is a
-// registered built-in with at least one entry. Coverage (report-only):
-// every inferential test family, regression and Inferential overlay kind
-// lacking an Interpretation for its expected outputs is logged, grouped
-// by category.
+// registered built-in with at least one entry. Coverage (binding):
+// every expected output of an inferential test family, regression and
+// Inferential overlay kind carries an Interpretation, unless
+// interpretationExemptions lists "<operator>:<field>"; the gaps are
+// logged, grouped by category.
 func TestInterpretationCoversOutputs(t *testing.T) {
 	for _, v := range interpretationRegistryViolations(builtinInterpretations) {
 		t.Error(v)
@@ -94,11 +101,6 @@ func TestInterpretationCoversOutputs(t *testing.T) {
 	var report strings.Builder
 	missing, total := 0, 0
 	for _, s := range PurposeSurfaces() {
-		switch s.Category {
-		case "test", "regression", "overlay":
-		default:
-			continue
-		}
 		var lack []string
 		for _, n := range s.Names {
 			want := expectedInterpretationFields(s.Category, n)
@@ -125,7 +127,28 @@ func TestInterpretationCoversOutputs(t *testing.T) {
 			report.WriteString("\n  " + s.Category + " (" + strconv.Itoa(len(lack)) + "): " + strings.Join(lack, ", "))
 		}
 	}
-	t.Logf("Interpretation coverage: %d of %d inferential built-ins lack an Interpretation for an expected output:%s", missing, total, report.String())
+	t.Logf("Interpretation coverage: %d of %d inferential or needs-reading built-ins lack an Interpretation for an expected output:%s", missing, total, report.String())
+	assertExempted(t, "interpretation", interpretationCoverageGaps(builtinInterpretations), interpretationExemptions, roadmapUnitStatus())
+}
+
+// interpretationCoverageGaps returns "<operator>:<field>" for every
+// expected output reg declares no Interpretation for.
+func interpretationCoverageGaps(reg map[string][]descriptor.Interpretation) []string {
+	var out []string
+	for _, s := range PurposeSurfaces() {
+		for _, n := range s.Names {
+			have := map[string]bool{}
+			for _, in := range reg[n] {
+				have[in.Field] = true
+			}
+			for _, f := range expectedInterpretationFields(s.Category, n) {
+				if !have[f] {
+					out = append(out, n+":"+f)
+				}
+			}
+		}
+	}
+	return out
 }
 
 func validInterpretationFixture() []descriptor.Interpretation {
@@ -422,7 +445,7 @@ func TestDeclaredInterpretationFields(t *testing.T) {
 		t.Error("pairs not sorted by name then field")
 	}
 	for _, p := range got {
-		if p.Category != "test" && p.Category != "overlay" && p.Category != "regression" {
+		if p.Category != "test" && p.Category != "overlay" && p.Category != "regression" && !valuePathCategories[p.Category] {
 			t.Errorf("%s: category %q", p.Name, p.Category)
 		}
 		wantDeferred := strings.HasPrefix(p.Field, "details.") || strings.HasPrefix(p.Field, "summary.parameters.")

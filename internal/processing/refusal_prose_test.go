@@ -27,6 +27,7 @@ func TestRefusalRemedies_DefaultsAreHistorical(t *testing.T) {
 		" (typically lifted from a preceding TEST_ANOVA_F)",
 		", or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a separate n leg",
 		", admitted: AGG_DISTINCT_SUM, AGG_DISTINCT_COUNT",
+		" The count of the field's most common value is AGG_MODE_COUNT.",
 		"; use REG_OLS for regularized fits or wait for the GLM regularization phase",
 		"; use REG_OLS if you want resample-based uncertainty",
 		". Use REG_OLS for greedy AIC/BIC selection",

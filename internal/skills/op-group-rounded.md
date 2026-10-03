@@ -1,6 +1,6 @@
 ---
 name: op-group-rounded
-description: Round each numeric value to the nearest multiple of Interval and group by the rounded scalar.
+description: Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar.
 kind: operator
 category: GROUP
 operator: GROUP_ROUNDED
@@ -23,7 +23,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Output
 
-Rounded numeric key per row. Each value snaps to the nearest multiple of `Interval`; bucket key is the rounded scalar.
+Floored numeric key per row. Each value rounds DOWN to a multiple of `Interval` (`19`→`10`, `-3`→`-10`), never to the nearest; key is that scalar.
 
 ## Components
 
@@ -40,7 +40,7 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Reach for `GROUP_RANGE` for half-open intervals — `GROUP_ROUNDED` snaps to scalars.
+- Same partition as `GROUP_RANGE` at equal width; only the key differs (`"10"` vs `"10-20"`).
 - Rejects categorical/decimal128 at construction.
 - `Group.Include` not honoured — filter source field instead.
 

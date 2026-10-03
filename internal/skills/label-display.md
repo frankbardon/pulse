@@ -55,7 +55,6 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 | `Sample` (`SampleWithRequest`) | row value → label | row + `<field>_label` |
 | `Facet` (`FacetSchema`) | `FacetValueCount.Value` → label | sibling `FacetField` |
 | `Process` group keys | group key → label | sibling column in each output row |
-| `Process` `AGG_FREQUENCY` / `AGG_MODE` | result key → label | sibling label column |
 | `Export` / `Convert` | column value → label | extra column inserted after source |
 
 **Display-only.** Filters, formula attributes, sort keys, and group keys still see raw values. Labels NEVER gate which records pass through the pipeline.
@@ -92,7 +91,6 @@ LLM clients discover label tables via two MCP tools. `pulse_label_tables` lists 
 ## See
 
 - `docs/src/internals/extension-points.md` — registering `LabelTables` on `Options.Extensions`.
-- `skills/aggregation-design.md` — `AGG_FREQUENCY` / `AGG_MODE` label-key path.
 - `skills/facet-design.md` — surfacing labels on `FacetField` values.
 - `skills/tool-label-tables.md` / `skills/tool-label-resolve.md` — `pulse_label_tables` / `pulse_label_resolve` schemas.
 - `skills/spss-cohorts.md` — why an SPSS cohort stores codes, and where its labels live.

@@ -1670,7 +1670,7 @@ func TestCrosstabComponents_BufferedVsFused_SweepParity(t *testing.T) {
 	}{
 		{"scalar/AGG_SUM", types.AGG_SUM},
 		{"welford/AGG_VARIANCE", types.AGG_VARIANCE},
-		{"mapstate/AGG_FREQUENCY", types.AGG_FREQUENCY},
+		{"mapstate/AGG_MODE_COUNT", types.AGG_MODE_COUNT},
 		// AGG_MEDIAN is non-mergeable → fused gate rejects (both runs
 		// land on the buffered path, parity is trivially identical
 		// but emission must still produce the BufferedComponents=true

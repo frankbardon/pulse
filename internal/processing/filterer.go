@@ -13,6 +13,28 @@ import (
 
 type includeFilterer struct{}
 
+// matchValueKey resolves one request-supplied value string to the
+// float64 key Record.NumericValue yields for a row holding that value —
+// the single value-matching rule FILTER_INCLUDE, FILTER_EXCLUDE and
+// AGG_FREQUENCY share. A categorical field (with a dictionary) resolves
+// the string as a dictionary LABEL to its ID; found is false when no
+// entry carries it, and each caller decides what that means (the
+// filters refuse, AGG_FREQUENCY counts zero). Every other field parses
+// the string as a number: a date in epoch days, a datetime in epoch
+// seconds, packed_bool as 1 / 0, decimal128 against its float echo. A
+// parse failure is returned raw for the caller to wrap.
+func matchValueKey(field *encoding.Field, v string) (key float64, found bool, err error) {
+	if field != nil && field.Type.IsCategorical() && field.Dictionary != nil {
+		id, ok := field.Dictionary.IDFor(v)
+		return float64(id), ok, nil
+	}
+	fv, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0, false, err
+	}
+	return fv, true, nil
+}
+
 func newIncludeFilterer() FiltererBuilder {
 	return &includeFilterer{}
 }
@@ -28,25 +50,19 @@ func (f *includeFilterer) Build(filter *types.Filterer, schema *encoding.Schema)
 		return nil, err
 	}
 	field := schema.Field(filter.Field)
-	isCategorical := field != nil && field.Type.IsCategorical() && field.Dictionary != nil
 
 	valueSet := make(map[float64]bool, len(filter.Values))
 	for _, v := range filter.Values {
-		if isCategorical {
-			id, ok := field.Dictionary.IDFor(v)
-			if !ok {
-				return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-					fmt.Sprintf("include value %q not found in dictionary for field %q", v, filter.Field))
-			}
-			valueSet[float64(id)] = true
-			continue
-		}
-		fv, err := strconv.ParseFloat(v, 64)
+		key, found, err := matchValueKey(field, v)
 		if err != nil {
 			return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 				fmt.Sprintf("parsing include value %q", v))
 		}
-		valueSet[fv] = true
+		if !found {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("include value %q not found in dictionary for field %q", v, filter.Field))
+		}
+		valueSet[key] = true
 	}
 
 	return func(record *Record) (bool, error) {
@@ -75,25 +91,19 @@ func (f *excludeFilterer) Build(filter *types.Filterer, schema *encoding.Schema)
 		return nil, err
 	}
 	field := schema.Field(filter.Field)
-	isCategorical := field != nil && field.Type.IsCategorical() && field.Dictionary != nil
 
 	valueSet := make(map[float64]bool, len(filter.Values))
 	for _, v := range filter.Values {
-		if isCategorical {
-			id, ok := field.Dictionary.IDFor(v)
-			if !ok {
-				return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-					fmt.Sprintf("exclude value %q not found in dictionary for field %q", v, filter.Field))
-			}
-			valueSet[float64(id)] = true
-			continue
-		}
-		fv, err := strconv.ParseFloat(v, 64)
+		key, found, err := matchValueKey(field, v)
 		if err != nil {
 			return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 				fmt.Sprintf("parsing exclude value %q", v))
 		}
-		valueSet[fv] = true
+		if !found {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("exclude value %q not found in dictionary for field %q", v, filter.Field))
+		}
+		valueSet[key] = true
 	}
 
 	return func(record *Record) (bool, error) {

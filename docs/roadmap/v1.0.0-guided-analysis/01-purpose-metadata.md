@@ -15,7 +15,7 @@ This is a small, closed set of question types. It is deliberately coarse: an int
 | `relationship` | "Do X and Y move together?" | `TEST_PEARSON_R`, `TEST_SPEARMAN_R`, `TEST_KENDALL_TAU`, `MAT_CORRELATION`, `TEST_CHISQ` (two categoricals) |
 | `drivers` | "What explains / predicts Y?" "Which factors matter most?" | `REG_OLS`, `REG_GLM`, `MAT_PARTIAL_CORRELATION`, `MAT_COLLINEARITY` |
 | `change_over_time` | "Is it going up?" "How does this month compare to last?" | `GROUP_DATE`, `WIN_*`, `TEST_TREND`, `OVERLAY_YOY`, `OVERLAY_DELTA_VS_PRIOR` |
-| `composition` | "What's the mix / share?" "Which attributes go with which brand?" | `AGG_FREQUENCY`, `OVERLAY_SHARE_OF_*`, `OVERLAY_CORRESPONDENCE`, `MAT_SET_AFFINITY` |
+| `composition` | "What's the mix / share?" "Which attributes go with which brand?" | `AGG_MODE_COUNT`, `OVERLAY_SHARE_OF_*`, `OVERLAY_CORRESPONDENCE`, `MAT_SET_AFFINITY` |
 | `benchmark` | "How does this compare to the total / population / last wave?" | `OVERLAY_INDEX_VS_*`, `*_VS_POP`, `*_VS_REF` |
 | `distribution_shape` | "Is it normal?" "Are there outliers?" | `AGG_SKEWNESS`, `AGG_KURTOSIS`, `TEST_SHAPIRO_WILK`, `TEST_KS`, `ATTR_ZSCORE`, `ATTR_MAHALANOBIS` |
 | `segment` | "Are there natural groups of customers?" "Split into tiers" | `GROUP_KMEANS`, `GROUP_QUANTILE`, `GROUP_RANGE` |

@@ -2,6 +2,10 @@
   "_meta": {
     "category": "groupers",
     "description": "Group income into quartiles and report count, mean, min, and max per quartile.",
+    "intents": [
+      "distribution_shape",
+      "segment"
+    ],
     "name": "group_quantile_income",
     "operators": [
       "AGG_AVERAGE",

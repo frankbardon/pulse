@@ -2,6 +2,10 @@
   "_meta": {
     "category": "aggregations",
     "description": "Per-arm ARPU (revenue per session-minute) via AGG_RATIO with Params.numerator_field=revenue + Params.denominator_field=session_minutes, bucketed by treatment so the ratio reads as one ARPU per arm. Streamable cohort-analytics aggregator — two running sums fold inline; no second pass.",
+    "intents": [
+      "compare_groups",
+      "describe"
+    ],
     "name": "ratio_revenue_per_minute",
     "operators": [
       "AGG_RATIO",

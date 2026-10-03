@@ -1,6 +1,8 @@
 package descriptor
 
 import (
+	"maps"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -122,8 +125,9 @@ func assertPurposeRuleFamily(t *testing.T, family ...PurposeRule) {
 // (binding): every declared built-in Purpose meets the limits — Plain
 // at most 140 characters, at least one intent, two Questions, one
 // NotFor, one UseCase, and a Level — and every registry key names a
-// registered built-in. Coverage (report-only): every registered
-// built-in lacking a Purpose is logged, grouped by category.
+// registered built-in. Coverage (binding): every registered built-in
+// declares a Purpose or holds a purposeExemptions entry; the full
+// missing list is logged, grouped by category.
 func TestSkillsCoverAllPurposes(t *testing.T) {
 	assertPurposeRuleFamily(t,
 		PurposeRulePlain, PurposeRuleIntents, PurposeRuleQuestions,
@@ -151,6 +155,35 @@ func TestSkillsCoverAllPurposes(t *testing.T) {
 		}
 	}
 	t.Logf("Purpose coverage: %d of %d built-ins declare one; %d lack a Purpose:%s", declared, total, missing, report.String())
+	assertExempted(t, "purpose", purposeCoverageGaps(builtinPurposes), purposeExemptions, roadmapUnitStatus())
+}
+
+// purposeCoverageGaps returns every registered built-in reg declares no
+// Purpose for.
+func purposeCoverageGaps(reg map[string]descriptor.Purpose) []string {
+	var out []string
+	for _, s := range PurposeSurfaces() {
+		for _, n := range s.Names {
+			if _, ok := reg[n]; !ok {
+				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
+// assertExempted fails on every gap the ledger does not exempt and on
+// every ledger problem (unjustified, ownerless, unknown or done owner,
+// duplicate, stale).
+func assertExempted(t *testing.T, table string, gaps []string, ledger []guidanceExemption, status unitStatusReader) {
+	t.Helper()
+	remaining, problems := applyExemptions(table, gaps, ledger, status)
+	for _, p := range problems {
+		t.Error(p)
+	}
+	for _, g := range remaining {
+		t.Errorf("%s coverage gap %s is neither covered nor exempted (guidance_exemptions_test.go)", table, g)
+	}
 }
 
 // TestPurposeRegistry_OrphanKeysDetected: a Purpose keyed by a name no
@@ -186,35 +219,48 @@ func TestPurposeAlternativesResolve(t *testing.T) {
 }
 
 // TestPurposeQuestionsResolve. Validity (binding): every intent a
-// Purpose declares is in the taxonomy, once. Coverage (report-only):
-// intents fewer than three built-ins declare, and intents no example's
-// _meta.intents tags, are logged.
+// Purpose declares is in the taxonomy, once. Coverage (binding): every
+// intent is declared by at least intentMinDeclarers built-ins AND tagged
+// by at least one example's _meta.intents, unless intentDeclarerExemptions
+// / intentExampleExemptions lists the gap.
 func TestPurposeQuestionsResolve(t *testing.T) {
 	assertPurposeRuleFamily(t, PurposeRuleIntentUnknown)
 
+	thin, untagged := intentCoverageGaps(builtinPurposes, examples.Intents())
+	t.Logf("Intent coverage: %d intents declared by fewer than %d operators: %s", len(thin), intentMinDeclarers, strings.Join(thin, ", "))
+	t.Logf("Intent coverage: %d intents with no tagged example: %s", len(untagged), strings.Join(untagged, ", "))
+	status := roadmapUnitStatus()
+	assertExempted(t, "intent-declarers", thin, intentDeclarerExemptions, status)
+	assertExempted(t, "intent-example", untagged, intentExampleExemptions, status)
+}
+
+// intentMinDeclarers is how many built-in Purposes must declare an intent.
+const intentMinDeclarers = 3
+
+// intentCoverageGaps returns the intent IDs fewer than intentMinDeclarers
+// purposes declare (thin) and those no example tags (untagged).
+func intentCoverageGaps(purposes map[string]descriptor.Purpose, exampleIntents map[string][]string) (thin, untagged []string) {
 	declaredBy := map[string]int{}
-	for _, p := range builtinPurposes {
+	for _, p := range purposes {
 		for _, id := range p.Intents {
 			declaredBy[id]++
 		}
 	}
 	tagged := map[string]bool{}
-	for _, ids := range examples.Intents() {
+	for _, ids := range exampleIntents {
 		for _, id := range ids {
 			tagged[id] = true
 		}
 	}
-	var thin, untagged []string
 	for _, id := range IntentIDs() {
-		if declaredBy[id] < 3 {
-			thin = append(thin, id+"("+strconv.Itoa(declaredBy[id])+")")
+		if declaredBy[id] < intentMinDeclarers {
+			thin = append(thin, id)
 		}
 		if !tagged[id] {
 			untagged = append(untagged, id)
 		}
 	}
-	t.Logf("Intent coverage: %d intents declared by fewer than 3 operators: %s", len(thin), strings.Join(thin, ", "))
-	t.Logf("Intent coverage: %d intents with no tagged example: %s", len(untagged), strings.Join(untagged, ", "))
+	return thin, untagged
 }
 
 // testPurposeGlossaryLinks is the Purpose half of TestGlossaryTermsResolve
@@ -332,6 +378,106 @@ func TestExamples_IntentsFromTaxonomy(t *testing.T) {
 	}
 }
 
+// TestExamples_EveryExampleHasIntent (binding): every example carries at
+// least one _meta.intents value, unless its category directory is listed
+// in exampleIntentExemptions. (Intent values are checked against the
+// taxonomy by TestExamples_IntentsFromTaxonomy.)
+func TestExamples_EveryExampleHasIntent(t *testing.T) {
+	gaps := untaggedExampleCategories(examples.Search("", nil, ""), examples.Intents())
+	assertExempted(t, "example-intent", gaps, exampleIntentExemptions, roadmapUnitStatus())
+
+	// Negative arm: an untagged example outside the ledger is a gap.
+	fx := []examples.ExampleSummary{
+		{Name: "a", Category: "aggregations"},
+		{Name: "b", Category: "windows"},
+	}
+	rem, _ := applyExemptions("example-intent", untaggedExampleCategories(fx, map[string][]string{"b": {IntentDescribe}}), exampleIntentExemptions, roadmapUnitStatus())
+	if !slices.Equal(rem, []string{"aggregations"}) {
+		t.Errorf("untagged aggregations example not reported: remaining %v", rem)
+	}
+}
+
+// TestExamples_IntentPurposeConsistency (REPORT-ONLY): each intent an
+// example is tagged with should appear in the Purpose intents of at least
+// one operator the example exercises (its _meta.operators, plus every
+// OVERLAY_* kind named in its request body). A mismatch is logged, never
+// failed: a COUNT crosstab legitimately answers composition although
+// AGG_COUNT's Purpose says describe, so the tag is the example's question,
+// not an operator fact. The test proves the check runs by requiring that
+// most tagged examples resolve to a Purpose, and that the mismatch finder
+// flags a fabricated disagreement.
+func TestExamples_IntentPurposeConsistency(t *testing.T) {
+	purposes := BuiltinPurposes()
+	tagged := examples.Intents()
+	mismatches, checked := exampleIntentMismatches(tagged, purposes, func(name string) []string {
+		ex, ok := examples.Get(name)
+		if !ok {
+			return nil
+		}
+		ops := append([]string(nil), ex.Operators...)
+		ops = append(ops, overlayKindRe.FindAllString(string(ex.Body), -1)...)
+		return ops
+	})
+	t.Logf("intent/Purpose consistency (report-only): %d tagged examples checked, %d mismatches", checked, len(mismatches))
+	for _, m := range mismatches {
+		t.Log("mismatch: " + m)
+	}
+	if checked < len(tagged)/2 {
+		t.Errorf("only %d of %d tagged examples resolved to a Purpose; the check is not running", checked, len(tagged))
+	}
+
+	// Falsifier arm: a disagreement is found (and would only be logged).
+	fakeP := map[string]descriptor.Purpose{"AGG_X": {Intents: []string{IntentDescribe}}}
+	got, n := exampleIntentMismatches(map[string][]string{"e": {IntentDescribe, IntentSegment}}, fakeP, func(string) []string { return []string{"AGG_X"} })
+	if n != 1 || len(got) != 1 || !strings.Contains(got[0], IntentSegment) {
+		t.Errorf("mismatch finder = %v (checked %d), want one mismatch naming %q", got, n, IntentSegment)
+	}
+}
+
+var overlayKindRe = regexp.MustCompile(`OVERLAY_[A-Z0-9_]+`)
+
+// exampleIntentMismatches returns "example: intent X not in the Purposes of
+// [ops]" lines in example-name order, and the number of examples that had
+// at least one operator with a Purpose (the ones the check could judge).
+func exampleIntentMismatches(tagged map[string][]string, purposes map[string]descriptor.Purpose, opsOf func(string) []string) ([]string, int) {
+	var out []string
+	checked := 0
+	for _, name := range slices.Sorted(maps.Keys(tagged)) {
+		have := map[string]bool{}
+		var withPurpose []string
+		for _, op := range opsOf(name) {
+			if p, ok := purposes[op]; ok {
+				withPurpose = append(withPurpose, op)
+				for _, id := range p.Intents {
+					have[id] = true
+				}
+			}
+		}
+		if len(withPurpose) == 0 {
+			continue
+		}
+		checked++
+		for _, id := range tagged[name] {
+			if !have[id] {
+				out = append(out, name+": intent "+id+" not in the Purposes of "+strings.Join(withPurpose, ","))
+			}
+		}
+	}
+	return out, checked
+}
+
+// untaggedExampleCategories returns the sorted category directories that
+// hold at least one example without a _meta.intents tag.
+func untaggedExampleCategories(all []examples.ExampleSummary, tagged map[string][]string) []string {
+	seen := map[string]bool{}
+	for _, ex := range all {
+		if len(tagged[ex.Name]) == 0 {
+			seen[ex.Category] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(seen))
+}
+
 // exampleIntentProblems reports every _meta.intents value (keyed by
 // example name) that is not an intent ID, in name order.
 func exampleIntentProblems(byExample map[string][]string) []string {
@@ -356,7 +502,7 @@ func exampleIntentProblems(byExample map[string][]string) []string {
 // keyed by a TEST_* family, and a name declared by two category maps
 // panics instead of silently shadowing one declaration.
 func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
-	cats := []map[string]descriptor.Purpose{aggregatorPurposes, statTestPurposes, overlayPurposes, regressionPurposes}
+	cats := []map[string]descriptor.Purpose{aggregatorPurposes, attributePurposes, filtererPurposes, grouperPurposes, windowPurposes, featurePurposes, statTestPurposes, overlayPurposes, regressionPurposes, synthPurposes}
 	total := 0
 	for _, m := range cats {
 		total += len(m)
@@ -383,6 +529,15 @@ func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
 	for name := range regressionPurposes {
 		if !strings.HasPrefix(name, "REG_") {
 			t.Errorf("regressionPurposes holds non-regression key %s", name)
+		}
+	}
+	dists := map[string]bool{}
+	for _, d := range synth.AllDistributions() {
+		dists[d] = true
+	}
+	for name := range synthPurposes {
+		if !dists[name] {
+			t.Errorf("synthPurposes holds non-distribution key %s", name)
 		}
 	}
 

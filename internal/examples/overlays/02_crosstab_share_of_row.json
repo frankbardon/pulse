@@ -2,6 +2,9 @@
   "_meta": {
     "category": "overlays",
     "description": "Crosstab count of region x segment decorated with an OVERLAY_SHARE_OF_ROW cell overlay that renormalises each cell into its share of the row margin (cell / row_margin).",
+    "intents": [
+      "composition"
+    ],
     "name": "crosstab-share-of-row",
     "operators": [
       "AGG_COUNT",

@@ -2,6 +2,10 @@
   "_meta": {
     "category": "tests",
     "description": "One-sample t-test comparing revenue mean against the hypothesized mu=100.",
+    "intents": [
+      "benchmark",
+      "describe"
+    ],
     "name": "t_test_one_sample",
     "operators": [
       "AGG_AVERAGE",

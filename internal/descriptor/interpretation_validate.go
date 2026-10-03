@@ -67,7 +67,8 @@ const (
 	// FieldUnknown: the path names nothing the operator emits.
 	FieldUnknown FieldCheck = iota
 	// FieldStatic: the path is anchored to a declared output — a result
-	// struct tag, a ComponentSchema key, a declared overlay shape.
+	// struct tag, a ComponentSchema key, a declared overlay shape, a
+	// descriptive operator's value / value.* primary result.
 	FieldStatic
 	// FieldDeferred: the path descends into a map-valued slot
 	// (details.*, summary.parameters.*) whose keys exist only at run
@@ -284,8 +285,10 @@ func surfaceCategory(name string) (string, bool) {
 // by the per-type applicability table; overlays against the kind's
 // declared shapes plus types.OverlaySummary; aggregators, groupers and
 // filterers against components.<key> from their ComponentSchema plus
-// the universal floor. Every other category (and an unknown name)
-// emits nothing an Interpretation can read.
+// the universal floor; aggregators, attributes, windows and features
+// also against their primary result as `value` / `value.*`
+// (interpretation_reading.go). Every other category (and an unknown
+// name) emits nothing an Interpretation can read.
 func BuiltinOutputResolver(name string) OutputResolver {
 	cat, ok := surfaceCategory(name)
 	if !ok {
@@ -302,6 +305,8 @@ func BuiltinOutputResolver(name string) OutputResolver {
 		return overlayOutputResolver(types.OverlayKind(name))
 	case "aggregator", "grouper", "filterer":
 		return componentOutputResolver(name, cat)
+	case "attribute", "window", "feature":
+		return valueOutputResolver(name, cat)
 	}
 	return func(string) (FieldCheck, string) {
 		return FieldUnknown, fmt.Sprintf("%s operators emit no output an Interpretation can read", cat)
@@ -404,6 +409,12 @@ func componentOutputResolver(name, cat string) OutputResolver {
 	return func(field string) (FieldCheck, string) {
 		if key, ok := strings.CutPrefix(field, "components."); ok && keys[key] {
 			return FieldStatic, ""
+		}
+		if valuePathCategories[cat] {
+			if check, why, ok := valueOutputCheck(name, field); ok {
+				return check, why
+			}
+			return FieldUnknown, fmt.Sprintf("%s emits no %q (want %s, or components.<key> from its ComponentSchema or the universal floor)", name, field, valueField(name))
 		}
 		return FieldUnknown, fmt.Sprintf("%s emits no %q (want components.<key> from its ComponentSchema or the universal floor)", name, field)
 	}

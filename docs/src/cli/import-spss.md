@@ -709,7 +709,7 @@ each.
 | `PULSE_SPSS_DATE_WIDENED` | A date column widened to `datetime` |
 | `PULSE_SPSS_TEMPORAL_PRECISION` | A temporal column demoted to `f64` raw seconds |
 | `PULSE_SPSS_VALUE_COLLISION` | Two distinct SPSS values resolve to one dictionary entry (reachable causes: the shared import path trims cells, so `" X"` and `"X"` merge; or two user-missing codes share a value label, in which case the second reason falls back to its code — see [Missing values](#missing-values)) |
-| `PULSE_SPSS_MEASURE_LEVEL_MISMATCH` | A `scale`-level variable carries value labels, so it mapped to a categorical whose smart defaults are `AGG_FREQUENCY` / `GROUP_CATEGORY` rather than `AGG_SUM` / `GROUP_RANGE` |
+| `PULSE_SPSS_MEASURE_LEVEL_MISMATCH` | A `scale`-level variable carries value labels, so it mapped to a categorical whose smart defaults are `AGG_MODE_COUNT` / `GROUP_CATEGORY` rather than `AGG_SUM` / `GROUP_RANGE` |
 | `PULSE_SPSS_NULL_TOKEN_COLLISION` | A cell's text is a null sentinel (`""`, `NA`, `N/A`, `NULL`) and imports as null |
 | `PULSE_SPSS_CATEGORICAL_USER_MISSING` | Informational, once per file: categorical columns carry user-missing codes as ordinary dictionary entries — see [Categorical user-missing codes](#categorical-user-missing-codes) |
 | `PULSE_SPSS_EXTENSION_UNKNOWN` | A record type 7 extension subtype this reader does not interpret; its bytes are retained verbatim |

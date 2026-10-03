@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Kruskal-Wallis H on revenue across four regions as a nonparametric counterpart to one-way ANOVA.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "kruskal_wallis_regions",
     "operators": [
       "AGG_AVERAGE",

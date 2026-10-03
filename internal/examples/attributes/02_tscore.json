@@ -2,6 +2,10 @@
   "_meta": {
     "category": "attributes",
     "description": "Convert age to a t-score (z*10 + 50) so the output centers at 50 with stddev 10.",
+    "intents": [
+      "prepare",
+      "benchmark"
+    ],
     "name": "tscore",
     "operators": [
       "AGG_AVERAGE",

@@ -11,7 +11,10 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Backward stepwise selection: REG_OLS with selection=backward starts with the full predictor set and drops the BIC-worst candidate each round, halting when removing any further predictor degrades the criterion. Sibling shape to 13_forward_selection.json (forward) and 11_stepwise.json (bidirectional) — backward is the canonical \"start big, prune\" subset-selection strategy. Forces the buffered orchestrator path."
+    "description": "Backward stepwise selection: REG_OLS with selection=backward starts with the full predictor set and drops the BIC-worst candidate each round, halting when removing any further predictor degrades the criterion. Sibling shape to 13_forward_selection.json (forward) and 11_stepwise.json (bidirectional) — backward is the canonical \"start big, prune\" subset-selection strategy. Forces the buffered orchestrator path.",
+    "intents": [
+      "drivers"
+    ]
   },
   "cohort": {
     "filename": "training_data.pulse",

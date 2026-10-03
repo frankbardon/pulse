@@ -2,6 +2,9 @@
   "_meta": {
     "category": "attributes",
     "description": "Min-max normalize income to [0, 1] for visualization or downstream model input.",
+    "intents": [
+      "prepare"
+    ],
     "name": "normalized_min_max",
     "operators": [
       "AGG_AVERAGE",

@@ -14,7 +14,7 @@ stays byte-identical. Copy an example and own the copy from then on.
 
 | File | Offers |
 |---|---|
-| `minimal.json` | `capability:process` plus the core aggregators (`AGG_COUNT`, `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_FREQUENCY`) and the smart-default groupers (`GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_RANGE`). |
+| `minimal.json` | `capability:process` plus the core aggregators (`AGG_COUNT`, `AGG_SUM`, `AGG_AVERAGE`, `AGG_MIN`, `AGG_MAX`, `AGG_MODE_COUNT`) and the smart-default groupers (`GROUP_CATEGORY`, `GROUP_DATE`, `GROUP_RANGE`). |
 | `survey-crosstab.json` | Process, Compose, crosstab, facet and label tables, with survey aggregators, filterers and groupers (multi-select included), the survey significance tests, and the crosstab, compose and facet overlays they feed — closed over their dependencies (`AGG_WELFORD`, `AGG_WEIGHTED_MEAN`). |
 | `read-only-analyst.json` | Every analytic capability and every operator, plus the MCP extras. Nothing that writes or rewrites data: no `import`, `export`, `filter_to_file`, `dedup`, `widen`, `shard`, `index` or `synth`, and no `io_format:*` (only import and export use a format). |
 

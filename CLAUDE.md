@@ -91,10 +91,10 @@ When a request slot names a field but omits `Type`, engine infers from schema ty
 | Field type | Default aggregation | Default grouper |
 |---|---|---|
 | numeric (u4/u8/u16/u32/u64, f32/f64, decimal128) | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
-| categorical_* | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| categorical_* | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 | `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
 | `datetime` | (explicit only) | `GROUP_DATE` (`"day"`) |
-| `packed_bool` | `AGG_FREQUENCY` | `GROUP_CATEGORY` |
+| `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 
 `Field.Nullable` orthogonal — never changes inferred operator. Defaults apply only when `Field` set and `Type` empty; never override explicit `Type`; never cross categories; never default tests, filter expressions, attributes, windows, features. Disable via `pulse.Options{DisableDefaults: true}` or `--no-defaults`. Predict always computes `DefaultsApplied`.
 
@@ -180,7 +180,7 @@ Predecessor-reference hygiene — `TestNoOrbitPrefix` (no type constant), `TestN
 Descriptor contracts — `TestPredictNoExecutionImports` (the Predict structural ban), `TestDescriptorNoFmtSprintf` (no `fmt.Sprintf` in `envelope.go`/`manifest.go`/`predict.go`/`inspect.go`), `TestGoldensNotHandEdited` (every golden ends with a valid `// golden-hash:` line), `TestPerPackageCoverageFloors` (package dirs exist; documents the coverage floors).
 
 Skill coverage — each asserts an atomic skill file exists at the conventional stem: `TestSkillsCoverAllComponents` (aggregators / attributes / filterers / groupers / features → `op-<category>-<kebab>.md`), `TestSkillsCoverAllFieldTypes` (`type-*`), `TestSkillsCoverAllWindowTypes` (`op-win-*`), `TestSkillsCoverAllMCPTools` (`tool-*`, strip `pulse_`), `TestSkillsCoverAllSynthDistributions` (`op-synth-*`), `TestSkillsCoverAllRegressions` (`op-reg-*`), `TestSkillsCoverAllOverlayKinds` (`op-overlay-*`). Plus five that check content rather than existence:
-- `TestSkillsCoverAllPurposes` — built-in Purposes valid (binding); missing ones logged, never failing (`update-demand.md`).
+- `TestSkillsCoverAllPurposes` — built-in Purposes valid; a missing one fails unless exempted (`guided-analysis.md`).
 - `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section.
 - `TestSkillsCoverAllCliLeaves` — two-way: every runnable `buildApp()` leaf is named under `skills/` or `docs/src/` with a `docs/src/cli/flags.md` row, and every row is a mounted leaf (detail: `update-demand.md`).
 - `TestSkillsCoverAllOperatorComponents` — each aggregator/grouper/filterer's `ComponentSchema` keys appear under a `## Components` section in its atomic skill.
@@ -230,7 +230,7 @@ A **feature profile** (never bare "profile" — synth owns it) is an instance's 
 
 ## Guided analysis
 
-Declared, never executed: a closed intent taxonomy (manifest `intents[]` = IDs only, plus per-entry `intents`), per-operator `Purpose`, per-output `Interpretation` (bands always name a `Convention`), a glossary (virtual `glossary` / `intents` skills, `pulse.Glossary()` / `pulse.Intents()`), and `details.effect_size.*` keys (omitted when undefined). **Prose is pulled, never pushed** — `TestManifestGuidanceBudget` bans it from default payloads and caps guidance at 4096 manifest bytes. Validity gates bind; coverage is report-only until U09. **Contract: `.claude/reference/guided-analysis.md`.**
+Declared, never executed: a closed intent taxonomy (manifest `intents[]` = IDs only, plus per-entry `intents`), per-operator `Purpose`, per-output `Interpretation` (bands always name a `Convention`), a glossary (virtual `glossary` / `intents` skills, `pulse.Glossary()` / `pulse.Intents()`), and `details.effect_size.*` keys (omitted when undefined). **Prose is pulled, never pushed** — `TestManifestGuidanceBudget` bans it from default payloads and caps guidance per manifest entry. Coverage gates bind; gaps need owner-tagged exemptions. **Contract: `.claude/reference/guided-analysis.md`.**
 
 ## Request templating
 

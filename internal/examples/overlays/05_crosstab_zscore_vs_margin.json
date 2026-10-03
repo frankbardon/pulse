@@ -2,6 +2,10 @@
   "_meta": {
     "category": "overlays",
     "description": "Crosstab count of region x segment decorated with an OVERLAY_ZSCORE_VS_MARGIN cell overlay that scores each cell as the standardised deviation from its row margin ((cell - row_mean) / row_stddev).",
+    "intents": [
+      "benchmark",
+      "relationship"
+    ],
     "name": "crosstab-zscore-vs-margin",
     "operators": [
       "AGG_COUNT",

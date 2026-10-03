@@ -320,7 +320,7 @@ func (a *distinctCountAggregator) Finalize() (float64, error) {
 	return out, nil
 }
 
-func (a *frequencyAggregator) UpdateRow(r *Record, field string) error {
+func (a *modeCountAggregator) UpdateRow(r *Record, field string) error {
 	v, ok := r.NumericValue(field)
 	if !ok {
 		return nil
@@ -332,7 +332,7 @@ func (a *frequencyAggregator) UpdateRow(r *Record, field string) error {
 	return nil
 }
 
-func (a *frequencyAggregator) Finalize() (float64, error) {
+func (a *modeCountAggregator) Finalize() (float64, error) {
 	a.frozenFinalized = true
 	if len(a.counts) == 0 {
 		a.frozenDistinct = 0
@@ -571,10 +571,10 @@ func mergeWelford(nA *int64, meanA *float64, m2A *float64, nB int64, meanB float
 	*m2A = newM2
 }
 
-func (a *frequencyAggregator) MergeOnline(other OnlineAggregator) error {
-	b, ok := other.(*frequencyAggregator)
+func (a *modeCountAggregator) MergeOnline(other OnlineAggregator) error {
+	b, ok := other.(*modeCountAggregator)
 	if !ok {
-		return mergeTypeMismatch("AGG_FREQUENCY")
+		return mergeTypeMismatch("AGG_MODE_COUNT")
 	}
 	if len(b.counts) == 0 {
 		return nil

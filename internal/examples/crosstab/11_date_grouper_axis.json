@@ -2,6 +2,10 @@
   "_meta": {
     "category": "crosstab",
     "description": "Time-series crosstab: monthly period buckets via GROUP_DATE on the row axis, segment on the column axis, cell counts. Row-normalized so each month's row shows the segment mix at that point in time.",
+    "intents": [
+      "change_over_time",
+      "composition"
+    ],
     "name": "crosstab_monthly_period_by_segment",
     "operators": [
       "AGG_COUNT",

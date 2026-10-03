@@ -35,7 +35,7 @@ Use a distinct mode when one respondent contributes several records and n must b
 
 Distinct modes are admitted on the cell aggregator's IDENTITY, UP FRONT, not per pair, with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator and the admitted set: `AGG_DISTINCT_SUM` (figure on `distinct_count`) and `AGG_DISTINCT_COUNT` (on `cardinality`).
 
-Everything else is refused, including `AGG_FREQUENCY` and `AGG_MODE`, which BOTH emit a component spelled `distinct_count` — theirs counts distinct VALUES of the measure field (answer codes), not keys. A key-presence probe would read the answer-code count and call it a sample size, so identity is an exact component-key-set match against each aggregator's `ComponentSchema`.
+Everything else is refused, including `AGG_MODE_COUNT` and `AGG_MODE`, which BOTH emit a component spelled `distinct_count` — theirs counts distinct VALUES of the measure field (answer codes), not keys. A key-presence probe would read the answer-code count and call it a sample size, so identity is an exact component-key-set match against each aggregator's `ComponentSchema`.
 
 ## Null rules
 
@@ -59,7 +59,7 @@ The failure is silent and liberal: n too large, every p-value too small, nothing
 
 ## Direct-caller bypass
 
-`processing.ApplyOverlaysWithExtensions` is EXPORTED. A caller hand-building a `CrosstabHostView` bypasses BOTH gates: predict never ran, and the runtime twin lives at the response hook that caller skipped, keyed off a pair-axis grouper type the materialised host does not carry. Admission survives but classifies from the host's component key SHAPE, so `AGG_FREQUENCY` under a distinct-bearing shape has its ANSWER-CODE count read as a sample size. Accepted: the exported entry is for embedders who own their host; drive the fold through `pulse.Process` for both gates.
+`processing.ApplyOverlaysWithExtensions` is EXPORTED. A caller hand-building a `CrosstabHostView` bypasses BOTH gates: predict never ran, and the runtime twin lives at the response hook that caller skipped, keyed off a pair-axis grouper type the materialised host does not carry. Admission survives but classifies from the host's component key SHAPE, so `AGG_MODE_COUNT` under a distinct-bearing shape has its ANSWER-CODE count read as a sample size. Accepted: the exported entry is for embedders who own their host; drive the fold through `pulse.Process` for both gates.
 
 ## p_source
 

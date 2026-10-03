@@ -7,7 +7,7 @@
     "capability:facet",
     "AGG_AVERAGE",
     "AGG_COUNT",
-    "AGG_FREQUENCY",
+    "AGG_MODE_COUNT",
     "AGG_SUM",
     "AGG_WELFORD",
     "GROUP_CATEGORY",

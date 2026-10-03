@@ -213,16 +213,16 @@ func TestService_Process_Components_Welford_AGG_VARIANCE(t *testing.T) {
 	}
 }
 
-// TestService_Process_Components_MapState_AGG_FREQUENCY covers the
-// map-state family. AGG_FREQUENCY emits {distinct_count, mode_value,
+// TestService_Process_Components_MapState_AGG_MODE_COUNT covers the
+// map-state family. AGG_MODE_COUNT emits {distinct_count, mode_value,
 // mode_count}. Every score is distinct so every value ties at count=1
 // — the smallest-value tie-break picks 10.
-func TestService_Process_Components_MapState_AGG_FREQUENCY(t *testing.T) {
+func TestService_Process_Components_MapState_AGG_MODE_COUNT(t *testing.T) {
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
 		Aggregations: []*types.Aggregation{
-			{Type: types.AGG_FREQUENCY, Field: "score", Label: "freq"},
+			{Type: types.AGG_MODE_COUNT, Field: "score", Label: "freq"},
 		},
 	}
 	entry := runProcessAndExpectOneAggSlot(t, svc, req)
@@ -232,7 +232,7 @@ func TestService_Process_Components_MapState_AGG_FREQUENCY(t *testing.T) {
 	if entry.N != 5 {
 		t.Errorf("N = %d, want 5", entry.N)
 	}
-	want := manifestAggOperatorKeys(t, string(types.AGG_FREQUENCY))
+	want := manifestAggOperatorKeys(t, string(types.AGG_MODE_COUNT))
 	got := mapKeysSorted(entry.Operator)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("operator keys mismatch:\n  runtime: %v\n  manifest: %v", got, want)
@@ -975,7 +975,7 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 		types.AGG_MAX:            scoreFix(),
 		types.AGG_STDDEV:         scoreFix(),
 		types.AGG_RANGE:          scoreFix(),
-		types.AGG_FREQUENCY:      scoreFix(),
+		types.AGG_MODE_COUNT:     scoreFix(),
 		types.AGG_ZSCORE:         scoreFix(),
 		types.AGG_MEDIAN:         scoreFix(),
 		types.AGG_VARIANCE:       scoreFix(),
@@ -990,6 +990,13 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 			cohortName: "scores.pulse",
 			field:      "score",
 			params:     json.RawMessage(`{"percentile":75}`),
+		},
+		types.AGG_FREQUENCY: {
+			svc:        scoreSvc,
+			schema:     scoreSchema,
+			cohortName: "scores.pulse",
+			field:      "score",
+			params:     json.RawMessage(`{"value":"10"}`),
 		},
 		types.AGG_WELFORD:  scoreFix(),
 		types.AGG_CI_LOWER: scoreFix(),

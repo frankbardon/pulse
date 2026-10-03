@@ -2,6 +2,10 @@
   "_meta": {
     "category": "filterers",
     "description": "Boolean falsey filtering on the all_types.pulse packed_bool active field via FILTER_FALSE (keep rows where active is logical false). Sibling shape to FILTER_TRUE — same boolFilterer implementation, opposite want flag. Counts the surviving rows so the keep-only-inactive fold reads as a single scalar.",
+    "intents": [
+      "segment",
+      "describe"
+    ],
     "name": "filter_falsey",
     "operators": [
       "AGG_COUNT",

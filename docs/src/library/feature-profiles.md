@@ -49,7 +49,7 @@ data profiling (`Pulse.Profile`, `pulse profile create`).
     "capability:crosstab",
     "capability:facet",
     "AGG_COUNT",
-    "AGG_FREQUENCY",
+    "AGG_MODE_COUNT",
     "AGG_SUM",
     "GROUP_CATEGORY",
     "GROUP_DATE",

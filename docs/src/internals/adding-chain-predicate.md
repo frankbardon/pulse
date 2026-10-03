@@ -7,18 +7,18 @@ stage.
 `ProcessChain` (`pulse.ProcessChain`, `pulse_process_chain`,
 `pulse api process-chain`) executes a linear pipeline whose stages all
 pass one shared gate, `internal/mergegate.ChainRefusal`. The gate enforces that each stage
-emits a shape the next stage can consume; v1 admits mergeable scalar-
-emitting operators only.
+emits a shape the next stage can consume; v1 admits mergeable operators
+only, and every mergeable built-in aggregator emits one `float64` per row.
 
 ## 1. Edit the shared gate
 
 Edit `internal/mergegate/gate.go`. `ChainRefusal` runs `MergeRefusal`
 (the merge rule `processing.CanMergeRequestWithExtensions` also
-delegates to) first, then the chain-specific exclusions
-(`EmitsScalar`). Add a new exclusion branch when an operator is
-mergeable but its emit shape would break the synthesised `f64` /
-`categorical_u32` schema the next stage expects; return a reason
-string naming the operator.
+delegates to) and, today, nothing else — no mergeable built-in emits a
+shape the next stage cannot read. Add a chain-specific branch after
+`MergeRefusal` when an operator is mergeable but its emit shape would
+break the synthesised `f64` / `categorical_u32` schema the next stage
+expects; return a reason string naming the operator.
 
 ## 2. Both sides pick it up
 

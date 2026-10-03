@@ -2907,6 +2907,7 @@ pulse/types: const AGG_MAX pulse/types.AggregationType = "AGG_MAX"
 pulse/types: const AGG_MEDIAN pulse/types.AggregationType = "AGG_MEDIAN"
 pulse/types: const AGG_MIN pulse/types.AggregationType = "AGG_MIN"
 pulse/types: const AGG_MODE pulse/types.AggregationType = "AGG_MODE"
+pulse/types: const AGG_MODE_COUNT pulse/types.AggregationType = "AGG_MODE_COUNT"
 pulse/types: const AGG_NULL_COUNT pulse/types.AggregationType = "AGG_NULL_COUNT"
 pulse/types: const AGG_PERCENTILE pulse/types.AggregationType = "AGG_PERCENTILE"
 pulse/types: const AGG_RANGE pulse/types.AggregationType = "AGG_RANGE"
@@ -3676,4 +3677,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9443821cbe1835bc4f782abf222302d909c2acc7ced360ce158080f56ef7a1d4
+// golden-hash: cf63ee68edf9c47bf0be41e6625d2f848562ccbadfc777d9966e6bdf20f84cc0

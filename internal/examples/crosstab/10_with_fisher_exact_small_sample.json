@@ -2,6 +2,9 @@
   "_meta": {
     "category": "crosstab",
     "description": "Small-sample 2×2 count crosstab (treatment × converted) paired with TEST_FISHER_EXACT. Use Fisher's exact instead of chi-square when any expected cell count drops below 5 — the asymptotic χ² approximation loses accuracy in that regime.",
+    "intents": [
+      "relationship"
+    ],
     "name": "crosstab_with_fisher_exact_small_sample",
     "operators": [
       "AGG_COUNT",

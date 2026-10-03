@@ -95,13 +95,30 @@ func TestChainRefusal(t *testing.T) {
 	if err := ChainRefusal(ok, decSchema(), nil, 0, "s0"); err != nil {
 		t.Fatalf("refused a mergeable stage: %v", err)
 	}
+	// Every mergeable built-in aggregator emits one float64 per row, so
+	// the chain gate is the merge rule: AGG_MODE (the modal value),
+	// AGG_MODE_COUNT (the modal count) and AGG_FREQUENCY (one value's
+	// count) are admitted.
+	for _, a := range []types.AggregationType{types.AGG_MODE, types.AGG_MODE_COUNT, types.AGG_FREQUENCY} {
+		req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}, {Type: a, Field: "n"}}}
+		if err := ChainRefusal(req, nil, nil, 1, "s1"); err != nil {
+			t.Fatalf("refused %s: %v", a, err)
+		}
+	}
+	// The chain gate and the merge gate agree on every built-in.
+	for _, a := range types.AllAggregationTypes() {
+		req := &types.Request{Aggregations: []*types.Aggregation{{Type: a, Field: "n"}}}
+		if (ChainRefusal(req, nil, nil, 0, "s0") == nil) != (MergeRefusal(req, nil, nil) == "") {
+			t.Errorf("%s: chain gate and merge gate disagree", a)
+		}
+	}
 	for _, tc := range []struct {
 		name   string
 		req    *types.Request
 		reason string
 	}{
 		{"merge refusal", &types.Request{}, "no aggregator"},
-		{"non-scalar", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}, {Type: types.AGG_MODE, Field: "n"}}}, "aggregator AGG_MODE emits a non-scalar value"},
+		{"non-mergeable", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}, {Type: types.AGG_MEDIAN, Field: "n"}}}, "aggregator AGG_MEDIAN is not mergeable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := ChainRefusal(tc.req, decSchema(), nil, 3, "s3")
@@ -136,15 +153,6 @@ func TestStageJoinRefusal(t *testing.T) {
 	}
 }
 
-func TestEmitsScalar(t *testing.T) {
-	for _, a := range types.AllAggregationTypes() {
-		want := a != types.AGG_FREQUENCY && a != types.AGG_MODE
-		if EmitsScalar(a) != want {
-			t.Errorf("EmitsScalar(%s) = %v", a, !want)
-		}
-	}
-}
-
 // hidesFormula claims the built-in ATTR_FORMULA as known-and-not
 // row-local, the answer an instance feature set gives a hidden name.
 type hidesFormula struct{ None }
@@ -174,47 +182,5 @@ func TestMergeRefusal_ExtensionAnswerPrecedesBuiltinAttributeList(t *testing.T) 
 	want := strings.ReplaceAll(MergeRefusal(req("ATTR_NEVER_REGISTERED"), nil, hidesFormula{}), "ATTR_NEVER_REGISTERED", string(types.ATTR_FORMULA))
 	if got == "" || got != want {
 		t.Errorf("hidden ATTR_FORMULA refusal %q, want %q", got, want)
-	}
-}
-
-// hidingExt is an instance-scoped adapter hiding a fixed name set.
-type hidingExt struct {
-	None
-	hidden map[string]bool
-}
-
-func (h hidingExt) Hidden(n string) bool { return h.hidden[n] }
-
-// TestChainRefusal_NonScalarNoteNamesOnlyOffered: the chain refusal's
-// excluded-aggregator parenthetical names only aggregators the adapter
-// does not hide; an adapter without Hidden keeps the historical text.
-func TestChainRefusal_NonScalarNoteNamesOnlyOffered(t *testing.T) {
-	req := func(t types.AggregationType) *types.Request {
-		return &types.Request{Aggregations: []*types.Aggregation{{Type: t, Field: "x"}}}
-	}
-	cases := []struct {
-		name string
-		ext  Extensions
-		agg  types.AggregationType
-		want string
-	}{
-		{"unscoped", None{}, types.AGG_FREQUENCY, "chain stage is not mergeable: aggregator AGG_FREQUENCY emits a non-scalar value (AGG_FREQUENCY and AGG_MODE are excluded)"},
-		{"nothing hidden", hidingExt{}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_FREQUENCY and AGG_MODE are excluded)"},
-		{"mode hidden", hidingExt{hidden: map[string]bool{"AGG_MODE": true}}, types.AGG_FREQUENCY, "chain stage is not mergeable: aggregator AGG_FREQUENCY emits a non-scalar value (AGG_FREQUENCY is excluded)"},
-		{"frequency hidden", hidingExt{hidden: map[string]bool{"AGG_FREQUENCY": true}}, types.AGG_MODE, "chain stage is not mergeable: aggregator AGG_MODE emits a non-scalar value (AGG_MODE is excluded)"},
-	}
-	for _, tc := range cases {
-		err := ChainRefusal(req(tc.agg), nil, tc.ext, 1, "s")
-		ce, ok := err.(*errors.CodedError)
-		if !ok {
-			t.Fatalf("%s: err = %v", tc.name, err)
-		}
-		if ce.Message != tc.want {
-			t.Errorf("%s: %q, want %q", tc.name, ce.Message, tc.want)
-		}
-	}
-	both := hidingExt{hidden: map[string]bool{"AGG_FREQUENCY": true, "AGG_MODE": true}}
-	if got := nonScalarNote(both); got != "" {
-		t.Errorf("both hidden: %q, want empty", got)
 	}
 }

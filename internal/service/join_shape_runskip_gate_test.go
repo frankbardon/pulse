@@ -301,8 +301,8 @@ func TestJoinShapeRunSkip_ProcessOutputOrderIndependent(t *testing.T) {
 			{Type: types.AGG_SUM, Field: "c_u64_01", Label: "sum_c"},
 			{Type: types.AGG_MIN, Field: "p_u64_04", Label: "min_p"},
 			{Type: types.AGG_MAX, Field: "p_u64_04", Label: "max_p"},
-			{Type: types.AGG_FREQUENCY, Field: "c_cat8_02", Label: "freq_c"},
-			{Type: types.AGG_FREQUENCY, Field: "p_cat8_03", Label: "freq_p"},
+			{Type: types.AGG_MODE_COUNT, Field: "c_cat8_02", Label: "freq_c"},
+			{Type: types.AGG_MODE_COUNT, Field: "p_cat8_03", Label: "freq_p"},
 		}
 	}
 	reqFields := map[string]bool{"c_u64_01": true, "p_u64_04": true, "c_cat8_02": true, "p_cat8_03": true, "p_cat16_01": true}

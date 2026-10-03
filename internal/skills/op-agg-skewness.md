@@ -1,6 +1,6 @@
 ---
 name: op-agg-skewness
-description: Bias-corrected skewness via online moments.
+description: Population skewness g1 (m3 / m2^1.5, dividing by n) via online moments.
 kind: operator
 category: AGG
 operator: AGG_SKEWNESS
@@ -21,7 +21,7 @@ None.
 
 ## Output
 
-Scalar `float64` — bias-corrected skewness. Per-group when wired under a grouper.
+Scalar `float64` — population skewness g1 = `m3 / m2^1.5` (moments divide by `n`), NOT the adjusted G1 of Excel `SKEW` / SPSS. Per-group when wired under a grouper.
 
 ## Components
 
@@ -39,7 +39,8 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Requires `n >= 3` for bias correction; below → NaN.
+- `n <= 1` or zero variance → `0` (not NaN): check `n` before reading a 0.
+- Small-n bias: G1 = g1·√(n(n−1))/(n−2), so |g1| < |G1| on small groups.
 - `decimal128` rejected — cast via `ATTR_FORMULA`.
 - Sensitive to outliers; pre-filter or use rank-based alternatives.
 

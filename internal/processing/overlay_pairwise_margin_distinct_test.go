@@ -313,7 +313,7 @@ func TestOverlayPairwise_MarginDistinctMissingEntrySkips(t *testing.T) {
 
 // TestOverlayPairwise_MarginDistinctSharesTheAdmissionGate proves the
 // E1-S2 cell-aggregator admission covers the margin modes too. An
-// AGG_FREQUENCY cell spells a key "distinct_count" that counts distinct
+// AGG_MODE_COUNT cell spells a key "distinct_count" that counts distinct
 // VALUES of the measure field; its MARGIN slot spells it the same way,
 // so a key-presence read would report answer codes as a respondent base.
 func TestOverlayPairwise_MarginDistinctSharesTheAdmissionGate(t *testing.T) {
@@ -350,7 +350,7 @@ func TestOverlayPairwise_MarginDistinctSharesTheAdmissionGate(t *testing.T) {
 			}}
 			_, _, err := applyOverlays(specs, freq)
 			if err == nil {
-				t.Fatal("expected an AGG_FREQUENCY cell host to be refused")
+				t.Fatal("expected an AGG_MODE_COUNT cell host to be refused")
 			}
 			if !pairwiseErrHasCode(err, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
 				t.Fatalf("error %v does not carry PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", err)
@@ -360,7 +360,7 @@ func TestOverlayPairwise_MarginDistinctSharesTheAdmissionGate(t *testing.T) {
 			if !strings.Contains(err.Error(), "n_source="+nSource) {
 				t.Errorf("refusal %q does not name n_source=%s", err.Error(), nSource)
 			}
-			if !strings.Contains(err.Error(), string(types.AGG_FREQUENCY)) {
+			if !strings.Contains(err.Error(), string(types.AGG_MODE_COUNT)) {
 				t.Errorf("refusal %q does not name the observed aggregator", err.Error())
 			}
 		})

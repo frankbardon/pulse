@@ -34,8 +34,8 @@ Floor only — no operator-specific keys. Universal `{n, n_null}` per response-c
 
 ## Gotchas
 
-- Counts non-null inputs only; use `AGG_NULL_COUNT` for the inverse.
-- Smart-default aggregator for numeric/categorical fields when `Type` is omitted is `AGG_SUM`/`AGG_FREQUENCY`, NOT `AGG_COUNT`.
+- Counts non-null inputs only; use `AGG_NULL_COUNT` for the inverse, `AGG_FREQUENCY` for rows equal to one value.
+- Smart-default aggregator for numeric/categorical fields when `Type` is omitted is `AGG_SUM`/`AGG_MODE_COUNT`, NOT `AGG_COUNT`.
 
 ## See
 

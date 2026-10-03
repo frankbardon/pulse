@@ -2,6 +2,9 @@
   "_meta": {
     "category": "crosstab",
     "description": "Partial-depth column normalization on a nested column axis. With normalize_level=0 the top-level region grouper constitutes the 100% denominator: every cell under a shared region (across both segment leaves) sums to 1. Long shape with margins.columns: true emits both the leaf _margin=column rows and the partial _margin=column_at_0 rows.",
+    "intents": [
+      "composition"
+    ],
     "name": "crosstab_partial_column_normalize_level",
     "operators": [
       "AGG_COUNT",

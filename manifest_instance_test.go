@@ -193,7 +193,7 @@ func TestManifest_FixtureKeepsEnabledFeatures(t *testing.T) {
 	for _, o := range m.Tests {
 		names[o.Name] = true
 	}
-	for _, want := range []string{"AGG_WELFORD", "AGG_FREQUENCY", "OVERLAY_PAIRWISE_WELCH_T", "OVERLAY_SHARE_OF_ROW", "TEST_CHISQ"} {
+	for _, want := range []string{"AGG_WELFORD", "AGG_MODE_COUNT", "OVERLAY_PAIRWISE_WELCH_T", "OVERLAY_SHARE_OF_ROW", "TEST_CHISQ"} {
 		if !names[want] {
 			t.Errorf("enabled %s is missing from the manifest", want)
 		}

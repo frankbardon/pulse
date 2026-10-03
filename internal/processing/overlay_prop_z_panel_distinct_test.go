@@ -56,10 +56,10 @@ var panelAggFixtures = map[types.AggregationType]panelAggFixture{
 		marginKey: "distinct_count",
 	},
 	// NOT admitted, and the reason the gate matches on IDENTITY rather
-	// than key presence: AGG_FREQUENCY emits a key literally spelled
+	// than key presence: AGG_MODE_COUNT emits a key literally spelled
 	// distinct_count, but it counts distinct VALUES of the measure
 	// field — answer codes, not respondents.
-	types.AGG_FREQUENCY: {
+	types.AGG_MODE_COUNT: {
 		cell:      map[string]any{"n": 1.0, "distinct_count": 1.0, "mode_value": 1.0, "mode_count": 1.0},
 		marginKey: "distinct_count",
 	},
@@ -292,7 +292,7 @@ func TestApplyPropZPanel_DistinctWithinDepthSumsOnlyThePrefixSlab(t *testing.T) 
 // FRONT, naming the observed aggregator and the admitted set — never
 // silently read as a zero, and never per coordinate.
 func TestApplyPropZPanel_DistinctWithinRefusesNonDistinctAggregator(t *testing.T) {
-	for _, agg := range []types.AggregationType{types.AGG_SUM, types.AGG_FREQUENCY} {
+	for _, agg := range []types.AggregationType{types.AGG_SUM, types.AGG_MODE_COUNT} {
 		t.Run(string(agg), func(t *testing.T) {
 			ref := withPanelMarginComponents(
 				makeMatrixWithRowMargins(
@@ -325,11 +325,11 @@ func TestApplyPropZPanel_DistinctWithinRefusesNonDistinctAggregator(t *testing.T
 				t.Errorf("Details[panel_index] = %v, want 0", ce.Details["panel_index"])
 			}
 			// The margin the gate refused to read carries a key
-			// literally spelled distinct_count under AGG_FREQUENCY.
+			// literally spelled distinct_count under AGG_MODE_COUNT.
 			// That is the whole reason admission is by identity: a
 			// key-presence probe would have read 100 / 80 here and
 			// called them respondent counts.
-			if agg == types.AGG_FREQUENCY && !strings.Contains(ce.Message, "AGG_FREQUENCY") {
+			if agg == types.AGG_MODE_COUNT && !strings.Contains(ce.Message, "AGG_MODE_COUNT") {
 				t.Errorf("message does not name the observed aggregator: %s", ce.Message)
 			}
 		})

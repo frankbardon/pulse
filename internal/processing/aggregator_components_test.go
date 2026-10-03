@@ -409,7 +409,7 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		types.AGG_MAX:            num(),
 		types.AGG_STDDEV:         num(),
 		types.AGG_RANGE:          num(),
-		types.AGG_FREQUENCY:      num(),
+		types.AGG_MODE_COUNT:     num(),
 		types.AGG_ZSCORE:         num(),
 		types.AGG_MEDIAN:         num(),
 		types.AGG_VARIANCE:       num(),
@@ -424,6 +424,17 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		// stays semantically tied to the input bookkeeping, not the
 		// operator's output meaning. Mirrors AGG_COUNT here.
 		types.AGG_NULL_COUNT: num(),
+		// AGG_FREQUENCY requires params.value; the floor is the
+		// numeric cohort's, whatever the value matches.
+		types.AGG_FREQUENCY: {
+			schema:          numSchema,
+			field:           "score",
+			params:          json.RawMessage(`{"value":"10"}`),
+			records:         numRecs,
+			expectedN:       8,
+			expectedNull:    2,
+			filteredRecords: 10,
+		},
 		types.AGG_PERCENTILE: {
 			schema:          numSchema,
 			field:           "score",

@@ -2,6 +2,10 @@
   "_meta": {
     "category": "groupers",
     "description": "Bucket orders into named fiscal phases using GROUP_DATE_RANGES inline labeled ranges; out-of-range rows land in the unmatched bucket.",
+    "intents": [
+      "change_over_time",
+      "composition"
+    ],
     "name": "group_date_ranges_phases",
     "operators": [
       "AGG_COUNT",

@@ -2,6 +2,10 @@
   "_meta": {
     "category": "facet",
     "description": "Numeric FacetSchema with percentiles (buffered path) and a fixed-width histogram over caller-supplied bounds (single-pass).",
+    "intents": [
+      "distribution_shape",
+      "describe"
+    ],
     "name": "facet_numeric_with_histogram",
     "operators": [],
     "tags": [

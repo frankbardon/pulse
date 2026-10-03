@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Fisher exact test alongside chi-square on a 2x2 contingency table that has been filtered down to a small subgroup.",
+    "intents": [
+      "relationship"
+    ],
     "name": "fisher_exact_small_sample",
     "operators": [
       "AGG_COUNT",

@@ -1,10 +1,14 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Tally per-category frequency on the customers cohort's region field via AGG_FREQUENCY (returns the count of the modal category as the scalar, the full per-value count map via the rich-components surface). Paired with GROUP_CATEGORY on city so the breakdown reads as one frequency map per city — the canonical AGG_FREQUENCY shape sibling of AGG_MODE.",
-    "name": "categorical_frequency",
+    "description": "Per city, how many customers share the most common region (AGG_MODE_COUNT, a scalar modal count; its components add distinct_count, mode_value and mode_count) and which region that is (AGG_MODE). For a count per region, group by region and use AGG_COUNT instead.",
+    "intents": [
+      "composition",
+      "describe"
+    ],
+    "name": "categorical_mode_count",
     "operators": [
-      "AGG_FREQUENCY",
+      "AGG_MODE_COUNT",
       "AGG_MODE",
       "GROUP_CATEGORY"
     ],
@@ -16,9 +20,9 @@
   },
   "aggregations": [
     {
-      "type": "AGG_FREQUENCY",
+      "type": "AGG_MODE_COUNT",
       "field": "region",
-      "label": "region_freq"
+      "label": "region_mode_count"
     },
     {
       "type": "AGG_MODE",
