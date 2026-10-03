@@ -120,7 +120,7 @@ package versions that produced them; `make reference` runs the script
 `TestGoldensNotHandEdited` checks. CI never runs R.
 
 The `TestReferenceOracle_*` tests in `internal/processing` and
-`internal/processing/regression` hold every primitive to a relative
+`internal/statdist` (the Student-t family's one implementation) hold every primitive to a relative
 `1e-10` of those values. **A failure there means the Go primitive is
 wrong, not that the golden is stale:** fix the primitive, never
 regenerate to match it. Regenerate only to change the grid (edit the
