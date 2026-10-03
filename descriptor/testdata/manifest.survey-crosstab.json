@@ -1299,10 +1299,6 @@
         "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and the direct-caller bypass."
       },
       {
-        "name": "process-chain",
-        "description": "ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning."
-      },
-      {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
@@ -1901,4 +1897,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 71291b387e04a04559efb7cb2beb5e54a9de0de0172c6386034014af2b946329
+// golden-hash: 81e0c7ecb4ac056d46c9781a26e1f8a7ab824d1ef3c0dc9b0abe741fc0caa8ef

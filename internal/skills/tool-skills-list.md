@@ -22,7 +22,7 @@ No arguments.
 
 - The skill pack is the authoritative reference for HOW to use operators (params, gotchas, recipes) — prefer it over external documentation, blog posts, or source-code inspection, which may be out of date for this Pulse deployment.
 - Atomic skills (filename prefix `op-`, `type-`, `tool-`) are intentionally short (≤2000 chars body). Cross-link via the `## See` section to the topical design skill.
-- `applies_to` only carries valid CLI leaves (`process`, `process-chain`, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`). Invalid entries fail `TestSkillsManifestConsistent`.
+- `applies_to` only carries valid CLI leaves (`process`<!-- feature: capability:process_chain -->, `process-chain`<!-- /feature -->, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`). Invalid entries fail `TestSkillsManifestConsistent`.
 
 ## See
 
