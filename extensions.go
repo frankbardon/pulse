@@ -130,6 +130,24 @@ type Extensions struct {
 	// profile hiding the operator hides its skill — it then reads as
 	// nonexistent everywhere. Read once at pulse.New; nil adds none.
 	Skills iofs.FS
+
+	// Examples is an optional fs.FS of embedder request examples, served
+	// to agents exactly like the built-in library (p.ExamplesSearch /
+	// p.ExampleGet, pulse_examples_search / pulse_examples_get, the
+	// manifest examples count / categories / tags, p.Ontology). Only
+	// top-level .json files, each a request body plus a _meta block —
+	// name, category, description, tags, operators, optional intents and
+	// capabilities — exactly as in the built-in library. Every file is
+	// validated HARD at pulse.New (the _meta keys and values, operators
+	// registered on this instance and equal to the body's "type" values,
+	// a strict decode of the body as its request root, every operator
+	// it names joined to it by an ontology edge): a failure is
+	// PULSE_EXTENSION_EXAMPLE_INVALID, a name a built-in example or
+	// another file already takes PULSE_EXTENSION_EXAMPLE_COLLISION. A
+	// feature profile hiding an operator or capability the example uses
+	// hides it — it then reads as nonexistent everywhere. Read once at
+	// pulse.New; nil adds none.
+	Examples iofs.FS
 }
 
 // ParamMeta describes one operator-specific parameter for manifest

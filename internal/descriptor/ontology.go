@@ -219,7 +219,10 @@ type ontologyBuilder struct {
 	nodes       map[string]descriptor.OntologyNode
 	edges       map[descriptor.OntologyEdge]struct{}
 	featureKind map[string]FeatureKind
-	problems    []string
+	// extOperators: the registered extension operators (extendOntology
+	// only) — an example description naming one routes_to it.
+	extOperators map[string]bool
+	problems     []string
 }
 
 func (b *ontologyBuilder) node(kind descriptor.OntologyNodeKind, name string) string {

@@ -186,6 +186,7 @@ pulse: type ExprFunction field Signature string
 pulse: type Extensions struct
 pulse: type Extensions field Aggregators []pulse.AggregatorRegistration
 pulse: type Extensions field Attributes []pulse.AttributeRegistration
+pulse: type Extensions field Examples io/fs.FS
 pulse: type Extensions field ExprFunctions []pulse.ExprFunction
 pulse: type Extensions field Features []pulse.FeatureRegistration
 pulse: type Extensions field Filterers []pulse.FiltererRegistration
@@ -1731,6 +1732,8 @@ pulse/errors: const PULSE_EXPORT_FIELD_UNKNOWN pulse/errors.Code = "PULSE_EXPORT
 pulse/errors: const PULSE_EXPORT_ROW_ERROR pulse/errors.Code = "PULSE_EXPORT_ROW_ERROR"
 pulse/errors: const PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_DUPLICATE pulse/errors.Code = "PULSE_EXTENSION_DUPLICATE"
+pulse/errors: const PULSE_EXTENSION_EXAMPLE_COLLISION pulse/errors.Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
+pulse/errors: const PULSE_EXTENSION_EXAMPLE_INVALID pulse/errors.Code = "PULSE_EXTENSION_EXAMPLE_INVALID"
 pulse/errors: const PULSE_EXTENSION_FACTORY_PANIC pulse/errors.Code = "PULSE_EXTENSION_FACTORY_PANIC"
 pulse/errors: const PULSE_EXTENSION_FANOUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH"
@@ -3723,4 +3726,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 55ae34b23858530e8bb4a644d5e8fd67a29c448274baa81febdacebea466d131
+// golden-hash: 736f7668104527f5d9d39bef6959991701fe3d112a07134f67ed7869fc5c96f2

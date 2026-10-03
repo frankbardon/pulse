@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -41,6 +42,10 @@ import (
 //     always stripped. Prose outside a fence is served as written: a body
 //     names a hidden feature only where it is not fenced yet.
 //
+// Embedder skills and examples (Extensions.Skills / .Examples) are
+// nodes of the same graph and are served next to the built-ins: skills
+// merged by name, examples through one merged, name-sorted library.
+//
 // A Discovery with nothing hidden (no feature profile, or a profile that
 // hides nothing) passes every call straight through to the embedded
 // packages, so profile-free output is byte-identical.
@@ -65,6 +70,13 @@ type Discovery struct {
 	// to serve embedder skills), so built-in skills pass through to
 	// skills.List / skills.Get byte-identically.
 	passBuiltins bool
+	// exampleLib is the merged example library — the visible built-ins
+	// plus every embedder example whose node survived the prune
+	// (Extensions.Examples; extension_examples.go), sorted by name — set
+	// only when the instance carries embedder examples; nil reads the
+	// embedded library directly. extExamples indexes the embedder ones.
+	exampleLib  []*examples.Example
+	extExamples map[string]*examples.Example
 }
 
 // fullDiscovery is the pass-through view every unscoped instance shares.
@@ -120,8 +132,36 @@ func buildDiscovery(inst *InstanceSnapshot, g *OntologyGraph) *Discovery {
 				d.topical[name] = struct{}{}
 			}
 		}
+		if len(ext.Examples) > 0 {
+			d.buildExampleLib(ext.Examples)
+		}
 	}
 	return d
+}
+
+// buildExampleLib merges the visible built-in examples with the
+// embedder examples whose node survived the prune; a pruned embedder
+// example sits in hiddenExamples like a pruned built-in.
+func (d *Discovery) buildExampleLib(in []ExtensionExample) {
+	d.extExamples = map[string]*examples.Example{}
+	for _, e := range in {
+		name := e.Example.Name
+		if !d.graph.Has(OntologyID(descriptor.OntologyNodeExample, name)) {
+			d.hiddenExamples[name] = struct{}{}
+			continue
+		}
+		ex := e.Example
+		d.extExamples[name] = &ex
+	}
+	for _, ex := range examples.All() {
+		if d.ExampleVisible(ex.Name) {
+			d.exampleLib = append(d.exampleLib, ex)
+		}
+	}
+	for _, ex := range d.extExamples {
+		d.exampleLib = append(d.exampleLib, ex)
+	}
+	sort.Slice(d.exampleLib, func(i, j int) bool { return d.exampleLib[i].Name < d.exampleLib[j].Name })
 }
 
 func notTokenRune(r rune) bool {
@@ -264,8 +304,12 @@ func (d *Discovery) Skill(name string) (string, bool) {
 }
 
 // ExamplesSearch is examples.Search minus the pruned examples; ranking and
-// order of the survivors are unchanged. Never nil.
+// order of the survivors are unchanged. Visible embedder examples are
+// searched with them, ranked by the same rules. Never nil.
 func (d *Discovery) ExamplesSearch(query string, tags []string, category string) []examples.ExampleSummary {
+	if d.exampleLib != nil {
+		return examples.SearchIn(d.exampleLib, query, tags, category)
+	}
 	hits := examples.Search(query, tags, category)
 	if len(d.hiddenExamples) == 0 {
 		return hits
@@ -285,6 +329,13 @@ func (d *Discovery) Example(name string) (*examples.Example, bool) {
 	if !d.ExampleVisible(name) {
 		return nil, false
 	}
+	if ex, ok := d.extExamples[name]; ok {
+		out := *ex
+		out.Tags = slices.Clone(ex.Tags)
+		out.Operators = slices.Clone(ex.Operators)
+		out.Body = slices.Clone(ex.Body)
+		return &out, true
+	}
 	return examples.Get(name)
 }
 
@@ -292,7 +343,7 @@ func (d *Discovery) Example(name string) (*examples.Example, bool) {
 // over the visible examples. A category or tag carried only by pruned
 // examples is absent. Slices are sorted and never nil.
 func (d *Discovery) ExampleStats() (count int, categories, tags []string) {
-	if len(d.hiddenExamples) == 0 {
+	if len(d.hiddenExamples) == 0 && d.exampleLib == nil {
 		return examples.Count(), examples.AllCategories(), examples.AllTags()
 	}
 	cats := map[string]struct{}{}

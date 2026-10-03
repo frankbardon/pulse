@@ -96,7 +96,7 @@ func extensionsAddNodes(ext *ExtensionsSnapshot) bool {
 			return true
 		}
 	}
-	return len(ext.LookupTables)+len(ext.LabelTables)+len(ext.RangeTables)+len(ext.Skills) > 0
+	return len(ext.LookupTables)+len(ext.LabelTables)+len(ext.RangeTables)+len(ext.Skills)+len(ext.Examples) > 0
 }
 
 // extendOntology returns a new graph: base plus ext's operator and table
@@ -117,9 +117,11 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 	for _, f := range Features() {
 		b.featureKind[f.Name] = f.Kind
 	}
+	b.extOperators = map[string]bool{}
 	for _, l := range extensionOperatorLists(ext) {
 		for _, op := range l {
 			b.node(descriptor.OntologyNodeOperator, op.Name)
+			b.extOperators[op.Name] = true
 		}
 	}
 	for _, d := range ext.SynthDistributions {
@@ -137,7 +139,8 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 	for _, t := range ext.LookupTables {
 		b.node(descriptor.OntologyNodeTable, tableNodeName(tableKindLookup, t.Name))
 	}
-	b.addExtensionSkills(ext.Skills)
+	extExamples := b.addExtensionExamples(ext.Examples)
+	b.addExtensionSkills(ext.Skills, extExamples)
 	return b.finish()
 }
 
@@ -151,7 +154,10 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 // nonexistent. Fence names that resolve to nothing (a hidden extension
 // operator) emit no edge and no problem — the skill was validated
 // against every registration at pulse.New.
-func (b *ontologyBuilder) addExtensionSkills(in []ExtensionSkill) {
+//
+// extExamples are the kept embedder examples (addExtensionExamples): a
+// `## See` `tags=[…]` span reaches them like the shipped library.
+func (b *ontologyBuilder) addExtensionSkills(in []ExtensionSkill, extExamples []ontologyExample) {
 	if len(in) == 0 {
 		return
 	}
@@ -183,6 +189,7 @@ func (b *ontologyBuilder) addExtensionSkills(in []ExtensionSkill) {
 	for _, sum := range examples.Search("", nil, "") {
 		src.examples = append(src.examples, ontologyExample{Name: sum.Name, Tags: sum.Tags})
 	}
+	src.examples = append(src.examples, extExamples...)
 	b.addSkillEdges(src)
 	b.addSeeEdges(src)
 	for _, md := range src.skills {

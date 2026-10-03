@@ -5510,7 +5510,7 @@
         ]
       }
     ],
-    "error_codes_count": 252,
+    "error_codes_count": 254,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5578,6 +5578,8 @@
       "PULSE_EXPORT_ROW_ERROR",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
+      "PULSE_EXTENSION_EXAMPLE_COLLISION",
+      "PULSE_EXTENSION_EXAMPLE_INVALID",
       "PULSE_EXTENSION_FACTORY_PANIC",
       "PULSE_EXTENSION_FANOUT_MISMATCH",
       "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH",
@@ -10675,4 +10677,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6157cdda334a4cf27c913c0941b757eb488e01088d42b64536202408494774a8
+// golden-hash: 1c6f12c65cebf45c07f7f22d0c0c2e3b206945cfea5622d7288e71f1c5d7632c

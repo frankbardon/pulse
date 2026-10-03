@@ -201,6 +201,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_PURPOSE_INVALID:              shared,
 	errors.PULSE_EXTENSION_SKILL_INVALID:                shared,
 	errors.PULSE_EXTENSION_SKILL_COLLISION:              shared,
+	errors.PULSE_EXTENSION_EXAMPLE_INVALID:              shared,
+	errors.PULSE_EXTENSION_EXAMPLE_COLLISION:            shared,
 	errors.PULSE_EXTENSION_MERGEABLE_MISMATCH:           shared,
 	errors.PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH: shared,
 	errors.PULSE_EXTENSION_FACTORY_PANIC:                shared,

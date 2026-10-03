@@ -10,56 +10,6 @@ import (
 	"github.com/frankbardon/pulse/internal/examples"
 )
 
-// exampleEdgeCoverageProblems is the TestExamples_EdgeCoverage check over
-// a built graph and the examples it was built from:
-//
-//   - every whole [A-Za-z0-9_] token of a body or description that is an
-//     operator feature name is joined to the example by an edge (either
-//     direction, any kind) — so a pruner walking edges hides the example
-//     exactly when the old token scan would;
-//   - every `_meta.capabilities` entry the detector table can see is
-//     confirmed by its detector (a declaration never contradicts the
-//     body), and every detection is an edge.
-func exampleEdgeCoverageProblems(g *OntologyGraph, exs []ontologyExample) []string {
-	var out []string
-	for _, ex := range exs {
-		id := OntologyID(descriptor.OntologyNodeExample, ex.Name)
-		linked := map[string]bool{}
-		for _, e := range g.Out(id, "") {
-			linked[e.To] = true
-		}
-		for _, e := range g.In(id, "") {
-			linked[e.From] = true
-		}
-		for where, text := range map[string]string{"body": string(ex.Body), "description": ex.Description} {
-			for _, tok := range strings.FieldsFunc(text, notTokenRune) {
-				if k, ok := FeatureKindOf(tok); !ok || k != FeatureKindOperator {
-					continue
-				}
-				if !linked[OntologyID(descriptor.OntologyNodeOperator, tok)] {
-					out = append(out, "example \""+ex.Name+"\": "+where+" names "+tok+" but no edge joins them")
-				}
-			}
-		}
-		body := decodeExampleBody(ex.Body)
-		detected := detectedExampleCapabilities(ex, body)
-		for _, c := range detected {
-			if !linked[c] {
-				out = append(out, "example \""+ex.Name+"\": detected "+c+" but no edge")
-			}
-		}
-		for _, c := range ex.Capabilities {
-			for _, d := range exampleCapabilityDetectors {
-				if d.feature == c && !slices.Contains(detected, c) {
-					out = append(out, "example \""+ex.Name+"\": _meta.capabilities declares "+c+" but its structural detector does not fire")
-				}
-			}
-		}
-	}
-	slices.Sort(out)
-	return out
-}
-
 // TestExamples_EdgeCoverage (binding): over the shipped library, every
 // operator a body or description names is an edge and declared
 // capabilities agree with the structural detectors. The fixture arms
@@ -67,7 +17,7 @@ func exampleEdgeCoverageProblems(g *OntologyGraph, exs []ontologyExample) []stri
 // source, and a declaration its detector contradicts, are reported.
 func TestExamples_EdgeCoverage(t *testing.T) {
 	src := builtinOntologySources()
-	for _, p := range exampleEdgeCoverageProblems(BaseOntology(), src.examples) {
+	for _, p := range exampleEdgeCoverageProblems(BaseOntology(), src.examples, nil) {
 		t.Error(p)
 	}
 
@@ -81,7 +31,7 @@ func TestExamples_EdgeCoverage(t *testing.T) {
 			{Name: "fine", Operators: []string{"AGG_SUM"}, Body: json.RawMessage(`{"aggregations":[{"type":"AGG_SUM"}]}`)},
 		},
 	}
-	got := exampleEdgeCoverageProblems(buildOntology(fx), fx.examples)
+	got := exampleEdgeCoverageProblems(buildOntology(fx), fx.examples, nil)
 	want := []string{
 		`example "liar": _meta.capabilities declares capability:crosstab but its structural detector does not fire`,
 		`example "stray": body names AGG_SUM but no edge joins them`,

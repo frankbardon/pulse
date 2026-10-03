@@ -603,6 +603,29 @@ const (
 	// "duplicate").
 	PULSE_EXTENSION_SKILL_COLLISION Code = "PULSE_EXTENSION_SKILL_COLLISION"
 
+	// PULSE_EXTENSION_EXAMPLE_INVALID indicates an example file in
+	// Extensions.Examples fails validation at pulse.New: the fs.FS cannot
+	// be read or holds a non-`.json` entry or a directory, a file is not
+	// a JSON object with a `_meta` block (or `_meta` carries an unknown
+	// key), `_meta.name` / `category` / `description` is missing or
+	// malformed, a tag is not canonical, an intent is not in the
+	// taxonomy, an operator is not registered on the instance, a
+	// capability is not a non-operator feature, the body does not parse
+	// strictly for its request root, `_meta.operators` differs from the
+	// body's `type` values, or an operator the body or description names
+	// is joined to the example by no ontology edge. Details carry
+	// "example", "reason" and the reason's specifics. Wired into
+	// internal/descriptor/extension_examples.go.
+	PULSE_EXTENSION_EXAMPLE_INVALID Code = "PULSE_EXTENSION_EXAMPLE_INVALID"
+
+	// PULSE_EXTENSION_EXAMPLE_COLLISION indicates an Extensions.Examples
+	// `_meta.name` that is already taken: by a built-in example —
+	// embedders never override or shadow the shipped library — or by
+	// another embedder file (in one fs.FS or across merged Extensions
+	// values). Details carry "example" and "reason" ("builtin" or
+	// "duplicate").
+	PULSE_EXTENSION_EXAMPLE_COLLISION Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
+
 	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator or
 	// grouper registration declared Mergeable=true but cannot honour it:
 	// the registration is not also Streamable (merge folds ONLINE state,
@@ -2703,6 +2726,8 @@ var allCodes = []Code{
 	PULSE_EXTENSION_PURPOSE_INVALID,
 	PULSE_EXTENSION_SKILL_INVALID,
 	PULSE_EXTENSION_SKILL_COLLISION,
+	PULSE_EXTENSION_EXAMPLE_INVALID,
+	PULSE_EXTENSION_EXAMPLE_COLLISION,
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,

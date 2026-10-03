@@ -37,6 +37,9 @@ type featureUniverse struct {
 	// skills are the validated Extensions.Skills files
 	// (validateExtensionUniverse); pulse.New hands them to the snapshot.
 	skills []descx.ExtensionSkill
+	// examples are the validated Extensions.Examples files
+	// (validateExtensionUniverse); pulse.New hands them to the snapshot.
+	examples []descx.ExtensionExample
 }
 
 func newFeatureUniverse(ext Extensions, version string) featureUniverse {

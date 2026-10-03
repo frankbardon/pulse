@@ -365,6 +365,12 @@ func validateExtensionUniverse(ext Extensions) (featureUniverse, error) {
 		return featureUniverse{}, err
 	}
 	u.skills = sk
+	// Embedder examples: likewise against every registration.
+	exs, err := descx.LoadExtensionExamples(ext.Examples, buildExtensionsSnapshot(ext))
+	if err != nil {
+		return featureUniverse{}, err
+	}
+	u.examples = exs
 	return u, nil
 }
 
@@ -424,7 +430,7 @@ func mergeExtensions(ext []Extensions) Extensions {
 		return ext[0]
 	}
 	var out Extensions
-	var skillFS []iofs.FS
+	var skillFS, exampleFS []iofs.FS
 	for _, e := range ext {
 		out.Aggregators = append(out.Aggregators, e.Aggregators...)
 		out.Attributes = append(out.Attributes, e.Attributes...)
@@ -441,24 +447,38 @@ func mergeExtensions(ext []Extensions) Extensions {
 		if e.Skills != nil {
 			skillFS = append(skillFS, e.Skills)
 		}
+		if e.Examples != nil {
+			exampleFS = append(exampleFS, e.Examples)
+		}
 	}
-	switch len(skillFS) {
-	case 0:
-	case 1:
-		out.Skills = skillFS[0]
-	default:
-		out.Skills = skillFSStack(skillFS)
-	}
+	out.Skills = stackFS(skillFS)
+	out.Examples = stackFS(exampleFS)
 	return out
 }
 
-// skillFSStack layers several Extensions.Skills file systems: its root
-// listing concatenates theirs — a stem two of them ship is listed twice,
-// which LoadExtensionSkills refuses as PULSE_EXTENSION_SKILL_COLLISION —
-// and Open reads from the first that has the name.
-type skillFSStack []iofs.FS
+// stackFS layers several Extensions.Skills / Extensions.Examples file
+// systems (nil for none, the one itself for one).
+func stackFS(l []iofs.FS) iofs.FS {
+	switch len(l) {
+	case 0:
+		return nil
+	case 1:
+		return l[0]
+	}
+	return extFSStack(l)
+}
 
-func (l skillFSStack) Open(name string) (iofs.File, error) {
+// extFSStack layers several Extensions.Skills (or Extensions.Examples)
+// file systems: its root listing concatenates theirs — a stem two of them
+// ship is listed twice, which LoadExtensionSkills refuses as
+// PULSE_EXTENSION_SKILL_COLLISION — and Open reads from the first that
+// has the name. Two example files sharing a file name collide the same
+// way (both read the first file, so both carry its _meta.name →
+// PULSE_EXTENSION_EXAMPLE_COLLISION); distinct files sharing a
+// _meta.name collide by name.
+type extFSStack []iofs.FS
+
+func (l extFSStack) Open(name string) (iofs.File, error) {
 	for _, f := range l {
 		if file, err := f.Open(name); err == nil {
 			return file, nil
@@ -467,7 +487,7 @@ func (l skillFSStack) Open(name string) (iofs.File, error) {
 	return nil, &iofs.PathError{Op: "open", Path: name, Err: iofs.ErrNotExist}
 }
 
-func (l skillFSStack) ReadDir(name string) ([]iofs.DirEntry, error) {
+func (l extFSStack) ReadDir(name string) ([]iofs.DirEntry, error) {
 	var out []iofs.DirEntry
 	for _, f := range l {
 		entries, err := iofs.ReadDir(f, name)

@@ -166,11 +166,61 @@ func (b *ontologyBuilder) addExampleEdges(src ontologySources) {
 			b.edge(b.featureNode(k, "example "+ex.Name+" overlay kind"), id, descriptor.OntologyEdgeExemplifiedBy, "example overlay kind")
 		}
 		for _, tok := range strings.FieldsFunc(ex.Description, notTokenRune) {
-			if _, ok := linked[tok]; ok || b.featureKind[tok] != FeatureKindOperator {
+			if _, ok := linked[tok]; ok || b.featureKind[tok] != FeatureKindOperator && !b.extOperators[tok] {
 				continue
 			}
 			linked[tok] = struct{}{}
 			b.edge(id, OntologyID(descriptor.OntologyNodeOperator, tok), descriptor.OntologyEdgeRoutesTo, "example description")
 		}
 	}
+}
+
+// exampleEdgeCoverageProblems is the TestExamples_EdgeCoverage check over
+// a built graph and the examples it was built from:
+//
+//   - every whole [A-Za-z0-9_] token of a body or description that is an
+//     operator feature name is joined to the example by an edge (either
+//     direction, any kind) — so a pruner walking edges hides the example
+//     exactly when the old token scan would;
+//   - every `_meta.capabilities` entry the detector table can see is
+//     confirmed by its detector (a declaration never contradicts the
+//     body), and every detection is an edge.
+func exampleEdgeCoverageProblems(g *OntologyGraph, exs []ontologyExample, extOps map[string]bool) []string {
+	var out []string
+	for _, ex := range exs {
+		id := OntologyID(descriptor.OntologyNodeExample, ex.Name)
+		linked := map[string]bool{}
+		for _, e := range g.Out(id, "") {
+			linked[e.To] = true
+		}
+		for _, e := range g.In(id, "") {
+			linked[e.From] = true
+		}
+		for where, text := range map[string]string{"body": string(ex.Body), "description": ex.Description} {
+			for _, tok := range strings.FieldsFunc(text, notTokenRune) {
+				if k, ok := FeatureKindOf(tok); (!ok || k != FeatureKindOperator) && !extOps[tok] {
+					continue
+				}
+				if !linked[OntologyID(descriptor.OntologyNodeOperator, tok)] {
+					out = append(out, "example \""+ex.Name+"\": "+where+" names "+tok+" but no edge joins them")
+				}
+			}
+		}
+		body := decodeExampleBody(ex.Body)
+		detected := detectedExampleCapabilities(ex, body)
+		for _, c := range detected {
+			if !linked[c] {
+				out = append(out, "example \""+ex.Name+"\": detected "+c+" but no edge")
+			}
+		}
+		for _, c := range ex.Capabilities {
+			for _, d := range exampleCapabilityDetectors {
+				if d.feature == c && !slices.Contains(detected, c) {
+					out = append(out, "example \""+ex.Name+"\": _meta.capabilities declares "+c+" but its structural detector does not fire")
+				}
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
 }

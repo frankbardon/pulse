@@ -680,7 +680,7 @@
     "post_tests": [],
     "regressions": [],
     "synth_distributions": [],
-    "error_codes_count": 147,
+    "error_codes_count": 149,
     "error_domains": [
       "CLI",
       "DATA",
@@ -735,6 +735,8 @@
       "PULSE_DEDUP_LOW_RATIO",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
+      "PULSE_EXTENSION_EXAMPLE_COLLISION",
+      "PULSE_EXTENSION_EXAMPLE_INVALID",
       "PULSE_EXTENSION_FACTORY_PANIC",
       "PULSE_EXTENSION_FANOUT_MISMATCH",
       "PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH",
@@ -1943,4 +1945,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 594127eb20a4d4f2ac72793674251dfba8da59eff6e531593384eab8127e2809
+// golden-hash: ee2789a18dc0161331abfd25e4537d70db723dc091a771c4edf63ec02230e7ea

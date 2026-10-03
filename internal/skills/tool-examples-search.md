@@ -24,6 +24,7 @@ CALL BEFORE AUTHORING A REQUEST. Find a runnable template that matches the user'
 
 - Tags are ANDed, not ORed. Two tags → results carrying both.
 - `category` is an exact directory match, not a substring.
+- A deployment may add examples for its own operators, under its own categories; they search, read and prune exactly like the built-in ones.
 - The summary does NOT include the runnable body; you MUST follow up with `pulse_examples_get`.
 
 ## See

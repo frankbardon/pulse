@@ -430,3 +430,47 @@ func TestExtensionSkillsThroughFacade(t *testing.T) {
 	}
 	_ = errors.PULSE_EXTENSION_SKILL_INVALID
 }
+
+// smokeExample is a valid embedder example for AGG_SMOKE_SUM, shipped
+// through Extensions.Examples (an fs.FS of top-level .json files).
+const smokeExample = `{
+  "_meta": {
+    "name": "smoke-sum-revenue",
+    "category": "smoke",
+    "description": "Sums revenue over the whole cohort.",
+    "tags": ["financial"],
+    "intents": ["describe"],
+    "operators": ["AGG_SMOKE_SUM"]
+  },
+  "cohort": {"filename": "sales.pulse"},
+  "aggregations": [{"type": "AGG_SMOKE_SUM", "field": "revenue"}]
+}`
+
+// TestExtensionExamplesThroughFacade: an embedder registers an example
+// for its own operator with public spellings alone; the facade searches
+// and serves it, and a name the shipped library owns is refused with
+// the public code.
+func TestExtensionExamplesThroughFacade(t *testing.T) {
+	reg := pulse.AggregatorRegistration{Name: "AGG_SMOKE_SUM", Description: "Sum.", Factory: newSmokeSum(nil)}
+	p, _ := newEngine(t, pulse.Options{Extensions: pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{reg},
+		Examples:    fstest.MapFS{"sum.json": {Data: []byte(smokeExample)}},
+	}})
+	ex, ok := p.ExampleGet("smoke-sum-revenue")
+	if !ok || !strings.Contains(string(ex.Body), "AGG_SMOKE_SUM") || strings.Contains(string(ex.Body), "_meta") {
+		t.Fatalf("ExampleGet(smoke-sum-revenue) = %v", ok)
+	}
+	if hits := p.ExamplesSearch("", nil, "smoke"); len(hits) != 1 {
+		t.Errorf("category search = %d hits, want 1", len(hits))
+	}
+
+	_, err := pulse.New(pulse.Options{Extensions: pulse.Extensions{
+		Aggregators: []pulse.AggregatorRegistration{reg},
+		Examples:    fstest.MapFS{"sum.json": {Data: []byte(strings.Replace(smokeExample, "smoke-sum-revenue", "facet_simple_one_field", 1))}},
+	}})
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_EXTENSION_EXAMPLE_COLLISION {
+		t.Fatalf("built-in name: err = %v, want PULSE_EXTENSION_EXAMPLE_COLLISION", err)
+	}
+	_ = errors.PULSE_EXTENSION_EXAMPLE_INVALID
+}

@@ -1020,6 +1020,24 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_EXAMPLE_INVALID: {
+		Message: "An example file in Extensions.Examples fails validation; details name the example and the reason (layout, meta, name, category, description, tags, intents, operators, capabilities, body, operators_body, edge_coverage).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Ship only top-level .json files, each a request body plus a _meta block with only the keys name, category, description, tags, operators, intents, capabilities: name and category lowercase (letters, digits, - or _), a description, tags from the canonical example taxonomy, intents from the intent taxonomy (pulse.Intents), operators registered on the instance (built-in or yours) and exactly the body's \"type\" values, capabilities only as non-operator feature names (capability:stream). The body must decode strictly as its request root (requests → compose, stages → process chain, fields → facet, otherwise process), and every operator named elsewhere in the body or description must be reachable by an edge (list it in a type or overlays[].kind, or drop the mention).",
+			},
+		},
+	},
+	PULSE_EXTENSION_EXAMPLE_COLLISION: {
+		Message: "An Extensions.Examples name is already taken by a built-in example or by another embedder example file.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Rename _meta.name: embedder examples never override or shadow the built-in library (pulse_examples_search lists every taken name), and each name may be shipped once across every merged Extensions value. Prefixing names with your namespace (acme-…) avoids both.",
+			},
+		},
+	},
 	PULSE_EXTENSION_MERGEABLE_MISMATCH: {
 		Message: "An aggregator or grouper registration declared Mergeable=true but cannot merge: it is not Streamable, its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
 		Fixups: []Fixup{

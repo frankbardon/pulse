@@ -12,10 +12,13 @@
 package examples
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -108,8 +111,9 @@ type Example struct {
 	Body        json.RawMessage `json:"body"`
 }
 
-// meta mirrors the _meta block embedded in every example JSON.
-type meta struct {
+// Meta mirrors the _meta block every example JSON carries — built-in
+// and embedder (pulse.Extensions.Examples) alike.
+type Meta struct {
 	Name        string   `json:"name"`
 	Category    string   `json:"category"`
 	Tags        []string `json:"tags"`
@@ -163,36 +167,15 @@ func loadIndex() *indexed {
 			if readErr != nil {
 				return readErr
 			}
-			var raw map[string]json.RawMessage
-			if err := json.Unmarshal(data, &raw); err != nil {
+			ex, m, err := Parse(data, false)
+			if err != nil {
 				return fmt.Errorf("examples: %s: %w", p, err)
-			}
-			rawMeta, ok := raw["_meta"]
-			if !ok {
-				return fmt.Errorf("examples: %s: missing _meta block", p)
-			}
-			var m meta
-			if err := json.Unmarshal(rawMeta, &m); err != nil {
-				return fmt.Errorf("examples: %s: parsing _meta: %w", p, err)
 			}
 			if m.Name == "" {
 				return fmt.Errorf("examples: %s: _meta.name is empty", p)
 			}
 			if _, dup := idx.byName[m.Name]; dup {
 				return fmt.Errorf("examples: duplicate _meta.name %q in %s", m.Name, p)
-			}
-			delete(raw, "_meta")
-			body, err := marshalDeterministic(raw)
-			if err != nil {
-				return fmt.Errorf("examples: %s: re-marshal body: %w", p, err)
-			}
-			ex := &Example{
-				Name:        m.Name,
-				Category:    m.Category,
-				Tags:        append([]string(nil), m.Tags...),
-				Operators:   append([]string(nil), m.Operators...),
-				Description: m.Description,
-				Body:        body,
 			}
 			idx.byName[m.Name] = ex
 			if len(m.Intents) > 0 {
@@ -227,6 +210,67 @@ func loadIndex() *indexed {
 	return indexVal
 }
 
+// ErrNoMeta is Parse's error for a JSON object without a _meta block.
+var ErrNoMeta = errors.New("missing _meta block")
+
+// Parse reads one example file: a JSON object carrying a _meta block
+// plus the request body. It returns the Example — Body is the object
+// minus _meta, re-marshaled deterministically — and the parsed Meta.
+// strict refuses an unknown _meta key (embedder examples); the embedded
+// library parses leniently. Parse does not validate Meta's values.
+func Parse(data []byte, strict bool) (*Example, Meta, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, Meta{}, fmt.Errorf("not a JSON object: %w", err)
+	}
+	rawMeta, ok := raw["_meta"]
+	if !ok {
+		return nil, Meta{}, ErrNoMeta
+	}
+	var m Meta
+	dec := json.NewDecoder(bytes.NewReader(rawMeta))
+	if strict {
+		dec.DisallowUnknownFields()
+	}
+	if err := dec.Decode(&m); err != nil {
+		return nil, Meta{}, fmt.Errorf("parsing _meta: %w", err)
+	}
+	delete(raw, "_meta")
+	body, err := marshalDeterministic(raw)
+	if err != nil {
+		return nil, Meta{}, fmt.Errorf("re-marshal body: %w", err)
+	}
+	return &Example{
+		Name:        m.Name,
+		Category:    m.Category,
+		Tags:        append([]string(nil), m.Tags...),
+		Operators:   append([]string(nil), m.Operators...),
+		Description: m.Description,
+		Body:        body,
+	}, m, nil
+}
+
+// operatorRe captures `"type": "PREFIX_..."` in a JSON request body.
+// Kept in sync with the regex used by cmd/annotate-examples.
+var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|REG)_[A-Z0-9_]+)"`)
+
+// DeriveOperators returns the sorted, distinct operator names a body
+// carries as a `"type"` value — what `_meta.operators` must equal
+// (TestExamples_OperatorsMatchBody; embedder examples at pulse.New).
+func DeriveOperators(body []byte) []string {
+	matches := operatorRe.FindAllStringSubmatch(string(body), -1)
+	seen := make(map[string]struct{}, len(matches))
+	for _, m := range matches {
+		seen[m[1]] = struct{}{}
+	}
+	out := make([]string, 0, len(seen))
+	for op := range seen {
+		out = append(out, op)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // marshalDeterministic re-marshals a raw map preserving lexical key order
 // so the embedded body remains diff-stable. encoding/json marshals map
 // keys alphabetically, which is the determinism we want.
@@ -250,6 +294,17 @@ func Get(name string) (*Example, bool) {
 	return &out, true
 }
 
+// All returns a copy of every embedded example, sorted by name.
+func All() []*Example {
+	idx := loadIndex()
+	out := make([]*Example, 0, len(idx.all))
+	for _, n := range idx.all {
+		ex, _ := Get(n)
+		out = append(out, ex)
+	}
+	return out
+}
+
 // Search returns summaries matching all three filters. An empty filter
 // is treated as "no constraint" for that dimension.
 //
@@ -262,6 +317,17 @@ func Get(name string) (*Example, bool) {
 // Returns a non-nil empty slice when nothing matches.
 func Search(query string, tags []string, category string) []ExampleSummary {
 	idx := loadIndex()
+	lib := make([]*Example, 0, len(idx.all))
+	for _, n := range idx.all {
+		lib = append(lib, idx.byName[n])
+	}
+	return SearchIn(lib, query, tags, category)
+}
+
+// SearchIn is Search over lib, which must be sorted by name (the
+// no-query order and the score tie-break). An instance serving embedder
+// examples searches the merged library through it.
+func SearchIn(lib []*Example, query string, tags []string, category string) []ExampleSummary {
 	q := strings.ToLower(strings.TrimSpace(query))
 
 	type scored struct {
@@ -270,8 +336,7 @@ func Search(query string, tags []string, category string) []ExampleSummary {
 	}
 	var hits []scored
 
-	for _, name := range idx.all {
-		ex := idx.byName[name]
+	for _, ex := range lib {
 		if category != "" && ex.Category != category {
 			continue
 		}

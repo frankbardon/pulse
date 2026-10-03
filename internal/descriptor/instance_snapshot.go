@@ -127,7 +127,7 @@ func NewInstanceSnapshot(ext *ExtensionsSnapshot, set FeatureSet) *InstanceSnaps
 func (s *InstanceSnapshot) buildOntology() {
 	s.ontology = instanceOntology(s.ext, s)
 	s.discovery = fullDiscovery
-	if s.Scoped() && len(s.hidden) > 0 || s.ext != nil && len(s.ext.Skills) > 0 {
+	if s.Scoped() && len(s.hidden) > 0 || s.ext != nil && len(s.ext.Skills)+len(s.ext.Examples) > 0 {
 		s.discovery = buildDiscovery(s, s.ontology)
 	}
 }
