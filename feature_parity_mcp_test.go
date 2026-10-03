@@ -300,15 +300,15 @@ func (h mcpHiddenNames) leaks(text string) []string {
 	return out
 }
 
-// atomicBodiesNameHiddenFail is the one REPORT-ONLY switch of the surface
+// atomicBodiesNameHiddenFail switches the ATOMIC-body arm of the surface
 // sweep. Since E2-S1 a served skill body is rendered by its feature
 // fences, not by the line-wise prose scrub (which cut table rows), so an
 // ATOMIC body names a hidden operator or tool wherever the pack does not
-// fence it yet. Its leaks are logged, not failed, until E2-S3 fences the
-// atomic pack and flips this to true; a pruned-skill stem in a `## See`
-// section is still failed by TestSkillsCoverProfileGet (mcp/gosdk).
+// fence it. E2-S3 fenced (or rewrote) every atomic cross-mention and
+// flipped this to true: a leak now fails. A pruned-skill stem in a
+// `## See` section is failed by TestSkillsCoverProfileGet (mcp/gosdk).
 // (.claude/reference/feature-profiles.md, "Served-body exemptions".)
-const atomicBodiesNameHiddenFail = false
+const atomicBodiesNameHiddenFail = true
 
 // atomicSkillBodyKey reports whether a rendered-surface key is the body of
 // an atomic (operator / tool / type) skill.

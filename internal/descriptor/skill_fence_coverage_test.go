@@ -42,10 +42,13 @@ const fenceCoverageFail = false
 //     there is a violation.
 //   - GUARD exemption (skillGuards): a mention of F is exempt when the
 //     skill itself is pruned whenever F is hidden — an atomic skill's own
-//     `operator:` (and, for a synth distribution, capability:synth), the
-//     feature owning a tool skill's MCP tool, a topical skill's
-//     `requires:`. Read from the base graph exactly as pruneOntology
-//     reads it.
+//     `operator:` plus its HARD dependencies (every feature named alone
+//     in a DependsOn group, transitively: a valid feature profile cannot
+//     hide one and keep the operator, so OVERLAY_T_CELL's skill never
+//     renders without AGG_WELFORD), for a synth distribution
+//     capability:synth, the feature owning a tool skill's MCP tool, a
+//     topical skill's `requires:`. Read from the base graph exactly as
+//     pruneOntology reads it.
 
 // fenceToken is one whole token (see the rules above).
 var fenceToken = regexp.MustCompile(`[A-Za-z0-9_]+(?::[A-Za-z0-9_]+)?`)
@@ -104,8 +107,10 @@ func skillGuards(name string) map[string]bool {
 		switch n.Kind {
 		case descriptor.OntologyNodeOperator:
 			if _, isFeature := FeatureKindOf(n.Name); isFeature {
-				// A feature node's flattened any-of edges are never read.
-				guards[n.Name] = true
+				// A feature node's flattened any-of edges are never read;
+				// its HARD dependencies (single-name groups) are: a
+				// profile cannot keep the operator while hiding them.
+				hardDependencies(n.Name, guards)
 				continue
 			}
 			requires(n.ID) // a synth distribution: capability:synth
@@ -115,6 +120,23 @@ func skillGuards(name string) map[string]bool {
 	}
 	requires(id)
 	return guards
+}
+
+// hardDependencies adds name and, transitively, every feature named
+// alone in one of its DependsOn groups — a dependency no profile can
+// hide while keeping name (PULSE_FEATURE_PROFILE_DEPENDENCY). An any-of
+// group of two or more names guards nothing: either may be hidden.
+func hardDependencies(name string, guards map[string]bool) {
+	if guards[name] {
+		return
+	}
+	guards[name] = true
+	groups, _ := FeatureDependencies(name)
+	for _, g := range groups {
+		if len(g) == 1 {
+			hardDependencies(g[0], guards)
+		}
+	}
 }
 
 // splitFrontmatter returns raw's body (after the closing `---` line).
@@ -263,6 +285,11 @@ func TestFenceCoverage_Guards(t *testing.T) {
 		{"tool-facet-schema", []string{"capability:facet"}},
 		{"tool-manifest", nil},
 		{"op-synth-constant", []string{"capability:synth"}},
+		// Hard dependencies guard; any-of host groups never do.
+		{"op-overlay-t-cell", []string{"AGG_WELFORD", "OVERLAY_T_CELL", "capability:compose"}},
+		{"op-overlay-yoy", []string{"GROUP_DATE", "OVERLAY_YOY", "capability:compose"}},
+		{"op-overlay-delta-vs-stage", []string{"OVERLAY_DELTA_VS_STAGE", "capability:process_chain"}},
+		{"op-attr-reg-fitted", []string{"ATTR_REG_FITTED", "REG_OLS"}},
 		{"crosstab-guide", nil},
 	}
 	for _, tc := range cases {

@@ -31,12 +31,11 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 
 ## Gotchas
 
-- Null rows fail the predicate (dropped). For null-aware logic use `FILTER_NULL`.
+- Null rows fail the predicate (dropped).
 - Unknown categorical label in `Values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
 - Non-numeric values on a numeric field → `PROCESSING_CONFIG` (parse error).
 - Filters chain in declared order; this one sees only rows the previous kept.
-- Only counting rows equal to ONE value? `AGG_FREQUENCY` (same matching; an unknown label counts 0, not refused).
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no comparable scalar at any rung. Use `FILTER_SET_CONTAINS_ANY`/`_ALL`/`_NONE`/`_EQUALS`.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no comparable scalar at any rung.
 
 ## See
 

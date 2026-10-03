@@ -27,7 +27,7 @@ One `float64` per record carrying an encoded integer: `year` = YYYY, `month` = 1
 
 - Row-local one-pass — streams cleanly.
 - Output is `f64` (uniform ATTR scalar coercion); cast downstream if needed.
-- Useful as a `groups` field for `GROUP_CATEGORY` (e.g. `month_day` for seasonality) or as a `FEAT` substitute when post-filter visibility is needed.
+- Useful as a grouping key (e.g. `month_day` for seasonality) or as a `FEAT` substitute when post-filter visibility is needed.
 - Unknown `part` → `PROCESSING_CONFIG`.
 - Zone-capable, but `date`-only: explicit slot `tz` → `PROCESSING_CONFIG`; inherited `time_zone` is not applied (predict echoes `tz: null`).
 

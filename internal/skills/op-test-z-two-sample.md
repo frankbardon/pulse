@@ -1,6 +1,6 @@
 ---
 name: op-test-z-two-sample
-description: Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ.
+description: Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ.
 kind: operator
 category: TEST
 operator: TEST_Z_TWO_SAMPLE
@@ -27,11 +27,9 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Gotchas
 
-- Streamable — reads the same per-group Welford buckets as `TEST_T` / `TEST_WELCH`.
-- Statistic + SE byte-equal to `TEST_WELCH`; **p-value differs** (Φ vs Student-t). For small n the divergence is non-trivial; predict surfaces no warning — choose intentionally.
+- Streamable — reads the same per-group Welford buckets as the t-tests.
+- Statistic + SE byte-equal to Welch's t; **p-value differs** (Φ vs Student-t). For small n the divergence is non-trivial; predict surfaces no warning — choose intentionally.
 - Use only when n is large per group AND survey conventions demand normal-CDF p.
-- Default Student-t inference → `TEST_WELCH`.
-- Pairs with `OVERLAY_Z_CELL` / `OVERLAY_Z_VS_REF` on crosstab cells.
 
 ## See
 

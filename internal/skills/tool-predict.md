@@ -8,11 +8,11 @@ applies_to: predict, process, mcp
 
 ## When to use
 
-Before storing or executing a hand-authored / programmatically generated request. Cheap — reads only the cohort header + schema, never record data. Returns the same shape errors `pulse_process` would emit on validation failure, plus normalization metadata.
+Before storing or executing a hand-authored / programmatically generated request. Cheap — reads only the cohort header + schema, never record data. Returns the same shape errors execution would emit on validation failure, plus normalization metadata.
 
 ## Input
 
-`request` (string): JSON-encoded `types.Request`. Same shape as `pulse_process` input.
+`request` (string): JSON-encoded `types.Request`. The same request body execution takes.
 
 ## Output
 

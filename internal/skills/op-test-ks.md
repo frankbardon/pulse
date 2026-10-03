@@ -28,10 +28,9 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 ## Gotchas
 
 - Buffered — both ECDFs must materialize and sort before comparison.
-- Sensitive to distribution shape, not just mean; complementary to `TEST_MANN_WHITNEY_U` (location).
+- Sensitive to distribution shape, not just mean.
 - Small-n approximation drifts; only n < 2 per group is refused (`PULSE_TEST_INSUFFICIENT_N`).
 - Tier-2 variant `TEST_KS/two_sample_post` runs between two output columns of the result set.
-- Pairs with `OVERLAY_KS_VS_POP` for facet-vs-population distribution drift.
 
 ## See
 

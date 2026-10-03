@@ -126,9 +126,19 @@ func TestDiscovery_RendersSeeByEdge(t *testing.T) {
 	if !strings.Contains(seeSection(got), "`op-reg-ols`, `op-reg-mod-selection`") {
 		t.Errorf("See lost a visible sibling:\n%s", seeSection(got))
 	}
+	// Outside ## See only the fences move: the head equals the raw body
+	// fence-rendered with REG_GLM alone hidden (its host-table row goes).
+	raw, _ := skills.Raw("op-reg-mod-resample")
+	fenced, err := skills.RenderFences(raw, func(n string) bool { return n != "REG_GLM" })
+	if err != nil {
+		t.Fatal(err)
+	}
 	head := func(s string) string { return s[:strings.Index(s, "## See")] }
-	if head(got) != head(full) {
-		t.Error("rendering changed text outside ## See")
+	if head(got) != head(fenced) {
+		t.Error("rendering changed text outside ## See beyond the fences")
+	}
+	if strings.Contains(head(got), "REG_GLM") {
+		t.Error("the fenced REG_GLM host row survived")
 	}
 
 	// tags=[synth] matches no visible example: the ref goes, its line too.
@@ -147,24 +157,13 @@ func TestDiscovery_RendersSeeByEdge(t *testing.T) {
 
 // TestDiscovery_KeepsTableRows is the regression test for U06's line-wise
 // scrub: hiding FILTER_INCLUDE used to delete op-agg-frequency's `value`
-// parameter row (its one sentence names FILTER_INCLUDE). Fence rendering
-// never cuts unfenced prose, so every table row survives.
+// parameter row (its one sentence named FILTER_INCLUDE). Fence rendering
+// never cuts unfenced prose, so every table row survives. (The pack itself
+// no longer names FILTER_INCLUDE there — E2-S3 — so the body is synthetic.)
 func TestDiscovery_KeepsTableRows(t *testing.T) {
-	full, _ := skills.Get("op-agg-frequency")
-	if !strings.Contains(full, "| `value` |") || !strings.Contains(full, "FILTER_INCLUDE") {
-		t.Fatal("premise: op-agg-frequency's value row names FILTER_INCLUDE")
-	}
-	rows := func(s string) (n int) {
-		for _, l := range strings.Split(s, "\n") {
-			if strings.HasPrefix(l, "|") {
-				n++
-			}
-		}
-		return n
-	}
-	got, ok := hidingSnapshot("FILTER_INCLUDE").Discovery().Skill("op-agg-frequency")
-	if !ok || rows(got) != rows(full) || !strings.Contains(got, "| `value` |") {
-		t.Errorf("table rows: got %d, full %d (ok=%v)", rows(got), rows(full), ok)
+	raw := "## Params\n\n| Name | Description |\n|---|---|\n| `value` | Matched as `FILTER_INCLUDE` matches |\n| `other` | plain |\n"
+	if got := hidingSnapshot("FILTER_INCLUDE").Discovery().renderBody("op-agg-frequency", raw); got != raw {
+		t.Errorf("table rows changed:\n got %q\nwant %q", got, raw)
 	}
 }
 
@@ -195,8 +194,8 @@ func TestDiscovery_NoProseScrubOnBodies(t *testing.T) {
 	if got, _ := d.Skill("regression-modeling"); got != full {
 		t.Error("topical body without fences changed")
 	}
-	got, _ := d.Skill("op-reg-mod-resample")
-	if !strings.Contains(got, "| `REG_GLM` | yes |") {
+	row := "| Host | Accepted? |\n|---|---|\n| `REG_GLM` | yes |\n"
+	if got := d.renderBody("op-reg-mod-resample", row); got != row {
 		t.Error("an unfenced table row naming a hidden operator was cut")
 	}
 }

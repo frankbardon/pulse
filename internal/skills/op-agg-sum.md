@@ -39,7 +39,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Smart default for numeric fields when `Type` omitted.
-- Set-typed fields (`set_*`) NOT supported — use `AGG_SET_CARDINALITY_SUM`.
+- Set-typed fields (`set_*`) NOT supported.
 - Overflow on huge u64 sums silently promotes through float64.
 
 ## See

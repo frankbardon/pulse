@@ -30,7 +30,6 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - Streamable — running Welford state per `SplitBy` group.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 - n < 2 (per group) → `PULSE_TEST_INSUFFICIENT_N`.
-- Unambiguous two-sample intent → `TEST_WELCH`; large-n survey convention → `TEST_Z_TWO_SAMPLE`.
 
 ## See
 

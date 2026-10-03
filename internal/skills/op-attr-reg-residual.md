@@ -34,10 +34,9 @@ One `float64` per record — `yᵢ − ŷᵢ`. With an intercept (always present
 
 ## Gotchas
 
-- Two-pass: shares refit machinery with `ATTR_REG_FITTED` but runs an independent fit per slot.
-- Large residuals flag response-space outliers — pair with `ATTR_ZSCORE` (via Compose) or threshold via `FILTER_GT`.
+- Two-pass: runs an independent fit per slot.
+- Large residuals flag response-space outliers.
 - Penalized residuals bias-shrunk; for diagnostics prefer unpenalized.
-- For ŷᵢ use `ATTR_REG_FITTED`.
 
 ## See
 

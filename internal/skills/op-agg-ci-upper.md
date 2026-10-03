@@ -45,7 +45,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - `n < 2` → NaN.
 - `"bootstrap"` method returns `PROCESSING_CONFIG` until the buffered follow-up lands.
-- Pair with `AGG_CI_LOWER` for the full interval.
 
 ## See
 

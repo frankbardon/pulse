@@ -39,7 +39,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Buffered path only; use `ATTR_ZSCORE` for per-row z-scores instead.
+- Buffered path only.
 - Zero stddev or empty group → `0` (not NaN).
 - `decimal128` rejected.
 

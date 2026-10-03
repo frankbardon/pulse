@@ -30,9 +30,9 @@ One `float64` per record — `(value − pop_mean) / pop_stddev`. Null source �
 
 - Two-pass: pre-pass computes mean/stddev over filter-passing rows, then pass 2 emits per row. Orchestrator handles transparently — no full buffering unless paired with a buffered op downstream.
 - Zero stddev (constant field) → `0` per row.
-- `decimal128` rejected; for aggregate z use `AGG_ZSCORE` instead.
+- `decimal128` rejected.
 - Under sharded cohorts the two-pass runs per-shard along the `Mergeable` path — produces global standardization.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise. Use `ATTR_SET_POPCOUNT` for set size or `ATTR_SET_HAS` for membership.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise.
 
 ## See
 

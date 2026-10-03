@@ -34,7 +34,7 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 - Empty `Values` resolves to a zero query — every row drops. Validate caller input.
 - Unknown label in `Values` → `PROCESSING_CONFIG`.
 - Label whose dictionary bit position exceeds the set's width → `PROCESSING_CONFIG`.
-- Null rows DROP (consistent with `FILTER_INCLUDE`).
+- Null rows DROP (like an include filter).
 
 ## See
 

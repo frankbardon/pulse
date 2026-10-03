@@ -30,9 +30,8 @@ Floor `{total_n, n_null}` + `dict_size` (int, distinct values observed) and `buc
 ## Gotchas
 
 - `Include` matches the post-dictionary label; zero-record values drop, never emit empty.
-- High-cardinality fields blow memory — pair with `FILTER_INCLUDE`.
-- `GROUP_RANGE`/`GROUP_ROUNDED` for numeric binning.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no single scalar to bucket on at any rung. Use `GROUP_SET_VALUE` or `GROUP_SET_PER_ELEMENT`.
+- High-cardinality fields blow memory — filter to the values you need first.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no single scalar to bucket on at any rung.
 
 ## See
 

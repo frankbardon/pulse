@@ -25,11 +25,11 @@ MATRIX or SERIES — raw share (no ×100). A whole matrix / complete partition s
 
 ## Gotchas
 
-- Streamable via SERIES dispatch — same `computeSeriesGrandTotal` accumulator as `OVERLAY_INDEX_VS_TOTAL`; MATRIX buffers.
+- Streamable via SERIES dispatch — same `computeSeriesGrandTotal` accumulator as the total index; MATRIX buffers.
 - Empty `Ref.Margin` on MATRIX, or a populated `Ref` on SERIES → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - `grand_total == 0` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - Absent host coordinate → unset entry, no contribution to the grand total.
-- Distinct from `OVERLAY_INDEX_VS_TOTAL` (×100); the kind names are kept distinct.
+- A share, not an index (×100); the kind names are kept distinct.
 
 ## See
 

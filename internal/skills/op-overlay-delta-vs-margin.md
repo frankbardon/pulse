@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Subtractive sibling of `OVERLAY_INDEX_VS_MARGIN` (ratio) and `OVERLAY_ZSCORE_VS_MARGIN` (standardized). Compatible with any cell aggregator.
+MATRIX crosstab (`Response.Crosstab.Matrix`). Subtractive sibling of the margin index (ratio) and the margin z-score (standardized). Compatible with any cell aggregator.
 
 ## Output
 
@@ -25,8 +25,8 @@ MATRIX — `OverlayLayer.Payload.Matrix.Cells[r][c].Value` = `cell - margin`. Mi
 
 ## Gotchas
 
-- Preserves host cell's units — a $-valued `AGG_SUM` cell minus a $-valued row margin yields a $-valued deviation in the same currency.
-- No division — never raises `PULSE_OVERLAY_REF_ZERO`. Unlike `OVERLAY_INDEX_VS_MARGIN` / the `OVERLAY_SHARE_OF_*` triad.
+- Preserves host cell's units — a $-valued summed cell minus a $-valued row margin yields a $-valued deviation in the same currency.
+- No division — never raises `PULSE_OVERLAY_REF_ZERO`. Unlike the margin index and the share overlays.
 - `Axis = grand` is supported (all three axes).
 - Buffered (inherent — host crosstab path always recomputes margins from raw rows).
 

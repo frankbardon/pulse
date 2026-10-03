@@ -9,7 +9,7 @@ applies_to: compose
 examples_tags: [overlay, compose, hypothesis-test, z, byte-equal-test]
 ---
 
-Compose-only parity overlay. Series-shape sibling of `OVERLAY_Z_CELL`. Overlays decorate the host; no `Response.Components`.
+Compose-only parity overlay. Series-shape sibling of the cell z overlay. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -25,9 +25,9 @@ SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_Z_TWO_SAMPLE` on the same inputs — shares `normalTwoSidedP` with it and `OVERLAY_Z_CELL`.
+- **Byte-equal** to the two-sample z-test on the same inputs — shares `normalTwoSidedP` with it and the cell z overlay.
 - Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
-- Unlike the streamable SERIES arm of `OVERLAY_INDEX_VS_REF` / `OVERLAY_DELTA_VS_REF`: inferential, buffered.
+- Unlike the streamable SERIES arm of the reference index / delta: inferential, buffered.
 
 ## See
 

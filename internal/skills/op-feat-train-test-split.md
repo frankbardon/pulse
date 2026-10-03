@@ -33,7 +33,9 @@ One `u8`-valued `f64` column at `Label` (default `split`), from `internal/proces
 - GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields it in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
 - Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
 - Stratified mode seeds each group distinctly, so groups never share one shuffle.
+<!-- feature: FEAT_TARGET_ENCODE -->
 - Does NOT protect `FEAT_TARGET_ENCODE`: it reads no split column, so `PULSE_FEAT_TARGET_LEAKAGE_RISK` still fires.
+<!-- /feature -->
 
 ## See
 

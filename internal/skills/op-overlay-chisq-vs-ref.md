@@ -25,7 +25,7 @@ SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; 
 
 ## Gotchas
 
-- Reference scaled to target N: `expected = ref_cell × (target_N / ref_N)`. Reuses `chiSquareSurvival` — byte-equal to `TEST_CHISQ` on the same contingency.
+- Reference scaled to target N: `expected = ref_cell × (target_N / ref_N)`. Reuses `chiSquareSurvival` — byte-equal to the χ² test on the same contingency.
 - `df = (target cells with expected > 0) - 1`.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer (canonical χ² low-count rule).
 - `target_N == 0`, `ref_N == 0`, or every `expected == 0` → NaN + `PULSE_OVERLAY_REF_ZERO`.

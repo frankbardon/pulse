@@ -16,7 +16,7 @@ Fixed-width: 2 bytes per record (dictionary index, little-endian). Not bit-packe
 
 ## Null
 
-Orthogonal. `Nullable: true` participates in the per-record null bitmap. Index `0` is the first dictionary entry, never null. `IsCategorical()` is `true`; default aggregator is `AGG_MODE_COUNT`, default grouper is `GROUP_CATEGORY`.
+Orthogonal. `Nullable: true` participates in the per-record null bitmap. Index `0` is the first dictionary entry, never null. `IsCategorical()` is `true`<!-- feature: AGG_MODE_COUNT -->; default aggregator is `AGG_MODE_COUNT`<!-- /feature --><!-- feature: GROUP_CATEGORY -->; default grouper is `GROUP_CATEGORY`<!-- /feature -->.
 
 ## Dictionary
 

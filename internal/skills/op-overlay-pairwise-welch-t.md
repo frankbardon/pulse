@@ -23,12 +23,11 @@ MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Component
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values<!-- feature: OVERLAY_PAIRWISE_PROP_Z --> (layout as `op-overlay-pairwise-prop-z`)<!-- /feature -->. Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))` (Welch–Satterthwaite), two-sided via the `studentTTwoSidedP` helper backing `TEST_T` / `TEST_WELCH`.
+MATRIX — pair × opposite-axis grid of two-sided p-values<!-- feature: OVERLAY_PAIRWISE_PROP_Z --> (layout as `op-overlay-pairwise-prop-z`)<!-- /feature -->. Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))` (Welch–Satterthwaite), two-sided via the `studentTTwoSidedP` helper the t-tests use.
 
 ## Gotchas
 
 - Either leg with `n <= 1` skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
-- Normal-CDF sibling is `OVERLAY_PAIRWISE_TWO_MEANS_Z` (same SE, no df adjustment).
 - RAW p-values only — direction / thresholds are the embedder's job.
 - Buffered (inferential) — and so is the HOST: the `AGG_WELFORD` cell is non-mergeable, so `CanFuseCrosstab` rejects on the cell-aggregator arm. Expected (`TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`).
 

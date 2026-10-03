@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — grouped Process host. Ratio twin of `OVERLAY_DELTA_VS_SIBLING`. Sibling resolved via `internal/processing/overlay_sibling_resolver.go`.
+SERIES — grouped Process host. Ratio twin of the sibling delta. Sibling resolved via `internal/processing/overlay_sibling_resolver.go`.
 
 ## Output
 
@@ -26,7 +26,7 @@ SERIES — one `SeriesEntry` per host group, carrying `index = group / sibling �
 ## Gotchas
 
 - Unknown `(Field, Value)` pair → ONE `PULSE_OVERLAY_REF_UNKNOWN` per layer + NaN entries.
-- Zero sibling value → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer. Distinct from `OVERLAY_DELTA_VS_SIBLING` (no warning on zero — subtraction defined).
+- Zero sibling value → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer. The subtractive twin does not warn on zero.
 - Absent host group → `SeriesEntry` with unset `Statistic`.
 - Buffered — the resolver needs materialised per-group accumulators (`ApplyOverlaysSeries`).
 

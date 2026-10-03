@@ -7106,7 +7106,7 @@
       },
       {
         "name": "op-agg-null-count",
-        "description": "Count records where the field is null. Inverse of AGG_COUNT."
+        "description": "Count records where the field is null. The inverse of a non-null count."
       },
       {
         "name": "op-agg-percentile",
@@ -7238,7 +7238,7 @@
       },
       {
         "name": "op-feat-poly",
-        "description": "Per-row polynomial expansion x^2..x^Degree of a numeric field; pair with REG_OLS for polynomial regression."
+        "description": "Per-row polynomial expansion x^2..x^Degree of a numeric field — the basis for a polynomial regression."
       },
       {
         "name": "op-feat-sqrt",
@@ -7510,7 +7510,7 @@
       },
       {
         "name": "op-reg-bayes-linear",
-        "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as REG_OLS."
+        "description": "Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as an OLS fit."
       },
       {
         "name": "op-reg-glm",
@@ -7518,11 +7518,11 @@
       },
       {
         "name": "op-reg-mod-resample",
-        "description": "Spec-level resampling modifier (jackknife / bootstrap) that composes with REG_OLS or REG_GLM; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
+        "description": "Spec-level resampling modifier (jackknife / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-mod-selection",
-        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with REG_OLS or REG_GLM; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
+        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-ols",
@@ -7670,11 +7670,11 @@
       },
       {
         "name": "op-test-z-two-sample",
-        "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to TEST_WELCH but p-value via standard normal Φ."
+        "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ."
       },
       {
         "name": "op-win-delta",
-        "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of WIN_PCT_CHANGE."
+        "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of a percent change."
       },
       {
         "name": "op-win-dense-rank",
@@ -10529,4 +10529,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d203b999b6cec2566611a2a997180262d6e273b4d4b2bd0102be5f9b60f57c70
+// golden-hash: 52b87f39ba1d1354dc2fcd7018850ca2e302359effe3e94cbabede1585ed55ca

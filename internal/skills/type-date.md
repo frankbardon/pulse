@@ -24,5 +24,5 @@ Absent. Dates are never dictionary-encoded.
 
 ## See
 
-- Skill: `cohort-schema-design` (Field-type matrix), `grouper-design` (`GROUP_DATE`).
+- Skill: `cohort-schema-design` (Field-type matrix), `grouper-design`.
 - Cross-link: `type-u64` for sub-day timestamps.

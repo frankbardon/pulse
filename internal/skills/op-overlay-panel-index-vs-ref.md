@@ -17,11 +17,11 @@ Compose-only multi-reference. Overlays decorate the host; no `Response.Component
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference and every target. Schema-match + key-alignment + dict-prefix gates per (ref, target). Sibling to `OVERLAY_PROP_Z_PANEL`.
+COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference and every target. Schema-match + key-alignment + dict-prefix gates per (ref, target). Sibling to the proportion-z panel.
 
 ## Output
 
-ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Payload shape mirrors the reference slot's. Byte-equal per layer to `OVERLAY_INDEX_VS_REF` on each `(reference, target[i])`.
+ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Payload shape mirrors the reference slot's. Byte-equal per layer to the two-slot reference index on each `(reference, target[i])`.
 
 ## Gotchas
 

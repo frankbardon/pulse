@@ -29,7 +29,6 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - Subjects missing a condition are dropped (`Details.dropped_subjects`); < 2 left -> `PULSE_TEST_INSUFFICIENT_N`.
 - Sphericity violations inflate type-I; no Greenhouse-Geisser yet.
 - Non-normal differences: Friedman not yet shipped.
-- Independent groups → `TEST_ANOVA_F`.
 
 ## See
 

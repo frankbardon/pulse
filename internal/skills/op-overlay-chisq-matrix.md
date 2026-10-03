@@ -25,7 +25,7 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 
 ## Gotchas
 
-- Expected cell formula: `row_margin × col_margin / grand_total`. p-value via `chiSquareSurvival` — byte-equal to `TEST_CHISQ` on the same contingency.
+- Expected cell formula: `row_margin × col_margin / grand_total`. p-value via `chiSquareSurvival` — byte-equal to the χ² test on the same contingency.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer.
 - Absent host cell treated as observed count of 0.
 - Scope MUST be `matrix`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
