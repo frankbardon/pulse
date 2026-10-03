@@ -332,6 +332,7 @@ pulse: type FiltererRegistration field Factory pulse/extend.FiltererFactory
 pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FiltererRegistration field Name pulse/types.FiltererType
 pulse: type FiltererRegistration field Params []pulse.ParamMeta
+pulse: func Glossary() []pulse/descriptor.Term
 pulse: type GroupIndexHeadroom = pulse/internal/encoding.GroupIndexHeadroom
 pulse: type GroupIndexHeadroom underlying struct
 pulse: type GroupIndexHeadroom field Capacity uint64 "json:\"capacity\""
@@ -424,6 +425,7 @@ pulse: type IndexInfo field IndexPath string
 pulse: type IndexInfo field IndexedRecords int
 pulse: type IndexInfo field Keys []string
 pulse: func InitFeatureProfile(from string, ext ...pulse.Extensions) (*pulse.FeatureProfile, error)
+pulse: func Intents() []pulse/descriptor.Intent
 pulse: type LabelBinding = pulse/types.LabelBinding
 pulse: type LabelBinding underlying struct
 pulse: type LabelBinding field Field string "json:\"field\""
@@ -3663,4 +3665,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ab220e5ff15c50afea55525f1942c6f96c7e3a8cc5cb8f2a227884f6cd2d3d37
+// golden-hash: 1754139ea850f31b7f4e2be5461a2909fa0993974c3cc705e3bd6f770e64f7cf

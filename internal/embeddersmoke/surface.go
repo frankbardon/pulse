@@ -204,3 +204,10 @@ var (
 	_                                                                                                   = pulse.FeatureProfileDiff{Missing: []pulse.FeatureProfileMissing{{New: true}}, Unknown: []pulse.FeatureProfileUnknownName{{DidYouMean: "capability:process"}}}
 	_                                                                                                   = pulse.FeatureProfileDescription{Features: []pulse.FeatureDescription{{DependsOn: [][]string{}, Unknown: &pulse.FeatureProfileUnknownName{}}}}
 )
+
+// Guided-analysis vocabulary: the glossary and intent taxonomy, as
+// copies an embedder may mutate.
+var (
+	_ func() []descriptor.Term   = pulse.Glossary
+	_ func() []descriptor.Intent = pulse.Intents
+)

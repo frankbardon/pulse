@@ -1171,8 +1171,16 @@
         "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
       },
       {
+        "name": "glossary",
+        "description": "Plain-language glossary of the statistical terms Pulse guidance uses. Use when a result, purpose or skill names a term you need explained."
+      },
+      {
         "name": "grouper-design",
         "description": "Grouper slot semantics — multi-grouper composition (key product), fused crosstab eligibility, Group.Include inclusion-list, smart defaults per field type. Topical design; per-GROUP detail lives in atomic op-group-* skills."
+      },
+      {
+        "name": "intents",
+        "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
         "name": "join-design",
@@ -1850,4 +1858,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cbc181f5f74be473f04f1c0bc7cdde3e91b1ac832cde4d84b27784e201fde0d7
+// golden-hash: 59c3a0398f8837248683efdabc06f100449c7cd129633452135e60cb295e50eb

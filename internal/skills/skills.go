@@ -18,7 +18,8 @@ type Metadata struct {
 	Type        string   `json:"type"`
 	AppliesTo   []string `json:"applies_to"`
 
-	// Kind classifies the skill: "operator" | "tool" | "type" | "design".
+	// Kind classifies the skill: "operator" | "tool" | "type" | "design",
+	// or "reference" for a registry-rendered virtual skill (KindReference).
 	Kind string `json:"kind,omitempty"`
 	// Category is the operator family: AGG | ATTR | FILTER | GROUP | WIN | FEAT | TEST | REG | OVERLAY | SYNTH; empty when not operator-scoped.
 	Category string `json:"category,omitempty"`
@@ -31,7 +32,8 @@ type Metadata struct {
 }
 
 // List walks the embedded content for *.md files, parses their YAML
-// frontmatter, and returns the resulting Metadata slice sorted by Name.
+// frontmatter, adds the registered virtual skills (RegisterVirtual), and
+// returns the resulting Metadata slice sorted by Name.
 //
 // Frontmatter-less files are skipped silently. A frontmatter-less file in
 // skills/ would be a code-review smell, but the loader is the wrong place to
@@ -70,17 +72,19 @@ func List() []Metadata {
 		}
 		out = append(out, md)
 	}
+	out = append(out, virtualMetadata()...)
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
-// Get returns the markdown content for the named skill.
+// Get returns the markdown content for the named skill — an embedded
+// file, or a registered virtual skill's rendered body.
 // The name should not include the .md extension.
 // Returns the content and true if found, or empty string and false otherwise.
 func Get(name string) (string, bool) {
 	data, err := fs.ReadFile(content, name+".md")
 	if err != nil {
-		return "", false
+		return virtualBody(name)
 	}
 	return string(data), true
 }
