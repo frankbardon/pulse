@@ -151,7 +151,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_SUM",
@@ -192,7 +195,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition",
+            "describe"
+          ]
         }
       ],
       "attributes": [],
@@ -1088,4 +1095,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8ef07ca2cb494fcedd2d25a79c85cc381ae99d7588e163730da0b2cc885cb4d5
+// golden-hash: d9a2729f72514eb1b962f4f6bac1d0dafc757a55ed5b9e2ac6edcf83341a00eb

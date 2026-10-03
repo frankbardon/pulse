@@ -204,7 +204,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_FREQUENCY",
@@ -258,7 +261,11 @@
               }
             ],
             "mergeability": "partial"
-          }
+          },
+          "intents": [
+            "composition",
+            "describe"
+          ]
         },
         {
           "name": "AGG_SUM",
@@ -299,7 +306,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition",
+            "describe"
+          ]
         },
         {
           "name": "AGG_WELFORD",
@@ -1883,4 +1894,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 654de280c4226bde597636dfe8f5ccdcdde7bc3a5dc8babf4eaa76e1473d0dfd
+// golden-hash: a62afd12ce747ba41758403708847718d3d62ff79274c2d95d1de0563625e994

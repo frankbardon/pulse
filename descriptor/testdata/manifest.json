@@ -562,7 +562,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_DISTINCT_COUNT",
@@ -606,7 +609,11 @@
               }
             ],
             "mergeability": "partial"
-          }
+          },
+          "intents": [
+            "data_quality",
+            "describe"
+          ]
         },
         {
           "name": "AGG_DISTINCT_SUM",
@@ -658,7 +665,10 @@
               }
             ],
             "mergeability": "partial"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_FREQUENCY",
@@ -712,7 +722,11 @@
               }
             ],
             "mergeability": "partial"
-          }
+          },
+          "intents": [
+            "composition",
+            "describe"
+          ]
         },
         {
           "name": "AGG_KURTOSIS",
@@ -813,7 +827,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "data_quality",
+            "describe"
+          ]
         },
         {
           "name": "AGG_MEDIAN",
@@ -864,7 +882,11 @@
               }
             ],
             "mergeability": "none"
-          }
+          },
+          "intents": [
+            "describe",
+            "distribution_shape"
+          ]
         },
         {
           "name": "AGG_MIN",
@@ -905,7 +927,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "data_quality",
+            "describe"
+          ]
         },
         {
           "name": "AGG_MODE",
@@ -964,7 +990,10 @@
               }
             ],
             "mergeability": "partial"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_NULL_COUNT",
@@ -1009,7 +1038,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "data_quality"
+          ]
         },
         {
           "name": "AGG_PERCENTILE",
@@ -1127,7 +1159,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe",
+            "distribution_shape"
+          ]
         },
         {
           "name": "AGG_RATIO",
@@ -1244,7 +1280,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_SET_CARDINALITY_SUM",
@@ -1280,7 +1319,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_SET_DISTINCT_VALUES",
@@ -1326,7 +1368,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_SET_FREQUENCY",
@@ -1372,7 +1417,11 @@
               }
             ],
             "mergeability": "partial"
-          }
+          },
+          "intents": [
+            "composition",
+            "describe"
+          ]
         },
         {
           "name": "AGG_SET_INTERSECTION",
@@ -1418,7 +1467,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_SET_UNION",
@@ -1464,7 +1516,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_SKEWNESS",
@@ -1616,7 +1671,11 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "composition",
+            "describe"
+          ]
         },
         {
           "name": "AGG_VARIANCE",
@@ -10091,4 +10150,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f93bb1675903e441b28a9a7c2e8c3479f44de8cf6ede43085a6f705ecc059d43
+// golden-hash: 92a997ab3a6d0bc58ed8f727b38bdc35227d24d0711d87aee197891e80357079

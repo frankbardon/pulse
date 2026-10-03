@@ -42,12 +42,9 @@ var purposeExemptions = func() []guidanceExemption {
 	var out []guidanceExemption
 	for _, names := range [][]string{
 		// aggregator
-		{"AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_COUNT", "AGG_DISTINCT_COUNT", "AGG_DISTINCT_SUM",
-			"AGG_FREQUENCY", "AGG_KURTOSIS", "AGG_MAX", "AGG_MEDIAN", "AGG_MIN", "AGG_MODE",
-			"AGG_NULL_COUNT", "AGG_PERCENTILE", "AGG_RANGE", "AGG_RATIO", "AGG_SET_CARDINALITY_AVG",
-			"AGG_SET_CARDINALITY_SUM", "AGG_SET_DISTINCT_VALUES", "AGG_SET_FREQUENCY",
-			"AGG_SET_INTERSECTION", "AGG_SET_UNION", "AGG_SKEWNESS", "AGG_STDDEV", "AGG_SUM",
-			"AGG_VARIANCE", "AGG_WEIGHTED_MEAN", "AGG_WELFORD", "AGG_ZSCORE"},
+		{"AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_KURTOSIS", "AGG_PERCENTILE", "AGG_RATIO",
+			"AGG_SKEWNESS", "AGG_STDDEV", "AGG_VARIANCE", "AGG_WEIGHTED_MEAN", "AGG_WELFORD",
+			"AGG_ZSCORE"},
 		// attribute
 		{"ATTR_DATE_PART", "ATTR_FORMULA", "ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_REG_FITTED",
 			"ATTR_REG_LEVERAGE", "ATTR_REG_RESIDUAL", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
@@ -111,7 +108,6 @@ var intentDeclarerExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent that routes to the point-lookup tooling (pulse_lookup), never to an operator."},
 	{Key: IntentFlows, Owner: "U28", Why: "Flow analysis needs the matrix overlays (stochastic matrices, steady states) U28 ships."},
 	{Key: IntentMeasureConstruct, Owner: "U24", Why: "Construct measurement needs the reliability / PCA operators U24 ships."},
-	{Key: IntentDataQuality, Owner: "U09", Why: "Declaring operators (null counts, null filters) gain Purposes in the U09 backfill."},
 	{Key: IntentPrepare, Owner: "U09", Why: "Declaring operators (features, attributes, filters) gain Purposes in the U09 backfill."},
 	{Key: IntentSegment, Owner: "U09", Why: "Declaring operators (groupers) gain Purposes in the U09 backfill."},
 	{Key: IntentSimulate, Owner: "U09", Why: "Declaring operators (synth distributions) gain Purposes in the U09 backfill."},
@@ -143,7 +139,6 @@ var glossaryOrphanExemptions = []guidanceExemption{
 	// Descriptive terms a U09 Purpose may link (or the term is dropped).
 	{Key: "covariance", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
 	{Key: "factor", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
-	{Key: "missing-value", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
 	{Key: "pairwise-deletion", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
 	{Key: "statistical-significance", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
 	{Key: "test-statistic", Owner: "U09", Why: "Linked or dropped when the U09 descriptive Purposes land."},
