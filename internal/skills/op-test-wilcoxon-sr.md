@@ -23,16 +23,16 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 ## Output
 
-`Statistic` = W (positive-rank sum); `PValue` two-sided via normal approximation with tie correction. `Details.n_effective` after zero-diff pairs drop; `Details.r_rb` rank-biserial effect.
+`Statistic` = min(W⁺, W⁻); `PValue` two-sided normal approx, tie-corrected. `Details`: `n` (non-zero pairs), `w_plus`, `w_minus`, `mu_w`, `var_w`, `z`, `zero_diffs`; `effect_size.rank_biserial` = (W⁺ − W⁻)/(W⁺ + W⁻) — > 0 ⇒ Field tends to exceed Field2 (sign of `z`).
 
 ## Gotchas
 
-- Buffered — |d| must be ranked across the whole set.
-- Zero-diff pairs are dropped (Wilcoxon convention); reported in `Details.n_zero`.
+- Buffered — |d| ranked across the whole set.
+- Zero-diff pairs are dropped (Wilcoxon convention); reported in `Details.zero_diffs`.
 - Nonparametric alternative to `TEST_PAIRED_T` when d is non-normal.
-- Asymptotic only — small-n exact p not yet shipped; `PULSE_TEST_INSUFFICIENT_N` warns below n_effective ≥ 10.
-- Tier-2 variant `TEST_WILCOXON_SR/asymptotic_post` runs over two output columns of the result set.
-- Pairing per-row — same caveat as `TEST_PAIRED_T`.
+- Asymptotic only; < 6 non-zero pairs is `PULSE_TEST_INSUFFICIENT_N`.
+- Tier-2 variant `asymptotic_post` runs over two result-row columns.
+- Pairing per-row, as `TEST_PAIRED_T`.
 
 ## See
 

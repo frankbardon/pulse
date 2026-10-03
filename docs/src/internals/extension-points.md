@@ -809,6 +809,58 @@ profile by their registered name. Synth-distribution registrations have
 no `DependsOn`: distributions are not features (`capability:synth`
 gates them all).
 
+## Purpose and Interpretation (guidance metadata)
+
+Every registration — all seven operator categories plus synth
+distributions — accepts an optional `Purpose *descriptor.Purpose`: the
+same plain-language guidance built-ins declare (what the operator is
+for, the intents it answers, when to reach for something else, its
+assumptions). A `TestRegistration` additionally accepts
+`Interpretation []descriptor.Interpretation`, saying how to read each
+output field.
+
+```go
+pulse.AggregatorRegistration{
+    Name:    "AGG_ACME_BRAND",
+    Factory: newBrand,
+    Purpose: &descriptor.Purpose{
+        Plain:     "Composite brand health score for a set of respondents.",
+        Intents:   []string{"measure_construct"},
+        Questions: []string{"How healthy is our brand this wave?", "Which segment rates it highest?"},
+        UseCases:  map[descriptor.Domain]string{descriptor.DomainSurvey: "Brand tracker across waves."},
+        NotFor:    []descriptor.Alternative{{When: "you need one rating's plain average", Use: "AGG_AVERAGE"}},
+        Level:     descriptor.LevelIntermediate,
+    },
+}
+```
+
+**Validation.** At every `pulse.New` (and `CheckFeatureProfile`), after
+the probe and the `DependsOn` check, a present `Purpose` runs the exact
+rules the built-in tier does: `Plain` non-empty and at most 140
+characters; at least one intent, each in the taxonomy (`pulse.Intents()`)
+and listed once; at least two `Questions`; at least one `NotFor` entry,
+each with a `When` and a `Use` that is not the operator itself and
+resolves against the **instance** registry — a built-in operator, any
+other registered extension, or a `<kind>:<name>` feature-table row;
+`UseCases` keyed by `survey` / `ops` / `science` / `harness`; `Level`
+one of `basic` / `intermediate` / `advanced`; `Glossary` IDs from
+`pulse.Glossary()`, listing every jargon term `Plain` uses. An
+`Interpretation` is checked for **structure only** — path syntax,
+`Means` or a known `Shared` rule set, `Bands` with a `Convention`,
+`Sign` keys `+` / `-` — since an extension declares no output keys to
+probe. The first registration that breaks a rule (category order, then
+slice index; `Purpose` before `Interpretation`) fails with
+`PULSE_EXTENSION_PURPOSE_INVALID`; details carry `category`, `name`,
+`index`, `part` (`purpose` / `interpretation`), the first failing
+`rule`, and every `rules` / `violations` entry.
+
+**Projection.** Only a Purpose's sorted intent IDs reach the manifest,
+as the extension entry's `intents` list; the prose never rides a
+default payload. An absent Purpose projects no `intents` key and leaves
+the operator out of guidance coverage. The extensions snapshot carries
+the validated Purpose and Interpretation for later surfaces, and an
+extension a feature profile hides drops its guidance with it.
+
 ## FieldInputs hook (buffered-projection introspection)
 
 Every operator registration accepts an optional `FieldInputs`
@@ -1051,6 +1103,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
+| `PULSE_EXTENSION_PURPOSE_INVALID` | a `Purpose` breaks a guidance validity rule, or a test `Interpretation` is structurally invalid |
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |

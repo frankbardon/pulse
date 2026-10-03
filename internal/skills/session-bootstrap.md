@@ -13,7 +13,7 @@ Canonical order for an LLM driving Pulse over MCP. Steps 1–2 once, cached; re-
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` | once per session | operator catalogs, field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version; that version is the manifest's top-level version field (CLI: `pulse version --json`) |
+| 1 | `pulse_manifest` | once per session | operator catalogs (each entry's `intents` = the question kinds it answers), field types, error codes, MCP tool list, `components_schemas`, skills index, extensions, capability blocks (Facet, Join, ProcessChain, Crosstab, Overlays). Deterministic per binary version; that version is the manifest's top-level version field (CLI: `pulse version --json`) |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into `pulse_process` / `pulse_predict` / `pulse_compose` / `pulse_sample` / `pulse_facet`, constraining field-name arguments to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category` |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
@@ -46,6 +46,8 @@ Lowercase the operator family prefix and map through this table. Skills carry no
 | `pulse_lookup` / `pulse index build` / `pulse index list` / `pulse index verify` / `pulse index drop` / `pulse api lookup` | `tool-lookup` (MCP surface), `cohort-schema-design` (sidecar format) |
 | a join-shaped cohort already on disk — `pulse_dedup` (`suggest_groups` alone is read-only; `groups` + `out` converts without touching the original) / `pulse dedup COHORT --group KEY:MEMBER,… [--out P] [--suggest-groups]` | `tool-dedup`, `cohort-schema-design` (Parent groups) |
 | a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | `cohort-schema-design` (set rungs) |
+| a plain-language question with no operator in mind | `intents` (`pulse-skill://intents`) — question kinds, then the manifest entries whose `intents` match |
+| a statistical term in a result or skill | `glossary` (`pulse-skill://glossary`) |
 | `error_codes[i]` | `pulse_errors_lookup` — the tool is the surface, not a skill |
 | Request slot `Joins` | `join-design` |
 | Request slot `Crosstab` | `crosstab-guide` |

@@ -145,6 +145,19 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 		warnings = append(warnings, fmt.Sprintf("%s: %d cell(s) have expected count < 5; χ² approximation may be unreliable",
 			errors.PULSE_TEST_EXPECTED_COUNT_TOO_LOW, lowExpectedCells))
 	}
+	details := map[string]any{
+		"row_labels":   c.rowLabels,
+		"col_labels":   c.colLabels,
+		"contingency":  observed,
+		"row_totals":   c.rowTotals,
+		"col_totals":   c.colTotals,
+		"n":            c.grandTotal,
+		"expected_min": expectedMin,
+	}
+	setEffectSize(details, "cramers_v", cramersV(stat, N, r, col))
+	if r == 2 && col == 2 {
+		setEffectSize(details, "phi", phiCoefficient(stat, N))
+	}
 	return &types.TestResult{
 		Label:      testLabel(c.spec),
 		Type:       types.TEST_CHISQ,
@@ -154,16 +167,8 @@ func (c *chiSqRow) Finalize() (*types.TestResult, error) {
 		PValue:     p,
 		Alpha:      c.alpha,
 		RejectNull: p < c.alpha,
-		Details: map[string]any{
-			"row_labels":   c.rowLabels,
-			"col_labels":   c.colLabels,
-			"contingency":  observed,
-			"row_totals":   c.rowTotals,
-			"col_totals":   c.colTotals,
-			"n":            c.grandTotal,
-			"expected_min": expectedMin,
-		},
-		Warnings: warnings,
+		Details:    details,
+		Warnings:   warnings,
 	}, nil
 }
 

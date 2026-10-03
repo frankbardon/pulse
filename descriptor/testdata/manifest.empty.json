@@ -109,7 +109,7 @@
     "post_tests": [],
     "regressions": [],
     "synth_distributions": [],
-    "error_codes_count": 68,
+    "error_codes_count": 69,
     "error_domains": [
       "CLI",
       "DATA",
@@ -157,6 +157,7 @@
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
+      "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
@@ -358,8 +359,16 @@
         "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
       },
       {
+        "name": "glossary",
+        "description": "Plain-language glossary of the statistical terms Pulse guidance uses. Use when a result, purpose or skill names a term you need explained."
+      },
+      {
         "name": "grouper-design",
         "description": "Grouper slot semantics — multi-grouper composition (key product), fused crosstab eligibility, Group.Include inclusion-list, smart defaults per field type. Topical design; per-GROUP detail lives in atomic op-group-* skills."
+      },
+      {
+        "name": "intents",
+        "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
         "name": "join-design",
@@ -560,9 +569,26 @@
       "range_tables": []
     },
     "overlays": [],
-    "components_schemas": {}
+    "components_schemas": {},
+    "intents": [
+      "benchmark",
+      "change_over_time",
+      "compare_groups",
+      "composition",
+      "data_quality",
+      "describe",
+      "distribution_shape",
+      "drivers",
+      "flows",
+      "lookup",
+      "measure_construct",
+      "prepare",
+      "relationship",
+      "segment",
+      "simulate"
+    ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: d8ba2a6c178dbb2a01079e20587c963dca7ef66274bdc894e5b37efb46f54b4b
+// golden-hash: b28cdabbd24fb3c477e860e16cf9bd5aa501cb79455c0d98c224dddfe306acdb

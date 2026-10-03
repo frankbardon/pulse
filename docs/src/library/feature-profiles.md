@@ -337,8 +337,8 @@ Skills and examples follow the profile as well. The reference skill for
 a hidden operator, overlay kind, regression or synth distribution, and
 for a tool the server does not mount, is left out of
 `pulse_skills_list`, `pulse_skills_get`, the `pulse-skill://` resources
-and the manifest's `skills` list. Field-type skills and the design
-guides stay, and a design guide is served as written even where it
+and the manifest's `skills` list. Field-type skills, the design
+guides and the `glossary` / `intents` reference skills stay, and a design guide is served as written even where it
 mentions an operator the profile hides. An example is left out of
 `pulse_examples_search`, `pulse_examples_get`, `p.ExamplesSearch`,
 `p.ExampleGet` and the manifest's examples count, categories and tags

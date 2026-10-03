@@ -415,6 +415,17 @@ type OverlayCapability struct {
 	// resolved zone of its host grouper (OVERLAY_YOY follows its host
 	// GROUP_DATE). Empty (omitted) means the kind is zone-agnostic.
 	Zone string `json:"zone,omitempty"`
+
+	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the kind
+	// answers, sorted. Omitted when the kind declares no purpose.
+	Intents []string `json:"intents,omitempty"`
+
+	// Inferential is true for a hypothesis-test kind — its numbers are
+	// test statistics and p-values, read with the shared p-value rules
+	// and subject to multiple-comparison caveats — and omitted for a
+	// descriptive kind (shares, indices, deltas, z-scores). Declared per
+	// kind, never inferred from the name.
+	Inferential bool `json:"inferential,omitempty"`
 }
 
 // RegressionMeta describes a registered REG_* operator in the manifest.
@@ -462,6 +473,10 @@ type RegressionMeta struct {
 	// level here so request authors can discover the composition story
 	// without parsing the full param list.
 	Modifiers []RegressionModifier `json:"modifiers,omitempty"`
+
+	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
+	// regression answers, sorted. Omitted when it declares no purpose.
+	Intents []string `json:"intents,omitempty"`
 }
 
 // RegressionModifier describes a spec-level wrapper (Resample,

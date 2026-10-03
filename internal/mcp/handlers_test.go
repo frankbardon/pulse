@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -634,6 +635,26 @@ func TestHandleInspect_ReportsParentGroups(t *testing.T) {
 	for _, key := range []string{"layout", "groups"} {
 		if _, ok := sch.Properties[key]; !ok {
 			t.Errorf("output schema has no %q property", key)
+		}
+	}
+}
+
+// TestHandleSkills_GuidanceSkills: pulse_skills_list lists the glossary
+// and intents virtual skills and pulse_skills_get serves their rendered
+// bodies.
+func TestHandleSkills_GuidanceSkills(t *testing.T) {
+	out, err := HandleSkillsList(context.Background(), nil, SkillsListIn{})
+	if err != nil {
+		t.Fatalf("HandleSkillsList: %v", err)
+	}
+	for _, name := range skills.ReservedVirtualNames() {
+		if !slices.ContainsFunc(out.Skills, func(m skills.Metadata) bool { return m.Name == name }) {
+			t.Errorf("pulse_skills_list lacks %s", name)
+		}
+		want, _ := skills.Get(name)
+		got, err := HandleSkillsGet(context.Background(), nil, SkillsGetIn{Name: name})
+		if err != nil || got.Body != want || want == "" {
+			t.Errorf("pulse_skills_get %s: err=%v, body differs", name, err)
 		}
 	}
 }

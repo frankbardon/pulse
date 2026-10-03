@@ -21,15 +21,15 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = F; `DF` = `k−1` (between); `Details.df_within`, `Details.ms_between`, `Details.ms_within`; `PValue` via F-distribution survival. Effect size η² in `Details`.
+`Statistic` = F; `DF` = k−1; `PValue` via F survival. `Details`: `groups`, `n`, `group_means`, `ss_between`, `ss_within`, `df_within`, `ms_within`; `effect_size.{eta_squared, omega_squared}` (ω² clamped ≥0).
 
 ## Gotchas
 
-- Streamable — per-group Welford feeds SS_between and SS_within.
-- Rejects globally, not per pair — follow with `TEST_TUKEY_HSD` (tier-2) via `ms_within` / `df_within`.
+- Streamable — per-group Welford feeds both SS terms.
+- Rejects globally, not per pair — follow with tier-2 `TEST_TUKEY_HSD` via `ms_within` / `df_within`.
 - Equal-variance gate: `TEST_BROWN_FORSYTHE`; on rejection use `TEST_ANOVA_WELCH`.
 - Normality gate: `TEST_SHAPIRO_WILK` per group (n ≤ 5000); severe non-normality → `TEST_KRUSKAL_WALLIS`. Repeated measures → `TEST_ANOVA_RM` (needs `SubjectField`).
-- Tier-2 variant `TEST_ANOVA_F/one_way_from_summary` reads upstream per-group summaries.
+- Tier-2 `one_way_from_summary` reads group summaries; same keys.
 
 ## See
 

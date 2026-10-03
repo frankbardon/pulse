@@ -64,6 +64,10 @@ type OperatorMeta struct {
 	Mode               string              `json:"mode,omitempty"`
 	Tier               string              `json:"tier,omitempty"`
 	Params             []OperatorParamMeta `json:"params,omitempty"`
+	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
+	// registration's purpose declares, sorted. Omitted when the
+	// registration declares none.
+	Intents []string `json:"intents,omitempty"`
 }
 
 // OperatorParamMeta is the manifest-friendly mirror of pulse.ParamMeta.

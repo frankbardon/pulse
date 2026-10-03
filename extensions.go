@@ -161,6 +161,14 @@ type ParamMeta struct {
 type AggregatorRegistration struct {
 	Name        types.AggregationType
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier (NotFor.Use resolves against built-ins, the
+	// other registered extensions and the feature table); a broken rule
+	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
+	// reach the manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
 	// DependsOn names the features this operator needs, each an AND
 	// edge (a single-name group): a feature profile that enables the
 	// operator must enable every named feature too, or pulse.New fails
@@ -239,6 +247,14 @@ const (
 type AttributeRegistration struct {
 	Name        types.AttributeType
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier (NotFor.Use resolves against built-ins, the
+	// other registered extensions and the feature table); a broken rule
+	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
+	// reach the manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
 	// DependsOn names the features this operator needs, each an AND
 	// edge (a single-name group): a feature profile that enables the
 	// operator must enable every named feature too, or pulse.New fails
@@ -266,6 +282,14 @@ type AttributeRegistration struct {
 type FiltererRegistration struct {
 	Name        types.FiltererType
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier (NotFor.Use resolves against built-ins, the
+	// other registered extensions and the feature table); a broken rule
+	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
+	// reach the manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
 	// DependsOn names the features this operator needs, each an AND
 	// edge (a single-name group): a feature profile that enables the
 	// operator must enable every named feature too, or pulse.New fails
@@ -317,6 +341,14 @@ type FiltererRegistration struct {
 type GrouperRegistration struct {
 	Name        types.GroupType
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier (NotFor.Use resolves against built-ins, the
+	// other registered extensions and the feature table); a broken rule
+	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
+	// reach the manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
 	// DependsOn names the features this operator needs, each an AND
 	// edge (a single-name group): a feature profile that enables the
 	// operator must enable every named feature too, or pulse.New fails
@@ -386,6 +418,14 @@ type GrouperRegistration struct {
 type WindowRegistration struct {
 	Name        types.WindowType
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier (NotFor.Use resolves against built-ins, the
+	// other registered extensions and the feature table); a broken rule
+	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
+	// reach the manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
 	// DependsOn names the features this operator needs, each an AND
 	// edge (a single-name group): a feature profile that enables the
 	// operator must enable every named feature too, or pulse.New fails
@@ -411,6 +451,14 @@ type WindowRegistration struct {
 type FeatureRegistration struct {
 	Name        types.FeatureType
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier (NotFor.Use resolves against built-ins, the
+	// other registered extensions and the feature table); a broken rule
+	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
+	// reach the manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
 	// DependsOn names the features this operator needs, each an AND
 	// edge (a single-name group): a feature profile that enables the
 	// operator must enable every named feature too, or pulse.New fails
@@ -450,6 +498,21 @@ const (
 type TestRegistration struct {
 	Name        types.TestType
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier (NotFor.Use resolves against built-ins, the
+	// other registered extensions and the feature table); a broken rule
+	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
+	// reach the manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
+	// Interpretation optionally says how to read the test's outputs,
+	// one entry per normalised output path (e.g. "statistic",
+	// "details.effect_size.cohens_d"). Checked for structure only at
+	// pulse.New — path syntax, Means or Shared, Bands with a
+	// Convention — since an extension declares no output keys to probe;
+	// a broken rule fails with PULSE_EXTENSION_PURPOSE_INVALID.
+	Interpretation []descriptor.Interpretation
 	// DependsOn names the features this operator needs, each an AND
 	// edge (a single-name group): a feature profile that enables the
 	// operator must enable every named feature too, or pulse.New fails
@@ -480,6 +543,14 @@ type TestRegistration struct {
 type DistributionRegistration struct {
 	Name        string
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator — what it is for, the intents it answers, when to use
+	// something else. It is validated at pulse.New with the same rules
+	// as the built-in tier (NotFor.Use resolves against built-ins, the
+	// other registered extensions and the feature table); a broken rule
+	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
+	// reach the manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
 	// Factory is the sampler-construction callback. Its concrete
 	// signature is finalised when the synth distribution overlay
 	// lands; until then this field is held opaque to keep the API

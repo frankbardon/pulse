@@ -75,3 +75,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-backfill
 ## Human inputs & decisions
 
 - Statistics reviewer sign-off before the flip
+
+## Inherited from U07
+
+- **Tag examples with `_meta.intents` before the flip.** U07 made the field optional on examples (`internal/examples/library.go`; values validated against the taxonomy by `TestExamples_IntentsFromTaxonomy`, binding) and no example carries it yet. `TestPurposeQuestionsResolve`'s coverage half logs every intent with fewer than three declaring operators or no `_meta.intents`-tagged example (`.claude/reference/guided-analysis.md`), so flipping it to failing (#49) needs every intent to have at least one tagged example. U23's `pulse_examples_search {intent}` (#96) reads the same tags. The landed spelling is `_meta.intents` (a list); TODO #102 ([U31](U31-guidance-guides.md)) still writes `_meta.intent`, so U31 should use the landed field.

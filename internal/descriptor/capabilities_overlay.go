@@ -131,7 +131,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 	switch kind {
 	case types.OverlayKindChiSqCol:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindChiSqCol,
+			Kind:        types.OverlayKindChiSqCol,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeSeries,
 			},
@@ -155,7 +156,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindChiSqMatrix:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindChiSqMatrix,
+			Kind:        types.OverlayKindChiSqMatrix,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeScalar,
 			},
@@ -177,7 +179,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindChiSqRow:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindChiSqRow,
+			Kind:        types.OverlayKindChiSqRow,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeSeries,
 			},
@@ -201,7 +204,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindChiSqVsPop:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindChiSqVsPop,
+			Kind:        types.OverlayKindChiSqVsPop,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeScalar,
 			},
@@ -253,7 +257,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindChiSqVsRef:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindChiSqVsRef,
+			Kind:        types.OverlayKindChiSqVsRef,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeScalar,
 			},
@@ -447,7 +452,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindFisherExactCell:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindFisherExactCell,
+			Kind:        types.OverlayKindFisherExactCell,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeMatrix,
 			},
@@ -475,6 +481,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 	case types.OverlayKindPairwiseProbitT:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindPairwiseProbitT,
+			Inferential: true,
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
@@ -483,6 +490,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 	case types.OverlayKindPairwisePropZ:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindPairwisePropZ,
+			Inferential: true,
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
@@ -491,6 +499,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 	case types.OverlayKindPairwiseTwoMeansZ:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindPairwiseTwoMeansZ,
+			Inferential: true,
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
@@ -499,6 +508,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 	case types.OverlayKindPairwiseWeightedTwoMeansZ:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindPairwiseWeightedTwoMeansZ,
+			Inferential: true,
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
@@ -507,6 +517,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 	case types.OverlayKindPairwiseWelchT:
 		return descriptor.OverlayCapability{
 			Kind:        types.OverlayKindPairwiseWelchT,
+			Inferential: true,
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeRow, types.OverlayScopeColumn},
 			RefKinds:    []string{},
@@ -925,7 +936,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindKSVsPop:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindKSVsPop,
+			Kind:        types.OverlayKindKSVsPop,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeScalar,
 			},
@@ -1027,7 +1039,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindPropZCell:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindPropZCell,
+			Kind:        types.OverlayKindPropZCell,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeMatrix,
 			},
@@ -1052,7 +1065,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindPropZPanel:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindPropZPanel,
+			Kind:        types.OverlayKindPropZPanel,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeMatrix,
 			},
@@ -1239,7 +1253,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindTCell:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindTCell,
+			Kind:        types.OverlayKindTCell,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeMatrix,
 			},
@@ -1268,7 +1283,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindTVsRef:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindTVsRef,
+			Kind:        types.OverlayKindTVsRef,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeSeries,
 			},
@@ -1508,7 +1524,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindZCell:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindZCell,
+			Kind:        types.OverlayKindZCell,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeMatrix,
 			},
@@ -1538,7 +1555,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 		}
 	case types.OverlayKindZVsRef:
 		return descriptor.OverlayCapability{
-			Kind: types.OverlayKindZVsRef,
+			Kind:        types.OverlayKindZVsRef,
+			Inferential: true,
 			Shapes: []types.OverlayShape{
 				types.OverlayShapeSeries,
 			},

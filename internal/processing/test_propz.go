@@ -156,6 +156,18 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 	zcrit := math.Sqrt2 * inverseErf(1-p.alpha)
 	ciLow := (pa - pb) - zcrit*seUnpool
 	ciHigh := (pa - pb) + zcrit*seUnpool
+	details := map[string]any{
+		"success":    p.success,
+		"groups":     keys,
+		"n":          []int64{a.n, b.n},
+		"successes":  []int64{a.successes, b.successes},
+		"proportion": []float64{pa, pb},
+		"diff":       pa - pb,
+		"pooled":     pooled,
+		"ci_low":     ciLow,
+		"ci_high":    ciHigh,
+	}
+	setEffectSize(details, "cohens_h", cohensH(pa, pb))
 	return &types.TestResult{
 		Label:      testLabel(p.spec),
 		Type:       types.TEST_PROP_Z,
@@ -164,17 +176,7 @@ func (p *propZRow) Finalize() (*types.TestResult, error) {
 		PValue:     pvalue,
 		Alpha:      p.alpha,
 		RejectNull: pvalue < p.alpha,
-		Details: map[string]any{
-			"success":    p.success,
-			"groups":     keys,
-			"n":          []int64{a.n, b.n},
-			"successes":  []int64{a.successes, b.successes},
-			"proportion": []float64{pa, pb},
-			"diff":       pa - pb,
-			"pooled":     pooled,
-			"ci_low":     ciLow,
-			"ci_high":    ciHigh,
-		},
+		Details:    details,
 	}, nil
 }
 

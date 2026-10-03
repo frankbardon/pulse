@@ -156,7 +156,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_COUNT",
@@ -637,7 +640,7 @@
     "post_tests": [],
     "regressions": [],
     "synth_distributions": [],
-    "error_codes_count": 144,
+    "error_codes_count": 145,
     "error_domains": [
       "CLI",
       "DATA",
@@ -701,6 +704,7 @@
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
+      "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
@@ -1171,8 +1175,16 @@
         "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
       },
       {
+        "name": "glossary",
+        "description": "Plain-language glossary of the statistical terms Pulse guidance uses. Use when a result, purpose or skill names a term you need explained."
+      },
+      {
         "name": "grouper-design",
         "description": "Grouper slot semantics — multi-grouper composition (key product), fused crosstab eligibility, Group.Include inclusion-list, smart defaults per field type. Topical design; per-GROUP detail lives in atomic op-group-* skills."
+      },
+      {
+        "name": "intents",
+        "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
       {
         "name": "join-design",
@@ -1575,7 +1587,8 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential)."
+        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A non-Welford host fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED. Emits RAW p-values only; direction, thresholds, and min-n flags are the embedder's presentation concern. Buffered (inferential).",
+        "inferential": true
       },
       {
         "kind": "OVERLAY_SHARE_OF_ROW",
@@ -1828,9 +1841,26 @@
           "mergeability": "mergeable"
         }
       }
-    }
+    },
+    "intents": [
+      "benchmark",
+      "change_over_time",
+      "compare_groups",
+      "composition",
+      "data_quality",
+      "describe",
+      "distribution_shape",
+      "drivers",
+      "flows",
+      "lookup",
+      "measure_construct",
+      "prepare",
+      "relationship",
+      "segment",
+      "simulate"
+    ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6f45f7f6e3788c05f2cede1f189eb371f636635ae7ff546dd9db6831771a8861
+// golden-hash: 9399e7711a5a9ddbe8bbd7990acda38500920b9c77945a7a31c2013c15356888

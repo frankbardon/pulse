@@ -441,6 +441,8 @@ func (w *wilcoxonSRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			"zero_diffs": dropped,
 		},
 	}
+	// Signed: > 0 ⇒ Field tends to exceed Field2 (same direction as z).
+	setEffectSize(res.Details, "rank_biserial", rankBiserialPaired(wPlus, wMinus))
 	if tiesDominate(ties, n) {
 		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
 			": ≥ 50% of |diff| values are tied; asymptotic p-value is unreliable")
@@ -559,7 +561,7 @@ func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	df1 := kf - 1
 	df2 := (kf*kf - 1) / (3 * tailSum)
 	p := fSurvival(F, df1, df2)
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(a.spec),
 		Type:       types.TEST_ANOVA_WELCH,
 		Variant:    "welch_one_way_post",
@@ -578,7 +580,13 @@ func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			"df_between":      df1,
 			"df_within":       df2,
 		},
-	}, nil
+	}
+	var totalN int64
+	for _, ni := range ns {
+		totalN += ni
+	}
+	setEffectSize(res.Details, "omega_squared", welchOmegaSquared(F, df1, float64(totalN)))
+	return res, nil
 }
 
 // brownForsythePost: median-based variance homogeneity on result rows

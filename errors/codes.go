@@ -566,6 +566,19 @@ const (
 	// extensions_probe.probeGroupers.
 	PULSE_EXTENSION_FANOUT_MISMATCH Code = "PULSE_EXTENSION_FANOUT_MISMATCH"
 
+	// PULSE_EXTENSION_PURPOSE_INVALID indicates an extension
+	// registration's optional guidance (Purpose, or a TestRegistration's
+	// Interpretation) breaks a validity rule. Purpose runs the same
+	// checks as the built-in tier — Plain length, intents in the
+	// taxonomy, at least two Questions, a NotFor alternative whose Use
+	// resolves against the instance registry (built-ins, other
+	// extensions, feature table), UseCases, Level, glossary links;
+	// Interpretation is checked for structure only (output keys are not
+	// probed). Details carry the category, name, index, the guidance
+	// "part" (purpose / interpretation), the first failing "rule" and
+	// every violation. Wired into extensions_guidance.go at pulse.New.
+	PULSE_EXTENSION_PURPOSE_INVALID Code = "PULSE_EXTENSION_PURPOSE_INVALID"
+
 	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator or
 	// grouper registration declared Mergeable=true but cannot honour it:
 	// the registration is not also Streamable (merge folds ONLINE state,
@@ -2665,6 +2678,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_DUPLICATE,
 	PULSE_EXTENSION_STREAMABLE_MISMATCH,
 	PULSE_EXTENSION_FANOUT_MISMATCH,
+	PULSE_EXTENSION_PURPOSE_INVALID,
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,

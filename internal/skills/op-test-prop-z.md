@@ -22,7 +22,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = z (pooled SE under H₀); `PValue` two-sided via standard normal Φ. `Details.per_group` = `{n, successes, rate}` per arm; effect size = rate diff (with optional CI in `Details.ci`).
+`Statistic` = z (pooled SE under H₀); `PValue` two-sided via Φ. `Details`: `groups`, `n`, `successes`, `proportion` (per arm), `diff`, `pooled`, Wald `ci_low`/`ci_high`. `effect_size.cohens_h` = 2·asin√p₁ − 2·asin√p₂ (sign of `diff`).
 
 ## Gotchas
 

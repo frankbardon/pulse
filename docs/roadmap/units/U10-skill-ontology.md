@@ -93,3 +93,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(skill-ontology/E<
 ## Inherited from U05
 
 The manifest `skills` list and examples counts / tags are NOT scoped by U05 (`manifestScrubSkip` leaves them alone), so a profiled instance's manifest still lists hidden atomic-skill stems. Per-fixture manifest goldens include the skill list, so a skill edit moves them (`docs/src/internals/regenerating-goldens.md`).
+
+## Inherited from U06
+
+U06 pulled a minimal per-instance prune forward (`internal/descriptor/discovery.go`, `inst.Discovery()`); its header comment says where new rules go (`skillPruneRules` / `examplePruneRules`, or rendering inside `Skill`). Open items it handed here:
+
+- **Topical bodies are served unrendered** even where they name a hidden operator — the single exemption in `TestProfileInvisibilityParity`. This is #27 / #28; remove the exemption when the fences land.
+- **The line-wise atomic-skill scrub can break structure.** Atomic bodies go through `ProseScrub` line by line, so a dropped line can cut a Markdown table row or a code-fence line and leave a malformed block. Fence-aware rendering (#27) should replace it for atomic bodies too.
+- **Manifest `skills[].description` bypasses the scrub.** `internal/descriptor/manifest.go` (`sortedSkills`) copies `s.Description` straight from `skills.List()`, filtering only by `SkillVisible`, instead of routing through `Discovery.renderMetadata`, so a visible skill's description can still name a hidden operator in the manifest while `pulse_skills_list` scrubs it.
+- **Overlay examples with an empty `_meta.operators`** are pruned only by whole-token match on their body / description (`exampleBodyNamesHidden`); tag them, or derive their edges in the ontology graph, so pruning does not depend on prose.
+- **Capability-keyed example pruning** covers only facet, `crosstab`, `joins` and compose roots (`exampleCapabilityHidden`). Every other capability (`stream`, `watch`, `filter_to_file`, `index`, `shard`, `sample`, `labels`, `range_tables`, …) needs an edge in the graph.

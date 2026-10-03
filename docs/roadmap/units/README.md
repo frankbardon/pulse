@@ -1,13 +1,13 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **36 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **37 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
 - links to the theme sections to read first;
 - epics and stories, acceptance criteria, gates, Update Demand companions, and the human inputs needed.
 
-Every one of the 197 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
+Every one of the 201 TODO items belongs to at least one unit. The generator asserts this, and each item in [`TODO.md`](../TODO.md) links back to its unit.
 
 These files were generated once from the theme documents and `TODO.md`, and are now maintained by hand. Edit them directly, and keep a unit's `todo_items` in step with the `· [Uxx]` links in `TODO.md`.
 
@@ -44,7 +44,7 @@ The IDs are already in a valid dependency order. Units on different tracks with 
 | U04 | [profiles-model](U04-profiles-model.md): Every feature has a name, and a profile file can declare an instance's feature set | Feature profiles | M | U02, U02b | 10, 11, 12, 13, 14, 15, 16 |
 | U05 | [profiles-enforcement](U05-profiles-enforcement.md): Hidden features cannot run and cannot be seen by the engine or self-description | Feature profiles | M | U04 | 17, 18, 19, 20, 21, 22, 23 |
 | U06 | [profiles-mcp-tooling](U06-profiles-mcp-tooling.md): MCP servers expose only the profile, and embedders have tools to write and check profiles | Feature profiles | M | U05 | 29, 30, 31, 32, 33, 35 |
-| U07 | [guidance-metadata](U07-guidance-metadata.md): Pulse can describe what each operator is for, in plain language, without bloating payloads | Guided analysis | M | U02, U02b | 36, 37, 38, 39, 40, 41, 42 |
+| U07 | [guidance-metadata](U07-guidance-metadata.md): Pulse can describe what each operator is for, in plain language, without bloating payloads | Guided analysis | L | U02, U02b | 36, 37, 38, 39, 40, 41, 42 |
 | U08 | [guidance-backfill-inferential](U08-guidance-backfill-inferential.md): Every test, overlay and regression explains what it is for and how to read it | Guided analysis | L | U07 | 43, 44, 45 |
 | U09 | [guidance-backfill-descriptive](U09-guidance-backfill-descriptive.md): Every operator carries guidance, and the guidance gates are binding | Guided analysis | L | U08 | 46, 47, 48, 49 |
 | U10 | [skill-ontology](U10-skill-ontology.md): Agents only ever see skills and examples for features the instance has | Feature profiles | L | U05, U09 | 24, 25, 26, 27, 28 |
@@ -69,9 +69,10 @@ The IDs are already in a valid dependency order. Units on different tracks with 
 | U29 | [vector-field-types](U29-vector-field-types.md): Cohorts can store fixed-length numeric vectors natively | Vector & matrix | L | U16, U27 | 151, 152, 153, 154, 155 |
 | U30 | [matrix-extensions-hardening](U30-matrix-extensions-hardening.md): Embedders can add their own matrix operators, and the matrix stack is proven at scale | Vector & matrix | M | U25, U28, U29 | 156, 157, 158 |
 | U31 | [guidance-guides](U31-guidance-guides.md): A developer can start from a question and find the right analysis without knowing statistics | Guided analysis | M | U21, U24, U28 | 100, 101, 102, 103 |
-| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U06, U10, U18, U19, U20, U23, U30, U31 | 159, 160, 161, 162, 163, 164, 165, 166, 167 |
+| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31 | 159, 160, 161, 162, 163, 164, 165, 166, 167 |
 | U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179 |
 | U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | S | U02b | 194, 195, 196, 197 |
+| U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | M | U02c (soft) | 198, 199, 200, 201 |
 
 ## Dependency graph
 
@@ -113,6 +114,7 @@ graph TD
   U32["U32 docs-audit"]
   U33["U33 v1-release"]
   U34["U34 extension-validation"]
+  U35["U35 predict-runtime-parity"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -173,6 +175,8 @@ graph TD
   U32 --> U33
   U02b --> U34
   U34 --> U32
+  U02c -.-> U35
+  U35 --> U32
 ```
 
 ## Human inputs that gate units
@@ -185,7 +189,8 @@ graph TD
 - **U25 multivariate-tests-segmentation:** Statistics reviewer
 - **U28 matrix-overlays:** Decide the correspondence-analysis payload shape (open question in vm6)
 - **U32 docs-audit:** Maintainer sign-off; a fresh reader (developer without a statistics background) for the review
-- **U34 extension-validation:** the synth-distribution decision (#197): extension category or retire the slot
+- **U34 extension-validation:** the synth-distribution decision (#197): extension category or retire the slot; whether a feature profile can hide `LookupTables`
+- **U35 predict-runtime-parity:** multi-entry `Groups` — execute every group or refuse (#200)
 - **U33 v1-release:** Maintainer runs the downstream validation and tags the release
 
 Sizes: **S** ≈ one focused session; **M** ≈ 2–3 sessions; **L** ≈ 3–5 sessions. These are relative and meant for Flow's planning, not commitments.

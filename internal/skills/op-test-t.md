@@ -22,14 +22,14 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`TestResult.Statistic` = t; `DF`; `PValue` (two-sided, Student-t CDF); `RejectNull` = `PValue < Alpha`. `Details` carries per-group `{n, mean, variance}` for two-sample.
+`Statistic` = t; `DF`; `PValue` two-sided. One-sample `Details`: `mu`, `n`, `mean`, `variance`, `ci_low`/`ci_high`, `effect_size.cohens_d` = (mean − mu)/sd. Two-sample: per-group `n`/`mean`/`variance`, `diff`, CI, pooled-SD `cohens_d`.
 
 ## Gotchas
 
 - Two-sample needs exactly 2 `SplitBy` groups, else `PULSE_TEST_INVALID_SPLITBY`.
-- Streamable — reads running Welford state from a parallel `AGG_WELFORD` on the same `(field, split_by)`.
+- Streamable — running Welford state per `SplitBy` group.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
-- Tiny groups → unstable p; gate with `AGG_COUNT` + `PULSE_TEST_INSUFFICIENT_N`.
+- n < 2 (per group) → `PULSE_TEST_INSUFFICIENT_N`.
 - Unambiguous two-sample intent → `TEST_WELCH`; large-n survey convention → `TEST_Z_TWO_SAMPLE`.
 
 ## See

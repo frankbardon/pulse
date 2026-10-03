@@ -39,6 +39,12 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#196** `FeatureRegistration.Streamable` probe-validated at `pulse.New` · [U34](units/U34-extension-validation.md)
 - [ ] **#197** Synth-distribution extension contract: an `extend` factory shape, or a documented decision that distributions are not an extension category · [U34](units/U34-extension-validation.md)
 
+#### Predict / runtime parity (pre-existing gaps found in U03 / U05)
+- [ ] **#198** Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#199** The runtime refuses, rather than silently computes on, a field it cannot read: the ledger's "predict stricter, runtime wrong" half (`FEAT_POLY`, `REG_*` and `WIN_*` value windows on categorical / set / decimal / `packed_bool` / `datetime`), plus tier-1 tests on `set_*` · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#200** A request with more than one `Groups` entry executes every group or is refused (today only `Groups[0]` runs) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#201** Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection · [U35](units/U35-predict-runtime-parity.md)
+
 #### Cohort facade
 - [ ] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
 - [ ] **#191** `CohortWriter` on the facade: schema + append rows, grouped (`0x02`) cohorts included · [U02c](units/U02c-cohort-facade.md)
@@ -100,13 +106,13 @@ Theme documents: see the [roadmap index](README.md).
 ## 3. Guided analysis — metadata core
 
 ### G1 — Metadata core
-- [ ] **#36** Intent taxonomy (`descriptor/intents.go`), projected to manifest `intents[]` · [U07](units/U07-guidance-metadata.md)
-- [ ] **#37** `Purpose` type: plain line, intents, questions, use cases, NotFor, assumptions, level, glossary links · [U07](units/U07-guidance-metadata.md)
-- [ ] **#38** `Interpretation` type: per-output meaning, labelled bands, conventions, caveats; shared p-value rules · [U07](units/U07-guidance-metadata.md)
-- [ ] **#39** Glossary registry (about 60 terms) and the `pulse-skill://glossary` resource · [U07](units/U07-guidance-metadata.md)
-- [ ] **#40** Extension `Purpose` hook · [U07](units/U07-guidance-metadata.md)
-- [ ] **#41** Gates, starting report-only: `TestSkillsCoverAllPurposes`, `TestPurposeAlternativesResolve`, `TestPurposeQuestionsResolve`, `TestGlossaryTermsResolve`, `TestInterpretationCoversOutputs` · [U07](units/U07-guidance-metadata.md)
-- [ ] **#42** `TestManifestGuidanceBudget`: no guidance prose in default payloads; manifest growth stays under about 4 KB · [U07](units/U07-guidance-metadata.md)
+- [x] **#36** Intent taxonomy (`descriptor/intents.go`), projected to manifest `intents[]` · [U07](units/U07-guidance-metadata.md)
+- [x] **#37** `Purpose` type: plain line, intents, questions, use cases, NotFor, assumptions, level, glossary links · [U07](units/U07-guidance-metadata.md)
+- [x] **#38** `Interpretation` type: per-output meaning, labelled bands, conventions, caveats; shared p-value rules · [U07](units/U07-guidance-metadata.md)
+- [x] **#39** Glossary registry (about 60 terms) and the `pulse-skill://glossary` resource · [U07](units/U07-guidance-metadata.md)
+- [x] **#40** Extension `Purpose` hook · [U07](units/U07-guidance-metadata.md)
+- [x] **#41** Gates, starting report-only: `TestSkillsCoverAllPurposes`, `TestPurposeAlternativesResolve`, `TestPurposeQuestionsResolve`, `TestGlossaryTermsResolve`, `TestInterpretationCoversOutputs` · [U07](units/U07-guidance-metadata.md)
+- [x] **#42** `TestManifestGuidanceBudget`: no guidance prose in default payloads; manifest growth stays under about 4 KB · [U07](units/U07-guidance-metadata.md)
 
 ### G2 — Back-fill (statistics reviewer signs off before the gates flip)
 - [ ] **#43** Tests (`TEST_*`) · [U08](units/U08-guidance-backfill-inferential.md)
@@ -295,7 +301,7 @@ Theme documents: see the [roadmap index](README.md).
 
 - [ ] **#159** Documentation inventory and coverage matrix: every public API symbol, CLI leaf and flag, MCP tool / prompt / resource, operator, field type, error code, env var, `Options` field and request/response slot, mapped to where it is documented · [U32](units/U32-docs-audit.md)
 - [ ] **#160** Automated checks in CI: link checker, runnable-snippet test, CLI help ↔ `flags.md` parity, GoDoc `Example*` functions for the public facade, removed-name scan · [U32](units/U32-docs-audit.md)
-- [ ] **#161** `TestSkillTokenBudget` flipped from soft to hard-failing, with every skill within budget · [U32](units/U32-docs-audit.md)
+- [ ] **#161** `TestSkillTokenBudget` flipped from soft to hard-failing, with every skill within budget (known overrun: `session-bootstrap.md`) · [U32](units/U32-docs-audit.md)
 - [ ] **#162** Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/` · [U32](units/U32-docs-audit.md)
 - [ ] **#163** Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary · [U32](units/U32-docs-audit.md)
 - [ ] **#164** Getting Started rewritten for v1 (install from GitHub Releases → first cohort → first analysis → first MCP session) and a single embedder guide (profiles, limits, observability, response shaping) · [U32](units/U32-docs-audit.md)
@@ -322,5 +328,5 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#175** Every new gate is listed by name in CLAUDE.md "Non-Skippable CI Gates" · [U33](units/U33-v1-release.md)
 - [ ] **#176** The Update Demand table has rows for: `Purpose`, `Since` / dependencies, topical-skill fences, `Request.Vectors` / `Matrices`, `Response.Matrices`, `Request.Weight` / `Multiplicity` / `TimeZone` / `Return`, `Options.Limits` / `Logger` / `Hooks` / `Metrics` · [U33](units/U33-v1-release.md)
 - [ ] **#177** New env vars and CLI flags documented (CLAUDE.md "Build / Env", `flags.md`, `session-bootstrap.md`) · [U33](units/U33-v1-release.md)
-- [ ] **#178** CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`) · [U33](units/U33-v1-release.md)
+- [ ] **#178** CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`; 131 B headroom after U07 — next editor displaces first, see U08) · [U33](units/U33-v1-release.md)
 - [ ] **#179** `format_version` remains `"1.1"` (every wire change additive) · [U33](units/U33-v1-release.md)

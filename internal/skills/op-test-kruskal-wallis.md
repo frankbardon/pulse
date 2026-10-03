@@ -21,7 +21,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = H = `(12/(N(N+1))) · Σ (R_i²/n_i) − 3(N+1)`; `DF` = k − 1; `PValue` via χ² survival. `Details.per_group` carries `{n, mean_rank}`; effect size = ε² (epsilon-squared).
+`Statistic` = tie-corrected H; `DF` = k − 1; `PValue` via χ² survival. `Details`: `groups`, `n`, `rank_sums`, `n_total`, `tie_factor`; `effect_size.epsilon_squared` = H·(n+1)/(n²−1), omitted when every value ties.
 
 ## Gotchas
 

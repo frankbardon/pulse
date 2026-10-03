@@ -354,6 +354,9 @@ func validateExtensionUniverse(ext Extensions) (featureUniverse, error) {
 	if err := validateExtensionDependsOn(u); err != nil {
 		return featureUniverse{}, err
 	}
+	if err := validateExtensionGuidance(ext); err != nil {
+		return featureUniverse{}, err
+	}
 	return u, nil
 }
 

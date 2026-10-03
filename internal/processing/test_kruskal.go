@@ -152,6 +152,11 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 			"tie_factor": denom,
 		},
 	}
+	// ε² uses the tie-corrected H; when every value is tied the
+	// correction is undefined (denom ≤ 0) and the key is omitted.
+	if denom > 0 {
+		setEffectSize(res.Details, "epsilon_squared", epsilonSquared(h, Nf))
+	}
 	if tiesDominate(ties, N) {
 		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
 			": ≥ 50% of values are tied; asymptotic p-value is unreliable")

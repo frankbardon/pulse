@@ -89,3 +89,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-va
 ## Human inputs & decisions
 
 - **Open:** whether synth distributions become an extension category (#197) or the slot is retired. Decide in E2-S1.
+- **Open:** whether a feature profile can hide `LookupTables` (inherited from U05, below).
+
+## Inherited from U05
+
+- **`LookupTables` have no gating capability** (decision, not a TODO item). They always resolve, even when `capability:labels` and `capability:range_tables` are hidden. Decide whether a profile can hide them (`.claude/reference/feature-profiles.md`, load first). They are expression-function data registered through `Options.Extensions`, not a named-table capability today.
+
+## Inherited from U07
+
+- **Extension test `Interpretation` is checked for structure only.** `pulse.New` validates it with the built-in validators, but nothing probes the declared output keys, while built-ins get two-way runtime probes (`TestInterpretationFieldsHoldAtRuntime`). Decide in E1-S1 whether to probe them the way #195 probes `Components()` keys. If not, record that the gap is deliberate in `docs/src/internals/extension-points.md` (Purpose and Interpretation).

@@ -3,8 +3,8 @@ id: U07
 slug: guidance-metadata
 title: "Pulse can describe what each operator is for, in plain language, without bloating payloads"
 track: Guided analysis
-size: M
-status: not-started
+size: L
+status: done
 depends_on: [U02, U02b]
 soft_depends_on: [U04]
 blocks: [U08]
@@ -16,7 +16,7 @@ branch: guidance-metadata
 
 **Outcome:** Pulse can describe what each operator is for, in plain language, without bloating payloads.
 
-**Track:** Guided analysis · **Size:** M · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) · **Soft:** [U04](U04-profiles-model.md) · **Unblocks:** [U08](U08-guidance-backfill-inferential.md)
+**Track:** Guided analysis · **Size:** L · **Depends on:** [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md) · **Soft:** [U04](U04-profiles-model.md) · **Unblocks:** [U08](U08-guidance-backfill-inferential.md)
 
 ## Summary
 
@@ -30,13 +30,13 @@ Create the guided-analysis data model: intent taxonomy, `Purpose`, `Interpretati
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#36** (3. Guided analysis — metadata core › G1 — Metadata core) Intent taxonomy (`descriptor/intents.go`), projected to manifest `intents[]`
-- [ ] **#37** (3. Guided analysis — metadata core › G1 — Metadata core) `Purpose` type: plain line, intents, questions, use cases, NotFor, assumptions, level, glossary links
-- [ ] **#38** (3. Guided analysis — metadata core › G1 — Metadata core) `Interpretation` type: per-output meaning, labelled bands, conventions, caveats; shared p-value rules
-- [ ] **#39** (3. Guided analysis — metadata core › G1 — Metadata core) Glossary registry (about 60 terms) and the `pulse-skill://glossary` resource
-- [ ] **#40** (3. Guided analysis — metadata core › G1 — Metadata core) Extension `Purpose` hook
-- [ ] **#41** (3. Guided analysis — metadata core › G1 — Metadata core) Gates, starting report-only: `TestSkillsCoverAllPurposes`, `TestPurposeAlternativesResolve`, `TestPurposeQuestionsResolve`, `TestGlossaryTermsResolve`, `TestInterpretationCoversOutputs`
-- [ ] **#42** (3. Guided analysis — metadata core › G1 — Metadata core) `TestManifestGuidanceBudget`: no guidance prose in default payloads; manifest growth stays under about 4 KB
+- [x] **#36** (3. Guided analysis — metadata core › G1 — Metadata core) Intent taxonomy (`descriptor/intents.go`), projected to manifest `intents[]`
+- [x] **#37** (3. Guided analysis — metadata core › G1 — Metadata core) `Purpose` type: plain line, intents, questions, use cases, NotFor, assumptions, level, glossary links
+- [x] **#38** (3. Guided analysis — metadata core › G1 — Metadata core) `Interpretation` type: per-output meaning, labelled bands, conventions, caveats; shared p-value rules
+- [x] **#39** (3. Guided analysis — metadata core › G1 — Metadata core) Glossary registry (about 60 terms) and the `pulse-skill://glossary` resource
+- [x] **#40** (3. Guided analysis — metadata core › G1 — Metadata core) Extension `Purpose` hook
+- [x] **#41** (3. Guided analysis — metadata core › G1 — Metadata core) Gates, starting report-only: `TestSkillsCoverAllPurposes`, `TestPurposeAlternativesResolve`, `TestPurposeQuestionsResolve`, `TestGlossaryTermsResolve`, `TestInterpretationCoversOutputs`
+- [x] **#42** (3. Guided analysis — metadata core › G1 — Metadata core) `TestManifestGuidanceBudget`: no guidance prose in default payloads; manifest growth stays under about 4 KB
 
 ## Scope
 
@@ -54,22 +54,30 @@ Create the guided-analysis data model: intent taxonomy, `Purpose`, `Interpretati
 
 Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-metadata/E<n>-S<m>): …`; close each epic with `milestone(guidance-metadata/E<n>): vertical slice complete — <epic title>`.
 
-### E1 — Intents and purpose have a home
-- S1: intent taxonomy with shape descriptors; manifest projection (IDs only)
-- S2: `Purpose` + `Interpretation` types; shared p-value interpretation
-- S3: glossary registry + resource
-
-### E2 — Guidance is gated and kept out of default payloads
-- S1: report-only coverage gates listing missing operators
-- S2: `TestManifestGuidanceBudget` (≤ ~4 KB growth; no prose in default manifest/response/predict)
-- S3: extension `Purpose` hook on `extend`-registered operators (the `extend` package is landed; absent → "no guidance" and never recommended)
+### E1 — Agents and embedders can browse Pulse's vocabulary
+- S1: intent taxonomy (15 IDs, shapes) in the manifest — top-level `intents[]` + per-entry `intents`
+- S2: plain-language glossary registry (~60 terms, jargon forms)
+- S3: `glossary` / `intents` virtual skills on every skill surface; `pulse.Glossary()` / `pulse.Intents()`
+### E2 — Operators declare their purpose, gated and kept out of payloads
+- S1: built-in Purposes (exemplars `AGG_AVERAGE`, `TEST_ANOVA_F`, `TEST_PEARSON_R`) with two-tier validity / coverage gates; optional `_meta.intents` on examples
+- S2: `TestManifestGuidanceBudget` — ≤4096 guidance bytes, no prose in default manifest / Response / PredictResult
+### E3 — Test results report effect sizes
+- S1: `TEST_CHISQ` `cramers_v` / `phi`, `TEST_PROP_Z` `cohens_h`, one-sample `TEST_T` `cohens_d`
+- S2: ANOVA family `omega_squared` / `partial_eta_squared`
+- S3: rank tests `epsilon_squared` / `rank_biserial`
+### E4 — Results explain how to read them
+- S1: `Interpretation` model, shared p-value rules, static validator, overlay `Inferential` flag
+- S2: runtime probes proving declared Interpretation and effect-size keys are emitted
+### E5 — Embedders attach guidance, and the contract is documented
+- S1: optional `Purpose` (+ test `Interpretation`) on every extension registration → `PULSE_EXTENSION_PURPOSE_INVALID`
+- S2: `.claude/reference/guided-analysis.md`, CLAUDE.md, skills, roadmap close-out
 
 ## Acceptance criteria
 
-- [ ] The manifest grows only by `intents[]` and per-operator intent IDs, within budget
-- [ ] The report-only gates print the full list of operators lacking Purpose, without failing CI
-- [ ] `pulse-skill://glossary` returns the glossary
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] The manifest grows only by `intents[]` and per-operator intent IDs, within budget
+- [x] The report-only gates print the full list of operators lacking Purpose, without failing CI
+- [x] `pulse-skill://glossary` returns the glossary
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -86,3 +94,21 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-metadata
 ## Human inputs & decisions
 
 - None.
+
+## Landed deviations
+
+Contract of record is `.claude/reference/guided-analysis.md`; embedder prose is `docs/src/library/guided-analysis.md` and `docs/src/internals/extension-points.md` (Purpose and Interpretation).
+
+- **Size M → L.** A third epic filled the effect-size gap (nine tests gained `details.effect_size.*` keys) so `Interpretation` had real outputs to describe, and a fourth landed `Interpretation` with static and runtime validation.
+- **Registries live in `internal/descriptor/`** (`intents.go`, `glossary.go`, `purposes.go`, `interpretations.go`), not `descriptor/intents.go`; only the types are public (`descriptor/guidance.go`).
+- **Glossary and intents are virtual skills** (kind `reference`, never pruned by a feature profile), so `pulse-skill://intents` ships alongside `pulse-skill://glossary`.
+- **Validity gates are binding from day one; only coverage is report-only.** `TestManifestGuidanceBudget` binds (≤4096 bytes; about a quarter used).
+- **Overlay `Inferential` is declared per kind** in the manifest, not inferred from names.
+- **Extension guidance** validates at every `pulse.New` with the built-in validators; test Interpretation is structure-only (output keys are not probed).
+
+## Handed to U08
+
+- **Statistics-reviewer pass** over everything U07 wrote: the three exemplar Purposes (`AGG_AVERAGE`, `TEST_ANOVA_F`, `TEST_PEARSON_R`) — review their statistical phrasing — the glossary, the shared p-value rules and the effect-size formulas.
+- **Coverage at hand-off:** 160 of 163 built-ins lack a Purpose; 40 of 42 inferential built-ins lack an Interpretation; no example carries `_meta.intents` yet.
+- **Overlay probes:** `overlayInterpretationProbes` is empty; the first overlay Interpretation on a `summary.parameters.*` path needs a host fixture (recipe in `guided-analysis.md`).
+- **CODEOWNERS** for statistical review lands with the reviewer.
