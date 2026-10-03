@@ -29,6 +29,7 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 | Gating, masking, deriving a field (`rules[]`, `constraints[]`) | `synth-structural-rules` |
 | The `_synthetic` top-up and `--fidelity-report` | `synth-fidelity-report` |
 | Byte-identical output; why a profile can drift | `synth-determinism` |
+| `--fit-shape` mixtures | `synth-shape-fit` |
 | One distribution's params | atomic `op-synth-<kind>` |
 
 ## Two modes

@@ -1327,10 +1327,6 @@
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
       },
       {
-        "name": "synth-models",
-        "description": "Synth `--fit-models` — per-numeric linear model capture, predictor selection, thin-level shrinkage, the composed latent draw, correlated residuals, and the fidelity recovery sections that score whether the captured structure survived generation. Split out of the synthetic-data topical."
-      },
-      {
         "name": "synth-structural-rules",
         "description": "Synth spec `rules[]` and `constraints[]` — slot semantics, declaration order and last-write-wins, the `set_expr` coercion matrix, `null_together` blocks, eager validation codes, and the shared expr row environment. Split out of the synthetic-data topical."
       },
@@ -1893,4 +1889,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0c19ce580678d0b1408c5331bcf5a21c56ec7f3a78dec10b96ec5d5eafa8a01d
+// golden-hash: a35a531be8a2a9a765e9bcdb5e930c63702e66117dfd9988e0f0e4b175236d4a

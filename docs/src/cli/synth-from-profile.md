@@ -982,5 +982,5 @@ stderr summary marks `!` and lists first, so it does not need finding.
 - [`pulse synth from-schema`](synth-from-schema.md)
 - `skills/synthetic-data.md` — the spec grammar and the index of focused `synth-*` skills
 - `skills/synth-fidelity-report.md` — the tagged top-up contract and the fidelity sections
-- `skills/synth-models.md` — `--fit-models`, residual correlations, and the two structure-recovery fidelity sections
+- `skills/synth-models.md` — `--fit-models` entry skill; `skills/synth-residual-correlations.md`, `skills/synth-model-recovery.md` and `skills/synth-residual-recovery.md` carry residual correlations and the two structure-recovery fidelity sections
 - [Synth calibration figures and design rationale](synth-calibration.md)

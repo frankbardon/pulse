@@ -421,7 +421,7 @@ The pack has two shapes. **Atomic** skills cover one registered surface each, an
 | `financial-cohorts` | `decimal128` money semantics |
 | `spss-cohorts` | SPSS `.sav` / `.zsav` import and `.sav` writing |
 | `synthetic-data` | `synth from-schema` / `from-profile` entry point; routes to the focused `synth-*` skills (capture, marginals, set fields, correlations, conflicts, fidelity report, determinism) |
-| `synth-models` | `--fit-models` capture and fidelity recovery |
+| `synth-models` | `--fit-models` entry point; routes to selection, draw, residual correlations and the two recovery sections |
 | `synth-structural-rules` | Synth spec `rules[]` and `constraints[]` |
 
 ### From Go

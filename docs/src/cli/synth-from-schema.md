@@ -86,7 +86,7 @@ read on the residual scale; both endpoints must carry a `models` entry
 or the spec is refused. Omitting either key is the zero state — every
 residual is drawn independently, exactly as before they existed. The
 construction and the latent-scale caveat for non-`normal` targets are in
-`skills/synth-models.md`; the determinism rules in
+`skills/synth-model-draw.md`; the determinism rules in
 `skills/synth-determinism.md`.
 
 Minimal example — a categorical-categorical pair (`region` → `tier`)

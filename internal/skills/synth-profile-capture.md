@@ -23,7 +23,7 @@ Per field:
 - `--fit-models` (`models`) and `--residual-correlations` (`residual_correlations`, requires `--fit-models`): `synth-models`.
 - `--suggest-rules <path>` (rule candidates, written to their own file, never into the profile): `synth-structural-rules`.
 - `--run-continuation` (`run_continuation`): per-field share of adjacent row pairs whose on-wire bytes + null bit repeat — exactly the run-skip decode's hit rate — plus `overall`, `high_fields` (rate ≥ 0.75) and `advice` (`low:` below 0.5, pointing at an upstream `ORDER BY` of the parent key). A ROW-ORDER fact, not a distribution: `SpecFromProfile` never reads it. It needs every record, so it is not in `pulse inspect`. Pairs never span a shard; a shard archive profiles as one stream against the canonical schema (an `archive.pulse#shard.pulse` anchor is not resolved).
-- `--fit-shape` (`numeric.shape`, numeric only): a 2-component Gaussian mixture (`internal/synth/shape.go`) kept only when it beats plain normal on **BIC** AND the means are ≥ `0.75*avgStd` apart. `fitTwoComponentEM` runs a FIXED 50 iterations from a deterministic percentile init (no RNG) with a std floor at 5% of overall std. Fixed at 2 components, no sweep. `SpecFromProfile` then emits `mixture` instead of `normal`; a shape-fitted field can still carry a model (`synth-models`).
+- `--fit-shape` (`numeric.shape`, numeric only): a 2-component Gaussian mixture kept only on a genuine BIC improvement; `SpecFromProfile` then emits `mixture` instead of `normal`. Fit rules and how it composes with a model: `synth-shape-fit`.
 
 Capture rides ONE cohort scan; no flag adds a read.
 
@@ -50,5 +50,5 @@ Unsupported → `PULSE_PROFILE_FIELD_UNSUPPORTED`. Captured pairs land on `Spec.
 ## See
 
 - `synthetic-data` — modes, spec shape, distribution registry.
-- `synth-marginals` · `synth-set-fields` · `synth-correlations` · `synth-conflicts` · `synth-models` · `synth-determinism`.
+- `synth-marginals` · `synth-set-fields` · `synth-shape-fit` · `synth-correlations` · `synth-conflicts` · `synth-models` · `synth-determinism`.
 - `docs/src/cli/profile-create.md` — every capture flag, with examples.

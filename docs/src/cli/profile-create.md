@@ -1818,6 +1818,6 @@ pulse cohort inspect sales.synth.pulse
 - `skills/synthetic-data.md` — spec grammar and the index of focused `synth-*` skills
 - `skills/synth-profile-capture.md` — every capture section and the per-field reconstruction
 - `skills/synth-marginals.md` — boolean and small-integer reconstruction
-- `skills/synth-models.md` — `--fit-models` capture, selection and shrinkage
+- `skills/synth-models.md` — `--fit-models` capture; `skills/synth-model-selection.md` — selection and shrinkage
 - [Synth calibration figures and design rationale](synth-calibration.md)
 - [Library: pulse.Profile](../library/overview.md)
