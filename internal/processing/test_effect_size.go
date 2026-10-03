@@ -121,3 +121,55 @@ func partialEtaSquared(ssEffect, ssError float64) float64 {
 	}
 	return ssEffect / den
 }
+
+// epsilonSquared returns ε² for a Kruskal-Wallis H over n observations
+// (Kelley 1935; Tomczak & Tomczak 2014, Trends in Sport Sciences 21(1)
+// eq. 7):
+//
+//	ε² = H / ((n² − 1) / (n + 1))   ( ≡ H / (n − 1) )
+//
+// H is the statistic the test reports — tie-corrected — so ε² inherits
+// the test's tie handling. NaN when undefined (n < 2, or a negative /
+// non-finite H).
+func epsilonSquared(h, n float64) float64 {
+	if !(n >= 2) || !(h >= 0) || math.IsInf(h, 0) {
+		return math.NaN()
+	}
+	return h / ((n*n - 1) / (n + 1))
+}
+
+// rankBiserialIndependent returns the signed Glass / Kerby (2014)
+// rank-biserial correlation for a two-sample Mann-Whitney comparison:
+//
+//	r = (U_A − U_B) / (n_A · n_B)  =  2·U_A/(n_A·n_B) − 1
+//
+// whose magnitude is 1 − 2·U_min/(n_A·n_B). SIGN CONVENTION: U_A counts
+// the (a, b) pairs where the group-A value is larger (ties count ½), so
+// r > 0 means group A — the FIRST group in sorted Details.groups order —
+// tends to be larger; the same direction as Details.z. NaN when n_A·n_B
+// ≤ 0 or U_A is non-finite.
+func rankBiserialIndependent(uA, nA, nB float64) float64 {
+	prod := nA * nB
+	if !(prod > 0) || math.IsNaN(uA) || math.IsInf(uA, 0) {
+		return math.NaN()
+	}
+	return 2*uA/prod - 1
+}
+
+// rankBiserialPaired returns the matched-pairs rank-biserial correlation
+// (Kerby 2014, Comprehensive Psychology 3:11.IT.3.1) for a Wilcoxon
+// signed-rank test over the non-zero differences d = Field − Field2:
+//
+//	r = (W⁺ − W⁻) / (W⁺ + W⁻)
+//
+// SIGN CONVENTION: r > 0 means Field tends to exceed Field2 (positive
+// differences carry more rank mass) — the same direction as Details.z.
+// NaN when W⁺ + W⁻ ≤ 0 (no non-zero differences, or invalid negative
+// rank sums) or the sum is non-finite.
+func rankBiserialPaired(wPlus, wMinus float64) float64 {
+	total := wPlus + wMinus
+	if !(total > 0) || math.IsInf(total, 0) {
+		return math.NaN()
+	}
+	return (wPlus - wMinus) / total
+}

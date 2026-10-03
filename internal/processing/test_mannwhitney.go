@@ -181,6 +181,8 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 	// The r_b expression above collapses to rB = N(N+1)/2 − rA; rewrite
 	// directly for clarity.
 	res.Details["r_b"] = N*(N+1)/2 - rA
+	// Signed: > 0 ⇒ groups[0] tends larger (same direction as z).
+	setEffectSize(res.Details, "rank_biserial", rankBiserialIndependent(uA, nAf, nBf))
 	if tiesDominate(ties, nA+nB) {
 		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
 			": ≥ 50% of values are tied; the asymptotic p-value is unreliable")

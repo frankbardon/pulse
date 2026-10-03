@@ -441,6 +441,8 @@ func (w *wilcoxonSRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 			"zero_diffs": dropped,
 		},
 	}
+	// Signed: > 0 ⇒ Field tends to exceed Field2 (same direction as z).
+	setEffectSize(res.Details, "rank_biserial", rankBiserialPaired(wPlus, wMinus))
 	if tiesDominate(ties, n) {
 		res.Warnings = append(res.Warnings, string(errors.PULSE_TEST_TIES_DOMINATE)+
 			": ≥ 50% of |diff| values are tied; asymptotic p-value is unreliable")

@@ -152,6 +152,8 @@ func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 			"zero_diffs": w.dropped,
 		},
 	}
+	// Signed: > 0 ⇒ Field tends to exceed Field2 (same direction as z).
+	setEffectSize(res.Details, "rank_biserial", rankBiserialPaired(wPlus, wMinus))
 	if w.mismatch > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %d row(s) had one paired value null; pair dropped",
 			errors.PULSE_TEST_PAIRED_LENGTH_MISMATCH, w.mismatch))

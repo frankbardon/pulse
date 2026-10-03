@@ -21,14 +21,14 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = U_A; `PValue` two-sided via normal approximation with tie correction. `Details.per_group` = `{n_a, n_b, r_a}`; effect size = rank-biserial correlation in `Details.r_rb`.
+`Statistic` = U_min; `PValue` two-sided normal approx, tie-corrected. `Details`: `groups` (sorted), `n`, `u_a`, `u_b`, `u_min`, `r_a`, `r_b`, `mu_u`, `var_u`, `z`; `effect_size.rank_biserial` = (U_A − U_B)/(n_A·n_B) — > 0 ⇒ `groups[0]` tends larger (sign of `z`).
 
 ## Gotchas
 
-- Buffered — combined values ranked under tie correction; mean-rank ties consume memory.
+- Buffered — combined values mid-ranked under tie correction.
 - Robust alternative to `TEST_T` / `TEST_WELCH` when normality fails.
 - Tests stochastic equality, not mean difference — divergence from `TEST_WELCH` is signal, not a bug.
-- Small-n exact p not yet shipped — `PULSE_TEST_INSUFFICIENT_N` warns below the asymptotic threshold (n_a + n_b < 20).
+- Asymptotic only (no exact p); n < 2 per group is `PULSE_TEST_INSUFFICIENT_N`.
 - Paired data → `TEST_WILCOXON_SR`; k-group extension → `TEST_KRUSKAL_WALLIS`.
 
 ## See
