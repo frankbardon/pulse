@@ -110,17 +110,6 @@ func EffectSizeKeysByTest() map[string][]string {
 
 func bandBound(v float64) *float64 { return &v }
 
-// cohenEtaBands are Cohen's (1988) small / medium / large benchmarks for
-// a share of variance explained (eta squared, omega squared).
-func cohenEtaBands() []descriptor.Band {
-	return []descriptor.Band{
-		{Max: bandBound(0.01), Label: "negligible"},
-		{Min: bandBound(0.01), Max: bandBound(0.06), Label: "small"},
-		{Min: bandBound(0.06), Max: bandBound(0.14), Label: "medium"},
-		{Min: bandBound(0.14), Label: "large"},
-	}
-}
-
 // The exemplar Interpretations. Every other inferential built-in is
 // listed by the TestInterpretationCoversOutputs coverage report until
 // it declares its own.
@@ -138,7 +127,7 @@ var (
 		{
 			Field: "details.effect_size.eta_squared",
 			Means: "The share of all variation in the measure that group membership accounts for in this sample, from 0 to 1.",
-			Bands: cohenEtaBands(), Convention: "Cohen (1988)",
+			Bands: conventionBands(ConventionCohenEta2), Convention: conventionCitation(ConventionCohenEta2),
 			Caveats: []string{
 				"Eta squared overstates the effect in small samples; prefer omega squared when reporting.",
 			},
@@ -147,7 +136,7 @@ var (
 			Field: "details.effect_size.omega_squared",
 			Means: "A less biased estimate of the share of variation group membership accounts for, " +
 				"adjusted for sample size and the number of groups.",
-			Bands: cohenEtaBands(), Convention: "Cohen (1988)",
+			Bands: conventionBands(ConventionCohenEta2), Convention: conventionCitation(ConventionCohenEta2),
 			Caveats: []string{
 				"Omega squared can come out slightly below zero when the groups barely differ; read that as no effect.",
 			},
@@ -158,13 +147,8 @@ var (
 		{
 			Field: "statistic",
 			Means: "r measures how closely the two fields follow a straight line together, from -1 to +1; 0 means no straight-line link.",
-			Bands: []descriptor.Band{
-				{Max: bandBound(0.1), Label: "negligible"},
-				{Min: bandBound(0.1), Max: bandBound(0.3), Label: "small"},
-				{Min: bandBound(0.3), Max: bandBound(0.5), Label: "medium"},
-				{Min: bandBound(0.5), Label: "large"},
-			},
-			Abs: true, Convention: "Cohen (1988)",
+			Bands: conventionBands(ConventionCohenR),
+			Abs:   conventionOf(ConventionCohenR).Abs, Convention: conventionCitation(ConventionCohenR),
 			Sign: map[string]string{
 				"+": "the two fields tend to rise together",
 				"-": "one field tends to fall as the other rises",

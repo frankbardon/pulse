@@ -1,0 +1,80 @@
+{
+  "_comment": "Independently transcribed effect-size conventions (U08 E1-S1). Hand-maintained from the cited sources, NOT generated from internal/descriptor/conventions.go: TestConventionRegistryMatchesFixture holds the registry equal to this file, so a band changed in only one place fails. Every threshold was checked against the fetched source on verified_at. labels[0] names the region below Cohen's 'small', which Cohen leaves unnamed (Pulse: 'negligible'; R effectsize: 'very small'). Cohen (1988) itself could not be fetched (access-restricted scan); Cohen (1992) states the Table 1 conventions are those fixed in SPABS (Cohen 1988) and is cited as the primary transcription.",
+  "verified_at": "2026-10-02",
+  "conventions": [
+    {
+      "id": "cohen1988_d",
+      "citation": "Cohen (1988)",
+      "statistics": ["cohens_d", "hedges_g", "glass_delta"],
+      "thresholds": [0.2, 0.5, 0.8],
+      "labels": ["negligible", "small", "medium", "large"],
+      "abs": true,
+      "symmetric_log": false,
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Psychological Bulletin 112(1), Table 1 row 1 (d), p. 157; p. 157 note: ES indexes for tests 1-5 are absolute values"},
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_cohens_d.html", "locator": "effectsize 1.0.3 interpret_cohens_d, Rules: cohen1988"}
+      ]
+    },
+    {
+      "id": "cohen1988_eta2",
+      "citation": "Cohen (1988)",
+      "statistics": ["eta_squared", "partial_eta_squared", "omega_squared", "epsilon_squared"],
+      "thresholds": [0.01, 0.06, 0.14],
+      "labels": ["negligible", "small", "medium", "large"],
+      "abs": false,
+      "symmetric_log": false,
+      "derivation": {"kind": "eta2_from_f", "inputs": [0.10, 0.25, 0.40]},
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Table 1 row 7 (one-way ANOVA f = .10/.25/.40), p. 157; Example 7, p. 158: f = .25 means proportion of variance .0588 (SPABS pp. 280-284). eta^2 = f^2/(1+f^2) gives .0099/.0588/.1379, conventionally rounded to .01/.06/.14"},
+        {"url": "https://github.com/easystats/effectsize/blob/main/R/interpret_omega_squared.R", "locator": "effectsize 1.0.3 interpret_omega_squared roxygen, Rules: field2013 (0.01/0.06/0.14; same rounded values). NOT cohen1992 (0.02/0.13/0.26), which are Cohen's R^2 benchmarks from f^2 = .02/.15/.35"}
+      ]
+    },
+    {
+      "id": "cohen1988_r",
+      "citation": "Cohen (1988)",
+      "statistics": ["pearson_r"],
+      "thresholds": [0.1, 0.3, 0.5],
+      "labels": ["negligible", "small", "medium", "large"],
+      "abs": true,
+      "symmetric_log": false,
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Table 1 row 2 (r), p. 157"},
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_r.html", "locator": "effectsize 1.0.3 interpret_r, Rules: cohen1988 (applies to positive and negative r alike)"}
+      ]
+    },
+    {
+      "id": "cohen1988_w",
+      "citation": "Cohen (1988)",
+      "statistics": ["cohens_w", "phi"],
+      "thresholds": [0.1, 0.3, 0.5],
+      "labels": ["negligible", "small", "medium", "large"],
+      "abs": false,
+      "symmetric_log": false,
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Table 1 row 6 (w, chi-square goodness of fit and contingency), p. 157. phi equals w on a 2x2 table (df* = 1). Example 6, p. 158: w = .30 on a 3x4 table (6 df) corresponds to Cramer's phi of .212 = .30/sqrt(2) (SPABS pp. 220-227), so the benchmarks for Cramer's V scale by 1/sqrt(df*)"}
+      ]
+    },
+    {
+      "id": "cohen1988_or",
+      "citation": "Cohen (1988), via Chen, Cohen & Chen (2010)",
+      "statistics": ["odds_ratio"],
+      "thresholds": [1.44, 2.48, 4.27],
+      "labels": ["negligible", "small", "medium", "large"],
+      "abs": false,
+      "symmetric_log": true,
+      "derivation": {"kind": "or_from_d", "inputs": [0.2, 0.5, 0.8]},
+      "sources": [
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_oddsratio.html", "locator": "effectsize 1.0.3 interpret_oddsratio, Rules: cohen1988 (OR < 1.44 / 1.44 / 2.48 / >= 4.27, via oddsratio_to_d and Cohen's d rules); 'OR of 10 is as extreme as a OR of 0.1 (1/10)'. d = ln(OR) * sqrt(3) / pi at d = .2/.5/.8 gives 1.437/2.477/4.268"}
+      ]
+    }
+  ],
+  "statistic_bindings": {
+    "TEST_PEARSON_R": "pearson_r"
+  },
+  "excluded": [
+    {"operator": "TEST_CHISQ", "field": "details.effect_size.cramers_v", "reason": "Cohen's benchmarks for V are df-scaled ((.1/.3/.5)/sqrt(df*), Cohen 1992 Example 6 p. 158); a fixed band set would be wrong on any table larger than 2x2. Means plus a caveat stating the rule, no bands."},
+    {"operator": "TEST_KENDALL_TAU", "field": "statistic", "reason": "Kendall's tau is not on Pearson r's scale (tau is typically smaller for the same dependence); no tau-specific published convention was verified. Means plus caveat only."},
+    {"operator": "TEST_MANN_WHITNEY_U", "field": "details.effect_size.rank_biserial", "reason": "No primary-source convention for rank-biserial r was verified (effectsize rule set unverified: page fetch failed). Means plus caveat only."},
+    {"operator": "TEST_WILCOXON_SR", "field": "details.effect_size.rank_biserial", "reason": "As for TEST_MANN_WHITNEY_U."}
+  ]
+}
