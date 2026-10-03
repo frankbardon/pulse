@@ -1,6 +1,6 @@
 ---
 name: request-envelope
-description: Request shapes, envelope contract, slot keys, smart defaults, streamability, and the v0.20.0 Response.Components additive field. Use when authoring or adapting any Pulse Request.
+description: Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request.
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
@@ -11,42 +11,48 @@ covers: [Request, ComposedRequest, ChainRequest, FacetRequest, SampleRequest, En
 
 ## Envelope (response side)
 
-Every `--json` CLI output and every facade response uses `descriptor.Envelope`:
+Every `--json` output and facade response uses `descriptor.Envelope`:
 
 ```json
 {"format_version": "1.1", "data": {...}, "request": {...}, "errors": [], "warnings": []}
 ```
 
-- `format_version` — `"1.1"`. Additive `data` fields do NOT bump; renames / removals do.
-- `data` — operation-specific payload.
-- `request` — opt-in echo of the *normalized* request (defaults applied; `EchoRequest: true` / `--echo-request`). Streaming skips.
-- `errors` / `warnings` — always arrays (never null). Each: `{code, message, details}`. Resolve via `pulse_errors_lookup`.
+- `format_version` — `"1.1"`; additive `data` fields never bump it.
+- `data` — the operation's payload.
+- `request` — opt-in echo of the *normalized* request (`--echo-request`); streaming skips it.
+- `errors` / `warnings` — always arrays. Each `{code, message, details}`; resolve via `pulse_errors_lookup`.
 
 ## Request shapes (per command)
 
-| Command | Wire type | Top-level keys |
+| Operation (CLI) | Wire type | Top-level keys |
 |---|---|---|
-| `pulse_process`, `pulse_predict`, `pulse api process` | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs` |
-| `pulse_compose`, `pulse api compose` | `ComposedRequest` | `requests[]` (each = `Request`) |
-| `pulse_process_chain`, `pulse api process-chain` | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
-| `pulse_facet`, `pulse api facet` | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
-| `pulse_sample`, `pulse api sample` | `SampleRequest` | `cohort, count, offset` |
+| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs` |
+| compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`) |
+| process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
+| facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
+| sample (`pulse api sample`) | `SampleRequest` | `cohort, count, offset` |
+
+Each operation's MCP tool is listed in `pulse_manifest` `mcp_tools`; one the instance does not offer is absent.
 
 `Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a column, and an aggregation label equal to a group field or another aggregation label.
 
 ## Canonical process Request
 
+<!-- feature: FILTER_INCLUDE, GROUP_CATEGORY, AGG_COUNT, AGG_SUM -->
 ```json
 {
   "cohort": {"filename": "sales.pulse"},
   "filterers":    [{"type": "FILTER_INCLUDE", "field": "status", "values": ["active"]}],
   "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
   "aggregations": [
-    {"type": "AGG_COUNT",   "field": "id",    "label": "n"},
-    {"type": "AGG_AVERAGE", "field": "score", "label": "mean"}
+    {"type": "AGG_COUNT", "field": "id",      "label": "n"},
+    {"type": "AGG_SUM",   "field": "revenue", "label": "revenue"}
   ]
 }
 ```
+<!-- /feature -->
+
+Every `type` is an operator constant from `pulse_manifest` `components.<category>`; runnable requests: `pulse_examples_search`.
 
 ## Slot-key gotchas
 
@@ -61,7 +67,7 @@ Unknown keys are silently dropped on decode.
 | `output` | `outputs` |
 | `request` (Compose top-level) | `requests` |
 
-Per-operator slot: `type` (operator constant, e.g. `"AGG_SUM"`), `field`, `label`, optional `params`. Per-operator key lists: `pulse_examples_*` + the category skill.
+Per-operator slot: `type`, `field`, `label`, optional `params` (keys per operator: its atomic skill).
 
 ## Smart defaults
 
@@ -69,11 +75,15 @@ When a slot names `field` but omits `type`, the engine infers from schema type. 
 
 | Field type | Default agg | Default grouper |
 |---|---|---|
+<!-- feature: AGG_SUM, GROUP_RANGE -->
 | numeric (`u4`, `u8`..`u64`, `f32`/`f64`, `decimal128`) | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
-| `categorical_u8`/`u16`/`u32` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
-| `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
-| `datetime` | (explicit only) | `GROUP_DATE` (`"day"`), truncated |
-| `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
+<!-- /feature -->
+<!-- feature: AGG_MODE_COUNT, GROUP_CATEGORY -->
+| `categorical_*`, `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
+<!-- /feature -->
+<!-- feature: GROUP_DATE -->
+| `date`, `datetime` (truncated) | (explicit only) | `GROUP_DATE` (`"day"`) |
+<!-- /feature -->
 
 Rules: never override explicit `type`; never cross categories; `Nullable` irrelevant; tests / filterers / attrs / features / windows never defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
 
@@ -81,20 +91,16 @@ Rules: never override explicit `type`; never cross categories; `Nullable` irrele
 
 `pulse_predict` returns `data.streamable: bool` + `data.streamable_reasons: []string`.
 
-- **Streams:** online aggs, ungrouped or under `GROUP_CATEGORY`/`RANGE`/`ROUNDED`; row-local attrs; two-pass attrs (`ATTR_ZSCORE`/…) via Welford.
-- **Buffers:** median/percentile aggs; `ATTR_PERCENTILE`; `GROUP_QUANTILE`/`DATE`; windows; decimal aggs; two-pass attrs with features/groups; tier-2 post tests.
+- **Streams:** online aggregators (manifest `streamable: true`), ungrouped or under a streamable grouper; row-local attributes; whole-cohort-statistic attributes (z-scores and the like) in two passes.
+- **Buffers:** order-statistic aggregators (median, percentile); percentile-rank attributes; groupers with `streamable: false`; windows; decimal aggregations; two-pass attributes combined with features or groups; tier-2 post tests.
 
 `streamable_reasons` is authoritative.
-
-## Response.Components
-
-`Response.Components` is additive `omitempty`: `aggregations[i]` `{n, n_null, operator}`, `groupers[i]` `{total_n, n_null, operator}`, `crosstab`, `filterers[i]` `{n_in, n_out, n_null_input}`, `run`. Per-operator keys: `manifest.components_schemas`; full contract: skill `response-components`.
 
 ## Time zones
 
 `time_zone` sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request; `SampleRequest`: none). Slot `tz` sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — a slot key, never inside `params`. Names are `UTC` or IANA `Area/Location` (`Europe/Berlin`, `Etc/GMT-5`); `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
-Precedence per slot: `tz` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; `OVERLAY_YOY` is `zone: "following"` (inherits its host grouper); extension operators are never capable.
+Precedence per slot: `tz` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator (the year-over-year overlay) inherits its host grouper's zone; extension operators are never capable.
 
 Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `tz` on a `date` field (even `"UTC"`); and — until zone-aware operator math lands — any non-UTC zone reaching a `datetime` (or derived) field. Compose/chain refusals add `details.request`/`stage`. An inherited zone on a `date` field is not applied. UTC (and fixed-zero aliases like `Etc/UTC`) is byte-identical to no zone.
 
@@ -104,8 +110,4 @@ Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; an explicit `t
 
 ## Cross-links
 
-- `response-components` — full Components contract + per-operator keys.
-- `session-bootstrap` — MCP session order.
-- `aggregation-design` / `grouper-design` / `attribute-composition` — slot shapes.
-- `compose-requests`; `facet-design` — `FacetRequest` / `FacetSchemaRequest`.
-- `streaming-and-watching` — stream chunks, request hashing, watch loop.
+`response-components` (the `Response.Components` block) · `session-bootstrap` (MCP session order) · `aggregation-design` / `grouper-design` / `attribute-composition` (slot shapes) · `compose-requests` · `facet-design` · `streaming-and-watching` (stream chunks, request hashing).

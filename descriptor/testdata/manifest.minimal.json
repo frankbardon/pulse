@@ -778,7 +778,7 @@
       },
       {
         "name": "request-envelope",
-        "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability, and the v0.20.0 Response.Components additive field. Use when authoring or adapting any Pulse Request."
+        "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request."
       },
       {
         "name": "request-templating",
@@ -1096,4 +1096,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9bc0b4bc7ac97f2a893a2b0aa8942b1cb08f0f1dd4fe2473e431ca0db4dc69da
+// golden-hash: 894f60e6a95d062188cf62a11342a4a7fc8a78813d79699d5b06654dc99d0458
