@@ -155,6 +155,17 @@ Stripping text from skills at render time works, but it is brittle when it is th
 
 This is also simply better writing for the default (full) instance. Topical skills shrink toward the 6000-char design budget, stop duplicating the manifest, and stop drifting when operators are added. It aligns with the guided-analysis context-budget principle (pull, don't push).
 
+### As shipped (U10): deviations from the plan above
+
+- **Public ontology view.** `p.Ontology()` returns a deep copy of the instance's pruned graph (`descriptor.Ontology`, `OntologyNode`, `OntologyEdge`, with `OntologyNodeKind` / `OntologyEdgeKind` constants); `p.Skills()` and `p.Skill(name)` are the facade over the instance's discovery view and are what MCP, the manifest and embedders read.
+- **Edges.** `serves_intent`, `routes_to`, `documented_by`, `exemplified_by`, `uses_term`, `not_for`, `requires_capability`. **The `follow_up` edge and `Purpose.FollowUps` are deferred to U22** (Recommend / Explain owns them).
+- **`requires:` frontmatter** (AND of features) gives a skill a `requires_capability` edge, and `_meta.capabilities` does the same for an example with no operator; structural detectors add the rest. A node goes when any target is hidden.
+- **Embedder skills and examples.** `Extensions.Skills` / `Extensions.Examples` (validated at `pulse.New`) join the graph and prune with their operator like built-ins.
+- **Eager prune at `pulse.New`.** The graph and discovery view are built once with the instance snapshot, not on first use.
+- **Intent-prune rule.** An intent is pruned only when it has at least one serving operator and every server is hidden, so intents no operator serves stay.
+- **Fences replace `ProseScrub` for bodies.** Served bodies render by `<!-- feature: NAME -->` fences and a `## See` rendered by edge; `ProseScrub` now handles only skill metadata, and descriptions are written name-free. The fence gate never had a long report-only phase: all report-only switches were deleted once the pack was clean, so any unfenced mention fails.
+- **Routing.** `pulse_skills_list` takes no `{intent}` argument; topical skills route through manifest entries' `intents` and `pulse_skills_get intents`.
+
 ### Cost
 There is a one-time rewrite of about 25 topical skills, done in FP5. During the rewrite the fence gate runs in report-only mode, and it flips to failing when the pass completes. Rewrites are best paired with the guided-analysis G2 back-fill, since both move comparison prose into `Purpose` metadata.
 

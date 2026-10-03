@@ -81,6 +81,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-generate
 - `docs/src/SUMMARY.md` (Analysis Guide part)
 - `docs/src/cli/flags.md` (`docs export`)
 
+## Consumes from U10
+
+- Walk `p.Ontology()` (pruned per instance) rather than the embedded pack, so generated catalog, reference and rendered skill sections follow the instance. Skill bodies already render by feature fences and a `## See` by edge (`p.Skill(name)`); generated sections must be fenced or ontology-driven the same way (`TestSkillsCoverFeatureFences` binds).
+- CLI `pulse skills` / `pulse examples` list only the embedded library, not embedder additions: decide whether the export covers `Extensions.Skills` / `Extensions.Examples`.
+
 ## Human inputs & decisions
 
 - None.

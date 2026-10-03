@@ -71,6 +71,11 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-mcp/E<n>
 - CLAUDE.md MCP-layer paragraph (prompts)
 - `skills/session-bootstrap.md`; tool skills
 
+## Consumes from U10
+
+- Search by intent / question runs over the pruned instance graph (`p.Ontology()`), the same view `pulse_skills_*` and `pulse_examples_*` already read. `pulse_skills_list` has no intent argument today; adding it belongs here or in U22.
+- toolmeta `DescExamplesSearch` / `DescExamplesGet` still say "embedded library"; reword them in the tool-description rewrite, since embedder examples are searchable.
+
 ## Human inputs & decisions
 
 - None.

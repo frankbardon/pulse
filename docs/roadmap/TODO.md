@@ -84,11 +84,11 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#23** `TestProfileDefaultIsFull`: no profile produces output byte-identical to today · [U05](units/U05-profiles-enforcement.md)
 
 ### FP5 — Skills & ontology
-- [ ] **#24** Ontology graph (intents → operators → skills / examples / glossary / NotFor edges), pruned once at `pulse.New` · [U10](units/U10-skill-ontology.md)
-- [ ] **#25** List, search, `## See`, intents, recommendations **and exact-name get** all honour the pruned graph · [U10](units/U10-skill-ontology.md)
-- [ ] **#26** Progressive-disclosure rewrite of the topical skills (paired with G2) · [U10](units/U10-skill-ontology.md)
-- [ ] **#27** `<!-- feature: … -->` fence syntax and rendering, plus `TestSkillsCoverFeatureFences` (report-only until the rewrite is done, then failing) · [U10](units/U10-skill-ontology.md)
-- [ ] **#28** `TestSkillsCoverProfileGet`: every hidden skill or example is indistinguishable from a nonexistent name · [U10](units/U10-skill-ontology.md)
+- [x] **#24** Ontology graph (intents → operators → skills / examples / glossary / NotFor edges), pruned once at `pulse.New` · [U10](units/U10-skill-ontology.md)
+- [x] **#25** List, search, `## See`, intents, recommendations **and exact-name get** all honour the pruned graph · [U10](units/U10-skill-ontology.md)
+- [x] **#26** Progressive-disclosure rewrite of the topical skills (paired with G2) · [U10](units/U10-skill-ontology.md)
+- [x] **#27** `<!-- feature: … -->` fence syntax and rendering, plus `TestSkillsCoverFeatureFences` (report-only until the rewrite is done, then failing) · [U10](units/U10-skill-ontology.md)
+- [x] **#28** `TestSkillsCoverProfileGet`: every hidden skill or example is indistinguishable from a nonexistent name · [U10](units/U10-skill-ontology.md)
 
 ### FP6 — MCP
 - [x] **#29** Instance-scoped registration of tools, prompts and resources · [U06](units/U06-profiles-mcp-tooling.md)

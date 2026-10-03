@@ -83,6 +83,12 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(recommend-explain
 - CLAUDE.md facade list (`Recommend`, `Explain`)
 - `docs/src/cli/flags.md`; `errors/fixup_metadata.go`
 
+## Consumes from U10
+
+- Recommend walks `p.Ontology()` (`serves_intent`, `not_for`, `routes_to`, `documented_by`, `exemplified_by`, `uses_term` edges), so it is pruned per instance with no extra filtering.
+- **U22 owns the `follow_up` edge and `Purpose.FollowUps`**, which U10 deliberately did not ship. Add the edge kind to `descriptor.OntologyEdgeKind`, the golden and the pruning rules together.
+- `pulse_skills_list` takes no intent filter; routing by intent goes through manifest entries' `intents` unless this unit adds one.
+
 ## Human inputs & decisions
 
 - None.

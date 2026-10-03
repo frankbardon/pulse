@@ -134,4 +134,4 @@ category is one line in the test's `categories` slice.
 go test -run TestExamples -v .
 ```
 
-Currently 54 sub-tests across seven categories.
+One sub-test runs per example file, grouped by category.
