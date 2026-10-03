@@ -14,12 +14,6 @@ import (
 	"github.com/frankbardon/pulse/internal/skills"
 )
 
-// fenceCoverageFail is THE switch of TestSkillsCoverFeatureFences. While
-// false the gate is REPORT-ONLY: it logs the per-file violation table
-// and passes. E4-S3 flips it to true once the pack is fenced, and every
-// unfenced mention then fails. Malformed fences fail in BOTH modes.
-const fenceCoverageFail = false
-
 // Fence-coverage rules (.claude/reference/skill-pack.md, Fence coverage):
 //
 //   - SCAN LIST (fenceScanList): every operator feature (bare constant),
@@ -306,8 +300,8 @@ func TestFenceCoverage_Guards(t *testing.T) {
 // embedded skill — operator constant, feature-owned `pulse_*` tool,
 // `<kind>:<name>` spelling — sits inside a fence naming it, unless the
 // skill is pruned with it (guard); a frontmatter description names no
-// unguarded feature at all. REPORT-ONLY until fenceCoverageFail flips
-// (E4-S3); a malformed fence fails now. Print the table with
+// unguarded feature at all. Every violation and every malformed fence
+// fails; the per-file table is logged either way. Print it with
 //
 //	go test ./internal/descriptor/ -run TestSkillsCoverFeatureFences -v
 func TestSkillsCoverFeatureFences(t *testing.T) {
@@ -358,7 +352,7 @@ func TestSkillsCoverFeatureFences(t *testing.T) {
 	})
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "unfenced feature mentions (%d of %d skills; fail=%v)\n", len(rows), scanned, fenceCoverageFail)
+	fmt.Fprintf(&b, "unfenced feature mentions (%d of %d skills)\n", len(rows), scanned)
 	fmt.Fprintf(&b, "%6s %5s %5s  %-8s %-36s %s\n", "total", "body", "desc", "family", "skill", "top tokens")
 	type fam struct{ files, body, desc int }
 	fams := map[string]*fam{}
@@ -398,9 +392,7 @@ func TestSkillsCoverFeatureFences(t *testing.T) {
 	}
 	t.Log(b.String())
 
-	if fenceCoverageFail {
-		for _, r := range rows {
-			t.Errorf("skills/%s.md: %d unfenced feature mention(s) in the body, %d in the description: %v", r.skill, r.body, r.desc, r.tokens)
-		}
+	for _, r := range rows {
+		t.Errorf("skills/%s.md: %d unfenced feature mention(s) in the body, %d in the description: %v", r.skill, r.body, r.desc, r.tokens)
 	}
 }

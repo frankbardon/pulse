@@ -3,6 +3,7 @@ package pulse
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -32,20 +33,87 @@ func hiddenOperatorNames(p *Pulse) map[string]struct{} {
 	return out
 }
 
-// TestManifestSkills_DescriptionsNameNoHidden: under a feature profile a
-// visible skill's manifest description is rendered like its
-// pulse_skills_list entry, so it names no hidden operator; the full
-// manifest's (cached) descriptions are never written by that render.
+// shippedProfilePulses is one instance per feature profile the repo
+// ships: each private fixture (descriptor/testdata/profiles) and each
+// published example (examples/profiles, embedded), keyed
+// "<origin>/<name>".
+func shippedProfilePulses(t *testing.T) map[string]*Pulse {
+	t.Helper()
+	out := map[string]*Pulse{}
+	for _, name := range featureSetFixtures {
+		out["fixture/"+name] = newFixturePulse(t, name, Options{})
+	}
+	for _, name := range ExampleFeatureProfiles() {
+		fp, err := ExampleFeatureProfile(name)
+		if err != nil {
+			t.Fatalf("ExampleFeatureProfile(%q): %v", name, err)
+		}
+		p, err := New(Options{FS: afero.NewMemMapFs(), FeatureProfile: fp})
+		if err != nil {
+			t.Fatalf("New with example profile %s: %v", name, err)
+		}
+		out["published/"+name] = p
+	}
+	if len(out) <= len(featureSetFixtures) {
+		t.Fatal("no published example profile: the sweep would miss them")
+	}
+	return out
+}
+
+// hiddenDescriptionNames is every name a description on p must not
+// carry: hidden operator constants and feature-owned MCP tools (whole
+// [A-Za-z0-9_] tokens), hidden `<kind>:<name>` feature spellings
+// (substring), and pruned skill stems (whole kebab tokens).
+func hiddenDescriptionNames(t *testing.T, p *Pulse, fullSkills []string) (tokens map[string]struct{}, spelled, stems []string) {
+	t.Helper()
+	inst := p.svc.InstanceSnapshot()
+	tokens = hiddenOperatorNames(p)
+	for _, b := range descx.MCPToolBindings() {
+		if b.Feature != "" && inst.Hidden(b.Feature) {
+			tokens[b.Tool] = struct{}{}
+		}
+	}
+	for _, n := range inst.HiddenNames() {
+		if strings.Contains(n, ":") {
+			spelled = append(spelled, n)
+		}
+	}
+	visible := map[string]bool{}
+	for _, md := range p.Skills() {
+		visible[md.Name] = true
+	}
+	for _, s := range fullSkills {
+		if !visible[s] {
+			stems = append(stems, s)
+		}
+	}
+	return tokens, spelled, stems
+}
+
+// TestManifestSkills_DescriptionsNameNoHidden: under EVERY shipped
+// feature profile (private fixtures and published examples) a visible
+// skill's manifest description is rendered like its pulse_skills_list
+// entry and names no hidden operator, feature-owned tool, `<kind>:<name>`
+// feature or pruned skill stem; the shipped descriptions need no scrub at
+// all (they are name-free), and the full manifest's (cached)
+// descriptions are never written by that render.
 func TestManifestSkills_DescriptionsNameNoHidden(t *testing.T) {
 	full := descx.BuildManifest()
 	fullDesc := map[string]string{}
+	var fullSkills []string
 	for _, s := range full.Skills {
 		fullDesc[s.Name] = s.Description
+		fullSkills = append(fullSkills, s.Name)
 	}
-	for _, fixture := range []string{"minimal", "survey-crosstab"} {
-		t.Run(fixture, func(t *testing.T) {
-			p := newFixturePulse(t, fixture, Options{})
-			hidden := hiddenOperatorNames(p)
+	pulses := shippedProfilePulses(t)
+	for _, key := range slices.Sorted(maps.Keys(pulses)) {
+		p := pulses[key]
+		t.Run(key, func(t *testing.T) {
+			hidden, spelled, stems := hiddenDescriptionNames(t, p, fullSkills)
+			pruned := map[string]bool{}
+			for _, s := range stems {
+				pruned[s] = true
+			}
 			m := p.Manifest(context.Background())
 			listed := map[string]string{}
 			for _, md := range p.Skills() {
@@ -58,6 +126,16 @@ func TestManifestSkills_DescriptionsNameNoHidden(t *testing.T) {
 						t.Errorf("skill %s: manifest description names hidden %s: %q", s.Name, tok, s.Description)
 					}
 				}
+				for _, f := range spelled {
+					if strings.Contains(s.Description, f) {
+						t.Errorf("skill %s: manifest description names hidden %s: %q", s.Name, f, s.Description)
+					}
+				}
+				for _, tok := range kebabDescriptionTokens(s.Description) {
+					if pruned[tok] {
+						t.Errorf("skill %s: manifest description names pruned skill %s: %q", s.Name, tok, s.Description)
+					}
+				}
 				if want, ok := listed[s.Name]; !ok || want != s.Description {
 					t.Errorf("skill %s: manifest description %q, pulse_skills_list %q (listed=%v)", s.Name, s.Description, want, ok)
 				}
@@ -68,12 +146,12 @@ func TestManifestSkills_DescriptionsNameNoHidden(t *testing.T) {
 			// The pack's descriptions name no other feature (the description
 			// rule of TestSkillsCoverFeatureFences), so the metadata scrub is
 			// a backstop that renders nothing on the shipped pack; the checks
-			// above bind only when the fixture really hides operators.
+			// above bind only when the profile really hides something.
 			if len(hidden) == 0 {
-				t.Fatalf("vacuous: fixture %s hides no operator", fixture)
+				t.Fatalf("vacuous: profile %s hides no operator or tool", key)
 			}
 			if rendered != 0 {
-				t.Errorf("%d shipped skill descriptions changed under %s: a description names a feature the profile hides", rendered, fixture)
+				t.Errorf("%d shipped skill descriptions changed under %s: a description names a feature the profile hides", rendered, key)
 			}
 		})
 	}
@@ -82,6 +160,14 @@ func TestManifestSkills_DescriptionsNameNoHidden(t *testing.T) {
 			t.Errorf("skill %s: a scoped manifest render wrote the shared full description", s.Name)
 		}
 	}
+}
+
+// kebabDescriptionTokens splits s into skill-stem-shaped tokens
+// ([a-z0-9-] runs).
+func kebabDescriptionTokens(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool {
+		return r != '-' && (r < '0' || r > '9') && (r < 'a' || r > 'z')
+	})
 }
 
 // TestFacade_OntologySkillsAgree: p.Ontology(), p.Skills(), p.Skill()

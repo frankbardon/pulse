@@ -12,7 +12,7 @@ The pack under `skills/` is the LLM surface, embedded via `//go:embed *.md`. Two
   - `op-agg-<kebab>.md`, `op-attr-<kebab>.md`, `op-filter-<kebab>.md`, `op-group-<kebab>.md`, `op-win-<kebab>.md`, `op-feat-<kebab>.md`, `op-test-<kebab>.md`, `op-reg-<kebab>.md` / `op-reg-mod-<kebab>.md`, `op-synth-<kebab>.md`, `op-overlay-<kebab>.md` — one per registered operator constant.
   - `tool-<kebab>.md` — one per registered MCP tool (drop the `pulse_` prefix).
   - `type-<kebab>.md` — one per `FieldType`.
-- **Topical skill = one cross-cutting design topic per file.** ~17 files (`aggregation-design`, `attribute-composition`, `cohort-schema-design` (entry skill for the focused `cohort-null-states`, `cohort-parent-groups`, `cohort-sharding`, `cohort-sidecar-index`, `cohort-width-overflow`), `compose-requests`, `crosstab-guide`, `crosstab-margin-aggregations`, `expression-language`, `facet-design`, `feature-engineering`, `grouper-design`, `join-design`, `label-display`, `overlay-system`, `pairwise-n-sources`, `process-chain`, `regression-modeling`, `request-envelope`, `response-components`, `session-bootstrap` (entry skill for the focused `session-format-flags`, `session-skill-routing`, `session-synth-flags`), `spss-cohorts` (entry skill for the focused `spss-export`, `spss-export-fidelity`, `spss-export-values`, `spss-import-schema`, `spss-metadata-sidecar`, `spss-missing-values`, `spss-response-sets`), `statistical-testing`, `streaming-and-watching`, `synthetic-data` (entry skill for the focused `synth-conflicts`, `synth-correlations`, `synth-determinism`, `synth-fidelity-report`, `synth-marginals`, `synth-profile-capture`, `synth-set-fields`), `synth-models` (entry skill for `synth-model-draw`, `synth-model-recovery`, `synth-model-selection`, `synth-residual-correlations`, `synth-residual-recovery`, `synth-shape-fit`), `synth-structural-rules` (entry skill for `synth-rule-claims`, `synth-rule-detectors`, `synth-rule-expressions`, `synth-rule-nulls`, `synth-rule-validation`, `synth-rules-from-profile`), `window-design`, plus the optional `financial-cohorts` example pack). Atomic skills cross-link into these for the why/how-it-composes prose; the topical files keep no per-operator detail.
+- **Topical skill = one cross-cutting design topic per file** (`kind: design`; count them from `pulse_skills_list`, never from this list — the stems as of U10: `aggregation-design`, `attribute-composition`, `cohort-schema-design` (entry skill for the focused `cohort-null-states`, `cohort-parent-groups`, `cohort-sharding`, `cohort-sidecar-index`, `cohort-width-overflow`), `compose-requests`, `crosstab-guide`, `crosstab-margin-aggregations`, `expression-language`, `facet-design`, `feature-engineering`, `grouper-design`, `join-design`, `label-display`, `overlay-system`, `pairwise-n-sources`, `process-chain`, `regression-modeling`, `request-envelope`, `request-templating`, `response-components`, `session-bootstrap` (entry skill for the focused `session-format-flags`, `session-skill-routing`, `session-synth-flags`), `spss-cohorts` (entry skill for the focused `spss-export`, `spss-export-fidelity`, `spss-export-values`, `spss-import-schema`, `spss-metadata-sidecar`, `spss-missing-values`, `spss-response-sets`), `statistical-testing`, `streaming-and-watching`, `synthetic-data` (entry skill for the focused `synth-conflicts`, `synth-correlations`, `synth-determinism`, `synth-fidelity-report`, `synth-marginals`, `synth-profile-capture`, `synth-set-fields`), `synth-models` (entry skill for `synth-model-draw`, `synth-model-recovery`, `synth-model-selection`, `synth-residual-correlations`, `synth-residual-recovery`, `synth-shape-fit`), `synth-structural-rules` (entry skill for `synth-rule-claims`, `synth-rule-detectors`, `synth-rule-expressions`, `synth-rule-nulls`, `synth-rule-validation`, `synth-rules-from-profile`), `window-design`, plus the optional `financial-cohorts` example pack). Atomic skills cross-link into these for the why/how-it-composes prose; the topical files keep no per-operator detail.
 
 ## Frontmatter
 
@@ -88,7 +88,7 @@ go test ./internal/descriptor/ -run TestSkillsCoverFeatureFences -v
 - **Fenced** means the mention disappears when the body is rendered with that ONE feature hidden — it sits in a fence whose name list includes it (a tool needs its owning feature). A fence naming a different feature does not count.
 - **Guard exemption:** a name the skill is pruned with needs no fence — an atomic skill's own `operator:` plus its HARD dependencies (each feature named alone in a `DependsOn` group, transitively — a valid feature profile cannot hide `AGG_WELFORD` and keep `OVERLAY_T_CELL`, so that skill may name it bare, even in its description; an any-of host group guards nothing), `capability:synth` for a synth distribution, the feature owning a tool skill's tool, a topical skill's `requires:` targets. Read from the base ontology exactly as the prune reads it.
 - **Frontmatter `description`:** cannot hold a fence, so every unguarded name there is a violation; other frontmatter keys (`operator:`, `covers:`) are not scanned.
-- **Modes:** REPORT-ONLY while the const `fenceCoverageFail` is false (logs the table, passes); E4-S3 flips it and every violation fails. A malformed fence or an unknown fence name fails in BOTH modes.
+- **Binding (since E4-S3):** every violation fails, as does a malformed fence or an unknown fence name; the table is logged either way.
 
 ## Required body sections (atomic skills)
 
@@ -104,16 +104,16 @@ go test ./internal/descriptor/ -run TestSkillsCoverFeatureFences -v
 
 ## Token budget
 
-Heuristic: `chars / 4 ≈ tokens`. Budgets are byte counts of the post-frontmatter body.
+Heuristic: `chars / 4 ≈ tokens`. Budgets are byte counts of the post-frontmatter body as `skills.Get` serves it (feature-fence markers stripped).
 
-| Family | Budget (chars) | Token target |
-|---|---|---|
-| `op-*` | ≤1200 | ≤300 |
-| `tool-*` | ≤2000 | ≤500 |
-| `type-*` | ≤2000 | ≤500 |
-| `kind: design` (topical) | ≤6000 | ≤1500 |
+| Family | Budget (chars) | Token target | Mode |
+|---|---|---|---|
+| `op-*` | ≤1200 | ≤300 | soft |
+| `tool-*` | ≤2000 | ≤500 | soft |
+| `type-*` | ≤2000 | ≤500 | soft |
+| `kind: design` (topical) | ≤6000 | ≤1500 | **hard** |
 
-`TestSkillTokenBudget` enforces these. The current regime is transitional — the soft cap allows up to 1000% over budget so reviewers see the live state of legacy bodies without a red gate; a follow-up tightens to 30% over and flips `t.Logf` → `t.Errorf` once the offending `op-reg-*` / `op-reg-mod-*` / `op-feat-*` / `op-synth-regex` bodies have been trimmed.
+`TestSkillTokenBudget` enforces these. The topical budget is **HARD** (since U10 E4-S3): one byte over fails, with no slack — a topic that outgrows it splits into an entry skill (a question → skill routing table plus the always-needed contract) and focused children, as `synthetic-data`, `cohort-schema-design`, `spss-cohorts` and `session-bootstrap` did. The atomic budgets are still SOFT and transitional: an overrun is logged (`t.Logf`) and fails only past 1000% over, so reviewers see the live state of legacy bodies without a red gate; a follow-up tightens them once the over-budget `op-overlay-*` / `op-reg-*` / `op-synth-*` / `op-feat-*` bodies and `tool-import` / `tool-lookup` are trimmed (run the test with `-v` for the live list).
 
 ## List source of truth
 
@@ -148,6 +148,6 @@ Counts surfaced at runtime via `pulse_manifest` (`commands`, `components.{aggreg
 
 1. Create the file at the conventional stem (`op-<category>-<kebab>.md`, `tool-<kebab>.md`, `type-<kebab>.md`, or a new topical name).
 2. Write the required frontmatter for the matching shape (atomic or topical) and the required `##` section set for that family.
-3. Stay under budget — atomic op ≤1200 chars body, tool/type ≤2000, topical ≤6000.
+3. Stay under budget — atomic op ≤1200 chars body, tool/type ≤2000, topical ≤6000 (hard).
 4. Run `go test ./internal/skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.
 

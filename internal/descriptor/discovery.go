@@ -140,8 +140,8 @@ func (d *Discovery) ExampleVisible(name string) bool {
 // Skills is skills.List() minus the pruned skills, in the same order,
 // each survivor's metadata rendered for the instance: the description
 // prose-scrubbed and every applies_to / covers / examples_tags entry
-// naming a hidden token dropped (topical metadata included — only a
-// topical BODY is exempt).
+// naming a hidden token dropped (topical metadata included; bodies
+// render by feature fence in Skill).
 func (d *Discovery) Skills() []skills.Metadata {
 	all := skills.List()
 	if len(d.hiddenSkills) == 0 && !d.scrub.Active() {

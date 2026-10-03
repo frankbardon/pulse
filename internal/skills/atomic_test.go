@@ -118,6 +118,12 @@ func containsHeading(md, heading string) bool {
 	return false
 }
 
+// TestSkillTokenBudget holds each skill body (frontmatter stripped,
+// feature-fence markers stripped) to its family budget. The topical
+// (kind: design) budget is HARD: any byte over fails — a long topic
+// splits into focused skills (.claude/reference/skill-pack.md). The
+// atomic budgets (op-* / tool-* / type-*) are still SOFT: an overrun is
+// logged and fails only past the transitional cap.
 func TestSkillTokenBudget(t *testing.T) {
 	const (
 		opBudget     = 1200
@@ -138,6 +144,7 @@ func TestSkillTokenBudget(t *testing.T) {
 		bodyLen := len(body)
 
 		var budget int
+		hard := false
 		switch {
 		case strings.HasPrefix(stem, "op-"):
 			budget = opBudget
@@ -149,6 +156,7 @@ func TestSkillTokenBudget(t *testing.T) {
 			fm := ParseFrontmatter(raw)
 			if strings.TrimSpace(fm["kind"]) == "design" {
 				budget = designBudget
+				hard = true
 			} else {
 				continue // not budget-covered
 			}
@@ -159,6 +167,11 @@ func TestSkillTokenBudget(t *testing.T) {
 		}
 		overBytes := bodyLen - budget
 		overPct := (overBytes * 100) / budget
+		if hard {
+			t.Errorf("%s: design body %d > hard budget %d (over by %d bytes) — split the topic into focused skills",
+				stem, bodyLen, budget, overBytes)
+			continue
+		}
 		if overPct > hardFailOverPercent {
 			t.Errorf("%s: body %d > budget %d (over by %d bytes / %d%%) — exceeds transitional cap %d%%",
 				stem, bodyLen, budget, overBytes, overPct, hardFailOverPercent)

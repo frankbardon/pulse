@@ -23,35 +23,6 @@ const (
 	neverExample = "example-never-existed"
 )
 
-// The two served-body assertions of TestSkillsCoverProfileGet that cannot
-// bind until later U10 stories land run REPORT-ONLY (t.Log) while their
-// switch is false; flipping the switch is the whole change that makes
-// them fail.
-//
-//   - atomicBodiesNamePrunedFail: a served atomic body names a pruned
-//     skill stem or example. Binding since E2-S1: "## See" renders by
-//     edge and the body mentions outside it are feature-fenced.
-//   - topicalBodiesNameHiddenFail: a served topical (kind: design) body
-//     names a pruned skill or example or a hidden operator or tool
-//     (topical bodies render by fence; the pack is not fenced yet).
-//     E4-S3 flips it and deletes invisibilityExemptSkill
-//     (feature_parity_mcp_test.go) with it.
-const (
-	atomicBodiesNamePrunedFail  = true
-	topicalBodiesNameHiddenFail = false
-)
-
-// reportOrFail logs while the assertion is report-only, fails once its
-// switch is flipped.
-func reportOrFail(t *testing.T, fail bool, format string, args ...any) {
-	t.Helper()
-	if fail {
-		t.Errorf(format, args...)
-		return
-	}
-	t.Logf("report-only: "+format, args...)
-}
-
 // shippedProfiles is every feature profile the repo ships: each
 // published example (examples/profiles/*.json) and each private fixture
 // (descriptor/testdata/profiles/*.json), keyed "<origin>/<name>".
@@ -156,8 +127,8 @@ func skillNamesOf(mds []pulse.SkillMetadata) []string {
 //     pulse_skills_get, pulse_examples_get, a pulse-skill:// read and the
 //     resource-template reader;
 //   - no served body names a pruned skill or example, and no served
-//     topical body a hidden operator or tool — the topical half
-//     report-only until its switch above flips (E4-S3).
+//     topical body a hidden operator or tool (bodies render by feature
+//     fence; there is no exemption).
 //
 // Every shipped profile must prune at least one skill, and the set as a
 // whole at least one example, or the gate is vacuous.
@@ -308,7 +279,7 @@ func TestSkillsCoverProfileGet(t *testing.T) {
 				}
 			}
 
-			// Served bodies name nothing pruned (report-only, see switches).
+			// Served bodies name nothing pruned or hidden.
 			// Example names that are a single word ("logistic") double as
 			// taxonomy tags, so only compound ones count as a name.
 			hiddenNames := map[string]bool{}
@@ -336,12 +307,12 @@ func TestSkillsCoverProfileGet(t *testing.T) {
 				sort.Strings(named)
 				if md.Kind != "design" {
 					if len(named) > 0 {
-						reportOrFail(t, atomicBodiesNamePrunedFail, "served atomic skill %s names pruned %v", md.Name, named)
+						t.Errorf("served atomic skill %s names pruned %v", md.Name, named)
 					}
 					continue
 				}
 				if named = append(named, leakedTokens(body, hiddenTokens)...); len(named) > 0 {
-					reportOrFail(t, topicalBodiesNameHiddenFail, "served topical skill %s names hidden %v", md.Name, named)
+					t.Errorf("served topical skill %s names hidden %v", md.Name, named)
 				}
 			}
 		})

@@ -28,7 +28,6 @@ import (
 	"testing"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
-	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -300,52 +299,6 @@ func (h mcpHiddenNames) leaks(text string) []string {
 	return out
 }
 
-// atomicBodiesNameHiddenFail switches the ATOMIC-body arm of the surface
-// sweep. Since E2-S1 a served skill body is rendered by its feature
-// fences, not by the line-wise prose scrub (which cut table rows), so an
-// ATOMIC body names a hidden operator or tool wherever the pack does not
-// fence it. E2-S3 fenced (or rewrote) every atomic cross-mention and
-// flipped this to true: a leak now fails. A pruned-skill stem in a
-// `## See` section is failed by TestSkillsCoverProfileGet (mcp/gosdk).
-// (.claude/reference/feature-profiles.md, "Served-body exemptions".)
-const atomicBodiesNameHiddenFail = true
-
-// atomicSkillBodyKey reports whether a rendered-surface key is the body of
-// an atomic (operator / tool / type) skill.
-func atomicSkillBodyKey(key string) bool {
-	name, ok := strings.CutPrefix(key, "pulse_skills_get ")
-	if !ok {
-		if name, ok = strings.CutPrefix(key, "read pulse-skill://"); !ok {
-			return false
-		}
-	}
-	for _, m := range skills.List() {
-		if m.Name == name {
-			return m.Kind == "operator" || m.Kind == "tool" || m.Kind == "type"
-		}
-	}
-	return false
-}
-
-// invisibilityExemptSkill is the explicit allowlist of rendered
-// surfaces that MAY name a hidden feature: a topical (kind: design)
-// skill body. Topical bodies are served whole and unrendered on a
-// profiled instance — the deliberate exemption until U10 renders them;
-// E4-S3 deletes this function together with flipping
-// TestSkillsCoverProfileGet's topical switch
-// (.claude/reference/feature-profiles.md, "Served-body exemptions").
-// Their NAMES are still listed and their reads still pass through the
-// prune; only the body is exempt.
-// Nothing else is exempt.
-func invisibilityExemptSkill(name string) bool {
-	for _, m := range skills.List() {
-		if m.Name == name {
-			return m.Kind == "design"
-		}
-	}
-	return false
-}
-
 // toolPayload decodes the text content of a successful tool result.
 func toolPayload(t *testing.T, outcome []byte, into any) {
 	t.Helper()
@@ -438,9 +391,6 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 	rendered["read pulse://schema"] = sess.ReadResource("pulse://schema")
 	rendered["read pulse://"+h.cohort] = sess.ReadResource("pulse://" + h.cohort)
 	for _, uri := range uris {
-		if name, ok := strings.CutPrefix(uri, "pulse-skill://"); ok && invisibilityExemptSkill(name) {
-			continue
-		}
 		rendered["read "+uri] = sess.ReadResource(uri)
 	}
 
@@ -449,9 +399,6 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 	exampleNames := listedExamples(t, sess)
 	rendered["pulse_skills_list"] = sess.CallTool("pulse_skills_list", map[string]any{})
 	for _, s := range skillNames {
-		if invisibilityExemptSkill(s) {
-			continue
-		}
 		rendered["pulse_skills_get "+s] = sess.CallTool("pulse_skills_get", map[string]any{"name": s})
 	}
 	rendered["pulse_examples_search"] = sess.CallTool("pulse_examples_search", map[string]any{})
@@ -475,10 +422,6 @@ func checkMCPSurfaces(t *testing.T, h *parityHost, sess, full *MCPParitySession)
 	sort.Strings(keys)
 	for _, k := range keys {
 		if leaked := hidden.leaks(string(rendered[k])); len(leaked) > 0 {
-			if atomicSkillBodyKey(k) && !atomicBodiesNameHiddenFail {
-				t.Logf("report-only: %s names hidden %v", k, leaked)
-				continue
-			}
 			t.Errorf("%s names hidden %v", k, leaked)
 		}
 	}
