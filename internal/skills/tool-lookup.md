@@ -8,7 +8,7 @@ applies_to: mcp
 
 ## When to use
 
-O(1) row addressing by exact key, not a scan — requires a sidecar index already built (`pulse index build` / `Service.BuildIndex`); this tool never builds one. Prefer `pulse_process` / `pulse_sample` for non-exact-key work.
+O(1) row addressing by exact key, not a scan — requires a sidecar index already built (`pulse index build` / `Service.BuildIndex`); this tool never builds one. Non-exact-key work needs a scan, not this tool.
 
 ## Input
 

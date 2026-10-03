@@ -9,7 +9,7 @@ applies_to: compose
 examples_tags: [overlay, compose, hypothesis-test, welch, byte-equal-test]
 ---
 
-Compose-only parity overlay. Series-shape sibling of `OVERLAY_T_CELL`. Overlays decorate the host; no `Response.Components`.
+Compose-only parity overlay. Series-shape sibling of the cell t overlay. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
@@ -25,7 +25,7 @@ SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_WELCH` on the same inputs — shares `studentTTwoSidedP` + the df recurrence with `TEST_T` / `OVERLAY_T_CELL`.
+- **Byte-equal** to Welch's t-test on the same inputs — shares `studentTTwoSidedP` + the df recurrence with it and the cell t overlay.
 - Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
 - Unlike the streamable SERIES arm of INDEX/DELTA_VS_REF: inferential, buffered by policy.
 

@@ -8,7 +8,7 @@ applies_to: sample, mcp
 
 ## When to use
 
-Diagnostic / preview tool. After running a request when you want to inspect the underlying data, or before authoring a filter when you need to see typical row shapes. NOT a query interface — use `pulse_process` for selection / aggregation.
+Diagnostic / preview tool. After running a request when you want to inspect the underlying data, or before authoring a filter when you need to see typical row shapes. NOT a query interface: selection and aggregation belong to request execution.
 
 ## Input
 
@@ -21,7 +21,7 @@ Diagnostic / preview tool. After running a request when you want to inspect the 
 
 ## Gotchas
 
-- Reads from the head of the cohort — NOT random sampling. For randomized sampling use a `pulse_process` request with a sampling filter.
+- Reads from the head of the cohort — NOT random sampling. For randomized sampling run a request with a sampling filter.
 - Shard archives: `path` may be either the archive or `archive.pulse#shard.pulse` anchor. Sample reads from the resolved cohort's first records.
 - `count <= 0` or non-numeric returns the default 10.
 

@@ -20,8 +20,8 @@ and a glossary of the statistical terms involved. The metadata is
 
 An **intent** is a kind of question a non-statistician would recognise,
 such as "compare groups", "relationship between measures" or "change
-over time". The taxonomy is closed and is the same on every instance. A
-feature profile never prunes it.
+over time". The taxonomy is closed, and `pulse.Intents()` returns all of
+it on every instance.
 
 ```go
 for _, in := range pulse.Intents() {
@@ -38,7 +38,9 @@ for example one `outcome` field plus one categorical `group` field for
 
 The manifest carries the intents compactly:
 
-- top-level `intents` is the sorted list of IDs only
+- top-level `intents` is the sorted list of IDs only. On an instance
+  with a feature profile it leaves out an intent that only hidden
+  operators serve; an intent no operator serves always stays
 - each operator, test, regression, distribution and overlay-kind entry
   carries `intents`, the IDs its guidance declares. The key is omitted
   when an entry declares none.
@@ -89,9 +91,17 @@ file behind them, `glossary` and `intents`. They work everywhere skills
 do:
 
 - `pulse skills show glossary` / `pulse skills show intents`
-- `pulse_skills_get` with `name: "glossary"` / `"intents"`
+- `pulse_skills_get` with `name: "glossary"` / `"intents"`, and
+  `p.Skill("glossary")` / `p.Skill("intents")` in Go
 - the resources `pulse-skill://glossary` and `pulse-skill://intents`
 - the manifest's `skills` list
+
+Both skills are listed on every instance. On an instance with a
+feature profile, the bodies leave out what the instance cannot use: an
+intent that only hidden operators serve, and a glossary term that only
+hidden operators cite. "See also" links to a removed term are dropped
+too. An intent no operator serves, and a term no operator cites, always
+stay.
 
 ## Guidance on your own operators
 

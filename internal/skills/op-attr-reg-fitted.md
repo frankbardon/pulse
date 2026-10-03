@@ -37,7 +37,6 @@ One `float64` per record — the model's prediction ŷᵢ. NaN-free over the fil
 - Two-pass: prepass refits independently per ATTR_REG_* slot (Option A — no fit sharing).
 - `Mergeable` per-shard; predict reports streamability.
 - Penalized fits (`l1`/`l2`/`elasticnet`) reuse the same machinery; mis-tuned `Alpha`/`L1Ratio` shrinks coefficients toward zero.
-- For residual yᵢ − ŷᵢ use `ATTR_REG_RESIDUAL`; for leverage use `ATTR_REG_LEVERAGE`.
 
 ## See
 

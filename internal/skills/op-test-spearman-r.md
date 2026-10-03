@@ -30,8 +30,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 - Buffered — mid-ranks each column under tie correction before running Pearson on the ranks.
 - Detects monotonic association; robust to outliers (rank transform).
 - Tier-2 variant `TEST_SPEARMAN_R/rank_pearson_post` runs over result columns.
-- Heavy ties degrade the asymptotic p-value; large tie fraction → switch to `TEST_KENDALL_TAU`.
-- Linear association preferred → `TEST_PEARSON_R` (parametric, streamable).
+- Heavy ties degrade the asymptotic p-value.
 
 ## See
 

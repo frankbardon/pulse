@@ -34,13 +34,12 @@ Universal floor `{n, n_null}` plus operator-specific:
 | `median` | float64 | Resolved median (linear interpolation) |
 
 - Mergeability: `None` — exact median needs full sort
-- Streaming: NOT streamable — use `AGG_AVERAGE` for a streaming proxy
+- Streaming: NOT streamable (buffered only).
 
 ## Gotchas
 
 - Buffered-only path: full input materialised before sort.
-- Outlier-robust unlike `AGG_AVERAGE`.
-- For arbitrary percentiles use `AGG_PERCENTILE`.
+- Outlier-robust, unlike the mean.
 
 ## See
 

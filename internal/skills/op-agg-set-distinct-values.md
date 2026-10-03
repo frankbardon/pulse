@@ -39,7 +39,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Treats each unique combination as atomic — `{Visa, Amex}` ≠ `{Visa}`.
-- For per-label cardinality use `AGG_SET_FREQUENCY` or `AGG_DISTINCT_COUNT`.
 - Components carry the union, NOT a list of distinct masks (mask space can be huge).
 
 ## See

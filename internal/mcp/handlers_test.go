@@ -22,6 +22,17 @@ import (
 
 // newImportTestPulse builds a Pulse over an in-memory fs seeded with a small
 // CSV so the import/drop/imports-list handlers have something to act on.
+// defaultPulse is a profile-free instance: the skill handlers read the
+// facade (p.Skills / p.Skill), so they need a real *pulse.Pulse.
+func defaultPulse(t *testing.T) *pulse.Pulse {
+	t.Helper()
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	return p
+}
+
 func newImportTestPulse(t *testing.T) (*pulse.Pulse, afero.Fs) {
 	t.Helper()
 	afs := afero.NewMemMapFs()
@@ -106,7 +117,7 @@ func TestHandleImportsList(t *testing.T) {
 }
 
 func TestHandleSkillsList(t *testing.T) {
-	out, err := HandleSkillsList(context.Background(), nil, SkillsListIn{})
+	out, err := HandleSkillsList(context.Background(), defaultPulse(t), SkillsListIn{})
 	if err != nil {
 		t.Fatalf("HandleSkillsList: %v", err)
 	}
@@ -133,7 +144,7 @@ func TestHandleSkillsGet_BodyIsMarkdown(t *testing.T) {
 		t.Fatal("skills.List() returned 0 entries")
 	}
 	for _, meta := range list {
-		out, err := HandleSkillsGet(context.Background(), nil, SkillsGetIn{Name: meta.Name})
+		out, err := HandleSkillsGet(context.Background(), defaultPulse(t), SkillsGetIn{Name: meta.Name})
 		if err != nil {
 			t.Fatalf("HandleSkillsGet(%q): %v", meta.Name, err)
 		}
@@ -145,7 +156,7 @@ func TestHandleSkillsGet_BodyIsMarkdown(t *testing.T) {
 
 func TestHandleSkillsGet_Missing(t *testing.T) {
 	for _, name := range []string{"", "definitely-not-a-real-skill"} {
-		if _, err := HandleSkillsGet(context.Background(), nil, SkillsGetIn{Name: name}); err == nil {
+		if _, err := HandleSkillsGet(context.Background(), defaultPulse(t), SkillsGetIn{Name: name}); err == nil {
 			t.Errorf("expected error for skill name %q", name)
 		}
 	}
@@ -643,7 +654,7 @@ func TestHandleInspect_ReportsParentGroups(t *testing.T) {
 // and intents virtual skills and pulse_skills_get serves their rendered
 // bodies.
 func TestHandleSkills_GuidanceSkills(t *testing.T) {
-	out, err := HandleSkillsList(context.Background(), nil, SkillsListIn{})
+	out, err := HandleSkillsList(context.Background(), defaultPulse(t), SkillsListIn{})
 	if err != nil {
 		t.Fatalf("HandleSkillsList: %v", err)
 	}
@@ -652,7 +663,7 @@ func TestHandleSkills_GuidanceSkills(t *testing.T) {
 			t.Errorf("pulse_skills_list lacks %s", name)
 		}
 		want, _ := skills.Get(name)
-		got, err := HandleSkillsGet(context.Background(), nil, SkillsGetIn{Name: name})
+		got, err := HandleSkillsGet(context.Background(), defaultPulse(t), SkillsGetIn{Name: name})
 		if err != nil || got.Body != want || want == "" {
 			t.Errorf("pulse_skills_get %s: err=%v, body differs", name, err)
 		}

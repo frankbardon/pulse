@@ -169,18 +169,19 @@ func HandleManifest(ctx context.Context, p *pulse.Pulse, _ ManifestIn) (Manifest
 }
 
 // HandleSkillsList runs pulse_skills_list: the embedded skill-pack index
-// as the instance sees it (its Discovery prune).
+// as the instance sees it — the facade's p.Skills().
 func HandleSkillsList(_ context.Context, p *pulse.Pulse, _ SkillsListIn) (SkillsListOut, error) {
-	return SkillsListOut{Skills: instanceOf(p).Discovery().Skills()}, nil
+	return SkillsListOut{Skills: p.Skills()}, nil
 }
 
 // HandleSkillsGet runs pulse_skills_get: the markdown body of one skill.
-// A skill the instance prunes is "not found" exactly as a nonexistent one.
+// It reads the facade's p.Skill: a skill the instance prunes is "not
+// found" exactly as a nonexistent one.
 func HandleSkillsGet(_ context.Context, p *pulse.Pulse, in SkillsGetIn) (SkillsGetOut, error) {
 	if in.Name == "" {
 		return SkillsGetOut{}, errMissingArg("name")
 	}
-	body, ok := instanceOf(p).Discovery().Skill(in.Name)
+	body, ok := p.Skill(in.Name)
 	if !ok {
 		return SkillsGetOut{}, errors.New("skill " + strconvQuote(in.Name) + " not found")
 	}

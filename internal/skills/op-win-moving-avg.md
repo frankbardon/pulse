@@ -27,7 +27,7 @@ One `float64` per row written to `Label` (default `WIN_MOVING_AVG_<field>`). Mea
 
 ## Gotchas
 
-- Unbounded frame on either end is REJECTED at predict — use `WIN_RUNNING_AVG` for unbounded preceding.
+- Unbounded frame on either end is REJECTED at predict.
 - Trailing 7-row window: `frame: {mode: "rows", preceding: 6, following: 0}`.
 - Nulls skipped (not zero-filled); denominator is non-null count.
 - Result rows are NOT reordered — use `Request.Sort`.

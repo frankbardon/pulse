@@ -30,7 +30,7 @@ One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) =
 - Inputs with `x <= -1` (where `1 + x <= 0`) produce a `null`, not an error — the rest of the cohort keeps going.
 - Null inputs propagate to null outputs.
 - Streamable per-row — pairs cleanly with online aggregators downstream.
-- Pre-filter slot: a `FILTER_RANGE` on the log column references `LOG_<field>` (default label).
+- Pre-filter slot: a range filter on the log column references `LOG_<field>` (default label).
 
 ## See
 

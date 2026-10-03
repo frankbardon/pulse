@@ -41,8 +41,8 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 ## Gotchas
 
-- Sample variance (`n-1`), not population — differs from `AGG_VARIANCE`.
-- Rich triple is the source of truth for `OVERLAY_T_CELL` / `OVERLAY_Z_CELL` via `Components.Crosstab.CellComponents`.
+- Sample variance (`n-1`), not population (`n`).
+- The rich triple is what cell-level t / z overlays read, via `Components.Crosstab.CellComponents`.
 - Margin reducibility = recompute, not pool by addition.
 
 ## See

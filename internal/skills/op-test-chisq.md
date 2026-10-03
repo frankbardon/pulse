@@ -27,10 +27,10 @@ Slot params: `Rows` (required, categorical), `Cols` (required, categorical). `Fi
 
 ## Gotchas
 
-- Any expected cell `< 5` emits `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` — switch to `TEST_FISHER_EXACT` (2×2 only).
+- Any expected cell `< 5` emits `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`.
 - Streamable — builds the contingency table during the row scan.
-- Sparse high-cardinality axes blow memory; `FILTER_INCLUDE` them.
-- Pairs with `Response.Crosstab`; `OVERLAY_CHISQ_VS_POP` is the FACET-host equivalent.
+- Sparse high-cardinality axes blow memory; filter them first.
+- Pairs with `Response.Crosstab`<!-- feature: OVERLAY_CHISQ_VS_POP -->; `OVERLAY_CHISQ_VS_POP` is the FACET-host equivalent<!-- /feature -->.
 
 ## See
 

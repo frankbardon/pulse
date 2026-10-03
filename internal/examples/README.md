@@ -77,6 +77,38 @@ bin/pulse api predict --request internal/examples/features/01_log_transform.json
 bin/pulse api process --request internal/examples/features/01_log_transform.json --json
 ```
 
+## The `_meta` block
+
+Every example JSON carries a top-level `_meta` object; it is stripped
+before the body is served or run (`examples.Get`), and request decoding
+ignores it.
+
+| Key | Required | Meaning |
+|---|---|---|
+| `name` | yes | unique example ID (`pulse_examples_get name=...`) |
+| `category` | yes | must equal the parent directory |
+| `description` | yes | one-sentence summary served by search |
+| `tags` | yes | drawn from `CanonicalTags` |
+| `operators` | yes (may be `[]`) | exactly the `"type": "AGG_/ATTR_/FILTER_/GROUP_/WIN_/FEAT_/TEST_/REG_..."` values in the body (`TestExamples_OperatorsMatchBody`); overlay kinds ride `overlays[].kind` instead |
+| `intents` | expected | intent-taxonomy IDs (`TestExamples_IntentsFromTaxonomy`) |
+| `capabilities` | optional | non-operator feature names in feature-profile spelling (`capability:stream`), for capabilities the body carries no structural signal for |
+
+`capabilities` exists so an example is joined to every capability it
+needs by an explicit edge in the discovery graph rather than by a scan of
+its prose. The graph builder (`internal/descriptor/ontology_examples.go`)
+already DETECTS `capability:crosstab` (a `crosstab` key), `capability:compose`
+(a root `requests`), `capability:process_chain` (a root `stages`),
+`capability:joins` (a `joins` key) and `capability:facet` (category or tag
+`facet`) from the body, plus every `overlays[].kind`; declare the rest —
+`capability:stream`, `watch`, `shard`, `index`, `sample`, `labels`,
+`range_tables`, `filter_to_file` — in `capabilities`. An example with an
+empty `operators` list must declare at least one capability. Gates
+(`internal/descriptor`): `TestExamples_CapabilitiesFromFeatures` (every
+value is a known non-operator feature), `TestExamples_EdgeCoverage` (every
+operator a body or description names is an edge; a declared capability
+never contradicts its detector), and
+`TestExamples_EmptyOperatorExamplesDeclareCapabilities`.
+
 ## Adding a new example category
 
 1. Pick a category name (e.g. `windows`, `aggregation`, `attributes`).

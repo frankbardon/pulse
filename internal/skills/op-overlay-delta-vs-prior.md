@@ -23,9 +23,9 @@ SERIES — ordered grouped Process host. Family: windowed prior (`Ref.Prior`).
 
 SERIES — one `SeriesEntry` per host group key in host order, carrying `delta = point − prior` on `Summary.Statistic`, in the metric's own units. Layer `Baseline = 0`.
 
-## Choosing between this and `OVERLAY_INDEX_VS_PRIOR`
+## Choosing between this and the index twin
 
-Absolute-difference twin of `OVERLAY_INDEX_VS_PRIOR`, standing to it as `OVERLAY_DELTA_VS_BASELINE` stands to `OVERLAY_INDEX_VS_BASELINE`. Same host, same ref arm, same carrier — subtraction instead of division.
+Absolute-difference twin of the prior-period index, as the baseline delta is to the baseline index. Same host, same ref arm, same carrier — subtraction instead of division.
 
 Pick this one for "how much did it change"; pick the index for "what proportion of the prior is this". An index of `101.6` and a delta of `+1.5` answer different questions and are not interchangeable in a report.
 

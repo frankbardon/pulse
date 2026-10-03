@@ -1,6 +1,6 @@
 ---
 name: op-agg-null-count
-description: Count records where the field is null. Inverse of AGG_COUNT.
+description: Count records where the field is null. The inverse of a non-null count.
 kind: operator
 category: AGG
 operator: AGG_NULL_COUNT
@@ -32,7 +32,6 @@ Floor only — no operator-specific keys. Universal `{n, n_null}` per response-c
 
 ## Gotchas
 
-- Inverse of `AGG_COUNT`: `AGG_COUNT` counts non-null, this counts null.
 - Field must be nullable in the schema; non-nullable fields always return 0.
 - Set-typed empty mask is NOT a null — distinct from missing.
 

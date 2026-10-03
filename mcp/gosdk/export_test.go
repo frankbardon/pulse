@@ -17,7 +17,7 @@ func (c Config) Core() core.Config { return c.coreConfig() }
 // template's handler for p's instance — the path an exact resource
 // shadows in a live session.
 func ReadSkillViaTemplate(p *pulse.Pulse, uri string) (string, error) {
-	res, err := skillReaderFor(instanceOf(p))(context.Background(), &mcpsdk.ReadResourceRequest{Params: &mcpsdk.ReadResourceParams{URI: uri}})
+	res, err := skillReaderFor(p)(context.Background(), &mcpsdk.ReadResourceRequest{Params: &mcpsdk.ReadResourceParams{URI: uri}})
 	if err != nil {
 		return "", err
 	}

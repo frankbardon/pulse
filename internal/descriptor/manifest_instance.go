@@ -150,8 +150,9 @@ func hiddenProseNames(inst *InstanceSnapshot) map[string]struct{} {
 }
 
 // manifestScrubSkip names the top-level Manifest fields the prose scrub
-// leaves untouched: skills and examples are U10's, the error lists are
-// filtered by their own rule.
+// leaves untouched: skills and examples are rendered by the instance's
+// Discovery (visibleSkills, ExampleStats), the error lists are filtered
+// by their own rule.
 var manifestScrubSkip = map[string]bool{
 	"Skills":            true,
 	"ExamplesCount":     true,
@@ -160,7 +161,8 @@ var manifestScrubSkip = map[string]bool{
 	"ErrorCodesCount":   true,
 	"ErrorDomains":      true,
 	"ErrorCodes":        true,
-	// The intent taxonomy is static and names no operator.
+	// Intent IDs name no operator; the instance ontology prunes them
+	// (instanceIntentIDs).
 	"Intents": true,
 }
 

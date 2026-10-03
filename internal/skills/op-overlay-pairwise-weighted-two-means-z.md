@@ -9,7 +9,7 @@ applies_to: process, compose
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 
-Weighted sibling of `OVERLAY_PAIRWISE_TWO_MEANS_Z`: pairs rows (`row` scope) or columns (`column`) of one crosstab on weighted means. Reads `Response.Components`.
+Weighted sibling of the pairwise two-means z: pairs rows (`row` scope) or columns (`column`) of one crosstab on weighted means. Reads `Response.Components`.
 
 ## Params
 

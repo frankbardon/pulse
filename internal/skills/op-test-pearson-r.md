@@ -26,10 +26,10 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Gotchas
 
 - Streamable — extended Welford recurrence tracks the running cross-product alongside per-field moments.
-- Linear-only sensitivity; for monotonic but non-linear use `TEST_SPEARMAN_R`.
+- Linear-only sensitivity.
 - Tier-1 (raw rows) vs tier-2 (`TEST_PEARSON_R/pearson_post` over result columns) can disagree under Simpson's paradox — pick the variant deliberately.
 - Constant Field or Field2 → `PULSE_TEST_VARIANCE_ZERO`.
-- Outliers dominate r; pre-clip with `FILTER_RANGE` or switch to rank-based correlation.
+- Outliers dominate r; pre-clip them or switch to a rank-based correlation.
 
 ## See
 

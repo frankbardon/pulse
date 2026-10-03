@@ -31,7 +31,7 @@ FIVE columns prefixed by `Label` (default the field name):
 | `<prefix>_dow` | f64 | `0..6` — `time.Weekday`, `0` = Sunday |
 | `<prefix>_quarter` | f64 | `1..4` |
 
-Epoch days decoded as UTC (mirrors `ATTR_DATE_PART`).
+Epoch days decoded as UTC.
 
 ## Gotchas
 

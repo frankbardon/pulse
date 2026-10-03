@@ -23,6 +23,7 @@ import (
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/service"
+	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/internal/template"
 	"github.com/frankbardon/pulse/internal/temporal"
 	pio "github.com/frankbardon/pulse/io"
@@ -164,6 +165,9 @@ type (
 	// ExampleSummary is the lightweight projection returned by
 	// ExamplesSearch.
 	ExampleSummary = examples.ExampleSummary
+	// SkillMetadata is one skill-pack entry as Skills lists it — name,
+	// description, kind and the frontmatter cross-references.
+	SkillMetadata = skills.Metadata
 
 	// ErrorMetadata is the depth-on-demand projection returned by
 	// ErrorLookup, ErrorsByDomain, and ErrorsSearch. Carries the code,

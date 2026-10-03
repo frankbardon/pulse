@@ -1,6 +1,6 @@
 ---
 name: op-feat-poly
-description: Per-row polynomial expansion x^2..x^Degree of a numeric field; pair with REG_OLS for polynomial regression.
+description: Per-row polynomial expansion x^2..x^Degree of a numeric field — the basis for a polynomial regression.
 kind: operator
 category: FEAT
 operator: FEAT_POLY
@@ -21,7 +21,7 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Output
 
-`Degree - 1` columns `<prefix>_<k>` for `k = 2..Degree`, `prefix` default `<field>_poly` (override via `Label`). Each holds `x^k` by iterative multiplication (`power *= v`). The ORIGINAL column is untouched, so `REG_OLS` over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
+`Degree - 1` columns `<prefix>_<k>` for `k = 2..Degree`, `prefix` default `<field>_poly` (override via `Label`). Each holds `x^k` by iterative multiplication (`power *= v`). The ORIGINAL column is untouched, so a linear regression over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
 
 ## Gotchas
 

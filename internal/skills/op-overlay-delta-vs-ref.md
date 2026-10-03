@@ -17,7 +17,7 @@ Compose-only dual-shape. Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + target. Schema-match, key-alignment and dict-prefix gates run at the slot barrier. Subtractive twin of `OVERLAY_INDEX_VS_REF`.
+COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + target. Schema-match, key-alignment and dict-prefix gates run at the slot barrier. Subtractive twin of the reference index.
 
 ## Output
 

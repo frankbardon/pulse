@@ -29,7 +29,7 @@ Shape matches host; each evaluation yields one `float64`. Layer `Baseline` unset
 
 ## Gotchas
 
-- Compile-once / run-many via `expr.Compile`, as `ATTR_FORMULA`.
+- Compile-once / run-many via `expr.Compile`.
 - Predict-time AST walk validates identifiers; unknown → `PULSE_OVERLAY_FORMULA_INVALID_IDENT` + allowed set.
 - Parse error → `PULSE_OVERLAY_FORMULA_PARSE_ERROR`; non-coercible result → `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`.
 - Embedder `ExprFunctions` widen the function surface; variables are fixed per host shape (widen via a custom `OverlayKinds` entry). `lookup(...)` is NOT in the v1 env.

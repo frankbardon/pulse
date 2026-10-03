@@ -323,7 +323,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		Extensions:         extensionsManifestFromSnapshot(snap),
 		Overlays:           withOverlayIntents(filterOverlays(OverlayCapabilities(), on)),
 		ComponentsSchemas:  componentsSchemasBlock(aggs, grps, filts, snap),
-		Intents:            IntentIDs(),
+		Intents:            instanceIntentIDs(inst),
 	}
 	if !on(featSynth) {
 		m.SynthDistributions = []descriptor.DistributionMeta{}
@@ -396,16 +396,38 @@ var (
 )
 
 // visibleSkills is sortedSkills minus the instance's pruned skills
-// (Discovery); with nothing pruned it is sortedSkills itself.
+// (Discovery), each survivor's description rendered through the same
+// renderMetadata pass pulse_skills_list uses, so a listed description
+// names no hidden operator or tool. Survivors are copies — the cached
+// sortedSkills slice is never written. With nothing pruned and nothing
+// to scrub it is sortedSkills itself.
 func visibleSkills(d *Discovery) []descriptor.SkillMeta {
 	all := sortedSkills()
-	if len(d.hiddenSkills) == 0 {
+	if len(d.hiddenSkills) == 0 && !d.scrub.Active() {
 		return all
 	}
 	out := make([]descriptor.SkillMeta, 0, len(all))
 	for _, s := range all {
-		if d.SkillVisible(s.Name) {
-			out = append(out, s)
+		if !d.SkillVisible(s.Name) {
+			continue
+		}
+		r := d.renderMetadata(skills.Metadata{Name: s.Name, Description: s.Description})
+		out = append(out, descriptor.SkillMeta{Name: s.Name, Description: r.Description})
+	}
+	return out
+}
+
+// instanceIntentIDs is IntentIDs minus the intents the instance
+// ontology pruned (an intent every serving operator of which is hidden;
+// an intent no operator serves always stays). Unscoped, it is the full
+// taxonomy.
+func instanceIntentIDs(inst *InstanceSnapshot) []string {
+	all := IntentIDs()
+	g := inst.Ontology()
+	out := all[:0]
+	for _, id := range all {
+		if g.Has(OntologyID(descriptor.OntologyNodeIntent, id)) {
+			out = append(out, id)
 		}
 	}
 	return out

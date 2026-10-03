@@ -345,7 +345,45 @@ mentions an operator the profile hides. An example is left out of
 when it uses a hidden operator or overlay kind, or needs a hidden
 `facet`, `crosstab`, `joins` or `compose` capability. Asking for a
 hidden skill or example by name fails exactly like asking for one that
-does not exist.
+does not exist. A visible skill's listed description drops each
+sentence that names a hidden operator or tool, in `pulse_skills_list`
+and the manifest alike, and the manifest's top-level `intents` list
+leaves out an intent when every operator that serves it is hidden (an
+intent no operator serves, such as `lookup`, always stays).
+
+Embedders building their own discovery UI read the same instance view
+through three facade methods. Like every facade method they are
+callable on any instance; only what they return follows the profile.
+
+```go
+g := p.Ontology()   // descriptor.Ontology: nodes + typed edges, no prose
+for _, n := range g.Nodes {
+    if n.Kind == descriptor.OntologyNodeSkill {
+        body, ok := p.Skill(n.Name) // markdown body as MCP serves it
+        _, _ = body, ok
+    }
+}
+list := p.Skills() // []pulse.SkillMetadata, as pulse_skills_list returns it
+```
+
+- `p.Ontology()` returns the instance's skill ontology: intents,
+  operators, skills, examples, glossary terms, capabilities, MCP tools
+  and named tables, joined by typed edges (`serves_intent`,
+  `documented_by`, `exemplified_by`, `not_for`, `uses_term`,
+  `routes_to`, `requires_capability`). It is always the pruned view —
+  every node for a hidden feature, and every skill, example, intent or
+  term left with nothing to describe, is absent with its edges. Each
+  call returns a fresh copy you may modify.
+- `p.Skills()` lists the skills the instance serves, with the same
+  rendered metadata as `pulse_skills_list` and the `pulse-skill://`
+  resource list.
+- `p.Skill(name)` returns the body `pulse_skills_get` and a
+  `pulse-skill://<name>` read return, or `("", false)` for a hidden or
+  unknown name.
+
+Bodies of examples come from `p.ExamplesSearch` and `p.ExampleGet`, and
+glossary text from `pulse.Glossary()`. On an instance with no profile all
+three return the full skill pack and graph.
 
 Embedders serving MCP themselves use `mcpserve.NewPulse`:
 

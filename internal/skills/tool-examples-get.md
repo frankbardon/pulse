@@ -8,11 +8,11 @@ applies_to: mcp
 
 ## When to use
 
-After `pulse_examples_search` identifies a matching template. Returns the full record including a runnable `body` with the `_meta` annotation block already stripped — hand it straight to `pulse_predict` or `pulse_process` after renaming fields for the target cohort.
+After `pulse_examples_search` identifies a matching template. Returns the full record including a runnable `body` with the `_meta` annotation block already stripped — hand it straight to `pulse_predict`<!-- feature: capability:process --> or `pulse_process`<!-- /feature --> after renaming fields for the target cohort.
 
 ## Input
 
-- `name` (string, required): example name from the `_meta.name` field (e.g. `t_test_one_sample`, `ols_simple`).
+- `name` (string, required): example name from the `_meta.name` field<!-- feature: AGG_AVERAGE, AGG_COUNT, TEST_T --> (e.g. `t_test_one_sample`)<!-- /feature -->.
 
 ## Output
 
@@ -21,7 +21,7 @@ After `pulse_examples_search` identifies a matching template. Returns the full r
 ## Gotchas
 
 - `body` is `types.Request` — for `ComposedRequest` / `ChainRequest` / `FacetRequest` examples the library category encodes the target endpoint; the body is still a single-shape JSON, not a tagged union.
-- Field names in the body match the example's seed cohort. Rename them for your target cohort before calling `pulse_process` / `pulse_predict`.
+- Field names in the body match the example's seed cohort. Rename them for your target cohort before calling `pulse_predict`<!-- feature: capability:process --> / `pulse_process`<!-- /feature -->.
 - The `_meta` block is stripped on emit so the body is directly runnable; the surrounding record carries the same metadata externally.
 
 ## See

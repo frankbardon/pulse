@@ -38,7 +38,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Null rows skipped; `n_null` counts them.
 - All-null cohort → emits NaN.
-- Pair with `AGG_MIN` for a manual spread, or use `AGG_RANGE` for the diff.
 
 ## See
 

@@ -25,7 +25,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors host Ro
 
 ## Gotchas
 
-- 2×2 contingency: `[cell, row_margin-cell; col_margin-cell, grand-row_margin-col_margin+cell]`. Reuses `logHypergeometric` — byte-equal to `TEST_FISHER_EXACT` on the same 2×2.
+- 2×2 contingency: `[cell, row_margin-cell; col_margin-cell, grand-row_margin-col_margin+cell]`. Reuses `logHypergeometric` — byte-equal to the Fisher exact test on the same 2×2.
 - Cochran rule: any of four expected counts `< 1` OR `>= 20%` of expected `< 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending cell. Advisory only — Fisher stays exact.
 - `grand_total <= 0` → absent cells everywhere + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.

@@ -33,7 +33,7 @@ Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}
 
 - `Field` is required; empty → `PROCESSING_CONFIG`.
 - Reads the bitmap only — the underlying type's sentinel value (e.g. `NaN`, empty `set_*`) is NOT treated as null.
-- For "non-null AND in set" chain `FILTER_NULL` (`is_not_null`) before `FILTER_INCLUDE`.
+- For "non-null AND in a set", put this filter (`is_not_null`) before the value filter.
 
 ## See
 

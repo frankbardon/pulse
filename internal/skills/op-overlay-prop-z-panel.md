@@ -30,7 +30,7 @@ An explicit depth SUMS across rows, so they must partition the key set. A fan-ou
 
 ## Admission (distinct mode)
 
-`row_margin_distinct_within` is admitted UP FRONT, per slot, on the cell aggregator's EXACT identity signature — `AGG_DISTINCT_SUM` (`distinct_count`) and `AGG_DISTINCT_COUNT` (`cardinality`) only. `AGG_MODE_COUNT` / `AGG_MODE` also emit a key spelled `distinct_count`, but theirs counts distinct answer CODES, so presence is never the test. Anything else ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator + admitted set + `panel_index`/`slot_index`/`slot_label`. RUNTIME only — predict cannot see materialised components.
+`row_margin_distinct_within` is admitted UP FRONT, per slot, on the cell aggregator's EXACT identity signature — the sum-of-distinct aggregator (`distinct_count`) and the distinct count (`cardinality`) only. The modal aggregators also emit a key spelled `distinct_count`, but theirs counts distinct answer CODES, so presence is never the test. Anything else ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` naming the observed aggregator + admitted set + `panel_index`/`slot_index`/`slot_label`. RUNTIME only — predict cannot see materialised components.
 
 Two WHOLESALE refusals, never a per-slot drop (dropping changes `M`): one unadmitted slot, AND slots that are each admitted but name DIFFERENT aggregators — keys-that-summed vs distinct non-null values are not the same UNIT, and a pair's two legs must never be counted in different units.
 
@@ -44,7 +44,7 @@ MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-ma
 
 ## Gotchas
 
-- Pairs byte-equal `OVERLAY_PROP_Z_CELL` (shared `twoProportionZ`).
+- Pairs byte-equal the cell proportion z (shared `twoProportionZ`).
 - Degenerate `(n == 0, pooled ∈ {0,1}, se == 0)` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
 - Absent value → nil slice + `REF_ZERO` `ref_missing`; an unreadable counted n adds `n_missing` + `slot_index`.
 - An unemitted distinct MARGIN is not a zero-sized one: the coordinate skips (`n_missing`) rather than testing against 0.

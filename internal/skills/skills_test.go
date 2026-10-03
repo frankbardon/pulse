@@ -249,3 +249,26 @@ func TestSkillsGet_AllSkills(t *testing.T) {
 		}
 	}
 }
+
+// TestParseMetadata_Requires: the topical `requires:` key parses into
+// Metadata.Requires in both list forms, keeping a kind-prefixed feature
+// spelling whole (the frontmatter splits on the FIRST colon only).
+func TestParseMetadata_Requires(t *testing.T) {
+	for _, raw := range []string{
+		"---\nname: x\nkind: design\nrequires: [capability:crosstab, TEST_WELCH]\n---\nbody\n",
+		"---\nname: x\nkind: design\nrequires: capability:crosstab, TEST_WELCH\n---\nbody\n",
+	} {
+		md, ok := parseMetadata(raw)
+		if !ok {
+			t.Fatalf("parseMetadata(%q) not ok", raw)
+		}
+		want := []string{"capability:crosstab", "TEST_WELCH"}
+		if !slices.Equal(md.Requires, want) {
+			t.Errorf("Requires = %q, want %q", md.Requires, want)
+		}
+	}
+	md, _ := parseMetadata("---\nname: x\n---\n")
+	if md.Requires != nil {
+		t.Errorf("absent requires: got %q, want nil", md.Requires)
+	}
+}

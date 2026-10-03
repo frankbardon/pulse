@@ -29,6 +29,11 @@ type Metadata struct {
 	Covers []string `json:"covers,omitempty"`
 	// ExamplesTags lists the runnable-example tags referenced by a "## See" section in an atomic skill.
 	ExamplesTags []string `json:"examples_tags,omitempty"`
+	// Requires lists the features (feature-profile spelling: operators
+	// bare, others `<kind>:<name>`) a topical skill needs; a feature
+	// profile hiding ANY of them prunes the skill. Each name must be a
+	// built-in feature (gated in internal/descriptor).
+	Requires []string `json:"requires,omitempty"`
 }
 
 // List walks the embedded content for *.md files, parses their YAML
@@ -77,16 +82,23 @@ func List() []Metadata {
 	return out
 }
 
-// Get returns the markdown content for the named skill — an embedded
-// file, or a registered virtual skill's rendered body.
-// The name should not include the .md extension.
+// Get returns the FULL-INSTANCE render of the named skill — an embedded
+// file with every feature fence kept and every fence marker stripped
+// (RenderFences with keep == nil; fence.go), or a registered virtual
+// skill's rendered body. Raw serves the embedded bytes verbatim. A body
+// whose fences do not parse is returned raw — unreachable for the
+// embedded pack, which TestSkillFences_EmbeddedPackParses keeps well
+// formed. The name should not include the .md extension.
 // Returns the content and true if found, or empty string and false otherwise.
 func Get(name string) (string, bool) {
-	data, err := fs.ReadFile(content, name+".md")
-	if err != nil {
-		return virtualBody(name)
+	raw, ok := Raw(name)
+	if !ok {
+		return "", false
 	}
-	return string(data), true
+	if out, err := RenderFences(raw, nil); err == nil {
+		return out, true
+	}
+	return raw, true
 }
 
 // Names returns the sorted list of skill names.
@@ -102,7 +114,7 @@ func Names() []string {
 // ParseFrontmatter extracts YAML frontmatter fields from markdown content.
 // It returns key-value pairs from the --- delimited header.
 //
-// List-valued fields (applies_to, covers, examples_tags) are stored under
+// List-valued fields (applies_to, covers, examples_tags, requires) are stored under
 // their key as the raw post-colon string — callers that need a parsed slice
 // should use parseList or go through Metadata via parseMetadata.
 func ParseFrontmatter(md string) map[string]string {
@@ -144,6 +156,7 @@ func parseMetadata(md string) (Metadata, bool) {
 		Operator:     fm["operator"],
 		Covers:       parseList(fm["covers"]),
 		ExamplesTags: parseList(fm["examples_tags"]),
+		Requires:     parseList(fm["requires"]),
 	}, true
 }
 

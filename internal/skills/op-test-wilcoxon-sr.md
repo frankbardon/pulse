@@ -29,10 +29,10 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 - Buffered — |d| ranked across the whole set.
 - Zero-diff pairs are dropped (Wilcoxon convention); reported in `Details.zero_diffs`.
-- Nonparametric alternative to `TEST_PAIRED_T` when d is non-normal.
+- Nonparametric alternative to a paired t-test when d is non-normal.
 - Asymptotic only; < 6 non-zero pairs is `PULSE_TEST_INSUFFICIENT_N`.
 - Tier-2 variant `asymptotic_post` runs over two result-row columns.
-- Pairing per-row, as `TEST_PAIRED_T`.
+- Pairing is per row: both values sit on one record.
 
 ## See
 

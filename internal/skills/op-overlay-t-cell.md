@@ -25,7 +25,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target; `Basel
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_WELCH` on the same inputs — both read `{n, mean, variance}` via Welford and share `studentTTwoSidedP`; df recurrence reused from `TEST_T`.
+- **Byte-equal** to Welch's t-test on the same inputs — both read `{n, mean, variance}` via Welford and share `studentTTwoSidedP` and the df recurrence.
 - Legacy `processing.WelfordTriple` smuggle REMOVED v0.20.0 — `MatrixCell.Value` carries the scalar mean.
 - Canonical pairing: `AGG_WELFORD` + `OVERLAY_T_CELL`. Buffered (inferential).
 

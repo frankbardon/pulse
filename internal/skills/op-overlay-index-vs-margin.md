@@ -17,7 +17,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Ratio sibling of `OVERLAY_DELTA_VS_MARGIN` + `OVERLAY_ZSCORE_VS_MARGIN`. Foundational kind establishing the share-margin pattern.
+MATRIX crosstab (`Response.Crosstab.Matrix`). Ratio sibling of the margin delta and the margin z-score. Foundational kind establishing the share-margin pattern.
 
 ## Output
 
@@ -26,7 +26,7 @@ MATRIX (cell scope) or SERIES (row/column scope). `Cells[r][c].Value = 100 × ce
 ## Gotchas
 
 - `margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected slice (not per cell).
-- All three axes supported. `Axis = grand` mirrors `OVERLAY_SHARE_OF_TOTAL × 100`.
+- All three axes supported. `Axis = grand` is the grand-total share × 100.
 - Empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Distinct from `OVERLAY_SHARE_OF_*` (raw ratio, no ×100). Kind names kept distinct — don't authoring-confuse.
 - Buffered (host crosstab always recomputes margins from raw rows).

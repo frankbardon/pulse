@@ -21,7 +21,7 @@ None.
 
 ## Output
 
-Scalar `float64` — the modal count, NOT a per-value map. Per group under a grouper; under `GROUP_CATEGORY` on the same field it equals each group's row count.
+Scalar `float64` — the modal count, NOT a per-value map. Per group under a grouper; grouped by category on the same field it equals each group's row count.
 
 ## Components
 
@@ -39,9 +39,8 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Smart default for categorical_* and packed_bool. Memory grows with distinct values.
-- Per-value tallies: `GROUP_CATEGORY` + `AGG_COUNT`. One value: `AGG_FREQUENCY`. The value itself: `AGG_MODE`.
 - Crosstab margin = modal count of the margin's own rows, never a sum of cells (class `independent`: fuses).
-- `set_*` → `PROCESSING_CONFIG`; use `AGG_SET_FREQUENCY`.
+- `set_*` → `PROCESSING_CONFIG`.
 
 ## See
 

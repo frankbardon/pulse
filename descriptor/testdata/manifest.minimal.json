@@ -698,7 +698,7 @@
       },
       {
         "name": "attribute-composition",
-        "description": "ATTR_* composition rules — slot ordering, two-pass attributes, ATTR_FORMULA expression environment, ATTR vs FEAT distinction. Topical design; per-ATTR detail lives in atomic op-attr-* skills."
+        "description": "Topical design; per-ATTR detail lives in atomic op-attr-* skills."
       },
       {
         "name": "cohort-schema-design",
@@ -774,7 +774,7 @@
       },
       {
         "name": "regression-modeling",
-        "description": "REG_* operator + modifier composition (`Resample`, `Selection`), `FEAT_POLY` upstream composition, how 13 textbook regression names map to 3 operators + 2 modifiers. Topical design; per-REG detail in atomic op-reg-* skills."
+        "description": "Topical design; per-REG detail in atomic op-reg-* skills."
       },
       {
         "name": "request-envelope",
@@ -1083,24 +1083,17 @@
       }
     },
     "intents": [
-      "benchmark",
-      "change_over_time",
       "compare_groups",
       "composition",
-      "data_quality",
       "describe",
       "distribution_shape",
-      "drivers",
       "flows",
       "lookup",
       "measure_construct",
-      "prepare",
-      "relationship",
-      "segment",
-      "simulate"
+      "segment"
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: ff233419e8aa1285651b3334893c751ced68fb7a9d94d295d48b710f54345f65
+// golden-hash: 342132990458a33a128845ddf75af2ff9715fc6e319c01908d6b0340f90a66a7

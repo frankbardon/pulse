@@ -27,11 +27,11 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 ## Gotchas
 
-- Buffered O(n²) pair enumeration — expensive on large n; cap with `FILTER_RANGE` or pre-sample.
-- Preferred over `TEST_SPEARMAN_R` for small samples and heavy ties (tau-b corrects for ties in either column).
+- Buffered O(n²) pair enumeration — expensive on large n; filter or pre-sample first.
+- Suits small samples and heavy ties (tau-b corrects for ties in either column).
 - Distribution-free; no normality assumption.
 - Tier-2 variant `TEST_KENDALL_TAU/tau_b_post` runs over result columns.
-- For high-cardinality numeric fields the O(n²) cost dominates — `TEST_SPEARMAN_R` is asymptotically cheaper.
+- For high-cardinality numeric fields the O(n²) cost dominates.
 
 ## See
 

@@ -31,7 +31,7 @@ One `u32`-coded `f64` column at `Label` (default `BUCKET_<field>`) holding the b
 - Neither OR both of `boundaries` / `quantiles` → `PROCESSING_CONFIG` at predict.
 - Quantile mode is GLOBAL-PASS — sweeps the cohort for N-1 cutpoints before emitting. Streaming still works (state survives `iter.Reset()`); file-backed iterators pay a second I/O. Explicit mode is PER-ROW, stateless.
 - Boundaries are EXCLUSIVE on the lower edge — a value on a cutpoint goes to the LOWER index (`SearchFloat64s`).
-- Null inputs emit a null bucket; `FILTER_RANGE` works on the integer code.
+- Null inputs emit a null bucket; a range filter works on the integer code.
 
 ## See
 

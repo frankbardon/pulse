@@ -38,7 +38,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - High-cardinality fields → memory growth proportional to distinct values.
 - Counts non-null only; nulls collapsed.
-- `set_*` rejected at build time with `PROCESSING_CONFIG`; for exact-mask distinct counts use `AGG_SET_DISTINCT_VALUES`.
+- `set_*` rejected at build time with `PROCESSING_CONFIG`.
 
 ## See
 

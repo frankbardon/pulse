@@ -30,10 +30,10 @@ One `float64` per record in `[0, 1]`. Null source → `0` (not null).
 
 - Two-pass: pre-pass tracks min/max across filter-passing rows; pass 2 emits per row.
 - Constant field (`max == min`) → `0` per row.
-- Outlier-sensitive — one extreme value compresses the rest of the range. For robust scaling prefer `ATTR_PERCENTILE` (rank-based) or `ATTR_ZSCORE` (centered).
+- Outlier-sensitive — one extreme value compresses the rest of the range.
 - `decimal128` rejected.
-- Frequently used as a feature input for downstream `ATTR_FORMULA` or external ML — but no in-slot chaining; stage via Compose / ProcessChain.
-- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise. Use `ATTR_SET_POPCOUNT` for set size or `ATTR_SET_HAS` for membership.
+- Frequently used as a feature input for a downstream formula or external ML — but no in-slot chaining; stage via Compose / ProcessChain.
+- `set_*` rejected at build time with `PROCESSING_CONFIG` — a bitmask has no value to standardise.
 
 ## See
 

@@ -22,7 +22,7 @@ Multi-field rollups, counts (not just distinct values), null tallies, numeric st
 
 - `numeric_percentiles` forces a buffered per-field sort — not streaming.
 - `additive_fields` strips that field's own filter clauses before counting — designed for UI panels that surface "what else could you add".
-- FACET-host overlays (`OVERLAY_INDEX_VS_POP`, `OVERLAY_ZSCORE_VS_POP`, `OVERLAY_CHISQ_VS_POP`, `OVERLAY_KS_VS_POP`) wire via `service.applyFacetOverlays` (FacetSchema-buffered-exit hook).
+- FACET-host overlays (the `*_VS_POP` kinds) wire via `service.applyFacetOverlays` (FacetSchema-buffered-exit hook).
 
 ## See
 

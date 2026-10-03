@@ -8,7 +8,7 @@ applies_to: mcp
 
 ## When to use
 
-User names a brand / category / region / etc. by display label — call this BEFORE authoring a `FILTER_INCLUDE` or `GROUP_CATEGORY` to get the raw key the filter / grouper expects. Labels are output-only; filter / group / sort keys operate on the raw categorical value.
+User names a brand / category / region / etc. by display label — call this BEFORE authoring a value filter or category grouper to get the raw key the filter / grouper expects. Labels are output-only; filter / group / sort keys operate on the raw categorical value.
 
 ## Input
 

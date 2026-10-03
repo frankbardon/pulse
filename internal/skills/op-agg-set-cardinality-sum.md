@@ -38,7 +38,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Counts label selections, not rows — `sum_cardinality ≥ n` for any non-empty masks.
 - Empty masks contribute 0 (and count toward `n`).
-- For per-row average use `AGG_SET_CARDINALITY_AVG`.
 
 ## See
 

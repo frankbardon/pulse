@@ -28,7 +28,7 @@ One `float64` per row written to `Label` (default `WIN_RUNNING_SUM_<field>`). Su
 ## Gotchas
 
 - Frame REQUIRED — `null` preceding = UNBOUNDED PRECEDING (full cumulative).
-- Bounded frames produce a windowed sum, not cumulative — pair with `WIN_MOVING_AVG` for windowed mean.
+- Bounded frames produce a windowed sum, not cumulative.
 - Nulls skipped (not zero-filled).
 - Result rows are NOT reordered — use `Request.Sort`.
 - Forces buffered execution (`Streamable=false`).

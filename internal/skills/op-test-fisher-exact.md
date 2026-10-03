@@ -25,8 +25,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Gotchas
 
-- Strictly 2×2 — other shapes → `PULSE_TEST_CONTINGENCY_DEGENERATE`. Use `TEST_CHISQ` for larger tables.
-- Canonical small-sample alternative to `TEST_CHISQ` when any expected cell `< 5`.
+- Strictly 2×2 — other shapes → `PULSE_TEST_CONTINGENCY_DEGENERATE`.
+- The canonical small-sample choice when any expected cell `< 5`.
 - Buffered — needs the full contingency table.
 - Two-sided p sums every table no more likely than observed; tools doubling one tail disagree slightly.
 - Effect size = odds ratio (not Cramér's V); take log for symmetry around 0.
