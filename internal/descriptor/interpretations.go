@@ -138,7 +138,7 @@ var (
 				"adjusted for sample size and the number of groups.",
 			Bands: conventionBands(ConventionCohenEta2), Convention: conventionCitation(ConventionCohenEta2),
 			Caveats: []string{
-				"Omega squared can come out slightly below zero when the groups barely differ; read that as no effect.",
+				"Omega squared can come out slightly below zero when the groups barely differ; read that as a negligible effect.",
 			},
 		},
 	}
