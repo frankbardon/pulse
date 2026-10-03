@@ -2,6 +2,10 @@
   "_meta": {
     "category": "filterers",
     "description": "Keep only customers in the north or south regions, then count survivors by region.",
+    "intents": [
+      "composition",
+      "segment"
+    ],
     "name": "filter_include_regions",
     "operators": [
       "AGG_COUNT",

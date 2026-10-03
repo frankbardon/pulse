@@ -2,6 +2,9 @@
   "_meta": {
     "category": "windows",
     "description": "Running mean of revenue across the partition under an unbounded-preceding to current-row frame.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "win_running_avg",
     "operators": [
       "WIN_RUNNING_AVG"

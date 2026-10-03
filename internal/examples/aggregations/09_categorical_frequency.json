@@ -2,6 +2,10 @@
   "_meta": {
     "category": "aggregations",
     "description": "Per city, how many customers share the most common region (AGG_FREQUENCY, a scalar modal count; its components add distinct_count, mode_value and mode_count) and which region that is (AGG_MODE). For a count per region, group by region and use AGG_COUNT instead.",
+    "intents": [
+      "composition",
+      "describe"
+    ],
     "name": "categorical_frequency",
     "operators": [
       "AGG_FREQUENCY",

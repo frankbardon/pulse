@@ -2,6 +2,10 @@
   "_meta": {
     "category": "aggregations",
     "description": "Exercise the set_* multi-select bitmask field type via every AGG_SET_* aggregator plus FILTER_SET_CONTAINS_ANY on a small credit-card-issuer survey cohort.",
+    "intents": [
+      "composition",
+      "describe"
+    ],
     "name": "set_card_issuers",
     "operators": [
       "AGG_SET_CARDINALITY_AVG",

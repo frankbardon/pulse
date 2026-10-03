@@ -2,6 +2,10 @@
   "_meta": {
     "category": "windows",
     "description": "Rank customers by income within each region with gap-on-ties semantics (1, 2, 2, 4, ...).",
+    "intents": [
+      "benchmark",
+      "compare_groups"
+    ],
     "name": "win_rank_in_region",
     "operators": [
       "WIN_RANK"

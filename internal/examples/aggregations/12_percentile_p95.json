@@ -2,6 +2,10 @@
   "_meta": {
     "category": "aggregations",
     "description": "Compute the 95th percentile of transactions.pulse amount and contrast it with AGG_AVERAGE and AGG_MAX to surface the tail vs mean gap. AGG_PERCENTILE accepts Params.percentile in 0..100; defaults to 50 (the median) when omitted. Non-mergeable buffered aggregator — needs the full value set.",
+    "intents": [
+      "distribution_shape",
+      "describe"
+    ],
     "name": "percentile_p95",
     "operators": [
       "AGG_AVERAGE",

@@ -2,6 +2,9 @@
   "_meta": {
     "category": "windows",
     "description": "Emit a 1-based row number after sorting by amount descending so callers can pluck the top N.",
+    "intents": [
+      "benchmark"
+    ],
     "name": "win_row_number",
     "operators": [
       "WIN_ROW_NUMBER"

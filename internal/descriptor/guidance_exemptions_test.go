@@ -61,18 +61,18 @@ var intentExampleExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent served by pulse_lookup; the example library holds request payloads, and a lookup is not one."},
 	{Key: IntentFlows, Owner: "U28", Why: "No flow operator exists to exemplify until U28 ships the matrix overlays."},
 	{Key: IntentMeasureConstruct, Owner: "U24", Why: "No construct-measurement operator exists to exemplify until U24 ships."},
-	{Key: IntentBenchmark, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentChangeOverTime, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentCompareGroups, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentComposition, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentDataQuality, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentDescribe, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentDistributionShape, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentDrivers, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentPrepare, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentRelationship, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentSegment, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
-	{Key: IntentSimulate, Owner: "U09", Why: "Examples gain _meta.intents tags in the U09 backfill."},
+	{Key: IntentSimulate, Owner: "U09", Why: "No library example exists for synth specs; the synth examples under internal/examples/synth/ are not embedded and carry no _meta."},
+}
+
+// exampleIntentExemptions — example directories holding at least one
+// example with no _meta.intents (TestExamples_EveryExampleHasIntent).
+// Key: the example category directory. Delete a directory's entry in the
+// same change that tags its last untagged example.
+var exampleIntentExemptions = []guidanceExemption{
+	{Key: "crosstab", Owner: "U09", Why: "Untagged until the E5-S2 hand-tagging of the crosstab examples."},
+	{Key: "overlays", Owner: "U09", Why: "Untagged until the E5-S2 hand-tagging of the overlay examples."},
+	{Key: "regression", Owner: "U09", Why: "Untagged until the E5-S2 hand-tagging of the regression examples."},
+	{Key: "tests", Owner: "U09", Why: "Untagged until the E5-S2 hand-tagging of the statistical-test examples."},
 }
 
 // glossaryOrphanExemptions — glossary terms no built-in Purpose links

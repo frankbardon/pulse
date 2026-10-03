@@ -2,6 +2,9 @@
   "_meta": {
     "category": "windows",
     "description": "Percent change versus the row one period earlier in the date-ordered partition.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "win_pct_change",
     "operators": [
       "WIN_PCT_CHANGE"

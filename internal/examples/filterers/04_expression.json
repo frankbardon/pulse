@@ -2,6 +2,9 @@
   "_meta": {
     "category": "filterers",
     "description": "Compound expr-lang predicate keeping high-income northerners only, with categorical fields auto-resolving to their dictionary strings.",
+    "intents": [
+      "segment"
+    ],
     "name": "filter_expression_compound",
     "operators": [
       "AGG_AVERAGE",

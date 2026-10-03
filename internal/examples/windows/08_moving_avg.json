@@ -2,6 +2,9 @@
   "_meta": {
     "category": "windows",
     "description": "Centered 7-day moving average of revenue (3 preceding plus current plus 3 following) over an ordered date partition.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "win_moving_avg_7day",
     "operators": [
       "WIN_MOVING_AVG"

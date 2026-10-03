@@ -2,6 +2,9 @@
   "_meta": {
     "category": "attributes",
     "description": "Derive monthly income via the expr-lang formula engine and aggregate the resulting per-record value.",
+    "intents": [
+      "prepare"
+    ],
     "name": "attr_formula_monthly",
     "operators": [
       "AGG_AVERAGE",

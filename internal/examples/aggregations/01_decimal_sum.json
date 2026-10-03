@@ -2,6 +2,9 @@
   "_meta": {
     "category": "aggregations",
     "description": "Decimal-aware SUM, AVERAGE, MIN, and MAX on a money column with banker-rounded precision propagation.",
+    "intents": [
+      "describe"
+    ],
     "name": "decimal_sum",
     "operators": [
       "AGG_AVERAGE",

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/examples"
 )
 
 // fakeUnits is an injected unitStatusReader: U01 done, U50 open.
@@ -154,15 +155,15 @@ func TestGuidanceExemptions_GatesBite(t *testing.T) {
 	})
 	t.Run("intent example", func(t *testing.T) {
 		ledger := slices.DeleteFunc(slices.Clone(intentExampleExemptions), func(e guidanceExemption) bool {
-			return e.Key == IntentDescribe
+			return e.Key == IntentSimulate
 		})
 		_, untagged := intentCoverageGaps(builtinPurposes, nil)
-		wantRemaining(t, "intent-example", untagged, ledger, IntentDescribe)
+		wantRemaining(t, "intent-example", untagged, ledger, IntentSimulate)
 
 		// Tagging an example closes the gap, so its entry goes stale.
-		_, untagged = intentCoverageGaps(builtinPurposes, map[string][]string{"ex": {IntentDescribe}})
-		if _, probs := applyExemptions("intent-example", untagged, intentExampleExemptions, live); !hasProblem(probs, IntentDescribe, "stale") {
-			t.Errorf("closed describe example gap: want a stale entry, got %v", probs)
+		_, untagged = intentCoverageGaps(builtinPurposes, map[string][]string{"ex": {IntentSimulate}})
+		if _, probs := applyExemptions("intent-example", untagged, intentExampleExemptions, live); !hasProblem(probs, IntentSimulate, "stale") {
+			t.Errorf("closed simulate example gap: want a stale entry, got %v", probs)
 		}
 	})
 	t.Run("glossary orphan", func(t *testing.T) {
@@ -179,6 +180,7 @@ func TestGuidanceExemptions_Ledger(t *testing.T) {
 		"interpretation":   interpretationExemptions,
 		"intent-declarers": intentDeclarerExemptions,
 		"intent-example":   intentExampleExemptions,
+		"example-intent":   exampleIntentExemptions,
 		"glossary-orphan":  glossaryOrphanExemptions,
 	}
 	permanent := map[string]bool{}
@@ -195,5 +197,16 @@ func TestGuidanceExemptions_Ledger(t *testing.T) {
 	want := map[string]bool{"intent-declarers/" + IntentLookup: true, "intent-example/" + IntentLookup: true}
 	if !maps.Equal(permanent, want) {
 		t.Errorf("permanent exemptions = %v, want exactly %v", slices.Sorted(maps.Keys(permanent)), slices.Sorted(maps.Keys(want)))
+	}
+}
+
+// TestExampleIntentExemptions_StaleWhenTagged: a directory whose
+// examples are all tagged has no gap, so its ledger entry is stale.
+func TestExampleIntentExemptions_StaleWhenTagged(t *testing.T) {
+	fx := []examples.ExampleSummary{{Name: "t1", Category: "tests"}}
+	gaps := untaggedExampleCategories(fx, map[string][]string{"t1": {IntentDescribe}})
+	_, probs := applyExemptions("example-intent", gaps, exampleIntentExemptions, roadmapUnitStatus())
+	if !hasProblem(probs, "tests", "stale") {
+		t.Errorf("tagged tests directory: want a stale entry, got %v", probs)
 	}
 }

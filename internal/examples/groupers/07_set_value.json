@@ -2,6 +2,10 @@
   "_meta": {
     "category": "groupers",
     "description": "Bucket each respondent into ONE bucket per distinct issuer-set mask via GROUP_SET_VALUE on the card_issuers.pulse cohort. Each row contributes to exactly one bucket keyed by its complete set membership (e.g. {VISA, MC} is one bucket; {VISA, MC, AMEX} is a different bucket). Distinct semantics from GROUP_SET_PER_ELEMENT (one row -> N buckets). The bucket count surfaces the cardinality of distinct wallet combinations across the survey.",
+    "intents": [
+      "composition",
+      "segment"
+    ],
     "name": "group_set_value_issuers",
     "operators": [
       "AGG_AVERAGE",

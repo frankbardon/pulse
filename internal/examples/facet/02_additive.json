@@ -2,6 +2,10 @@
   "_meta": {
     "category": "facet",
     "description": "Multi-field FacetSchema with additive_fields. The base filter narrows category=A; the additive accumulator on category strips that clause so the response shows what each category value would yield if added to the filter.",
+    "intents": [
+      "composition",
+      "segment"
+    ],
     "name": "facet_additive_contribution",
     "operators": [
       "FILTER_INCLUDE"

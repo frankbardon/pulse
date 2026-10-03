@@ -2,6 +2,10 @@
   "_meta": {
     "category": "features",
     "description": "Discretize age into four explicit life-stage buckets and aggregate income per stage.",
+    "intents": [
+      "segment",
+      "prepare"
+    ],
     "name": "feat_bucketize_explicit",
     "operators": [
       "AGG_COUNT",

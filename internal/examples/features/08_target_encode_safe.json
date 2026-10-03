@@ -2,6 +2,9 @@
   "_meta": {
     "category": "features",
     "description": "Smoothed target encoding after a train/test split, averaged over the split 0 rows. The encoder reads no split column, so every encoded mean still includes validation/test rows and the row's own target, and PULSE_FEAT_TARGET_LEAKAGE_RISK still fires.",
+    "intents": [
+      "prepare"
+    ],
     "name": "feat_target_encode_safe",
     "operators": [
       "AGG_AVERAGE",

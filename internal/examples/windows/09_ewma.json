@@ -2,6 +2,9 @@
   "_meta": {
     "category": "windows",
     "description": "Exponentially weighted moving average of revenue with alpha=0.3 trading smoothness against lag.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "win_ewma",
     "operators": [
       "WIN_EWMA"

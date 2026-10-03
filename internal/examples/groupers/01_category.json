@@ -2,6 +2,10 @@
   "_meta": {
     "category": "groupers",
     "description": "Partition customers by region and aggregate count and average income per partition.",
+    "intents": [
+      "compare_groups",
+      "composition"
+    ],
     "name": "group_category_region",
     "operators": [
       "AGG_AVERAGE",

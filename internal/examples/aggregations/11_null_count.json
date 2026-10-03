@@ -2,6 +2,9 @@
   "_meta": {
     "category": "aggregations",
     "description": "Null-state survey on the all_types.pulse u8 small_int field via AGG_NULL_COUNT paired with AGG_COUNT (non-null) for a complete present-vs-null contrast. AGG_NULL_COUNT consults the per-record null bitmap (Schema.HasBitmap()) so the count is exact even on fully-populated fixtures (returns 0 when no nulls — the canonical data-quality smoke shape).",
+    "intents": [
+      "data_quality"
+    ],
     "name": "null_count_contrast",
     "operators": [
       "AGG_COUNT",

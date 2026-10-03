@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -374,6 +375,37 @@ func TestExamples_IntentsFromTaxonomy(t *testing.T) {
 	if len(got) != 1 || !strings.Contains(got[0], `"bad"`) || !strings.Contains(got[0], "astrology") {
 		t.Errorf("exampleIntentProblems = %v, want one problem naming example \"bad\" and \"astrology\"", got)
 	}
+}
+
+// TestExamples_EveryExampleHasIntent (binding): every example carries at
+// least one _meta.intents value, unless its category directory is listed
+// in exampleIntentExemptions. (Intent values are checked against the
+// taxonomy by TestExamples_IntentsFromTaxonomy.)
+func TestExamples_EveryExampleHasIntent(t *testing.T) {
+	gaps := untaggedExampleCategories(examples.Search("", nil, ""), examples.Intents())
+	assertExempted(t, "example-intent", gaps, exampleIntentExemptions, roadmapUnitStatus())
+
+	// Negative arm: an untagged example outside the ledger is a gap.
+	fx := []examples.ExampleSummary{
+		{Name: "a", Category: "aggregations"},
+		{Name: "b", Category: "windows"},
+	}
+	rem, _ := applyExemptions("example-intent", untaggedExampleCategories(fx, map[string][]string{"b": {IntentDescribe}}), exampleIntentExemptions, roadmapUnitStatus())
+	if !slices.Equal(rem, []string{"aggregations"}) {
+		t.Errorf("untagged aggregations example not reported: remaining %v", rem)
+	}
+}
+
+// untaggedExampleCategories returns the sorted category directories that
+// hold at least one example without a _meta.intents tag.
+func untaggedExampleCategories(all []examples.ExampleSummary, tagged map[string][]string) []string {
+	seen := map[string]bool{}
+	for _, ex := range all {
+		if len(tagged[ex.Name]) == 0 {
+			seen[ex.Category] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(seen))
 }
 
 // exampleIntentProblems reports every _meta.intents value (keyed by

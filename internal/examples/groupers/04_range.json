@@ -2,6 +2,10 @@
   "_meta": {
     "category": "groupers",
     "description": "Bucket income into 25 000-wide ranges and aggregate per bucket.",
+    "intents": [
+      "distribution_shape",
+      "segment"
+    ],
     "name": "group_range_income",
     "operators": [
       "AGG_AVERAGE",

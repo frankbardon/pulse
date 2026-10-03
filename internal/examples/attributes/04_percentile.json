@@ -2,6 +2,10 @@
   "_meta": {
     "category": "attributes",
     "description": "Replace each income with its percentile rank, then average those ranks within each region for cohort-relative scoring.",
+    "intents": [
+      "benchmark",
+      "compare_groups"
+    ],
     "name": "attr_percentile_by_region",
     "operators": [
       "AGG_AVERAGE",

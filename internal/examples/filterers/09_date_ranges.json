@@ -2,6 +2,10 @@
   "_meta": {
     "category": "filterers",
     "description": "Keep only orders whose order_date falls inside the launch or growth fiscal phases using FILTER_DATE_RANGES inline labeled ranges, then summarize the kept cohort.",
+    "intents": [
+      "change_over_time",
+      "segment"
+    ],
     "name": "filter_date_ranges_phases",
     "operators": [
       "AGG_COUNT",

@@ -2,6 +2,9 @@
   "_meta": {
     "category": "features",
     "description": "Expand a categorical region column into one-hot indicators, then filter on a derived indicator before counting survivors.",
+    "intents": [
+      "prepare"
+    ],
     "name": "feat_one_hot_and_filter",
     "operators": [
       "AGG_COUNT",

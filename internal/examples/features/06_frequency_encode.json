@@ -2,6 +2,9 @@
   "_meta": {
     "category": "features",
     "description": "Replace a high-cardinality categorical with its empirical frequency so it can feed a numeric model without column blow-up.",
+    "intents": [
+      "prepare"
+    ],
     "name": "feat_frequency_encode_city",
     "operators": [
       "AGG_AVERAGE",

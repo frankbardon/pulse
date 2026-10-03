@@ -2,6 +2,10 @@
   "_meta": {
     "category": "attributes",
     "description": "Compute per-record z-scores on income and summarize the distribution of the standardized values.",
+    "intents": [
+      "prepare",
+      "describe"
+    ],
     "name": "zscore",
     "operators": [
       "AGG_AVERAGE",

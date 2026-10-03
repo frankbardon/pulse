@@ -2,6 +2,10 @@
   "_meta": {
     "category": "attributes",
     "description": "Extract a YYYYMM key from order_date and group on it to drive a monthly revenue trend.",
+    "intents": [
+      "change_over_time",
+      "prepare"
+    ],
     "name": "attr_date_part_year_month",
     "operators": [
       "AGG_COUNT",
