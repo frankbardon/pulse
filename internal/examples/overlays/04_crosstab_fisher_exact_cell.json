@@ -2,6 +2,9 @@
   "_meta": {
     "category": "overlays",
     "description": "Crosstab count of region x segment decorated with an OVERLAY_FISHER_EXACT_CELL cell-scope overlay computing per-cell Fisher exact two-sided p-values from the implicit 2x2 contingency assembled off the host cell, row margin, column margin, and grand total (implicit-margin contract; no ref pointer).",
+    "intents": [
+      "relationship"
+    ],
     "name": "crosstab-fisher-exact-cell",
     "operators": [
       "AGG_COUNT",

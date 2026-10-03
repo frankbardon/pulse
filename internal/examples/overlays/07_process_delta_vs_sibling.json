@@ -2,6 +2,10 @@
   "_meta": {
     "category": "overlays",
     "description": "Grouped Process aggregating revenue by region decorated with an OVERLAY_DELTA_VS_SIBLING group overlay that subtracts the north region's revenue from every group (group_val - sibling_val). Buffered: sibling resolution requires the full materialised SeriesPayload before the (Field, Value) lookup runs.",
+    "intents": [
+      "compare_groups",
+      "benchmark"
+    ],
     "name": "process-delta-vs-sibling",
     "operators": [
       "AGG_SUM",

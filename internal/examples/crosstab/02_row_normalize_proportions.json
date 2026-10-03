@@ -2,6 +2,10 @@
   "_meta": {
     "category": "crosstab",
     "description": "Region × converted count crosstab with row normalization. Cells in each row sum to 1, so the value at (region, converted=yes) is the conversion rate within that region.",
+    "intents": [
+      "composition",
+      "compare_groups"
+    ],
     "name": "crosstab_row_normalize_conversion_rate",
     "operators": [
       "AGG_COUNT",

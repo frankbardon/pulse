@@ -12,7 +12,10 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Ridge regression (Indeed #6): REG_OLS with l2 penalty (alpha=0.1) shrinking coefficients via a Cholesky solve on the augmented Gram."
+    "description": "Ridge regression (Indeed #6): REG_OLS with l2 penalty (alpha=0.1) shrinking coefficients via a Cholesky solve on the augmented Gram.",
+    "intents": [
+      "drivers"
+    ]
   },
   "cohort": {
     "filename": "training_data.pulse",

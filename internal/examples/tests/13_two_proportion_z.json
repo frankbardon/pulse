@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Two-proportion z-test on conversion rate by treatment, using params.success to name the positive outcome.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "two_proportion_z",
     "operators": [
       "TEST_PROP_Z"

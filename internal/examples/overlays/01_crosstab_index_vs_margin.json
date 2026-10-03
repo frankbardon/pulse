@@ -2,6 +2,10 @@
   "_meta": {
     "category": "overlays",
     "description": "Crosstab count of region x segment decorated with an OVERLAY_INDEX_VS_MARGIN cell overlay that scores each cell against its row margin (100 * cell / row_margin).",
+    "intents": [
+      "benchmark",
+      "composition"
+    ],
     "name": "crosstab-index-vs-margin",
     "operators": [
       "AGG_COUNT",

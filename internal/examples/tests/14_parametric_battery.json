@@ -2,6 +2,10 @@
   "_meta": {
     "category": "tests",
     "description": "Standard parametric A/B battery: Welch t on revenue, paired t on per-unit lift, two-proportion z on conversion, and Pearson r on revenue versus session minutes.",
+    "intents": [
+      "compare_groups",
+      "relationship"
+    ],
     "name": "parametric_battery",
     "operators": [
       "AGG_AVERAGE",

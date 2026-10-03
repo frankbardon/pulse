@@ -68,12 +68,7 @@ var intentExampleExemptions = []guidanceExemption{
 // example with no _meta.intents (TestExamples_EveryExampleHasIntent).
 // Key: the example category directory. Delete a directory's entry in the
 // same change that tags its last untagged example.
-var exampleIntentExemptions = []guidanceExemption{
-	{Key: "crosstab", Owner: "U09", Why: "Untagged until the E5-S2 hand-tagging of the crosstab examples."},
-	{Key: "overlays", Owner: "U09", Why: "Untagged until the E5-S2 hand-tagging of the overlay examples."},
-	{Key: "regression", Owner: "U09", Why: "Untagged until the E5-S2 hand-tagging of the regression examples."},
-	{Key: "tests", Owner: "U09", Why: "Untagged until the E5-S2 hand-tagging of the statistical-test examples."},
-}
+var exampleIntentExemptions = []guidanceExemption{}
 
 // glossaryOrphanExemptions — glossary terms no built-in Purpose links
 // (TestGlossary_OrphanReport). Key: the term ID.

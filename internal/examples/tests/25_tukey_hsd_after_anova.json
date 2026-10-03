@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Tier-2 Tukey HSD pairwise comparisons over per-region means after a tier-1 one-way ANOVA on the same Process call.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "tukey_hsd_after_anova",
     "operators": [
       "AGG_AVERAGE",

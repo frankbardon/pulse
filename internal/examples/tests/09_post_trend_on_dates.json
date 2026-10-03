@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Tier-2 Mann-Kendall trend test on daily revenue means bucketed by GROUP_DATE.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "post_trend_on_dates",
     "operators": [
       "AGG_AVERAGE",

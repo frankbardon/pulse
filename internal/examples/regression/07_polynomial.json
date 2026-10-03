@@ -13,7 +13,11 @@
       "FEAT_POLY",
       "REG_OLS"
     ],
-    "description": "Polynomial regression (Indeed #8): FEAT_POLY expands age into age, age_2, age_3 upstream of a REG_OLS fit on income."
+    "description": "Polynomial regression (Indeed #8): FEAT_POLY expands age into age, age_2, age_3 upstream of a REG_OLS fit on income.",
+    "intents": [
+      "relationship",
+      "drivers"
+    ]
   },
   "cohort": {
     "filename": "customers.pulse",

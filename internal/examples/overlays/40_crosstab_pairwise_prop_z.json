@@ -2,6 +2,10 @@
   "_meta": {
     "category": "overlays",
     "description": "Crosstab count of region x segment decorated with the intra-matrix axis-pairwise proportion overlays OVERLAY_PAIRWISE_PROP_Z and OVERLAY_PAIRWISE_PROBIT_T at ROW scope: each tests one region against another within each segment column (brand-vs-brand-style pairing along the host's own row axis, not across Compose slots). The PAIR axis of the emitted MATRIX payload carries one entry per evaluated (i, j) row pair keyed by the two region labels; each cell holds the pair's two-sided p-value at that segment. p_source picks how the cell value becomes a proportion and n_source selects the sample-size leg (here the row margin count). The family emits RAW p-values only; direction, significance thresholds, and min-n flags are the embedder's presentation concern. Reads Response.Components.Crosstab for the per-leg n.",
+    "intents": [
+      "compare_groups",
+      "composition"
+    ],
     "name": "crosstab-pairwise-prop-z",
     "operators": [
       "AGG_COUNT",

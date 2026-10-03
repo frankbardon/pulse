@@ -12,7 +12,10 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Stepwise regression (Indeed #13): REG_OLS with selection=stepwise and criterion=bic drives a bidirectional greedy subset search; forces the buffered orchestrator path."
+    "description": "Stepwise regression (Indeed #13): REG_OLS with selection=stepwise and criterion=bic drives a bidirectional greedy subset search; forces the buffered orchestrator path.",
+    "intents": [
+      "drivers"
+    ]
   },
   "cohort": {
     "filename": "training_data.pulse",

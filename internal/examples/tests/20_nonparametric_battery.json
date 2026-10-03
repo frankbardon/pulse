@@ -2,6 +2,10 @@
   "_meta": {
     "category": "tests",
     "description": "Standard nonparametric battery: Mann-Whitney, Kruskal-Wallis, Wilcoxon signed-rank, Spearman, and Kendall over the experiment cohort.",
+    "intents": [
+      "compare_groups",
+      "relationship"
+    ],
     "name": "nonparametric_battery",
     "operators": [
       "AGG_COUNT",

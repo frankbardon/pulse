@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Shapiro-Wilk (Shapiro-Francia variant) normality check on revenue split by treatment, used as a pre-flight gate for parametric tests.",
+    "intents": [
+      "distribution_shape"
+    ],
     "name": "shapiro_wilk_normality",
     "operators": [
       "AGG_COUNT",

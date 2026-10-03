@@ -10,7 +10,10 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Multiple linear regression (Indeed #2 / #4 — Multiple = Multiple Linear): REG_OLS of income on two predictors against the training_data fixture."
+    "description": "Multiple linear regression (Indeed #2 / #4 — Multiple = Multiple Linear): REG_OLS of income on two predictors against the training_data fixture.",
+    "intents": [
+      "drivers"
+    ]
   },
   "cohort": {
     "filename": "training_data.pulse",

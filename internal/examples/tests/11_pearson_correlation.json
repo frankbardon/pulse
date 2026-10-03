@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Pearson r between post-treatment revenue and the pre-treatment baseline, computed streaming via an extended Welford recurrence.",
+    "intents": [
+      "relationship"
+    ],
     "name": "pearson_correlation",
     "operators": [
       "AGG_COUNT",

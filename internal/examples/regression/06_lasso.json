@@ -12,7 +12,10 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Lasso regression (Indeed #7): REG_OLS with l1 penalty (alpha=0.05); coordinate descent on the streaming Gram with soft-thresholding."
+    "description": "Lasso regression (Indeed #7): REG_OLS with l1 penalty (alpha=0.05); coordinate descent on the streaming Gram with soft-thresholding.",
+    "intents": [
+      "drivers"
+    ]
   },
   "cohort": {
     "filename": "training_data.pulse",

@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Tier-2 Mann-Kendall trend test applied to a 7-day windowed moving average of daily revenue.",
+    "intents": [
+      "change_over_time"
+    ],
     "name": "post_trend_on_window",
     "operators": [
       "AGG_AVERAGE",

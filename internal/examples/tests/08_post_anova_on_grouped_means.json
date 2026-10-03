@@ -2,6 +2,9 @@
   "_meta": {
     "category": "tests",
     "description": "Tier-2 ANOVA reconstructed from per-region summary stats (mean, n, variance) produced by an upstream GROUP_CATEGORY aggregation.",
+    "intents": [
+      "compare_groups"
+    ],
     "name": "post_anova_on_grouped_means",
     "operators": [
       "AGG_AVERAGE",

@@ -11,7 +11,10 @@
     "operators": [
       "REG_GLM"
     ],
-    "description": "Logistic regression (Indeed #5): REG_GLM with binomial family and logit link for binary classification (label ~ price + income)."
+    "description": "Logistic regression (Indeed #5): REG_GLM with binomial family and logit link for binary classification (label ~ price + income).",
+    "intents": [
+      "drivers"
+    ]
   },
   "cohort": {
     "filename": "training_data.pulse",

@@ -2,6 +2,10 @@
   "_meta": {
     "category": "tests",
     "description": "Brown-Forsythe variance-homogeneity check on revenue across regions; pair with Welch ANOVA when it rejects.",
+    "intents": [
+      "compare_groups",
+      "distribution_shape"
+    ],
     "name": "brown_forsythe_homogeneity",
     "operators": [
       "AGG_COUNT",

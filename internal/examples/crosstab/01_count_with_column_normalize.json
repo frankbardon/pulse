@@ -2,6 +2,9 @@
   "_meta": {
     "category": "crosstab",
     "description": "Count crosstab of region × segment with row, column, and grand margins and column-direction normalization (each column sums to 1).",
+    "intents": [
+      "composition"
+    ],
     "name": "crosstab_count_region_segment",
     "operators": [
       "AGG_COUNT",

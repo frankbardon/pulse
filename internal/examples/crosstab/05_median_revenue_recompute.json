@@ -2,6 +2,10 @@
   "_meta": {
     "category": "crosstab",
     "description": "Median revenue per (region, segment) cell. Margins use the recompute classification: the row margin for region=R is the median of raw revenues for region=R, NOT the median of cell medians. Demonstrates the correctness contract for order-dependent aggregators.",
+    "intents": [
+      "describe",
+      "compare_groups"
+    ],
     "name": "crosstab_median_revenue_recompute_margins",
     "operators": [
       "AGG_MEDIAN",

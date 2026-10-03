@@ -2,6 +2,10 @@
   "_meta": {
     "category": "tests",
     "description": "One-way repeated-measures ANOVA on a 40-subject by 3-condition design where the subject effect dominates the residual.",
+    "intents": [
+      "compare_groups",
+      "change_over_time"
+    ],
     "name": "rm_anova_three_conditions",
     "operators": [
       "AGG_AVERAGE",

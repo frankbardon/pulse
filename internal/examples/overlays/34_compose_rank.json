@@ -2,6 +2,9 @@
   "_meta": {
     "category": "overlays",
     "description": "Compose batch of one reference slot (total_pop) plus one target slot (audience_a) over region x segment decorated with an OVERLAY_RANK matrix-scope compose overlay that emits the 1-based rank of each target cell within the target matrix (1 = largest). Population mode controlled by Params.population (\"row\" | \"column\" | \"matrix\"; defaults to \"matrix\"). The reference slot anchors the resolution + key-set alignment gates but is NOT consumed by the rank math itself — the rank intentionally reads only the target cells; the reference's structural schema is the alignment constraint. Ties take the average rank (canonical scipy.stats.rankdata default). Absent cells stay absent on the overlay; they do NOT participate in the population's denominator. Buffered (Compose-host kind).",
+    "intents": [
+      "benchmark"
+    ],
     "name": "compose-rank",
     "operators": [
       "AGG_COUNT",

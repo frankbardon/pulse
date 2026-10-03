@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"maps"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -394,6 +395,75 @@ func TestExamples_EveryExampleHasIntent(t *testing.T) {
 	if !slices.Equal(rem, []string{"aggregations"}) {
 		t.Errorf("untagged aggregations example not reported: remaining %v", rem)
 	}
+}
+
+// TestExamples_IntentPurposeConsistency (REPORT-ONLY): each intent an
+// example is tagged with should appear in the Purpose intents of at least
+// one operator the example exercises (its _meta.operators, plus every
+// OVERLAY_* kind named in its request body). A mismatch is logged, never
+// failed: a COUNT crosstab legitimately answers composition although
+// AGG_COUNT's Purpose says describe, so the tag is the example's question,
+// not an operator fact. The test proves the check runs by requiring that
+// most tagged examples resolve to a Purpose, and that the mismatch finder
+// flags a fabricated disagreement.
+func TestExamples_IntentPurposeConsistency(t *testing.T) {
+	purposes := BuiltinPurposes()
+	tagged := examples.Intents()
+	mismatches, checked := exampleIntentMismatches(tagged, purposes, func(name string) []string {
+		ex, ok := examples.Get(name)
+		if !ok {
+			return nil
+		}
+		ops := append([]string(nil), ex.Operators...)
+		ops = append(ops, overlayKindRe.FindAllString(string(ex.Body), -1)...)
+		return ops
+	})
+	t.Logf("intent/Purpose consistency (report-only): %d tagged examples checked, %d mismatches", checked, len(mismatches))
+	for _, m := range mismatches {
+		t.Log("mismatch: " + m)
+	}
+	if checked < len(tagged)/2 {
+		t.Errorf("only %d of %d tagged examples resolved to a Purpose; the check is not running", checked, len(tagged))
+	}
+
+	// Falsifier arm: a disagreement is found (and would only be logged).
+	fakeP := map[string]descriptor.Purpose{"AGG_X": {Intents: []string{IntentDescribe}}}
+	got, n := exampleIntentMismatches(map[string][]string{"e": {IntentDescribe, IntentSegment}}, fakeP, func(string) []string { return []string{"AGG_X"} })
+	if n != 1 || len(got) != 1 || !strings.Contains(got[0], IntentSegment) {
+		t.Errorf("mismatch finder = %v (checked %d), want one mismatch naming %q", got, n, IntentSegment)
+	}
+}
+
+var overlayKindRe = regexp.MustCompile(`OVERLAY_[A-Z0-9_]+`)
+
+// exampleIntentMismatches returns "example: intent X not in the Purposes of
+// [ops]" lines in example-name order, and the number of examples that had
+// at least one operator with a Purpose (the ones the check could judge).
+func exampleIntentMismatches(tagged map[string][]string, purposes map[string]descriptor.Purpose, opsOf func(string) []string) ([]string, int) {
+	var out []string
+	checked := 0
+	for _, name := range slices.Sorted(maps.Keys(tagged)) {
+		have := map[string]bool{}
+		var withPurpose []string
+		for _, op := range opsOf(name) {
+			if p, ok := purposes[op]; ok {
+				withPurpose = append(withPurpose, op)
+				for _, id := range p.Intents {
+					have[id] = true
+				}
+			}
+		}
+		if len(withPurpose) == 0 {
+			continue
+		}
+		checked++
+		for _, id := range tagged[name] {
+			if !have[id] {
+				out = append(out, name+": intent "+id+" not in the Purposes of "+strings.Join(withPurpose, ","))
+			}
+		}
+	}
+	return out, checked
 }
 
 // untaggedExampleCategories returns the sorted category directories that

@@ -2,6 +2,10 @@
   "_meta": {
     "category": "tests",
     "description": "Two-sample Kolmogorov-Smirnov on session minutes between treatment arms to detect distribution-shape shifts.",
+    "intents": [
+      "distribution_shape",
+      "compare_groups"
+    ],
     "name": "ks_two_sample",
     "operators": [
       "TEST_KS"

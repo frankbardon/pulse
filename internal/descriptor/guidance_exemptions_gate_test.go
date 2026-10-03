@@ -205,7 +205,8 @@ func TestGuidanceExemptions_Ledger(t *testing.T) {
 func TestExampleIntentExemptions_StaleWhenTagged(t *testing.T) {
 	fx := []examples.ExampleSummary{{Name: "t1", Category: "tests"}}
 	gaps := untaggedExampleCategories(fx, map[string][]string{"t1": {IntentDescribe}})
-	_, probs := applyExemptions("example-intent", gaps, exampleIntentExemptions, roadmapUnitStatus())
+	ledger := []guidanceExemption{{Key: "tests", Owner: "U09", Why: "fixture entry for a directory that is now fully tagged"}}
+	_, probs := applyExemptions("example-intent", gaps, ledger, roadmapUnitStatus())
 	if !hasProblem(probs, "tests", "stale") {
 		t.Errorf("tagged tests directory: want a stale entry, got %v", probs)
 	}

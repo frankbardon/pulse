@@ -2,6 +2,10 @@
   "_meta": {
     "category": "crosstab",
     "description": "ARPU table — mean revenue per (region, treatment) cell with row, column, and grand margins. Margins are recomputed from raw rows (mean_reducible classification), NOT averaged across cells.",
+    "intents": [
+      "describe",
+      "compare_groups"
+    ],
     "name": "crosstab_mean_revenue_by_region_treatment",
     "operators": [
       "AGG_AVERAGE",
