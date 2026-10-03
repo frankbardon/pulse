@@ -749,10 +749,6 @@
         "description": "Overlay framework — OverlaySpec composition, six reference families, three payload shapes, host-arm wiring (SERIES / FACET / CHAIN / FORMULA), parity overlays + Welford migration. Per-kind detail lives in op-overlay-* atomics."
       },
       {
-        "name": "pairwise-n-sources",
-        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and the direct-caller bypass."
-      },
-      {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
@@ -1072,4 +1068,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a2e41bd08bb7828043d47ce124c511c2fa47c0a715e5ee8b410c3d30c8595355
+// golden-hash: c181ed2757faf7a4433c862d160a2bb3ba91e52d7d3a4f4c173c42895e00dacf

@@ -7730,7 +7730,7 @@
       },
       {
         "name": "pairwise-n-sources",
-        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and the direct-caller bypass."
+        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
       },
       {
         "name": "process-chain",
@@ -10537,4 +10537,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f229e587e50f5c4fd2e11ce0976288e53cb0d23caf939ff08d4120c056bdbfa9
+// golden-hash: b73b979b11aa7c5d7bfb3e733113e09dc62d0872a5ed75f218f2bfa719e425a0

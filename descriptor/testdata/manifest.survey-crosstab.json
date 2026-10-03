@@ -1296,7 +1296,7 @@
       },
       {
         "name": "pairwise-n-sources",
-        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and the direct-caller bypass."
+        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
       },
       {
         "name": "regression-modeling",
@@ -1897,4 +1897,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 81e0c7ecb4ac056d46c9781a26e1f8a7ab824d1ef3c0dc9b0abe741fc0caa8ef
+// golden-hash: bf0e99db5e642476683636f00c4c1dccade00863b8996d09dffb8d5f016083d4

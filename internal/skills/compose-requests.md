@@ -66,7 +66,7 @@ Two slots resolving to the same final label (duplicates, or a caller label colli
 
 `ComposedRequest.Overlays` runs AFTER every slot finalises. The fold reads each slot's finished `crosstab` / `data` / `components` (read-only) and writes one sibling `overlays[i]` layer per spec. **It never mutates a slot's payload or `components`** — overlays are additive decorations keyed to host coordinates (`overlay-system`).
 
-Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` against the labels above; find them with `pulse_skills_list {intent}` (most serve `compare_groups` or `benchmark`) and read their atomic skills. The usual refusal is schema divergence — the reference and target slots group or crosstab on different axes; keep the compared slots' shapes identical and vary only the filter or cohort. Per-layer diagnostics land on `overlays[i].warnings`.
+Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` against the labels above; find them among the manifest `overlays[]` entries serving `compare_groups` or `benchmark` and read their atomic skills. The usual refusal is schema divergence — the reference and target slots group or crosstab on different axes; keep the compared slots' shapes identical and vary only the filter or cohort. Per-layer diagnostics land on `overlays[i].warnings`.
 
 Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by byte-equal dictionary PREFIX — only when you have verified prefix-equal dictionaries) and `MaxPanelTargets` (default 16; caps a multi-slot panel's targets, overflow ⇒ `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`).
 
