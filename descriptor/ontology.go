@@ -64,10 +64,11 @@ const (
 	// OntologyEdgeUsesTerm: operator → glossary_term.
 	OntologyEdgeUsesTerm OntologyEdgeKind = "uses_term"
 	// OntologyEdgeRoutesTo: skill → skill, glossary_term → glossary_term
-	// (a navigational "see also").
+	// (a navigational "see also"), example → the operator its
+	// description names without using it (a contrast).
 	OntologyEdgeRoutesTo OntologyEdgeKind = "routes_to"
 	// OntologyEdgeRequiresCapability: operator | capability | mcp_tool |
-	// skill → the operator or capability it needs.
+	// skill | example → the operator or capability it needs.
 	OntologyEdgeRequiresCapability OntologyEdgeKind = "requires_capability"
 )
 

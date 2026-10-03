@@ -374,3 +374,25 @@ func TestExamples_MetaIntentsParsed(t *testing.T) {
 		t.Errorf("Intents()[decimal_sum] = %v, want [describe]", got)
 	}
 }
+
+// TestExamples_MetaCapabilitiesParsed: the optional _meta.capabilities
+// key decodes into meta.Capabilities, and Capabilities() surfaces the
+// facet-host examples that declare it (their bodies name no operator).
+func TestExamples_MetaCapabilitiesParsed(t *testing.T) {
+	var m meta
+	if err := json.Unmarshal([]byte(`{"name":"x","capabilities":["capability:stream"]}`), &m); err != nil {
+		t.Fatal(err)
+	}
+	if !equalStrings(m.Capabilities, []string{"capability:stream"}) {
+		t.Errorf("meta.Capabilities = %v", m.Capabilities)
+	}
+	caps := Capabilities()
+	for _, n := range []string{"facet_simple_one_field", "facet-index-vs-pop"} {
+		if got := caps[n]; !equalStrings(got, []string{"capability:facet"}) {
+			t.Errorf("Capabilities()[%s] = %v, want [capability:facet]", n, got)
+		}
+	}
+	if _, ok := caps["decimal_sum"]; ok {
+		t.Error("Capabilities() lists an example without the key")
+	}
+}

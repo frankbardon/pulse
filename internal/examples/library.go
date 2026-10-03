@@ -67,6 +67,23 @@ func Intents() map[string][]string {
 	return out
 }
 
+// Capabilities returns every example's optional _meta.capabilities, keyed
+// by example name; an example without the key is absent. Values are
+// feature-profile spellings of non-operator features
+// (`capability:stream`), validated by internal/descriptor
+// (TestExamples_CapabilitiesFromFeatures), which this package cannot
+// import. The key exists for capabilities a request body carries no
+// structural signal for; internal/descriptor's ontology builder turns
+// each value into an `example requires_capability <feature>` edge.
+func Capabilities() map[string][]string {
+	idx := loadIndex()
+	out := make(map[string][]string, len(idx.capabilities))
+	for n, caps := range idx.capabilities {
+		out[n] = append([]string(nil), caps...)
+	}
+	return out
+}
+
 // Count returns the number of embedded examples.
 func Count() int { return len(loadIndex().byName) }
 
@@ -102,6 +119,10 @@ type meta struct {
 	// (validated by internal/descriptor's TestExamples_IntentsFromTaxonomy,
 	// since this package cannot import the taxonomy).
 	Intents []string `json:"intents,omitempty"`
+	// Capabilities is optional; every value must be a non-operator
+	// feature name (validated by internal/descriptor's
+	// TestExamples_CapabilitiesFromFeatures).
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // indexed is the package-private in-memory index built on first access.
@@ -110,7 +131,9 @@ type indexed struct {
 	byCategory map[string][]string // category -> example names
 	byTag      map[string][]string // tag -> example names
 	intents    map[string][]string // example name -> _meta.intents
-	all        []string            // every name, alphabetical
+	// capabilities: example name -> _meta.capabilities
+	capabilities map[string][]string
+	all          []string // every name, alphabetical
 }
 
 var (
@@ -123,10 +146,11 @@ var (
 func loadIndex() *indexed {
 	indexOnce.Do(func() {
 		idx := &indexed{
-			byName:     make(map[string]*Example),
-			byCategory: make(map[string][]string),
-			byTag:      make(map[string][]string),
-			intents:    make(map[string][]string),
+			byName:       make(map[string]*Example),
+			byCategory:   make(map[string][]string),
+			byTag:        make(map[string][]string),
+			intents:      make(map[string][]string),
+			capabilities: make(map[string][]string),
 		}
 		err := fs.WalkDir(content, ".", func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -173,6 +197,9 @@ func loadIndex() *indexed {
 			idx.byName[m.Name] = ex
 			if len(m.Intents) > 0 {
 				idx.intents[m.Name] = append([]string(nil), m.Intents...)
+			}
+			if len(m.Capabilities) > 0 {
+				idx.capabilities[m.Name] = append([]string(nil), m.Capabilities...)
 			}
 			idx.byCategory[m.Category] = append(idx.byCategory[m.Category], m.Name)
 			for _, t := range m.Tags {

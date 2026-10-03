@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"sort"
 	"strings"
 	"sync"
@@ -42,6 +43,13 @@ import (
 //   - synth distribution              → operator requires_capability capability:synth
 //   - example _meta.operators         → operator exemplified_by example
 //   - example _meta.intents           → example serves_intent intent
+//   - example _meta.capabilities      → example requires_capability feature
+//   - example structural detectors (exampleCapabilityDetectors: crosstab
+//     key, root requests, root stages, joins key, facet category/tag) →
+//     example requires_capability capability
+//   - example overlays[].kind         → operator exemplified_by example
+//   - example description naming an operator not otherwise linked →
+//     example routes_to operator (see ontology_examples.go)
 //   - atomic `## See` backticked stem → skill routes_to skill
 //   - atomic `## See` `tags=[…]`      → skill exemplified_by every example
 //     carrying ALL the tags (what pulse_examples_search returns)
@@ -149,10 +157,14 @@ func (g *OntologyGraph) Problems() []string {
 
 // ontologyExample is the slice of one example's _meta the graph reads.
 type ontologyExample struct {
-	Name      string
-	Operators []string
-	Intents   []string
-	Tags      []string
+	Name         string
+	Category     string
+	Description  string
+	Operators    []string
+	Intents      []string
+	Capabilities []string
+	Tags         []string
+	Body         json.RawMessage // request body, _meta stripped
 }
 
 // ontologySources are the builder's inputs, injectable for tests.
@@ -181,11 +193,16 @@ func builtinOntologySources() ontologySources {
 	for _, d := range distributionCapabilities() {
 		src.synthDistributions = append(src.synthDistributions, d.Name)
 	}
-	intents := examples.Intents()
+	intents, caps := examples.Intents(), examples.Capabilities()
 	for _, s := range examples.Search("", nil, "") {
-		src.examples = append(src.examples, ontologyExample{
-			Name: s.Name, Operators: s.Operators, Intents: intents[s.Name], Tags: s.Tags,
-		})
+		ex := ontologyExample{
+			Name: s.Name, Category: s.Category, Description: s.Description,
+			Operators: s.Operators, Intents: intents[s.Name], Capabilities: caps[s.Name], Tags: s.Tags,
+		}
+		if full, ok := examples.Get(s.Name); ok {
+			ex.Body = full.Body
+		}
+		src.examples = append(src.examples, ex)
 	}
 	return src
 }
@@ -376,18 +393,6 @@ func (b *ontologyBuilder) addDependencyEdges(src ontologySources) {
 	}
 	for _, d := range src.synthDistributions {
 		b.edge(OntologyID(descriptor.OntologyNodeOperator, d), b.featureNode(featSynth, "synth distribution "+d), descriptor.OntologyEdgeRequiresCapability, "synth distribution")
-	}
-}
-
-func (b *ontologyBuilder) addExampleEdges(src ontologySources) {
-	for _, ex := range src.examples {
-		id := OntologyID(descriptor.OntologyNodeExample, ex.Name)
-		for _, op := range ex.Operators {
-			b.edge(b.featureNode(op, "example "+ex.Name+" operators"), id, descriptor.OntologyEdgeExemplifiedBy, "example operators")
-		}
-		for _, in := range ex.Intents {
-			b.edge(id, OntologyID(descriptor.OntologyNodeIntent, in), descriptor.OntologyEdgeServesIntent, "example intents")
-		}
 	}
 }
 

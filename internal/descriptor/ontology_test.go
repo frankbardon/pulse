@@ -40,11 +40,11 @@ func featureNodeID(t *testing.T, name string) string {
 
 func TestOntologyID_Spelling(t *testing.T) {
 	cases := map[string]string{
-		OntologyID(descriptor.OntologyNodeOperator, "AGG_COUNT"):            "operator:AGG_COUNT",
-		OntologyID(descriptor.OntologyNodeSkill, "op-agg-count"):            "skill:op-agg-count",
-		OntologyID(descriptor.OntologyNodeIntent, "describe"):               "intent:describe",
+		OntologyID(descriptor.OntologyNodeOperator, "AGG_COUNT"):             "operator:AGG_COUNT",
+		OntologyID(descriptor.OntologyNodeSkill, "op-agg-count"):             "skill:op-agg-count",
+		OntologyID(descriptor.OntologyNodeIntent, "describe"):                "intent:describe",
 		OntologyID(descriptor.OntologyNodeCapability, "capability:crosstab"): "capability:crosstab",
-		OntologyID(descriptor.OntologyNodeCapability, "io_format:csv"):      "io_format:csv",
+		OntologyID(descriptor.OntologyNodeCapability, "io_format:csv"):       "io_format:csv",
 	}
 	for got, want := range cases {
 		if got != want {
