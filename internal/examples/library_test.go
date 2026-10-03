@@ -359,3 +359,19 @@ func names(hits []ExampleSummary) []string {
 	}
 	return out
 }
+
+// TestExamples_MetaIntentsParsed: the optional _meta.intents key decodes
+// into meta.Intents; no shipped example declares it yet, so Intents()
+// is empty.
+func TestExamples_MetaIntentsParsed(t *testing.T) {
+	var m meta
+	if err := json.Unmarshal([]byte(`{"name":"x","intents":["describe","compare_groups"]}`), &m); err != nil {
+		t.Fatal(err)
+	}
+	if !equalStrings(m.Intents, []string{"describe", "compare_groups"}) {
+		t.Errorf("meta.Intents = %v", m.Intents)
+	}
+	if got := Intents(); len(got) != 0 {
+		t.Errorf("Intents() = %v, want empty (no example is tagged yet)", got)
+	}
+}

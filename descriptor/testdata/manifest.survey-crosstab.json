@@ -156,7 +156,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_COUNT",
@@ -1858,4 +1861,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 59c3a0398f8837248683efdabc06f100449c7cd129633452135e60cb295e50eb
+// golden-hash: 3a1835210fec46f942264be95bb575a1568dff60ecd6429850b2855ebb6f08a0

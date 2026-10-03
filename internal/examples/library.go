@@ -54,6 +54,19 @@ func AllTags() []string {
 	return out
 }
 
+// Intents returns every example's optional _meta.intents, keyed by
+// example name; an example without the key is absent. Values are
+// validated against the intent taxonomy by internal/descriptor
+// (TestExamples_IntentsFromTaxonomy), which this package cannot import.
+func Intents() map[string][]string {
+	idx := loadIndex()
+	out := make(map[string][]string, len(idx.intents))
+	for n, ids := range idx.intents {
+		out[n] = append([]string(nil), ids...)
+	}
+	return out
+}
+
 // Count returns the number of embedded examples.
 func Count() int { return len(loadIndex().byName) }
 
@@ -85,6 +98,10 @@ type meta struct {
 	Tags        []string `json:"tags"`
 	Operators   []string `json:"operators"`
 	Description string   `json:"description"`
+	// Intents is optional; every value must be an intent-taxonomy ID
+	// (validated by internal/descriptor's TestExamples_IntentsFromTaxonomy,
+	// since this package cannot import the taxonomy).
+	Intents []string `json:"intents,omitempty"`
 }
 
 // indexed is the package-private in-memory index built on first access.
@@ -92,6 +109,7 @@ type indexed struct {
 	byName     map[string]*Example
 	byCategory map[string][]string // category -> example names
 	byTag      map[string][]string // tag -> example names
+	intents    map[string][]string // example name -> _meta.intents
 	all        []string            // every name, alphabetical
 }
 
@@ -108,6 +126,7 @@ func loadIndex() *indexed {
 			byName:     make(map[string]*Example),
 			byCategory: make(map[string][]string),
 			byTag:      make(map[string][]string),
+			intents:    make(map[string][]string),
 		}
 		err := fs.WalkDir(content, ".", func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -152,6 +171,9 @@ func loadIndex() *indexed {
 				Body:        body,
 			}
 			idx.byName[m.Name] = ex
+			if len(m.Intents) > 0 {
+				idx.intents[m.Name] = append([]string(nil), m.Intents...)
+			}
 			idx.byCategory[m.Category] = append(idx.byCategory[m.Category], m.Name)
 			for _, t := range m.Tags {
 				idx.byTag[t] = append(idx.byTag[t], m.Name)

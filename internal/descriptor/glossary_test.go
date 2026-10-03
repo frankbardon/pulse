@@ -9,13 +9,14 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 )
 
-// TestGlossaryTermsResolve (glossary-internal half; E2 adds the Purpose
-// half): the shipped glossary is well formed — unique kebab IDs,
+// TestGlossaryTermsResolve: the shipped glossary is well formed — unique kebab IDs,
 // non-empty Short / WhyCare within their limits, every SeeAlso resolves,
 // every jargon term has a Form, and no Form is claimed by two terms.
 // The fixture arms prove the validator bites on a dangling SeeAlso and
-// a duplicated Form.
+// a duplicated Form. The "purpose" subtest is the Purpose half: every
+// Purpose.Glossary ID resolves and jargon in Plain is linked.
 func TestGlossaryTermsResolve(t *testing.T) {
+	t.Run("purpose", testPurposeGlossaryLinks)
 	for _, p := range glossaryProblems(Glossary()) {
 		t.Error(p)
 	}

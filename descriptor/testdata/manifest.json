@@ -364,7 +364,10 @@
               }
             ],
             "mergeability": "mergeable"
-          }
+          },
+          "intents": [
+            "describe"
+          ]
         },
         {
           "name": "AGG_CI_LOWER",
@@ -3688,6 +3691,9 @@
         "requires": [
           "Field",
           "SplitBy"
+        ],
+        "intents": [
+          "compare_groups"
         ]
       },
       {
@@ -3921,6 +3927,9 @@
         "requires": [
           "Field",
           "Field2"
+        ],
+        "intents": [
+          "relationship"
         ]
       },
       {
@@ -4095,6 +4104,9 @@
         "requires": [
           "Field",
           "SplitBy"
+        ],
+        "intents": [
+          "compare_groups"
         ]
       },
       {
@@ -4221,6 +4233,9 @@
         "requires": [
           "Field",
           "Field2"
+        ],
+        "intents": [
+          "relationship"
         ]
       },
       {
@@ -9895,4 +9910,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f2dcbf1e96528002af2054bb341f67dd8078a264bc7778e2c7d7aab4b9ebe8b3
+// golden-hash: 5d518076630d400ea537f922f7c60e93205625bacc237670980a4dcdeb751a89
