@@ -7006,7 +7006,7 @@
       },
       {
         "name": "attribute-composition",
-        "description": "ATTR_* composition rules — slot ordering, two-pass attributes, ATTR_FORMULA expression environment, ATTR vs FEAT distinction. Topical design; per-ATTR detail lives in atomic op-attr-* skills."
+        "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
       },
       {
         "name": "cohort-schema-design",
@@ -7019,6 +7019,10 @@
       {
         "name": "crosstab-guide",
         "description": "Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics."
+      },
+      {
+        "name": "expression-language",
+        "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
       },
       {
         "name": "facet-design",
@@ -7730,7 +7734,7 @@
       },
       {
         "name": "regression-modeling",
-        "description": "REG_* operator + modifier composition (`Resample`, `Selection`), `FEAT_POLY` upstream composition, how 13 textbook regression names map to 3 operators + 2 modifiers. Topical design; per-REG detail in atomic op-reg-* skills."
+        "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
       {
         "name": "request-envelope",
@@ -10529,4 +10533,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 52b87f39ba1d1354dc2fcd7018850ca2e302359effe3e94cbabede1585ed55ca
+// golden-hash: 4ea89af10f6e9fd0feb22d87065b6466dddf85d50c757295fc1094cfb3e3d351

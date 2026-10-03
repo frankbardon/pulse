@@ -332,7 +332,7 @@
       },
       {
         "name": "attribute-composition",
-        "description": "Topical design; per-ATTR detail lives in atomic op-attr-* skills."
+        "description": "Attribute composition rules — slot ordering, two-pass vs row-local attributes, the formula expression environment, attributes vs features. Topical design; per-attribute detail lives in atomic op-attr-* skills."
       },
       {
         "name": "cohort-schema-design",
@@ -345,6 +345,10 @@
       {
         "name": "crosstab-guide",
         "description": "Crosstab slot — rows × columns groupers, margins-from-raw-rows, normalize / normalize_level / normalize_within, matrix vs long, fused vs buffered, CrosstabComponents indexing. Topical; per-aggregator/grouper math lives in op-* atomics."
+      },
+      {
+        "name": "expression-language",
+        "description": "The per-row expression environment shared by the formula attribute and the expression filter — field binding by type, operators, built-in functions, set helpers, null handling, embedder functions and lookup tables. Not request templating."
       },
       {
         "name": "facet-design",
@@ -392,7 +396,7 @@
       },
       {
         "name": "regression-modeling",
-        "description": "Topical design; per-REG detail in atomic op-reg-* skills."
+        "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
       {
         "name": "request-envelope",
@@ -579,4 +583,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 517498a761df6eaf70ef09a8b4d39ec77e630fe80a19961091526cd3f0cd08b4
+// golden-hash: 16d218d403a018d475c39fd27c506dc5b9580ef4c891542814c4e2ab0903132f

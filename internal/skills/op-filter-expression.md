@@ -38,9 +38,8 @@ Floor only: universal `{n_in, n_out, n_null_input}` (`response-components`). `n_
 - Error / non-bool on a non-null row → `PROCESSING_RUNTIME`.
 - `%` on a field: float `math.Mod` (`age % 2 == 0`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 - No attribute output — filters run first.
-- Embedder `ExprFunctions` + `LookupTables` visible.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `aggregation-design`, `response-components`; `docs/src/internals/extension-points.md`
+- Skills: `expression-language` (embedder `ExprFunctions`, `LookupTables`), `aggregation-design`, `response-components`

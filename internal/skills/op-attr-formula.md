@@ -35,9 +35,8 @@ One `float64` per record (bools → `1.0` / `0.0`). Null binds `nil`: guard `x ?
 - Categorical → STRING (`==` / `in`); `set_*` → `[]string` (`"a" in tags`, `has_any(tags, "a", "b")`).
 - No `sqrt` / `log` / `exp` / trig — use `**` or FEAT.
 - `%` on a field: float `math.Mod` (`score % 1`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
-- Embedder `ExprFunctions` + `lookup(...)` tables visible.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `attribute-composition`; `docs/src/internals/extension-points.md`
+- Skills: `attribute-composition`, `expression-language` (embedder `ExprFunctions`, `lookup(...)`)

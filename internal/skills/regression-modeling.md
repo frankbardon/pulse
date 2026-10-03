@@ -1,6 +1,6 @@
 ---
 name: regression-modeling
-description: REG_* operator + modifier composition (`Resample`, `Selection`), `FEAT_POLY` upstream composition, how 13 textbook regression names map to 3 operators + 2 modifiers. Topical design; per-REG detail in atomic op-reg-* skills.
+description: Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
@@ -9,27 +9,33 @@ covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, Resample, Selection, FEAT_POLY
 
 # Regression modeling
 
-Three operators + two modifiers + one upstream feature operator cover every textbook regression name. Per-engine math (IRLS, NIG, coordinate descent) in atomic `op-reg-*` skills; this file covers composition.
+Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names. Per-model params, outputs, inference and errors: atomic `op-reg-*` skills.
 
 Regressions do not emit `Response.Components`. Fit summaries ride `Response.Regressions[i]`.
 
-## Operator surface
+## Choosing a model
 
-| Operator | Streaming | Fits |
-|---|---|---|
-| `REG_OLS` | yes (sufficient stats) | OLS; optional `l1` / `l2` / `elasticnet` penalty |
-| `REG_GLM` | no (IRLS) | GLM; `Family ∈ {binomial, poisson, gamma}` + `Link` |
-| `REG_BAYES_LINEAR` | yes (Welford + posterior update) | Bayesian linear, conjugate Normal-Inverse-Gamma prior |
+Start from the question: `pulse_skills_get intents` → `drivers` (which predictors move the outcome, and by how much) or `relationship` (do two fields move together). In `pulse_manifest`, the `regressions[]` entries carrying that intent are the models this instance offers; each states `streamable`. Each model's guidance names its alternatives — a correlation or group-mean test often answers without a model.
 
-`REG_OLS` + `REG_BAYES_LINEAR` share the Welford-Pébaÿ accumulator (`n, μ_x, μ_y, M2_xx, M2_xy, M2_yy`); `REG_BAYES_LINEAR` recovers `XᵀX`, `Xᵀy`, `yᵀy` and adds one finalize-time Cholesky on `Λ_n`. `REG_GLM` buffers and iterates.
+| Decide | Pushes toward |
+|---|---|
+| Outcome numeric with roughly symmetric, constant-spread residuals? | the least-squares (OLS) fit |
+| Outcome yes/no (0/1) or a count? | the generalised linear (GLM) fit with a `binomial` / `poisson` family |
+| Prior knowledge about the coefficients, or want credible intervals? | the Bayesian linear fit (no p-values) |
+| Many correlated predictors? | a penalty (`l2` keeps all, `l1` / `elasticnet` zero some) |
+| Distrust the analytical SE? | the `Resample` modifier |
+| Unsure which predictors belong? | the `Selection` modifier — or a penalty, never both |
+| A curved relationship? | polynomial columns built upstream, then a linear fit |
 
-Target / predictor types follow `encoding.FieldType.IsNumericForAnalytics`: integer / float / decimal plus `u4`, `packed_bool`, `date`. Nullable fields drop the row from the observation count via per-record bitmap — no formula cast needed.
+Target / predictor types follow `encoding.FieldType.IsNumericForAnalytics` (integer / float / decimal plus `u4`, `packed_bool`, `date`); a null drops the row from the observation count.
+
+Streaming: the OLS and Bayesian linear fits share one Welford-Pébaÿ accumulator (`n, μ_x, μ_y, M2_xx, M2_xy, M2_yy`) and stream; the GLM's iteratively reweighted fit buffers. Either modifier forces buffered execution.
 
 ## Modifiers
 
-Both modifiers force buffered execution. Both compose with `REG_OLS` and `REG_GLM`. `REG_BAYES_LINEAR` rejects both — credible intervals already convey uncertainty, stepwise on a NIG fit is out of scope.
+Both compose with the OLS and GLM fits; the Bayesian fit rejects both — credible intervals already convey uncertainty, and stepwise search on a conjugate fit is out of scope.
 
-### `Resample` (Indeed #10 Jackknife)
+### `Resample` (jackknife / bootstrap)
 
 | Value | Behavior |
 |---|---|
@@ -39,7 +45,7 @@ Both modifiers force buffered execution. Both compose with `REG_OLS` and `REG_GL
 
 Overwrites `StdErrors` / `PValues`; point estimate stays at the full-data fit. `BootstrapIters` defaults to 1000; `RNGSeed = 0` time-seeds, non-zero reproducible. For `l1` / `elasticnet`, `Resample` is the rigorous SE answer and suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`.
 
-### `Selection` (Indeed #13 Stepwise)
+### `Selection` (stepwise)
 
 | Value | Behavior |
 |---|---|
@@ -52,27 +58,36 @@ Overwrites `StdErrors` / `PValues`; point estimate stays at the full-data fit. `
 
 `Selection` + `Resample` together is sane. `Penalty != ""` + `Selection != ""` emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION` — regularization already shrinks / selects.
 
-## `FEAT_POLY` upstream (Polynomial)
+## Textbook names → spec
 
-`FEAT_POLY` runs in `features` before `REG_OLS`, emitting `Degree − 1` derived columns (`<label>_2 … <label>_<Degree>`). The original column stays. Degree gate `[2, 10]`. Standardize predictors — `x^10` overflows `f64` past `|x| ≈ a few hundred`. Detail: `feature-engineering`.
-
-## 13 textbook names → spec
-
-| # | Name | Spec |
-|---|---|---|
-| 1, 3 | Simple / Linear | `REG_OLS` one predictor |
-| 2, 4 | Multiple / Multiple Linear | `REG_OLS` multiple predictors |
-| 5 | Logistic | `REG_GLM{Family:"binomial", Link:"logit"}` |
-| 6 | Ridge | `REG_OLS{Penalty:"l2", Alpha:λ}` |
-| 7 | Lasso | `REG_OLS{Penalty:"l1", Alpha:λ}` |
-| 8 | Polynomial | `FEAT_POLY` upstream → `REG_OLS` |
-| 9 | Bayesian Linear | `REG_BAYES_LINEAR{Prior:"nig"}` |
-| 10 | Jackknife | any with `Resample:"jackknife"` |
-| 11 | Elastic Net | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}` |
-| 12 | Ecological | `GROUP_*` + `AGG_AVERAGE` upstream → `REG_OLS` over per-group means (composed) |
-| 13 | Stepwise | any with `Selection:"stepwise", Criterion:"aic"\|"bic"` |
+| Name | Spec |
+|---|---|
+<!-- feature: REG_OLS -->
+| Simple / Linear / Multiple | `REG_OLS`, one or more predictors |
+| Ridge | `REG_OLS{Penalty:"l2", Alpha:λ}` |
+| Lasso | `REG_OLS{Penalty:"l1", Alpha:λ}` |
+| Elastic Net | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}` |
+<!-- /feature -->
+<!-- feature: REG_GLM -->
+| Logistic | `REG_GLM{Family:"binomial", Link:"logit"}` |
+<!-- /feature -->
+<!-- feature: FEAT_POLY, REG_OLS -->
+| Polynomial | `FEAT_POLY` upstream → `REG_OLS` |
+<!-- /feature -->
+<!-- feature: REG_BAYES_LINEAR -->
+| Bayesian Linear | `REG_BAYES_LINEAR{Prior:"nig"}` |
+<!-- /feature -->
+| Jackknife | an OLS / GLM spec with `Resample:"jackknife"` |
+| Stepwise | an OLS / GLM spec with `Selection:"stepwise", Criterion:"aic"\|"bic"` |
+<!-- feature: AGG_AVERAGE, REG_OLS -->
+| Ecological | a grouper + `AGG_AVERAGE` upstream → `REG_OLS` over per-group means (composed) |
+<!-- /feature -->
 
 Runnable JSON: `internal/examples/regression/`.
+
+## Polynomial terms
+
+Polynomial columns are built in `features`, before the fit: the transform emits `Degree − 1` derived columns (`<label>_2 … <label>_<Degree>`) and keeps the original. Degree gate `[2, 10]`. Standardize predictors first — `x^10` overflows `f64` past `|x| ≈ a few hundred`. Parameter table and naming: `feature-engineering`.
 
 ## Ecological caveat
 
@@ -80,24 +95,19 @@ A significant group-level slope does NOT imply individual-level association (Rob
 
 ## Inference
 
-- `REG_OLS` (unpenalized, `l2`): asymptotic SE from `(XᵀX)⁻¹`. Student-t p.
-- `REG_OLS` (`l1`, `elasticnet`): plug-in SE over data-dependent active set; shrunk-to-zero coefficients have no SE. `PROCESSING_REGRESSION_APPROXIMATE_SE` warning unless `Resample` is set.
-- `REG_GLM`: Wald-z p from `Cov(β) = (XᵀWX)⁻¹`. Dispersion=1 for `binomial`/`poisson`; gamma same assumption (skeptical).
-- `REG_BAYES_LINEAR`: posterior means + credible intervals from Student-t marginal. `p_values` NOT emitted.
+Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, plug-in SE over the active set for `l1` / `elasticnet` (`PROCESSING_REGRESSION_APPROXIMATE_SE` unless `Resample`), Wald-z p for the GLM, credible intervals and no `p_values` for the Bayesian fit.
 
 ## Gotchas
 
-- `REG_GLM` always buffered. Modifiers also force buffered.
-- `Penalty != ""` on `REG_GLM` rejected (`PROCESSING_CONFIG`) — regularized GLM is a later phase.
-- `Penalty` / `Alpha` / `L1Ratio` / `Family` / `Link` on `REG_BAYES_LINEAR` rejected — those knobs belong to other engines.
-- Nullables drop rows from `n_obs`; counts ≠ raw record count when nullable fields appear.
+- `n_obs` ≠ raw record count when nullable fields appear.
 - `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop a predictor or add regularization.
 - `PROCESSING_REGRESSION_NO_CONVERGE`: raise `MaxIters` / `Tol`, or reduce `Alpha`.
+- Knobs belong to their engine: a penalty on the GLM, or `Penalty` / `Family` / `Link` on the Bayesian fit, is rejected (`PROCESSING_CONFIG`).
 
 ## See
 
 - Recipes: `pulse_examples_search tags=["regression"]` plus atomic `op-reg-<name>`.
-- `feature-engineering` — `FEAT_POLY` parameter table + column naming.
+- `feature-engineering` — polynomial parameter table + column naming.
 - `statistical-testing` — Wald-z vs Student-t.
 - `request-envelope` — slot keys, streamability.
 - `pulse_errors_lookup` — `PROCESSING_REGRESSION_*` recovery.

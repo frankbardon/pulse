@@ -65,11 +65,15 @@ func TestManifestSkills_DescriptionsNameNoHidden(t *testing.T) {
 					rendered++
 				}
 			}
-			if rendered == 0 {
-				t.Fatalf("vacuous: no visible skill description named an operator %s hides", fixture)
+			// The pack's descriptions name no other feature (the description
+			// rule of TestSkillsCoverFeatureFences), so the metadata scrub is
+			// a backstop that renders nothing on the shipped pack; the checks
+			// above bind only when the fixture really hides operators.
+			if len(hidden) == 0 {
+				t.Fatalf("vacuous: fixture %s hides no operator", fixture)
 			}
-			if !strings.Contains(fullDesc["attribute-composition"], "ATTR_FORMULA") {
-				t.Fatalf("vacuous probe: attribute-composition description no longer names ATTR_FORMULA")
+			if rendered != 0 {
+				t.Errorf("%d shipped skill descriptions changed under %s: a description names a feature the profile hides", rendered, fixture)
 			}
 		})
 	}

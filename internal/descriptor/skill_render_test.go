@@ -190,9 +190,12 @@ func TestDiscovery_RendersFences(t *testing.T) {
 // written (the fence gate, not the renderer, keeps the pack fenced).
 func TestDiscovery_NoProseScrubOnBodies(t *testing.T) {
 	d := hidingSnapshot("REG_GLM").Discovery()
-	full, _ := skills.Get("regression-modeling")
-	if got, _ := d.Skill("regression-modeling"); got != full {
-		t.Error("topical body without fences changed")
+	if _, ok := d.topical["regression-modeling"]; !ok {
+		t.Fatal("premise: regression-modeling is a visible topical skill")
+	}
+	prose := "Fit a logistic model with `REG_GLM` here.\n| `REG_GLM` | binomial |\n"
+	if got := d.renderBody("regression-modeling", prose); got != prose {
+		t.Error("an unfenced topical line naming a hidden operator was cut")
 	}
 	row := "| Host | Accepted? |\n|---|---|\n| `REG_GLM` | yes |\n"
 	if got := d.renderBody("op-reg-mod-resample", row); got != row {
