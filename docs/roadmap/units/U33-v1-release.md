@@ -81,6 +81,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 
 - README links to STABILITY.md
 - Release notes mention the MCP default `standard` (from U18)
+- Release notes tell users to rebuild a sidecar index built on a pre-1970 `datetime` key before U03 (`pulse index build`); `date` keys are unaffected (`.claude/reference/byte-layout.md`, temporal word sign)
 
 ## Human inputs & decisions
 
@@ -89,3 +90,9 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 ## Notes
 
 - TODO item 172 (missing-data modes) is verified in U16. It is listed in the sweep for completeness.
+
+## Inherited from U03 / U04
+
+- **Pre-1970 `datetime` index rebuild** (U03, PR #301). This is the release-note line under Update Demand companions. The fix changed how such a key is encoded, so an older index on one keys on a rounded float echo.
+- **Review `mcpserve.Describe` / `ServeInfo` before the freeze** (U04, PR #304). They exist only to get the profile name into `pulse mcp`'s startup line without a `*Pulse` accessor (`mcpserve/describe.go`). U05 then added `p.FeatureProfile()`. Keep them, or remove them in favour of the accessor, before `STABILITY.md` freezes `mcpserve`.
+- **After the `v1.0.0` tag: relax `TestFeaturesHaveSince`.** It requires every built-in `Since` to equal `BuiltinFeatureSince` (`"1.0.0"`, `internal/descriptor/features.go`). The first feature added after the tag must relax the check to "parseable and ≤ the next release". Contract: `.claude/reference/feature-profiles.md`. This is post-release work, recorded here so it is not lost.

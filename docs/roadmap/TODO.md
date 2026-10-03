@@ -39,6 +39,12 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#196** `FeatureRegistration.Streamable` probe-validated at `pulse.New` · [U34](units/U34-extension-validation.md)
 - [ ] **#197** Synth-distribution extension contract: an `extend` factory shape, or a documented decision that distributions are not an extension category · [U34](units/U34-extension-validation.md)
 
+#### Predict / runtime parity (pre-existing gaps found in U03 / U05)
+- [ ] **#198** Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#199** The runtime refuses, rather than silently computes on, a field it cannot read: the ledger's "predict stricter, runtime wrong" half (`FEAT_POLY`, `REG_*` and `WIN_*` value windows on categorical / set / decimal / `packed_bool` / `datetime`), plus tier-1 tests on `set_*` · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#200** A request with more than one `Groups` entry executes every group or is refused (today only `Groups[0]` runs) · [U35](units/U35-predict-runtime-parity.md)
+- [ ] **#201** Remaining silent predict / runtime gaps: crosstab cell-aggregator validity in predict, one label set for the label-collision check, label bindings on ProcessChain stages ≥ 1, windowed record rows under projection · [U35](units/U35-predict-runtime-parity.md)
+
 #### Cohort facade
 - [ ] **#190** `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)` · [U02c](units/U02c-cohort-facade.md)
 - [ ] **#191** `CohortWriter` on the facade: schema + append rows, grouped (`0x02`) cohorts included · [U02c](units/U02c-cohort-facade.md)

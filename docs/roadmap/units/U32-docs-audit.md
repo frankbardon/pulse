@@ -5,7 +5,7 @@ title: "Pulse goes live with the most helpful, current and comprehensive documen
 track: API & release
 size: L
 status: not-started
-depends_on: [U01, U02, U02b, U02c, U34, U06, U10, U18, U19, U20, U23, U30, U31]
+depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31]
 soft_depends_on: [all feature units]
 blocks: [U33]
 todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167]
@@ -103,6 +103,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(docs-audit/E<n>-S
 
 ## Notes
 
-- The manifest's own `format_version` is hard-coded `"1.0"` (`descriptor/manifest.go`) while the envelope says `"1.1"`. Found during U01; reconcile it or document why they differ.
+- The manifest's own `format_version` is hard-coded `"1.0"` (`internal/descriptor/manifest.go`, pinned by `TestManifestFormatVersion`) while the envelope says `"1.1"`. Found during U01; reconcile it or document why they differ.
 - Runs after every feature unit and before the release candidate, so the rc ships with the final docs and downstream validation exercises them too.
 - `skills/session-bootstrap.md` is ~15.3K body chars against the 6,000-char `kind: design` budget (over before U07; the budget is soft today). It must be brought within budget before #161 flips `TestSkillTokenBudget` to hard-failing — e.g. move the CLI-flag tables to `docs/src/cli/flags.md` and leave pointers.
+- **Arrow / Parquet schemas are documented as "authoritative" while only SPSS implements `iocore.SchemaAwareReader`** (found in U03, PR #301). `skills/cohort-schema-design.md` (declared widths never promote) is one such claim. Either confirm that Arrow / Parquet column types are honoured by another path and reword, or log the code gap with an issue.
