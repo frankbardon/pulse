@@ -392,6 +392,49 @@ var glossaryRegistry = []descriptor.Term{
 		Jargon:  true, Forms: []string{"pairwise deletion"},
 	},
 
+	// --- Comparing with a reference ---------------------------------------
+	{
+		ID:      "baseline",
+		Short:   "The reference a figure is compared with: a chosen period, a named group, a population, a total or another request's result.",
+		WhyCare: "Every comparison is only as meaningful as its baseline. Say which one you used, and pick one that is stable and large enough to compare against.",
+		SeeAlso: []string{"index-value", "margin"},
+	},
+	{
+		ID:      "index-value",
+		Short:   "A ratio to a baseline scaled so the baseline is 100: 120 is 20% above it, 80 is 20% below it.",
+		WhyCare: "It puts groups of very different sizes on one scale, but it hides the absolute gap and swings wildly when the baseline is small.",
+		SeeAlso: []string{"baseline", "percentage-point"},
+		Jargon:  true, Forms: []string{"index value", "index values"},
+	},
+	{
+		ID:      "percentage-point",
+		Short:   "The plain difference between two percentages: 40% to 45% is a rise of 5 percentage points, which is a 12.5% relative rise.",
+		WhyCare: "Mixing up points and percent changes overstates or understates a change; say which one a figure is.",
+		SeeAlso: []string{"index-value"},
+		Jargon:  true, Forms: []string{"percentage point", "percentage points"},
+	},
+	{
+		ID:      "margin",
+		Short:   "In a cross-tabulation, the figure for a whole row, a whole column or the whole table (the grand total), shown along its edges.",
+		WhyCare: "Cells are often read against their margin. The margin is whatever the cell aggregator gives for the full row or column: a total for counts and sums, an overall average for means.",
+		SeeAlso: []string{"cross-tabulation", "baseline"},
+		Jargon:  true, Forms: []string{"margin", "margins", "marginal total", "marginal totals"},
+	},
+	{
+		ID:      "rolling-mean",
+		Short:   "The average of the last few points in a series (a moving average), recomputed at every step.",
+		WhyCare: "It smooths out short-term swings, so a point far from its rolling mean stands out; a short window reacts fast but is jumpy.",
+		SeeAlso: []string{"mean", "baseline"},
+		Jargon:  true, Forms: []string{"rolling mean", "rolling average", "moving average"},
+	},
+	{
+		ID:      "probit",
+		Short:   "A transform that maps a proportion to the z-score at which the normal curve has that share below it: 0.5 maps to 0, 0.84 to about 1.",
+		WhyCare: "It stretches proportions near 0 and 1, where small changes in share matter more; tests built on it are a convention some survey tools follow.",
+		SeeAlso: []string{"z-score", "normal-distribution"},
+		Jargon:  true, Forms: []string{"probit"},
+	},
+
 	// --- Relationships ----------------------------------------------------
 	{
 		ID:      "covariance",
