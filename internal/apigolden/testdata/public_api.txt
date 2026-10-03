@@ -20,6 +20,7 @@ pulse: type AggregatorRegistration field MarginReducibility pulse/types.MarginRe
 pulse: type AggregatorRegistration field Mergeable bool
 pulse: type AggregatorRegistration field Name pulse/types.AggregationType
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
+pulse: type AggregatorRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AggregatorRegistration field Streamable bool
 pulse: const AttributeEmitBool pulse.AttributeEmitType = "bool"
 pulse: const AttributeEmitFloat64 pulse.AttributeEmitType = "float64"
@@ -39,6 +40,7 @@ pulse: type AttributeRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
 pulse: type AttributeRegistration field Params []pulse.ParamMeta
+pulse: type AttributeRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
 pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
@@ -144,6 +146,7 @@ pulse: type DistributionRegistration field Description string
 pulse: type DistributionRegistration field Factory any
 pulse: type DistributionRegistration field Name string
 pulse: type DistributionRegistration field Params []pulse.ParamMeta
+pulse: type DistributionRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type ErrorFixup = pulse/errors.Fixup
 pulse: type ErrorFixup underlying struct
 pulse: type ErrorFixup field Action pulse/errors.FixupAction "json:\"action\""
@@ -307,6 +310,7 @@ pulse: type FeatureRegistration field Factory pulse/extend.FeatureFactory
 pulse: type FeatureRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FeatureRegistration field Name pulse/types.FeatureType
 pulse: type FeatureRegistration field Params []pulse.ParamMeta
+pulse: type FeatureRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type FeatureRegistration field Streamable bool
 pulse: type FieldInputsFunc func(raw encoding/json.RawMessage) []string
 pulse: type FilterToFileRequest struct
@@ -332,6 +336,7 @@ pulse: type FiltererRegistration field Factory pulse/extend.FiltererFactory
 pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FiltererRegistration field Name pulse/types.FiltererType
 pulse: type FiltererRegistration field Params []pulse.ParamMeta
+pulse: type FiltererRegistration field Purpose *pulse/descriptor.Purpose
 pulse: func Glossary() []pulse/descriptor.Term
 pulse: type GroupIndexHeadroom = pulse/internal/encoding.GroupIndexHeadroom
 pulse: type GroupIndexHeadroom underlying struct
@@ -363,6 +368,7 @@ pulse: type GrouperRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type GrouperRegistration field Mergeable bool
 pulse: type GrouperRegistration field Name pulse/types.GroupType
 pulse: type GrouperRegistration field Params []pulse.ParamMeta
+pulse: type GrouperRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type GrouperRegistration field Streamable bool
 pulse: type ImportEntry = pulse/internal/imports.Entry
 pulse: type ImportEntry underlying struct
@@ -860,9 +866,11 @@ pulse: type TestRegistration field Accepts []pulse/encoding.FieldType
 pulse: type TestRegistration field DependsOn []string
 pulse: type TestRegistration field Description string
 pulse: type TestRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type TestRegistration field Interpretation []pulse/descriptor.Interpretation
 pulse: type TestRegistration field Name pulse/types.TestType
 pulse: type TestRegistration field Params []pulse.ParamMeta
 pulse: type TestRegistration field PostFactory pulse/extend.PostTestFactory
+pulse: type TestRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type TestRegistration field RowFactory pulse/extend.RowTestFactory
 pulse: type TestRegistration field Streamable bool
 pulse: type TestRegistration field Tier pulse.TestTier
@@ -905,6 +913,7 @@ pulse: type WindowRegistration field Factory pulse/extend.WindowFactory
 pulse: type WindowRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
+pulse: type WindowRegistration field Purpose *pulse/descriptor.Purpose
 pulse/descriptor: package descriptor
 pulse/descriptor: type AggregationPredict struct
 pulse/descriptor: type AggregationPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
@@ -1687,6 +1696,7 @@ pulse/errors: const PULSE_EXTENSION_NAME_COLLISION pulse/errors.Code = "PULSE_EX
 pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTENSION_NAME_INVALID"
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
+pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_EXTENSION_PURPOSE_INVALID"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
 pulse/errors: const PULSE_FEATURE_PROFILE_DEPENDENCY pulse/errors.Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
 pulse/errors: const PULSE_FEATURE_PROFILE_INVALID pulse/errors.Code = "PULSE_FEATURE_PROFILE_INVALID"
@@ -3666,4 +3676,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2c6d438475f09d99b58c60cefc4f8a1224a2f08542569495d8391adb3b813a2c
+// golden-hash: 9443821cbe1835bc4f782abf222302d909c2acc7ced360ce158080f56ef7a1d4

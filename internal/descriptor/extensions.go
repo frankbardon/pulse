@@ -77,6 +77,28 @@ type ExtensionsSnapshot struct {
 	// exactly as the runtime does; a registration without the hook is
 	// absent and its params are not judged. Never serialised.
 	FieldInputs map[string]func(raw json.RawMessage) []string `json:"-"`
+
+	// Purposes carries each registration's optional Purpose, keyed by
+	// registered operator name, already validated at pulse.New. The
+	// manifest projects only its intent IDs (OperatorMeta.Intents); the
+	// prose stays on demand. A registration without a Purpose is absent.
+	// Never serialised.
+	Purposes map[string]descriptor.Purpose `json:"-"`
+
+	// Interpretations carries each test registration's optional
+	// Interpretation entries, keyed by registered test name, already
+	// structure-checked at pulse.New. Never serialised.
+	Interpretations map[string][]descriptor.Interpretation `json:"-"`
+}
+
+// PurposeOf returns the Purpose the extension operator name declares.
+// Nil-safe.
+func (s *ExtensionsSnapshot) PurposeOf(name string) (descriptor.Purpose, bool) {
+	if s == nil {
+		return descriptor.Purpose{}, false
+	}
+	p, ok := s.Purposes[name]
+	return p, ok
 }
 
 // DeclaredFieldInputs returns the field names the extension operator
@@ -129,14 +151,14 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 		return emptyExtensionsManifest()
 	}
 	out := descriptor.ExtensionsManifest{
-		Aggregators:        sortOperatorMeta(snap.Aggregators),
-		Attributes:         sortOperatorMeta(snap.Attributes),
-		Filterers:          sortOperatorMeta(snap.Filterers),
-		Groupers:           sortOperatorMeta(snap.Groupers),
-		Windows:            sortOperatorMeta(snap.Windows),
-		Features:           sortOperatorMeta(snap.Features),
-		Tests:              sortOperatorMeta(snap.Tests),
-		SynthDistributions: sortOperatorMeta(snap.SynthDistributions),
+		Aggregators:        snap.withExtIntents(sortOperatorMeta(snap.Aggregators)),
+		Attributes:         snap.withExtIntents(sortOperatorMeta(snap.Attributes)),
+		Filterers:          snap.withExtIntents(sortOperatorMeta(snap.Filterers)),
+		Groupers:           snap.withExtIntents(sortOperatorMeta(snap.Groupers)),
+		Windows:            snap.withExtIntents(sortOperatorMeta(snap.Windows)),
+		Features:           snap.withExtIntents(sortOperatorMeta(snap.Features)),
+		Tests:              snap.withExtIntents(sortOperatorMeta(snap.Tests)),
+		SynthDistributions: snap.withExtIntents(sortOperatorMeta(snap.SynthDistributions)),
 		ExprFunctions:      sortExprFunctionMeta(snap.ExprFunctions),
 		LookupTables:       sortLookupTableMeta(snap.LookupTables),
 		LabelTables:        sortLabelTableMeta(snap.LabelTables),
@@ -179,6 +201,25 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 		out.RangeTables = []descriptor.RangeTableMeta{}
 	}
 	return out
+}
+
+// withExtIntents stamps each entry with the sorted intent IDs its
+// registration's Purpose declares — the extension twin of
+// withOpIntents. An entry without a Purpose keeps nil Intents, so the
+// manifest omits the key. ops is a fresh copy (sortOperatorMeta), so
+// writing in place never reaches the snapshot.
+func (s *ExtensionsSnapshot) withExtIntents(ops []descriptor.OperatorMeta) []descriptor.OperatorMeta {
+	for i := range ops {
+		p, ok := s.PurposeOf(ops[i].Name)
+		if !ok || len(p.Intents) == 0 {
+			ops[i].Intents = nil
+			continue
+		}
+		ids := append([]string(nil), p.Intents...)
+		sort.Strings(ids)
+		ops[i].Intents = ids
+	}
+	return ops
 }
 
 func sortOperatorMeta(in []descriptor.OperatorMeta) []descriptor.OperatorMeta {

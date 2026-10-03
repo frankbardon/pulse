@@ -993,6 +993,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_PURPOSE_INVALID: {
+		Message: "An extension registration's Purpose (or a test registration's Interpretation) breaks a guidance validity rule; details name the registration and the failing rule.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Fix the field the rule names: Plain non-empty and at most 140 characters; at least one intent from pulse.Intents(); at least two Questions; at least one NotFor entry whose Use names a registered operator (built-in or another extension) or a <kind>:<name> feature; UseCases keyed by survey/ops/science/harness; Level basic/intermediate/advanced; Glossary IDs from pulse.Glossary(), listing every jargon term Plain uses. Or omit Purpose entirely — it is optional.",
+			},
+		},
+	},
 	PULSE_EXTENSION_MERGEABLE_MISMATCH: {
 		Message: "An aggregator or grouper registration declared Mergeable=true but cannot merge: it is not Streamable, its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
 		Fixups: []Fixup{

@@ -5087,7 +5087,7 @@
         ]
       }
     ],
-    "error_codes_count": 249,
+    "error_codes_count": 250,
     "error_domains": [
       "CLI",
       "DATA",
@@ -5164,6 +5164,7 @@
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
+      "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
@@ -9928,4 +9929,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4133499df653caa263872751f358dcd42888e5f2e352569f5c48698a0db4066c
+// golden-hash: 45cf6c2d1421da2cbc984ad7734827e8f632a51a47d6ee2e40b91102e97a2685
