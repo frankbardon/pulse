@@ -1316,7 +1316,35 @@
       },
       {
         "name": "spss-cohorts",
-        "description": "SPSS .sav / .zsav import and .sav writing — the schema-authoritative dictionary, derived columns (\u003cvar\u003e_missing siblings and multiple-dichotomy set_* columns), the numeric-vs-categorical missing-value split, codes-not-labels dictionaries, the metadata sidecar, the dictionary + data-section writer, and the PULSE_SPSS_* diagnostics. Read this when a cohort came from SPSS, when a cohort has more columns than its source file had variables, or when emitting a .sav."
+        "description": "Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived columns, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav."
+      },
+      {
+        "name": "spss-export",
+        "description": "Writing .sav — the dictionary + data-section writer, bytecode compression, the four write flags, why the writer takes the whole cohort rather than rendered rows, how a .sav-to-.sav convert carries the source through, and asking export predict first."
+      },
+      {
+        "name": "spss-export-fidelity",
+        "description": "How far the .sav round-trip claim is proven — what CI gates, what was checked only locally against independent readers, what nothing corroborates — and the write-side charset rules (source charset kept, no replacement characters, no silent truncation, encode-measure-segment)."
+      },
+      {
+        "name": "spss-export-values",
+        "description": "What a .sav export writes for each value — the variable-name policy and --sanitize-names, set_* masks at every width, the missing state each null takes, original codes versus dictionary positions, byte order, and labels that live only on user-missing codes."
+      },
+      {
+        "name": "spss-import-schema",
+        "description": "How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a column unexpectedly or refuses a file."
+      },
+      {
+        "name": "spss-metadata-sidecar",
+        "description": "The cohort.pulse.spss.json sidecar an SPSS import writes — what it records that the .pulse format cannot, the code-label-dictionary-ID triple labels come from, its fingerprint, and the absent / stale / invalid / ignored read verdicts."
+      },
+      {
+        "name": "spss-missing-values",
+        "description": "How SPSS user-missing and system-missing values land in a cohort — the numeric \u003cvar\u003e_missing sibling versus the flagged categorical code, why the two arms deliberately differ, --spss-missing, and filtering on the code rather than the label."
+      },
+      {
+        "name": "spss-response-sets",
+        "description": "SPSS multiple-response sets and the columns an import synthesises — the derived set_* mask beside a multiple-dichotomy set's constituents, why multiple-category sets derive nothing, and the closed derived registry the export folds by. Read this when a cohort has more columns than its .sav had variables."
       },
       {
         "name": "statistical-testing",
@@ -1885,4 +1913,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 35adc51c016d7d15884a0ae64623fc34f61e683e972517730e9407c8d31937dd
+// golden-hash: 2d8a1a0d7bc6ea1a14974085be080be1e46cc78808a658957905f44ce71c99ee

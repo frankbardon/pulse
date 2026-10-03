@@ -102,4 +102,6 @@ Labels are output-only, so the INPUT direction needs a lookup. `pulse_label_tabl
 - `skills/facet-design.md` — surfacing labels on `FacetField` values.
 <!-- /feature -->
 - `skills/tool-label-tables.md` / `skills/tool-label-resolve.md` — `pulse_label_tables` / `pulse_label_resolve` schemas.
+<!-- feature: io_format:spss -->
 - `skills/spss-cohorts.md` — why an SPSS cohort stores codes, and where its labels live.
+<!-- /feature -->
