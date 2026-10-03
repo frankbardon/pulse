@@ -525,11 +525,12 @@ const (
 	// requires the full contingency table.
 	TEST_FISHER_EXACT TestType = "TEST_FISHER_EXACT"
 
-	// TEST_SHAPIRO_WILK is the Shapiro-Wilk normality test on Field.
-	// When SplitBy is set the test runs per-group; otherwise it runs
-	// over the full filtered set. Buffered: requires the ordered values.
-	// Implementation supports n ≤ 5000; n above the bound surfaces a
-	// PULSE_TEST_SHAPIRO_N_BOUND warning.
+	// TEST_SHAPIRO_WILK is the normality test on Field, computed in the
+	// Shapiro-Francia (W′) form. When SplitBy is set the test runs
+	// per-group; otherwise it runs over the full filtered set. Buffered:
+	// requires the ordered values. The p-value is calibrated for
+	// 5 ≤ n ≤ 5000; outside that range the result still carries a
+	// p-value plus an advisory warning.
 	TEST_SHAPIRO_WILK TestType = "TEST_SHAPIRO_WILK"
 
 	// TEST_Z_TWO_SAMPLE is the two-sample z-test on the means of a
@@ -630,7 +631,6 @@ type Test struct {
 	// Params holds operator-specific configuration as raw JSON.
 	//   TEST_T (one-sample): {"mu": <hypothesized mean>}
 	//   TEST_T / TEST_WELCH (two-sample): {"variant": "welch"} (default)
-	//   TEST_KS: {"alternative": "two-sided"|"less"|"greater"}
 	//   TEST_TUKEY_HSD: {"ms_within": <f64>, "df_within": <f64>}
 	//   TEST_TREND: {"variant": "mann_kendall"} (default)
 	Params json.RawMessage `json:"params,omitempty"`

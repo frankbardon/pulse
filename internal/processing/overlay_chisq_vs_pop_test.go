@@ -472,3 +472,167 @@ func TestApplyChiSqVsPop_StreamingVsBufferedByteIdentity(t *testing.T) {
 			layerA.Summary.Parameters["df"], layerB.Summary.Parameters["df"])
 	}
 }
+
+// chiSqVsPopRelClose reports whether got matches want to the relative
+// tolerance tol (absolute when want is 0). Relative so the amd64 / arm64
+// FMA divergence in the χ² survival tail cannot flip the assertion.
+func chiSqVsPopRelClose(got, want, tol float64) bool {
+	if want == 0 {
+		return math.Abs(got) <= tol
+	}
+	return math.Abs(got-want) <= tol*math.Abs(want)
+}
+
+// TestApplyChiSqVsPop_RenormalisesOverPopulationNulls pins the OS-01
+// fix (U08 E4 statistics review). The population carries 25 null rows
+// out of 125 filtered records, so the old shares (count / FilteredRecords)
+// summed to 0.8 and the expected counts to 80 against a subset of 100.
+// The old statistic was 14.375 — inflated from the true 7.5. The fixed
+// handler renormalises the population shares over the non-null
+// categories being compared, which is R's
+//
+//	chisq.test(c(30,30,30,10), p = c(40,30,20,10), rescale.p = TRUE)
+//	# X-squared = 7.5, df = 3, p-value = 0.057558451972636406
+func TestApplyChiSqVsPop_RenormalisesOverPopulationNulls(t *testing.T) {
+	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 40},
+		{Value: "b", Count: 30},
+		{Value: "c", Count: 20},
+		{Value: "d", Count: 10},
+	}, 4, 125, 125, 25)
+	host := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 30},
+		{Value: "b", Count: 30},
+		{Value: "c", Count: 30},
+		{Value: "d", Count: 10},
+	}, 4, 100, 100, 0)
+	popView, err := ResolveFacetPopulation(popResult, "category")
+	if err != nil {
+		t.Fatalf("ResolveFacetPopulation failed: %v", err)
+	}
+	layer, warnings, err := applyChiSqVsPop(chiSqVsPopSpec(), host.Fields["category"], popView)
+	if err != nil {
+		t.Fatalf("applyChiSqVsPop returned error: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("expected no warnings, got %+v", warnings)
+	}
+	const oldInflated = 14.375
+	const wantStat = 7.5
+	const wantP = 0.057558451972636406
+	got := *layer.Summary.Statistic
+	if chiSqVsPopRelClose(got, oldInflated, 1e-10) {
+		t.Fatalf("statistic = %v: still the pre-fix value inflated by population nulls", got)
+	}
+	if !chiSqVsPopRelClose(got, wantStat, 1e-10) {
+		t.Errorf("statistic = %v, want %v (R chisq.test rescale.p=TRUE)", got, wantStat)
+	}
+	if !chiSqVsPopRelClose(*layer.Summary.PValue, wantP, 1e-10) {
+		t.Errorf("p-value = %v, want %v", *layer.Summary.PValue, wantP)
+	}
+	if df := layer.Summary.Parameters["df"]; df != 3 {
+		t.Errorf("df = %v, want 3", df)
+	}
+}
+
+// TestApplyChiSqVsPop_RenormalisesOverComparedCategories pins the OS-01
+// fix under DiscreteTopK truncation plus nulls, and the OS-02 treatment
+// of a subset category the population never shows. The population has
+// 200 filtered rows: 40 null, 140 in the listed values {a:60, b:50,
+// c:30} and 20 in values truncated out of the listing. The subset lists
+// {a:30, b:20, c:10, z:5}; z is absent from the population.
+//
+// Old handler: shares over 200 rows, z skipped in the statistic but
+// counted in n and df → χ² ≈ 6.5256 on df 3. Fixed handler: z is left
+// out of the comparison (one PULSE_OVERLAY_REF_ZERO warning naming it),
+// shares renormalise over {a, b, c}, df counts only the compared
+// categories. R reference:
+//
+//	chisq.test(c(30,20,10), p = c(60,50,30), rescale.p = TRUE)
+//	# X-squared = 1.4444444444444451, df = 2, p-value = 0.48567178524771221
+func TestApplyChiSqVsPop_RenormalisesOverComparedCategories(t *testing.T) {
+	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 60},
+		{Value: "b", Count: 50},
+		{Value: "c", Count: 30},
+	}, 5, 200, 200, 40)
+	host := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 30},
+		{Value: "b", Count: 20},
+		{Value: "c", Count: 10},
+		{Value: "z", Count: 5},
+	}, 4, 65, 65, 0)
+	popView, err := ResolveFacetPopulation(popResult, "category")
+	if err != nil {
+		t.Fatalf("ResolveFacetPopulation failed: %v", err)
+	}
+	layer, warnings, err := applyChiSqVsPop(chiSqVsPopSpec(), host.Fields["category"], popView)
+	if err != nil {
+		t.Fatalf("applyChiSqVsPop returned error: %v", err)
+	}
+	const oldInflated = 6.525641025641026
+	const wantStat = 1.4444444444444451
+	const wantP = 0.48567178524771221
+	got := *layer.Summary.Statistic
+	if chiSqVsPopRelClose(got, oldInflated, 1e-6) {
+		t.Fatalf("statistic = %v: still the pre-fix value", got)
+	}
+	if !chiSqVsPopRelClose(got, wantStat, 1e-10) {
+		t.Errorf("statistic = %v, want %v (R chisq.test rescale.p=TRUE)", got, wantStat)
+	}
+	if !chiSqVsPopRelClose(*layer.Payload.Scalar, wantStat, 1e-10) {
+		t.Errorf("Payload.Scalar = %v, want %v", *layer.Payload.Scalar, wantStat)
+	}
+	if !chiSqVsPopRelClose(*layer.Summary.PValue, wantP, 1e-10) {
+		t.Errorf("p-value = %v, want %v", *layer.Summary.PValue, wantP)
+	}
+	if df := layer.Summary.Parameters["df"]; df != 2 {
+		t.Errorf("df = %v, want 2 (compared categories only)", df)
+	}
+	if layer.Summary.Count == nil || *layer.Summary.Count != 3 {
+		t.Errorf("Summary.Count = %v, want 3 compared categories", layer.Summary.Count)
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning for the population-absent category, got %+v", warnings)
+	}
+	w := warnings[0]
+	if w.Code != string(pulseerrors.PULSE_OVERLAY_REF_ZERO) {
+		t.Errorf("warning code = %s, want %s", w.Code, pulseerrors.PULSE_OVERLAY_REF_ZERO)
+	}
+	if w.Details["value"] != "z" {
+		t.Errorf("warning Details[value] = %v, want z", w.Details["value"])
+	}
+	if c, ok := w.Details["subset_count"].(int64); !ok || c != 5 {
+		t.Errorf("warning Details[subset_count] = %v, want int64 5", w.Details["subset_count"])
+	}
+	if !strings.Contains(w.Message, "left out") {
+		t.Errorf("warning message %q should say the category is left out of the comparison", w.Message)
+	}
+}
+
+// TestApplyChiSqVsPop_NoComparedCategoriesDegenerate: every subset
+// category is absent from a non-empty population, so nothing can be
+// compared. NaN statistic + p-value with one layer-level REF_ZERO.
+func TestApplyChiSqVsPop_NoComparedCategoriesDegenerate(t *testing.T) {
+	popResult := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "a", Count: 60},
+	}, 1, 60, 60, 0)
+	host := newFacetResultDiscrete("category", []types.FacetValueCount{
+		{Value: "y", Count: 5},
+		{Value: "z", Count: 5},
+	}, 2, 10, 10, 0)
+	popView, err := ResolveFacetPopulation(popResult, "category")
+	if err != nil {
+		t.Fatalf("ResolveFacetPopulation failed: %v", err)
+	}
+	layer, warnings, err := applyChiSqVsPop(chiSqVsPopSpec(), host.Fields["category"], popView)
+	if err != nil {
+		t.Fatalf("applyChiSqVsPop returned error: %v", err)
+	}
+	if len(warnings) != 1 || warnings[0].Code != string(pulseerrors.PULSE_OVERLAY_REF_ZERO) {
+		t.Fatalf("want one REF_ZERO warning, got %+v", warnings)
+	}
+	if layer.Summary.PValue == nil || !math.IsNaN(*layer.Summary.PValue) {
+		t.Errorf("p-value = %v, want NaN", layer.Summary.PValue)
+	}
+}

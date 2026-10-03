@@ -130,16 +130,11 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 	}
 	diff := a.mean - b.mean
 	zstat := diff / se
-	p := 2 * (1 - standardNormalCDF(math.Abs(zstat)))
+	p := normalTwoSidedP(zstat)
 	zcrit := math.Sqrt2 * inverseErf(1-zt.alpha)
 	ciLow := diff - zcrit*se
 	ciHigh := diff + zcrit*se
-	pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / (na + nb - 2))
-	var cohensD float64
-	if pooled > 0 {
-		cohensD = diff / pooled
-	}
-	return &types.TestResult{
+	res := &types.TestResult{
 		Label:      testLabel(zt.spec),
 		Type:       types.TEST_Z_TWO_SAMPLE,
 		Variant:    "two_sample_normal",
@@ -155,11 +150,10 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 			"diff":     diff,
 			"ci_low":   ciLow,
 			"ci_high":  ciHigh,
-			"effect_size": map[string]any{
-				"cohens_d": cohensD,
-			},
 		},
-	}, nil
+	}
+	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
+	return res, nil
 }
 
 func (zt *zTestRow) reset() {

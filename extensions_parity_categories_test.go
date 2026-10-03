@@ -30,6 +30,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -713,9 +714,11 @@ func windowParitySuite() paritySuite {
 // ---------------------------------------------------------------------
 // Tests: TEST_PARITY_T (row tier: one-sample and Welch two-sample) and
 // TEST_PARITY_PAIRED_T (post tier), extend reimplementations of TEST_T
-// and the tier-2 TEST_PAIRED_T. The Student-t tail is the same
-// Numerical Recipes continued fraction the engine uses, so results
-// agree bit-for-bit.
+// and the tier-2 TEST_PAIRED_T. The Student-t tail and its inverse
+// come from internal/statdist — the one implementation the engine
+// itself calls — so results agree bit-for-bit. (An embedder ships its
+// own distribution code; what this suite proves is the extension
+// plumbing, not a second copy of the numerics.)
 // ---------------------------------------------------------------------
 
 const (
@@ -740,81 +743,6 @@ func (b *parityWelford) variance() float64 {
 		return 0
 	}
 	return b.m2 / float64(b.n-1)
-}
-
-func parityStudentP(t, df float64) float64 {
-	if df <= 0 || math.IsNaN(t) || math.IsNaN(df) {
-		return math.NaN()
-	}
-	if math.IsInf(t, 0) {
-		return 0
-	}
-	if t == 0 {
-		return 1
-	}
-	x, a, b := df/(df+t*t), df/2, 0.5
-	if x <= 0 {
-		return 0
-	}
-	if x >= 1 {
-		return 1
-	}
-	lga, _ := math.Lgamma(a)
-	lgb, _ := math.Lgamma(b)
-	lgab, _ := math.Lgamma(a + b)
-	bt := math.Exp(lgab - lga - lgb + a*math.Log(x) + b*math.Log(1-x))
-	if x < (a+1)/(a+b+2) {
-		return bt * parityBetaCF(a, b, x) / a
-	}
-	return 1 - bt*parityBetaCF(b, a, 1-x)/b
-}
-
-func parityBetaCF(a, b, x float64) float64 {
-	const eps, tiny = 3e-15, 1e-300
-	clamp := func(v float64) float64 {
-		if math.Abs(v) < tiny {
-			return tiny
-		}
-		return v
-	}
-	qab, qap, qam := a+b, a+1, a-1
-	c, d := 1.0, 1/clamp(1-qab*x/qap)
-	h := d
-	for m := 1; m <= 200; m++ {
-		mf, m2 := float64(m), float64(2*m)
-		aa := mf * (b - mf) * x / ((qam + m2) * (a + m2))
-		d = 1 / clamp(1+aa*d)
-		c = clamp(1 + aa/c)
-		h *= d * c
-		aa = -(a + mf) * (qab + mf) * x / ((a + m2) * (qap + m2))
-		d = 1 / clamp(1+aa*d)
-		c = clamp(1 + aa/c)
-		del := d * c
-		h *= del
-		if math.Abs(del-1) < eps {
-			break
-		}
-	}
-	return h
-}
-
-func parityStudentInv(alpha, df float64) float64 {
-	if df <= 0 || alpha <= 0 || alpha >= 1 {
-		return math.NaN()
-	}
-	lo, hi := 0.0, 200.0
-	for range 100 {
-		mid := 0.5 * (lo + hi)
-		if parityStudentP(mid, df) > alpha {
-			lo = mid
-		} else {
-			hi = mid
-		}
-		if hi-lo < 1e-9 {
-			break
-		}
-	}
-	return 0.5 * (lo + hi)
 }
 
 func parityAlpha(spec *types.Test) float64 {
@@ -864,8 +792,8 @@ func (tt *parityTTest) Finalize() (*types.TestResult, error) {
 		sd := math.Sqrt(variance)
 		se := sd / math.Sqrt(float64(b.n))
 		res.Variant, res.Statistic, res.DF = "one_sample", (b.mean-tt.mu)/se, float64(b.n-1)
-		res.PValue = parityStudentP(res.Statistic, res.DF)
-		tcrit := parityStudentInv(alpha, res.DF)
+		res.PValue = statdist.StudentTTwoSidedP(res.Statistic, res.DF)
+		tcrit := statdist.StudentTInverseTwoSided(alpha, res.DF)
 		res.Details = map[string]any{"mu": tt.mu, "n": b.n, "mean": b.mean, "variance": variance,
 			"ci_low": b.mean - tcrit*se, "ci_high": b.mean + tcrit*se,
 			"effect_size": map[string]any{"cohens_d": (b.mean - tt.mu) / sd}}
@@ -880,8 +808,8 @@ func (tt *parityTTest) Finalize() (*types.TestResult, error) {
 		num := va/na + vb/nb
 		den := (va*va)/(na*na*(na-1)) + (vb*vb)/(nb*nb*(nb-1))
 		res.Variant, res.Statistic, res.DF = "welch_two_sample", diff/se, (num*num)/den
-		res.PValue = parityStudentP(res.Statistic, res.DF)
-		tcrit := parityStudentInv(alpha, res.DF)
+		res.PValue = statdist.StudentTTwoSidedP(res.Statistic, res.DF)
+		tcrit := statdist.StudentTInverseTwoSided(alpha, res.DF)
 		pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / (na + nb - 2))
 		var d float64
 		if pooled > 0 {
@@ -913,8 +841,8 @@ func (p parityPairedT) Run(rows []map[string]any) (*types.TestResult, error) {
 	sd := math.Sqrt(variance)
 	se := sd / math.Sqrt(float64(b.n))
 	t, df := b.mean/se, float64(b.n-1)
-	pv := parityStudentP(t, df)
-	tcrit := parityStudentInv(alpha, df)
+	pv := statdist.StudentTTwoSidedP(t, df)
+	tcrit := statdist.StudentTInverseTwoSided(alpha, df)
 	return &types.TestResult{
 		Label: p.spec.Label, Type: p.spec.Type, Variant: "paired_two_sided_post",
 		Statistic: t, DF: df, PValue: pv, Alpha: alpha, RejectNull: pv < alpha,

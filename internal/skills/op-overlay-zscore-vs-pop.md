@@ -27,7 +27,7 @@ SERIES — one `SeriesEntry` per host value in payload order carrying the z-scor
 
 - Discrete: `(subset_freq - pop_freq) / sd_pop`, `sd_pop = FacetPopulationView.DiscreteFrequencyStdev()` (population Welford SD across per-category frequencies).
 - Numeric: per-bin centre standardised against the population's Welford `(mean, sd)` from `FacetPopulationView`.
-- `sd_pop == 0`, or an absent population entry → ONE `PULSE_OVERLAY_REF_ZERO` per affected entry + SKIP it (`Statistic` unset).
+- `sd_pop == 0` → ONE `PULSE_OVERLAY_REF_ZERO` per affected entry + SKIP it (`Statistic` unset). An absent population entry reads as `pop_freq = 0` and IS emitted, no warning.
 - Streamable — post-finalize fold over the materialised host + population view; carrier not widened.
 
 ## See

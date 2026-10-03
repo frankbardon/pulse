@@ -1,0 +1,110 @@
+{
+  "_comment": "Independently transcribed effect-size conventions (U08 E1-S1). Hand-maintained from the cited sources, NOT generated from internal/descriptor/conventions.go: TestConventionRegistryMatchesFixture holds the registry equal to this file, so a band changed in only one place fails. Every threshold was checked against the fetched source on verified_at. labels[0] names the region below Cohen's 'small', which Cohen leaves unnamed (Pulse and R effectsize: 'very small'; renamed from 'negligible' by the U08 statistics review, N-10). Cohen (1988) itself could not be fetched (access-restricted scan); Cohen (1992) states the Table 1 conventions are those fixed in SPABS (Cohen 1988) and is cited as the primary transcription.",
+  "verified_at": "2026-10-02",
+  "conventions": [
+    {
+      "id": "cohen1988_d",
+      "citation": "Cohen (1988)",
+      "statistics": ["cohens_d", "hedges_g", "glass_delta", "cohens_h"],
+      "thresholds": [0.2, 0.5, 0.8],
+      "labels": ["very small", "small", "medium", "large"],
+      "abs": true,
+      "symmetric_log": false,
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Psychological Bulletin 112(1), Table 1 row 1 (d), p. 157; p. 157 note: ES indexes for tests 1-5 are absolute values"},
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_cohens_d.html", "locator": "effectsize 1.0.3 interpret_cohens_d, Rules: cohen1988"},
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Table 1 row 5 (h, difference between independent proportions PA vs PB, h = phi_A - phi_B with phi = 2 arcsin sqrt(P)), small/medium/large = .20/.50/.80, p. 157; absolute value per the p. 157 note"}
+      ]
+    },
+    {
+      "id": "cohen1988_eta2",
+      "citation": "Cohen (1988)",
+      "statistics": ["eta_squared", "omega_squared"],
+      "thresholds": [0.01, 0.06, 0.14],
+      "labels": ["very small", "small", "medium", "large"],
+      "abs": false,
+      "symmetric_log": false,
+      "derivation": {"kind": "eta2_from_f", "inputs": [0.10, 0.25, 0.40]},
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Table 1 row 7 (one-way ANOVA f = .10/.25/.40), p. 157; Example 7, p. 158: f = .25 means proportion of variance .0588 (SPABS pp. 280-284). eta^2 = f^2/(1+f^2) gives .0099/.0588/.1379, conventionally rounded to .01/.06/.14"},
+        {"url": "https://github.com/easystats/effectsize/blob/main/R/interpret_omega_squared.R", "locator": "effectsize 1.0.3 interpret_omega_squared roxygen, Rules: field2013 (0.01/0.06/0.14; same rounded values). NOT cohen1992 (0.02/0.13/0.26), which are Cohen's R^2 benchmarks from f^2 = .02/.15/.35"}
+      ]
+    },
+    {
+      "id": "cohen1988_r",
+      "citation": "Cohen (1988)",
+      "statistics": ["pearson_r"],
+      "thresholds": [0.1, 0.3, 0.5],
+      "labels": ["very small", "small", "medium", "large"],
+      "abs": true,
+      "symmetric_log": false,
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Table 1 row 2 (r), p. 157"},
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_r.html", "locator": "effectsize 1.0.3 interpret_r, Rules: cohen1988 (applies to positive and negative r alike)"}
+      ]
+    },
+    {
+      "id": "cohen1988_w",
+      "citation": "Cohen (1988)",
+      "statistics": ["cohens_w", "phi"],
+      "thresholds": [0.1, 0.3, 0.5],
+      "labels": ["very small", "small", "medium", "large"],
+      "abs": false,
+      "symmetric_log": false,
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Table 1 row 6 (w, chi-square goodness of fit and contingency), p. 157. phi equals w on a 2x2 table (df* = 1). Example 6, p. 158: w = .30 on a 3x4 table (6 df) corresponds to Cramer's phi of .212 = .30/sqrt(2) (SPABS pp. 220-227), so the benchmarks for Cramer's V scale by 1/sqrt(df*)"}
+      ]
+    },
+    {
+      "id": "cohen1988_or",
+      "citation": "Cohen (1988) d benchmarks converted via d = ln(OR)*sqrt(3)/pi (Chinn 2000)",
+      "statistics": ["odds_ratio"],
+      "thresholds": [1.44, 2.48, 4.27],
+      "labels": ["very small", "small", "medium", "large"],
+      "abs": false,
+      "symmetric_log": true,
+      "derivation": {"kind": "or_from_d", "inputs": [0.2, 0.5, 0.8]},
+      "sources": [
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_oddsratio.html", "locator": "effectsize 1.0.3 interpret_oddsratio, Rules: cohen1988 (OR < 1.44 / 1.44 / 2.48 / >= 4.27, via oddsratio_to_d and Cohen's d rules); 'OR of 10 is as extreme as a OR of 0.1 (1/10)'. d = ln(OR) * sqrt(3) / pi at d = .2/.5/.8 gives 1.437/2.477/4.268"},
+        {"url": "https://doi.org/10.1002/1097-0258(20001130)19:22%3C3127::AID-SIM784%3E3.0.CO;2-M", "locator": "Chinn (2000) Statistics in Medicine 19(22):3127-3131, 'A simple method for converting an odds ratio to effect size for use in meta-analysis': ln(OR) / 1.81 (= sqrt(3)/pi) converts a log odds ratio to d (formula source, cited not fetched; the thresholds are verified against the effectsize source above). NOT Chen, Cohen & Chen (2010), whose OR benchmarks 1.68/3.47/6.71 (at a 1% base rate) differ"}
+      ]
+    },
+    {
+      "id": "cohen1988_r2",
+      "citation": "Cohen (1988) f-squared benchmarks converted via R2 = f2/(1+f2)",
+      "statistics": ["r_squared"],
+      "thresholds": [0.02, 0.13, 0.26],
+      "labels": ["very small", "small", "medium", "large"],
+      "abs": false,
+      "symmetric_log": false,
+      "derivation": {"kind": "r2_from_f2", "inputs": [0.02, 0.15, 0.35]},
+      "sources": [
+        {"url": "https://www2.psych.ubc.ca/~schaller/528Readings/Cohen1992.pdf", "locator": "Cohen (1992) Psychological Bulletin 112(1), Table 1 row 8 (multiple and multiple partial correlation, ES index f^2 = R^2/(1 - R^2)), small/medium/large = .02/.15/.35, p. 157; Table 1 note: ES = population effect size. R^2 = f^2/(1+f^2) gives .0196/.1304/.2593, conventionally rounded to .02/.13/.26 (verified 2026-10-03 against the page image)"},
+        {"url": "https://easystats.github.io/effectsize/reference/interpret_r2.html", "locator": "effectsize 1.0.3 interpret_r2, Rules: cohen1988 (default), for linear regression: R2 < 0.02 / 0.02 <= R2 < 0.13 / 0.13 <= R2 < 0.26 / R2 >= 0.26 (effectsize labels very weak / weak / moderate / substantial; Pulse uses the shared very small / small / medium / large)"}
+      ]
+    }
+  ],
+  "statistic_bindings": {
+    "REG_OLS": "r_squared",
+    "TEST_FISHER_EXACT": "odds_ratio",
+    "TEST_PEARSON_R": "pearson_r"
+  },
+  "excluded": [
+    {"operator": "REG_OLS", "field": "adj_r2", "reason": "Cohen's R^2 benchmarks (Cohen 1992 Table 1 row 8) are stated for R^2 itself; adjusted R^2 is a corrected estimate on a different scale (it can fall below 0) and no adjusted-R^2 convention was verified. Means plus caveat only (U08 E4-S3)."},
+    {"operator": "REG_BAYES_LINEAR", "field": "r2", "reason": "Pulse computes it from the posterior-mean coefficients, which the prior pulls away from the least-squares fit, so it can sit below the least-squares R^2 and even below 0; Cohen's R^2 benchmarks were set for least-squares multiple regression. Means plus caveat only (U08 E4-S3)."},
+    {"operator": "REG_BAYES_LINEAR", "field": "adj_r2", "reason": "As for REG_OLS adj_r2 and REG_BAYES_LINEAR r2."},
+    {"operator": "REG_GLM", "field": "pseudo_r2", "reason": "1 - deviance/null_deviance (McFadden's for a 0/1 outcome) runs far lower than an OLS R^2 for an equally useful model, so OLS R^2 benchmarks must not band it; no pseudo-R^2 convention was verified. Means plus caveat only (U08 E4-S3)."},
+    {"operator": "TEST_CHISQ", "field": "details.effect_size.cramers_v", "reason": "Cohen's benchmarks for V are df-scaled ((.1/.3/.5)/sqrt(df*), Cohen 1992 Example 6 p. 158); a fixed band set would be wrong on any table larger than 2x2. Means plus a caveat stating the rule, no bands."},
+    {"operator": "TEST_KENDALL_TAU", "field": "statistic", "reason": "Kendall's tau is not on Pearson r's scale (tau is typically smaller for the same dependence); no tau-specific published convention was verified. Means plus caveat only."},
+    {"operator": "TEST_MANN_WHITNEY_U", "field": "details.effect_size.rank_biserial", "reason": "No primary-source convention for rank-biserial r was verified (effectsize rule set unverified: page fetch failed). Means plus caveat only."},
+    {"operator": "TEST_WILCOXON_SR", "field": "details.effect_size.rank_biserial", "reason": "As for TEST_MANN_WHITNEY_U."},
+    {"operator": "TEST_SPEARMAN_R", "field": "statistic", "reason": "Cohen's r benchmarks (Cohen 1992 Table 1 row 2) are stated for the product-moment r; no rho-specific primary-source convention was verified. Means plus caveat only."},
+    {"operator": "TEST_ANOVA_RM", "field": "details.effect_size.partial_eta_squared", "reason": "Cohen's eta-squared benchmarks (from f, Cohen 1992 Table 1 row 7) are for between-groups designs; repeated-measures partial eta squared excludes subject variance from its denominator and reads larger for the same shift. No RM-specific convention was verified. Means plus caveat only (U08 statistics review S-01)."},
+    {"operator": "TEST_KRUSKAL_WALLIS", "field": "details.effect_size.epsilon_squared", "reason": "Cohen's eta-squared benchmarks were set for raw-value variance under normal-theory ANOVA; epsilon squared is computed on ranks, and Tomczak & Tomczak (2014) give its formula, not bands. No rank-specific convention was verified. Means plus caveat only (U08 statistics review S-13)."},
+    {"operator": "TEST_PAIRED_T", "field": "details.effect_size.cohens_d", "reason": "Pulse's paired d is d_z (mean difference / SD of differences). Cohen's d benchmarks (Cohen 1992 Table 1 row 1) are for the difference between independent means; d_z = d / sqrt(2(1 - r)) (Cohen 1988 s. 2.3.5), so d_z exceeds a between-group d when the paired measures correlate above 0.5 and falls below it when they correlate less, so the d bands misread paired effects. No d_z-specific convention was verified. Means plus caveat only."},
+    {"operator": "OVERLAY_ZSCORE_VS_MARGIN", "field": "cells.value", "reason": "A descriptive z-score: the divisor is the spread of cell values across the margin slice, not a standard error, so the 1.96 / 2.58 critical values of a z test statistic do not apply, and no published effect-size convention bands a standardized deviation of this kind. Means plus caveat only (U08 E4-S2)."},
+    {"operator": "OVERLAY_ZSCORE_VS_POP", "field": "summary.statistic", "reason": "A descriptive z-score: on the categorical arm the divisor is the standard deviation of the population's category shares (not a standard error; it does not shrink with subset size), on the numeric arm a bin centre against the population SD. No test critical value or published convention applies. Means plus caveat only (U08 E4-S2)."},
+    {"operator": "OVERLAY_ZSCORE_VS_ROLLING", "field": "summary.statistic", "reason": "A descriptive z-score against the sample SD of the preceding window; not a test statistic, and no published convention bands it. Means plus caveat only (U08 E4-S2)."},
+    {"operator": "OVERLAY_ZSCORE_VS_TOTAL", "field": "summary.statistic", "reason": "A descriptive z-score against the population SD of the group values; its maximum magnitude is sqrt(N - 1) for N groups (Shiffler 1988, The American Statistician 42(1):79-80, states (N - 1)/sqrt(N) for the N - 1 divisor SD; sqrt(N - 1) is that bound restated for the divide-by-N SD Pulse uses), so any fixed cut-off reads differently with the group count. No published convention bands it. Means plus caveat only (U08 E4-S2)."}
+  ]
+}

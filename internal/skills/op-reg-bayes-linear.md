@@ -18,8 +18,8 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `target` | field | required | Response variable (numeric). |
 | `predictors` | []field | required | ≥1 numeric predictor. |
 | `prior` | enum | `nig` | Only `"nig"` (conjugate Normal-Inverse-Gamma) in v1. |
-| `prior_mu` | []float | zero | Prior mean vector; length must match predictor count. |
-| `prior_precision` | float | engine | Prior precision scalar Λ₀. |
+| `prior_mu` | []float | zero | Prior mean vector, length predictors + 1, intercept FIRST. |
+| `prior_precision` | float | 0.001 | Scalar ε, Λ₀ = ε·I, relative to σ²: prior SD = σ/√ε. |
 | `prior_shape` / `prior_rate` | float | engine | Inverse-gamma α₀ / β₀ on residual variance. |
 | `credible_level` | float | `0.95` | Posterior credible-interval mass. |
 
@@ -29,14 +29,14 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` from the Student-t marginal posterior; `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as `REG_OLS`; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as `REG_OLS`; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
 
 ## Gotchas
 
 - `penalty` / `alpha` / `l1_ratio` / `family` / `link` rejected — other engines' knobs.
-- `resample` / `selection` accepted at the spec level but **rejected** at validation — credible intervals already convey uncertainty.
-- `prior_mu` length ≠ predictor count → `SERVICE_VALIDATION`.
-- Vague-prior limit reproduces the OLS point estimate plus Student-t intervals — sanity check.
+- `resample` / `selection` → `PROCESSING_CONFIG` (not advertised) — credible intervals already convey uncertainty.
+- `prior_mu` length ≠ predictors + 1 → `PROCESSING_CONFIG`.
+- Vague-prior limit reproduces the OLS point estimate; intervals and `ResidualStdErr` run below OLS with few rows per predictor (σ² ≈ RSS/n, not RSS/(n−p−1)).
 - `R2` is on the posterior-mean fit, not averaged over posterior draws.
 
 ## See

@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke cover fmt vet lint bench tzdata docs docs-serve docs-clean
+.PHONY: build clean dist test smoke cover fmt vet lint bench tzdata reference docs docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -83,6 +83,22 @@ tzdata:
 	cp "$$($(GO) env GOROOT)/lib/time/zoneinfo.zip" internal/temporal/zoneinfo.zip
 	@echo "TZDataVersion = $$(sed -n 's/^DATA=//p' "$$($(GO) env GOROOT)/lib/time/update.bash")"
 	@echo "tzdataSHA256  = $$(shasum -a 256 internal/temporal/zoneinfo.zip | cut -d' ' -f1)"
+
+# reference regenerates the R oracle goldens for the shared statistical
+# primitives (Student t, chi-square, F, normal, Kolmogorov, studentized
+# range) into $(REFERENCE_DIR), then appends the `// golden-hash:`
+# footer TestGoldensNotHandEdited checks. Needs Rscript + jsonlite
+# (`Rscript -e 'install.packages("jsonlite")'`). Manual target: CI never
+# runs R, the goldens are committed. Consumed by
+# internal/processing/reference_oracle_test.go and
+# internal/statdist/reference_oracle_test.go.
+REFERENCE_DIR=internal/processing/testdata/reference
+reference:
+	Rscript scripts/reference/gen_reference.R $(REFERENCE_DIR)
+	@for f in $(REFERENCE_DIR)/*.json; do \
+		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
+		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \
+	done
 
 docs:
 	mdbook build docs

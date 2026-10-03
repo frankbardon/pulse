@@ -1,137 +1,23 @@
 package processing
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/internal/statdist"
+)
 
 // Statistical helpers shared by the TEST_* operators. Keeping these
 // dependency-free (no external math packages) avoids pulling in a large
-// stats SDK for a handful of well-known distributions.
-
-// studentTTwoSidedP returns the two-sided p-value of a Student's t
-// statistic with df degrees of freedom: P(|T| ≥ |t|).
+// stats SDK for a handful of well-known distributions. The Student-t
+// family and the regularized incomplete beta live in internal/statdist,
+// shared with the regression engine.
 //
-// Derivation: the survival function of |T| equals the regularized
-// incomplete beta I_x(df/2, 1/2) evaluated at x = df / (df + t²).
-//
-// Returns NaN for df ≤ 0 and 1 for t = 0.
-func studentTTwoSidedP(t, df float64) float64 {
-	if df <= 0 || math.IsNaN(t) || math.IsNaN(df) {
-		return math.NaN()
-	}
-	if math.IsInf(t, 0) {
-		return 0
-	}
-	if t == 0 {
-		return 1
-	}
-	x := df / (df + t*t)
-	return regularizedIncompleteBeta(x, df/2.0, 0.5)
-}
+// Every primitive here is checked against R to a relative 1e-10 by
+// reference_oracle_test.go (goldens: testdata/reference/, regenerate
+// with `make reference`).
 
-// regularizedIncompleteBeta returns I_x(a, b), the regularized
-// incomplete beta function, using the continued-fraction expansion from
-// Numerical Recipes (3rd ed.) Section 6.4. Convergence is fast for the
-// arguments encountered by the t- and F-distribution survival functions.
-//
-// For x = 0 or x = 1, returns the closed-form boundary value.
-func regularizedIncompleteBeta(x, a, b float64) float64 {
-	if x <= 0 {
-		return 0
-	}
-	if x >= 1 {
-		return 1
-	}
-	lga, _ := math.Lgamma(a)
-	lgb, _ := math.Lgamma(b)
-	lgab, _ := math.Lgamma(a + b)
-	bt := math.Exp(lgab - lga - lgb + a*math.Log(x) + b*math.Log(1-x))
-	if x < (a+1)/(a+b+2) {
-		return bt * betacf(a, b, x) / a
-	}
-	return 1 - bt*betacf(b, a, 1-x)/b
-}
-
-// betacf is the Lentz continued-fraction evaluation of the incomplete
-// beta. Mirrors the canonical Numerical Recipes routine; converges
-// within ~50 iterations for the arguments used here.
-func betacf(a, b, x float64) float64 {
-	const (
-		maxIter = 200
-		eps     = 3e-15
-		tiny    = 1e-300
-	)
-	qab := a + b
-	qap := a + 1
-	qam := a - 1
-	c := 1.0
-	d := 1 - qab*x/qap
-	if math.Abs(d) < tiny {
-		d = tiny
-	}
-	d = 1 / d
-	h := d
-	for m := 1; m <= maxIter; m++ {
-		mf := float64(m)
-		m2 := float64(2 * m)
-		// Even step
-		aa := mf * (b - mf) * x / ((qam + m2) * (a + m2))
-		d = 1 + aa*d
-		if math.Abs(d) < tiny {
-			d = tiny
-		}
-		c = 1 + aa/c
-		if math.Abs(c) < tiny {
-			c = tiny
-		}
-		d = 1 / d
-		h *= d * c
-		// Odd step
-		aa = -(a + mf) * (qab + mf) * x / ((a + m2) * (qap + m2))
-		d = 1 + aa*d
-		if math.Abs(d) < tiny {
-			d = tiny
-		}
-		c = 1 + aa/c
-		if math.Abs(c) < tiny {
-			c = tiny
-		}
-		d = 1 / d
-		del := d * c
-		h *= del
-		if math.Abs(del-1) < eps {
-			break
-		}
-	}
-	return h
-}
-
-// studentTInverseTwoSided returns the t quantile such that
-// P(|T| ≥ q) = alpha for df degrees of freedom. Used to build the
-// confidence interval bounds around a mean difference.
-//
-// Implemented via a bracketed bisection on studentTTwoSidedP; the search
-// range scales with sqrt(df) which covers practical CI use. Returns NaN
-// on degenerate inputs.
-func studentTInverseTwoSided(alpha, df float64) float64 {
-	if df <= 0 || alpha <= 0 || alpha >= 1 {
-		return math.NaN()
-	}
-	// Bracket: |t| grows roughly with 1/sqrt(alpha); 200 is comfortably
-	// past every CI tail used in practice for df ≥ 1.
-	lo, hi := 0.0, 200.0
-	for range 100 {
-		mid := 0.5 * (lo + hi)
-		p := studentTTwoSidedP(mid, df)
-		if p > alpha {
-			lo = mid
-		} else {
-			hi = mid
-		}
-		if hi-lo < 1e-9 {
-			break
-		}
-	}
-	return 0.5 * (lo + hi)
-}
+// epsilon is the float64 machine epsilon (2⁻⁵²).
+const epsilon = 0x1p-52
 
 // chiSquareSurvival returns P(X² ≥ x) for a chi-square variate with df
 // degrees of freedom: the complementary CDF used as the chi-square test
@@ -159,20 +45,48 @@ func fSurvival(f, df1, df2 float64) float64 {
 	if f <= 0 {
 		return 1
 	}
-	x := df2 / (df2 + df1*f)
-	return regularizedIncompleteBeta(x, df2/2.0, df1/2.0)
+	// x = df2/(df2 + df1·f) and its complement y = df1·f/(df2 + df1·f),
+	// each formed directly so neither tail loses precision.
+	var x, y float64
+	if df1*f > df2 {
+		r := df2 / (df1 * f)
+		x, y = r/(1+r), 1/(1+r)
+	} else {
+		r := (df1 * f) / df2
+		x, y = 1/(1+r), r/(1+r)
+	}
+	return statdist.RegularizedIncompleteBetaXY(df2/2.0, df1/2.0, x, y)
 }
 
 // standardNormalCDF returns Φ(z), the standard normal cumulative
-// distribution function, via the relationship Φ(z) = ½ (1 + erf(z/√2)).
+// distribution function, via Φ(z) = ½ erfc(−z/√2). The erfc form keeps
+// full relative precision in the lower tail (down to z ≈ −37.5), where
+// ½ (1 + erf(z/√2)) cancels to zero.
 func standardNormalCDF(z float64) float64 {
-	return 0.5 * (1 + math.Erf(z/math.Sqrt2))
+	return 0.5 * math.Erfc(-z/math.Sqrt2)
+}
+
+// normalTwoSidedP returns the two-sided standard normal p-value
+// 2·Φ(−|z|) = erfc(|z|/√2). Every normal-approximation test routes its
+// two-sided p through here: the complement form 2·(1 − Φ(|z|)) cancels
+// to exactly 0 once |z| exceeds ~8.3, while erfc keeps full relative
+// precision down to p ≈ 1e-308 (|z| ≈ 37.5). NaN in, NaN out.
+func normalTwoSidedP(z float64) float64 {
+	return math.Erfc(math.Abs(z) / math.Sqrt2)
+}
+
+// normalUpperTailP returns the one-sided upper-tail p-value
+// P(Z ≥ z) = Φ(−z), tail-accurate for large positive z where 1 − Φ(z)
+// cancels to 0.
+func normalUpperTailP(z float64) float64 {
+	return standardNormalCDF(-z)
 }
 
 // regularizedGammaQ returns Q(a, x) = 1 - P(a, x), the regularized
 // upper incomplete gamma function. Routes between the series expansion
 // (x < a+1) and the continued fraction (otherwise) for fastest
-// convergence — Numerical Recipes style.
+// convergence — Numerical Recipes style — with the prefactor
+// x^a e^{-x} / Γ(a) from gammaPrefactor.
 func regularizedGammaQ(a, x float64) float64 {
 	if x < 0 || a <= 0 {
 		return math.NaN()
@@ -186,13 +100,48 @@ func regularizedGammaQ(a, x float64) float64 {
 	return gammaContinuedFraction(a, x)
 }
 
+// gammaPrefactor returns x^a e^{-x} / Γ(a). For a ≥ 10 it is assembled
+// as √(a/2π) · exp(−δ(a) − bd0(a, x)) — Loader's saddle-point form, the
+// one R's dpois_raw uses — so a·log x − x − lgamma(a) never cancels at
+// large df.
+func gammaPrefactor(a, x float64) float64 {
+	if a < 10 {
+		lga, _ := math.Lgamma(a)
+		return math.Exp(a*math.Log(x) - x - lga)
+	}
+	return math.Sqrt(a/(2*math.Pi)) * math.Exp(-statdist.LgammaCorrection(a)-bd0(a, x))
+}
+
+// bd0 returns a·log(a/m) + m − a without cancellation when a ≈ m
+// (Loader 2000, "Fast and accurate computation of binomial
+// probabilities").
+func bd0(a, m float64) float64 {
+	if math.Abs(a-m) < 0.1*(a+m) {
+		v := (a - m) / (a + m)
+		s := (a - m) * v
+		ej := 2 * a * v
+		v *= v
+		for j := 1; j < 1000; j++ {
+			ej *= v
+			s1 := s + ej/float64(2*j+1)
+			if s1 == s {
+				return s1
+			}
+			s = s1
+		}
+		return s
+	}
+	return a*math.Log(a/m) + m - a
+}
+
 // gammaSeries evaluates P(a, x) via its convergent series for x < a+1.
+// The term ratio is x/(a+n), so convergence takes O(√a) terms near
+// x ≈ a; the cap covers df ≈ 1e7.
 func gammaSeries(a, x float64) float64 {
 	const (
-		maxIter = 200
-		eps     = 3e-15
+		maxIter = 100000
+		eps     = 1e-17
 	)
-	lga, _ := math.Lgamma(a)
 	ap := a
 	sum := 1.0 / a
 	del := sum
@@ -204,18 +153,17 @@ func gammaSeries(a, x float64) float64 {
 			break
 		}
 	}
-	return sum * math.Exp(-x+a*math.Log(x)-lga)
+	return sum * gammaPrefactor(a, x)
 }
 
 // gammaContinuedFraction evaluates Q(a, x) via Lentz's continued
 // fraction for x ≥ a+1.
 func gammaContinuedFraction(a, x float64) float64 {
 	const (
-		maxIter = 200
-		eps     = 3e-15
+		maxIter = 100000
+		eps     = 1e-16
 		tiny    = 1e-300
 	)
-	lga, _ := math.Lgamma(a)
 	b := x + 1 - a
 	c := 1.0 / tiny
 	d := 1.0 / b
@@ -234,11 +182,11 @@ func gammaContinuedFraction(a, x float64) float64 {
 		d = 1 / d
 		del := d * c
 		h *= del
-		if math.Abs(del-1) < eps {
+		if math.Abs(del-1) <= eps {
 			break
 		}
 	}
-	return h * math.Exp(-x+a*math.Log(x)-lga)
+	return h * gammaPrefactor(a, x)
 }
 
 // kolmogorovSurvival approximates Q_KS(λ) = 2 Σ (-1)^(j-1) exp(-2 j² λ²),

@@ -226,8 +226,12 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"(siblings: OVERLAY_INDEX_VS_POP, OVERLAY_ZSCORE_VS_POP) and the first inferential FACET-host kind. Pairs " +
 				"with the MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as the canonical χ² family — the " +
 				"viz developer renders the SCALAR statistic as a goodness-of-fit badge near the facet header. " +
-				"Math: subset_N = sum(host counts); expected[v] = pop_freq[v] * subset_N (population frequencies scaled to " +
-				"subset N); chisq = Σ (observed - expected)² / expected; df = len(observed) - 1; p_value = " +
+				"Math: the compared categories C are the subset's listed values that the population also shows; subset_N = " +
+				"Σ observed over C; share[v] = pop_count[v] / Σ pop_count over C (population shares renormalised over the " +
+				"compared categories, so population nulls and values truncated out of a DiscreteTopK listing never shrink " +
+				"the expected counts); expected[v] = share[v] * subset_N; chisq = Σ (observed - expected)² / expected; df = " +
+				"|C| - 1 — R's chisq.test(x, p, rescale.p = TRUE) over C. A subset value the population lacks is left out " +
+				"of the statistic, subset_N and df, with one PULSE_OVERLAY_REF_ZERO warning per value; p_value = " +
 				"chiSquareSurvival(chisq, df) — the same χ² survival helper backing TEST_CHISQ and the MATRIX-host CHISQ " +
 				"family, so the overlay surface produces identical p-values for the same contingency. Discrete arm only " +
 				"(χ² goodness-of-fit requires categorical buckets — numeric hosts fire " +
@@ -1058,8 +1062,9 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"p_ref = ref_cell / ref_row_margin; pooled = (target_cell + ref_cell) / (target_row_margin + ref_row_margin); " +
 				"se = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref)); z = (p_target - p_ref) / se; p_value = 2 * (1 - " +
 				"Φ(|z|)). Reuses the standardNormalCDF helper backing TEST_PROP_Z so the overlay and the row-test surface " +
-				"produce identical p-values for the same (success, n) pair. Degenerate inputs (pooled ∈ {0, 1}, missing row " +
-				"margin, etc.) produce NaN p-values with one PULSE_OVERLAY_REF_ZERO warning per affected cell. Inherently " +
+				"produce identical p-values for the same (success, n) pair. Degenerate inputs (pooled ∈ {0, 1}, or a missing or " +
+				"zero row margin on EITHER side — the cell value is never borrowed as n) produce NaN p-values with one " +
+				"PULSE_OVERLAY_REF_ZERO warning per affected cell (margin_missing: true for the margin case). Inherently " +
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
 				"Non-Goals).",
 		}
@@ -1099,7 +1104,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"this kind executes from). n_source selects where each SLOT's sample-size leg is read, once per slot at the " +
 				"tested coordinate, before any pairing — \"row\" therefore names each slot's own axis, never a pair axis. Three " +
 				"modes: row_margin_value (the default; empty means this) reads the slot's row-margin VALUE off the " +
-				"MatrixPayload by row key and keeps the historical <= 0 fall back to the CELL VALUE; cell_n_unweighted reads " +
+				"MatrixPayload by row key, and a missing or zero margin reads as n = 0 so each pair involving that slot is NaN " +
+				"with PULSE_OVERLAY_REF_ZERO (the cell value is never borrowed as n); cell_n_unweighted reads " +
 				"the COUNTED universal-floor \"n\" out of Response.Components.Crosstab.CellComponents[r][c] on every slot, " +
 				"resolved BY KEY (slots share a key SET, not an ORDER), with NO cell-value fallback — an unreadable leg skips " +
 				"the coordinate with a PULSE_OVERLAY_REF_ZERO carrying n_missing: true plus the offending slot_index; " +

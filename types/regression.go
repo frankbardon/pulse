@@ -92,7 +92,8 @@ type RegressionSpec struct {
 	Family string `json:"family,omitempty"`
 
 	// Link is the GLM link function. Defaults are family-specific
-	// ("logit" for binomial, "log" for poisson and gamma).
+	// ("logit" for binomial, "log" for poisson, "inverse" for gamma —
+	// the only gamma link implemented today).
 	Link string `json:"link,omitempty"`
 
 	// MaxIters caps the IRLS / coordinate-descent iteration count for
@@ -108,8 +109,9 @@ type RegressionSpec struct {
 	Prior string `json:"prior,omitempty"`
 
 	// PriorMu is the prior mean vector for the coefficients
-	// (REG_BAYES_LINEAR). Length must match the predictor count; zero
-	// vector when nil.
+	// (REG_BAYES_LINEAR). Length must be len(Predictors)+1 with the
+	// intercept FIRST, then one entry per predictor in Predictors
+	// order; zero vector when nil.
 	PriorMu []float64 `json:"prior_mu,omitempty"`
 
 	// PriorPrecision is the prior precision scalar (REG_BAYES_LINEAR).

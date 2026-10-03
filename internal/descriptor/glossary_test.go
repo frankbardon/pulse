@@ -101,10 +101,62 @@ func TestGlossaryTermsResolve(t *testing.T) {
 	}
 }
 
-// TestGlossary_Size: the glossary stays a ~60-term starter set.
+// Glossary size bounds. The floor guards against an accidental wipe of
+// the starter set; the ceiling is a loose cap that lets guidance
+// backfills add the terms their prose links without pinning an exact
+// count, while still flagging a glossary that sprawls past a reference
+// card's worth of terms.
+const (
+	glossaryMinTerms = 55
+	glossaryMaxTerms = 150
+)
+
+// TestGlossary_Size: the glossary stays within its loose size bounds.
 func TestGlossary_Size(t *testing.T) {
-	if n := len(Glossary()); n < 55 || n > 70 {
-		t.Errorf("glossary has %d terms, want 55..70", n)
+	if n := len(Glossary()); n < glossaryMinTerms || n > glossaryMaxTerms {
+		t.Errorf("glossary has %d terms, want %d..%d", n, glossaryMinTerms, glossaryMaxTerms)
+	}
+}
+
+// TestGlossary_OrphanReport logs every glossary term no built-in
+// Purpose links through its Glossary list (Interpretations carry no
+// glossary links). Report-only: terms written ahead of the operators
+// that will cite them are orphans by design until those Purposes land.
+// It never fails.
+func TestGlossary_OrphanReport(t *testing.T) {
+	for _, id := range glossaryOrphans(BuiltinPurposes()) {
+		t.Logf("glossary term %q is linked by no built-in Purpose", id)
+	}
+}
+
+// glossaryOrphans returns the sorted glossary IDs no purpose links.
+func glossaryOrphans(purposes map[string]descriptor.Purpose) []string {
+	linked := map[string]bool{}
+	for _, p := range purposes {
+		for _, id := range p.Glossary {
+			linked[id] = true
+		}
+	}
+	var out []string
+	for _, id := range GlossaryIDs() {
+		if !linked[id] {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func TestGlossary_Orphans(t *testing.T) {
+	ids := GlossaryIDs()
+	if len(ids) < 2 {
+		t.Fatal("glossary too small for the orphan fixture")
+	}
+	got := glossaryOrphans(map[string]descriptor.Purpose{"X": {Glossary: ids[1:]}})
+	if len(got) != 1 || got[0] != ids[0] {
+		t.Errorf("orphans = %v, want [%s]", got, ids[0])
+	}
+	if got := glossaryOrphans(map[string]descriptor.Purpose{"X": {Glossary: ids}}); len(got) != 0 {
+		t.Errorf("fully linked glossary reported orphans %v", got)
 	}
 }
 

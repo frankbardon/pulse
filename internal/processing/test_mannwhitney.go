@@ -26,7 +26,7 @@ import (
 //	μ_U = n_A n_B / 2
 //	σ²_U = (n_A n_B / 12) · ( (N+1) − Σ(t³−t) / (N(N−1)) )
 //	z    = (U_A − μ_U) / σ_U   (continuity-corrected by ½)
-//	p    = 2 · (1 − Φ(|z|))
+//	p    = 2 · Φ(−|z|)
 type mannWhitneyRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema
@@ -155,7 +155,7 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 			}
 		}
 		z = diff / math.Sqrt(varU)
-		p = 2 * (1 - standardNormalCDF(math.Abs(z)))
+		p = normalTwoSidedP(z)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(m.spec),

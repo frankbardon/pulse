@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -804,7 +805,7 @@ func TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays(t *testing.T) {
 				tStat := (m1 - m2) / se
 				df := (a + b) * (a + b) /
 					((a*a)/float64(n1-1) + (b*b)/float64(n2-1))
-				return studentTTwoSidedP(tStat, df)
+				return statdist.StudentTTwoSidedP(tStat, df)
 			},
 		},
 		{

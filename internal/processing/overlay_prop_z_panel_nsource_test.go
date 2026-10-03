@@ -15,8 +15,8 @@ import (
 //
 // Two properties carry the story. The DEFAULT path — absent params,
 // `{}`, and the explicit `row_margin_value` spelling — must stay
-// byte-identical to the pre-params baseline, cell-value fallback
-// included. And the counted mode must be observably a DIFFERENT
+// byte-identical to the pre-params baseline wherever every row margin
+// is present (a missing margin is NaN since OS-11). And the counted mode must be observably a DIFFERENT
 // number, refuse a components-disabled slot instead of degrading, and
 // never substitute a cell value for a sample size it could not read.
 
@@ -77,6 +77,7 @@ func TestApplyPropZPanel_DefaultNSourceByteIdentical(t *testing.T) {
 		{"n_source empty string", map[string]any{"n_source": ""}},
 		{"n_source row_margin_value", map[string]any{"n_source": types.PanelNSourceRowMarginValue}},
 	} {
+		free := panelParamsFreeLayerJSON(t)
 		t.Run(tc.name, func(t *testing.T) {
 			ref, targets := panelBaselineSlots()
 			spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, nil)
@@ -92,25 +93,22 @@ func TestApplyPropZPanel_DefaultNSourceByteIdentical(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal layer: %v", err)
 			}
-			if string(got) != panelBaselineLayerJSON {
-				t.Fatalf("panel layer JSON drifted from the pre-params baseline:\n got %s\nwant %s",
-					got, panelBaselineLayerJSON)
+			assertPanelBaselineBytes(t, got, "panel layer JSON drifted from the pre-params baseline")
+			if string(got) != string(free) {
+				t.Fatalf("params %v is distinguishable from a params-free spec on this arch:\n got %s\nwant %s",
+					tc.params, got, free)
 			}
 		})
 	}
 }
 
-// The <= 0 cell-value fallback SURVIVES on the default path. It is a
-// degenerate-input crutch, but removing it would change the default's
-// output, and the default must not move. The assertion is on the
-// NUMBER, not on the absence of a warning: a fallback that quietly
-// became a skip would leave the cell absent and this catches it.
-func TestApplyPropZPanel_DefaultKeepsCellValueFallback(t *testing.T) {
-	// Row 0 carries NO margin on the REFERENCE only, so exactly one
-	// leg falls back. Both legs falling back would make pooled == 1 by
-	// construction and the kernel would return NaN — indistinguishable
-	// from the n = 0 the fallback's removal would produce. One leg
-	// keeps the result finite and specific.
+// The <= 0 cell-value fallback is GONE from the default path (U08 E4
+// statistics review, OS-11). Row 0 carries no margin on the REFERENCE
+// only. The old leg borrowed the reference's cell value (30) as its n,
+// forcing its share to 1 and returning a finite, spuriously small
+// p-value; now the missing margin reads as n = 0 and the pair is NaN
+// with PULSE_OVERLAY_REF_ZERO, on both spellings of the default.
+func TestApplyPropZPanel_DefaultMissingMarginIsNaN(t *testing.T) {
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{{30, 50, 50}, {50, 50, 50}, {50, 50, 50}},
 		[3]float64{0, 100, 100},
@@ -121,21 +119,15 @@ func TestApplyPropZPanel_DefaultKeepsCellValueFallback(t *testing.T) {
 	)
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0"}, nil)
 
-	// The fallback substitutes the reference's own cell VALUE (30) for
-	// its missing sample size. Dropping the fallback would leave n = 0
-	// and the kernel would refuse the pair with NaN, so the two
-	// outcomes are separable.
-	want, ok := twoProportionZ(30, 30, 40, 100)
-	if !ok {
-		t.Fatal("fixture no longer exercises the fallback with a finite result")
-	}
-	if withoutFallback, ok := twoProportionZ(30, 0, 40, 100); ok || !math.IsNaN(withoutFallback) {
-		t.Fatal("fixture cannot distinguish the fallback from a zero n")
+	// The pre-fix number, kept to prove the fixture separates the two
+	// behaviours: a finite p the fallback used to emit.
+	if _, ok := twoProportionZ(30, 30, 40, 100); !ok {
+		t.Fatal("fixture no longer separates the old fallback from the fix")
 	}
 
 	for _, mode := range []string{"", types.PanelNSourceRowMarginValue} {
 		spec.Params = map[string]any{"n_source": mode}
-		layer, _, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
+		layer, warns, err := applyPropZPanel(&spec, ref, []*types.Response{target}, 0, []int{1})
 		if err != nil {
 			t.Fatalf("mode %q: applyPropZPanel: %v", mode, err)
 		}
@@ -143,17 +135,19 @@ func TestApplyPropZPanel_DefaultKeepsCellValueFallback(t *testing.T) {
 		if len(got) != 1 {
 			t.Fatalf("mode %q: pair slice length = %d, want 1", mode, len(got))
 		}
-		// NaN-safe: math.Abs(NaN - want) > tol is FALSE, so a bare
-		// inequality would silently pass when the fallback is removed
-		// and n becomes 0 (which the kernel answers with NaN).
-		if math.IsNaN(got[0]) {
-			t.Errorf("mode %q: row 0 p = NaN, want %v; the cell-value fallback is gone and n went to 0",
-				mode, want)
-		} else if math.Abs(got[0]-want) > 1e-12 {
-			t.Errorf("mode %q: row 0 p = %v, want %v (cell value 30 standing in for the missing margin)",
-				mode, got[0], want)
+		if !math.IsNaN(got[0]) {
+			t.Errorf("mode %q: row 0 p = %v, want NaN (reference row margin missing)", mode, got[0])
 		}
-		// Row 1 keeps a real margin of 100 on both slots — no fallback.
+		var refZero int
+		for _, w := range warns {
+			if w.Code == string(pulseerrors.PULSE_OVERLAY_REF_ZERO) && w.Details["row_index"] == 0 {
+				refZero++
+			}
+		}
+		if refZero != 3 {
+			t.Errorf("mode %q: row-0 REF_ZERO warnings = %d, want 3 (one per NaN pair)", mode, refZero)
+		}
+		// Row 1 keeps a real margin of 100 on both slots.
 		wantRow1, ok := twoProportionZ(50, 100, 40, 100)
 		if !ok {
 			t.Fatal("fixture row 1 is degenerate; pick different values")

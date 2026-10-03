@@ -27,7 +27,7 @@ import (
 //     by < 2 % and have nearly identical power.
 //  4. W' = (Σ a_i x_(i))² / Σ (x_i − x̄)².
 //  5. Transform W' to a z-score via Royston's polynomial coefficients
-//     (different polynomials for n ≤ 11 vs n ≥ 12); p = 1 − Φ(z).
+//     (different polynomials for n ≤ 11 vs n ≥ 12); p = Φ(−z).
 //
 // Caveat: the variant shipped is Shapiro-Francia (uses Blom approximate
 // expected order statistics with a_i ∝ m_i). It carries the
@@ -164,7 +164,8 @@ func (s *shapiroWilkRow) reset() {
 }
 
 // shapiroFranciaStat computes W', z, p for a *sorted* sample. Returns
-// the optional warning string for n-bound or low-variance.
+// the optional warning string for n-bound (outside 5..5000) or
+// low-variance.
 //
 // Blom expected order statistics: m_i = Φ⁻¹((i − 3/8) / (n + 1/4)).
 // a_i = m_i / √Σm_i².
@@ -178,11 +179,15 @@ func (s *shapiroWilkRow) reset() {
 //	σ_z   = 1.0308 − 0.26758(log(u) + 2/u)
 //	y     = log(1 − W')
 //	z     = (y − μ_z) / σ_z
-//	p     = 1 − Φ(z)
+//	p     = Φ(−z)
 func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	n := len(sorted)
-	if n > 5000 {
+	switch {
+	case n > 5000:
 		warn = "n above the 5000-row support bound; treat the p-value as advisory and consider asymptotic alternatives"
+	case n < 5:
+		// Royston's transform below is calibrated for 5 ≤ n ≤ 5000.
+		warn = "n below 5: Royston's Shapiro-Francia p-value is uncalibrated here; treat it as advisory"
 	}
 	// Expected normal order statistics.
 	m := make([]float64, n)
@@ -223,7 +228,7 @@ func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	}
 	logOne := math.Log(1 - W)
 	z = (logOne - muZ) / sigmaZ
-	p = 1 - standardNormalCDF(z)
+	p = normalUpperTailP(z)
 	return W, z, p, warn
 }
 

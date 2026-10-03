@@ -23,7 +23,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 ## Output
 
-`Statistic` = τ_b (Kendall tau-b, `[-1, 1]`); `PValue` two-sided via normal approximation with tie-variance adjustment. `Details.concordant`, `Details.discordant`, `Details.n_ties_x`, `Details.n_ties_y`.
+`Statistic` = τ_b (Kendall tau-b, `[-1, 1]`); `PValue` two-sided via normal approximation with tie-variance adjustment. `Details.concordant`, `Details.discordant`, `Details.ties_x`, `Details.ties_y`, `Details.s`, `Details.var_s`, `Details.z`, `Details.n`.
 
 ## Gotchas
 

@@ -422,10 +422,11 @@ func TestDeclaredInterpretationFields(t *testing.T) {
 		t.Error("pairs not sorted by name then field")
 	}
 	for _, p := range got {
-		if p.Category != "test" {
+		if p.Category != "test" && p.Category != "overlay" && p.Category != "regression" {
 			t.Errorf("%s: category %q", p.Name, p.Category)
 		}
-		if wantDeferred := strings.HasPrefix(p.Field, "details."); p.Deferred != wantDeferred {
+		wantDeferred := strings.HasPrefix(p.Field, "details.") || strings.HasPrefix(p.Field, "summary.parameters.")
+		if p.Deferred != wantDeferred {
 			t.Errorf("%s %s: Deferred = %v, want %v", p.Name, p.Field, p.Deferred, wantDeferred)
 		}
 	}

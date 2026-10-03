@@ -27,8 +27,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - Streamable — per-group Welford feeds both SS terms.
 - Rejects globally, not per pair — follow with tier-2 `TEST_TUKEY_HSD` via `ms_within` / `df_within`.
-- Equal-variance gate: `TEST_BROWN_FORSYTHE`; on rejection use `TEST_ANOVA_WELCH`.
-- Normality gate: `TEST_SHAPIRO_WILK` per group (n ≤ 5000); severe non-normality → `TEST_KRUSKAL_WALLIS`. Repeated measures → `TEST_ANOVA_RM` (needs `SubjectField`).
+- Unequal spread: use `TEST_ANOVA_WELCH`; a large `TEST_BROWN_FORSYTHE` p is not equal spread.
+- Normality: `TEST_SHAPIRO_WILK` describes shape, not a gate; skew -> `TEST_KRUSKAL_WALLIS`. Repeated measures → `TEST_ANOVA_RM` (needs `SubjectField`).
 - Tier-2 `one_way_from_summary` reads group summaries; same keys.
 
 ## See

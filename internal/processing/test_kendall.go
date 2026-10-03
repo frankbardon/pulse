@@ -161,7 +161,7 @@ func (k *kendallTauRow) Finalize() (*types.TestResult, error) {
 			corrected += 1
 		}
 		z = corrected / math.Sqrt(varS)
-		p = 2 * (1 - standardNormalCDF(math.Abs(z)))
+		p = normalTwoSidedP(z)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(k.spec),

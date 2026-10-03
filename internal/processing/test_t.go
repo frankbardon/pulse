@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -28,8 +29,8 @@ import (
 //     PULSE_TEST_SPLIT_GROUPS_LT_2 (caller asked for two-sample on a
 //     k>2 splitter — direct them to TEST_ANOVA_F).
 //
-// Confidence interval bounds use the inverse t quantile at alpha; the
-// implementation searches studentTTwoSidedP via bisection.
+// Confidence interval bounds use the inverse t quantile at alpha
+// (statdist.StudentTInverseTwoSided: bracketed Newton on log statdist.StudentTTwoSidedP).
 type tTestRow struct {
 	spec   *types.Test
 	schema *encoding.Schema
@@ -170,8 +171,8 @@ func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 	se := sd / math.Sqrt(float64(b.n))
 	tstat := (b.mean - tt.mu) / se
 	df := float64(b.n - 1)
-	p := studentTTwoSidedP(tstat, df)
-	tcrit := studentTInverseTwoSided(tt.alpha, df)
+	p := statdist.StudentTTwoSidedP(tstat, df)
+	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
 	ciLow := b.mean - tcrit*se
 	ciHigh := b.mean + tcrit*se
 	res := &types.TestResult{
@@ -240,16 +241,10 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 	num := va/na + vb/nb
 	den := (va*va)/(na*na*(na-1)) + (vb*vb)/(nb*nb*(nb-1))
 	df := (num * num) / den
-	p := studentTTwoSidedP(tstat, df)
-	tcrit := studentTInverseTwoSided(tt.alpha, df)
+	p := statdist.StudentTTwoSidedP(tstat, df)
+	tcrit := statdist.StudentTInverseTwoSided(tt.alpha, df)
 	ciLow := diff - tcrit*se
 	ciHigh := diff + tcrit*se
-	// Cohen's d via pooled standard deviation.
-	pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / (na + nb - 2))
-	var cohensD float64
-	if pooled > 0 {
-		cohensD = diff / pooled
-	}
 	res := &types.TestResult{
 		Label:      testLabel(tt.spec),
 		Type:       tt.spec.Type, // honor TEST_T vs TEST_WELCH alias
@@ -267,10 +262,8 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 			"diff":     diff,
 			"ci_low":   ciLow,
 			"ci_high":  ciHigh,
-			"effect_size": map[string]any{
-				"cohens_d": cohensD,
-			},
 		},
 	}
+	setEffectSize(res.Details, "cohens_d", cohensDTwoSample(diff, na, va, nb, vb))
 	return res, nil
 }

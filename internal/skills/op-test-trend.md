@@ -24,13 +24,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = S (Mann-Kendall score); `PValue` via standard-normal approximation with tie correction. `Details.tau` = Kendall's τ; `Details.var_s` = adjusted variance.
+`Statistic` = Mann-Kendall Z (S over its SE, continuity-corrected); `PValue` two-sided normal approx. `Details`: `s`, `tau`, `var_s` (tie-adjusted), `n`.
 
 ## Gotchas
 
 - Meaningful only over an ordered upstream series (`WIN_MOVING_AVG` over a date grouper is canonical); reads result rows, not raw cohort.
 - Empty `OrderBy` → `PULSE_TEST_MISSING_ORDER_BY`. Buffered.
-- Short series → unstable p; gated by `PULSE_TEST_INSUFFICIENT_N` (n ≥ 10).
+- n < 3 -> `PULSE_TEST_INSUFFICIENT_N`; n < 8 warns (advisory; ~10+ advised).
 - Seasonality-sensitive — pre-deseasonalize via `WIN_EWMA` or month grouping.
 
 ## See

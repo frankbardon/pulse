@@ -258,7 +258,7 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	default:
 		Z = 0
 	}
-	p := 2 * (1 - standardNormalCDF(math.Abs(Z)))
+	p := normalTwoSidedP(Z)
 	tau := 0.0
 	n := float64(len(values))
 	if n > 1 {

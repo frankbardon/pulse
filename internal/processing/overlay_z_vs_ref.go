@@ -14,7 +14,7 @@ import (
 // `standardNormalCDF` finaliser, same default-variance /
 // default-sample-size policy. Mirrors the SERIES arm of
 // `applyTVsRef` (overlay_compose_handlers_series.go) — only the
-// finaliser swaps from `studentTTwoSidedP` to `standardNormalCDF`.
+// finaliser swaps from `statdist.StudentTTwoSidedP` to `standardNormalCDF`.
 //
 // Components-source: when a target row OR a reference row carries a
 // `map[string]any{"mean", "variance", "n", ...}` value column — the
@@ -34,7 +34,7 @@ import (
 //
 //	se      = sqrt(var_target/n_target + var_ref/n_ref)
 //	z       = (target_mean - ref_mean) / se
-//	p_value = 2 * (1 - Φ(|z|))
+//	p_value = 2 * Φ(-|z|)
 //
 // Missing reference rows emit `PULSE_OVERLAY_REF_ZERO` with a
 // `ref_missing=true` Detail flag; the affected entry's Statistic is

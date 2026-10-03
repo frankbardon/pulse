@@ -23,7 +23,7 @@ MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Component
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values (layout as `op-overlay-pairwise-prop-z`). Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `z = (m_i - m_j) / se`, `p = 2 * (1 - Φ(|z|))` via the `standardNormalCDF` helper backing `TEST_Z_TWO_SAMPLE`.
+MATRIX — pair × opposite-axis grid of two-sided p-values (layout as `op-overlay-pairwise-prop-z`). Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `z = (m_i - m_j) / se`, `p = 2 * Φ(-|z|)` via the `normalTwoSidedP` helper backing `TEST_Z_TWO_SAMPLE`.
 
 ## Gotchas
 

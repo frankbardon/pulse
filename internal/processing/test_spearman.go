@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -18,7 +19,7 @@ import (
 //
 //	t = ρ · √((n−2) / (1−ρ²))   with df = n − 2
 //
-// driven by studentTTwoSidedP. Tie handling is the standard mid-rank
+// driven by statdist.StudentTTwoSidedP. Tie handling is the standard mid-rank
 // correction; degenerate edge cases (zero variance in ranks, |ρ|=1)
 // match the parametric TEST_PEARSON_R behavior.
 type spearmanRRow struct {
@@ -122,7 +123,7 @@ func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 		p = 0
 	default:
 		t = rho * math.Sqrt(df/(1-rho*rho))
-		p = studentTTwoSidedP(t, df)
+		p = statdist.StudentTTwoSidedP(t, df)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(s.spec),

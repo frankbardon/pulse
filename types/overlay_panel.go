@@ -96,8 +96,10 @@ const (
 	// `row_margin_n` is NOT a panel mode: it is an unknown value here
 	// and is refused like any other.
 	//
-	// It is the ONLY mode carrying the historical `<= 0` fall back to
-	// the cell value; see PanelNSourceFallsBackToCellValue.
+	// A missing or zero row margin is read as n = 0, so every pair
+	// involving that slot is NaN with PULSE_OVERLAY_REF_ZERO. The
+	// historical `<= 0` fall back to the cell value was removed (U08 E4
+	// statistics review, OS-11); see PanelNSourceFallsBackToCellValue.
 	PanelNSourceRowMarginValue = "row_margin_value"
 
 	// PanelNSourceCellNUnweighted is the COUNTED per-cell leg: the
@@ -144,7 +146,7 @@ const (
 	// `row_margin_distinct_within` for the same reason;
 	// `n_within_distinct` stays the crosstab family's spelling.
 	//
-	// It does NOT carry the legacy <= 0 cell-value fallback; see
+	// It carries no cell-value fallback; see
 	// PanelNSourceFallsBackToCellValue. A row margin that was never
 	// emitted skips the coordinate with a warning rather than
 	// substituting the cell value, and — once a depth is set — a
@@ -310,30 +312,24 @@ func PanelNSourceReadsDistinctKeys(s string) bool {
 // PanelNSourceFallsBackToCellValue reports whether s substitutes the
 // CELL VALUE for a non-positive sample size.
 //
-// True for the legacy default ONLY, and deliberately not extended to
-// any mode added after it. The substitution is a degenerate-input
-// crutch from before the panel could count anything: a cell value
-// standing in for a sample size is the exact class of silent
-// substitution this family now refuses. It survives on row_margin_value
-// because removing it would change the default path's output, and the
-// default must stay byte-identical to the pre-params baseline.
+// It is false for every mode. The legacy default (row_margin_value)
+// once borrowed the cell value for a missing or zero row margin; that
+// forced the slot's share to 1 and, against a slot with a real margin,
+// produced a finite and spuriously small p-value with no warning. The
+// U08 E4 statistics review (OS-11) removed the substitution on both
+// OVERLAY_PROP_Z_CELL and this panel: a missing margin now reads as
+// n = 0 and the prop-Z kernel reports each affected pair as NaN with
+// PULSE_OVERLAY_REF_ZERO. The predicate stays so existing callers keep
+// compiling, and so a future mode cannot quietly reintroduce the
+// substitution without changing it.
 //
-// row_margin_value_within is excluded too, even though it reads the
-// SAME payload margin the legacy leg does. Two reasons, and the second is the
-// decisive one. A margin that was never emitted is not a zero-sized
-// one — the posture RowMarginDistinctN already takes. And once
-// NWithinDepth is set the leg is a SUM ACROSS ROWS, so substituting
-// one coordinate's cell value for a whole slab's sample size is not
-// the same dimension; a fallback that applied only at omitted depth
-// would make one mode two behaviours.
-//
-// Every COUNTED mode instead answers ok=false and SKIPS the
-// coordinate with a warning — the same posture the MATRIX arm's
-// RowMarginDistinctN takes ("an unemitted margin is not a zero-sized
-// one"). A genuine counted zero is still a zero, and the prop-Z kernel
-// reports it as a degenerate pair.
+// The COUNTED modes and the within-prefix modes go further and SKIP
+// the coordinate with a warning when their leg cannot be read — the
+// posture RowMarginDistinctN takes ("an unemitted margin is not a
+// zero-sized one"). A genuine counted zero is still a zero, and the
+// prop-Z kernel reports it as a degenerate pair.
 func PanelNSourceFallsBackToCellValue(s string) bool {
-	return s == "" || s == PanelNSourceRowMarginValue
+	return false
 }
 
 // IsPanelOverlayParamsKind reports whether kind is an overlay kind

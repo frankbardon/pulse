@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/frankbardon/pulse/types"
 )
 
 // validPurposeFixture is a Purpose that passes every rule; each fixture
@@ -348,4 +349,72 @@ func exampleIntentProblems(byExample map[string][]string) []string {
 		}
 	}
 	return out
+}
+
+// TestBuiltinPurposes_AssembledFromCategoryMaps: builtinPurposes is
+// exactly the union of the per-category maps, every stat-test entry is
+// keyed by a TEST_* family, and a name declared by two category maps
+// panics instead of silently shadowing one declaration.
+func TestBuiltinPurposes_AssembledFromCategoryMaps(t *testing.T) {
+	cats := []map[string]descriptor.Purpose{aggregatorPurposes, statTestPurposes, overlayPurposes, regressionPurposes}
+	total := 0
+	for _, m := range cats {
+		total += len(m)
+		for name := range m {
+			if _, ok := builtinPurposes[name]; !ok {
+				t.Errorf("category entry %s missing from builtinPurposes", name)
+			}
+		}
+	}
+	if total != len(builtinPurposes) {
+		t.Errorf("builtinPurposes has %d entries, category maps hold %d", len(builtinPurposes), total)
+	}
+	for name := range statTestPurposes {
+		if !strings.HasPrefix(name, "TEST_") {
+			t.Errorf("statTestPurposes holds non-test key %s", name)
+		}
+	}
+
+	for name := range overlayPurposes {
+		if !strings.HasPrefix(name, "OVERLAY_") {
+			t.Errorf("overlayPurposes holds non-overlay key %s", name)
+		}
+	}
+	for name := range regressionPurposes {
+		if !strings.HasPrefix(name, "REG_") {
+			t.Errorf("regressionPurposes holds non-regression key %s", name)
+		}
+	}
+
+	merged := mergePurposes(map[string]descriptor.Purpose{"A": {Plain: "a"}}, map[string]descriptor.Purpose{"B": {Plain: "b"}})
+	if len(merged) != 2 || merged["A"].Plain != "a" || merged["B"].Plain != "b" {
+		t.Errorf("mergePurposes = %v", merged)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("mergePurposes accepted a name declared by two category maps")
+		}
+	}()
+	mergePurposes(map[string]descriptor.Purpose{"A": {}}, map[string]descriptor.Purpose{"A": {}})
+}
+
+// TestOverlayPurposes_CoverEveryKind: every registered overlay kind
+// declares a Purpose (U08 FR-23), so the coverage report lists no
+// overlay. The kind list comes from the registry, never a hardcoded count.
+func TestOverlayPurposes_CoverEveryKind(t *testing.T) {
+	kinds := types.AllOverlayKinds()
+	if len(kinds) == 0 {
+		t.Fatal("no overlay kinds registered")
+	}
+	for _, k := range kinds {
+		if _, ok := overlayPurposes[string(k)]; !ok {
+			t.Errorf("overlay kind %s declares no Purpose", k)
+		}
+	}
+	if len(overlayPurposes) != len(kinds) {
+		t.Errorf("overlayPurposes has %d entries, %d overlay kinds registered", len(overlayPurposes), len(kinds))
+	}
+	if got := len(intentsOf(string(kinds[0]))); got == 0 {
+		t.Errorf("overlay %s projects no intents", kinds[0])
+	}
 }

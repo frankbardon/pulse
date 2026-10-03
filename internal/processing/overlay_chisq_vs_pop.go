@@ -2,6 +2,7 @@ package processing
 
 import (
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -21,13 +22,21 @@ import (
 //
 // Math:
 //
-//	subset_N      = sum(host counts)              // discrete arm only
-//	pop_freq[v]   = FacetPopulationView.DiscreteFrequency(v)
-//	expected[v]   = pop_freq[v] * subset_N        // expected scaled to subset N
-//	observed[v]   = host.Discrete.Values[v].Count
-//	chisq         = Σ_v (observed[v] - expected[v])² / expected[v]
-//	df            = len(observed) - 1
+//	C             = subset values whose population count is > 0
+//	observed[v]   = host.Discrete.Values[v].Count            // v ∈ C
+//	subset_N      = Σ_{v∈C} observed[v]
+//	share[v]      = pop_count[v] / Σ_{u∈C} pop_count[u]      // renormalised
+//	expected[v]   = share[v] * subset_N                       // Σ expected = subset_N
+//	chisq         = Σ_{v∈C} (observed[v] - expected[v])² / expected[v]
+//	df            = |C| - 1
 //	p_value       = chiSquareSurvival(chisq, df)  // = 1 - chi2_cdf
+//
+// Shares are renormalised over the compared categories (U08 E4 review
+// OS-01): population null rows and categories truncated out of a
+// DiscreteTopK listing never shrink the expected counts. A subset value
+// the population lacks is outside C (OS-02) and reported with one
+// PULSE_OVERLAY_REF_ZERO warning per value. Equals R's
+// chisq.test(x, p, rescale.p = TRUE) over C.
 //
 // Discrete arm only: χ² goodness-of-fit requires categorical buckets to
 // form the observed × expected contingency. A numeric host (no discrete
@@ -161,69 +170,83 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 		return layer, warnings, nil
 	}
 
-	// Pre-resolve population frequencies once per value so we do not
-	// repeat the resolver lookup inside the recurrence loop. Each
-	// `(value, popFreq)` pair feeds one χ² term. Absent population
-	// values yield popFreq = 0 → expected = 0 → term drops (mirrors the
-	// MATRIX-host CHISQ family's "expected > 0" guard at
-	// internal/processing/overlay.go:623 and the TEST_CHISQ recurrence at
-	// internal/processing/test_chisq.go Finalize() — overlay and row-test
-	// surfaces stay byte-equal on shared inputs).
-	subsetNFloat := float64(subsetN)
+	// Empty population: no shares to compare against. Checked before
+	// the per-category pass so an empty population surfaces ONE
+	// layer-level warning, not one per subset category.
+	popCounts, popOK := pop.DiscreteCounts()
+	if !popOK || popTotalIsZero(pop) {
+		return chiSqVsPopDegenerate(spec, subsetN, len(values),
+			" population distribution has zero total records; cannot compute χ² goodness-of-fit")
+	}
+	popByValue := make(map[string]int64, len(popCounts))
+	for _, vc := range popCounts {
+		popByValue[vc.Value] = vc.Count
+	}
+
+	// Compared categories: the subset's listed values that the
+	// population also shows. The population shares are RENORMALISED
+	// over exactly these categories (U08 E4 review, OS-01), so the
+	// expected counts sum to the compared subset total — Pearson's
+	// goodness-of-fit with matched totals, R's
+	// chisq.test(x, p, rescale.p = TRUE). Dividing by the population's
+	// FilteredRecords instead would count its null rows and the
+	// categories truncated out of a DiscreteTopK listing, shrinking every
+	// expected count and inflating χ².
+	//
+	// A subset category the population never shows (OS-02) is
+	// impossible under the population's mix: it is left out of the
+	// statistic, the compared total AND df, and reported with one
+	// PULSE_OVERLAY_REF_ZERO warning per category (the INDEX_VS_POP
+	// absent-category contract), so the departure is visible instead of
+	// silently diluting df.
+	var (
+		warnings  []types.OverlayWarning
+		comparedX []float64
+		comparedP []float64
+		observedT float64
+		popCompT  float64
+		observedN int
+	)
+	for i := range values {
+		pc := popByValue[values[i].Value]
+		if pc <= 0 {
+			warnings = append(warnings, types.OverlayWarning{
+				Code: string(errors.PULSE_OVERLAY_REF_ZERO),
+				Message: "overlay " + string(spec.Kind) + " subset category " + strconv.Quote(values[i].Value) +
+					" has no population rows; it is left out of the χ² comparison and df",
+				Details: map[string]any{
+					"kind":         string(spec.Kind),
+					"host":         "facet",
+					"value":        values[i].Value,
+					"subset_count": values[i].Count,
+				},
+			})
+			continue
+		}
+		comparedX = append(comparedX, float64(values[i].Count))
+		comparedP = append(comparedP, float64(pc))
+		observedT += float64(values[i].Count)
+		popCompT += float64(pc)
+		observedN++
+	}
+	if observedN == 0 || observedT <= 0 {
+		return chiSqVsPopDegenerate(spec, subsetN, len(values),
+			" has no subset category with population rows; cannot compute χ² goodness-of-fit")
+	}
+
 	var stat float64
 	expectedMin := math.Inf(1)
 	var lowExpectedCells int
-	var observedN int
-	for i := range values {
-		observed := float64(values[i].Count)
-		popFreq, _ := pop.DiscreteFrequency(values[i].Value)
-		expected := popFreq * subsetNFloat
+	for i := range comparedX {
+		expected := comparedP[i] / popCompT * observedT
 		if expected < expectedMin {
 			expectedMin = expected
 		}
-		if expected > 0 && expected < 5 {
+		if expected < 5 {
 			lowExpectedCells++
 		}
-		if expected > 0 {
-			diff := observed - expected
-			stat += diff * diff / expected
-		}
-		// Absent population (expected == 0): drops the χ² term (mirrors
-		// TEST_CHISQ and the MATRIX-host CHISQ family). The low-expected
-		// gate above counts expected ∈ (0, 5) only — a strictly-zero
-		// expected does NOT increment lowExpectedCells because it is a
-		// "absent from population" diagnostic, not a "low approximation
-		// reliability" diagnostic. Both arms still surface the
-		// degenerate-population PULSE_OVERLAY_REF_ZERO when every
-		// expected is zero (the popTotal == 0 guard below).
-		observedN++
-	}
-
-	// Degenerate-population guard: every expected count is zero (the
-	// population is empty or carries no overlapping values). df reduces
-	// to len(observed) - 1 by definition but the statistic is identically
-	// zero; the chi-square test is meaningless. Surface NaN statistic +
-	// NaN p-value with PULSE_OVERLAY_REF_ZERO so the renderer surfaces
-	// "no comparison available" rather than a misleading p = 1.0 badge.
-	if expectedMin == math.Inf(1) || (stat == 0 && popTotalIsZero(pop)) {
-		nanStat := math.NaN()
-		nanPV := math.NaN()
-		zeroDf := float64(observedN - 1)
-		if zeroDf < 0 {
-			zeroDf = 0
-		}
-		warnings := []types.OverlayWarning{{
-			Code: string(errors.PULSE_OVERLAY_REF_ZERO),
-			Message: "overlay " + string(spec.Kind) +
-				" population distribution has zero total records; cannot compute χ² goodness-of-fit",
-			Details: map[string]any{
-				"kind":     string(spec.Kind),
-				"host":     "facet",
-				"subset_n": subsetN,
-			},
-		}}
-		layer := buildChiSqVsPopLayer(spec, nanStat, &nanStat, &nanPV, zeroDf, observedN, 0)
-		return layer, warnings, nil
+		diff := comparedX[i] - expected
+		stat += diff * diff / expected
 	}
 
 	df := float64(observedN - 1)
@@ -232,7 +255,6 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 	}
 	pValue := chiSquareSurvival(stat, df)
 
-	var warnings []types.OverlayWarning
 	if lowExpectedCells > 0 {
 		// Canonical χ² low-expected-count warning — same code the
 		// MATRIX-host CHISQ family + FISHER_EXACT_CELL surface emit
@@ -248,7 +270,7 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 				"host":               "facet",
 				"low_expected_cells": lowExpectedCells,
 				"expected_min":       expectedMin,
-				"subset_n":           subsetN,
+				"subset_n":           int64(observedT),
 				"value_n":            observedN,
 			},
 		})
@@ -256,6 +278,25 @@ func applyChiSqVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *Facet
 
 	layer := buildChiSqVsPopLayer(spec, stat, &stat, &pValue, df, observedN, expectedMin)
 	return layer, warnings, nil
+}
+
+// chiSqVsPopDegenerate emits the "no comparison available" layer: NaN
+// statistic + NaN p-value, df 0, and one layer-level
+// PULSE_OVERLAY_REF_ZERO warning carrying reason.
+func chiSqVsPopDegenerate(spec *types.OverlaySpec, subsetN int64, valueN int, reason string) (types.OverlayLayer, []types.OverlayWarning, error) {
+	nanStat := math.NaN()
+	nanPV := math.NaN()
+	warnings := []types.OverlayWarning{{
+		Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+		Message: "overlay " + string(spec.Kind) + reason,
+		Details: map[string]any{
+			"kind":     string(spec.Kind),
+			"host":     "facet",
+			"subset_n": subsetN,
+			"value_n":  valueN,
+		},
+	}}
+	return buildChiSqVsPopLayer(spec, nanStat, &nanStat, &nanPV, 0, 0, 0), warnings, nil
 }
 
 // buildChiSqVsPopLayer wraps the χ² recurrence output into the

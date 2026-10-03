@@ -8,10 +8,13 @@ and a glossary of the statistical terms involved. The metadata is
 **pulled on demand**. It never appears in a default `Response`,
 `PredictResult` or manifest, apart from short intent IDs.
 
-> **Status (v1.0.0 alphas).** The vocabulary and the data model are in
-> place. Only a few operators have written guidance so far:
-> `AGG_AVERAGE`, `TEST_ANOVA_F` and `TEST_PEARSON_R`. Every other
-> operator carries no `intents` yet. Later units add guidance for the rest.
+> **Status (v1.0.0 alphas).** Every statistical test (`TEST_*`), overlay
+> kind (`OVERLAY_*`) and regression (`REG_*`) declares guidance and
+> carries `intents` in the manifest, as does the `AGG_AVERAGE` exemplar.
+> Other descriptive operators carry no `intents` yet; a later unit adds
+> them. The full `Purpose` and `Interpretation` prose is declared inside
+> Pulse but is not yet served through a public accessor: later units
+> render it into the skills and docs and serve it over MCP.
 
 ## Intents: what kind of question
 
@@ -63,6 +66,21 @@ Statistical tests report standardised effect sizes under
 `TEST_MANN_WHITNEY_U`). A key is **omitted** when it is undefined for
 the data, for instance when every value ties. Each test's skill
 (`op-test-*`) lists its keys and formulas.
+
+## Reading bands
+
+Where an effect size has a published benchmark, its interpretation
+labels value ranges as `very small`, `small`, `medium` or `large`, and
+names the convention the labels come from. Every built-in band set comes
+from one sourced registry of conventions, for example Cohen (1988) for
+`cohens_d` (0.2 / 0.5 / 0.8) and for `eta_squared` / `omega_squared`
+(0.01 / 0.06 / 0.14). Odds-ratio and R² bands are Cohen's benchmarks
+converted to that scale, and the citation says so.
+
+Bands are a labelled convention, not a verdict: what counts as a large
+effect depends on the field. Effect sizes with no published convention,
+such as `rank_biserial` or `cramers_v`, are deliberately left unbanded,
+and their interpretation says why.
 
 ## Over MCP and the CLI
 

@@ -129,11 +129,13 @@ func TestPanelNSourcePredicates_AreDisjoint(t *testing.T) {
 			t.Errorf("mode %q both reads components and falls back to the cell value", mode)
 		}
 	}
-	if !PanelNSourceFallsBackToCellValue("") {
-		t.Error("the empty (legacy) mode must keep the cell-value fallback")
+	// OS-11 (U08 E4 statistics review): no mode borrows the cell value
+	// for a missing sample size any more, the legacy default included.
+	if PanelNSourceFallsBackToCellValue("") {
+		t.Error("the empty (legacy) mode must not borrow the cell value as n (OS-11)")
 	}
-	if !PanelNSourceFallsBackToCellValue(PanelNSourceRowMarginValue) {
-		t.Error("row_margin_value IS the legacy mode and must keep the cell-value fallback")
+	if PanelNSourceFallsBackToCellValue(PanelNSourceRowMarginValue) {
+		t.Error("row_margin_value must not borrow the cell value as n (OS-11)")
 	}
 	if PanelNSourceFallsBackToCellValue(PanelNSourceCellNUnweighted) {
 		t.Error("cell_n_unweighted must NOT inherit the legacy cell-value fallback")
@@ -193,9 +195,6 @@ func TestDecodePanelParams_AbsentMeansLegacyDefault(t *testing.T) {
 	} {
 		if got.NSource != "" {
 			t.Errorf("%s: NSource = %q, want the empty legacy default", name, got.NSource)
-		}
-		if !PanelNSourceFallsBackToCellValue(got.NSource) {
-			t.Errorf("%s: the decoded zero value lost the legacy fallback", name)
 		}
 		if PanelNSourceReadsComponents(got.NSource) {
 			t.Errorf("%s: the decoded zero value demands components", name)

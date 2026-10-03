@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -42,7 +43,7 @@ import (
 //   - MUST NOT import internal/service/ or descriptor/.
 //   - No fmt.Sprintf in any JSON-bearing path.
 //   - Statistical primitives reuse the existing helpers
-//     (`chiSquareSurvival`, `studentTTwoSidedP`, `standardNormalCDF`)
+//     (`chiSquareSurvival`, `statdist.StudentTTwoSidedP`, `standardNormalCDF`)
 //     so per-cell p-values match the per-Request inferential overlay
 //     family + the TEST_* row test surface byte-equal.
 //
@@ -530,10 +531,10 @@ func applyDeltaVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 //	pooled   = (sa + sb) / (na + nb)
 //	se       = sqrt(pooled * (1 - pooled) * (1/na + 1/nb))
 //	z        = (pa - pb) / se
-//	p_value  = 2 * (1 - Φ(|z|))
+//	p_value  = 2 * Φ(-|z|)
 //
 // Returns (NaN, false) when na/nb <= 0, pooled ∈ {0, 1}, or se == 0.
-// Reuses standardNormalCDF for the p-value calc so the overlay and
+// Reuses normalTwoSidedP (tail-accurate erfc form) so the overlay and
 // TEST_PROP_Z produce identical p-values for the same (success, n)
 // pair.
 func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
@@ -551,7 +552,7 @@ func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
 	pa := sa / na
 	pb := sb / nb
 	z := (pa - pb) / se
-	p := 2 * (1 - standardNormalCDF(math.Abs(z)))
+	p := normalTwoSidedP(z)
 	if math.IsNaN(p) || math.IsInf(p, 0) {
 		return math.NaN(), false
 	}
@@ -564,10 +565,9 @@ func twoProportionZ(sa, na, sb, nb float64) (float64, bool) {
 // counts; each cell's matching row margin is treated as its sample
 // size (target_n on the target side, ref_n on the reference side).
 //
-// Missing row margins fall back to the cell value as the sample size
-// (a structurally degenerate case where p_target == 1 by
-// construction — useful for debugging, surfaces NaN+warning rather
-// than silently producing a meaningless statistic).
+// A missing or zero row margin on either side yields a NaN cell plus
+// one PULSE_OVERLAY_REF_ZERO warning (`margin_missing: true`); the cell
+// value is never borrowed as the sample size.
 func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
@@ -636,16 +636,34 @@ func applyPropZCell(spec *types.ComposeOverlaySpec, reference *types.Response, t
 			}
 			nTarget := targetRowMargins[rowKeyStr]
 			nRef := refRowMargins[rowKeyStr]
-			// Fallback when row margins were not surfaced on the host
-			// matrices: use the cell value itself as a degenerate sample
-			// size so the handler is still well-defined. The resulting
-			// p-value will be 1.0 (p_target == 1) but the gate stays
-			// observable.
-			if nTarget <= 0 {
-				nTarget = targetVal
-			}
-			if nRef <= 0 {
-				nRef = refVal
+			// A missing or zero row margin on EITHER side leaves that
+			// side without a sample size: the cell is NaN with one
+			// PULSE_OVERLAY_REF_ZERO warning (U08 E4 review OS-11).
+			// Substituting the cell value as n would force that side's
+			// share to 1 and, when the other side has a real margin,
+			// return a finite and spuriously small p-value with no
+			// warning.
+			if nTarget <= 0 || nRef <= 0 {
+				warnings = append(warnings, types.OverlayWarning{
+					Code:    string(errors.PULSE_OVERLAY_REF_ZERO),
+					Message: "overlay " + string(spec.Kind) + " row margin missing or zero; no sample size for the two-proportion z-test",
+					Details: map[string]any{
+						"kind":           string(spec.Kind),
+						"reference":      spec.Reference,
+						"target_label":   targetLabel,
+						"row_index":      i,
+						"col_index":      j,
+						"row_key":        rowKeyStr,
+						"col_key":        colKeyStr,
+						"target_value":   targetVal,
+						"target_n":       nTarget,
+						"ref_value":      refVal,
+						"ref_n":          nRef,
+						"margin_missing": true,
+					},
+				})
+				cells[i][j] = types.MatrixCell{Value: math.NaN(), Present: true}
+				continue
 			}
 			p, ok := twoProportionZ(targetVal, nTarget, refVal, nRef)
 			if !ok {
@@ -720,11 +738,11 @@ func matrixRowMarginLookup(mx *types.MatrixPayload) map[string]float64 {
 //	se      = sqrt(va/na + vb/nb)
 //	t       = (meanA - meanB) / se
 //	df      = (va/na + vb/nb)² / ((va/na)²/(na-1) + (vb/nb)²/(nb-1))
-//	p_value = studentTTwoSidedP(t, df)
+//	p_value = statdist.StudentTTwoSidedP(t, df)
 //
 // Returns (NaN, false) when sample sizes are below 2, when se == 0,
 // or when the computation produces a non-finite result. Reuses
-// studentTTwoSidedP so the overlay and TEST_T produce identical
+// statdist.StudentTTwoSidedP so the overlay and TEST_T produce identical
 // p-values for the same (mean, variance, n) triple.
 func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 	if nA < 2 || nB < 2 {
@@ -744,7 +762,7 @@ func welchTTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 		return math.NaN(), false
 	}
 	df := (num * num) / den
-	p := studentTTwoSidedP(t, df)
+	p := statdist.StudentTTwoSidedP(t, df)
 	if math.IsNaN(p) || math.IsInf(p, 0) {
 		return math.NaN(), false
 	}

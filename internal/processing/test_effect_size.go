@@ -68,6 +68,26 @@ func cohensDOneSample(mean, mu, sd float64) float64 {
 	return (mean - mu) / sd
 }
 
+// cohensDTwoSample returns the two-sample Cohen's d with the pooled
+// standard deviation (Cohen 1988; R effectsize::cohens_d(pooled_sd =
+// TRUE)):
+//
+//	d = (mean_a − mean_b) / √(((n_a − 1)·s²_a + (n_b − 1)·s²_b) / (n_a + n_b − 2))
+//
+// NaN when undefined (pooled SD zero, non-finite, or n_a + n_b ≤ 2), so
+// setEffectSize omits the key rather than emitting 0.
+func cohensDTwoSample(diff, na, va, nb, vb float64) float64 {
+	dof := na + nb - 2
+	if !(dof > 0) {
+		return math.NaN()
+	}
+	pooled := math.Sqrt(((na-1)*va + (nb-1)*vb) / dof)
+	if !(pooled > 0) || math.IsInf(pooled, 0) {
+		return math.NaN()
+	}
+	return diff / pooled
+}
+
 // omegaSquared returns ω² for a one-way between-subjects ANOVA (Hays
 // 1963; Olejnik & Algina 2003, Table 1):
 //

@@ -13,7 +13,7 @@ Compose-only parity overlay. Series-shape sibling of `OVERLAY_Z_CELL`. Overlays 
 
 ## Params
 
-`Scope` required, must be `group`. `Reference` / `Targets` required slot labels. Optional `params.variance_target/_ref` (float, `1.0`), `params.sample_size_target/_ref` (int, `2`).
+`Scope` required, must be `group`. `Reference` / `Targets` required slot labels. Optional `params.variance_target/_ref` (float, `1.0`), `params.sample_size_target/_ref` (int, `2`). Without `AGG_WELFORD` these apply to EVERY group: p-values then describe the supplied values, not each group.
 
 ## Host shape
 
@@ -25,7 +25,7 @@ SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary
 
 ## Gotchas
 
-- **Byte-equal** to `TEST_Z_TWO_SAMPLE` on the same inputs — shares `standardNormalCDF` with it and `OVERLAY_Z_CELL`.
+- **Byte-equal** to `TEST_Z_TWO_SAMPLE` on the same inputs — shares `normalTwoSidedP` with it and `OVERLAY_Z_CELL`.
 - Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
 - Unlike the streamable SERIES arm of `OVERLAY_INDEX_VS_REF` / `OVERLAY_DELTA_VS_REF`: inferential, buffered.
 

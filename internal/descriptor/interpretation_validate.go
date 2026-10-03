@@ -250,6 +250,14 @@ var regressionOutputs = map[string][]string{
 	string(types.REG_BAYES_LINEAR): {"adj_r2", "coefficients", "credible_intervals", "n_obs", "r2", "residual_std_err", "std_errors"},
 }
 
+// RegressionOutputKeys returns a copy of the applicability row for
+// regression type name: the RegressionResult JSON keys it populates on
+// its plain fit path (nil for an unknown type). The runtime probe in
+// internal/processing/regression holds it to what each engine emits.
+func RegressionOutputKeys(name string) []string {
+	return append([]string(nil), regressionOutputs[name]...)
+}
+
 // componentFloors are the universal-floor component keys the
 // orchestrator fills for every operator of a category (not listed in a
 // ComponentSchema).

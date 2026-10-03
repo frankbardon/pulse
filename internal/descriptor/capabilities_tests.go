@@ -68,11 +68,8 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy.",
 			Streamable:  types.TEST_KS.Streamable(),
-			Params: []descriptor.Param{
-				alphaParam,
-				{Name: "alternative", Type: "enum", Required: false, Default: "two-sided", EnumValues: []string{"greater", "less", "two-sided"}, Description: "One- or two-sided test."},
-			},
-			Requires: []string{"Field", "SplitBy"},
+			Params:      []descriptor.Param{alphaParam},
+			Requires:    []string{"Field", "SplitBy"},
 		},
 		{
 			Name:        string(types.TEST_PAIRED_T),
@@ -189,7 +186,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Name:        string(types.TEST_SHAPIRO_WILK),
 			Family:      string(types.TEST_SHAPIRO_WILK),
 			Tier:        1,
-			Description: "Shapiro-Wilk normality test on Field; runs per-group when SplitBy is set (n ≤ 5000).",
+			Description: "Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set (p-value advisory outside 5..5000).",
 			Streamable:  types.TEST_SHAPIRO_WILK.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
 			Requires:    []string{"Field"},

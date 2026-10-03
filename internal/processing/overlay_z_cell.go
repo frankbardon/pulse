@@ -29,7 +29,7 @@ import (
 //
 //	se      = sqrt(var_target/n_target + var_ref/n_ref)
 //	z       = (target_mean - ref_mean) / se
-//	p_value = 2 * (1 - Φ(|z|))
+//	p_value = 2 * Φ(-|z|)
 //
 // Reuses `standardNormalCDF` (internal/processing/test_z.go via the canonical
 // CDF helper at internal/processing/test_stat.go) so the overlay and
@@ -172,7 +172,7 @@ func applyZCell(spec *types.ComposeOverlaySpec, reference *types.Response, targe
 //
 //	se      = sqrt(va/na + vb/nb)
 //	z       = (meanA - meanB) / se
-//	p_value = 2 * (1 - Φ(|z|))
+//	p_value = 2 * Φ(-|z|)
 //
 // Returns (NaN, false) when:
 //   - either sample size < 2
@@ -194,7 +194,7 @@ func welchZTest(meanA, varA, nA, meanB, varB, nB float64) (float64, bool) {
 	if math.IsNaN(z) || math.IsInf(z, 0) {
 		return math.NaN(), false
 	}
-	p := 2 * (1 - standardNormalCDF(math.Abs(z)))
+	p := normalTwoSidedP(z)
 	if math.IsNaN(p) || math.IsInf(p, 0) {
 		return math.NaN(), false
 	}

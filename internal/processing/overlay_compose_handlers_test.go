@@ -277,9 +277,10 @@ func TestApplyDeltaVsRef_ZeroRefNoNaN(t *testing.T) {
 	approxEqual(t, "cell (0,1)", cellAt(t, layer, 0, 1), 9.0, 1e-9)
 }
 
-// TestApplyPropZCell_KnownAnswer pins a hand-computed two-proportion
-// p-value for a known (success, n) pair. Cell (0,0): 50/100 target vs
-// 60/100 ref — should produce a p-value ≈ 0.157 (z ≈ -1.4142).
+// TestApplyPropZCell_KnownAnswer pins the two-proportion p-value for a
+// known (success, n) pair against R. Cell (0,0): 50/100 target vs
+// 60/100 ref ⇒ z = −1.4213, p = prop.test(c(50, 60), c(100, 100),
+// correct=FALSE)$p.value = 0.15521848968468363.
 func TestApplyPropZCell_KnownAnswer(t *testing.T) {
 	ref := makeMatrixWithRowMargins(
 		[3][3]float64{
@@ -307,9 +308,9 @@ func TestApplyPropZCell_KnownAnswer(t *testing.T) {
 	// se = sqrt(0.55 * 0.45 * (1/100 + 1/100)) = sqrt(0.2475 * 0.02)
 	//    = sqrt(0.00495) ≈ 0.070356
 	// z = (0.5 - 0.6) / 0.070356 ≈ -1.4213
-	// p_value = 2 * (1 - Φ(1.4213)) ≈ 0.1552
+	// p_value = 2 * Φ(-1.4213) = 0.15521848968468363 (R)
 	got := cellAt(t, layer, 0, 0)
-	approxEqual(t, "p-value (0,0)", got, 0.1552, 0.005)
+	approxEqual(t, "p-value (0,0)", got, propZ50v60R, 1e-12)
 	// Cell (0,1): 50/100 target vs 50/100 ref ⇒ p-value = 1.0 (z = 0).
 	approxEqual(t, "p-value (0,1)", cellAt(t, layer, 0, 1), 1.0, 1e-6)
 }
@@ -879,5 +880,61 @@ func TestApplyIndexVsRef_NonMatrixSlotErrors(t *testing.T) {
 	}
 	if got := string(coded.Code); got != string(pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB) {
 		t.Fatalf("Details[code] = %q, want %q", got, pulseerrors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB)
+	}
+}
+
+// TestApplyPropZCell_MissingRowMarginIsNaN pins the OS-11 fix (U08 E4
+// statistics review). Row 0's reference margin is 0 (absent), the
+// target's is 100. The old handler substituted the reference CELL value
+// as its n (share = 1) and returned a finite, small p-value with no
+// warning — e.g. 50/100 vs 60/60 gave p ≈ 1e-9. Either side missing its
+// margin now yields NaN plus one PULSE_OVERLAY_REF_ZERO per affected
+// cell, exactly like the both-missing case. Row 1 keeps both margins
+// and is unaffected.
+func TestApplyPropZCell_MissingRowMarginIsNaN(t *testing.T) {
+	ref := makeMatrixWithRowMargins(
+		[3][3]float64{{60, 50, 50}, {60, 50, 50}, {50, 50, 50}},
+		[3]float64{0, 100, 100},
+	)
+	target := makeMatrixWithRowMargins(
+		[3][3]float64{{50, 50, 50}, {50, 50, 50}, {50, 50, 50}},
+		[3]float64{100, 100, 100},
+	)
+	for _, tc := range []struct {
+		name        string
+		ref, target *types.Response
+	}{
+		{"reference margin missing", ref, target},
+		{"target margin missing", target, ref},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := composeSpecMatrixRef(types.OverlayKindPropZCell, nil)
+			layer, warnings, err := applyPropZCell(&spec, tc.ref, []*types.Response{tc.target}, 0, []int{1})
+			if err != nil {
+				t.Fatalf("applyPropZCell: %v", err)
+			}
+			for j := 0; j < 3; j++ {
+				if got := cellAt(t, layer, 0, j); !math.IsNaN(got) {
+					t.Errorf("cell (0,%d) = %v, want NaN (one row margin missing)", j, got)
+				}
+			}
+			approxEqual(t, "p-value (1,0)", cellAt(t, layer, 1, 0), propZ50v60R, 1e-12)
+			n := 0
+			for _, w := range warnings {
+				if w.Code != string(pulseerrors.PULSE_OVERLAY_REF_ZERO) {
+					t.Errorf("unexpected warning code %s", w.Code)
+					continue
+				}
+				if w.Details["row_index"] == 0 {
+					n++
+					if w.Details["margin_missing"] != true {
+						t.Errorf("warning Details[margin_missing] = %v, want true", w.Details["margin_missing"])
+					}
+				}
+			}
+			if n != 3 {
+				t.Errorf("row-0 REF_ZERO warnings = %d, want 3 (one per affected cell)", n)
+			}
+		})
 	}
 }

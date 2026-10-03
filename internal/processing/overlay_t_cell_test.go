@@ -5,6 +5,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -50,7 +51,7 @@ func captureLayerTVsRef(t *testing.T, spec types.ComposeOverlaySpec, ref, target
 }
 
 func expectedMatrixPValueScalar() float64 {
-	return studentTTwoSidedP(1.0, 2.0)
+	return statdist.StudentTTwoSidedP(1.0, 2.0)
 }
 
 func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
@@ -100,7 +101,7 @@ func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	gotP := mx.Cells[0][0].Value.(float64)
 	wantP := expectedMatrixPValueScalar()
 	if math.Float64bits(gotP) != math.Float64bits(wantP) {
-		t.Errorf("p-value bit drift vs studentTTwoSidedP(1,2): got=%v want=%v", gotP, wantP)
+		t.Errorf("p-value bit drift vs statdist.StudentTTwoSidedP(1,2): got=%v want=%v", gotP, wantP)
 	}
 }
 
@@ -108,7 +109,7 @@ func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 // the SERIES-host snapshot. Same Welch math (target_val=10, ref_val=9,
 // variance=1, n=2 defaults).
 func expectedSeriesPValueScalar() float64 {
-	return studentTTwoSidedP(1.0, 2.0)
+	return statdist.StudentTTwoSidedP(1.0, 2.0)
 }
 
 func TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical(t *testing.T) {

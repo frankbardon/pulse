@@ -21,7 +21,7 @@ COMPOSE — MATRIX crosstab on reference + target. Schema-match + key-alignment 
 
 ## Output
 
-SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Parameters["df"]}`. One layer per target.
+SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; χ² is on `Summary.Statistic`, plus `Parameters["df"]`. One layer per target.
 
 ## Gotchas
 

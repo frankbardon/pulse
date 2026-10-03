@@ -525,38 +525,3 @@ func TestRegBayes_InsufficientData(t *testing.T) {
 		t.Errorf("err = %v, want PROCESSING_REGRESSION_INSUFFICIENT_DATA", err)
 	}
 }
-
-// TestStudentTQuantile_SanityValues spot-checks studentTQuantile against
-// commonly-tabulated values from standard t-tables. Tolerance is 1e-4
-// — credible intervals are not sensitive beyond this.
-//
-// Reference table (Wikipedia / Engineering Statistics Handbook):
-//
-//	df = 1,  p = 0.975  → t* ≈ 12.7062
-//	df = 10, p = 0.975  → t* ≈ 2.2281
-//	df = 30, p = 0.975  → t* ≈ 2.0423
-//	df = 60, p = 0.975  → t* ≈ 2.0003
-//	df = 100, p = 0.975 → t* ≈ 1.9840
-//	df = ∞ (≈10000), p = 0.975 → t* → Φ⁻¹(0.975) ≈ 1.9600
-func TestStudentTQuantile_SanityValues(t *testing.T) {
-	cases := []struct {
-		df   float64
-		p    float64
-		want float64
-	}{
-		{1, 0.975, 12.7062},
-		{10, 0.975, 2.2281},
-		{30, 0.975, 2.0423},
-		{60, 0.975, 2.0003},
-		{100, 0.975, 1.9840},
-		{10000, 0.975, 1.9600},
-		// Symmetry: q(0.025; df) = -q(0.975; df).
-		{10, 0.025, -2.2281},
-	}
-	for _, c := range cases {
-		got := studentTQuantile(c.p, c.df)
-		if !closef(got, c.want, 1e-3) {
-			t.Errorf("studentTQuantile(p=%v, df=%v) = %v, want %v ±1e-3", c.p, c.df, got, c.want)
-		}
-	}
-}

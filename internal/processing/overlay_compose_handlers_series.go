@@ -253,7 +253,7 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 // applyTVsRef is the COMPOSE-host runtime handler for OVERLAY_T_VS_REF.
 // Per-group Welch t-test against the reference slot's matching group.
 // Series-shape sibling of OVERLAY_T_CELL — reuses the same default-
-// variance / default-sample-size policy and the same studentTTwoSidedP
+// variance / default-sample-size policy and the same statdist.StudentTTwoSidedP
 // helper.
 //
 // Components-source: when both target and reference value
@@ -280,7 +280,7 @@ func applyDeltaVsRefSeries(spec *types.ComposeOverlaySpec, reference *types.Resp
 //	se         = sqrt(var_target/n_target + var_ref/n_ref)
 //	t          = (target_val - ref_val) / se
 //	df         = Welch-Satterthwaite recurrence (same as TEST_T)
-//	p_value    = studentTTwoSidedP(t, df)
+//	p_value    = statdist.StudentTTwoSidedP(t, df)
 //
 // Missing reference rows emit PULSE_OVERLAY_REF_ZERO with a
 // ref_missing=true Detail flag; the affected entry's Statistic is

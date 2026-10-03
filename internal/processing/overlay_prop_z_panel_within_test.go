@@ -87,9 +87,10 @@ func TestApplyPropZPanel_NWithinOmittedDepthMatchesBaselineBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal layer: %v", err)
 	}
-	if string(got) != panelBaselineLayerJSON {
-		t.Fatalf("n_within at omitted depth is not the exact per-slot row margin:\n got %s\nwant %s",
-			got, panelBaselineLayerJSON)
+	assertPanelBaselineBytes(t, got, "n_within at omitted depth is not the exact per-slot row margin")
+	if free := panelParamsFreeLayerJSON(t); string(got) != string(free) {
+		t.Fatalf("n_within at omitted depth differs from the params-free layer on this arch:\n got %s\nwant %s",
+			got, free)
 	}
 }
 

@@ -132,7 +132,7 @@ func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 			}
 		}
 		z = diff / math.Sqrt(varW)
-		p = 2 * (1 - standardNormalCDF(math.Abs(z)))
+		p = normalTwoSidedP(z)
 	}
 	res := &types.TestResult{
 		Label:      testLabel(w.spec),
