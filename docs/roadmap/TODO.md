@@ -295,7 +295,7 @@ Theme documents: see the [roadmap index](README.md).
 
 - [ ] **#159** Documentation inventory and coverage matrix: every public API symbol, CLI leaf and flag, MCP tool / prompt / resource, operator, field type, error code, env var, `Options` field and request/response slot, mapped to where it is documented · [U32](units/U32-docs-audit.md)
 - [ ] **#160** Automated checks in CI: link checker, runnable-snippet test, CLI help ↔ `flags.md` parity, GoDoc `Example*` functions for the public facade, removed-name scan · [U32](units/U32-docs-audit.md)
-- [ ] **#161** `TestSkillTokenBudget` flipped from soft to hard-failing, with every skill within budget · [U32](units/U32-docs-audit.md)
+- [ ] **#161** `TestSkillTokenBudget` flipped from soft to hard-failing, with every skill within budget (known overrun: `session-bootstrap.md`) · [U32](units/U32-docs-audit.md)
 - [ ] **#162** Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/` · [U32](units/U32-docs-audit.md)
 - [ ] **#163** Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary · [U32](units/U32-docs-audit.md)
 - [ ] **#164** Getting Started rewritten for v1 (install from GitHub Releases → first cohort → first analysis → first MCP session) and a single embedder guide (profiles, limits, observability, response shaping) · [U32](units/U32-docs-audit.md)
@@ -322,5 +322,5 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#175** Every new gate is listed by name in CLAUDE.md "Non-Skippable CI Gates" · [U33](units/U33-v1-release.md)
 - [ ] **#176** The Update Demand table has rows for: `Purpose`, `Since` / dependencies, topical-skill fences, `Request.Vectors` / `Matrices`, `Response.Matrices`, `Request.Weight` / `Multiplicity` / `TimeZone` / `Return`, `Options.Limits` / `Logger` / `Hooks` / `Metrics` · [U33](units/U33-v1-release.md)
 - [ ] **#177** New env vars and CLI flags documented (CLAUDE.md "Build / Env", `flags.md`, `session-bootstrap.md`) · [U33](units/U33-v1-release.md)
-- [ ] **#178** CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`) · [U33](units/U33-v1-release.md)
+- [ ] **#178** CLAUDE.md stays at or under 50,000 bytes (long form moved to `.claude/reference/`; 131 B headroom after U07 — next editor displaces first, see U08) · [U33](units/U33-v1-release.md)
 - [ ] **#179** `format_version` remains `"1.1"` (every wire change additive) · [U33](units/U33-v1-release.md)
