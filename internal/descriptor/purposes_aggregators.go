@@ -499,7 +499,7 @@ var (
 		Intents: []string{IntentDescribe, IntentDistributionShape},
 		Questions: []string{
 			"How much do delivery times vary around the average in each region?",
-			"Which product line has the most consistent order values?",
+			"Which product line's order values vary the most in absolute terms (divide by each line's average to compare relative consistency)?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "How widely satisfaction scores spread within each segment.",
@@ -523,16 +523,16 @@ var (
 		Plain:   "Spread of a numeric field as the average squared distance from its mean, in squared units, over all rows or per group.",
 		Intents: []string{IntentDescribe, IntentDistributionShape},
 		Questions: []string{
-			"How much does the order value vary within each channel, as an input to further maths?",
+			"How much does the order value vary within each channel, in squared units?",
 			"Which sites show the most variable readings?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainOps:     "Variability of daily demand per product, for a safety-stock formula.",
-			descriptor.DomainScience: "Within-arm variance of a measurement, to plan the next study's size.",
+			descriptor.DomainScience: "Variance of a measurement across every unit of a fully measured batch.",
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want the spread in the field's own units, which is easier to read", Use: "AGG_STDDEV"},
-			{When: "you want the sample variance (dividing by n - 1) with the mean and n", Use: "AGG_WELFORD"},
+			{When: "you want the sample variance (dividing by n - 1) with the mean and n, as pooling and study-size planning expect", Use: "AGG_WELFORD"},
 		},
 		Assumptions: []string{
 			"Missing values are skipped.",
@@ -618,13 +618,13 @@ var (
 
 	purposeAggZScore = descriptor.Purpose{
 		Plain:   "Population mean and standard deviation of a numeric field, for standardizing it; the value itself is always 0.",
-		Intents: []string{IntentDistributionShape, IntentBenchmark},
+		Intents: []string{IntentDescribe, IntentPrepare},
 		Questions: []string{
 			"What centre and scale standardize this field in each group?",
-			"How many standard deviations does the latest row sit from its group's average?",
+			"How many standard deviations does the group's last row (in row order) sit from the group's average, that row included?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainOps:     "How unusual the most recent reading is against its group.",
+			descriptor.DomainOps:     "How far the group's last row, in a fixed row order, sits from the group's centre.",
 			descriptor.DomainScience: "Group centre and scale for standardizing a measurement by hand.",
 		},
 		NotFor: []descriptor.Alternative{
@@ -634,6 +634,8 @@ var (
 		},
 		Assumptions: []string{
 			"Missing values are skipped; the spread is the population form (dividing by n).",
+			"The last row is the last in row order, not the latest by date, and it is part of the mean and spread it is compared with, which damps its own score; " +
+				"for a reading against its past use OVERLAY_ZSCORE_VS_ROLLING.",
 			"Not streamable: the whole group is read before the result is ready.",
 		},
 		Level:    descriptor.LevelIntermediate,
@@ -659,7 +661,7 @@ var (
 		},
 		Assumptions: []string{
 			"Rows are independent draws, unweighted.",
-			"Normal critical value (1.96 at 95%), not Student's t, so small groups get an interval that is too narrow.",
+			"Normal critical value (1.96 at 95%), not Student's t, so small groups, and strongly skewed fields even well past 30 rows, get an interval that is too narrow.",
 			"Empty (NaN) when fewer than two rows have a value.",
 		},
 		Level:    descriptor.LevelIntermediate,
@@ -675,7 +677,7 @@ var (
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Error bars on a mean score per segment.",
-			descriptor.DomainOps:     "Worst plausible average delivery time per carrier.",
+			descriptor.DomainOps:     "Upper end of the 95% interval for average delivery time per carrier: the true average can still lie above it.",
 			descriptor.DomainScience: "Interval for a mean measurement per arm.",
 		},
 		NotFor: []descriptor.Alternative{
@@ -684,7 +686,7 @@ var (
 		},
 		Assumptions: []string{
 			"Rows are independent draws, unweighted.",
-			"Normal critical value (1.96 at 95%), not Student's t, so small groups get an interval that is too narrow.",
+			"Normal critical value (1.96 at 95%), not Student's t, so small groups, and strongly skewed fields even well past 30 rows, get an interval that is too narrow.",
 			"Empty (NaN) when fewer than two rows have a value.",
 		},
 		Level:    descriptor.LevelIntermediate,

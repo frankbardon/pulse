@@ -1949,8 +1949,8 @@
             "mergeability": "mergeable"
           },
           "intents": [
-            "benchmark",
-            "distribution_shape"
+            "describe",
+            "prepare"
           ]
         }
       ],
@@ -10430,4 +10430,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3607a51eedbabddbd4296474643da2d88c1cbf2e19fadde287de75d3aae06b6a
+// golden-hash: c23078cb2ae2a2bf807438746c06a592e66e68a56f6f03d673030da67726e35c

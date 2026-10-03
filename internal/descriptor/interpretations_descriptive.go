@@ -41,7 +41,8 @@ const (
 	descCIMethod      = "The confidence level describes the method: over repeated samples, intervals built this way capture the true mean that share of the time. " +
 		"Any one interval either contains it or not."
 	descCINormal = "Pulse uses the normal critical value (1.96 at 95%), not Student's t, so on small groups (under about 30 rows) the interval is too narrow; " +
-		"the components key t_critical holds that normal value."
+		"on a strongly skewed or heavy-tailed field it can stay too narrow, and lopsided, on much larger groups, so check AGG_SKEWNESS first. " +
+		"The components key t_critical holds that normal value."
 	descCIIndependent = "It assumes rows are independent, unweighted draws; with weighted, clustered or repeated rows it understates the uncertainty."
 	descCIOverlap     = "Overlapping intervals do not show two means are equal: means can differ even when their intervals overlap, so compare groups with TEST_WELCH, not by eye."
 	descCINaN         = "Empty (NaN) when fewer than two rows have a value."
@@ -70,7 +71,7 @@ var (
 			Means: "The average squared distance of a value from the group's mean, in the field's units squared (dollars squared, minutes squared). " +
 				"Its square root is AGG_STDDEV, which is in the field's own units and easier to read.",
 			Caveats: []string{
-				"Squared units make the size hard to judge directly; it is mainly an input to further calculations (pooling, planning a study's size).",
+				"Squared units make the size hard to judge directly. For pooling or planning a study's size use AGG_WELFORD's variance (dividing by n - 1), which those formulas expect.",
 				descPopulationSpread,
 				"Extreme values weigh heavily, since each distance is squared.",
 				descSingleRowZero,
@@ -100,12 +101,15 @@ var (
 		{
 			Field: "value",
 			Means: "How lopsided the values are around their mean. Pulse computes the population moment coefficient g1: the average cubed z-score, " +
-				"m3 / m2^1.5 with both moments dividing by n. 0 means the values balance around the mean.",
+				"(m3/n) / (m2/n)^1.5, where the components m2 and m3 are SUMS of squared and cubed distances from the mean (not yet divided by n). " +
+				"0 means the values balance around the mean.",
 			Sign: map[string]string{
-				"+": "a longer tail to the right: a few values sit far above the rest, pulling the mean above the median",
-				"-": "a longer tail to the left: a few values sit far below the rest, pulling the mean below the median",
+				"+": "a longer or heavier tail to the right: a few values sit far above the rest",
+				"-": "a longer or heavier tail to the left: a few values sit far below the rest",
 			},
 			Caveats: []string{
+				"The sign does not fix whether the mean sits above or below the median: the two often disagree on whole-number or many-peaked fields, " +
+					"so read AGG_MEDIAN beside AGG_AVERAGE for that.",
 				"There are no sourced bands for skewness: the 0.5 / 1 rules of thumb in circulation trace to secondary quotations that could not be checked " +
 					"against their source, so compare values with each other rather than with a fixed cut-off.",
 				"Small-n bias: g1 runs smaller in size than the adjusted G1 that Excel SKEW, SPSS and SAS print (G1 = g1 * sqrt(n(n-1)) / (n-2)), " +
@@ -120,10 +124,12 @@ var (
 		{
 			Field: "value",
 			Means: "How heavy the tails are next to a normal distribution. Pulse computes the population EXCESS kurtosis g2: the average fourth-power z-score " +
-				"minus 3, m4 / m2^2 - 3 with both moments dividing by n, so a normal distribution scores 0. It can never fall below -2.",
+				"minus 3, (m4/n) / (m2/n)^2 - 3, where the components m2 and m4 are SUMS of squared and fourth-power distances from the mean " +
+				"(not yet divided by n), so a normal distribution scores 0. It can never fall below -2.",
 			Sign: map[string]string{
 				"+": "heavier tails than a normal distribution: extreme values turn up more often than the spread suggests",
-				"-": "lighter tails than a normal distribution: values stay inside a bounded range, as in a flat (uniform) spread",
+				"-": "lighter tails than a normal distribution: values far from the mean turn up less often than the spread suggests, " +
+					"as in a flat (uniform) or two-humped spread; it does not mean the values are bounded",
 			},
 			Caveats: []string{
 				"There are no sourced bands for kurtosis: the cut-offs quoted for it (such as 2 or 7) are pass/fail normality screens from particular fields, " +
@@ -145,7 +151,9 @@ var (
 				"For a z-score on every row use ATTR_ZSCORE; for each group's value against all groups use OVERLAY_ZSCORE_VS_TOTAL.",
 				"There are no sourced bands for reading a z-score of this kind: the familiar 1.96 / 2.58 cut-offs are critical values of a test statistic " +
 					"built from a standard error, and this one is built from a spread of values instead, so it has no p-value behind it.",
-				"Which row is last depends on row order, so the components zscore is reproducible only on a fixed order.",
+				"Which row is last depends on row order (not on date), so the components zscore is reproducible only on a fixed order.",
+				"The last row is part of the mean and spread it is scored against, which damps its zscore (never beyond sqrt(n - 1) in size), " +
+					"so it understates how unusual that row is; for a reading against its own past use OVERLAY_ZSCORE_VS_ROLLING.",
 				"The value and the components zscore read 0 when every value is the same (no spread); every component reads 0 when the group is empty.",
 			},
 		},
@@ -207,7 +215,9 @@ var (
 				"With equal weights it equals AGG_AVERAGE.",
 			Caveats: []string{
 				"Rows missing the value or the weight, or with weight 0, are left out of the average yet still count in components n; read sum_weights for the base.",
-				"Uneven weights cost precision: the effective sample size (components n_eff) is the row count the estimate is really worth, never more than the rows that count.",
+				"With survey or other sampling weights, uneven weights cost precision: components n_eff (Kish's effective sample size) is the row count " +
+					"the estimate is roughly worth, never more than the rows that count. It does not apply to frequency weights (a weight counting repeated units, " +
+					"such as a quantity, where the base is sum_weights) or to inverse-variance weights.",
 				"It reads 0 when no row has a usable weight; check components sum_weights before trusting a 0.",
 				"Negative weights are not refused and can push the result outside the range of the values.",
 			},
