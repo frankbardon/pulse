@@ -171,8 +171,8 @@ func TestGuidanceExemptions_GatesBite(t *testing.T) {
 	})
 }
 
-// TestGuidanceExemptions_Ledger: the lookup intent's exemptions are
-// permanent and justified, and nothing else is — a new permanent
+// TestGuidanceExemptions_Ledger: the lookup intent's exemptions and
+// simulate's example exemption are permanent and justified, and nothing else is — a new permanent
 // exemption is a deliberate edit of this test.
 func TestGuidanceExemptions_Ledger(t *testing.T) {
 	tables := map[string][]guidanceExemption{
@@ -194,7 +194,7 @@ func TestGuidanceExemptions_Ledger(t *testing.T) {
 			}
 		}
 	}
-	want := map[string]bool{"intent-declarers/" + IntentLookup: true, "intent-example/" + IntentLookup: true}
+	want := map[string]bool{"intent-declarers/" + IntentLookup: true, "intent-example/" + IntentLookup: true, "intent-example/" + IntentSimulate: true}
 	if !maps.Equal(permanent, want) {
 		t.Errorf("permanent exemptions = %v, want exactly %v", slices.Sorted(maps.Keys(permanent)), slices.Sorted(maps.Keys(want)))
 	}

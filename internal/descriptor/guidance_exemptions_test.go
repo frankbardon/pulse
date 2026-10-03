@@ -61,7 +61,7 @@ var intentExampleExemptions = []guidanceExemption{
 	{Key: IntentLookup, Owner: ownerPermanent, Why: "Non-analytic intent served by pulse_lookup; the example library holds request payloads, and a lookup is not one."},
 	{Key: IntentFlows, Owner: "U28", Why: "No flow operator exists to exemplify until U28 ships the matrix overlays."},
 	{Key: IntentMeasureConstruct, Owner: "U24", Why: "No construct-measurement operator exists to exemplify until U24 ships."},
-	{Key: IntentSimulate, Owner: "U09", Why: "No library example exists for synth specs; the synth examples under internal/examples/synth/ are not embedded and carry no _meta."},
+	{Key: IntentSimulate, Owner: ownerPermanent, Why: "Synth specs are a separate surface (pulse synth); the raw internal/examples/synth/*.synth.json specs sit outside the embedded library and carry no _meta, so no library example can carry simulate."},
 }
 
 // exampleIntentExemptions — example directories holding at least one
