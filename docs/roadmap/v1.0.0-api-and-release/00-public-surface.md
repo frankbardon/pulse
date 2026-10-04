@@ -155,10 +155,10 @@ Every contract difference above — old spelling, new spelling, kind and how to 
 - [x] Package moves / narrowing done; facade re-exports added (U02)
 - [x] `extend` package; `processing` fully internal (U02b)
   - Landed deviations: an operator's own `Components()` method still emits when no `ComponentsFunc` is registered (not probe-validated, [U34](../units/U34-extension-validation.md)); runtime streamability follows the DECLARED `Streamable` flag (feature `Streamable` not probe-validated, U34); extension aggregators and groupers merge when they declare `extend.MergeableAggregator` / `extend.MergeableGrouper`; single-key extension groupers fuse in a crosstab through an adapter-synthesized `KeyFor`; extension crosstab cells fuse on a declared `MarginReducibility`; per-group aggregator Components is unlanded for every operator ([U17](../units/U17-response-shaping-core.md)); predict-side chain validation has no production caller yet and the synth-distribution registration has no `extend` factory shape (both [U34](../units/U34-extension-validation.md)); overlay kinds are not an extension category
-- [ ] `CohortReader` / `CohortBuilder`; `PredictResult.CrosstabFusable` (U02c)
+- [x] `CohortReader` / `CohortBuilder`; `PredictResult.CrosstabFusable` (U02c)
 - [x] API-compatibility check in CI against the latest release tag (U02: advisory `apidiff` + blocking `TestPublicAPIGolden`)
 - [x] Public package list recorded in the `STABILITY.md` draft ([02](02-stability-policy.md)); the root file lands with U33
-- [ ] Embedder migration guide handed off ([03](03-embedder-migration.md)) — U01, U02 and U02b rows landed and compiled by the smoke module; U02c rows pending
+- [ ] Embedder migration guide handed off ([03](03-embedder-migration.md)) — U01, U02, U02b and U02c rows landed and compiled by the smoke module
 
 ## Appendix: downstream usage catalog
 

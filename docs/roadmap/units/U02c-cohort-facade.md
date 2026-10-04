@@ -4,7 +4,7 @@ slug: cohort-facade
 title: "Embedders read and write cohorts record by record, and predict says whether a crosstab fuses"
 track: API & release
 size: M
-status: not-started
+status: done
 depends_on: [U02]
 soft_depends_on: []
 blocks: [U32]
@@ -22,7 +22,7 @@ branch: cohort-facade
 
 U02 narrows `encoding` to schema nouns plus raw-byte primitives for ungrouped `0x01` cohorts, and makes the map-filling `ReadRecordAt` internal. This unit adds the recommended path on the facade: `CohortReader` (`Schema()`, `Len()`, `RecordAt(i)`) for reading records by index, and `CohortBuilder` (schema + append rows) for writing cohorts, grouped (`0x02`) ones included. The raw primitives stay as the expert escape hatch.
 
-It also replaces `processing.CanFuseCrosstab` with a no-execute answer: `PredictResult.CrosstabFusable`, mirroring how `Streamable` mirrors `CanStreamRequest`. A parity gate keeps predict's answer equal to the engine's runtime fusion decision. The field is payload-reachable and additive, so the payload-schema golden is regenerated and `format_version` stays `"1.1"`.
+It also replaces `processing.CanFuseCrosstab` with a no-execute answer: `PredictResult.CrosstabFusable`, mirroring how `Streamable` mirrors `CanStreamRequest`. A parity gate keeps predict's answer equal to the engine's runtime fusion decision. The field is additive and `format_version` stays `"1.1"`. As landed, `PredictResult` is a `descriptor` type outside the payload schema, so regenerating the golden produced no diff.
 
 ## References
 
@@ -34,9 +34,9 @@ It also replaces `processing.CanFuseCrosstab` with a no-execute answer: `Predict
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#190** (1. API surface & release pipeline › Public Go surface › Cohort facade) `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)`
-- [ ] **#191** (1. API surface & release pipeline › Public Go surface › Cohort facade) `CohortBuilder` on the facade: schema + append rows, grouped (`0x02`) cohorts included
-- [ ] **#192** (1. API surface & release pipeline › Public Go surface › Cohort facade) `PredictResult.CrosstabFusable` (no-execute) with a runtime parity gate against the engine's fusion check; payload-schema golden regenerated, `format_version` stays `"1.1"`
+- [x] **#190** (1. API surface & release pipeline › Public Go surface › Cohort facade) `CohortReader` on the facade: `Schema()`, `Len()`, `RecordAt(i)`
+- [x] **#191** (1. API surface & release pipeline › Public Go surface › Cohort facade) `CohortBuilder` on the facade: schema + append rows, grouped (`0x02`) cohorts included
+- [x] **#192** (1. API surface & release pipeline › Public Go surface › Cohort facade) `PredictResult.CrosstabFusable` (no-execute) with a runtime parity gate against the engine's fusion check; payload-schema golden regenerated, `format_version` stays `"1.1"`
 
 ## Scope
 
@@ -69,13 +69,13 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(cohort-facad
 
 ## Acceptance criteria
 
-- [ ] `CohortReader.RecordAt(i)` returns the same values as the engine's decode for every field type, null and set width, on single-file and shard-archive cohorts
-- [ ] A cohort written by `CohortBuilder` reads back with identical values through `CohortReader` and `Process`, for ungrouped and grouped schemas; an ungrouped write is byte-identical to a raw-primitive write of the same rows
-- [ ] `PredictResult.CrosstabFusable` equals the runtime fusion decision for every request in the parity corpus
-- [ ] `descriptor/predict.go` still imports no `service/` or `processing/`
-- [ ] `format_version` stays `"1.1"`; the payload-schema golden is regenerated with `-update`, never hand-edited
-- [ ] Every [03](../v1.0.0-api-and-release/03-embedder-migration.md) row tagged U02c is true of the branch
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] `CohortReader.RecordAt(i)` returns the same values as the engine's decode for every field type, null and set width, on single-file and shard-archive cohorts
+- [x] A cohort written by `CohortBuilder` reads back with identical values through `CohortReader` and `Process`, for ungrouped and grouped schemas; an ungrouped write is byte-identical to a raw-primitive write of the same rows
+- [x] `PredictResult.CrosstabFusable` equals the runtime fusion decision for every request in the parity corpus
+- [x] `descriptor/predict.go` still imports no `service/` or `processing/`
+- [x] `format_version` stays `"1.1"`; the payload-schema golden is regenerated with `-update`, never hand-edited
+- [x] Every [03](../v1.0.0-api-and-release/03-embedder-migration.md) row tagged U02c is true of the branch
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
