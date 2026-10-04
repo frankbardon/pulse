@@ -8,7 +8,7 @@ applies_to: process, compose, predict, sample, facet
 
 # `Response.Components`
 
-The constituent parts behind every emitted value, auditable from the envelope that delivered it. Reach for it when a figure must be checked or re-based: "what n is this mean over?", "how many rows did each filter drop?". This skill is the shared shape; per-operator keys live in each atomic skill's `## Components` and in `manifest.components_schemas`.
+The constituent parts behind every emitted value. Reach for it when a figure must be checked or re-based: "what n is this mean over?". This skill is the shared shape; per-operator keys live in each atomic skill's `## Components` and in `manifest.components_schemas`.
 
 Additive `omitempty` — a run producing nothing components-shaped emits no `components` key. Nothing here moves `format_version` (`"1.1"`).
 
@@ -23,7 +23,7 @@ Filled by the ENGINE, not the operator — every slot carries it, even a floor-o
 | `FiltererComponents` | `n_in`, `n_out`, `n_null_input` |
 | crosstab cell (`CellComponents[r][c]`) | `n`, `n_null` |
 
-Weighted slots add `sum_weights` / `n_eff` / `n_weight_invalid`. An aggregator's `n` counts NON-NULL inputs; a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
+Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n_weight_invalid`. An aggregator's `n` counts NON-NULL inputs; a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
 
 ## Five sub-blocks
 
@@ -44,7 +44,7 @@ Weighted slots add `sum_weights` / `n_eff` / `n_weight_invalid`. An aggregator's
 
 Mirrors the matrix coordinate-for-coordinate (cells, row / column margins, grand total, axis keys); `CellComponents[r][c]` is `nil` for an empty cell.<!-- feature: capability:crosstab --> Indexing: `crosstab-guide`.<!-- /feature -->
 
-**`CellCounts[r][c]` is a RECORD count; the floor's `n` counts NON-NULL observations — `CellCounts[r][c] == n + n_null`.** Never read `CellCounts` as the aggregator's sample size. Same split on every margin counterpart.
+**`CellCounts[r][c]` is a RECORD count; the floor's `n` counts NON-NULL observations — `CellCounts[r][c] == n + n_null`.** Never read `CellCounts` as the aggregator's sample size (it stays raw under a weight; Σw is `sum_weights`). Same split on every margin counterpart.
 
 Auxiliary margin-only figures land BESIDE the margin components, and a record reaches an auxiliary margin only if it reached a CELL<!-- feature: capability:crosstab -->: `crosstab-margin-aggregations`<!-- /feature -->.
 

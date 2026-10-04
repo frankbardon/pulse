@@ -212,6 +212,18 @@ type FusedCrosstabState struct {
 	grandMarginCount int
 	grandMarginNNull int
 
+	// Weighted universal-floor tallies (sum_weights / n_eff /
+	// n_weight_invalid), in lockstep with the {n, n_null} counters
+	// above and fed the same records. Allocated only when the cell slot
+	// carries a stamped weight (cellWeighted), so an unweighted crosstab
+	// pays nothing; grandMarginWeight is inert (nil spec) otherwise. The
+	// buffered arm tallies the same rows in runCellAggregation.
+	cellWeighted      bool
+	cellWeight        [][]WeightFloor
+	rowMarginWeight   []WeightFloor
+	colMarginWeight   []WeightFloor
+	grandMarginWeight WeightFloor
+
 	// Cross-axis margin map. Populated when spec.NormalizeWithin != nil
 	// and spec.NormalizeOrDefault() is row or column. The key is the
 	// (truncated rowPrefix, truncated colPrefix) pair per the depth rules
@@ -264,6 +276,10 @@ type auxMarginAccumulator struct {
 	agg   OnlineAggregator
 	n     int
 	nNull int
+	// weight is the auxiliary's OWN weighted floor over the admitted
+	// records — set with agg on first admission; inert when the slot is
+	// unweighted (a `weight: null` auxiliary is the unweighted base).
+	weight WeightFloor
 }
 
 // NewFusedCrosstabState constructs a FusedCrosstabState. Validates the
@@ -353,6 +369,8 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 		rowNormLevel: -1,
 		colNormLevel: -1,
 	}
+	st.cellWeighted = slotWeight(spec.Cell) != nil
+	st.grandMarginWeight = NewWeightFloor(spec.Cell)
 
 	// Pre-size cells slice header to skip the first append's grow when
 	// the cohort lands at least one record on the (0,0) cell.
@@ -723,6 +741,13 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 	// coordinates regardless of whether the column was interned before or
 	// after the row.
 	s.cellNNull = append(s.cellNNull, make([]int, len(s.colKeys)))
+	if s.cellWeighted {
+		row := make([]WeightFloor, len(s.colKeys))
+		for i := range row {
+			row[i] = NewWeightFloor(s.cellAgg)
+		}
+		s.cellWeight = append(s.cellWeight, row)
+	}
 	if s.rowMargins != nil || s.spec.NeedsRowMargin() {
 		// Lazy-init row margins slice on first row to skip the
 		// allocation when no row-margin is requested.
@@ -735,6 +760,9 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) in
 		// slot by rowIdx without re-scanning records.
 		s.rowMarginCount = append(s.rowMarginCount, 0)
 		s.rowMarginNNull = append(s.rowMarginNNull, 0)
+		if s.cellWeighted {
+			s.rowMarginWeight = append(s.rowMarginWeight, NewWeightFloor(s.cellAgg))
+		}
 	}
 	// Auxiliary row slot, grown in lockstep so rowMarginAux[rowIdx] is
 	// addressable by the same index as rowMargins[rowIdx]. The inner
@@ -776,6 +804,9 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 	for i := range s.cellNNull {
 		s.cellNNull[i] = append(s.cellNNull[i], 0)
 	}
+	for i := range s.cellWeight {
+		s.cellWeight[i] = append(s.cellWeight[i], NewWeightFloor(s.cellAgg))
+	}
 	if s.colMargins != nil || s.spec.NeedsColumnMargin() {
 		if s.colMargins == nil {
 			s.colMargins = make([]OnlineAggregator, 0, 16)
@@ -784,6 +815,9 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) in
 		// Per-column count + null bookkeeping in lockstep.
 		s.colMarginCount = append(s.colMarginCount, 0)
 		s.colMarginNNull = append(s.colMarginNNull, 0)
+		if s.cellWeighted {
+			s.colMarginWeight = append(s.colMarginWeight, NewWeightFloor(s.cellAgg))
+		}
 	}
 	// Auxiliary column slot — mirror of the row-axis growth above.
 	if s.auxColSlot {
@@ -923,6 +957,7 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 		if cellValueNull {
 			s.grandMarginNNull++
 		}
+		s.grandMarginWeight.Observe(rec, s.cellField)
 	}
 
 	// Row-axis updates (independent of column-axis nullity). Every
@@ -971,6 +1006,9 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			s.rowMarginCount[rowIdx]++
 			if cellValueNull {
 				s.rowMarginNNull[rowIdx]++
+			}
+			if s.cellWeighted {
+				s.rowMarginWeight[rowIdx].Observe(rec, s.cellField)
 			}
 		}
 	}
@@ -1029,6 +1067,9 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 			s.colMarginCount[colIdx]++
 			if cellValueNull {
 				s.colMarginNNull[colIdx]++
+			}
+			if s.cellWeighted {
+				s.colMarginWeight[colIdx].Observe(rec, s.cellField)
 			}
 		}
 	}
@@ -1098,6 +1139,9 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 				// orchestrator-visible n).
 				if cellValueNull {
 					s.cellNNull[rowIdx][colIdx]++
+				}
+				if s.cellWeighted {
+					s.cellWeight[rowIdx][colIdx].Observe(rec, s.cellField)
 				}
 			}
 		}
@@ -1237,10 +1281,12 @@ func (s *FusedCrosstabState) foldAuxSlot(slot []auxMarginAccumulator, rec *Recor
 				return err
 			}
 			acc.agg = instance
+			acc.weight = NewWeightFloor(s.auxAggs[i])
 		}
 		if err := acc.agg.UpdateRow(rec, s.auxAggs[i].Field); err != nil {
 			return err
 		}
+		acc.weight.Observe(rec, s.auxAggs[i].Field)
 		// Universal floor over the ADMITTED records only, which is what
 		// makes n + n_null the admitted count rather than the routed one.
 		if s.auxPresent[i] {
@@ -1775,6 +1821,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		if cerr != nil {
 			return nil, cerr
 		}
+		s.grandMarginWeight.stampMap(compMap)
 		grandComponentsMap = compMap
 	}
 
@@ -2082,6 +2129,9 @@ func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[cross
 			if cerr != nil {
 				return nil, nil, nil, cerr
 			}
+			if s.cellWeighted {
+				s.cellWeight[rIdx][cIdx].stampMap(compMap)
+			}
 			components[ck] = compMap
 		}
 	}
@@ -2135,6 +2185,9 @@ func (s *FusedCrosstabState) finalizeRowMargins() (map[string]any, map[string]bo
 		if cerr != nil {
 			return nil, nil, nil, nil, cerr
 		}
+		if s.cellWeighted {
+			s.rowMarginWeight[i].stampMap(compMap)
+		}
 		components[key] = compMap
 	}
 	return values, present, counts, components, nil
@@ -2169,6 +2222,9 @@ func (s *FusedCrosstabState) finalizeColMargins() (map[string]any, map[string]bo
 		compMap, cerr := buildCellComponentMap(agg, n, s.colMarginNNull[i])
 		if cerr != nil {
 			return nil, nil, nil, nil, cerr
+		}
+		if s.cellWeighted {
+			s.colMarginWeight[i].stampMap(compMap)
 		}
 		components[key] = compMap
 	}
@@ -2242,6 +2298,13 @@ func (s *FusedCrosstabState) finalizeAuxMargins() (*crosstabAuxComponents, error
 			if err != nil {
 				return nil, err
 			}
+			// Weighted floor; an unreached slot reports sum_weights 0
+			// exactly as the buffered empty admitted set does.
+			wf := acc.weight
+			if acc.agg == nil {
+				wf = NewWeightFloor(s.auxAggs[i])
+			}
+			wf.stampMap(comps)
 			fig.Components = comps
 			out[labels[i]] = fig
 		}

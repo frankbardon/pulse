@@ -330,11 +330,14 @@ func (p *Processor) auxFiguresFor(spec *types.CrosstabSpec, admitted []*Record) 
 		for i := range figures {
 			// Floor-only components, no aggregation run. Mirrors the
 			// fused path's never-constructed accumulator, whose n and
-			// nNull are likewise both zero.
+			// nNull are likewise both zero. A weighted slot still says
+			// so: sum_weights = 0 over nothing admitted.
 			floor, err := buildCellComponentMap(nil, 0, 0)
 			if err != nil {
 				return nil, err
 			}
+			wf := NewWeightFloor(spec.MarginAggregations[i])
+			wf.stampMap(floor)
 			figures[i].Components = floor
 		}
 		return figures, nil
@@ -353,6 +356,10 @@ func (p *Processor) auxFiguresFor(spec *types.CrosstabSpec, admitted []*Record) 
 		if err != nil {
 			return nil, err
 		}
+		// The auxiliary's OWN resolved weight (a `weight: null` slot is
+		// the unweighted base beside weighted cells), tallied over the
+		// same ADMITTED records as {n, n_null}.
+		val.weight.stampMap(comps)
 		figures[i] = auxMarginFigure{
 			Value:      val.value,
 			Present:    val.present,

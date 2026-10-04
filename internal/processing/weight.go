@@ -192,6 +192,30 @@ func (f *WeightFloor) Stamp(e *types.AggregationComponents) {
 	}
 }
 
+// stampMap writes the weighted floor keys onto a flat crosstab
+// component map (cell, margin or auxiliary margin) beside {n, n_null};
+// no-op on an unweighted slot. A key the operator already emits wins:
+// AGG_WEIGHTED_MEAN's own sum_weights / n_eff are the same Σw over the
+// same rows, and its n_eff is part of its declared operator schema even
+// under kind frequency.
+func (f *WeightFloor) stampMap(m map[string]any) {
+	if f.spec == nil || m == nil {
+		return
+	}
+	var e types.AggregationComponents
+	f.Stamp(&e)
+	setIfAbsent := func(k string, v any) {
+		if _, ok := m[k]; !ok {
+			m[k] = v
+		}
+	}
+	setIfAbsent("sum_weights", *e.SumWeights)
+	setIfAbsent("n_weight_invalid", *e.NWeightInvalid)
+	if e.NEff != nil {
+		setIfAbsent("n_eff", *e.NEff)
+	}
+}
+
 // WeightRowTally counts, per weight field, the filter-passing rows
 // whose weight is invalid, by reason. It backs the response's single
 // PULSE_WEIGHT_INVALID_ROWS warning per weight field. A nil tally (no
@@ -209,14 +233,20 @@ type weightTallyEntry struct {
 }
 
 // NewWeightRowTally builds the tally for a stamped request's weighted
-// aggregation slots; nil when no slot is weighted.
+// aggregation slots — the top-level aggregations, the crosstab cell and
+// the crosstab margin aggregations; nil when no slot is weighted.
 func NewWeightRowTally(req *types.Request) *WeightRowTally {
 	if req == nil {
 		return nil
 	}
 	idx := map[string]int{}
 	var t WeightRowTally
-	for _, a := range req.Aggregations {
+	slots := req.Aggregations
+	if ct := req.Crosstab; ct != nil {
+		// The crosstab cell and auxiliary margin slots weight rows too.
+		slots = append(append(append([]*types.Aggregation(nil), slots...), ct.Cell), ct.MarginAggregations...)
+	}
+	for _, a := range slots {
 		w := slotWeight(a)
 		if w == nil {
 			continue
