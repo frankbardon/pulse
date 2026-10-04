@@ -17,7 +17,10 @@ type fakeFacts struct {
 	extAttrs    map[types.AttributeType]bool   // name → two-pass
 	extGroupers map[types.GroupType]bool       // name → keyable
 	fieldInputs map[string]bool
+	hidden      map[string]bool
 }
+
+func (f fakeFacts) Hidden(name string) bool { return f.hidden[name] }
 
 func (f fakeFacts) AggregatorMergeable(t types.AggregationType) bool {
 	if m, ok := f.extAggs[t]; ok {
@@ -172,5 +175,24 @@ func TestDecide_Degenerate(t *testing.T) {
 	req.Crosstab.Cell.Field = "amount"
 	if ok, got := crosstabfuse.Decide(req, nil, fakeFacts{}); !ok {
 		t.Errorf("nil schema: Decide = (false, %q), want true", got)
+	}
+}
+
+// TestDecide_HiddenNameKeyedBails pins that the two name-keyed bails
+// answer a name the instance hides exactly as a never-registered one:
+// no decline (the request is refused before dispatch anyway), so
+// predict on a profiled instance cannot reveal a hidden operator.
+func TestDecide_HiddenNameKeyedBails(t *testing.T) {
+	req := happy()
+	req.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "score * 2"}}
+	req.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION}}
+	hidden := fakeFacts{hidden: map[string]bool{
+		string(types.ATTR_FORMULA): true, string(types.FILTER_EXPRESSION): true,
+	}}
+	if ok, why := crosstabfuse.Decide(req, gateSchema(), hidden); !ok {
+		t.Fatalf("hidden formula / expression declined: %q", why)
+	}
+	if ok, _ := crosstabfuse.Decide(req, gateSchema(), fakeFacts{}); ok {
+		t.Fatal("visible formula / expression fused")
 	}
 }

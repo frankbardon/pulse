@@ -114,17 +114,35 @@ func TestIngestFromFileAndBytes(t *testing.T) {
 
 func TestQueryProcessAndCompose(t *testing.T) {
 	tests := []struct {
-		name string
-		opts pulse.Options
+		name  string
+		opts  pulse.Options
+		fuses bool
 	}{
-		{"defaults", pulse.Options{}},
-		{"crosstab fusion disabled", pulse.Options{DisableCrosstabFusion: true}},
+		{"defaults", pulse.Options{}, true},
+		{"crosstab fusion disabled", pulse.Options{DisableCrosstabFusion: true}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			p, fs := newEngine(t, tc.opts)
 			ingest(t, p, fs, "sales.pulse")
 			ctx := context.Background()
+
+			// Predict reports the instance's fused-crosstab decision.
+			xreq := &pulse.Request{Cohort: &types.Cohort{Filename: "sales.pulse"}, Crosstab: &types.CrosstabSpec{
+				Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "amount", Label: "total"},
+			}}
+			pr, err := p.Predict(ctx, xreq)
+			if err != nil {
+				t.Fatalf("Predict: %v", err)
+			}
+			if pr.CrosstabFusable == nil || *pr.CrosstabFusable != tc.fuses {
+				t.Fatalf("CrosstabFusable = %v (reasons %q), want %v", pr.CrosstabFusable, pr.CrosstabFusionReasons, tc.fuses)
+			}
+			if tc.fuses != (len(pr.CrosstabFusionReasons) == 0) {
+				t.Fatalf("CrosstabFusionReasons = %q with CrosstabFusable %v", pr.CrosstabFusionReasons, tc.fuses)
+			}
 
 			resp, err := p.Process(ctx, sumByRegion("sales.pulse"))
 			if err != nil {
@@ -189,6 +207,9 @@ func TestInspectPredictAndArtifacts(t *testing.T) {
 	}
 	if !pr.Valid {
 		t.Fatalf("predict invalid: errors=%v", penv.Errors)
+	}
+	if pr.CrosstabFusable != nil {
+		t.Fatalf("CrosstabFusable = %v on a request without a crosstab, want nil", *pr.CrosstabFusable)
 	}
 
 	var bir *pulse.BuildIndexResult

@@ -15,7 +15,8 @@ import (
 //
 // Eligibility only: Options.DisableCrosstabFusion is a dispatch-time
 // override the engine checks outside the rule, and it does not change
-// this answer. The one fact this arm cannot know is whether a keyable
+// this answer; Predict applies it on top (PredictOptions.
+// DisableCrosstabFusion → PredictResult.CrosstabFusable false). The one fact this arm cannot know is whether a keyable
 // grouper's factory accepts its params; the runtime declines such a
 // request and the buffered path then refuses it with a coded error, so
 // the request errors on either answer.
@@ -94,6 +95,9 @@ func (f snapshotFuseFacts) IsExtension(category, name string) bool {
 	}
 	return false
 }
+
+// Hidden is the instance feature-set check (nil-safe).
+func (f snapshotFuseFacts) Hidden(name string) bool { return f.inst.Hidden(name) }
 
 func (f snapshotFuseFacts) HasFieldInputs(category, name string) bool {
 	if f.s == nil {

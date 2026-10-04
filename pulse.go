@@ -242,6 +242,8 @@ type Options struct {
 	// optimisation — so this is a diagnostic / benchmarking knob, e.g.
 	// to compare fused against buffered memory on the same request.
 	// Defaults to false (fusion engages whenever the gate accepts).
+	// Predict and PredictBytes honour it: PredictResult.CrosstabFusable
+	// then answers false with a reason.
 	DisableCrosstabFusion bool
 
 	// ImportsDir overrides the managed-imports directory. Defaults to
@@ -1074,12 +1076,13 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	}
 
 	env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
-		Extensions:      p.svc.ExtensionsSnapshot(),
-		Instance:        p.svc.InstanceSnapshot(),
-		DefaultTimeZone: p.svc.DefaultTimeZone(),
-		ZoneLoader:      p.svc.ZoneLoader(),
-		DisableDefaults: p.svc.DefaultsDisabled(),
-		SchemaLoader:    p.predictSchemaLoader(ctx),
+		Extensions:            p.svc.ExtensionsSnapshot(),
+		Instance:              p.svc.InstanceSnapshot(),
+		DefaultTimeZone:       p.svc.DefaultTimeZone(),
+		ZoneLoader:            p.svc.ZoneLoader(),
+		DisableDefaults:       p.svc.DefaultsDisabled(),
+		SchemaLoader:          p.predictSchemaLoader(ctx),
+		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 	})
 	if len(env.Errors) > 0 {
 		// Return the result (which has Valid=false) rather than erroring.
@@ -1140,14 +1143,15 @@ func (p *Pulse) PredictBytes(ctx context.Context, data []byte, req *Request) (*d
 		return nil, fmt.Errorf("pulse: predict requires a request")
 	}
 	return descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
-		Strict:          p.svc.Strict(),
-		EchoRequest:     p.svc.EchoRequest(),
-		Extensions:      p.svc.ExtensionsSnapshot(),
-		Instance:        p.svc.InstanceSnapshot(),
-		DefaultTimeZone: p.svc.DefaultTimeZone(),
-		ZoneLoader:      p.svc.ZoneLoader(),
-		DisableDefaults: p.svc.DefaultsDisabled(),
-		SchemaLoader:    p.predictSchemaLoader(ctx),
+		Strict:                p.svc.Strict(),
+		EchoRequest:           p.svc.EchoRequest(),
+		Extensions:            p.svc.ExtensionsSnapshot(),
+		Instance:              p.svc.InstanceSnapshot(),
+		DefaultTimeZone:       p.svc.DefaultTimeZone(),
+		ZoneLoader:            p.svc.ZoneLoader(),
+		DisableDefaults:       p.svc.DefaultsDisabled(),
+		SchemaLoader:          p.predictSchemaLoader(ctx),
+		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 	}), nil
 }
 

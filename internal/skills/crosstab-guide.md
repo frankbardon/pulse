@@ -60,10 +60,10 @@ Crosstab output is buffered (`pulse predict` reports `streamable_reasons`); what
 
 ### Fused mergeable path
 
-Records fold straight into per-cell / per-margin state in one decode pass — memory `O(cells + margins)`, not `O(records)`. Chosen automatically; output is identical either way. It applies when:
+Records fold into per-cell / per-margin state in one decode pass — memory `O(cells + margins)`, not `O(records)`. Automatic (predict: `crosstab_fusable`, with reasons); identical output. It applies when:
 
 - the cell aggregator is in `crosstab.summable_aggregators`, `mean_reducible_aggregators` or `independent_aggregators` — never `recompute_aggregators` — and every `margin_aggregations` entry is mergeable;
-- every axis grouper keys one record at a time — every grouper except the rank-based quantile one, including fan-out multi-select groupers at any axis position;
+- every axis grouper keys one record at a time — all but the rank-based quantile one, fan-out included, any axis (extension: declared `Streamable` / `FansOut`);
 - nothing needs whole-cohort context: no join, no tests, features, formula attributes or expression filters, no decimal cell field.
 
 Overlays never prevent fusing. A fan-out axis makes margins non-additive on BOTH paths — a 3-option record counts 3× across row margins, once in the grand total.

@@ -149,9 +149,9 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 **Contract: `.claude/reference/predict-inspect.md` — load it before changing predict, inspect, `pulse_inspect` or `CountRecords`.** The always-load half:
 
 - **Predict structural ban:** `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/`. Enforced by `TestPredictNoExecutionImports`. Reads only header + schema, never records.
-- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via the engine's internal streamability gate (`TestPredict_Streamable_MatchesRuntime`).
+- **Predict streamability:** `PredictResult.Streamable` mirrors per-type `Streamable()` methods plus schema gates (decimal). Runtime parity via the engine's internal streamability gate (`TestPredict_Streamable_MatchesRuntime`). Beside it, `CrosstabFusable` (nil ⇔ no crosstab) + `CrosstabFusionReasons`: the fused-crosstab dispatch answer from the shared `internal/crosstabfuse` rule, instance-aware (`DisableCrosstabFusion`) — `TestPredict_CrosstabFusableMatchesRuntime`.
 - **Inspect header-only:** reads only `encoding.ReadHeader` + `encoding.ReadSchema`; dictionaries truncated to `DefaultDictionaryLimit` (100) unless `FullDict: true`. `InspectResult.RecordCount` is derived from the file LENGTH, never by reading a record. **`Pulse.Inspect` drops `env.Warnings` on the floor** — `Pulse.InspectEnvelope` is the only way to reach the `FullDict` knob or the truncated-tail warning, and both the CLI leaf and `pulse_inspect` therefore read the envelope, never the result-only wrapper.
-- **CountRecords header-fast:** returns the record total without decoding the payload. The single-file floor division exists ONCE, at `encoding.Schema.RecordCountForPayload`, which `descriptor.Inspect` calls too. **The two arms differ in OBSERVABILITY and only there, deliberately** — `Inspect` warns `ENCODING_INVALID` on a truncated tail, `CountRecords` floors SILENTLY because it also feeds the parallel-decode eligibility gate. Do not close that gap by making `CountRecords` error.
+- **CountRecords header-fast:** no payload decode; the single-file floor division exists ONCE (`encoding.Schema.RecordCountForPayload`, shared with `Inspect`). `Inspect` warns on a truncated tail, `CountRecords` floors SILENTLY — deliberately; never make it error.
 
 ### Execution modes (pointers)
 
@@ -163,7 +163,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 - **Parallel shards** (`Options.ShardWorkers`) / **parallel buffered Process** (`Options.DecodeWorkers`) — mergeable-only via the engine's internal `CanMergeRequest`, orthogonal to each other. `skills/cohort-schema-design.md`.
 - **ProcessChain** (`pulse.ProcessChain`) — source-rooted linear chain, mergeable-only at v1, dual-slot overlays. `skills/process-chain.md`.
 - **Pushdown hash join** (`Request.Joins`) — v1 is exactly one inner join per Request. `skills/join-design.md`.
-- **Crosstab / fused crosstab** (`Request.Crosstab`; `CanFuseCrosstab` in `internal/processing`) — composed row×column grid whose margins recompute from raw rows, plus an in-decode streaming arm. `skills/crosstab-guide.md`.
+- **Crosstab / fused crosstab** (`Request.Crosstab`; fusion rule `crosstabfuse.Decide` in `internal/crosstabfuse`, shared by `CanFuseCrosstab` and predict) — composed row×column grid whose margins recompute from raw rows, plus an in-decode streaming arm. `skills/crosstab-guide.md`.
 - **Facet endpoints** — simple (`pulse.Facet`) + rich (`pulse.FacetSchema`); four FACET-host overlay kinds ride `FacetRequest.Overlays`. `skills/facet-design.md`.
 - **Filter precompute** (grouped cohorts) — a filter over ONE group's members is evaluated once per dictionary entry, per-row otherwise. `execution-modes.md`.
 - **Point lookup** (`pulse.Lookup`) — O(1) key-exact rows via a prebuilt sidecar index; single-file cohorts, equality-only, full-key. `skills/tool-lookup.md`.

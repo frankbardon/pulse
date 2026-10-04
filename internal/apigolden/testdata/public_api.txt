@@ -1332,6 +1332,8 @@ pulse/descriptor: type Param field Type string "json:\"type\""
 pulse/descriptor: const Partial pulse/types.ComponentsMergeability = "partial"
 pulse/descriptor: type PredictResult struct
 pulse/descriptor: type PredictResult field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
+pulse/descriptor: type PredictResult field CrosstabFusable *bool "json:\"crosstab_fusable,omitempty\""
+pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:\"crosstab_fusion_reasons,omitempty\""
 pulse/descriptor: type PredictResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
 pulse/descriptor: type PredictResult field Filterers []pulse/descriptor.FiltererPredict "json:\"filterers\""
 pulse/descriptor: type PredictResult field Groups []pulse/descriptor.GroupPredict "json:\"groups\""
@@ -3757,4 +3759,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9afbf9d576222fc0c304cb30a842a98ac89f2bb4e7ab3c82e245d825cb0c3654
+// golden-hash: c116ac5e593627200cf5306529709f19ae689f1315992cb88a3512d1b4e32b3a

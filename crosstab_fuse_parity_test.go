@@ -1,11 +1,13 @@
 package pulse_test
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -270,4 +272,128 @@ func TestStreamability_CrosstabFusionIgnoresDisableOption(t *testing.T) {
 	if ok, why := processing.CanFuseCrosstab(req, schema, svc.Extensions()); !ok {
 		t.Errorf("CanFuseCrosstab with DisableCrosstabFusion = false (%q), want true", why)
 	}
+}
+
+// TestPredict_CrosstabFusableMatchesRuntime drives the fusion parity
+// corpus end to end through the facade — p.Predict over a cohort on
+// disk and p.PredictBytes over its bytes — and requires
+// PredictResult.CrosstabFusable / CrosstabFusionReasons to equal the
+// decision service.processCrosstab makes: Options.DisableCrosstabFusion
+// first, then processing.CanFuseCrosstab on the defaults-resolved
+// request over the cohort schema. Nil exactly when the request has no
+// crosstab or the instance refuses one of its slots before dispatch.
+func TestPredict_CrosstabFusableMatchesRuntime(t *testing.T) {
+	ctx := context.Background()
+	schema := paritySchema(t)
+	profiled := &pulse.FeatureProfile{Features: []string{
+		"capability:process", "capability:crosstab", "AGG_SUM", "AGG_COUNT", "GROUP_CATEGORY", "GROUP_SET_PER_ELEMENT",
+		string(aggXtSum), string(grpParityCategory), string(attrParityPopcount),
+	}}
+	for _, inst := range []struct {
+		name    string
+		profile *pulse.FeatureProfile
+		disable bool
+	}{
+		{"unprofiled", nil, false},
+		{"unprofiled_disabled", nil, true},
+		{"profiled", profiled, false},
+		{"profiled_disabled", profiled, true},
+	} {
+		t.Run(inst.name, func(t *testing.T) {
+			fsys := afero.NewMemMapFs()
+			writeParityCohort(t, fsys, "parity.pulse", schema, 0, 0)
+			data, err := afero.ReadFile(fsys, "parity.pulse")
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err := pulse.New(pulse.Options{FS: fsys, Extensions: fusionParityExtensions(),
+				FeatureProfile: inst.profile, DisableCrosstabFusion: inst.disable})
+			if err != nil {
+				t.Fatalf("pulse.New: %v", err)
+			}
+			svc := pulse.ServiceForTest(p)
+			reg, snap := svc.Extensions(), svc.InstanceSnapshot()
+			compared, fused := 0, 0
+			for _, c := range fusionParityCorpus() {
+				req := *c.req
+				req.Cohort = &types.Cohort{Filename: "parity.pulse"}
+
+				// The runtime decision, as service.processCrosstab makes it.
+				var rtOK bool
+				var rtReasons []string
+				refused := descx.SlotRefusal(&req, snap) != nil
+				if req.Crosstab != nil && !refused {
+					resolved := cloneFusionRequest(t, &req)
+					descx.ResolveDefaults(resolved, schema, snap)
+					if svc.CrosstabFusionDisabled() {
+						rtReasons = []string{descx.CrosstabFusionDisabledReason}
+					} else {
+						rtOK, _ = processing.CanFuseCrosstab(resolved, schema, reg)
+						rtReasons = processing.CrosstabFuseReasons(resolved, schema, reg)
+					}
+				}
+
+				res, err := p.Predict(ctx, &req)
+				if err != nil {
+					t.Fatalf("%s: Predict: %v", c.name, err)
+				}
+				env, err := p.PredictBytes(ctx, data, &req)
+				if err != nil {
+					t.Fatalf("%s: PredictBytes: %v", c.name, err)
+				}
+				byBytes := env.Data.(*descriptor.PredictResult)
+				for arm, got := range map[string]*descriptor.PredictResult{"Predict": res, "PredictBytes": byBytes} {
+					if req.Crosstab == nil || refused {
+						if got.CrosstabFusable != nil || got.CrosstabFusionReasons != nil {
+							t.Errorf("%s/%s: CrosstabFusable=%v reasons=%q, want nil (no crosstab dispatch)",
+								c.name, arm, got.CrosstabFusable, got.CrosstabFusionReasons)
+						}
+						continue
+					}
+					if got.CrosstabFusable == nil {
+						t.Errorf("%s/%s: CrosstabFusable nil on a crosstab request", c.name, arm)
+						continue
+					}
+					if c.constructFails && *got.CrosstabFusable && !rtOK {
+						continue // the sanctioned construction divergence (see fusionCase)
+					}
+					if *got.CrosstabFusable != rtOK || !reflect.DeepEqual(got.CrosstabFusionReasons, rtReasons) {
+						t.Errorf("%s/%s: predict=(%v, %q) runtime=(%v, %q)",
+							c.name, arm, *got.CrosstabFusable, got.CrosstabFusionReasons, rtOK, rtReasons)
+					}
+				}
+				if req.Crosstab != nil && !refused {
+					compared++
+					if rtOK {
+						fused++
+					}
+				}
+			}
+			t.Logf("compared %d crosstab requests, %d fused", compared, fused)
+			if compared < 50 {
+				t.Errorf("compared %d crosstab requests, want most of the corpus", compared)
+			}
+			if inst.disable && fused != 0 {
+				t.Errorf("DisableCrosstabFusion instance fused %d requests", fused)
+			}
+			if !inst.disable && fused < 5 {
+				t.Errorf("fused %d requests; the corpus must exercise both answers", fused)
+			}
+		})
+	}
+}
+
+// cloneFusionRequest deep-copies r through its wire form, so resolving
+// defaults on the copy cannot leak into the request predict sees.
+func cloneFusionRequest(t *testing.T, r *types.Request) *types.Request {
+	t.Helper()
+	b, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out types.Request
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	return &out
 }

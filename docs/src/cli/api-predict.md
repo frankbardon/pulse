@@ -70,6 +70,14 @@ streaming Process path; `streamable_reasons` lists every gate that
 forced the buffered path. See [Performance
 Notes](../ops/performance.md) for the full streaming/buffered table.
 
+For a crosstab request, `crosstab_fusable` reports whether the grid
+will be built on the fused one-pass arm (memory proportional to cells +
+margins) instead of buffering every filter-passing record, and
+`crosstab_fusion_reasons` lists every reason it will not. Both are
+absent for a request without a crosstab. Output is identical on either
+arm. An engine built with `Options.DisableCrosstabFusion` answers
+`false` with that reason.
+
 `request` echoes the request **after defaults have been applied** so
 you can see what would actually run. To suppress defaults, run with
 `--no-defaults` on the executing leaf (`api process`,

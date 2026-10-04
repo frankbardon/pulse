@@ -55,6 +55,12 @@ type Facts interface {
 	// HasFieldInputs reports whether the extension operator
 	// (category, name) registered a FieldInputs hook.
 	HasFieldInputs(category, name string) bool
+	// Hidden reports whether the instance feature set hides operator
+	// name. The rule's name-keyed checks (the ATTR_FORMULA and
+	// FILTER_EXPRESSION bails) consult it so a hidden built-in answers
+	// exactly as a never-registered name — every other check already
+	// reaches names through the facts above.
+	Hidden(name string) bool
 }
 
 // builtinGrouperKeyable is the static per-GroupType keyability table:
@@ -169,13 +175,13 @@ func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []s
 		}
 	}
 	for _, a := range req.Attributes {
-		if a != nil && a.Type == types.ATTR_FORMULA && a.Expression != "" {
+		if a != nil && a.Type == types.ATTR_FORMULA && a.Expression != "" && !facts.Hidden(string(types.ATTR_FORMULA)) {
 			decline("ATTR_FORMULA bail")
 			break
 		}
 	}
 	for _, f := range req.Filterers {
-		if f != nil && f.Type == types.FILTER_EXPRESSION {
+		if f != nil && f.Type == types.FILTER_EXPRESSION && !facts.Hidden(string(types.FILTER_EXPRESSION)) {
 			decline("FILTER_EXPRESSION bail")
 			break
 		}

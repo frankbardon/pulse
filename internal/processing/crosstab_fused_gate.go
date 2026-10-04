@@ -213,6 +213,9 @@ func (f registryFuseFacts) IsExtension(category, name string) bool {
 	return ok
 }
 
+// Hidden is the registry's instance feature-set check (nil-safe).
+func (f registryFuseFacts) Hidden(name string) bool { return f.r.isHidden(name) }
+
 func (f registryFuseFacts) HasFieldInputs(category, name string) bool {
 	if f.r == nil {
 		return false
