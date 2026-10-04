@@ -218,6 +218,7 @@ Rows land story by story; contract: `.claude/reference/weighting.md`. A request 
 | `AGG_WEIGHTED_MEAN` required `params.weight_field` | optional: absent ⇒ the slot / request weight or `Options.DefaultWeight`; a differing explicit slot weight, or none at all, is `PROCESSING_CONFIG` | relaxed | none | U11 |
 | (none) | `types.AggregationComponents.SumWeights` / `NEff` / `NWeightInvalid` (`sum_weights`, `n_eff`, `n_weight_invalid`; set only on a weighted slot), `descriptor.Operator.WeightAware` (`weight_aware`), `descriptor.ComponentKey.Optional` (`optional`) | added | none; a struct literal of these types keeps compiling | U11 |
 | a request / slot weight on `AGG_MIN` and the other not-weightable aggregators (did not exist) | explicit weight ⇒ `PROCESSING_CONFIG`; `Options.DefaultWeight` ⇒ skipped (predict `skipped_not_weight_aware`); any weight on `AGG_CI_LOWER` / `AGG_CI_UPPER` ⇒ `PULSE_WEIGHT_UNSUPPORTED` — `"weight": null` opts a slot out | added | set `"weight": null` on such slots | U11 |
+| (none) | weighted `AGG_MEDIAN` / `AGG_PERCENTILE` (expanded-index type 7; Σw < 1 clamps to the minimum), `AGG_MODE` / `AGG_MODE_COUNT` (largest Σw; Components `count` / `mode_count` become floats), `AGG_SKEWNESS` / `AGG_KURTOSIS` (weighted population moments) | added | none; a weight on these slots now applies instead of being refused, `"weight": null` opts out | U11 |
 
 ## Third-party dependency
 

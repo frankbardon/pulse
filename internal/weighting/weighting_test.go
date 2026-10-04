@@ -18,7 +18,7 @@ func TestClassify_Complete(t *testing.T) {
 	if ClassOf("TEST_T") != ClassNone || ClassOf("AGG_EXT_FOO_BAR") != ClassNone {
 		t.Fatal("non-aggregator names must be ClassNone")
 	}
-	if !IsAware("AGG_SUM") || IsAware("AGG_MIN") || IsAware("AGG_MEDIAN") || IsAware("AGG_CI_LOWER") {
+	if !IsAware("AGG_SUM") || !IsAware("AGG_MEDIAN") || IsAware("AGG_MIN") || IsAware("AGG_CI_LOWER") {
 		t.Fatal("IsAware mismatch")
 	}
 }

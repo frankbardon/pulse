@@ -581,7 +581,9 @@ func deref[T any](p *T) any {
 func TestWeightedCore_ComponentsDeclared(t *testing.T) {
 	floor := map[string]bool{"n": true, "n_null": true, "sum_weights": true, "n_eff": true, "n_weight_invalid": true}
 	m := descx.BuildManifest()
-	for _, op := range wcoreSpecs {
+	ops := append(append([]types.AggregationType{}, wcoreSpecs...),
+		types.AGG_MEDIAN, types.AGG_PERCENTILE, types.AGG_MODE, types.AGG_MODE_COUNT, types.AGG_SKEWNESS, types.AGG_KURTOSIS)
+	for _, op := range ops {
 		t.Run(string(op), func(t *testing.T) {
 			schema := m.ComponentsSchemas.Aggregators[string(op)]
 			var want []string

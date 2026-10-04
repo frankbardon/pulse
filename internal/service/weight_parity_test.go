@@ -75,7 +75,8 @@ func (o parityOp) baselineOp() types.AggregationType {
 }
 
 // parityOps: one row per weight-aware aggregator. E2 stories append
-// rows as they flip operators from ClassPending to ClassAware.
+// rows as they flip operators from ClassPending to ClassAware (E2-S1:
+// the shape operators).
 var parityOps = []parityOp{
 	{op: types.AGG_COUNT, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
 	{op: types.AGG_SUM, fields: []string{"x", "y"}, expandExact: []string{"x"}},
@@ -86,6 +87,14 @@ var parityOps = []parityOp{
 	{op: types.AGG_VARIANCE, fields: []string{"x", "y"}},
 	{op: types.AGG_STDDEV, fields: []string{"x", "y"}},
 	{op: types.AGG_WELFORD, fields: []string{"x", "y"}, expandSkipKeys: []string{"n"}},
+	// E2-S1 shape operators: median / percentile / mode answer a data
+	// value and mode count a weight sum, so all are exact on expansion.
+	{op: types.AGG_MEDIAN, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
+	{op: types.AGG_PERCENTILE, fields: []string{"x", "y"}, params: json.RawMessage(`{"percentile":37.5}`), expandExact: []string{"x", "y"}},
+	{op: types.AGG_MODE, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
+	{op: types.AGG_MODE_COUNT, fields: []string{"x", "y"}, expandExact: []string{"x", "y"}},
+	{op: types.AGG_SKEWNESS, fields: []string{"x", "y"}},
+	{op: types.AGG_KURTOSIS, fields: []string{"x", "y"}},
 }
 
 // --- fixture ------------------------------------------------------------

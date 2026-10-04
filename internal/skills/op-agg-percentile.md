@@ -15,6 +15,8 @@ examples_tags: [distribution-shape, buffered-pipeline]
 |---|---|---|---|
 | `percentile` | float | (required) | Percentile in `[0, 100]`. e.g. 95 for p95. |
 
+Weight-aware (`"weight": null` opts out): expanded-index type 7 — sort by value; x(k) = first value with cumulative Σw > k; h = p·(Σw−1), clamped ≥ 0 (Σw < 1 ⇒ minimum); interpolate x(⌊h⌋)..x(⌈h⌉). Integer weights = duplicated rows. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
+
 ## Inputs
 
 | Param | Accepted field types |
@@ -27,12 +29,14 @@ Scalar `float64`. Per-group when wired under a grouper.
 
 ## Components
 
+Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+
 Universal floor `{n, n_null}` plus operator-specific:
 
 | Key | Type | Notes |
 |---|---|---|
 | `p` | float64 | Requested percentile |
-| `position` | int | Index in sorted set |
+| `position` | int | Index in sorted set (weighted: ⌊h⌋, expanded) |
 | `lower` | float64 | Lower bracket value |
 | `upper` | float64 | Upper bracket value |
 | `method` | string | Interpolation method (e.g. `"linear"`) |

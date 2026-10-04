@@ -11,7 +11,7 @@ examples_tags: [distribution-shape, streaming-friendly]
 
 ## Params
 
-None.
+Weight-aware (`"weight": null` opts out): weighted population moments, Σw in place of n. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
 
 ## Inputs
 
@@ -24,6 +24,8 @@ None.
 Scalar `float64` — population excess kurtosis g2 = `m4 / m2^2 − 3` (moments divide by `n`), NOT the adjusted G2 of Excel `KURT` / SPSS. Per-group when wired under a grouper.
 
 ## Components
+
+Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
 
 Universal floor `{n, n_null}` plus operator-specific:
 

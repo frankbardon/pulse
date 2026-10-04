@@ -280,13 +280,14 @@ func TestResolveWeights_Classes(t *testing.T) {
 	one := func(a *types.Aggregation, reqW *types.WeightSpec) *types.Request {
 		return &types.Request{Weight: reqW, Aggregations: []*types.Aggregation{a}}
 	}
-	for _, op := range []types.AggregationType{types.AGG_COUNT, types.AGG_SUM, types.AGG_AVERAGE, types.AGG_VARIANCE, types.AGG_STDDEV, types.AGG_WELFORD} {
+	for _, op := range []types.AggregationType{types.AGG_COUNT, types.AGG_SUM, types.AGG_AVERAGE, types.AGG_VARIANCE, types.AGG_STDDEV, types.AGG_WELFORD,
+		types.AGG_MEDIAN, types.AGG_PERCENTILE, types.AGG_MODE, types.AGG_MODE_COUNT, types.AGG_SKEWNESS, types.AGG_KURTOSIS} {
 		got, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x"}, def), weightSchema(), nil, nil)
 		if err != nil || got[0].Status != descriptor.WeightStatusApplied {
 			t.Fatalf("%s: %+v %v, want applied", op, got, err)
 		}
 	}
-	for _, op := range []types.AggregationType{types.AGG_MIN, types.AGG_MEDIAN} {
+	for _, op := range []types.AggregationType{types.AGG_MIN, types.AGG_RANGE} {
 		got, err := ResolveWeights(one(&types.Aggregation{Type: op, Field: "x"}, nil), weightSchema(), def, nil)
 		if err != nil || got[0].Status != descriptor.WeightStatusSkippedNotWeightAware {
 			t.Fatalf("%s under default: %+v %v, want skipped", op, got, err)
