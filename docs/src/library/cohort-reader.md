@@ -107,7 +107,77 @@ mutex.
 
 ## Building a single-file cohort
 
-*To be documented with the cohort builder.*
+`Pulse.NewCohortBuilder` writes a new cohort from rows appended one at
+a time — the write half of the round trip. The schema is the contract,
+exactly as an explicit-schema import's is.
+
+```go
+schema := encoding.Schema{Fields: []encoding.Field{
+    {Name: "order", Type: encoding.FieldTypeU32, Description: "Order number."},
+    {Name: "cust", Type: encoding.FieldTypeU32, Description: "Customer number."},
+    {Name: "tier", Type: encoding.FieldTypeCategoricalU8, Description: "Customer tier."},
+    {Name: "amount", Type: encoding.FieldTypeF64, Nullable: true, Description: "Order value."},
+}}
+b, err := p.NewCohortBuilder(ctx, "orders.pulse", schema, pulse.CohortBuilderOptions{
+    Groups:         []pio.GroupDecl{{Key: []string{"cust"}, Members: []string{"tier"}}}, // optional
+    ElideConstants: true,                                                                // optional
+})
+if err != nil {
+    log.Fatal(err)
+}
+for _, o := range orders {
+    if err := b.Append(pulse.CohortRow{o.ID, o.Cust, o.Tier, o.Amount}); err != nil {
+        log.Println(err) // PULSE_IMPORT_ROW_ERROR: the row is skipped, the builder stays usable
+    }
+}
+res, err := b.Close() // or b.Abort() to discard
+```
+
+- **Rows** use the same Go types `RecordAt` returns (table above), so
+  a row read from one cohort can be appended to another unchanged. No
+  coercion is applied. A row that does not fit — wrong arity or Go
+  type, `nil` in a non-nullable field, a value past its type, a new
+  label past the dictionary's rung — is `PULSE_IMPORT_ROW_ERROR` with
+  `row` (the 1-based `Append` call), `field` and `reason` details; it
+  leaves no trace, not even a dictionary entry.
+- **Schema.** Field order, names, types, nullability, descriptions,
+  decimal precision / scale and optional pre-seeded dictionaries are
+  honoured. Layout (`ByteOffset`, `BitPosition`, `CsvColumnIdx`) is
+  recomputed, and the caller's schema is never mutated. Dictionaries
+  grow from the pre-seeded entries in first-seen order; the declared
+  rung is a ceiling, never auto-promoted. Parent groups go in `Groups`,
+  never in the schema.
+- **Groups and elision.** `Groups` and `ElideConstants` behave exactly
+  as `pulse import --group` / `--elide-constants`: the same
+  `PULSE_GROUP_*` declaration checks (at `NewCohortBuilder`), the same
+  viability gate (a group no wider than its index is dropped with
+  `PULSE_GROUP_TOO_NARROW`; one below `RatioFloor` rows per tuple is
+  still written, with `PULSE_DEDUP_LOW_RATIO`) and the same encoder. A
+  key that does not determine its members fails `Close` with
+  `PULSE_GROUP_MEMBER_NOT_CONSTANT` (`source_row` = the `Append` call).
+  The header is `0x02` only when a group is written — a build whose
+  every group was dropped is a plain `0x01` file.
+- **`Strict`** turns `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` and the
+  gate's findings into errors; none leaves anything on disk.
+- **Close** writes atomically: rows spool to a temp file beside the
+  target (the preamble's dictionaries are only final after the last
+  row), then preamble + rows go to a second temp file that is fsynced
+  and renamed over the target. A failed `Close` or an `Abort` leaves no
+  target and no temp files. `CohortBuildResult` carries `Records`, the
+  `FormatVersion` written, the final `Schema`, `Warnings`, the
+  per-group `Groups` verdicts and `ElidedConstants`.
+- **Overwrite.** An existing target is refused unless
+  `Overwrite: true`; replacing a cohort reports the sidecars it
+  invalidated (`InvalidatedSidecars`), as `Pulse.Dedup` does.
+
+**Parity with import.** A builder cohort with schema S is
+byte-identical to the same rows imported with explicit schema S and the
+same `Groups` / `ElideConstants` — both run one dictionary-assignment,
+row-encoding, group-gate and encoder path. Shared checks are the
+description length (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`) and the row
+conversion; the builder additionally refuses a malformed schema (no
+fields, empty or duplicate names, unknown type, bad decimal precision)
+with `SERVICE_VALIDATION`, which import does not check.
 
 ## Building a shard archive
 

@@ -6,18 +6,41 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	iio "github.com/frankbardon/pulse/internal/io"
+	pio "github.com/frankbardon/pulse/io"
 )
 
 // CohortBuilderOptions configures Pulse.NewCohortBuilder.
 type CohortBuilderOptions struct {
 	// Strict turns every PULSE_FIELD_DESCRIPTION_LOW_QUALITY finding
 	// into a fatal error of the same code, raised by NewCohortBuilder
-	// before anything is written (as `--strict` does for import).
+	// before anything is written (as `--strict` does for import). It
+	// makes the group viability gate strict too: PULSE_GROUP_TOO_NARROW
+	// fails NewCohortBuilder, PULSE_DEDUP_LOW_RATIO fails Close, and
+	// neither leaves anything on disk.
 	Strict bool
 	// Overwrite lets the build replace an existing cohort at the
 	// target. Without it an existing target is refused with
 	// SERVICE_VALIDATION, at NewCohortBuilder and again at Close.
 	Overwrite bool
+	// Groups declares parent groups (key + the members it determines),
+	// exactly as `pulse import --group` / pio.ImportJob.Groups do: the
+	// same PULSE_GROUP_* declaration checks (at NewCohortBuilder), the
+	// same viability gate — a group no wider than its index is dropped
+	// with PULSE_GROUP_TOO_NARROW and its members stay row fields; a
+	// group below RatioFloor rows per tuple is written with
+	// PULSE_DEDUP_LOW_RATIO — and the same encoder. A key violation
+	// (PULSE_GROUP_MEMBER_NOT_CONSTANT) surfaces at Close, whose
+	// details carry source_row: the 1-based Append call. The format
+	// version follows: 0x02 iff a group is written.
+	Groups []pio.GroupDecl
+	// ElideConstants stores every field holding one value on every row
+	// once, as `pulse import --elide-constants` does, decided by a full
+	// pass over the appended rows at Close.
+	ElideConstants bool
+	// RatioFloor is the rows-per-distinct-tuple floor below which a
+	// declared group draws PULSE_DEDUP_LOW_RATIO (import's
+	// --dedup-ratio-floor); 0 selects the default (2).
+	RatioFloor float64
 }
 
 // CohortBuildResult is what a successful CohortBuilder.Close wrote.
@@ -36,9 +59,18 @@ type CohortBuildResult struct {
 	Schema *encoding.Schema `json:"-"`
 	// Warnings are the non-fatal coded findings, in order: one
 	// PULSE_FIELD_DESCRIPTION_LOW_QUALITY per field with a weak
-	// description (fatal under Strict instead), then a failure to
-	// enumerate the sidecars an overwrite invalidated.
+	// description, the group gate's PULSE_GROUP_TOO_NARROW then
+	// PULSE_DEDUP_LOW_RATIO findings (each fatal under Strict instead),
+	// then a failure to enumerate the sidecars an overwrite
+	// invalidated.
 	Warnings []*errors.CodedError `json:"warnings,omitempty"`
+	// Groups describes every declared group in declaration order — its
+	// verdict and the figures behind it — as an import report does.
+	// Empty when no group was declared.
+	Groups []pio.GroupReport `json:"groups,omitempty"`
+	// ElidedConstants names the fields ElideConstants stored once, in
+	// schema order. Empty when nothing was elided.
+	ElidedConstants []string `json:"elided_constants,omitempty"`
 	// InvalidatedSidecars names each sidecar beside the target that an
 	// Overwrite of an existing cohort invalidated — the point-lookup
 	// index and its manifest, the SPSS metadata sidecar — with the
@@ -57,8 +89,9 @@ type CohortBuilder struct {
 	inner *iio.CohortBuild
 }
 
-// NewCohortBuilder starts a single-file, ungrouped (format 0x01)
-// cohort at target, resolved against the instance filesystem
+// NewCohortBuilder starts a single-file cohort at target — ungrouped
+// (format 0x01) unless opts declares a group that survives the gate or
+// elides constants (0x02) — resolved against the instance filesystem
 // (Options.FS / Options.DataDir), with the given schema.
 //
 // The schema is the contract, as an explicit-schema import's is: field
@@ -71,8 +104,11 @@ type CohortBuilder struct {
 // the declared rung is a ceiling, never auto-promoted.
 //
 // The cohort is byte-identical to an import of the same rows with the
-// same schema (pio.ImportJob with Schema set): the builder runs the
-// import path's own checks, dictionary assignment and row encoding.
+// same schema (pio.ImportJob with Schema set, and the same Groups /
+// ElideConstants): the builder runs the import path's own dictionary
+// assignment, row encoding, group gate and encoder. Shared checks are
+// the description length and the row conversion; the schema-shape
+// refusals below are the builder's own (import trusts its schema).
 //
 // Refusals: SERVICE_VALIDATION for an empty, anchored
 // (`archive.pulse#shard.pulse`) or `.zst` target, an existing target
@@ -80,11 +116,16 @@ type CohortBuilder struct {
 // duplicate names, unknown type, bad decimal precision / scale, a
 // pre-seeded dictionary longer than its rung, parent groups in the
 // schema); PULSE_IMPORT_DESCRIPTION_TOO_LONG for a description past
-// 1000 bytes; PULSE_FIELD_DESCRIPTION_LOW_QUALITY under Strict.
+// 1000 bytes; PULSE_FIELD_DESCRIPTION_LOW_QUALITY under Strict; a bad
+// group declaration (PULSE_GROUP_*) and, under Strict, a too-narrow
+// group (PULSE_GROUP_TOO_NARROW).
 func (p *Pulse) NewCohortBuilder(ctx context.Context, target string, schema encoding.Schema, opts CohortBuilderOptions) (*CohortBuilder, error) {
 	inner, err := iio.NewCohortBuild(ctx, p.fsys, target, &schema, iio.CohortBuildOptions{
-		Strict:    opts.Strict,
-		Overwrite: opts.Overwrite,
+		Strict:         opts.Strict,
+		Overwrite:      opts.Overwrite,
+		Groups:         opts.Groups,
+		ElideConstants: opts.ElideConstants,
+		RatioFloor:     opts.RatioFloor,
 	})
 	if err != nil {
 		return nil, err
@@ -109,8 +150,10 @@ func (b *CohortBuilder) Append(row CohortRow) error {
 	return b.inner.Append(row)
 }
 
-// Close writes the cohort atomically — the schema block, then every
-// spooled row, into a temp file beside the target that is fsynced and
+// Close writes the cohort atomically — with Groups or ElideConstants
+// it first makes the full pass (constant detection, group encoding
+// into a second spool, the ratio gate) — then the schema block and
+// every spooled row, into a temp file beside the target that is fsynced and
 // renamed over it — and returns what was written. On any failure
 // nothing is left at the target (an overwritten cohort stays as it
 // was) and the spool is removed. The builder is finished either way: a
@@ -121,11 +164,13 @@ func (b *CohortBuilder) Close() (*CohortBuildResult, error) {
 		return nil, err
 	}
 	res := &CohortBuildResult{
-		Target:        rep.Target,
-		Records:       rep.Records,
-		FormatVersion: rep.FormatVersion,
-		Schema:        rep.Schema,
-		Warnings:      append([]*errors.CodedError(nil), rep.Warnings...),
+		Target:          rep.Target,
+		Records:         rep.Records,
+		FormatVersion:   rep.FormatVersion,
+		Schema:          rep.Schema,
+		Warnings:        append([]*errors.CodedError(nil), rep.Warnings...),
+		Groups:          rep.Groups,
+		ElidedConstants: rep.ElidedConstants,
 	}
 	if rep.Replaced {
 		sidecars, scanErr := b.p.InvalidatedSidecars(b.ctx, rep.Target)

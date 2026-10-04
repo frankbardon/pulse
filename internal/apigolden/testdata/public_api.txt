@@ -87,7 +87,9 @@ pulse: type Cohort method (*Cohort) RecordCount() (int64, error)
 pulse: type Cohort method (*Cohort) Schema() *pulse/encoding.Schema
 pulse: type Cohort method (*Cohort) Shards() []pulse.ShardEntry
 pulse: type CohortBuildResult struct
+pulse: type CohortBuildResult field ElidedConstants []string "json:\"elided_constants,omitempty\""
 pulse: type CohortBuildResult field FormatVersion byte "json:\"cohort_format_version\""
+pulse: type CohortBuildResult field Groups []pulse/io.GroupReport "json:\"groups,omitempty\""
 pulse: type CohortBuildResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type CohortBuildResult field Records int64 "json:\"records\""
 pulse: type CohortBuildResult field Schema *pulse/encoding.Schema "json:\"-\""
@@ -98,7 +100,10 @@ pulse: type CohortBuilder method (*CohortBuilder) Abort() error
 pulse: type CohortBuilder method (*CohortBuilder) Append(row pulse.CohortRow) error
 pulse: type CohortBuilder method (*CohortBuilder) Close() (*pulse.CohortBuildResult, error)
 pulse: type CohortBuilderOptions struct
+pulse: type CohortBuilderOptions field ElideConstants bool
+pulse: type CohortBuilderOptions field Groups []pulse/io.GroupDecl
 pulse: type CohortBuilderOptions field Overwrite bool
+pulse: type CohortBuilderOptions field RatioFloor float64
 pulse: type CohortBuilderOptions field Strict bool
 pulse: type CohortFingerprint = pulse/internal/encoding.Fingerprint
 pulse: type CohortFingerprint underlying [32]byte
@@ -3748,4 +3753,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 425f9502d3f3c01f281300202601d04308f04a6ffbc39d83aa8ff80ea9b55b51
+// golden-hash: 12627a6ca98ed965e7f5f3f05ae62d7a6e0b6467c490727550ed118c767eb67f

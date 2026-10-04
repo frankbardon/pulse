@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -418,6 +419,105 @@ func TestCohortBuilderFlow(t *testing.T) {
 		t.Fatalf("Process(built) = %v, %v; want total 600", resp, err)
 	}
 }
+
+// TestCohortBuilderGroupedFlow builds a grouped, constant-elided
+// cohort through the public builder and checks it is byte-identical to
+// an explicit-schema import with the same --group / --elide-constants,
+// reads back the appended rows and processes like its ungrouped twin.
+func TestCohortBuilderGroupedFlow(t *testing.T) {
+	newSchema := func() encoding.Schema {
+		return encoding.Schema{Fields: []encoding.Field{
+			{Name: "order", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0, Description: "Order number, unique per row."},
+			{Name: "cust", Type: encoding.FieldTypeU32, ByteOffset: 4, CsvColumnIdx: 1, Description: "Customer number, the group key."},
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 8, CsvColumnIdx: 2, Description: "Customer score, set by the key."},
+			{Name: "site", Type: encoding.FieldTypeU16, ByteOffset: 16, CsvColumnIdx: 3, Description: "Site code, the same on every row."},
+		}}
+	}
+	var csv strings.Builder
+	csv.WriteString("order,cust,score,site\n")
+	var rows []pulse.CohortRow
+	scores := []float64{1.5, 2.5, 4}
+	for i := 0; i < 90; i++ {
+		c := i % len(scores)
+		rows = append(rows, pulse.CohortRow{uint64(i + 1), uint64(10 + c), scores[c], uint64(7)})
+		csv.WriteString(strings.Join([]string{itoa(i + 1), itoa(10 + c), []string{"1.5", "2.5", "4"}[c], "7"}, ",") + "\n")
+	}
+	groups := []pio.GroupDecl{{Key: []string{"cust"}, Members: []string{"score"}}}
+
+	p, fs := newEngine(t, pulse.Options{})
+	ctx := context.Background()
+	src, err := pio.NewReaderFromBytes(pio.FormatCSV, []byte(csv.String()), pio.ReaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newSchema()
+	job := pio.NewImportJob(src, "imported.pulse")
+	job.Schema, job.Groups, job.ElideConstants = &s, groups, true
+	if _, err := p.Import(ctx, job); err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+
+	build := func(target string, opts pulse.CohortBuilderOptions) *pulse.CohortBuildResult {
+		b, err := p.NewCohortBuilder(ctx, target, newSchema(), opts)
+		if err != nil {
+			t.Fatalf("NewCohortBuilder: %v", err)
+		}
+		for _, r := range rows {
+			if err := b.Append(r); err != nil {
+				t.Fatalf("Append: %v", err)
+			}
+		}
+		res, err := b.Close()
+		if err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		return res
+	}
+	res := build("grouped.pulse", pulse.CohortBuilderOptions{Groups: groups, ElideConstants: true, Strict: true})
+	build("flat.pulse", pulse.CohortBuilderOptions{})
+	if res.FormatVersion != encoding.FormatVersionV2 || len(res.ElidedConstants) != 1 || res.ElidedConstants[0] != "site" {
+		t.Fatalf("result = %+v", res)
+	}
+	if len(res.Groups) != 1 || res.Groups[0].Verdict != "admitted" {
+		t.Fatalf("group reports = %+v", res.Groups)
+	}
+	built, _ := afero.ReadFile(fs, "grouped.pulse")
+	imported, _ := afero.ReadFile(fs, "imported.pulse")
+	if len(built) == 0 || !bytes.Equal(built, imported) {
+		t.Fatalf("grouped build (%d bytes) differs from the grouped import (%d bytes)", len(built), len(imported))
+	}
+
+	c, err := p.Open(ctx, "grouped.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.Reader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	for i, want := range rows {
+		got, err := r.RecordAt(int64(i))
+		if err != nil || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] || got[3] != want[3] {
+			t.Fatalf("RecordAt(%d) = %v, %v; want %v", i, got, err, want)
+		}
+	}
+	sum := func(path string) any {
+		resp, err := p.Process(ctx, &pulse.Request{
+			Cohort:       &types.Cohort{Filename: path},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "total"}},
+		})
+		if err != nil || len(resp.Data) != 1 {
+			t.Fatalf("Process(%s) = %v, %v", path, resp, err)
+		}
+		return resp.Data[0]["total"]
+	}
+	if g, f := sum("grouped.pulse"), sum("flat.pulse"); g != f || g != float64(240) {
+		t.Fatalf("sum over grouped = %v, flat twin = %v, want 240", g, f)
+	}
+}
+
+func itoa(n int) string { return strconv.Itoa(n) }
 
 func TestSynthFixture(t *testing.T) {
 	p, fs := newEngine(t, pulse.Options{})

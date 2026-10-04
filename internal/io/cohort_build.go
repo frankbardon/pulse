@@ -21,6 +21,7 @@ import (
 const (
 	buildSpoolPattern = ".build-spool-*.tmp"
 	buildTempPattern  = ".build-*.tmp"
+	buildPhysPattern  = ".build-phys-*.tmp"
 	buildIOBuffer     = 256 << 10
 )
 
@@ -32,6 +33,19 @@ type CohortBuildOptions struct {
 	// Overwrite lets the build replace an existing target. Without it
 	// an existing target is refused (SERVICE_VALIDATION).
 	Overwrite bool
+	// Groups declares parent groups exactly as ImportJob.Groups does:
+	// the PULSE_GROUP_* declaration checks and the viability gate's
+	// width screen run in NewCohortBuild, the encode and the ratio
+	// assessment in Close. Strict is the gate's strictness too (as
+	// `--strict` is for import).
+	Groups []GroupDecl
+	// ElideConstants stores every field holding one value on every row
+	// once, as ImportJob.ElideConstants does — decided by a full pass
+	// over the spooled rows at Close.
+	ElideConstants bool
+	// RatioFloor is the viability gate's rows-per-tuple floor
+	// (ImportJob.DedupRatioFloor); 0 selects the default.
+	RatioFloor float64
 }
 
 // CohortBuildReport is what a successful CohortBuild.Close wrote.
@@ -45,15 +59,23 @@ type CohortBuildReport struct {
 	FormatVersion byte
 	// Schema is the schema written, dictionaries final.
 	Schema *encoding.Schema
-	// Warnings are the non-fatal findings (description quality).
+	// Warnings are the non-fatal findings: description quality, then
+	// the viability gate's (PULSE_GROUP_TOO_NARROW from the width
+	// screen, then PULSE_DEDUP_LOW_RATIO from the ratio assessment).
 	Warnings []*errors.CodedError
+	// Groups describes every declared group, in declaration order, as
+	// ImportReport.Groups does. Nil when none was declared.
+	Groups []GroupReport
+	// ElidedConstants names the fields ElideConstants stored once.
+	ElidedConstants []string
 	// Replaced reports that a cohort already existed at Target and was
 	// atomically replaced (Overwrite).
 	Replaced bool
 }
 
-// CohortBuild writes a single-file, ungrouped (format 0x01) cohort from
-// typed rows appended one at a time. It is the row-at-a-time twin of an
+// CohortBuild writes a single-file cohort from typed rows appended one
+// at a time — ungrouped (format 0x01) unless a declared group survives
+// the viability gate or constant elision forms a group (0x02). It is the row-at-a-time twin of an
 // explicit-schema ImportJob and runs the same code for everything that
 // decides bytes — schema description checks, dictionary assignment
 // with the declared rung as a ceiling, decimal precision, set cells and
@@ -63,9 +85,13 @@ type CohortBuildReport struct {
 // Build model: every accepted row is encoded straight to a spool file
 // beside the target on the build's afero filesystem (dictionaries
 // precede records on the wire, so the preamble can only be written
-// once the last row is in). Close writes the preamble plus the spooled
-// rows to a temp file beside the target, fsyncs it and renames it over
-// the target; Abort, or any Close failure, removes the spool and the
+// once the last row is in). The spool holds LOGICAL rows. With groups
+// or elision, Close first runs import's full pass over it — the
+// ConstantDetector (elision), then the GroupEncoder into a second,
+// physical spool, then the gate's ratio assessment, all before
+// anything is published. Close then writes the preamble plus the
+// (logical or physical) spooled rows to a temp file beside the target,
+// fsyncs it and renames it over the target; Abort, or any Close failure, removes the spool and the
 // temp file and leaves the target untouched. A CohortBuild is not safe
 // for concurrent use.
 type CohortBuild struct {
@@ -76,6 +102,13 @@ type CohortBuild struct {
 	schema *encoding.Schema
 	warns  []*errors.CodedError
 
+	// Declared groups: the specs the width screen admitted, its views
+	// (one per declaration) and its warnings.
+	specs      []encx.GroupSpec
+	screen     []encx.GroupViability
+	groupWarns []*errors.CodedError
+	rejected   []RowError // rejected Append calls, for encode-error row mapping
+
 	cells   rowCells
 	staged  []*stagedDict // per field; nil for a dictionary-less type
 	scratch bytes.Buffer
@@ -83,6 +116,7 @@ type CohortBuild struct {
 
 	spool     afero.File
 	spoolName string
+	phys      afero.File // the physical (grouped) spool, while one exists
 	sw        *bufio.Writer
 	ioErr     error // sticky: a spool write failed
 
@@ -99,8 +133,10 @@ type CohortBuild struct {
 // target; a malformed schema (no fields, empty or duplicate names, an
 // unknown type, a bad decimal precision/scale, a pre-seeded dictionary
 // longer than its rung, parent groups in the schema); an over-long
-// description (PULSE_IMPORT_DESCRIPTION_TOO_LONG); and under Strict a
-// low-quality description (PULSE_FIELD_DESCRIPTION_LOW_QUALITY).
+// description (PULSE_IMPORT_DESCRIPTION_TOO_LONG); under Strict a
+// low-quality description (PULSE_FIELD_DESCRIPTION_LOW_QUALITY); a bad
+// group declaration (PULSE_GROUP_*, from the same encoder check import
+// runs); and under Strict a too-narrow group (PULSE_GROUP_TOO_NARROW).
 func NewCohortBuild(ctx context.Context, fsys afero.Fs, target string, schema *encoding.Schema, opts CohortBuildOptions) (*CohortBuild, error) {
 	if fsys == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "cohort build needs a filesystem")
@@ -112,15 +148,34 @@ func NewCohortBuild(ctx context.Context, fsys afero.Fs, target string, schema *e
 	if err != nil {
 		return nil, err
 	}
+	var (
+		specs      []encx.GroupSpec
+		screen     []encx.GroupViability
+		groupWarns []*errors.CodedError
+	)
+	if declared := groupSpecs(opts.Groups); len(declared) > 0 {
+		// Import's pre-pass: the full declaration check, then the
+		// schema-only width screen. An explicit schema never widens,
+		// so this verdict is final (no strict re-screen).
+		if _, err := encx.NewGroupEncoder(written, declared); err != nil {
+			return nil, err
+		}
+		if specs, screen, groupWarns, err = buildGate(opts).ScreenWidths(written, declared); err != nil {
+			return nil, err
+		}
+	}
 	b := &CohortBuild{
-		ctx:    ctx,
-		fs:     fsys,
-		target: target,
-		opts:   opts,
-		schema: written,
-		warns:  warns,
-		cells:  newRowCells(len(written.Fields)),
-		staged: make([]*stagedDict, len(written.Fields)),
+		specs:      specs,
+		screen:     screen,
+		groupWarns: groupWarns,
+		ctx:        ctx,
+		fs:         fsys,
+		target:     target,
+		opts:       opts,
+		schema:     written,
+		warns:      warns,
+		cells:      newRowCells(len(written.Fields)),
+		staged:     make([]*stagedDict, len(written.Fields)),
 	}
 	for i := range written.Fields {
 		if d := written.Fields[i].Dictionary; d != nil {
@@ -204,6 +259,7 @@ func (b *CohortBuild) Append(row []any) error {
 	b.calls++
 	if err := b.convert(row); err != nil {
 		b.rollback()
+		b.rejected = append(b.rejected, RowError{Row: int(b.calls)})
 		return err
 	}
 	b.scratch.Reset()
@@ -408,25 +464,122 @@ func (b *CohortBuild) Close() (*CohortBuildReport, error) {
 		return nil, err
 	}
 	replaced, _ := afero.Exists(b.fs, b.target)
-	if _, err := b.spool.Seek(0, io.SeekStart); err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_IO, "rewinding build spool")
-	}
-	if err := b.publish(); err != nil {
+	lay, err := b.finalLayout()
+	if err != nil {
 		return nil, err
 	}
-	return &CohortBuildReport{
-		Target:        b.target,
-		Records:       b.records,
-		FormatVersion: b.schema.RequiredFormatVersion(),
-		Schema:        b.schema,
-		Warnings:      b.warns,
-		Replaced:      replaced,
-	}, nil
+	if err := b.publish(lay.schema, lay.payload); err != nil {
+		return nil, err
+	}
+	rep := &CohortBuildReport{
+		Target:          b.target,
+		Records:         b.records,
+		FormatVersion:   lay.schema.RequiredFormatVersion(),
+		Schema:          lay.schema,
+		Warnings:        append(append(append([]*errors.CodedError(nil), b.warns...), b.groupWarns...), lay.ratioWarns...),
+		ElidedConstants: lay.elided,
+		Replaced:        replaced,
+	}
+	rep.Groups = groupReports(lay.schema, b.opts.Groups, b.screen, lay.ratio)
+	return rep, nil
 }
 
-// publish assembles preamble + spool into a temp file beside the
-// target, fsyncs it and renames it over the target.
-func (b *CohortBuild) publish() error {
+// buildGate is the viability policy the options select.
+func buildGate(opts CohortBuildOptions) encx.DedupGate {
+	return encx.DedupGate{RatioFloor: opts.RatioFloor, Strict: opts.Strict}
+}
+
+// buildLayout is what Close publishes: the schema to write, the
+// record payload to copy after it, and the full pass's findings.
+type buildLayout struct {
+	schema     *encoding.Schema
+	payload    io.Reader
+	elided     []string
+	ratio      []encx.GroupViability
+	ratioWarns []*errors.CodedError
+}
+
+// finalLayout decides the cohort's layout from every spooled row, as
+// import's writeCohortPayload does from its buffered rows: with
+// ElideConstants a ConstantDetector observes every logical row and the
+// plan's constant group follows the admitted declared groups (whose
+// members are reserved from elision); with any group at all the
+// logical rows are encoded through one GroupEncoder into a physical
+// spool and the declared groups' ratios are assessed — a Strict
+// finding fails here, before anything is published. With no group the
+// logical spool is the payload (0x01).
+func (b *CohortBuild) finalLayout() (*buildLayout, error) {
+	rewind := func() error {
+		if _, err := b.spool.Seek(0, io.SeekStart); err != nil {
+			return errors.WrapCodedError(err, errors.ENCODING_IO, "rewinding build spool")
+		}
+		return nil
+	}
+	if err := rewind(); err != nil {
+		return nil, err
+	}
+	lay := &buildLayout{schema: b.schema, payload: b.spool}
+	specs := append([]encx.GroupSpec(nil), b.specs...)
+	if b.opts.ElideConstants {
+		det, err := encx.NewConstantDetector(b.schema)
+		if err != nil {
+			return nil, err
+		}
+		in := ctxReader{ctx: b.ctx, r: bufio.NewReaderSize(b.spool, buildIOBuffer)}
+		if _, err := encx.ForEachRecord(in, det.Stride(), det.Observe); err != nil {
+			return nil, err
+		}
+		plan, err := encx.PlanConstantElision(det, groupMemberNames(b.specs))
+		if err != nil {
+			return nil, err
+		}
+		if plan.Spec != nil {
+			lay.elided = plan.Fields
+			specs = append(specs, *plan.Spec)
+		}
+		if err := rewind(); err != nil {
+			return nil, err
+		}
+	}
+	if len(specs) == 0 {
+		return lay, nil
+	}
+	enc, err := encx.NewGroupEncoder(b.schema, specs)
+	if err != nil {
+		return nil, err
+	}
+	dir, base := filepath.Dir(b.target), filepath.Base(b.target)
+	phys, err := afero.TempFile(b.fs, dir, base+buildPhysPattern)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("creating physical spool beside %s", b.target))
+	}
+	b.phys = phys
+	pw := bufio.NewWriterSize(phys, buildIOBuffer)
+	in := ctxReader{ctx: b.ctx, r: bufio.NewReaderSize(b.spool, buildIOBuffer)}
+	if _, err := enc.EncodeStream(pw, in); err != nil {
+		return nil, withSourceRow(err, b.rejected)
+	}
+	if err := pw.Flush(); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("flushing physical spool for %s", b.target))
+	}
+	lay.schema = enc.Schema()
+	// The ratio floor, measured over the dictionaries the full pass
+	// built, before anything reaches the target (as import does).
+	if lay.ratio, lay.ratioWarns, err = buildGate(b.opts).AssessRatios(lay.schema, b.specs, b.records); err != nil {
+		return nil, err
+	}
+	if _, err := phys.Seek(0, io.SeekStart); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO, "rewinding physical spool")
+	}
+	lay.payload = phys
+	return lay, nil
+}
+
+// publish assembles preamble(schema) + payload into a temp file beside
+// the target, fsyncs it and renames it over the target.
+func (b *CohortBuild) publish(schema *encoding.Schema, payload io.Reader) error {
 	dir, base := filepath.Dir(b.target), filepath.Base(b.target)
 	tmp, err := afero.TempFile(b.fs, dir, base+buildTempPattern)
 	if err != nil {
@@ -440,10 +593,10 @@ func (b *CohortBuild) publish() error {
 		return e
 	}
 	tw := bufio.NewWriterSize(tmp, buildIOBuffer)
-	if err := encx.WritePreamble(tw, b.schema); err != nil {
+	if err := encx.WritePreamble(tw, schema); err != nil {
 		return abort(err)
 	}
-	if _, err := io.Copy(tw, ctxReader{ctx: b.ctx, r: b.spool}); err != nil {
+	if _, err := io.Copy(tw, ctxReader{ctx: b.ctx, r: payload}); err != nil {
 		return abort(errors.WrapCodedError(err, errors.ENCODING_IO,
 			fmt.Sprintf("writing cohort %s", b.target)))
 	}
@@ -485,6 +638,17 @@ func (b *CohortBuild) Abort() error {
 }
 
 func (b *CohortBuild) dropSpool() error {
+	if b.phys != nil {
+		name := b.phys.Name()
+		_ = b.phys.Close()
+		b.phys = nil
+		if err := b.fs.Remove(name); err != nil {
+			if exists, _ := afero.Exists(b.fs, name); exists {
+				return errors.WrapCodedError(err, errors.ENCODING_IO,
+					fmt.Sprintf("removing build spool %s", name))
+			}
+		}
+	}
 	_ = b.spool.Close()
 	if err := b.fs.Remove(b.spoolName); err != nil {
 		if exists, _ := afero.Exists(b.fs, b.spoolName); exists {
