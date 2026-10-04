@@ -3,9 +3,7 @@ package descriptor
 import (
 	"bytes"
 	"io"
-	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -770,19 +768,10 @@ func validateDescriptionQuality(env *descriptor.Envelope, schema *encoding.Schem
 	}
 }
 
-// isLowQualityDescription checks if a description is empty or too short/generic.
+// isLowQualityDescription checks if a description is empty or too
+// short/generic — the shared encx.IsLowQualityDescription rule.
 func isLowQualityDescription(desc string) bool {
-	if desc == "" {
-		return true
-	}
-	trimmed := strings.TrimSpace(desc)
-	if len(trimmed) < 10 {
-		return true
-	}
-	// Check for obviously unhelpful descriptions.
-	lower := strings.ToLower(trimmed)
-	unhelpful := []string{"n/a", "na", "none", "tbd", "todo", "unknown", "field", "data", "value", "column"}
-	return slices.Contains(unhelpful, lower)
+	return encx.IsLowQualityDescription(desc)
 }
 
 // overlayCostStreamable is the OverlayCost score assigned to overlay

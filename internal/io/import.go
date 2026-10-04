@@ -66,6 +66,16 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 		return nil, err
 	}
 
+	// A user-authored schema's descriptions are checked before the row
+	// pass with the schema writer's own code — the check the cohort
+	// builder shares (explicit_schema.go) — so an over-long description
+	// fails fast rather than after reading the whole source.
+	if j.Schema != nil && !j.InferredSchema {
+		if err := checkSchemaDescriptions(j.Schema); err != nil {
+			return nil, err
+		}
+	}
+
 	// Infer schema if not provided.
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
@@ -722,22 +732,9 @@ func convertValueWide(raw string, f encoding.Field, dict *encoding.Dictionary, s
 		if err != nil {
 			return out, err
 		}
-		// Rescale to the field's declared scale.
-		if parsedScale != f.Scale {
-			d, err = d.Rescale(parsedScale, f.Scale)
-			if err != nil {
-				return out, err
-			}
-		}
-		if !d.FitsPrecision(f.Precision) {
-			return out, errors.NewCodedErrorWithDetails(
-				errors.PULSE_DECIMAL_OVERFLOW,
-				"decimal value exceeds field precision",
-				map[string]any{"value": raw, "precision": f.Precision, "scale": f.Scale})
-		}
-		enc := encoding.EncodeDecimal128(d)
-		copy(out[:], enc[:])
-		return out, nil
+		// Rescale to the field's declared scale, then the precision
+		// check (decimalCell, shared with the cohort builder).
+		return decimalCell(d, parsedScale, f, raw)
 
 	case f.Type.IsWideSet():
 		// Identical token -> bit assignment to the narrow rungs; the
@@ -747,10 +744,7 @@ func convertValueWide(raw string, f encoding.Field, dict *encoding.Dictionary, s
 		if err != nil {
 			return out, err
 		}
-		if err := encoding.PutSetMask(out[:f.Type.ByteSize()], f.Type, mask); err != nil {
-			return out, err
-		}
-		return out, nil
+		return wideSetCell(mask, f.Type)
 
 	default:
 		return out, fmt.Errorf("not a wide field type: %s", f.Type)
@@ -764,26 +758,14 @@ func convertValueWide(raw string, f encoding.Field, dict *encoding.Dictionary, s
 // the mask whole. Keeping one implementation is what stops a bit from
 // landing on a different dictionary entry either side of 64.
 func setMaskFromCell(raw string, ft encoding.FieldType, dict *encoding.Dictionary, setDelim string) (encoding.SetMask, error) {
-	var mask encoding.SetMask
 	if dict == nil {
-		return mask, fmt.Errorf("no dictionary for set field")
+		return encoding.SetMask{}, fmt.Errorf("no dictionary for set field")
 	}
 	delim := setDelim
 	if delim == "" {
 		delim = DefaultSetDelimiter
 	}
-	maxEntries := ft.MaxSetEntries()
-	for _, tok := range splitSetTokens(raw, delim) {
-		id, err := dict.AddWithLimit(tok, maxEntries)
-		if err != nil {
-			return mask, errors.NewCodedErrorWithDetails(
-				errors.PULSE_IMPORT_SET_OVERFLOW,
-				fmt.Sprintf("set dictionary overflowed %s (max %d entries)", ft, maxEntries),
-				map[string]any{"type": ft.String(), "max_entries": maxEntries, "token": tok})
-		}
-		mask = mask.WithBit(int(id))
-	}
-	return mask, nil
+	return internSetTokens(dict, splitSetTokens(raw, delim), ft)
 }
 
 // setDelimiterFor returns the configured delimiter for a set-typed
@@ -880,12 +862,7 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, 
 		if dict == nil {
 			return 0, fmt.Errorf("no dictionary for categorical field")
 		}
-		maxEntries := ft.MaxCategoricalEntries()
-		id, err := dict.AddWithLimit(raw, maxEntries)
-		if err != nil {
-			return 0, err
-		}
-		return uint64(id), nil
+		return internCategorical(dict, raw, ft)
 
 	case encoding.FieldTypeSetU8, encoding.FieldTypeSetU16, encoding.FieldTypeSetU32, encoding.FieldTypeSetU64:
 		// The narrow rungs store their bitmask in a uint64 and keep the
@@ -899,14 +876,7 @@ func convertValue(raw string, ft encoding.FieldType, dict *encoding.Dictionary, 
 		if err != nil {
 			return 0, err
 		}
-		low, ok := mask.Uint64()
-		if !ok {
-			return 0, errors.NewCodedErrorWithDetails(
-				errors.PULSE_IMPORT_SET_OVERFLOW,
-				fmt.Sprintf("set mask has bit %d beyond the 64 bits %s stores", mask.HighestBit(), ft),
-				map[string]any{"type": ft.String(), "max_entries": ft.MaxSetEntries(), "highest_bit": mask.HighestBit()})
-		}
-		return low, nil
+		return narrowSetWord(mask, ft)
 
 	default:
 		return 0, fmt.Errorf("unsupported field type: %s", ft)
